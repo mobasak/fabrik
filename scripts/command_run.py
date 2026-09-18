@@ -2466,6 +2466,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--surface", default="", help="name the surface late if `start` omitted it (ledger)"
     )
     p.add_argument("--evidence", required=True)
+    p.add_argument("--commit", default=None, help=_TASK_COMMIT_HELP)
     p.add_argument(
         "--feedback",
         default=None,
@@ -2497,6 +2498,7 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument("--reason", required=True, help="why rows remain open")
+    p.add_argument("--commit", default=None, help=_TASK_COMMIT_HELP)
     p.add_argument(
         "--feedback",
         default=None,
@@ -2513,6 +2515,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--surface", default="", help="name the surface late if `start` omitted it (ledger)"
     )
     p.add_argument("--reason", required=True)
+    p.add_argument("--commit", default=None, help=_TASK_COMMIT_HELP)
     p.add_argument(
         "--feedback",
         default=None,
@@ -2903,6 +2906,364 @@ def _task_size_gate(args: argparse.Namespace) -> tuple[int, dict[str, Any] | Non
         _refuse(f"REFUSED — fabrik-task: {lane[0]} → {lane[1]}")
         return 1, None
     return 0, declared
+
+
+# ─────────────────── the /fabrik-task CLOSE-time re-measure (phase 5) ───────────────────
+# Spec § Chosen approach, Phase 5, invariants (i)-(vi). Invariant (i) is the scope and it is
+# load-bearing: `_close` serves EVERY command and this file is fleet-synced into ~46 repos, so
+# an unscoped re-measure would run on every `/fabrik-review` in all of them. Everything below
+# is stdlib-only and reaches git only through `_task_git`.
+
+_TASK_COMMIT_HELP = (
+    "the SHA of this run's commit, from phase 5's capture file. `fabrik-task` ONLY: "
+    "REQUIRED on `done` there, optional on `blocked`/`handoff` (which may close before any "
+    "commit exists), and REFUSED on every other command"
+)
+
+# `git`'s empty tree. A ROOT commit has no parent, so `<c>~1` does not resolve and its diff is
+# taken against this — the scaffold case, where reading `no-git` would hide the whole change.
+_TASK_EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+# NOT a Doc Sync Matrix row — the corpus inventory's § Documentation landing sites names it — so
+# it is a NAMED CONSTANT here, with its own grader asserting the file exists on disk. A constant
+# naming a file that does not exist is an exclusion nobody could ever earn.
+_TASK_CAPABILITIES = "docs/CAPABILITIES.md"
+
+# The shared-append ledgers § EXIT mandates. On the hub every one is ALSO a matrix row; they are
+# named because they are what a repo whose `CLAUDE.md` carries no matrix still owes.
+_TASK_LEDGER_EXCL = (
+    "CHANGELOG.md",
+    "docs/DECISIONS.md",
+    "docs/STRATEGIC_BACKLOG.md",
+    "INDEX.md",
+    "docs/LESSONS_LEARNT.md",
+)
+
+_TASK_BACKTICKED = re.compile(r"`([^`]+)`")
+_TASK_DOC_SUFFIXES = (".md", ".example", ".sql")
+
+
+def _doc_sync_tokens(text: str) -> set[str]:
+    """The Doc Sync Matrix's *Update* column, parsed out of a `CLAUDE.md` body AT CLOSE TIME.
+
+    The section runs from the first line that STARTSWITH ``## Doc Sync Matrix`` to the next line
+    that startswith ``## ``, or to end-of-file.
+
+    ⚠️ startswith, never equality: the live heading is
+    ``## Doc Sync Matrix (update matched docs in same change — gate-enforced)`` in BOTH copies,
+    so an equality read finds nothing and EXCL silently collapses from 26 paths to 6 — a
+    difference no refusal and no log line would ever report.
+
+    ⚠️ The END falls back to end-of-file. An unguarded ``next()`` raises ``StopIteration``, and
+    the rc-0 swallow at ``:2557-2559`` turns that into a SILENT success with no measurement.
+
+    A ``<name>`` entry (``docs/reference/<name>.md``) is a whole-DIRECTORY row and yields its
+    PREFIX; every other backticked ``.md``/``.example``/``.sql`` token is a concrete path. Never
+    a frozen copy of the list: a matrix row changed inside the 300-commit sample window, and
+    rows were added before it.
+    """
+    lines = text.splitlines()
+    at = next((i for i, ln in enumerate(lines) if ln.startswith("## Doc Sync Matrix")), -1)
+    if at < 0:
+        return set()
+    end = next((i for i in range(at + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+    out: set[str] = set()
+    for ln in lines[at + 1 : end]:
+        if not ln.startswith("|"):
+            continue
+        cells = ln.split("|")
+        if len(cells) < 4:  # not a two-column row; the `|---|---|` separator included
+            continue
+        for tok in _TASK_BACKTICKED.findall(cells[2]):
+            if not tok.endswith(_TASK_DOC_SUFFIXES):
+                continue
+            out.add(tok.split("<", 1)[0] if "<" in tok else tok)
+    return out
+
+
+def _task_excl(root: Path) -> set[str]:
+    """Invariant (iv)'s exclusion set: the live matrix's destinations, the five ledger files and
+    `docs/CAPABILITIES.md`.
+
+    A repo whose `CLAUDE.md` is absent, unreadable, or carries no matrix section falls back to
+    the six constants — NEVER a fourth `unmeasurable` reason: the membership arm can still say
+    something true about a commit, and reporting it as unmeasurable would discard that.
+    """
+    excl = set(_TASK_LEDGER_EXCL) | {_TASK_CAPABILITIES}
+    try:
+        excl |= _doc_sync_tokens((root / "CLAUDE.md").read_text(encoding="utf-8"))
+    except Exception:
+        # The BARE class, and not `OSError` alone: an undecodable `CLAUDE.md` raises
+        # `UnicodeDecodeError`, which is a `ValueError` — it would escape to the caller's arm and
+        # be recorded as `unmeasurable=no-git`, a reason that is simply false (git is fine) and
+        # that discards a membership count this function could still have produced from the six.
+        pass
+    return excl
+
+
+def _task_excluded(path: str, excl: set[str]) -> bool:
+    """A concrete path matches exactly; a `<name>` row's PREFIX matches its whole directory."""
+    return path in excl or any(t.endswith("/") and path.startswith(t) for t in excl)
+
+
+def _task_upgrade(text: str) -> str:
+    """The `upgrade` key: ANCHORED at the start of the stripped text, then the FIRST
+    whitespace-delimited token after the colon.
+
+    ⚠️ An unanchored substring search is a live corruption, not a style point:
+    ``--evidence "fix complete; no UPGRADE: was required"`` writes ``upgrade: was``.
+
+    A bare ``UPGRADE:`` with no token writes NO field — never an ``IndexError``, which the rc-0
+    swallow would turn into a silent success. The match is case-SENSITIVE: ``upgrade: sync`` is
+    prose, and treating it as a claim would let the lane's widest assertion in by accident.
+    """
+    s = str(text or "").strip()
+    if not s.startswith("UPGRADE:"):
+        return ""
+    rest = s[len("UPGRADE:") :].split()
+    return rest[0] if rest else ""
+
+
+def _task_field(n: int, sha: str, paths: list[str]) -> str:
+    """Invariant (vi)'s non-zero grammar: ``<n> · commit=<sha> · paths=<first three>``.
+
+    ⚠️ This order DIVERGES from the CONVERGED spec, which states ``paths=`` first. The
+    divergence is deliberate and minted in D-294: ``_cap_field`` truncates the TAIL, and three
+    deep paths make the value ~2,441 chars — under the spec's order the 2,000-char cap eats
+    ``commit=<sha>`` entirely, losing the one field that makes the row reproducible. The count
+    is the whole set; the names are a sample.
+    """
+    return f"{n} · commit={sha} · paths=" + ",".join(paths[:3])
+
+
+def _task_diff_pairs(root: Path, base: str, sha: str) -> list[tuple[str | None, str]]:
+    """``(source, destination)`` per changed path; ``source`` is None for an add/modify/delete.
+
+    ``git -c core.quotePath=false diff --name-status -M -C -z <base> <sha>``. All three flags
+    matter, each executed:
+
+    * without ``-z`` git emits ``"caf\\303\\251.md"`` for a non-ASCII path, so a declared
+      ``café.md`` can never match its own diff line;
+    * without ``-C`` a commit carrying BOTH a rename and a copy is MIS-ATTRIBUTED — ``-M`` alone
+      printed ``R100 orig.md copy.md`` + ``A renamed.md``, pairing the rename's source with the
+      COPY, where ``-M -C`` printed ``C100 orig.md copy.md`` + ``R100 orig.md renamed.md``;
+    * ``core.quotePath`` is the belt to ``-z``'s braces — the canonical spelling of "give me the
+      bytes", and the one that keeps a non-`-z` debugging read honest.
+
+    FIELD STRUCTURE, executed: ``-z`` TERMINATES every field (so the split yields a trailing
+    empty to discard), an add/modify/delete is TWO fields, and BOTH a rename and a copy are
+    THREE (``R100``/``C100``, source, destination). A splitter taking three fields only for
+    ``R`` reads a ``C100`` destination as the next STATUS and every later field is off by one.
+
+    Raises on a non-zero rc — the caller's arm records `unmeasurable=no-git` rather than
+    inventing a number from a diff that did not run.
+    """
+    r = _task_git(
+        root, "-c", "core.quotePath=false", "diff", "--name-status", "-M", "-C", "-z", base, sha
+    )
+    if r.returncode != 0:
+        raise RuntimeError(f"git diff rc {r.returncode}: {r.stderr.strip()[:200]}")
+    fields = r.stdout.split("\0")
+    if fields and fields[-1] == "":
+        fields.pop()
+    pairs: list[tuple[str | None, str]] = []
+    i = 0
+    while i < len(fields):
+        if fields[i][:1] in ("R", "C") and i + 2 < len(fields):
+            pairs.append((fields[i + 1], fields[i + 2]))
+            i += 3
+        elif i + 1 < len(fields):
+            pairs.append((None, fields[i + 1]))
+            i += 2
+        else:
+            break  # a truncated tail is not a path; never guess one
+    return pairs
+
+
+def _task_measure(
+    rec: dict[str, Any], args: argparse.Namespace, sha_in: str, upgrade: str
+) -> tuple[int, str]:
+    """Invariants (ii)-(vi) for a close that CARRIED a commit. ``(rc, field)``; rc 1 means the
+    close is refused and the refusal has already printed.
+
+    ⚠️ COBRA (D-253): the cheapest way to score ``oversized_mini: 0`` without producing the
+    outcome is to park the extra work under ``docs/reference/`` or ``docs/workstation/``, whose
+    matrix rows are whole-DIRECTORY prefixes — a real subsystem doc is legitimately excluded
+    there, and so is anything else dropped beside it. Nothing here can tell the two apart, and
+    nothing tries: the counter-measures are phase 4's review seats, which are told the DECLARED
+    size and asked whether the change fits it, and the command's own V3 probe. A check that
+    tried to judge the content of a `docs/reference/` write would only teach a better lie.
+    """
+    root = str(rec.get("repo_root") or "")
+    if not root:
+        # A record whose `start` ran outside a git repo. Unverifiable is `no-git`, never a guess
+        # against the CLOSE process's cwd — that is the wrong-repo hole the artifact check paid
+        # for at round 33.
+        raise RuntimeError("no repo_root on record")
+    rp = Path(root)
+
+    # ── (ii) RESOLVE the commit ───────────────────────────────────────────────────────────
+    ok = True
+    parents: list[str] = []
+    t = _task_git(rp, "cat-file", "-t", sha_in)
+    if t.returncode != 0 or t.stdout.strip() != "commit":
+        ok = False  # unresolvable, or a tag/tree/blob
+    if ok:
+        pr = _task_git(rp, "log", "-1", "--format=%p", sha_in)
+        if pr.returncode != 0:
+            ok = False
+        else:
+            parents = pr.stdout.split()
+            # A MERGE has two parents, so its diff against `~1` is ONE side's only — a number
+            # that would silently describe the wrong change. § EXIT's local-merge disposition
+            # passes the merged BRANCH's own commit instead.
+            ok = len(parents) <= 1
+    if ok:
+        ct = _task_git(rp, "log", "-1", "--format=%ct", sha_in)
+        started = _finite_ts(rec.get("started_epoch"))
+        raw = ct.stdout.strip()
+        if ct.returncode != 0 or not raw.isdigit():
+            ok = False
+        elif started is not None and started > 0 and int(raw) < math.floor(started):
+            # A STALE capture file — a previous run's SHA — resolves perfectly and has one
+            # parent; its committer date is the only thing that refuses it. Whole-SECOND
+            # tolerance (`math.floor`): `%ct` is integer seconds and `started_epoch` a float, so
+            # a commit made in the very second the run opened must not read as older than it.
+            ok = False
+    if not ok:
+        # The merge and the stale date SHARE this message: both answer the same question.
+        return _refuse(f"REFUSED — fabrik-task: --commit {sha_in} is not this run's commit"), ""
+    rv = _task_git(rp, "rev-parse", "-q", "--verify", sha_in + "^{commit}")
+    sha = rv.stdout.strip() if rv.returncode == 0 else sha_in
+
+    # ── (iii) the diff ────────────────────────────────────────────────────────────────────
+    pairs = _task_diff_pairs(rp, f"{sha}~1" if parents else _TASK_EMPTY_TREE, sha)
+
+    # ── (iv) EXCL, and the sync filter re-read at CLOSE time ──────────────────────────────
+    declared = set((rec.get("declared") or {}).get("files") or [])
+    excl = _task_excl(rp)
+    src_txt = _sync_filter_source()
+    pat: re.Pattern[str] | None = None
+    if src_txt:
+        try:
+            pat = re.compile(src_txt)  # bare, like the gate's: the consumer is `grep -qE`
+        except re.error:
+            pat = None
+
+    # ── (v) the UNION OF TWO SETS, deduplicated ───────────────────────────────────────────
+    # ⚠️ NOT a three-way exclusion chain. The two readings disagree and the overlap is real:
+    # `docs/reference/technology-stack-decision-guide.md` is BOTH a matrix EXCL prefix member
+    # and a sync-regex hit, and a chained reading scores it 0.
+    a: set[str] = set()
+    b: set[str] = set()
+
+    def _member(p: str) -> bool:
+        return p in declared or _task_excluded(p, excl)
+
+    for src, dst in pairs:
+        member = _member(dst)
+        if src is not None:
+            # An `R`/`C` DESTINATION inherits its source's membership — a declared file renamed
+            # is still the declared work. The SOURCE is judged on its OWN membership like any
+            # other path, so both tokens of the pair may contribute.
+            if _member(src):
+                member = True
+            else:
+                a.add(src)
+        if not member:
+            a.add(dst)
+        if pat is not None:
+            # SET B takes every sync hit in the commit, EXCLUDED OR NOT, source or destination.
+            for p in (src, dst):
+                if p and pat.search(p):
+                    b.add(p)
+
+    if upgrade == "sync" and pat is not None and not b:
+        # `UPGRADE: sync` is the lane's widest claim — it says this change reaches ~46 repos. A
+        # commit whose paths the filter never matches cannot have made it. Guarded on
+        # `pat is not None`: an UNREADABLE filter cannot refute the claim, and refusing on it
+        # would turn a spoke's missing hub file into a refused close.
+        flag = "evidence" if args.cmd == "done" else "reason"
+        return _refuse(
+            f"REFUSED — fabrik-task: --{flag} claims UPGRADE: sync but the commit has no "
+            "sync-regex hit"
+        ), ""
+
+    paths = sorted(a | b)
+    if paths:
+        return 0, _task_field(len(paths), sha, paths)
+    if (rec.get("declared") or {}).get("sync_test") == "unavailable" and pat is None:
+        # Invariant (vi)'s third reason, and its PRECEDENCE: the membership arm still ran, so a
+        # COUNT still wins above — this is reported only when the measurable half found nothing.
+        return 0, "unmeasurable=sync_test-unavailable"
+    return 0, "0"
+
+
+def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[int, dict[str, str]]:
+    """The lane's TWO row fields for this close: ``(rc, fields)``. rc 1 = refused, already
+    printed, and the record must stay `running`.
+
+    Called from `_close` immediately after the verb branch and STRICTLY BEFORE the `run_close`
+    event is queued: `_flush_events` runs in a `finally`, so a refusal placed after that queue
+    would emit `run_close {verdict: done}` for a close that did not happen — the very
+    disagreement the NOT-CLOSED path deletes that event to prevent.
+    """
+    commit = getattr(args, "commit", None)
+    if (rec.get("command") or "") != _TASK_COMMAND:
+        # ⚠️ OUTSIDE the lane block, deliberately (invariant (i) scopes the MEASURE, not this
+        # guard). Placed inside it this refusal could never fire, and
+        # `done --command fabrik-review --commit <sha>` would be SILENTLY ACCEPTED — breaking
+        # the byte-identical promise in every one of the ~46 repos this file is synced to.
+        # PRESENCE, never truthiness: `--commit ""` on another command is the same mistake.
+        if commit is not None:
+            return _refuse("REFUSED — --commit belongs to --command fabrik-task"), {}
+        return 0, {}
+
+    fields: dict[str, str] = {}
+    up = _task_upgrade(
+        getattr(args, "evidence", "") if args.cmd == "done" else getattr(args, "reason", "")
+    )
+    if up:
+        fields["upgrade"] = _cap_field(up)
+
+    if commit is None:
+        if args.cmd == "done":
+            # A DIFFERENT mistake from an empty value, so a different message: the empty-value
+            # remedy sends this agent to a file that does not exist.
+            return _refuse(
+                "REFUSED — fabrik-task: done needs --commit; run phase 5's capture "
+                "(`git rev-parse -q --verify HEAD > <scratchpad>/fabrik-task/<sid>/"
+                "<started_at>/commit.sha`) in the SAME shell as the commit, and pass it"
+            ), {}
+        # `blocked`/`handoff` may close before any commit exists. `no-commit` WINS
+        # unconditionally: with no diff the membership arm cannot run, so neither a count nor
+        # `sync_test-unavailable` is reachable from here.
+        fields["oversized_mini"] = "unmeasurable=no-commit"
+        return 0, fields
+    if not commit.strip():
+        # The quoted substitution delivers `''` when the capture file is absent OR empty and the
+        # tool cannot tell which — so the remedy is to re-read the file.
+        return _refuse(
+            "REFUSED — fabrik-task: --commit is empty — re-read the capture file written "
+            "beside the commit"
+        ), {}
+
+    try:
+        rc, value = _task_measure(rec, args, commit.strip(), up)
+    except Exception as e:
+        # The BARE class: a MEASUREMENT failure must never block a close. A refusal here would
+        # leave the record `running` and the Stop hook blocking the turn over a git binary, a
+        # timeout, or an unreadable tree — and an escaping exception would become rc 0 at
+        # `:2557-2559` with no field written at all.
+        sys.stderr.write(
+            f"[command_run] ⚠ fabrik-task: re-measure unavailable ({type(e).__name__})\n"
+        )
+        fields["oversized_mini"] = "unmeasurable=no-git"
+        return 0, fields
+    if rc:
+        return rc, {}
+    fields["oversized_mini"] = _cap_field(value)
+    return 0, fields
 
 
 def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
@@ -3926,6 +4287,14 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         rec["resume"] = args.resume
     else:
         rec["blocked_reason"] = args.reason
+    # ── the /fabrik-task close-time re-measure (T01b) ──────────────────────────────────────
+    # HERE and not one line later: strictly BEFORE the `run_close` event is queued, because
+    # `_flush_events` runs in a `finally` and a refusal after that queue would emit a close
+    # event for a close that did not happen. Nothing above this point has touched DISK — the
+    # record is only mutated in memory until `save()` — so a refusal leaves it `running`.
+    _task_rc, _task_fields = _task_close_fields(rec, args)
+    if _task_rc:
+        return _task_rc
     _touch(rec)
     _se = _finite_ts(rec.get("started_epoch"))
     if _se is not None and _se > 0:
@@ -4037,6 +4406,10 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "resumed": (parent or {}).get("command") or "",
             "resumed_phase": (parent or {}).get("phase") or 0,
             "resumed_rounds": len((parent or {}).get("rounds") or []),
+            # The lane's two fields, mirrored from the row so the event stream carries what the
+            # ledger carries — a close the two disagree about is a disagreement nothing
+            # downstream can ever repair. Empty for every other command (invariant (i)).
+            **_task_fields,
         },
     )
     # ── the fleet-wide usage ledger + the FINAL OUTPUT line (D-175) ─────────────────────────
@@ -4089,6 +4462,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "account": str(rec.get("account") or ""),
             **{k: _cap_field(_usage_fields.get(k, "")) for k in (*_USAGE_FIELDS, "cost")},
             "cost_usd": _cost_usd(_usage_fields.get("cost", "")),
+            # `fabrik-task` ONLY — an empty dict everywhere else, so every other command's row
+            # stays byte-identical in all ~46 repos this file is synced to.
+            **_task_fields,
             **_tok,
         }
         _pending_row = _row  # appended only once the record itself persisted (pass 27)
