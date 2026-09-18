@@ -15,7 +15,7 @@
   ],
   "branch": "master",
   "started_at": "2026-09-18T11:30:30",
-  "status": "paused",
+  "status": "blocked",
   "baseline_commit": "90e022ef86713132f0c3faa2f7039d44a316f42a",
   "baseline_gate": {
     "final_gate": "success",
@@ -29,7 +29,10 @@
     "captured_at": "2026-09-18T11:30:30",
     "note": "hub pytest leg is OFF by design (5,913 tests); bandit/semgrep not installed in the venv"
   },
-  "paused_at": "2026-09-18T16:53:23+03:00",
-  "paused_reason": "Quota: the FLEET band is AMBER on the weekly window \u2014 sarp 85% is the COOLEST account (can 97, ozgurbasak 91, ob 87, mob 100/exhausted), so no rotation can buy headroom. /fabrik-execute-plan's own rule: 'quota pressure pauses the plan, it never thins the review.' T04a needs a coder dispatch and a 3-seat review floor, both of which AMBER forbids starting, and the Opus floor is never substitutable downward. Paused at a clean boundary: T01a/T01b/T02/T03 all merged, reviewed to their coverage-adjudicated exits, and PUSHED; class ledger clean; nothing uncommitted. Resume at T04a on quota reset or a rotation that lands a genuinely cool weekly window.",
-  "resume_at": "T04a \u2014 hub CLAUDE.md: the lane table, \u00a7 1a's trigger, the HANDLE-NOW pointer"
+  "resume_at": "AFTER the spec's test 4 is re-cut and re-CONVERGED: resume T05 at step 3 (V0 is measured, the dry-run is clean) and re-run V1 against the re-cut rule before the one --force sync.",
+  "resumed_at": "2026-09-18T19:04:29+03:00",
+  "resume_reason": "Operator directive 2026-09-18: proceed under AMBER. The fleet weekly floor is 85% (sarp) but headroom against each account's own cap is ~30 points across the four non-walled accounts (sarp 10, ozgurbasak 9, ob 8, can 3) \u2014 capacity to finish T04a/T04b/T05 without thinning the review floor, which stays at three seats with the Opus finder unconditional.",
+  "blocked_at": "2026-09-18T21:02:52+03:00",
+  "blocked_reason": "T05's V1 backtest REFUTES the spec's own decision rule, and the spec is CONVERGED under operator ruling D-289-D-293. Per-test disagreement against the lane each sampled commit actually took: test 1 sync-path 0/24; test 5 >3-files 4/24 (17%); test 2 new-mechanism 5/15 (33%); test 4 trade-offs 10/10 answerable. The spec's V1 gate stops the sync above 30% on answerable rows, and two tests exceed it. The union routes 11 of 15 decision-bearing commits (73%) to the ~6h spec chain when they took the right-now lane, which defeats the lane's purpose. The remedy the spec names is a re-cut of the rule via a NEW spec-review round; that is a new phase, not an execution step, so it cannot be resolved inside /fabrik-execute-plan.",
+  "exposure": "NOTHING has distributed: 1 of 45 /opt repos carries the lane table (the hub's own), verified. BUT templates/governance/ IS a governance-sync trigger, so any sibling commit to any trigger path fires the post-commit sync and ships the refuted rule to 46 repos. The plan's stop prescribes reverting both contract copies one `git revert --no-commit` at a time; that is irreversible and outward-facing and is left to the operator."
 }
