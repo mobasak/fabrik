@@ -181,7 +181,7 @@ def test_prompt_line_matches_the_contract_format_byte_for_byte(tmp_path):
         assert token in line, token
 
 
-def test_the_contract_line_is_rendered_byte_for_byte_on_the_CLAMPED_fable_path_too(tmp_path):
+def test_the_contract_line_is_rendered_byte_for_byte_on_the_clamped_fable_path_too(tmp_path):
     """D-295 — the byte-for-byte grader above had NO clamped case, so the one path where the band is
     NOT the fleet's rendered unpinned: `on <window>` carried a phrase instead of a window label and a
     trailing clause the contract did not list, and nothing went red. The contracts now state that
