@@ -1181,7 +1181,7 @@ def _task_series(for_it: list[dict], rows: list[dict]) -> str:
         # total, so a reader checking the denominator concludes every row is accounted for while
         # one is counted twice and another is hidden. That is the same invisible-row defect this
         # whole line of fixes exists to close, wearing a reconciling set of numbers instead of a
-        # short one. EVERY row lands in exactly ONE of {counted, unreadable, unmeasurable, sync}.
+        # short one. EVERY row that CARRIES the field lands in exactly ONE of {counted, unreadable, unmeasurable, sync}; a row with the field absent lands in none, by decision (see the guard below).
         if str(r.get("upgrade") or "") == "sync" and not _is_unmeasurable(raw):
             sync_excluded += 1
             continue
@@ -1195,6 +1195,12 @@ def _task_series(for_it: list[dict], rows: list[dict]) -> str:
             # ⚠️ NOT every non-numeric value: `unmeasurable=…` is a LEGITIMATE outcome with its
             # own cell three fields along, and counting it here would double-report it as damage.
             # Only a value that CLAIMS to be a count and cannot be read is unreadable.
+            # ⚠️ A row with the key ABSENT lands in NO bucket, by decision: it is either a row
+            # that predates the field or a version-skewed close (new `start`, old synced
+            # `command_run.py`), and the reader cannot tell them apart — counting absence as
+            # damage would flag every pre-rollout row forever. `test_queue_fabrik_task_a_missing
+            # _field_is_not_damage` pins it; the whole-plan review proposed the opposite and this
+            # comment is the answer, not a code change.
             if val and not _is_unmeasurable(raw):
                 unreadable += 1
             continue

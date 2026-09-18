@@ -874,6 +874,12 @@ _GIT_ENV_OVERRIDES = (
     "GIT_CONFIG_SYSTEM",
     "GIT_CONFIG_NOSYSTEM",
     "GIT_CONFIG_COUNT",
+    # git's OWN `-c` propagation variable — exported into every hook and subprocess whenever the
+    # invoking command carried `-c`, which the hub contract mandates (`git -c core.quotePath=false`).
+    # A malformed inherited value fails every verb at 128 and the dirty check read that as
+    # "not a repo" (whole-plan review, executed). `GIT_EXEC_PATH` fails soft to `no-git`; same edit.
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_EXEC_PATH",
     "GIT_PREFIX",
     "GIT_LITERAL_PATHSPECS",
     "GIT_GLOB_PATHSPECS",
@@ -3003,6 +3009,9 @@ _TASK_LEDGER_EXCL = (
 )
 
 _TASK_BACKTICKED = re.compile(r"`([^`]+)`")
+# Root-level destinations the Doc Sync Matrix names WITHOUT a slash. A harvested token with no
+# `/` and not in this set is prose (see `_doc_sync_tokens`).
+_TASK_ROOT_DESTINATIONS = frozenset({".env.example", "CHANGELOG.md", "INDEX.md", "PORTS.md"})
 _TASK_DOC_SUFFIXES = (".md", ".example", ".sql")
 
 
@@ -3039,6 +3048,13 @@ def _doc_sync_tokens(text: str) -> set[str]:
             continue
         for tok in _TASK_BACKTICKED.findall(cells[2]):
             if not tok.endswith(_TASK_DOC_SUFFIXES):
+                continue
+            # ⚠️ A destination carries a `/` or is a known ROOT name; a bare token with neither is
+            # PROSE — "(canonical name; lowercase `lessons-learnt.md` is legacy-tolerated)" harvested
+            # a root-relative token that excluded a repo-root file of that name from every close
+            # in 47 repos (whole-plan review, executed). Stripping parentheticals instead was tried
+            # and dropped `docs/workstation/<name>.md`, a REAL destination that lives inside one.
+            if "/" not in tok and tok not in _TASK_ROOT_DESTINATIONS:
                 continue
             out.add(tok.split("<", 1)[0] if "<" in tok else tok)
     return out
@@ -3325,7 +3341,11 @@ def _task_measure(
     paths = sorted(a | b)
     if paths:
         return 0, _task_field(len(paths), sha, paths), pat is not None
-    if (rec.get("declared") or {}).get("sync_test") == "unavailable" and pat is None:
+    if pat is None:
+        # ⚠️ Keyed on the CLOSE-time reading alone. The first cut also required the START-time
+        # `sync_test == "unavailable"`, so a filter readable at start and unreadable at close scored
+        # a clean `0` — half the measurement never ran and the row could not say so (whole-plan
+        # review, executed: readable→unreadable printed `0` where blind-both printed this reason).
         # Invariant (vi)'s third reason, and its PRECEDENCE: the membership arm still ran, so a
         # COUNT still wins above — this is reported only when the measurable half found nothing.
         return 0, "unmeasurable=sync_test-unavailable", False

@@ -43,7 +43,7 @@ repos:
         language: system
         stages: [post-commit]
         always_run: true
-        files: '(^templates/governance/|^\\.claude/hooks/|^scripts/enforcement/)'
+        files: '(^templates/governance/|^\\.claude/hooks/|^scripts/enforcement/|^docs/reference/technology-stack-decision-guide\\.md$)'
         pass_filenames: false
 """
 
@@ -1719,7 +1719,7 @@ def test_no_commit_wins_unconditionally_over_sync_unavailable(
 
 
 def test_sync_test_unavailable_is_reported_only_when_no_count_wins(
-    run_dir: Path, repo: Path, tmp_path: Path
+    run_dir: Path, repo: Path, tmp_path: Path, hub: Path
 ) -> None:
     """The third `unmeasurable` reason and its PRECEDENCE. Reachable ONLY on a close that DID
     carry a commit, and only when the membership arm produced nothing — a count still wins,
@@ -1789,9 +1789,11 @@ def test_the_matrix_parser_reads_every_row_of_the_live_contract() -> None:
         "docs/reference/",
         "docs/ui-design.md",
         "docs/workstation/",
-        "lessons-learnt.md",
+        # `lessons-learnt.md` is NOT here on purpose: the row's parenthetical names it as prose
+        # ("lowercase … is legacy-tolerated") and a bare token with no `/` is not a destination —
+        # this set pinned the harvest defect until the whole-plan review (F5).
     }, sorted(toks)
-    assert len(toks) == 25
+    assert len(toks) == 24  # 24: the LESSONS row's parenthetical `lessons-learnt.md` is prose, not a destination (F5)
     assert sum(1 for t in toks if t.endswith("/")) == 2
 
     at = next(i for i, ln in enumerate(lines) if ln.startswith("## Doc Sync Matrix"))
@@ -2472,7 +2474,10 @@ def test_every_arm_that_could_not_refute_a_sync_claim_says_so(
     assert out2.returncode == 0, out2.stdout + out2.stderr
     row2 = _rows(run_dir)[-1]
     assert row2["upgrade"] == "sync (unverified)", ("arm C", row2)
-    assert row2["oversized_mini"] == "0", ("arm C", row2)
+    # The start read the filter, the close could not: the count arm found nothing and the sync
+    # arm never ran, so the row must SAY so. This line asserted `"0"` — F1's false-clean score,
+    # pinned as expected behaviour — until the whole-plan review executed the transition.
+    assert row2["oversized_mini"] == "unmeasurable=sync_test-unavailable", ("arm C", row2)
 
     # --- arm A: the measurement RAISED
     r = _cr(
@@ -2502,3 +2507,82 @@ def test_every_arm_that_could_not_refute_a_sync_claim_says_so(
     row3 = _rows(run_dir)[-1]
     assert row3["upgrade"] == "sync (unverified)", ("arm A", row3)
     assert row3["oversized_mini"] == "unmeasurable=no-git", ("arm A", row3)
+
+
+def test_an_ambient_git_config_parameters_cannot_skip_the_dirty_check(
+    run_dir: Path, repo: Path, hub: Path
+) -> None:
+    """`GIT_CONFIG_COUNT` was scrubbed as half of the RECONFIG channel and `GIT_CONFIG_PARAMETERS`
+    — git's OWN `-c` propagation variable, exported into every hook and subprocess whenever the
+    invoking command carried `-c`, which the hub contract mandates — was not. A malformed value
+    makes every git verb exit 128, the dirty check reads that as "not a repo", and a declared
+    path carrying a sibling's WIP STARTS with `sha: "no-repo"` (whole-plan review, executed).
+    The harness's own leak list shared the omission, so the two lists graded each other green."""
+    (repo / "src" / "a.py").write_text("x = 1\ny = 2\n", encoding="utf-8")
+    env = {"FABRIK_HUB_ROOT": str(hub), "GIT_CONFIG_PARAMETERS": "'core.'"}
+    r = _cr(run_dir, *_start("--file", "src/a.py", "--declare", _ALL_NO), cwd=repo, extra_env=env)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "REFUSED — fabrik-task: src/a.py dirty at start" in r.stdout
+    assert not (run_dir / "s1.json").exists()
+
+
+def test_the_matrix_harvest_takes_destinations_never_prose_and_matches_case() -> None:
+    r"""The LESSONS row reads `\`docs/LESSONS_LEARNT.md\` (canonical name; lowercase
+    \`lessons-learnt.md\` is legacy-tolerated)`, and the harvest took BOTH backticked tokens — so a
+    repo-ROOT file named `lessons-learnt.md` was excluded from every close in 47 repos because a
+    word appeared inside a parenthetical (whole-plan review, executed: root `lessons-learnt.md`
+    scored `0`). Prose in this matrix lives in parentheses; destinations never do. And exclusion
+    is exact-case: `docs/changelog.md` is not `CHANGELOG.md`."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("command_run_probe", _SCRIPT)
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+    toks = cr._doc_sync_tokens((_SCRIPT.resolve().parents[1] / "CLAUDE.md").read_text(encoding="utf-8"))
+    assert "docs/LESSONS_LEARNT.md" in toks
+    assert "lessons-learnt.md" not in toks, "a parenthetical aside was harvested as a destination"
+    assert cr._task_excluded("CHANGELOG.md", {"CHANGELOG.md"})
+    assert not cr._task_excluded("docs/changelog.md", {"docs/CHANGELOG.md"})
+    assert not cr._task_excluded("changelog.md", {"CHANGELOG.md"})
+
+
+def test_the_refusal_names_the_first_row_that_fires_inside_each_tier(
+    run_dir: Path, repo: Path, hub: Path
+) -> None:
+    """The graders pinned the tier BOUNDARIES (files>3 outranks mechanism; the file cap) and
+    nothing inside a tier: swapping `sync`↔`heavy` or `mechanism`↔`oneway` survived all 66
+    (whole-plan review, executed). The contract's sentence — "the first row that fires wins", with
+    row 1 before 1b and 2 before 3 — is what the refusal TELLS the agent to re-read, so the label
+    is the contract property, not a message detail."""
+    env = {"FABRIK_HUB_ROOT": str(hub)}
+    _seed_claude(repo, also={"scripts/enforcement/x.py": "x = 1\n", "src/a.py": "x = 1\n"})
+    r = _cr(run_dir, *_start("--file", "scripts/enforcement/x.py", "--declare",
+            "decision=yes,heavy=yes,mechanism=no,oneway=no,tradeoffs=no"), cwd=repo, extra_env=env)
+    assert r.returncode == 1 and "fabrik-task: sync →" in r.stdout, r.stdout
+    r = _cr(run_dir, *_start("--file", "src/a.py", "--declare",
+            "decision=yes,heavy=no,mechanism=yes,oneway=yes,tradeoffs=no"), cwd=repo, extra_env=env)
+    assert r.returncode == 1 and "fabrik-task: mechanism →" in r.stdout, r.stdout
+
+
+def test_a_rename_of_an_excluded_sync_hit_counts_its_source(
+    run_dir: Path, repo: Path, hub: Path
+) -> None:
+    """Set B walks BOTH sides of a rename (`for p in (src, dst)`), and nothing pinned the source
+    side: the mutant `for p in (dst,)` survived all 66 (whole-plan review, executed). The source
+    is observable through B ALONE only when set A cannot take it — i.e. when it is a MEMBER
+    (here: excluded by the `docs/reference/` matrix prefix) that is ALSO a sync hit. The live
+    filter has exactly two such paths; `_FIXTURE_CONFIG` now carries one of them for this reason.
+    A first cut renamed a non-member `scripts/enforcement/` file and set A counted the source
+    regardless, so the mutant survived the guard that was written to kill it."""
+    env = {"FABRIK_HUB_ROOT": str(hub)}
+    src, dst = "docs/reference/technology-stack-decision-guide.md", "docs/reference/renamed-guide.md"
+    _seed_claude(repo, also={src: "# guide\n", "src/a.py": "x = 1\n"})
+    r = _cr(run_dir, *_start("--file", "src/a.py", "--declare", _ALL_NO), cwd=repo, extra_env=env)
+    assert r.returncode == 0, r.stdout + r.stderr
+    _write(repo, "src/a.py", "x = 2\n")
+    subprocess.run(["git", "mv", src, dst], cwd=repo, check=True)
+    sha = _commit_all(repo, "move the guide out of the filter")
+    out = _close_run(run_dir, repo, hub, "done", "--commit", sha, "--evidence", "e")
+    assert out.returncode == 0, out.stdout + out.stderr
+    got = _rows(run_dir)[-1]["oversized_mini"]
+    assert got == f"1 · commit={sha} · paths={src}", got
+

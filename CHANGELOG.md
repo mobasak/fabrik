@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the whole-plan review's `command_run.py` seat, before the one forced sync (2026-09-18)
+
+- **A clean `oversized_mini: 0` when half the measurement never ran.** The third `unmeasurable` reason keyed on the START-time sync reading, so a filter readable at start and unreadable at close scored `0` — indistinguishable from an honest clean run, and folded into the oversized rate as one. Keyed on the close-time reading now. Its grader had passed a fixture *object* where it meant the fixture *value*, so it never reached the arm it named; given the value, it went red on the defect and green on the fix.
+- **`GIT_CONFIG_PARAMETERS` was not scrubbed.** It is git's own `-c` propagation variable, exported into every hook and subprocess whenever the invoking command carried `-c` — which the hub contract mandates. A malformed inherited value failed every verb at 128 and the dirty check read that as "not a repo": a declared path carrying a sibling's WIP STARTED with `sha: no-repo`. Scrubbed, with `GIT_EXEC_PATH`, in the scrub list and in the harness's leak list that had graded it green.
+- **The Doc Sync Matrix harvest took prose as destinations.** The LESSONS row's parenthetical names lowercase `lessons-learnt.md`; the harvest took it and excluded a repo-root file of that name from every close in 47 repos. A destination now carries a `/` or is a known root name. Stripping parentheticals was tried first and dropped `docs/workstation/<name>.md`, a real destination inside one.
+- Four surviving mutants killed: the refusal order inside each tier (`sync`↔`heavy`, `mechanism`↔`oneway`), a rename's source side in set B, and the blind-close conjunct. The fixture filter gains the live filter's one `docs/reference/` entry so a rename of an excluded sync hit is observable in tests. `declared.sha` being written and never read is routed as a design ruling with both fixes and their mirrors stated; a missing-field row landing in no reader bucket is refuted by the decision that pins it.
+
 ### Fixed — the whole-plan review of the `/fabrik-task` lane, before the one forced sync (2026-09-18)
 
 - **The D-298 re-cut was unguarded.** The graders pinned `no trade-off` and `TRADE-OFF`, both substrings of the wording V1 had just disproved, so reverting rows 4 and 6 to the pre-D-298 text passed 23 of 23 — executed by the whole-plan seat. Pinned on phrases that exist only in the new wording; the revert-mutant now reds.

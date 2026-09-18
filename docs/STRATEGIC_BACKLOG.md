@@ -3931,3 +3931,33 @@ pre-existing, not T04b's, but it is the hub's fleet-wide distribution script and
 either no-ops or, from a box carrying `/opt/fabrik`, pushes the hub's tree to 46 repos. And the
 grounding pointer at `:66` now names an absolute hub path, which is correct but means a project
 reader cannot follow it without the hub checked out.
+
+## `declared.sha` is written at `start` and never read — nothing binds `--commit` to the run's own work (whole-plan review, `command_run.py`)
+
+`_task_size_gate` records HEAD-at-start as `declared.sha` (`scripts/command_run.py:2943`); `_task_measure` diffs `<commit>~1..<commit>` (`:3253`) and never reads it. Executed: a run declares one file, the real work lands as a 5-undeclared-file commit `W`, a later ledger-only commit `D` is passed as `--commit` → `oversized_mini: 0`, rc 0, while `git diff --name-status <declared.sha> <D>` shows the honest five. On a three-session tree `D` need not even be yours. This cobra is cheaper than the `docs/reference/` parking the gate's docstring names, and is named nowhere.
+
+The data to close it is on the record already. Two fixes, and choosing between them is a DESIGN ruling, which is exactly what the re-cut test 4 sends to a reviewer rather than an executor:
+- **(a) range diff** — base on `declared.sha` when it is an ancestor of `<commit>`, so a multi-commit run is measured whole. MIRROR: a sibling's commit landing between your start and your `--commit` is counted as YOUR undeclared files. On this tree that is the common case, so (a) needs a `rev-list --count > 1` NOTE naming the intervening commits or it manufactures false oversized scores.
+- **(b) refuse** — keep `<commit>~1` and REFUSE the close when `rev-list --count <declared.sha>..<commit> > 1`, telling the agent to pass the commit that is the next after their start. MIRROR: refuses honest runs whenever a sibling committed first, which on this tree is most runs.
+Neither is clean; (a) with the NOTE is the more honest measurement, (b) the safer gate. Its own `/fabrik-task`-sized run on `scripts/command_run.py` — a governance-sync path, so right-now + a full review — not a rider on this plan. Evidence: whole-plan review seat, 2026-09-18, `probe/r4`.
+
+## The lane table's "a governance-sync path" reads as inapplicable in every repo that is a sync SOURCE (fabrik-lib 01M2TT9K70EH8MJ4G5Q2BYTJVA)
+
+fabrik-lib took § 1a's trigger (their D-274, `56785a81`) and, reading our manifest rather than
+reasoning about it, found the case the phrase misses: `scripts/fabrik_synced_manifest.py:197`
+`VENDORED_DIRS` names `libs/health_probe`, distributed fleet-wide FROM a sync-excluded tree by
+machinery under the heading "Vendored fabrik-lib modules (synced fleet-wide)". That tree receives
+nothing and is still a source with a ~46-repo blast radius; "a governance-sync path" names the
+hub's regex and, to a source repo, names nothing. Their fix — each recipient states its own
+qualifying paths beside the clause — is the right shape and is what
+`templates/governance/CLAUDE.md` row 1 should also say for projects: name `libs/` vendored FROM
+fabrik-lib and `.windsurf/rules/` as this repo's own sync-shaped paths next to the hub-regex
+pointer. One clause in the template (a sync trigger, so its own full review), not a rider.
+
+## § 1a's heavy-surface list should be an ANCHORED span so the next divergence is a gate warning, not a mail (fabrik-lib 01M2TT9K70EH8MJ4G5Q2BYTJVA)
+
+`check_governance_drift.py` keys on the UNIVERSAL markers' anchor phrases; the heavy-surface list
+is not one, which is why fabrik-lib's copy could drift silently and needed a mail. They recorded
+the anchor as considered-and-not-done because the UNIVERSAL list is the hub's to own. One anchor
+(lowercase, mid-sentence, case-exact per the markers' own rule) makes every sync-excluded copy's
+drift visible at its own gate. Hub `CLAUDE.md` § UNIVERSAL + § 1a; small, its own change.
