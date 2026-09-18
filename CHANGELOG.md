@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the /fabrik-task lane spec: run 3 of /fabrik-spec-review, seven rounds, closed on the D-278 exit at DRAFT (2026-09-18)
+
+- `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md`: seven fresh-seat delta rounds on the operator's
+  "until it converges" (23 → 25 → 19 → 20 → 19 → 12 → 15 confirmed, all inside the previous round's fix). Every
+  round executed its claims before dispatch and shrank the mechanism: phase 0 is a stated inventory (two flag
+  guards, three path/state checks, two lane tests, five declared answers; thirteen refusal outcomes over seven
+  templates), the working-tree mtime leg is deleted, phase 5's re-measure is one signal (the run's own commit via
+  a persisted SHA) stated as six build-owned invariants with graders, the exclusion set is the Doc Sync Matrix
+  parsed at close time plus `docs/CAPABILITIES.md`, every number re-derived at basis a929b33f8. The residual is
+  phase-5 edge cases that graders settle; Status stays DRAFT pending the operator's approval ruling (D-292 records
+  the confirmed U19 mirror).
+
 ### Changed — the /fabrik-task lane spec: run 2 of /fabrik-spec-review, closed on the D-278 exit at DRAFT (2026-09-18)
 
 - `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md`: run 1's residue (U6–U27) applied under the

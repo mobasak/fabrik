@@ -3802,3 +3802,13 @@ restricted to § Chosen approach + § The decision rule, and the round-zero rule
 apply introduces is executed BEFORE the seats go out — the lesson of this run is that two applies of 34 and
 20 block edits each carried ~20 executable claims nobody ran. Also unresolved, for the operator at D-291: the
 U19 pointer's MIRROR (>5 → >3 files fleet-wide; synced and vendored surfaces change lane).
+
+### [infra] The /fabrik-task lane spec after run 3: seven rounds, the residual is phase 5's re-measure, and the approval is the operator's
+
+`docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md` (2026-09-18): run 3 ran seven fresh-seat delta
+rounds (23 → 25 → 19 → 20 → 19 → 12 → 15 confirmed, all own-fix; SCOPE GROWTH printed from round 3). Since round
+3 every finding outside phase 5 has been word-level; phase 5's own-commit re-measure kept sprouting git edge cases
+(root commits, merges, rebases, quoting, the capture path, the exclusion set) that a paragraph cannot close and a
+grader can. Recommendation: the operator flips the spec CONVERGED by ruling with phase 5's six invariants as the
+build's Phase A acceptance criteria (each with a red-first grader), and the build's full `/fabrik-review` on
+`command_run.py` is where the re-measure is settled. Not recommended: an eighth prose round.
