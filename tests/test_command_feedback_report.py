@@ -1658,7 +1658,6 @@ def test_the_command_keeps_its_lock_refusal_and_names_the_key_it_reads() -> None
     )
 
 
-
 def test_the_command_sizes_the_edit_to_the_verdict() -> None:
     """PHASE 3 rule: an edit is sized to the verdict it answers, because every clause added is a
     new surface the next round reviews. Measured 2026-09-15: a one-row queue was answered with a
@@ -2376,7 +2375,8 @@ def test_queue_fabrik_task_header_carries_the_four_numbers(tmp_path: Path) -> No
     lines = r.stdout.splitlines()
     assert lines[0].startswith("queue /fabrik-task — "), lines[0]
     assert lines[1] == (
-        "series: oversized_mini 1/2 (50%) · unmeasurable 1/4 · upgrade 1/4 · adoption 4/6"
+        "series: oversized_mini 1/2 (50%) [+1 upgrade: sync] · unmeasurable 1/4 · "
+        "upgrade 1/4 · adoption 4/6"
     ), lines[1]
 
 
@@ -2558,3 +2558,199 @@ def test_queue_fabrik_task_an_empty_repo_never_nests(tmp_path: Path) -> None:
     assert lines[1] == (
         "series: oversized_mini —/0 · unmeasurable 0/0 · upgrade 0/0 · adoption 0/1"
     ), lines[1]
+
+
+def test_queue_fabrik_task_a_bare_prefix_repo_never_nests(tmp_path: Path) -> None:
+    """The `/`-BOUNDARY, which the ticket calls load-bearing: `/opt/fabrik` and `/opt/fabrik-lib`
+    share a bare string prefix and are DIFFERENT repositories. A `startswith` without the appended
+    separator pairs them, so a review-scoped close in fabrik-lib would be swallowed as nested
+    inside a fabrik run and vanish from the adoption denominator. No fixture held two repos sharing
+    a bare prefix, so replacing both guarded `startswith`es with bare ones left all five graders
+    green (T02 review, seat C)."""
+    ledger = tmp_path / "l.jsonl"
+    rows = [
+        _row("fabrik-execute-plan", 1000, 1, "none", sid="p", repo="/opt/fabrik", ts=2_000.0),
+        _row("fabrik-review-scoped", 5, 1, "none", sid="p", repo="/opt/fabrik-lib", ts=1_500.0),
+    ]
+    _write(ledger, rows)
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stderr
+    # STANDALONE: a different repository, so the review-scoped row stays in the denominator.
+    assert r.stdout.splitlines()[1].endswith("adoption 0/1"), r.stdout.splitlines()[1]
+
+
+def test_queue_fabrik_task_a_different_session_never_nests(tmp_path: Path) -> None:
+    """The `sid`-EQUALITY check. Same repository, `ts` squarely inside the parent's window — only
+    the session differs. Nesting exists to exclude a review-scoped pass run INSIDE another
+    command's run; two unrelated sessions that happen to overlap in time are two real closes. No
+    fixture placed a same-repo, different-`sid` pair inside a matching window, so dropping the
+    comparison entirely left all five graders green (T02 review, seat C)."""
+    ledger = tmp_path / "l.jsonl"
+    rows = [
+        _row("fabrik-execute-plan", 1000, 1, "none", sid="parent", repo="/opt/x", ts=2_000.0),
+        _row("fabrik-review-scoped", 5, 1, "none", sid="other", repo="/opt/x", ts=1_500.0),
+    ]
+    _write(ledger, rows)
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines()[1].endswith("adoption 0/1"), r.stdout.splitlines()[1]
+
+
+def test_queue_fabrik_task_an_empty_child_repo_never_nests(tmp_path: Path) -> None:
+    """The non-empty guard on the CHILD side, alone. The empty-repo grader asserted both guards at
+    once and stayed green when either was removed by itself — so a refactor merging the two
+    conditions would ship the defect that grader is named for. Here only the child's `repo` is
+    empty; the parent's is real."""
+    ledger = tmp_path / "l.jsonl"
+    rows = [
+        _row("fabrik-execute-plan", 1000, 1, "none", sid="p", repo="/opt/x", ts=2_000.0),
+        _row("fabrik-review-scoped", 5, 1, "none", sid="p", repo="", ts=1_500.0),
+    ]
+    _write(ledger, rows)
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines()[1].endswith("adoption 0/1"), r.stdout.splitlines()[1]
+
+
+def test_queue_fabrik_task_an_empty_parent_repo_never_nests(tmp_path: Path) -> None:
+    """The non-empty guard on the PARENT side, alone — the mirror of the case above, and the half
+    that `not o_repo` owns. `_repo_root()` writes `""` on any failure, so either side can carry it
+    independently."""
+    ledger = tmp_path / "l.jsonl"
+    rows = [
+        _row("fabrik-execute-plan", 1000, 1, "none", sid="p", repo="", ts=2_000.0),
+        _row("fabrik-review-scoped", 5, 1, "none", sid="p", repo="/opt/x", ts=1_500.0),
+    ]
+    _write(ledger, rows)
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines()[1].endswith("adoption 0/1"), r.stdout.splitlines()[1]
+
+
+def test_queue_fabrik_task_a_missing_session_never_nests(tmp_path: Path) -> None:
+    """The `sid` non-empty guard, the mirror of the `repo` one. Two rows that both LACK the key
+    compare `"" == ""` and read as one session — the repo collapse wearing a different field. The
+    sole live writer cannot emit an empty `sid` (`command_run.py::_session_id` is an `or` chain
+    ending in a repo-scoped fallback), but a hand-edited row or an ENOSPC-truncated append can, and
+    `_num`'s own docstring names that truncation as a real hazard for this ledger."""
+    ledger = tmp_path / "l.jsonl"
+    parent = _row("fabrik-execute-plan", 1000, 1, "none", repo="/opt/x", ts=2_000.0)
+    child = _row("fabrik-review-scoped", 5, 1, "none", repo="/opt/x", ts=1_500.0)
+    del parent["sid"]
+    del child["sid"]
+    _write(ledger, [parent, child])
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines()[1].endswith("adoption 0/1"), r.stdout.splitlines()[1]
+
+
+def test_queue_fabrik_task_reports_the_rows_the_sync_filter_excluded(tmp_path: Path) -> None:
+    """Spec § V4: the `upgrade: sync` rows are "reported beside the rate", never silently dropped.
+    Without the disclosure two MATERIALLY different ledgers print a byte-identical line — one where
+    a 5-path oversize was excluded, one where nothing was — and V4's own scaling term needs the
+    count that is missing. This function already states its OTHER exclusion for exactly this
+    reason ("an exclusion you cannot see is a denominator you cannot check")."""
+    ledger = tmp_path / "l.jsonl"
+    rows = [
+        _row("fabrik-task", 60, 1, "none", oversized_mini="0"),
+        _row("fabrik-task", 60, 1, "none", oversized_mini="3 · commit=a · paths=p"),
+        _row("fabrik-task", 60, 1, "none", oversized_mini="5 · commit=b · paths=q", upgrade="sync"),
+    ]
+    _write(ledger, rows)
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stderr
+    assert "[+1 upgrade: sync]" in r.stdout.splitlines()[1], r.stdout.splitlines()[1]
+
+
+def test_queue_fabrik_task_keeps_an_unverified_sync_row_in_the_denominator(tmp_path: Path) -> None:
+    """The `!= "sync"` EQUALITY is load-bearing and the reason is mechanical. A VERIFIED sync row
+    is forced to a count >= 1 by construction (set B is populated only when the filter is readable,
+    and the close is refused when a sync claim produces no hit), so its `1` is structural. A
+    `sync (unverified)` row reaches a NUMERIC value only when the filter was UNREADABLE — set B was
+    never populated, the count is the pure membership measurement, and it must STAY IN. Hardening
+    the test to `startswith("sync")` would silently delete real oversize measurements."""
+    ledger = tmp_path / "l.jsonl"
+    rows = [
+        _row(
+            "fabrik-task",
+            60,
+            1,
+            "none",
+            oversized_mini="3 · commit=a · paths=p",
+            upgrade="sync (unverified)",
+        ),
+        _row("fabrik-task", 60, 1, "none", oversized_mini="0", upgrade="sync"),
+    ]
+    _write(ledger, rows)
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines()[1].startswith(
+        "series: oversized_mini 1/1 (100%) [+1 upgrade: sync]"
+    ), r.stdout.splitlines()[1]
+
+
+def test_queue_fabrik_task_adoption_is_a_done_only_baseline(tmp_path: Path) -> None:
+    """Spec § UPGRADE and § V4: the adoption baseline is DONE-only on BOTH sides. A `handoff`
+    fabrik-task row is precisely a run that LEFT the lane for the spec chain — counting it as
+    adoption inverts the spec's own sentence — and a `blocked` review-scoped close is not a lane
+    bypass either. Here only one row on each side is `done`, so the honest share is 1/2."""
+    ledger = tmp_path / "l.jsonl"
+    rows = [
+        _row("fabrik-task", 60, 1, "none", state="done", oversized_mini="0"),
+        _row("fabrik-task", 60, 1, "none", state="handoff", upgrade="mechanism"),
+        _row("fabrik-task", 60, 1, "none", state="blocked"),
+        _row("fabrik-review-scoped", 5, 1, "none", state="done", sid="z1", repo="/opt/q"),
+        _row("fabrik-review-scoped", 5, 1, "none", state="blocked", sid="z2", repo="/opt/q"),
+    ]
+    _write(ledger, rows)
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines()[1].endswith("adoption 1/2"), r.stdout.splitlines()[1]
+
+
+def test_queue_fabrik_task_a_non_ascii_digit_never_crashes_the_reader(tmp_path: Path) -> None:
+    """One bad row in a shared, append-only ledger must never take the WHOLE report down — the
+    class `_num` and `_rows` were rewritten to close. 128 of the 808 codepoints `str.isdigit()`
+    accepts make `int()` RAISE (`²`, `⑴`, `₃`, `፩` …), and a digit string over 4,300 chars raises
+    too. At rc 1 both `/fabrik-command-improve` and the daily relay lose their input."""
+    ledger = tmp_path / "l.jsonl"
+    rows = [
+        _row("fabrik-task", 60, 1, "none", oversized_mini="² · commit=a · paths=p"),
+        _row("fabrik-task", 60, 1, "none", oversized_mini="9" * 5000),
+        _row("fabrik-task", 60, 1, "none", oversized_mini="2 · commit=b · paths=q"),
+    ]
+    _write(ledger, rows)
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stdout + r.stderr
+    # the two unreadable rows are skipped, the real one still measured
+    assert r.stdout.splitlines()[1].startswith("series: oversized_mini 1/1 (100%)"), r.stdout
+
+
+def test_queue_fabrik_task_an_integer_zero_counts_in_the_denominator(tmp_path: Path) -> None:
+    """PRESENCE, not truthiness. A JSON integer `0` is falsy, and `0` is exactly the value a clean
+    lane run writes — `x or ""` drops it from the denominator while a JSON `3` survives, so the
+    bug is specific to the one value the ticket's own example uses."""
+    ledger = tmp_path / "l.jsonl"
+    rows = [
+        _row("fabrik-task", 60, 1, "none", oversized_mini=0),
+        _row("fabrik-task", 60, 1, "none", oversized_mini="0"),
+    ]
+    _write(ledger, rows)
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines()[1].startswith("series: oversized_mini 0/2 (0%)"), r.stdout
+
+
+def test_the_redundant_queue_and_command_pair_is_refused(tmp_path: Path) -> None:
+    """`--command` filters the rows BEFORE `queue()` sees them, and fabrik-task's adoption
+    denominator is the one number that reads the unfiltered set — so `--queue X --command X`
+    silently printed `adoption t/t`, a vacuous 100%, at rc 0, in the FLATTERING direction. One
+    redundant flag was the cheapest cobra path on this metric. The two mistakes keep DIFFERENT
+    messages: naming two commands is ambiguous, naming one twice is dangerous."""
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_row("fabrik-task", 60, 1, "none", oversized_mini="0")])
+    r = _run(ledger, "--queue", "fabrik-task", "--command", "fabrik-task")
+    assert r.returncode == 2, r.stdout
+    assert "drop --command" in r.stderr, r.stderr
+    r2 = _run(ledger, "--queue", "fabrik-task", "--command", "fabrik-review")
+    assert r2.returncode == 2 and "name different commands" in r2.stderr, r2.stderr
