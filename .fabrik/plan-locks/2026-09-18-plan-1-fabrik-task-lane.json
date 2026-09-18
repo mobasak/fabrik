@@ -15,7 +15,7 @@
   ],
   "branch": "master",
   "started_at": "2026-09-18T11:30:30",
-  "status": "active",
+  "status": "paused",
   "baseline_commit": "90e022ef86713132f0c3faa2f7039d44a316f42a",
   "baseline_gate": {
     "final_gate": "success",
@@ -28,5 +28,8 @@
     ],
     "captured_at": "2026-09-18T11:30:30",
     "note": "hub pytest leg is OFF by design (5,913 tests); bandit/semgrep not installed in the venv"
-  }
+  },
+  "paused_at": "2026-09-18T16:53:23+03:00",
+  "paused_reason": "Quota: the FLEET band is AMBER on the weekly window \u2014 sarp 85% is the COOLEST account (can 97, ozgurbasak 91, ob 87, mob 100/exhausted), so no rotation can buy headroom. /fabrik-execute-plan's own rule: 'quota pressure pauses the plan, it never thins the review.' T04a needs a coder dispatch and a 3-seat review floor, both of which AMBER forbids starting, and the Opus floor is never substitutable downward. Paused at a clean boundary: T01a/T01b/T02/T03 all merged, reviewed to their coverage-adjudicated exits, and PUSHED; class ledger clean; nothing uncommitted. Resume at T04a on quota reset or a rotation that lands a genuinely cool weekly window.",
+  "resume_at": "T04a \u2014 hub CLAUDE.md: the lane table, \u00a7 1a's trigger, the HANDLE-NOW pointer"
 }
