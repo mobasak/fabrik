@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the Fable band clamp, as its own review found it (2026-09-18)
+
+- `/fabrik-review` over `0a019413f`, three seats, 16 candidates, 14 confirmed, 13 fixed. Four of them
+  were reachable defects in the pushed commit. `_fleet_band`'s clamp was ONE tail clause while the
+  scarcity arm returns before it, so any required window with no reading gave `band_fable = None`,
+  `_band_for_session` requires a str and fell through, and a Fable-walled account passed FREE during
+  a probe blackout — fail-open in exactly the state the clamp exists to close. It is now a `_clamp()`
+  helper on every return of the fable path, routed through `_usable_ts` (a bare NaN previously read
+  as GREEN, a str raised out of the tick's posture write); a blackout with a COOL account reading
+  stays `null` rather than fabricating a GREEN.
+- The larger cluster was in the CONSUMER: a clamped band comes from the account's own Fable window,
+  which is not in `fleet.windows`, so every site that EXPLAINS a band explained the wrong one —
+  `band RED on weekly` with weekly at 21%, a deny telling a held agent "no flip relieves this" about
+  a window a flip would have relieved completely, "the band is the fleet's, act on it" about a band
+  that is the account's, and `--status` (which that deny calls the authority) never rendering the
+  Fable band at all. `_quota_posture` now emits `band_fable_clamped`, derived by construction from
+  two readings of the same pure function, and `quota_posture_hook.py` reads it at all four sites.
+- `docs/workstation/claude-account-rotation.md` described `band_fable` as a pure fleet maximum — the
+  dedicated reference doc for this mechanism, a Doc Sync FLOOR violation; brought current.
+- Graders: `tests/test_claude_fleet.py` +3, `tests/test_quota_posture.py` +1 driving the real hook,
+  and `test_the_required_windows_keep_their_decoupling` gained the assertion that makes it a grader
+  at all — it previously passed against pre-commit source and guarded nothing. 370 passed. D-295.
+
 ### Changed — `ssh mac` is a direct hop; the Windows hotspot portproxy is retired (2026-09-18)
 
 Volkan's Mac moved off the Windows mobile hotspot onto a network WSL routes to directly, so `~/.ssh/config`'s `Host mac` is now `172.16.100.33:22` instead of `172.22.16.1:2222` via a `netsh portproxy`. Verified end to end before and after the change: the port answers from WSL (`/dev/tcp/172.16.100.33/22`), and `ssh mac` reaches `VacBook-Air.local` (macOS 26.5.2, arm64) whose own `ipconfig getifaddr en0` returns the same address. `docs/workstation/volkan-mac.md` § 1 now documents the direct hop and cuts the break-glass list from two moving parts to one (the Mac's lease); the whole portproxy recipe is kept below it as the travel fallback, since the laptop tethers again whenever he is away from that network.
