@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -1730,7 +1731,7 @@ def test_sync_test_unavailable_is_reported_only_when_no_count_wins(
         run_dir,
         *_start("--file", "src/a.py", "--declare", _ALL_NO),
         cwd=repo,
-        extra_env={"FABRIK_HUB_ROOT": str(nowhere)},
+        extra_env={"FABRIK_HUB_ROOT": str(hub)},
     )
     assert r.returncode == 0, r.stdout + r.stderr
     _write(repo, "src/a.py", "x = 2\n")
@@ -2276,3 +2277,228 @@ def test_an_ambient_git_dir_cannot_relocate_the_measurement(
         f"1 · commit={sha} · paths=src/undeclared.py"
     ), _rows(run_dir)[-1]["oversized_mini"]
     assert _rec(run_dir)["state"] == "done"
+
+
+# ------------------------------------------------- T01b round 4: the git-environment class
+
+
+def test_an_ambient_git_work_tree_cannot_relocate_the_repo_the_record_names(
+    run_dir: Path, repo: Path, hub: Path
+) -> None:
+    """`GIT_WORK_TREE` moves `rev-parse --show-toplevel`, which is what CHOOSES the repository the
+    whole re-measure is taken against. The first cut scrubbed the calls that USE that answer and
+    left the call that PRODUCES it ambient, so the relocation was still reachable one hop up: the
+    start gate's dirty check silently skipped, `declared.sha` degraded to `unavailable`, and the
+    close landed `unmeasurable=no-git` at `state: done`. Here the declared path is DIRTY, so the
+    honest answer is a refusal — and it must survive the variable."""
+    _seed_claude(repo, also={"src/a.py": "x = 1\n"})
+    _write(repo, "src/a.py", "x = 2\n")  # dirty at start, uncommitted
+    outer = repo.parent
+    r = _cr(
+        run_dir,
+        *_start("--file", "src/a.py", "--declare", _ALL_NO),
+        cwd=repo,
+        extra_env={"FABRIK_HUB_ROOT": str(hub), "GIT_WORK_TREE": str(outer)},
+    )
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "dirty at start" in r.stdout, r.stdout
+
+
+def test_an_ambient_git_config_count_cannot_launder_the_count(
+    run_dir: Path, repo: Path, hub: Path
+) -> None:
+    """`GIT_CONFIG_COUNT=bogus` makes EVERY git verb exit 128 (`fatal: unable to parse command-line
+    config`), so an honest oversized count laundered to `unmeasurable` at rc 0 — the same cobra
+    outcome the scrub exists to prevent, through a variable the first list did not carry. The repo
+    already enumerated it in `tests/conftest.py` after a measured incident; two lists for one class
+    disagreeing is the defect this closes."""
+    _seed_claude(repo)
+    _start_task(run_dir, repo, hub, "src/a.py")
+    _write(repo, "src/a.py", "x = 2\n")
+    _write(repo, "src/b.py")
+    sha = _commit_all(repo, "one declared, one not")
+    out = _close_run(run_dir, repo, hub, "done", "--commit", sha, "--evidence", "green")
+    assert out.returncode == 0, out.stdout + out.stderr
+    honest = _rows(run_dir)[-1]["oversized_mini"]
+    assert honest == f"1 · commit={sha} · paths=src/b.py", honest
+
+    # the same close, only the environment differs
+    _start_task(run_dir, repo, hub, "src/a.py", sid="s2")
+    _write(repo, "src/a.py", "x = 3\n")
+    _write(repo, "src/c.py")
+    sha2 = _commit_all(repo, "again")
+    out2 = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-task",
+        "--commit",
+        sha2,
+        "--evidence",
+        "green",
+        "--feedback",
+        _FB,
+        cwd=repo,
+        sid="s2",
+        extra_env={"FABRIK_HUB_ROOT": str(hub), "GIT_CONFIG_COUNT": "bogus"},
+    )
+    assert out2.returncode == 0, out2.stdout + out2.stderr
+    got = _rows(run_dir)[-1]["oversized_mini"]
+    assert got == f"1 · commit={sha2} · paths=src/c.py", got
+
+
+def test_an_ambient_pathspec_var_cannot_forge_a_dirty_declared_path(
+    run_dir: Path, repo: Path, hub: Path
+) -> None:
+    """`--literal-pathspecs` is added here for a real reason (a glob sibling made a clean
+    `src/rep[1].py` read as dirty), but git treats it as INCOMPATIBLE with the other global
+    pathspec vars and fails hard rather than ignoring them. Both pathspec-bearing size-gate calls
+    read a non-zero rc as DIRTY, so `GIT_ICASE_PATHSPECS=1` refused a perfectly clean declared path
+    — and the refusal text told the agent to go accuse a peer of WIP that does not exist."""
+    _seed_claude(repo, also={"src/a.py": "x = 1\n"})
+    r = _cr(
+        run_dir,
+        *_start("--file", "src/a.py", "--declare", _ALL_NO),
+        cwd=repo,
+        extra_env={"FABRIK_HUB_ROOT": str(hub), "GIT_ICASE_PATHSPECS": "1"},
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "dirty at start" not in r.stdout, r.stdout
+
+
+def test_the_scrub_covers_every_relocating_var_the_test_harness_scrubs(tmp_path: Path) -> None:
+    """Two lists for one class in one repo is the drift defect. `tests/conftest.py` carries an
+    incident-driven `_GIT_ENV_LEAKS`; this module carries `_GIT_ENV_OVERRIDES`. The harness list
+    legitimately holds MORE (it scrubs authorship vars, because test helpers COMMIT and this module
+    runs no committing verb) — but every var it scrubs that can relocate or reconfigure a READ must
+    also be here, or a var added there silently stops being scrubbed in ~46 repos."""
+    import ast as _ast
+
+    mod = _load("cr_env", _SCRIPT)
+    conftest = _ast.parse(
+        (_SCRIPT.resolve().parents[1] / "tests" / "conftest.py").read_text("utf-8")
+    )
+    leaks: set[str] = set()
+    for node in _ast.walk(conftest):
+        if isinstance(node, _ast.Assign) and any(
+            getattr(t, "id", "") == "_GIT_ENV_LEAKS" for t in node.targets
+        ):
+            leaks = {e.value for e in node.value.elts if isinstance(e, _ast.Constant)}
+    assert leaks, "conftest._GIT_ENV_LEAKS not found — the drift check is grading nothing"
+    authorship = {
+        "GIT_AUTHOR_NAME",
+        "GIT_AUTHOR_EMAIL",
+        "GIT_COMMITTER_NAME",
+        "GIT_COMMITTER_EMAIL",
+    }
+    missing = (leaks - authorship) - set(mod._GIT_ENV_OVERRIDES)
+    assert not missing, f"scrubbed by the harness but not by this module: {sorted(missing)}"
+
+
+def test_the_scrub_is_a_filter_not_a_replacement(monkeypatch) -> None:
+    """`env=` REPLACES the environment wholesale, so a scrub written as a literal dict would strip
+    `HOME` (git reads `~/.gitconfig`) and `PATH` (git would not be found at all)."""
+    mod = _load("cr_filter", _SCRIPT)
+    monkeypatch.setenv("GIT_DIR", "/nowhere/.git")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "core.bare")
+    env = mod._scrubbed_git_env()
+    assert "GIT_DIR" not in env
+    assert "GIT_CONFIG_KEY_0" not in env, "the numbered injection payload must go too"
+    assert env.get("HOME") == os.environ.get("HOME")
+    assert env.get("PATH") == os.environ.get("PATH")
+
+
+def test_every_arm_that_could_not_refute_a_sync_claim_says_so(
+    run_dir: Path, repo: Path, hub: Path, tmp_path: Path
+) -> None:
+    """Invariant: `UPGRADE: sync` is the widest claim the lane makes, and a row must never assert a
+    reach nothing checked. FOUR arms reach the marking and the first cut guarded ONE — the delta
+    review deleted the call on the exception arm, and forced `sync_tested` True on the count and
+    zero arms, with all 63 graders still green each time. Each arm is exercised here.
+
+    A: the measurement RAISED (broken git). B: the filter became unreadable at CLOSE and there was
+    still something to COUNT. C: the same with nothing to count. All three must read
+    `sync (unverified)`.
+
+    ⚠️ Each arm STARTS against a readable hub and only loses the filter at close. Starting
+    without one sets `declared.sync_test: unavailable`, and arm C then lands on
+    `unmeasurable=sync_test-unavailable` — a DIFFERENT branch, already covered elsewhere, which
+    is how the first cut of this grader silently tested the same arm twice."""
+    nowhere = tmp_path / "no-hub"
+    nowhere.mkdir()
+
+    # --- arm B: a count, taken with no readable sync filter
+    _seed_claude(repo, also={"src/a.py": "x = 1\n"})
+    r = _cr(
+        run_dir,
+        *_start("--file", "src/a.py", "--declare", _ALL_NO),
+        cwd=repo,
+        extra_env={"FABRIK_HUB_ROOT": str(nowhere)},
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    _write(repo, "src/a.py", "x = 2\n")
+    _write(repo, "src/z.py")
+    sha = _commit_all(repo, "one undeclared")
+    out = _close_run(
+        run_dir, repo, nowhere, "done", "--commit", sha, "--evidence", "UPGRADE: sync — claimed"
+    )
+    assert out.returncode == 0, out.stdout + out.stderr
+    row = _rows(run_dir)[-1]
+    assert row["upgrade"] == "sync (unverified)", ("arm B", row)
+    assert row["oversized_mini"] == f"1 · commit={sha} · paths=src/z.py", ("arm B", row)
+
+    # --- arm C: the same close with nothing to count
+    r = _cr(
+        run_dir,
+        *_start("--file", "src/a.py", "--declare", _ALL_NO),
+        cwd=repo,
+        sid="s2",
+        extra_env={"FABRIK_HUB_ROOT": str(hub)},
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    _write(repo, "src/a.py", "x = 3\n")
+    sha2 = _commit_all(repo, "declared only")
+    out2 = _close_run(
+        run_dir,
+        repo,
+        nowhere,
+        "done",
+        "--commit",
+        sha2,
+        "--evidence",
+        "UPGRADE: sync — claimed",
+        sid="s2",
+    )
+    assert out2.returncode == 0, out2.stdout + out2.stderr
+    row2 = _rows(run_dir)[-1]
+    assert row2["upgrade"] == "sync (unverified)", ("arm C", row2)
+    assert row2["oversized_mini"] == "0", ("arm C", row2)
+
+    # --- arm A: the measurement RAISED
+    r = _cr(
+        run_dir,
+        *_start("--file", "src/a.py", "--declare", _ALL_NO),
+        cwd=repo,
+        sid="s3",
+        extra_env={"FABRIK_HUB_ROOT": str(hub)},
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    _write(repo, "src/a.py", "x = 4\n")
+    sha3 = _commit_all(repo, "third")
+    cfg = repo / ".git" / "config"
+    cfg.write_text(cfg.read_text(encoding="utf-8") + "\n[core\n", encoding="utf-8")
+    out3 = _close_run(
+        run_dir,
+        repo,
+        nowhere,
+        "done",
+        "--commit",
+        sha3,
+        "--evidence",
+        "UPGRADE: sync — claimed",
+        sid="s3",
+    )
+    assert out3.returncode == 0, out3.stdout + out3.stderr
+    row3 = _rows(run_dir)[-1]
+    assert row3["upgrade"] == "sync (unverified)", ("arm A", row3)
+    assert row3["oversized_mini"] == "unmeasurable=no-git", ("arm A", row3)

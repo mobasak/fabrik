@@ -841,8 +841,69 @@ def _midloop_report(f: Path) -> bool:
     return bool(re.search(r"^\s*\**Status:\**\s*IN-PROGRESS\b", head10, re.M | re.I))
 
 
+# ⚠️ git reads the REPOSITORY, and its CONFIG, out of the environment before it looks at `cwd`.
+# An inherited value — from a hook, a shell, or THIS repo's own private-index recipe, which
+# exports `GIT_INDEX_FILE` and warns that it leaks — points every call below at something the
+# caller never named. All four classes are executed, not theorised:
+#   RELOCATE   `GIT_WORK_TREE` moves `rev-parse --show-toplevel`, so the record's `repo_root` —
+#              the repo the whole re-measure is taken against — is chosen by an env var. With it
+#              set, a dirty declared path passes the start gate and a 5-file commit closes
+#              `unmeasurable=no-git` at `state: done`.
+#   RECONFIG   `GIT_CONFIG_COUNT=bogus` makes EVERY git verb exit 128 (`fatal: unable to parse
+#              command-line config`), laundering an honest `4 · commit=… · paths=…` to
+#              `unmeasurable` at rc 0.
+#   PATHSPEC   `--literal-pathspecs` (added here for a real reason) is INCOMPATIBLE with the
+#              other global pathspec vars and git fails hard rather than ignoring them, so
+#              `GIT_ICASE_PATHSPECS=1` makes a CLEAN declared path read as dirty and the refusal
+#              tells the agent to go accuse a peer of WIP that does not exist.
+#   AUTHORSHIP not scrubbed here: this module runs no committing verb. `tests/conftest.py`
+#              scrubs those too, for helpers that do.
+# ⚠️ Scrubbing the CONSUMER while leaving the CHOOSER ambient closes nothing, which is exactly
+# what the first cut of this did — hence one builder, used by both.
+_GIT_ENV_OVERRIDES = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_INDEX_FILE",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_NAMESPACE",
+    "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_SYSTEM",
+    "GIT_CONFIG_NOSYSTEM",
+    "GIT_CONFIG_COUNT",
+    "GIT_PREFIX",
+    "GIT_LITERAL_PATHSPECS",
+    "GIT_GLOB_PATHSPECS",
+    "GIT_NOGLOB_PATHSPECS",
+    "GIT_ICASE_PATHSPECS",
+)
+# `GIT_CONFIG_COUNT` is only half of the injection channel; the payload arrives in numbered
+# `GIT_CONFIG_KEY_<n>`/`GIT_CONFIG_VALUE_<n>` pairs, which no fixed tuple can enumerate.
+_GIT_ENV_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
+
+
+def _scrubbed_git_env() -> dict[str, str]:
+    """The environment minus everything that can move or reconfigure the repository.
+
+    A FILTER, never a replacement: `HOME` and `PATH` survive, so git still finds its own binary
+    and the user's `~/.gitconfig`.
+    """
+    return {
+        k: v
+        for k, v in os.environ.items()
+        if k not in _GIT_ENV_OVERRIDES and not k.startswith(_GIT_ENV_PREFIXES)
+    }
+
+
 def _repo_root() -> str:
-    """The toplevel of the repo the invoking shell is in at START time — "" if none."""
+    """The toplevel of the repo the invoking shell is in at START time — "" if none.
+
+    ⚠️ This CHOOSES the repository every later measurement is taken against, so it is scrubbed
+    too. Scrubbing only the calls that USE the answer leaves the choice itself env-controlled.
+    """
     try:
         return subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
@@ -850,6 +911,7 @@ def _repo_root() -> str:
             text=True,
             timeout=10,
             check=True,
+            env=_scrubbed_git_env(),
         ).stdout.strip()
     except Exception:
         return ""
@@ -2712,26 +2774,6 @@ def _sync_filter_source() -> str | None:
         return None
 
 
-# ⚠️ git reads the REPOSITORY out of the environment before it looks at `cwd`. An ambient
-# `GIT_DIR` (leaked from a hook, a shell, or THIS repo's own private-index recipe, which exports
-# `GIT_INDEX_FILE` and warns that it leaks) makes every call below answer about a repository the
-# close never named. Executed: with `GIT_DIR` pointed at a decoy holding only the declared file, a
-# three-file task closes `oversized_mini: 0` — a VERIFIED-looking zero, and the cheapest cobra
-# path in the lane. Pointed at any other real repo it does the opposite: the honest SHA resolves
-# nowhere and the close is refused with the record left `running`. Both directions found by
-# T01b's delta review, both reproduced.
-_GIT_ENV_OVERRIDES = (
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_COMMON_DIR",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_INDEX_FILE",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_CEILING_DIRECTORIES",
-    "GIT_NAMESPACE",
-)
-
-
 def _task_git(root: Path, *a: str) -> subprocess.CompletedProcess[str]:
     """rc-SIGNALLING git: `check=False`, read `.returncode`. Under `check=True` every call here
     RAISES on the answer it exists to report, and `main`'s fail-soft (`:2557-2559`) turns that
@@ -2749,7 +2791,7 @@ def _task_git(root: Path, *a: str) -> subprocess.CompletedProcess[str]:
         timeout=10,
         check=False,
         cwd=str(root),
-        env={k: v for k, v in os.environ.items() if k not in _GIT_ENV_OVERRIDES},
+        env=_scrubbed_git_env(),
     )
 
 
