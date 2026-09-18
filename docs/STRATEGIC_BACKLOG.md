@@ -3900,6 +3900,37 @@ review seats, each of which had to work around it.
 
 **Amended 2026-09-19 (the first `/fabrik-task` run, D-300):** the `_HUB_CONFIG` half is NOT a defect — `scripts/command_run.py:2694-2697` rules the hub path absolute because the equality test must grade the scalar `governance_sync_postcommit.sh:30` opens, and 18 of 23 registered worktrees carry a different governance-sync scalar; a repo-relative pin would grade the wrong file exactly where the split matters. What remains of this row is the PROBE-side discipline (a grader copied into a worktree still reads the live hub, so a mutation probe must baseline first) and `THIRD_CONTRACT` in `tests/test_governance_template_split.py`, which points at a different repo by design. Two siblings surfaced by the same review, not yet dispositioned: `tests/test_sync_trigger_coverage.py` pins `Path("/opt/fabrik")` in 15 places and 48 such pins sit across 32 test files (`command grep -rn --include='*.py' 'Path("/opt/fabrik' tests/`, executed 2026-09-19; one of them is the `_HUB_CONFIG` pin this row rules on) — each is either the same ruling (grades the live hub on purpose) or a real portability defect, and nobody has classified them; and `scripts/governance_sync_postcommit.sh:26` exits silently from any worktree, so a synced-path commit made in a worktree distributes to zero projects with no warning — § Sync-consciousness does not name it.
 
+## Three claims about the close-time exclusion that the code refutes, in artifacts a fix may not edit (routed from the /fabrik-task docs review, 2026-09-19)
+
+Found by the docs review's closing seat and re-derived here, each by execution against
+`scripts/command_run.py` at `318778aea`.
+
+1. **`scripts/command_run.py:3028` says EXCL "collapses from 26 paths to 6"; the number is 25 and
+   always was.** Measured: the live Doc Sync Matrix yields 24 destination tokens, five of which are
+   the ledger files, and `_task_excl` adds only `docs/CAPABILITIES.md` — `len(_task_excl(root))` is
+   **25**, at `318778aea` and at `01a216fea~1`, the commit before the sentence was written. The
+   collapsed value 6 is right. `tests/test_command_run_fabrik_task.py:1806` pins the literal string,
+   so a presence grader certifies the wrong number; fixing the docstring alone reds it. The same 26
+   appears in the CONVERGED spec (`:112`, `:269`) and in `T01b-command-run-close-remeasure.md:29`.
+   Fix shape: correct the docstring and the grader literal together, in a change that also decides
+   whether the pin should compute `len(_task_excl(root))` instead of matching a sentence — a number
+   pinned by string presence is a number nothing checks.
+2. **The `sync_test` correction reached 1 of 4 artifacts.** The close keys
+   `unmeasurable=sync_test-unavailable` on the CLOSE-time reading alone
+   (`command_run.py:3346-3353`); the refuted AND-condition ("`unavailable` at start AND the close's
+   re-run still fails") survives in the spec at `:112` (vi) and `:172`, and in
+   `T01b-command-run-close-remeasure.md:29` (vi). The protocol doc was fixed at `318778aea`. This
+   code↔spec divergence is unminted — unlike the field-order one, which has D-294. Fix shape:
+   a D-row naming the divergence, per D-294's precedent; the spec is frozen and is not edited.
+3. **The spec's rule 5 still reads "*(executable — the `--file` count)*"**, the occurrence-count
+   reading both contracts dropped on 2026-09-19 after execution showed four `--file` occurrences of
+   two distinct paths start at rc 0. Same disposition as (2): the divergence is recorded, the
+   converged artifact is not edited.
+
+All three are the same shape as everything else this review found — a document asserting something
+its own code refutes — and all three sit in artifacts (a frozen spec, a merged ticket) that a fix
+may not rewrite, which is why they are rows rather than edits.
+
 ## § Completion Contract 1a's `>5 files` and the lane table's `>3` are two numbers in one contract (routed from T04a)
 
 § 1a's `>5` is REVIEW sizing (how heavy a pass does work already in flight owe?); the lane table's

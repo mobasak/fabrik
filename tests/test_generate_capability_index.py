@@ -381,3 +381,21 @@ def test_absolute_and_external_links_pass_through_untouched() -> None:
 def test_a_missing_link_still_degrades_to_the_anchor() -> None:
     assert gci._doc_link_from_docs(None) == "#"
     assert gci._doc_link_from_docs("") == "#"
+
+
+def test_clip_marks_every_cut_and_never_exceeds_its_cap() -> None:
+    """`_clip` replaced a bare `val[:160]` that cut mid-word with no marker: measured 2026-09-19,
+    38 of 38 command descriptions exceeded the old cap and 0 of 38 rendered rows ended in a
+    period, so the catalog a cold agent reads first to discover a tool stopped `/fabrik-task`'s
+    row at "SIZE (the start IS the gate), ME". The marker is the whole point, so it is pinned in
+    both directions — present when cut, absent when not — and the cap is a promise, not a target:
+    the no-boundary arm cuts one char inside it so the ellipsis still fits (docs review, executed:
+    the first cut returned 401 for a 600-char run of one word)."""
+    assert gci._clip("x" * 400) == "x" * 400, "at the cap: untouched, and NOT marked"
+    assert gci._clip("short") == "short"
+    for val in ("y" * 600, "word " * 200, "a. " + "b" * 500, "z" * 401, "one sentence. " + "w" * 500):
+        out = gci._clip(val)
+        assert out.endswith("…"), (val[:20], out[-20:])
+        assert len(out) <= 400, (val[:20], len(out))
+        assert not out.endswith("……") and not out.endswith(".…"), out[-20:]
+        assert not out.rstrip("…").endswith(" "), out[-20:]

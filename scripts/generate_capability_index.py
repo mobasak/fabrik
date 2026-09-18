@@ -116,16 +116,18 @@ def _clip(val: str, cap: int = 400) -> str:
 
     The old `val[:160]` cut mid-word with no marker, so every row read as a complete sentence that
     simply stopped: measured 2026-09-19, 38 of 38 command descriptions exceed 160 chars and 0 of 38
-    rendered rows end in a period. A catalog whose stated purpose is "a cold AI planner reads this
-    first to discover and invoke tools" cannot do that when the TRIGGER/SKIP clauses are cut off.
-    Prefer a sentence boundary inside the cap, else a word boundary, and always mark the cut.
+    rendered rows end in a period. A catalog whose stated purpose is "A cold AI planner/orchestrator
+    agent reads this first to discover and invoke tools" cannot do that when the TRIGGER/SKIP
+    clauses are cut off. Prefer a sentence boundary inside the cap, else a word boundary, else a
+    hard cut one char inside the cap — that last arm reproduces the mid-word defect this exists to
+    end, so it is named rather than hidden. Always mark the cut, and never return more than `cap`.
     """
     if len(val) <= cap:
         return val
     head = val[:cap]
     stop = max(head.rfind(". "), head.rfind("; "), head.rfind(" — "))
     cut = stop + 1 if stop > cap // 2 else head.rfind(" ")
-    return head[: cut if cut > 0 else cap].rstrip(" ,;—-") + "…"
+    return head[: cut if cut > 0 else cap - 1].rstrip(" ,;.—-…") + "…"
 
 
 def _first_docline(head: str) -> str:
