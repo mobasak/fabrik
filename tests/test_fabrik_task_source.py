@@ -155,6 +155,14 @@ def test_every_command_run_line_is_accepted_by_the_real_parser(monkeypatch, tmp_
         # argparse acceptance is not the whole contract: the lane REFUSES a close at RUNTIME
         # for flags the parser is happy with (`command_run.py` `_task_close_fields`). A printed
         # close the tool refuses leaves the record `running` and the Stop hook holding the turn.
+        # EVERY line must name THIS lane. Without this, replacing `--command fabrik-task` with
+        # another command's name on all four lines left the grader green — and the `--commit`
+        # assertion below is keyed on that literal, so the typo would disable the very refusal
+        # this test exists to catch (T03 review, seat C).
+        if args.cmd in {"start", "done", "blocked", "handoff"}:
+            assert getattr(args, "command", "") == "fabrik-task", (
+                f"a printed line names another command: {line}"
+            )
         if args.cmd in {"done", "blocked", "handoff"}:
             assert getattr(args, "feedback", None), f"close without --feedback: {line}"
             if args.cmd == "done" and getattr(args, "command", "") == "fabrik-task":
@@ -162,3 +170,28 @@ def test_every_command_run_line_is_accepted_by_the_real_parser(monkeypatch, tmp_
                     "`done --command fabrik-task` is REFUSED without --commit "
                     f"(scripts/command_run.py `_task_close_fields`): {line}"
                 )
+
+
+def test_the_printed_phase_count_matches_the_headings() -> None:
+    """The source PRINTS `--phases 5` and the assembler DERIVES a phase count from the headings;
+    nothing tied the two together, so mutating the printed number to 3 left every grader green.
+    The sibling `fabrik-deploy-checklist` has exactly this cross-check
+    (`tests/test_check_command_corpus.py`, "8 phases derived from the headings") — this is that
+    precedent applied here.
+
+    The agreement is not cosmetic: `command_run.py` renders `phase <c>/<t>` from `--phases` into
+    the pinned RUN line every response carries, so a wrong total misreports progress for the whole
+    run. Found by T03's review, seat C."""
+    import importlib.util
+
+    text = _source_text()
+    spec = importlib.util.spec_from_file_location(
+        "assemble_under_test", REPO / "commands" / "assemble_commands.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    derived = mod._phase_count(text)
+    assert f"--phases {derived}" in text, (
+        f"the source prints a phase count that disagrees with its own headings "
+        f"(_phase_count derived {derived})"
+    )
