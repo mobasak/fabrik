@@ -1,17 +1,26 @@
 # AFTER-EDIT: scripts/fabrik_synced_manifest.py, scripts/sync_enforcement_to_projects.py
-"""CLAUDE.md hub/project split — the fleet template is sourced from
-templates/governance/CLAUDE.md, never from the hub's own /opt/fabrik/CLAUDE.md
-(which is the HUB agents' contract, not a distributed file).
+"""Shared governance-contract invariants across the hub CLAUDE.md, the fleet template and
+fabrik-lib's hand-kept copy.
 
-Plan: docs/development/plans/2026-08-08-plan-1-claude-md-hub-split.md (Phase A).
+Four concerns live here, each in its own banner-marked block:
+  * the hub/project SPLIT — the fleet template is sourced from templates/governance/CLAUDE.md,
+    never from the hub's own /opt/fabrik/CLAUDE.md, which is the HUB agents' contract and is not
+    distributed (plan 2026-08-08-plan-1-claude-md-hub-split.md, Phase A);
+  * T6 — the shared-tree commit rules, pinned by claim so they cannot diverge between copies;
+  * the QUOTA bands and the QUOTA line, graded identical across all three contracts;
+  * T04a — the /fabrik-task LANE TABLE in CLAUDE.md § Orient step 0, graded against the SIZE
+    gate's own constants and evaluation order (plan 2026-09-18-plan-1-fabrik-task-lane).
 """
 
 from __future__ import annotations
 
 import importlib.util
 import inspect
+import re
 import sys
 from pathlib import Path
+
+import pytest
 
 FABRIK = Path(__file__).resolve().parents[1]
 TEMPLATE_REL = "templates/governance/CLAUDE.md"
@@ -22,7 +31,13 @@ def _load(name: str, rel: str):
     mod = importlib.util.module_from_spec(spec)
     sys.path.insert(0, str(FABRIK / "scripts"))
     sys.modules[name] = mod  # dataclass decoration resolves cls.__module__ here
-    spec.loader.exec_module(mod)
+    try:
+        spec.loader.exec_module(mod)
+    except Exception:
+        # CPython's own loader pops the entry on exec failure; this hand-rolled one did not,
+        # leaving a HOLLOW module that a later plain import returns with no ImportError.
+        sys.modules.pop(name, None)
+        raise
     return mod
 
 
@@ -339,3 +354,286 @@ def test_the_third_contract_half_skips_with_a_reason_when_fabrik_lib_is_absent(
     with pytest.raises(pytest.skip.Exception) as excinfo:
         test_the_quota_bands_and_the_quota_line_are_identical_in_all_three_contracts()
     assert "not checked out" in str(excinfo.value)
+
+
+# ── T04a: the /fabrik-task lane table in § Orient step 0 ───────────────────────────────────────
+# docs/development/plans/2026-09-18-plan-1-fabrik-task-lane/T04a-hub-claude-md.md, implementing
+# docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md § The decision rule (D-289/D-291/
+# D-292). The six tests decide the LANE before any drafting, and the table is the only place the
+# five `--declare` answers `/fabrik-task` asks for are defined — `commands/_sources/fabrik-task.md`
+# sends the agent here by name, so a missing or renamed table breaks the command it documents.
+# Hub-only for now; T04b mirrors it into templates/governance/CLAUDE.md for the ~46 repos.
+_STEP0_START = "0. **Task→skill routing:**"
+_STEP0_END = "1. **Hub identity, not a scaffold type:**"
+# The pointer the two sizing clauses collapse to (operator ruling U19) — it names the table by the
+# heading and the noun, so both must survive a rewording of either.
+_LANE_POINTER = "SIZE it against § Orient step 0's lane table"
+# The enumeration the HANDLE-NOW clause drops: it stated a SECOND, DIFFERENT test (>5 files, and a
+# vendored/synced surface routed to SPEC/PLAN work where rule 1 routes a sync path to right-now +
+# the full /fabrik-review — the opposite disposition). Two sources of truth for one decision.
+_OLD_INLINE_TEST = "(a new mechanism, a vendored/synced surface, schema, auth, >5 files)"
+
+
+def _delim_row():
+    """The GFM delimiter regex, LOADED from the checker that owns it rather than hand-copied.
+
+    Deliberately function-scoped: at module scope a rename of that script or of its private
+    `_DELIM` aborts COLLECTION of this whole file — all 17 tests — instead of reddening only the
+    4 that call it. Measured both ways: a renamed script and a renamed symbol each red exactly 4."""
+    return _load("check_governance_tables",
+                 "scripts/enforcement/check_governance_tables.py")._DELIM
+
+
+def _step0_body(text: str) -> str:
+    """§ Orient step 0, bounded at BOTH ends.
+
+    ⚠️ A missing START raises IndexError (loud); a missing END does NOT raise — `split` on an
+    absent separator returns the whole remaining string — so the section silently grows to the end
+    of a 130 KB file and every `in step0` check passes from anywhere in the document. The first cut
+    of this guard protected one of the two split sites; the other kept the unbounded shape."""
+    assert text.count(_STEP0_START) == 1, f"§ Orient step-0 START anchor drifted: {_STEP0_START!r}"
+    assert text.count(_STEP0_END) == 1, f"§ Orient step-0 END anchor drifted: {_STEP0_END!r}"
+    return text.split(_STEP0_START, 1)[1].split(_STEP0_END, 1)[0]
+
+
+def _step0_tables(text: str) -> list[list[list[str]]]:
+    """Every markdown table inside § Orient step 0, as rows of stripped cells.
+
+    ⚠️ A pure EXTRACTOR. It does not decide whether a table is valid GFM — three rounds of
+    hand-rolling that (indent width, tab expansion, "was a delimiter row seen") produced both
+    false NEGATIVES (a delimiter row one cell short renders nothing and passed) and false
+    POSITIVES (a GFM-legal delimiter row may omit either outer pipe, and a fenced code example
+    containing a pipe row is not a table at all — both reddened four tests on correct markdown).
+    Validity is now decided by an actual renderer in
+    `test_the_lane_table_renders_as_a_table_for_every_gfm_reader`, which cannot disagree with GFM
+    because it IS GFM."""
+    body = _step0_body(text)
+    delim = _delim_row()
+    tables: list[list[list[str]]] = []
+    current: list[list[str]] = []
+    for raw in body.split("\n"):
+        line = raw.strip()
+        if line.startswith("|") and line.endswith("|"):
+            if delim.match(line):
+                continue
+            current.append([c.strip() for c in line.strip("|").split("|")])
+        elif current:
+            tables.append(current)
+            current = []
+    if current:
+        tables.append(current)
+    return tables
+
+
+def _lane_table(text: str) -> list[list[str]]:
+    """The lane table specifically — identified by its header, not by its rows' first cells."""
+    lane = [t for t in _step0_tables(text) if t and t[0][:2] == ["#", "Test"]]
+    assert len(lane) == 1, (
+        f"expected exactly one lane table in step 0, found {len(lane)}. House convention: every "
+        "governance-table row carries BOTH outer pipes — `scripts/enforcement/check_governance_"
+        "tables.py` uses the same startswith/endswith rule, so a row missing one is invisible to "
+        "the fleet check too (executed). GFM itself would accept it; we do not."
+    )
+    return lane[0]
+
+
+def test_the_lane_table_carries_the_six_tests_and_its_verdict_row() -> None:
+    """T04a Behavior Contract: § Orient step 0 carries the lane table.
+
+    Red-first note: watched RED before the table existed — step 0 then held only the stage table,
+    whose first column carries stage names, not test numbers, so `_lane_table` raised."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    rows = _lane_table(hub)[1:]  # drop the header
+    assert [r[0] for r in rows] == ["1", "1b", "2", "3", "4", "4b", "5", "6"], [r[0] for r in rows]
+    header = _lane_table(hub)[0]
+    wrong = [r[0] for r in rows if len(r) != len(header)]
+    assert not wrong, f"rows whose cell count != the header's {len(header)}: {wrong}"
+
+
+def test_the_lane_tables_verdict_row_names_a_command_that_exists() -> None:
+    """The verdict row is the whole point of the table, and it names a command by slug. A slug with
+    no source is a table that routes the reader nowhere — the failure T03's acceptance review found
+    in the other direction (the command pointed at a table that did not yet exist)."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    verdict = [r for r in _lane_table(hub)[1:] if r[0] == "6"]
+    assert verdict, "the lane table has no verdict row 6"
+    slugs = re.findall(r"/(fabrik-[a-z0-9-]+)", " ".join(verdict[0]))
+    assert slugs, f"verdict row names no command: {verdict[0]}"
+    missing = [s for s in slugs if not (FABRIK / "commands/_sources" / f"{s}.md").is_file()]
+    assert not missing, f"verdict row names commands with no source: {missing}"
+
+
+def test_the_heavy_surface_list_names_a_governance_sync_path() -> None:
+    """§ Completion Contract 1a routes heavy surfaces to the full /fabrik-review. Measured at
+    a929b33f8 (spec § The decision rule): 52 of the 97 sync-path commits in the hub's last 300 touch
+    ONLY sync paths that 1a's list did not name, so they read as light work and landed one lane
+    lighter than a public contract for ~46 repos deserves."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    para = [ln for ln in hub.split("\n") if ln.lstrip().startswith("1a. **SELF-REVIEW")]
+    assert len(para) == 1, f"§ 1a's opening line moved or split ({len(para)} matches)"
+    assert "a governance-sync path" in para[0], "§ 1a's heavy-surface list omits a governance-sync path"
+    # The UNIVERSAL marker in the same paragraph is load-bearing and must not be reworded.
+    assert "EVERY code-changing chunk of work gets a review-family pass" in para[0]
+
+
+def test_the_handle_now_clause_points_at_the_lane_table_instead_of_restating_a_test() -> None:
+    """One test, one home (operator ruling U19). The clause keeps its audience's outcomes — the
+    reply, the pipeline stage, the right-now fix and its mandated /fabrik-review-scoped — and drops
+    only the enumeration that was a second, conflicting test."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    assert hub.count(_LANE_POINTER) == 1, f"pointer count {hub.count(_LANE_POINTER)}, want 1"
+    assert _OLD_INLINE_TEST not in hub, "the HANDLE-NOW clause still restates its own sizing test"
+    # The outcomes the pointer must NOT have taken with it.
+    # The clause points at a table with THREE verdicts; before this assertion existed it named
+    # only two, so a row-6 request read as a plain right-now fix and the lane was never opened.
+    assert "`/fabrik-task`" in hub.split("SIZING is a required step")[1][:900], (
+        "the pointer names no /fabrik-task outcome — the table's third verdict is unreachable"
+    )
+    for kept in (
+        "never half-built inline",
+        "**every right-now fix ships with `/fabrik-review-scoped`**",
+        "the review comes BEFORE the reply",
+    ):
+        assert kept in hub, f"the pointer dropped an outcome the clause must keep: {kept}"
+
+
+def test_the_lane_tables_verdicts_match_the_size_gates_own_routing() -> None:
+    """The class four executed mutants walked straight through: rows 1-5's Test and → columns were
+    never read by any grader, so flipping row 6's verdict to `/fabrik-spec` (which kills the lane
+    outright) passed, and so did widening row 5 from 3 files to 30 while `_TASK_MAX_FILES` stayed 3.
+
+    This binds the table to the gate's own constants, so contract and code cannot drift apart."""
+    cr = _load("command_run", "scripts/command_run.py")
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    rows = {r[0]: r for r in _lane_table(hub)[1:]}
+    assert len(rows) == 8, sorted(rows)
+    assert f"more than {cr._TASK_MAX_FILES} DECLARED files" in rows["5"][1]
+    assert "DECLARE the code surface ONLY" in rows["5"][1]
+    # round 3 added this caveat and shipped NO grader for it, so inverting it back to "never
+    # declare one" passed — re-introducing the exact defect the caveat exists to close.
+    assert "is neither excluded nor free" in rows["5"][1]
+    assert "the close scores it undeclared" in rows["5"][1]
+    assert "the `--file` count" in rows["5"][1], "row 5's executable basis is --file, not --declare"
+    assert "excluded at CLOSE, not at start" in rows["5"][1], (
+        "row 5 must say WHEN the exclusion applies — it is close-only, and the first cut of\n"
+        "this row claimed the --file count itself was already the code surface"
+    )
+    assert "`/fabrik-task`" in rows["6"][2] and "/fabrik-spec" not in rows["6"][2]
+    for n in ("2", "3", "4", "5"):
+        assert "spec chain" in rows[n][2], n
+    for n in ("1", "1b"):
+        assert "**not this lane:**" in rows[n][2] and "spec chain" not in rows[n][2], n
+        # the FULL review, never the scoped one: these two rows govern a public contract for ~46
+        # repos, and downgrading the verdict passed every guard until this line existed.
+        assert "the full `/fabrik-review`" in rows[n][2], n
+    assert "right-now" in rows["4b"][2] and "spec chain" not in rows["4b"][2]
+    # `command_run.py` provably REFUSES the lane for decision=no; the cell said so and nothing
+    # stopped it saying the opposite.
+    assert "`start` refuses the lane for it" in rows["4b"][2]
+    # ⚠️ the VALUE, not just the key: a bare `f"`{key}="` prefix let `mechanism=yes` become
+    # `mechanism=no` — teaching the OPPOSITE declaration — in five rows at once.
+    for n, kv in (("1b", "heavy=yes"), ("2", "mechanism=yes"), ("3", "oneway=yes"),
+                  ("4", "tradeoffs=yes"), ("4b", "decision=no")):
+        assert f"`{kv}`" in rows[n][1], (n, kv)
+    # the question each row ASKS, not only its label — two rows' prose were swapped wholesale and
+    # every grader stayed green, leaving a table that contradicted its own annotations.
+    for n, noun in (("1", "governance-sync"), ("1b", "heavy surface"), ("2", "NEW MECHANISM"),
+                    ("3", "ONE-WAY"), ("4", "TRADE-OFFS"), ("4b", "pure fix")):
+        assert noun in rows[n][1], (n, noun)
+    assert ".pre-commit-config.yaml" in rows["1"][1]
+    for n, phrase in (("1b", "operator-named work"), ("1b", "D-137"),
+                      ("3", "expensive to unwind")):
+        assert phrase in rows[n][1], (n, phrase)
+    assert "PUBLIC CONTRACT" in rows["1"][1], "row 1's QUESTION, not just its parenthetical"
+    # the six design fields, which `commands/_sources/fabrik-task.md` also names: a silent
+    # divergence here breaks a cross-file contract with nothing to catch it.
+    for field in ("PROBLEM", "APPROACH", "DECISION", "MIRROR", "OUT", "TERMINAL"):
+        assert field in rows["6"][2], field
+    assert "right-now +" in rows["1"][2], "row 1's verdict names a LANE, not just a review"
+    assert "the § Binding block lives there" in rows["3"][2]
+    for conj in ("one reversible decision", f"≤{cr._TASK_MAX_FILES} files", "no sync path",
+                 "no heavy surface", "no mechanism", "no trade-off"):
+        assert conj in rows["6"][1], conj
+    # DERIVED from the table, never a second hand-kept copy of the same five strings: the old
+    # closing line compared the constant against a literal it also wrote down, so it could only
+    # fail when someone edited the constant — never when the table drifted from it.
+    taught = {k for r in rows.values() for k in re.findall(r"`([a-z]+)=[a-z]+`", r[1])}
+    assert set(cr._TASK_DECLARE_KEYS) == taught, (set(cr._TASK_DECLARE_KEYS), taught)
+
+
+def test_the_lane_table_states_the_precedence_the_gate_actually_evaluates() -> None:
+    """The rows are PUBLISHED blast-radius-first, but `_task_size_gate` evaluates the file count and
+    mechanism/oneway/tradeoffs BEFORE sync and heavy. Read as "first row that fires wins", the
+    table sends a >3-file sync-path change to right-now + the full review while the gate refuses it
+    to `/fabrik-spec` — the contract and its own gate disagreeing on the hub's most consequential
+    surface class. The spec carries the reconciling sentence; the first cut of this table dropped
+    it, and three mis-routes were executed against the live parser before it came back."""
+    cr = _load("command_run", "scripts/command_run.py")
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    step0 = _step0_body(hub)
+    assert hasattr(cr, "_task_size_gate"), "the cited symbol must exist — `_task_size` never did"
+    assert "_task_size_gate" in step0, "the precedence claim must cite the function implementing it"
+    # The ORDER, read out of the gate itself. `lane = (...)` fires in `if/elif` order, so the
+    # sequence of its labels IS the precedence, and a reordering of the gate reds this test.
+    src = inspect.getsource(cr._task_size_gate)
+    labels = [m.split()[0] for m in re.findall(r'lane = \(f?"([^"]+)"', src)]
+    assert labels == ["files", "mechanism", "oneway", "tradeoffs", "sync", "heavy", "decision=no"], labels
+    row_of = {"files": "5", "mechanism": "2", "oneway": "3", "tradeoffs": "4",
+              "sync": "1", "heavy": "1b", "decision=no": "4b"}
+    from_gate = [{row_of[x] for x in labels[:4]}, {row_of[x] for x in labels[4:6]},
+                 {row_of[x] for x in labels[6:]}]
+    # ⚠️ DERIVED FROM THE TABLE, not from `labels` again: the first cut computed both sides from
+    # the same list, so once the labels assertion passed this one could not fail — a second
+    # binding that bound nothing. Now the table's own verdict cells are the other side.
+    rows = {r[0]: r for r in _lane_table(hub)[1:]}
+    from_table = [
+        {n for n, r in rows.items() if "spec chain" in r[2]},
+        {n for n, r in rows.items() if "**not this lane:**" in r[2]},
+        {n for n, r in rows.items() if "/fabrik-review-scoped`" in r[2] and "not this lane" not in r[2]},
+    ]
+    assert from_gate == from_table, (from_gate, from_table)
+    assert "Rows 2, 3, 4 and 5 take PRECEDENCE over rows 1 and 1b" in step0
+    assert "which in turn take precedence over row 4b" in step0
+    # the tier-1 caveat: the gate checks the file count FIRST, so a refusal naming `files > 3`
+    # can still be hiding a row-2/3/4 trigger. Deleting this clause passed every other guard.
+    assert "except INSIDE the spec-chain tier, where the gate reports the file count first" in step0
+    assert "any of 2, 3, 4 or 5 is spec-chain work" in step0, (
+        "the precedence sentence must state its VERDICT, not only which rows outrank which"
+    )
+    # the table's own self-correction mechanism, previously guarded by nothing at all
+    assert "**Tripwire:**" in step0 and "re-apply tests 1, 1b, 2-5 by hand" in step0
+    # the tripwire's FIRING CONDITION and its instruction, not just its heading: inverting
+    # "UPGRADE" to "DOWNGRADE" told an agent that a newly-tripping test means narrow further.
+    assert "if the first draft cites a script's internals" in step0
+    assert "a test that now trips is an UPGRADE, or the draft over-scoped" in step0
+    # the no-code clause's VERDICT — it was guarded by five words, and replacing the rest with the
+    # opposite verdict ("this lane applies — declare the docs") passed every grader.
+    assert "No code surface at all" in step0
+    assert "not this lane — declare nothing and `start` refuses" in step0
+    # every run needs all five declare keys; "any one of them" passed and costs a round trip.
+    # the qualifier was pinned; the claim it qualifies was not, so "a KEY `start` requires"
+    # could become "accepts optionally" and leave the sentence self-contradictory.
+    assert "names a `--declare` KEY `start` requires — all five, every run" in step0
+    assert "`Profile: small` then lightens execution" in step0
+
+
+def test_the_lane_table_renders_as_a_table_for_every_gfm_reader() -> None:
+    """GFM validity, decided by an actual renderer instead of a hand-rolled approximation.
+
+    Three rounds of approximating GFM in `_step0_tables` shipped defects in BOTH directions. False
+    negatives: an 8-space indent, a tab indent, a delimiter row one cell short, and the whole table
+    wrapped in a fence each render as plain text — the lane table vanishing for every rendered
+    reader — while all 17 tests stayed green. False positives: a GFM-legal delimiter row omitting
+    either outer pipe reddened four tests on markdown that renders perfectly.
+
+    This asserts the thing that actually matters — the verdict row reaches a table CELL — against
+    the renderer, which by construction cannot disagree with GFM about what GFM does."""
+    markdown_it = pytest.importorskip("markdown_it", reason="renderer needed to grade GFM validity")
+    html = markdown_it.MarkdownIt("gfm-like").enable("table").render(
+        _step0_body((FABRIK / "CLAUDE.md").read_text(encoding="utf-8"))
+    )
+    assert re.search(r"<td>\s*one reversible decision", html), (
+        "the lane table's verdict row did not render inside a table cell — the table is "
+        "invisible to every rendered reader (check the delimiter row's width, the indentation, "
+        "and whether anything fenced it)"
+    )
