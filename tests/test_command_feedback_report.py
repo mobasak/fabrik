@@ -2843,3 +2843,23 @@ def test_queue_fabrik_task_a_sync_row_lands_in_one_bucket_not_two(tmp_path: Path
     assert "[+1 upgrade: sync]" in line, line
     assert "unmeasurable 1/4" in line, line
     assert line.startswith("series: oversized_mini 1/1 (100%)"), line
+
+
+def test_queue_fabrik_task_refuses_a_since_or_agent_window(tmp_path: Path) -> None:
+    """The `--command` guard closed one cobra path on the adoption share and left its twins open.
+    `--since` and `--agent` window `rows` BEFORE `queue()` sees them exactly as `--command` did, so a
+    standalone review-scoped close 10 days old fell out of the denominator and `--since 1` printed
+    `adoption 1/1` — the same vacuous 100%, rc 0, flattering direction, no warning. Executed by the
+    whole-plan review seat. V4 defines the share over ONE denominator, the whole ledger; a window
+    is a second denominator wearing an ordinary flag."""
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [
+        _row("fabrik-task", 60, 1, "none", oversized_mini="0"),
+        _row("fabrik-review-scoped", 30, 1, "none", days_ago=10.0),
+    ])
+    base = _run(ledger, "--queue", "fabrik-task")
+    assert base.returncode == 0 and "adoption 1/2" in base.stdout, base.stdout
+    for flag in (("--since", "1"), ("--agent", "s")):
+        r = _run(ledger, "--queue", "fabrik-task", *flag)
+        assert r.returncode == 2, (flag, r.stdout, r.stderr)
+        assert "one denominator" in r.stderr, (flag, r.stderr)

@@ -1395,6 +1395,22 @@ def main(argv: list[str] | None = None) -> int:
         # at rc 0, in the flattering direction. The cheapest cobra path on this metric is appending
         # one redundant flag.
         ap.error("--queue already names the command; drop --command")
+    if a.queue is not None and a.queue.lstrip("/") == "fabrik-task" and (
+        a.since is not None or a.agent is not None
+    ):
+        # ⚠️ The `--command` guard above closed ONE cobra path on the adoption share and left its
+        # twins open: `--since` and `--agent` window `rows` before `queue()` sees them in exactly
+        # the same way, so a standalone review-scoped close outside the window fell out of the
+        # denominator and `--since 1` printed `adoption 1/1` — the same vacuous 100%, rc 0, in the
+        # flattering direction (whole-plan review, 2026-09-18, executed). V4 defines the share over
+        # one denominator, the whole ledger; a window is a second denominator wearing a flag that
+        # looks harmless. The queue's VERDICT rows would be fine windowed; the series would not,
+        # and the two print together, so the combination is refused rather than half-honoured.
+        ap.error(
+            "--queue fabrik-task prints the adoption share, which V4 defines over one denominator "
+            "(the whole ledger); a --since/--agent window would give it a second one — drop the "
+            "window, or read the queue rows without the series via --queue on another command"
+        )
     if a.queue is not None and a.observer_rank:
         ap.error("--queue and --observer-rank are two different reports; pass one of them")
     if a.queue is not None or a.observer_rank:

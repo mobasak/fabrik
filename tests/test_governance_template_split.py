@@ -555,6 +555,12 @@ def test_the_lane_tables_verdicts_match_the_size_gates_own_routing() -> None:
         assert field in rows["6"][2], field
     assert "right-now +" in rows["1"][2], "row 1's verdict names a LANE, not just a review"
     assert "the § Binding block lives there" in rows["3"][2]
+    # D-298's re-cut, pinned on phrases that exist ONLY in the new wording: "no trade-off" is a
+    # prefix of "no trade-off to settle first" and "TRADE-OFF" matches "TRADE-OFFS", so the pins
+    # above let a revert to the wording V1 disproved pass 23/23 — executed by the whole-plan seat.
+    assert "no trade-off to settle first" in rows["6"][1]
+    assert "settled BEFORE building" in rows["4"][1]
+    assert "is this lane's ordinary case, not a trigger" in rows["4"][1]
     for conj in ("one reversible decision", f"≤{cr._TASK_MAX_FILES} files", "no sync path",
                  "no heavy surface", "no mechanism", "no trade-off"):
         assert conj in rows["6"][1], conj

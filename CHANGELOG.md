@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the whole-plan review of the `/fabrik-task` lane, before the one forced sync (2026-09-18)
+
+- **The D-298 re-cut was unguarded.** The graders pinned `no trade-off` and `TRADE-OFF`, both substrings of the wording V1 had just disproved, so reverting rows 4 and 6 to the pre-D-298 text passed 23 of 23 — executed by the whole-plan seat. Pinned on phrases that exist only in the new wording; the revert-mutant now reds.
+- **The adoption share had two more cobra paths.** `--command` was already refused beside `--queue fabrik-task` because it windowed `rows` before the series read them and printed a vacuous `adoption t/t`. `--since` and `--agent` did the identical thing and were not refused: a standalone review-scoped close 10 days old fell out of the denominator and `--since 1` printed `adoption 1/1`, rc 0, in the flattering direction — executed. Both are now refused with the same shape of message; V4 defines the share over one denominator, the whole ledger.
+- **The spec contradicted itself about whether V1 had run.** § The decision rule reported the re-cut with its numbers while § Open unknowns still listed U3 and U29 as OPEN and "before the build". Both closed, each recording that V1 ran inside the build rather than before it — D-298's root cause, not an open unknown.
+
 ### Changed — the lane table's test 4 re-cut by V1's own gate (2026-09-18, D-298)
 
 - Test 4 was "genuine trade-offs to adjudicate" and row 6 required "no trade-off". Measured against 24 sampled commits: test 4 fired on **10 of 10** answerable decision-bearing rows and none recorded "no trade-off" — the decision ledger's what/why columns record a settled alternative for nearly every decision, so the lane's entry condition was empty of exactly the decisions it exists for. Test 4 now asks for a trade-off that must be settled **before** building; row 6 asks for "no trade-off to settle first". Re-scored: test 4 at 1 of 9 (11%), the union at 3 of 22 (14%), under the 30% stop.
