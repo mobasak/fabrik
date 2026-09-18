@@ -1,6 +1,6 @@
 # Plan 1 (2026-09-18) — the `/fabrik-task` lane: SIZE at `start`, DESIGN in the record, one own-commit re-measure
 
-Status: IN-PROGRESS
+Status: EXECUTED (2026-09-19 — seven tickets merged; the whole-plan review CONVERGED at Pass 6 on a fresh non-authoring seat's confirmed 0; V0 measured, V1 re-scored under D-298, V2 dogfooded (the run closed `oversized_mini: 0` and WITHDREW its own change on a ruling that lived only in a docstring — D-300), V3 executed; `/fabrik-docs-review` fixed six contract/protocol claims the code refuted and closed on the D-278 scope-growth stop; two forced syncs distributed the lane table and `command_run.py` to 47 of 50 `/opt` repos)
 Profile: standard
 **Owner:** —
 **Spec:** `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md` — CONVERGED at a40d75870 by the operator's ruling (D-293; the three rulings D-289/D-290/D-291, the MIRROR confirmed by D-292).
@@ -55,7 +55,7 @@ Intake: 14 items — 12 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 | T03 | the command source `commands/_sources/fabrik-task.md`, its render, the docs rows | T01b | ⚡ | ✅ | 2958f46c1 |
 | T04a | hub `CLAUDE.md`: the lane table, § 1a's trigger, the HANDLE-NOW pointer | T03 | ⛓️ | ✅ | f1ce6c310 |
 | T04b | `templates/governance/CLAUDE.md`: the same table + trigger, outcome (ii)'s pointer; the fabrik-lib mail | T04a | ⛓️ | ✅ | 733dee75a |
-| T05 | Integration: receipt, whole-plan gate + review, docs-review, the sync, V0/V1/V2/V3 | T02, T04b | ⛓️ | ⬜ | |
+| T05 | Integration: receipt, whole-plan gate + review, docs-review, the sync, V0/V1/V2/V3 | T02, T04b | ⛓️ | ✅ | b0a43bde7 |
 
 **Breadth advisory, adjudicated (`check_ticket_breadth.py --plan-dir` 2026-09-18 flagged T01a score 9 · T01b score 9 (7 before round 1 added two graded behaviours)):** both are KEPT, not split — their behaviours are one coupled invariant apiece. T01a's eight rows are the single guard CHAIN the spec fixes in ORDER (flag guards → path/state checks → lane tests + declared answers); splitting it would put two halves of one ordering contract in two tickets and add a third serialized merge on the same fleet-synced file. T01b's rows ARE the operator's Phase A acceptance-criteria SET (D-293) and are read together; the split the advisory suggests would split a ruling. The advisory's own calibration (recall 2/3, precision 0.50, ρ=0.45) is a prompt to look, and looking is what this line records.
 

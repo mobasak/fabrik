@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-09-18-plan-1-fabrik-task-lane",
+  "plan": "docs/development/plans/archived/2026-09-18-plan-1-fabrik-task-lane",
   "owned_paths": [
     "scripts/command_run.py",
     "tests/test_command_run_fabrik_task.py",
@@ -15,7 +15,7 @@
   ],
   "branch": "master",
   "started_at": "2026-09-18T11:30:30",
-  "status": "blocked",
+  "status": "released",
   "baseline_commit": "90e022ef86713132f0c3faa2f7039d44a316f42a",
   "baseline_gate": {
     "final_gate": "success",
@@ -29,10 +29,6 @@
     "captured_at": "2026-09-18T11:30:30",
     "note": "hub pytest leg is OFF by design (5,913 tests); bandit/semgrep not installed in the venv"
   },
-  "resume_at": "When the FLEET weekly band leaves RED (`claude_rotate.py --status` is the authority): re-dispatch the delta round's Opus brief over 45bdfe646..HEAD (classes blind-close-scores-clean, git-config-parameters-fail-open, intra-tier-order-unguarded; class 3 is CLOSED) plus one hop over d41a10a07..HEAD's two-line fix; on a fresh seat's confirmed 0: receipt Pass 3 + Status CONVERGED → the ONE `sync_enforcement_to_projects.py --force` → V2 dogfood (`/fabrik-task` on tests/test_command_run_fabrik_task.py:25 `_HUB_CONFIG`) → `/fabrik-docs-review` → LESSONS (draft at scratch merge/lessons.txt — regenerate if swept: the verify-vs-validate lesson) / INDEX row / CHANGELOG → spine Status: EXECUTED, T05 ✅ → lock released → `git mv` the set to docs/development/plans/archived/ → `done --command fabrik-execute-plan`.",
-  "resumed_at": "2026-09-18T19:04:29+03:00",
-  "resume_reason": "Operator directive 2026-09-18: proceed under AMBER. The fleet weekly floor is 85% (sarp) but headroom against each account's own cap is ~30 points across the four non-walled accounts (sarp 10, ozgurbasak 9, ob 8, can 3) — capacity to finish T04a/T04b/T05 without thinning the review floor, which stays at three seats with the Opus finder unconditional.",
-  "blocked_at": "2026-09-18T22:40:00+03:00",
-  "blocked_reason": "Fleet band RED on the weekly window (QUOTA line: weekly 90% fleet-wide, band RED, the hook holds Agent and a new start) mid-T05: the whole-plan review's delta round is INCOMPLETE — its Opus seat was terminated by an API timeout with classes 1/2/4 unreported (receipt Pass 2). Missing infra in the contract's sense: no seat can be dispatched at RED, and the review cannot close without a fresh seat confirming zero (D-206).",
-  "exposure": "NOTHING has distributed: 1 of 45 /opt repos carries the lane table (the hub's own) and /opt/youtube's command_run.py md5 differs from the hub's — verified by the Haiku seat this round. Every hub commit since a6178696b went through the private index (no post-commit hook)."
+  "released_at": "2026-09-18T23:33:32+00:00",
+  "released_by": "the /fabrik-execute-plan run that finished T05 (Status: EXECUTED); the set is archived to docs/development/plans/archived/"
 }

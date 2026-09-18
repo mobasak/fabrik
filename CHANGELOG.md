@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `/fabrik-task`: the lane between a right-now fix and the spec chain (2026-09-19)
+
+- **The gap it closes, measured:** the spec chain is ~6 hours median before a line of code and the light lane is ~32 minutes, with nothing in between — so trivial work was over-sized into the chain or shipped with no design at all. `/fabrik-task` is one command, one run record, six phases, and the D-row as its durable artifact.
+- **The SIZE gate IS the `start`.** `command_run.py start --command fabrik-task` refuses without `--file`/`--declare`, runs the two mechanical tests (the governance-sync filter read from the hub's own `.pre-commit-config.yaml`; the count of DISTINCT normalised declared paths) and the three judgment tests, and names the lane the work belongs in instead of opening a record it should not.
+- **The close re-measures the run's own commit** against phase 0's declaration and writes `oversized_mini` and `upgrade` to the feedback ledger, so under-declaring — the lane's cheapest cobra — is visible as a series rather than a story. The adoption share reads over one denominator, and `--since`/`--agent` are refused because a window is a second one.
+- **The routing table lands in both contracts** (§ Orient step 0, hub and fleet template, byte-identical but for the two sanctioned rows) with the precedence the gate actually evaluates, and the two ledger fields are documented in the command-run protocol and the capability catalog.
+- **Validated, not just verified:** V1 backtested the rule against 24 real lane-choice commits and REFUTED its first cut, which forced the D-298 re-cut of test 4 before anything distributed; V2 dogfooded the lane on a real candidate and the run withdrew its own change when phase 4 found a ruling that existed only in a docstring (D-300); V3 confirmed the cobra is caught at phase 5 where phase 4 cannot see it.
+
 ### Fixed — the docs review found four false claims in the lane's own contract text (2026-09-19)
 
 - **Row 5 named the wrong quantity.** "the `--file` count" reads as the occurrence count; the gate counts DISTINCT repo-root-normalised paths, so four `--file` occurrences of two files start at rc 0 (executed). Row 5 now says which count, and its grader pins both halves — the first cut pinned only the flag name, so the wrong quantity survived.

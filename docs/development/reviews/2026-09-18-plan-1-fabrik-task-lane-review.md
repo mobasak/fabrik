@@ -271,6 +271,52 @@ and why the command hands the seats the declaration rather than teaching the gat
 | WP-S1-2 | RECORDED — by design (D-296) (`commands/_sources/fabrik-task.md:2`'s SKIP clause paraphrases the table's rejection criteria in one line for the skill router; it is a trigger summary, not an execution instruction, and carries none of the pre-D-298 wording — grep executed) |
 | WP-S2-4 | RECORDED — measured (the "0/128" lane-divergence figure lives in D-297 and the T04a receipt, not in the contracts; the seat verified the underlying fact instead — `_task_size_gate`'s if/elif order matches the precedence sentence, and the grader derives the expected order from `inspect.getsource`, never a literal) |
 
+## V2 dogfood — the first real `/fabrik-task` run, and what it withdrew
+
+Executed 2026-09-19 on the candidate the plan named: `tests/test_command_run_fabrik_task.py:26`'s
+hard-pinned `_HUB_CONFIG`. One declared file, `decision=yes` and every other key `no`; the SIZE
+gate opened the record and phase 2 wrote the six fields; phase 3 built the repo-relative pin and a
+source-reading grader, proven red-on-revert in a throwaway worktree.
+
+**Phase 4 refuted the design.** Three seats (`opus·sonnet·haiku`) over the one-file diff: the
+authoritative seat's lane answer (c) named a SECOND approach the declaration had said did not
+exist — `scripts/command_run.py:2694-2697` already rules the hub path ABSOLUTE, because the
+equality test must grade the scalar `governance_sync_postcommit.sh:30` opens, and 18 of 23
+registered worktrees carry a different one (re-derived here). The change was WITHDRAWN, not
+upgraded: the trade-off had been settled years earlier, in a docstring, with no ledger row — so
+`decisions.py` could not find it and the SIZE gate could not ask about it. The ruling is now
+**D-300**, the backlog row that had named the pin as a defect is amended, and two fresh delta
+seats closed the round at CONFIRMED 0 (one correcting a count, 47/31 → 48/32, to the output of the
+command it cited).
+
+**The lane's own measurement of itself:** the close re-measured its commit and wrote
+`oversized_mini: 0`; the reader renders `series: oversized_mini 0/1 (0%) · unmeasurable 0/1 ·
+upgrade 0/1 · adoption 1/40`. The terminal condition — a real run that closes at zero with a D-row
+— is met, and the run that met it is the one whose change did not survive its own review.
+
+## `/fabrik-docs-review` — six discrepancies, all of one shape
+
+Three reconciler seats over `docs/CAPABILITIES.md`, `docs/reference/command-run-protocol.md`, both
+`CLAUDE.md` copies, the rendered command, the spec's rules 4/6 and this receipt's V1 numbers; every
+claim executed against the code. The rendered command and the receipt↔D-298 numbers came back
+clean (the receipt's per-test figures match D-298 exactly). The other four surfaces did not, and
+every defect was the same shape — **a document asserting something its own code refutes**:
+
+| claim | the code | fixed at |
+|---|---|---|
+| row 5: "the `--file` count" | the gate counts DISTINCT normalised paths — 4 occurrences of 2 files start at rc 0 | `318778aea` |
+| row 5: "a CLOSED set" | closed in its TOKENS, open in its PATHS: two are directory prefixes (`docs/reference/`, `docs/workstation/`) excluding anything beneath them — the lane's cheapest cobra | `318778aea` |
+| row 6 | dropped the spec's "statable in the six fields" conjunct | `318778aea` |
+| protocol: "the close reads that key" | the close RE-DERIVES readability at close time and never reads the start-time key — that IS the round-1 fix | `318778aea` |
+| the capability catalog | truncated all 38 descriptions mid-word, 0 of 38 ending in a period; `/fabrik-task`'s row stopped at "SIZE (the start IS the gate), ME" | `318778aea`, `8121215e0` |
+| `_clip`'s own three defects | a misquotation inside quote marks, a 401-char return, an unnamed third arm, and no grader | `8121215e0` |
+
+Both contracts are sync triggers carrying false text to 46 repos, so the fixes rode a SECOND forced
+sync — the plan budgeted one, and shipping a known-false contract is the worse of the two. 47 of 50
+`/opt/*/CLAUDE.md` carry the corrected rows (the three `fabrik-lib` repos are sync-excluded by
+design). Three further claims live in a CONVERGED spec and a merged ticket, which a fix may not
+rewrite; they are routed to `docs/STRATEGIC_BACKLOG.md` with their measurements and fix shapes.
+
 ## Per-phase verdicts
 
 ### Phase C — the whole plan (T01a·T01b·T02·T03·T04a·T04b·T05): CLEAN at Pass 6 — 10 confirmed at Pass 1 fixed, 4 at Pass 3 fixed (one HIGH in pre-existing floor code of the same class), 3 + 1 prose defects in the fixes' own coverage claims fixed, 0 at Pass 6; V0 measured, V1 re-scored under D-298, V3 executed, V2 follows the sync

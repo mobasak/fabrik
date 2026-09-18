@@ -1,6 +1,47 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## The review commands verify; none of them validate — and three ways a ruling hides from every gate (2026-09-18/19, the `/fabrik-task` lane)
+
+A decision rule went through three `/fabrik-spec-review` runs, `/fabrik-plan-after-chat`,
+`/fabrik-plan-review`, six build tickets and fifteen execution review rounds before the first test
+of whether the rule was *right*. That test, V1, took ten minutes, needed no seats for its executable
+half, and refuted the rule: the old test 4 fired on 10 of 10 answerable decision-bearing commits, so
+row 6's `no trade-off` conjunct emptied the lane of the decisions it exists for. The two rows sit
+four lines apart.
+
+**Why nobody saw it.** Every one of those reviews checked the text against the CODE — citations
+resolve, graders bind, mutants die, anchors survive byte-exact. That is verification: did we build
+it right. None asked the empirical question — apply this rule to real commits and see where they
+land — which is validation. The spec's own § Validation described exactly that, with 24 sample SHAs
+listed and "tests 1 and 5 are EXECUTED from `git show`". Three spec-review runs reviewed that
+section's PROSE and never ran it. The plan then scheduled V1 in the LAST ticket, after six tickets
+had built the rule; the plan review passed the inversion; execution ran it as written.
+
+**Then the same shape three more times, each in a different hiding place.** The lane's own dogfood
+run (V2) declared `tradeoffs=no` honestly, built its one-line change red-first, and had it
+withdrawn at phase 4: the approach it chose was already ruled against in a DOCSTRING
+(`scripts/command_run.py:2694-2697`), with no ledger row — so `decisions.py` could not find it and
+the SIZE gate could not ask about it. The whole-plan review's closing seats then found that every
+surviving defect was a doc asserting something the code refutes: a contract row naming "the
+`--file` count" where the gate counts DISTINCT normalised paths, "a CLOSED set" that is closed in
+its tokens and open in its paths, a protocol doc describing the very bug the same review had just
+fixed, and a grader docstring claiming a coverage baseline that mutation testing refuted — twice,
+in opposite directions.
+
+**The mechanical lessons.** (1) A spec-review seat that finds a § Validation section with an
+executable recipe RUNS the executable half in round zero. (2) `/fabrik-plan-review` checks Merge
+Order against every "before"/"first" the spec states, not only Board rows against tickets. (3) A
+plan's own backtest runs as the FIRST step of the first ticket that implements the rule it tests,
+never in the integration ticket. (4) A ruling that lives only in prose is invisible to every gate:
+when a fix reverses one, the fix is to RECORD the ruling, not to argue with it — and phase 1 of any
+small-lane run greps the ledger AND the target file's docstrings before phase 2 writes DECISION.
+(5) When a claim about a MEASUREMENT is what the doc adds, the grader pins the quantity, not the
+noun — "the `--file` count" and "the count of DISTINCT `--file` paths" share a flag name and differ
+by a refusal.
+
+Filed against the three commands' feedback queues; the rulings are D-298 (the re-cut) and D-300
+(the absolute-pin ruling the dogfood surfaced).
 
 ## I matched a constant to the wrong quantity, and measured everything except that (2026-09-17)
 
