@@ -20,6 +20,32 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 
 - **[intel] `/fabrik-rivals` guard debt left after the 2026-09-14 key-autoload review** — four low-severity grader gaps a 25-mutant battery found and the run deliberately did not close, each one line: the unreadable-`.env` fail-open path (`chmod 000`) is claimed by a docstring and pinned by no test; the `expanduser()` on `$SUBAGENTS_ENV_FILE` is documented as a deliberate divergence from `libs/alerting/_dotenv.py` and nothing pins it, so the next re-port reverts it; `main()`'s `load_env(str(REPO))` argument is ungraded, and swapping it for `os.getcwd()` — the historical wrong-repo bug — passes every test; and the `note:` the docs make a contract is not asserted. Plus one behaviour item: running the HUB's copy of the driver from another repo binds `REPO` to the hub, so it reads the hub's `.env` and writes its checkpoint under `/opt/fabrik/.tmp` while preflight calls it repo-local (reproduced; the doc now states the precondition, but no check enforces it). None is a live defect in the shipped path — the closing reader's verdict was SAFE for 48 repos.
 
+### [fleet] The Fable clamp makes a sentence in all three CLAUDE.md copies FALSE, and the emitted `QUOTA:` line no longer matches its pinned shape
+
+Raised by the closing delta seat of `/fabrik-review` over D-295 (2026-09-18), receipt
+`docs/development/reviews/2026-09-18-fable-band-clamp-review.md` § RESUME item 3. RECORDED, not
+fixed: it is a fleet-synced three-file edit plus a grader, and the round that found it was already
+100% own-fix under a quota wall.
+
+**The false sentence.** `/opt/fabrik/CLAUDE.md`, `/opt/fabrik/templates/governance/CLAUDE.md` and
+`/opt/fabrik-lib/CLAUDE.md` all assert *"Because the band is the fleet's, a RED means every account
+that could serve the hot window is RED too — the hold is the fleet's wall approaching, never one
+account's."* The Fable clamp (D-295) makes that false for a Fable session BY DESIGN: `band_fable` is
+raised to the ACTIVE account's own Fable reading precisely because no flip can relieve it.
+`command grep -c "Fable window binds\|band_fable_clamped\|no relief leg" /opt/fabrik/CLAUDE.md` → 0.
+
+**The shape drift.** The contract pins the line as
+`band <GREEN|AMBER|RED|WALL>[ on <window>] (fleet-wide: …)[ — this account alone reads <band>; …]`.
+On the clamped path the emitted line carries a PHRASE where `<window>` belongs
+(`on this account's own Fable window (no relief leg)`) and a trailing clause the contract does not
+list. `test_prompt_line_matches_the_contract_format_byte_for_byte` passes only because it has no
+clamped case — so the byte-for-byte grader the contract points at is blind to exactly this.
+
+**Why it is not a quick edit.** The three copies are graded identical on that text; the hub copy is a
+governance-sync trigger distributing to ~46 repos; and fabrik-lib's is sync-excluded and CROSS-REPO,
+so it needs the operator's explicit approval in the turn it is made. The grader must gain a clamped
+case in the same change, or the next drift is invisible again.
+
 ### D-201's ledger-retention figure is ~5x off, and the fleet tick's weekly leg is still unbuilt (2026-09-16)
 
 - **D-201 states the 1 MB `_ledger_rotate` cap holds "roughly three weeks of history"**, derived from
