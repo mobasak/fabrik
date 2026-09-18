@@ -50,7 +50,7 @@ Intake: 14 items — 12 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
 | T01a | `command_run.py` — SIZE at `start` (`--file`/`--declare`, the inventory) + `step --design` | — | ⚡ | ✅ | 7e81ae9f5 |
-| T01b | `command_run.py` — `--commit` on the close verbs, the own-commit re-measure, the two row fields | T01a | ⛓️ | ⬜ | |
+| T01b | `command_run.py` — `--commit` on the close verbs, the own-commit re-measure, the two row fields | T01a | ⛓️ | ✅ | f0a7b6a08 |
 | T02 | `command_feedback_report.py --queue` header: the two series + the adoption share | T01b | ⛓️ | ⬜ | |
 | T03 | the command source `commands/_sources/fabrik-task.md`, its render, the docs rows | T01b | ⚡ | ⬜ | |
 | T04a | hub `CLAUDE.md`: the lane table, § 1a's trigger, the HANDLE-NOW pointer | T03 | ⛓️ | ⬜ | |
