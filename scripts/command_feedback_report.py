@@ -1103,6 +1103,141 @@ def render(report: dict) -> str:
     return "\n".join(lines)
 
 
+def _is_unmeasurable(raw: object) -> bool:
+    """One predicate for BOTH readers of `oversized_mini`.
+
+    ⚠️ They keyed on different strings and a row fell between them: the exclusion below tested the
+    whitespace-STRIPPED first token while the `unmeasurable` cell tested the RAW value, so any value
+    with a leading whitespace codepoint was excluded from `unreadable` AND absent from
+    `unmeasurable` — in no bucket at all, invisible. 29 of the 29 codepoints `str.split()` honours
+    produce it, NBSP among them, which is the ordinary result of a copy-paste out of a rendered
+    doc — and hand-edited rows are precisely the population these guards exist for.
+    """
+    return ("" if raw is None else str(raw)).lstrip().startswith("unmeasurable")
+
+
+def _task_series_nested(r: dict, others: list[dict]) -> bool:
+    """A `/fabrik-review-scoped` row `r` is NESTED when some OTHER command's row `o` (in
+    `others`) shares its `sid`, both rows' `repo` are non-empty and name the same repository —
+    equal, or one a path under the other on a `/` boundary — and `o`'s own
+    ``[ts - wall_s, ts]`` window brackets `r`'s `ts`. The non-empty test is load-bearing:
+    `_repo_root()` can write `""` (`scripts/command_run.py:844-855`, `:3659`), and without it an
+    empty `repo` on either side would nest against anything (or against nothing correctly by
+    accident) — tolerant of a malformed/non-numeric `ts`/`wall_s` (`_num` returns `None`, never
+    raises), which simply never nests.
+
+    ⚠️ The same guard applies to `sid` and lives on the `o` side ONLY. Two rows that both LACK the
+    key compare `"" == ""` and read as one session — the repo collapse wearing a different field.
+    A second guard on `r` would be unreachable as a distinct behaviour (both-empty is caught here,
+    and a mixed pair fails the equality), so it would be a line no grader could isolate — which is
+    exactly the double redundancy that let this file's empty-repo grader stay green under either
+    guard alone. `_session_id` (`scripts/command_run.py:91-108`) is an `or` chain ending in a
+    repo-scoped fallback, so the only live writer cannot emit an empty `sid`; a hand-edited row or
+    an ENOSPC-truncated append can, and `_num`'s own docstring names that hazard for this ledger."""
+    r_repo, r_ts, r_sid = str(r.get("repo") or ""), _num(r.get("ts")), str(r.get("sid") or "")
+    if not r_repo or r_ts is None:
+        return False
+    for o in others:
+        o_repo, o_sid = str(o.get("repo") or ""), str(o.get("sid") or "")
+        if not o_sid or o_sid != r_sid or not o_repo:
+            continue
+        if not (
+            r_repo == o_repo
+            or r_repo.startswith(o_repo.rstrip("/") + "/")
+            or o_repo.startswith(r_repo.rstrip("/") + "/")
+        ):
+            continue
+        o_ts, o_wall = _num(o.get("ts")), _num(o.get("wall_s"))
+        if o_ts is not None and o_wall is not None and o_ts - o_wall <= r_ts <= o_ts:
+            return True
+    return False
+
+
+def _task_series(for_it: list[dict], rows: list[dict]) -> str:
+    """The `--queue fabrik-task`-only `series:` header line (spec § Validation V4): the
+    `oversized_mini` rate over numeric rows excluding `upgrade: sync`, the `unmeasurable` share
+    and the `upgrade` rate — all three read from `for_it` (this command's own rows, never the
+    unfiltered `rows`) — and the ADOPTION SHARE, whose denominator needs `/fabrik-review-scoped`
+    rows and so is the one reading of `rows`: filtered to that command, then to its STANDALONE
+    subset by `_task_series_nested`."""
+    nums: list[int] = []
+    sync_excluded = 0
+    unreadable = 0
+    for r in for_it:
+        raw = r.get("oversized_mini")
+        # PRESENCE, not truthiness: a JSON integer `0` is falsy, and `0` is exactly the value a
+        # clean lane run writes. `x or ""` would drop it from the denominator.
+        tok = ("" if raw is None else str(raw)).split()[:1]
+        val = tok[0] if tok else ""
+        # ⚠️ `.isascii()` and a length bound BEFORE `int()`. 128 of the 808 codepoints `str.isdigit()`
+        # accepts (`²`, `⑴`, `₃`, `፩` …) make `int()` RAISE, and a digit string over 4,300 chars
+        # raises too — and a raise here takes the WHOLE report down on one bad row of a shared,
+        # append-only ledger. That is the class `_num` and `_rows` were rewritten to close (review
+        # passes 22 and 23); reintroducing it would cost `/fabrik-command-improve` and the daily
+        # relay their input at rc 1.
+        # ⚠️ The STRUCTURAL exclusion is tested FIRST, but ONLY for a row that had a measurement
+        # to exclude — `and not _is_unmeasurable`. Without that second half the row lands in TWO
+        # buckets (here AND in `unmeasurable` below) and the printed numbers still SUM to the
+        # total, so a reader checking the denominator concludes every row is accounted for while
+        # one is counted twice and another is hidden. That is the same invisible-row defect this
+        # whole line of fixes exists to close, wearing a reconciling set of numbers instead of a
+        # short one. EVERY row lands in exactly ONE of {counted, unreadable, unmeasurable, sync}.
+        if str(r.get("upgrade") or "") == "sync" and not _is_unmeasurable(raw):
+            sync_excluded += 1
+            continue
+        if not (val.isascii() and val.isdigit() and len(val) <= 18):
+            # ⚠️ DISCLOSED, for the same reason its neighbour is. This guard is deliberately
+            # WIDER than the crash class — `.isascii()` rejects 670 codepoints `int()` parses
+            # fine, and the length bound rejects 19..4300 digits it would also parse — so it
+            # trades a crash for an UNDERCOUNT, and an undercount nobody can see is the defect
+            # the `[+N upgrade: sync]` cell exists to prevent. The population it drops is exactly
+            # the hand-edited and truncated rows the `sid` guard above cites as its own reason.
+            # ⚠️ NOT every non-numeric value: `unmeasurable=…` is a LEGITIMATE outcome with its
+            # own cell three fields along, and counting it here would double-report it as damage.
+            # Only a value that CLAIMS to be a count and cannot be read is unreadable.
+            if val and not _is_unmeasurable(raw):
+                unreadable += 1
+            continue
+        # ⚠️ EQUALITY, never `startswith("sync")`, and the reason is mechanical rather than moral.
+        # A VERIFIED `upgrade: sync` row is forced to a count >= 1 by construction: set B is
+        # populated only when the filter is readable, and the close is REFUSED when a sync claim
+        # produces no hit — so its `1` is structural and says nothing about oversizing. That is
+        # what must leave the rate. `sync (unverified)` reaches a NUMERIC value only when the
+        # filter was unreadable, so set B was never populated and the count is the pure membership
+        # measurement, with none of that inflation — it STAYS IN. Hardening this to a prefix match
+        # would silently delete real oversize measurements from the denominator.
+        nums.append(int(val))
+    over_n, over_k = len(nums), sum(1 for n in nums if n >= 1)
+    over_cell = "—/0" if over_n == 0 else f"{over_k}/{over_n} ({round(100 * over_k / over_n)}%)"
+    if unreadable:
+        over_cell += f" [+{unreadable} unreadable]"
+    if sync_excluded:
+        # spec § V4: the excluded rows are "reported beside the rate" — and this function already
+        # states its OTHER exclusion for the same reason ("an exclusion you cannot see is a
+        # denominator you cannot check"). Without this, two materially different ledgers print a
+        # byte-identical line, and V4's own scaling term needs this count.
+        over_cell += f" [+{sync_excluded} upgrade: sync]"
+    total = len(for_it)
+    unmeas = sum(1 for r in for_it if _is_unmeasurable(r.get("oversized_mini")))
+    upgraded = sum(1 for r in for_it if str(r.get("upgrade") or "").strip())
+    # spec § UPGRADE and § V4: the baseline is DONE-only, on BOTH sides. A `handoff` fabrik-task
+    # row is a run that LEFT the lane for the spec chain — counting it as adoption inverts the
+    # spec's own sentence — and a `blocked` review-scoped close is not a lane bypass either.
+    rs = [
+        r
+        for r in rows
+        if str(r.get("command") or "") == "fabrik-review-scoped"
+        and str(r.get("state") or "") == "done"
+    ]
+    others = [r for r in rows if str(r.get("command") or "") != "fabrik-review-scoped"]
+    standalone = sum(1 for r in rs if not _task_series_nested(r, others))
+    t = sum(1 for r in for_it if str(r.get("state") or "") == "done")
+    return (
+        f"series: oversized_mini {over_cell} · unmeasurable {unmeas}/{total} · "
+        f"upgrade {upgraded}/{total} · adoption {t}/{t + standalone}"
+    )
+
+
 def queue(rows: list[dict], command: str, ledger: Path | None = None) -> str:
     """One command's `change:` queue — the whole input `/fabrik-command-improve` reads.
 
@@ -1142,6 +1277,8 @@ def queue(rows: list[dict], command: str, ledger: Path | None = None) -> str:
         + (f"; {len(excluded)} already answered and excluded" if excluded else "")
         + (f"; {nones} filed as `none`" if nones else "")
     )
+    if command == "fabrik-task":
+        head += "\n" + _task_series(for_it, rows)
     if not mine:
         return head + "\n(nothing to improve from — pick another command)"
     mine.sort(key=lambda r: _num(r.get("ts")) or 0, reverse=True)
@@ -1247,12 +1384,17 @@ def main(argv: list[str] | None = None) -> int:
         # sees it and a parsing caller does not.
         print(f"ledger: {a.ledger} is not a readable file — reporting zero rows", file=sys.stderr)
     rows = _rows(ledger)
-    if (
-        a.queue is not None
-        and a.command is not None
-        and a.queue.lstrip("/") != a.command.lstrip("/")
-    ):
-        ap.error("--queue and --command name different commands; pass one of them")
+    if a.queue is not None and a.command is not None:
+        # TWO distinct mistakes, two messages. The pre-existing one stands: naming two different
+        # commands is ambiguous and was already refused.
+        if a.queue.lstrip("/") != a.command.lstrip("/"):
+            ap.error("--queue and --command name different commands; pass one of them")
+        # ⚠️ And the REDUNDANT form, which looks harmless and is not. `--command` filters `rows`
+        # BEFORE `queue()` sees them, and fabrik-task's adoption denominator is the one number that
+        # reads `rows` — so `--queue X --command X` silently prints `adoption t/t`, a vacuous 100%,
+        # at rc 0, in the flattering direction. The cheapest cobra path on this metric is appending
+        # one redundant flag.
+        ap.error("--queue already names the command; drop --command")
     if a.queue is not None and a.observer_rank:
         ap.error("--queue and --observer-rank are two different reports; pass one of them")
     if a.queue is not None or a.observer_rank:
