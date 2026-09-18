@@ -4587,6 +4587,9 @@ def _fleet_measured(accounts: list[dict], picture: dict) -> int:
     return n
 
 
+_BAND_SEVERITY: Final = {"GREEN": 0, "AMBER": 1, "RED": 2, "WALL": 3}
+
+
 def _fleet_band(
     fleet: dict,
     account_band: str | None,
@@ -4596,6 +4599,7 @@ def _fleet_band(
     *,
     fable: bool,
     measured: int,
+    account_fable_pct: float | None = None,
 ) -> str | None:
     """The band to ACT on: the hottest of the FLEET's window readings, on the D-265 thresholds.
 
@@ -4639,7 +4643,25 @@ def _fleet_band(
     # has not used Fable yet. Asymmetric with the two required windows on purpose (seat A, #5).
     if fable and _u("fable") is not None:
         utils.append(_u("fable"))
-    return _band_of(max(utils), False, drain, urgent)
+    band = _band_of(max(utils), False, drain, urgent)
+    # ⚠️ FABLE HAS NO RELIEF LEG, so on THIS path the account's own band still stands. The tick
+    # flips on `hot` — the session and weekly windows only — so an active account at its FABLE
+    # wall is never a flip trigger, and the fleet's cool Fable reading names headroom no automated
+    # flip will ever move the session onto. It is reachable by PINNING alone, which the band does
+    # not speak to. Measured 2026-09-18: `band_account_fable: RED` beside `band_fable: GREEN`
+    # (fleet Fable 21% at `can`, whose weekly 88% also keeps the relief leg bouncing off it), and
+    # every Fable session on the active account worked normally at `minutes_to_wall: 0.0` until
+    # the operator noticed. The two REQUIRED windows keep the decoupling Delta 9 seat A F3 put in
+    # — there a flip genuinely can relieve, so the fleet's reading is the honest one.
+    # ⚠️ Keyed on the account's OWN FABLE window, never on `account_band` — that argument is
+    # `_band_of(hot_f)`, the hottest of all THREE windows, so clamping on it would band a Fable
+    # session RED off its account's WEEKLY and re-introduce the "behaves like there is only one
+    # account exist" defect the 2026-09-17 ruling exists to prevent, on this one path.
+    if fable and account_fable_pct is not None:
+        own = _band_of(account_fable_pct, False, drain, urgent)
+        if _BAND_SEVERITY.get(own, -1) > _BAND_SEVERITY.get(band, -1):
+            return own
+    return band
 
 
 def _quota_posture(
@@ -4775,6 +4797,7 @@ def _quota_posture(
                 urgent,
                 fable=True,
                 measured=measured,
+                account_fable_pct=fb_u,
             ),
         },
         "fleet": {

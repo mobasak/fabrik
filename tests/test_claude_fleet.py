@@ -7069,3 +7069,63 @@ def test_a_json_true_utilization_from_the_endpoint_is_not_one_percent():
         }
     )
     assert isinstance(w, dict) and "Fable" not in (w.get("model_windows") or {}), w
+
+
+def test_a_fable_walled_active_account_is_never_banded_green_by_fleet_headroom():
+    """The live 2026-09-18 incident. The relief leg flips on `hot` — session and weekly only — so
+    an active account at its FABLE wall is never a flip trigger, and the fleet's cool Fable
+    reading (21% at `can`, itself in the drain band at weekly 88%) is headroom no tick will ever
+    move the session onto. The posture carried `band_account_fable: RED` beside
+    `band_fable: GREEN` and every Fable session worked on at `minutes_to_wall: 0.0`."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    fleet = {
+        "five_hour": {"utilization": 34.0, "slug": "sarp"},
+        "seven_day": {"utilization": 75.0, "slug": "sarp"},
+        "fable": {"utilization": 21.0, "slug": "can"},
+    }
+    band = cr._fleet_band(
+        fleet, "GREEN", False, 85.0, 90.0, fable=True, measured=4, account_fable_pct=100.0
+    )
+    assert band == "RED", (
+        "a Fable-walled active account must not be banded GREEN off unreachable fleet headroom"
+    )
+    assert (
+        cr._fleet_band(
+            fleet, "GREEN", False, 85.0, 90.0, fable=True, measured=4, account_fable_pct=87.0
+        )
+        == "AMBER"
+    ), "the clamp follows severity, not just the RED case"
+    # ⚠️ the clamp keys on the FABLE window alone. `account_band` is `_band_of(hot_f)` — the
+    # hottest of all three windows — so a hot WEEKLY must not drag a cool Fable session to RED,
+    # which would be the 2026-09-17 "as if only one account exists" defect on this path.
+    assert (
+        cr._fleet_band(
+            fleet, "RED", False, 85.0, 90.0, fable=True, measured=4, account_fable_pct=4.0
+        )
+        == "GREEN"
+    ), "a hot weekly must not band a cool Fable session — the clamp reads the Fable window only"
+    # and the fleet's reading still wins when it is the HOTTER of the two
+    hot_fleet = dict(fleet, fable={"utilization": 99.0, "slug": "can"})
+    assert (
+        cr._fleet_band(
+            hot_fleet, "GREEN", False, 85.0, 90.0, fable=True, measured=4, account_fable_pct=4.0
+        )
+        == "RED"
+    ), "a cool account does not cool a hot fleet — the clamp is one-directional"
+
+
+def test_the_required_windows_keep_their_decoupling_from_the_account_band():
+    """Delta 9 seat A F3 stands: on the two REQUIRED windows a flip genuinely can relieve, so the
+    fleet's reading is the honest one and the account's own band never stands in for it. Only the
+    Fable path clamps, because only Fable has no relief leg."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    fleet = {
+        "five_hour": {"utilization": 0.0, "slug": "ob"},
+        "seven_day": {"utilization": 20.0, "slug": "ob"},
+        "fable": {"utilization": 21.0, "slug": "can"},
+    }
+    assert (
+        cr._fleet_band(fleet, "RED", False, 85.0, 90.0, fable=False, measured=4) == "GREEN"
+    ), "a RED account beside a genuinely fresh fleet is still GREEN on the required windows"
