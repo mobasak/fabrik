@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the first real `/fabrik-task` run withdrew its own change and recorded the ruling instead (2026-09-19)
+
+- V2 of the lane plan: one declared file, one decision (`tests/test_command_run_fabrik_task.py::_HUB_CONFIG` repo-relative instead of the absolute `/opt/fabrik/…` pin), built red-first, then the phase-4 `/fabrik-review-scoped` seats found that `scripts/command_run.py:2694-2697` already rules the hub path ABSOLUTE — the equality test must grade the scalar the post-commit sync opens, and 18 of 23 registered worktrees carry a different one. The change is withdrawn, the ruling is D-300 so the SIZE gate's `tradeoffs` question and `decisions.py` can see it, and the backlog row that named the pin as a defect is amended. The close re-measured the run's own commit: `oversized_mini: 0`.
+
 ### Changed — the quota band is drawn from headroom to each account's own cap (2026-09-18)
 
 - Operator ruling (D-299): *"utilize quotas utmost without causing premature stops"*, RED only when a
