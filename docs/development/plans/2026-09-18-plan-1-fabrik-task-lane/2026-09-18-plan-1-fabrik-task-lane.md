@@ -1,6 +1,6 @@
 # Plan 1 (2026-09-18) — the `/fabrik-task` lane: SIZE at `start`, DESIGN in the record, one own-commit re-measure
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: standard
 **Owner:** —
 **Spec:** `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md` — CONVERGED at a40d75870 by the operator's ruling (D-293; the three rulings D-289/D-290/D-291, the MIRROR confirmed by D-292).
@@ -49,7 +49,7 @@ Intake: 14 items — 12 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01a | `command_run.py` — SIZE at `start` (`--file`/`--declare`, the inventory) + `step --design` | — | ⚡ | ⬜ | |
+| T01a | `command_run.py` — SIZE at `start` (`--file`/`--declare`, the inventory) + `step --design` | — | ⚡ | 🔵 | |
 | T01b | `command_run.py` — `--commit` on the close verbs, the own-commit re-measure, the two row fields | T01a | ⛓️ | ⬜ | |
 | T02 | `command_feedback_report.py --queue` header: the two series + the adoption share | T01b | ⛓️ | ⬜ | |
 | T03 | the command source `commands/_sources/fabrik-task.md`, its render, the docs rows | T01b | ⚡ | ⬜ | |
