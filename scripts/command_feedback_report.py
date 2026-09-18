@@ -1125,12 +1125,6 @@ def _task_series_nested(r: dict, others: list[dict]) -> bool:
     if not r_repo or r_ts is None:
         return False
     for o in others:
-        if o is r:
-            # A row's own `[ts - wall_s, ts]` window always contains its own `ts`, so an `others`
-            # that included `r` would nest EVERY row and drive the adoption numerator to zero.
-            # The sole caller cannot pass `r` today; this keeps that from being the only thing
-            # standing between a future caller and a silent collapse.
-            continue
         o_repo, o_sid = str(o.get("repo") or ""), str(o.get("sid") or "")
         if not o_sid or o_sid != r_sid or not o_repo:
             continue
@@ -1155,6 +1149,7 @@ def _task_series(for_it: list[dict], rows: list[dict]) -> str:
     subset by `_task_series_nested`."""
     nums: list[int] = []
     sync_excluded = 0
+    unreadable = 0
     for r in for_it:
         raw = r.get("oversized_mini")
         # PRESENCE, not truthiness: a JSON integer `0` is falsy, and `0` is exactly the value a
@@ -1168,6 +1163,17 @@ def _task_series(for_it: list[dict], rows: list[dict]) -> str:
         # passes 22 and 23); reintroducing it would cost `/fabrik-command-improve` and the daily
         # relay their input at rc 1.
         if not (val.isascii() and val.isdigit() and len(val) <= 18):
+            # ⚠️ DISCLOSED, for the same reason its neighbour is. This guard is deliberately
+            # WIDER than the crash class — `.isascii()` rejects 670 codepoints `int()` parses
+            # fine, and the length bound rejects 19..4300 digits it would also parse — so it
+            # trades a crash for an UNDERCOUNT, and an undercount nobody can see is the defect
+            # the `[+N upgrade: sync]` cell exists to prevent. The population it drops is exactly
+            # the hand-edited and truncated rows the `sid` guard above cites as its own reason.
+            # ⚠️ NOT every non-numeric value: `unmeasurable=…` is a LEGITIMATE outcome with its
+            # own cell three fields along, and counting it here would double-report it as damage.
+            # Only a value that CLAIMS to be a count and cannot be read is unreadable.
+            if val and not val.startswith("unmeasurable"):
+                unreadable += 1
             continue
         # ⚠️ EQUALITY, never `startswith("sync")`, and the reason is mechanical rather than moral.
         # A VERIFIED `upgrade: sync` row is forced to a count >= 1 by construction: set B is
@@ -1183,6 +1189,8 @@ def _task_series(for_it: list[dict], rows: list[dict]) -> str:
         nums.append(int(val))
     over_n, over_k = len(nums), sum(1 for n in nums if n >= 1)
     over_cell = "—/0" if over_n == 0 else f"{over_k}/{over_n} ({round(100 * over_k / over_n)}%)"
+    if unreadable:
+        over_cell += f" [+{unreadable} unreadable]"
     if sync_excluded:
         # spec § V4: the excluded rows are "reported beside the rate" — and this function already
         # states its OTHER exclusion for the same reason ("an exclusion you cannot see is a

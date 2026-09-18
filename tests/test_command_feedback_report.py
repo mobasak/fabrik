@@ -2712,7 +2712,10 @@ def test_queue_fabrik_task_a_non_ascii_digit_never_crashes_the_reader(tmp_path: 
     """One bad row in a shared, append-only ledger must never take the WHOLE report down — the
     class `_num` and `_rows` were rewritten to close. 128 of the 808 codepoints `str.isdigit()`
     accepts make `int()` RAISE (`²`, `⑴`, `₃`, `፩` …), and a digit string over 4,300 chars raises
-    too. At rc 1 both `/fabrik-command-improve` and the daily relay lose their input."""
+    too. At rc 1 both `/fabrik-command-improve` and the daily relay lose their input.
+
+    ⚠️ And `unmeasurable=…` must NOT be counted as unreadable: it is a legitimate outcome with its
+    own cell three fields along, so counting it here would double-report it as damage."""
     ledger = tmp_path / "l.jsonl"
     rows = [
         _row("fabrik-task", 60, 1, "none", oversized_mini="² · commit=a · paths=p"),
@@ -2722,8 +2725,14 @@ def test_queue_fabrik_task_a_non_ascii_digit_never_crashes_the_reader(tmp_path: 
     _write(ledger, rows)
     r = _run(ledger, "--queue", "fabrik-task")
     assert r.returncode == 0, r.stdout + r.stderr
-    # the two unreadable rows are skipped, the real one still measured
-    assert r.stdout.splitlines()[1].startswith("series: oversized_mini 1/1 (100%)"), r.stdout
+    # the two unreadable rows are skipped, the real one still measured — and the SKIP IS
+    # DISCLOSED. This guard is deliberately wider than the crash class (`.isascii()` rejects 670
+    # codepoints `int()` parses fine; the length bound rejects 19..4300 digits), so it trades a
+    # crash for an undercount — and an undercount nobody can see is precisely what the
+    # `[+N upgrade: sync]` cell beside it exists to prevent.
+    assert r.stdout.splitlines()[1].startswith(
+        "series: oversized_mini 1/1 (100%) [+2 unreadable]"
+    ), r.stdout
 
 
 def test_queue_fabrik_task_an_integer_zero_counts_in_the_denominator(tmp_path: Path) -> None:
