@@ -23,16 +23,25 @@ state at hand-over. The auto-memory pointers are `reference-mac-vacbook-ssh`,
 
 ## 1. Access — `ssh mac`
 
-`~/.ssh/config` on this WSL box: `Host mac` → `HostName 172.22.16.1`, `Port 2222`, `User volkanozkocak`,
-`IdentityFile ~/.ssh/id_ed25519`. The Mac (`VacBook-Air.local`, macOS 26.5, M2, **8 GB**, arm64, zsh) sits on
-the **Windows mobile hotspot** (`192.168.137.68`), which WSL cannot route into; the bridge is a Windows
-`netsh portproxy 0.0.0.0:2222 → 192.168.137.68:22` + a firewall rule scoped to `172.22.16.0/20`.
+`~/.ssh/config` on this WSL box: `Host mac` → `HostName 172.16.100.33`, `Port 22`, `User volkanozkocak`,
+`IdentityFile ~/.ssh/id_ed25519`. The Mac is `VacBook-Air.local` (macOS 26.5.2, M2, **8 GB**, arm64, zsh).
 
-**When it breaks, two moving parts:** (1) the WSL NAT gateway changed after a reboot → `ip route | awk
-'/default/{print $3}'`, update `HostName`; (2) the Mac's hotspot lease moved off `.68` → on the Mac
-`ipconfig getifaddr en0`, on Windows `netsh interface portproxy show v4tov4`, re-add the proxy (elevated).
-Windows-side probe that bypasses WSL: `powershell.exe -Command "(Test-NetConnection 192.168.137.68 -Port
-22).TcpTestSucceeded"`.
+⚠️ **The hotspot portproxy is RETIRED (2026-09-18).** The Mac moved off the Windows mobile hotspot onto a
+network WSL routes to directly, so `ssh mac` is now a plain hop to the Mac's own address on port 22 — no
+`netsh portproxy`, no Windows firewall rule, no WSL-gateway indirection. Verified end to end the day it
+changed: `ssh mac` → `VacBook-Air.local`, `ipconfig getifaddr en0` → `172.16.100.33`.
+
+**When it breaks, ONE moving part now: the Mac's own lease.** On the Mac `ipconfig getifaddr en0`, then
+update `HostName`. Probe reachability from WSL before blaming SSH — `cat < /dev/null > /dev/tcp/<ip>/22`
+succeeds when the port is open, and a refusal there is a NETWORK fact, not an auth one.
+
+**The retired hotspot recipe, kept because the laptop travels:** the Mac used to sit on the Windows mobile
+hotspot (`192.168.137.68`), which WSL cannot route into; the bridge was `HostName 172.22.16.1` (the WSL NAT
+gateway) + `Port 2222` + a Windows `netsh portproxy 0.0.0.0:2222 → 192.168.137.68:22` and a firewall rule
+scoped to `172.22.16.0/20`. Two moving parts then: the WSL NAT gateway after a reboot (`ip route | awk
+'/default/{print $3}'`) and the Mac's hotspot lease. Windows-side probe that bypassed WSL:
+`powershell.exe -Command "(Test-NetConnection 192.168.137.68 -Port 22).TcpTestSucceeded"`. If he tethers
+again, restore those four values; nothing else in this runbook changes.
 
 Non-interactive SSH has no Homebrew on `PATH`: prefix commands with `export
 PATH=/opt/homebrew/bin:$HOME/.local/bin:$PATH` (php, npm, flutter, claude live there). Python is the system

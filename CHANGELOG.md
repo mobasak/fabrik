@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `ssh mac` is a direct hop; the Windows hotspot portproxy is retired (2026-09-18)
+
+Volkan's Mac moved off the Windows mobile hotspot onto a network WSL routes to directly, so `~/.ssh/config`'s `Host mac` is now `172.16.100.33:22` instead of `172.22.16.1:2222` via a `netsh portproxy`. Verified end to end before and after the change: the port answers from WSL (`/dev/tcp/172.16.100.33/22`), and `ssh mac` reaches `VacBook-Air.local` (macOS 26.5.2, arm64) whose own `ipconfig getifaddr en0` returns the same address. `docs/workstation/volkan-mac.md` § 1 now documents the direct hop and cuts the break-glass list from two moving parts to one (the Mac's lease); the whole portproxy recipe is kept below it as the travel fallback, since the laptop tethers again whenever he is away from that network.
+
 ### Fixed — a Fable-walled account is no longer banded GREEN off fleet headroom no flip can reach (2026-09-18)
 
 - `scripts/sysadmin/claude_rotate.py` + the byte-identical `scripts/aro-wake` twin: `_fleet_band` takes
