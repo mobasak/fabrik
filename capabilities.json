@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-09-18T03:01:52+00:00",
+  "generated_at": "2026-09-19T03:01:41+00:00",
   "owners": {
     "unassigned": 0,
     "fleet": 104,
-    "infra": 351,
+    "infra": 352,
     "intel": 17,
     "external:fabrik-lib": 71
   },
@@ -17,7 +17,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:35+00:00"
+      "verified_at": "2026-09-19T03:01:22+00:00"
     },
     {
       "name": "fabrik apply",
@@ -28,7 +28,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:35+00:00"
+      "verified_at": "2026-09-19T03:01:23+00:00"
     },
     {
       "name": "fabrik audit-registrars",
@@ -39,7 +39,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:35+00:00"
+      "verified_at": "2026-09-19T03:01:23+00:00"
     },
     {
       "name": "fabrik content",
@@ -50,7 +50,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:36+00:00"
+      "verified_at": "2026-09-19T03:01:24+00:00"
     },
     {
       "name": "fabrik destroy",
@@ -61,7 +61,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:36+00:00"
+      "verified_at": "2026-09-19T03:01:24+00:00"
     },
     {
       "name": "fabrik dev",
@@ -72,7 +72,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:36+00:00"
+      "verified_at": "2026-09-19T03:01:24+00:00"
     },
     {
       "name": "fabrik domain buy",
@@ -83,7 +83,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:37+00:00"
+      "verified_at": "2026-09-19T03:01:25+00:00"
     },
     {
       "name": "fabrik domain check",
@@ -94,7 +94,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:37+00:00"
+      "verified_at": "2026-09-19T03:01:25+00:00"
     },
     {
       "name": "fabrik domain integrations",
@@ -105,7 +105,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:37+00:00"
+      "verified_at": "2026-09-19T03:01:25+00:00"
     },
     {
       "name": "fabrik domain provision",
@@ -116,7 +116,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:38+00:00"
+      "verified_at": "2026-09-19T03:01:26+00:00"
     },
     {
       "name": "fabrik domain ready",
@@ -127,7 +127,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:38+00:00"
+      "verified_at": "2026-09-19T03:01:26+00:00"
     },
     {
       "name": "fabrik domain sitemap",
@@ -138,7 +138,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:38+00:00"
+      "verified_at": "2026-09-19T03:01:26+00:00"
     },
     {
       "name": "fabrik domain zones",
@@ -149,7 +149,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:39+00:00"
+      "verified_at": "2026-09-19T03:01:27+00:00"
     },
     {
       "name": "fabrik export",
@@ -160,7 +160,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:39+00:00"
+      "verified_at": "2026-09-19T03:01:27+00:00"
     },
     {
       "name": "fabrik fix",
@@ -171,7 +171,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:39+00:00"
+      "verified_at": "2026-09-19T03:01:27+00:00"
     },
     {
       "name": "fabrik gpu compare",
@@ -182,7 +182,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:39+00:00"
+      "verified_at": "2026-09-19T03:01:28+00:00"
     },
     {
       "name": "fabrik gpu destroy",
@@ -193,7 +193,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:40+00:00"
+      "verified_at": "2026-09-19T03:01:28+00:00"
     },
     {
       "name": "fabrik gpu history",
@@ -204,7 +204,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:40+00:00"
+      "verified_at": "2026-09-19T03:01:28+00:00"
     },
     {
       "name": "fabrik gpu list",
@@ -215,7 +215,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:40+00:00"
+      "verified_at": "2026-09-19T03:01:29+00:00"
     },
     {
       "name": "fabrik gpu pause",
@@ -226,7 +226,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:41+00:00"
+      "verified_at": "2026-09-19T03:01:29+00:00"
     },
     {
       "name": "fabrik gpu reconcile",
@@ -237,7 +237,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:41+00:00"
+      "verified_at": "2026-09-19T03:01:29+00:00"
     },
     {
       "name": "fabrik gpu rent",
@@ -248,7 +248,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:41+00:00"
+      "verified_at": "2026-09-19T03:01:30+00:00"
     },
     {
       "name": "fabrik gpu resume",
@@ -259,7 +259,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:42+00:00"
+      "verified_at": "2026-09-19T03:01:30+00:00"
     },
     {
       "name": "fabrik gpu status",
@@ -270,7 +270,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:42+00:00"
+      "verified_at": "2026-09-19T03:01:31+00:00"
     },
     {
       "name": "fabrik import",
@@ -281,7 +281,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:42+00:00"
+      "verified_at": "2026-09-19T03:01:31+00:00"
     },
     {
       "name": "fabrik logs",
@@ -292,7 +292,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:43+00:00"
+      "verified_at": "2026-09-19T03:01:31+00:00"
     },
     {
       "name": "fabrik new",
@@ -303,7 +303,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:43+00:00"
+      "verified_at": "2026-09-19T03:01:32+00:00"
     },
     {
       "name": "fabrik plan",
@@ -314,7 +314,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:43+00:00"
+      "verified_at": "2026-09-19T03:01:32+00:00"
     },
     {
       "name": "fabrik preplan new",
@@ -325,7 +325,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:44+00:00"
+      "verified_at": "2026-09-19T03:01:32+00:00"
     },
     {
       "name": "fabrik projects",
@@ -336,7 +336,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:44+00:00"
+      "verified_at": "2026-09-19T03:01:33+00:00"
     },
     {
       "name": "fabrik reconcile-all",
@@ -347,7 +347,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:44+00:00"
+      "verified_at": "2026-09-19T03:01:33+00:00"
     },
     {
       "name": "fabrik redeploy",
@@ -358,7 +358,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:44+00:00"
+      "verified_at": "2026-09-19T03:01:33+00:00"
     },
     {
       "name": "fabrik review",
@@ -369,7 +369,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:45+00:00"
+      "verified_at": "2026-09-19T03:01:34+00:00"
     },
     {
       "name": "fabrik scaffold",
@@ -380,7 +380,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:45+00:00"
+      "verified_at": "2026-09-19T03:01:34+00:00"
     },
     {
       "name": "fabrik scan",
@@ -391,7 +391,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:45+00:00"
+      "verified_at": "2026-09-19T03:01:34+00:00"
     },
     {
       "name": "fabrik seo briefs-list",
@@ -402,7 +402,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:46+00:00"
+      "verified_at": "2026-09-19T03:01:35+00:00"
     },
     {
       "name": "fabrik seo job-create",
@@ -413,7 +413,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:46+00:00"
+      "verified_at": "2026-09-19T03:01:35+00:00"
     },
     {
       "name": "fabrik seo job-run",
@@ -424,7 +424,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:46+00:00"
+      "verified_at": "2026-09-19T03:01:35+00:00"
     },
     {
       "name": "fabrik seo site-register",
@@ -435,7 +435,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:47+00:00"
+      "verified_at": "2026-09-19T03:01:36+00:00"
     },
     {
       "name": "fabrik status",
@@ -446,7 +446,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:47+00:00"
+      "verified_at": "2026-09-19T03:01:36+00:00"
     },
     {
       "name": "fabrik templates",
@@ -457,7 +457,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:47+00:00"
+      "verified_at": "2026-09-19T03:01:36+00:00"
     },
     {
       "name": "fabrik validate",
@@ -468,7 +468,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:48+00:00"
+      "verified_at": "2026-09-19T03:01:37+00:00"
     },
     {
       "name": "fabrik validate-deploy",
@@ -479,7 +479,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:48+00:00"
+      "verified_at": "2026-09-19T03:01:37+00:00"
     },
     {
       "name": "fabrik verify",
@@ -490,7 +490,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:48+00:00"
+      "verified_at": "2026-09-19T03:01:38+00:00"
     },
     {
       "name": "fabrik vps-sync",
@@ -501,7 +501,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:49+00:00"
+      "verified_at": "2026-09-19T03:01:38+00:00"
     },
     {
       "name": "fabrik vultr cleanup",
@@ -512,7 +512,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:49+00:00"
+      "verified_at": "2026-09-19T03:01:38+00:00"
     },
     {
       "name": "fabrik vultr cost",
@@ -523,7 +523,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:49+00:00"
+      "verified_at": "2026-09-19T03:01:39+00:00"
     },
     {
       "name": "fabrik vultr destroy",
@@ -534,7 +534,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:50+00:00"
+      "verified_at": "2026-09-19T03:01:39+00:00"
     },
     {
       "name": "fabrik vultr drill",
@@ -545,7 +545,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:50+00:00"
+      "verified_at": "2026-09-19T03:01:39+00:00"
     },
     {
       "name": "fabrik vultr drill-history",
@@ -556,7 +556,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:50+00:00"
+      "verified_at": "2026-09-19T03:01:40+00:00"
     },
     {
       "name": "fabrik vultr list",
@@ -567,7 +567,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:51+00:00"
+      "verified_at": "2026-09-19T03:01:40+00:00"
     },
     {
       "name": "fabrik vultr provision",
@@ -578,7 +578,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:51+00:00"
+      "verified_at": "2026-09-19T03:01:40+00:00"
     },
     {
       "name": "fabrik vultr reconcile",
@@ -589,7 +589,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:51+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik vultr status",
@@ -600,7 +600,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:51+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "authelia",
@@ -611,7 +611,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "backrest",
@@ -622,7 +622,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "cloudflare",
@@ -633,7 +633,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "compose_updater",
@@ -646,7 +646,7 @@
         "retired"
       ],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "coolify",
@@ -659,7 +659,7 @@
         "retired"
       ],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "dns",
@@ -670,7 +670,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "gatus",
@@ -681,7 +681,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "glitchtip",
@@ -692,7 +692,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "grafana",
@@ -703,7 +703,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "image_broker",
@@ -714,7 +714,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "locks",
@@ -725,7 +725,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "meilisearch",
@@ -736,7 +736,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "modal_provider",
@@ -747,7 +747,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "postgres",
@@ -758,7 +758,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "preflight",
@@ -769,7 +769,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "prometheus",
@@ -780,7 +780,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "r2",
@@ -791,7 +791,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "redis",
@@ -802,7 +802,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "runpod",
@@ -813,7 +813,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "seo",
@@ -824,7 +824,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "ssh",
@@ -835,7 +835,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "supabase",
@@ -848,7 +848,7 @@
         "retired"
       ],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "tco",
@@ -859,7 +859,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "uptime_kuma",
@@ -870,7 +870,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "vast_provider",
@@ -881,7 +881,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "vultr",
@@ -892,7 +892,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "watchdog",
@@ -903,7 +903,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/SERVICES.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "postgres",
@@ -914,7 +914,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "redis",
@@ -925,7 +925,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "gatus",
@@ -936,7 +936,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "backrest",
@@ -947,7 +947,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "glitchtip",
@@ -958,7 +958,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "grafana",
@@ -969,7 +969,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "authelia",
@@ -980,7 +980,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "meilisearch",
@@ -991,7 +991,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "prometheus",
@@ -1002,7 +1002,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "watchdog",
@@ -1013,7 +1013,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "AGENTS.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/__init__.py",
@@ -1024,7 +1024,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/aro-wake/claude_rotate.py",
@@ -1035,7 +1035,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/aro-wake/main.py",
@@ -1046,7 +1046,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/audit/01-full-system.sh",
@@ -1057,7 +1057,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/audit/02-container-health.sh",
@@ -1068,7 +1068,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/audit/03-security.sh",
@@ -1079,7 +1079,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/audit/04-performance.sh",
@@ -1090,7 +1090,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/audit/05-observability.sh",
@@ -1101,7 +1101,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/audit/06-backup.sh",
@@ -1112,7 +1112,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/audit/08-hardening-verify.sh",
@@ -1123,7 +1123,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/audit_all_projects.py",
@@ -1134,7 +1134,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/audit_all_registrars.py",
@@ -1145,7 +1145,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/audit_authelia_gates.py",
@@ -1156,7 +1156,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/audit_capability_docs.py",
@@ -1167,7 +1167,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/audit_envs.py",
@@ -1178,7 +1178,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/audit_infra_vs_docs.py",
@@ -1189,7 +1189,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/backfill_ci.py",
@@ -1200,7 +1200,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/bootstrap/bootstrap-config.sh",
@@ -1211,7 +1211,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/bootstrap/bootstrap-hub.sh",
@@ -1222,7 +1222,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/bootstrap/bootstrap-spoke-restore.sh",
@@ -1233,7 +1233,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/bootstrap/bootstrap-vps.sh",
@@ -1244,7 +1244,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/check_ai_pack_freshness.py",
@@ -1255,7 +1255,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/check_commit_trailers.py",
@@ -1266,7 +1266,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/check_kilo_health.sh",
@@ -1277,7 +1277,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/check_zed_extensions.py",
@@ -1288,7 +1288,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/ci_fix_dispatcher.py",
@@ -1299,7 +1299,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/classify_services.py",
@@ -1310,7 +1310,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/claude_p_cost.py",
@@ -1321,7 +1321,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/coding-auto.sh",
@@ -1332,7 +1332,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/command_feedback_report.py",
@@ -1343,7 +1343,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/command_run.py",
@@ -1354,7 +1354,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/container_images.py",
@@ -1365,7 +1365,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/create_pg_dev_db.sh",
@@ -1376,7 +1376,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/credit_fetchers/__init__.py",
@@ -1387,7 +1387,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/dashboard_server.py",
@@ -1398,7 +1398,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/decisions.py",
@@ -1409,7 +1409,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/declare_subscription.py",
@@ -1420,7 +1420,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/deploy_doc_policy.py",
@@ -1431,7 +1431,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/dev_tracker.py",
@@ -1442,7 +1442,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/distribute_subagents.sh",
@@ -1453,7 +1453,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/doc_reconcile.py",
@@ -1464,7 +1464,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/docs_updater.py",
@@ -1475,7 +1475,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/dr_claude_backup.sh",
@@ -1486,7 +1486,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/dr_env_backup.sh",
@@ -1497,7 +1497,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/dr_env_recovery_test.sh",
@@ -1508,7 +1508,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/dr_env_watcher_loop.sh",
@@ -1519,7 +1519,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/__init__.py",
@@ -1530,7 +1530,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/_check_refresh_before_ranker.py",
@@ -1541,7 +1541,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/_check_runner.py",
@@ -1552,7 +1552,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/_doc_registry.py",
@@ -1563,7 +1563,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_android_env.py",
@@ -1574,7 +1574,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_certification_coverage.py",
@@ -1585,7 +1585,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_changelog.py",
@@ -1596,7 +1596,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_citations_resolve.py",
@@ -1607,7 +1607,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_command_corpus.py",
@@ -1618,7 +1618,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_compose_services.py",
@@ -1629,7 +1629,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_configuration_md.py",
@@ -1640,7 +1640,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_convergence.py",
@@ -1651,7 +1651,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_corpus_weight.py",
@@ -1662,7 +1662,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_decisions_unique.py",
@@ -1673,7 +1673,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_deps_sync.py",
@@ -1684,7 +1684,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_doc_index.py",
@@ -1695,7 +1695,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_doc_links.py",
@@ -1706,7 +1706,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_doc_sprawl.py",
@@ -1717,7 +1717,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_doc_stubs.py",
@@ -1728,7 +1728,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_doc_sync.py",
@@ -1739,7 +1739,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_docker.py",
@@ -1750,7 +1750,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_docs.py",
@@ -1761,7 +1761,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_duplicates.py",
@@ -1772,7 +1772,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_env_contract.py",
@@ -1783,7 +1783,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_env_example.py",
@@ -1794,7 +1794,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_env_updates.py",
@@ -1805,7 +1805,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_env_vars.py",
@@ -1816,7 +1816,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_feedback_duty.py",
@@ -1827,7 +1827,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_frozen_chain.py",
@@ -1838,7 +1838,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_governance_tables.py",
@@ -1849,7 +1849,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_health.py",
@@ -1860,7 +1860,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_hooks_index.py",
@@ -1871,7 +1871,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_imports_resolvable.py",
@@ -1882,7 +1882,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_index_md.py",
@@ -1893,7 +1893,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_lint_ratchet.py",
@@ -1904,7 +1904,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_mutation.py",
@@ -1915,7 +1915,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_no_host_ports.py",
@@ -1926,7 +1926,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_openapi_sync.py",
@@ -1937,7 +1937,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_opencode_json.py",
@@ -1948,7 +1948,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_pack_reachability.py",
@@ -1959,7 +1959,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_phase_tests.py",
@@ -1970,7 +1970,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_plan_lock_release.py",
@@ -1981,7 +1981,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_plan_quality.py",
@@ -1992,7 +1992,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_plan_tickets.py",
@@ -2003,7 +2003,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_plans.py",
@@ -2014,7 +2014,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_ports.py",
@@ -2025,7 +2025,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_print_ban.py",
@@ -2036,7 +2036,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_readme_md.py",
@@ -2047,7 +2047,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_retired_terms.py",
@@ -2058,7 +2058,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_reusable_modules.py",
@@ -2069,7 +2069,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_review_coverage.py",
@@ -2082,7 +2082,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_review_hygiene.py",
@@ -2093,7 +2093,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_rivals_dossier.py",
@@ -2104,7 +2104,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_routing_policy.py",
@@ -2115,7 +2115,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_rule_grounding.py",
@@ -2126,7 +2126,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_schema_sync.py",
@@ -2137,7 +2137,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_script_headers.py",
@@ -2148,7 +2148,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_secrets.py",
@@ -2159,7 +2159,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_spec_convergence.py",
@@ -2170,7 +2170,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_spec_db_match.py",
@@ -2181,7 +2181,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_stage_artifacts.py",
@@ -2192,7 +2192,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_structure.py",
@@ -2203,7 +2203,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_subagent_flywheel.py",
@@ -2214,7 +2214,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_sync_trigger_coverage.py",
@@ -2225,7 +2225,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_synced_unmodified.py",
@@ -2236,7 +2236,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_test_coverage.py",
@@ -2247,7 +2247,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_test_proposal.py",
@@ -2258,7 +2258,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_ticket_breadth.py",
@@ -2269,7 +2269,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_traefik_labels.py",
@@ -2280,7 +2280,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_traycer_chain.py",
@@ -2291,7 +2291,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_trigger_routing.py",
@@ -2302,7 +2302,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_undeclared_imports.py",
@@ -2313,7 +2313,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_user_guide.py",
@@ -2324,7 +2324,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_vendored_drift.py",
@@ -2335,7 +2335,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_vps_docs.py",
@@ -2346,7 +2346,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/check_watchdog.py",
@@ -2357,7 +2357,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/pack_layout_audit.py",
@@ -2368,7 +2368,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/enforcement/validate_conventions.py",
@@ -2379,7 +2379,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/epic_order.py",
@@ -2390,7 +2390,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/external_services_chain.sh",
@@ -2401,7 +2401,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/fabrik_synced_manifest.py",
@@ -2414,7 +2414,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/final_gate.py",
@@ -2425,7 +2425,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/fix_balanced_tier_agents.py",
@@ -2436,7 +2436,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/fix_economy_tier_agents.py",
@@ -2447,7 +2447,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/fleet_doc_audit.py",
@@ -2458,7 +2458,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/gather_envs.py",
@@ -2469,7 +2469,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/gen_dashboard.py",
@@ -2480,7 +2480,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/generate_capability_index.py",
@@ -2491,7 +2491,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/generate_kilo_agents.py",
@@ -2504,7 +2504,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/generate_vps_inventory.py",
@@ -2515,7 +2515,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/governance_sync_postcommit.sh",
@@ -2526,7 +2526,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/health_check_autonomous.py",
@@ -2537,7 +2537,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/health_checker.py",
@@ -2548,7 +2548,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/health_summary.py",
@@ -2559,7 +2559,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/implement_self_review_workflow.py",
@@ -2570,7 +2570,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/inject_deploy_resources.py",
@@ -2581,7 +2581,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/agent_selector.py",
@@ -2592,7 +2592,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/audit_usage_cost.py",
@@ -2603,7 +2603,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/autocommit_pipeline_outputs.sh",
@@ -2614,7 +2614,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/build_task_baselines.py",
@@ -2625,7 +2625,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/check_daily_refresh_freshness.py",
@@ -2636,7 +2636,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/classify_ticket.py",
@@ -2647,7 +2647,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/daily_refresh.sh",
@@ -2658,7 +2658,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/db_models.py",
@@ -2669,7 +2669,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/derive_cost.py",
@@ -2680,7 +2680,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/flush_subagent_outboxes.py",
@@ -2691,7 +2691,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/guard_selection_freshness.py",
@@ -2702,7 +2702,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/kilo_telemetry.py",
@@ -2713,7 +2713,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/pipeline_alert.sh",
@@ -2724,7 +2724,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/rank_task_subagents.py",
@@ -2735,7 +2735,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/reclassify_cap_rows.py",
@@ -2746,7 +2746,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/stage_ai_rule_renders.py",
@@ -2757,7 +2757,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo-benchmarks/update_gateway_counts.py",
@@ -2768,7 +2768,7 @@
       "owner": "intel",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo_auto_route.py",
@@ -2781,7 +2781,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo_cost_tracker.py",
@@ -2794,7 +2794,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo_model_sync.py",
@@ -2805,7 +2805,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo_model_sync_startup.sh",
@@ -2818,7 +2818,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/kilo_terminal_runner.py",
@@ -2829,7 +2829,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/lint_fix_agent.py",
@@ -2840,7 +2840,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/mail.py",
@@ -2851,7 +2851,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/migrate_db_rename.py",
@@ -2862,7 +2862,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/probes/glitchtip_probe.sh",
@@ -2873,7 +2873,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/probes/glitchtip_webhook_capture.py",
@@ -2884,7 +2884,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/probes/grafana_token_check.sh",
@@ -2895,7 +2895,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/process_monitor.py",
@@ -2906,7 +2906,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/proof_run.py",
@@ -2917,7 +2917,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/provision_glitchtip_project.sh",
@@ -2928,7 +2928,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/provision_grafana.sh",
@@ -2939,7 +2939,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/provision_watchdog_ro.py",
@@ -2950,7 +2950,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/registry_db.py",
@@ -2961,7 +2961,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/registry_sync.py",
@@ -2972,7 +2972,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/release_cut.py",
@@ -2983,7 +2983,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/render_chat_history.py",
@@ -2994,7 +2994,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/render_doc_script_links.py",
@@ -3005,7 +3005,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/retype_project.py",
@@ -3016,7 +3016,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/review_receipt.py",
@@ -3027,7 +3027,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/review_rubric.py",
@@ -3038,7 +3038,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/rivals_run.py",
@@ -3049,7 +3049,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/rules_match.py",
@@ -3060,7 +3060,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/scratch_sweep.py",
@@ -3071,7 +3071,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/seed_real_ports.py",
@@ -3082,7 +3082,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/select_rules.py",
@@ -3093,7 +3093,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/setup_model_updates.sh",
@@ -3104,7 +3104,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/snapshot_vps_state.py",
@@ -3115,7 +3115,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sync-vps-sysadmin.sh",
@@ -3126,7 +3126,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sync_cascade_backup.sh",
@@ -3137,7 +3137,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sync_enforcement_to_projects.py",
@@ -3150,7 +3150,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sync_extensions.sh",
@@ -3161,7 +3161,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sync_gatus_to_vps.sh",
@@ -3172,7 +3172,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sync_projects.py",
@@ -3183,7 +3183,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sync_prometheus_to_vps.sh",
@@ -3194,7 +3194,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sync_schema_to_projects.py",
@@ -3205,7 +3205,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/archive_transcripts.py",
@@ -3216,7 +3216,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/bot.py",
@@ -3227,7 +3227,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/canary_grounding.py",
@@ -3238,7 +3238,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/ci_health_probe.py",
@@ -3249,7 +3249,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/claude-keepalive-rotate.sh",
@@ -3260,7 +3260,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/claude-run.sh",
@@ -3271,7 +3271,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/claude_broker.py",
@@ -3282,7 +3282,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/claude_rotate.py",
@@ -3293,7 +3293,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/claude_selfwatch_orient.sh",
@@ -3304,7 +3304,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/daily-digest.sh",
@@ -3315,7 +3315,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/detect_reversals.py",
@@ -3326,7 +3326,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/dispatch_headroom.py",
@@ -3337,7 +3337,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/emit_mcp_project_config.py",
@@ -3348,7 +3348,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/ensure-apprise-alerts-config.sh",
@@ -3359,7 +3359,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/export_claude_state.sh",
@@ -3370,7 +3370,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/fabrik-alert-canary.sh",
@@ -3381,7 +3381,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/feedback_relay.py",
@@ -3392,7 +3392,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/incident_context.py",
@@ -3403,7 +3403,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/install-docker-user-rules.sh",
@@ -3414,7 +3414,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/install_user_hooks.py",
@@ -3425,7 +3425,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/kaizen_backfill.py",
@@ -3436,7 +3436,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/kaizen_collect.py",
@@ -3447,7 +3447,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/kaizen_collect_v2.py",
@@ -3458,7 +3458,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/kaizen_coroner.py",
@@ -3469,7 +3469,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/kaizen_digest.py",
@@ -3480,7 +3480,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/kaizen_events.py",
@@ -3491,7 +3491,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/kaizen_immune_list.py",
@@ -3502,7 +3502,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/kaizen_outcomes.py",
@@ -3513,7 +3513,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/kaizen_shrink_audit.py",
@@ -3524,7 +3524,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/keepalive-status.sh",
@@ -3535,7 +3535,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/liveness_audit.py",
@@ -3546,7 +3546,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/mail_escalate.py",
@@ -3557,7 +3557,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/mcp_health.py",
@@ -3568,7 +3568,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/monthly-backup-verify.sh",
@@ -3579,7 +3579,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/morning-report.sh",
@@ -3590,7 +3590,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/proactive-check.sh",
@@ -3601,7 +3601,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/quota_dashboard.py",
@@ -3612,7 +3612,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/quota_governor.py",
@@ -3623,7 +3623,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/quota_posture_hook.py",
@@ -3634,7 +3634,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/rules_currency_watch.py",
@@ -3645,7 +3645,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/rules_render_versions.py",
@@ -3656,7 +3656,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/sample_transcript_growth.sh",
@@ -3667,7 +3667,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/selfwatch_check.py",
@@ -3678,7 +3678,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/send-telegram.sh",
@@ -3689,7 +3689,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/sync-claude-accounts-to-fleet.sh",
@@ -3700,7 +3700,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/test_bot_rotation_wire.py",
@@ -3711,7 +3711,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/test_claude_rotate.py",
@@ -3722,7 +3722,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/test_claude_run.py",
@@ -3733,7 +3733,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/test_keepalive_status.py",
@@ -3744,7 +3744,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/test_sync_accounts.py",
@@ -3755,7 +3755,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/user_hook_gate.py",
@@ -3766,7 +3766,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/weekly-maintenance.sh",
@@ -3777,7 +3777,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/weekly-security.sh",
@@ -3788,7 +3788,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/sysadmin/weekly_catchup.sh",
@@ -3801,7 +3801,7 @@
         "retired"
       ],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/test_process_monitor.py",
@@ -3812,7 +3812,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/thread_anchor.py",
@@ -3823,7 +3823,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/traycer_write_report.py",
@@ -3834,7 +3834,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/update_vps_docs.py",
@@ -3845,7 +3845,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/utils/__init__.py",
@@ -3856,7 +3856,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/utils/subprocess_helper.py",
@@ -3867,7 +3867,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/verify_prod_parity.py",
@@ -3878,7 +3878,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/vps-autoheal.sh",
@@ -3889,7 +3889,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/vps_apply_limits.sh",
@@ -3900,7 +3900,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/vps_sync.py",
@@ -3911,7 +3911,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/vultr_weekly_maintenance.sh",
@@ -3922,7 +3922,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/wait_for_network.sh",
@@ -3933,7 +3933,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/watch_enforcement_changes.sh",
@@ -3944,7 +3944,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/watch_env_changes.sh",
@@ -3955,7 +3955,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/watchdog.sh",
@@ -3966,7 +3966,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/whoami_agent.py",
@@ -3977,7 +3977,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/wip_backup.sh",
@@ -3988,7 +3988,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "scripts/wsl_startup_hook.sh",
@@ -3999,7 +3999,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "abuse-prevention",
@@ -4010,7 +4010,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/abuse-prevention/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "account",
@@ -4021,7 +4021,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/account/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "adaptive-dispatch",
@@ -4032,7 +4032,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/adaptive-dispatch/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "ai-consult",
@@ -4043,7 +4043,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/ai-consult/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "alerting",
@@ -4054,7 +4054,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/alerting/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "api-auth",
@@ -4065,7 +4065,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/api-auth/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "api-quota",
@@ -4076,7 +4076,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/api-quota/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "api-smoke-test",
@@ -4087,7 +4087,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/api-smoke-test/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "app-audit-log",
@@ -4098,7 +4098,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/app-audit-log/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "async-http-client",
@@ -4109,7 +4109,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/async-http-client/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "authored-list",
@@ -4120,7 +4120,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/authored-list/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "backups",
@@ -4134,7 +4134,7 @@
         "incomplete"
       ],
       "doc_link": null,
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "captcha-solve",
@@ -4145,7 +4145,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/captcha-solve/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "chrome-ext-billing-kit",
@@ -4156,7 +4156,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/chrome-ext-billing-kit/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "claude-evaluator",
@@ -4167,7 +4167,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/claude-evaluator/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "competitor-intel",
@@ -4178,7 +4178,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/competitor-intel/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "concurrency-throttle",
@@ -4189,7 +4189,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/concurrency-throttle/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "cookie-consent",
@@ -4200,7 +4200,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/cookie-consent/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "cost-budget",
@@ -4211,7 +4211,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/cost-budget/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "credits",
@@ -4222,7 +4222,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/credits/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "cursor-pagination",
@@ -4233,7 +4233,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/cursor-pagination/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "db-pool",
@@ -4244,7 +4244,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/db-pool/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "deep-research",
@@ -4255,7 +4255,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/deep-research/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "doc-convert",
@@ -4266,7 +4266,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/doc-convert/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "doc-crawl",
@@ -4277,7 +4277,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/doc-crawl/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "doc-translate",
@@ -4288,7 +4288,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/doc-translate/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "docx-io",
@@ -4299,7 +4299,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/docx-io/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "email-templates",
@@ -4310,7 +4310,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/email-templates/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "email-transport",
@@ -4321,7 +4321,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/email-transport/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "expo-push",
@@ -4332,7 +4332,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/expo-push/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fastapi-user-auth",
@@ -4343,7 +4343,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/fastapi-user-auth/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "file-cache",
@@ -4354,7 +4354,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/file-cache/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "gdpr-data-rights",
@@ -4365,7 +4365,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/gdpr-data-rights/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "gpu-rent",
@@ -4376,7 +4376,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/gpu-rent/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "health-probe",
@@ -4387,7 +4387,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/health-probe/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "i18n",
@@ -4398,7 +4398,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/i18n/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "info-tooltip",
@@ -4409,7 +4409,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/info-tooltip/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "job-queue",
@@ -4420,7 +4420,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/job-queue/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "legal-pages",
@@ -4431,7 +4431,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/legal-pages/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "llm-dispatch",
@@ -4442,7 +4442,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/llm-dispatch/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "llm-visibility-probe",
@@ -4453,7 +4453,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/llm-visibility-probe/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "mobile-config",
@@ -4464,7 +4464,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/mobile-config/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "mt-router",
@@ -4475,7 +4475,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/mt-router/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "oauth-login",
@@ -4486,7 +4486,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/oauth-login/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "observability",
@@ -4497,7 +4497,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/observability/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "ocr",
@@ -4508,7 +4508,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/ocr/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "pause-state",
@@ -4519,7 +4519,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/pause-state/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "payments",
@@ -4530,7 +4530,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/payments/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "pdf-extract",
@@ -4541,7 +4541,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/pdf-extract/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "product-entitlements",
@@ -4552,7 +4552,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/product-entitlements/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "product-entitlements-bridge",
@@ -4563,7 +4563,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/product-entitlements-bridge/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "proxy-pool",
@@ -4574,7 +4574,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/proxy-pool/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "rag",
@@ -4585,7 +4585,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rag/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "request-metering",
@@ -4596,7 +4596,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/request-metering/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "revenuecat-entitlements",
@@ -4607,7 +4607,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/revenuecat-entitlements/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "rn-analytics-kit",
@@ -4618,7 +4618,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rn-analytics-kit/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "rn-auth-kit",
@@ -4629,7 +4629,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rn-auth-kit/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "rn-billing-kit",
@@ -4640,7 +4640,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rn-billing-kit/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "rn-compliance-kit",
@@ -4651,7 +4651,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rn-compliance-kit/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "rn-media-kit",
@@ -4662,7 +4662,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/rn-media-kit/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "speech-detect",
@@ -4673,7 +4673,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/speech-detect/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "storage",
@@ -4684,7 +4684,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/storage/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "subagents",
@@ -4695,7 +4695,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/subagents/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "tenancy",
@@ -4706,7 +4706,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/tenancy/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "ui-inventory",
@@ -4717,7 +4717,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/ui-inventory/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "ui-verify",
@@ -4728,7 +4728,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/ui-verify/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "watchdog",
@@ -4739,7 +4739,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/watchdog/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "web-scrape",
@@ -4750,7 +4750,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/web-scrape/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "web-tools",
@@ -4761,7 +4761,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/web-tools/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "webhooks",
@@ -4772,7 +4772,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/webhooks/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "xlsx-io",
@@ -4783,7 +4783,7 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/xlsx-io/README.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "chrome-extension",
@@ -4794,7 +4794,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "desktop-app",
@@ -4805,7 +4805,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "docusaurus",
@@ -4816,7 +4816,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "file-api",
@@ -4827,7 +4827,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "file-worker",
@@ -4838,7 +4838,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "mobile-app",
@@ -4849,7 +4849,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "node-api",
@@ -4860,7 +4860,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "python-api",
@@ -4871,7 +4871,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "python-api-gpu",
@@ -4882,7 +4882,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "saas-skeleton",
@@ -4893,7 +4893,7 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "static-site",
@@ -4904,139 +4904,139 @@
       "owner": "fleet",
       "defects": [],
       "doc_link": "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "ai/00-ai-model-selection.md",
       "kind": "rules-pack",
-      "summary": "AI model & tool selection INDEX \u2014 match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and ",
+      "summary": "AI model & tool selection INDEX \u2014 match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and OpenRouter are peers), honor Fabrik AI defaults (pgvector-only, Recraft images, Soniox TTS). Routes to per-category packs 10\u201390 in this folder.",
       "invoke": ".windsurf/rules/ai/00-ai-model-selection.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/00-ai-model-selection.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "ai/10-speech-audio.md",
       "kind": "rules-pack",
-      "summary": "Speech & Audio AI (category 1) \u2014 transcription (Soniox/Whisper), TTS (Soniox default for multilingual/faithful, ElevenLabs for expressive), voice cloning, audio",
+      "summary": "Speech & Audio AI (category 1) \u2014 transcription (Soniox/Whisper), TTS (Soniox default for multilingual/faithful, ElevenLabs for expressive), voice cloning, audio classification, music gen. Kilo audio coverage is thin (9 models).",
       "invoke": ".windsurf/rules/ai/10-speech-audio.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/10-speech-audio.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "ai/20-vision.md",
       "kind": "rules-pack",
-      "summary": "Vision AI (category 2) \u2014 image gen (Recraft v4.1 for branded/recurring-style/vector, FLUX-schnell for bulk illustration, FLUX/BFL for photoreal, Replicate as ho",
+      "summary": "Vision AI (category 2) \u2014 image gen (Recraft v4.1 for branded/recurring-style/vector, FLUX-schnell for bulk illustration, FLUX/BFL for photoreal, Replicate as host/fallback), video gen, object/scene recognition, OCR, face/pose. Kilo: 70 vision models.",
       "invoke": ".windsurf/rules/ai/20-vision.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/20-vision.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "ai/25-3d-generation.md",
       "kind": "rules-pack",
-      "summary": "3D asset generation \u2014 automated zero-edit mesh/asset pipeline (GLB/FBX/OBJ/STL/USDZ). Provider routing by asset type (Meshy/Tripo/Rodin/TRELLIS 2), mandatory he",
+      "summary": "3D asset generation \u2014 automated zero-edit mesh/asset pipeline (GLB/FBX/OBJ/STL/USDZ). Provider routing by asset type (Meshy/Tripo/Rodin/TRELLIS 2), mandatory headless validation gate, re-roll caps, API-before-self-host discipline. NOT CAD. Backed by docs/reference/research/Zero-Edit 3D API Evaluation.md.",
       "invoke": ".windsurf/rules/ai/25-3d-generation.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/25-3d-generation.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "ai/30-language.md",
       "kind": "rules-pack",
-      "summary": "Language AI (category 3) \u2014 LLMs (Claude Opus 4.8 default; Sonnet 4.6 high-volume; Haiku 4.5 speed), embeddings/search (pgvector ONLY \u2014 dedicated vector DBs bann",
+      "summary": "Language AI (category 3) \u2014 LLMs (Claude Opus 4.8 default; Sonnet 4.6 high-volume; Haiku 4.5 speed), embeddings/search (pgvector ONLY \u2014 dedicated vector DBs banned), translation (DeepL), summarization. Kilo: 235 language models.",
       "invoke": ".windsurf/rules/ai/30-language.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/30-language.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "ai/40-multimodal.md",
       "kind": "rules-pack",
-      "summary": "Vision-Language & Multimodal AI (category 4) \u2014 combine text/image/audio/video understanding (Claude Opus 4.8, GPT-4o, Gemini 2.5 Pro, LLaVA). Visual QA, image c",
+      "summary": "Vision-Language & Multimodal AI (category 4) \u2014 combine text/image/audio/video understanding (Claude Opus 4.8, GPT-4o, Gemini 2.5 Pro, LLaVA). Visual QA, image captioning, document & video understanding. Kilo: 70 multimodal models.",
       "invoke": ".windsurf/rules/ai/40-multimodal.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/40-multimodal.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "ai/50-agentic.md",
       "kind": "rules-pack",
-      "summary": "Agentic / Reasoning AI (category 5) \u2014 multi-step reasoning & tool use (OpenAI o3/o4-mini, Claude, LangChain Agents, AutoGPT). Automation, planning, research. Ki",
+      "summary": "Agentic / Reasoning AI (category 5) \u2014 multi-step reasoning & tool use (OpenAI o3/o4-mini, Claude, LangChain Agents, AutoGPT). Automation, planning, research. Kilo: 88 reasoning + 148 toolcall models.",
       "invoke": ".windsurf/rules/ai/50-agentic.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/50-agentic.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "ai/60-code.md",
       "kind": "rules-pack",
-      "summary": "Code & Developer AI (category 6) \u2014 generate or explain code (Claude Code, GitHub Copilot, Cursor, Windsurf Cascade, Amazon Q). Code completion, refactoring, deb",
+      "summary": "Code & Developer AI (category 6) \u2014 generate or explain code (Claude Code, GitHub Copilot, Cursor, Windsurf Cascade, Amazon Q). Code completion, refactoring, debugging. Kilo: 148 code models.",
       "invoke": ".windsurf/rules/ai/60-code.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/60-code.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "ai/70-data-predictive.md",
       "kind": "rules-pack",
-      "summary": "Data & Predictive AI (category 7) \u2014 analyze structured data, forecast, detect anomalies (DataRobot, H2O.ai, Vertex AI, SageMaker). Not covered by Kilo \u2014 use spe",
+      "summary": "Data & Predictive AI (category 7) \u2014 analyze structured data, forecast, detect anomalies (DataRobot, H2O.ai, Vertex AI, SageMaker). Not covered by Kilo \u2014 use specialized domain tools.",
       "invoke": ".windsurf/rules/ai/70-data-predictive.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/70-data-predictive.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "ai/80-specialized-domains.md",
       "kind": "rules-pack",
-      "summary": "Specialized AI domains (categories 8\u201315) \u2014 Robotics, Synthetic Data, Recommendation, Cybersecurity, Bio/Healthcare, Edge/Embedded, Governance/Trust/Safety, Gene",
+      "summary": "Specialized AI domains (categories 8\u201315) \u2014 Robotics, Synthetic Data, Recommendation, Cybersecurity, Bio/Healthcare, Edge/Embedded, Governance/Trust/Safety, Generative Design. NOT covered by Kilo \u2014 use domain-specific tools.",
       "invoke": ".windsurf/rules/ai/80-specialized-domains.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/80-specialized-domains.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "ai/90-long-context.md",
       "kind": "rules-pack",
-      "summary": "Long-Context AI (category 16) \u2014 process extremely long documents, codebases, or conversations. Claude Opus 4.8 (1M), Claude Fable 5 (1M), Gemini 2.5 Pro (1M), G",
+      "summary": "Long-Context AI (category 16) \u2014 process extremely long documents, codebases, or conversations. Claude Opus 4.8 (1M), Claude Fable 5 (1M), Gemini 2.5 Pro (1M), GPT-4o (128K).",
       "invoke": ".windsurf/rules/ai/90-long-context.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/ai/90-long-context.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "chrome-ext/00-domain-chrome-ext.md",
       "kind": "rules-pack",
-      "summary": "Chrome-extension domain \u2014 PLANNING layer. Vision-intake dimensions (ICP, the permission-ceiling fork, monetization with ZERO platform tax, browser scope, platfo",
+      "summary": "Chrome-extension domain \u2014 PLANNING layer. Vision-intake dimensions (ICP, the permission-ceiling fork, monetization with ZERO platform tax, browser scope, platform-dependency risk, kill criteria) + epic-decomposition directives. Business formation, not code discipline \u2014 70-chrome-ext.md owns every code-time fact.",
       "invoke": ".windsurf/rules/chrome-ext/00-domain-chrome-ext.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/chrome-ext/00-domain-chrome-ext.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "chrome-ext/70-chrome-ext.md",
@@ -5047,7 +5047,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/chrome-ext/70-chrome-ext.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "chrome-ext/89-extension-launch-checklist.md",
@@ -5058,7 +5058,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/chrome-ext/89-extension-launch-checklist.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/10-python.md",
@@ -5069,7 +5069,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/10-python.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/12-node.md",
@@ -5080,7 +5080,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/12-node.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/15-api-contracts.md",
@@ -5091,7 +5091,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/15-api-contracts.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/20-typescript.md",
@@ -5102,7 +5102,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/20-typescript.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/25-data-postgres.md",
@@ -5113,7 +5113,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/25-data-postgres.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/30-ops.md",
@@ -5124,18 +5124,18 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/30-ops.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/35-security-auth.md",
       "kind": "rules-pack",
-      "summary": "Security & auth discipline \u2014 JWT rules, CORS policy, secret handling, CSP, session patterns, sensitive-file backup, generated-password policy, M2M internal-auth",
+      "summary": "Security & auth discipline \u2014 JWT rules, CORS policy, secret handling, CSP, session patterns, sensitive-file backup, generated-password policy, M2M internal-auth canonical pattern",
       "invoke": ".windsurf/rules/core/35-security-auth.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/35-security-auth.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/40-documentation.md",
@@ -5146,7 +5146,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/40-documentation.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/42-docusaurus.md",
@@ -5157,7 +5157,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/42-docusaurus.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/45-testing-strategy.md",
@@ -5168,18 +5168,18 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/45-testing-strategy.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/50-code-review.md",
       "kind": "rules-pack",
-      "summary": "Code review workflow, quality gate commands, and reusability discipline. Apply when running a self-review/gate, closing a milestone, deciding what tests to writ",
+      "summary": "Code review workflow, quality gate commands, and reusability discipline. Apply when running a self-review/gate, closing a milestone, deciding what tests to write, or judging whether a function should be extracted to a shared module.",
       "invoke": ".windsurf/rules/core/50-code-review.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/50-code-review.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/55-observability.md",
@@ -5190,18 +5190,18 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/55-observability.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/57-external-data-sourcing.md",
       "kind": "rules-pack",
-      "summary": "External data sourcing \u2014 which mechanism (API/webhook/stream/file/DB/scrape) and which vendor or fabrik-lib module to reach for BEFORE writing an integration, a",
+      "summary": "External data sourcing \u2014 which mechanism (API/webhook/stream/file/DB/scrape) and which vendor or fabrik-lib module to reach for BEFORE writing an integration, and where the legal bypass line sits; pairs with 58-resilience (how to call safely)",
       "invoke": ".windsurf/rules/core/57-external-data-sourcing.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/57-external-data-sourcing.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/58-resilience.md",
@@ -5212,7 +5212,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/58-resilience.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/60-watchdog.md",
@@ -5223,18 +5223,18 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/60-watchdog.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/62-using-subagents.md",
       "kind": "rules-pack",
-      "summary": "How to dispatch subagents \u2014 native Claude Task subagents for every fan-out while the OpenRouter pool is OFF by ruling (D-181/D-182), per-task tool access, the n",
+      "summary": "How to dispatch subagents \u2014 native Claude Task subagents for every fan-out while the OpenRouter pool is OFF by ruling (D-181/D-182), per-task tool access, the never-route safety list, the mcp.json source-of-truth; the pool runtime and its flywheel are kept in comments for re-enable",
       "invoke": ".windsurf/rules/core/62-using-subagents.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/62-using-subagents.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/65-rag-search.md",
@@ -5245,7 +5245,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/65-rag-search.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/66-rag-chunking.md",
@@ -5256,18 +5256,18 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/66-rag-chunking.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/67-file-api.md",
       "kind": "rules-pack",
-      "summary": "File-handling discipline (2026) \u2014 S3-compatible storage routing (B2/R2 default; Supabase Storage legacy), undici handler, adaptive retry, presigned URL contract",
+      "summary": "File-handling discipline (2026) \u2014 S3-compatible storage routing (B2/R2 default; Supabase Storage legacy), undici handler, adaptive retry, presigned URL contracts, busboy + pipeline streams, magic-byte + polyglot validation, blake3 dedup, clamd sidecar, KVKK lifecycle",
       "invoke": ".windsurf/rules/core/67-file-api.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/67-file-api.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/75-workers-jobs.md",
@@ -5278,29 +5278,29 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/75-workers-jobs.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/76-gpu-workers.md",
       "kind": "rules-pack",
-      "summary": "GPU worker discipline \u2014 decision framework for API vs self-host, provider/engine/quantization selection, two-faced architecture, lifecycle automation, fault tol",
+      "summary": "GPU worker discipline \u2014 decision framework for API vs self-host, provider/engine/quantization selection, two-faced architecture, lifecycle automation, fault tolerance",
       "invoke": ".windsurf/rules/core/76-gpu-workers.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/76-gpu-workers.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/85-payments-billing.md",
       "kind": "rules-pack",
-      "summary": "Payments & billing discipline \u2014 Paddle Billing v2 (MoR, international), PayTR (Turkish domestic) with iyzico as its fallback, webhook idempotency, entitlement m",
+      "summary": "Payments & billing discipline \u2014 Paddle Billing v2 (MoR, international), PayTR (Turkish domestic) with iyzico as its fallback, webhook idempotency, entitlement modeling, subscription lifecycle",
       "invoke": ".windsurf/rules/core/85-payments-billing.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/85-payments-billing.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/86-email-templates.md",
@@ -5311,7 +5311,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/86-email-templates.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/90-bootstrap-scripts.md",
@@ -5322,7 +5322,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/90-bootstrap-scripts.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/app-audit-log.md",
@@ -5333,7 +5333,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/app-audit-log.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/cost-budget.md",
@@ -5344,18 +5344,18 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/cost-budget.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/ocoron-design-system.md",
       "kind": "rules-pack",
-      "summary": "Ocoron design system \u2014 the visual identity every Ocoron-branded GUI inherits: colour tokens, typography, motion, component patterns, states, accessibility. Read",
+      "summary": "Ocoron design system \u2014 the visual identity every Ocoron-branded GUI inherits: colour tokens, typography, motion, component patterns, states, accessibility. Read for ANY screen, component or design-token work on a saas-skeleton, static-site, docusaurus, chrome-extension or desktop-app surface; the design-system ladder in saas/60-saas-ui.md points here.",
       "invoke": ".windsurf/rules/core/ocoron-design-system.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/ocoron-design-system.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/self-healing.md",
@@ -5366,29 +5366,29 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/self-healing.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "core/tojlo-design-system.md",
       "kind": "rules-pack",
-      "summary": "Tojlo design system \u2014 the Tojlo-branded overrides on top of ocoron-design-system.md: brand story, module naming, module-specific components, accent colour. Read",
+      "summary": "Tojlo design system \u2014 the Tojlo-branded overrides on top of ocoron-design-system.md: brand story, module naming, module-specific components, accent colour. Read for ANY GUI work in a Tojlo project (tojlo.com tenants); inherits everything else from the Ocoron pack.",
       "invoke": ".windsurf/rules/core/tojlo-design-system.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/core/tojlo-design-system.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "desktop-app/00-domain-desktop-app.md",
       "kind": "rules-pack",
-      "summary": "Desktop-app domain \u2014 PLANNING layer. Vision-intake dimensions (ICP, the standalone-vs-connected fork that decides whether revenue can be gated at all, zero-inte",
+      "summary": "Desktop-app domain \u2014 PLANNING layer. Vision-intake dimensions (ICP, the standalone-vs-connected fork that decides whether revenue can be gated at all, zero-intermediary economics vs the OS gatekeeper, unit economics, risk, kill criteria) + epic-decomposition directives. Business formation, not code discipline \u2014 72-desktop.md owns every code-time fact.",
       "invoke": ".windsurf/rules/desktop-app/00-domain-desktop-app.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/desktop-app/00-domain-desktop-app.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "desktop-app/72-desktop.md",
@@ -5399,18 +5399,18 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/desktop-app/72-desktop.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "mobile-app/00-domain-mobile-app.md",
       "kind": "rules-pack",
-      "summary": "Mobile domain \u2014 PLANNING layer. The 17 vision-intake dimensions, the 3 forks (billing/distribution/platform-dependency), the attribution stack, and the epic-dec",
+      "summary": "Mobile domain \u2014 PLANNING layer. The 17 vision-intake dimensions, the 3 forks (billing/distribution/platform-dependency), the attribution stack, and the epic-decomposition directives. Business formation, not code discipline \u2014 the sibling packs (80/81/89) own every code-time fact.",
       "invoke": ".windsurf/rules/mobile-app/00-domain-mobile-app.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/00-domain-mobile-app.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "mobile-app/80-mobile.md",
@@ -5421,7 +5421,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/80-mobile.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "mobile-app/81-mobile-billing.md",
@@ -5432,7 +5432,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/81-mobile-billing.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "mobile-app/89-mobile-launch-checklist.md",
@@ -5443,7 +5443,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/89-mobile-launch-checklist.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "mobile-app/ocoron-mobile-design-system.md",
@@ -5454,7 +5454,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/ocoron-mobile-design-system.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "mobile-app/tojlo-mobile-design-system.md",
@@ -5465,18 +5465,18 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/mobile-app/tojlo-mobile-design-system.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "saas/00-domain-saas.md",
       "kind": "rules-pack",
-      "summary": "SaaS domain \u2014 PLANNING layer. Vision-intake dimensions (ICP, moat, pricing axis, GTM, COGS-per-tenant vs the single-VPS ceiling, risk register, dated kill crite",
+      "summary": "SaaS domain \u2014 PLANNING layer. Vision-intake dimensions (ICP, moat, pricing axis, GTM, COGS-per-tenant vs the single-VPS ceiling, risk register, dated kill criteria) + epic-decomposition directives. Business formation, not code discipline \u2014 60/85/87/88/95 own every code-time fact.",
       "invoke": ".windsurf/rules/saas/00-domain-saas.md",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/saas/00-domain-saas.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "saas/60-saas-ui.md",
@@ -5487,7 +5487,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/saas/60-saas-ui.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "saas/87-abuse-detection.md",
@@ -5498,7 +5498,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/saas/87-abuse-detection.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "saas/88-saas-launch-checklist.md",
@@ -5509,7 +5509,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/saas/88-saas-launch-checklist.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "saas/95-multi-tenant-saas.md",
@@ -5520,7 +5520,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": ".windsurf/rules/saas/95-multi-tenant-saas.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "agent_role.py",
@@ -5531,7 +5531,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "docs/workstation/hooks-index.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "final_gate_stop.py",
@@ -5542,7 +5542,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "docs/workstation/hooks-index.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "mail_notify.py",
@@ -5553,7 +5553,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "docs/workstation/hooks-index.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "mcp_watch.py",
@@ -5564,7 +5564,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "docs/workstation/hooks-index.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "quota_stop.py",
@@ -5575,7 +5575,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "docs/workstation/hooks-index.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "session_orient.py",
@@ -5586,7 +5586,7 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "docs/workstation/hooks-index.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "skill_router.py",
@@ -5597,414 +5597,425 @@
       "owner": "infra",
       "defects": [],
       "doc_link": "docs/workstation/hooks-index.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "design-review",
       "kind": "command",
-      "summary": "Complete a design review of the pending changes on the current branch \u2014 rendered UI visual, accessibility, and front-end implementation quality against Stripe/A",
+      "summary": "Complete a design review of the pending changes on the current branch \u2014 rendered UI visual, accessibility, and front-end implementation quality against Stripe/Airbnb/Linear-grade standards. TRIGGER \u2014 EN: \"review this UI\", \"check the design and accessibility of this screen\"; TR: \"bu aray\u00fcz\u00fc incele\", \"tasar\u0131m\u0131 ve eri\u015filebilirli\u011fi kontrol et\"\u2026",
       "invoke": "/design-review",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-catchup",
       "kind": "command",
-      "summary": "Resume a neglected project fast: MEASURE plan-state vs locks, doc freshness, stub sentinels, spec `shape:` truth; QUEUE worst-first; EXECUTE via owning converge",
+      "summary": "Resume a neglected project fast: MEASURE plan-state vs locks, doc freshness, stub sentinels, spec `shape:` truth; QUEUE worst-first; EXECUTE via owning converge commands (never reimplements). Stage: utility. TRIGGER \u2014 EN: \"catch this project up\", \"where did we leave off here\", \"is this project stale or behind\", \"resume work on this project\"\u2026",
       "invoke": "/fabrik-catchup",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-command-improve",
       "kind": "command",
-      "summary": "Act on ONE command's accumulated `change:` queue \u2014 read every axis-keyed verdict agents filed against it at their closes, propose the ONE edit that answers the ",
+      "summary": "Act on ONE command's accumulated `change:` queue \u2014 read every axis-keyed verdict agents filed against it at their closes, propose the ONE edit that answers the most rows, render, review, and commit it with a trailer naming those rows and the series it expects to move. The half of the kaizen loop that EDITS the corpus. TRIGGER\u2026",
       "invoke": "/fabrik-command-improve",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-conformance-review",
       "kind": "command",
-      "summary": "Reopen EVERY spec + plan in a project and verify each was actually IMPLEMENTED \u2014 inventory \u2192 one grounded verifier per spec\u2194plan pair \u2192 five-value verdict \u2192 adj",
+      "summary": "Reopen EVERY spec + plan in a project and verify each was actually IMPLEMENTED \u2014 inventory \u2192 one grounded verifier per spec\u2194plan pair \u2192 five-value verdict \u2192 adjudicated ledger. Catches what code review and staleness checks cannot: a CONVERGED-but-stale plan, an implemented-but-INERT surface, a live-SLA broken while code conforms, and spec-refreeze debt. TRIGGER\u2026",
       "invoke": "/fabrik-conformance-review",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-data-contract",
       "kind": "command",
-      "summary": "Freeze the project's data contract \u2014 the frozen truth mapping every GUI/form field to its exact DB column (type, required, validation, PII, FK, enums) so parall",
+      "summary": "Freeze the project's data contract \u2014 the frozen truth mapping every GUI/form field to its exact DB column (type, required, validation, PII, FK, enums) so parallel agents share one naming truth, nobody invents a field. Three modes: spec-driven, reverse-generated backfill, fresh stub. Self-converges to FROZEN. Sits between /fabrik-spec and /fabrik-plan-after-chat. TRIGGER\u2026",
       "invoke": "/fabrik-data-contract",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-decommission",
       "kind": "command",
-      "summary": "Retire a project or service safely: ground truth first (hub-side liveness probe vs sibling domains, fleet consumer sweep \u2014 never a catalog/PORTS/env row as evid",
+      "summary": "Retire a project or service safely: ground truth first (hub-side liveness probe vs sibling domains, fleet consumer sweep \u2014 never a catalog/PORTS/env row as evidence), then one of three named outcomes (archive-source-only, full decommission, migrate-consumers-first), an operator confirmation gate, and only then the source move + hub bookkeeping\u2026",
       "invoke": "/fabrik-decommission",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-deploy-checklist",
       "kind": "command",
-      "summary": "Author the project's deployment-verification CONTRACT \u2014 `scripts/verify_prod_parity.py`: one runnable check + expected result per corpus row, every denominator ",
+      "summary": "Author the project's deployment-verification CONTRACT \u2014 `scripts/verify_prod_parity.py`: one runnable check + expected result per corpus row, every denominator DERIVED from the system (route table \u00b7 compose \u222a sidecars \u00b7 `os.getenv` \u00b7 scheduler \u00b7 schema head), features cross-checked, DEV-minus-exclusions baseline, every row SEEN RED before `FROZEN`\u2026",
       "invoke": "/fabrik-deploy-checklist",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-deploy-plan-review",
       "kind": "command",
-      "summary": "Adversarially converge a DRAFT deployment plan to a fixed point \u2014 stage 2 of the deploy triad, the trust gate before any deploy. Grounds every claim against the",
+      "summary": "Adversarially converge a DRAFT deployment plan to a fixed point \u2014 stage 2 of the deploy triad, the trust gate before any deploy. Grounds every claim against the live spec/compose/code/infra, runs the surface-conditioned class checklist (secrets flow \u00b7 env completeness \u00b7 staged-infra validity \u00b7 ordering+timing \u00b7 healing/rollout \u00b7 battery \u00b7 monitoring+DR truth \u00b7 recurrence), and flips Status: DRAFT\u2026",
       "invoke": "/fabrik-deploy-plan-review",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-deploy-plan",
       "kind": "command",
-      "summary": "Author a per-service DEPLOYMENT PLAN \u2014 stage 1 of the deploy triad. Resolves the deploy surface from the service's project.yaml type (all 12 scaffold types; unk",
+      "summary": "Author a per-service DEPLOYMENT PLAN \u2014 stage 1 of the deploy triad. Resolves the deploy surface from the service's project.yaml type (all 12 scaffold types; unknown types inferred from artifacts), then authors docs/development/plans/YYYY-MM-DD-plan-deploy-<service>.md (Status: DRAFT): target + spec\u2194code\u2194compose reconciliation, a runbook with per-step verification + rollback, healing-window\u2026",
       "invoke": "/fabrik-deploy-plan",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-deploy-verify",
       "kind": "command",
-      "summary": "Post-`fabrik apply` certification, hub-side \u2014 identity (deployed SHA = tested SHA, migration head, image digest), DNS vs two siblings, the health endpoint asser",
+      "summary": "Post-`fabrik apply` certification, hub-side \u2014 identity (deployed SHA = tested SHA, migration head, image digest), DNS vs two siblings, the health endpoint asserting real deps, every `shape:` registrar derived live from `_REGISTRAR_ORDER`, Gatus green, logs clean, then the project's FROZEN parity contract (`scripts/verify_prod_parity.py`) executed against the LIVE service\u2026",
       "invoke": "/fabrik-deploy-verify",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-deploy",
       "kind": "command",
-      "summary": "Execute a CONVERGED deployment plan \u2014 stage 3 of the deploy triad. OPERATOR-DISPATCHED ONLY (Gate-2: runs only on the operator's explicit invocation THIS turn \u2014",
+      "summary": "Execute a CONVERGED deployment plan \u2014 stage 3 of the deploy triad. OPERATOR-DISPATCHED ONLY (Gate-2: runs only on the operator's explicit invocation THIS turn \u2014 never self-triggered or auto-chained). Hard-refuses any plan not Status: CONVERGED. Runs the runbook step-by-step with per-step verification, maintenance-window (autoheal-pause) bracketing, and the plan's battery as the exit gate\u2026",
       "invoke": "/fabrik-deploy",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-doc-converge",
       "kind": "command",
-      "summary": "Converge ONE project doc to the verifiable truth of the codebase \u2014 the /fabrik-features loop generalized to every agent-filled scaffold doc (SERVICES, RESILIENC",
+      "summary": "Converge ONE project doc to the verifiable truth of the codebase \u2014 the /fabrik-features loop generalized to every agent-filled scaffold doc (SERVICES, RESILIENCE, CONFIGURATION, OPERATIONS, QUICKSTART, DEPLOYMENT, TROUBLESHOOTING, indexes, README, BUSINESS_MODEL, STRATEGIC_BACKLOG) \u2014 pick its convergence contract, discover ground truth, reconcile bidirectionally, iterate to an edit-free no-op\u2026",
       "invoke": "/fabrik-doc-converge",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-docs-review",
       "kind": "command",
-      "summary": "Converge the in-scope docs (the branch diff by default, or a given path/doc/range) to a fixed point \u2014 bidirectional doc\u2194code reconciliation (parallel reconciler",
+      "summary": "Converge the in-scope docs (the branch diff by default, or a given path/doc/range) to a fixed point \u2014 bidirectional doc\u2194code reconciliation (parallel reconcilers) \u2192 route each doc to its type \u2192 doc-sync gate, with cited evidence. TRIGGER \u2014 EN: \"review all the docs\", \"are the docs still accurate\"; TR: \"t\u00fcm dok\u00fcmanlar\u0131 g\u00f6zden ge\u00e7ir\", \"dok\u00fcmanlar kodla uyumlu mu\"\u2026",
       "invoke": "/fabrik-docs-review",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-epics-review",
       "kind": "command",
-      "summary": "Converge a cut epic set to a fixed point \u2014 the review twin of /fabrik-epics. Integrity + owner assignment run in CODE first (`epic_order.py --check` \u2192 `--assign",
+      "summary": "Converge a cut epic set to a fixed point \u2014 the review twin of /fabrik-epics. Integrity + owner assignment run in CODE first (`epic_order.py --check` \u2192 `--assign <names>` \u2192 `--check --owners`), then rubric-armed lenses (features \u00b7 ticket structure \u00b7 graph + disjoint owned_paths \u00b7 infra decisions \u00b7 handoff) with dispatched fixups, looping to a hash-proven quiet round\u2026",
       "invoke": "/fabrik-epics-review",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-epics",
       "kind": "command",
-      "summary": "Decompose a confirmed multi-epic Vision Summary into independent epics \u2014 boundaries, dependencies, phased execution order, an Infrastructure Decisions doc \u2014 the",
+      "summary": "Decompose a confirmed multi-epic Vision Summary into independent epics \u2014 boundaries, dependencies, phased execution order, an Infrastructure Decisions doc \u2014 then write each epic as a self-sufficient ticket FILE under docs/development/epics/\u2026",
       "invoke": "/fabrik-epics",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-execute-plan",
       "kind": "command",
-      "summary": "Execute a pre-approved implementation plan autonomously \u2014 phase-sequenced with code reviews between phases; a dated plan-SET directory (spine + T## tickets) ins",
+      "summary": "Execute a pre-approved implementation plan autonomously \u2014 phase-sequenced with code reviews between phases; a dated plan-SET directory (spine + T## tickets) instead runs DISPATCHER mode over the whole Board. Supersedes superpowers:executing-plans + superpowers:subagent-driven-development. TRIGGER \u2014 EN: \"execute this plan\", \"run the approved plan phase by phase\"\u2026",
       "invoke": "/fabrik-execute-plan",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-features",
       "kind": "command",
-      "summary": "Converge docs/FEATURES.md to the COMPLETE, testable feature contract \u2014 TWO positions. EARLY (after /fabrik-spec-review approval): pin the PLANNED inventory from",
+      "summary": "Converge docs/FEATURES.md to the COMPLETE, testable feature contract \u2014 TWO positions. EARLY (after /fabrik-spec-review approval): pin the PLANNED inventory from the approved spec (rows marked Planned) so features are decided BEFORE journeys, contract, and design\u2026",
       "invoke": "/fabrik-features",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-flows-review",
       "kind": "command",
-      "summary": "Converge a FROZEN docs/flows.md to a fixed point \u2014 an INDEPENDENT author-blind adversarial review (Success-Criterion tracing, persona completeness, SECOND-ACTOR",
+      "summary": "Converge a FROZEN docs/flows.md to a fixed point \u2014 an INDEPENDENT author-blind adversarial review (Success-Criterion tracing, persona completeness, SECOND-ACTOR completeness, async-boundary gap states, one [PRIMARY PATH] per flow, per-call resilience, contract-input routing) \u2192 an edit-free md5-verified no-op. Distinct from /fabrik-flows (author self-convergence\u2026",
       "invoke": "/fabrik-flows-review",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-flows",
       "kind": "command",
-      "summary": "Freeze the project's JOURNEY contract \u2014 docs/flows.md, every persona walked entry \u2192 actions \u2192 feedback \u2192 exit (decision points, edge/error paths, per-call resil",
+      "summary": "Freeze the project's JOURNEY contract \u2014 docs/flows.md, every persona walked entry \u2192 actions \u2192 feedback \u2192 exit (decision points, edge/error paths, per-call resilience, one [PRIMARY PATH] per flow) BEFORE any field or screen freezes. EVERY scaffold type \u2014 user journeys (UI), consumer journeys (headless), reader journeys (docusaurus)\u2026",
       "invoke": "/fabrik-flows",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-generate-tests",
       "kind": "command",
-      "summary": "Generate Behavior-Contract tests for a target (module/dir/file, or a phase's Behavior Contract) with native Claude seats (the pool is OFF, D-181) \u2014 suggest (one",
+      "summary": "Generate Behavior-Contract tests for a target (module/dir/file, or a phase's Behavior Contract) with native Claude seats (the pool is OFF, D-181) \u2014 suggest (one seat per module/area) \u2192 YOU curate \u2192 author in parallel (one seat per behavior, self-verified) \u2192 YOU review test-quality \u2192 git apply survivors\u2026",
       "invoke": "/fabrik-generate-tests",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-plan-after-chat",
       "kind": "command",
-      "summary": "Turn this conversation into a grounded, execution-ready plan \u2014 distill the decisions already made, ground every claim in real path:line, emit phases with runnab",
+      "summary": "Turn this conversation into a grounded, execution-ready plan \u2014 distill the decisions already made, ground every claim in real path:line, emit phases with runnable gates + mandated subagents/parallelism + a /fabrik-review gate per boundary + Evidence/Self-audit/residuals. Brainstorms first only if the input is thin. Hands off to /fabrik-plan-review then /fabrik-execute-plan. TRIGGER\u2026",
       "invoke": "/fabrik-plan-after-chat",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-plan-review",
       "kind": "command",
-      "summary": "Converge a plan to a fixed point \u2014 adversarial grounding (parallel grounders) \u2192 refute/merge \u2192 runnable gates per step, embedding the code-review gate + subagen",
+      "summary": "Converge a plan to a fixed point \u2014 adversarial grounding (parallel grounders) \u2192 refute/merge \u2192 runnable gates per step, embedding the code-review gate + subagent/parallelism. TRIGGER \u2014 EN: \"review/harden this plan\", \"is this plan ready to execute\"; TR: \"bu plan\u0131 g\u00f6zden ge\u00e7ir/sa\u011flamla\u015ft\u0131r\", \"bu plan uygulamaya haz\u0131r m\u0131\"\u2026",
       "invoke": "/fabrik-plan-review",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-release",
       "kind": "command",
-      "summary": "Surface-aware release runner \u2014 the last mile between \"built and reviewed\" and Gate 2 (human approval, R14). Reads project.yaml::type and dispatches the matching",
+      "summary": "Surface-aware release runner \u2014 the last mile between \"built and reviewed\" and Gate 2 (human approval, R14). Reads project.yaml::type and dispatches the matching path \u2014 VPS types \u2192 readiness verification + hand off to hub-side `fabrik apply`; mobile-app \u2192 EAS checklist; chrome-extension \u2192 Web Store checklist. Every verdict cites evidence. ALWAYS STOPS at the human gate\u2026",
       "invoke": "/fabrik-release",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-repo-review",
       "kind": "command",
-      "summary": "Full-project adversarial code review + fix \u2014 partition the repo into disjoint file slices \u2192 parallel read-only review slices \u2192 triage \u2192 risk-ordered serial fixe",
+      "summary": "Full-project adversarial code review + fix \u2014 partition the repo into disjoint file slices \u2192 parallel read-only review slices \u2192 triage \u2192 risk-ordered serial fixes with regression tests \u2192 incremental convergence, with a coverage ledger. TRIGGER \u2014 EN: \"audit the whole repo\", \"sweep the entire project for bugs\"; TR: \"t\u00fcm repoyu denetle\", \"projenin tamam\u0131n\u0131 incele\"\u2026",
       "invoke": "/fabrik-repo-review",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-review-scoped",
       "kind": "command",
-      "summary": "LIGHT diff-scoped review with the full convergence spine \u2014 for SPONTANEOUS plain-chat changes made under no command. Rubric-armed passes over the changed surfac",
+      "summary": "LIGHT diff-scoped review with the full convergence spine \u2014 for SPONTANEOUS plain-chat changes made under no command. Rubric-armed passes over the changed surface, fix-in-run, loop to a delta pass that CONFIRMS zero (refuted candidates never count); the run record's round ledger IS the artifact (no review file \u2014 that is the lightness; the closing pass still owes ONE independent reader). TRIGGER\u2026",
       "invoke": "/fabrik-review-scoped",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-review",
       "kind": "command",
-      "summary": "Adversarial code review of the CHANGED SURFACE (diff/PR/branch) \u2014 the surface partitioned into disjoint file slices \u2192 independent finders \u2192 YOU execute every ca",
+      "summary": "Adversarial code review of the CHANGED SURFACE (diff/PR/branch) \u2014 the surface partitioned into disjoint file slices \u2192 independent finders \u2192 YOU execute every candidate and refutation \u2192 fix with regression guards \u2192 LOOP in DELTA rounds until every Coverage-Checklist class is CLEAN/FIXED/REFUTED/RECORDED and a delta round with a fresh non-authoring seat returns confirmed:0\u00b7fixed:0 (refuted/recorded\u2026",
       "invoke": "/fabrik-review",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-rivals",
       "kind": "command",
-      "summary": "Competitive evidence BEFORE a spec exists \u2014 drives fabrik-lib's `competitor-intel` to a match-then-beat dossier at `docs/reference/rivals/<market>.md` that feed",
+      "summary": "Competitive evidence BEFORE a spec exists \u2014 drives fabrik-lib's `competitor-intel` to a match-then-beat dossier at `docs/reference/rivals/<market>.md` that feeds `/fabrik-spec`: finds the rivals, mines their real reviews, builds a feature MATRIX, then a ranked MATCH list (what they have that we lack) and a ranked BEAT list (their review-proven weaknesses = our openings), plus a pricing wedge and\u2026",
       "invoke": "/fabrik-rivals",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-rules-review",
       "kind": "command",
-      "summary": "Read-only .windsurf/rules compliance POSTURE audit \u2014 the full-coverage complement to /fabrik-review's per-diff rubric floor: establish real stack + spec shape f",
+      "summary": "Read-only .windsurf/rules compliance POSTURE audit \u2014 the full-coverage complement to /fabrik-review's per-diff rubric floor: establish real stack + spec shape flags + ADR, fan out one native finder per applicable pack (parallel), refute false gaps, iterate to a stable gap list, prioritized GAP table with path:line proof\u2026",
       "invoke": "/fabrik-rules-review",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-service-test",
       "kind": "command",
-      "summary": "End-to-end certification for HEADLESS systems (python-api, python-api-gpu, node-api, file-api, file-worker, wordpress) \u2014 builds the contract inventory + CONSUME",
+      "summary": "End-to-end certification for HEADLESS systems (python-api, python-api-gpu, node-api, file-api, file-worker, wordpress) \u2014 builds the contract inventory + CONSUMER JOURNEYS, dispatches subagents across journey/consumer/state, verifies RESPONSE truth vs SYSTEM truth, proves failure modes, fix-or-handoff every finding, LOOPs discovery-until-dry; persists as a RERUNNABLE suite. TRIGGER\u2026",
       "invoke": "/fabrik-service-test",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-spec-review",
       "kind": "command",
-      "summary": "Converge a /fabrik-spec design to a fixed point \u2014 adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor\u2192enhance\u2192bu",
+      "summary": "Converge a /fabrik-spec design to a fixed point \u2014 adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor\u2192enhance\u2192build verdict, stress the approach + completeness, iterate to a quiet closing round (all in ONE invocation). Sets Status: CONVERGED, STOPS for design approval (no auto-chain)\u2026",
       "invoke": "/fabrik-spec-review",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-spec",
       "kind": "command",
-      "summary": "Turn a rough idea into a dual-grounded, execution-ready design spec \u2014 a BLOCKING live-research gate for every external fact (never memory) + a BLOCKING best-pra",
+      "summary": "Turn a rough idea into a dual-grounded, execution-ready design spec \u2014 a BLOCKING live-research gate for every external fact (never memory) + a BLOCKING best-practice/approach gate (leanest, pro-grade, low-maintenance, cited) + a fabrik-lib vendor\u2192enhance\u2192build verdict + 2\u20133 approaches + collaborative Q&A. TRIGGER\u2026",
       "invoke": "/fabrik-spec",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
+    },
+    {
+      "name": "fabrik-task",
+      "kind": "command",
+      "summary": "One small change, one decision, one commit \u2014 the lane between a right-now fix and the spec chain. Six phases on ONE run record: SIZE (the start IS the gate), MEASURE, DESIGN, BUILD, REVIEW, CLOSE \u2014 the D-row is the durable artifact. TRIGGER \u2014 EN: \"one small change with one decision\", \"fix + decide\", \"small change, one call to make\"; TR: \"k\u00fc\u00e7\u00fck bir de\u011fi\u015fiklik, tek karar\", \"d\u00fczelt ve karar ver\"\u2026",
+      "invoke": "/fabrik-task",
+      "status": "ok",
+      "owner": "infra",
+      "defects": [],
+      "doc_link": "CLAUDE.md",
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-ui-design-review",
       "kind": "command",
-      "summary": "Converge a FROZEN docs/ui-design.md to a fixed point \u2014 an INDEPENDENT adversarial review (design-system integrity, data-wiring vs docs/data-contract.md, screen/",
+      "summary": "Converge a FROZEN docs/ui-design.md to a fixed point \u2014 an INDEPENDENT adversarial review (design-system integrity, data-wiring vs docs/data-contract.md, screen/flow coverage, click budgets, surface-pack + a11y) \u2192 edit-free no-op. Distinct from /fabrik-ui-design (author self-convergence\u2026",
       "invoke": "/fabrik-ui-design-review",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-ui-design",
       "kind": "command",
-      "summary": "Freeze a GUI project's UI/UX design \u2014 a lean, frozen screen + flow contract (docs/ui-design.md): DESIGN SYSTEM FIRST, then screens, minimal-click flows, IA, and",
+      "summary": "Freeze a GUI project's UI/UX design \u2014 a lean, frozen screen + flow contract (docs/ui-design.md): DESIGN SYSTEM FIRST, then screens, minimal-click flows, IA, and per-screen component/state/field mapping, so parallel agents build one coherent UI. Self-converges to FROZEN. Sits after /fabrik-data-contract, before planning. TRIGGER\u2026",
       "invoke": "/fabrik-ui-design",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-upstream",
       "kind": "command",
-      "summary": "Two-mode synced-file-defect flow (trade-intelligence 2026-08-05/06 + fabrik's own 2026-08-07 check_secrets DSN fix). PROJECT mode (any project, no hub shell-out",
+      "summary": "Two-mode synced-file-defect flow (trade-intelligence 2026-08-05/06 + fabrik's own 2026-08-07 check_secrets DSN fix). PROJECT mode (any project, no hub shell-outs): a synced-file defect becomes a proposal at `docs/reference/upstream-proposals/YYYY-MM-DD-<slug>.md` \u2014 evidence, diffs, why-filed, blast-radius \u2014 never edits the synced copy\u2026",
       "invoke": "/fabrik-upstream",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-user-test",
       "kind": "command",
-      "summary": "End-to-end UX certification for ANY GUI surface (SaaS, website, doc site, mobile app, extension, desktop) \u2014 the UI/workflow QC engineer. Builds the element inve",
+      "summary": "End-to-end UX certification for ANY GUI surface (SaaS, website, doc site, mobile app, extension, desktop) \u2014 the UI/workflow QC engineer. Builds the element inventory + USER JOURNEYS as denominators, dispatches fabrik-gui subagents across journey/flow/persona/state, verifies UI truth vs SYSTEM truth, fix-or-handoff every finding, LOOPs discovery-until-dry; persists as a RERUNNABLE suite. TRIGGER\u2026",
       "invoke": "/fabrik-user-test",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-vision",
       "kind": "command",
-      "summary": "Turn research (or an interview) into a grounded, confirmed Vision Summary for a multi-epic initiative \u2014 NEW (green-field) or EXISTING (a running project's delta",
+      "summary": "Turn research (or an interview) into a grounded, confirmed Vision Summary for a multi-epic initiative \u2014 NEW (green-field) or EXISTING (a running project's delta) \u2014 via a BLOCKING dual live-research gate (facts + best-practice) + the fabrik-lib ladder, so every epic /fabrik-epics cuts inherits grounded decisions. TRIGGER \u2014 EN: \"I have a big/multi-epic idea\", \"scope this whole initiative\"\u2026",
       "invoke": "/fabrik-vision",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     },
     {
       "name": "fabrik-workflow-review",
       "kind": "command",
-      "summary": "Force a workflow ARTIFACT to converge to a no-op \u2014 the shared paired review for the PRODUCER doers /fabrik-vision and /fabrik-epics (the `type` you pass \u2014 `visi",
+      "summary": "Force a workflow ARTIFACT to converge to a no-op \u2014 the shared paired review for the PRODUCER doers /fabrik-vision and /fabrik-epics (the `type` you pass \u2014 `vision-summary` \u00b7 `epic-decomposition` \u00b7 `expanded-epic-files` \u2014 names the ARTIFACT you hand it; Phase-0 table). Give it the artifact path + its type. (Not the cross-epic validation\u2026",
       "invoke": "/fabrik-workflow-review",
       "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "CLAUDE.md",
-      "verified_at": "2026-09-18T03:01:52+00:00"
+      "verified_at": "2026-09-19T03:01:41+00:00"
     }
   ]
 }
