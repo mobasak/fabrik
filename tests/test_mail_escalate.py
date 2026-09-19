@@ -590,3 +590,98 @@ def test_the_shape_line_says_nothing_clever_about_a_single_row(env):
     shape = me._shape_line(one)
     assert "broadcast" not in shape.lower(), shape
     assert "1" in shape and "s" in shape, shape
+
+
+# ── the OWNER leg: each agent takes care of its own mail (operator ruling 2026-09-20) ──────────
+
+
+def test_each_overdue_obligation_is_escalated_to_its_own_repos_mailbox(env):
+    """⚠️ THE WHOLE POINT. Before this leg the digest had ONE destination — the hub mailbox
+    addressed to `infra` — so the agent bound by the handle-now law was handed other repos' work
+    and could discharge none of it. Measured on the live store 2026-09-20: of 83 rows, ZERO were
+    obligations on the hub. Operator ruling: "each agent should take care of its own mails."
+    """
+    _msg(env, "youtube", "01Y" + "0" * 23, ts=_old_ts(9))
+    _msg(env, "youtube", "01Y" + "1" * 23, ts=_old_ts(8))
+    _msg(env, "transdoc", "01T" + "0" * 23, ts=_old_ts(7))
+    items = me.collect_obligations(env)
+    assert len(items) == 3
+
+    sent, failed = me._deliver_to_owners(items, "2026-09-20")
+    assert failed == 0, failed
+    assert sent == 2, f"one message per OWNING repo, not one per row: {sent}"
+
+    yt = sorted((env / "youtube" / "inbox").glob("*.md"))
+    td = sorted((env / "transdoc" / "inbox").glob("*.md"))
+    # each repo's own overdue rows are already in its inbox; the escalation is the extra one
+    assert len(yt) == 3 and len(td) == 2, (len(yt), len(td))
+    body = max(yt, key=lambda p: p.stat().st_mtime).read_text(encoding="utf-8")
+    assert "01Y" + "0" * 23 in body and "01Y" + "1" * 23 in body, "youtube's own rows"
+    assert "01T" + "0" * 23 not in body, "another repo's rows must NOT be in youtube's escalation"
+
+
+def test_the_owner_escalation_is_never_itself_an_obligation(env):
+    """⚠️ THE COBRA, and it is the same one the agent leg's docstring already names. The cheapest
+    way to satisfy "escalate to owners" WITHOUT the outcome is to send a message nobody acks — and
+    if that message were `ack: required` it would be counted by the very next run, so the number
+    could never fall and the mechanism would feed itself, 40 mailboxes at a time.
+    """
+    _msg(env, "youtube", "01Y" + "0" * 23, ts=_old_ts(9))
+    before = len(me.collect_obligations(env))
+    me._deliver_to_owners(me.collect_obligations(env), "2026-09-20")
+    # the escalation is fresh, so age alone would not count it yet — assert the FIELD, which is
+    # what makes it true a week from now too
+    newest = max((env / "youtube" / "inbox").glob("*.md"), key=lambda p: p.stat().st_mtime)
+    assert "\nack: no\n" in newest.read_text(encoding="utf-8"), (
+        "an ack=required escalation becomes an obligation on the next run and the count never falls"
+    )
+    assert len(me.collect_obligations(env)) == before, "the escalation must not grow the count"
+
+
+def test_a_repo_is_escalated_at_most_once_a_day(env):
+    """The cron runs every 6 hours. Without a per-repo day stamp the fleet takes four copies of
+    the same list daily, which is how a useful signal becomes noise nobody reads."""
+    _msg(env, "youtube", "01Y" + "0" * 23, ts=_old_ts(9))
+    items = me.collect_obligations(env)
+    first, _ = me._deliver_to_owners(items, "2026-09-20")
+    second, _ = me._deliver_to_owners(items, "2026-09-20")
+    assert (first, second) == (1, 0), (first, second)
+    # a NEW day escalates again — the obligation is still open and still owed
+    third, _ = me._deliver_to_owners(items, "2026-09-21")
+    assert third == 1, third
+
+
+def test_the_hub_is_not_double_delivered_its_own_rows(env):
+    """infra's digest already carries every row including the hub's, so a per-repo delivery to
+    `fabrik` would put the same obligations in the same mailbox twice."""
+    _msg(env, "fabrik", "01F" + "0" * 23, ts=_old_ts(9))
+    _msg(env, "youtube", "01Y" + "0" * 23, ts=_old_ts(9))
+    sent, _ = me._deliver_to_owners(me.collect_obligations(env), "2026-09-20")
+    assert sent == 1, "only youtube — the hub reads infra's digest"
+    assert len(list((env / "fabrik" / "inbox").glob("*.md"))) == 1, "no self-delivery"
+
+
+def test_the_owner_leg_still_runs_on_a_day_the_other_two_legs_already_fired(env, monkeypatch):
+    """⚠️ THE WIRING, which is the half that goes ungraded. `main`'s early exit short-circuits on
+    the operator+agent stamps, and those fire on the day's FIRST run while the cron runs four
+    times. Leave the owner leg out of that condition and it never runs on almost any day — the
+    mechanism ships, the tests pass, and no repo is ever told."""
+    _msg(env, "youtube", "01Y" + "0" * 23, ts=_old_ts(9))
+    import datetime as _dt
+
+    today = _dt.date.today().isoformat()
+    me.STATE_DIR.mkdir(parents=True, exist_ok=True)
+    me.DAY_STAMP.write_text(today + "\n", encoding="utf-8")
+    me.DAY_STAMP_AGENT.write_text(today + "\n", encoding="utf-8")
+    monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: True))
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda *a, **k: True)
+
+    assert me.main() == 0
+    sent = sorted((env / "youtube" / "inbox").glob("*.md"))
+    assert len(sent) == 2, (
+        "the owner leg must run even though the operator and agent legs already fired today — "
+        f"youtube's inbox holds {len(sent)} file(s), so it was never told"
+    )
+    # ...and a SECOND run the same day tells it nothing more
+    assert me.main() == 0
+    assert len(sorted((env / "youtube" / "inbox").glob("*.md"))) == 2, "one per repo per day"

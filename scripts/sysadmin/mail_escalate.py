@@ -355,6 +355,135 @@ def _deliver_to_agent(body: str) -> bool:
     return True
 
 
+# ── the OWNER leg ─────────────────────────────────────────────────────────────────────────────
+#
+# ⚠️ WHY THIS EXISTS (operator ruling 2026-09-20: "each agent should take care of its own mails").
+# Until now the digest had ONE destination: the hub mailbox addressed to `infra`. Measured on the
+# live store that day, of its 83 rows ZERO were obligations on the hub — every one sat in another
+# repo's inbox, 41 of them a single fabrik-lib broadcast. So the reader bound by the handle-now law
+# was handed work it structurally could not discharge, and the only escape the digest offered
+# (`ack --disposition wontfix naming the owner`) would have CLOSED 83 obligations the owning repos
+# had never seen. That destroys the signal instead of discharging it, which is why the count only
+# ever grew.
+#
+# ⚠️ THE COBRA (D-253) — the agent leg's cobra, one order of magnitude larger. The cheapest way to
+# satisfy "escalate to owners" WITHOUT the outcome is to send a message nobody reads: the count
+# does not fall and the fleet gains ~40 messages a day. Three things bound it. (1) `--ack no` is
+# LOAD-BEARING: an `ack: required` escalation is counted by the very next run, so the mechanism
+# would feed itself in forty mailboxes at once and the number could never fall. (2) One message per
+# repo per DAY, stamped, because the cron runs every 6 h and four identical copies a day is how a
+# signal becomes noise. (3) The hub digest still reports the FLEET total, so a fleet that ignores
+# its escalations shows up as a count that does not fall — visible, not hidden by the fan-out.
+_OWNER_MAX_ROWS = 30
+
+
+def _owners_done(today: str) -> bool:
+    """Has every repo that currently owns an overdue obligation already been told today?
+
+    ⚠️ The early exit in `main` short-circuits on the operator+agent stamps. Without this the
+    owner leg would never run on any day those two had already fired — which, since they fire on
+    the day's FIRST run and the cron runs four times, is almost every day.
+    """
+    try:
+        items = collect_obligations(_mail._mail_root())
+    except Exception:  # noqa: BLE001 — never crash the cron on a scan; assume work remains
+        return False
+    repos = {o.repo for o in items if o.repo != _REPO_ROOT.name}
+    return all(_stamped(_owner_stamp(r), today) for r in repos)
+
+
+def _owner_stamp(repo: str) -> Path:
+    """One stamp per repo per day. The name is sanitised to a filesystem-safe token because `repo`
+    comes from a directory name under the mail root and this path is WRITTEN."""
+    safe = "".join(c if (c.isalnum() or c in "._-") else "_" for c in repo)[:60]
+    return STATE_DIR / f"day-stamp-owner-{safe}"
+
+
+def _owner_body(repo: str, obs: list[Obligation], fleet_total: int) -> str:
+    """That repo's OWN overdue obligations, as a D-035 message — never the fleet's list."""
+    rows = "\n".join(
+        f"{_sanitize(o.ulid, 26)} · {_sanitize(o.sender)} · {_fmt_age(o.age_days)} "
+        f"· {_sanitize(o.agent, 10)} ({_sanitize(o.kind, 8)})"
+        for o in obs[:_OWNER_MAX_ROWS]
+    )
+    more = len(obs) - min(len(obs), _OWNER_MAX_ROWS)
+    tail = f"\n+{more} more ({len(obs)} total)" if more else ""
+    return (
+        f"Subject: {len(obs)} unacked obligation(s) in YOUR mailbox are past the threshold\n\n"
+        f"WHAT: {len(obs)} message(s) in `{_sanitize(repo)}`'s own inbox carry `ack: required` and "
+        "are older than the escalation threshold (`FABRIK_MAIL_ESCALATE_DAYS`, default 3), listed "
+        f"below oldest first. Fleet-wide there are {fleet_total}; these are YOURS.\n"
+        "WHO: `scripts/sysadmin/mail_escalate.py` on the hub, delivering to the OWNING repo — the "
+        "hub cannot discharge your obligations, and acking them from there would close messages "
+        "you have never seen (operator ruling 2026-09-20: each agent handles its own mail).\n"
+        "WHERE: the rows are `id · sender · age · agent (population)`. You are already IN this "
+        "mailbox, so no `--repo` is needed: `python3 scripts/mail.py read <id>`.\n"
+        "WHEN: generated this run; each row's age comes from the message's own `ts` (a `window` "
+        "row is aged by mtime, because a rename carries no ts).\n"
+        "WHY: an obligation nobody acks is work nobody owns. This message is `ack: no` on purpose "
+        "— it is a pointer, not a new obligation — so ACKing the rows below is the only thing that "
+        "makes the count fall.\n"
+        "HOW: per CLAUDE.md — read -> validate the cited path:line -> SIZE it -> do the work -> "
+        "review -> reply -> `python3 scripts/mail.py ack <id> --disposition done|blocked|wontfix`. "
+        "Not yours? `ack --disposition wontfix` naming the owner, or relay it. Never sweep: "
+        "`sweep` archives by AGE and closes nothing.\n"
+        "SYSTEMIC: you are seeing this because the digest used to go only to the hub, where nobody "
+        "could act on it. If a row is stale or was resolved outside fabrik-mail, ack it `wontfix` "
+        "with that reason — an unacked obligation is indistinguishable from ignored work, and the "
+        "fleet count is the only thing anyone watches.\n\n"
+        f"{rows}{tail}"
+    )
+
+
+def _deliver_to_owners(items: list[Obligation], today: str) -> tuple[int, int]:
+    """Fan the rows out to the repos that own them. Returns ``(sent, failed)``.
+
+    Skips `fabrik`: infra's digest already carries every row including the hub's, so a per-repo
+    delivery there would put the same obligations in the same mailbox twice.
+    """
+    by_repo: dict[str, list[Obligation]] = {}
+    for ob in items:
+        if ob.repo == _REPO_ROOT.name:
+            continue
+        by_repo.setdefault(ob.repo, []).append(ob)
+    sent = failed = 0
+    for repo, obs in sorted(by_repo.items()):
+        stamp = _owner_stamp(repo)
+        if _stamped(stamp, today):
+            continue  # already told today; the cron runs every 6 h
+        if _deliver_one_owner(repo, _owner_body(repo, obs, len(items))):
+            sent += 1
+            _stamp(stamp, today, f"owner:{repo}")
+        else:
+            failed += 1
+    return sent, failed
+
+
+def _deliver_one_owner(repo: str, body: str) -> bool:
+    """One `mail.py send` into that repo's mailbox. Fail-soft: one repo's failure never costs the
+    others theirs, and never raises into the cron."""
+    try:
+        proc = _subprocess.run(
+            [sys.executable, str(_MAIL_PY), "send", "--to", repo, "--kind", "finding",
+             "--ack", "no"],
+            input=body,
+            text=True,
+            capture_output=True,
+            timeout=60,
+            # as the agent leg: `mail.py` derives `from:` from the cwd's git worktree
+            cwd=str(_REPO_ROOT),
+        )
+    except Exception as exc:  # noqa: BLE001 — the cron must never die on a delivery leg
+        print(f"mail-escalate: owner leg for {repo} raised {type(exc).__name__}: {exc}")
+        return False
+    if proc.returncode != 0:
+        print(
+            f"mail-escalate: owner leg for {repo} failed rc={proc.returncode}: {proc.stderr[:200]}"
+        )
+        return False
+    return True
+
+
 def _resolve_sender():
     """Lazy production resolution (see the _send seam note at module top)."""
     from libs.alerting import send_alert  # noqa: PLC0415
@@ -403,7 +532,7 @@ def main() -> int:
         print(f"mail-escalate: WARNING — lock unavailable ({exc}); proceeding UNLOCKED")
     operator_done = _stamped(DAY_STAMP, today)
     agent_done = _stamped(DAY_STAMP_AGENT, today)
-    if operator_done and agent_done:
+    if operator_done and agent_done and _owners_done(today):
         print(f"mail-escalate: already sent today — suppressed ({today})")
         return 0  # the print keeps the log's mtime fresh for the liveness budget
     items = collect_obligations(_mail._mail_root())
@@ -432,6 +561,12 @@ def main() -> int:
         if agent_ok:
             _stamp(DAY_STAMP_AGENT, today, "agent")
 
+    # THE OWNER leg — each repo is told about its OWN rows, because the hub cannot discharge them
+    # (operator ruling 2026-09-20). Independent of the two legs above for the same reason they are
+    # independent of each other, and self-stamping per repo so a partial failure retries only the
+    # repos it missed.
+    owner_sent, owner_failed = _deliver_to_owners(items, today)
+
     # ⚠️ A SKIPPED leg is not an OK leg. `ok`/`agent_ok` are seeded from the STAMP, so three of the
     # four daily runs printed `send=OK · agent=OK` having sent nothing — the same shape as the
     # failure this whole change exists to end ("logged send=OK while the inbox grew to 132"). The
@@ -441,7 +576,8 @@ def main() -> int:
 
     print(
         f"mail-escalate: {len(items)} obligation(s) · "
-        f"send={_verdict(operator_done, ok)} · agent={_verdict(agent_done, agent_ok)} ({today})"
+        f"send={_verdict(operator_done, ok)} · agent={_verdict(agent_done, agent_ok)} · "
+        f"owners={owner_sent} sent/{owner_failed} failed ({today})"
     )
     return 0  # fail-soft: the no-stamp retry in <=6h is the recovery; stdout is the visibility
 
