@@ -4136,3 +4136,31 @@ is not one, which is why fabrik-lib's copy could drift silently and needed a mai
 the anchor as considered-and-not-done because the UNIVERSAL list is the hub's to own. One anchor
 (lowercase, mid-sentence, case-exact per the markers' own rule) makes every sync-excluded copy's
 drift visible at its own gate. Hub `CLAUDE.md` § UNIVERSAL + § 1a; small, its own change.
+
+## `_MODEL_TOK` is a substring search, so a seat token nobody dispatched closes the round (routed 2026-09-19)
+
+Two residuals from the `/fabrik-command-improve fabrik-review` run that wrote and then reverted a
+closing-row sentence (D-304). Both belong to the grammar D-262's row above already sizes as
+`/fabrik-spec` work; recorded here so that change inherits them rather than re-deriving them.
+
+1. **The COBRA path on the finders-cell gate is unwritten.** `check_review_coverage.py:2049`'s
+   `_MODEL_TOK` is a case-insensitive substring search over the closing row's finders cell. Executed
+   on a pinned copy (`f131cee66019fcf1cff251a61c917312`): a cell reading `the orchestrator (opus×1)
+   re-read its own fix diff — no seat dispatched` is SILENT, and so is `same seats as pass 1:
+   opus×1 + sonnet×2, re-prompted`. Both are exactly the states the rule exists to forbid. Typing a
+   token is cheaper than dispatching a seat, and the only artifact that could falsify it is the
+   `command_run.py dispatch --seats` stamp, which the checker deliberately does not read (`:2044-2046`
+   — "this gate has no run-record reader and adding one would be a new mechanism"). D-253 asks for
+   the cheapest bypass to be written down in the mechanism's own docstring; it is not. Writing it
+   down is the minimum; a counter-measure is the design question for D-262's change.
+
+2. **The rule's one wording covers only the TABLE grammar.** `:763-776` has two arms: a table row is
+   graded on `cells[1]`, a prose row on the text BEFORE its counters, and `:755-761` records that the
+   prose ledger is a legal grammar which once made this check unsatisfiable. `review_receipt.py:171`
+   and the checker's refusal text both say "Finders cell", which names only the table arm. Measured
+   across 324 receipts under `docs/development/reviews/`: 114 carry a parsed closing row, 95
+   table-shaped and 19 prose-shaped, and of the 42 closing rows the gate actually grades (those
+   stating `confirmed:`) 42 are table and 0 prose. So the gap is PROSPECTIVE, with zero live
+   instances — which is why it is a precision note on D-262's change and not its own work.
+
+**Destination:** infra, inside the D-262 change.
