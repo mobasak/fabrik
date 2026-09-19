@@ -1,6 +1,6 @@
 # Review — serena-gitignore-fleet
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED on the D-278 scope-growth stop — the artifact's own surface (the `.serena/` entry, the rename, the rendered block) was confirmed correct in round 1 and never re-opened; every later round found defects inside the integrity guard this review itself added, and confirmed/own-fix ran 10/5, 9/9, 5/4 with `command_run.py` printing the stop at 2 of the last 3. The named set is fixed and six residuals are routed with named destinations
 **Surface:** `git rev-parse HEAD` = 623c00cfb321135b8c54a10c9401725ae0715f5e; `git diff HEAD -- scripts/fabrik_synced_manifest.py templates/governance/.worktreeinclude tests/test_synced_manifest.py` md5 9eb343c623ea9c7b4e197f7be41830ec (12313 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/fabrik_synced_manifest.py`, `templates/governance/.worktreeinclude`, `tests/test_synced_manifest.py`
 
@@ -130,7 +130,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 |---|---|---|---|
 | Pass 1 | native opus×1 + sonnet×2 | found: 14, new: 0, confirmed: 10, fixed: 6, unexecuted: 0 | full partitioned pass, disjoint slices by file |
 | Pass 2 | native opus×1 + sonnet×1 | found: 16, new: 0, confirmed: 9, fixed: 7, unexecuted: 0 | delta over the round-1 fix plus one hop of callers |
-| Pass 3 | native opus×1 | found: 7, new: 0, confirmed: 5, fixed: 4, unexecuted: 0 | delta, fresh non-authoring seat; counts and anchors re-derived from source; closed on the D-278 scope-growth exit (10/5 → 9/9 → 5/4) |
+| Pass 3 | native opus×1 | found: 7, new: 0, confirmed: 5, fixed: 4, unexecuted: 0 | method: re-derivation — a fresh non-authoring Opus seat re-derived every count and anchor from its primary source (98 `.tsx` + 42 `.ts`, 2 callers, 46 sync targets, 53-commit header history); closed on the D-278 scope-growth stop |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -154,12 +154,12 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | F31 | RECORDED — measured (a prevalence figure; makes no code or doc claim) |
 ```
 
-| F3-r3 | RECORDED — by design (F3, round 3) — nothing in `scripts/enforcement/` binds the distributed `.worktreeinclude` to its generator; routed, needs its own review of a sync-trigger path |
-| F1-dist | RECORDED — by design (F1, round 1) — `gitignore_block_text()` bypasses the T12.17 working-tree guard; pre-existing, routed |
-| F6b-r1 | RECORDED — by design (F6, round 1) — the block header is false for 3 of 9 groups and CANNOT be corrected in one edit; routed with the two-sync migration |
-| F8-r1 | RECORDED — by design (F8, round 1) — `check_synced_unmodified.py` swallows a missing manifest symbol; routed |
+| F3-r3 | RECORDED — by design (D-307) — nothing in `scripts/enforcement/` binds the distributed `.worktreeinclude` to its generator; routed, needs its own review of a sync-trigger path |
+| F1-dist | RECORDED — by design (D-307) — `gitignore_block_text()` bypasses the T12.17 working-tree guard; pre-existing, routed |
+| F6b-r1 | RECORDED — by design (D-307) — the block header is false for 3 of 9 groups and CANNOT be corrected in one edit; routed with the two-sync migration |
+| F8-r1 | RECORDED — by design (D-307) — `check_synced_unmodified.py` swallows a missing manifest symbol; routed |
 | F6-r3 | RECORDED — measured (the widened `# AFTER-EDIT:` header would add a WARN to 12 of the file's 53 historical commits; kept deliberately while no enforcement check exists, recorded with its fire rate) |
-| F5-r3 | RECORDED — by design (F5, round 3) — the guard refuses a scoped `gitignore_dest_paths()` substitution; the message now names both readings and the one in-repo fixture carries its groups through |
+| F5-r3 | RECORDED — by design (D-307) — the guard refuses a scoped `gitignore_dest_paths()` substitution; the message now names both readings and the one in-repo fixture carries its groups through |
 | F-docs | RECORDED — by design (D-306) — `test_docs_updater.py::TestMultiAgentOperatingModelDoc` is RED at HEAD, a different subsystem, not touched here |
 
 `RECORDED — by design` names the OWNING row's first-cell id and the EARLIER round that adjudicated
@@ -177,7 +177,6 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 `"status": "success"`):
 
 ```json
-```json
 {
   "status": "success",
   "failures": [],
@@ -192,4 +191,3 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 ```
 
 (`ruff` rows read SKIPPED because `--check` is the read-only tier; ruff was run directly against the three changed files — `All checks passed!`. The hub's pytest leg is off by contract, so the affected suites were run by hand: 115 passed.)
-```
