@@ -4613,31 +4613,26 @@ across a denominator collapse from 466 to 66, which is not a comparable decline,
 Printing the previous two readings WITH their denominators beside each metric would fix it. Filed
 against `scripts/sysadmin/kaizen_digest.py` / the collection's mail body.
 
-## [infra] Three SHADOW mailboxes strand 5 obligations where no agent looks and no tool can write (2026-09-20)
+## ~~[infra] Three SHADOW mailboxes strand 5 obligations~~ — RETRACTED, the finding was false (2026-09-20)
 
-Found by firing the new owner leg (D-310): 41 of 44 repos were told, 3 failed with
-`mail.py: REFUSED — unsafe recipient 'llm batch processor': must be a plain repo name
-([A-Za-z0-9._-], no path separators / ..)`. The refusal is CORRECT — the bug is upstream of it.
+⚠️ **There are no shadow mailboxes and no stranded mail. This row was wrong and is retracted the
+same day it was filed.** Kept rather than deleted, because a retracted claim that vanishes teaches
+nobody, and because the ROUTED items above and below it were filed by the same run.
 
-Each of the three has a mailbox directory whose name contains SPACES, **and a second, legal
-mailbox that its agent actually reads**:
+What actually happened: the owner leg (D-310) addressed `mail.py send --to` with
+`Obligation.repo`, which is sanitised at collection — `_sanitize` translates `_` to a space
+because `_` is a markdown metachar and every field is rendered into a message body.
+`Reference_Creator` therefore printed as `Reference Creator`, `mail.py` correctly refused it as an
+unsafe recipient, and I read the three refusals as evidence of three mailboxes that do not exist.
+`find /opt/fabrik-mail -maxdepth 1 -name "* *"` returns nothing; only the underscore directories
+are there, and they hold no stranded obligations.
 
-| shadow mailbox (spaces) | stranded obligations | the mailbox its agent reads | the repo |
-|---|---|---|---|
-| `Reference Creator` | 2 | `Reference_Creator` (exists) | `/opt/Reference_Creator` |
-| `llm batch processor` | 2 | `llm_batch_processor` (exists) | `/opt/llm_batch_processor` |
-| `scratch bhd` | 1 | `scratch_bhd` (exists) | `/opt/scratch_bhd` |
+The real defect was mine, one hop upstream: a DISPLAY field used as an ADDRESS. Fixed in
+`4fc125207` — `Obligation` gains `repo_key` (the real directory name) for routing while `repo`
+stays sanitised for prose, with a grader proven red on revert. Re-ran: `owners=3 sent/0 failed`,
+all 44 repos now told.
 
-`mail.py` derives the mailbox from the cwd's git worktree, so those agents open the UNDERSCORE
-mailbox; the 5 obligations sit in the space-named one, which nothing reads and nothing can write
-to. They have been there up to 22 days and will never be escalated, because the escalation itself
-cannot address them — the owner leg reports them loudly every run (`owners=41 sent/3 failed`) and
-that is the correct fail-soft behaviour, but it does not reach anyone who can fix it.
+The one durable lesson, which is not about mailboxes: **a sanitiser's output read back as data is
+a fabricated fact.** It looked like evidence, it survived my own write-up, and it was one `find`
+away from being disproved. It reached an operator approval request before anyone ran that command.
 
-⚠️ NOT FIXED HERE because the remedy is a DATA MOVE in the shared mail store — moving 5 messages
-between two mailboxes belonging to other repos. It is reversible and loses nothing (a move, never
-a delete, with the source kept until the destination is verified), but it is another repo's mail
-and wants the operator's word, exactly as the fan-out did.
-
-Also worth deciding at the same time: whether anything still CREATES space-named mailboxes. If a
-writer does, consolidating once just re-splits later. Owner: infra (fabrik-mail).
