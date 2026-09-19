@@ -4459,3 +4459,51 @@ repos precisely because nothing warned. A 23% advisory false-fire is the cheaper
 enforcement check exists. **If** that check ships, revisit this header — the WARN becomes redundant
 wallpaper at that point, which is exactly the shape FIX DIRECTIVE 5 says kills enforcement.
 **Destination:** infra, revisit with the row above.
+
+## [infra + fleet] Eight findings routed out of the D-306 stamp-tier review (2026-09-19)
+
+The `/fabrik-review` over `623c00cfb..e9abe0b35` fixed 18 defects in-run. These eight are RECORDED
+rather than fixed, each for a stated reason — a forbidden file, a missing mechanism, or an
+operator authorisation. None is "reported, not mine": each names where it goes.
+
+- **⚠️ `.claude/hooks/final_gate_stop.py:1888`'s D-158 quota yield is TIER-BLIND (owner: infra).**
+  It reads a bare `(_state / "fleet-exhausted").exists()`, so since D-306 it stands ALL SIX Stop
+  causes down at the `urgent-90` tier — where `quota_stop.py` denies nothing and there is no
+  deadlock to yield against. The yield's own justification ("the hold denies the very tools that
+  clear these causes") is false at that tier, so a session can end with uncommitted, unpushed,
+  unreviewed work while nothing is holding it. Fix: `and _stamp_tier(stamp) == "walled"`, with the
+  reader copied as the other three are. **NOT fixed in the review run because this session is
+  contractually forbidden to edit that file.** Found by the contracts seat.
+- **An unreadable or malformed `caps.json` now drops the fleet's hard stop (owner: fleet).**
+  `walled` is blind to a cap it could not read (the loader fails soft to `{}` and prints "rotating
+  UNCAPPED"). Before D-306 that was inert — stamp present meant WALL either way. Now the mis-read
+  is written into the tier: executed on the real ob@ shape (5h 91, weekly 93, operator cap 90),
+  a readable caps.json gives `walled` and an unreadable one gives `urgent-90` for the same
+  account past the same reserve. A correct fix needs a "caps unknown" signal distinct from
+  "this account has no cap", which is a new mechanism, not a review fix.
+- **The advisory's stamp write is non-atomic while the re-arm's is atomic (owner: fleet).**
+  `stamp.write_text(...)` truncates before writing, so a concurrent reader — or ENOSPC — sees a
+  zero-byte stamp; `_rearm_wall_stamp` writes tmp + `os.replace` for exactly this reason. The
+  asymmetry is what makes `_promised_resume`'s `IndexError` arm reachable.
+- **A broken symlink at the stamp path allows silently (owner: fleet).** `Path.exists()` follows
+  symlinks, so `quota_stop.py` never reaches the tier reader and emits no warning, while
+  `_stamp_tier` on the same path would say `walled`. Pre-existing; unchanged by D-306.
+- **⚠️ Two graders in `tests/test_governance_template_split.py` have never run on this box
+  (owner: infra).** `test_the_lane_table_renders_as_a_table_for_every_gfm_reader` and its template
+  twin fail with `ModuleNotFoundError: linkify_it`. `markdown_it` 3.0.0 is installed; `linkify-it-py`
+  is its optional extra and is declared in NO manifest in this repo. So the hub's own guard that
+  the LANE table renders as a table for every GFM reader is wallpaper, and has been. Fix: declare
+  the dependency — **which edits `pyproject.toml` and needs operator authorisation**, the reason
+  it was not done in the review run.
+- **`_promised_resume` bypasses `_usable_ts` (owner: fleet).** That is the file's self-declared ONE
+  validator, and `_advisory_ledger_latch` applies it to the SAME field; `"1e400"` returns `inf`
+  here. Benign today (it latches to the week re-arm, same as no promise) but it contradicts the
+  re-arm docstring's claim that the field "goes through the same validator".
+- **`_hold_is_wall` fails OPEN on a non-dict (owner: fleet).** Unreachable from `claude_rotate.py`
+  — all three producers of the picture's `hold` emit dict-or-None — but `quota_posture_hook.py`
+  re-derives the same notion from the posture JSON, where the shape is whatever was serialised.
+- **The D-306 contract sentences are graded by nothing three-way (owner: infra).** They sit in
+  neither `_SHARED_SPANS` nor `QUOTA_CLAIMS`, so hub/template/fabrik-lib identity is unenforced on
+  that paragraph. Pinning them is blocked on the cross-repo edit to `/opt/fabrik-lib/CLAUDE.md`,
+  which needs the operator's explicit approval; pin them in that same change, as a NEW span with
+  fresh anchors — never by extending an existing one, which reads as MISSING rather than drifted.
