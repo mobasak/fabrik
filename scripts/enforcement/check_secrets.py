@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 try:
@@ -186,6 +187,40 @@ def check_file(file_path: Path, allowed_lines: set[int] | None = None) -> list[C
     return results
 
 
+def _inside_work_tree() -> bool:
+    """Is there a repo here at all? Separates "git is unusable" (loud) from "this is not a git
+    directory", which is the documented fail-open and must stay silent — otherwise a standalone
+    or non-repo invocation reds for a condition that is not a finding."""
+    # ⚠️ FILESYSTEM, not git. Every cause the loud path exists for — a noexec mount, a broken
+    # PATH shim, ENOMEM on fork — breaks `git` itself, so probing WITH git returns False exactly
+    # when the guard must fire: executed, a noexec shim gave rc 0 and silence with a real secret
+    # sitting in the tree. A `.git` entry (dir, or the file a linked worktree carries) is the
+    # question actually being asked.
+    try:
+        cwd = Path.cwd()
+    except OSError:
+        return False
+    return any((d / ".git").exists() for d in (cwd, *cwd.parents))
+
+
+class _GitUnusableError(RuntimeError):
+    """Every git probe failed while a repo is plainly present — the scan saw nothing because it
+    could not look, which on a secrets gate must fail LOUD rather than pass silently."""
+
+
+def _is_file(p: Path) -> bool:
+    """`Path.is_file()` swallows only ENOENT/ENOTDIR/EBADF/ELOOP — an OVERLONG path raises
+    `OSError(ENAMETOOLONG)` straight out of `main()`. The filesystem cannot produce such a path
+    (`git add` refuses first) but `git update-index --add --cacheinfo` accepts one at rc 0 and
+    `git diff --staged --name-only` then emits it — and that plumbing call is the private-index
+    commit recipe `CLAUDE.md` mandates for shared-append files. A path we cannot even stat is
+    not a file this scan can read, so it is skipped rather than fatal."""
+    try:
+        return p.is_file()
+    except OSError:
+        return False
+
+
 def _changed_files() -> list[str]:
     """Files changed in git (unstaged + staged + untracked) — bound the scan to
     the diff, NOT the whole repo (mirrors validate_conventions.get_git_diff_files
@@ -194,20 +229,52 @@ def _changed_files() -> list[str]:
     import subprocess
 
     files: set[str] = set()
+    probed = False
     for cmd in (
-        ["git", "diff", "--name-only"],
-        ["git", "diff", "--staged", "--name-only"],
-        ["git", "ls-files", "--others", "--exclude-standard"],
+        # ⚠️ `-z` and `errors="surrogateescape"`, both load-bearing. On git's DEFAULT config a
+        # path holding a non-ASCII byte, a `"` or a `\` comes back QUOTED and octal-escaped —
+        # `café.txt` arrives as the literal `"caf\303\251.txt"`, whose `Path(...).is_file()` is
+        # False, so the file was skipped and a hardcoded secret in it went UNREPORTED in every
+        # repo, silently, with no unusual configuration (executed). `-z` disables that quoting;
+        # surrogateescape then round-trips a path that is not valid UTF-8, which under
+        # `core.quotePath=false` otherwise raised `UnicodeDecodeError` right here — the same
+        # crash this module just fixed 40 lines below, on paths instead of content.
+        ["git", "diff", "--name-only", "-z"],
+        ["git", "diff", "--staged", "--name-only", "-z"],
+        ["git", "ls-files", "--others", "--exclude-standard", "-z"],
     ):
         try:
-            out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
-            files.update(out.splitlines())
-        except (subprocess.CalledProcessError, FileNotFoundError):
+            # ⚠️ Decode the BYTES; do not pass `text=True`. Text mode wraps the pipe with
+            # universal-newline translation, which rewrites a `\r` in a path to `\n` AFTER `-z`
+            # removed git's quoting — two distinct tracked files then decode to the SAME string
+            # and one silently vanishes from the scan (executed). `errors=` alone still forces
+            # text mode, so only a manual decode avoids it.
+            raw = subprocess.run(
+                cmd, capture_output=True, check=True, stdin=subprocess.DEVNULL, timeout=60
+            ).stdout
+            files.update(raw.decode("utf-8", "surrogateescape").split("\0"))
+            probed = True
+        except (subprocess.SubprocessError, OSError):
             pass
+    if not probed and _inside_work_tree():
+        # ⚠️ NOT the same as "nothing changed". Widening the arms above to catch an UNUSABLE git
+        # (a noexec mount, a broken PATH shim, ENOMEM on fork) stopped the crash — but on a
+        # SECURITY gate "I could not look" must never read as "I looked and found nothing", and
+        # `final_gate`'s `run_optional_check` discards stdout on rc 0, so a printed warning could
+        # not surface. `main()` turns this into a loud failure instead.
+        raise _GitUnusableError
     return [f for f in files if f]
 
 
-_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+# ⚠️ Digit runs are BOUNDED. `int()` raises ValueError above 4300 digits (Python 3.12), and a
+# manufactured header (see the clamp) can carry an arbitrarily long run — an unbounded `\d+`
+# here crashed `main()` before the clamp below could ever apply. A longer run now simply
+# fails to match, which fails CLOSED.
+_HUNK_RE = re.compile(r"^@@ -\d{1,9}(?:,\d{1,9})? \+(\d{1,9})(?:,(\d{1,9}))? @@")
+# A hunk cannot legitimately name more lines than a file plausibly has; see the clamp's comment
+# in `_changed_line_numbers` for why an unbounded count is reachable from CONTENT, not just a
+# real header.
+_MAX_HUNK_LINES = 1_000_000
 
 
 def _changed_line_numbers(rel: str) -> set[int] | None:
@@ -229,10 +296,13 @@ def _changed_line_numbers(rel: str) -> set[int] | None:
                 ["git", "ls-files", "--error-unmatch", rel],
                 capture_output=True,
                 text=True,
+                errors="replace",
+                stdin=subprocess.DEVNULL,
+                timeout=60,
             ).returncode
             == 0
         )
-    except FileNotFoundError:
+    except (subprocess.SubprocessError, OSError):
         return None
     if not tracked:
         return None  # untracked → all lines are new
@@ -242,19 +312,62 @@ def _changed_line_numbers(rel: str) -> set[int] | None:
             ["git", "diff", "HEAD", "--unified=0", "--", rel],
             capture_output=True,
             text=True,
+            # ⚠️ `errors="replace"`, not strict: git's own heuristic calls a file TEXT when its
+            # first 8000 bytes hold no NUL, so an uncompressed PDF, an .ico, a font or latin-1
+            # prose DIFFS as text and strict UTF-8 raised `UnicodeDecodeError` out of
+            # `subprocess._translate_newlines` — which is neither of the two fail-open arms
+            # below, so the whole secrets leg crashed for every agent in the repo over a file
+            # class `check_file` never scans (web-ecommerce-factory, 01M2X0ZQX8YMZX022R9TC1E3M6).
+            # Replacement is safe for what this reads: `_HUNK_RE` matches only the ASCII
+            # `@@ -a,b +c,d @@` headers, and a replacement char cannot appear inside one — but
+            # note it does NOT follow that only real headers reach the regex: `splitlines()`
+            # can manufacture one out of a content line (see the clamp below).
+            # Returning None instead would fail open to a WHOLE-FILE scan and throw away the
+            # changed-line scoping that exists to stop re-flagging already-committed lines.
+            errors="replace",
             check=True,
+            stdin=subprocess.DEVNULL,
+            timeout=60,
         ).stdout
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.SubprocessError, OSError):
         return None  # no HEAD / git unavailable → fail-open, scan whole file
 
     changed: set[int] = set()
+    saw_header = False
     for line in out.splitlines():
         m = _HUNK_RE.match(line)
         if not m:
             continue
+        saw_header = True
         start = int(m.group(1))
         count = int(m.group(2)) if m.group(2) is not None else 1
+        # ⚠️ An implausible scope — one header's, or the accumulated set's — is not a scope this
+        # can trust, so it FAILS OPEN to the whole-file scan like the no-header case below.
+        # `str.splitlines()` also splits on `\r`, `\x0b`, `\x0c`, `\x1c-\x1e`, `\x85`, U+2028 and
+        # U+2029, so a CHANGED CONTENT LINE can present its tail to this regex as a hunk header,
+        # and one line can manufacture MANY: 300 of them reached MemoryError under a 2 GB cap,
+        # measured at ~1.85 MB of child RSS per byte of crafted content (executed).
+        # ⚠️ And do NOT truncate instead. `min(count, …)` was the first cut of this guard and it
+        # SILENTLY DROPPED every finding past the cut — a real credential at line 1,000,003 of a
+        # staged 1,000,005-line file was reported by the previous release and not by that cut
+        # (executed, both directions). On a secrets gate a narrowed scope is a missed secret.
+        if count > _MAX_HUNK_LINES or len(changed) + count > _MAX_HUNK_LINES:
+            return None
         changed.update(range(start, start + count))  # count 0 → empty (deletion)
+    if out and not saw_header:
+        # Git emits NO `@@` header for a file it treats as binary — a `.gitattributes` `-diff`
+        # rule, or one NUL byte. Returning the empty set here meant ALLOW NOTHING downstream
+        # (`:148`), which SILENCED every finding in that file while the gate reported success:
+        # one `*.cfg -diff` line disabled the secrets gate for an extension (executed). `None`
+        # is this function's documented fail-open — scan the whole file, which `check_file`
+        # still bounds by its own `read_text` guard. An empty set may only mean "nothing changed".
+        # ⚠️ THE COST, stated because it is real: a PRE-EXISTING secret elsewhere in a
+        # binary-diffed file is now reported when any line of it changes — the re-flag false
+        # positive the scoping exists to prevent, re-opened for this file class only. Measured:
+        # no slowdown (the scope was applied inside the match loop either way, 0.281s vs 0.294s
+        # on 3.29 MB). Loud beats silent on a secrets gate, but `# noqa` is the only escape and
+        # it is awkward on a machine-generated lock file.
+        return None
     return changed
 
 
@@ -266,10 +379,24 @@ def main() -> int:
     was a permanent no-op. Runs standalone (how final_gate invokes it); the
     Severity import falls back to absolute when there is no package context.
     """
+    # ⚠️ `_changed_files` round-trips an undecodable path as surrogates, and `sys.stdout` is a
+    # STRICT utf-8 wrapper — printing one raised `UnicodeEncodeError`, and because stdout is
+    # block-buffered to a pipe the process died before flushing, so EVERY finding was lost, not
+    # just the offending line. The fix that let the path into the scan is what made this
+    # reachable on the way out (executed).
+    # `hasattr`: stdout is None under `1>&-` and a StringIO under `redirect_stdout`, and an
+    # unguarded call turned a CLEAN repo into a traceback where the previous release returned 0.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="backslashreplace")
+    try:
+        changed = _changed_files()
+    except _GitUnusableError:
+        print("❌ check_secrets could not run git — the scan saw NOTHING; not a clean result.")
+        return 1
     errors = [
         r
-        for rel in _changed_files()
-        if (p := Path(rel)).is_file()
+        for rel in changed
+        if _is_file(p := Path(rel))
         for r in check_file(p, _changed_line_numbers(rel))
         if r.severity == Severity.ERROR
     ]
