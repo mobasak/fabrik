@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the three contracts now state the band as runway to the wall (2026-09-18)
+
+- D-299's code shipped at `62d37d3f`; this is the prose half. All three `CLAUDE.md` copies (hub,
+  `templates/governance/`, and `/opt/fabrik-lib/` cross-repo on the operator's explicit approval)
+  carry a byte-identical 1312-char core: each window banded against the wall of the account that
+  provided its reading, the hottest BAND winning rather than the hottest percentage, GREEN beyond
+  5 points of runway, AMBER within 5, RED AT the wall — and fleet-wide RED arriving as ABSENCE,
+  since an account that has reached its cap is dropped from the readings entirely.
+- It also states what did NOT change and why: rotation keeps the raw `ROTATE_DRAIN_THRESHOLD` and
+  `ROTATE_URGENT_DRAIN_PCT` lines, because those govern when the POINTER moves, never what an agent
+  is told. `docs/workstation/claude-account-rotation.md` says the same at its `active.band` entry.
+- ⚠️ Two wrap traps, both caught by graders rather than by reading. `textwrap` split
+  `fleet-exhausted` at its hyphen, and then split the PINNED phrase
+  `RED: commit, push, close your run record` across a line — and `T6_CLAIMS` counts RAW text, so
+  that anchor read zero in both hub copies while the sentence sat plainly on the page. Fixed by
+  wrapping with `break_on_hyphens=False` and each pinned anchor protected as one unbreakable token.
+  The matching pattern had to become whitespace-tolerant for the same reason.
+- Anchors re-pinned to the runway phrasing (`more than 5 points of runway — GREEN`, `5 points or
+  fewer`); all three intact 1/1/1. 396 passed.
+
 ### Changed — what actually breaks a Pass row's counter run (2026-09-19)
 
 - `/fabrik-review`'s `new:` sentence claimed no grader parses it. A displaced `new:` is in fact refused by name; what no grader reads is its VALUE. The sentence now says that, and adds the rule a writer cannot guess: the value must be letters, digits, `_` or `-`, and anything else — or a cell `|` between the counters, whatever the value — ends the counter run, after which `confirmed:` and `unexecuted:` read as absent while the refusal names those two rather than the cause.
