@@ -4612,3 +4612,32 @@ across a denominator collapse from 466 to 66, which is not a comparable decline,
 `premature_stop_rate` at 61% reads as a rise while actually being the lowest of five readings.
 Printing the previous two readings WITH their denominators beside each metric would fix it. Filed
 against `scripts/sysadmin/kaizen_digest.py` / the collection's mail body.
+
+## [infra] Three SHADOW mailboxes strand 5 obligations where no agent looks and no tool can write (2026-09-20)
+
+Found by firing the new owner leg (D-310): 41 of 44 repos were told, 3 failed with
+`mail.py: REFUSED — unsafe recipient 'llm batch processor': must be a plain repo name
+([A-Za-z0-9._-], no path separators / ..)`. The refusal is CORRECT — the bug is upstream of it.
+
+Each of the three has a mailbox directory whose name contains SPACES, **and a second, legal
+mailbox that its agent actually reads**:
+
+| shadow mailbox (spaces) | stranded obligations | the mailbox its agent reads | the repo |
+|---|---|---|---|
+| `Reference Creator` | 2 | `Reference_Creator` (exists) | `/opt/Reference_Creator` |
+| `llm batch processor` | 2 | `llm_batch_processor` (exists) | `/opt/llm_batch_processor` |
+| `scratch bhd` | 1 | `scratch_bhd` (exists) | `/opt/scratch_bhd` |
+
+`mail.py` derives the mailbox from the cwd's git worktree, so those agents open the UNDERSCORE
+mailbox; the 5 obligations sit in the space-named one, which nothing reads and nothing can write
+to. They have been there up to 22 days and will never be escalated, because the escalation itself
+cannot address them — the owner leg reports them loudly every run (`owners=41 sent/3 failed`) and
+that is the correct fail-soft behaviour, but it does not reach anyone who can fix it.
+
+⚠️ NOT FIXED HERE because the remedy is a DATA MOVE in the shared mail store — moving 5 messages
+between two mailboxes belonging to other repos. It is reversible and loses nothing (a move, never
+a delete, with the source kept until the destination is verified), but it is another repo's mail
+and wants the operator's word, exactly as the fan-out did.
+
+Also worth deciding at the same time: whether anything still CREATES space-named mailboxes. If a
+writer does, consolidating once just re-splits later. Owner: infra (fabrik-mail).
