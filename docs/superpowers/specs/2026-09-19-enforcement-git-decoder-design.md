@@ -196,6 +196,45 @@ reach `_git`. So `check_doc_sync.py:74` is single-shape `git_paths`, its helper 
 than splits (consistent with § A polymorphic `_git` helper is SPLIT), and it is counted in
 PATH-ONLY. Dismantling it would be a pointless edit at 4 call sites.
 
+## RESUME
+
+**State:** DRAFT at `36aa50e2c`. Four review rounds; 39 confirmed defects fixed, the 10 in
+§ OPEN DEFECTS still confirmed and unfixed. `/fabrik-spec-review` handed off rather than flipping,
+because the D-278 scope-growth stop fired at 2 of the last 3 rounds (confirmed/own-fix
+`13/4 → 12/12 → 10/9`).
+
+**The next pass, and its one binding condition:** fix the 10 in § OPEN DEFECTS in a single pass in
+which the FINDER and the FIXER are DIFFERENT agents. That separation is the entire reason these
+stand open — rounds 3 and 4 each confirmed ~12 defects and each time nearly every one lay inside
+the fix prose the previous round had just written. A reviewer correcting its own findings
+regenerates the surface it is correcting.
+
+**Two of the ten need a RULING, not an edit** — settle them before touching prose:
+- Defect 1: either the MULTI-USE wrapper is deleted in Stage 1 and ALL five callers migrate there
+  (then Stages 2 and 3 carry none of this file and say so), or the wrapper survives to Stage 3.
+  Both are coherent; the document currently asserts both.
+- Defect 4: `GitUnavailableError` is raised on NON-EXECUTION ONLY (§ the contract) or a TIMEOUT is
+  folded into it (§ the mirror, and the precedent at `check_script_headers.py:219` folds it). Rule
+  once, in one place, and re-derive the affected handler set from the ruling rather than editing
+  the existing numbers.
+
+**Do NOT re-derive — verified correct by a fresh seat in round 4:** the partition
+`15 CONTENT + 37 PATH-ONLY + 13 MIXED + 7 META-safe + 6 META-path + 6 NOT-GIT + 1 MULTI-USE = 85`,
+with no site in two rows or none; the census 87 sites / 2 guarded / 85 unguarded / 35 files; 102
+five-verb calls in 40 files and the 23-exemption cobra derivation; the `-z`-before-`--` rule, swept
+over every real PATH-ONLY argv shape including `-c`-prefixed globals, trailing pathspecs, trailing
+revisions and doubled `-z`; the sync citations `:2445`/`:2468`/`:2473` and the 47 reachable copies;
+every print-path citation and the 2,942-line span; the 50-site union and its five double-counts;
+`safe()`'s round-trip; `rev-parse -z` echoing `-z` at rc 0 and `merge-base -z` at rc 129; and the
+crash/silent table at 63 / 22 across 12 files.
+
+**And the method lesson this artifact paid four rounds for:** a count confirmed wrong in two
+consecutive rounds is replaced by its DERIVATION, not corrected a third time. The cobra allowlist
+was stated as 4 files, then as 17 calls in 12 files — both wrong; replaced with the derivation it
+was the only round-3 fix to survive round 4 intact, while every count restated as a number came
+back stale in the very next round.
+
+
 ## ⚠️ OPEN DEFECTS — confirmed 2026-09-20, UNFIXED, and why they are unfixed
 
 This spec is **DRAFT** and stays DRAFT. A fourth review round confirmed the ten defects below and
