@@ -421,11 +421,21 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   costs in cached prefix, not that you must slow down (operator ruling 2026-09-17: agents read
   `weekly 87%` and declared AMBER themselves while fresh accounts sat in the queue — *"it is not
   prospective. it behaves like there is only one account exist"*). Each band names an ACTION; the
-  axis PARTITIONS, so every reading lands in exactly one. **under 85 — GREEN:** work normally —
-  the tick rotates; you never pick accounts. **85 to under 90 — AMBER: finish what you started,
-  start nothing heavy** — no new fan-out, no new plan phase, no fresh review round, because the
-  fleet's wall is next and a flip cannot save the round.
-  **90 and over — RED: commit, push, close your run record, and start nothing new.** **the WALL**
+  axis PARTITIONS, so every reading lands in exactly one. **the lines are the WALL's, not fixed percentages (D-299):** each window is banded against the
+  wall of the account that provided its reading — that account's `caps.json` cap for weekly, 100
+  for the uncapped `five_hour` and Fable windows — and the hottest BAND wins, never the hottest
+  percentage. 91% on a 95-cap account is four points of runway while 91% on a 99-cap one is eight,
+  and one shared pair of lines cannot tell them apart. **more than 5 points of runway — GREEN:**
+  work normally — the tick rotates; you never pick accounts. **5 points or fewer — AMBER: finish
+  what you started, start nothing heavy** — no new fan-out, no new plan phase, no fresh review
+  round, because the wall is next and a flip cannot save the round. **AT the wall —
+  RED: commit, push, close your run record, and start nothing new.** Fleet-wide that RED arrives
+  as absence rather than as a number: an account that has REACHED its cap is dropped from the
+  readings, so when every account has, the window has no reading at all and THAT is the fleet's
+  wall. ⚠️ Rotation keeps its own thresholds — `ROTATE_DRAIN_THRESHOLD` (85) gates the relief
+  flip, the flip-target bar and the successor hysteresis, `ROTATE_URGENT_DRAIN_PCT` (90) arms the
+  `fleet-exhausted` stamp — because those govern when the POINTER moves, never what an agent is
+  told. **the WALL**
   (`fleet-exhausted` stamp): `.claude/hooks/quota_stop.py` holds every world-changing tool by
   default-deny, and commit + push + close + stop is the only path through — every tool it needs is
   allowed.

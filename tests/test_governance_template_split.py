@@ -176,8 +176,9 @@ T6_CLAIMS = (
     "never on a single copied FILE",
     "it can reach committed state",
     "treat the condition as TRUE by default",
-    "under 85 — GREEN",
-    "85 to under 90",
+    # D-299: the lines are the WALL's, so the anchors are the runway phrases, not percentages
+    "more than 5 points of runway — GREEN",
+    "5 points or fewer",
     "RED: commit, push, close your run record",
     "COMPACTION IS CONDITIONAL",
     "follow it with a real `unset GIT_INDEX_FILE`",
@@ -243,8 +244,8 @@ THIRD_CONTRACT = Path("/opt/fabrik-lib/CLAUDE.md")
 # of the shared sentences; counted on whitespace-normalised text because the hub and the template
 # hard-wrap the bullet at ~93-96 columns while fabrik-lib keeps it on one line.
 QUOTA_CLAIMS = (
-    "**under 85 — GREEN:**",
-    "85 to under 90",
+    "**more than 5 points of runway — GREEN:**",
+    "5 points or fewer",
     "RED: commit, push, close your run record",
     "posture unavailable",
     # ⚠️ re-pinned 2026-09-17 on the operator's ruling: the hold is FLEET-aware, so the claim must
