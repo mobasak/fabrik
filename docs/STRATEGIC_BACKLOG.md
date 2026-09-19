@@ -3956,6 +3956,39 @@ owns it — and twelve mutants are now killed. What the stop left, with destinat
    including an addition that retires nothing; a reader cannot satisfy it and learns to ignore the
    line. **Destination:** infra — reword to "names what the growth buys, or what it retires".
 
+## The seat-brief clause: five residuals the scope-growth stop left (routed 2026-09-19)
+
+`/fabrik-command-improve fabrik-review-scoped` closed on the D-278 stop (confirmed/own-fix 10/0 →
+6/6 → 10/10): after round 1 the command's own surface was quiet and all sixteen later findings sat
+in this review's own prose. The correctness defects shipped — including the sharpest, that the
+edit's two spans CONTRADICTED each other (one forbade putting the expected answer in a brief while
+the other required the author to supply the escape variants by name), demonstrated live by the
+brief that dispatched the round which found it. What the stop left, with destinations:
+
+1. **Three escape variants of the new clause survive.** A brief can name STRAWMAN variants (nothing
+   requires the reader to test them); "ships a GUARD, or states a RULE" is self-assessed and
+   undefined, so "it records a fact, it does not state a rule" costs nothing; and the ask is owed
+   only at the CLOSING pass, so a variant found earlier by an unasked reader can be relabelled
+   own-fix later. **Destination:** infra — close EV3 by naming the test (any modal sentence: must /
+   never / owes), which is a one-clause edit the next run of this command can make.
+2. **The clause ships without its fire rate and its cobra counter**, both mandated (FIX DIRECTIVE 5,
+   the `cobra-effect` universal anchor). Measured for it during review, last 200 hub commits:
+   `guard=75 · rule=27 · either=84 of 200`, so the disjunction fires on 42% and is NOT the
+   unconditional error the previous cut was. The cheapest satisfaction is EV1 above. **Destination:**
+   infra — the cobra line belongs beside the clause, in the same command.
+3. **`commands/_sources/fabrik-review-scoped.md:65` is now the file's longest line at ~1.7 KB**
+   against a ~98-column median, so every reviewer of this clause needs the `fold -w 170` workaround
+   and every future edit to it is a whole-line diff. Three >800-char lines pre-exist. **Destination:**
+   infra — a re-wrap pass over the four long lines, mechanical and reviewable.
+4. **`assemble_commands.py --check` cannot be run by a seat under the standing brief rules.** It
+   diffs a temp render against the INSTALLED corpus under `$HOME/.claude`, and every finder brief
+   forbids reading any `$HOME`-rooted `.claude*` path. Three consecutive rounds worked around it
+   per-brief. **Destination:** infra — either a `--check --sources-only` mode or an explicit carve-out
+   in the brief boilerplate; a mandated check no seat may run is a check nobody runs.
+5. **`:106` says "D-066 named only the heavy command"; D-066's own row reads "`/fabrik-review`
+   Phase 3 + the scoped twin"** and lists both command sources. Pre-existing base text that now sits
+   inside an edited hunk. **Destination:** infra — a scoped fix, not this diff (D-230: one hop out).
+
 ## § Completion Contract 1a's `>5 files` and the lane table's `>3` are two numbers in one contract (routed from T04a)
 
 § 1a's `>5` is REVIEW sizing (how heavy a pass does work already in flight owe?); the lane table's

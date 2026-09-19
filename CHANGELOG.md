@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `/fabrik-review-scoped` says what a seat brief must contain (2026-09-19)
+
+- Answering four ledger verdicts: a brief states the QUESTION for the change's own SHAPE, never a generic invariant and never the expected answer. A check impossible for the shape burns the seat and returns a STOP — verbatim-survival of every base line fails on any modified line and passes vacuously on a pure addition, which is 74 of the last 200 commits here.
+- Three conditioned asks, each silent unless its shape is present: an edit that states a RULE is applied to the case that motivated it, named in the brief by SHA or ledger row; a surface with a fleet-wide read path is measured over the named population its path reaches, counted rather than assumed; and a change that ships a GUARD owes the closing reader its escape variants by name.
+- **The first draft inverted a lesson this repo had already recorded** — that a brief states the question and never the answer — and its own review seat then filed a dispatcher-supplied conclusion as ground truth, one of which was false. The defect executed inside the run that introduced it, which is why the clause now carries the lesson's own wording and its citation.
+
 ### Changed — `/fabrik-execute-plan` runs a plan's own validation before the rule it tests (2026-09-19)
 
 - Answering three ledger verdicts from the `/fabrik-task` lane build: a validation, or the part of one, that tests the rule the plan BUILDS against evidence that ALREADY EXISTS now runs before the first implementing ticket, wherever the Board scheduled it. A dogfood or a live probe needs the built artifact and is excluded by construction; D7's whole-plan validation still runs last.
