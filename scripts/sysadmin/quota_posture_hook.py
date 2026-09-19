@@ -32,8 +32,8 @@ be trapped, so every failure path here returns 0.
 carries a TIER on its second line. At ``walled`` ``quota_stop.py`` owns the deny and this
 hook is SILENT on ``PreToolUse``; the tier is read BEFORE the band, so a lagging RED
 posture cannot produce a second, differently worded deny for the same call. At
-``urgent-90`` — the session window at the urgent-drain line with no successor, up to ten
-points before the wall — ``quota_stop.py`` ALLOWS, so this hook keeps holding on its own
+``urgent-90`` — the session window at the urgent-drain line with no successor, EIGHT points
+before the wall on the default ``ROTATE_THRESHOLD`` of 98 — ``quota_stop.py`` ALLOWS, so this hook keeps holding on its own
 band, or a genuine fleet RED would pass both hooks unheld. That tier also puts the
 CHECKPOINT clause on the prompt line: the turn boundary is the last moment an agent can
 checkpoint by choice rather than be denied mid-edit.
@@ -237,9 +237,13 @@ def _stamp_tier(stamp: Path) -> str:
         # `.split("\n")`, never `.splitlines()` — the latter also breaks on VT/FF/FS/GS/RS/NEL/
         # U+2028/U+2029, so a control byte in line 1 shifted the read and a `walled` stamp was
         # allowed through as `urgent-90`: lenient, the one direction this reader must never be.
-        if stamp.is_symlink() or not stamp.is_file():
+        if not stamp.is_file():
             return _STAMP_TIER_WALLED
-        lines = stamp.read_text(encoding="utf-8", errors="replace").split("\n")
+        # `newline=""` disables UNIVERSAL-NEWLINE translation, without which Python turns a bare
+        # `\r` in line 1 into a line break on read and line 2 shifts — the same class as the
+        # control characters above, arriving through the reader instead of through `splitlines()`.
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
     except OSError:
         return _STAMP_TIER_WALLED
     tier = lines[1].strip() if len(lines) > 1 else ""

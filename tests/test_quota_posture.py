@@ -1473,24 +1473,29 @@ def test_the_three_tier_readers_agree_on_the_shapes_that_actually_diverge(tmp_pa
         mods.append(m)
     assert len({m.__file__ for m in mods}) == 3, "three DIFFERENT files, or this grades nothing"
 
+    # ⚠️ EXPECTED VALUES, not just agreement. The first cut asserted `len(set(got)) == 1`, so an
+    # all-three drift back to the defect passed — a seat reverted `.split("\n")` to `.splitlines()`
+    # in every copy and this grader watched the exact bug it names (`0\x0burgent-90…`) and said
+    # nothing. Agreement is necessary; correctness is what the fleet depends on.
     s = tmp_path / "fleet-exhausted"
-    for body in (
-        "0\nWALLED\n",
-        "0\nUrgent-90\n",
-        "0\nurgent-90",
-        "0\r\nurgent-90\r\n",
-        "0\rurgent-90",
-        "0\nurgent-90\nwalled\n",
-        "0\nurgent-90\x00\n",
-        "0\x0burgent-90\nwalled\n",
-        "0\n urgent-90 \n",
-        "0\nurgent-90x\n",
-        "\x00\nurgent-90\n",
-        "0\n\nurgent-90\n",
+    for body, want in (
+        ("0\nWALLED\n", "walled"),
+        ("0\nUrgent-90\n", "walled"),
+        ("0\nurgent-90", "urgent-90"),
+        ("0\r\nurgent-90\r\n", "urgent-90"),
+        ("0\rurgent-90", "walled"),
+        ("0\nurgent-90\nwalled\n", "urgent-90"),
+        ("0\nurgent-90\x00\n", "walled"),
+        ("0\x0burgent-90\nwalled\n", "walled"),
+        ("0\n urgent-90 \n", "urgent-90"),
+        ("0\nurgent-90x\n", "walled"),
+        ("\x00\nurgent-90\n", "urgent-90"),
+        ("0\n\nurgent-90\n", "walled"),
     ):
         s.write_text(body)
         got = [m._stamp_tier(s) for m in mods]
         assert len(set(got)) == 1, f"readers disagree on {body!r}: {got}"
+        assert got[0] == want, f"{body!r}: all three agree on {got[0]!r}, but it must be {want!r}"
     fifo_dir = tmp_path / "f"
     fifo_dir.mkdir()
     _os.mkfifo(fifo_dir / "fleet-exhausted")

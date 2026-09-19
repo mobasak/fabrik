@@ -7341,7 +7341,7 @@ def test_status_names_the_fable_band_when_it_differs_from_the_one_it_prints():
 #
 # `_fleet_active_wall_advisory` writes the fleet-exhausted stamp on `walled OR urgent`, where
 # `urgent` is the SESSION window at `ROTATE_URGENT_DRAIN_PCT` (90) with no validated successor —
-# up to ten points before the wall, and deliberately so: that is the runway a graceful stop
+# eight points before the wall, and deliberately so: that is the runway a graceful stop
 # needs (D-111). `quota_stop.py` read only `.exists()`, so the WARNING tier produced the same
 # fleet-wide default-deny as the wall and killed in-flight work with headroom still on the
 # clock. The tier the ledger row has always carried now rides in the stamp too.
@@ -7378,7 +7378,7 @@ def _fire_advisory(tmp_path, monkeypatch, row: dict, threshold: float = 98.0) ->
 
 def test_the_wall_stamp_records_which_tier_armed_it(tmp_path, monkeypatch):
     """The two arms are not the same event and the stamp must say which fired. A 5h at 92 with
-    no successor is the WARNING (ten points of runway left); a 5h at 99 is the wall itself."""
+    no successor is the WARNING (eight points of runway left); a 5h at 99 is the wall itself."""
     warn = _fire_advisory(tmp_path / "w", monkeypatch, _advisory_row(92.0, 40.0))
     assert warn.exists(), "the urgent-90 arm still writes the stamp — the latch is unchanged"
     assert cr._stamp_tier(warn) == "urgent-90", (
@@ -7421,7 +7421,7 @@ def test_the_resume_promise_survives_the_tier_line(tmp_path):
 def test_the_wall_band_is_the_walled_tier_alone(tmp_path, monkeypatch):
     """The WALL band means `quota_stop.py` is holding every world-changing tool. Once the
     warning tier stops holding, a stamp is no longer proof of that — so the band reads the tier
-    too, or the contract's WALL sentence becomes false ten points early."""
+    too, or the contract's WALL sentence becomes false eight points early."""
     assert cr._hold_is_wall({"tier": "walled"}) is True
     assert cr._hold_is_wall({"tier": "urgent-90"}) is False
     assert cr._hold_is_wall({"since": 1.0}) is True, "a tier-less hold fails closed, like the file"
@@ -7510,23 +7510,45 @@ def test_the_tier_is_raised_when_an_episode_escalates_to_a_real_wall(tmp_path, m
 
 
 def test_the_band_stops_saying_wall_only_because_the_tier_says_so(tmp_path, monkeypatch):
-    """The WIRING, not the predicate. `_hold_is_wall` was graded as a pure function while the one
-    line that uses it was not: a seat reverted the call site to the pre-change
-    `hold=_pic.get("hold") is not None` — undoing the entire point of the change — and 284 of 284
-    graders passed. This one reds on that revert."""
-    for tier, expect in (("walled", "WALL"), ("urgent-90", None)):
-        pic = {"hold": {"since": FLEET_NOW, "resume_promised": None, "tier": tier}}
-        band = cr._band_of(50.0, cr._hold_is_wall(pic["hold"]), 85.0, 90.0)
-        if expect == "WALL":
-            assert band == "WALL", f"{tier}: the wall tier must still band WALL, got {band}"
-        else:
-            assert band != "WALL", (
-                f"{tier}: a tier that holds nothing must not band WALL, got {band}"
-            )
-    # and the presence-only predicate the revert would restore does NOT distinguish them
-    assert (pic["hold"] is not None) is True, (
-        "presence is true for BOTH tiers — which is exactly why the band must read the tier"
+    """The WIRING, not the predicate — and this grader had to be rewritten twice to reach it.
+
+    `_hold_is_wall` was graded as a pure function while the ONE line that uses it was not: a
+    review seat reverted that call site to the pre-change `hold=_pic.get("hold") is not None` —
+    undoing the entire point of the change — and 428 of 428 graders passed. The first repair
+    still computed `_hold_is_wall` in the test and handed it to a spy, which grades the test's own
+    arithmetic, not the call site. This drives a REAL tick and captures what the production line
+    actually passes.
+    """
+    captured = {}
+    real = cr._quota_posture
+
+    def _spy(accounts, pic, now, prev, *, hold):
+        captured["hold"] = hold
+        return real(accounts, pic, now, prev, hold=hold)
+
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(50.0, 50.0), "tok-intel": _usage_blob(50.0, 50.0)},
     )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    monkeypatch.setattr(cr, "_quota_posture", _spy)
+    _point(fleet, "seo")
+    stamp = cr._fleet_exhaustion_stamp()
+
+    for tier, expect in (("urgent-90", False), ("walled", True)):
+        stamp.parent.mkdir(parents=True, exist_ok=True)
+        stamp.write_text(cr._stamp_body("0", tier))
+        captured.clear()
+        assert cr._cmd_tick() == 0
+        assert captured.get("hold") is expect, (
+            f"tier {tier}: the tick must pass hold={expect} to the posture, "
+            f"got {captured.get('hold')!r} — the call site is not reading the tier"
+        )
 
 
 def test_the_picture_fail_closed_tier_survives_an_unreadable_stamp(tmp_path, monkeypatch):
@@ -7584,14 +7606,42 @@ def test_the_tier_reader_does_not_hang_or_shift_on_a_hostile_stamp(tmp_path):
     so a control byte in the PROMISE shifted line 2 and a `walled` stamp read as `urgent-90`."""
     import os as _os
 
+    # ⚠️ The FIFO half runs in a SUBPROCESS with a timeout, never in-process: a missing guard makes
+    # the reader BLOCK, and a blocking grader does not go red — it hangs, eating the gate's whole
+    # 900 s pytest budget and reporting a timeout indistinguishable from a slow suite. A signal
+    # alarm is no substitute: `TimeoutError` subclasses `OSError`, so the subject's own handler
+    # swallows it and the probe reports a clean pass. Both measured by a review seat.
+    _cr_path = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "claude_rotate.py"
+
     s = tmp_path / "fleet-exhausted"
     for sep in ("\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", " ", " "):
         s.write_text(f"0{sep}urgent-90\nwalled\n")
         assert cr._stamp_tier(s) == "walled", f"{sep!r} in line 1 must not shift the tier read"
-    fifo = tmp_path / "fifo"
-    fifo.mkdir()
-    _os.mkfifo(fifo / "fleet-exhausted")
-    assert cr._stamp_tier(fifo / "fleet-exhausted") == "walled", "a FIFO must not hang the reader"
+    import subprocess as _sp
+    import sys as _sys
+
+    fifo_dir = tmp_path / "fifo"
+    fifo_dir.mkdir()
+    _os.mkfifo(fifo_dir / "fleet-exhausted")
+    probe = tmp_path / "probe.py"
+    probe.write_text(
+        "import importlib.util, sys\n"
+        "spec = importlib.util.spec_from_file_location('p', sys.argv[1])\n"
+        "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+        "print(m._stamp_tier(__import__('pathlib').Path(sys.argv[2])))\n"
+    )
+    try:
+        r = _sp.run(
+            [_sys.executable, str(probe), str(_cr_path), str(fifo_dir / "fleet-exhausted")],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except _sp.TimeoutExpired:
+        raise AssertionError(
+            "the FIFO guard is gone — the reader BLOCKED, it did not fail"
+        ) from None
+    assert r.stdout.strip() == "walled", r.stdout + r.stderr
 
 
 def test_status_does_not_call_a_nudge_a_hold(tmp_path, monkeypatch, capsys):
@@ -7606,7 +7656,10 @@ def test_status_does_not_call_a_nudge_a_hold(tmp_path, monkeypatch, capsys):
     }
     cr._print_picture(base)
     warn = capsys.readouterr().out
-    assert "WARNING" in warn and "nothing is held" in warn, warn
+    assert "WARNING" in warn and "hold has NOT armed" in warn, warn
+    assert "nothing is held" not in warn.lower(), (
+        f"--status must not claim nothing is held: the band may be denying new work: {warn}"
+    )
     cr._print_picture({**base, "hold": {**base["hold"], "tier": "walled"}})
     held = capsys.readouterr().out
     assert "HELD" in held and "WARNING" not in held, held

@@ -11,15 +11,19 @@ Signal: the rotation tick's exhaustion stamp (`<state>/fleet-exhausted`), writte
 `claude_rotate.py::_fleet_active_wall_advisory` when the ACTIVE account is walled — OR its SESSION
 window is at `ROTATE_URGENT_DRAIN_PCT` — and the picker found no validated successor (or the
 operator paused rotation), and unlinked by the same tick the moment relief arrives (a flip or a
-reset). A second writer re-arms it from the episode's ledger row (`_rearm_wall_stamp`) and raises
-its tier when the episode escalates; a second READER with authority is
-`scripts/sysadmin/quota_posture_hook.py`, which stands down only at the `walled` tier.
+reset). THREE functions in `claude_rotate.py` write it — `_fleet_active_wall_advisory` (the
+episode's first write), `_rearm_wall_stamp` (rebuilds it from the episode's ledger row) and
+`_upgrade_stamp_tier_to_walled` (raises the tier when an episode escalates) — and THREE readers act
+on it: this hook, `scripts/sysadmin/quota_posture_hook.py` (which stands down only at the `walled`
+tier), and `claude_rotate.py` itself, whose picture turns the tier into the WALL band.
 
 ⚠️ THE STAMP CARRIES TWO TIERS AND ONLY ONE OF THEM HOLDS (D-306). Its second line names which
 arm armed it. `walled` is the wall itself — a window at/over `ROTATE_THRESHOLD`, its `caps.json`
 cap, or 100. `urgent-90` is the SESSION window at `ROTATE_URGENT_DRAIN_PCT` (90) with no
-validated successor: EIGHT points of runway remain on the default `ROTATE_THRESHOLD` of 98, and
-fewer on an account whose `caps.json` cap binds first. That runway is the whole reason the
+validated successor: EIGHT points of runway remain on the default `ROTATE_THRESHOLD` of 98. That
+gap is on the SESSION window alone — `urgent` tests `five_hour` and a `caps.json` cap is applied
+to `seven_day`, so a cap never shortens it; it walls the weekly window on its own axis and can
+open an episode at `walled` outright. That runway is the whole reason the
 arm exists (D-111). Holding there killed in-flight subagents with quota still on the clock —
 the premature stop the operator's "utilize quotas utmost" directive forbids (D-299) — so the
 warning tier ALLOWS and nudges, and the wall tier holds. A stamp that does not plainly name a
@@ -519,9 +523,13 @@ def _stamp_tier(stamp: Path) -> str:
         # `.split("\n")`, never `.splitlines()` — the latter also breaks on VT/FF/FS/GS/RS/NEL/
         # U+2028/U+2029, so a control byte in line 1 shifted the read and a `walled` stamp was
         # allowed through as `urgent-90`: lenient, the one direction this reader must never be.
-        if stamp.is_symlink() or not stamp.is_file():
+        if not stamp.is_file():
             return _STAMP_TIER_WALLED
-        lines = stamp.read_text(encoding="utf-8", errors="replace").split("\n")
+        # `newline=""` disables UNIVERSAL-NEWLINE translation, without which Python turns a bare
+        # `\r` in line 1 into a line break on read and line 2 shifts — the same class as the
+        # control characters above, arriving through the reader instead of through `splitlines()`.
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
     except OSError:
         return _STAMP_TIER_WALLED
     tier = lines[1].strip() if len(lines) > 1 else ""
@@ -570,7 +578,8 @@ def decide(
     if tier == _STAMP_TIER_URGENT:
         # The WARNING tier: the fleet is at 90% of the session window with nothing to rotate to,
         # which leaves real runway. Killing a running seat here wastes everything already spent
-        # on it, so nothing is held — but every tool call says the wall is next, because the
+        # on it, so THIS hook holds nothing — the band may still hold new work, which is the
+        # sibling hook's business — and every tool call says the wall is next, because the
         # cheapest way to arrive at it is to not notice.
         return "allow_warn", _nudge()
     if tool == "Bash":
@@ -592,13 +601,17 @@ def decide(
 
 
 def _nudge() -> str:
-    """The WARNING tier's one line. It asks for a CHECKPOINT, never a stop: the work in flight
-    is exactly what the runway is for. Nothing is denied while this prints."""
+    """The WARNING tier's one line. It asks for a CHECKPOINT, never a stop: the work in flight is
+    exactly what the runway is for. THIS hook denies nothing while it prints — but it cannot say
+    that nothing is denied, because `quota_posture_hook.py` holds new fan-out and new runs on the
+    band, and at this tier that band is routinely RED. The wording must stay true of the SYSTEM,
+    not just of this file."""
     return (
         "quota-stop: FLEET QUOTA LOW — the active account is at the urgent-drain line with no "
         "account to rotate to. THE FLEET-WIDE HOLD HAS NOT ARMED, so your in-flight work is not "
-        "being cut short here; the band may still hold a NEW fan-out or a new run "
-        "(`quota_posture_hook.py` owns that). CHECKPOINT as you go so the wall costs you "
+        "being cut short here. Whether a NEW fan-out or a new run is held depends on the band — "
+        "read the QUOTA line, which is the only place that says. CHECKPOINT as you go so the "
+        "wall costs you "
         "nothing: commit with explicit pathspecs, push, and keep your run record current "
         "(`command_run.py step|round`) — when the wall itself arrives every world-changing tool "
         "is held and only commit + push + close + stop gets through."

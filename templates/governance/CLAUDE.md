@@ -434,16 +434,17 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   readings, so when every account has, the window has no reading at all and THAT is the fleet's
   wall. ⚠️ Rotation keeps its own thresholds — `ROTATE_DRAIN_THRESHOLD` (85) gates the relief
   flip, the flip-target bar and the successor hysteresis, `ROTATE_URGENT_DRAIN_PCT` (90) arms the
-  `fleet-exhausted` stamp at its WARNING tier — because those govern when the POINTER moves. ⚠️ That
-  last clause used to read "never what an agent is told" and D-306 made it false:
-  `ROTATE_URGENT_DRAIN_PCT` now also decides whether you get the CHECKPOINT nudge below.
-  What stays true is the part that matters — neither number draws a BAND. **the WALL**
+  `fleet-exhausted` stamp at its WARNING tier — because those govern when the POINTER moves. The only band
+  they draw is `band_account`, THIS ACCOUNT'S OWN reading — never the FLEET's band, which D-299
+  draws from each window's own wall. `ROTATE_URGENT_DRAIN_PCT` additionally decides whether you
+  get the CHECKPOINT nudge below. **the WALL**
   (`fleet-exhausted` stamp at its `walled` tier): `.claude/hooks/quota_stop.py` holds every
   world-changing tool by
   default-deny, and commit + push + close + stop is the only path through — every tool it needs is
   allowed. ⚠️ THE STAMP HAS TWO TIERS AND ONLY THAT ONE HOLDS (D-306). Its other tier,
   `urgent-90` — the session window at 90 with no successor, so EIGHT points of runway remain
-  on the default `ROTATE_THRESHOLD` of 98, fewer when a `caps.json` cap binds first — denies NOTHING and instead puts a CHECKPOINT clause on your next prompt line: commit,
+  on the default `ROTATE_THRESHOLD` of 98 (that arm watches the SESSION window; a `caps.json` cap
+  walls the WEEKLY one on its own axis and can open an episode at `walled` outright) — denies NOTHING and instead puts a CHECKPOINT clause on your next prompt line: commit,
   push and keep your run record current while you still can. Killing work that still has quota to
   finish is the premature stop the bands exist to prevent, so a warning is a warning and only the
   wall is a wall.
@@ -509,7 +510,7 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   compact when a flip is likely to beat your reset, ride it out when the reset comes first.
   ⚠️ **Never "help" by moving the knobs.** Lowering `ROTATE_THRESHOLD` (98) or `ROTATE_DWELL_MIN`
   (30m) makes flips frequent and thrashy, and every point down re-creates every live session's
-  prefix. RAISING the two that draw the bands is worse and cheaper: `ROTATE_DRAIN_THRESHOLD` (85)
+  prefix. RAISING the two that draw the ACCOUNT's own band is worse and cheaper: `ROTATE_DRAIN_THRESHOLD` (85)
   gates the relief flip leg itself, so raising it silences AMBER *and* stops relief flips, and
   (the `nan`/`inf` escape is CLOSED — `_env_float` rejects a non-finite value loudly and keeps the
   default);

@@ -103,7 +103,73 @@ Grader counts at both SHAs, so a silent deletion cannot hide: `test_claude_fleet
 
 | pass | method | counters | finders |
 |---|---|---|---|
+| Pass 2 (DELTA) | method: re-derivation — every claim in the round-1 fix text re-executed; the fire-rate and numstat figures re-derived by the orchestrator; round-zero probe — the new escalation function re-read WHOLE before dispatch | found: 30, new: 30, confirmed: 26, fixed: 20, unexecuted: 0 | dispatched: 3, returned: 3 — opus×2 (claude_rotate fix hunks + one hop · both hook copies + one hop), sonnet×1 (the four corrected doc/contract files). own-fix: 24 of 26 |
 | Pass 1 | method: re-derivation — every claim re-run against the live code, the fire rate re-derived from the ledger by the orchestrator after the class seat's numstat proved garbled; round-zero probe — both hooks driven end to end at band RED + tier `urgent-90` before any seat returned | found: 30, new: 30, confirmed: 26, fixed: 18, unexecuted: 0 | dispatched: 5, returned: 5 — opus×2 (quota_stop+its suite · claude_rotate twins+test_claude_fleet), sonnet×2 (quota_posture_hook+its suite · the 4 contract/doc files), haiku×1 (fire-rate + counted-facts class), plus the orchestrator's own round-zero probe |
+
+### Round 2 (DELTA) — dispositions
+
+⚠️ **24 of 26 confirmed defects lay inside round 1's own fix hunks.** Round 1 was the full pass
+(`own-fix 0`), so the D-278 two-of-three window is not tripped — but this round qualifies, and a
+third qualifying round ends the hunt on the named set. Recorded here so that decision is visible.
+
+**FIXED (20).**
+
+1. **HIGH — `_upgrade_stamp_tier_to_walled` wrote IN PLACE.** `write_text` truncates first, so a
+   mid-write failure left a TORN stamp: `_stamp_tier` still fail-closed to `walled`, but
+   `_promised_resume` then read None and the episode's promise-came-due re-arm could never fire,
+   stranding the hold on the week timer. Proven by an `RLIMIT_FSIZE` injection against both
+   writers — the sibling `_rearm_wall_stamp` survived the identical fault intact, because it
+   builds beside and moves in with one `os.replace`. The atomic recipe was two functions away and
+   I did not use it. Now it does.
+2. **HIGH — a failing `os.utime` left the tier correctly raised with a FRESH mtime** — restarting
+   both latches, the exact thing the function's own docstring says it prevents — while stderr
+   announced that the raise had failed. Both halves false. Setting the mtime on the temp before
+   the move makes the failure unreachable and the message true by construction.
+3. **HIGH — the wiring grader did not execute the wiring.** A seat reverted the call site to
+   presence-only and 428 of 428 passed, THIS GRADER INCLUDED, because it computed `_hold_is_wall`
+   itself. My first repair repeated the same circularity with a spy. It now drives a real
+   `_cmd_tick` and captures what the production line passes; proven red on that exact revert.
+4. **HIGH — "up to ten points" survived in `quota_posture_hook.py`,** where the phrase WRAPS
+   across two lines. My line-based `grep` structurally could not see it, and I had claimed the
+   correction was complete in five places. A wrap-aware `re.finditer` over the eleven touched
+   files now reports 0.
+5. **HIGH — `_nudge`'s DOCSTRING still carried "Nothing is denied while this prints",** the exact
+   claim round 1 removed from the message body three lines below it.
+6. **HIGH — `is_symlink()` over-reached.** Rejecting a symlink outright turned a symlink pointing
+   at a valid `urgent-90` stamp into a full fleet hold — inventing the premature stop this change
+   exists to remove. `is_file()` alone is strictly better: it follows to a regular file and
+   returns False for a FIFO, device, directory or dangling link. Removed from all three copies.
+7. **MED — a bare `\r` in line 1 still shifted the tier read,** because Python's universal-newline
+   translation turns it into a line break on read. `.split("\n")` could not help. All three
+   readers now open with `newline=""`, and the parity corpus pins the value.
+8. **MED — the FIFO graders HUNG under mutation instead of failing** (both suites), which in the
+   gate consumes the whole 900 s pytest budget and reports a timeout indistinguishable from a slow
+   suite. A signal alarm is no fix either: `TimeoutError` subclasses `OSError` and the subject's
+   own handler swallows it. Both now drive a subprocess with a timeout.
+9. **MED — the three-way parity grader asserted AGREEMENT, never the VALUE,** so an all-three
+   drift back to the defect passed. A seat reverted `.split("\n")` to `.splitlines()` in every
+   copy and the grader watched the exact bug it names and said nothing. It now pins expected
+   values per shape.
+10. **MED — the `CHECKPOINT`/nudge clause asserted what the band was doing** while having no
+    access to the band; at GREEN it told the agent work may be held beside a line saying GREEN.
+    The nudge now points at the QUOTA line instead of asserting. The grader that pinned the old
+    wording was itself the cobra — it made the inaccurate clause mandatory — and now pins
+    substance.
+11-20. The `--status` renderer still printed "nothing is held" (the third surface, one short);
+    `quota_stop.py`'s docstring undercounted the writers (three, not two) and attributed the tier
+    raise to the wrong function; `_stamp_tier`'s docstring did not enumerate its new fail-closed
+    cases; the one-way claim was absolute where the dwell-clear + re-arm path makes it conditional;
+    `_print_picture` called a dict-guarded predicate and an unguarded `.get` on the same value;
+    four grader docstrings carried the wrong constant.
+
+**RECORDED (6).** The `is_file()` TOCTOU and a hung-mount `stat` (narrow, needs a writer with
+access to `ROTATE_STATE_DIR`); the ledger row is not raised with the stamp, so the re-arm path can
+restore the softer tier for microseconds; `_urgent_drain_pct`'s docstring still says "five points"
+and another comment still says "default 95" (pre-D-201 literals, one hop out); the nudge has no
+per-episode latch and prints on every tool call; **2 of 49 on-disk copies of `quota_stop.py` are
+pre-D-306** — `/opt/fabrik-lib-account` and `/opt/fabrik-lib-review`, both linked worktrees of the
+sync-excluded `/opt/fabrik-lib`, so the hub cannot reach them and the premature-stop defect is
+still live there; routed by mail to fabrik-lib.
 
 ### Round 1 — dispositions
 

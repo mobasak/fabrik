@@ -5039,10 +5039,12 @@ def _print_picture(pic: dict) -> None:
         return
     by = {r["email"]: r for r in pic["accounts"]}
     hold = pic.get("hold")
+    if hold is not None and not isinstance(hold, dict):
+        hold = None  # `_hold_is_wall` is dict-guarded; the `.get` calls below are not
     print(
         "picture: hold "
         + (
-            f"{'HELD' if _hold_is_wall(hold) else 'WARNING (urgent-90 — nothing is held)'} since "
+            f"{'HELD' if _hold_is_wall(hold) else 'WARNING (urgent-90 — the fleet-wide hold has NOT armed)'} since "
             f"{_fmt_when(hold.get('since'))}, resume promised "
             + (_fmt_when(hold["resume_promised"]) if hold.get("resume_promised") else "none named")
             if hold
@@ -5147,8 +5149,10 @@ def _fleet_exhaustion_stamp() -> Path:
 # `_fleet_active_wall_advisory` writes it on `walled OR urgent`: `walled` is the real wall (a
 # window at/over `ROTATE_THRESHOLD`, its `caps.json` cap, or 100 — `_flip_churn_excluded`), while
 # `urgent` is the SESSION window at `_urgent_drain_pct()` = 90 with no VALIDATED successor, which
-# is EIGHT points earlier on the default `ROTATE_THRESHOLD` of 98 (fewer when a `caps.json` cap
-# binds first) and exists precisely to give a graceful stop its runway (D-111).
+# is EIGHT points earlier on the default `ROTATE_THRESHOLD` of 98 and exists precisely to give a
+# graceful stop its runway (D-111). That gap is on the SESSION window alone: `urgent` tests
+# `five_hour` while a `caps.json` cap is applied to `seven_day` (`_flip_churn_excluded`), so a cap
+# never shortens it — it walls the weekly window on its own axis.
 # `quota_stop.py` read only `.exists()`, so the warning armed the same fleet-wide default-deny as
 # the wall — in-flight seats killed with headroom still on the clock, which is the premature stop
 # the operator's "utilize quotas utmost" directive forbids (D-299). The tier the ledger row has
@@ -5168,9 +5172,11 @@ def _stamp_body(promised: str, tier: str) -> str:
 
 def _stamp_tier(stamp: Path) -> str:
     """Which arm wrote this stamp. `walled` whenever the file does not plainly say otherwise —
-    missing, unreadable, pre-tier (one numeric line), or naming a tier this version does not
-    know. Downgrading a real wall to a nudge costs the fleet its only hard stop, so the unknown
-    case is never the lenient one."""
+    missing, unreadable, NOT A REGULAR FILE (a FIFO, a device, a directory, a dangling symlink),
+    pre-tier (one numeric line), or naming a tier this version does not know. Downgrading a real
+    wall to a nudge costs the fleet its only hard stop, so the unknown case is never the lenient
+    one. A symlink TO a regular stamp is followed and read normally: rejecting it would invent a
+    hold no writer armed, which is the premature stop this tier exists to prevent."""
     try:
         # `is_file()` BEFORE the read: a FIFO at this path blocks forever, and a hang is not an
         # OSError, so the handler below never fires and every tool call in the session stalls.
@@ -5178,9 +5184,13 @@ def _stamp_tier(stamp: Path) -> str:
         # U+2028/U+2029, none of which any writer treats as a line end, so a control byte in the
         # PROMISE shifted line 2 and a `walled` stamp read as `urgent-90`: lenient, the one
         # direction this reader must never be.
-        if stamp.is_symlink() or not stamp.is_file():
+        if not stamp.is_file():
             return _STAMP_TIER_WALLED
-        lines = stamp.read_text(encoding="utf-8", errors="replace").split("\n")
+        # `newline=""` disables UNIVERSAL-NEWLINE translation, without which Python turns a bare
+        # `\r` in line 1 into a line break on read and line 2 shifts — the same class as the
+        # control characters above, arriving through the reader instead of through `splitlines()`.
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
     except OSError:
         return _STAMP_TIER_WALLED
     tier = lines[1].strip() if len(lines) > 1 else ""
@@ -5199,8 +5209,12 @@ def _upgrade_stamp_tier_to_walled(stamp: Path) -> None:
     two independent review seats at 167 h). That is the SAME class the latch's own comment
     records from Delta 10 seat B F1 — there the stamp was absent, here it is present and lying.
 
-    ONE-WAY on purpose: walled never decays back to urgent-90 inside an episode. A wall that
-    relieves clears the stamp entirely, which is the only sanctioned way down.
+    ONE-WAY WHILE THE STAMP STANDS: this function never lowers a tier. That is NOT a guarantee for
+    the whole episode — the dwell branch CLEARS the stamp on an expected flip and
+    `_rearm_wall_stamp` rebuilds it from the episode's OPENING ledger row, which still says
+    `urgent-90`. The caller repairs that on the same tick (the re-arm and this raise sit two lines
+    apart), so the softer tier is live for microseconds; a tick dying between them leaves it until
+    the next `*/5`. Raising the ledger row itself is the root fix and is on the backlog.
 
     Line 1 is carried as RAW TEXT, never through `_promised_resume` — that reader answers None
     for "0" and for a promise already past, so round-tripping through it would erase a live
@@ -5211,20 +5225,41 @@ def _upgrade_stamp_tier_to_walled(stamp: Path) -> None:
     tier that could not be raised means `quota_stop.py` is not holding at a real wall.
     """
     try:
-        if not stamp.is_file() or stamp.is_symlink():
+        if not stamp.is_file():
             return
         raw = stamp.read_text(encoding="utf-8", errors="replace")
         if _stamp_tier(stamp) == _STAMP_TIER_WALLED:
             return
         mt = stamp.stat().st_mtime
         first = raw.split("\n", 1)[0].strip()
-        stamp.write_text(_stamp_body(first, _STAMP_TIER_WALLED), encoding="utf-8")
-        os.utime(stamp, (mt, mt))
+        # ⚠️ BUILD BESIDE, MOVE IN — never an in-place write, for the two reasons
+        # `_rearm_wall_stamp` already carries. (1) `write_text` truncates first, so a mid-write
+        # failure (ENOSPC, EIO) leaves a TORN stamp: `_stamp_tier` still fail-closes to `walled`,
+        # but `_promised_resume` then reads None and the episode's promise-came-due re-arm can
+        # never fire, stranding the hold on the week timer. (2) `os.utime` after an in-place write
+        # left the tier correctly raised with a FRESH mtime — restarting both latches, the exact
+        # thing this docstring says it prevents — while stderr claimed the raise had failed. On a
+        # temp, both failures happen before anything reaches the live stamp.
+        tmp = stamp.with_name(f"{stamp.name}.{os.getpid()}.raise")
+        written = False
+        try:
+            tmp.write_text(_stamp_body(first, _STAMP_TIER_WALLED), encoding="utf-8")
+            written = True
+            os.utime(tmp, (mt, mt))
+            os.replace(tmp, stamp)
+            written = False  # the temp is GONE — it is the stamp now
+        finally:
+            if written:  # only ever OUR temp, never the stamp
+                try:
+                    tmp.unlink(missing_ok=True)
+                except OSError:
+                    pass
         print("tick: fleet-exhausted stamp tier RAISED urgent-90 -> walled (same episode)")
     except (OSError, OverflowError, ValueError) as exc:
+        # every arm above leaves the LIVE stamp untouched, so the hold is whatever it already was
         sys.stderr.write(
-            f"claude_rotate: fleet-exhausted stamp tier NOT raised ({stamp}): {exc} — "
-            "quota_stop.py is not holding at a real wall\n"
+            f"claude_rotate: fleet-exhausted stamp tier NOT raised ({stamp}): {exc} — the stamp is "
+            "unchanged, so quota_stop.py still holds exactly what its existing tier says\n"
         )
 
 

@@ -823,7 +823,7 @@ def _run_tier(tmp_path: Path, payload: object, tier: str | None) -> subprocess.C
 
 
 def test_the_urgent_ninety_tier_nudges_instead_of_holding(tmp_path):
-    """The 90-with-no-successor arm fires up to ten points before the wall — that runway is the
+    """The 90-with-no-successor arm fires eight points before the wall — that runway is the
     whole point of it (D-111). Holding there kills in-flight work with quota still on the clock,
     which is the premature stop D-299 forbids. So: ALLOW, and say what is coming."""
     r = _run_tier(tmp_path, {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}}, "urgent-90")
@@ -886,10 +886,31 @@ def test_the_hook_reader_does_not_hang_or_shift_on_a_hostile_stamp(tmp_path):
     for sep in ("\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", " ", " "):
         s.write_text(f"0{sep}urgent-90\nwalled\n")
         assert hook._stamp_tier(s) == "walled", f"{sep!r} in line 1 must not shift the tier"
+    import subprocess as _sp
+    import sys as _sys
+
     fifo_dir = tmp_path / "fifo"
     fifo_dir.mkdir()
     _os.mkfifo(fifo_dir / "fleet-exhausted")
-    assert hook._stamp_tier(fifo_dir / "fleet-exhausted") == "walled", "a FIFO must not hang"
+    probe = tmp_path / "probe.py"
+    probe.write_text(
+        "import importlib.util, sys\n"
+        "spec = importlib.util.spec_from_file_location('p', sys.argv[1])\n"
+        "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+        "print(m._stamp_tier(__import__('pathlib').Path(sys.argv[2])))\n"
+    )
+    try:
+        r = _sp.run(
+            [_sys.executable, str(probe), str(_HOOK), str(fifo_dir / "fleet-exhausted")],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except _sp.TimeoutExpired:
+        raise AssertionError(
+            "the FIFO guard is gone — the reader BLOCKED, it did not fail"
+        ) from None
+    assert r.stdout.strip() == "walled", r.stdout + r.stderr
     d = tmp_path / "asdir"
     (d / "fleet-exhausted").mkdir(parents=True)
     assert hook._stamp_tier(d / "fleet-exhausted") == "walled"
@@ -903,5 +924,10 @@ def test_the_nudge_does_not_claim_nothing_is_held(tmp_path):
     msg = hook._nudge()
     assert "Nothing is held yet" not in msg, msg
     assert "fleet-wide hold" in msg.lower(), "say WHICH hold has not armed"
-    assert "may still hold" in msg.lower(), "and say that the band can still hold new work"
+    # ⚠️ Pin the SUBSTANCE, not the phrasing. A review seat named the cobra in the first cut: a
+    # positive pin on specific words made the inaccurate clause MANDATORY, so correcting it redded
+    # the grader. What must hold is that the message does not assert the system-wide state this
+    # hook cannot see, and does point at the one line that can.
+    assert "quota line" in msg.lower(), "point the agent at the line that actually says"
+    assert "fleet-wide hold" in msg.lower(), "name WHICH hold has not armed"
     assert "checkpoint" in msg.lower(), "the actionable half must survive the correction"
