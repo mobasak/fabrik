@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — what actually breaks a Pass row's counter run (2026-09-19)
+
+- `/fabrik-review`'s `new:` sentence claimed no grader parses it. A displaced `new:` is in fact refused by name; what no grader reads is its VALUE. The sentence now says that, and adds the rule a writer cannot guess: the value must be letters, digits, `_` or `-`, and anything else — or a cell `|` between the counters, whatever the value — ends the counter run, after which `confirmed:` and `unexecuted:` read as absent while the refusal names those two rather than the cause.
+- Measured while getting there: across 324 review artifacts and 873 Pass-headed rows, six lose a stated counter, and in six of six the cause is a cell pipe, not a value. Those rows, the checker's repair hint that cannot fix them, a displaced-`new:` escape, and the same trap in `confirmed:` are routed with destinations.
+- Three earlier drafts of this clause were withdrawn on review — the third time this week that patching a twice-yielding clause was the wrong move and deleting was right.
+
 ### Changed — `/fabrik-review-scoped` says what a seat brief must contain (2026-09-19)
 
 - Answering four ledger verdicts: a brief states the QUESTION for the change's own SHAPE, never a generic invariant and never the expected answer. A check impossible for the shape burns the seat and returns a STOP — verbatim-survival of every base line fails on any modified line and passes vacuously on a pure addition, which is 74 of the last 200 commits here.

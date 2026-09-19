@@ -533,7 +533,12 @@ loop with its graders: `check_convergence.py`'s QUIET_PASS and `check_review_cov
 `confirmed: 0` with `fixed: 0` and `unexecuted:` absent or 0 on the FINAL row. Counting refutations made
 honest termination impossible (transdoc, 2026-08-27); suppressing them would hide real observations;
 executing and recording them does neither. `new:` stays PROSE on the row — the stopped-learning signal,
-which no grader parses.
+whose VALUE no grader reads as a counter; the value still has to be LETTERS, DIGITS, `_` or `-`
+(a `**bold**` wrapper is tolerated) — `new: 2`, `new: none`; `new: n/a` does NOT qualify — because
+anything else ENDS the counter run there, AS DOES A CELL `|` BETWEEN THE COUNTERS whatever the
+value, which is what every live instance turns out to be — executed: `new: 2 classes` yields
+found 5, confirmed None, fixed 3,
+unexecuted None, and the REFUSAL names `confirmed:`/`unexecuted:`, not the `new:` that caused it.
 
 You may claim completion **only** when the last row carries `confirmed: 0, fixed: 0` with `unexecuted: 0`
 or absent (`found:` and `fixed:` are also ON the row — the graders refuse a row without that pair), **from a

@@ -4036,6 +4036,43 @@ claims "Maintained once … every copy is a render of it", which is false of the
 tuple, so a rule added to one fragment is invisible to the check that exists to catch exactly that.
 **Destination:** infra, as one change with its own D-row.
 
+## A Pass row loses its counters to a cell PIPE, and the guidance for it sits in 1 of 5 commands (routed 2026-09-19)
+
+`/fabrik-command-improve fabrik-review` shipped one true clause and answered none of the rows it
+was grouped from — a PHASE 2 error worth recording: the three counter-grammar rows ask for the
+grader's CELL ORDER, the finders cell's position, and example rows per verdict kind; the clause
+that survived review states a VALUE-FORM rule, which came from this session's own experience
+rather than from those rows. They stay unanswered and unmarked.
+
+**What was measured while getting there** (all against `check_review_coverage.py`
+`f131cee66019fcf1cff251a61c917312`, driven on a copy):
+
+1. **The live cause of a lost counter is a cell `|`, not a bad value.** Census over 324 `.md` files
+   and 873 Pass-headed rows under `docs/development/reviews/`: 6 rows state a numeric
+   `confirmed:`/`unexecuted:` and lose it to a run break, and in 6 of 6 the run-ending character is
+   `|` — 0 of 6 were caused by a value. `docs/development/reviews/2026-09-10-mail-handling-governance-review.md:39-44`
+   are those rows: they are refused by the current checker and grade `_confirmed_quiet → None`.
+   **Destination:** infra — those six rows want repair, and the refusal text
+   (`check_review_coverage.py:1790`) tells a separate-cell author to "write `confirmed:` between
+   `new:` and `fixed:`", which they already did; the real edit is dropping the pipes.
+2. **The value-form rule reaches 1 of 5 consumers.** `{{include:term-coverage}}` renders into
+   `fabrik-review`, `fabrik-repo-review`, `fabrik-conformance-review`, `fabrik-user-test` and
+   `fabrik-service-test`; all five render the canonical row, and only `fabrik-review` now carries the
+   value-form warning. **Destination:** infra — move it into `term-coverage.md`'s canonical-row
+   paragraph, beside the sentence that already says the checker "refuses a displaced `new:` or
+   `confirmed:` by name". That is a different change with a wider blast radius and its own review.
+3. **A displaced `new:` with a wrapped value escapes the order check.** `| … found: 5, confirmed: 0,
+   new: '2', fixed: 3 |` returns `(5, 0, 3, None)` with ZERO refusals, while the same row with
+   `new: 2` is refused by name: `_RUN_ITEM` never matches the quoted item, so `new` never enters
+   `names` and the rank test cannot see it. **Destination:** infra, `check_review_coverage.py:1288`.
+4. **The same trap sits in `confirmed:`**, the D-206 exit counter: `confirmed: 0 (all refuted)` —
+   the shape an author writes on a refute-everything quiet exit, which `term-coverage.md` explicitly
+   blesses — parses `confirmed: 0` and silently drops `unexecuted:`. **Destination:** infra, with (2).
+
+**REFUTED, do not carry forward.** A reviewer reported that a prose `unexecuted:` makes a row grade
+QUIET with work standing. Re-executed across three row shapes including the reporter's own control:
+all returned `quiet=False`. It does not reproduce.
+
 ## § Completion Contract 1a's `>5 files` and the lane table's `>3` are two numbers in one contract (routed from T04a)
 
 § 1a's `>5` is REVIEW sizing (how heavy a pass does work already in flight owe?); the lane table's
