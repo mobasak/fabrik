@@ -4259,9 +4259,13 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
     hold: dict | None = None
     if stamp.exists():
         try:
-            hold = {"since": stamp.stat().st_mtime, "resume_promised": _promised_resume(stamp)}
+            hold = {
+                "since": stamp.stat().st_mtime,
+                "resume_promised": _promised_resume(stamp),
+                "tier": _stamp_tier(stamp),
+            }
         except OSError:
-            hold = {"since": None, "resume_promised": None}
+            hold = {"since": None, "resume_promised": None, "tier": _STAMP_TIER_WALLED}
     last_flip: dict | None = None
     try:
         for line in reversed(
@@ -5138,6 +5142,51 @@ def _fleet_exhaustion_stamp() -> Path:
         return Path(tempfile.gettempdir()) / "claude-fleet-exhausted"
 
 
+# ⚠️ THE STAMP CARRIES TWO DIFFERENT EVENTS AND MUST SAY WHICH (D-306).
+# `_fleet_active_wall_advisory` writes it on `walled OR urgent`: `walled` is the real wall (a
+# window at/over `ROTATE_THRESHOLD`, its `caps.json` cap, or 100 — `_flip_churn_excluded`), while
+# `urgent` is the SESSION window at `_urgent_drain_pct()` = 90 with no VALIDATED successor, which
+# is up to ten points earlier and exists precisely to give a graceful stop its runway (D-111).
+# `quota_stop.py` read only `.exists()`, so the warning armed the same fleet-wide default-deny as
+# the wall — in-flight seats killed with headroom still on the clock, which is the premature stop
+# the operator's "utilize quotas utmost" directive forbids (D-299). The tier the ledger row has
+# always carried now rides in the stamp: line 1 is the resume promise `_promised_resume` reads,
+# line 2 is the tier. Both readers fail CLOSED on anything they do not recognise — a pre-tier
+# stamp is a single numeric line and must keep holding.
+_STAMP_TIER_WALLED: Final = "walled"
+_STAMP_TIER_URGENT: Final = "urgent-90"
+_STAMP_TIERS: Final = frozenset({_STAMP_TIER_WALLED, _STAMP_TIER_URGENT})
+
+
+def _stamp_body(promised: str, tier: str) -> str:
+    """The ONE place the stamp's bytes are composed — the advisory and the re-arm cannot drift
+    into two formats. `promised` is already the validated epoch string ("0" for no promise)."""
+    return f"{promised}\n{tier}\n"
+
+
+def _stamp_tier(stamp: Path) -> str:
+    """Which arm wrote this stamp. `walled` whenever the file does not plainly say otherwise —
+    missing, unreadable, pre-tier (one numeric line), or naming a tier this version does not
+    know. Downgrading a real wall to a nudge costs the fleet its only hard stop, so the unknown
+    case is never the lenient one."""
+    try:
+        lines = stamp.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return _STAMP_TIER_WALLED
+    tier = lines[1].strip() if len(lines) > 1 else ""
+    return tier if tier in _STAMP_TIERS else _STAMP_TIER_WALLED
+
+
+def _hold_is_wall(hold: dict | None) -> bool:
+    """Is the live hold the one that actually HOLDS? The WALL band asserts that
+    `quota_stop.py` is default-denying every world-changing tool, and since D-306 only the
+    `walled` tier does. A hold dict with no tier is a pre-tier stamp — fails closed, like
+    :func:`_stamp_tier`; no hold at all is no wall."""
+    if not isinstance(hold, dict):
+        return False
+    return hold.get("tier", _STAMP_TIER_WALLED) != _STAMP_TIER_URGENT
+
+
 def _fleet_refresh_stamp(email: str) -> Path:
     """PER-ACCOUNT stale-reading refresh stamp — rate-limits the keepalive-ping refresh so a
     dead chain is pinged at most once per interval, never on every 5-minute tick."""
@@ -5701,9 +5750,11 @@ def _promised_resume(stamp: Path) -> float | None:
     their mtime, so they fall through to the week-long re-arm instead of re-firing every tick.
     """
     try:
-        promised = float(stamp.read_text(encoding="utf-8").strip())
+        # LINE 1 — line 2 is the tier (D-306). A bare `float()` over both raises ValueError
+        # and reads as "no promise", which silently disarms the week-long re-arm.
+        promised = float(stamp.read_text(encoding="utf-8").splitlines()[0].strip())
         written = stamp.stat().st_mtime
-    except (OSError, ValueError):
+    except (OSError, ValueError, IndexError):
         return None
     return promised if promised > written else None
 
@@ -6182,6 +6233,10 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
     # (`_promised_resume`) and the ledger latch's, so one field reads the same everywhere (A1)
     promised = _usable_ts(row.get("resume_epoch"))
     content = str(int(promised)) if promised is not None and promised > at else "0"
+    # the tier rides back too: re-arming a WARNING as a full hold would reintroduce, from the
+    # repair path, exactly the premature stop D-306 removes. Unknown → walled, as everywhere.
+    row_tier = row.get("tier")
+    content = _stamp_body(content, row_tier if row_tier in _STAMP_TIERS else _STAMP_TIER_WALLED)
     # built beside the stamp, moved in by one replace: nothing here ever writes to, or removes,
     # a stamp that already exists (Delta 19 A F1 · Delta 20 C #2 — see the docstring)
     tmp: Path | None = None
@@ -6360,7 +6415,11 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         # CONTENT = the resume epoch this message promised, so the latch can re-arm when the
         # promise comes due (see _promised_resume). "0" when no relief time could be given.
         stamp.write_text(
-            str(int(relief[0]) + _drain_resume_lead_s() if relief else 0), encoding="utf-8"
+            _stamp_body(
+                str(int(relief[0]) + _drain_resume_lead_s() if relief else 0),
+                _STAMP_TIER_WALLED if walled else _STAMP_TIER_URGENT,
+            ),
+            encoding="utf-8",
         )
         os.utime(stamp, (now, now))
     except OSError as exc:
@@ -6376,7 +6435,7 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
             "ts": now,
             "account": str(row["email"]),
             "at_pct": hot,
-            "tier": "walled" if walled else "urgent-90",
+            "tier": _STAMP_TIER_WALLED if walled else _STAMP_TIER_URGENT,
             "resume_epoch": (int(relief[0]) + _drain_resume_lead_s()) if relief else None,
         }
     )
@@ -6484,7 +6543,7 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
         _pic = _fleet_picture(accounts, _active_slug, now)
         _write_quota_posture(
             _quota_posture(
-                accounts, _pic, now, _read_quota_posture(), hold=_pic.get("hold") is not None
+                accounts, _pic, now, _read_quota_posture(), hold=_hold_is_wall(_pic.get("hold"))
             )
         )
     except Exception as exc:  # noqa: BLE001 — never silent, never fatal

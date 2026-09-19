@@ -5602,9 +5602,7 @@ def test_posture_band_follows_the_hottest_window_and_the_hold(
     _fwin = blank["fleet"]["windows"]
     _expect = max(
         (
-            cr._band_of(
-                _fwin[_k]["utilization"], False, *cr._band_lines(_fwin[_k].get("wall"))
-            )
+            cr._band_of(_fwin[_k]["utilization"], False, *cr._band_lines(_fwin[_k].get("wall")))
             for _k in ("five_hour", "seven_day")
             if isinstance(_fwin.get(_k), dict)
         ),
@@ -5996,14 +5994,21 @@ def test_fleet_band_is_amber_or_red_only_when_every_serving_account_is():
     pic = _pic_rows(("a@x", "active", 99), ("b@x", "eligible", 99))
     assert (
         cr._fleet_band(
-            cr._fleet_readings(cool, pic), "RED", False, 85.0, 90.0, fable=False,
+            cr._fleet_readings(cool, pic),
+            "RED",
+            False,
+            85.0,
+            90.0,
+            fable=False,
             measured=cr._fleet_measured(cool, pic),
         )
         == "GREEN"
     ), "8 points of runway on every account is not a constrained fleet"
     accounts = [_probe_row("a@x", "a", 5.0, 99.0), _probe_row("b@x", "b", 0.0, 99.0)]
     fw = cr._fleet_readings(accounts, pic)
-    assert "seven_day" not in fw, "an account AT its cap serves nothing, so the window has no reading"
+    assert "seven_day" not in fw, (
+        "an account AT its cap serves nothing, so the window has no reading"
+    )
     assert (
         cr._fleet_band(
             fw, "RED", False, 85.0, 90.0, fable=False, measured=cr._fleet_measured(accounts, pic)
@@ -6553,7 +6558,9 @@ def test_a_withheld_flip_cannot_storm_through_a_writable_stamp_either(tmp_path, 
     wall = next(e for e in _ledger_events(tmp_path) if e.get("event") == "fleet-active-wall")
     promised = wall.get("resume_epoch")
     expect = str(int(promised)) if isinstance(promised, (int, float)) else "0"
-    assert stamp.read_text(encoding="utf-8").strip() == expect, (
+    # D-306: line 1 is the promise, line 2 the tier. Asserted on the composed body so a reader
+    # that stopped splitting lines fails here rather than silently reading no promise at all.
+    assert stamp.read_text(encoding="utf-8") == cr._stamp_body(expect, "walled"), (
         promised,
         stamp.read_text(),
     )
@@ -6760,7 +6767,9 @@ def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatc
     stamp = tmp_path / "locks" / "fleet-exhausted"
     stamp.parent.mkdir()
     cr._rearm_wall_stamp(stamp, "a@x", now)
-    assert stamp.read_text(encoding="utf-8") == str(int(now + 3600)), stamp.read_text()
+    assert stamp.read_text(encoding="utf-8") == cr._stamp_body(str(int(now + 3600)), "walled"), (
+        stamp.read_text()
+    )  # D-306: the promise on line 1, the tier on line 2
     assert abs(stamp.stat().st_mtime - (now - 900)) < 1.0, "mtime is the row's ts, never now"
     cr._rearm_wall_stamp(tmp_path / "no-such-dir" / "fleet-exhausted", "a@x", now)
     assert "NOT re-armed" in capsys.readouterr().err
@@ -6865,7 +6874,7 @@ def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatc
         )
         stamp9 = tmp_path / "locks" / "fleet-exhausted-9"
         cr._rearm_wall_stamp(stamp9, "a@x", now)
-        assert stamp9.read_text(encoding="utf-8") == "0", bad
+        assert stamp9.read_text(encoding="utf-8") == cr._stamp_body("0", "walled"), bad
         stamp9.unlink()
         assert cr._advisory_ledger_latch("a@x", now + cr._ADVISORY_MIN_GAP_S) is True, bad
     # and a promise NOT in the future of its own row — 0, the row's ts, one second before it: the
@@ -6881,7 +6890,7 @@ def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatc
         )
         stamp10 = tmp_path / "locks" / "fleet-exhausted-10"
         cr._rearm_wall_stamp(stamp10, "a@x", now)
-        assert stamp10.read_text(encoding="utf-8") == "0", bad
+        assert stamp10.read_text(encoding="utf-8") == cr._stamp_body("0", "walled"), bad
         assert cr._promised_resume(stamp10) is None, bad
         stamp10.unlink()
         assert cr._advisory_ledger_latch("a@x", now + cr._ADVISORY_MIN_GAP_S + 1) is True, bad
@@ -7154,9 +7163,9 @@ def test_the_required_windows_keep_their_decoupling_from_the_account_band():
         "seven_day": {"utilization": 20.0, "slug": "ob"},
         "fable": {"utilization": 21.0, "slug": "can"},
     }
-    assert (
-        cr._fleet_band(fleet, "RED", False, 85.0, 90.0, fable=False, measured=4) == "GREEN"
-    ), "a RED account beside a genuinely fresh fleet is still GREEN on the required windows"
+    assert cr._fleet_band(fleet, "RED", False, 85.0, 90.0, fable=False, measured=4) == "GREEN", (
+        "a RED account beside a genuinely fresh fleet is still GREEN on the required windows"
+    )
     # ⚠️ The line above passes against the PRE-CLAMP source too — executed round 1, seat B F1: it
     # exercises none of this change and could never go red for any mutation of it. The assertion
     # that makes this a GRADER is the one below: the clamp must be inert on the non-fable path even
@@ -7317,8 +7326,137 @@ def test_status_names_the_fable_band_when_it_differs_from_the_one_it_prints():
 
     cool = _probe_row("can@x", "can", 0.0, 21.0, fable=21.0)
     line = _line([_probe_row("oz@x", "ozgurbasak", 10.0, 20.0, fable=100.0), cool])
-    assert "Fable band RED" in line, f"the held band must appear in the authority's own line: {line}"
+    assert "Fable band RED" in line, (
+        f"the held band must appear in the authority's own line: {line}"
+    )
     assert "no flip reaches other Fable headroom" in line, line
     # and it stays silent when the Fable band agrees with the one already printed
     line2 = _line([_probe_row("oz@x", "ozgurbasak", 10.0, 20.0, fable=4.0), cool])
     assert "Fable band" not in line2, f"no redundant clause when it agrees: {line2}"
+
+
+# ── The stamp TIER (D-306): one artifact, two meanings, told apart ────────────────────────────
+#
+# `_fleet_active_wall_advisory` writes the fleet-exhausted stamp on `walled OR urgent`, where
+# `urgent` is the SESSION window at `ROTATE_URGENT_DRAIN_PCT` (90) with no validated successor —
+# up to ten points before the wall, and deliberately so: that is the runway a graceful stop
+# needs (D-111). `quota_stop.py` read only `.exists()`, so the WARNING tier produced the same
+# fleet-wide default-deny as the wall and killed in-flight work with headroom still on the
+# clock. The tier the ledger row has always carried now rides in the stamp too.
+
+
+def _advisory_row(five_hour: float, seven_day: float, *, email: str = "a@x") -> dict:
+    return {
+        "email": email,
+        "valid": True,
+        "weekly_cap": None,
+        "cap_walled": False,
+        "slugs": [email.split("@")[0]],
+        "source": "live",
+        "state": "active",
+        "five_hour": {"utilization": five_hour, "resets_at_epoch": FLEET_NOW + 3600},
+        "seven_day": {"utilization": seven_day, "resets_at_epoch": FLEET_NOW + 86400},
+    }
+
+
+def _fire_advisory(tmp_path, monkeypatch, row: dict, threshold: float = 98.0) -> Path:
+    """Drive the real advisory against a one-account fleet (so no successor exists) and hand
+    back the stamp it wrote."""
+    state = tmp_path / "state"
+    state.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(cr, "_rotate_state_dir", lambda: state)
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m: None)
+    monkeypatch.setattr(cr, "_drain_mail", lambda repos, m: None)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
+    monkeypatch.setattr(cr, "_resolve_active", lambda: row["slugs"][0])
+    cr._fleet_active_wall_advisory([row], FLEET_NOW, threshold=threshold)
+    return state / "fleet-exhausted"
+
+
+def test_the_wall_stamp_records_which_tier_armed_it(tmp_path, monkeypatch):
+    """The two arms are not the same event and the stamp must say which fired. A 5h at 92 with
+    no successor is the WARNING (ten points of runway left); a 5h at 99 is the wall itself."""
+    warn = _fire_advisory(tmp_path / "w", monkeypatch, _advisory_row(92.0, 40.0))
+    assert warn.exists(), "the urgent-90 arm still writes the stamp — the latch is unchanged"
+    assert cr._stamp_tier(warn) == "urgent-90", (
+        f"90-with-no-successor is the WARNING tier, not the wall: {warn.read_text()!r}"
+    )
+    wall = _fire_advisory(tmp_path / "x", monkeypatch, _advisory_row(99.0, 40.0))
+    assert cr._stamp_tier(wall) == "walled", (
+        f"at/over the flip line with no successor IS the wall: {wall.read_text()!r}"
+    )
+
+
+def test_the_stamp_tier_defaults_to_walled_when_the_stamp_does_not_name_one(tmp_path):
+    """MIGRATION, and it fails CLOSED. Every stamp written before this field existed is a single
+    numeric line; an unreadable or unknown tier is the same case. All of them keep today's
+    behaviour — a hold that holds — because the alternative silently downgrades a real wall to
+    a nudge on the one tick that matters."""
+    s = tmp_path / "fleet-exhausted"
+    s.write_text("0")  # the pre-tier format
+    assert cr._stamp_tier(s) == "walled"
+    s.write_text("1800000000\nnonsense\n")
+    assert cr._stamp_tier(s) == "walled", "an unknown tier is not a licence to stop holding"
+    s.write_text("")
+    assert cr._stamp_tier(s) == "walled"
+    assert cr._stamp_tier(tmp_path / "absent") == "walled"
+
+
+def test_the_resume_promise_survives_the_tier_line(tmp_path):
+    """`_promised_resume` is the stamp's only other content reader. The tier rides on a SECOND
+    line precisely so the promise keeps parsing — a bare `float()` over both lines raises and
+    reads as "no promise", which silently disarms the week-long re-arm."""
+    s = tmp_path / "fleet-exhausted"
+    s.write_text(cr._stamp_body(str(int(FLEET_NOW + 7200)), "urgent-90"))
+    os.utime(s, (FLEET_NOW, FLEET_NOW))
+    assert cr._promised_resume(s) == FLEET_NOW + 7200
+    s.write_text(cr._stamp_body("0", "walled"))
+    os.utime(s, (FLEET_NOW, FLEET_NOW))
+    assert cr._promised_resume(s) is None, "0 is still no promise"
+
+
+def test_the_wall_band_is_the_walled_tier_alone(tmp_path, monkeypatch):
+    """The WALL band means `quota_stop.py` is holding every world-changing tool. Once the
+    warning tier stops holding, a stamp is no longer proof of that — so the band reads the tier
+    too, or the contract's WALL sentence becomes false ten points early."""
+    assert cr._hold_is_wall({"tier": "walled"}) is True
+    assert cr._hold_is_wall({"tier": "urgent-90"}) is False
+    assert cr._hold_is_wall({"since": 1.0}) is True, "a tier-less hold fails closed, like the file"
+    assert cr._hold_is_wall(None) is False
+
+
+def test_the_posture_hold_carries_the_tier_to_every_reader(tmp_path, monkeypatch):
+    """The picture's `hold` dict is what `--status` prints and what the band's `hold` argument is
+    derived from. It carries the tier so neither has to re-read the stamp."""
+    stamp = _fire_advisory(tmp_path, monkeypatch, _advisory_row(92.0, 40.0))
+    assert stamp.exists()
+    pic = cr._fleet_picture([_advisory_row(92.0, 40.0)], "a", FLEET_NOW)
+    assert (pic.get("hold") or {}).get("tier") == "urgent-90", pic.get("hold")
+
+
+def test_the_rearmed_stamp_keeps_the_episodes_own_tier(tmp_path, monkeypatch):
+    """`_rearm_wall_stamp` rebuilds the stamp from the OPEN episode's ledger row after the dwell
+    branch clears it. Rebuilding it without the tier would re-arm every warning as a full hold —
+    the exact failure this change removes, reintroduced by the repair path."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setattr(cr, "_rotate_state_dir", lambda: state)
+    monkeypatch.setattr(
+        cr,
+        "_open_wall_episode",
+        lambda email, now: (
+            {
+                "ts": FLEET_NOW,
+                "account": email,
+                "resume_epoch": FLEET_NOW + 7200,
+                "tier": "urgent-90",
+            },
+            True,
+        ),
+    )
+    stamp = state / "fleet-exhausted"
+    cr._rearm_wall_stamp(stamp, "a@x", FLEET_NOW)
+    assert stamp.exists(), "the re-arm still writes"
+    assert cr._stamp_tier(stamp) == "urgent-90", stamp.read_text()
+    assert cr._promised_resume(stamp) == FLEET_NOW + 7200

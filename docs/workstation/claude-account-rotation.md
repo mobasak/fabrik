@@ -148,12 +148,22 @@ The `*/5` tick reads every account dir (five as of 2026-09-06 — it discovers t
   without 5h budget. The dwell still bounds the legacy (non-fleet) tick.
 - **No headroom anywhere:** nothing flips; ONE advisory per wall episode goes to Telegram AND
   broadcasts to every project mailbox ("reach a commit-and-push checkpoint") — it fires ONLY when
-  the ACTIVE account is walled and this tick found no successor (`_fleet_active_wall_advisory`;
+  the ACTIVE account is walled, OR its SESSION window is at `ROTATE_URGENT_DRAIN_PCT` (90), and
+  this tick found no successor (`_fleet_active_wall_advisory`;
   a walled active with a headroom sibling is relieved by the same tick since trips are dwell-exempt). The same tick
-  writes the `fleet-exhausted` stamp, and the synced PreToolUse hook `quota_stop.py` turns it
+  writes the `fleet-exhausted` stamp, ⚠️ **naming on its SECOND line WHICH arm wrote it (D-306)** —
+  `walled` for the wall itself, `urgent-90` for the 90-line warning, which fires up to ten points
+  earlier because that runway is what a graceful stop needs. Line 1 stays the resume promise
+  `_promised_resume` reads; a stamp that does not plainly name a known tier (every stamp written
+  before the field) reads as `walled`, so the migration and every unreadable case fail CLOSED.
+  The synced PreToolUse hook `quota_stop.py` turns the `walled` tier
   into a GRACEFUL STOP that reaches every session mid-turn: work tools are held with one
   instruction (commit + push, close the run record, end the turn); reads, git, the record
-  tools, `Monitor` and `TaskStop` stay open; the hold lifts the moment the tick clears the stamp (an
+  tools, `Monitor` and `TaskStop` stay open. At `urgent-90` it holds NOTHING and writes a
+  CHECKPOINT nudge instead — killing an in-flight seat that still has quota to finish is the
+  premature stop D-299 forbids — and `quota_posture_hook.py` puts the same nudge on the next
+  prompt line, the last moment an agent can checkpoint by choice rather than be denied mid-edit;
+  that hook also keeps enforcing its own band at `urgent-90`, since nothing else is; the hold lifts the moment the tick clears the stamp (an
   unclearable stamp keeps the hold and wakes nobody — `_clear_stamp`) — and since 2026-09-07 (the
   RELIEF WAKE, plan `2026-09-07-plan-1-relief-wake`, D-177/D-178) the same unlink — the relief site and
   the transient-dwell site alike — writes `<lockdir>/<safe-sid>.holdlifted` (the lift epoch) for every
@@ -214,7 +224,8 @@ that script's fleet loop walks account *directories* and caps.json sits at the f
 
 **The picture (2026-09-07, operator directive "all agents should be able to reach/query the entire picture"):**
 after the per-account lines, `--status` prints four more — `picture:` (the fleet-exhausted HOLD: none, or held
-since when and the resume it promised), `queue:` (the rotation order: the active first, then eligible accounts in
+since when and the resume it promised; `picture.hold.tier` says whether it is the `walled` hold or the
+`urgent-90` warning), `queue:` (the rotation order: the active first, then eligible accounts in
 the picker's own perishable-first order, then everyone else by when they RETURN — a cap-walled or weekly-exhausted
 account at its weekly reset, a session-exhausted one at its 5h reset, the later of the two when both are spent),
 `next relief:` (the account and instant the tick's own relief rule would name), `last flip:` (when, from → to, and
@@ -247,7 +258,8 @@ writes atomically (tmp + `os.replace`) every cycle for the account the pointer n
 `burn_per_min` (a smoothed rate over the last ~35 minutes of tick samples, `null` on the first sample or when
 the window's reset epoch moved), `minutes_to_wall`, `minutes_to_reset` and a `verdict` — `reset_first`,
 `wall_first` or `unknown`; `active.band` — the FLEET's band (operator ruling 2026-09-17): per window, the coolest account that can still serve it (`fleet.windows`, each naming its account, and `fleet.measured`, how many accounts a required window was READ for among the accounts that are a quota fact (state not `unavailable` — a dead refresh chain with cached readings is not one) — an empty `fleet.windows` with `measured > 0` is scarcity, RED, and the line says `nobody serves it`; with `measured == 0` it is a blackout, band `?`, nothing to explain; `--status` prints the fleet readings after the account's own and shows `GREEN (account AMBER)` when they differ — a session-exhausted account still holds its weekly, a capped one holds nothing), then the hottest of the fleet's 5h and weekly (and, for `band_fable`, Fable) — ⚠️ each window banded against ITS OWN WALL, the providing account's `caps.json` cap for weekly and 100 for the uncapped 5h and Fable windows, with the hottest BAND winning rather than the hottest PERCENTAGE: RED at the wall, AMBER within 5 points of it, GREEN beyond (D-299, operator *"utilize quotas utmost without causing premature stops"*). Each reading in `fleet.windows` carries the `wall` it was measured against so no consumer re-derives it, and fleet-wide RED arrives as ABSENCE — an account that has reached its cap is dropped from the readings, so when every account has, the window has no reading and that is the wall. Rotation keeps the raw `ROTATE_DRAIN_THRESHOLD`/`ROTATE_URGENT_DRAIN_PCT` lines: they govern when the POINTER moves, never what an agent is told — ⚠️ with ONE exception, the Fable clamp: `band_fable` is additionally raised to the ACTIVE account's own Fable reading whenever that is hotter, because the relief leg flips on `hot` = max(five_hour, seven_day) and never reads the Fable window, so an account at its Fable wall is never a flip trigger and the fleet's cool Fable reading names headroom no automated flip can deliver — reachable by PINNING alone. The clamp applies to EVERY return of the Fable path, the scarcity arm included, or a probe blackout hands a Fable-walled account a `null` band the hook reads as pass; a blackout with a COOL account reading stays `null` rather than becoming a fabricated GREEN. `active.band_fable_clamped` records whether it bound, and every consumer that EXPLAINS a band must read it: the account's Fable figure is not in `fleet.windows`, so naming the hottest fleet window as what binds points the reader at a window that still has headroom (D-295); `active.band_account` (and `active.band_account_fable`, its Fable-inclusive twin) keeps the active account's own reading (`GREEN`/`AMBER`/`RED` on the hottest of 5h and weekly at the live
-`ROTATE_DRAIN_THRESHOLD`/`ROTATE_URGENT_DRAIN_PCT` lines, `WALL` while the `fleet-exhausted` stamp stands,
+`ROTATE_DRAIN_THRESHOLD`/`ROTATE_URGENT_DRAIN_PCT` lines, `WALL` while the `fleet-exhausted` stamp stands at its
+`walled` tier — the WALL band asserts that `quota_stop.py` IS holding, and since D-306 only that tier does,
 `null` with no reading), `active.band_fable` (the same with the Fable window joining the hottest-of, THEN raised to the ACTIVE account's own Fable band when that is hotter — see the Fable clamp below — with `active.band_fable_clamped` saying whether that raise is what produced the band), and the
 `successor` the queue would name. Every reader — `--status`, `--status --json` (the `posture` key),
 `dispatch_headroom.py`, the dashboard and the prompt hook — treats a missing, unreadable or >15-minute-old

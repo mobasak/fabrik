@@ -28,10 +28,15 @@ fine. That is the posture ``.claude/hooks/quota_stop.py`` already takes for the
 fleet-exhausted stamp. A dead cron must never freeze the fleet and a session must never
 be trapped, so every failure path here returns 0.
 
-⚠️ **THE WALL IS NOT OURS.** While the ``fleet-exhausted`` stamp stands, ``quota_stop.py``
-owns the deny and this hook is SILENT on ``PreToolUse``. The stamp is read BEFORE the
-band, so a lagging RED posture cannot produce a second, differently worded deny for the
-same call.
+⚠️ **THE WALL IS NOT OURS — BUT ONLY THE WALL (D-306).** The ``fleet-exhausted`` stamp
+carries a TIER on its second line. At ``walled`` ``quota_stop.py`` owns the deny and this
+hook is SILENT on ``PreToolUse``; the tier is read BEFORE the band, so a lagging RED
+posture cannot produce a second, differently worded deny for the same call. At
+``urgent-90`` — the session window at the urgent-drain line with no successor, up to ten
+points before the wall — ``quota_stop.py`` ALLOWS, so this hook keeps holding on its own
+band, or a genuine fleet RED would pass both hooks unheld. That tier also puts the
+CHECKPOINT clause on the prompt line: the turn boundary is the last moment an agent can
+checkpoint by choice rather than be denied mid-edit.
 
 FIRE RATE (FIX DIRECTIVE 5), measured over 2,361 rotation-tick rows on 2026-09-16:
 AMBER (>=85) 6.0%, RED (>=90) 4.7%, the 98 flip line 0. Signal, not wallpaper.
@@ -207,11 +212,44 @@ def _load_posture(now: float) -> tuple[dict | None, str]:
     return data, ""
 
 
-def _stamp_exists() -> bool:
+# COPIED from `claude_rotate.py` (which WRITES it) and mirrored in `.claude/hooks/quota_stop.py`
+# (which acts on it). Three copies, one three-way parity grader
+# (`test_the_posture_hooks_tier_reader_agrees_with_the_tick_and_the_stop_hook`) — this hook
+# imports neither: one is fleet-synced and standalone, the other is a 6,000-line CLI.
+_STAMP_TIER_WALLED = "walled"
+_STAMP_TIER_URGENT = "urgent-90"
+_STAMP_TIERS = frozenset({_STAMP_TIER_WALLED, _STAMP_TIER_URGENT})
+
+
+def _stamp_tier(stamp: Path) -> str:
+    """Which arm wrote this stamp — line 2. `walled` for anything not plainly saying otherwise:
+    missing, unreadable, pre-tier (one numeric line), or a tier this version does not know."""
     try:
-        return (_rotate_state_dir() / "fleet-exhausted").exists()
+        lines = stamp.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
-        return False
+        return _STAMP_TIER_WALLED
+    tier = lines[1].strip() if len(lines) > 1 else ""
+    return tier if tier in _STAMP_TIERS else _STAMP_TIER_WALLED
+
+
+def _live_tier() -> str | None:
+    """The tier of the stamp standing right now, or None when none stands. Read from the FILE,
+    not from the posture: the posture may be up to three ticks old and the stamp is the live
+    authority both other readers use."""
+    try:
+        stamp = _rotate_state_dir() / "fleet-exhausted"
+        if not stamp.exists():
+            return None
+    except OSError:
+        return None
+    return _stamp_tier(stamp)
+
+
+def _wall_stamp_stands() -> bool:
+    """Is `quota_stop.py` holding? Only the `walled` tier holds since D-306 — at `urgent-90` it
+    ALLOWS, so this hook must keep doing its own job there or a genuine fleet RED passes both
+    hooks unheld."""
+    return _live_tier() == _STAMP_TIER_WALLED
 
 
 # ── the line ───────────────────────────────────────────────────────────────────────
@@ -339,7 +377,19 @@ def _fleet_clause(posture: dict, band: str | None, *, is_fable: bool) -> str:
     return out
 
 
-def _format_line(posture: dict, band: str | None, *, is_fable: bool = False) -> str:
+# ⚠️ The TURN-BOUNDARY nudge (D-306). A tool call is too late to checkpoint gracefully — by then
+# the agent is mid-edit — so the warning tier is announced HERE, where the next thing that happens
+# is the agent choosing what to do. It asks for a checkpoint, never a stop: at `urgent-90` real
+# runway remains and stopping early is the waste the operator's directive forbids (D-299).
+_CHECKPOINT = (
+    " · ⚠️ CHECKPOINT NOW — the fleet is at the urgent-drain line with no account to rotate to; "
+    "nothing is held yet, so commit, push and keep your run record current while you still can"
+)
+
+
+def _format_line(
+    posture: dict, band: str | None, *, is_fable: bool = False, checkpoint: bool = False
+) -> str:
     act = posture.get("active") if isinstance(posture.get("active"), dict) else {}
     wins = act.get("windows") if isinstance(act.get("windows"), dict) else {}
     fleet = posture.get("fleet") if isinstance(posture.get("fleet"), dict) else {}
@@ -350,7 +400,7 @@ def _format_line(posture: dict, band: str | None, *, is_fable: bool = False) -> 
         f"QUOTA: {act.get('slug') or '—'} · 5h {_pct(fh)} ({_forecast(fh)}) · "
         f"weekly {_pct(wk)} ({_forecast(wk)}) · Fable {_pct(wins.get('fable'))} · "
         f"band {band or '?'}{_fleet_clause(posture, band, is_fable=is_fable)} · "
-        f"successor {succ_slug or 'none'}"
+        f"successor {succ_slug or 'none'}" + (_CHECKPOINT if checkpoint else "")
     )
 
 
@@ -995,7 +1045,14 @@ def main(argv: list[str] | None = None) -> int:
             print(_unavailable(reason))
         else:
             band, is_fable = _band_for_session(posture, payload.get("transcript_path"))
-            print(_format_line(posture, band, is_fable=is_fable))
+            print(
+                _format_line(
+                    posture,
+                    band,
+                    is_fable=is_fable,
+                    checkpoint=_live_tier() == _STAMP_TIER_URGENT,
+                )
+            )
         return 0
 
     if event != "PreToolUse":
@@ -1003,7 +1060,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # ⚠️ the stamp is read BEFORE the band, so a lagging RED posture can never produce a
     # second deny for a call `quota_stop.py` is already denying
-    if _stamp_exists() or posture is None:
+    if _wall_stamp_stands() or posture is None:
         return 0
     band, is_fable = _band_for_session(posture, payload.get("transcript_path"))
     tool = str(payload.get("tool_name") or "")

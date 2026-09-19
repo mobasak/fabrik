@@ -434,11 +434,18 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   readings, so when every account has, the window has no reading at all and THAT is the fleet's
   wall. ⚠️ Rotation keeps its own thresholds — `ROTATE_DRAIN_THRESHOLD` (85) gates the relief
   flip, the flip-target bar and the successor hysteresis, `ROTATE_URGENT_DRAIN_PCT` (90) arms the
-  `fleet-exhausted` stamp — because those govern when the POINTER moves, never what an agent is
+  `fleet-exhausted` stamp at its WARNING tier — because those govern when the POINTER moves, never
+  what an agent is
   told. **the WALL**
-  (`fleet-exhausted` stamp): `.claude/hooks/quota_stop.py` holds every world-changing tool by
+  (`fleet-exhausted` stamp at its `walled` tier): `.claude/hooks/quota_stop.py` holds every
+  world-changing tool by
   default-deny, and commit + push + close + stop is the only path through — every tool it needs is
-  allowed.
+  allowed. ⚠️ THE STAMP HAS TWO TIERS AND ONLY THAT ONE HOLDS (D-306). Its other tier,
+  `urgent-90` — the session window at 90 with no successor, so up to ten points of runway
+  remain — denies NOTHING and instead puts a CHECKPOINT clause on your next prompt line: commit,
+  push and keep your run record current while you still can. Killing work that still has quota to
+  finish is the premature stop the bands exist to prevent, so a warning is a warning and only the
+  wall is a wall.
   **The `QUOTA:` line (D-269, D-275).** Every prompt opens with one injected line — `QUOTA: <slug> · 5h
   <n>% (<forecast>) · weekly <n>% (<forecast>) · Fable <n>% · band <GREEN|AMBER|RED|WALL>[ on
   <window>] (fleet-wide: 5h <n>% <slug> · weekly <n>% <slug>[ · Fable <n>% <slug>])[ — this

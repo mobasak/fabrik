@@ -1356,3 +1356,71 @@ def test_a_clamped_fable_band_explains_itself_instead_of_naming_a_cool_window(tm
         runs=runs,
     ).stdout
     assert "own Fable window" not in line2, "the clamped wording must not leak onto the fleet path"
+
+
+# --- the stamp TIER (D-306): the warning tier is this hook's to announce -------------------------
+
+
+def test_the_prompt_line_nudges_a_checkpoint_at_the_warning_tier(tmp_path):
+    """The turn boundary is the only moment an agent can checkpoint BEFORE it is denied. At the
+    `urgent-90` tier nothing is held yet — `quota_stop.py` allows — so this line is the warning
+    that buys the graceful stop the runway exists for."""
+    state = tmp_path / "state"
+    _posture(state)
+    (state / "fleet-exhausted").write_text("0\nurgent-90\n")
+    out = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"}, state=state).stdout
+    assert "QUOTA:" in out, out
+    assert "checkpoint" in out.lower(), f"the warning tier must ask for a checkpoint: {out!r}"
+
+    # at the WALL the hold speaks, not this line — no duplicate instruction
+    (state / "fleet-exhausted").write_text("0\nwalled\n")
+    walled = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s2"}, state=state).stdout
+    assert "checkpoint" not in walled.lower(), f"the wall is quota_stop's to announce: {walled!r}"
+
+    (state / "fleet-exhausted").unlink()
+    clear = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s3"}, state=state).stdout
+    assert "checkpoint" not in clear.lower(), clear
+
+
+def test_the_pretooluse_leg_defers_only_to_a_real_wall(tmp_path):
+    """The leg goes silent while the stamp stands because `quota_stop.py` is denying. At the
+    warning tier it is NOT denying — so a genuine fleet RED would otherwise pass BOTH hooks
+    unheld, which is the gap the tier split opens if this site is left reading `.exists()`."""
+    state = tmp_path / "state"
+    _posture(state, band="RED", successor=None)
+    payload = {
+        "hook_event_name": "PreToolUse",
+        "session_id": "s1",
+        "tool_name": "Agent",
+        "tool_input": {"prompt": "go"},
+    }
+    (state / "fleet-exhausted").write_text("0\nurgent-90\n")
+    warn = _hook(payload, state=state, runs=tmp_path / "runs").stdout
+    assert "deny" in warn, f"a fleet RED must still be held when nothing else is holding: {warn!r}"
+
+    (state / "fleet-exhausted").write_text("0\nwalled\n")
+    wall = _hook(payload, state=state, runs=tmp_path / "runs").stdout
+    assert wall.strip() == "", f"at the wall this hook says nothing — quota_stop owns it: {wall!r}"
+
+
+def test_the_posture_hooks_tier_reader_agrees_with_the_tick_and_the_stop_hook(tmp_path):
+    """Three copies of one reader now decide whether the fleet is held. Grade all three against
+    the same bytes — a copy that drifts makes the band and the hold disagree about the wall."""
+    mod = _load()
+    root = Path(__file__).resolve().parents[1]
+    others = []
+    for name, rel in (
+        ("tier_probe_tick", "scripts/sysadmin/claude_rotate.py"),
+        ("tier_probe_stop", ".claude/hooks/quota_stop.py"),
+    ):
+        spec = importlib.util.spec_from_file_location(name, root / rel)
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        others.append(m)
+    s = tmp_path / "fleet-exhausted"
+    for body in ("0", "0\nwalled\n", "0\nurgent-90\n", "", "x\nurgent-90", "0\nnonsense\n", "0\n"):
+        s.write_text(body)
+        got = [mod._stamp_tier(s)] + [m._stamp_tier(s) for m in others]
+        assert len(set(got)) == 1, f"readers disagree on {body!r}: {got}"
+    missing = tmp_path / "absent"
+    assert {mod._stamp_tier(missing)} | {m._stamp_tier(missing) for m in others} == {"walled"}

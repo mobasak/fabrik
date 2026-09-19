@@ -798,3 +798,76 @@ def test_a_trailered_commit_passes_the_hold_and_a_multiline_command_does_not():
         assert hook.decide("Bash", refused, stamp_exists=True, tick_age_s=10.0)[0] == "deny", (
             refused
         )
+
+
+# ── The stamp TIER (D-306): the warning stopped meaning the wall ──────────────────────────────
+
+
+def _run_tier(tmp_path: Path, payload: object, tier: str | None) -> subprocess.CompletedProcess:
+    """Like `_run` with a fresh tick and a stamp, but writing the stamp in the real two-line
+    format. `tier=None` writes the PRE-TIER single line every stamp on disk carries today."""
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    (state / "fleet-exhausted").write_text("0" if tier is None else f"0\n{tier}\n")
+    log = tmp_path / "rotate-tick.log"
+    log.write_text("tick: ok\n")
+    env = {**os.environ, "ROTATE_STATE_DIR": str(state), "QUOTA_STOP_TICK_LOG": str(log)}
+    return subprocess.run(
+        [sys.executable, str(_HOOK)],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=20,
+    )
+
+
+def test_the_urgent_ninety_tier_nudges_instead_of_holding(tmp_path):
+    """The 90-with-no-successor arm fires up to ten points before the wall — that runway is the
+    whole point of it (D-111). Holding there kills in-flight work with quota still on the clock,
+    which is the premature stop D-299 forbids. So: ALLOW, and say what is coming."""
+    r = _run_tier(tmp_path, {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}}, "urgent-90")
+    assert r.returncode == 0
+    assert "permissionDecision" not in r.stdout, (
+        f"the warning tier must not deny — it has runway left: {r.stdout!r}"
+    )
+    assert "checkpoint" in r.stderr.lower(), f"it must still say what to do: {r.stderr!r}"
+    assert "command_run.py" in r.stderr, "the nudge names the checkpoint verbs"
+    # and the heavy tool is allowed too — a seat mid-flight is exactly what must not be killed
+    a = _run_tier(tmp_path, {"tool_name": "Agent", "tool_input": {"prompt": "p"}}, "urgent-90")
+    assert "permissionDecision" not in a.stdout, a.stdout
+
+
+def test_the_walled_tier_still_holds_every_world_changing_tool(tmp_path):
+    """The wall itself is unchanged: default-deny, one path through."""
+    r = _run_tier(tmp_path, {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}}, "walled")
+    assert json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_a_pre_tier_stamp_still_holds(tmp_path):
+    """Every stamp already on disk is one numeric line. It must keep holding — the migration
+    fails CLOSED, because the lenient reading drops the fleet's only hard stop at a real wall."""
+    r = _run_tier(tmp_path, {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}}, None)
+    assert json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+    bad = _run_tier(
+        tmp_path, {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}}, "nonsense"
+    )
+    assert json.loads(bad.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_the_hooks_tier_reader_agrees_with_the_tick_that_writes_it(tmp_path):
+    """The hook COPIES the reader rather than importing the tick (it is fleet-synced and must
+    stand alone). A copy that drifts is a hold that disagrees with the band — so grade the two
+    against the same bytes, including the shapes each is required to fail closed on."""
+    spec = importlib.util.spec_from_file_location(
+        "claude_rotate_tierparity",
+        Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "claude_rotate.py",
+    )
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+    s = tmp_path / "fleet-exhausted"
+    for body in ("0", "0\nwalled\n", "0\nurgent-90\n", "", "x\nurgent-90", "0\nnonsense\n", "0\n"):
+        s.write_text(body)
+        assert hook._stamp_tier(s) == cr._stamp_tier(s), f"readers disagree on {body!r}"
+    missing = tmp_path / "absent"
+    assert hook._stamp_tier(missing) == cr._stamp_tier(missing) == "walled"

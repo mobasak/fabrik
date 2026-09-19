@@ -8,9 +8,20 @@ restarted. Mail reaches a session only at its next prompt; this hook reaches it 
 CALL, which is the only moment a mid-turn agent can be stopped.
 
 Signal: the rotation tick's exhaustion stamp (`<state>/fleet-exhausted`), written by
-`claude_rotate.py::_fleet_active_wall_advisory` exactly when the ACTIVE account is walled and the
-picker found no successor (or the operator paused rotation), and unlinked by the same tick the
-moment relief arrives (a flip or a reset). No other writer, no other reader with authority.
+`claude_rotate.py::_fleet_active_wall_advisory` when the ACTIVE account is walled and the picker
+found no successor (or the operator paused rotation), and unlinked by the same tick the moment
+relief arrives (a flip or a reset). No other writer, no other reader with authority.
+
+⚠️ THE STAMP CARRIES TWO TIERS AND ONLY ONE OF THEM HOLDS (D-306). Its second line names which
+arm armed it. `walled` is the wall itself — a window at/over `ROTATE_THRESHOLD`, its `caps.json`
+cap, or 100. `urgent-90` is the SESSION window at `ROTATE_URGENT_DRAIN_PCT` (90) with no
+validated successor: up to TEN POINTS of runway remain, and that runway is the whole reason the
+arm exists (D-111). Holding there killed in-flight subagents with quota still on the clock —
+the premature stop the operator's "utilize quotas utmost" directive forbids (D-299) — so the
+warning tier ALLOWS and nudges, and the wall tier holds. A stamp that does not plainly name a
+tier (every stamp written before this field, or an unreadable one) is read as `walled`: the
+unknown case must never be the lenient one, because the lenient reading drops the fleet's only
+hard stop at a real wall.
 
 While the stamp stands the rule is DEFAULT-DENY: every tool that can change the world is held —
 Edit/Write/MultiEdit/NotebookEdit, MCP editors (serena replace/insert/rename, browser clicks),
@@ -486,6 +497,25 @@ def _stamp() -> Path:
     return _state_dir() / "fleet-exhausted"
 
 
+# COPIED from `claude_rotate.py` (`_STAMP_TIERS`/`_stamp_tier`) — this hook is fleet-synced and
+# imports nothing from the tick. `test_the_hooks_tier_reader_agrees_with_the_tick_that_writes_it`
+# grades the two copies against the same bytes, including every fail-closed shape.
+_STAMP_TIER_WALLED = "walled"
+_STAMP_TIER_URGENT = "urgent-90"
+_STAMP_TIERS = frozenset({_STAMP_TIER_WALLED, _STAMP_TIER_URGENT})
+
+
+def _stamp_tier(stamp: Path) -> str:
+    """Which arm wrote this stamp — line 2. `walled` for anything not plainly saying otherwise:
+    missing, unreadable, pre-tier (one numeric line), or a tier this version does not know."""
+    try:
+        lines = stamp.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return _STAMP_TIER_WALLED
+    tier = lines[1].strip() if len(lines) > 1 else ""
+    return tier if tier in _STAMP_TIERS else _STAMP_TIER_WALLED
+
+
 def _tick_log() -> Path:
     return Path(
         os.environ.get("QUOTA_STOP_TICK_LOG") or Path.home() / ".claude" / "rotate-tick.log"
@@ -513,6 +543,7 @@ def decide(
     tick_age_s: float | None,
     now: float | None = None,
     sid: str | None = None,
+    tier: str = _STAMP_TIER_WALLED,
 ) -> tuple[str, str]:
     """Pure decision. Returns (action, reason) with action ∈ {"allow", "deny", "allow_warn"}."""
     if not stamp_exists:
@@ -524,6 +555,12 @@ def decide(
             f"{'unknown' if tick_age_s is None else f'{tick_age_s / 60:.0f}m'} — a stale flag never "
             "freezes the fleet; check `crontab -l` and ~/.claude/rotate-tick.log"
         )
+    if tier == _STAMP_TIER_URGENT:
+        # The WARNING tier: the fleet is at 90% of the session window with nothing to rotate to,
+        # which leaves real runway. Killing a running seat here wastes everything already spent
+        # on it, so nothing is held — but every tool call says the wall is next, because the
+        # cheapest way to arrive at it is to not notice.
+        return "allow_warn", _nudge()
     if tool == "Bash":
         # the vetoes read the MASKED line (operators only); the allow-list reads the RAW line,
         # because the leading command word is never quoted in a command we would allow.
@@ -540,6 +577,19 @@ def decide(
     if tool in _READ_TOOLS or _READ_MCP.match(tool):
         return "allow", ""
     return "deny", _reason(tool or "tool", sid)
+
+
+def _nudge() -> str:
+    """The WARNING tier's one line. It asks for a CHECKPOINT, never a stop: the work in flight
+    is exactly what the runway is for. Nothing is denied while this prints."""
+    return (
+        "quota-stop: FLEET QUOTA LOW — the active account is at the urgent-drain line with no "
+        "account to rotate to. Nothing is held yet and your in-flight work is not being cut "
+        "short. CHECKPOINT as you go so the wall costs you nothing: commit with explicit "
+        "pathspecs, push, and keep your run record current (`command_run.py step|round`) — when "
+        "the wall itself arrives every world-changing tool is held and only commit + push + "
+        "close + stop gets through."
+    )
 
 
 def _reason(tool: str, sid: str | None = None) -> str:
@@ -577,6 +627,7 @@ def main() -> int:
         exists = _stamp().exists()
     except OSError:
         exists = False
+    tier = _stamp_tier(_stamp()) if exists else _STAMP_TIER_WALLED
     age: float | None
     try:
         age = time.time() - _tick_log().stat().st_mtime
@@ -588,6 +639,7 @@ def main() -> int:
         stamp_exists=exists,
         tick_age_s=age,
         sid=(payload.get("session_id") if isinstance(payload, dict) else None),
+        tier=tier,
     )
     if action == "deny":
         # ONLY the current PreToolUse contract: the installed CLI (2.1.258) deprecates the legacy
