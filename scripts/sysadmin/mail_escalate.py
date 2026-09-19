@@ -230,7 +230,37 @@ def build_digest(items: list[Obligation]) -> str:
     return "\n".join([*rows, tail])
 
 
-def _agent_body(title: str, rows: str, n: int) -> str:
+def _shape_line(items: list[Obligation]) -> str:
+    """What the count IS, in one line — senders, and which of them are broadcasts.
+
+    ⚠️ `83 row(s)` reads as 83 work items. Measured on the live store 2026-09-20 it was EIGHT
+    distinct facts: 41 of the 83 were ONE fabrik-lib broadcast sitting in 41 different mailboxes,
+    39 more were the hub's own sends, and NONE was an obligation on the hub that received the
+    digest. An agent handed the bare number sizes the job by an order of magnitude and then finds
+    it cannot discharge a single row. The SYSTEMIC line already warned that the count is not the
+    population; it never said what the population was.
+
+    Grouped by SENDER because that field is already on `Obligation` — no extra read, no new
+    failure mode — and because it is exactly the broadcast signature: one sender, N rows, N
+    distinct mailboxes. A sender whose rows span FEWER mailboxes than rows is not called a
+    broadcast, and a single row is never called one.
+    """
+    by_sender: dict[str, list[Obligation]] = {}
+    for ob in items:
+        by_sender.setdefault(ob.sender, []).append(ob)
+    parts = []
+    for sender, obs in sorted(by_sender.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+        boxes = len({o.repo for o in obs})
+        tag = ""
+        if len(obs) > 1 and boxes == len(obs):
+            tag = f" — one BROADCAST across {boxes} mailboxes, not {len(obs)} separate items"
+        elif len(obs) > 1:
+            tag = f" across {boxes} mailbox(es)"
+        parts.append(f"{len(obs)}× from {_sanitize(sender)}{tag}")
+    return "; ".join(parts) if parts else "no rows"
+
+
+def _agent_body(title: str, rows: str, n: int, items: list[Obligation] | None = None) -> str:
     """The digest as a MESSAGE, not a bare column of ULIDs.
 
     ⚠️ The first cut handed `_deliver_to_agent` the rows alone. The delivered mail therefore had no
@@ -244,6 +274,8 @@ def _agent_body(title: str, rows: str, n: int) -> str:
         f"Subject: {title}\n\n"
         "WHAT: the fabrik-mail obligations below are past the escalation threshold "
         f"(`FABRIK_MAIL_ESCALATE_DAYS`, default 3). {n} row(s), oldest first.\n"
+        + (f"SHAPE: {_shape_line(items)}.\n" if items else "")
+        +
         "WHO: `scripts/sysadmin/mail_escalate.py` (hub cron, every 6h) -> infra.\n"
         "WHERE: the rows are `id · repo · sender · age · agent (population)`. ⚠️ Column 2 is the "
         "MAILBOX and most rows are NOT the hub's, so every command needs it: read one with "
@@ -396,7 +428,7 @@ def main() -> int:
     # 2026-09-12 that leg failed TWICE before succeeding on the day's third run.
     agent_ok = agent_done
     if not agent_done:
-        agent_ok = _deliver_to_agent(_agent_body(title, rows, len(items)))
+        agent_ok = _deliver_to_agent(_agent_body(title, rows, len(items), items))
         if agent_ok:
             _stamp(DAY_STAMP_AGENT, today, "agent")
 

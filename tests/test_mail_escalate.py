@@ -537,3 +537,56 @@ def test_one_unreadable_mailbox_does_not_silence_the_rest(env, monkeypatch, caps
     obs = me.collect_obligations(env)
     assert [o.ulid for o in obs] == ["01UUUUUUUUUUUUUUUUUUUUUUUU"]
     assert "skipping broken" in capsys.readouterr().out
+
+
+def test_the_digest_says_what_shape_the_count_is(env):
+    """⚠️ `83 row(s)` reads as 83 work items. Measured 2026-09-20 on the live store, it was EIGHT
+    distinct facts: 41 of the 83 were ONE fabrik-lib broadcast sitting in 41 different mailboxes,
+    and 39 more were the hub's own sends. An agent handed the bare number sizes the job an order
+    of magnitude wrong, and the digest's own SYSTEMIC line already warns that the count is not the
+    population — it just never said what the population was.
+
+    Grouping by SENDER is free (the field is already on `Obligation`, no extra read) and it is
+    exactly the broadcast signature: one sender, N rows, N distinct mailboxes.
+    """
+    items = [
+        me.Obligation(
+            ulid=f"01M{i:023d}",
+            repo=f"repo{i}",
+            sender="fabrik-lib",
+            agent="-",
+            age_days=20.0,
+            kind="inbox",
+        )
+        for i in range(41)
+    ] + [
+        me.Obligation(
+            ulid=f"01N{i:023d}",
+            repo=f"other{i}",
+            sender="fabrik",
+            agent="-",
+            age_days=9.0,
+            kind="inbox",
+        )
+        for i in range(3)
+    ]
+    shape = me._shape_line(items)
+    assert "fabrik-lib" in shape and "41" in shape, shape
+    assert "41 mailbox" in shape, f"a broadcast is N rows across N mailboxes — say so: {shape}"
+    assert "fabrik" in shape, shape
+    # and it reaches the delivered body, which is the only place an agent reads
+    body = me._agent_body("t", "01AAA · r · s · 9d · - (inbox)", len(items), items)
+    assert "SHAPE:" in body, "the shape must be a labelled section, not buried in prose"
+    assert shape in body, body[:400]
+
+
+def test_the_shape_line_says_nothing_clever_about_a_single_row(env):
+    """One obligation from one sender is not a broadcast, and the line must not imply it is."""
+    one = [
+        me.Obligation(
+            ulid="01M" + "0" * 23, repo="r", sender="s", agent="-", age_days=9.0, kind="inbox"
+        )
+    ]
+    shape = me._shape_line(one)
+    assert "broadcast" not in shape.lower(), shape
+    assert "1" in shape and "s" in shape, shape
