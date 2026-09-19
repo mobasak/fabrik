@@ -396,7 +396,7 @@ DECISION-shaped question, `docs/DECISIONS.md` + `scripts/decisions.py` come BEFO
 structured rows beat lexical transcripts (a decision phrased differently is invisible to recall).
 
 ## Pointers (detail in packs)
-- **The fleet quota picture — every agent, every repo, one query (operator directive 2026-09-07):** `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status` (add `--json` for machines; the `picture` key) tells you which account is ACTIVE, which are eligible / session-exhausted / weekly- or cap-walled, the rotation QUEUE in the picker's own order with when each returns, the NEXT RELIEF the tick would name, whether the fleet-exhausted HOLD is on and the resume it promised, and the last flip and its kind. Read it before dispatching long subagent work near a cap, and whenever a quota notice lands — the absolute path works from any `/opt` repo, fabrik-lib included. Authority: `/opt/fabrik/docs/workstation/claude-account-rotation.md` § `--status`.
+- **The fleet quota picture — every agent, every repo, one query (operator directive 2026-09-07):** `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status` (add `--json` for machines; the `picture` key) tells you which account is ACTIVE, which are eligible / session-exhausted / weekly- or cap-walled, the rotation QUEUE in the picker's own order with when each returns, the NEXT RELIEF the tick would name, whether the fleet-exhausted HOLD is on, at which TIER (only `walled` actually holds — D-306), and the resume it promised, and the last flip and its kind. Read it before dispatching long subagent work near a cap, and whenever a quota notice lands — the absolute path works from any `/opt` repo, fabrik-lib included. Authority: `/opt/fabrik/docs/workstation/claude-account-rotation.md` § `--status`.
   ⚠️ **THE QUOTA BANDS ARE A BEHAVIOUR CONTRACT, not just a dashboard — and the band is the
   FLEET'S, computed per window, never one account's.** The tick computes it FOR you and it is the
   only band you act on. Capacity is per window TYPE across every account that can still serve
@@ -423,15 +423,16 @@ structured rows beat lexical transcripts (a decision phrased differently is invi
   readings, so when every account has, the window has no reading at all and THAT is the fleet's
   wall. ⚠️ Rotation keeps its own thresholds — `ROTATE_DRAIN_THRESHOLD` (85) gates the relief
   flip, the flip-target bar and the successor hysteresis, `ROTATE_URGENT_DRAIN_PCT` (90) arms the
-  `fleet-exhausted` stamp at its WARNING tier — because those govern when the POINTER moves, never
-  what an agent is
-  told. **the WALL**
+  `fleet-exhausted` stamp at its WARNING tier — because those govern when the POINTER moves. ⚠️ That
+  last clause used to read "never what an agent is told" and D-306 made it false:
+  `ROTATE_URGENT_DRAIN_PCT` now also decides whether you get the CHECKPOINT nudge below.
+  What stays true is the part that matters — neither number draws a BAND. **the WALL**
   (`fleet-exhausted` stamp at its `walled` tier): `.claude/hooks/quota_stop.py` holds every
   world-changing tool by
   default-deny, and commit + push + close + stop is the only path through — every tool it needs is
   allowed. ⚠️ THE STAMP HAS TWO TIERS AND ONLY THAT ONE HOLDS (D-306). Its other tier,
-  `urgent-90` — the session window at 90 with no successor, so up to ten points of runway
-  remain — denies NOTHING and instead puts a CHECKPOINT clause on your next prompt line: commit,
+  `urgent-90` — the session window at 90 with no successor, so EIGHT points of runway remain
+  on the default `ROTATE_THRESHOLD` of 98, fewer when a `caps.json` cap binds first — denies NOTHING and instead puts a CHECKPOINT clause on your next prompt line: commit,
   push and keep your run record current while you still can. Killing work that still has quota to
   finish is the premature stop the bands exist to prevent, so a warning is a warning and only the
   wall is a wall.

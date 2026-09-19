@@ -6767,9 +6767,11 @@ def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatc
     stamp = tmp_path / "locks" / "fleet-exhausted"
     stamp.parent.mkdir()
     cr._rearm_wall_stamp(stamp, "a@x", now)
-    assert stamp.read_text(encoding="utf-8") == cr._stamp_body(str(int(now + 3600)), "walled"), (
-        stamp.read_text()
-    )  # D-306: the promise on line 1, the tier on line 2
+    # ⚠️ LITERAL BYTES, not `cr._stamp_body(...)`: asserting against the composer is circular — a
+    # review seat proved three independent mutations of `_stamp_body` (swap the lines, drop the
+    # tier line, append garbage) leave every re-pinned assertion green. One literal pin holds the
+    # FORMAT from outside; the tier graders hold the semantics.
+    assert stamp.read_text(encoding="utf-8") == f"{int(now + 3600)}\nwalled\n", stamp.read_text()
     assert abs(stamp.stat().st_mtime - (now - 900)) < 1.0, "mtime is the row's ts, never now"
     cr._rearm_wall_stamp(tmp_path / "no-such-dir" / "fleet-exhausted", "a@x", now)
     assert "NOT re-armed" in capsys.readouterr().err
@@ -7460,3 +7462,151 @@ def test_the_rearmed_stamp_keeps_the_episodes_own_tier(tmp_path, monkeypatch):
     assert stamp.exists(), "the re-arm still writes"
     assert cr._stamp_tier(stamp) == "urgent-90", stamp.read_text()
     assert cr._promised_resume(stamp) == FLEET_NOW + 7200
+
+
+# ── Round-1 review fixes (D-306): the tier escalates, and the wiring is graded ────────────────
+
+
+def test_the_tier_is_raised_when_an_episode_escalates_to_a_real_wall(tmp_path, monkeypatch):
+    """⚠️ THE SEVEREST DEFECT THIS REVIEW FOUND, confirmed independently by two seats.
+
+    The stamp is written ONCE per episode and the message latch returns before that write, so the
+    tier froze at whichever arm fired FIRST — and `urgent` fires eight points before `walled`. An
+    episode that opened at the 90-line and then reached a real 100% wall kept saying `urgent-90`,
+    so `quota_stop.py` held NOTHING at that wall until the promised resume or a full week.
+    """
+    state = tmp_path / "state"
+    state.mkdir(parents=True)
+    monkeypatch.setattr(cr, "_rotate_state_dir", lambda: state)
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m: None)
+    monkeypatch.setattr(cr, "_drain_mail", lambda repos, m: None)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "a")
+    stamp = state / "fleet-exhausted"
+
+    cr._fleet_active_wall_advisory([_advisory_row(92.0, 40.0)], FLEET_NOW, threshold=98.0)
+    assert cr._stamp_tier(stamp) == "urgent-90", "the episode opens at the softer arm"
+    promise_at_open = stamp.read_text(encoding="utf-8").split("\n")[0]
+    mtime_at_open = stamp.stat().st_mtime
+
+    # …and 40 minutes later the SAME account is at a hard wall, inside the same episode
+    cr._fleet_active_wall_advisory([_advisory_row(100.0, 40.0)], FLEET_NOW + 2400.0, threshold=98.0)
+    assert cr._stamp_tier(stamp) == "walled", (
+        f"a real wall must raise the tier or nothing holds: {stamp.read_text()!r}"
+    )
+    assert stamp.read_text(encoding="utf-8").split("\n")[0] == promise_at_open, (
+        "line 1 is the episode's promise and must survive the raise byte for byte"
+    )
+    assert abs(stamp.stat().st_mtime - mtime_at_open) < 1.0, (
+        "the mtime is the episode's start — a fresh one restarts the week re-arm"
+    )
+    # ONE-WAY, and the qualifier is load-bearing: INSIDE the episode. Past the promised resume
+    # the latch re-arms and a fresh advisory writes the arm that is true THEN — at 92 that is
+    # `urgent-90`, and it is correct. The first cut of this grader asserted the wrong thing at
+    # +4800 and caught its own mis-specification, not a defect.
+    cr._fleet_active_wall_advisory([_advisory_row(92.0, 40.0)], FLEET_NOW + 2600.0, threshold=98.0)
+    assert cr._stamp_tier(stamp) == "walled", "walled never decays back inside one episode"
+
+
+def test_the_band_stops_saying_wall_only_because_the_tier_says_so(tmp_path, monkeypatch):
+    """The WIRING, not the predicate. `_hold_is_wall` was graded as a pure function while the one
+    line that uses it was not: a seat reverted the call site to the pre-change
+    `hold=_pic.get("hold") is not None` — undoing the entire point of the change — and 284 of 284
+    graders passed. This one reds on that revert."""
+    for tier, expect in (("walled", "WALL"), ("urgent-90", None)):
+        pic = {"hold": {"since": FLEET_NOW, "resume_promised": None, "tier": tier}}
+        band = cr._band_of(50.0, cr._hold_is_wall(pic["hold"]), 85.0, 90.0)
+        if expect == "WALL":
+            assert band == "WALL", f"{tier}: the wall tier must still band WALL, got {band}"
+        else:
+            assert band != "WALL", (
+                f"{tier}: a tier that holds nothing must not band WALL, got {band}"
+            )
+    # and the presence-only predicate the revert would restore does NOT distinguish them
+    assert (pic["hold"] is not None) is True, (
+        "presence is true for BOTH tiers — which is exactly why the band must read the tier"
+    )
+
+
+def test_the_picture_fail_closed_tier_survives_an_unreadable_stamp(tmp_path, monkeypatch):
+    """`_fleet_picture`'s `except OSError` arm hard-codes the tier. It is the line deciding what a
+    stamp whose stat/read failed means, and a seat flipped it to `urgent-90` — fail-OPEN — with
+    284 of 284 graders still green."""
+    state = tmp_path / "state"
+    state.mkdir(parents=True)
+    monkeypatch.setattr(cr, "_rotate_state_dir", lambda: state)
+    (state / "fleet-exhausted").write_text(cr._stamp_body("0", "urgent-90"))
+
+    # ⚠️ The arm is reached only when `exists()` is TRUE and something inside the try raises.
+    # The first cut of this grader used a DIRECTORY at the stamp path — but `stat()` succeeds on
+    # a directory, so it took the SUCCESS branch and stayed green with the arm flipped to
+    # fail-open. Caught by the mutation battery, not by reading. Raise from inside the try.
+    def _boom(_stamp):
+        raise OSError("stat failed")
+
+    monkeypatch.setattr(cr, "_promised_resume", _boom)
+    pic = cr._fleet_picture([_advisory_row(50.0, 50.0)], "a", FLEET_NOW)
+    hold = pic.get("hold")
+    assert hold is not None, "a stamp path that exists is still a hold"
+    assert cr._hold_is_wall(hold) is True, (
+        f"a stamp whose read failed must hold — this is the last fail-closed default: {hold}"
+    )
+
+
+def test_the_rearm_never_raises_on_a_ledger_tier_that_cannot_be_hashed(tmp_path, monkeypatch):
+    """`_STAMP_TIERS` is a frozenset, so a bare `in` HASHES its operand. A JSON list or dict in
+    the ledger's `tier` field raised TypeError out of a function whose docstring promises it never
+    raises — and took every statement after the advisory down with it, on every tick, until the
+    row aged out. `_open_wall_rows` validates `ts` and `account`, never `tier`."""
+    state = tmp_path / "state"
+    state.mkdir(parents=True)
+    monkeypatch.setattr(cr, "_rotate_state_dir", lambda: state)
+    stamp = state / "fleet-exhausted"
+    for bad in ([], {}, ["urgent-90"], {"t": 1}, True, 1, 1.5, None, "nonsense"):
+        stamp.unlink(missing_ok=True)
+        monkeypatch.setattr(
+            cr,
+            "_open_wall_episode",
+            lambda email, now, _b=bad: (
+                {"ts": FLEET_NOW, "account": email, "resume_epoch": None, "tier": _b},
+                True,
+            ),
+        )
+        cr._rearm_wall_stamp(stamp, "a@x", FLEET_NOW)  # must not raise
+        assert cr._stamp_tier(stamp) == "walled", f"{bad!r} must fail closed"
+
+
+def test_the_tier_reader_does_not_hang_or_shift_on_a_hostile_stamp(tmp_path):
+    """Two regressions the D-306 reader introduced over the old bare `.exists()`: a FIFO at the
+    stamp path blocked the read forever (a hang is not an OSError, so no handler fired), and
+    `splitlines()` breaks on VT/FF/NEL/U+2028 — none of which any writer treats as a line end —
+    so a control byte in the PROMISE shifted line 2 and a `walled` stamp read as `urgent-90`."""
+    import os as _os
+
+    s = tmp_path / "fleet-exhausted"
+    for sep in ("\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", " ", " "):
+        s.write_text(f"0{sep}urgent-90\nwalled\n")
+        assert cr._stamp_tier(s) == "walled", f"{sep!r} in line 1 must not shift the tier read"
+    fifo = tmp_path / "fifo"
+    fifo.mkdir()
+    _os.mkfifo(fifo / "fleet-exhausted")
+    assert cr._stamp_tier(fifo / "fleet-exhausted") == "walled", "a FIFO must not hang the reader"
+
+
+def test_status_does_not_call_a_nudge_a_hold(tmp_path, monkeypatch, capsys):
+    """`--status` is the contract's named authority on the hold. It printed `HELD` on mere
+    truthiness, so at the `urgent-90` tier the operator read HELD while nothing was held."""
+    base = {
+        "accounts": [],
+        "queue": [],
+        "next_relief": None,
+        "last_flip": None,
+        "hold": {"since": FLEET_NOW, "resume_promised": None, "tier": "urgent-90"},
+    }
+    cr._print_picture(base)
+    warn = capsys.readouterr().out
+    assert "WARNING" in warn and "nothing is held" in warn, warn
+    cr._print_picture({**base, "hold": {**base["hold"], "tier": "walled"}})
+    held = capsys.readouterr().out
+    assert "HELD" in held and "WARNING" not in held, held

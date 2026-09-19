@@ -1424,3 +1424,77 @@ def test_the_posture_hooks_tier_reader_agrees_with_the_tick_and_the_stop_hook(tm
         assert len(set(got)) == 1, f"readers disagree on {body!r}: {got}"
     missing = tmp_path / "absent"
     assert {mod._stamp_tier(missing)} | {m._stamp_tier(missing) for m in others} == {"walled"}
+
+
+def test_the_checkpoint_clause_does_not_claim_nothing_is_held(tmp_path):
+    """This hook's own PreToolUse leg denies `Agent` at band RED — and band RED with no successor
+    IS the state that arms `urgent-90`. The clause claimed "nothing is held yet" in exactly that
+    state, contradicting the denial the same hook issues on the next tool call."""
+    state = tmp_path / "state"
+    _posture(state, band="RED", successor=None)
+    (state / "fleet-exhausted").write_text("0\nurgent-90\n")
+    line = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"}, state=state).stdout
+    assert "CHECKPOINT NOW" in line, line
+    assert "nothing is held yet" not in line.lower(), (
+        f"the same hook denies Agent in this state — the line must not say otherwise: {line}"
+    )
+    assert "may still be held by the band" in line, line
+    # and the denial the clause now admits to is real, in the same state
+    deny = _hook(
+        {
+            "hook_event_name": "PreToolUse",
+            "session_id": "s1",
+            "tool_name": "Agent",
+            "tool_input": {"prompt": "go"},
+        },
+        state=state,
+        runs=tmp_path / "runs",
+    ).stdout
+    assert "deny" in deny, f"the contradiction is only resolved if this really denies: {deny}"
+
+
+def test_the_three_tier_readers_agree_on_the_shapes_that_actually_diverge(tmp_path):
+    """The first corpus covered the easy shapes. Three HAND-WRITTEN copies diverge on decoration:
+    case, carriage returns, a third line, a NUL byte, control separators, a FIFO, a directory.
+    Every one of those is graded here, because a copy that drifts makes the band and the hold
+    disagree about whether the fleet is walled."""
+    import os as _os
+
+    mod = _load()
+    root = Path(__file__).resolve().parents[1]
+    mods = [mod]
+    for name, rel in (
+        ("tier_probe_tick2", "scripts/sysadmin/claude_rotate.py"),
+        ("tier_probe_stop2", ".claude/hooks/quota_stop.py"),
+    ):
+        spec = importlib.util.spec_from_file_location(name, root / rel)
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        mods.append(m)
+    assert len({m.__file__ for m in mods}) == 3, "three DIFFERENT files, or this grades nothing"
+
+    s = tmp_path / "fleet-exhausted"
+    for body in (
+        "0\nWALLED\n",
+        "0\nUrgent-90\n",
+        "0\nurgent-90",
+        "0\r\nurgent-90\r\n",
+        "0\rurgent-90",
+        "0\nurgent-90\nwalled\n",
+        "0\nurgent-90\x00\n",
+        "0\x0burgent-90\nwalled\n",
+        "0\n urgent-90 \n",
+        "0\nurgent-90x\n",
+        "\x00\nurgent-90\n",
+        "0\n\nurgent-90\n",
+    ):
+        s.write_text(body)
+        got = [m._stamp_tier(s) for m in mods]
+        assert len(set(got)) == 1, f"readers disagree on {body!r}: {got}"
+    fifo_dir = tmp_path / "f"
+    fifo_dir.mkdir()
+    _os.mkfifo(fifo_dir / "fleet-exhausted")
+    assert len({m._stamp_tier(fifo_dir / "fleet-exhausted") for m in mods}) == 1
+    d = tmp_path / "d"
+    (d / "fleet-exhausted").mkdir(parents=True)
+    assert {m._stamp_tier(d / "fleet-exhausted") for m in mods} == {"walled"}

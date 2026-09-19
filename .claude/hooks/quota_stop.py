@@ -8,14 +8,18 @@ restarted. Mail reaches a session only at its next prompt; this hook reaches it 
 CALL, which is the only moment a mid-turn agent can be stopped.
 
 Signal: the rotation tick's exhaustion stamp (`<state>/fleet-exhausted`), written by
-`claude_rotate.py::_fleet_active_wall_advisory` when the ACTIVE account is walled and the picker
-found no successor (or the operator paused rotation), and unlinked by the same tick the moment
-relief arrives (a flip or a reset). No other writer, no other reader with authority.
+`claude_rotate.py::_fleet_active_wall_advisory` when the ACTIVE account is walled — OR its SESSION
+window is at `ROTATE_URGENT_DRAIN_PCT` — and the picker found no validated successor (or the
+operator paused rotation), and unlinked by the same tick the moment relief arrives (a flip or a
+reset). A second writer re-arms it from the episode's ledger row (`_rearm_wall_stamp`) and raises
+its tier when the episode escalates; a second READER with authority is
+`scripts/sysadmin/quota_posture_hook.py`, which stands down only at the `walled` tier.
 
 ⚠️ THE STAMP CARRIES TWO TIERS AND ONLY ONE OF THEM HOLDS (D-306). Its second line names which
 arm armed it. `walled` is the wall itself — a window at/over `ROTATE_THRESHOLD`, its `caps.json`
 cap, or 100. `urgent-90` is the SESSION window at `ROTATE_URGENT_DRAIN_PCT` (90) with no
-validated successor: up to TEN POINTS of runway remain, and that runway is the whole reason the
+validated successor: EIGHT points of runway remain on the default `ROTATE_THRESHOLD` of 98, and
+fewer on an account whose `caps.json` cap binds first. That runway is the whole reason the
 arm exists (D-111). Holding there killed in-flight subagents with quota still on the clock —
 the premature stop the operator's "utilize quotas utmost" directive forbids (D-299) — so the
 warning tier ALLOWS and nudges, and the wall tier holds. A stamp that does not plainly name a
@@ -509,7 +513,15 @@ def _stamp_tier(stamp: Path) -> str:
     """Which arm wrote this stamp — line 2. `walled` for anything not plainly saying otherwise:
     missing, unreadable, pre-tier (one numeric line), or a tier this version does not know."""
     try:
-        lines = stamp.read_text(encoding="utf-8", errors="replace").splitlines()
+        # `is_file()` BEFORE the read: a FIFO at this path blocks forever, a hang is not an
+        # OSError, and a PreToolUse hook that never returns stalls every tool call in the session
+        # (executed: exit 124 under `timeout 5`; the pre-D-306 hook only called `.exists()`).
+        # `.split("\n")`, never `.splitlines()` — the latter also breaks on VT/FF/FS/GS/RS/NEL/
+        # U+2028/U+2029, so a control byte in line 1 shifted the read and a `walled` stamp was
+        # allowed through as `urgent-90`: lenient, the one direction this reader must never be.
+        if stamp.is_symlink() or not stamp.is_file():
+            return _STAMP_TIER_WALLED
+        lines = stamp.read_text(encoding="utf-8", errors="replace").split("\n")
     except OSError:
         return _STAMP_TIER_WALLED
     tier = lines[1].strip() if len(lines) > 1 else ""
@@ -584,11 +596,12 @@ def _nudge() -> str:
     is exactly what the runway is for. Nothing is denied while this prints."""
     return (
         "quota-stop: FLEET QUOTA LOW — the active account is at the urgent-drain line with no "
-        "account to rotate to. Nothing is held yet and your in-flight work is not being cut "
-        "short. CHECKPOINT as you go so the wall costs you nothing: commit with explicit "
-        "pathspecs, push, and keep your run record current (`command_run.py step|round`) — when "
-        "the wall itself arrives every world-changing tool is held and only commit + push + "
-        "close + stop gets through."
+        "account to rotate to. THE FLEET-WIDE HOLD HAS NOT ARMED, so your in-flight work is not "
+        "being cut short here; the band may still hold a NEW fan-out or a new run "
+        "(`quota_posture_hook.py` owns that). CHECKPOINT as you go so the wall costs you "
+        "nothing: commit with explicit pathspecs, push, and keep your run record current "
+        "(`command_run.py step|round`) — when the wall itself arrives every world-changing tool "
+        "is held and only commit + push + close + stop gets through."
     )
 
 

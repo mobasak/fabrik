@@ -223,9 +223,23 @@ _STAMP_TIERS = frozenset({_STAMP_TIER_WALLED, _STAMP_TIER_URGENT})
 
 def _stamp_tier(stamp: Path) -> str:
     """Which arm wrote this stamp — line 2. `walled` for anything not plainly saying otherwise:
-    missing, unreadable, pre-tier (one numeric line), or a tier this version does not know."""
+    missing, unreadable, pre-tier (one numeric line), or a tier this version does not know.
+
+    ⚠️ THE ONE DELIBERATE EXCEPTION TO THIS FILE'S FAIL-OPEN DOCTRINE, and it is narrow: it does
+    not decide whether to HOLD, only which of two hooks is holding. Reading an unrecognised stamp
+    as `walled` makes THIS hook stand down and leaves `quota_stop.py` in charge, which is the
+    conservative pairing; the lenient reading would leave a real wall with no hook holding at all.
+    """
     try:
-        lines = stamp.read_text(encoding="utf-8", errors="replace").splitlines()
+        # `is_file()` BEFORE the read: a FIFO at this path blocks forever, a hang is not an
+        # OSError, and a PreToolUse hook that never returns stalls every tool call in the session
+        # (executed: exit 124 under `timeout 5`; the pre-D-306 hook only called `.exists()`).
+        # `.split("\n")`, never `.splitlines()` — the latter also breaks on VT/FF/FS/GS/RS/NEL/
+        # U+2028/U+2029, so a control byte in line 1 shifted the read and a `walled` stamp was
+        # allowed through as `urgent-90`: lenient, the one direction this reader must never be.
+        if stamp.is_symlink() or not stamp.is_file():
+            return _STAMP_TIER_WALLED
+        lines = stamp.read_text(encoding="utf-8", errors="replace").split("\n")
     except OSError:
         return _STAMP_TIER_WALLED
     tier = lines[1].strip() if len(lines) > 1 else ""
@@ -382,8 +396,10 @@ def _fleet_clause(posture: dict, band: str | None, *, is_fable: bool) -> str:
 # is the agent choosing what to do. It asks for a checkpoint, never a stop: at `urgent-90` real
 # runway remains and stopping early is the waste the operator's directive forbids (D-299).
 _CHECKPOINT = (
-    " · ⚠️ CHECKPOINT NOW — the fleet is at the urgent-drain line with no account to rotate to; "
-    "nothing is held yet, so commit, push and keep your run record current while you still can"
+    " · ⚠️ CHECKPOINT NOW — the fleet is at the urgent-drain line with no account to rotate to. "
+    "The fleet-wide hold has NOT armed, so nothing you have in flight is being cut short; a new "
+    "fan-out or a new run may still be held by the band above. Commit, push and keep your run "
+    "record current while you still can"
 )
 
 

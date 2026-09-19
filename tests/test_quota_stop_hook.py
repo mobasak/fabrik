@@ -871,3 +871,37 @@ def test_the_hooks_tier_reader_agrees_with_the_tick_that_writes_it(tmp_path):
         assert hook._stamp_tier(s) == cr._stamp_tier(s), f"readers disagree on {body!r}"
     missing = tmp_path / "absent"
     assert hook._stamp_tier(missing) == cr._stamp_tier(missing) == "walled"
+
+
+def test_the_hook_reader_does_not_hang_or_shift_on_a_hostile_stamp(tmp_path):
+    """Two regressions the tier reader introduced over the old bare `.exists()`: a FIFO at the
+    stamp path blocked `read_text` forever — a hang is not an OSError, so no handler fired and a
+    PreToolUse hook that never returns stalls every tool call in the session (measured: exit 124
+    under `timeout 5`, where the pre-D-306 hook exited 0) — and `splitlines()` breaks on
+    VT/FF/FS/GS/RS/NEL/U+2028, none of which any writer treats as a line end, so a control byte
+    in the promise shifted line 2 and a `walled` stamp was ALLOWED through as `urgent-90`."""
+    import os as _os
+
+    s = tmp_path / "fleet-exhausted"
+    for sep in ("\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", " ", " "):
+        s.write_text(f"0{sep}urgent-90\nwalled\n")
+        assert hook._stamp_tier(s) == "walled", f"{sep!r} in line 1 must not shift the tier"
+    fifo_dir = tmp_path / "fifo"
+    fifo_dir.mkdir()
+    _os.mkfifo(fifo_dir / "fleet-exhausted")
+    assert hook._stamp_tier(fifo_dir / "fleet-exhausted") == "walled", "a FIFO must not hang"
+    d = tmp_path / "asdir"
+    (d / "fleet-exhausted").mkdir(parents=True)
+    assert hook._stamp_tier(d / "fleet-exhausted") == "walled"
+
+
+def test_the_nudge_does_not_claim_nothing_is_held(tmp_path):
+    """The sibling hook `quota_posture_hook.py` DENIES `Agent` at the very state this tier
+    describes (band RED, no successor — which is `urgent-90`'s own precondition). Three review
+    seats and the author's own probe caught the same sentence: telling an agent "nothing is held"
+    there is false, and it is false in the direction that wastes a turn on a denied dispatch."""
+    msg = hook._nudge()
+    assert "Nothing is held yet" not in msg, msg
+    assert "fleet-wide hold" in msg.lower(), "say WHICH hold has not armed"
+    assert "may still hold" in msg.lower(), "and say that the band can still hold new work"
+    assert "checkpoint" in msg.lower(), "the actionable half must survive the correction"

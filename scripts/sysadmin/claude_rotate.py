@@ -4303,7 +4303,7 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
 # probe; each treats an absent, unreadable or stale file as ABSENT and fails OPEN — the same posture
 # ``quota_stop.py`` takes for the fleet-exhausted stamp. The band has NO cap clause: a cap reached
 # trips the flip leg, and with no successor the wall predicate counts the account as walled and the
-# advisory stamps — the posture reads WALL one tick later; the forecast already says ``wall in ~0m``.
+# advisory stamps — the posture reads WALL one tick later, and only at the `walled` TIER (D-306); the forecast already says ``wall in ~0m``.
 # ``_tick_burn`` (the flip leg's single-tick projection) and this smoothed burn answer two different
 # questions and neither reads the other. No statistics live here — the ledger is the source.
 _POSTURE_SCHEMA = 1
@@ -5042,7 +5042,8 @@ def _print_picture(pic: dict) -> None:
     print(
         "picture: hold "
         + (
-            f"HELD since {_fmt_when(hold.get('since'))}, resume promised "
+            f"{'HELD' if _hold_is_wall(hold) else 'WARNING (urgent-90 — nothing is held)'} since "
+            f"{_fmt_when(hold.get('since'))}, resume promised "
             + (_fmt_when(hold["resume_promised"]) if hold.get("resume_promised") else "none named")
             if hold
             else "none"
@@ -5146,7 +5147,8 @@ def _fleet_exhaustion_stamp() -> Path:
 # `_fleet_active_wall_advisory` writes it on `walled OR urgent`: `walled` is the real wall (a
 # window at/over `ROTATE_THRESHOLD`, its `caps.json` cap, or 100 — `_flip_churn_excluded`), while
 # `urgent` is the SESSION window at `_urgent_drain_pct()` = 90 with no VALIDATED successor, which
-# is up to ten points earlier and exists precisely to give a graceful stop its runway (D-111).
+# is EIGHT points earlier on the default `ROTATE_THRESHOLD` of 98 (fewer when a `caps.json` cap
+# binds first) and exists precisely to give a graceful stop its runway (D-111).
 # `quota_stop.py` read only `.exists()`, so the warning armed the same fleet-wide default-deny as
 # the wall — in-flight seats killed with headroom still on the clock, which is the premature stop
 # the operator's "utilize quotas utmost" directive forbids (D-299). The tier the ledger row has
@@ -5170,11 +5172,60 @@ def _stamp_tier(stamp: Path) -> str:
     know. Downgrading a real wall to a nudge costs the fleet its only hard stop, so the unknown
     case is never the lenient one."""
     try:
-        lines = stamp.read_text(encoding="utf-8", errors="replace").splitlines()
+        # `is_file()` BEFORE the read: a FIFO at this path blocks forever, and a hang is not an
+        # OSError, so the handler below never fires and every tool call in the session stalls.
+        # `.split("\n")`, never `.splitlines()` — the latter also breaks on VT/FF/FS/GS/RS/NEL/
+        # U+2028/U+2029, none of which any writer treats as a line end, so a control byte in the
+        # PROMISE shifted line 2 and a `walled` stamp read as `urgent-90`: lenient, the one
+        # direction this reader must never be.
+        if stamp.is_symlink() or not stamp.is_file():
+            return _STAMP_TIER_WALLED
+        lines = stamp.read_text(encoding="utf-8", errors="replace").split("\n")
     except OSError:
         return _STAMP_TIER_WALLED
     tier = lines[1].strip() if len(lines) > 1 else ""
     return tier if tier in _STAMP_TIERS else _STAMP_TIER_WALLED
+
+
+def _upgrade_stamp_tier_to_walled(stamp: Path) -> None:
+    """Raise a standing `urgent-90` stamp to `walled` IN PLACE, keeping line 1 and the mtime.
+
+    ⚠️ WITHOUT THIS THE TIER IS FROZEN AT THE EPISODE'S FIRST TICK, WHICH IS ALWAYS THE SOFTER
+    EVENT. The message latch returns before the only stamp write (see the `if latched` arm in
+    :func:`_fleet_active_wall_advisory`), so an episode that OPENS at the 90-line and later
+    reaches the real wall kept saying `urgent-90` — and since D-306 made that field load-bearing,
+    `quota_stop.py` held NOTHING at a 100% wall for the rest of the episode: up to the promised
+    resume, or a full `_FLEET_WALL_REARM_S` week when no relief epoch could be named (measured by
+    two independent review seats at 167 h). That is the SAME class the latch's own comment
+    records from Delta 10 seat B F1 — there the stamp was absent, here it is present and lying.
+
+    ONE-WAY on purpose: walled never decays back to urgent-90 inside an episode. A wall that
+    relieves clears the stamp entirely, which is the only sanctioned way down.
+
+    Line 1 is carried as RAW TEXT, never through `_promised_resume` — that reader answers None
+    for "0" and for a promise already past, so round-tripping through it would erase a live
+    promise the episode still owns. The mtime is restored because BOTH latches count the episode
+    from it: a fresh mtime would restart the week re-arm and silently extend the hold.
+
+    Never raises — the tick must not die on a cache file; a failure is said on stderr, because a
+    tier that could not be raised means `quota_stop.py` is not holding at a real wall.
+    """
+    try:
+        if not stamp.is_file() or stamp.is_symlink():
+            return
+        raw = stamp.read_text(encoding="utf-8", errors="replace")
+        if _stamp_tier(stamp) == _STAMP_TIER_WALLED:
+            return
+        mt = stamp.stat().st_mtime
+        first = raw.split("\n", 1)[0].strip()
+        stamp.write_text(_stamp_body(first, _STAMP_TIER_WALLED), encoding="utf-8")
+        os.utime(stamp, (mt, mt))
+        print("tick: fleet-exhausted stamp tier RAISED urgent-90 -> walled (same episode)")
+    except (OSError, OverflowError, ValueError) as exc:
+        sys.stderr.write(
+            f"claude_rotate: fleet-exhausted stamp tier NOT raised ({stamp}): {exc} — "
+            "quota_stop.py is not holding at a real wall\n"
+        )
 
 
 def _hold_is_wall(hold: dict | None) -> bool:
@@ -6236,7 +6287,15 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
     # the tier rides back too: re-arming a WARNING as a full hold would reintroduce, from the
     # repair path, exactly the premature stop D-306 removes. Unknown → walled, as everywhere.
     row_tier = row.get("tier")
-    content = _stamp_body(content, row_tier if row_tier in _STAMP_TIERS else _STAMP_TIER_WALLED)
+    # ⚠️ `isinstance` FIRST: `_STAMP_TIERS` is a frozenset, so a bare `in` HASHES the operand and
+    # a JSON list/dict in this field raised TypeError out of a function whose docstring promises
+    # it never raises — taking every statement after the advisory down with it on every tick.
+    # `_open_wall_rows` validates `ts` and `account`, never `tier`. Same class as the guard eight
+    # lines up in that reader (Delta 12 A #7), reintroduced by a new field.
+    content = _stamp_body(
+        content,
+        row_tier if isinstance(row_tier, str) and row_tier in _STAMP_TIERS else _STAMP_TIER_WALLED,
+    )
     # built beside the stamp, moved in by one replace: nothing here ever writes to, or removes,
     # a stamp that already exists (Delta 19 A F1 · Delta 20 C #2 — see the docstring)
     tmp: Path | None = None
@@ -6394,6 +6453,12 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         # so a marker still present is not rewritten; what the watch does with it is its own).
         if not stamp.exists():
             _rearm_wall_stamp(stamp, str(row["email"]), now)
+        # ⚠️ The MESSAGE is latched; the TIER is not (D-306). An episode opens at whichever arm
+        # fired first, and `urgent` fires up to eight points before `walled` — so without this
+        # the stamp says `urgent-90` for the whole episode and `quota_stop.py` holds nothing once
+        # the account actually walls. One-way: never the reverse.
+        if walled:
+            _upgrade_stamp_tier_to_walled(stamp)
         return  # already advised for this wall episode — one fact, one message
     hot = max(
         (
@@ -6424,7 +6489,8 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         os.utime(stamp, (now, now))
     except OSError as exc:
         # The ledger latch above still bounds the repeat; but a stamp that cannot be written also
-        # means `quota_stop.py` sees no WALL — say so on the tick that broadcasts, rather than fail
+        # means `quota_stop.py` sees no hold at all — and at the `walled` tier that is the fleet's
+        # only hard stop — so say so on the tick that broadcasts, rather than fail
         # silently. (Once per episode while a latch is armed; with the stamp unwritable AND the
         # ledger unreadable both latches are down and this prints every tick — correctly, since the
         # broadcast repeats too.)
