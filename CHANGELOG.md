@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the quota hold stopped killing work that still had quota to finish (2026-09-19)
+
+- The `fleet-exhausted` stamp is written on TWO different events and said which on neither.
+  `_fleet_active_wall_advisory` arms it when the active account is `walled` (a window at/over
+  `ROTATE_THRESHOLD`, its `caps.json` cap, or 100) **or** when its SESSION window reaches
+  `ROTATE_URGENT_DRAIN_PCT` (90) with no validated successor — up to ten points earlier, and
+  deliberately so: that runway is what a graceful stop needs (D-111). `quota_stop.py` read only
+  `.exists()`, so the WARNING armed the same fleet-wide default-deny as the wall and killed
+  in-flight subagents with quota still on the clock. Measured 2026-09-18 in an isolated
+  `ROTATE_STATE_DIR`: a probe seat's heartbeat stopped at call 1 of 6 the instant the stamp
+  appeared, and seven minutes later calls 2–6 had never landed.
+- The stamp now carries the tier the ledger row has always recorded: line 1 stays the resume
+  promise `_promised_resume` reads, line 2 names `walled` or `urgent-90`. `quota_stop.py`
+  default-denies at `walled` only; at `urgent-90` it denies nothing and writes one CHECKPOINT
+  nudge. `quota_posture_hook.py` puts the same nudge on the prompt line — the turn boundary is
+  the last moment an agent can checkpoint by choice instead of being denied mid-edit — and keeps
+  enforcing its own band at that tier, since nothing else is. The WALL band follows the same
+  tier, so the contracts' "every world-changing tool is held" stays true of the state it names.
+- Fails CLOSED on every unknown: a pre-tier stamp (one numeric line), an unreadable one, or a
+  tier this version does not know all read as `walled`. Three copies of the reader — the tick
+  that writes it, the synced hook that holds on it, the box-local hook that announces it — are
+  graded three-way against the same bytes. Rotation's own constants and the flip policy are
+  untouched. D-306.
+
 ### Fixed — mail-driven: a crashing usage path in the scaffold parity stub, and wrappers that hid the read-before-record ordering (2026-09-19)
 
 - `templates/scaffold/scripts/verify_prod_parity.py::_parse` raised `IndexError` on a value flag
