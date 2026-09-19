@@ -315,6 +315,15 @@ _SHARED_SPANS = (
     # and extending the wording past that period silently unanchors it (measured — the first cut of
     # this change did exactly that and `_shared_spans` reported the span MISSING, not drifted).
     r"THAT LAST ONE IS THE SINGLE PLACE A BAND IS NOT THE FLEET'S.*?never a wait \(D-295\)\.",
+    # D-306: the stamp's two tiers are a BEHAVIOUR claim — only `walled` holds — so the sentences
+    # that say so are graded three-way like every other shared QUOTA span. Pinned as its OWN span
+    # with fresh endpoints, never by widening a neighbour: the span above ends on
+    # `never a wait (D-295).`, and rewording past that period unanchors it, which the grader
+    # reports as MISSING (a deleted sentence) rather than as drift. Measured 2026-09-18 on the
+    # D-295 carve-out; the memory note `extending-a-sentence-unanchors-its-pinned-span` carries it.
+    # ⚠️ fabrik-lib carried the PRE-D-306 wording for a day after the hub moved — exactly the drift
+    # this file exists to catch, and nothing caught it because the paragraph was unpinned.
+    r"⚠️ THE STAMP HAS TWO TIERS AND ONLY THAT ONE HOLDS \(D-306\)\..*?only the wall is a wall\.",
 )
 
 
