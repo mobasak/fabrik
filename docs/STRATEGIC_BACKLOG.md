@@ -3989,6 +3989,53 @@ brief that dispatched the round which found it. What the stop left, with destina
    Phase 3 + the scoped twin"** and lists both command sources. Pre-existing base text that now sits
    inside an edited hunk. **Destination:** infra — a scoped fix, not this diff (D-230: one hop out).
 
+## The residue-rewrite trigger is round-shaped where the defect is site-shaped (routed 2026-09-19, with the two drafts that failed)
+
+`/fabrik-command-improve fabrik-review` produced no corpus edit: two drafts of one clause were
+written and BOTH withdrawn, which is the disposition `term-coverage.md` rule (3) itself prescribes
+for a site that yields in two consecutive rounds. The subject is real and measured; what follows is
+everything the two review rounds established, so the next attempt starts from it rather than from
+the verdict rows.
+
+**THE GAP.** Rule (3) forces a rewrite "when two consecutive DELTA rounds confirm ONLY defects
+inside the previous round's hunks". Two quantifiers make it narrow: `only` disarms the whole round
+if one defect sits on the original surface, and `delta` excludes round 1 (line 12: "Round 1 is the
+ONLY full pass (D-207)"). A single SITE can therefore yield in consecutive rounds and never trigger
+it. Measured on `37d849ffa`: rounds 2-3 read 7/5 then 10/9 — two and one defects respectively on
+the original surface, so `only` fails for both while one clause kept yielding. (⚠️ The first draft
+cited rounds 1-2 for this and was WRONG: round 1 is not a delta round, so the trigger was
+inapplicable there, not silenced. Use the 2-3 pair.)
+
+**WHY BOTH DRAFTS FAILED — what the next attempt must not repeat.** Draft one (934 B, a standalone
+span on line 36) restated rule (3) five lines above it, landed in the fragment that does NOT govern
+the loop whose evidence it cited, and asserted a premise ("a round can sit under the ratio while a
+site keeps yielding") exhibited by none of the four delta rounds it named — all four were at or
+above the bar. Draft two (709 B, inside rule (3)) was correctly placed but: dropped `delta` and so
+armed rule (3)'s rewrite mandate, for the first time, in the three consumers that run no delta
+rounds (`fabrik-user-test`, `fabrik-service-test`, `fabrik-conformance-review`), where "rewrite the
+affected paragraph or function" has no referent and the mandated `own-fix` sibling counter is never
+stated; left the third yield with no exit, because rule (3)'s `## BLOCKED` escalation is gated on
+the ABSENCE of a rewrite and a compliant author rewrites every time; and keyed on CONFIRMED, which
+line 36 turns off after the scope-growth stop (`RECORDED — measured`), so it was dead in the phase
+it exists to govern.
+
+**REFUTED, do not carry it forward.** A reviewer reported that citing `site: <id> — round k` or
+`own-fix: round k` in a Pass row's COUNTER cell nulls the counter run and flips a row reading
+`unexecuted: 3` to quiet. Re-executed here against a copy of `check_review_coverage.py`
+(md5 `f131cee66019fcf1cff251a61c917312`) across five row shapes including the reporter's own
+control: every one read `ext=(0, 0, 0, 3)` with `quiet=False`. The fail-open does not reproduce.
+
+**FIX SHAPE for the next attempt.** Keep `delta` (parity with the trigger it extends). Key on
+confirmed OR recorded, or say the rule stands down at the scope-growth stop. Give the third yield
+an exit that does not depend on a rewrite being absent. Put the citation in the METHOD cell, as
+rule (3)'s two sibling appendages already do. And note the mechanism is hand-maintained in THREE
+fragments — `term-coverage.md` (5 consumers), `term-edit.md` (17), `scope-growth-exit.md` (1, the
+copy `/fabrik-review-scoped` renders) — so a correct change touches all three; `scope-growth-exit.md`
+claims "Maintained once … every copy is a render of it", which is false of the other two, and
+`tests/enforcement/test_review_exit_contract.py` grades their parity against a HARDCODED phrase
+tuple, so a rule added to one fragment is invisible to the check that exists to catch exactly that.
+**Destination:** infra, as one change with its own D-row.
+
 ## § Completion Contract 1a's `>5 files` and the lane table's `>3` are two numbers in one contract (routed from T04a)
 
 § 1a's `>5` is REVIEW sizing (how heavy a pass does work already in flight owe?); the lane table's
