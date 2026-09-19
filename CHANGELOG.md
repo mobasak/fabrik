@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the escalation digest now reaches the repo that OWNS the obligation (2026-09-20)
+
+- `mail_escalate.py` had one destination: the hub mailbox addressed to `infra`. Measured on the
+  live store, ZERO of its 83 rows were obligations on the hub — so the reader bound by the
+  handle-now law could discharge none of them, and the `wontfix` escape the digest offered would
+  have closed 83 obligations the owning repos had never seen. New owner leg sends each repo its
+  own rows with the ack command it can run from inside that repo. Operator ruling: "each agent
+  should take care of its own mails." D-310.
+- Bounded three ways, all stated beside the mechanism: `--ack no` (an `ack: required` escalation
+  is counted by the next run, so it would feed itself across forty mailboxes), one message per
+  repo per day (the cron runs every 6 h), and the hub digest still reporting the fleet total so an
+  ignored fan-out shows up as a count that does not fall. `fabrik` is skipped — infra's digest
+  already carries the hub's rows.
+- ⚠️ `main`'s early exit short-circuits on the operator+agent stamps, which fire on the day's
+  first run; without `_owners_done` in that condition the leg would never run on almost any day.
+  That wiring carries its own grader, proven red on revert — five graders total, all watched red
+  first. First run measured before firing: 44 messages to 44 mailboxes, covering 84 of 84.
+
 ### Changed — the escalation digest says what its count IS (2026-09-20)
 
 - `mail_escalate.py`'s digest reported `83 row(s)` and nothing about their shape. Measured on the
