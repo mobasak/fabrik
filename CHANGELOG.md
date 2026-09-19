@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the Secrets gate leg survives what git hands it, and stops failing silently clean (2026-09-19)
+
+- `scripts/enforcement/check_secrets.py` crashed the whole "Secrets (Zero Hardcoding)" leg with
+  `UnicodeDecodeError` whenever a changed tracked file was not valid UTF-8 but git classified it
+  as TEXT (no NUL in its first 8000 bytes) — an uncompressed PDF, an .ico, a font, latin-1 prose.
+  Reported by web-ecommerce-factory (01M2X0ZQX8YMZX022R9TC1E3M6), whose own repo holds 62 such
+  files. Their proposed suffix pre-filter was refused on measurement: it rescues 1 of 4 crashing
+  classes, tolerant decoding covers 4 of 4. D-308.
+- Reviewing it found five more in the same two functions, all executed: a path containing a
+  non-ASCII byte, `"` or `\` came back QUOTED on git's DEFAULT config, so the file was skipped and
+  a secret in it went UNREPORTED with no error; the same path crashed under `core.quotePath=false`;
+  a binary-diffed file produced an empty scope, which meant "allow nothing" and silenced every
+  finding in it (one `.gitattributes` line disabled the gate for an extension); a changed content
+  line could manufacture a hunk header and reach MemoryError; and an overlong path reached
+  `OSError(ENAMETOOLONG)` through the private-index recipe the contract itself mandates.
+- Three of the review's own cuts were rejected by execution before shipping: a truncating scope
+  clamp silently dropped a credential the previous release reported, widening the fail-open arms
+  made an unusable git read as a clean scan, and printing a surrogate path raised
+  `UnicodeEncodeError` — destroying every buffered finding, not just that line.
+- 14 new graders, 15 mutants killed; the suite is run with and without pytest capture, because a
+  grader that called `main()` in-process passed while the shipped code crashed under a real pipe.
+  The other 35 enforcement scripts carry 85 of 88 unguarded `text=True` call sites; surveyed,
+  classified and routed in `docs/STRATEGIC_BACKLOG.md`, not fixed here.
+
 ### Fixed — `.serena/` is ignored fleet-wide, and the ignore-only skip now refuses both ways it used to fail (2026-09-19)
 
 - The generated "Fabrik-synced" `.gitignore` block gains `.serena/` (serena's per-machine project

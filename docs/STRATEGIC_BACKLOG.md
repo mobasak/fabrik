@@ -4507,3 +4507,59 @@ operator authorisation. None is "reported, not mine": each names where it goes.
   that paragraph. Pinning them is blocked on the cross-repo edit to `/opt/fabrik-lib/CLAUDE.md`,
   which needs the operator's explicit approval; pin them in that same change, as a NEW span with
   fresh anchors — never by extending an existing one, which reads as MISSING rather than drifted.
+
+## `subprocess.run(text=True)` with no `errors=` — 85 of 88 call sites in `scripts/enforcement/` carry the crash just fixed in one of them (wef3 01M2X0ZQX8YMZX022R9TC1E3M6, routed 2026-09-19)
+
+The reported bug was one strict-UTF-8 decode in `check_secrets.py` killing the whole "Secrets
+(Zero Hardcoding)" gate leg. It was fixed there and the class was surveyed. The survey is the
+reason this row exists: the same shape is everywhere in the same directory.
+
+**Measured by an AST walk** (`ast.parse` + `ast.walk` over `Call` nodes whose func is `run` with a
+`text=True`/`universal_newlines=True` keyword — NOT grep, which produced two false positives by
+matching `errors=` inside a comment and an unrelated local named `errors`). Population: **78**
+`.py` files directly under `scripts/enforcement/`, **88** `subprocess.run(text=True)` call sites.
+**3** carry a per-call `errors=`/`encoding=` and all three are the lines this change just touched;
+**85 across 35 files** do not. ⚠️ An earlier seat reported "36 files" — that was the count of files
+CONTAINING such a call, reported as the directory total; and an earlier estimate of "4 exposed"
+was a file-count subtraction rather than a set difference. Both are recorded here because the
+wrong denominators nearly sized this as a four-file cleanup.
+
+**Classification of the 85 unguarded sites, by reading each call's git subcommand:**
+**17 REACHABLE** — decode file CONTENT or a commit MESSAGE, the same crash class: `check_changelog`
+`:173`, `check_compose_services` `:45`, `check_convergence` `:768`, `check_doc_sync` `:153,:222,
+:258,:488`, `check_env_example` `:65`, `check_lint_ratchet` `:229`, `check_openapi_sync` `:59,:80`,
+`check_plan_tickets` `:1063` (`%B`), `check_print_ban` `:66`, `check_schema_sync` `:85`,
+`check_subagent_flywheel` `:107/:230` (`%B`), `check_test_coverage` `:55,:76` — 12 distinct files.
+**51 PATH-ONLY** across 31 files — filenames only, which is the SECOND crash this change closed (a
+non-ASCII path under `core.quotePath=false`), so not safe, just differently triggered; note
+`check_structure:157` and `check_doc_sprawl:395` FORCE `-c core.quotePath=false`, i.e. they
+guarantee raw bytes rather than depending on config. **12 METADATA** (rev-parse, version strings)
+and **5 NEEDS-A-PROBE** (jscpd, ruff JSON, mutmut, a `review_rubric.py` subprocess).
+
+**Firing today, or latent?** Scanned all 45 `/opt` git repos, 102,145 tracked files. The
+file-content trigger EXISTS: **63 files in 2 of 45 repos** are non-UTF-8 while git classifies them
+as text — `/opt/iterative_image_editor` (1) and `/opt/web-ecommerce-factory` (62, the reporter's
+own PDFs, one committed the day before the report). The commit-message trigger does NOT: **0 of
+~27,000 commits** across 45 repos fail to decode. Nor does the path trigger: **0 of 45** repos hold
+a path that is invalid UTF-8 (two have non-ASCII paths; both are valid UTF-8). ⚠️ The seat's own
+first pass reported 184 content files and was WRONG — it truncated each blob to 8000 bytes before
+decoding, slicing multi-byte characters, and cleared to 63 on a full-content re-run; the 8000-byte
+window belongs to git's binary heuristic, not to a decode test. Whether any of the 12 REACHABLE
+scripts' own extension filters currently let such a file reach their vulnerable line was NOT
+established — most filter to `.py`/`.ts` first — so treat this as latent-fleet-wide with a live
+trigger population, not as a firing incident.
+
+**The cheapest correct fix, and it is not 85 edits.** `check_script_headers.py:206` already has the
+right pattern and a comment explaining it: capture BYTES, decode stderr `"replace"` for messages
+and stdout `"surrogateescape"` for paths, never `text=True`. Two other files (`check_doc_sync.py:70`,
+`check_subagent_flywheel.py:104`) define their own `_git` helper. Generalise that one helper into a
+shared enforcement util and migrate the call sites to it — mechanical, one line each, and it
+collapses three duplicated helpers. Ship a lint rule refusing a new `subprocess.run(text=True)`
+without `errors=` IN THE SAME CHANGE as the D-253 cobra guard, or the class regrows at the next
+new script. ⚠️ One site parses rather than scans: `check_lint_ratchet.py:229` feeds `git show`
+output to `json.loads`, so a replacement character could corrupt a value silently — its wrapping
+`except (OSError, ValueError)` falls back to the working-tree copy, which is what makes `replace`
+safe there; that reasoning belongs in a comment, not in a copy-paste.
+
+**Destination:** infra. `scripts/enforcement/` is a governance-sync path, so the migration is
+rule-1 work with its own full review and a forced sync.
