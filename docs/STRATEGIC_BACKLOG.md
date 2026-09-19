@@ -4587,3 +4587,28 @@ a repo is not re-escalated every six hours.
 
 Owner: infra (fabrik-mail is its beat). Destination: a `/fabrik-task` or spec-chain change to
 `mail_escalate.py`, gated on the operator approving the fan-out.
+
+## [intel/infra] `rule_activation` reads ~2% on its two largest samples, and nobody can say whether that is behaviour or instrument (2026-09-20)
+
+From the 2026-09-18 kaizen collection, adjudicated against `~/.claude/state/kaizen/series/rule_activation@v3.jsonl`
+rather than the day's number alone. The series: `.50 (1/2) · .12 (3/25) · .25 (2/8) · .29 (2/7) ·
+.047 (2/43) · .024 (1/42)`. Every reading above 10% came from a denominator of 25 or fewer; the
+two LARGEST samples (n=43, n=42) give 4.7% and 2.4%. The metric did not fall — it finally has
+enough rows to be believed, and what it says is that almost no run-closing session emits a
+`rule_activation` event.
+
+⚠️ AMBIGUOUS BETWEEN TWO OPPOSITE FIXES, which is why this is routed rather than acted on: either
+sessions genuinely do not activate rules at invocation time (a behaviour gap, and the remedy is in
+the corpus), or the event is not emitted where the metric looks for it (an instrument gap, and the
+remedy is in the emitter). Deciding needs the emitter driven, not the number read again.
+
+Owner: whoever owns the kaizen instrument (intel by the subagents/flywheel charter, infra by the
+hooks). Destination: drive the `rule_activation` emitter over a session known to activate a rule,
+and see whether the event lands.
+
+SECOND, cheaper item from the same read: the digest prints one day's value with no history, so an
+agent cannot distinguish a moved METRIC from a moved POPULATION — `rules_compliance` fell 98% → 82%
+across a denominator collapse from 466 to 66, which is not a comparable decline, and
+`premature_stop_rate` at 61% reads as a rise while actually being the lowest of five readings.
+Printing the previous two readings WITH their denominators beside each metric would fix it. Filed
+against `scripts/sysadmin/kaizen_digest.py` / the collection's mail body.
