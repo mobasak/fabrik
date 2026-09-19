@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Enforcement git-decoder spec converged 39 defects, recorded 10, stays DRAFT (2026-09-20)
+
+- `/fabrik-spec-review` ran four adversarial rounds over
+  `docs/superpowers/specs/2026-09-19-enforcement-git-decoder-design.md`, three of them carrying a
+  fresh non-authoring seat. **39 confirmed defects fixed.** The classification that drives the whole
+  migration summed to 92 in its sum line and 99 in its own table against a population of 85; it now
+  sums to 85 and every one of the 85 sites is in exactly one stage, including a new Stage 2b for the
+  13 MIXED RECORD sites, which previously had no stage at all.
+- Three rulings the build depends on, each executed rather than reasoned: `GitUnavailableError`
+  SUBCLASSES `OSError` (the precedent at `check_script_headers.py:77` declares it a plain
+  `Exception`, which would convert 27 currently fail-open gates into tracebacks across 47 repos);
+  `-z` is inserted BEFORE the first `--` rather than appended, because after `--` git reads it as a
+  pathspec and returns newline-separated output at rc 0; and Stage 0's acceptance is 47 reachable
+  on-disk copies, not 50 — `/opt/fabrik-lib` is in the sync's `exclude_folders` and its two linked
+  worktrees are skipped, so a build waiting for 50 waits forever.
+- The cobra allowlist stopped being a number. It had been stated as 4 files, then 17 calls in 12
+  files, and both were wrong; § Cobra now carries the derivation and the builder runs it.
+- **Status stays DRAFT.** The scope-growth stop (D-278) fired at 2 of the last 3 rounds
+  (confirmed/own-fix `13/4 → 12/12 → 10/9`): rounds 3 and 4 were almost entirely defects inside text
+  the review itself had just added. The 10 remaining confirmed defects are recorded in the spec's own
+  new **OPEN DEFECTS** section with their executed evidence, so the next pass inherits them instead
+  of rediscovering them, and the spec does not flip on fixes no fresh seat has seen.
+
 ### Fixed — D-306 landed in the third contract, and the paragraph is now graded (2026-09-20)
 
 - `/opt/fabrik-lib/CLAUDE.md` is sync-excluded and hand-maintained, so it had carried the
