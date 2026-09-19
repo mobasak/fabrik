@@ -7623,6 +7623,7 @@ def test_the_tier_reader_does_not_hang_or_shift_on_a_hostile_stamp(tmp_path):
     fifo_dir = tmp_path / "fifo"
     fifo_dir.mkdir()
     _os.mkfifo(fifo_dir / "fleet-exhausted")
+    assert (fifo_dir / "fleet-exhausted").is_fifo(), "the fixture must really be a FIFO"
     probe = tmp_path / "probe.py"
     probe.write_text(
         "import importlib.util, sys\n"
@@ -7642,6 +7643,17 @@ def test_the_tier_reader_does_not_hang_or_shift_on_a_hostile_stamp(tmp_path):
             "the FIFO guard is gone — the reader BLOCKED, it did not fail"
         ) from None
     assert r.stdout.strip() == "walled", r.stdout + r.stderr
+    # positive control: without it, `== "walled"` is satisfied by ANY non-regular path — a
+    # one-character typo in the fixture name passed this grader with the guard removed
+    reg = fifo_dir / "regular"
+    reg.write_text("0\nurgent-90\n")
+    r2 = _sp.run(
+        [_sys.executable, str(probe), str(_cr_path), str(reg)],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert r2.stdout.strip() == "urgent-90", f"the probe reads nothing at all: {r2.stdout!r}"
 
 
 def test_status_does_not_call_a_nudge_a_hold(tmp_path, monkeypatch, capsys):
@@ -7656,10 +7668,187 @@ def test_status_does_not_call_a_nudge_a_hold(tmp_path, monkeypatch, capsys):
     }
     cr._print_picture(base)
     warn = capsys.readouterr().out
-    assert "WARNING" in warn and "hold has NOT armed" in warn, warn
+    assert "WARNING" in warn, warn
+    assert "not armed" in warn.lower(), f"say what is NOT armed: {warn}"
     assert "nothing is held" not in warn.lower(), (
         f"--status must not claim nothing is held: the band may be denying new work: {warn}"
     )
     cr._print_picture({**base, "hold": {**base["hold"], "tier": "walled"}})
     held = capsys.readouterr().out
     assert "HELD" in held and "WARNING" not in held, held
+
+
+def test_the_tier_raise_never_harms_the_live_stamp_and_leaves_no_litter(
+    tmp_path, monkeypatch, capsys
+):
+    """⚠️ THE ATOMIC RAISE HAD NO RED. A review seat reverted the whole build-beside-move-in block
+    to the in-place `write_text` it replaced and 431 of 431 graders still passed: the only grader
+    on that path asserted the SUCCESS case and nothing else. This one drives the failure arms.
+
+    Two invariants, on every arm: the live stamp is byte-identical AND mtime-identical, and the
+    state dir holds nothing but the stamp. The second is not decoration — `pending` used to be
+    armed AFTER `write_text`, so a mid-write ENOSPC left a truncated temp nothing could remove,
+    once per tick, forever, on exactly the full disk that caused it.
+    """
+    state = tmp_path / "state"
+    state.mkdir(parents=True)
+    stamp = state / "fleet-exhausted"
+
+    def _snapshot():
+        return stamp.read_bytes(), stamp.stat().st_mtime_ns
+
+    # (1) the replace fails: a read-only parent directory
+    stamp.write_text(cr._stamp_body("1700000000", "urgent-90"))
+    os.utime(stamp, (1700000000, 1700000000))
+    before = _snapshot()
+    state.chmod(0o555)
+    try:
+        cr._upgrade_stamp_tier_to_walled(stamp)
+    finally:
+        state.chmod(0o755)
+    assert _snapshot() == before, "a failed raise must leave the live stamp byte- and mtime-exact"
+    assert sorted(p.name for p in state.iterdir()) == ["fleet-exhausted"], (
+        f"a failed raise must leave no litter: {sorted(p.name for p in state.iterdir())}"
+    )
+
+    # (2) the write fails MID-FLIGHT — the arm whose temp the old flag could not see.
+    # ⚠️ The stub must LAND the truncated temp before raising. A real ENOSPC creates the file,
+    # writes part of it and then fails; a stub that raises without touching the disk leaves
+    # nothing to find, and the litter assertion below grades air. Measured by the closing seat:
+    # under the naive stub, reverting `pending` to its post-write arming passed.
+    real_write = Path.write_text
+
+    def _boom(self, *a, **k):
+        if self.name.endswith(".raise"):
+            real_write(self, "170000", encoding="utf-8")  # truncated, as ENOSPC leaves it
+            raise OSError(28, "No space left on device")
+        return real_write(self, *a, **k)
+
+    monkeypatch.setattr(Path, "write_text", _boom)
+    cr._upgrade_stamp_tier_to_walled(stamp)
+    monkeypatch.undo()
+    assert _snapshot() == before, "a mid-write failure must not touch the live stamp"
+    assert sorted(p.name for p in state.iterdir()) == ["fleet-exhausted"], (
+        f"a mid-write failure must leave no orphan temp: {sorted(p.name for p in state.iterdir())}"
+    )
+
+    # (2b) and when the cleanup of that temp ALSO fails, it is SAID, never swallowed
+    def _boom2(self, *a, **k):
+        if self.name.endswith(".raise"):
+            real_write(self, "170000", encoding="utf-8")
+            raise OSError(28, "No space left on device")
+        return real_write(self, *a, **k)
+
+    monkeypatch.setattr(Path, "write_text", _boom2)
+    monkeypatch.setattr(
+        Path,
+        "unlink",
+        lambda self, **k: (_ for _ in ()).throw(OSError(13, "Permission denied")),
+    )
+    cr._upgrade_stamp_tier_to_walled(stamp)
+    monkeypatch.undo()
+    err = capsys.readouterr().err
+    assert "tier-raise temp NOT removed" in err, (
+        f"a cleanup that fails must be said, not swallowed: {err!r}"
+    )
+    for leftover in state.glob("*.raise"):
+        leftover.unlink()
+
+    # (3) the success path still works, and still preserves line 1 and the mtime
+    cr._upgrade_stamp_tier_to_walled(stamp)
+    assert cr._stamp_tier(stamp) == "walled"
+    assert stamp.read_text().split("\n")[0] == "1700000000"
+    assert stamp.stat().st_mtime_ns == before[1], "the mtime is the episode's start"
+    assert sorted(p.name for p in state.iterdir()) == ["fleet-exhausted"]
+
+
+def test_the_raise_success_line_cannot_turn_a_done_raise_into_a_failure_message(tmp_path, capsys):
+    """The success `print` sat INSIDE the try. `print` raises on a closed or broken stdout, both
+    `OSError` subclasses and both in the caught tuple — so a COMPLETED raise reported "the stamp
+    is unchanged" while the fleet-wide hold was live. It now sits outside, after the `return`."""
+    import contextlib
+    import io
+
+    state = tmp_path / "state"
+    state.mkdir(parents=True)
+    stamp = state / "fleet-exhausted"
+    stamp.write_text(cr._stamp_body("1700000000", "urgent-90"))
+    closed = io.StringIO()
+    closed.close()
+    with contextlib.suppress(ValueError), contextlib.redirect_stdout(closed):
+        cr._upgrade_stamp_tier_to_walled(stamp)
+    assert cr._stamp_tier(stamp) == "walled", "the raise itself must still have happened"
+    err = capsys.readouterr().err
+    assert "NOT raised" not in err, (
+        f"a completed raise must never report failure — the hold IS live: {err!r}"
+    )
+
+
+def test_the_orphan_sweep_covers_the_tier_raise_temps_too(tmp_path, monkeypatch):
+    """`_rearm_wall_stamp`'s hourly sweep globbed `.rearm` only, so the `.raise` temps
+    `_upgrade_stamp_tier_to_walled` leaves on a failed write were removed by NOTHING on this box.
+    Cron gives a new pid every five minutes, so a persistently full disk — the very condition that
+    creates them — accretes one per tick, forever. Reverting the glob passed 433 of 433."""
+    state = tmp_path / "state"
+    state.mkdir(parents=True)
+    monkeypatch.setattr(cr, "_rotate_state_dir", lambda: state)
+    monkeypatch.setattr(
+        cr,
+        "_open_wall_episode",
+        lambda email, now: ({"ts": FLEET_NOW, "account": email, "resume_epoch": None}, True),
+    )
+    stamp = state / "fleet-exhausted"
+    stale_raise = state / "fleet-exhausted.999998.raise"
+    stale_rearm = state / "fleet-exhausted.999997.rearm"
+    fresh_raise = state / "fleet-exhausted.999996.raise"
+    unrelated = state / "fleet-exhausted.999995.other"
+    for f in (stale_raise, stale_rearm, fresh_raise, unrelated):
+        f.write_text("junk")
+    # ⚠️ "fresh" means fresh relative to the FIXTURE clock (`FLEET_NOW`), not the real one — the
+    # sweep's cutoff is `now - 3600`, and FLEET_NOW sits well ahead of wall-clock time, so a file
+    # created just now looks ancient to it. The first cut of this grader got that wrong and its
+    # own assertion caught it.
+    old = FLEET_NOW - 7200.0
+    for f in (stale_raise, stale_rearm):
+        os.utime(f, (old, old))
+    for f in (fresh_raise, unrelated):
+        os.utime(f, (FLEET_NOW, FLEET_NOW))
+
+    cr._rearm_wall_stamp(stamp, "a@x", FLEET_NOW)
+
+    assert not stale_raise.exists(), "a stale .raise orphan must be swept — nothing else sweeps it"
+    assert not stale_rearm.exists(), "and the .rearm half must keep working"
+    assert fresh_raise.exists(), "a FRESH temp may belong to a live run — never swept"
+    assert unrelated.exists(), "the sweep is scoped to its own suffixes"
+    assert stamp.exists(), "and it never touches the stamp itself"
+
+
+def test_the_promise_reader_and_the_tier_reader_agree_on_which_bytes_are_line_one(tmp_path):
+    """`_promised_resume` is the FOURTH reader of the stamp's line 1 and was the last one left on
+    universal newlines + `splitlines()`. A control byte then made it harvest a far-future promise
+    out of bytes `_stamp_tier` reads as a single token — and a bogus future promise suppresses the
+    promise-came-due re-arm until the week timer. Reverting the fix passed 644 graders.
+
+    Both readers must agree about where line 1 ENDS, on every separator neither writer emits.
+    """
+    s = tmp_path / "fleet-exhausted"
+    far = int(FLEET_NOW + 86400)
+    for sep in ("\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029", "\r"):
+        s.write_text(f"{far}{sep}0\nwalled\n", encoding="utf-8", newline="")
+        os.utime(s, (FLEET_NOW, FLEET_NOW))
+        assert cr._stamp_tier(s) == "walled", f"{sep!r}: the tier reader must not shift"
+        assert cr._promised_resume(s) is None, (
+            f"{sep!r}: line 1 is not a number to the tier reader, so it must not be a PROMISE "
+            f"either — got {cr._promised_resume(s)!r}"
+        )
+    # and the shapes both readers DO accept still round-trip
+    s.write_text(cr._stamp_body(str(far), "urgent-90"), encoding="utf-8", newline="")
+    os.utime(s, (FLEET_NOW, FLEET_NOW))
+    assert cr._stamp_tier(s) == "urgent-90"
+    assert cr._promised_resume(s) == float(far)
+    # MIGRATION: a pre-tier stamp is one numeric line and must still read as a promise
+    for body in (str(far), f"{far}\n", f"  {far}  "):
+        s.write_text(body, encoding="utf-8", newline="")
+        os.utime(s, (FLEET_NOW, FLEET_NOW))
+        assert cr._promised_resume(s) == float(far), f"pre-tier {body!r} must still promise"
+        assert cr._stamp_tier(s) == "walled", f"pre-tier {body!r} must still hold"

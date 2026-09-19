@@ -1496,10 +1496,48 @@ def test_the_three_tier_readers_agree_on_the_shapes_that_actually_diverge(tmp_pa
         got = [m._stamp_tier(s) for m in mods]
         assert len(set(got)) == 1, f"readers disagree on {body!r}: {got}"
         assert got[0] == want, f"{body!r}: all three agree on {got[0]!r}, but it must be {want!r}"
+    # ⚠️ SUBPROCESS + TIMEOUT, and a VALUE, not agreement. In-process this grader HUNG under the
+    # guard-removal mutant instead of redding — the very failure the comment above claims to have
+    # closed — and `len(set(...)) == 1` is satisfied by three readers agreeing on the wrong thing.
+    import subprocess as _sp
+    import sys as _sys
+
     fifo_dir = tmp_path / "f"
     fifo_dir.mkdir()
-    _os.mkfifo(fifo_dir / "fleet-exhausted")
-    assert len({m._stamp_tier(fifo_dir / "fleet-exhausted") for m in mods}) == 1
+    fifo = fifo_dir / "fleet-exhausted"
+    _os.mkfifo(fifo)
+    assert fifo.is_fifo(), "the fixture must really be a FIFO or this grades nothing"
+    probe = tmp_path / "probe.py"
+    probe.write_text(
+        "import importlib.util, sys\n"
+        "spec = importlib.util.spec_from_file_location('p', sys.argv[1])\n"
+        "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+        "print(m._stamp_tier(__import__('pathlib').Path(sys.argv[2])))\n"
+    )
+    for m in mods:
+        try:
+            r = _sp.run(
+                [_sys.executable, str(probe), m.__file__, str(fifo)],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+        except _sp.TimeoutExpired:
+            raise AssertionError(
+                f"{m.__name__}: the FIFO guard is gone — the reader BLOCKED, it did not fail"
+            ) from None
+        assert r.stdout.strip() == "walled", f"{m.__name__}: {r.stdout!r} {r.stderr!r}"
+    # positive control: the same probe on a REGULAR stamp must read the real tier, or the
+    # assertion above is satisfied by any path that simply is not a file
+    reg = fifo_dir / "regular"
+    reg.write_text("0\nurgent-90\n")
+    r = _sp.run(
+        [_sys.executable, str(probe), mods[0].__file__, str(reg)],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert r.stdout.strip() == "urgent-90", f"the probe reads nothing at all: {r.stdout!r}"
     d = tmp_path / "d"
     (d / "fleet-exhausted").mkdir(parents=True)
     assert {m._stamp_tier(d / "fleet-exhausted") for m in mods} == {"walled"}

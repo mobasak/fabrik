@@ -5044,7 +5044,7 @@ def _print_picture(pic: dict) -> None:
     print(
         "picture: hold "
         + (
-            f"{'HELD' if _hold_is_wall(hold) else 'WARNING (urgent-90 — the fleet-wide hold has NOT armed)'} since "
+            f"{'HELD' if _hold_is_wall(hold) else 'WARNING (urgent-90 — warning only, the wall-tier hold is not armed)'} since "
             f"{_fmt_when(hold.get('since'))}, resume promised "
             + (_fmt_when(hold["resume_promised"]) if hold.get("resume_promised") else "none named")
             if hold
@@ -5198,7 +5198,7 @@ def _stamp_tier(stamp: Path) -> str:
 
 
 def _upgrade_stamp_tier_to_walled(stamp: Path) -> None:
-    """Raise a standing `urgent-90` stamp to `walled` IN PLACE, keeping line 1 and the mtime.
+    """Raise a standing `urgent-90` stamp to `walled`, keeping line 1 and the mtime byte-exact.
 
     ⚠️ WITHOUT THIS THE TIER IS FROZEN AT THE EPISODE'S FIRST TICK, WHICH IS ALWAYS THE SOFTER
     EVENT. The message latch returns before the only stamp write (see the `if latched` arm in
@@ -5241,26 +5241,38 @@ def _upgrade_stamp_tier_to_walled(stamp: Path) -> None:
         # thing this docstring says it prevents — while stderr claimed the raise had failed. On a
         # temp, both failures happen before anything reaches the live stamp.
         tmp = stamp.with_name(f"{stamp.name}.{os.getpid()}.raise")
-        written = False
+        # ⚠️ `pending` is armed BEFORE the write, not after: a mid-write ENOSPC returns through
+        # `write_text` having ALREADY created a truncated temp, and a flag set on the next line
+        # never sees it. Cron gives a new pid every 5 minutes, so on a persistently full disk —
+        # exactly the condition that causes this — the orphans would accrete forever.
+        pending = True
         try:
             tmp.write_text(_stamp_body(first, _STAMP_TIER_WALLED), encoding="utf-8")
-            written = True
             os.utime(tmp, (mt, mt))
             os.replace(tmp, stamp)
-            written = False  # the temp is GONE — it is the stamp now
+            pending = False  # the temp is GONE — it IS the stamp now
         finally:
-            if written:  # only ever OUR temp, never the stamp
+            if pending:  # only ever OUR temp, never the stamp
                 try:
                     tmp.unlink(missing_ok=True)
-                except OSError:
-                    pass
-        print("tick: fleet-exhausted stamp tier RAISED urgent-90 -> walled (same episode)")
+                except OSError as cleanup_exc:
+                    # said, not swallowed — the sibling writer says its own for the same reason
+                    sys.stderr.write(
+                        "claude_rotate: fleet-exhausted tier-raise temp NOT removed "
+                        f"({tmp}): {cleanup_exc}\n"
+                    )
     except (OSError, OverflowError, ValueError) as exc:
         # every arm above leaves the LIVE stamp untouched, so the hold is whatever it already was
         sys.stderr.write(
             f"claude_rotate: fleet-exhausted stamp tier NOT raised ({stamp}): {exc} — the stamp is "
             "unchanged, so quota_stop.py still holds exactly what its existing tier says\n"
         )
+        return
+    # ⚠️ OUTSIDE the try, deliberately. `print` CAN raise — a closed or broken stdout, both
+    # `OSError` subclasses and both in the caught tuple — and inside the try that turned a
+    # COMPLETED raise into a message swearing the stamp was unchanged while the fleet-wide hold
+    # was live. Executed on a closed and on a broken stdout; both lied.
+    print("tick: fleet-exhausted stamp tier RAISED urgent-90 -> walled (same episode)")
 
 
 def _hold_is_wall(hold: dict | None) -> bool:
@@ -5838,7 +5850,13 @@ def _promised_resume(stamp: Path) -> float | None:
     try:
         # LINE 1 — line 2 is the tier (D-306). A bare `float()` over both raises ValueError
         # and reads as "no promise", which silently disarms the week-long re-arm.
-        promised = float(stamp.read_text(encoding="utf-8").splitlines()[0].strip())
+        # `newline=""` + `.split("\n")`, matching `_stamp_tier` exactly. This is the FOURTH
+        # reader of line 1 and it was the one left on universal newlines + `splitlines()`: a
+        # control byte then made it harvest a far-future promise out of bytes the tier reader
+        # treats as a single token, and a bogus future promise suppresses the promise-came-due
+        # re-arm until the week timer.
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            promised = float(fh.read().split("\n", 1)[0].strip())
         written = stamp.stat().st_mtime
     except (OSError, ValueError, IndexError):
         return None
@@ -6343,7 +6361,12 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
         # `_write_quota_posture` does for its staging file (Delta 22 seat A, A2)
         try:
             cutoff = now - 3600.0
-            for orphan in stamp.parent.glob(f"{stamp.name}.*.rearm"):
+            # BOTH suffixes: `_upgrade_stamp_tier_to_walled` leaves `.raise` temps on the same
+            # failures, and until this glob covered them nothing on the box ever removed one
+            for orphan in (
+                *stamp.parent.glob(f"{stamp.name}.*.rearm"),
+                *stamp.parent.glob(f"{stamp.name}.*.raise"),
+            ):
                 if orphan != tmp and orphan.stat().st_mtime < cutoff:
                     orphan.unlink()
         except OSError:
@@ -6553,7 +6576,7 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     never does. The flip leg (operator redesign 2026-08-15 — one active account for ALL
     projects): resolve the ``active`` pointer; missing/dangling → flip to the best account
     immediately (dwell-exempt repair — holding a dangling pointer is a fleet outage); the
-    active account ≥ROTATE_THRESHOLD (default 95) on EITHER window → flip to the account with
+    active account ≥ROTATE_THRESHOLD (default 98 since D-201) on EITHER window → flip to the account with
     the most weekly-then-session headroom among credentialed, un-walled siblings. The flip
     moves zero credential bytes and is refused by the pause marker + the 30-min dwell (inside
     :func:`_flip_active`); telemetry and the wall advisory below run REGARDLESS (T01 semantics —

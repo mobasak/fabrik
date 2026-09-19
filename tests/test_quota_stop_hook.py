@@ -892,6 +892,7 @@ def test_the_hook_reader_does_not_hang_or_shift_on_a_hostile_stamp(tmp_path):
     fifo_dir = tmp_path / "fifo"
     fifo_dir.mkdir()
     _os.mkfifo(fifo_dir / "fleet-exhausted")
+    assert (fifo_dir / "fleet-exhausted").is_fifo(), "the fixture must really be a FIFO"
     probe = tmp_path / "probe.py"
     probe.write_text(
         "import importlib.util, sys\n"
@@ -911,6 +912,17 @@ def test_the_hook_reader_does_not_hang_or_shift_on_a_hostile_stamp(tmp_path):
             "the FIFO guard is gone — the reader BLOCKED, it did not fail"
         ) from None
     assert r.stdout.strip() == "walled", r.stdout + r.stderr
+    # positive control: without it, `== "walled"` is satisfied by ANY non-regular path — a
+    # one-character typo in the fixture name passed this grader with the guard removed
+    reg = fifo_dir / "regular"
+    reg.write_text("0\nurgent-90\n")
+    r2 = _sp.run(
+        [_sys.executable, str(probe), str(_HOOK), str(reg)],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert r2.stdout.strip() == "urgent-90", f"the probe reads nothing at all: {r2.stdout!r}"
     d = tmp_path / "asdir"
     (d / "fleet-exhausted").mkdir(parents=True)
     assert hook._stamp_tier(d / "fleet-exhausted") == "walled"
@@ -928,6 +940,17 @@ def test_the_nudge_does_not_claim_nothing_is_held(tmp_path):
     # positive pin on specific words made the inaccurate clause MANDATORY, so correcting it redded
     # the grader. What must hold is that the message does not assert the system-wide state this
     # hook cannot see, and does point at the one line that can.
-    assert "quota line" in msg.lower(), "point the agent at the line that actually says"
+    # ⚠️ `--status` OUTRIGHT, not `or`. The whole point of the fix is that the QUOTA line is NOT
+    # sufficient — it is absent in two documented states whose only remedy is `--status`. The `or`
+    # form was satisfied by the "quota line" arm alone, so a paraphrase ("the sole source that
+    # says") reinstated the exact false exclusive and the grader passed. Measured by the closing
+    # seat. And the command must be RUNNABLE: `claude_rotate.py` is not on PATH.
+    assert "--status" in msg, "name the authority, never the QUOTA line alone"
+    assert "scripts/sysadmin/claude_rotate.py --status" in msg, (
+        "an agent pastes this: a bare `claude_rotate.py` is not on PATH"
+    )
+    assert "only place" not in msg.lower() and "sole source" not in msg.lower(), (
+        "never a false exclusive over --status"
+    )
     assert "fleet-wide hold" in msg.lower(), "name WHICH hold has not armed"
     assert "checkpoint" in msg.lower(), "the actionable half must survive the correction"
