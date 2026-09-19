@@ -27,7 +27,7 @@ nested review can never end the plan by accident (it is refused). Close this run
 `done --command fabrik-execute-plan --evidence "<the phases + their review verdicts>" --feedback "<what you filed, to whom | none — surfaces exercised>"` only when the
 LAST phase is EXECUTED; a real halt is
 `blocked --command fabrik-execute-plan --reason "…" --feedback "<what you filed, to whom | none — surfaces exercised>"` naming one of the
-three sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra · unresolvable spec
+three sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra · unresolvable spec/scope
 contradiction). **Open the `RUN:` line on every reply until the run closes** — the FINAL OUTPUT block is a
 TASK terminator, and the record is what proves the task is actually over.
 
@@ -52,6 +52,25 @@ TASK terminator, and the record is what proves the task is actually over.
 4. Read the design spec the plan references (usually linked at the top or in `docs/superpowers/specs/`).
 5. Read `AFCL.md` if it exists — known friction points.
 6. Identify all phases, their dependency order, and the Subagent Mandates table (in the design spec).
+   ⚠️ **A validation, or the PART of one, that tests the rule the plan BUILDS against evidence that ALREADY EXISTS — a
+   backtest over real history, a replay over a prior corpus — runs FIRST, before the FIRST ticket that
+   implements that rule, wherever the Board scheduled it.** (One that needs the built artifact — a
+   dogfood, a live probe — cannot, and is not this rule; nor is D7's whole-plan validation, which
+   still runs last.) Scheduled late, its verdict lands after the thing it judges is built, reviewed,
+   merged and distributed — the one position where acting on it is expensive: on the `/fabrik-task`
+   lane a backtest over 24 of 101 lane-choice commits re-cut two clauses of the decision rule six
+   tickets late (D-298). A spec that places it before the build and a Board that schedules it last are
+   a contradiction you resolve in the SPEC's favour, naming the re-order in the run record; a verdict
+   that REFUTES the rule is governed by the spec's own stop threshold and re-cuts the spec before the
+   implementing ticket runs. **The spec edit is always yours** — the plan is downstream of its spec
+   and never owns it, so an owned-paths test on the SPEC routes every refutation to a halt; re-pin
+   the spine's `**Spec:**` basis to the re-cut SHA and mint the D-row. The CONSEQUENT code edits are
+   the test: inside the spine's `## File Scope` they are authorised work you do, outside it the
+   `BLOCKED: unresolvable spec/scope contradiction` case; never a finding you absorb. Blast radius is
+   not the test — a synced surface a ticket already owns is that ticket's deliverable, and Finish's
+   sync discipline distributes it. Most specs carry no such validation — the test is whether the recipe can run on
+   evidence that exists today, under whatever heading it sits — and when yours has none, nothing is
+   owed.
 7. **Acquire the scope lock (this is what lets several scoped runs share one project, AND what makes a run
    resumable after a crash / disconnect / quota-hit).** Before trusting the plan's `Status:` line, MEASURE it: a `Status: EXECUTED` plan whose phase receipts are absent on disk is not executed, and a `CONVERGED` one whose Pass Ledger is missing is not converged (01M2AJG97). Read the plan's `## File Scope (owned paths)`. Scan
    `.fabrik/plan-locks/*.json` for any lock with `status:"active"` whose paths overlap yours, and resolve:

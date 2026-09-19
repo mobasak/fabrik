@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `/fabrik-execute-plan` runs a plan's own validation before the rule it tests (2026-09-19)
+
+- Answering three ledger verdicts from the `/fabrik-task` lane build: a validation, or the part of one, that tests the rule the plan BUILDS against evidence that ALREADY EXISTS now runs before the first implementing ticket, wherever the Board scheduled it. A dogfood or a live probe needs the built artifact and is excluded by construction; D7's whole-plan validation still runs last.
+- **The verdict has a disposition, which is what the first cut lacked.** A refuting result is governed by the spec's own stop threshold and re-cuts the spec before the implementing ticket runs. A re-cut landing inside the plan's owned paths is authorised work with a D-row; one landing outside them is the `BLOCKED: unresolvable spec/scope contradiction` case. Blast radius is deliberately not the test — an earlier cut halted on "a synced surface" and would have stopped an authorised ticket on this very rule's motivating plan, where a synced contract copy IS a ticket's deliverable.
+- Measured cost of the inverse: a backtest over 24 of 101 lane-choice commits re-cut two clauses of the `/fabrik-task` decision rule six tickets late, after surviving three spec reviews, a plan review and fifteen execution rounds (D-298).
+- `tests/test_execute_plan_validation_first.py` pins the ruling the way `test_execute_plan_d7.py` pins D7 — the span bounded at both ends, and every directive the three review rounds found invertible now asserted: nine mutants killed.
+
 ### Added — `/fabrik-task`: the lane between a right-now fix and the spec chain (2026-09-19)
 
 - **The gap it closes, measured:** the spec chain is ~6 hours median before a line of code and the light lane is ~32 minutes, with nothing in between — so trivial work was over-sized into the chain or shipped with no design at all. `/fabrik-task` is one command, one run record, six phases, and the D-row as its durable artifact.

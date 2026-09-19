@@ -3931,6 +3931,31 @@ All three are the same shape as everything else this review found — a document
 its own code refutes — and all three sit in artifacts (a frozen spec, a merged ticket) that a fix
 may not rewrite, which is why they are rows rather than edits.
 
+## The step-6 validation-first clause: three residuals the scope-growth stop left (routed 2026-09-19)
+
+`/fabrik-command-improve fabrik-execute-plan` closed on the D-278 stop (confirmed/own-fix 8/0 →
+7/5 → 10/9): after round 1 the command's own surface was quiet and every later finding sat inside
+the review's own prose. The correctness defect was fixed and shipped — an owned-paths test on the
+SPEC routed every refuting verdict to `BLOCKED`, because a plan is downstream of its spec and never
+owns it — and twelve mutants are now killed. What the stop left, with destinations:
+
+1. **`commands/_sources/fabrik-execute-plan.md:30` vs `:215`/`:239` spell the third BLOCKED cause
+   two ways** — `unresolvable spec contradiction` at the enumeration, `unresolvable spec/scope
+   contradiction` at both sites that use it. Fixed at `:30` in this change so the reason string the
+   new clause mandates is consistent; `scripts/command_run.py` takes `--reason` as free text with no
+   allowlist, so nothing detects which spelling an agent emits. **Destination:** an allowlist on
+   `blocked --reason`'s three causes is a MECHANISM — spec/plan work, not a command edit.
+2. **The phrase-substring pin style this grader family uses is polarity-blind by construction.**
+   `assert "OWNED paths is authorised work you" in block` matched both polarities; a one-word
+   inside↔outside swap inverted the ruling with all four tests green. The precedent
+   (`tests/test_execute_plan_d7.py`) solves it with an explicit INVERSION control, and that pattern
+   is not carried into new graders of the family. **Destination:** a shared helper (assert the
+   ordered PAIR plus a hedge-word denylist) for the command-pin graders — infra.
+3. **`check_corpus_weight.py` names an unsatisfiable remedy on a pure addition.** Its advisory says
+   *"the review that accepts it cites the D-row naming what the growth retires"* on ANY growth,
+   including an addition that retires nothing; a reader cannot satisfy it and learns to ignore the
+   line. **Destination:** infra — reword to "names what the growth buys, or what it retires".
+
 ## § Completion Contract 1a's `>5 files` and the lane table's `>3` are two numbers in one contract (routed from T04a)
 
 § 1a's `>5` is REVIEW sizing (how heavy a pass does work already in flight owe?); the lane table's
