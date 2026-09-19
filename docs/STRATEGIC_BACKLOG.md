@@ -4502,11 +4502,11 @@ operator authorisation. None is "reported, not mine": each names where it goes.
 - **`_hold_is_wall` fails OPEN on a non-dict (owner: fleet).** Unreachable from `claude_rotate.py`
   — all three producers of the picture's `hold` emit dict-or-None — but `quota_posture_hook.py`
   re-derives the same notion from the posture JSON, where the shape is whatever was serialised.
-- **The D-306 contract sentences are graded by nothing three-way (owner: infra).** They sit in
-  neither `_SHARED_SPANS` nor `QUOTA_CLAIMS`, so hub/template/fabrik-lib identity is unenforced on
-  that paragraph. Pinning them is blocked on the cross-repo edit to `/opt/fabrik-lib/CLAUDE.md`,
-  which needs the operator's explicit approval; pin them in that same change, as a NEW span with
-  fresh anchors — never by extending an existing one, which reads as MISSING rather than drifted.
+- **~~The D-306 contract sentences are graded by nothing three-way~~ — CLOSED 2026-09-20 (D-309).**
+  The operator approved the cross-repo edit; `/opt/fabrik-lib/CLAUDE.md` adopted the D-306 block
+  (fabrik-lib `618f3f3f`) and the paragraph is now a pinned `_SHARED_SPANS` entry, added as its own
+  span with fresh anchors and proven red both ways (end anchor → MISSING, mid-span word → DRIFT).
+  All three copies measured byte-identical at 641 chars after normalisation.
 
 ## `subprocess.run(text=True)` with no `errors=` — 85 of 88 call sites in `scripts/enforcement/` carry the crash just fixed in one of them (wef3 01M2X0ZQX8YMZX022R9TC1E3M6, routed 2026-09-19)
 
