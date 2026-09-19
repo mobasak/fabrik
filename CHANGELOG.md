@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — D-306 landed in the third contract, and the paragraph is now graded (2026-09-20)
+
+- `/opt/fabrik-lib/CLAUDE.md` is sync-excluded and hand-maintained, so it had carried the
+  PRE-D-306 wording since the hub moved: `ROTATE_URGENT_DRAIN_PCT` described as governing "when
+  the POINTER moves, never what an agent is told" (it now also decides the CHECKPOINT nudge, and
+  the only band it draws is `band_account`, never the fleet's), and the WALL sentence claiming
+  `quota_stop.py` default-denies whenever the stamp stands (true only at the `walled` tier).
+  Corrected under the operator's explicit cross-repo approval; committed in fabrik-lib's own tree
+  as `618f3f3f` with its own trailers.
+- The D-306 block is now a pinned `_SHARED_SPANS` entry in
+  `tests/test_governance_template_split.py`, so hub / template / fabrik-lib identity on it is
+  GRADED rather than incidental — it was unpinned, which is exactly why the drift went unnoticed.
+  Added as its OWN span with fresh endpoints, never by widening the D-295 span beside it: rewording
+  past that span's closing `never a wait (D-295).` unanchors it and the grader reports MISSING —
+  a deleted sentence — instead of drift. Proven red both ways in a scratch tree: mutating the end
+  anchor gives `a shared span is missing from a contract: [True, True, True, False]`, mutating one
+  word mid-span gives `fabrik-lib drifted on a shared QUOTA span`.
+- Measured after the edit: the block is byte-identical across all three contracts at 641 chars
+  after whitespace normalisation. D-309.
+
 ### Fixed — the Secrets gate leg survives what git hands it, and stops failing silently clean (2026-09-19)
 
 - `scripts/enforcement/check_secrets.py` crashed the whole "Secrets (Zero Hardcoding)" leg with
