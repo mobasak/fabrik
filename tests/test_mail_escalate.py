@@ -685,3 +685,33 @@ def test_the_owner_leg_still_runs_on_a_day_the_other_two_legs_already_fired(env,
     # ...and a SECOND run the same day tells it nothing more
     assert me.main() == 0
     assert len(sorted((env / "youtube" / "inbox").glob("*.md"))) == 2, "one per repo per day"
+
+
+def test_a_repo_whose_name_contains_an_underscore_is_actually_reachable(env):
+    """⚠️ THE MIRROR I DID NOT STATE when the owner leg turned `Obligation.repo` into an ADDRESS.
+
+    `repo` is sanitised at collection — `_sanitize` translates `_` to a space, because `_` is a
+    markdown metachar and every field is rendered into a message body. That is correct for
+    DISPLAY and fatal for ROUTING: `mail.py` refuses `llm batch processor` as an unsafe recipient,
+    so the three repos on this box whose directory carries an underscore were never told, and the
+    run logged `owners=41 sent/3 failed` every time.
+
+    Worse than the miss: I read those sanitised names as EVIDENCE of three shadow mailboxes
+    holding stranded mail, filed it as a finding, and asked to move files that do not exist. The
+    directories `Reference Creator`, `llm batch processor` and `scratch bhd` are ABSENT from the
+    mail root; only `Reference_Creator`, `llm_batch_processor` and `scratch_bhd` exist.
+    """
+    _msg(env, "llm_batch_processor", "01L" + "0" * 23, ts=_old_ts(9))
+    items = me.collect_obligations(env)
+    assert len(items) == 1
+    assert items[0].repo == "llm batch processor", "display stays sanitised — that part was right"
+    assert items[0].repo_key == "llm_batch_processor", "routing must carry the REAL directory name"
+
+    sent, failed = me._deliver_to_owners(items, "2026-09-20")
+    assert (sent, failed) == (1, 0), f"an underscore repo must be reachable: {(sent, failed)}"
+    got = sorted((env / "llm_batch_processor" / "inbox").glob("*.md"))
+    assert len(got) == 2, f"the escalation must land in the REAL mailbox: {[p.name for p in got]}"
+    assert not (env / "llm batch processor").exists(), "and must not invent a space-named one"
+    # the body still renders the display form, which is what made this look like evidence
+    body = max(got, key=lambda p: p.stat().st_mtime).read_text(encoding="utf-8")
+    assert "llm batch processor" in body, "display form in the prose is correct and stays"

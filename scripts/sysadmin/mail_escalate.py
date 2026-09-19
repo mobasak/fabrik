@@ -92,6 +92,14 @@ class Obligation:
     agent: str
     age_days: float
     kind: str  # inbox | strand | window
+    # ⚠️ DISPLAY vs ADDRESS. `repo` is sanitised at collection (`_sanitize` translates `_` to a
+    # space, because every field is rendered into a markdown body) and is safe to PRINT and unsafe
+    # to ROUTE ON. `repo_key` is the real directory name under the mail root, and is the only
+    # thing `mail.py send --to` may be handed. Splitting them is not a refinement: the owner leg
+    # shipped using `repo` as an address, `mail.py` correctly refused `llm batch processor`, and
+    # the three underscore repos on this box were never told — while the sanitised names read
+    # convincingly enough as "shadow mailboxes" that they were filed as a finding.
+    repo_key: str = ""
 
 
 def _sanitize(text: str, cap: int = 40) -> str:
@@ -132,21 +140,22 @@ def _scan_repo(repo_dir: Path, threshold: float) -> list[Obligation]:
     out: list[Obligation] = []
     inbox = repo_dir / "inbox"
     archive = repo_dir / "archive"
-    repo = _sanitize(repo_dir.name)  # sanitized AT COLLECTION like every other field
+    repo = _sanitize(repo_dir.name)  # sanitized AT COLLECTION like every other field — DISPLAY
+    repo_key = repo_dir.name  # the real directory name — the only safe ROUTING key (see Obligation)
     if not inbox.is_dir() and not archive.is_dir():
         return out  # a stray non-mailbox dir
     if inbox.is_dir():
         for f in sorted(inbox.glob("*.md")):
             if f.name.startswith("."):
                 continue  # dotfile guard (P13-6 class): a .vim backup must never escalate
-            ob = _from_file(f, repo, threshold, kind="inbox")
+            ob = _from_file(f, repo, threshold, repo_key=repo_key, kind="inbox")
             if ob:
                 out.append(ob)
     if archive.is_dir():
         for f in sorted(archive.glob("*.md")):
             if f.name.startswith("."):
                 continue  # P13-6 proper: an archive dotfile would escalate FOREVER
-            ob = _from_file(f, repo, threshold, kind="strand", need_unresolved=True)
+            ob = _from_file(f, repo, threshold, repo_key=repo_key, kind="strand", need_unresolved=True)
             if ob:
                 out.append(ob)
         for w in sorted(archive.glob("*.md.resolving*")):
@@ -178,13 +187,20 @@ def _scan_repo(repo_dir: Path, threshold: float) -> list[Obligation]:
                         agent="",
                         age_days=age / 86400.0,
                         kind="window",
+                        repo_key=repo_key,
                     )
                 )
     return out
 
 
 def _from_file(
-    f: Path, repo: str, threshold: float, *, kind: str, need_unresolved: bool = False
+    f: Path,
+    repo: str,
+    threshold: float,
+    *,
+    kind: str,
+    repo_key: str = "",
+    need_unresolved: bool = False,
 ) -> Obligation | None:
     try:
         text = f.read_text(encoding="utf-8", errors="replace")
@@ -205,6 +221,7 @@ def _from_file(
         agent=_sanitize(fm.get("agent", "") or "-", 10),
         age_days=age / 86400.0,
         kind=kind,
+        repo_key=repo_key,
     )
 
 
@@ -443,15 +460,17 @@ def _deliver_to_owners(items: list[Obligation], today: str) -> tuple[int, int]:
     """
     by_repo: dict[str, list[Obligation]] = {}
     for ob in items:
-        if ob.repo == _REPO_ROOT.name:
+        key = ob.repo_key or ob.repo  # `repo_key` is the real dir; `repo` is display-sanitised
+        if key == _REPO_ROOT.name:
             continue
-        by_repo.setdefault(ob.repo, []).append(ob)
+        by_repo.setdefault(key, []).append(ob)
     sent = failed = 0
     for repo, obs in sorted(by_repo.items()):
         stamp = _owner_stamp(repo)
         if _stamped(stamp, today):
             continue  # already told today; the cron runs every 6 h
-        if _deliver_one_owner(repo, _owner_body(repo, obs, len(items))):
+        # route on the KEY, render the sanitised display name in the body
+        if _deliver_one_owner(repo, _owner_body(obs[0].repo or repo, obs, len(items))):
             sent += 1
             _stamp(stamp, today, f"owner:{repo}")
         else:
