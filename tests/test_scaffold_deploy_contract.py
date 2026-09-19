@@ -242,6 +242,71 @@ def test_an_unknown_flag_prints_usage_instead_of_silently_running_the_contract(
     assert helped.returncode == 0 and "--verdict" in helped.stdout, helped.stdout
 
 
+def _load_template_module():
+    """Import the template by path under a private module name.
+
+    `scripts/verify_prod_parity.py` is a SYMLINK to this same file, so `_vp()` loads the identical
+    source — the reason not to reuse it is that it mutates `sys.path` and `importlib.reload`s a
+    shared module name, which this grader must not do to its siblings."""
+    import importlib.util  # noqa: PLC0415
+
+    spec = importlib.util.spec_from_file_location("_vpp_template", TEMPLATE)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_a_value_flag_with_no_value_prints_usage_instead_of_crashing(tmp_path: Path) -> None:
+    """Reported by web-ecommerce-factory (01M2SJT2ZVYP1SM573GDEJYG5Z): `_parse` indexed `vals[0]`
+    on an empty list, so a value flag with no value died with IndexError before the usage error it
+    had already recorded could print.
+
+    This asserts the CLASS, not one repair. Three review rounds showed why: recording `""` also
+    avoids the crash, and is WORSE — `run_rows` sentinels on `unreachable is not None`, so a
+    recorded value of ANY kind emits `UNVERIFIABLE (<site> leg not run — <it>)` — a why-less row
+    when it is empty, which this module's own contract forbids in its docstring (`--self-check`
+    does NOT enforce that; it never inspects a row's detail, so the prose obligation and this
+    grader are the only guards). So the rule is that a flag given no value records NO ENTRY, and
+    the assertion is `flag not in values` rather than a falsy test — `0`, `False` and `[]` are all
+    falsy and all reproduce the hazard.
+
+    A BLANK value counts as no value too: `--unreachable ""` is what the runner's own documented
+    `--unreachable "<why>"` placeholder produces when the substitution is empty.
+
+    `--unreachable --site hub` is load-bearing and must stay: every other shape is re-caught by
+    `main()`'s flag-specific checks, so it is the ONLY shape that reds when `_parse`'s own
+    `unknown.append` stops firing — whether by deletion or by an `is None` condition that can never
+    be true. Its guard below fails loudly if `--unreachable` is ever retired, because the shape
+    would silently decay into a duplicate of the unknown-flag test above.
+    """
+    vp = _load_template_module()
+    positive = sorted(f for f, n in vp._VALUE_FLAGS.items() if n >= 0)
+    assert positive, vp._VALUE_FLAGS
+    assert "--unreachable" in vp._VALUE_FLAGS, vp._VALUE_FLAGS
+
+    proj = tmp_path / "proj"
+    (proj / "scripts").mkdir(parents=True)
+    stub = proj / "scripts" / "verify_prod_parity.py"
+    shutil.copy(TEMPLATE, stub)
+
+    shapes = [[f] for f in positive] + [["--unreachable", "--site", "hub"]]
+    shapes += [["--unreachable", "", "--site", "hub"], ["--unreachable", "   ", "--site", "hub"]]
+    for argv in shapes:
+        r = _run_as_documented(stub, *argv, cwd=proj)
+        assert r.returncode == 64, (argv, r.returncode, r.stdout, r.stderr)
+        assert "usage" in r.stderr.lower(), (argv, r.stderr)
+
+    for flag in positive:
+        for argv in ([flag], [flag, ""]):
+            _, values, unknown = vp._parse(argv)
+            assert flag not in values, (argv, values)
+            assert any("needs a value" in u for u in unknown), (argv, unknown)
+
+    rows = vp._rows_for(vp._parse(["--unreachable", "--site", "hub"])[1])
+    assert rows, "the probe produced no rows, so it asserts nothing"
+    assert all("— )" not in r.get("detail", "") for r in rows), rows
+
+
 # ── review 2026-09-02 (second pass, after tryton-crm's first real freeze) — seen RED first ─────────
 
 

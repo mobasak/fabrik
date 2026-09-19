@@ -892,6 +892,43 @@ def test_deploy_checklist_skill_description_within_limit(tmp_path: Path):
     assert "NEXT: /fabrik-release" in desc
 
 
+def test_every_wrapper_tells_the_reader_to_read_the_command_before_acting(tmp_path: Path):
+    """Reported by a hub window that lived it (01M2SSVATCF4WBV2HMT8XQ110G): the wrapper is all the
+    Skill tool loads, and it said "Run the command", so the agent opened the /fabrik-review-scoped
+    run record as the command's first act — then read the rendered file and found its surface was
+    operator-named work, which the command routes UP with "open NO record here". The record was
+    already open and the clean route-up was gone. The class is "an ordering constraint stated only
+    in the artifact the constraint tells you to read second", so the ordering belongs in EVERY
+    wrapper, not in one NEXT entry."""
+    out = _render_corpus(tmp_path)
+    skills = sorted((out / "_skills").glob("*/SKILL.md"))
+    assert len(skills) > 30, len(skills)
+    # Substring matching cannot grade PROSE. Review seats defeated three successive cuts of this
+    # assertion without touching the words it looked for: the fragments hidden in an HTML comment
+    # while the visible body reverted; the sentence quarantined inside a ```text fence, a
+    # blockquote or ~~strikethrough~~ headed "no longer in force", with a contradicting line made
+    # operative; and the sentence NEGATED in place ("there is NO need to read it before you open
+    # the run record") — every one of them present, emphasised, ahead of the successor line, and
+    # instructing exactly the behaviour of the incident. So this pins the generated body's SHAPE
+    # instead: four blocks, and the instruction paragraph verbatim. A generated file has no
+    # legitimate variation to protect, and anything added, quarantined or reworded now reds.
+    want = (
+        "**Read that command file BEFORE your first act — including before you open the run "
+        "record: some commands classify the surface first and open no record here at all, and "
+        "this wrapper does not carry that step.**"
+    )
+    for s in skills:
+        name = s.parent.name
+        body = s.read_text(encoding="utf-8").split("\n---\n", 1)[1]
+        blocks = [b.strip() for b in body.split("\n\n") if b.strip()]
+        assert len(blocks) == 4, f"{name}: expected 4 body blocks, got {len(blocks)}: {blocks[:2]}"
+        assert blocks[1] == f"# /{name}", (name, blocks[1])
+        assert blocks[2].startswith(f"Run the command **`/{name}`**"), (name, blocks[2][:80])
+        assert want in blocks[2], f"{name}: the instruction is not verbatim in the run paragraph"
+        assert blocks[2].endswith("Then follow that file exactly."), (name, blocks[2][-80:])
+        assert blocks[3].startswith("**Next in the pipeline:**"), (name, blocks[3][:80])
+
+
 def test_deploy_commands_name_the_pre_existing_project_paths():
     """Review 2026-09-02: the stub is seeded at SCAFFOLD time only (SCRIPT_FILES) and deliberately never
     synced (a synced copy would be gitignored and overwritten — the contract is project-owned), so every

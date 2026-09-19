@@ -315,8 +315,13 @@ def _parse(args: list[str]) -> tuple[list[str], dict[str, Any], list[str]]:
             while j < len(args) and not args[j].startswith("--") and (n < 0 or len(vals) < n):
                 vals.append(args[j])
                 j += 1
-            if not vals:
+            if n >= 0 and vals and not vals[0].strip():
+                vals = []  # a BLANK value is no value: `--unreachable ""` is the shape the
+            if not vals:  # runner's own `--unreachable "<why>"` placeholder produces unsubstituted
                 unknown.append(f"{a} (needs a value)")
+                if n >= 0:  # record NO value at all — `run_rows` sentinels on `is not None`, so
+                    i = j  # any recorded value yields `UNVERIFIABLE (<site> leg not run — )`,
+                    continue  # the why-less row this module's contract forbids (see the docstring)
             values[a] = vals if n < 0 else vals[0]
             i = j
             continue

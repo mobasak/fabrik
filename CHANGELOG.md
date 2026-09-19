@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — mail-driven: a crashing usage path in the scaffold parity stub, and wrappers that hid the read-before-record ordering (2026-09-19)
+
+- `templates/scaffold/scripts/verify_prod_parity.py::_parse` raised `IndexError` on a value flag
+  given no value (`--site`, `--site --json`, `--unreachable`), so the usage error it had ALREADY
+  recorded never printed — rc 1 with a traceback instead of rc 64 with usage. Reported by
+  web-ecommerce-factory (01M2SJT2ZVYP1SM573GDEJYG5Z item 3). Their HOW was NOT adopted:
+  recording `""` also avoids the crash and is worse (a why-less `UNVERIFIABLE (… — )` row on a
+  normal exit), so the fix records no entry at all, and treats a blank value the same way.
+- `commands/assemble_commands.py::_compose_skill` now tells every generated wrapper's reader to
+  read the command before the first act, including before opening the run record. Reported by a hub
+  window that lost a clean route-up to the old ordering (01M2SSVATCF4WBV2HMT8XQ110G). D-305.
+- Both graders were rewritten twice: review seats defeated each substring-based cut without
+  touching the words it matched (the instruction hidden in an HTML comment, quarantined in a fence
+  or a blockquote, or negated in place; and `0`/`False`/`[]` all passing a falsy test while
+  reproducing the hazard). They now assert the class and the generated body's shape instead, which
+  made them shorter. Nine mutants killed, each proven in a throwaway worktree. The parity contract's other three reported defects are routed in `STRATEGIC_BACKLOG.md`
+  with a per-item verdict — one of them REFUTED against both hub copies.
+
 ### Changed — the three contracts now state the band as runway to the wall (2026-09-18)
 
 - D-299's code shipped at `62d37d3f`; this is the prose half. All three `CLAUDE.md` copies (hub,

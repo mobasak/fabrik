@@ -125,7 +125,10 @@ def _compose_skill(name: str, description: str) -> str:
         f"Run the command **`/{name}`** — its full canonical methodology is in "
         f"`~/.claude/commands/{name}.md` (rendered from "
         f"`/opt/fabrik/commands/_sources/{name}.md`; edit the source, never this "
-        f"wrapper). Follow that file exactly.\n\n"
+        f"wrapper). **Read that command file BEFORE your first act — including before you "
+        f"open the run record: some commands classify the surface first and open no record "
+        f"here at all, and this wrapper does not carry that step.** Then follow that file "
+        f"exactly.\n\n"
         f"**Next in the pipeline:** {nxt}\n"
     )
     return body

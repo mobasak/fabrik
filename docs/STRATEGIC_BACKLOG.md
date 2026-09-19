@@ -4164,3 +4164,129 @@ closing-row sentence (D-304). Both belong to the grammar D-262's row above alrea
    instances — which is why it is a precision note on D-262's change and not its own work.
 
 **Destination:** infra, inside the D-262 change.
+
+## The parity contract: a scaffold template and two command sources written apart and never executed together (wef3 01M2SJT2ZVYP1SM573GDEJYG5Z / 01M2SJVGJQQ65YYBMFW0Q0CSCV / 01M2ST86PY4RZW89TG7NFC0D10, routed 2026-09-19)
+
+web-ecommerce-factory filed four defects from its `/fabrik-deploy-checklist` round 2, all in
+Fabrik-owned files they may not edit. Item 3 was fixed in the same run as this row
+(`_parse` raising IndexError on a bare value flag). The other three are routed here with the
+verdict each earned when I re-derived it; **item 2 is REFUTED as stated** and whoever picks this
+up should not build the fix it asks for.
+
+1. **The template's repo root breaks under the runner's own host-leg recipe.** CONFIRMED in
+   substance, with a correction: there is no `_repo_root` in the hub's template. The root is
+   computed inline in `_health_probe` —
+   `templates/scaffold/scripts/verify_prod_parity.py:102`, `root = str(Path(__file__).resolve().parent.parent)`
+   — and `sys.path`-inserted so `libs.health_probe` imports. `/fabrik-deploy-verify`'s host-leg
+   recipe scps the script to `/tmp` and runs it there, so the root resolves to `/`, the vendored
+   import fails, `_health_probe` returns None and every host row reads UNVERIFIABLE. Their fix
+   (env `PARITY_REPO_ROOT`, else the script's clone when it holds `compose.yaml`, else the cwd)
+   is one reversible decision about precedence — `/fabrik-task` sized, not a right-now fix,
+   because the precedence order is the whole content of the change.
+
+2. **REFUTED as filed: `CONTAINER_LEG_SERVICE = ""` does NOT carry two meanings.** The report says
+   the template's comment means "no container leg" while the runner means "the project's own app
+   service". Both hub copies say the same thing: the template comment at
+   `templates/scaffold/scripts/verify_prod_parity.py:62-63` reads "Empty = this project's own app
+   service (the compose service named after the project)", and
+   `commands/_sources/fabrik-deploy-verify.md:245-246` reads "empty means the project's own app
+   service". `tests/test_scaffold_deploy_contract.py:510` pins the seeded value with the same
+   gloss. **The real residual is their HOW(2), which is an enhancement, not a defect:** `--header`
+   emits `{status, version, date, parsed, container_leg_service}` and NO per-site row counts
+   (executed), so a project with zero `container` rows cannot be distinguished from one whose leg
+   failed, and the runner execs into an app image to run nothing. Adding `sites: {hub, host,
+   container}` counts to `--header` and a "skip a leg with 0 rows" rule to the runner is a
+   contract change across the template and the command source — it needs the MIRROR stated for
+   every project already emitting a v0 header.
+
+3. **A contract that obeys `/fabrik-deploy-checklist` can never satisfy `/fabrik-deploy-verify`.**
+   CONFIRMED by reading both sources. `commands/_sources/fabrik-deploy-checklist.md:139-140`:
+   "`UNVERIFIABLE (<why>)` rows are emitted, never dropped — they count in the denominator so
+   shrinkage is visible." `commands/_sources/fabrik-deploy-verify.md:310`: CONFIRMED is claimable
+   only when every verdict-bearing row reads PASS, "informational registrar rows AND `n/a (not
+   obligated)` rows are exempt" — UNVERIFIABLE is NOT exempt. The checklist's own tryton-crm note
+   at `:100` records 15 of 27 rows permanently UNVERIFIABLE, so this is not hypothetical. This is
+   the one that must NOT be patched in either file alone: what a declared gap means for the
+   top-line verdict is a design ruling, so it opens at `/fabrik-spec`, with wef3's two candidate
+   shapes (treat a `UNVERIFIABLE (` detail as a declared gap counted beside the verdict; or a
+   `mode: declared-gap` marker in the template's unreachable path) as its inputs.
+
+4. **Phase 2 of `/fabrik-deploy-checklist` should name the leg-file threat model** (their `change:`
+   verdict, relayed 01M2T4AEWH4XM8CP2H28THQ6NQ). A merged `--rows-from` input can reach CONFIRMED
+   by four axes — which row ids appear, how many times each appears, which comparison keys each
+   row carries, and what `match` value holds — and the seeded stub guards none of them. They spent
+   four of eight rounds on fake-green axes in that layer. The list is identical for every
+   project's contract, so naming the four turns four review rounds into one authoring step.
+
+**Destination:** infra, as ONE piece of work — items 1, 2-residual, 3 and 4 share a root cause the
+sender named exactly: a synced recipe and a scaffold template that are never executed together.
+The fleet test they propose (run the runner against the template stub) is what would have caught
+every one of them, and belongs in the same change.
+
+## `/fabrik-review-scoped`'s own source puts its classify-first rule two lines above a heading that overrides it (found reviewing 01M2SSVATCF4WBV2HMT8XQ110G, routed 2026-09-19)
+
+The wrapper fix shipped with that mail is a compensating control: it tells the reader of every
+generated wrapper to read the command before opening the record. A review seat located the ROOT,
+and it is one file. `commands/_sources/fabrik-review-scoped.md:15` reads "**Before the record —
+classify the surface FIRST**"; `:17` is `{{include:run-record}}`, which renders immediately beneath
+it as "## Run record — open it as this command's FIRST act". A heading beats the paragraph above
+it, and that is exactly what the reporting session did.
+
+The compensating control is still right — the wrapper is all the Skill tool loads, so a source-only
+fix reaches nobody who has not already opened the file — but the source ordering should be fixed
+too, and it is not this change's to make: `run-record.md` has 35 `{{include:}}` consumers, so any
+reordering has to be correct for all of them. Measured while reviewing: 38 of 38 commands carry a
+record heading saying FIRST, and 2 of 38 route away without opening one (`fabrik-review-scoped`
+and `fabrik-task`). **Destination:** infra, with the fragment's consumer list enumerated first.
+
+## Two residuals from the wrapper/parity fix, left deliberately at the D-278 scope-growth exit (routed 2026-09-19)
+
+The review of that change ran three rounds at 7/7, 11/11 and 10/9 confirmed/own-fix and
+`command_run.py` printed the D-278 stop. The named set was fixed; these two were not, and this row
+is the reason they are safe to leave.
+
+1. **`test_a_value_flag_with_no_value_prints_usage_instead_of_crashing` executes a real contract
+   row in-process, and that row mutates `sys.path` for the rest of the session.**
+   `_rows_for(...)` runs `l0_health_probe_vendored`, whose `_health_probe()`
+   (`templates/scaffold/scripts/verify_prod_parity.py:102-104`) inserts `templates/scaffold` at
+   `sys.path[0]` to import the vendored `libs.health_probe`. Under a randomised test order that
+   directory then sits ahead of `/opt/fabrik/scripts` as a namespace-package candidate, and
+   `tests/test_claude_fleet.py` imports `scripts.sysadmin.claude_rotate` at nine sites. Measured:
+   no breakage today — 45 passed in 83s under random order, 120 passed for the corpus file. The
+   row execution exists only to keep `assert rows` non-vacuous; a fixture that restores `sys.path`
+   would remove the hazard without weakening the grader. **Destination:** infra, low.
+
+2. **"that command file" has two antecedents in the wrapper paragraph.** The sentence follows
+   "…is in `~/.claude/commands/<name>.md` (rendered from `commands/_sources/<name>.md`; edit the
+   source, never this wrapper)", so both named paths are command files and the parenthetical's last
+   instruction points at the source. Measured: 37 of 38 sources carry `{{include:}}`, so a reader
+   binding to the source reads an unexpanded file. Not a live break for the one command whose
+   ordering the sentence exists to protect (`fabrik-review-scoped`'s source carries its
+   "open NO record here" rule literally), which is why it was not fixed at the exit — the word
+   "rendered" closes it whenever that paragraph is next touched. **Destination:** infra, low.
+
+## Two residuals from the wrapper/parity fix, left deliberately at the D-278 scope-growth exit (routed 2026-09-19)
+
+The review of that change ran three rounds at 7/7, 11/11 and 10/9 confirmed/own-fix and
+`command_run.py` printed the D-278 stop. The named set was fixed; these two were not, and this row
+is the reason they are safe to leave.
+
+1. **`test_a_value_flag_with_no_value_prints_usage_instead_of_crashing` executes a real contract
+   row in-process, and that row mutates `sys.path` for the rest of the session.**
+   `_rows_for(...)` runs `l0_health_probe_vendored`, whose `_health_probe()`
+   (`templates/scaffold/scripts/verify_prod_parity.py:102-104`) inserts `templates/scaffold` at
+   `sys.path[0]` to import the vendored `libs.health_probe`. Under a randomised test order that
+   directory then sits ahead of `/opt/fabrik/scripts` as a namespace-package candidate, and
+   `tests/test_claude_fleet.py` imports `scripts.sysadmin.claude_rotate` at nine sites. Measured:
+   no breakage today — 45 passed in 83s under random order, 120 passed for the corpus file. The
+   row execution exists only to keep `assert rows` non-vacuous; a fixture that restores `sys.path`
+   would remove the hazard without weakening the grader. **Destination:** infra, low.
+
+2. **"that command file" has two antecedents in the wrapper paragraph.** The sentence follows
+   "…is in `~/.claude/commands/<name>.md` (rendered from `commands/_sources/<name>.md`; edit the
+   source, never this wrapper)", so both named paths are command files and the parenthetical's last
+   instruction points at the source. Measured: 37 of 38 sources carry `{{include:}}`, so a reader
+   binding to the source reads an unexpanded file. Not a live break for the one command whose
+   ordering the sentence exists to protect (`fabrik-review-scoped`'s source carries its
+   "open NO record here" rule literally), which is why it was not fixed at the exit — the word
+   "rendered" closes it whenever that paragraph is next touched. **Destination:** infra, low.
