@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the escalation digest says what its count IS (2026-09-20)
+
+- `mail_escalate.py`'s digest reported `83 row(s)` and nothing about their shape. Measured on the
+  live store: 41 of the 83 were ONE fabrik-lib broadcast sitting in 41 different mailboxes, 39
+  more were the hub's own sends, and NONE was an obligation on the hub the digest was delivered
+  to. An agent handed the bare number sizes the job by an order of magnitude and then finds it
+  cannot discharge a single row. The digest's own SYSTEMIC line already warned the count is not
+  the population; it never said what the population was.
+- New `_shape_line`, rendered as a `SHAPE:` section. Grouped by SENDER because that field is
+  already on `Obligation` — no extra read, no new failure mode — and because it is precisely the
+  broadcast signature: one sender, N rows, N distinct mailboxes. A sender spanning fewer mailboxes
+  than rows is not called a broadcast, and a single row never is. Live output today:
+  `41× from fabrik-lib — one BROADCAST across 41 mailboxes, not 41 separate items; 40× from fabrik
+  across 28 mailbox(es); 2× from trade-intelligence across 1 mailbox(es); 1× from agent-3`.
+- Two graders, both watched red first; the body-wiring one proven red on revert.
+
 ### Changed — Enforcement git-decoder spec converged 39 defects, recorded 10, stays DRAFT (2026-09-20)
 
 - `/fabrik-spec-review` ran four adversarial rounds over

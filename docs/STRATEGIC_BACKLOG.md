@@ -4564,3 +4564,26 @@ safe there; that reasoning belongs in a comment, not in a copy-paste.
 
 **Destination:** infra. `scripts/enforcement/` is a governance-sync path, so the migration is
 rule-1 work with its own full review and a forced sync.
+
+
+## [infra] The escalation digest routes obligations to a reader who structurally cannot discharge them (2026-09-20)
+
+Measured while handling digest `01M2XQG8ANKS4AM4C3C69XWQD5`: of its 83 rows, **zero** were
+obligations on the hub. Every one sits in ANOTHER repo's inbox — 41 from a single fabrik-lib
+broadcast, 39 the hub's own sends. The hub's own inbox held one obligation, half a day old.
+
+`mail_escalate.py::_deliver_to_agent` has exactly one destination: the hub mailbox addressed to
+`infra`. So the agent bound by the handle-now law is handed a list of other repos' work. The
+digest anticipates this and offers `ack --disposition wontfix naming the owner` — but using it
+would close 83 obligations the owning repos have never seen, which destroys the signal rather than
+discharging it. Leaving them unacked is the honest choice and is why the number only grows.
+
+The shape line shipped today makes the number readable; it does not fix the routing. **The fix is
+to escalate each overdue obligation into the OWNING repo's mailbox**, where an agent bound by the
+same law can actually act — the hub keeping a summary. That is deliberately NOT done here: it
+would inject ~83 new messages across ~40 mailboxes on its first run, which is an outward-facing
+action at fleet scale and wants the operator's word before it fires, plus a de-duplication rule so
+a repo is not re-escalated every six hours.
+
+Owner: infra (fabrik-mail is its beat). Destination: a `/fabrik-task` or spec-chain change to
+`mail_escalate.py`, gated on the operator approving the fan-out.
