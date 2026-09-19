@@ -2,7 +2,9 @@
 # Copied into every new linked worktree at creation (Claude Code's `.worktreeinclude`
 # mechanism: a gitignored file matching a pattern here is copied in; tracked files
 # are never duplicated). Regenerate: python3 scripts/fabrik_synced_manifest.py
-# --worktreeinclude > templates/governance/.worktreeinclude
+# --worktreeinclude > .wti.tmp && mv .wti.tmp templates/governance/.worktreeinclude
+# (via a temp file on purpose: a bare `>` truncates the tracked template to ZERO
+#  bytes the moment the render fails, and an empty one distributes to ~46 repos)
 AGENTS.md
 agents-fabrik.md
 agents-fabrik-core.md
@@ -41,6 +43,7 @@ scripts/rules_match.py
 scripts/release_cut.py
 scripts/mail.py
 scripts/rivals_run.py
+scripts/whoami_agent.py
 scripts/command_run.py
 scripts/thread_anchor.py
 scripts/enforcement/

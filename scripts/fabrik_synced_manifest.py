@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/sync_enforcement_to_projects.py
+# AFTER-EDIT: scripts/sync_enforcement_to_projects.py, templates/governance/.worktreeinclude
 """Single source of truth for files Fabrik centrally distributes to every /opt project.
 
 Coupling note (round 8, class 1): the header above used to carry a prose tail —
@@ -220,12 +220,28 @@ RETIRED_VENDORED_GITIGNORE_GROUP = (
     "`git clean -fd` / `git add -A` bait)"
 )
 
+# A per-machine tool directory: serena creates ``.serena/`` on its first activation in a repo
+# (project.yml, memories/, and a symbol cache; serena's own ``.serena/.gitignore`` covers only
+# ``/cache`` and ``/project.local.yml``). Nothing generated ever put it in the block, so the hub
+# and /opt/seo each carried a HAND-ADDED line — at different line numbers — while every other
+# repo that activates serena is left untracked AND unignored: `git clean -fd` bait and
+# `git add -A` bait, the same shape D-198 records for a retired vendored dir. Reported by
+# web-ecommerce-factory (01M2WR8Y0XBT6C0TASWHKYT8F9) after a `/fabrik-review` caller hop.
+SERENA_GITIGNORE_GROUP = (
+    "Per-machine tool state (created locally, never synced: serena's project + symbol cache)"
+)
+
 # EVERY gitignore group that must be IGNORED but never DISTRIBUTED. ``worktreeinclude_text()``
-# skips membership of this set, not one hardcoded key: the property is "this group is retired",
-# and encoding it as a single `==` made the DEFAULT for any future retired group "distribute it"
-# — a second such group would silently land in `.worktreeinclude` and be copied into every new
-# worktree in ~46 repos, which is exactly the distribution the mechanism exists to end.
-RETIRED_GITIGNORE_GROUPS: frozenset[str] = frozenset({RETIRED_VENDORED_GITIGNORE_GROUP})
+# skips membership of this set, not one hardcoded key, so a second such group is ONE CONSTANT
+# away from inheriting the skip instead of one `==` edit away. ⚠️ Be precise about what that
+# buys: it moved the EDIT SITE, it did NOT invert the default. A brand-new group added to
+# `gitignore_dest_paths()` and not added here is still DISTRIBUTED — measured, and silently.
+# Inverting the default would take an explicit per-group `distribute: bool`, not an opt-out set.
+# Retirement (D-198) was the first reason a group belongs here; PER-MACHINE STATE is the second,
+# which is why this set is no longer named for retirement alone.
+IGNORE_ONLY_GITIGNORE_GROUPS: frozenset[str] = frozenset(
+    {RETIRED_VENDORED_GITIGNORE_GROUP, SERENA_GITIGNORE_GROUP}
+)
 
 RETIRED_VENDORED_DIRS = [
     # D-198, 2026-09-08 — retired by D-196 at fabrik-lib's request; the pool is OFF (D-181/D-182)
@@ -292,6 +308,28 @@ REFERENCE_DOCS = [
 ]
 
 
+# The OTHER side of the classification. `IGNORE_ONLY_GITIGNORE_GROUPS` is an opt-OUT, so it closes
+# only the stale-member direction; a BRAND-NEW group added below and registered in neither set was
+# still distributed silently, which is the one direction that actually ships something new
+# (executed: a new group, then the documented regeneration, then a green 28/28 suite, with the new
+# paths in the tracked template). Naming both sides makes a new group a LOUD refusal until a human
+# picks a side. Its own cobra, per D-253: the cheapest way to satisfy this without thinking is to
+# paste the new key in here — which is a deliberate keystroke in a named set, not silence, and is
+# the whole point.
+DISTRIBUTED_GITIGNORE_GROUPS: frozenset[str] = frozenset(
+    {
+        "Governance files",
+        "Agent definition-of-done hooks",
+        "Rule packs, workflows and synced reference dirs",
+        "Reference docs (synced from fabrik)",
+        "Synced scripts",
+        "Vendored fabrik-lib modules (synced fleet-wide)",
+        "MCP config (emitted by emit_mcp_project_config.py, gitignored: carries the repo's"
+        " resolved DATABASE_URL)",
+    }
+)
+
+
 def gitignore_dest_paths() -> dict[str, list[str]]:
     """Dest paths grouped for the scaffold ``.gitignore`` "Fabrik-synced" block.
 
@@ -336,6 +374,23 @@ def gitignore_dest_paths() -> dict[str, list[str]]:
         "MCP config (emitted by emit_mcp_project_config.py, gitignored: carries the repo's resolved DATABASE_URL)": [
             ".mcp.json"
         ],
+        # IGNORE-ONLY (see SERENA_GITIGNORE_GROUP): serena writes this itself on first
+        # activation. Deliberately NOT worktree-copied, and the reason is measurable rather than
+        # precautionary: the SOURCE config is itself single-language, so a copy would propagate
+        # the defect that motivated this change, not cure it. Measured on the hub — its own
+        # `.serena/project.yml` says `language_servers: [python]` while `git ls-files` counts 98
+        # `.tsx` + 42 `.ts` tracked. The cure is seeding `language_servers` from the repo's real
+        # languages (routed, docs/STRATEGIC_BACKLOG.md), never a copy. Two more: the file carries
+        # `project_name`, which would then name one project from many worktree paths, and
+        # `project.local.yml` is serena's machine-local override by definition.
+        # ⚠️ And the copy would be TOTAL, not partial: once `.serena/` is ignored as a DIRECTORY
+        # git stops descending, so serena's own nested `.serena/.gitignore` (`/cache`,
+        # `/project.local.yml`) is inert and every path under it — cache included — is covered by
+        # this one line. MIRROR, stated because it is a real cost: a project can therefore NOT
+        # re-include `.serena/project.yml` with a `!` rule of its own (git cannot re-include a
+        # file inside an ignored directory), so a repo that wants its serena config COMMITTED
+        # must raise it here rather than locally.
+        SERENA_GITIGNORE_GROUP: [".serena/"],
     }
 
 
@@ -409,21 +464,56 @@ def worktreeinclude_text() -> str:
     ``.claude/settings.local.json`` (approvals stay in the main checkout — worktrees doc
     § "What worktrees share").
 
-    ⚠️ ONE deliberate divergence, and it is the only one: the
-    ``RETIRED_VENDORED_GITIGNORE_GROUP`` is skipped. A retired vendored dir must stay IGNORED
-    (so a leftover copy is not ``git clean -fd`` bait) while never being DISTRIBUTED again —
-    copying it into a new worktree would resume the distribution the retirement ended (D-198).
-    The two sets are therefore intentionally not identical; the skip is keyed on the group
-    CONSTANT, never on a repeated string literal, so renaming the group cannot silently
-    reintroduce the copy.
+    ⚠️ The deliberate divergence: every group in ``IGNORE_ONLY_GITIGNORE_GROUPS`` is skipped.
+    A retired vendored dir must stay IGNORED (so a leftover copy is not ``git clean -fd`` bait)
+    while never being DISTRIBUTED again — copying it into a new worktree would resume the
+    distribution the retirement ended (D-198). Per-machine tool state (``.serena/``) is skipped
+    for a different reason: it is created locally per repo and carries a cache, so copying it
+    would distribute one machine's state. The two sets are therefore intentionally not identical;
+    the skip is keyed on the group CONSTANTS, never on repeated string literals, so renaming a
+    group cannot silently reintroduce the copy.
     """
+    groups = gitignore_dest_paths()
+    # ⚠️ The skip below is membership in a set of STRINGS, and nothing else ties those strings to
+    # real groups. Guarded HERE rather than at import: this function has exactly two callers —
+    # the sync's worktree re-sync and the `--worktreeinclude` regeneration that writes the tracked
+    # template — so this is the only moment the invariant matters, and guarding it at import
+    # instead put an AssertionError through consumers that catch broadly: `scaffold.py`'s
+    # `except Exception` silently degraded a fresh scaffold from 14 core scripts to 3 (executed).
+    orphans = sorted(str(g) for g in IGNORE_ONLY_GITIGNORE_GROUPS if g not in groups)
+    if orphans:
+        raise AssertionError(
+            "IGNORE_ONLY_GITIGNORE_GROUPS names group(s) absent from the groups being rendered: "
+            f"{orphans} — if that is the real manifest their worktree skip is dead and their "
+            "paths would be distributed; if it is a scoped dict, carry those groups through."
+        )
+    if not IGNORE_ONLY_GITIGNORE_GROUPS:
+        # Vacuously orphan-free, and it resumes distributing the D-198 retired vendored dir.
+        raise AssertionError(
+            "IGNORE_ONLY_GITIGNORE_GROUPS is EMPTY — every ignore-only group would be copied "
+            "into every new linked worktree, including the retired vendored dir D-198 ended."
+        )
+    unclassified = sorted(
+        str(g)
+        for g in groups
+        if g not in IGNORE_ONLY_GITIGNORE_GROUPS and g not in DISTRIBUTED_GITIGNORE_GROUPS
+    )
+    if unclassified:
+        raise AssertionError(
+            f"gitignore group(s) classified by neither set: {unclassified} — add each to "
+            "IGNORE_ONLY_GITIGNORE_GROUPS or DISTRIBUTED_GITIGNORE_GROUPS. Silence here used to "
+            "mean 'distribute it', which is the default this pair exists to end."
+        )
+
     seen: set[str] = set()
     patterns: list[str] = []
-    for group, paths in gitignore_dest_paths().items():
-        # A RETIRED group is ignored but never distributed — copying it into a new worktree
-        # would resume exactly the distribution the retirement ended (D-198). Membership, not
-        # `==`: a second retired group must inherit the skip rather than default to shipping.
-        if group in RETIRED_GITIGNORE_GROUPS:
+    for group, paths in groups.items():
+        # An IGNORE-ONLY group is ignored but never distributed — for a retired vendored dir
+        # copying it into a new worktree would resume exactly the distribution the retirement
+        # ended (D-198); for per-machine state it would distribute one machine's cache.
+        # Membership, not `==`: a new such group inherits the skip rather than defaulting to
+        # shipping.
+        if group in IGNORE_ONLY_GITIGNORE_GROUPS:
             continue
         for p in paths:
             if p not in seen:
@@ -439,7 +529,9 @@ def worktreeinclude_text() -> str:
         "# Copied into every new linked worktree at creation (Claude Code's `.worktreeinclude`",
         "# mechanism: a gitignored file matching a pattern here is copied in; tracked files",
         "# are never duplicated). Regenerate: python3 scripts/fabrik_synced_manifest.py",
-        "# --worktreeinclude > templates/governance/.worktreeinclude",
+        "# --worktreeinclude > .wti.tmp && mv .wti.tmp templates/governance/.worktreeinclude",
+        "# (via a temp file on purpose: a bare `>` truncates the tracked template to ZERO",
+        "#  bytes the moment the render fails, and an empty one distributes to ~46 repos)",
         *patterns,
         "",
     ]

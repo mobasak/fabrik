@@ -4328,3 +4328,134 @@ signal — a tool that degrades silently will read as unused for a reason unrela
 That argument belongs in item 1's D-row. The reporter states plainly that they did not read
 serena's source, so the ignored-path-vs-unsupported-language mechanism is their inference; items 2
 and 3 would change shape if it is wrong, item 1 would not.
+
+## The gitignore block bypasses the T12.17 "never ship the working tree" guard — 46 repos patched from uncommitted bytes (found reviewing the serena ignore, routed 2026-09-19)
+
+`scripts/sync_enforcement_to_projects.py` built `_head_source`/`_shipped_hash` after T12.17, whose
+own warning text records the incident: *"this script … copied the WORKING TREE: an uncommitted
+edit — mine, or a sibling's — shipped to every project. Measured … 48 copies carried one."* That
+protection covers files the sync COPIES, because they are read out of HEAD.
+
+The `.gitignore` block is not copied — it is COMPUTED. `:153` calls `gitignore_block_text()`, an
+in-process call into the currently-imported `scripts/fabrik_synced_manifest.py`, i.e. its
+WORKING-TREE bytes; `src/fabrik/scaffold.py:550` does the same dynamic import for new projects.
+Neither goes through `_head_source`, and `fabrik_synced_manifest.py` is never itself a synced file,
+so no HEAD-vs-tree check ever runs on it. Executed against the live tree with that file uncommitted:
+the `--dry-run` drift list named `PORTS.md, docs/PROJECT_CATALOG.md,
+templates/governance/.worktreeinclude` and did NOT name `fabrik_synced_manifest.py` — 0 occurrences
+in the whole dry-run output — while every one of the 46 `Would patch <project>'s .gitignore` lines
+was computed from it.
+
+Failure scenario, on a tree three sessions share: a sibling has a half-finished or wrong edit to
+`fabrik_synced_manifest.py` sitting uncommitted, anyone runs the sync for real, and all 46 repos'
+`.gitignore` are patched with that content, silently, with no drift line. This is the exact
+incident T12.17 was built to prevent, reopened through a second code path in the same tool.
+`.worktreeinclude` is correctly protected (it IS a tracked file read via `_head_source`), which is
+what makes the asymmetry confirmed rather than assumed. **Destination:** infra — the fix is to
+compute the block from HEAD's manifest (or to refuse to patch while the manifest differs from
+HEAD), and it lands on a governance-sync trigger, so it takes its own full `/fabrik-review`.
+
+## The synced block's header is false for a third of its groups, and it CANNOT be corrected in one edit (routed 2026-09-19)
+
+`gitignore_block_text()` heads the block *"Fabrik-synced files — DO NOT EDIT (centrally managed)"*,
+but 3 of its 9 groups are explicitly NOT synced: the retired vendored group, the MCP-config group,
+and the new per-machine serena group. The obvious one-word repair ("Fabrik-MANAGED files") is a
+TRAP, and this row exists to stop the next agent making it: `sync_enforcement_to_projects.py`'s
+`_GITIGNORE_BLOCK_RE` keys on the literal `# Fabrik-synced files`. Executed against a pinned copy
+of a real project `.gitignore`: with the header renamed the regex stops matching (`False`), so the
+NEXT sync appends a SECOND block and the file ends with two `# End Fabrik-synced block` markers —
+in 46 repos, with the stale block never reaped.
+
+The correct order is a migration: widen the regex to accept BOTH headers, sync, then change the
+header, sync again, then narrow the regex. Three sync passes, or a one-off repair script.
+**Destination:** infra, with its own review; the block is a public contract for ~46 repos.
+
+## `check_synced_unmodified.py` swallows a missing manifest symbol and degrades 46 gates silently (routed 2026-09-19)
+
+`scripts/enforcement/check_synced_unmodified.py:45-53` and `:72-80` do
+`from fabrik_synced_manifest import SEEDED_NOT_ENFORCED` (and `RETIRED_VENDORED_DIRS`) inside a
+`try/except ImportError` that returns an empty set. `from X import Y` raises ImportError when Y is
+MISSING, not just when X is — so a future rename of either symbol makes the check quietly report
+"no seeded exemptions / no retired dirs" with no message. `fabrik_synced_manifest.py` is not in
+`CORE_SCRIPTS` (verified), so project repos hold no copy and import the HUB's live module through a
+`sys.path` insert: one hub rename degrades the gate in every project at once.
+
+This was found while verifying that THIS change's rename (`RETIRED_GITIGNORE_GROUPS` →
+`IGNORE_ONLY_GITIGNORE_GROUPS`) was safe. It was — two independent whole-`/opt` sweeps found zero
+references outside the hub — but it was safe by luck of which symbol was renamed, not by design.
+**Destination:** infra — catch the symbol explicitly, or import the module and `getattr` with a
+loud failure.
+
+## Pre-existing red at HEAD: `test_docs_updater.py::TestMultiAgentOperatingModelDoc` (noted 2026-09-19)
+
+`test_doc_exists_and_names_the_planned_surfaces` fails at HEAD `623c00cfb`, verified in a throwaway
+worktree before any of this change was applied. Not touched here: it is a different subsystem, and
+fixing an unrelated doc test inside a governance-sync review would bundle unreviewed work into a
+46-repo distribution. Recorded so the next reader knows it is not this change's. **Destination:**
+whoever owns the multi-agent operating-model doc.
+
+## The ignore-only set is an opt-OUT, so a new gitignore group still defaults to "distribute it" (routed 2026-09-19)
+
+`IGNORE_ONLY_GITIGNORE_GROUPS` keeps a group out of `.worktreeinclude`, and the serena change added
+a guard that refuses a state where a declared ignore-only group does not exist. That closes the
+ORPHAN direction. It does not close the other one, and a review seat executed the gap: add a new
+group to `gitignore_dest_paths()`, leave it out of the set, then regenerate the tracked template
+with the exact command the test's own failure message prints — the suite goes 28/28 green and the
+new paths are shipped into `.worktreeinclude` for ~46 repos. The documented workflow IS the escape.
+
+The mechanism's own comment already admits the default was never inverted ("it moved the EDIT SITE,
+it did NOT invert the default"), and admitting it is not the same as closing it in a mechanism whose
+purpose is to stop silent distribution. The smallest shape that closes it is an explicit
+classification: a second constant naming the groups that ARE distributed, and a guard requiring
+every group key to appear in exactly one of the two sets — so a new group is a loud refusal until a
+human picks a side. That is a change to a governance-sync path and takes its own full review; it was
+deliberately not bundled into the serena change at its third round. **Destination:** infra.
+
+## Two latent residuals in the ignore-only guard (routed 2026-09-19)
+
+1. **The guard can be narrowed back to one hardcoded key with the suite green.** A seat mutated the
+   orphan loop to iterate `{SERENA_GITIGNORE_GROUP}` instead of the set and all tests passed — the
+   same `==`-shaped defect D-199 fixed one level down, reinstated one level up. The grader could
+   kill it the way its sibling does: monkeypatch a SECOND ignore-only group into both the set and
+   the dict, orphan that one, and assert the guard names it.
+2. **Nothing records why the guard is a `raise` and not a bare `assert`.** Executed both forms: as
+   shipped it raises under `python` and `python -O`; rewritten as `assert not orphans, …` it is
+   silently disabled under `-O` and the paths leak. The shipped form is correct; the risk is that a
+   later "simplification" to `assert` looks equivalent and is not.
+
+**Destination:** infra, low — both are grader/comment work on a file that already carries a full
+review's worth of guards.
+
+## Nothing in `scripts/enforcement/` binds the distributed `.worktreeinclude` to its generator (routed 2026-09-19)
+
+`templates/governance/.worktreeinclude` is a GENERATED artifact that ships to ~46 repos by file copy
+(`sync_enforcement_to_projects.py:2028`) and into every new project (`scaffold.py:1288-1290`).
+Neither consumer calls `worktreeinclude_text()`, so no runtime guard in that function can protect
+them. The only thing tying the tracked file to its generator is
+`tests/test_synced_manifest.py::test_worktreeinclude_template_matches_generated_text`, and the hub's
+pytest leg is not armed (`/opt/fabrik/.fabrik/run-pytest` does not exist), so the completion gate
+never runs it. Measured: `command grep -rn 'worktreeinclude' scripts/enforcement/` → rc 1, zero hits
+across the whole enforcement directory.
+
+This is why the template sat drifted for three days after `0a8d5fc7f` added `whoami_agent.py` to
+`CORE_SCRIPTS` without regenerating it — every new linked worktree in ~46 repos lacked that script
+and nothing said so. A one-check fix (compare the tracked template to the render, fail the gate on
+drift) closes the class for every future generated-artifact drift, not just this one.
+**Destination:** infra — `scripts/enforcement/` is a governance-sync path, so it takes its own
+full review.
+
+## Fire-rate note on the widened `# AFTER-EDIT:` header (measured 2026-09-19, kept deliberately)
+
+FIX DIRECTIVE 5 asks for a measured fire rate before a check is armed, and this one was widened
+rather than armed, so the measurement is recorded here instead of being skipped. `# AFTER-EDIT:` on
+`scripts/fabrik_synced_manifest.py` now names `templates/governance/.worktreeinclude` as well as
+`scripts/sync_enforcement_to_projects.py`. Measured over the file's full history — 53 commits, not a
+sample — only 3 also touched the template, so 12 of 53 past commits would gain an advisory WARN they
+do not produce today. The coupling is real only when the RENDERED SET changes, which is a strict
+subset of manifest edits.
+
+Kept anyway, and the reason is the row above: the untied template drifted for three days across ~46
+repos precisely because nothing warned. A 23% advisory false-fire is the cheaper error while no
+enforcement check exists. **If** that check ships, revisit this header — the WARN becomes redundant
+wallpaper at that point, which is exactly the shape FIX DIRECTIVE 5 says kills enforcement.
+**Destination:** infra, revisit with the row above.

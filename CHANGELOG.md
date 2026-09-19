@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `.serena/` is ignored fleet-wide, and the ignore-only skip now refuses both ways it used to fail (2026-09-19)
+
+- The generated "Fabrik-synced" `.gitignore` block gains `.serena/` (serena's per-machine project
+  and symbol cache), so it stops being `git clean -fd` / `git add -A` bait in ~46 repos. The hub
+  and `/opt/seo` each carried a hand-added line at a different line number, which is why no hub
+  window had seen it. Reported by web-ecommerce-factory (01M2WR8Y0XBT6C0TASWHKYT8F9). D-307.
+- It is IGNORE-ONLY: ignored, never copied into a linked worktree. Copying would propagate the
+  reported defect rather than cure it — the source config is itself single-language.
+- `RETIRED_GITIGNORE_GROUPS` → `IGNORE_ONLY_GITIGNORE_GROUPS`, now guarded inside
+  `worktreeinclude_text()` in three arms: an orphaned member, an empty set, and a group classified
+  by neither set. Before, all three silently meant "distribute it" across ~46 repos.
+- `templates/governance/.worktreeinclude` regenerated: it had been RED since `0a8d5fc7f` added
+  `whoami_agent.py` to `CORE_SCRIPTS` without regenerating, so every new linked worktree in ~46
+  repos lacked that script for three days. Its published regeneration command no longer uses a bare
+  `>`, which truncated the tracked template to zero bytes on any render failure (reproduced).
+
 ### Fixed — the quota hold stopped killing work that still had quota to finish (2026-09-19)
 
 - The `fleet-exhausted` stamp is written on TWO different events and said which on neither.

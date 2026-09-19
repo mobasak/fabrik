@@ -10,6 +10,7 @@ import hashlib
 import json
 import sys
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -203,26 +204,33 @@ def test_worktreeinclude_text_covers_every_gitignore_dest_paths_entry() -> None:
     names), so dropping the real entry leaves a substring check green (proven by
     mutation review: dropping ".windsurf/" from the render left it green)."""
     rendered_lines = m.worktreeinclude_text().splitlines()
-    # ONE deliberate exemption (D-198): the RETIRED vendored group is ignored but never
-    # distributed, so it must NOT reach a worktree — copying it there would resume the very
-    # distribution the retirement ended. Every OTHER group still owes full coverage, and the
-    # exemption is keyed on the group CONSTANT so a renamed group fails loudly here rather
-    # than silently widening the exemption.
+    # The deliberate exemption: every IGNORE_ONLY group (D-198's retired vendored dir, and
+    # per-machine tool state) is ignored but never distributed, so it must NOT reach a worktree.
+    # Keyed on SET MEMBERSHIP, never on one group constant — a single `!=` here made the default
+    # for any new ignore-only group "demand coverage", which reds this test instead of the real
+    # regression and invites someone to widen the exemption by hand. Every OTHER group still owes
+    # full coverage.
     flattened = {
         p
         for group, paths in m.gitignore_dest_paths().items()
-        if group != m.RETIRED_VENDORED_GITIGNORE_GROUP
+        if group not in m.IGNORE_ONLY_GITIGNORE_GROUPS
         for p in paths
     }
     missing = sorted(p for p in flattened if p not in rendered_lines)
     assert not missing, (
         f"worktreeinclude_text() is missing gitignore_dest_paths() entries: {missing}"
     )
-    # The exemption is EXACT, not a licence: the retired entries are the only absentees.
-    retired = {f"{d}/" for d in m.RETIRED_VENDORED_DIRS}
-    assert not (retired & set(rendered_lines)), (
-        f"a RETIRED vendored dir reached .worktreeinclude: {sorted(retired & set(rendered_lines))}"
-    )
+    # The exemption is EXACT, not a licence: the ignore-only entries are the only absentees, and
+    # none of them may appear in the render.
+    ignore_only = {
+        p
+        for group, paths in m.gitignore_dest_paths().items()
+        if group in m.IGNORE_ONLY_GITIGNORE_GROUPS
+        for p in paths
+    }
+    assert ignore_only, "the ignore-only set flattened to nothing — the exemption is vacuous"
+    leaked = sorted(ignore_only & set(rendered_lines))
+    assert not leaked, f"an IGNORE-ONLY entry reached .worktreeinclude: {leaked}"
 
 
 def test_worktreeinclude_text_adds_env_and_mcp_json() -> None:
@@ -249,7 +257,18 @@ def test_worktreeinclude_exclusion_is_live_not_vacuous(monkeypatch: pytest.Monke
     prove the render still drops it, while an unrelated entry survives."""
 
     def fake_dest_paths() -> dict[str, list[str]]:
-        return {"Fixture group": [".claude/settings.local.json", "some/other/tracked/file.py"]}
+        # The ignore-only groups are carried through empty: `worktreeinclude_text()` refuses a
+        # dict in which a declared ignore-only group does not exist, because that state is how
+        # the worktree skip silently dies. A fixture that omits them is inconsistent, not minimal.
+        return {
+            **{g: [] for g in m.IGNORE_ONLY_GITIGNORE_GROUPS},
+            # A rendered group must be classified, so borrow a real DISTRIBUTED key as the fixture's
+            # own — the render is what is under test here, not the classification.
+            next(iter(sorted(m.DISTRIBUTED_GITIGNORE_GROUPS))): [
+                ".claude/settings.local.json",
+                "some/other/tracked/file.py",
+            ],
+        }
 
     monkeypatch.setattr(m, "gitignore_dest_paths", fake_dest_paths)
     rendered_lines = m.worktreeinclude_text().splitlines()
@@ -353,10 +372,10 @@ def test_worktreeinclude_skip_is_keyed_on_the_group_constant() -> None:
     assert groups[m.RETIRED_VENDORED_GITIGNORE_GROUP] == [f"{d}/" for d in m.RETIRED_VENDORED_DIRS]
 
 
-def test_worktreeinclude_skips_every_group_in_retired_gitignore_groups(
+def test_worktreeinclude_skips_every_group_in_ignore_only_gitignore_groups(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The skip must consult RETIRED_GITIGNORE_GROUPS, not one hardcoded key.
+    """The skip must consult IGNORE_ONLY_GITIGNORE_GROUPS, not one hardcoded key.
 
     D-199 shipped the frozenset as a headline fix ("a single `==` made the default 'ship it'")
     and NOTHING TESTED IT: a closing seat mutated the skip back to a literal comparison and all
@@ -371,12 +390,88 @@ def test_worktreeinclude_skips_every_group_in_retired_gitignore_groups(
     base = m.gitignore_dest_paths()
     monkeypatch.setattr(m, "gitignore_dest_paths", lambda: {**base, second: ["libs/retired_two/"]})
     monkeypatch.setattr(
-        m, "RETIRED_GITIGNORE_GROUPS", frozenset({*m.RETIRED_GITIGNORE_GROUPS, second})
+        m, "IGNORE_ONLY_GITIGNORE_GROUPS", frozenset({*m.IGNORE_ONLY_GITIGNORE_GROUPS, second})
     )
     assert "libs/retired_two/" not in m.worktreeinclude_text().splitlines(), (
         "worktreeinclude_text() skipped only ONE hardcoded group — a second retired group would "
         "be copied into every new worktree in ~46 repos"
     )
+
+
+def test_serena_is_ignored_fleet_wide_but_never_copied_into_a_worktree() -> None:
+    """Reported by web-ecommerce-factory (01M2WR8Y0XBT6C0TASWHKYT8F9).
+
+    `.serena/` is a per-machine serena project + symbol cache that serena itself creates on first
+    activation. It was in the HUB's own `.gitignore` by hand (and `/opt/seo`'s, at a different
+    line), so no hub window ever saw the `?? .serena/` that a project agent does — measured at
+    report time: 3 of the `/opt` repos carried a `.serena/`, 2 ignored it by a hand-added line and
+    1 did not. Nothing put it in the generated block, so every repo that activates serena from now
+    on is untracked-and-unignored: `git clean -fd` bait and `git add -A` bait, the same shape
+    D-198 records for a retired vendored dir.
+
+    It is IGNORE-ONLY on purpose, for a measurable reason rather than a precautionary one: the
+    SOURCE config is itself single-language (the hub's own `.serena/project.yml` says
+    `language_servers: [python]` while `git ls-files` counts 98 `.tsx` + 42 `.ts` tracked), so
+    copying it into a worktree would propagate the reported defect rather than cure it. Note the
+    copy would be TOTAL: once `.serena/` is ignored as a DIRECTORY git stops descending, so
+    serena's own nested `.serena/.gitignore` is inert and `cache/` would ride along too.
+    """
+    block = m.gitignore_block_text()
+    assert ".serena/" in block.splitlines(), "`.serena/` is not in the generated ignore block"
+    assert ".serena/" not in m.worktreeinclude_text().splitlines(), (
+        "`.serena/` reached .worktreeinclude — a per-machine cache would be copied into every "
+        "new linked worktree across ~46 repos"
+    )
+    groups = m.gitignore_dest_paths()
+    owning = [g for g, paths in groups.items() if ".serena/" in paths]
+    assert len(owning) == 1, (".serena/ must live in exactly one group", owning)
+    assert owning[0] in m.IGNORE_ONLY_GITIGNORE_GROUPS, (
+        f"{owning[0]!r} is not in IGNORE_ONLY_GITIGNORE_GROUPS, so the skip that keeps it out of "
+        ".worktreeinclude is incidental rather than declared"
+    )
+
+
+def test_a_broken_ignore_only_set_makes_worktreeinclude_refuse_rather_than_distribute() -> None:
+    """The skip is membership in a set of STRINGS, and nothing tied those strings to real groups.
+
+    A review seat ran the break-states against `worktreeinclude_text()` — the set emptied, a
+    member that is no group, a member differing by a trailing space, a new group never registered,
+    and a member orphaned by a hand-edited dict key — and found the failure direction was always
+    "distribute it": the group's paths landed in `.worktreeinclude`, which copies them into every
+    new linked worktree across ~46 repos.
+
+    The guard lives INSIDE `worktreeinclude_text()`, and this test drives that function rather
+    than a helper, for two reasons a seat proved by mutation. (1) A standalone guard called at
+    import was deletable with the whole suite still green, because the test called the helper
+    directly and nothing exercised the call site. (2) At import it fired through consumers that
+    catch broadly — `src/fabrik/scaffold.py`'s `except Exception` silently degraded a fresh
+    scaffold from 14 core scripts to 3. This function has exactly two callers, the sync's worktree
+    re-sync and the `--worktreeinclude` regeneration, so it is the only site that both matters and
+    is safe.
+    """
+    real = m.gitignore_dest_paths()
+
+    # ORPHAN, once PER ignore-only group: the dict key is renamed, so that member silently stops
+    # matching while its paths are still there to leak. A seat proved a fixture that orphans only
+    # SERENA lets the guard be narrowed to that one key with the suite green — the same `==`-shaped
+    # defect D-199 closed one layer down. Removing a group instead would leak nothing and prove
+    # nothing. The `lambda o=...` default-bind is load-bearing: a bare closure captures the loop var.
+    for g in sorted(m.IGNORE_ONLY_GITIGNORE_GROUPS):
+        orphaned = {(k + " ") if k == g else k: v for k, v in real.items()}
+        with mock.patch.object(m, "gitignore_dest_paths", lambda o=orphaned: o):
+            with pytest.raises(AssertionError, match="absent from the groups being rendered"):
+                m.worktreeinclude_text()
+
+    # EMPTY SET: vacuously orphan-free, and it resumes distributing the dir D-198 retired.
+    with mock.patch.object(m, "IGNORE_ONLY_GITIGNORE_GROUPS", frozenset()):
+        with pytest.raises(AssertionError, match="is EMPTY"):
+            m.worktreeinclude_text()
+
+    # The guard must not fire on the real state, and the real state must not leak.
+    rendered = m.worktreeinclude_text().splitlines()
+    assert ".serena/" not in rendered, rendered[:5]
+    for d in m.RETIRED_VENDORED_DIRS:
+        assert f"{d}/" not in rendered, d
 
 
 def test_the_hub_source_of_a_retired_vendored_dir_still_exists() -> None:
