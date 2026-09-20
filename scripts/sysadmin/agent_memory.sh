@@ -21,16 +21,20 @@
 # absent from fabrik_synced_manifest.py).
 set -u
 
-# ⚠️ CRON PATH. cron runs with PATH=/usr/bin:/bin, and every privileged tool this script needs —
-# sysctl, swapoff, swapon — lives in /usr/sbin. Without this the status block printed four EMPTY
-# values and `reclaim` would have died with "command not found" on the one night the box was
-# actually idle enough to run it. Caught by executing the job under `env -i PATH=/usr/bin:/bin`
-# rather than trusting an interactive shell, 2026-09-20.
+# ⚠️ CRON PATH. cron runs with PATH=/usr/bin:/bin, and sysctl/swapoff/swapon live in /usr/sbin.
+# What this actually fixes is the UNPRIVILEGED `sysctl -n` in cmd_status, which printed four EMPTY
+# values under cron. It does NOT rescue the sudo calls: `sudo -l` shows a secure_path covering
+# /usr/sbin, so those resolve either way — an earlier cut of this comment claimed otherwise and
+# was corrected by a review seat that read `sudo -l` instead of assuming. Caught by executing the
+# job under `env -i PATH=/usr/bin:/bin` rather than trusting an interactive shell, 2026-09-20.
 PATH="/usr/sbin:/sbin:$PATH"
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CONF=/etc/sysctl.d/99-fabrik-agent-memory.conf
+CONF="${AGENT_MEMORY_CONF:-/etc/sysctl.d/99-fabrik-agent-memory.conf}"
 EXT=kilocode.kilo-code
+# Test seams, production defaults. The privileged paths below are ungradeable otherwise, and they
+# are exactly the ones that can damage the box.
+SWAPS="${AGENT_MEMORY_SWAPS:-/proc/swaps}"
+MEMINFO="${AGENT_MEMORY_MEMINFO:-/proc/meminfo}"
 
 # The policy itself is kept HERE, and /etc is GENERATED from it, so there is exactly one source of
 # truth: `install` writes /etc from this block and the daily `cron` job re-asserts it, which heals
@@ -63,12 +67,34 @@ vm.min_free_kbytes = 262144
 vm.watermark_scale_factor = 100
 EOF
 
-_gb() { awk -v v="$1" 'BEGIN{printf "%.2f", v/1048576}'; }
-_meminfo() { awk -v k="$1" '$1==k":"{print $2}' /proc/meminfo; }
+# ⚠️ An ABSENT key must not print a confident 0.00 — that is indistinguishable from a true zero
+# in the only human-readable output this cron job produces (the hub's denominator-honesty rule,
+# applied to a status surface).
+_gb() { if _is_num "${1:-}"; then awk -v v="$1" 'BEGIN{printf "%.2f", v/1048576}'; else printf '?'; fi; }
+_meminfo() { awk -v k="$1" '$1==k":"{print $2}' "$MEMINFO"; }
+# ⚠️ A set-but-EMPTY value is what `set -u` cannot catch, and it is how the ENOMEM guard below
+# silently disabled itself: `[ "$used" -gt "" ]` makes `[` exit 2, `if` reads that as FALSE, and
+# the else path is the swapoff. Validate numerically and fail CLOSED.
+_is_num() { case "${1:-}" in "" | *[!0-9]*) return 1 ;; *) return 0 ;; esac; }
 
 cmd_install() {
-    printf '%s\n' "$POLICY" | sudo tee "$CONF" >/dev/null
-    sudo sysctl -q -p "$CONF"
+    # ⚠️ `tee` opens with O_TRUNC, so an ENOSPC write EMPTIES the policy file before failing — and
+    # `sysctl -q -p` on an empty file returns 0 with no output, so neither step objects. The old
+    # code then printed "installed" over a destroyed file that would silently revert the box to
+    # swappiness 60 at the next boot. Write to a temp and move it into place atomically.
+    if ! printf '%s\n' "$POLICY" | sudo tee "$CONF.tmp" >/dev/null; then
+        echo "install FAILED: could not write $CONF.tmp" >&2
+        sudo rm -f "$CONF.tmp"
+        return 1
+    fi
+    if ! sudo mv "$CONF.tmp" "$CONF"; then
+        echo "install FAILED: could not move $CONF.tmp into place" >&2
+        return 1
+    fi
+    if ! sudo sysctl -q -p "$CONF"; then
+        echo "install FAILED: sysctl refused $CONF" >&2
+        return 1
+    fi
     echo "installed $CONF"
     cmd_status
 }
@@ -89,7 +115,13 @@ cmd_status() {
 # only a swapoff/swapon cycle undoes what is already out there.
 cmd_reclaim() {
     local force=0
-    [ "${1:-}" = "--force" ] && force=1
+    case "${1:-}" in
+        --force) force=1 ;;
+        "") ;;
+        # a typo'd flag silently read as non-force, so the operator saw "skipped" and could
+        # reasonably conclude the guard was broken
+        *) echo "unknown option '${1}' (did you mean --force?)" >&2; return 2 ;;
+    esac
     local live; live=$(pgrep -x claude | wc -l)
     # GUARD: swapoff must fit every swapped page back into RAM at once and stalls the box for up
     # to a minute. This tree routinely runs 3+ concurrent agent sessions whose turns would freeze
@@ -98,14 +130,31 @@ cmd_reclaim() {
         echo "skipped: $live claude session(s) live — a swapoff would stall every one of them"
         return 10
     fi
-    local used avail
-    used=$(( $(_meminfo SwapTotal) - $(_meminfo SwapFree) ))
-    avail=$(_meminfo MemAvailable)
+    local used avail total free
+    total=$(_meminfo SwapTotal); free=$(_meminfo SwapFree); avail=$(_meminfo MemAvailable)
+    if ! _is_num "$total" || ! _is_num "$free" || ! _is_num "$avail"; then
+        echo "skipped: cannot read $MEMINFO (SwapTotal/SwapFree/MemAvailable) — refusing to act blind"
+        return 10
+    fi
+    used=$(( total - free ))
     if [ "$used" -eq 0 ]; then echo "nothing swapped out"; return 0; fi
     # swapoff aborts with ENOMEM if the pages cannot fit, leaving swap partially off. Refuse up
     # front rather than churn the box for nothing.
     if [ "$used" -gt "$avail" ]; then
         echo "skipped: $(_gb "$used") GB swapped exceeds $(_gb "$avail") GB available — swapoff would fail"
+        return 10
+    fi
+    # ⚠️ `swapoff -a` and `swapon -a` ARE NOT SYMMETRIC, and on this box the difference is the
+    # whole ballgame. swapoff -a takes down every device in /proc/swaps; swapon -a activates only
+    # devices marked swap in /etc/fstab — and this box's fstab has ZERO swap entries (swap is
+    # /dev/sdc, brought up by WSL init, with no systemd .swap unit either). So `swapon -a` would
+    # restore NOTHING and still exit 0: an rc check cannot catch it. Capture the devices FIRST and
+    # restore each by name. Found by the authoritative review seat 2026-09-20; guarded by
+    # tests/test_agent_memory.py::test_swap_is_restored_by_device_because_swapon_dash_a_reads_only_fstab
+    local devs
+    mapfile -t devs < <(awk 'NR>1 && $1!="" {print $1}' "$SWAPS")
+    if [ "${#devs[@]}" -eq 0 ]; then
+        echo "skipped: $SWAPS lists no device to restore — refusing a swapoff I could not undo"
         return 10
     fi
     echo "reclaiming $(_gb "$used") GB from swap (may stall briefly)..."
@@ -116,17 +165,29 @@ cmd_reclaim() {
         # LIVE. The next spike OOM-kills something and nothing anywhere says why. Reproduced
         # 2026-09-20 with a stubbed sudo; guarded by
         # tests/test_agent_memory.py::test_a_failed_swapon_after_a_successful_swapoff_is_never_reported_as_success
-        if sudo swapon -a; then
-            echo "reclaimed."
+        local failed=0 d
+        for d in "${devs[@]}"; do
+            sudo swapon "$d" || { echo "FAILED to re-enable $d" >&2; failed=1; }
+        done
+        # Verify against the KERNEL's own view, not the rc — the rc lied by construction above.
+        local back
+        back=$(awk 'NR>1 && $1!="" {n++} END{print n+0}' "$SWAPS")
+        if [ "$failed" -eq 0 ] && [ "$back" -eq "${#devs[@]}" ]; then
+            echo "reclaimed. (${back}/${#devs[@]} swap device(s) restored)"
             return 0
         fi
-        echo "CRITICAL: swapoff succeeded but swapon FAILED — this box is now running WITHOUT SWAP" >&2
-        echo "CRITICAL: re-enable by hand and check the cause: sudo swapon -a ; swapon --show" >&2
+        echo "CRITICAL: swapoff succeeded but only ${back}/${#devs[@]} swap device(s) came back —" >&2
+        echo "CRITICAL: this box may be running WITHOUT SWAP. Restore by hand: sudo swapon ${devs[*]}" >&2
+        echo "CRITICAL: then confirm with: swapon --show" >&2
         return 1
     fi
     # The SAFE failure: swapoff refused, so swap was never removed. Re-assert it anyway.
-    echo "swapoff FAILED — re-enabling swap, state unchanged" >&2
-    sudo swapon -a || echo "CRITICAL: swapon also failed — verify with: swapon --show" >&2
+    # ⚠️ NOT necessarily "state unchanged": swapoff -a takes devices down one at a time and can
+    # fail part-way (ENOMEM), so re-assert every captured device rather than assuming.
+    echo "swapoff FAILED — re-asserting every known swap device" >&2
+    for d in "${devs[@]}"; do
+        sudo swapon "$d" 2>/dev/null || echo "CRITICAL: could not re-enable $d" >&2
+    done
     return 1
 }
 
@@ -137,19 +198,38 @@ cmd_reclaim() {
 # ⚠️ State changes take effect on the next window RELOAD, not instantly.
 cmd_kilo() {
     case "${1:-status}" in
-        off) code --uninstall-extension "$EXT" 2>&1 | tail -2
+        off) command -v code >/dev/null 2>&1 || { echo "the 'code' CLI is not on PATH" >&2; return 1; }
+             # no `pipefail` here, so `| tail` would mask the rc entirely — read PIPESTATUS
+             code --uninstall-extension "$EXT" 2>&1 | tail -2
+             [ "${PIPESTATUS[0]}" -eq 0 ] || { echo "uninstall FAILED" >&2; return 1; }
              echo "Reload each VS Code window to free its processes." ;;
-        on)  code --install-extension "$EXT" 2>&1 | tail -2
+        on)  command -v code >/dev/null 2>&1 || { echo "the 'code' CLI is not on PATH" >&2; return 1; }
+             code --install-extension "$EXT" 2>&1 | tail -2
+             [ "${PIPESTATUS[0]}" -eq 0 ] || { echo "install FAILED" >&2; return 1; }
              echo "Reload the window you need it in." ;;
-        *)   if code --list-extensions 2>/dev/null | grep -qx "$EXT"; then echo "  kilo: installed"; else echo "  kilo: not installed"; fi
+        *)   if ! command -v code >/dev/null 2>&1; then
+                 # ⚠️ `code` lives only in the VS Code server's remote-cli dir, which is injected
+                 # into the integrated terminal's PATH. Under cron or a plain ssh shell it is
+                 # ABSENT, and `code --list-extensions 2>/dev/null | grep -qx` then reported
+                 # "not installed" — a false negative on the exact question being asked, with the
+                 # diagnostic deliberately suppressed.
+                 echo "  kilo: UNKNOWN — the 'code' CLI is not on PATH (run this from a VS Code terminal)"
+             elif code --list-extensions 2>/dev/null | grep -qx "$EXT"; then echo "  kilo: installed"
+             else echo "  kilo: not installed"; fi
              ps -eo rss,args --no-headers | grep "[k]ilo" |
                awk '{s+=$1;n++} END {printf "  kilo: %d live process(es), %.2f GB\n", n+0, s/1048576}' ;;
     esac
 }
 
-# The DAILY cron entry point. Always exits 0 so weekly_catchup.sh stamps it and the liveness
-# heartbeat stays meaningful — a refused reclaim (agents live) is the EXPECTED nightly outcome,
-# not a failure. Re-asserts the policy first, which is what makes a WSL rebuild self-heal.
+# The DAILY cron entry point. Exit code is the CONTRACT, and it has two halves:
+#   0  — success, or a benign SKIP (sessions live / the pages would not fit). weekly_catchup.sh
+#        stamps, and the `agent-memory-policy` liveness surface stays LIVE. A skip is the EXPECTED
+#        nightly outcome while the operator is working; treating it as failure would re-run the job
+#        hourly and flip that surface DEAD every night.
+#   1  — CRITICAL (above all: swapoff succeeded, swapon failed, so the box now has NO SWAP). The
+#        stamp is deliberately withheld, because breaking the heartbeat is the only signal anyone
+#        will ever see. `weekly_catchup.sh`'s OK_MAX=0 already yields exactly this.
+# It re-asserts the policy first, so a hand-edit or a removed /etc file heals on the next run.
 cmd_cron() {
     echo "agent-memory: $(date -Is)"
     if ! cmp -s <(printf '%s\n' "$POLICY") "$CONF" 2>/dev/null; then
@@ -164,8 +244,24 @@ cmd_cron() {
     cmd_reclaim
     rr=$?
     cmd_status
-    if [ "$rr" -eq 1 ]; then
-        echo "agent-memory: NOT stamping — reclaim reported a critical failure (rc=1)" >&2
+    # ⚠️ THE COBRA (D-253), and it is why this block exists. The cheapest way to satisfy this
+    # heartbeat WITHOUT producing the outcome is exactly what an earlier cut did: print a date,
+    # attempt four privileged operations, ignore every result, return 0. The stamp then measured
+    # "the script was invoked", never "the policy is in effect" — and `sysctl -q -p` returns 0 even
+    # on an EMPTY file, so the re-assert above cannot stand in for the check. Verify the live
+    # values against the policy and unstamp on drift; the read is free, cmd_status just made it.
+    local drift=0 k want got
+    while IFS= read -r line; do
+        case "$line" in vm.*) ;; *) continue ;; esac
+        k=${line%%=*}; k=${k%% }; want=${line#*= }
+        got=$(sysctl -n "$k" 2>/dev/null || true)
+        if [ "$got" != "$want" ]; then
+            echo "agent-memory: POLICY NOT IN EFFECT — $k is '${got:-<unreadable>}', want '$want'" >&2
+            drift=1
+        fi
+    done <<< "$POLICY"
+    if [ "$rr" -eq 1 ] || [ "$drift" -eq 1 ]; then
+        echo "agent-memory: NOT stamping — the run did not leave the box in the intended state" >&2
         return 1
     fi
     return 0
