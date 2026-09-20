@@ -18,7 +18,7 @@ this page is where a new cleanup rule gets written.
 | `compact-wsl.bat` | `C:\Users\user\OneDrive - Tojlo Solutions LLC\Desktop\` | manual | WSL vhdx compaction |
 | `flush_subagent_outboxes.py` | `/opt/fabrik/scripts/kilo-benchmarks/` (WSL) | **daily 06:00** via `daily_refresh.sh` **+ every boot** via `wsl_startup_hook.sh` | drains `.tmp/subagents/pg_outbox*.jsonl` — see § E |
 | `scratch_sweep.py --dead --apply` | `/opt/fabrik/scripts/` (WSL) | cron **04:20 daily** — ✅ INSTALLED (verified in `crontab -l` 2026-09-20) | DEAD sessions' scratch under `/tmp/claude-<uid>` — see § F |
-| `agent_memory.sh cron` | `/opt/fabrik/scripts/sysadmin/` (WSL) | **hourly** via `weekly_catchup.sh`, fires once a day — ✅ INSTALLED 2026-09-20 | RAM: the four `vm.*` knobs + swap reclaim — see § G |
+| `agent_memory.sh cron` | `/opt/fabrik/scripts/sysadmin/` (WSL) | **hourly** via `weekly_catchup.sh`, fires once a day — ✅ INSTALLED 2026-09-20 | RAM: asserts the four `vm.*` knobs and reports. It does NOT reclaim swap — that is operator-run (D-318) — see § G |
 
 ---
 
@@ -331,14 +331,13 @@ trusting an interactive shell, which cannot see this class at all; the "it would
 command not found" version of this paragraph was wrong and was corrected after a review seat read
 `sudo -l` instead of assuming.
 
-⚠️ **`cron`'s exit code is the contract, and it has two halves** (the `reclaim` codes above are
-a different, finer set — this paragraph is about the daily job only). **0** on success *or* on a benign
-SKIP — a refused reclaim because sessions are live is the EXPECTED nightly outcome, and
-`weekly_catchup.sh` stamps only on success, so returning non-zero there would re-run the job hourly
-and flip `agent-memory-policy` to DEAD every night the operator is working. **1** on a CRITICAL
-failure — a box left with no swap, or the policy not in effect — where the stamp is deliberately
-withheld. So an overdue stamp means cron/the runner is broken **OR** the box lost its swap **OR**
-the policy drifted; `~/.claude/agent-memory.log` distinguishes them.
+⚠️ **`cron`'s exit code is the contract, and it has exactly two values** (`reclaim`'s finer
+0/1/2/10/11 belong to the operator-run path and never reach the daily job). **0** — the policy is
+in effect; `weekly_catchup.sh` stamps and `agent-memory-policy` stays LIVE. **1** — the policy is
+NOT in effect (it drifted, or the reinstall failed); the stamp is deliberately withheld, because
+breaking the heartbeat is the only signal anyone will ever see. So an overdue stamp now means
+exactly two things: cron/the runner is broken, or the policy is not applied. It can no longer mean
+"the box lost its swap", because the daily job does not touch swap (D-318).
 
 **What this section deliberately does NOT do: drop caches on a schedule.** `echo 3 >
 /proc/sys/vm/drop_caches` frees a headline number and buys nothing durable — the cache refills

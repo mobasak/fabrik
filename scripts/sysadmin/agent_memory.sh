@@ -278,15 +278,14 @@ cmd_kilo() {
     esac
 }
 
-# The DAILY cron entry point. Exit code is the CONTRACT, and it has two halves:
-#   0  — success, or a benign SKIP (sessions live / the pages would not fit). weekly_catchup.sh
-#        stamps, and the `agent-memory-policy` liveness surface stays LIVE. A skip is the EXPECTED
-#        nightly outcome while the operator is working; treating it as failure would re-run the job
-#        hourly and flip that surface DEAD every night.
-#   1  — CRITICAL (above all: swapoff succeeded, swapon failed, so the box now has NO SWAP). The
-#        stamp is deliberately withheld, because breaking the heartbeat is the only signal anyone
-#        will ever see. `weekly_catchup.sh`'s OK_MAX=0 already yields exactly this.
-# It re-asserts the policy first, so a hand-edit or a removed /etc file heals on the next run.
+# The DAILY cron entry point. It asserts the policy and REPORTS; it changes no system state
+# beyond rewriting /etc/sysctl.d when that file has drifted (D-318 — swap mutation left this path).
+# Exit code is the CONTRACT and it has two values:
+#   0 — the policy is in effect. weekly_catchup.sh stamps and `agent-memory-policy` stays LIVE.
+#   1 — the policy is NOT in effect (drift, or the reinstall failed). The stamp is deliberately
+#       withheld, because breaking the heartbeat is the only signal anyone will ever see, and
+#       weekly_catchup.sh's OK_MAX=0 already yields exactly that.
+# `reclaim`'s finer codes (2/10/11) belong to the OPERATOR-run path and never reach here.
 cmd_cron() {
     echo "agent-memory: $(date -Is)"
     if ! cmp -s <(printf '%s\n' "$POLICY") "$CONF" 2>/dev/null; then

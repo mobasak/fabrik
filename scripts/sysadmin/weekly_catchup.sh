@@ -78,11 +78,11 @@ case "$JOB" in
     agent_memory.sh)
         # The RAM counterpart to cache-prune.sh's disk cleanup (cleanup-automation.md S G).
         # Re-asserts the sysctl policy (healing a hand-edit, a package overwrite, or a file
-        # removed while tidying /etc/sysctl.d) and reclaims swapped agent pages when the box is
-        # idle. Exit 0 on success OR on a benign SKIP (sessions live) — stamping a skip is what
-        # keeps the heartbeat meaningful instead of flapping DEAD every night the operator is
-        # working. Exit 1 on a CRITICAL failure — a box left with no swap, or the policy not in
-        # effect — where OK_MAX=0 withholds the stamp, which is the intended fail-closed signal.
+        # removed while tidying /etc/sysctl.d) and verifies the four knobs are live. It does NOT
+        # reclaim swap: that path mutates system state unattended and produced 8 of 8 critical
+        # findings in its own review, so it is operator-run only (D-318). Exit 0 when the policy
+        # IS in effect, 1 when it is not — where OK_MAX=0 withholds the stamp, the intended
+        # fail-closed signal.
         "$ROOT/scripts/sysadmin/agent_memory.sh" cron
         ;;
     kaizen_collect_v2.py)
