@@ -15,6 +15,48 @@ It is deliberately SMALL. It improves ONE command per run, proposes ONE edit, an
 `/fabrik-review-scoped` — never the heavy review loop. A command whose queue deserves five edits gets
 five runs, each of which a reader can judge on its own.
 
+## Drive — who runs it, on what, and how hard
+
+- **Caller.** A HUB window whose `CLAUDE_AGENT` is `infra` or `intel` — the corpus is infra's beat
+  and the review machinery intel's. A fleet window or a project-repo agent does not run it: it files
+  its verdict at its own close and the queue is worked from the hub. An unnamed hub window names
+  its role in the commit body.
+- **Driver.** The session running it is on Fable. When the `QUOTA:` line bands RED on Fable, or
+  names Fable as a window nobody serves, the run is driven on Opus (`/model claude-opus-5`) — never
+  on a seat model. Fable's weekly window is its own reading on that line and no relief flip reaches
+  it (D-295): read the line, not the account percentages.
+- **Seats.** Sized from the BOX by `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py`,
+  from the units the SURFACE has — one source file is one unit, which is why PHASE 4 reads
+  `--units 1 --mechanical 1` — and priced by role (haiku 1× · sonnet 2× · opus 5× · fable 10×,
+  D-190): Opus authoritative, Sonnet breadth, Haiku mechanical, all in ONE message, each a distinct
+  unit × angle, no slice read twice. An idle box buys no extra seat; a busy one is subtracted for
+  you by the dispatch stamp.
+- **Passes.** Round 1, then delta rounds sized by the fix (`--delta <n>`: one fresh seat at or under
+  20 changed lines, D-229). The target is a quiet round 2. A site confirmed wrong in two consecutive
+  rounds is REWRITTEN or DELETED, never patched a third time (the D-278 scope-growth stop) — that
+  closes a run faster than another round does.
+- **Grounding — before drafting, not after review.** For the group you pick: the command's current
+  text read WHOLE; the tool's own runtime output when a verdict is about a gate, a check or a tool;
+  `docs/DECISIONS.md` and `docs/STRATEGIC_BACKLOG.md` for the subject (a ruling or a sized row
+  routes the run, never a restatement); `/opt/fabrik-lib/README.md`'s module table and the
+  project's own `scripts/` when the edit names a capability, so the text points at what exists;
+  and the packs `python scripts/select_rules.py --changed <target>` prints. Every count,
+  `file::symbol` and claim the edit introduces is EXECUTED before the render — a recalled number is
+  a wrong number.
+- **Time.** One run is under 40 minutes wall-clock (16 closes measured 2026-09-20: median 34,
+  max 54). Past it, close with an honest no-edit naming what was read, and let the FEEDBACK line
+  say what cost the time — an overrun is a finding about this command, never a reason to skip a
+  phase.
+- **Resilience.** A seat with no tool result for 3 minutes is stopped and re-dispatched with a
+  tighter brief; a seat API timeout is one re-dispatch, never a wait. A run that cannot reach its
+  close hands off (`command_run.py handoff --resume <artifact>`) rather than dying with its context.
+- **Consistency and the manifesto.** The corpus keeps one shape: a rule that binds more than this
+  command lives in `commands/_fragments/` and is INCLUDED, never restated per command; a rule
+  already in `CLAUDE.md` or a pack is POINTED at, never copied; and a sibling command's handling of
+  the same subject is read before a new one is invented — best practice here is what the live
+  corpus practices. Every edit is reversible by default and names its cobra when it adds a count
+  or a bar (the operating manifesto, D-253).
+
 {{include:run-record}}
 
 ## PHASE 1 — Read the queue
@@ -128,8 +170,9 @@ python3 commands/assemble_commands.py --check    # installed == sources, or the 
 
 ## PHASE 4 — Review it
 
-`/fabrik-review-scoped` over the changed surface, run to its exit. Sized by the surface: one source
-file is one unit, so `dispatch_headroom.py --units 1 --mechanical 1` — and the seats read the EDIT
+`/fabrik-review-scoped` over the changed surface, run to its exit — one round plus the delta rounds
+§ Drive bounds. Sized by the surface: one source file is one unit, so `dispatch_headroom.py --units 1
+--mechanical 1` — and the seats read the EDIT
 against the verdicts it claims to answer, not merely for style. A seat that cannot find the verdict
 in the new text is the finding.
 
