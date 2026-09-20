@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `/fabrik-command-improve` gains a Drive contract: caller, driver, seats, passes, grounding, time (2026-09-20)
+
+- `commands/_sources/fabrik-command-improve.md` § Drive states the 11 previously absent drive aims as rules pointing at existing machinery (D-313); grader `tests/test_command_improve_drive.py`.
+
 ### Changed — term-edit rule (3): a count wrong twice becomes a derivation row, never a new number (D-312, 2026-09-20)
 
 - `commands/_fragments/term-edit.md:22` gains one sentence inside the pre-pin probe paragraph's rule (3),
