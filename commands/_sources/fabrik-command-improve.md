@@ -54,19 +54,19 @@ five runs, each of which a reader can judge on its own.
   Every count, `file::symbol` and claim the edit
   introduces is EXECUTED before the render — a recalled number is a wrong number.
 - **Time.** Budget one run at 40 minutes wall-clock (16 closes measured 2026-09-20: median 34,
-  max 54, 5 of the 16 past 40). Past it, finish the phase in flight, then close — with the edit if
-  phase 4 has passed; with PHASE 2's no-edit or lock-blocked close if that is where the run
-  stands; else, when the queue is still UNREVIEWED, by handing off (`command_run.py handoff
-  --command /fabrik-command-improve --resume <artifact> --reason "<why rows remain open>"`), since
-  an unreviewed queue is not the no-edit close that § Terminal sanctions — and let the FEEDBACK
-  line say what cost the time: an overrun is a finding about this command, never a reason to skip
-  a phase or to discard a reviewed edit.
+  max 54, 5 of the 16 past 40). An overrun changes nothing about HOW the run closes — § Terminal's
+  closes are the only closes, and no phase is skipped and no reviewed edit discarded to make the
+  clock; it changes what the FEEDBACK line says, because what cost the time is a finding about
+  this command.
 - **Resilience.** A seat that has not returned is governed by `commands/_fragments/term-coverage.md`
-  (wait or re-dispatch; never close over an outstanding finder), not restated here;
-  no corpus rule names a clock for it (not found in 117 files — 38 sources, 23 fragments, 56 packs,
-  2026-09-20), so none is stated here. A seat API timeout is one re-dispatch, never a wait. A run
-  that cannot reach its close hands off (`command_run.py handoff --command /fabrik-command-improve
-  --resume <artifact> --reason "<why>"`) rather than dying with its context.
+  (wait or re-dispatch; never close over an outstanding finder), not restated here; no corpus rule
+  names a clock for it (not found in 117 files — 38 sources, 23 fragments, 56 packs, 2026-09-20),
+  so none is stated here. A seat API timeout is one re-dispatch, never a wait. A run that cannot
+  reach its close hands off rather than dying with its context: write the resume artifact first
+  (`<scratchpad>/command-improve/<command>-open-rows.md` — the open `ts` rows, the group picked,
+  and a `## RESUME` block naming the next act), then `command_run.py handoff
+  --command /fabrik-command-improve --resume <that path> --reason "<why rows remain open>"
+  --feedback "<the four fields>"`.
 - **Consistency and the manifesto.** The corpus keeps one shape: a rule that binds more than this
   command lives in `commands/_fragments/` and is INCLUDED, never restated per command; a rule
   already in `CLAUDE.md` or a pack is POINTED at, never copied; and a sibling command's handling of
@@ -255,6 +255,5 @@ is a mail, and the mail id belongs in the FEEDBACK line.
 
 One edit committed and rendered, with its trailer naming the rows it answers — **or** an explicit
 `no edit this run — the queue holds nothing that survives review`, which is a legitimate close and
-must name what you read and why it did not survive — **or**, when § Drive's 40-minute bound arrives
-over a queue this run has not reviewed, a `handoff` close naming the resume artifact. Anything else
-is an unfinished run.
+must name what you read and why it did not survive — or, when every row's write target is
+lock-owned and mailed (PHASE 2), why it could not be applied. Anything else is an unfinished run.
