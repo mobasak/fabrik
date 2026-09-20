@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the daily RAM job no longer touches swap (2026-09-20)
+
+- Of 41 defects this change's own `/fabrik-review` confirmed across three rounds, **8 of 8
+  critical/high ones lived in the swap-mutation path**, two of them introduced by the previous
+  round's fix. That path was the only part that changed system state, ran unattended with nobody
+  watching, and had never actually executed — every invocation refused because agent sessions were
+  live. `cron` now asserts the policy and reports; `reclaim` remains for a hand-run on an idle box,
+  which is what was originally asked for. D-318.
+- The two CRITICALs that forced it, both in one line: the intactness test grepped the raw
+  `/proc/swaps` for an un-escaped device name as a BASIC REGEX, so a name with a space or a
+  metacharacter false-alarmed on an intact box, and `/swap.img` matched the surviving `/swapZimg`
+  line — reporting "swap is intact" while a device stayed down, and stamping the heartbeat green.
+- Plus: rc 11 masking an unusable `sudo`; the drift check skipping indented policy lines; a
+  misleading "nothing was taken down" after a repaired partial swapoff; `--force` documented as
+  overriding all four refusals when it overrides one; an unreadable `/proc/swaps` reported as
+  empty; and the test suite reading the real `sysctl` and real `/etc`, so a grader was green only
+  because this box happens to have the policy installed.
+- 21 graders; `grader-falsifiability` independently swept clean by a fresh seat at 16 of 16.
+
 ### Fixed — the RAM job's reclaim was a one-way trip to a swapless box (2026-09-20)
 
 Found by the `/fabrik-review` over D-316's own diff (routed up from review-scoped: operator-named
