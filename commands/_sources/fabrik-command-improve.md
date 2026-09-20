@@ -156,8 +156,8 @@ Three shapes are NOT yours to apply here, and each has a destination:
   like an empty one — but only once the target is named. Mail it and close.
 - a verdict that wants a NEW mechanism, a gate, a hook, or a schema → not a command edit: it is
   `/fabrik-task` work when the mechanism is reversible, fits 3 files and settles no trade-off (the
-  D-row names it — D-315) — say so, close this run, then OPEN it yourself in the same session,
-  never a mail (own-session work is dispatched, not narrated in a `NEXT:` line — `CLAUDE.md`
+  D-row names it — D-315) — say so, finish this run's remaining rows first (a route is not an
+  abort), close it, then OPEN `/fabrik-task` yourself in the same session, never a mail (own-session work is dispatched, not narrated in a `NEXT:` line — `CLAUDE.md`
   § FINAL OUTPUT); else SPEC/PLAN work (`/fabrik-spec` → `/fabrik-plan-after-chat`) — say so and
   file it.
 - a verdict about the machinery this command itself reads (the ledger, the close, the report) → file
@@ -263,6 +263,8 @@ One edit committed and rendered, with its trailer naming the rows it answers —
 `no edit this run — the queue holds nothing that survives review`, which is a legitimate close and
 must name what you read and why it did not survive — **or**, when every row's write target is
 lock-owned and mailed (PHASE 2), an explicit `no edit this run — every row's write target is
-lock-owned and mailed`, naming the lock file and the mail id — **or**, when the run cannot reach any
-of those (§ Drive, Resilience), a `handoff` close naming the resume artifact. Anything else is an
+lock-owned and mailed`, naming the lock file and the mail id — **or**, when the only surviving row
+was mechanism-shaped and ROUTED (PHASE 2), an explicit `no edit this run — the surviving row routed
+to /fabrik-task`, naming the row and the `/fabrik-task` record it opened — **or**, when the run cannot
+reach any of those (§ Drive, Resilience), a `handoff` close naming the resume artifact. Anything else is an
 unfinished run.
