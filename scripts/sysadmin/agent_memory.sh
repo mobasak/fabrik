@@ -102,9 +102,24 @@ cmd_reclaim() {
         return 10
     fi
     echo "reclaiming $(_gb "$used") GB from swap (may stall briefly)..."
-    if sudo swapoff -a; then sudo swapon -a; echo "reclaimed."; return 0; fi
+    if sudo swapoff -a; then
+        # ⚠️ swapon's rc is LOAD-BEARING. Unchecked, a failure here left the box running with NO
+        # SWAP and ~15 GB of anon while this printed "reclaimed." and returned 0 — so
+        # weekly_catchup.sh stamped the run and the `agent-memory-policy` liveness surface read
+        # LIVE. The next spike OOM-kills something and nothing anywhere says why. Reproduced
+        # 2026-09-20 with a stubbed sudo; guarded by
+        # tests/test_agent_memory.py::test_a_failed_swapon_after_a_successful_swapoff_is_never_reported_as_success
+        if sudo swapon -a; then
+            echo "reclaimed."
+            return 0
+        fi
+        echo "CRITICAL: swapoff succeeded but swapon FAILED — this box is now running WITHOUT SWAP" >&2
+        echo "CRITICAL: re-enable by hand and check the cause: sudo swapon -a ; swapon --show" >&2
+        return 1
+    fi
+    # The SAFE failure: swapoff refused, so swap was never removed. Re-assert it anyway.
     echo "swapoff FAILED — re-enabling swap, state unchanged" >&2
-    sudo swapon -a
+    sudo swapon -a || echo "CRITICAL: swapon also failed — verify with: swapon --show" >&2
     return 1
 }
 
@@ -134,8 +149,18 @@ cmd_cron() {
         echo "  policy drifted or missing — reinstalling"
         printf '%s\n' "$POLICY" | sudo tee "$CONF" >/dev/null && sudo sysctl -q -p "$CONF"
     fi
-    cmd_reclaim || true
+    # ⚠️ A SKIP (rc 10 — sessions live, or the pages would not fit) is the EXPECTED nightly
+    # outcome and must stamp: weekly_catchup.sh stamps only on success, so returning non-zero
+    # there would re-run hourly and flip this job's liveness surface DEAD every night the operator
+    # happens to be working. A CRITICAL failure (rc 1 — above all, a box left without swap) must
+    # do the opposite and BREAK the heartbeat, because the stamp is the only signal anyone sees.
+    cmd_reclaim
+    rr=$?
     cmd_status
+    if [ "$rr" -eq 1 ]; then
+        echo "agent-memory: NOT stamping — reclaim reported a critical failure (rc=1)" >&2
+        return 1
+    fi
     return 0
 }
 
