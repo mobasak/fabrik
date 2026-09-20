@@ -280,7 +280,7 @@ page had cited.
 into RAM at once and stalls the box for up to a minute. This tree routinely runs 3+ concurrent agent
 sessions whose turns would freeze mid-tool-call, so it REFUSES while any `claude` process is alive,
 and refuses again if the swapped bytes exceed `MemAvailable` (where `swapoff` would abort with
-ENOMEM part-way) or if `/proc/meminfo` cannot be read at all. `--force` overrides. The sysctl policy
+ENOMEM part-way) or if `/proc/meminfo` cannot be read at all. `--force` overrides. A refused `swapoff` that leaves the box unchanged returns **11** — distinct from the guard's own skip (**10**) and from a critical failure (**1**), because a box that never lost its swap must not break the heartbeat. The sysctl policy
 prevents FUTURE bad eviction; only this undoes what is already out there.
 
 ⚠️ **`swapoff -a` and `swapon -a` are NOT symmetric, and on this box that difference is dangerous.**
