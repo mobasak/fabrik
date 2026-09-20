@@ -17,6 +17,16 @@ All notable changes to this project will be documented in this file.
 - Filed as review-queue request `014` for their session to apply — `~/.claude` there is single-writer.
   Proven before filing against their own `skill_router.load_triggers()`: the five trigger phrases extract
   cleanly and collide with none of the 22 existing skills.
+- Their session claimed and reviewed it within the hour and found two real defects, both folded in
+  (154 → 160 lines): row 5 counted generated `.arb`/l10n output against the three-file bound, which
+  would have sent a two-widget edit to `/spec` on a file count of ten; and row 4 assumed an absent
+  owner, when Volkan settles a design fork in one answer. They also refuted one of my three proof
+  asks — `~/.claude` is not a git repository, so "gate green on the commit that adds it" was an
+  incoherent request, and a hub assumption carried into the very request that existed to strip them.
+- Recorded, not built: they propose the gate read the staged `docs/DECISIONS.md` *where* cell instead
+  of a commit trailer — verified here, `check_changelog.py:70` reads `git diff --cached`, so a trailer
+  is unreachable at gate time. Correctly left unbuilt: it is `~/.claude/` tooling, which the skill's
+  own row 1 sends to the request lane.
 - The runbook's stale rows are corrected while in there: their ledger is at 132 rows / `D-136`, not the
   `D-001..D-005` recorded at handover; `~/.claude/skills/synced/` appeared 2026-09-18 and is a
   cloud-synced Anthropic bucket, not ours; and the request ledger gains 013 (their unprompted `guard.py`
