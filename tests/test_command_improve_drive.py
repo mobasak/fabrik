@@ -30,14 +30,16 @@ def test_the_source_states_who_may_run_it() -> None:
 def test_the_source_states_fable_drives_else_opus() -> None:
     sec = _drive_section()
     assert "on Fable" in sec and "driven on Opus" in sec
-    assert "D-295" in sec  # Fable's window is its own reading; no flip reaches it
+    # the TRIGGER is locked, not only the phrases: a mutant that loosened "when" survived round 1
+    assert "bands RED on Fable" in sec and "this account's own Fable window" in sec
+    assert "D-295" in sec  # the band is raised to the account's own Fable reading; no flip reaches it
 
 
 def test_the_source_sizes_seats_from_the_box_by_role() -> None:
     sec = _drive_section()
     assert "dispatch_headroom.py" in sec
     assert "haiku 1× · sonnet 2× · opus 5× · fable 10×" in sec
-    assert "D-229" in sec and "D-278" in sec  # bounded passes, the scope-growth stop
+    assert "D-229" in sec and "D-278" in sec and "D-312" in sec  # delta budget, the stop, the derivation row
 
 
 def test_the_source_grounds_against_fabrik_lib_and_the_ledgers_before_drafting() -> None:
@@ -47,4 +49,4 @@ def test_the_source_grounds_against_fabrik_lib_and_the_ledgers_before_drafting()
 
 
 def test_the_source_sets_a_time_budget_from_measured_closes() -> None:
-    assert "under 40 minutes" in _drive_section()
+    assert "Budget one run at 40 minutes" in _drive_section()
