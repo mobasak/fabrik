@@ -234,7 +234,13 @@ cmd_cron() {
     echo "agent-memory: $(date -Is)"
     if ! cmp -s <(printf '%s\n' "$POLICY") "$CONF" 2>/dev/null; then
         echo "  policy drifted or missing — reinstalling"
-        printf '%s\n' "$POLICY" | sudo tee "$CONF" >/dev/null && sudo sysctl -q -p "$CONF"
+        # ⚠️ Call cmd_install rather than repeating its write. An earlier cut duplicated the
+        # `tee "$CONF"` here and so did NOT inherit the atomic temp-then-move fix: an ENOSPC would
+        # truncate the live policy file to empty (tee opens O_TRUNC), the `&&` would skip sysctl so
+        # the RUNNING kernel values stayed correct, and the drift check below — which reads live
+        # values, never the file — would see nothing wrong. The box would then revert to
+        # swappiness 60 at the next boot with a fully green heartbeat in the meantime.
+        cmd_install >/dev/null || { echo "  reinstall FAILED — see above" >&2; return 1; }
     fi
     # ⚠️ A SKIP (rc 10 — sessions live, or the pages would not fit) is the EXPECTED nightly
     # outcome and must stamp: weekly_catchup.sh stamps only on success, so returning non-zero

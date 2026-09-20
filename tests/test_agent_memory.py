@@ -24,6 +24,10 @@ for i in "${!args[@]}"; do
   case "${args[$i]}" in
     swapoff)
       [ "${FAIL_ON:-}" = "swapoff" ] && { echo "swapoff: Cannot allocate memory" >&2; exit 1; }
+      # PARTIAL: devices really went down, THEN it failed — the multi-device ENOMEM shape
+      [ "${FAIL_ON:-}" = "swapoff_partial" ] && {
+        printf 'Filename\tType\tSize\tUsed\tPriority\n' > "$AGENT_MEMORY_SWAPS"
+        echo "swapoff: /dev/sdd: Cannot allocate memory" >&2; exit 1; }
       printf 'Filename\tType\tSize\tUsed\tPriority\n' > "$AGENT_MEMORY_SWAPS"; exit 0 ;;
     swapon)
       [ "${FAIL_ON:-}" = "swapon" ] && { echo "swapon: device busy" >&2; exit 1; }
@@ -115,6 +119,7 @@ def test_a_failed_swapoff_leaves_swap_on_and_says_so(stub_bin):
     assert "FAILED" in (r.stdout + r.stderr)
 
 
+
 def test_the_happy_path_still_reports_success(stub_bin):
     r = _run(stub_bin, "reclaim")
     assert r.returncode == 0, r.stdout + r.stderr
@@ -126,7 +131,10 @@ def test_a_live_session_skips_rather_than_failing(stub_bin):
     distinguishable from a genuine failure, or the cron heartbeat cannot stay honest."""
     r = _run(stub_bin, "reclaim", busy=True)
     assert "skipped" in r.stdout.lower(), r.stdout
-    assert r.returncode != 1, "a skip must not look like a crash"
+    # ⚠️ Assert the EXACT code, not merely "not 1". Mutating the skip branch from `return 10` to
+    # `return 0` collapses skip into success — defeating the whole three-way contract — and an
+    # `!= 1` assertion passes straight through it (proven by a review seat's mutation).
+    assert r.returncode == 10, f"a benign skip is rc 10, got {r.returncode}"
 
 
 def test_cron_stamps_on_a_skip_but_not_when_the_box_lost_its_swap(stub_bin):
@@ -216,3 +224,41 @@ def test_install_does_not_claim_success_when_the_write_failed(stub_bin, tmp_path
     )
     assert r.returncode != 0, f"a failed install must not exit 0:\n{r.stdout}{r.stderr}"
     assert "installed" not in r.stdout.lower() or "FAILED" in (r.stdout + r.stderr), r.stdout
+
+
+@pytest.mark.parametrize("failing", ["mv", "sysctl"])
+def test_install_reports_failure_from_every_privileged_step(stub_bin, tmp_path, failing):
+    """`cmd_install` has three failure branches — tee, mv, and the final `sysctl -p`. Only the tee
+    one was covered, so a regression in either of the others would have gone unnoticed while the
+    function still printed success."""
+    (stub_bin / "sudo").write_text(
+        "#!/usr/bin/env bash\n"
+        f'for a in "$@"; do [ "$a" = "{failing}" ] && exit 1; done\n'
+        "exit 0\n"
+    )
+    (stub_bin / "sudo").chmod(0o755)
+    env = dict(
+        os.environ,
+        PATH=f"{stub_bin}:{os.environ['PATH']}",
+        AGENT_MEMORY_CONF=str(tmp_path / "conf"),
+    )
+    r = subprocess.run(
+        ["bash", str(SCRIPT), "install"], capture_output=True, text=True, env=env, timeout=120
+    )
+    assert r.returncode != 0, f"a failed {failing} must not exit 0:\n{r.stdout}{r.stderr}"
+    assert "FAILED" in (r.stdout + r.stderr), r.stdout + r.stderr
+
+
+def test_a_partial_swapoff_re_asserts_every_device_it_took_down(stub_bin):
+    """⚠️ `swapoff -a` walks devices one at a time and can fail PART-WAY (ENOMEM on a later one),
+    so a non-zero rc does NOT mean "state unchanged" — devices are already down. That is the only
+    shape in which the swapoff-failed path's re-assert loop is observable, and it is why asserting
+    merely that the word FAILED appeared was not enough: a review seat deleted the whole loop and
+    the old assertion stayed green, because on a CLEAN swapoff failure the stub never removed
+    anything and `/dev/sdc in swaps` passed trivially.
+    """
+    r = _run(stub_bin, "reclaim", fail_on="swapoff_partial")
+    assert r.returncode != 0, r.stdout + r.stderr
+    assert "/dev/sdc" in stub_bin.swaps_file.read_text(), (
+        "a partial swapoff must re-assert what it took down:\n" + r.stdout + r.stderr
+    )

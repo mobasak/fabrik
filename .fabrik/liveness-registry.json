@@ -383,12 +383,12 @@
     "path": "~/.claude/state/daily-agent_memory.sh.stamp",
     "type": "log"
    },
-   "evidence_note": "the SUCCESS STAMP. The job always exits 0 by design, so an OVERDUE stamp means cron or the runner itself is failing \u2014 never a refused reclaim, which is the expected nightly outcome while agent sessions are live.",
+   "evidence_note": "the SUCCESS STAMP. The job exits 0 on success and on a benign SKIP (agent sessions live \u2014 the expected nightly outcome), and 1 on a CRITICAL failure: a box left with NO SWAP, or the sysctl policy no longer in effect. So an OVERDUE stamp means cron/the runner is broken OR the box lost its swap OR the policy drifted \u2014 read ~/.claude/agent-memory.log, which names which.",
    "id": "agent-memory-policy",
    "kind": "cron",
    "max_age_hours": 54,
    "max_age_note": "24.5h worst-case daily cadence (stamp period 23.5h + up to 1h hourly tick) + ~24h absolute margin \u2248 54 \u2014 the kaizen daily precedent; one slept afternoon must not flip DEAD",
-   "why": "the RAM counterpart to cache-prune.sh's disk cleanup. Re-asserts the four vm.* knobs (so a WSL export/import rebuild, which wipes /etc, self-heals) and reclaims swapped agent pages when the box is idle. Without it the kernel reverts to swappiness 60 and resumes evicting MCP servers and extension hosts in favour of droppable page cache \u2014 measured 13.9 GB out to swap on 2026-09-20. Crontab line INSTALLED 2026-09-20 (11 * * * *, hourly tick firing once daily) \u2014 an OVERDUE stamp now means the job itself is failing; read ~/.claude/agent-memory.log."
+   "why": "the RAM counterpart to cache-prune.sh's disk cleanup. Re-asserts the four vm.* knobs (healing a hand-edit, a package overwrite, or a file removed while tidying /etc/sysctl.d) and reclaims swapped agent pages when the box is idle, restoring swap BY DEVICE because swapon -a reads only /etc/fstab, which has no swap entry here. Without it the kernel reverts to swappiness 60 and resumes evicting MCP servers and extension hosts in favour of droppable page cache \u2014 measured 13.9 GB out to swap on 2026-09-20. Crontab line INSTALLED 2026-09-20 (11 * * * *, hourly tick firing once daily) \u2014 an OVERDUE stamp now means the job itself is failing; read ~/.claude/agent-memory.log."
   },
   {
    "cron_match": "canary_grounding.py",

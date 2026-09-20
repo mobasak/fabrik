@@ -316,19 +316,22 @@ catch-up and this box hibernates:
 11 * * * * flock -n $HOME/.claude/state/daily-agent-memory.lock /opt/fabrik/scripts/sysadmin/weekly_catchup.sh agent_memory.sh >> $HOME/.claude/agent-memory.log 2>&1
 ```
 
-⚠️ **`PATH` is set inside the script, and that is load-bearing.** cron runs with
-`PATH=/usr/bin:/bin`, and every privileged tool this job needs — `sysctl`, `swapoff`, `swapon` —
-lives in `/usr/sbin`. Measured by running the job under `env -i PATH=/usr/bin:/bin` rather than
-trusting an interactive shell: the status block printed four EMPTY values, and `reclaim` would have
-died with "command not found" on the one night the box was idle enough to run it. An interactive
-test cannot see this.
+⚠️ **`PATH` is set inside the script, and that is load-bearing — but not for the reason it first
+appears.** cron runs with `PATH=/usr/bin:/bin` and `sysctl`/`swapoff`/`swapon` live in `/usr/sbin`.
+The **sudo'd** calls resolve anyway: `sudo -l` shows a `secure_path` covering `/usr/sbin`. What the
+prepend actually rescues is the **unprivileged** `sysctl -n` in the status block, which printed four
+EMPTY values under cron. Measured by running the job under `env -i PATH=/usr/bin:/bin` rather than
+trusting an interactive shell, which cannot see this class at all; the "it would have died with
+command not found" version of this paragraph was wrong and was corrected after a review seat read
+`sudo -l` instead of assuming.
 
-⚠️ **The job ALWAYS exits 0, deliberately.** A refused reclaim because sessions are live is the
-EXPECTED nightly outcome, not a failure — and `weekly_catchup.sh` stamps only on success, so
-returning non-zero would leave the stamp stale, re-run the job every hour, and flip the liveness
-surface `agent-memory-policy` to DEAD every night the operator happens to be working. An overdue
-stamp therefore means cron or the runner itself is broken, which is exactly what a heartbeat should
-mean.
+⚠️ **The exit code is the contract, and it has two halves.** **0** on success *or* on a benign
+SKIP — a refused reclaim because sessions are live is the EXPECTED nightly outcome, and
+`weekly_catchup.sh` stamps only on success, so returning non-zero there would re-run the job hourly
+and flip `agent-memory-policy` to DEAD every night the operator is working. **1** on a CRITICAL
+failure — a box left with no swap, or the policy not in effect — where the stamp is deliberately
+withheld. So an overdue stamp means cron/the runner is broken **OR** the box lost its swap **OR**
+the policy drifted; `~/.claude/agent-memory.log` distinguishes them.
 
 **What this section deliberately does NOT do: drop caches on a schedule.** `echo 3 >
 /proc/sys/vm/drop_caches` frees a headline number and buys nothing durable — the cache refills
