@@ -1,11 +1,13 @@
 # Cleanup Automation — WSL + Windows
 
-**Date:** 2026-08-03 · **Updated:** 2026-09-03 (§ D — the subagent spools, and why they are not swept)
+**Date:** 2026-08-03 · **Updated:** 2026-09-20 (§ G — RAM, the first non-disk section on this page)
 **Status:** ✅ CURRENT
 **Affects:** Local dev box (WSL2 `Ubuntu-24.04`) + its Windows host. NOT the VPS fleet.
 
-Three pieces, cleanly split so nothing overlaps: **one cleaner per OS side** (scheduled) + **one manual
-compaction tool**. § D is the standing DO-NOT-SWEEP list and § E the one scheduled task that legitimately
+Cleanly split so nothing overlaps: **one cleaner per OS side** (scheduled) + **one manual
+compaction tool** + **one RAM policy** (§ G — every other section on this page is about DISK;
+§ G is the only one about memory, and the two are not interchangeable: `~/.cache` is 28 GB on
+disk and 0.19 GB in RAM, so deleting it reclaims disk and almost no memory). § D is the standing DO-NOT-SWEEP list and § E the one scheduled task that legitimately
 empties a spool — both kept here because
 this page is where a new cleanup rule gets written.
 
@@ -15,7 +17,8 @@ this page is where a new cleanup rule gets written.
 | `cleanup-weekly.ps1` | `C:\Users\user\scripts\` (Windows) | Task Scheduler `Fabrik-WeeklyCleanup`, **Sun 04:00** | Windows Temp, crash dumps, WU downloads |
 | `compact-wsl.bat` | `C:\Users\user\OneDrive - Tojlo Solutions LLC\Desktop\` | manual | WSL vhdx compaction |
 | `flush_subagent_outboxes.py` | `/opt/fabrik/scripts/kilo-benchmarks/` (WSL) | **daily 06:00** via `daily_refresh.sh` **+ every boot** via `wsl_startup_hook.sh` | drains `.tmp/subagents/pg_outbox*.jsonl` — see § E |
-| `scratch_sweep.py --dead --apply` | `/opt/fabrik/scripts/` (WSL) | cron **04:20 daily** — ⚠️ **NOT YET PLACED**: crontab writes are classifier-blocked, so the line is handed to the operator | DEAD sessions' scratch under `/tmp/claude-<uid>` — see § F |
+| `scratch_sweep.py --dead --apply` | `/opt/fabrik/scripts/` (WSL) | cron **04:20 daily** — ✅ INSTALLED (verified in `crontab -l` 2026-09-20) | DEAD sessions' scratch under `/tmp/claude-<uid>` — see § F |
+| `agent_memory.sh cron` | `/opt/fabrik/scripts/sysadmin/` (WSL) | **hourly** via `weekly_catchup.sh`, fires once a day — ⚠️ line NOT YET PLACED | RAM: the four `vm.*` knobs + swap reclaim — see § G |
 
 ---
 
@@ -186,8 +189,10 @@ keeps the sid across exactly the network deaths, context fills and quota holds t
 Measured 2026-09-08: 18 sids had a gone-pid sessions file and a live directory, and all 18 were
 younger than 7 days — one of them 8 minutes old.
 
-**The cron line, for the operator to place (it is NOT in the crontab yet — `crontab -l` has no
-04:20 entry, and a crontab write is classifier-blocked for an agent):**
+**The cron line — ✅ INSTALLED.** Verified present in `crontab -l` on 2026-09-20; the operator
+placed it after this section was written. Kept here because it is the line to restore if the
+crontab is ever rebuilt (a crontab write stays classifier-blocked for an agent, so an agent hands
+the line over rather than placing it):
 
 ```cron
 20 4 * * * python3 /opt/fabrik/scripts/scratch_sweep.py --dead --apply >> $HOME/.claude/scratch-sweep.log 2>&1
@@ -225,6 +230,79 @@ pinned by a test proven red-on-revert: `--include-harness` removing a worktree w
 removable, `--include-backups` removing FRESH and HELD backup holders, a dead `/proc` reading as "no
 holders", an unreadable sessions root letting a live peer's scratch go, a branch ref truncated at the
 last slash deleting an unrelated branch, and a sid-level symlink escaping the scratch root.
+
+---
+
+## G. RAM — `scripts/sysadmin/agent_memory.sh`
+
+Every section above is about DISK. This one is about MEMORY, and it exists because nothing on this
+box governed it. Measured 2026-09-20 on a 63 GB host with a 48 GB WSL cap:
+
+- `vm.swappiness` was at its default **60**, so the kernel was about as willing to page out
+  anonymous memory as to drop page cache — and it chose badly. **13.9 GB had been swapped out, and
+  the processes sitting in swap were MCP servers, VS Code extension hosts and the Kilo extension**
+  — the dev infra — while **28 GB of freely-droppable page cache stayed resident**.
+- The box was never short of memory: 15.5 GB of anon against a 48 GB cap. It was losing an argument
+  with the page-cache heuristic.
+- Nothing else sets these knobs. `cache-prune.sh` has zero sysctl lines; `scripts/audit/04-performance.sh`
+  only READS `swappiness` and runs on the VPS over SSH, not here.
+
+**The goal is the inverse of a general-purpose server's:** reserve the maximum for Claude sessions,
+their MCP servers and their subagents, and let the CACHE be what gets reclaimed.
+
+| Knob | Default | Set to | Why |
+|---|---|---|---|
+| `vm.swappiness` | 60 | **10** | Prefer dropping cache over swapping agents. Not 0 — that trades swapping for OOM kills, and a 64 GB swap file exists to absorb spikes |
+| `vm.vfs_cache_pressure` | 100 | **200** | Reclaim the dentry/inode slab twice as eagerly. This box caches ~1.8 M ext4 inodes from walking 46 repos and their worktrees; that gives the kernel something to take that is not an agent |
+| `vm.min_free_kbytes` | 44 MB | **256 MB** | kswapd's floor was 0.09% of a 48 GB VM |
+| `vm.watermark_scale_factor` | 10 | **100** | Wake kswapd at 1% free, not 0.1%. Matters for MANY-AGENT bursts: when a dozen sessions allocate at once and background reclaim has not kept up, the allocating process enters DIRECT reclaim and stalls — felt as the box freezing for a moment, not as a memory shortage |
+
+```bash
+scripts/sysadmin/agent_memory.sh status              # the four knobs, swap, anon vs cache, Kilo
+scripts/sysadmin/agent_memory.sh install             # write + apply /etc/sysctl.d/99-fabrik-agent-memory.conf
+scripts/sysadmin/agent_memory.sh reclaim [--force]   # pull swapped agent pages back into RAM
+scripts/sysadmin/agent_memory.sh kilo on|off|status  # Kilo Code on demand
+scripts/sysadmin/agent_memory.sh cron                # the daily entry point (see below)
+```
+
+**Why the policy lives in the script and not only in `/etc`.** § C names `wsl --export` →
+`--unregister` → `--import` as the only real vhdx-shrink lever, and that rebuild wipes `/etc`. The
+sysctl file is generated FROM the script, and the daily job re-asserts it — so a rebuild self-heals
+instead of silently reverting to swappiness 60.
+
+**`reclaim` is guarded, and the guard is the design.** `swapoff` must fit every swapped page back
+into RAM at once and stalls the box for up to a minute. This tree routinely runs 3+ concurrent agent
+sessions whose turns would freeze mid-tool-call, so it REFUSES while any `claude` process is alive,
+and refuses again if the swapped bytes exceed `MemAvailable` (where `swapoff` would abort with
+ENOMEM part-way). `--force` overrides. The sysctl policy prevents FUTURE bad eviction; only this
+undoes what is already out there.
+
+**Kilo Code runs on demand (operator directive 2026-09-20).** Its manifest declares
+`"activationEvents": ["onStartupFinished", "onUri"]`, so it starts with EVERY window and there is no
+lazy trigger to configure — enable/disable is the only lever, and `code --uninstall-extension` is
+the only one the CLI can drive. Measured before removal: 8 processes, **2.29 GB**, several of them
+in swap. ⚠️ Processes already spawned survive until each window is RELOADED.
+
+**The cron line, for the operator to place** (a crontab write stays classifier-blocked for an
+agent). It rides `weekly_catchup.sh` rather than a raw slot, so a missed night is caught up within
+the hour after the box wakes — plain cron has no catch-up and this box hibernates:
+
+```cron
+11 * * * * flock -n $HOME/.claude/state/daily-agent-memory.lock /opt/fabrik/scripts/sysadmin/weekly_catchup.sh agent_memory.sh >> $HOME/.claude/agent-memory.log 2>&1
+```
+
+⚠️ **The job ALWAYS exits 0, deliberately.** A refused reclaim because sessions are live is the
+EXPECTED nightly outcome, not a failure — and `weekly_catchup.sh` stamps only on success, so
+returning non-zero would leave the stamp stale, re-run the job every hour, and flip the liveness
+surface `agent-memory-policy` to DEAD every night the operator happens to be working. An overdue
+stamp therefore means cron or the runner itself is broken, which is exactly what a heartbeat should
+mean.
+
+**What this section deliberately does NOT do: drop caches on a schedule.** `echo 3 >
+/proc/sys/vm/drop_caches` frees a headline number and buys nothing durable — the cache refills
+within minutes of normal work, and it is what makes these file-dense trees fast. The 28 GB of
+buff/cache was never the problem; the eviction ORDER was. A scheduled drop would be this page's
+§ A design principle ("never forces needless re-downloads") violated in RAM.
 
 ---
 

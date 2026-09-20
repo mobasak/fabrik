@@ -377,6 +377,20 @@
    "why": "the daily unacked-obligation Telegram digest \u2014 without it aged ack:required mail rots invisibly (the measured 22-obligation failure). Crontab line NOT yet installed (operator action, docs/workstation/fabrik-mail.md \u00a7 Escalation) \u2014 until then DEAD/unscheduled is the EXPECTED verdict"
   },
   {
+   "cron_match": "agent_memory.sh",
+   "doc": "docs/workstation/cleanup-automation.md",
+   "evidence": {
+    "path": "~/.claude/state/daily-agent_memory.sh.stamp",
+    "type": "log"
+   },
+   "evidence_note": "the SUCCESS STAMP. The job always exits 0 by design, so an OVERDUE stamp means cron or the runner itself is failing \u2014 never a refused reclaim, which is the expected nightly outcome while agent sessions are live.",
+   "id": "agent-memory-policy",
+   "kind": "cron",
+   "max_age_hours": 54,
+   "max_age_note": "24.5h worst-case daily cadence (stamp period 23.5h + up to 1h hourly tick) + ~24h absolute margin \u2248 54 \u2014 the kaizen daily precedent; one slept afternoon must not flip DEAD",
+   "why": "the RAM counterpart to cache-prune.sh's disk cleanup. Re-asserts the four vm.* knobs (so a WSL export/import rebuild, which wipes /etc, self-heals) and reclaims swapped agent pages when the box is idle. Without it the kernel reverts to swappiness 60 and resumes evicting MCP servers and extension hosts in favour of droppable page cache \u2014 measured 13.9 GB out to swap on 2026-09-20. Crontab line NOT yet installed (operator action, cleanup-automation.md \u00a7 G) \u2014 until then DEAD/unscheduled is the EXPECTED verdict."
+  },
+  {
    "cron_match": "canary_grounding.py",
    "doc": "docs/reference/canary-grounding.md",
    "evidence": {

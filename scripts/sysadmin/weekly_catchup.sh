@@ -16,7 +16,7 @@
 # registry's cron_match entries keep matching the crontab lines.
 set -u
 
-JOB="${1:?usage: weekly_catchup.sh <job-key: audit_authelia_gates.py|fleet_doc_audit.py|kaizen_collect_v2.py|kaizen_outcomes.py|kaizen_coroner.py>}"
+JOB="${1:?usage: weekly_catchup.sh <job-key: audit_authelia_gates.py|fleet_doc_audit.py|kaizen_collect_v2.py|kaizen_outcomes.py|kaizen_coroner.py|agent_memory.sh>}"
 STATE="$HOME/.claude/state"
 mkdir -p "$STATE"
 # Repo root + interpreter, overridable for tests (a worktree run must not depend on
@@ -42,7 +42,7 @@ case "$JOB" in
         touch "$NUDGE"
         exit 0
         ;;
-    kaizen_collect_v2.py|kaizen_outcomes.py|kaizen_coroner.py)
+    kaizen_collect_v2.py|kaizen_outcomes.py|kaizen_coroner.py|agent_memory.sh)
         PERIOD=$DAILY
         STAMP="$STATE/daily-${JOB}.stamp"
         ;;
@@ -74,6 +74,15 @@ case "$JOB" in
         ;;
     fleet_doc_audit.py)
         cd "$ROOT" && "$PY" scripts/fleet_doc_audit.py --commit
+        ;;
+    agent_memory.sh)
+        # The RAM counterpart to cache-prune.sh's disk cleanup (cleanup-automation.md S G).
+        # Re-asserts the sysctl policy (so a WSL export/import rebuild self-heals) and reclaims
+        # swapped agent pages when the box is idle. It ALWAYS exits 0 on purpose: a refused
+        # reclaim because agent sessions are live is the EXPECTED nightly outcome, not a
+        # failure, and stamping on it is what keeps the liveness heartbeat meaningful instead
+        # of flapping DEAD every night the operator happens to be working.
+        "$ROOT/scripts/sysadmin/agent_memory.sh" cron
         ;;
     kaizen_collect_v2.py)
         # The DAILY kaizen collector (M1 cutover): consolidates YESTERDAY's events
