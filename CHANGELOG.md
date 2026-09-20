@@ -23,6 +23,15 @@ All notable changes to this project will be documented in this file.
   owner, when Volkan settles a design fork in one answer. They also refuted one of my three proof
   asks — `~/.claude` is not a git repository, so "gate green on the commit that adds it" was an
   incoherent request, and a hub assumption carried into the very request that existed to strip them.
+- Volkan approved the install, relayed as request `015` — their session had correctly refused to install
+  on a request alone, since a request is a person's request and never an approval.
+- **`wake.py` is a dead fallback** — it needs `crossSessionInbound: accept`, and that key is absent
+  entirely from his `~/.claude.json` (walked whole, not just the top level). This runbook had claimed
+  since 2026-09-09 that it was set. So the queue knock is the only channel either side has, which makes
+  his `selfwatch.sh` a single point of failure — a request `scp`-ed while it is dead sits unread until
+  he types something. The knock's exact condition is now documented from the script rather than from
+  the prose: `selfwatch.sh:118,124-129` — an id numerically newer than the newest at ARM time, with
+  neither `.claimed` nor `.reply.md`, once per id.
 - Recorded, not built: they propose the gate read the staged `docs/DECISIONS.md` *where* cell instead
   of a commit trailer — verified here, `check_changelog.py:70` reads `git diff --cached`, so a trailer
   is unreachable at gate time. Correctly left unbuilt: it is `~/.claude/` tooling, which the skill's
