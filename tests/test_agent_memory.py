@@ -49,9 +49,10 @@ PGREP_BUSY = "#!/usr/bin/env bash\necho 4242\n"
 class _Stub:
     """pathlib.Path defines __slots__, so the fake /proc/swaps cannot be attached to it."""
 
-    def __init__(self, bindir, swaps):
+    def __init__(self, bindir, swaps, meminfo=None):
         self.dir = bindir
         self.swaps_file = swaps
+        self.meminfo = meminfo
 
     def __truediv__(self, name):
         return self.dir / name
@@ -72,7 +73,16 @@ def stub_bin(tmp_path):
     swaps.write_text(
         "Filename\tType\tSize\tUsed\tPriority\n/dev/sdc partition 67108864 14351272 -2\n"
     )
-    return _Stub(b, swaps)
+    # ⚠️ PIN /proc/meminfo TOO. Without this, 9 of 10 tests read the LIVE box, and on a box with
+    # nothing swapped `cmd_reclaim` returns early at "nothing swapped out" — so the headline
+    # grader passed against the KNOWN-DANGEROUS `swapon -a` script, because the code path it
+    # grades never ran. A review seat proved it: green on an idle box, red on this one.
+    meminfo = tmp_path / "meminfo"
+    meminfo.write_text(
+        "MemTotal:       49309316 kB\nMemAvailable:   27000000 kB\n"
+        "SwapTotal:      67108864 kB\nSwapFree:       52757592 kB\n"
+    )
+    return _Stub(b, swaps, meminfo)
 
 
 def _run(stub_bin, *args, fail_on=None, busy=False):
@@ -85,6 +95,7 @@ def _run(stub_bin, *args, fail_on=None, busy=False):
         os.environ,
         PATH=f"{stub_bin}:{os.environ['PATH']}",
         AGENT_MEMORY_SWAPS=str(stub_bin.swaps_file),
+        AGENT_MEMORY_MEMINFO=str(stub_bin.meminfo),
     )
     if fail_on:
         env["FAIL_ON"] = fail_on
@@ -172,6 +183,10 @@ def test_swap_is_restored_by_device_because_swapon_dash_a_reads_only_fstab(stub_
     cmd_status printed "swap 0.00 GB in use of 0.00 GB", which reads exactly like success.
     """
     r = _run(stub_bin, "reclaim")
+    # ⚠️ Prove the graded path EXECUTED. Without this the assertion below is satisfied by
+    # `cmd_reclaim` returning early at "nothing swapped out" — the fixture then still lists the
+    # device and the test passes against a script that never restores anything.
+    assert "reclaiming" in r.stdout, f"the swapoff path never ran:\n{r.stdout}{r.stderr}"
     swaps = stub_bin.swaps_file.read_text()
     assert "/dev/sdc" in swaps, (
         "swap must be restored BY DEVICE — `swapon -a` cannot do it on this box:\n"
@@ -218,12 +233,20 @@ def test_install_does_not_claim_success_when_the_write_failed(stub_bin, tmp_path
     failing = stub_bin / "sudo"
     failing.write_text("#!/usr/bin/env bash\nfor a in \"$@\"; do [ \"$a\" = tee ] && exit 1; done\nexit 0\n")
     failing.chmod(0o755)
-    env = dict(os.environ, PATH=f"{stub_bin}:{os.environ['PATH']}", AGENT_MEMORY_CONF=str(tmp_path / "conf"))
+    conf = tmp_path / "conf"
+    conf.write_text("vm.swappiness = 10\n")  # a good file that tee's O_TRUNC would destroy
+    env = dict(os.environ, PATH=f"{stub_bin}:{os.environ['PATH']}", AGENT_MEMORY_CONF=str(conf))
     r = subprocess.run(
         ["bash", str(SCRIPT), "install"], capture_output=True, text=True, env=env, timeout=120
     )
     assert r.returncode != 0, f"a failed install must not exit 0:\n{r.stdout}{r.stderr}"
-    assert "installed" not in r.stdout.lower() or "FAILED" in (r.stdout + r.stderr), r.stdout
+    # ⚠️ Two SEPARATE assertions. As `A or B` the second disjunct was always true (the script
+    # prints "install FAILED" on this path), so the first was never load-bearing — a mutant that
+    # printed "installed <path>" after a failed write passed.
+    assert "installed" not in r.stdout.lower(), f"must not claim success:\n{r.stdout}"
+    assert "FAILED" in (r.stdout + r.stderr), r.stdout + r.stderr
+    # and the pre-existing good file must survive tee's O_TRUNC
+    assert conf.read_text() == "vm.swappiness = 10\n", "a failed install destroyed the live policy"
 
 
 @pytest.mark.parametrize("failing", ["mv", "sysctl"])
@@ -262,3 +285,67 @@ def test_a_partial_swapoff_re_asserts_every_device_it_took_down(stub_bin):
     assert "/dev/sdc" in stub_bin.swaps_file.read_text(), (
         "a partial swapoff must re-assert what it took down:\n" + r.stdout + r.stderr
     )
+
+
+SYSCTL_STUB = """#!/usr/bin/env bash
+# $DRIFT=1 reports kernel DEFAULTS (policy not in effect); otherwise the policy's own values.
+if [ "$1" = "-n" ]; then
+  case "$2" in
+    vm.swappiness)             [ "${DRIFT:-}" = 1 ] && echo 60     || echo 10 ;;
+    vm.vfs_cache_pressure)     [ "${DRIFT:-}" = 1 ] && echo 100    || echo 200 ;;
+    vm.min_free_kbytes)        [ "${DRIFT:-}" = 1 ] && echo 45056  || echo 262144 ;;
+    vm.watermark_scale_factor) [ "${DRIFT:-}" = 1 ] && echo 10     || echo 100 ;;
+    *) echo "" ;;
+  esac
+fi
+exit 0
+"""
+
+
+def _cron(stub_bin, tmp_path, drift, busy=True):
+    sysctl = tmp_path / "sysctl_stub"
+    sysctl.write_text(SYSCTL_STUB)
+    sysctl.chmod(0o755)
+    (stub_bin / "pgrep").write_text(PGREP_BUSY if busy else PGREP_IDLE)
+    (stub_bin / "pgrep").chmod(0o755)
+    conf = tmp_path / "conf"
+    env = dict(
+        os.environ,
+        PATH=f"{stub_bin}:{os.environ['PATH']}",
+        AGENT_MEMORY_SWAPS=str(stub_bin.swaps_file),
+        AGENT_MEMORY_MEMINFO=str(stub_bin.meminfo),
+        AGENT_MEMORY_CONF=str(conf),
+        AGENT_MEMORY_SYSCTL=str(sysctl),
+        DRIFT="1" if drift else "0",
+    )
+    return subprocess.run(
+        ["bash", str(SCRIPT), "cron"], capture_output=True, text=True, env=env, timeout=120
+    )
+
+
+def test_cron_withholds_the_stamp_when_the_policy_is_not_in_effect(stub_bin, tmp_path):
+    """⚠️ THE COBRA COUNTER-MEASURE, which shipped with ZERO graders — and could not have had one,
+    because the script PREPENDS /usr/sbin to PATH, so a stubbed `sysctl` could never be reached.
+    That is why it needed the `AGENT_MEMORY_SYSCTL` seam: without it the check is unfalsifiable,
+    and an unfalsifiable check is indistinguishable from an absent one. A review seat deleted the
+    entire drift block and all ten graders stayed green.
+    """
+    drifted = _cron(stub_bin, tmp_path, drift=True)
+    assert drifted.returncode != 0, f"drift must withhold the stamp:\n{drifted.stdout}{drifted.stderr}"
+    assert "POLICY NOT IN EFFECT" in (drifted.stdout + drifted.stderr)
+
+    ok = _cron(stub_bin, tmp_path, drift=False)
+    assert ok.returncode == 0, f"no drift must stamp:\n{ok.stdout}{ok.stderr}"
+    assert "NOT IN EFFECT" not in (ok.stdout + ok.stderr)
+
+
+def test_a_refused_swapoff_on_an_intact_box_is_benign_not_critical(stub_bin):
+    """⚠️ A REGRESSION THIS REVIEW INTRODUCED, then caught. `swapoff -a` failing usually means
+    NOTHING came down — and re-asserting a device that is still active returns EBUSY. The first
+    cut reported that as CRITICAL, returned 1, withheld the stamp and sent the runner into an
+    hourly retry loop on a perfectly healthy box. Intact swap must read benign.
+    """
+    r = _run(stub_bin, "reclaim", fail_on="swapoff")
+    assert r.returncode == 11, f"an intact box is benign (rc 11), got {r.returncode}:\n{r.stdout}{r.stderr}"
+    assert "CRITICAL" not in (r.stdout + r.stderr), r.stdout + r.stderr
+    assert "/dev/sdc" in stub_bin.swaps_file.read_text()

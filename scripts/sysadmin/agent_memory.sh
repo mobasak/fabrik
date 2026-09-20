@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AFTER-EDIT: docs/workstation/cleanup-automation.md | none
+# AFTER-EDIT: docs/workstation/cleanup-automation.md
 #
 # Agent-workstation MEMORY policy — the RAM counterpart to cache-prune.sh's disk cleanup.
 #
@@ -34,6 +34,10 @@ EXT=kilocode.kilo-code
 # Test seams, production defaults. The privileged paths below are ungradeable otherwise, and they
 # are exactly the ones that can damage the box.
 SWAPS="${AGENT_MEMORY_SWAPS:-/proc/swaps}"
+# ⚠️ `sysctl` needs its own seam: line 30 PREPENDS /usr/sbin to PATH, so a stub placed on PATH by a
+# test can never win. Without this the drift check below is ungradeable, which is how it shipped
+# with zero graders.
+SYSCTL="${AGENT_MEMORY_SYSCTL:-sysctl}"
 MEMINFO="${AGENT_MEMORY_MEMINFO:-/proc/meminfo}"
 
 # The policy itself is kept HERE, and /etc is GENERATED from it, so there is exactly one source of
@@ -54,9 +58,9 @@ vm.swappiness = 10
 # vfs_cache_pressure 200: reclaim the dentry/inode slab twice as eagerly. This box holds ~1.8M
 # ext4_inode_cache SLAB OBJECTS (`awk '$1=="ext4_inode_cache"' /proc/slabinfo`, 1,838,339 on
 # 2026-09-20 — NOT the same metric as /proc/sys/fs/inode-nr, which reads ~1.4M; naming it stops
-# the next reader comparing against the wrong one), because it walks 46 repos and ~1.8M
-# ext4 inodes because it walks 46 repos and their worktrees constantly; making that metadata
-# cheap to drop gives the kernel something to take that is NOT an agent.
+# the next reader comparing against the wrong one) because it walks 46 repos and their worktrees
+# constantly; making that metadata cheap to drop gives the kernel something to take that is NOT
+# an agent.
 vm.vfs_cache_pressure = 200
 # min_free_kbytes 256 MB (was 44 MB, ~0.09% of a 48 GB VM): kswapd's floor.
 vm.min_free_kbytes = 262144
@@ -89,6 +93,7 @@ cmd_install() {
     fi
     if ! sudo mv "$CONF.tmp" "$CONF"; then
         echo "install FAILED: could not move $CONF.tmp into place" >&2
+        sudo rm -f "$CONF.tmp"
         return 1
     fi
     if ! sudo sysctl -q -p "$CONF"; then
@@ -101,11 +106,16 @@ cmd_install() {
 
 cmd_status() {
     for k in vm.swappiness vm.vfs_cache_pressure vm.min_free_kbytes vm.watermark_scale_factor; do
-        printf "  %-28s %s\n" "$k" "$(sysctl -n "$k" 2>/dev/null)"
+        printf "  %-28s %s\n" "$k" "$("$SYSCTL" -n "$k" 2>/dev/null)"
     done
     local t f
     t=$(_meminfo SwapTotal); f=$(_meminfo SwapFree)
-    printf "  %-28s %s GB in use of %s GB\n" "swap" "$(_gb $((t - f)))" "$(_gb "$t")"
+    # ⚠️ Guard BEFORE the subtraction: `$((t - f))` on two empty values yields a hard 0, and _gb
+    # can no longer refuse it — printing the confident "0.00 GB in use" that this file's own
+    # comment forbids, and that reads exactly like a swapless box.
+    local u=""
+    if _is_num "$t" && _is_num "$f"; then u=$((t - f)); fi
+    printf "  %-28s %s GB in use of %s GB\n" "swap" "$(_gb "$u")" "$(_gb "$t")"
     printf "  %-28s %s GB\n" "anon (agents+apps)" "$(_gb "$(_meminfo AnonPages)")"
     printf "  %-28s %s GB\n" "page cache (reclaimable)" "$(_gb "$(_meminfo Cached)")"
     printf "  %-28s %s\n" "claude sessions live" "$(pgrep -x claude | wc -l)"
@@ -152,7 +162,11 @@ cmd_reclaim() {
     # restore each by name. Found by the authoritative review seat 2026-09-20; guarded by
     # tests/test_agent_memory.py::test_swap_is_restored_by_device_because_swapon_dash_a_reads_only_fstab
     local devs
-    mapfile -t devs < <(awk 'NR>1 && $1!="" {print $1}' "$SWAPS")
+    # ⚠️ The kernel ESCAPES the Filename column (seq_file_path with " \t\n\\"), so a swap file at
+    # "/swap file" appears as "/swap\\040file" and `mapfile -t` does not interpret it — swapon would
+    # be handed the literal token and fail ENOENT. Latent while swap is a partition; live the day a
+    # swap file with a space is added.
+    mapfile -t devs < <(awk 'NR>1 && $1!="" {gsub(/\\040/, " ", $1); print $1}' "$SWAPS")
     if [ "${#devs[@]}" -eq 0 ]; then
         echo "skipped: $SWAPS lists no device to restore — refusing a swapoff I could not undo"
         return 10
@@ -171,7 +185,8 @@ cmd_reclaim() {
         done
         # Verify against the KERNEL's own view, not the rc — the rc lied by construction above.
         local back
-        back=$(awk 'NR>1 && $1!="" {n++} END{print n+0}' "$SWAPS")
+        back=$(awk 'NR>1 && $1!="" {n++} END{print n+0}' "$SWAPS" 2>/dev/null)
+        _is_num "$back" || back=0   # an unreadable $SWAPS must not print "only /1" and a bash error
         if [ "$failed" -eq 0 ] && [ "$back" -eq "${#devs[@]}" ]; then
             echo "reclaimed. (${back}/${#devs[@]} swap device(s) restored)"
             return 0
@@ -183,12 +198,22 @@ cmd_reclaim() {
     fi
     # The SAFE failure: swapoff refused, so swap was never removed. Re-assert it anyway.
     # ⚠️ NOT necessarily "state unchanged": swapoff -a takes devices down one at a time and can
-    # fail part-way (ENOMEM), so re-assert every captured device rather than assuming.
-    echo "swapoff FAILED — re-asserting every known swap device" >&2
+    # fail part-way (ENOMEM). But the common case is that NOTHING came down, and re-asserting a
+    # device that is still active returns EBUSY — which an earlier cut reported as CRITICAL, gave
+    # rc 1, withheld the stamp and sent the runner into an hourly retry on a perfectly healthy box.
+    # So re-assert only what is genuinely ABSENT, and distinguish the two outcomes.
+    echo "swapoff FAILED — checking whether anything came down" >&2
+    local still_down=0
     for d in "${devs[@]}"; do
-        sudo swapon "$d" 2>/dev/null || echo "CRITICAL: could not re-enable $d" >&2
+        grep -q -- "^$d " "$SWAPS" 2>/dev/null && continue   # still active: nothing to do
+        sudo swapon "$d" 2>/dev/null || { echo "CRITICAL: could not re-enable $d" >&2; still_down=1; }
     done
-    return 1
+    if [ "$still_down" -eq 1 ]; then
+        echo "CRITICAL: a swap device is down and would not come back: sudo swapon ${devs[*]}" >&2
+        return 1
+    fi
+    echo "swap is intact — nothing was taken down" >&2
+    return 11   # benign: the swapoff refused and the box is unchanged
 }
 
 # Kilo Code runs on demand, not always (operator directive 2026-09-20). Its manifest declares
@@ -259,14 +284,23 @@ cmd_cron() {
     local drift=0 k want got
     while IFS= read -r line; do
         case "$line" in vm.*) ;; *) continue ;; esac
-        k=${line%%=*}; k=${k%% }; want=${line#*= }
-        got=$(sysctl -n "$k" 2>/dev/null || true)
+        # ⚠️ Tolerate every VALID spelling. `${k%% }` strips ONE trailing space, so
+        # `vm.swappiness  =  10` yielded the key "vm.swappiness " and `vm.swappiness=10` yielded
+        # want="vm.swappiness=10" — a permanent false alarm, no stamp, hourly retry, from a
+        # cosmetic edit to the heredoc.
+        k=${line%%=*}; k="${k//[[:space:]]/}"
+        want=${line#*=}
+        want="${want#"${want%%[![:space:]]*}"}"; want="${want%"${want##*[![:space:]]}"}"
+        got=$("$SYSCTL" -n "$k" 2>/dev/null || true)
         if [ "$got" != "$want" ]; then
             echo "agent-memory: POLICY NOT IN EFFECT — $k is '${got:-<unreadable>}', want '$want'" >&2
             drift=1
         fi
     done <<< "$POLICY"
-    if [ "$rr" -eq 1 ] || [ "$drift" -eq 1 ]; then
+    # ⚠️ Fail-CLOSED on every rc that is not explicitly benign. An earlier cut tested only
+    # `-eq 1`, so rc 2 (unknown option) or a 127 from a missing binary stamped GREEN — in the very
+    # block whose purpose is to stop the stamp meaning "the script was invoked".
+    if { [ "$rr" -ne 0 ] && [ "$rr" -ne 10 ] && [ "$rr" -ne 11 ]; } || [ "$drift" -eq 1 ]; then
         echo "agent-memory: NOT stamping — the run did not leave the box in the intended state" >&2
         return 1
     fi
