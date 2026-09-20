@@ -1,6 +1,29 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## 2026-09-20 — An exhaustive search of ONE config file is not an absence
+
+Reporting on Volkan's Mac, I walked `~/.claude.json` recursively — all 75 top-level keys, 79 KB —
+found no `crossSessionInbound`, and wrote **"absent entirely"** into a runbook paragraph, a
+CHANGELOG bullet and a cross-machine request, concluding that `wake.py` was a dead fallback and
+their self-watch a single point of failure. Their session refuted it with one `grep` across the
+config directory: `~/.claude/settings.json:101` has `"crossSessionInbound": "accept"`. The key lives
+in `settings.json`; `~/.claude.json` is a different store.
+
+The reading was correct and the claim was not. Thoroughness inside one file reads exactly like
+thoroughness across the search space, which is what made it convincing enough to commit and push —
+`denominator-honesty` violated by a session whose own contract names it, in the same turn it
+corrected someone else's stale row.
+
+What makes it worth an entry rather than a shrug: the phrase "walked whole, not just the top level"
+was in the commit message. That detail describes the DEPTH of the search and says nothing about its
+BREADTH, and I used it as though it covered both. A bound stated in one dimension is not a bound.
+
+**The rule this reinforces, one level sharper:** a negative needs the population it searched, and
+for configuration the population is never one file — on this box alone, `~/.claude.json`,
+`~/.claude/settings.json` and `~/.claude/settings.local.json` all hold live keys. State it as
+"not found in `<file>`", or `grep -r` the directory before saying "absent".
+
 ## The review commands verify; none of them validate — and three ways a ruling hides from every gate (2026-09-18/19, the `/fabrik-task` lane)
 
 A decision rule went through three `/fabrik-spec-review` runs, `/fabrik-plan-after-chat`,

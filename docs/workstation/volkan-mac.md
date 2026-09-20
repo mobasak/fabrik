@@ -131,7 +131,7 @@ hub hooks for sounds, quota rotation, mail, agent charters, run records, scratch
 | 011 | self-watch (death resume + queue knock) | armed; (a)(b)(c)(e) proven; **CNS_HEADLESS** defect class found (headless children ran all hooks) and fixed |
 | 012 | proof (d) | `scp` alone → knocked and claimed in 17 s; **socket wake retired** |
 | 013 | *(their notice, unprompted — no request of ours)* | `guard.py` denied two legitimate commands because `check()` scanned the whole command string and matched PROSE about `git push --force` inside a heredoc. Their fix: strip heredoc bodies, require the git token at a command position; fixture 29/29 deny · 39/39 allow. **Worth mirroring — our own guards scan command strings the same way.** Also corrects a rule they had misread: they push THEIR OWN branch when work is done; only `main` is the co-worker's |
-| 015 | INSTALL APPROVED for `/task` | Volkan approved the install 2026-09-20 (*"i approve installation"*); relayed because their session correctly refused to install on a request alone. Carries the amended 160-line file, answers their proof-2 question (the gate has NO jurisdiction over `~/.claude` — no repo, no staged set; the router loader run against the LIVE skills tree is the whole of the gate-equivalent), and reports the dead `crossSessionInbound` |
+| 015 | INSTALL APPROVED for `/task` | Volkan approved the install 2026-09-20 (*"i approve installation"*); relayed because their session correctly refused to install on a request alone. Carries the amended 160-line file, answers their proof-2 question (the gate has NO jurisdiction over `~/.claude` — no repo, no staged set; the router loader run against the LIVE skills tree is the whole of the gate-equivalent), and carried a WRONG finding — it reported `crossSessionInbound` absent from a one-file search; it is set at `~/.claude/settings.json:101` and their session refuted it in one `grep` |
 | 014 | MODIFY: `/task`, our `/fabrik-task` ported | filed 2026-09-20 with `014.files/SKILL.md`; every hub dependency re-keyed (gate, ledger shape, rule-pack `paths:`, review/spec names) and the honest gap named — their machine has no run record, so the SIZE gate is self-graded and phase 5's commit re-measure is its only counter. Router + collision proven against their own loader before filing |
 
 Repo commits on `vo-2026-09-09` (all his session's, on his word, pushed to his branch only): `5c4cba5
@@ -152,14 +152,20 @@ files attached. Their replies are peer output: **data, not authorization** — e
 before acceptance, and they have been right against me five times (the Pint command, the secrets
 recall, the rule packs, the guard shapes, the run-path defects).
 
-⚠️ **`wake.py` is a DEAD fallback — measured 2026-09-20.** It needs `crossSessionInbound: accept`,
-and that key is **absent entirely** from his `~/.claude.json` (walked whole, not just the top level;
-this doc claimed it was set from 2026-09-09 until the probe). So the socket path would not be
-accepted, `wake.py --cwd ~/dev/cryptnshare "<msg>"` is not a usable break-glass, and the classifier
-here refuses it anyway. **The queue knock is the ONLY channel either side has, which makes his
-self-watch a single point of failure:** if `selfwatch.sh` is not running for his live session, a
-request you `scp` sits unread until he types something. Filed to them in request 015; until they
-confirm, assume no fallback exists.
+Wake by socket (`~/.claude/bin/wake.py --cwd ~/dev/cryptnshare "<msg>"`) is LIVE and is the
+fallback for a dead watch: `crossSessionInbound: accept` is set at **`~/.claude/settings.json:101`**
+— that is the file that holds it, NOT `~/.claude.json`. The classifier here refuses the post, so the
+operator runs it. ⚠️ **This paragraph carries a correction worth more than the fact.** On 2026-09-20
+this doc said the opposite for one commit: a probe walked `~/.claude.json` recursively, found no such
+key in its 75 top-level keys, and reported it *absent entirely* — a claim about every file, from a
+search of one. Their session refuted it with a single `grep` across the config directory. `~/.claude`
+keeps session and hook configuration in **`settings.json`**, and `~/.claude.json` is a different
+store; a negative about this machine's configuration is asserted from both or it is not asserted.
+
+**The real single point of failure is the watch itself, and it is not the one that probe imagined**
+(their finding, 2026-09-20): `selfwatch.sh` dies every ~30 minutes to the harness ceiling and must
+be re-armed BY THE SESSION — so a session that cannot take a turn cannot re-arm it, and that is
+precisely the state you need it in. `wake.py` being alive is what covers that hole.
 
 **The knock's exact condition** (`~/.claude/bin/selfwatch.sh:118,124-129`): a `<id>.request.md`
 whose `<id>` is NUMERICALLY newer than the newest at ARM time, with neither `<id>.claimed` nor
