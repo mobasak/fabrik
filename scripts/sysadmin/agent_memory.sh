@@ -242,7 +242,7 @@ cmd_cron() {
     # happens to be working. A CRITICAL failure (rc 1 — above all, a box left without swap) must
     # do the opposite and BREAK the heartbeat, because the stamp is the only signal anyone sees.
     cmd_reclaim
-    rr=$?
+    local rr=$?
     cmd_status
     # ⚠️ THE COBRA (D-253), and it is why this block exists. The cheapest way to satisfy this
     # heartbeat WITHOUT producing the outcome is exactly what an earlier cut did: print a date,
