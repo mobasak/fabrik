@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — term-edit rule (3): a count wrong twice becomes a derivation row, never a new number (D-312, 2026-09-20)
+
+- `commands/_fragments/term-edit.md:22` gains one sentence inside the pre-pin probe paragraph's rule (3),
+  rendered into all 17 `{{include:term-edit}}` commands: when the residue that forces a rewrite is a COUNT,
+  enumeration or anchor, the value is not re-cut — it moves into a DURABLE row inside the artifact that
+  carries the command producing it (D-311's `## Derivations` shape), with the pasted output in a `$ ` fence
+  placed BESIDE the table and cited by the row's cell (a fence inside a pipe-table cell swallows the next
+  row — executed with markdown-it), and the row and paragraph cite each other so Probe duty re-runs it
+  whenever the paragraph is edited. Never a scratch path, which `clean-own-scratch` sweeps at task end.
+- Answers two `/fabrik-spec-review` feedback rows. One by an edit — the derivation rule, measured on the
+  git-decoder spec review where the single derivation written in place of a number survived the next round
+  while every restated value beside it went stale. One by REFUTATION — the claim that the command has "no
+  fix protocol": reading `term-edit.md:22` whole shows it exists (rule 1 probe scripts, rule 2 the
+  `check_review_hygiene.py --claim` mirror sweep, which was driven on a hard-wrapped claim and sees it,
+  rule 3 the forced rewrite); only this rule was absent. Four earlier `/fabrik-command-improve` runs each
+  restated something already present for want of that read.
+- Four scoped-review rounds (8 → 1 → 2 → 0). The first draft cited an EPHEMERAL scratch probe as the
+  number's durable home — 16 of 17 consumers are persisted or frozen artifacts read by later sessions —
+  and over-claimed D-311; rebuilt from base three times; a fresh seat confirmed zero.
+
 ### Changed — Enforcement git-decoder design CONVERGED after 25 review rounds (D-311, 2026-09-20)
 
 - `docs/superpowers/specs/2026-09-19-enforcement-git-decoder-design.md` flips DRAFT → CONVERGED.
