@@ -63,8 +63,8 @@ five runs, each of which a reader can judge on its own.
   names a clock for it (not found in 117 files — 38 sources, 23 fragments, 56 packs, 2026-09-20),
   so none is stated here. A seat API timeout is one re-dispatch, never a wait. A run that cannot
   reach its close hands off rather than dying with its context: write the resume artifact first
-  (`<scratchpad>/command-improve/<command>-open-rows.md` — the open `ts` rows, the group picked,
-  and a `## RESUME` block naming the next act), then `command_run.py handoff
+  (`<scratchpad>/command-improve/<command>-open-rows.md` — the open `ts` rows, the group picked if
+  PHASE 2 got that far, and a `## RESUME` block naming the next act), then `command_run.py handoff
   --command /fabrik-command-improve --resume <that path> --reason "<why rows remain open>"
   --feedback "<the four fields>"`.
 - **Consistency and the manifesto.** The corpus keeps one shape: a rule that binds more than this
@@ -255,5 +255,8 @@ is a mail, and the mail id belongs in the FEEDBACK line.
 
 One edit committed and rendered, with its trailer naming the rows it answers — **or** an explicit
 `no edit this run — the queue holds nothing that survives review`, which is a legitimate close and
-must name what you read and why it did not survive — or, when every row's write target is
-lock-owned and mailed (PHASE 2), why it could not be applied. Anything else is an unfinished run.
+must name what you read and why it did not survive — **or**, when every row's write target is
+lock-owned and mailed (PHASE 2), an explicit `no edit this run — every row's write target is
+lock-owned and mailed`, naming the lock file and the mail id — **or**, when the run cannot reach any
+of those (§ Drive, Resilience), a `handoff` close naming the resume artifact. Anything else is an
+unfinished run.
