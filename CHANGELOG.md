@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `/fabrik-task` ported to Volkan's Mac as `/task`, and `ssh mac` repointed again (2026-09-20)
+
+- His Mac moved to `192.168.1.4` — the third address in three days — so `~/.ssh/config` is repointed and
+  `docs/workstation/volkan-mac.md` § 1 now treats `HostName` as VOLATILE, with the fingerprint
+  (`SHA256:LUJFAMF1GHz6J5rPd5PaVexCjNscqEgMMFCE9KbJOAc`) as the way to prove a new address is the same
+  machine. That key was already trusted for both previous addresses, so the move was verified rather
+  than accepted blind.
+- The port re-keys every hub dependency and drops the two with no Mac equivalent instead of faking them
+  (D-319). Its honest gap is named in the skill's own text: their machine has no run record, so the SIZE
+  gate is self-graded and phase 5's re-measure of the landed commit is its only counter.
+- Filed as review-queue request `014` for their session to apply — `~/.claude` there is single-writer.
+  Proven before filing against their own `skill_router.load_triggers()`: the five trigger phrases extract
+  cleanly and collide with none of the 22 existing skills.
+- The runbook's stale rows are corrected while in there: their ledger is at 132 rows / `D-136`, not the
+  `D-001..D-005` recorded at handover; `~/.claude/skills/synced/` appeared 2026-09-18 and is a
+  cloud-synced Anthropic bucket, not ours; and the request ledger gains 013 (their unprompted `guard.py`
+  notice, which is worth mirroring here) and 014.
+
 ### Changed — the daily RAM job no longer touches swap (2026-09-20)
 
 - Of 41 defects this change's own `/fabrik-review` confirmed across three rounds, **8 of 8

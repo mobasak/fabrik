@@ -23,13 +23,21 @@ state at hand-over. The auto-memory pointers are `reference-mac-vacbook-ssh`,
 
 ## 1. Access — `ssh mac`
 
-`~/.ssh/config` on this WSL box: `Host mac` → `HostName 172.16.100.33`, `Port 22`, `User volkanozkocak`,
-`IdentityFile ~/.ssh/id_ed25519`. The Mac is `VacBook-Air.local` (macOS 26.5.2, M2, **8 GB**, arm64, zsh).
+`~/.ssh/config` on this WSL box: `Host mac` → `HostName 192.168.1.4` (2026-09-20), `Port 22`, `User
+volkanozkocak`, `IdentityFile ~/.ssh/id_ed25519`. The Mac is `VacBook-Air.local` (macOS 26.5.2, M2,
+**8 GB**, arm64, zsh).
+
+⚠️ **Treat `HostName` as VOLATILE — it has moved twice in three days** (`172.22.16.1:2222` via the
+hotspot portproxy → `172.16.100.33` → `192.168.1.4`). Do not trust this line; probe it. **Verify the
+new address is the SAME MACHINE by fingerprint, never by `StrictHostKeyChecking=no`:**
+`ssh-keyscan -t ed25519 <ip> | ssh-keygen -lf -` must print
+`SHA256:LUJFAMF1GHz6J5rPd5PaVexCjNscqEgMMFCE9KbJOAc` — the key this box already trusts for every
+previous address of his. A match is proof; append that one line to `known_hosts` and nothing else.
 
 ⚠️ **The hotspot portproxy is RETIRED (2026-09-18).** The Mac moved off the Windows mobile hotspot onto a
 network WSL routes to directly, so `ssh mac` is now a plain hop to the Mac's own address on port 22 — no
 `netsh portproxy`, no Windows firewall rule, no WSL-gateway indirection. Verified end to end the day it
-changed: `ssh mac` → `VacBook-Air.local`, `ipconfig getifaddr en0` → `172.16.100.33`.
+changed, and again on 2026-09-20: `ssh mac` reaches the Mac and its own `ipconfig getifaddr en0` agrees.
 
 **When it breaks, ONE moving part now: the Mac's own lease.** On the Mac `ipconfig getifaddr en0`, then
 update `HostName`. Probe reachability from WSL before blaming SSH — `cat < /dev/null > /dev/tcp/<ip>/22`
@@ -58,9 +66,9 @@ inherit the console context) can run Claude on that machine. That constraint sha
 |---|---|---|
 | Operating contract (system-wide) | `~/.claude/CLAUDE.md` (203 L) — Part 1 = our project contract re-keyed (FIRST OUTPUT, Orient incl. **item 0 arm the self-watch**, Behavior, fix directive, completion contract keyed to `gate.py`, HARD STOPS, doc-sync table, 6-line FINAL OUTPUT + STATE footer); Part 2 = his Pinegrow/Tailwind rules behind a SCOPE guard. `@~/.claude/MACHINE.md` imported at line 11 | live |
 | Machine map | `~/.claude/MACHINE.md` (~70 L) — paths, gate statuses, hooks table, skills, agents, queue protocol, MCPs, pins, branch rule | live |
-| Repo working agreement (team-visible, tool-neutral) | in **his repo** `~/dev/cryptnshare/`: `CLAUDE.md` § Conventions (commit `0a12b53`), `CHANGELOG.md`, `DECISIONS.md` (D-001..D-005), `LESSONS_LEARNT.md`, `CONFIGURATION.md` (64 vars), `development/{plans,specs,reviews,rivals}/` and `quality-baseline.json` under its `docs/`, `.fvmrc` (Flutter 3.47.2) | committed on `vo-2026-09-09` |
+| Repo working agreement (team-visible, tool-neutral) | in **his repo** `~/dev/cryptnshare/`: `CLAUDE.md` § Conventions (commit `0a12b53`), `CHANGELOG.md`, `docs/DECISIONS.md` (132 rows, highest `D-136` at 2026-09-20 — it is THEIR ledger and it grows fast; read it, never recall a range), `LESSONS_LEARNT.md`, `CONFIGURATION.md` (64 vars), `development/{plans,specs,reviews,rivals}/` and `quality-baseline.json` under its `docs/`, `.fvmrc` (Flutter 3.47.2) | committed on `vo-2026-09-09` |
 | Local overlays (untracked, `.git/info/exclude`) | `CLAUDE.local.md` (repo facts + his personal rules), `admin/CLAUDE.md`, `mobile/CLAUDE.md`; master copies at `~/.claude/backups/cryptnshare-local-overlays/` | live |
-| Skills (22) | `~/.claude/skills/<name>/SKILL.md` — the 21 ported commands + `/rivals`; each description carries `TRIGGER — EN "…"; TR "…"` | live |
+| Skills (22 ours) | `~/.claude/skills/<name>/SKILL.md` — the 21 ported commands + `/rivals`; each description carries `TRIGGER — EN "…"; TR "…"`, parsed by `skill_router.load_triggers()`. ⚠️ `~/.claude/skills/synced/` appeared 2026-09-18 and is NOT ours — a cloud-synced Anthropic bucket (`docs docx pdf pptx xlsx skill-creator import-memory morning`); the loader skips it, so count 22 and ignore it. `/task` is filed as request 014, pending their apply | live |
 | Skill router (EN+TR) | `~/.claude/hooks/skill_router.py` (105 L, reads the triggers; 10/10 routes, 0/10 false) | armed |
 | Gate | `~/.claude/bin/gate.py` — stack-detecting: `--quick` (pint · tsc · flutter analyze ×3 · secrets; read-only, the Stop hook's leg) / full (+ `composer test`, `npm run build`, `flutter test --no-pub` ×3, env parity, changelog, **25 vendored corpus checks** as `corpus: <name>` rows, debt ratchet). Statuses `pass·FAIL·WARN·error` → `success·failure·unverified·none`; SKIPPED is never green; timeouts kill the process tree | 40 checks / ~53 s |
 | Vendored enforcement corpus | `~/.claude/bin/checks/` (26): our `scripts/enforcement/check_*.py` re-keyed (secrets, changelog, doc_sync, schema_sync = Eloquent↔migrations, openapi_sync = `Route::`↔`ApiDocsPage.tsx`, print_ban + PHP `dd/dump/var_dump` + Dart `print`, env_example = `env()` in app/routes only, doc_sprawl, doc_links, decisions_unique, convergence, plans, plan_quality, test_proposal, citations_resolve, spec_convergence, frozen_chain, stage_artifacts, phase_tests, doc_stubs, retired_terms, configuration_md, readme_md, rivals_dossier, **debt_ratchet** vs his tracked `quality-baseline.json`) + `validate_conventions.py` | live |
@@ -122,6 +130,8 @@ hub hooks for sounds, quota rotation, mail, agent charters, run records, scratch
 | 010 | fabrik-lib research chain + `/rivals` | 4 run-path defects fixed by them (D1–D4), D5 engine defect filed upstream; dossier 12/6/127 at `$0.504`, `partial`, **uncommitted** |
 | 011 | self-watch (death resume + queue knock) | armed; (a)(b)(c)(e) proven; **CNS_HEADLESS** defect class found (headless children ran all hooks) and fixed |
 | 012 | proof (d) | `scp` alone → knocked and claimed in 17 s; **socket wake retired** |
+| 013 | *(their notice, unprompted — no request of ours)* | `guard.py` denied two legitimate commands because `check()` scanned the whole command string and matched PROSE about `git push --force` inside a heredoc. Their fix: strip heredoc bodies, require the git token at a command position; fixture 29/29 deny · 39/39 allow. **Worth mirroring — our own guards scan command strings the same way.** Also corrects a rule they had misread: they push THEIR OWN branch when work is done; only `main` is the co-worker's |
+| 014 | MODIFY: `/task`, our `/fabrik-task` ported | filed 2026-09-20 with `014.files/SKILL.md`; every hub dependency re-keyed (gate, ledger shape, rule-pack `paths:`, review/spec names) and the honest gap named — their machine has no run record, so the SIZE gate is self-graded and phase 5's commit re-measure is its only counter. Router + collision proven against their own loader before filing |
 
 Repo commits on `vo-2026-09-09` (all his session's, on his word, pushed to his branch only): `5c4cba5
 907a060 3590dfb 72f5a1a 1b6535e e5e1956 0a12b53 c57cc3e d7f5222 8156894`. `origin/main` untouched at `1d19ae0`.
