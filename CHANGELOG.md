@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — a macOS sound layer for Volkan's Mac, filed as request 016 (2026-09-20)
+
+- Our verb taxonomy (`done` · `attention` · `failure` in three families, on the CLI's own error
+  enum) ported as a fresh macOS artifact. The stop decider behind ours is deliberately NOT ported:
+  it exists because this box runs many concurrent agents, and it is welded to quota rotation,
+  Telegram and our self-watch — their machine has its own mesh and a second decider would collide.
+- The port's real content is the portability list, measured rather than assumed: on macOS
+  `timeout`, `setsid`, `flock` and `gtimeout` are ABSENT and `stat -c` is illegal. `afplay -t` is
+  the time bound, `mkdir` the atomic lock, `stat -f %z` the size — and the grader greps for all
+  five GNU-isms with comment lines stripped, so the check cannot pass on prose.
+- 34 checks, green on macOS AND Linux, nine mutants killed. Three defects surfaced in the GRADER
+  itself, one of which is the argument for running it on the target: it raced the detached player
+  it was testing, which passed on Linux and failed 18 of 34 on macOS against the same script.
+- `afplay` was deliberately NOT tested over SSH — the hooks run in his console GUI session, so a
+  result from an SSH shell would assert nothing about the context that counts. That one proof is
+  theirs to produce (D-320).
+
 ### Added — `/fabrik-task` ported to Volkan's Mac as `/task`, and `ssh mac` repointed again (2026-09-20)
 
 - His Mac moved to `192.168.1.4` — the third address in three days — so `~/.ssh/config` is repointed and
