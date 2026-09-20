@@ -280,8 +280,24 @@ page had cited.
 into RAM at once and stalls the box for up to a minute. This tree routinely runs 3+ concurrent agent
 sessions whose turns would freeze mid-tool-call, so it REFUSES while any `claude` process is alive,
 and refuses again if the swapped bytes exceed `MemAvailable` (where `swapoff` would abort with
-ENOMEM part-way). `--force` overrides. The sysctl policy prevents FUTURE bad eviction; only this
-undoes what is already out there.
+ENOMEM part-way) or if `/proc/meminfo` cannot be read at all. `--force` overrides. The sysctl policy
+prevents FUTURE bad eviction; only this undoes what is already out there.
+
+⚠️ **`swapoff -a` and `swapon -a` are NOT symmetric, and on this box that difference is dangerous.**
+`swapoff -a` takes down every device listed in `/proc/swaps`; `swapon -a` activates only devices
+marked `swap` **in `/etc/fstab`** — and this box's fstab has **zero** swap entries. Swap here is
+`/dev/sdc`, brought up by WSL init, with no systemd `.swap` unit either. So `swapon -a` restores
+NOTHING and still exits 0, which means an exit-code check cannot detect it. `reclaim` therefore
+captures the device list from `/proc/swaps` first, restores each **by name**, and verifies against
+the kernel's own view rather than the return code. Found by a review seat 2026-09-20, before the
+job had ever run unattended; the failure would have been a silent, swapless box until the next
+`wsl --shutdown`, with the log reading `reclaimed.`
+
+⚠️ **The daily job verifies the policy is IN EFFECT, not merely that it ran.** `sysctl -p` returns
+0 even on an empty file, so re-asserting the policy proves nothing on its own. `cron` re-reads all
+four live values and withholds the stamp when any disagrees — otherwise the heartbeat would measure
+"the script was invoked" while the box ran on defaults (D-253, the cobra check: that was the
+cheapest way to satisfy this measure without producing the outcome).
 
 **Kilo Code runs on demand (operator directive 2026-09-20).** Its manifest declares
 `"activationEvents": ["onStartupFinished", "onUri"]`, so it starts with EVERY window and there is no
