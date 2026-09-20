@@ -486,7 +486,10 @@ def test_an_indented_policy_line_is_still_verified(stub_bin, tmp_path):
     )
     r = subprocess.run(["bash", str(mutant), "cron"], capture_output=True, text=True,
                        env=env, timeout=120)
-    assert "vm.swappiness" in (r.stdout + r.stderr), (
+    # ⚠️ FIFTH instance of this class, and the twin of the one fixed twenty lines below: the bare
+    # key is printed by cmd_status before the drift loop ever runs, so deleting the whitespace
+    # strip left 27 of 27 green. Assert on the DRIFT line.
+    assert "NOT IN EFFECT — vm.swappiness" in (r.stdout + r.stderr), (
         "an indented policy line must still be checked:\n" + r.stdout + r.stderr
     )
 
