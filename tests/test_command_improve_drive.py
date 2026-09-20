@@ -18,7 +18,9 @@ def _drive_section() -> str:
     text = SRC.read_text(encoding="utf-8")
     start = text.index("## Drive")
     end = text.index("\n## ", start + 1)
-    return text[start:end]
+    # WRAP-AWARE: a needle that spans a soft line break must still match (a line grep cannot
+    # see a wrapped claim — the first cut of this grader read "no\n  corpus" as absent).
+    return " ".join(text[start:end].split())
 
 
 def test_the_source_states_who_may_run_it() -> None:
@@ -31,7 +33,8 @@ def test_the_source_states_fable_drives_else_opus() -> None:
     sec = _drive_section()
     assert "on Fable" in sec and "driven on Opus" in sec
     # the TRIGGER is locked, not only the phrases: a mutant that loosened "when" survived round 1
-    assert "bands RED on Fable" in sec and "this account's own Fable window" in sec
+    assert "bands RED and the window it names is Fable" in sec
+    assert "this account's own Fable window" in sec and "/model claude-fable-5-1" in sec
     assert "D-295" in sec  # the band is raised to the account's own Fable reading; no flip reaches it
 
 
@@ -39,7 +42,15 @@ def test_the_source_sizes_seats_from_the_box_by_role() -> None:
     sec = _drive_section()
     assert "dispatch_headroom.py" in sec
     assert "haiku 1× · sonnet 2× · opus 5× · fable 10×" in sec
-    assert "D-229" in sec and "D-278" in sec and "D-312" in sec  # delta budget, the stop, the derivation row
+    assert "not restated here" in sec  # the dispatch shape is pointed at, never copied (round-1 C1)
+    assert "still RUNNING" in sec  # the subtraction is dispatch_headroom.py's, over running records only
+
+
+def test_the_source_bounds_the_passes_with_the_real_d278_remedy() -> None:
+    sec = _drive_section()
+    assert "D-229" in sec and "D-278" in sec and "D-312" in sec
+    assert "fix every confirmed defect still open" in sec and "remainder rounds" in sec
+    assert "no corpus rule names a clock" in sec  # the 3-minute timer stays out (round-1 F2)
 
 
 def test_the_source_grounds_against_fabrik_lib_and_the_ledgers_before_drafting() -> None:
@@ -49,4 +60,6 @@ def test_the_source_grounds_against_fabrik_lib_and_the_ledgers_before_drafting()
 
 
 def test_the_source_sets_a_time_budget_from_measured_closes() -> None:
-    assert "Budget one run at 40 minutes" in _drive_section()
+    sec = _drive_section()
+    assert "Budget one run at 40 minutes" in sec
+    assert "median 34" in sec and "max 54" in sec and "5 of the 16 past 40" in sec

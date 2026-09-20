@@ -21,45 +21,56 @@ five runs, each of which a reader can judge on its own.
   and the review machinery intel's. A fleet window or a project-repo agent does not run it: it files
   its verdict at its own close and the queue is worked from the hub. An unnamed hub window names
   its role in the commit body.
-- **Driver.** The session running it is on Fable. When the `QUOTA:` line bands RED on Fable — or
-  names `this account's own Fable window` as the window the band is on — the run is driven on Opus
-  (`/model claude-opus-5`), never on a seat model. The Fable band is raised to this account's own
-  Fable reading whenever that is hotter than the fleet's, because no relief flip reaches a Fable
-  window (D-295): read the line, not the account percentages.
+- **Driver.** The session running it is on Fable — `/model claude-fable-5-1` before phase 1 if it
+  is not. When the `QUOTA:` line bands RED and the window it names is Fable (`on Fable`, or
+  `on this account's own Fable window` when the clamp binds), the run is driven on Opus
+  (`/model claude-opus-5`), never on a seat model; AMBER on Fable is finish-what-you-started, not a
+  switch. The Fable band is raised to this account's own Fable reading whenever that is hotter than
+  the fleet's, because no relief flip reaches a Fable window (D-295): read the line, not the
+  account percentages.
 - **Seats.** Sized from the BOX by `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py`,
   from the units the SURFACE has — one source file is one unit (§ PHASE 4) — and priced by role
   (haiku 1× · sonnet 2× · opus 5× · fable 10×, D-190): Opus authoritative, Sonnet breadth, Haiku
   mechanical; the dispatch shape is the POOL OFF block's above, not restated here. An idle box buys
-  no extra seat; a busy one is subtracted when you run `dispatch_headroom.py`, which discounts every
-  sibling seat stamped in the last 25 minutes.
+  no extra seat; a busy one is subtracted when you run `dispatch_headroom.py`, which discounts the
+  seats sibling records still RUNNING stamped in the last 25 minutes — never below the floor, and a
+  record with no stamp is a named lower bound, not a zero.
 - **Passes.** Round 1, then delta rounds sized by the fix (`--delta <n>`: one fresh seat at or under
-  20 changed lines, D-229). The target is a quiet round 2. The stop is D-278's: two of the last
-  three rounds at or above two-thirds own-fix routes the grown surface to a backlog row and suspends
-  new hunting — it closes the loop faster than another round does, and it never dispositions a
-  defect. A count confirmed wrong twice becomes a derivation row, never a new number (`term-edit`
-  rule (3), D-312).
+  20 changed lines, D-229). The target is a quiet round 2. The stop is D-278's, computed from the
+  `--own-fix` you state on every `round`: two of the last three rounds at or above two-thirds
+  own-fix means stop HUNTING — fix every confirmed defect still open in that window, route only the
+  genuinely own-fix residue to a backlog row with a named destination, and run remainder rounds
+  that re-verify that fixed set alone. It bounds the loop; it never dispositions a defect. A count
+  confirmed wrong twice becomes a derivation row inside the artifact under edit, never a new number
+  (`term-edit` rule (3), D-312).
 - **Grounding — before drafting, not after review.** For the group you pick: the command's current
   text read WHOLE; the tool's own runtime output when a verdict is about a gate, a check or a tool;
-  `docs/DECISIONS.md` and `docs/STRATEGIC_BACKLOG.md` for the subject (a ruling or a sized row
-  routes the run, never a restatement); `/opt/fabrik-lib/README.md`'s module table and the
+  `docs/DECISIONS.md` and `docs/STRATEGIC_BACKLOG.md` for the subject (a ruling already made, or a
+  row already sized as spec work, sends this run to that process with no edit — never a
+  restatement of it here); `/opt/fabrik-lib/README.md`'s module table and the
   project's own `scripts/` when the edit names a capability, so the text points at what exists;
   and the packs `python scripts/select_rules.py --changed <target>` prints, which the edit obeys.
-  An EXTERNAL fact (a vendor API, a documented status value) is grounded live by a
-  `fabrik-researcher` seat, never recalled. Every count, `file::symbol` and claim the edit
+  An EXTERNAL fact (a vendor API, a documented status value) is grounded LIVE, never recalled —
+  inline for a lone quick fact, on a `fabrik-researcher` seat when it is load-bearing or several.
+  Every count, `file::symbol` and claim the edit
   introduces is EXECUTED before the render — a recalled number is a wrong number.
 - **Time.** Budget one run at 40 minutes wall-clock (16 closes measured 2026-09-20: median 34,
-  max 54, 5 of the 16 past 40). Past it, close with an honest no-edit naming what was read, and let the FEEDBACK line
-  say what cost the time — an overrun is a finding about this command, never a reason to skip a
-  phase.
-- **Resilience.** A seat that has not returned is an OPEN question, never an absent one: wait or
-  re-dispatch with a tighter brief, and never close over it (`term-coverage`). A seat API timeout
-  is one re-dispatch, never a wait. A run that cannot reach its close hands off (`command_run.py handoff --resume <artifact>`) rather than dying with its context.
+  max 54, 5 of the 16 past 40). Past it, finish the phase in flight, then close — with the edit if
+  phase 4 has passed, else with an honest no-edit naming what was read — and let the FEEDBACK line
+  say what cost the time: an overrun is a finding about this command, never a reason to skip a
+  phase or to discard a reviewed edit.
+- **Resilience.** A seat that has not returned is an open question, not an absent one — the rule
+  is `term-coverage`'s (wait or re-dispatch with a tighter brief; never close over it), and no
+  corpus rule names a clock, so none is stated here. A seat API timeout is one re-dispatch, never
+  a wait. A run that cannot reach its close hands off (`command_run.py handoff --resume
+  <artifact>`) rather than dying with its context.
 - **Consistency and the manifesto.** The corpus keeps one shape: a rule that binds more than this
   command lives in `commands/_fragments/` and is INCLUDED, never restated per command; a rule
   already in `CLAUDE.md` or a pack is POINTED at, never copied; and a sibling command's handling of
   the same subject is read before a new one is invented — best practice here is what the live
-  corpus practices. Every edit is reversible by default and names its cobra when it adds a count
-  or a bar (the operating manifesto, D-253).
+  corpus practices. Every edit is reversible by default and, when it adds a count or a bar, names
+  its cobra where the next reader can grep it — the mechanism's own docstring or its decision row
+  (the operating manifesto, D-253; `CLAUDE.md` § THE FIX DIRECTIVE 5).
 
 {{include:run-record}}
 
