@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Enforcement git-decoder design CONVERGED after 25 review rounds (D-311, 2026-09-20)
+
+- `docs/superpowers/specs/2026-09-19-enforcement-git-decoder-design.md` flips DRAFT → CONVERGED.
+  Twenty-five rounds, eighteen of them carrying a fresh non-authoring seat; the closing round swept
+  all 47 classes clean at `confirmed 0`. Roughly 130 confirmed defects fixed across the run.
+- **The design, settled:** four named verbs (`git_text` / `git_paths` / `git_records` / `git_meta`)
+  on one signature `(args, *, cwd=None, timeout=None)`, argv EXCLUDING the executable, and `-z`
+  INSERTED before the first `--` — appending it after `--` makes git read it as a pathspec and
+  return newline-separated output at rc 0. Five rulings the build depends on, each executed rather
+  than reasoned: raise on NO ANSWER (non-execution **or** timeout); `GitUnavailableError` subclasses
+  `OSError`, because the precedent's plain `Exception` would turn 27 currently fail-open gates into
+  tracebacks across 47 repos; `check_subagent_flywheel.py`'s `_git` survives as an ADAPTER because
+  all five callers branch on its `None`; `LANGUAGE=C` is internal, so the closed signature needs no
+  `env=`; and the return stays two-element, with the single `.stderr` consumer downgrading its
+  diagnostic rather than growing the API for one caller.
+- **Every derived number now lives in one `## Derivations` section (D1–D14) carrying the command
+  that produces it.** A count stated in prose went stale in its satellites four rounds running — a
+  wrap-aware sweep found 17 instances of one pair — so the prose cites a row id and the reader
+  re-runs it. The cobra guard got the same treatment: a four-clause CALLEE predicate measured at
+  **102 fires in 40 files with zero false positives**, which equals D8, so the guard and its
+  exemption arithmetic finally derive from one population. Two earlier predicates fired 113 and 657.
+- **The acceptance machinery is where the review spent itself**, and the shape of every defect there
+  was the same: an ingredient silently inert for some site class. It is now three assertions
+  discharged PER ARM (crash / verdict / silent / exclusion / meta), artefact placement DERIVED per
+  site from its argv and entry guard, and a **pre-migration RAISE REGISTER** of eight rows that is
+  the actual discriminator — reach proofs and argv logs separate NONE of the inert cases, which was
+  verified by execution after being asserted wrongly once.
+
 ### Added — the escalation digest now reaches the repo that OWNS the obligation (2026-09-20)
 
 - `mail_escalate.py` had one destination: the hub mailbox addressed to `infra`. Measured on the
