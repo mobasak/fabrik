@@ -130,6 +130,8 @@ Every DECISION and GATE is kept; the intermediate ARTIFACTS and their separate r
 
 ## The decision rule
 
+> **SUPERSEDED IN PART (D-315, 2026-09-20):** test 2 no longer routes a new mechanism to the spec chain — it is declared and RECORDED, and the lane takes it unless another test fires; test 6's `no mechanism` conjunct now reads `any mechanism reversible and named in the D-row`; a mechanism that fits the lane takes `/fabrik-review-scoped` at phase 4, not the full review. The live contracts' lane table is canonical; the list below is the frozen 2026-09-17 text.
+
 Applied to the **smallest change that discharges the ask, before drafting** — never to a draft already elaborated:
 
 The blast-radius tests the field publishes come first; the count comes last and is admitted as a house heuristic.

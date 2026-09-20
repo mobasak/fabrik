@@ -2464,7 +2464,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--design",
         metavar="PATH",
-        help="/fabrik-task only: record that file's TEXT as the run's design — once, capped",
+        help="/fabrik-task only: record that file's TEXT as the run's design — once, whole (no cap — D-314)",
     )
 
     p = sub.add_parser(
