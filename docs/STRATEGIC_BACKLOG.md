@@ -4659,3 +4659,27 @@ Owner: infra (`scripts/enforcement/` and the doc-coupling tooling are its beat).
 one-line glob widening in EACH of the two files plus a re-run of `--coverage` to re-seed the
 baseline with the shell scripts included — which will make the headless count RISE once, and that
 is the ratchet working, not failing.
+
+## [infra] agent_memory.sh — two latent fail-opens the D-278 stop routed rather than fixed (2026-09-20)
+
+Routed from the `/fabrik-review` over the workstation RAM policy, which exited on the scope-growth
+stop (`confirmed/own-fix: 9/5 → 15/11 → 3/3` — two of the last three rounds above the two-thirds
+line). Both were found by an authoritative seat, both are proven, and both are **unreachable on
+this box today** — which is why fixing them inside that loop would have regenerated the surface it
+was correcting rather than closing it.
+
+1. **`live` is the one numeric in `cmd_reclaim` not `_is_num`-validated** (`scripts/sysadmin/agent_memory.sh`,
+   the live-session guard). `live=$(printf '%s' "$pids" | grep -c . || true)` — if `grep` cannot
+   execute, `live=""`, `[ "" -gt 0 ]` exits 2, `if` reads that as false, and **the swapoff proceeds
+   with agent sessions live**. Executed by the seat with `PATH=/nonexistent`: `GUARD BYPASSED`.
+   Same fail-open class the comment three lines above claims to have closed, and `total`/`free`/
+   `avail`/`back` all *are* guarded. Condition: `grep` absent or unexecutable. Not reachable here —
+   `/usr/bin/grep` exists and `reclaim` is operator-run.
+
+2. **Reverting the NUL-delimiting in `_swap_devices` to a newline split passes the whole suite** —
+   no grader uses a `\012`-named device. Condition: a swap file whose name contains a newline.
+   Not reachable here: swap is the single partition `/dev/sdc`.
+
+Owner: whoever next touches `scripts/sysadmin/agent_memory.sh`. Destination: a `/fabrik-task` —
+one `_is_num` guard on `live`, and one grader using a `\012`-named device fixture. Both are small;
+they are routed only because the loop that found them had stopped being able to judge its own work.
