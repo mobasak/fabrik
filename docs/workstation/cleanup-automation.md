@@ -280,7 +280,13 @@ page had cited.
 into RAM at once and stalls the box for up to a minute. This tree routinely runs 3+ concurrent agent
 sessions whose turns would freeze mid-tool-call, so it REFUSES while any `claude` process is alive,
 and refuses again if the swapped bytes exceed `MemAvailable` (where `swapoff` would abort with
-ENOMEM part-way) or if `/proc/meminfo` cannot be read at all. `--force` overrides. A refused `swapoff` that leaves the box unchanged returns **11** — distinct from the guard's own skip (**10**) and from a critical failure (**1**), because a box that never lost its swap must not break the heartbeat. The sysctl policy
+ENOMEM part-way) or if `/proc/meminfo` cannot be read at all. ⚠️ **`--force` overrides the
+live-session refusal ONLY** — the ENOMEM, unreadable-`/proc/meminfo` and no-device-to-restore
+refusals are absolute, because each of them means the tool cannot prove it could undo what it is
+about to do. (An earlier cut of this sentence said simply "`--force` overrides", which was true of
+one refusal in four.) A refused `swapoff` that leaves the box unchanged returns **11** — distinct
+from the guard's own skip (**10**) and from a critical failure (**1**), because a box that never
+lost its swap must not break the heartbeat. The sysctl policy
 prevents FUTURE bad eviction; only this undoes what is already out there.
 
 ⚠️ **`swapoff -a` and `swapon -a` are NOT symmetric, and on this box that difference is dangerous.**
@@ -325,7 +331,8 @@ trusting an interactive shell, which cannot see this class at all; the "it would
 command not found" version of this paragraph was wrong and was corrected after a review seat read
 `sudo -l` instead of assuming.
 
-⚠️ **The exit code is the contract, and it has two halves.** **0** on success *or* on a benign
+⚠️ **`cron`'s exit code is the contract, and it has two halves** (the `reclaim` codes above are
+a different, finer set — this paragraph is about the daily job only). **0** on success *or* on a benign
 SKIP — a refused reclaim because sessions are live is the EXPECTED nightly outcome, and
 `weekly_catchup.sh` stamps only on success, so returning non-zero there would re-run the job hourly
 and flip `agent-memory-policy` to DEAD every night the operator is working. **1** on a CRITICAL

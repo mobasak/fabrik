@@ -166,10 +166,24 @@ cmd_reclaim() {
     # "/swap file" appears as "/swap\\040file" and `mapfile -t` does not interpret it — swapon would
     # be handed the literal token and fail ENOENT. Latent while swap is a partition; live the day a
     # swap file with a space is added.
-    mapfile -t devs < <(awk 'NR>1 && $1!="" {gsub(/\\040/, " ", $1); print $1}' "$SWAPS")
+    mapfile -t devs < <(awk 'NR>1 && $1!="" {gsub(/\\011/, "\t", $1); gsub(/\\012/, "\n", $1); gsub(/\\040/, " ", $1); gsub(/\\134/, "\\", $1); print $1}' "$SWAPS")
+    if [ ! -r "$SWAPS" ]; then
+        # distinguish "cannot read it" from "it is empty" — cmd_reclaim already does this for
+        # $MEMINFO, and acting blind is what both refusals exist to prevent
+        echo "skipped: cannot read $SWAPS — refusing to act blind"
+        return 10
+    fi
     if [ "${#devs[@]}" -eq 0 ]; then
         echo "skipped: $SWAPS lists no device to restore — refusing a swapoff I could not undo"
         return 10
+    fi
+    # ⚠️ Prove sudo is usable BEFORE the first privileged call. Without this, a cron-context sudo
+    # failure ("a terminal is required to read the password") made swapoff fail, every device read
+    # as still-active, and the run returned the benign rc 11 — so a job that could never work
+    # stamped GREEN indefinitely.
+    if ! sudo -n true 2>/dev/null; then
+        echo "CRITICAL: sudo is not usable — the reclaim never ran" >&2
+        return 1
     fi
     echo "reclaiming $(_gb "$used") GB from swap (may stall briefly)..."
     if sudo swapoff -a; then
@@ -192,7 +206,7 @@ cmd_reclaim() {
             return 0
         fi
         echo "CRITICAL: swapoff succeeded but only ${back}/${#devs[@]} swap device(s) came back —" >&2
-        echo "CRITICAL: this box may be running WITHOUT SWAP. Restore by hand: sudo swapon ${devs[*]}" >&2
+        echo "CRITICAL: this box may be running WITHOUT SWAP. Restore by hand: sudo swapon $(printf '%q ' "${devs[@]}")" >&2
         echo "CRITICAL: then confirm with: swapon --show" >&2
         return 1
     fi
@@ -203,16 +217,34 @@ cmd_reclaim() {
     # rc 1, withheld the stamp and sent the runner into an hourly retry on a perfectly healthy box.
     # So re-assert only what is genuinely ABSENT, and distinguish the two outcomes.
     echo "swapoff FAILED — checking whether anything came down" >&2
-    local still_down=0
+    # ⚠️ Compare against the SAME un-escaped list the capture produced, as a FIXED WHOLE-LINE
+    # match. An earlier cut grepped the raw $SWAPS for the un-escaped name and interpolated it as
+    # a BASIC REGEX, which broke in both directions: `/swap\040file` and any name containing a
+    # regex metacharacter false-alarmed CRITICAL on an intact box, and `/swap.img` MATCHED the
+    # surviving `/swapZimg` line — reporting "swap is intact" while a device stayed down, and
+    # stamping the heartbeat green. -F kills the metacharacters, -x the partial match.
+    local now_up still_down=0 restored=0
+    now_up=$(awk 'NR>1 && $1!="" {gsub(/\\040/, " ", $1); print $1}' "$SWAPS" 2>/dev/null) || now_up=""
     for d in "${devs[@]}"; do
-        grep -q -- "^$d " "$SWAPS" 2>/dev/null && continue   # still active: nothing to do
-        sudo swapon "$d" 2>/dev/null || { echo "CRITICAL: could not re-enable $d" >&2; still_down=1; }
+        printf '%s\n' "$now_up" | grep -qxF -- "$d" && continue   # still active: nothing to do
+        if sudo swapon "$d" 2>/dev/null; then
+            restored=$((restored + 1))
+        else
+            echo "CRITICAL: could not re-enable $d" >&2; still_down=1
+        fi
     done
     if [ "$still_down" -eq 1 ]; then
-        echo "CRITICAL: a swap device is down and would not come back: sudo swapon ${devs[*]}" >&2
+        echo "CRITICAL: a swap device is down and would not come back: sudo swapon $(printf '%q ' "${devs[@]}")" >&2
         return 1
     fi
-    echo "swap is intact — nothing was taken down" >&2
+    if [ "$restored" -gt 0 ]; then
+        # ⚠️ Say what actually happened. An earlier cut printed "nothing was taken down" on this
+        # path too, which erased the only record of a genuine partial-swapoff near-miss — the very
+        # event an operator would want to know about.
+        echo "swap restored — $restored device(s) came down in a partial swapoff and were re-enabled" >&2
+    else
+        echo "swap is intact — nothing was taken down" >&2
+    fi
     return 11   # benign: the swapoff refused and the box is unchanged
 }
 
@@ -267,13 +299,22 @@ cmd_cron() {
         # swappiness 60 at the next boot with a fully green heartbeat in the meantime.
         cmd_install >/dev/null || { echo "  reinstall FAILED — see above" >&2; return 1; }
     fi
-    # ⚠️ A SKIP (rc 10 — sessions live, or the pages would not fit) is the EXPECTED nightly
-    # outcome and must stamp: weekly_catchup.sh stamps only on success, so returning non-zero
-    # there would re-run hourly and flip this job's liveness surface DEAD every night the operator
-    # happens to be working. A CRITICAL failure (rc 1 — above all, a box left without swap) must
-    # do the opposite and BREAK the heartbeat, because the stamp is the only signal anyone sees.
-    cmd_reclaim
-    local rr=$?
+    # ⚠️ THE DAILY JOB DOES NOT RECLAIM. It asserts the policy and reports; it never touches swap.
+    #
+    # Decided after this change's own /fabrik-review found 41 defects in three rounds and EIGHT of
+    # eight critical/high ones lived in the swap-mutation path — twice as a defect a FIX had just
+    # introduced. That path is the only part of this script that changes system state, it runs
+    # unattended at 03:11 with nobody watching, and its worst failure (a box left with no swap)
+    # is invisible until the next allocation spike. Meanwhile it had never actually run: every
+    # invocation refused because agent sessions were live, and ~/.claude/agent-memory.log was
+    # still empty when the decision was made.
+    #
+    # What the operator asked for was "when agents stop, sudo swapoff -a && sudo swapon -a" — an
+    # operator action. Automating it was mine, and it bought nothing: the reclaim cannot run while
+    # the operator is working, which is exactly when the cron fires. The POLICY re-assert is the
+    # half that delivers the RAM benefit, is idempotent, mutates nothing, and is graded.
+    #
+    # `reclaim` remains available and fully fixed — run it by hand when the box is idle. D-318.
     cmd_status
     # ⚠️ THE COBRA (D-253), and it is why this block exists. The cheapest way to satisfy this
     # heartbeat WITHOUT producing the outcome is exactly what an earlier cut did: print a date,
@@ -283,7 +324,8 @@ cmd_cron() {
     # values against the policy and unstamp on drift; the read is free, cmd_status just made it.
     local drift=0 k want got
     while IFS= read -r line; do
-        case "$line" in vm.*) ;; *) continue ;; esac
+        line="${line#"${line%%[![:space:]]*}"}"   # an INDENTED vm.* line is still applied by
+        case "$line" in vm.*) ;; *) continue ;; esac  # sysctl, so it must still be verified
         # ⚠️ Tolerate every VALID spelling. `${k%% }` strips ONE trailing space, so
         # `vm.swappiness  =  10` yielded the key "vm.swappiness " and `vm.swappiness=10` yielded
         # want="vm.swappiness=10" — a permanent false alarm, no stamp, hourly retry, from a
@@ -300,8 +342,8 @@ cmd_cron() {
     # ⚠️ Fail-CLOSED on every rc that is not explicitly benign. An earlier cut tested only
     # `-eq 1`, so rc 2 (unknown option) or a 127 from a missing binary stamped GREEN — in the very
     # block whose purpose is to stop the stamp meaning "the script was invoked".
-    if { [ "$rr" -ne 0 ] && [ "$rr" -ne 10 ] && [ "$rr" -ne 11 ]; } || [ "$drift" -eq 1 ]; then
-        echo "agent-memory: NOT stamping — the run did not leave the box in the intended state" >&2
+    if [ "$drift" -eq 1 ]; then
+        echo "agent-memory: NOT stamping — the policy is not in effect" >&2
         return 1
     fi
     return 0

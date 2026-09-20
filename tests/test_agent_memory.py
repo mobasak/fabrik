@@ -34,9 +34,16 @@ for i in "${!args[@]}"; do
       nxt="${args[$((i+1))]:-}"
       # `-a` with an fstab that has no swap entry: a silent, successful no-op
       [ "$nxt" = "-a" ] && exit 0
-      # a DEVICE argument actually restores it
-      printf 'Filename\tType\tSize\tUsed\tPriority\n%s partition 67108864 0 -2\n' \
-        "$nxt" > "$AGENT_MEMORY_SWAPS"; exit 0 ;;
+      # ⚠️ EBUSY on an ALREADY-ACTIVE device, as the real swapon does. Without this the stub made
+      # re-enabling a live device look free, so deleting the intactness guard was undetectable —
+      # one of seven fixes a review seat mutated away with the whole suite staying green.
+      grep -qxF -- "$nxt" <(awk 'NR>1 && $1!="" {gsub(/\\\\040/," ",$1); print $1}' \
+        "$AGENT_MEMORY_SWAPS" 2>/dev/null) && {
+          echo "swapon: $nxt: Device or resource busy" >&2; exit 255; }
+      # a DEVICE argument actually restores it — APPEND, because a multi-device box restores one
+      # at a time and an overwriting stub would silently wipe the device restored a moment ago
+      [ -s "$AGENT_MEMORY_SWAPS" ] || printf 'Filename\tType\tSize\tUsed\tPriority\n' > "$AGENT_MEMORY_SWAPS"
+      printf '%s partition 67108864 0 -2\n' "$nxt" >> "$AGENT_MEMORY_SWAPS"; exit 0 ;;
   esac
 done
 exit 0
@@ -49,10 +56,12 @@ PGREP_BUSY = "#!/usr/bin/env bash\necho 4242\n"
 class _Stub:
     """pathlib.Path defines __slots__, so the fake /proc/swaps cannot be attached to it."""
 
-    def __init__(self, bindir, swaps, meminfo=None):
+    def __init__(self, bindir, swaps, meminfo=None, sysctl=None, conf=None):
         self.dir = bindir
         self.swaps_file = swaps
         self.meminfo = meminfo
+        self.sysctl = sysctl
+        self.conf = conf
 
     def __truediv__(self, name):
         return self.dir / name
@@ -82,7 +91,23 @@ def stub_bin(tmp_path):
         "MemTotal:       49309316 kB\nMemAvailable:   27000000 kB\n"
         "SwapTotal:      67108864 kB\nSwapFree:       52757592 kB\n"
     )
-    return _Stub(b, swaps, meminfo)
+    sysctl = tmp_path / "sysctl_stub"
+    sysctl.write_text(SYSCTL_STUB)
+    sysctl.chmod(0o755)
+    conf = tmp_path / "policy.conf"      # never the real /etc/sysctl.d file
+    return _Stub(b, swaps, meminfo, sysctl, conf)
+
+
+def _clean_env(**extra):
+    """⚠️ Scrub the seams from the ambient environment. `dict(os.environ, ...)` inherited FAIL_ON,
+    DRIFT and every AGENT_MEMORY_*, so an operator who exported one while debugging got a suite
+    that lied — proven: `FAIL_ON=swapon pytest` turned two tests red."""
+    base = {
+        k: v for k, v in os.environ.items()
+        if not k.startswith("AGENT_MEMORY_") and k not in ("FAIL_ON", "DRIFT")
+    }
+    base.update(extra)
+    return base
 
 
 def _run(stub_bin, *args, fail_on=None, busy=False):
@@ -91,11 +116,18 @@ def _run(stub_bin, *args, fail_on=None, busy=False):
     # swapon failure it existed to prove — a green-looking test of the wrong path.
     (stub_bin / "pgrep").write_text(PGREP_BUSY if busy else PGREP_IDLE)
     (stub_bin / "pgrep").chmod(0o755)
-    env = dict(
-        os.environ,
+    # ⚠️ Pin EVERY seam, not just the two this test is about. Leaving SYSCTL and CONF unpinned
+    # meant `cron`'s drift check shelled the REAL sysctl and its policy compare read the REAL
+    # /etc/sysctl.d file — so the test passed because THIS box has the policy installed, and would
+    # fail on CI, a fresh clone, or this box before `install` had ever run. Proven by a seat:
+    # point sysctl at a stub reporting kernel defaults and the grader goes red for a reason
+    # unrelated to its claim.
+    env = _clean_env(
         PATH=f"{stub_bin}:{os.environ['PATH']}",
         AGENT_MEMORY_SWAPS=str(stub_bin.swaps_file),
         AGENT_MEMORY_MEMINFO=str(stub_bin.meminfo),
+        AGENT_MEMORY_SYSCTL=str(stub_bin.sysctl),
+        AGENT_MEMORY_CONF=str(stub_bin.conf),
     )
     if fail_on:
         env["FAIL_ON"] = fail_on
@@ -148,20 +180,17 @@ def test_a_live_session_skips_rather_than_failing(stub_bin):
     assert r.returncode == 10, f"a benign skip is rc 10, got {r.returncode}"
 
 
-def test_cron_stamps_on_a_skip_but_not_when_the_box_lost_its_swap(stub_bin):
+def test_cron_never_touches_swap(stub_bin):
     """⚠️ THE COBRA. `cron` always exiting 0 is right for a skip — weekly_catchup.sh stamps only
     on success, so a non-zero there would re-run hourly and flip the liveness surface DEAD every
     night the operator happens to be working. It is WRONG for a box that just lost its swap: that
     must break the heartbeat, which is the only signal anyone would ever see.
     """
-    skip = _run(stub_bin, "cron", busy=True)
-    assert skip.returncode == 0, f"a skip must stamp:\n{skip.stdout}{skip.stderr}"
-
-    lost = _run(stub_bin, "cron", fail_on="swapon")
-    assert lost.returncode != 0, (
-        "cron must NOT stamp success after swapon failed — the box has no swap:\n"
-        f"{lost.stdout}{lost.stderr}"
-    )
+    before = stub_bin.swaps_file.read_text()
+    r = _run(stub_bin, "cron", busy=False)          # an IDLE box: the old code would have reclaimed
+    assert r.returncode == 0, f"{r.stdout}{r.stderr}"
+    assert "reclaiming" not in r.stdout, f"the daily job must never swapoff:\n{r.stdout}"
+    assert stub_bin.swaps_file.read_text() == before, "the daily job changed swap state"
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash required")
@@ -212,8 +241,7 @@ def test_the_enomem_guard_fails_closed_when_meminfo_is_unreadable(stub_bin, tmp_
     condition it exists for. set -u does not catch it: the variable is set-but-empty, not unset."""
     fake = tmp_path / "meminfo"
     fake.write_text("MemTotal:       49309316 kB\nSwapTotal:      67108864 kB\nSwapFree:       52757592 kB\n")
-    env = dict(
-        os.environ,
+    env = _clean_env(
         PATH=f"{stub_bin}:{os.environ['PATH']}",
         AGENT_MEMORY_SWAPS=str(stub_bin.swaps_file),
         AGENT_MEMORY_MEMINFO=str(fake),
@@ -235,7 +263,7 @@ def test_install_does_not_claim_success_when_the_write_failed(stub_bin, tmp_path
     failing.chmod(0o755)
     conf = tmp_path / "conf"
     conf.write_text("vm.swappiness = 10\n")  # a good file that tee's O_TRUNC would destroy
-    env = dict(os.environ, PATH=f"{stub_bin}:{os.environ['PATH']}", AGENT_MEMORY_CONF=str(conf))
+    env = _clean_env(PATH=f"{stub_bin}:{os.environ['PATH']}", AGENT_MEMORY_CONF=str(conf))
     r = subprocess.run(
         ["bash", str(SCRIPT), "install"], capture_output=True, text=True, env=env, timeout=120
     )
@@ -260,8 +288,7 @@ def test_install_reports_failure_from_every_privileged_step(stub_bin, tmp_path, 
         "exit 0\n"
     )
     (stub_bin / "sudo").chmod(0o755)
-    env = dict(
-        os.environ,
+    env = _clean_env(
         PATH=f"{stub_bin}:{os.environ['PATH']}",
         AGENT_MEMORY_CONF=str(tmp_path / "conf"),
     )
@@ -309,8 +336,7 @@ def _cron(stub_bin, tmp_path, drift, busy=True):
     (stub_bin / "pgrep").write_text(PGREP_BUSY if busy else PGREP_IDLE)
     (stub_bin / "pgrep").chmod(0o755)
     conf = tmp_path / "conf"
-    env = dict(
-        os.environ,
+    env = _clean_env(
         PATH=f"{stub_bin}:{os.environ['PATH']}",
         AGENT_MEMORY_SWAPS=str(stub_bin.swaps_file),
         AGENT_MEMORY_MEMINFO=str(stub_bin.meminfo),
@@ -365,3 +391,89 @@ def test_a_swapoff_is_refused_when_there_is_nothing_to_restore_with(stub_bin):
     assert r.returncode == 10, f"expected a benign refusal, got {r.returncode}:\n{r.stdout}{r.stderr}"
     assert "no device to restore" in r.stdout, r.stdout
     assert "reclaiming" not in r.stdout, f"the swapoff must NOT have run:\n{r.stdout}"
+
+
+def test_an_intact_box_is_detected_even_when_the_device_name_is_not_a_plain_literal(stub_bin):
+    """⚠️ TWO CRITICALS IN ONE LINE, both introduced by an earlier round of this very review. The
+    intactness test grepped the RAW /proc/swaps for the UN-ESCAPED name and interpolated it as a
+    BASIC REGEX. It broke both ways: a swap file with a space (`/swap\\040file`) or any regex
+    metacharacter false-alarmed CRITICAL and broke the heartbeat on a healthy box; and `/swap.img`
+    MATCHED the surviving `/swapZimg` line, so a device that really went down was reported as
+    "swap is intact" and the run stamped GREEN.
+    """
+    stub_bin.swaps_file.write_text(
+        "Filename\tType\tSize\tUsed\tPriority\n/swap\\040file partition 67108864 1024 -2\n"
+    )
+    r = _run(stub_bin, "reclaim", fail_on="swapoff")
+    assert "CRITICAL" not in (r.stdout + r.stderr), (
+        "an escaped/space-bearing name on an INTACT box must not read as critical:\n"
+        + r.stdout + r.stderr
+    )
+    assert r.returncode == 11, f"expected benign rc 11, got {r.returncode}"
+
+
+def test_a_device_that_stayed_down_is_never_masked_by_another_devices_line(stub_bin):
+    """The fail-OPEN half: `/swap.img`'s pattern matched `/swapZimg` because `.` is a BRE wildcard,
+    so a genuinely-down device read as intact and the heartbeat stayed green."""
+    stub_bin.swaps_file.write_text(
+        "Filename\tType\tSize\tUsed\tPriority\n"
+        "/swap.img partition 33554432 512 -2\n/swapZimg partition 33554432 512 -3\n"
+    )
+    # swapoff_partial takes everything down, then fails — so both must be put back
+    r = _run(stub_bin, "reclaim", fail_on="swapoff_partial")
+    back = stub_bin.swaps_file.read_text()
+    assert "/swap.img" in back, f"a downed device was masked and never restored:\n{r.stdout}{r.stderr}\n{back}"
+
+
+def test_an_unusable_sudo_is_critical_not_benign(stub_bin):
+    """⚠️ rc 11 means "the kernel refused", never "sudo could not run". Under cron a sudo failure
+    made swapoff fail, every device read as still-active, and the run returned benign rc 11 — so a
+    job that could never work stamped GREEN indefinitely."""
+    (stub_bin / "sudo").write_text("#!/usr/bin/env bash\necho 'sudo: a terminal is required' >&2\nexit 1\n")
+    (stub_bin / "sudo").chmod(0o755)
+    r = _run(stub_bin, "reclaim")
+    assert r.returncode == 1, f"an unusable sudo is CRITICAL, got {r.returncode}:\n{r.stdout}{r.stderr}"
+    assert "sudo is not usable" in (r.stdout + r.stderr)
+
+
+def test_status_says_question_mark_rather_than_a_confident_zero(stub_bin, tmp_path):
+    """A missing /proc/meminfo key must not be laundered into `0.00 GB`, which is indistinguishable
+    from a true zero in the only human-readable output this job produces."""
+    bad = tmp_path / "bad_meminfo"
+    bad.write_text("MemTotal:       49309316 kB\n")   # no Swap*/Anon*/Cached keys at all
+    env = _clean_env(
+        PATH=f"{stub_bin}:{os.environ['PATH']}",
+        AGENT_MEMORY_SWAPS=str(stub_bin.swaps_file),
+        AGENT_MEMORY_MEMINFO=str(bad),
+    )
+    r = subprocess.run(["bash", str(SCRIPT), "status"], capture_output=True, text=True,
+                       env=env, timeout=120)
+    assert "?" in r.stdout, f"an absent key must print '?', not a number:\n{r.stdout}"
+    assert "0.00 GB in use" not in r.stdout, f"confident zero from a missing key:\n{r.stdout}"
+
+
+def test_an_indented_policy_line_is_still_verified(stub_bin, tmp_path):
+    """⚠️ The drift check required the line to START with `vm.`, so an indented one was skipped
+    entirely — yet `sysctl -p` applies it. A cosmetic edit disabled the cobra counter-measure for
+    that key, silently."""
+    src = SCRIPT.read_text().replace("\nvm.swappiness = 10\n", "\n  vm.swappiness = 10\n", 1)
+    mutant = tmp_path / "indented.sh"
+    mutant.write_text(src)
+    sysctl = tmp_path / "sysctl_stub"
+    sysctl.write_text(SYSCTL_STUB)
+    sysctl.chmod(0o755)
+    (stub_bin / "pgrep").write_text(PGREP_BUSY)
+    (stub_bin / "pgrep").chmod(0o755)
+    env = _clean_env(
+        PATH=f"{stub_bin}:{os.environ['PATH']}",
+        AGENT_MEMORY_SWAPS=str(stub_bin.swaps_file),
+        AGENT_MEMORY_MEMINFO=str(stub_bin.meminfo),
+        AGENT_MEMORY_CONF=str(tmp_path / "c"),
+        AGENT_MEMORY_SYSCTL=str(sysctl),
+        DRIFT="1",
+    )
+    r = subprocess.run(["bash", str(mutant), "cron"], capture_output=True, text=True,
+                       env=env, timeout=120)
+    assert "vm.swappiness" in (r.stdout + r.stderr), (
+        "an indented policy line must still be checked:\n" + r.stdout + r.stderr
+    )
