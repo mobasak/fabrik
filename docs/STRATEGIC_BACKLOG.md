@@ -4650,7 +4650,12 @@ has declared `docs/workstation/kaizen.md` for months and appears in no rendered 
 Measured today: the renderer reports "45 coupled doc(s) current" — a denominator that counts only
 Python, so the coverage ratchet reads clean while every shell surface on the box is unmeasured.
 
+⚠️ **It is TWO files, not one** (found by a review seat 2026-09-20 that checked the sibling gate
+rather than stopping at the one named): `scripts/enforcement/check_script_headers.py:329` filters
+`f.endswith(".py")` with the identical effect, so a shell script carrying NO `# AFTER-EDIT:` header
+at all is invisible to the WARN as well. The original row understated the scope.
+
 Owner: infra (`scripts/enforcement/` and the doc-coupling tooling are its beat). The fix is a
-one-line glob widening plus a re-run of `--coverage` to re-seed the baseline with the shell scripts
-included — which will make the headless count RISE once, and that is the ratchet working, not
-failing.
+one-line glob widening in EACH of the two files plus a re-run of `--coverage` to re-seed the
+baseline with the shell scripts included — which will make the headless count RISE once, and that
+is the ratchet working, not failing.

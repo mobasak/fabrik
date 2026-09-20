@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the RAM job's reclaim was a one-way trip to a swapless box (2026-09-20)
+
+Found by the `/fabrik-review` over D-316's own diff (routed up from review-scoped: operator-named
+work + a new mechanism). Five seats; the authoritative one found the defect that could damage the
+machine.
+
+- **`swapoff -a` and `swapon -a` are not symmetric.** swapoff reads `/proc/swaps`; swapon reads
+  only `/etc/fstab`, which on this box has ZERO swap entries (swap is `/dev/sdc`, raised by WSL
+  init, no systemd `.swap` unit). `swapon -a` would have restored nothing and exited 0 — so an rc
+  check could not catch it. First idle night, the job would have taken 64 GB of swap down, printed
+  `reclaimed.`, stamped the heartbeat green, and left ~16 GB of anon with no backstop until a
+  `wsl --shutdown`. Now captures the devices first, restores by name, and verifies against the
+  kernel rather than the return code.
+- **The ENOMEM guard failed OPEN** when `MemAvailable` was unreadable (`[` exits 2 on an empty
+  operand, `if` reads that as false, and the else path is the swapoff). Now numeric and fail-closed.
+- **`install` claimed success over a file `tee` had already truncated** (O_TRUNC before ENOSPC, and
+  `sysctl -p` returns 0 on an empty file). Now atomic temp-then-move with every rc checked.
+- **The cobra:** the stamp measured "the script ran", not "the policy is in effect". `cron` now
+  re-reads all four live values and withholds the stamp on drift.
+- Plus: `code`-not-on-PATH read as "extension not installed"; a failed uninstall reported success
+  (`| tail` masking the rc with no pipefail); `_gb` printing a confident `0.00` for a missing
+  `/proc/meminfo` key; a typo'd flag silently treated as non-force; a dead `ROOT` variable.
+- **Corrected, not fixed:** the PATH comment claimed the sudo'd binaries would fail without the
+  `/usr/sbin` prepend. False — `sudo -l` shows a secure_path covering it; what the prepend rescues
+  is the unprivileged `sysctl -n` in the status block.
+- 10 graders, the new ones watched red first and the swap one proven red-on-revert.
+
 ### Added — RAM policy: the first non-disk section of the workstation cleanup automation (2026-09-20)
 
 - `scripts/sysadmin/agent_memory.sh` — four `vm.*` knobs (`swappiness` 60→10, `vfs_cache_pressure`
@@ -17,8 +44,8 @@ All notable changes to this project will be documented in this file.
   and this box hibernates. The job ALWAYS exits 0 — a refused reclaim because sessions are live is
   the expected nightly outcome, and the runner stamps only on success, so a non-zero would flip the
   new `agent-memory-policy` liveness surface DEAD every night the operator works.
-- ⚠️ The crontab line is NOT placed (classifier-blocked for an agent) — handed to the operator in
-  `cleanup-automation.md` § G.
+- The crontab line is INSTALLED at `11 * * * *` (operator instruction, 2026-09-20; appended to a
+  backup of the live crontab — 120 → 125 lines, `comm` proving zero originals dropped).
 - **Fixed two stale claims** on the same page, found by checking it against the live `crontab -l`:
   both said the `scratch_sweep.py` 04:20 line was "NOT YET PLACED". It has been installed for some
   time. A doc telling the next reader to place a line that already exists is how a job gets
