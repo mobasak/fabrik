@@ -41,9 +41,11 @@ machine.
   of memory (15.5 GB anon against a 48 GB cap); it was losing an argument with the page-cache
   heuristic. Nothing else on the box sets these knobs. D-316.
 - Wired into `weekly_catchup.sh` as a DAILY job, not a raw cron slot: plain cron has no catch-up
-  and this box hibernates. The job ALWAYS exits 0 — a refused reclaim because sessions are live is
-  the expected nightly outcome, and the runner stamps only on success, so a non-zero would flip the
-  new `agent-memory-policy` liveness surface DEAD every night the operator works.
+  and this box hibernates. The job exits 0 on success or on a benign SKIP — a refused reclaim
+  because sessions are live is the expected nightly outcome, and the runner stamps only on success,
+  so a non-zero there would flip the new `agent-memory-policy` liveness surface DEAD every night the
+  operator works — and 1 on a CRITICAL failure (a box left with no swap, or the policy not in
+  effect), where the stamp is deliberately withheld.
 - The crontab line is INSTALLED at `11 * * * *` (operator instruction, 2026-09-20; appended to a
   backup of the live crontab — 120 → 125 lines, `comm` proving zero originals dropped).
 - **Fixed two stale claims** on the same page, found by checking it against the live `crontab -l`:
