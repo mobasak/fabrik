@@ -291,8 +291,25 @@ def test_a_sync_path_names_the_review_lane_and_the_spec_chain_wins(
         cwd=repo,
         extra_env=env,
     )
+    # `mechanism=yes` no longer refuses on its own (D-315): on a SYNC path the sync test is what
+    # fires; on a plain path the lane OPENS and the record carries the declaration.
     assert r2.returncode == 1, r2.stdout + r2.stderr
-    assert "REFUSED — fabrik-task: mechanism → /fabrik-spec" in r2.stdout
+    assert "REFUSED — fabrik-task: sync → right-now + /fabrik-review" in r2.stdout
+    assert "mechanism → /fabrik-spec" not in r2.stdout
+    r2b = _cr(
+        run_dir,
+        *_start(
+            "--file",
+            "scripts/plain.py",
+            "--declare",
+            "decision=yes,heavy=no,mechanism=yes,oneway=no,tradeoffs=no",
+        ),
+        cwd=repo,
+        sid="s-mech",
+        extra_env=env,
+    )
+    assert r2b.returncode == 0, r2b.stdout + r2b.stderr
+    assert _rec(run_dir, "s-mech")["declared"]["mechanism"] == "yes"
 
     # A non-sync path with the same answers starts: the decoy scalars matched nothing.
     r3 = _cr(
@@ -553,7 +570,7 @@ def test_step_design_is_recorded_once_and_refused_over_the_cap(
     scalar the next `step` overwrites (`:2789`) and `pinned_line` floods every turn with it, so
     `--design` takes a PATH and stores its TEXT — once. A second `--design` is a warned no-op
     (a refusal would wedge the phase, and with it the Stop hook); an unreadable path or one
-    over `_LEDGER_FIELD_CAP` refuses WITHOUT advancing the phase, because a refusal that
+    refuses WITHOUT advancing the phase; a LONG design is stored whole (no cap, D-314), because a refusal that
     advanced would emit a `phase` event for a step that did not happen."""
     env = {"FABRIK_HUB_ROOT": str(hub)}
     ok = _cr(
@@ -601,9 +618,13 @@ def test_step_design_is_recorded_once_and_refused_over_the_cap(
         extra_env=env,
     )
     assert fresh.returncode == 0, fresh.stdout + fresh.stderr
+    # A long design is stored WHOLE: the old 2,000-char cap (inherited from the ledger field cap,
+    # which the design never reaches) refused a sized six-field design at 3,588 chars on its first
+    # real use (operator ruling 2026-09-20, D-314). 3,600 chars must land, unchanged, at phase 2.
     big = tmp_path / "big.md"
-    big.write_text("x" * 2001, encoding="utf-8")
-    over = _cr(
+    big.write_text(("PROBLEM: " + "p" * 590 + "\n") * 6, encoding="utf-8")
+    assert len(big.read_text(encoding="utf-8")) == 3600
+    long_ok = _cr(
         run_dir,
         "step",
         "--phase",
@@ -614,10 +635,19 @@ def test_step_design_is_recorded_once_and_refused_over_the_cap(
         sid="s3",
         extra_env=env,
     )
-    assert over.returncode == 1, over.stdout + over.stderr
-    assert "REFUSED — fabrik-task: --design is 2001 chars, the cap is 2000" in over.stdout
-    assert _rec(run_dir, "s3")["phase"] == 1
-    assert "design" not in _rec(run_dir, "s3")
+    assert long_ok.returncode == 0, long_ok.stdout + long_ok.stderr
+    assert _rec(run_dir, "s3")["design"] == big.read_text(encoding="utf-8")
+    assert _rec(run_dir, "s3")["phase"] == 2
+
+    # Fresh record again: the unreadable path refuses WITHOUT advancing.
+    fresh2 = _cr(
+        run_dir,
+        *_start("--file", "scripts/plain.py", "--declare", _ALL_NO),
+        cwd=repo,
+        sid="s3b",
+        extra_env=env,
+    )
+    assert fresh2.returncode == 0, fresh2.stdout + fresh2.stderr
 
     gone = _cr(
         run_dir,
@@ -627,12 +657,12 @@ def test_step_design_is_recorded_once_and_refused_over_the_cap(
         "--design",
         str(tmp_path / "never-written.md"),
         cwd=repo,
-        sid="s3",
+        sid="s3b",
         extra_env=env,
     )
     assert gone.returncode == 1, gone.stdout + gone.stderr
     assert "cannot be read" in gone.stdout
-    assert _rec(run_dir, "s3")["phase"] == 1
+    assert _rec(run_dir, "s3b")["phase"] == 1
 
 
 # ---------------------------------------------------------------- row 8
@@ -2574,7 +2604,8 @@ def test_the_matrix_harvest_takes_destinations_never_prose_and_matches_case() ->
 def test_the_refusal_names_the_first_row_that_fires_inside_each_tier(
     run_dir: Path, repo: Path, hub: Path
 ) -> None:
-    """All six of the chain's adjacent pairs are pinned here, one case each — `mechanism`↔`oneway`,
+    """All six of the chain's adjacent pairs are pinned here, one case each — `mechanism`↔`oneway`
+    (since D-315 that pair reads `oneway`: mechanism is declared, never a refusal arm),
     `oneway`↔`tradeoffs`, `tradeoffs`↔`sync`, `sync`↔`heavy`, `heavy`↔`decision`, and
     `files>3`↔`mechanism` (the 4-file case declares `mechanism=yes` and still reads `files`, because
     the cap is checked first) — mutation-verified: swapping any one adjacent pair reds this test
@@ -2590,7 +2621,8 @@ def test_the_refusal_names_the_first_row_that_fires_inside_each_tier(
                              "src/b.py": "x = 1\n", "src/c.py": "x = 1\n", "src/d.py": "x = 1\n"})
     four = ("--file", "src/a.py", "--file", "src/b.py", "--file", "src/c.py", "--file", "src/d.py")
     cases = (
-        (("--file", "src/a.py"), "decision=yes,heavy=no,mechanism=yes,oneway=yes,tradeoffs=no", "mechanism →"),
+        # `mechanism=yes` beside `oneway=yes` reads `oneway` — mechanism is no refusal arm (D-315)
+        (("--file", "src/a.py"), "decision=yes,heavy=no,mechanism=yes,oneway=yes,tradeoffs=no", "oneway →"),
         (("--file", "src/a.py"), "decision=yes,heavy=no,mechanism=no,oneway=yes,tradeoffs=yes", "oneway →"),
         (("--file", "scripts/enforcement/x.py"), "decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=yes", "tradeoffs →"),
         (("--file", "scripts/enforcement/x.py"), "decision=yes,heavy=yes,mechanism=no,oneway=no,tradeoffs=no", "sync →"),

@@ -1,5 +1,5 @@
 ---
-description: One small change, one decision, one commit — the lane between a right-now fix and the spec chain. Six phases on ONE run record: SIZE (the start IS the gate), MEASURE, DESIGN, BUILD, REVIEW, CLOSE — the D-row is the durable artifact. TRIGGER — EN: "one small change with one decision", "fix + decide", "small change, one call to make"; TR: "küçük bir değişiklik, tek karar", "düzelt ve karar ver". SKIP — /fabrik-spec's own triggers, and anything the SIZE gate refuses: more than 3 files, a new mechanism, a ONE-WAY decision, real trade-offs, a governance-sync or heavy surface, or no decision at all — each names its own lane. Stage: utility.
+description: One small change, one decision, one commit — the lane between a right-now fix and the spec chain. Six phases on ONE run record: SIZE (the start IS the gate), MEASURE, DESIGN, BUILD, REVIEW, CLOSE — the D-row is the durable artifact. TRIGGER — EN: "one small change with one decision", "fix + decide", "small change, one call to make"; TR: "küçük bir değişiklik, tek karar", "düzelt ve karar ver". SKIP — /fabrik-spec's own triggers, and anything the SIZE gate refuses: more than 3 files, a ONE-WAY decision, real trade-offs, a governance-sync or heavy surface, or no decision at all — each names its own lane (a new mechanism is declared and recorded, never a refusal on its own — D-315). Stage: utility.
 argument-hint: "[the ask in one line — sized against the SMALLEST change that discharges it, before drafting]"
 ---
 
@@ -60,7 +60,7 @@ python3 scripts/command_run.py step --phase 2 --title "design: <that path>" \
   --design <scratchpad>/fabrik-task/<sid>/<started_at>/design.md
 ```
 
-`--design` stores that file's TEXT — refusing it over the ledger field cap rather than truncating — so the
+`--design` stores that file's TEXT whole, at any length (no cap — D-314) — so the
 design outlives the scratch. A refusal discards the whole `step`: fix the file and
 re-run, or the record stays at phase 1. It lands ONCE — a second `--design` is ignored with a NOTE
 while everything else reads like success. MIRROR is mandatory (`CLAUDE.md` § Behavior). The fields
@@ -78,7 +78,7 @@ DIRECTIVE 4; a shared-append file goes through § EXIT's private-index recipe, n
 
 Invoke `/fabrik-review-scoped` as the skill — unchanged, never from memory. Give its seat briefs
 the phase-2 `design.md` path and the phase-0 declaration, plus three questions: *does the change ESCAPE the declared files? did it add a mechanism the declaration said `no` to?
-can you name a second approach the declaration said did not exist?* A `yes` to any is that seat's UPGRADE verdict — take it. A declared file left UNTOUCHED is padding
+can you name a second approach the declaration said did not exist?* A `yes` to the first or third is that seat's UPGRADE verdict — take it; a `yes` to the second corrects the D-row (name the mechanism there), never the lane (D-315). A declared file left UNTOUCHED is padding
 (a guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in the D-row — never
 an UPGRADE, which would strand the run. This is
 where spec-review is folded in: the design is reviewed with what it produced.
@@ -112,13 +112,14 @@ hide — it is the lane's own honesty; `change:` is where you say what the gate 
 
 ## UPGRADE — the one-way ratchet, available from phase 1
 
-A size input crossing — a fourth file, a verb that must exist, a decision turned one-way, a trade-off
-that appeared, or a phase-4 seat's verdict — **first materialises the seed** (the
+A size input crossing — a fourth file, a decision turned one-way, a trade-off that appeared, or a
+phase-4 seat's verdict (a mechanism found mid-run is not a crossing: the D-row names it — D-315) —
+**first materialises the seed** (the
 phase-2 `design.md` plus a `## RESUME` block naming the test crossed; before the design exists, that
 block alone), then closes. ⚠️ **`UPGRADE:` must BEGIN the value, and the record takes the FIRST WHITESPACE TOKEN after it** —
-lead with `files` · `mechanism` · `oneway` · `tradeoffs` · `seat` · `sync` · `heavy`, then a dash and the detail. Nothing downgrades mid-run:
+lead with `files` · `oneway` · `tradeoffs` · `seat` · `sync` · `heavy`, then a dash and the detail. Nothing downgrades mid-run:
 
-- **To the spec chain** (`files`, `mechanism`, `oneway`, `tradeoffs`, `seat`) — the build stops and
+- **To the spec chain** (`files`, `oneway`, `tradeoffs`, `seat`) — the build stops and
   `/fabrik-spec` opens seeded with that file, by your hand:
 
 ```bash

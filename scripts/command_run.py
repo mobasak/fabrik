@@ -2956,13 +2956,15 @@ def _task_size_gate(args: argparse.Namespace) -> tuple[int, dict[str, Any] | Non
     for k in _TASK_DECLARE_KEYS:
         declared[k] = answers[k]
 
-    # The spec chain takes PRECEDENCE: mechanism/oneway/tradeoffs or a fourth file name
-    # /fabrik-spec even when the sync or heavy test also tripped.
+    # The spec chain takes PRECEDENCE: oneway/tradeoffs or a fourth file name /fabrik-spec
+    # even when the sync or heavy test also tripped. `mechanism=yes` is RECORDED, never a
+    # refusal on its own (operator ruling 2026-09-20, D-315, loosening D-293's row 2): a new
+    # verb or flag that is reversible, fits the file bound and settles no trade-off carries no
+    # question the build cannot answer — the D-row names the mechanism, and the phase-4 seats
+    # still ask whether one was added that the declaration said `no` to.
     lane: tuple[str, str] | None = None
     if len(rels) > _TASK_MAX_FILES:
         lane = (f"files > {_TASK_MAX_FILES}", "/fabrik-spec")
-    elif answers["mechanism"] == "yes":
-        lane = ("mechanism", "/fabrik-spec")
     elif answers["oneway"] == "yes":
         lane = ("oneway", "/fabrik-spec")
     elif answers["tradeoffs"] == "yes":
@@ -3720,13 +3722,11 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                     _text = Path(_design).read_text(encoding="utf-8")
                 except Exception:
                     return _refuse(f"REFUSED — fabrik-task: --design {_design} cannot be read")
-                if len(_text) > _LEDGER_FIELD_CAP:
-                    # REFUSED, never `_cap_field` (`:1605-1606`): a silent cut loses TERMINAL
-                    # and OUT first, the two design fields with no other durable home.
-                    return _refuse(
-                        f"REFUSED — fabrik-task: --design is {len(_text)} chars, "
-                        f"the cap is {_LEDGER_FIELD_CAP}"
-                    )
+                # NO length cap (operator ruling 2026-09-20, D-314): the design lives in the run
+                # record only — it is not among the ledger row's capped fields — so the
+                # 2,000-char `_LEDGER_FIELD_CAP` that bounds a one-line usage verdict never
+                # applied to it, and it refused a sized six-field design at 3,588 chars on its
+                # first real use. An unreadable path still refuses above.
                 rec["design"] = _text
         fields = _queue(rec, outbox, "phase", {"n": rec["phase"], "title": rec["phase_title"]})
         _touch(rec)

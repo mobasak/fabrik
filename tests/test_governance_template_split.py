@@ -539,8 +539,9 @@ def test_the_lane_tables_verdicts_match_the_size_gates_own_routing() -> None:
         "this row claimed the --file count itself was already the code surface"
     )
     assert "`/fabrik-task`" in rows["6"][2] and "/fabrik-spec" not in rows["6"][2]
-    for n in ("2", "3", "4", "5"):
+    for n in ("3", "4", "5"):
         assert "spec chain" in rows[n][2], n
+    assert "the lane, unless another row fires" in rows["2"][2]  # D-315: row 2 no longer refuses
     for n in ("1", "1b"):
         assert "**not this lane:**" in rows[n][2] and "spec chain" not in rows[n][2], n
         # the FULL review, never the scoped one: these two rows govern a public contract for ~46
@@ -578,7 +579,7 @@ def test_the_lane_tables_verdicts_match_the_size_gates_own_routing() -> None:
     assert "settled BEFORE building" in rows["4"][1]
     assert "is this lane's ordinary case, not a trigger" in rows["4"][1]
     for conj in ("one reversible decision", f"≤{cr._TASK_MAX_FILES} files", "no sync path",
-                 "no heavy surface", "no mechanism", "no trade-off"):
+                 "no heavy surface", "any mechanism reversible", "no trade-off"):
         assert conj in rows["6"][1], conj
     # DERIVED from the table, never a second hand-kept copy of the same five strings: the old
     # closing line compared the constant against a literal it also wrote down, so it could only
@@ -603,11 +604,12 @@ def test_the_lane_table_states_the_precedence_the_gate_actually_evaluates() -> N
     # sequence of its labels IS the precedence, and a reordering of the gate reds this test.
     src = inspect.getsource(cr._task_size_gate)
     labels = [m.split()[0] for m in re.findall(r'lane = \(f?"([^"]+)"', src)]
-    assert labels == ["files", "mechanism", "oneway", "tradeoffs", "sync", "heavy", "decision=no"], labels
-    row_of = {"files": "5", "mechanism": "2", "oneway": "3", "tradeoffs": "4",
+    # `mechanism` is absent by ruling (D-315): declared and recorded, never a refusal arm.
+    assert labels == ["files", "oneway", "tradeoffs", "sync", "heavy", "decision=no"], labels
+    row_of = {"files": "5", "oneway": "3", "tradeoffs": "4",
               "sync": "1", "heavy": "1b", "decision=no": "4b"}
-    from_gate = [{row_of[x] for x in labels[:4]}, {row_of[x] for x in labels[4:6]},
-                 {row_of[x] for x in labels[6:]}]
+    from_gate = [{row_of[x] for x in labels[:3]}, {row_of[x] for x in labels[3:5]},
+                 {row_of[x] for x in labels[5:]}]
     # ⚠️ DERIVED FROM THE TABLE, not from `labels` again: the first cut computed both sides from
     # the same list, so once the labels assertion passed this one could not fail — a second
     # binding that bound nothing. Now the table's own verdict cells are the other side.
@@ -618,12 +620,12 @@ def test_the_lane_table_states_the_precedence_the_gate_actually_evaluates() -> N
         {n for n, r in rows.items() if "/fabrik-review-scoped`" in r[2] and "not this lane" not in r[2]},
     ]
     assert from_gate == from_table, (from_gate, from_table)
-    assert "Rows 2, 3, 4 and 5 take PRECEDENCE over rows 1 and 1b" in step0
+    assert "Rows 3, 4 and 5 take PRECEDENCE over rows 1 and 1b" in step0
     assert "which in turn take precedence over row 4b" in step0
     # the tier-1 caveat: the gate checks the file count FIRST, so a refusal naming `files > 3`
-    # can still be hiding a row-2/3/4 trigger. Deleting this clause passed every other guard.
+    # can still be hiding a row-3/4 trigger. Deleting this clause passed every other guard.
     assert "except INSIDE the spec-chain tier, where the gate reports the file count first" in step0
-    assert "any of 2, 3, 4 or 5 is spec-chain work" in step0, (
+    assert "any of 3, 4 or 5 is spec-chain work" in step0, (
         "the precedence sentence must state its VERDICT, not only which rows outrank which"
     )
     # the table's own self-correction mechanism, previously guarded by nothing at all
@@ -721,8 +723,8 @@ def test_the_templates_mirrored_prose_matches_the_hubs() -> None:
         else:
             assert h == t, f"mirrored paragraph drifted: {lead}"
     # the precedence claim, which the hub binds and the template did not
-    assert "Rows 2, 3, 4 and 5 take PRECEDENCE over rows 1 and 1b" in tpl_s
-    assert "any of 2, 3, 4 or 5 is spec-chain work" in tpl_s
+    assert "Rows 3, 4 and 5 take PRECEDENCE over rows 1 and 1b" in tpl_s
+    assert "any of 3, 4 or 5 is spec-chain work" in tpl_s
     # and the ordering the SPEC mandates for the project copy: outcome (i) outranks the table
     assert "ahead of every test below" in tpl_s
     assert "Editing the synced copy is a HARD STOP" in tpl_s

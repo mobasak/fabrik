@@ -154,8 +154,10 @@ Three shapes are NOT yours to apply here, and each has a destination:
   rows name a FRAGMENT no lock owns. Run `--queue` for today's depth rather than trusting any number
   frozen here, and **"the whole queue is lock-blocked" IS a legitimate, recordable outcome** exactly
   like an empty one — but only once the target is named. Mail it and close.
-- a verdict that wants a NEW mechanism, a gate, a hook, or a schema → that is SPEC/PLAN work
-  (`/fabrik-spec` → `/fabrik-plan-after-chat`), not a command edit. Say so and file it.
+- a verdict that wants a NEW mechanism, a gate, a hook, or a schema → not a command edit: it is
+  `/fabrik-task` work when the mechanism is reversible, fits 3 files and settles no trade-off (the
+  D-row names it — D-315), else SPEC/PLAN work (`/fabrik-spec` → `/fabrik-plan-after-chat`). Say so
+  and file it.
 - a verdict about the machinery this command itself reads (the ledger, the close, the report) → file
   it to **infra** and note it in the FEEDBACK line; improving the reader is a different run.
 
