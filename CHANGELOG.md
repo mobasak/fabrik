@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `/fabrik-task`: the `--design` cap is removed (D-314) and a new mechanism no longer refuses the lane on its own (D-315) (2026-09-20)
+
+- `scripts/command_run.py`: `step --design` stores the design whole at any length; `_task_size_gate` records `mechanism=yes` instead of refusing it — the ladder is files → oneway → tradeoffs → sync → heavy → decision=no. Both `CLAUDE.md` copies re-cut lane-table row 2, the precedence sentence and row 6; `/fabrik-task` and `/fabrik-command-improve` follow. Graders in `tests/test_command_run_fabrik_task.py` and `tests/test_governance_template_split.py`.
+
 ### Changed — `/fabrik-command-improve` gains a Drive contract: caller, driver, seats, passes, grounding, time (2026-09-20)
 
 - `commands/_sources/fabrik-command-improve.md` § Drive states the 11 previously absent drive aims as rules pointing at existing machinery (D-313); grader `tests/test_command_improve_drive.py`.
