@@ -32,9 +32,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CONF=/etc/sysctl.d/99-fabrik-agent-memory.conf
 EXT=kilocode.kilo-code
 
-# The policy itself. Kept HERE rather than only in /etc so a WSL export/import rebuild — which
-# cleanup-automation.md § C names as the only real disk-shrink lever — does not silently lose it:
-# `install` rewrites /etc from this, and the daily `cron` job re-asserts it.
+# The policy itself is kept HERE, and /etc is GENERATED from it, so there is exactly one source of
+# truth: `install` writes /etc from this block and the daily `cron` job re-asserts it, which heals
+# a hand-edit, a package-manager overwrite, or a file removed by someone tidying /etc/sysctl.d.
+# ⚠️ NOT because a `wsl --export`/`--import` rebuild would lose it — an earlier cut of this comment
+# claimed that and it is FALSE: cleanup-maintenance-backlog.md item A1 records that a full export
+# tar "contains everything", and the only thing the rebuild resets is the default user. Corrected
+# 2026-09-20 after a review seat checked the cited doc that the claim leaned on.
 read -r -d '' POLICY <<'EOF' || true
 # Managed by /opt/fabrik/scripts/sysadmin/agent_memory.sh — do not hand-edit; re-run `install`.
 # Rationale and measurements: /opt/fabrik/docs/workstation/cleanup-automation.md (S G).
@@ -43,7 +47,10 @@ read -r -d '' POLICY <<'EOF' || true
 # the kernel OOM rather than swap under a genuine spike, and a 64 GB swap file exists to absorb
 # those.
 vm.swappiness = 10
-# vfs_cache_pressure 200: reclaim the dentry/inode slab twice as eagerly. This box caches ~1.8M
+# vfs_cache_pressure 200: reclaim the dentry/inode slab twice as eagerly. This box holds ~1.8M
+# ext4_inode_cache SLAB OBJECTS (`awk '$1=="ext4_inode_cache"' /proc/slabinfo`, 1,838,339 on
+# 2026-09-20 — NOT the same metric as /proc/sys/fs/inode-nr, which reads ~1.4M; naming it stops
+# the next reader comparing against the wrong one), because it walks 46 repos and ~1.8M
 # ext4 inodes because it walks 46 repos and their worktrees constantly; making that metadata
 # cheap to drop gives the kernel something to take that is NOT an agent.
 vm.vfs_cache_pressure = 200

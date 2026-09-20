@@ -253,22 +253,28 @@ their MCP servers and their subagents, and let the CACHE be what gets reclaimed.
 | Knob | Default | Set to | Why |
 |---|---|---|---|
 | `vm.swappiness` | 60 | **10** | Prefer dropping cache over swapping agents. Not 0 — that trades swapping for OOM kills, and a 64 GB swap file exists to absorb spikes |
-| `vm.vfs_cache_pressure` | 100 | **200** | Reclaim the dentry/inode slab twice as eagerly. This box caches ~1.8 M ext4 inodes from walking 46 repos and their worktrees; that gives the kernel something to take that is not an agent |
+| `vm.vfs_cache_pressure` | 100 | **200** | Reclaim the dentry/inode slab twice as eagerly. This box holds ~1.8 M `ext4_inode_cache` SLAB OBJECTS (1,838,339 on 2026-09-20; ⚠️ not the same metric as `/proc/sys/fs/inode-nr`, which reads ~1.4 M) from walking 46 repos and their worktrees — that gives the kernel something to take that is not an agent |
 | `vm.min_free_kbytes` | 44 MB | **256 MB** | kswapd's floor was 0.09% of a 48 GB VM |
 | `vm.watermark_scale_factor` | 10 | **100** | Wake kswapd at 1% free, not 0.1%. Matters for MANY-AGENT bursts: when a dozen sessions allocate at once and background reclaim has not kept up, the allocating process enters DIRECT reclaim and stalls — felt as the box freezing for a moment, not as a memory shortage |
 
 ```bash
-scripts/sysadmin/agent_memory.sh status              # the four knobs, swap, anon vs cache, Kilo
-scripts/sysadmin/agent_memory.sh install             # write + apply /etc/sysctl.d/99-fabrik-agent-memory.conf
-scripts/sysadmin/agent_memory.sh reclaim [--force]   # pull swapped agent pages back into RAM
-scripts/sysadmin/agent_memory.sh kilo on|off|status  # Kilo Code on demand
-scripts/sysadmin/agent_memory.sh cron                # the daily entry point (see below)
+# absolute paths, like § F's block — these are run from any cwd, not only /opt/fabrik
+/opt/fabrik/scripts/sysadmin/agent_memory.sh status             # knobs, swap, anon vs cache, Kilo
+/opt/fabrik/scripts/sysadmin/agent_memory.sh install            # write + apply the sysctl file
+/opt/fabrik/scripts/sysadmin/agent_memory.sh reclaim [--force]  # pull swapped pages back into RAM
+/opt/fabrik/scripts/sysadmin/agent_memory.sh kilo on|off|status # Kilo Code on demand
+/opt/fabrik/scripts/sysadmin/agent_memory.sh cron               # the daily entry point (see below)
 ```
 
-**Why the policy lives in the script and not only in `/etc`.** § C names `wsl --export` →
-`--unregister` → `--import` as the only real vhdx-shrink lever, and that rebuild wipes `/etc`. The
-sysctl file is generated FROM the script, and the daily job re-asserts it — so a rebuild self-heals
-instead of silently reverting to swappiness 60.
+**Why the policy lives in the script and not only in `/etc`.** So there is exactly ONE source of
+truth: `/etc/sysctl.d/99-fabrik-agent-memory.conf` is GENERATED from the script, and the daily job
+re-asserts it — healing a hand-edit, a package overwrite, or a file removed by someone tidying
+`/etc/sysctl.d`, instead of silently reverting to swappiness 60. ⚠️ An earlier cut of this paragraph
+justified it by claiming a `wsl --export`/`--import` rebuild wipes `/etc`. **That is false** —
+[cleanup-maintenance-backlog.md](cleanup-maintenance-backlog.md) item A1 records that a full export
+tar *"contains everything"*, and the only thing the rebuild resets is the default user. The design
+stands; the reason given for it did not, and it was caught by a review seat opening the doc this
+page had cited.
 
 **`reclaim` is guarded, and the guard is the design.** `swapoff` must fit every swapped page back
 into RAM at once and stalls the box for up to a minute. This tree routinely runs 3+ concurrent agent
