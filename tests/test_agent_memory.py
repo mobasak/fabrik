@@ -513,7 +513,12 @@ def test_a_partial_swapoff_says_devices_came_down(stub_bin):
     """Finding 7. The message distinguishing a repaired partial swapoff from an untouched box had
     no grader — it could revert to the old, wrong 'nothing was taken down' undetected."""
     r = _run(stub_bin, "reclaim", fail_on="swapoff_partial")
-    assert "came down" in (r.stdout + r.stderr), (
+    # ⚠️ Assert on a string UNIQUE to the branch. "came down" also appears in the unconditional
+    # "swapoff FAILED — checking whether anything came down" printed before any branch is chosen,
+    # so the assertion was already satisfied and the behaviour was never observed: a seat replaced
+    # the whole partial-swapoff message and 25 of 25 stayed green. Third instance of this class in
+    # this review — a grader is not coverage until a mutation kills it.
+    assert "in a partial swapoff" in (r.stdout + r.stderr), (
         "a repaired partial swapoff must say so, not 'nothing was taken down':\n" + r.stdout + r.stderr
     )
 
@@ -553,4 +558,52 @@ def test_a_device_name_with_a_tab_is_matched_against_its_own_line(stub_bin):
     assert "/tab\tfile" in stub_bin.swaps_file.read_text(), (
         "swapon must receive the UN-ESCAPED name, not the literal \\011 token:\n"
         + stub_bin.swaps_file.read_text()
+    )
+
+
+def test_a_broken_pgrep_refuses_rather_than_reporting_no_sessions(stub_bin):
+    """⚠️ Finding F2. `pgrep -x claude | wc -l` took the pipeline's rc from `wc`, always 0, so a
+    BROKEN pgrep reported zero sessions and the swapoff ran with agents live. The guard now reads
+    pgrep's own rc — but shipped with no grader, so it could silently revert."""
+    (stub_bin / "pgrep").write_text("#!/usr/bin/env bash\nexit 2\n")   # neither 0 (match) nor 1 (none)
+    (stub_bin / "pgrep").chmod(0o755)
+    env = _clean_env(
+        PATH=f"{stub_bin}:{os.environ['PATH']}",
+        AGENT_MEMORY_SWAPS=str(stub_bin.swaps_file),
+        AGENT_MEMORY_MEMINFO=str(stub_bin.meminfo),
+        AGENT_MEMORY_SYSCTL=str(stub_bin.sysctl),
+        AGENT_MEMORY_CONF=str(stub_bin.conf),
+    )
+    before = stub_bin.swaps_file.read_text()
+    r = subprocess.run(["bash", str(SCRIPT), "reclaim"], capture_output=True, text=True,
+                       env=env, timeout=120)
+    assert r.returncode == 10, f"a broken pgrep must refuse, got {r.returncode}:\n{r.stdout}{r.stderr}"
+    assert "pgrep failed" in r.stdout, r.stdout
+    assert stub_bin.swaps_file.read_text() == before, "the swapoff ran despite an unusable pgrep"
+
+
+def test_a_dash_prefixed_policy_line_is_still_verified(stub_bin, tmp_path):
+    """Finding F3. A leading `-` means ignore-errors to sysctl, NOT a comment — the line is still
+    applied, so the drift check must still verify it."""
+    src = SCRIPT.read_text().replace("\nvm.swappiness = 10\n", "\n-vm.swappiness = 10\n", 1)
+    mutant = tmp_path / "dash.sh"
+    mutant.write_text(src)
+    (stub_bin / "pgrep").write_text(PGREP_BUSY)
+    (stub_bin / "pgrep").chmod(0o755)
+    env = _clean_env(
+        PATH=f"{stub_bin}:{os.environ['PATH']}",
+        AGENT_MEMORY_SWAPS=str(stub_bin.swaps_file),
+        AGENT_MEMORY_MEMINFO=str(stub_bin.meminfo),
+        AGENT_MEMORY_CONF=str(tmp_path / "c"),
+        AGENT_MEMORY_SYSCTL=str(stub_bin.sysctl),
+        DRIFT="1",
+    )
+    r = subprocess.run(["bash", str(mutant), "cron"], capture_output=True, text=True,
+                       env=env, timeout=120)
+    # ⚠️ Assert on the DRIFT line, not the bare key: cmd_status prints all four knob NAMES in its
+    # status block, so `"vm.swappiness" in output` is satisfied whether the drift check ran or not.
+    # Fourth instance in this review of an assertion matched by text printed somewhere else.
+    assert "NOT IN EFFECT — vm.swappiness" in (r.stdout + r.stderr), (
+        "a `-`-prefixed policy line is applied by sysctl and must still be checked:\n"
+        + r.stdout + r.stderr
     )

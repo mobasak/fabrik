@@ -351,8 +351,12 @@ cmd_cron() {
     while IFS= read -r line; do
         line="${line#"${line%%[![:space:]]*}"}"   # an INDENTED vm.* line is still applied by
         # sysctl, and so is a `-`-prefixed one (the `-` means "ignore errors", NOT a comment —
-        # verified against the real binary), so both must still be verified
-        case "$line" in -vm.*) line="${line#-}" ;;& vm.*) ;; *) continue ;; esac
+        # verified against the real binary), so both must still be verified.
+        # ⚠️ Strip BEFORE the case: `case` expands its word once, so reassigning $line inside an
+        # arm does not change what the later patterns match against — an earlier `-vm.*) ...;;&`
+        # form looked right and skipped the line anyway.
+        line="${line#-}"
+        case "$line" in vm.*) ;; *) continue ;; esac
         # ⚠️ Tolerate every VALID spelling. `${k%% }` strips ONE trailing space, so
         # `vm.swappiness  =  10` yielded the key "vm.swappiness " and `vm.swappiness=10` yielded
         # want="vm.swappiness=10" — a permanent false alarm, no stamp, hourly retry, from a
