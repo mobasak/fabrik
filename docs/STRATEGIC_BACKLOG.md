@@ -4637,3 +4637,20 @@ The one durable lesson, which is not about mailboxes: **a sanitiser's output rea
 a fabricated fact.** It looked like evidence, it survived my own write-up, and it was one `find`
 away from being disproved. It reached an operator approval request before anyone ran that command.
 
+
+
+## [infra] doc↔script coupling is blind to every shell script (2026-09-20)
+
+`render_doc_script_links.py` globs `scripts/**/*.py` only (`:136`), so a `.sh` carrying a valid
+`# AFTER-EDIT:` header is silently ignored — its doc never gets a `## Related scripts` row and the
+`--check` gate cannot catch the pair drifting. Not hypothetical and not new: `weekly_catchup.sh`
+has declared `docs/workstation/kaizen.md` for months and appears in no rendered block, and
+`agent_memory.sh` (D-316) declares `cleanup-automation.md` with the same result.
+
+Measured today: the renderer reports "45 coupled doc(s) current" — a denominator that counts only
+Python, so the coverage ratchet reads clean while every shell surface on the box is unmeasured.
+
+Owner: infra (`scripts/enforcement/` and the doc-coupling tooling are its beat). The fix is a
+one-line glob widening plus a re-run of `--coverage` to re-seed the baseline with the shell scripts
+included — which will make the headless count RISE once, and that is the ratchet working, not
+failing.

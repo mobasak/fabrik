@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — RAM policy: the first non-disk section of the workstation cleanup automation (2026-09-20)
+
+- `scripts/sysadmin/agent_memory.sh` — four `vm.*` knobs (`swappiness` 60→10, `vfs_cache_pressure`
+  100→200, `min_free_kbytes` 44MB→256MB, `watermark_scale_factor` 10→100), a guarded swap reclaim,
+  and the Kilo on/off toggle. Measured cause: at the default swappiness the kernel had pushed
+  13.9 GB out to swap and the processes IN swap were MCP servers, VS Code extension hosts and Kilo
+  — the dev infra — while 28 GB of droppable page cache stayed resident. The box was never short
+  of memory (15.5 GB anon against a 48 GB cap); it was losing an argument with the page-cache
+  heuristic. Nothing else on the box sets these knobs. D-316.
+- Wired into `weekly_catchup.sh` as a DAILY job, not a raw cron slot: plain cron has no catch-up
+  and this box hibernates. The job ALWAYS exits 0 — a refused reclaim because sessions are live is
+  the expected nightly outcome, and the runner stamps only on success, so a non-zero would flip the
+  new `agent-memory-policy` liveness surface DEAD every night the operator works.
+- ⚠️ The crontab line is NOT placed (classifier-blocked for an agent) — handed to the operator in
+  `cleanup-automation.md` § G.
+- **Fixed two stale claims** on the same page, found by checking it against the live `crontab -l`:
+  both said the `scratch_sweep.py` 04:20 line was "NOT YET PLACED". It has been installed for some
+  time. A doc telling the next reader to place a line that already exists is how a job gets
+  scheduled twice.
+
 ### Changed — `/fabrik-task`: the `--design` cap is removed (D-314) and a new mechanism no longer refuses the lane on its own (D-315) (2026-09-20)
 
 - `scripts/command_run.py`: `step --design` stores the design whole at any length; `_task_size_gate` records `mechanism=yes` instead of refusing it — the ladder is files → oneway → tradeoffs → sync → heavy → decision=no. Both `CLAUDE.md` copies re-cut lane-table row 2, the precedence sentence and row 6; `/fabrik-task` and `/fabrik-command-improve` follow. Graders in `tests/test_command_run_fabrik_task.py` and `tests/test_governance_template_split.py`.
