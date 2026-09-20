@@ -3,7 +3,7 @@ description: Act on ONE command's accumulated `change:` queue — read every axi
 argument-hint: "<command> — the command to improve, with or without the leading slash"
 ---
 
-> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · general-purpose) — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy. **THE DISPATCH STEP (D-191):** run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>`, and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …`.
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · general-purpose) — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy. **THE DISPATCH STEP (D-191):** run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>`, and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> --confirmed <c> --own-fix <n> …`.
 
 The kaizen loop's ACT half. Every `/fabrik-*` close writes a `change:` verdict — the ONE edit that
 would have made that run faster or more accurate — and 157 of the first 162 ledger rows carried one.
@@ -37,17 +37,16 @@ five runs, each of which a reader can judge on its own.
   record with no stamp is a named lower bound, not a zero.
 - **Passes.** Round 1, then delta rounds sized by the fix (`--delta <n>`: one fresh seat at or under
   20 changed lines, D-229). The target is a quiet round 2. The stop is D-278's, computed from the
-  `--own-fix` you state on every `round`: two of the last three rounds at or above two-thirds
-  own-fix means stop HUNTING — fix every confirmed defect still open in that window, route only the
-  genuinely own-fix residue to a backlog row with a named destination, and run remainder rounds
-  that re-verify that fixed set alone. It bounds the loop; it never dispositions a defect. A count
-  confirmed wrong twice becomes a derivation row inside the artifact under edit, never a new number
-  (`term-edit` rule (3), D-312).
+  `--confirmed`/`--own-fix` pair you state on every `round`: two of the last three rounds at or
+  above two-thirds own-fix means stop HUNTING — fix every confirmed defect still open in that
+  window, route only the genuinely own-fix residue to a backlog row with a named destination, and
+  run remainder rounds that re-verify that fixed set alone. It bounds the loop; it never
+  dispositions a defect.
 - **Grounding — before drafting, not after review.** For the group you pick: the command's current
   text read WHOLE; the tool's own runtime output when a verdict is about a gate, a check or a tool;
-  `docs/DECISIONS.md` and `docs/STRATEGIC_BACKLOG.md` for the subject (a ruling already made, or a
-  row already sized as spec work, sends this run to that process with no edit — never a
-  restatement of it here); `/opt/fabrik-lib/README.md`'s module table and the
+  `docs/DECISIONS.md` and `docs/STRATEGIC_BACKLOG.md` for the subject (a ruling already made is
+  POINTED at, never restated here; a row already sized as spec work sends this run to PHASE 2's
+  spec-chain shape with no edit); `/opt/fabrik-lib/README.md`'s module table and the
   project's own `scripts/` when the edit names a capability, so the text points at what exists;
   and the packs `python scripts/select_rules.py --changed <target>` prints, which the edit obeys.
   An EXTERNAL fact (a vendor API, a documented status value) is grounded LIVE, never recalled —
@@ -56,21 +55,21 @@ five runs, each of which a reader can judge on its own.
   introduces is EXECUTED before the render — a recalled number is a wrong number.
 - **Time.** Budget one run at 40 minutes wall-clock (16 closes measured 2026-09-20: median 34,
   max 54, 5 of the 16 past 40). Past it, finish the phase in flight, then close — with the edit if
-  phase 4 has passed, else with an honest no-edit naming what was read — and let the FEEDBACK line
-  say what cost the time: an overrun is a finding about this command, never a reason to skip a
-  phase or to discard a reviewed edit.
-- **Resilience.** A seat that has not returned is an open question, not an absent one — the rule
-  is `term-coverage`'s (wait or re-dispatch with a tighter brief; never close over it), and no
-  corpus rule names a clock, so none is stated here. A seat API timeout is one re-dispatch, never
-  a wait. A run that cannot reach its close hands off (`command_run.py handoff --resume
-  <artifact>`) rather than dying with its context.
+  phase 4 has passed, else by handing off (`command_run.py handoff --resume <artifact>`), since an
+  unreviewed queue is not the no-edit close § Terminal sanctions — and let the FEEDBACK line say
+  what cost the time: an overrun is a finding about this command, never a reason to skip a phase
+  or to discard a reviewed edit.
+- **Resilience.** A seat that has not returned is governed by `term-coverage`, not restated here;
+  no corpus rule names a clock for it (not found in 117 files — 38 sources, 23 fragments, 56 packs,
+  2026-09-20), so none is stated here. A seat API timeout is one re-dispatch, never a wait. A run
+  that cannot reach its close hands off (`command_run.py handoff --resume <artifact>`) rather than
+  dying with its context.
 - **Consistency and the manifesto.** The corpus keeps one shape: a rule that binds more than this
   command lives in `commands/_fragments/` and is INCLUDED, never restated per command; a rule
   already in `CLAUDE.md` or a pack is POINTED at, never copied; and a sibling command's handling of
   the same subject is read before a new one is invented — best practice here is what the live
   corpus practices. Every edit is reversible by default and, when it adds a count or a bar, names
-  its cobra where the next reader can grep it — the mechanism's own docstring or its decision row
-  (the operating manifesto, D-253; `CLAUDE.md` § THE FIX DIRECTIVE 5).
+  its cobra where `CLAUDE.md` § THE FIX DIRECTIVE 5 says (the operating manifesto, D-253).
 
 {{include:run-record}}
 

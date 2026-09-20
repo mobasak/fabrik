@@ -44,12 +44,16 @@ def test_the_source_sizes_seats_from_the_box_by_role() -> None:
     assert "haiku 1× · sonnet 2× · opus 5× · fable 10×" in sec
     assert "not restated here" in sec  # the dispatch shape is pointed at, never copied (round-1 C1)
     assert "still RUNNING" in sec  # the subtraction is dispatch_headroom.py's, over running records only
+    assert "never below the floor" in sec  # the sibling subtraction never starves a session
 
 
 def test_the_source_bounds_the_passes_with_the_real_d278_remedy() -> None:
     sec = _drive_section()
-    assert "D-229" in sec and "D-278" in sec and "D-312" in sec
-    assert "fix every confirmed defect still open" in sec and "remainder rounds" in sec
+    assert "D-229" in sec and "D-278" in sec
+    assert "`--confirmed`/`--own-fix` pair" in sec  # the stop reads the PAIR; --own-fix alone is silence
+    assert "fix every confirmed defect still open" in sec
+    assert "re-verify that fixed set alone" in sec  # the remainder rounds TERMINATE
+    assert "backlog row with a named destination" in sec
     assert "no corpus rule names a clock" in sec  # the 3-minute timer stays out (round-1 F2)
 
 
