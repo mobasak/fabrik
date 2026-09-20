@@ -349,3 +349,19 @@ def test_a_refused_swapoff_on_an_intact_box_is_benign_not_critical(stub_bin):
     assert r.returncode == 11, f"an intact box is benign (rc 11), got {r.returncode}:\n{r.stdout}{r.stderr}"
     assert "CRITICAL" not in (r.stdout + r.stderr), r.stdout + r.stderr
     assert "/dev/sdc" in stub_bin.swaps_file.read_text()
+
+
+def test_a_swapoff_is_refused_when_there_is_nothing_to_restore_with(stub_bin):
+    """⚠️ Found by mutating each behaviour in turn and checking the suite noticed: removing this
+    guard was the ONE mutation of nine that no grader caught.
+
+    If /proc/swaps lists no device, the restore loop has nothing to put back — so running
+    `swapoff -a` anyway would be the one-way trip this whole fix exists to prevent, just reached by
+    a different door. The guard must refuse, and refusing must be benign (rc 10), not a failure
+    that breaks the heartbeat.
+    """
+    stub_bin.swaps_file.write_text("Filename\tType\tSize\tUsed\tPriority\n")
+    r = _run(stub_bin, "reclaim")
+    assert r.returncode == 10, f"expected a benign refusal, got {r.returncode}:\n{r.stdout}{r.stderr}"
+    assert "no device to restore" in r.stdout, r.stdout
+    assert "reclaiming" not in r.stdout, f"the swapoff must NOT have run:\n{r.stdout}"
