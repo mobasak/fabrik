@@ -21,6 +21,13 @@
 # absent from fabrik_synced_manifest.py).
 set -u
 
+# ⚠️ CRON PATH. cron runs with PATH=/usr/bin:/bin, and every privileged tool this script needs —
+# sysctl, swapoff, swapon — lives in /usr/sbin. Without this the status block printed four EMPTY
+# values and `reclaim` would have died with "command not found" on the one night the box was
+# actually idle enough to run it. Caught by executing the job under `env -i PATH=/usr/bin:/bin`
+# rather than trusting an interactive shell, 2026-09-20.
+PATH="/usr/sbin:/sbin:$PATH"
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CONF=/etc/sysctl.d/99-fabrik-agent-memory.conf
 EXT=kilocode.kilo-code

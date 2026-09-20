@@ -374,7 +374,7 @@
    "kind": "cron",
    "max_age_hours": 54,
    "max_age_note": "quiet days write one no-send line per day at most (the suppressed-path print) \u2014 54h = two missed days' slack, the kaizen daily precedent",
-   "why": "the daily unacked-obligation Telegram digest \u2014 without it aged ack:required mail rots invisibly (the measured 22-obligation failure). Crontab line NOT yet installed (operator action, docs/workstation/fabrik-mail.md \u00a7 Escalation) \u2014 until then DEAD/unscheduled is the EXPECTED verdict"
+   "why": "the daily unacked-obligation Telegram digest \u2014 without it aged ack:required mail rots invisibly (the measured 22-obligation failure). Crontab line INSTALLED (0 */6 * * *, verified in crontab -l 2026-09-20) \u2014 an OVERDUE stamp now means the digest itself is failing, not that it is unscheduled. The entry said the opposite until today, which DISARMED this heartbeat: a genuinely broken job would have read as the expected verdict"
   },
   {
    "cron_match": "agent_memory.sh",
@@ -388,7 +388,7 @@
    "kind": "cron",
    "max_age_hours": 54,
    "max_age_note": "24.5h worst-case daily cadence (stamp period 23.5h + up to 1h hourly tick) + ~24h absolute margin \u2248 54 \u2014 the kaizen daily precedent; one slept afternoon must not flip DEAD",
-   "why": "the RAM counterpart to cache-prune.sh's disk cleanup. Re-asserts the four vm.* knobs (so a WSL export/import rebuild, which wipes /etc, self-heals) and reclaims swapped agent pages when the box is idle. Without it the kernel reverts to swappiness 60 and resumes evicting MCP servers and extension hosts in favour of droppable page cache \u2014 measured 13.9 GB out to swap on 2026-09-20. Crontab line NOT yet installed (operator action, cleanup-automation.md \u00a7 G) \u2014 until then DEAD/unscheduled is the EXPECTED verdict."
+   "why": "the RAM counterpart to cache-prune.sh's disk cleanup. Re-asserts the four vm.* knobs (so a WSL export/import rebuild, which wipes /etc, self-heals) and reclaims swapped agent pages when the box is idle. Without it the kernel reverts to swappiness 60 and resumes evicting MCP servers and extension hosts in favour of droppable page cache \u2014 measured 13.9 GB out to swap on 2026-09-20. Crontab line INSTALLED 2026-09-20 (11 * * * *, hourly tick firing once daily) \u2014 an OVERDUE stamp now means the job itself is failing; read ~/.claude/agent-memory.log."
   },
   {
    "cron_match": "canary_grounding.py",
