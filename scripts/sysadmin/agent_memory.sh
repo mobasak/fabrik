@@ -81,6 +81,19 @@ _meminfo() { awk -v k="$1" '$1==k":"{print $2}' "$MEMINFO"; }
 # the else path is the swapoff. Validate numerically and fail CLOSED.
 _is_num() { case "${1:-}" in "" | *[!0-9]*) return 1 ;; *) return 0 ;; esac; }
 
+# ⚠️ ONE source of truth for reading /proc/swaps, NUL-delimited. Two separate un-escapes had
+# drifted apart: the capture handled all four kernel escapes (\011 \012 \040 \134) while the
+# intactness compare handled only \040, so a tab- or backslash-named device never matched its own
+# line — the script then ran `swapon` on a STILL-ACTIVE device, got EBUSY, and reported CRITICAL on
+# a perfectly healthy box. And `mapfile -t` split on the newline that \012 had just produced,
+# turning one device into two bogus ones and reporting "2/2 restored" while the real device stayed
+# down. NUL-delimiting fixes the split; a single helper fixes the drift.
+_swap_devices() {
+    awk 'NR>1 && $1!="" {gsub(/\\011/,"\t",$1); gsub(/\\012/,"\n",$1);
+                         gsub(/\\040/," ",$1);  gsub(/\\134/,"\\",$1);
+                         printf "%s%c", $1, 0}' "$1"
+}
+
 cmd_install() {
     # ⚠️ `tee` opens with O_TRUNC, so an ENOSPC write EMPTIES the policy file before failing — and
     # `sysctl -q -p` on an empty file returns 0 with no output, so neither step objects. The old
@@ -132,7 +145,16 @@ cmd_reclaim() {
         # reasonably conclude the guard was broken
         *) echo "unknown option '${1}' (did you mean --force?)" >&2; return 2 ;;
     esac
-    local live; live=$(pgrep -x claude | wc -l)
+    # ⚠️ `pgrep -x claude | wc -l` takes the pipeline's rc from wc (always 0), so a BROKEN pgrep
+    # reported zero sessions and the swapoff ran with agents live — the one numeric in this
+    # function that skipped the fail-closed validation the file's own comment mandates.
+    local live pids prc
+    pids=$(pgrep -x claude); prc=$?
+    case $prc in
+        0 | 1) ;;   # 0 = matches, 1 = none: both are real answers
+        *) echo "skipped: pgrep failed (rc $prc) — refusing to act blind"; return 10 ;;
+    esac
+    live=$(printf '%s' "$pids" | grep -c . || true)
     # GUARD: swapoff must fit every swapped page back into RAM at once and stalls the box for up
     # to a minute. This tree routinely runs 3+ concurrent agent sessions whose turns would freeze
     # mid-tool-call, so it refuses while any is alive.
@@ -166,7 +188,7 @@ cmd_reclaim() {
     # "/swap file" appears as "/swap\\040file" and `mapfile -t` does not interpret it — swapon would
     # be handed the literal token and fail ENOENT. Latent while swap is a partition; live the day a
     # swap file with a space is added.
-    mapfile -t devs < <(awk 'NR>1 && $1!="" {gsub(/\\011/, "\t", $1); gsub(/\\012/, "\n", $1); gsub(/\\040/, " ", $1); gsub(/\\134/, "\\", $1); print $1}' "$SWAPS")
+    mapfile -d '' -t devs < <(_swap_devices "$SWAPS")
     if [ ! -r "$SWAPS" ]; then
         # distinguish "cannot read it" from "it is empty" — cmd_reclaim already does this for
         # $MEMINFO, and acting blind is what both refusals exist to prevent
@@ -181,7 +203,7 @@ cmd_reclaim() {
     # failure ("a terminal is required to read the password") made swapoff fail, every device read
     # as still-active, and the run returned the benign rc 11 — so a job that could never work
     # stamped GREEN indefinitely.
-    if ! sudo -n true 2>/dev/null; then
+    if ! sudo -n swapon --show >/dev/null 2>&1; then
         echo "CRITICAL: sudo is not usable — the reclaim never ran" >&2
         return 1
     fi
@@ -223,10 +245,14 @@ cmd_reclaim() {
     # regex metacharacter false-alarmed CRITICAL on an intact box, and `/swap.img` MATCHED the
     # surviving `/swapZimg` line — reporting "swap is intact" while a device stayed down, and
     # stamping the heartbeat green. -F kills the metacharacters, -x the partial match.
-    local now_up still_down=0 restored=0
-    now_up=$(awk 'NR>1 && $1!="" {gsub(/\\040/, " ", $1); print $1}' "$SWAPS" 2>/dev/null) || now_up=""
+    local still_down=0 restored=0
+    local -a now_up=()
+    mapfile -d '' -t now_up < <(_swap_devices "$SWAPS" 2>/dev/null) || now_up=()
     for d in "${devs[@]}"; do
-        printf '%s\n' "$now_up" | grep -qxF -- "$d" && continue   # still active: nothing to do
+        # a plain string compare — no grep, so no -F/-x/newline semantics left to get wrong
+        local up found=0
+        for up in ${now_up[@]+"${now_up[@]}"}; do [ "$up" = "$d" ] && { found=1; break; }; done
+        [ "$found" -eq 1 ] && continue                       # still active: nothing to do
         if sudo swapon "$d" 2>/dev/null; then
             restored=$((restored + 1))
         else
@@ -324,7 +350,9 @@ cmd_cron() {
     local drift=0 k want got
     while IFS= read -r line; do
         line="${line#"${line%%[![:space:]]*}"}"   # an INDENTED vm.* line is still applied by
-        case "$line" in vm.*) ;; *) continue ;; esac  # sysctl, so it must still be verified
+        # sysctl, and so is a `-`-prefixed one (the `-` means "ignore errors", NOT a comment —
+        # verified against the real binary), so both must still be verified
+        case "$line" in -vm.*) line="${line#-}" ;;& vm.*) ;; *) continue ;; esac
         # ⚠️ Tolerate every VALID spelling. `${k%% }` strips ONE trailing space, so
         # `vm.swappiness  =  10` yielded the key "vm.swappiness " and `vm.swappiness=10` yielded
         # want="vm.swappiness=10" — a permanent false alarm, no stamp, hourly retry, from a

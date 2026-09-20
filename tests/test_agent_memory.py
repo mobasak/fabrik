@@ -24,14 +24,24 @@ for i in "${!args[@]}"; do
   case "${args[$i]}" in
     swapoff)
       [ "${FAIL_ON:-}" = "swapoff" ] && { echo "swapoff: Cannot allocate memory" >&2; exit 1; }
+      # MASKED: one device down, ANOTHER still up — the only shape in which a membership test
+      # that matches the wrong line is observable. Without this arm the fail-open half of the BRE
+      # bug could be fully reintroduced with the whole suite green (proven by a review seat).
+      [ "${FAIL_ON:-}" = "swapoff_masked" ] && {
+        printf 'Filename\tType\tSize\tUsed\tPriority\n/swapZimg partition 33554432 512 -3\n' > "$AGENT_MEMORY_SWAPS"
+        echo "swapoff: /swapZimg: Cannot allocate memory" >&2; exit 1; }
       # PARTIAL: devices really went down, THEN it failed — the multi-device ENOMEM shape
       [ "${FAIL_ON:-}" = "swapoff_partial" ] && {
         printf 'Filename\tType\tSize\tUsed\tPriority\n' > "$AGENT_MEMORY_SWAPS"
         echo "swapoff: /dev/sdd: Cannot allocate memory" >&2; exit 1; }
       printf 'Filename\tType\tSize\tUsed\tPriority\n' > "$AGENT_MEMORY_SWAPS"; exit 0 ;;
     swapon)
-      [ "${FAIL_ON:-}" = "swapon" ] && { echo "swapon: device busy" >&2; exit 1; }
       nxt="${args[$((i+1))]:-}"
+      # ⚠️ The read-only usability probe is checked FIRST: `swapon --show` mutates nothing, so a
+      # test asking for the MUTATING swapon to fail must not also break the probe — otherwise the
+      # script refuses up front and the graded path never runs.
+      [ "$nxt" = "--show" ] && exit 0
+      [ "${FAIL_ON:-}" = "swapon" ] && { echo "swapon: device busy" >&2; exit 1; }
       # `-a` with an fstab that has no swap entry: a silent, successful no-op
       [ "$nxt" = "-a" ] && exit 0
       # ⚠️ EBUSY on an ALREADY-ACTIVE device, as the real swapon does. Without this the stub made
@@ -431,7 +441,7 @@ def test_an_unusable_sudo_is_critical_not_benign(stub_bin):
     job that could never work stamped GREEN indefinitely."""
     (stub_bin / "sudo").write_text("#!/usr/bin/env bash\necho 'sudo: a terminal is required' >&2\nexit 1\n")
     (stub_bin / "sudo").chmod(0o755)
-    r = _run(stub_bin, "reclaim")
+    r = _run(stub_bin, "reclaim")  # every sudo call fails, including the usability probe
     assert r.returncode == 1, f"an unusable sudo is CRITICAL, got {r.returncode}:\n{r.stdout}{r.stderr}"
     assert "sudo is not usable" in (r.stdout + r.stderr)
 
@@ -445,6 +455,8 @@ def test_status_says_question_mark_rather_than_a_confident_zero(stub_bin, tmp_pa
         PATH=f"{stub_bin}:{os.environ['PATH']}",
         AGENT_MEMORY_SWAPS=str(stub_bin.swaps_file),
         AGENT_MEMORY_MEMINFO=str(bad),
+        AGENT_MEMORY_SYSCTL=str(stub_bin.sysctl),   # the last unpinned seam
+        AGENT_MEMORY_CONF=str(stub_bin.conf),
     )
     r = subprocess.run(["bash", str(SCRIPT), "status"], capture_output=True, text=True,
                        env=env, timeout=120)
@@ -476,4 +488,69 @@ def test_an_indented_policy_line_is_still_verified(stub_bin, tmp_path):
                        env=env, timeout=120)
     assert "vm.swappiness" in (r.stdout + r.stderr), (
         "an indented policy line must still be checked:\n" + r.stdout + r.stderr
+    )
+
+
+def test_a_downed_device_is_not_masked_when_another_survives(stub_bin):
+    """⚠️ Finding 3. The previous grader for this used a stub that truncated the WHOLE swaps file,
+    so nothing could mask anything and the assertion passed trivially — a seat reintroduced the
+    entire BRE bug with 21 of 21 green. This arm leaves `/swapZimg` up while `/swap.img` goes
+    down, which is the only shape where a membership test matching the wrong line is observable.
+    """
+    stub_bin.swaps_file.write_text(
+        "Filename\tType\tSize\tUsed\tPriority\n"
+        "/swap.img partition 33554432 512 -2\n/swapZimg partition 33554432 512 -3\n"
+    )
+    r = _run(stub_bin, "reclaim", fail_on="swapoff_masked")
+    back = stub_bin.swaps_file.read_text()
+    assert "/swap.img" in back, f"a downed device was masked by the survivor:\n{r.stdout}{r.stderr}\n{back}"
+    assert "swap is intact" not in (r.stdout + r.stderr), (
+        "it must not claim the box is intact when a device came down:\n" + r.stdout + r.stderr
+    )
+
+
+def test_a_partial_swapoff_says_devices_came_down(stub_bin):
+    """Finding 7. The message distinguishing a repaired partial swapoff from an untouched box had
+    no grader — it could revert to the old, wrong 'nothing was taken down' undetected."""
+    r = _run(stub_bin, "reclaim", fail_on="swapoff_partial")
+    assert "came down" in (r.stdout + r.stderr), (
+        "a repaired partial swapoff must say so, not 'nothing was taken down':\n" + r.stdout + r.stderr
+    )
+
+
+def test_an_unreadable_swaps_file_refuses_rather_than_reporting_it_empty(stub_bin):
+    """Finding 8. 'cannot read it' and 'it is empty' are different facts and the script
+    distinguishes them for /proc/meminfo; the guard doing the same for /proc/swaps had no grader."""
+    stub_bin.swaps_file.chmod(0o000)
+    try:
+        r = _run(stub_bin, "reclaim")
+    finally:
+        stub_bin.swaps_file.chmod(0o644)
+    assert r.returncode == 10, f"expected a benign refusal, got {r.returncode}:\n{r.stdout}{r.stderr}"
+    assert "cannot read" in r.stdout, f"must say it could not READ it:\n{r.stdout}"
+
+
+def test_a_device_name_with_a_tab_is_matched_against_its_own_line(stub_bin):
+    """⚠️ Findings 1+2. The capture un-escaped all four kernel escapes while the membership test
+    un-escaped only \\040, so a tab- or backslash-named device never matched its own line: the
+    script then ran swapon on a STILL-ACTIVE device, got EBUSY, and cried CRITICAL on a healthy
+    box. Both now go through one helper."""
+    stub_bin.swaps_file.write_text(
+        "Filename\tType\tSize\tUsed\tPriority\n/tab\\011file partition 33554432 512 -2\n"
+    )
+    r = _run(stub_bin, "reclaim", fail_on="swapoff")
+    assert r.returncode == 11, f"an intact box with a tab-named device is benign: {r.returncode}\n{r.stdout}{r.stderr}"
+    assert "CRITICAL" not in (r.stdout + r.stderr), r.stdout + r.stderr
+
+    # ...and on the path where the name is actually HANDED to swapon, it must be the un-escaped
+    # one. With a single helper the two lists can no longer diverge, so the remaining question is
+    # whether the un-escaping itself is right — which only this path can answer.
+    stub_bin.swaps_file.write_text(
+        "Filename\tType\tSize\tUsed\tPriority\n/tab\\011file partition 33554432 512 -2\n"
+    )
+    ok = _run(stub_bin, "reclaim")
+    assert ok.returncode == 0, f"{ok.stdout}{ok.stderr}"
+    assert "/tab\tfile" in stub_bin.swaps_file.read_text(), (
+        "swapon must receive the UN-ESCAPED name, not the literal \\011 token:\n"
+        + stub_bin.swaps_file.read_text()
     )
