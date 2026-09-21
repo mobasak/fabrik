@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — both contracts: lean pass 2c — the denominator HARD STOP row, every shape kept (D-331, 2026-09-21)
+
+- One text for both contracts, 8,684 / 8,497 → 5,160 B; the seven masks of a bound, the shim-grep rule and
+  the population rules all kept, incidents and measured figures removed; hub file 101989 B, template 103912 B, synced.
+
 ### Changed — both contracts: lean pass 2b — gate, trailer trap, peer channels, mail, upstream (D-331, 2026-09-21)
 
 - Seven pinned spans leaned, every rule kept (93 units audited, 0 lost); THIRD-trap clause 992 → 601 B in
