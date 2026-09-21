@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+### Changed — templates/governance/CLAUDE.md: step 2 of the subtractive program — 128 → 60 KB, synced to 46 repos (D-329, 2026-09-21)
+
+- The hub's cut applied to the fleet template with every project-side divergence preserved: the lane table
+  and step 0 verbatim, the shared-repo bullet with the recipe replaced by a pointer at the hub's
+  `private_index_commit.py`, § Upstream feedback and § fabrik-mail verbatim, the GATE paragraph, the Doc
+  Sync Matrix, the anchor list, the trailer table and THIRD-trap clause, the QUOTA bullet as a pointer.
+  New at the top: `## The method (hub D-325)`.
+- Proven before landing: 53 test files → 2,599 passed, the same 4 pre-existing failures as against the
+  unchanged file; tables clean; weight ratchets down; doc-sync tokens identical.
+
 ### Added — `scripts/private_index_commit.py`: the shared-append commit recipe as a tested script (D-328, 2026-09-21)
 
 - Steps 1–7 of the private-index recipe, executable: HEAD's blob + your hunk after an anchor, CAS on the
