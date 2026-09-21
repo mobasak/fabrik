@@ -48,7 +48,15 @@ network WSL routes to directly, so `ssh mac` is now a plain hop to the Mac's own
 `netsh portproxy`, no Windows firewall rule, no WSL-gateway indirection. Verified end to end the day it
 changed, and again on 2026-09-20: `ssh mac` reaches the Mac and its own `ipconfig getifaddr en0` agrees.
 
-**When it breaks, ONE moving part now: the Mac's own lease.** On the Mac `ipconfig getifaddr en0`, then
+**When it breaks, TWO moving parts — and the second one is US.** Measured 2026-09-21, one minute
+after this section was last rewritten claiming there was only one: `ssh mac` timed out, and the
+cause was not his lease at all — **this box had changed networks.** Its Wi-Fi was `192.168.12.56`
+with no adapter on `192.168.1.0/24`, so his address was simply off-net from here. Check OUR side
+first, because it is one command and it is the half that has moved most often:
+`powershell.exe -NoProfile -Command "Get-NetIPAddress -AddressFamily IPv4"` — if no adapter shares
+his subnet, nothing on his machine is wrong and there is nothing to fix there.
+
+**Then, and only then, HIS lease.** On the Mac `ipconfig getifaddr en0`, then
 update `HostName`. Probe reachability from WSL before blaming SSH — `cat < /dev/null > /dev/tcp/<ip>/22`
 succeeds when the port is open, and a refusal there is a NETWORK fact, not an auth one.
 
