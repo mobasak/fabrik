@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — .windsurf/rules/core/62-using-subagents.md: lean pass 3a — § Dispatch policy as rules (D-331, 2026-09-21)
+
+- § Dispatch policy 19,303 → 15,926 B, file 51,491 → 47891 B; every rule, D-ref and command kept, the
+  measurement narratives removed; POOL OFF comments untouched; hop pin and retired-literal sweep green; synced.
+
 ### Changed — hub CLAUDE.md: lean pass 2d — the universal-markers index, every anchor kept (D-331, 2026-09-21)
 
 - § UNIVERSAL governance markers 5,682 → 4,585 B; the 14 labels and anchors parse identically for
