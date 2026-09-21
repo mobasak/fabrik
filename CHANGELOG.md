@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — commands/_fragments: lean pass 3b — term-coverage and term-edit, every rule kept (D-331, 2026-09-21)
+
+- The incident parentheticals inside the two termination contracts removed (term-coverage 26,972 → 24395 B,
+  term-edit 27,050 → 25559 B); every rule, D-ref, placeholder and pinned literal kept; corpus re-rendered.
+
 ### Changed — .windsurf/rules/core/62-using-subagents.md: lean pass 3a — § Dispatch policy as rules (D-331, 2026-09-21)
 
 - § Dispatch policy 19,303 → 15,926 B, file 51,491 → 47891 B; every rule, D-ref and command kept, the
