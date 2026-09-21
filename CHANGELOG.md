@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — command-loop-performance.md revision 4: root cause re-cut to the system, program replaced with a subtractive one (2026-09-21)
+
+- **§ 4.0 new — the root cause one level up.** The process cannot shrink and its load is its cost:
+  three live `CLAUDE.md` contracts (hub 134 KB · template 128 KB × 47 · fabrik-lib 115 KB), ~30-34k
+  tokens per turn before the request is read; rendered command size predicts median run time
+  (r = +0.64 over 11 commands). § 4.1's loop mechanics are re-ranked as the consequence.
+- **§ 5 replaced whole.** The six additive mechanisms of revision 3 are withdrawn (D-323, superseding
+  D-322's item 1); the new program is five cuts, each required to end smaller than it started
+  (§ 5.4), done by direct edits outside the loop (§ 5.3).
+- **§ 6** gains size targets (hub contract ≤ 25 KB, no rendered command over 30 KB, corpus ≤ 1 MB);
+  **§ 7.1** carries the census and the load-vs-cost derivations.
+
 ### Changed — command-loop-performance.md: Status DRAFT → APPROVED on § 5.2 item 1 (2026-09-21)
 
 - The operator approved item 1 — the acceptance-list pilot on `/fabrik-review-scoped` — and left

@@ -1,8 +1,12 @@
 # Command loop performance — what we aim for, what it costs, and the program to fix it
 
-**Status:** APPROVED — § 5.2 item 1 approved by the operator 2026-09-21 (*"ok approved"*, D-322); the
-§ 5.2 ordering stands unamended; items 2–6 each open on the operator's word after item 1's two-week
-measurement against § 6.
+**Status:** DRAFT § 5 — the revision-3 program (six additive mechanisms, item 1 approved in D-322) is
+WITHDRAWN by the author in D-323 as wrong in kind; the replacement program in § 5 is subtractive and
+awaits the operator's ruling. §§ 1–4 and 6–7 stand.
+**Revision 4 (2026-09-21, on *"i still dont think you understand what is the problem"*):** the root
+cause is re-cut one level up, to the system (§ 4.0): the process cannot shrink and its load is its
+cost. § 4.1's loop mechanics are now stated as the consequence they are. § 5 is replaced whole. The
+three-contract census and the load-vs-cost test are added with their derivations (§ 7.1).
 **Revision 2 (2026-09-21, same day):** § 4 and § 5 rewritten. The operator refused the round
 cap (*"capping is not a solution"*) and the first draft's root cause (*"you could not find the root
 cause properly"*). Both refusals were right; the new root cause is § 4.1, the cap is refused in
@@ -176,7 +180,66 @@ loaded in that session, in a `CLAUDE.md` that had tripled in size over the month
 
 ## 4. Why
 
-### 4.1 The root cause — "converged" is a fact about the reviewer, not about the artifact
+### 4.0 The root cause — the process cannot shrink, and its load is its cost
+
+The operator's contract opens with one line: *fast but pro — ship, iterate, no over-engineering.*
+The other six hundred lines of the same file violate it, and so does every command built under it.
+
+**What an agent loads before it reads the request.** There are three live `CLAUDE.md` contracts
+on this box (census in § 7.1): the hub's at **134,466 bytes / 605 lines**, the project template at
+**127,624 bytes / 616 lines** in **47 byte-identical copies** (the template plus 46 synced repos),
+and fabrik-lib's hand-kept one at 115,366. Every agent, every turn, starts under **≈30,000–34,000
+tokens of contract**. Then it loads the command: the rendered corpus is **2.78 MB across 37
+commands**, four of the eleven measured commands exceed 100 KB each.
+
+**The load predicts the cost.** Across the 11 commands with four or more recorded closes, the size
+of the rendered command an agent loads correlates with how long the run takes at **r = +0.64**
+(log-log). The four smallest commands are the four fastest — 15 to 41 minutes at the median. The
+four largest are the four slowest — 93 to 248 minutes:
+
+| Rendered command | Bytes | Runs | Median min |
+|---|---:|---:|---:|
+| `/fabrik-task` | 27,090 | 4 | 41 |
+| `/fabrik-command-improve` | 39,306 | 16 | 34 |
+| `/fabrik-review-scoped` | 39,614 | 83 | 31 |
+| `/fabrik-doc-converge` | 74,258 | 18 | **15** |
+| `/fabrik-docs-review` | 76,600 | 8 | 60 |
+| `/fabrik-spec` | 88,059 | 17 | 66 |
+| `/fabrik-spec-review` | 91,167 | 28 | 85 |
+| `/fabrik-plan-review` | 100,126 | 19 | 117 |
+| `/fabrik-plan-after-chat` | 110,360 | 13 | 95 |
+| `/fabrik-execute-plan` | 116,120 | 35 | 248 |
+| `/fabrik-review` | 123,843 | 75 | 93 |
+
+The one that breaks the pattern in the good direction, `/fabrik-doc-converge`, is the one whose
+terminal condition is a single table rather than prose. This is not proof of causation — a bigger
+command may govern bigger work — but the direction is unambiguous and it agrees with every other
+measurement in this document.
+
+**Why it cannot shrink.** § 4.3 counts it: the contract mandates at least five additions per fix and
+not one deletion. A system with an ADD verb on every incident and no DELETE verb grows at the
+incident rate — +111% corpus, +232% hub contract in one month (§ 3.1) — and a month of fixes
+for the loop were, every one, more text for the loop to load.
+
+**The chain, each link measured elsewhere in this document:**
+
+1. The contract demands large artifacts — a spec with 70 `path:line` citations, evidence blocks,
+   self-audits, a denominator on every count.
+2. A large prose artifact has no fixed point a review can reach (§ 4.1). **That is real, and it is a
+   symptom:** you cannot write a closed acceptance criterion for a 450-line spec; you can for a
+   40-line one.
+3. So reviews run 30 rounds, each round's fix adds text, and a finder seat that is recall-optimised
+   by definition keeps finding (§ 4.2).
+4. Each fix for *that* was another rule. Back to 1.
+
+**This document is itself an instance.** It reached revision 4 in one day — three commits, three
+decision rows, two CHANGELOG entries — and its revision-3 program proposed six new mechanisms for a
+system whose measured problem is addition. § 5.1 withdraws them.
+
+### 4.1 The loop-level consequence — "converged" is a fact about the reviewer, not about the artifact
+
+*What § 4.0 produces inside a single review. Everything measured here holds; what changed in
+revision 4 is its rank — this is the mechanism, not the cause.*
 
 Every convergence loop in this corpus terminates on one condition: *a round that swept the class
 ledger and confirmed zero defects*. Read that for what it is. It is a statement about **what one
@@ -361,80 +424,50 @@ is about.
 
 ---
 
-## 5. The program
+## 5. The program — subtract
 
-### 5.1 Why the round cap led this program, and does not any more
+### 5.1 What stood here before, and why it is withdrawn
 
-The first draft opened with a hard cap: `round` refuses round 4 without an operator extension. The
-operator refused it on 2026-09-21 — *"capping is not a solution"*, *"without leaving
-unfixed/wrong/missing items, stopping reviews only for premature ends?"* — and the ledger agrees,
-on three counts:
+Revision 1 led with a hard round cap; the operator refused it (D-321) and the ledger agreed — it
+cuts real work, its cheapest satisfaction is to find less, and it acts on a variable that is already
+the wrong one. Revisions 2–3 replaced it with six **additive** mechanisms — an acceptance list, a
+close assertion, a fixer rule, a pin gate, a reason log, an instrument — and the operator approved
+the first (D-322). **The author withdraws all six (D-323).** § 4.0 is the reason: a system whose
+measured problem is that it can only add cannot be repaired by six additions, however well-aimed.
+The acceptance-list idea survives inside item 2 below as a *shape for what stays*, not as a new
+layer.
 
-1. **It cuts real work.** 2,168 of 6,919 confirmed defects — **31%** — were found at round 4 or
-   later. Some share of those exist only because of the fixes made in rounds 1–3 (§ 4.2), and the
-   ledger cannot separate the two. That ambiguity is a thing to *measure*, not to cap blind.
-2. **It fails its own cobra test (D-253).** The cheapest way to satisfy "close within three rounds"
-   without producing the outcome is to **find less** — narrow the brief, refute instead of confirm,
-   stop dispatching. The gate would read green while the artifact got worse, and nothing in the
-   record could tell the difference.
-3. **It acts on the wrong variable.** Per § 4.1 the round count already tracks the agent's stamina,
-   not the artifact's state. 71 runs closed `done` at a median of 3 rounds with defects still
-   confirmed. A cap makes the 44-round case *look* like those 71 without changing either artifact.
+### 5.2 The items — every one ends smaller than it started
 
-The cap survives as item 5, in a different shape: not a refusal, a **required stated reason**.
+| # | Cut | What stays | Before → target |
+|---|---|---|---|
+| 1 | **The contract.** Every incident narrative, every *"executed 2026-09-xx"* paragraph, every restatement of a rule that lives elsewhere, every mechanism explanation that belongs beside its code. Three edits: the hub file, the template (reaches 46 repos on one sync), a mail to fabrik-lib for theirs. | The lane table · the HARD STOPS table · the universal anchors (verbatim — detectors key on them) · the FINAL OUTPUT block · the commit recipe **as a pointer to a script**, not as prose · the `@` import. Every executable guard — hooks, gates, `command_run.py` — is untouched: prose never bound anyway (Lesson 116), the checks do. | 134,466 → **≤ 25,000 B** (hub) · 127,624 → ≤ 25,000 (template) |
+| 2 | **The commands.** Each cut to its spine: what it does · its terminal condition as ONE table in `/fabrik-doc-converge`'s shape (*ground truth to sweep · complete when*) · its NEXT. The fragments the same. | The run record · the seat stamp · the fixer-never-closes rule (the one loop rule the ledger proves — 53% rising series) as the terminal table's last row, not a new mechanism. | no rendered command over **30 KB** (today 4 of 11 exceed 100 KB); corpus 2.78 MB → ≤ 1 MB |
+| 3 | **The artifacts.** The demand that a spec carry 70 citations, evidence blocks and a self-audit. A spec is a page; a plan is a list and its tickets; a review receipt is its ledger and its verdict. | `path:line` grounding for a claim that names code; the D-row for a decision. | spec ≤ 150 lines · plan spine ≤ 100 · receipt ≤ 60 — stated in each command's terminal table, no new check |
+| 4 | **The five mandatory additions per fix** (§ 4.3). | A D-row for a DECISION — not for every fix. A CHANGELOG line. A grader for a CODE fix. | LESSONS per ticket, the cobra note per mechanism, and the grader-for-prose become optional; the contract says so in one sentence and deletes the five that said otherwise |
+| 5 | **The dead copies.** 14 `CLAUDE.md` under `/opt/archived/`, two 11-byte stubs, the two drifted fabrik-lib siblings. | — | 70 → 52 files on disk; the fabrik-lib siblings by mail |
 
-### 5.2 The items
+### 5.3 How it is done — not through the loop
 
-The ordering principle is § 4.1: give the loop a terminal condition that is a property of the
-**artifact**, then make the close assert against it. Rounds then fall out as a consequence instead
-of being legislated.
+Direct edits, in one session, by hand. Each cut is read ONCE by a fresh non-authoring seat with a
+single question — *did anything that binds get cut?* — and the answer is checked against the hooks
+and gates, which are the things that bind. No spec chain. No partitioned review. One forced sync
+for the template. **This is the operator's word overriding the contract's own ceremony, and the
+D-row for the cut says so**, because the alternative — running the cut through the process it is
+cutting — is the month again.
 
-| # | Change | Lane | Size | The measure it moves |
-|---|---|---|---|---|
-| 1 | **The acceptance list.** Every reviewable artifact carries, BEFORE its review opens, a closed enumerated list of what it must satisfy — each item marked `executable` (a command that proves it) or `judgement` (a named reader's verdict). A review's job becomes *discharge this list*, not *find defects*. A finding outside the list is either a MISSING CRITERION (added once, with a D-row) or out of scope (recorded, not fixed). | pilot on ONE command via `/fabrik-task` | 1 file, ~1 h | § 4.1 directly — it is the terminal condition |
-| 2 | **The close asserts the list.** `command_run.py done` refuses a close that does not carry a per-criterion verdict with its evidence, exactly as it already refuses a close missing a `FEEDBACK` field. This is what makes item 1 bind rather than be read. | `/fabrik-task` | 1 file, ~40 min | the 71 hot `done` closes → 0 |
-| 3 | **The fixer never closes.** A round may not be recorded as terminal unless a fresh, non-authoring seat has read the previous round's FIX DIFF. Today this lives in prose in one fragment and only for the closing round of a partitioned loop. | `/fabrik-task` | 1 file, ~40 min | § 4.2 — the 53% rising series |
-| 4 | **The pin gate.** Seats are not dispatched for round N+1 until every number, `path:line` and `file::symbol` the last fix ADDED carries executed evidence, and the artifact's citations still resolve. | `/fabrik-task` | 1 file, ~40 min | § 4.2's residue, at its source |
-| 5 | **Round 4+ states its reason.** Not a refusal. A run entering round 4 records WHY in the ledger, where the improve loop reads it. Today there are 47-round runs with no recorded explanation for a single one of them. | `/fabrik-task` | 1 file, ~30 min | makes long loops legible instead of invisible |
-| 6 | **Then the instrument.** `/fabrik-command-improve` reads every queue, clusters verdicts by CAUSE across commands rather than by axis within one, targets the fragment or the mechanism owner, and records rounds and hours per command so an edit can be graded. | `/fabrik-spec` | spec-sized | whether items 1–5 held |
+### 5.4 The budget rule, inverted
 
-**Item 1 is not a hypothesis.** `/fabrik-doc-converge` already carries exactly this shape — a
-per-artifact *"Complete when"* column stated before the loop opens (§ 4.1) — and it is the prose
-command that converges in 2–3 rounds. The pilot ports that shape to a second command and measures
-whether the rounds follow.
-
-**Ruling 2026-09-21 (D-322).** Item 1 is APPROVED and opens now in `/fabrik-task`. The ordering
-above was offered for amendment and not amended, so it stands; items 2–6 are not pre-approved — each
-opens on the operator's word once item 1's measurement (§ 6, two weeks) is in.
-
-**Item 1 is piloted, not rolled out.** Making the acceptance list a corpus-wide contract is
-spec-chain work, and specifying it through the 10.2-hour chain that this document exists to fix
-would be the same irony as § 5.1's cap. So: write the list for **one** command first —
-`/fabrik-review-scoped`, the most-used in the corpus (83 runs) and the fastest (31-min median) —
-measure its rounds and its hot-close rate for two weeks against the baselines in § 6, and only then
-spend a spec on the rollout.
-
-**Why item 6 is last.** It is the measurement machinery, and measurement built before the thing it
-measures has changed is measurement of the old system. Yesterday's single-section edit to that
-command took seven rounds precisely because it was made under the loop it was meant to improve.
-
-**Not in this program, and why.** A seat-liveness signal (a hung seat is indistinguishable from a
-slow one) lives in the Claude Code harness, not in anything this repo owns. Single-sourcing the
-mirrored rules of § 4.3 is a build change of spec size, deferred until items 1–5 are measured.
-
-### 5.3 The budget rule this program accepts
-
-Every item above must **retire at least as many bytes as it adds**, or state in its D-row what the
-growth buys. § 3.1 is the reason: a program that fixes the loop by growing the corpus has already
-failed once. Item 1 is the test case — an acceptance list REPLACES the open-ended hunt prose in the
-command it lands in; if it is added beside that prose instead, the item has failed on arrival.
+Revision 3 said *retire at least as many bytes as you add*. Revision 4 says **every item ends
+smaller than it started, and the D-row carries the before and after in bytes.** An item that ends
+larger has failed, whatever else it achieved.
 
 ---
 
 ## 6. How we will know it worked
 
-Read from the same ledger, four weeks after item 2 lands, against the 2026-09-21 baseline. The
-first four metrics are the ones keyed to § 4.1's root cause; they are the ones that matter.
+Read from the same ledger, two weeks after § 5.2 item 1 lands, against the 2026-09-21 baseline. The
+size rows are the ones keyed to § 4.0; the round rows are how we know the size rows mattered.
 
 | Metric | Baseline | Target |
 |---|---:|---|
@@ -446,7 +479,11 @@ first four metrics are the ones keyed to § 4.1's root cause; they are the ones 
 | Spec-chain cost at the medians | 611 min | under 300 min |
 | Total hours per week | 375 | falling, with runs per week flat or up |
 | Total tokens per week | 22.6 G | falling |
-| `commands/_sources` + `_fragments` bytes | 1,230,048 | flat or falling (§ 5.3) |
+| **Hub `CLAUDE.md` bytes** (loaded every turn) | **134,466** | **≤ 25,000** |
+| **Template `CLAUDE.md` bytes** (×47) | **127,624** | **≤ 25,000** |
+| **Largest rendered command** | 123,843 | ≤ 30,000 |
+| Rendered corpus, 37 commands | 2,783,253 | ≤ 1,000,000 |
+| `commands/_sources` + `_fragments` bytes | 1,230,048 | falling (§ 5.4) |
 
 The third row carries its own guard deliberately: *"with the total NOT falling"*. Driving
 late-round defects to zero by finding fewer defects overall is the failure mode, not the goal.
@@ -509,6 +546,8 @@ Reproducible against the same snapshot, so the root cause can be refuted rather 
 | size-stratified prose vs code (rev. 3) | size proxy = `tok_out + tok_seat_out`, quartiles over the 232 prose+code rows carrying it; ⚠️ the proxy grows with rounds, so this bounds the confound rather than removing it — the ledger records no surface size |
 | noise rate and its decay (rev. 3) | the 248 rows whose `findings` and `confirmed` lists are equal-length and all-int; per-round rate = Σ confirmed / Σ findings at that round index, rounds 10+ pooled |
 | positive control (rev. 3) | prose rows with a clean confirmed series (62), `len ≤ 3` and `confirmed[-1] == 0` → 9; the command of each read off the row |
+| CLAUDE.md census (rev. 4) | `find /opt -type f -name CLAUDE.md` excluding `.claude/worktrees/`, `.tmp/`, `node_modules/` → 70 (+177 worktree copies); grouped by md5 → 47 identical to the template, 23 others, of which 20 are archived/vendored/stubs; sizes by `stat -c %s`; no `~/.claude/CLAUDE.md` exists |
+| load-vs-cost (rev. 4) | bytes = `~/.claude/commands/fabrik-*.md` (the RENDERED file an agent loads); commands with ≥ 4 closes → 11; median `wall_s/60` per command; Pearson r over log(bytes) vs log(median minutes) → +0.64; not a causal claim, a direction — the ledger records no surface size (§ 4.1) |
 | ADD-verb count (rev. 3) | the five clauses cited in § 4.3 by `CLAUDE.md` line; the negative is bounded to `CLAUDE.md` at HEAD (605 lines), `grep -n "retire\|delete\|remove"` → 15 lines, each read: a class retiring inside the loop (`:39`), "retirement" as a decision type (`:138`, `:320`), the volume-deletion ban (`:288`), file-removal doc-sync triggers (`:304`, `:314`, `:318`), scratch cleanup (`:369`), recipe prose — none an obligation to retire text |
 
 **Two bounds on all of it.** (1) `confirmed` is written by the agent running the loop, so a run
