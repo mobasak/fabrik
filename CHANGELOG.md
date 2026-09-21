@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — command-loop-performance.md: Status DRAFT → APPROVED on § 5.2 item 1 (2026-09-21)
+
+- The operator approved item 1 — the acceptance-list pilot on `/fabrik-review-scoped` — and left
+  the § 5.2 ordering unamended (D-322). Items 2–6 open on the operator's word after item 1's
+  two-week measurement against § 6.
+
 ### Changed — command-loop-performance.md revision 3: the document stress-tested against its own standard (2026-09-21)
 
 - **§ 4.1's prose-vs-code test corrected.** The ledger records no surface size; stratified on the

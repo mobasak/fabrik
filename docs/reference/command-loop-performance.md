@@ -1,6 +1,8 @@
 # Command loop performance — what we aim for, what it costs, and the program to fix it
 
-**Status:** DRAFT — awaiting the operator's ruling on § 5.
+**Status:** APPROVED — § 5.2 item 1 approved by the operator 2026-09-21 (*"ok approved"*, D-322); the
+§ 5.2 ordering stands unamended; items 2–6 each open on the operator's word after item 1's two-week
+measurement against § 6.
 **Revision 2 (2026-09-21, same day):** § 4 and § 5 rewritten. The operator refused the round
 cap (*"capping is not a solution"*) and the first draft's root cause (*"you could not find the root
 cause properly"*). Both refusals were right; the new root cause is § 4.1, the cap is refused in
@@ -400,6 +402,10 @@ of being legislated.
 per-artifact *"Complete when"* column stated before the loop opens (§ 4.1) — and it is the prose
 command that converges in 2–3 rounds. The pilot ports that shape to a second command and measures
 whether the rounds follow.
+
+**Ruling 2026-09-21 (D-322).** Item 1 is APPROVED and opens now in `/fabrik-task`. The ordering
+above was offered for amendment and not amended, so it stands; items 2–6 are not pre-approved — each
+opens on the operator's word once item 1's measurement (§ 6, two weeks) is in.
 
 **Item 1 is piloted, not rolled out.** Making the acceptance list a corpus-wide contract is
 spec-chain work, and specifying it through the 10.2-hour chain that this document exists to fix
