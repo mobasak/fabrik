@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — command-loop-performance.md revision 2: root cause re-derived, the round cap refused (2026-09-21)
+
+- **§ 4.1 replaced.** The root cause is no longer "the fix between rounds is the next round's
+  defect" (that is now § 4.2, the mechanism it produces) but the absence of a terminal condition
+  that is a property of the ARTIFACT: "converged" is defined as a round in which a reader found
+  nothing, so the loop cannot terminate on evidence and its length is discretionary in both
+  directions. Falsified against the ledger — prose artifacts take a median 5 rounds, code carrying
+  an executable gate 3.
+- **§ 5.1 new.** The hard round cap is refused on the operator's ruling and on three measured
+  counts (31% of confirmed defects arrive at round 4+; the cap's cheapest satisfaction is to find
+  less; the round count is already the wrong variable). It survives as item 5, a stated reason.
+- **§ 5.2 re-ordered** to lead with a closed acceptance list, piloted on one command rather than
+  specced corpus-wide; **§ 6** re-keyed to the new root cause; **§ 7.1** added so every § 4.1
+  figure is reproducible.
+- **§ 4.5 new — two revision-1 claims withdrawn**: "round 1 finds 1–10% of defects" (a tail read
+  as the population; the true median share is 33% over 98 runs) and "under-seating is the root
+  cause" (demoted to contributing and unproven — the comparison is confounded by surface size).
+
 ### Added — a macOS sound layer for Volkan's Mac, filed as request 016 (2026-09-20)
 
 - Our verb taxonomy (`done` · `attention` · `failure` in three families, on the CLI's own error
