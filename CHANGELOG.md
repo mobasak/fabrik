@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — command-loop-performance.md: full read-through after revision 6 (2026-09-21)
+
+- **Quotes made verbatim.** Six quotes in § 4.00 and five in § 4.6 had been spliced, reordered or
+  paraphrased inside quote marks against § 7's "verbatim" claim; each is now the source's words in the
+  source's order, and § 7's bound says "verbatim up to disfluencies, never reordered".
+- **The central census stated precisely.** 25 of 27 terminals name the process's own completion —
+  INCLUDING executable process checks like `gate green` — so the claim is "none names a check of the
+  delivered thing", not "none names a tool" (§ 4.0, § 6 row 1, § 7.1).
+- **Twenty stale cross-references from six same-day revisions** repaired: § 5.2/§ 5.3/§ 5.4 and
+  "items 1–5" of withdrawn programs (§ 1, § 4.1, § 4.5, § 6, § 7.1), § 6.1's cobra checks rewritten
+  against the current § 5, the cap's three-count refusal restored to § 5.1 so § 4.1's references
+  resolve, two "this document is the demonstration" paragraphs merged into one with counts taken
+  from `git log` (9 commits, 5 decision rows), an orphan "87%" removed, and § 2.3's "proves the
+  design works" reworded — it contradicted § 4.00.
+- **§ 4.00's "a model judging another model's prose"** corrected: `/fabrik-review` reads code; the
+  true common property is a reader's verdict rather than a tool's.
+
 ### Changed — command-loop-performance.md revision 6: the root cause grounded in the tool author's design stance (2026-09-21)
 
 - **§ 4.00 new — the ground under revision 5's cause.** This repo built a thick apparatus on a tool

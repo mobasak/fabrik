@@ -34,7 +34,7 @@ every new derivation.
 **Nature:** a diagnosis and a program. Every number is measured, with its population named in § 7.
 No number in this document is recalled.
 **Snapshot:** all ledger figures are one read taken **2026-09-21 12:25 +03**. The ledger is live and
-grew by two closes while this document was being written, which is itself an instance of § 4.1 —
+grew by two closes while this document was being written, which is itself an instance of § 4.2 —
 re-derive before quoting, never copy a figure forward.
 
 ---
@@ -50,14 +50,14 @@ The operator has stated these across 2026-09-07 to 2026-09-21. They are the cont
 | 2 | At most three convergence rounds, then park | the three-round ceiling, quoted in `01M2ZDAYX1EHVST1DWG8PV3Z57` | **No** — runs of 44 and 47 rounds are in the record, and 71 closes stopped EARLY with defects still confirmed (§ 4.1) |
 | 3 | Tokens spent like money | *"it consumes all my tokens"* | **No** — 43 G tokens over two weeks, and rising week over week (§ 2.2, § 3.2) |
 | 4 | The smallest lane that discharges the ask | *"that is why we have created fabrik-task"* | **Yes**, since D-314/D-315 (2026-09-20) |
-| 5 | Every count, path and symbol EXECUTED before it is written | aim 12 of the 17; `CLAUDE.md` § read it, don't recall it | **No** — this is the mechanism under 87% of the hours (§ 4.1) |
+| 5 | Every count, path and symbol EXECUTED before it is written | aim 12 of the 17; `CLAUDE.md` § read it, don't recall it | **No** — this is the mechanism of § 4.2, named by every one of the six commands that hold the hours |
 | 6 | Check what already exists first: the project, fabrik-lib, the ledgers | aims 11, 13 | **Partly** — stated in § Drive 2026-09-20, untested |
 | 7 | The fewest review passes that still catch real defects | aim 6 | **No** — 94 of 178 multi-round series rise instead of falling (§ 4.2) |
 | 8 | The box used fully, in parallel, nothing read twice | aims 1, 2 | **Partly** — the seat budget is computed; non-duplication is by construction, not by rule |
 | 9 | The cheapest model that can do each seat's job | aim 3, the price multipliers | **Yes** — D-190, by rule |
 | 10 | Fable drives while its own quota allows, else Opus | aims 4, 17b | **Yes** — D-295 + § Drive |
 | 11 | A dead seat re-dispatched, a stuck run handed off | aim 9 | **Partly** — `handoff` works; a hung seat still has no signal |
-| 12 | One source per rule, nothing restated | aim 16 | **No** — one rule lives in six files (§ 4.2) |
+| 12 | One source per rule, nothing restated | aim 16 | **No** — one rule lives in six files (§ 4.3) |
 | 13 | Only hub `infra` or `intel` runs the corpus tools | aim 17a | **Stated, not gated** |
 | 14 | Every run makes the next run cheaper | the kaizen loop, aim 5 | **No** — 228 loop verdicts written, 4 ever answered |
 
@@ -112,8 +112,8 @@ The operator's "a day" is not an impression. It is the sum of the medians.
 
 Six commands hold 86%. `/fabrik-execute-plan` is itself mostly review: 73 review-family closes
 fall inside plan windows in the same repo, 144 of its 245 hours. `/fabrik-review-scoped` is the
-counter-example that proves the design works when it is followed — 83 runs, the most of any
-command, at a 31-minute median.
+least-loaded command in the family and the fastest — 83 runs, the most of any command, at a
+31-minute median — which is what § 4.00's load-vs-cost predicts, not a vindication of the loop.
 
 ### 2.4 Anatomy of one round
 
@@ -195,32 +195,44 @@ The person who built Claude Code gave a talk on how to use it (§ 4.6, the prima
 section). It is not a list of tips. It is a design stance, and it is the opposite of what this repo
 did:
 
-- *"There's nothing in the system prompt about looking through git history. It knows it because the
-  model is awesome."* — said three times, about git, about commit/push, about tools. **Do not tell the
-  model what it already knows.**
-- *"Try to keep it as short as you can... if it gets too long, it's just going to use up a bunch of
-  context and it's usually not that useful."* — on `CLAUDE.md`. Theirs: bash commands, a style guide,
+- *"The reason it knows it, by the way, is not because we prompted it to. There's nothing in the
+  system prompt about looking through git history. It knows it because the model is awesome."* — and
+  again about commit/push (*"we're not system prompting it to do this... The model is good"*) and about
+  tools (*"you don't have to prompt it specifically to use this tool and this tool"*). **Do not tell
+  the model what it already knows.**
+- *"Try to keep it pretty short, because if it gets too long it's just going to use up a bunch of
+  context and it's usually not that useful. So just try to keep it as short as you can."* — on
+  `CLAUDE.md`. Theirs: bash commands, a style guide,
   a few core files. Everything else on demand. **More context, thinner always-on file.**
-- *"Give it some sort of tool that it can use for feedback to check its work... if you let it iterate
-  two or three times, often it gets it almost perfect... it will iterate by itself."* — tests, a
-  screenshot, a probe. **Correctness comes from a tool that touches reality, run by Claude itself,
+- *"If you let it iterate two or three times, often it gets it almost perfect. So the trick is: give
+  it some sort of tool that it can use for feedback to check its work, and then based on that it will
+  iterate by itself."* — tests, a screenshot, a probe. **Correctness comes from a tool that touches reality, run by Claude itself,
   during the work.** He describes no reviewer, no convergence, no rounds.
-- *"Before you write code, make a plan, run it by me."* and *"anytime, no matter what Claude is doing,
-  you can always safely hit escape... I'll tell it that and tell it to redo the edit."* — **the person
-  approves the shape once and interrupts freely.** That is the judgement loop: a glance, not a panel.
-- *"We want to avoid over-investing in UI and other layers on top, given the way the models are
-  progressing — it may not be useful work pretty soon."* — **Layers on top of the model are the thing
-  not to build.**
+- *"Brainstorm ideas, make a plan, run it by me, ask for approval before you write code."* and *"No
+  matter what Claude is doing, you can always safely hit escape... I'll hit escape, I'll tell it that,
+  and then I'll tell it to redo the edit."* — **the person approves the shape once and interrupts
+  freely.** That is the judgement loop: a glance, not a panel.
+- *"We want to avoid over-investing in UI and other layers on top, given that... the way the models
+  are progressing, it may not be useful work pretty soon."* — **Layers on top of the model are the
+  thing not to build.**
 
 This repo built the layers. A 134 KB always-on contract, 2.8 MB of rendered commands, run records,
 seat panels, coverage checkers, a feedback ledger, a kaizen loop, a lane table, hooks on hooks — and
-a review family that is **57% of all recorded hours**, every command in it a model judging another
-model's prose. None of that is in the tool's design. It was built to replace two things the design
+a review family that is **57% of all recorded hours**, every command in it a model reading another
+model's output — code or prose — and converging on a reader's verdict rather than a tool's. None of
+that is in the tool's design. It was built to replace two things the design
 relies on and this repo removed: **the person** (rules were written against consulting them, because
 stalls were frustrating) and **the feedback tool** (a test, a screenshot, a probe that Claude runs
 itself). An apparatus built to replace a person and a tool can only measure itself — which is why
 its definition of *done* became the one in § 4.0, and why a month spent perfecting it made things
 worse. The author's stance says: do not perfect it. Remove it, and put the person and the tool back.
+
+**This document is the demonstration.** It reached revision 6 in one day — **9 commits**
+touching this file, **5 decision rows** (D-321 to D-325), every gate green, everything pushed —
+and after each of the first five revisions the operator said it had not found the cause. Its
+revision-3 program proposed six new mechanisms for a system whose measured problem is addition.
+Every definition of *done* this system has was met each time; the operator's was not, until the
+operator handed over the author's talk and had it read three times.
 
 ### 4.0 The mechanism — "done" is process compliance, not an outcome the operator can see
 
@@ -231,11 +243,13 @@ itself.*
 operator got what they asked for.** The Stop hook releases a turn when the run record is closed,
 the gate is green, the commit is pushed, a review-family pass ran and the seven-line block is present
 — GATE · DOCS · CHANGELOG · LESSONS · DONE · NEXT · FEEDBACK. Not one of those is the operator's
-question. And the runs define their own ends the same way: of the **27 run records on disk, 25 name
-a process event as their terminal condition** — *"a delta pass raises zero"*, *"gate green"*, *"a
-quiet closing round"* — and the other two name internal build state. **Zero name something the
-operator could run.** (Bound: run records are deleted over time; the ledger row that survives them
-carries no terminal field, so 27 is the whole readable population — § 7.1.)
+question. And the runs define their own ends the same way: of the **27 run records on disk, 25 name the
+process's own completion as their terminal condition** — *"a delta pass raises zero"*, *"a quiet
+closing round"*, or an executable check of the process such as *"gate green"* or
+*"docs_updater --check green"* — and the other two name internal build state. **None names a check
+of the delivered thing itself** — the feature running, the screen matching the mock, the spec
+answering the question the operator will ask. (Bound: run records are deleted over time; the ledger
+row that survives them carries no terminal field, so 27 is the whole readable population — § 7.1.)
 
 Agents optimise what is measured. Measured on compliance, they produce compliance, and the
 operator's demand is incidental to it. That is the mechanism under every symptom in this document:
@@ -249,11 +263,6 @@ operator's demand is incidental to it. That is the mechanism under every symptom
 - **Why a cap, an acceptance list and a byte cut are all symptoms:** each changes the process. None
   changes what the process is *for*.
 - **Why the month got worse:** every fix was more of the thing being measured.
-
-**This document is the demonstration.** It reached revision 5 in one day — four commits, four
-decision rows, five CHANGELOG entries, every gate green, everything pushed — and after each
-revision the operator said it had not found the cause. Every definition of *done* this system has
-was met; the operator's was not.
 
 #### Consequence 1 — the process cannot shrink, and its load is its cost
 
@@ -306,10 +315,6 @@ for the loop were, every one, more text for the loop to load.
 3. So reviews run 30 rounds, each round's fix adds text, and a finder seat that is recall-optimised
    by definition keeps finding (§ 4.2).
 4. Each fix for *that* was another rule. Back to 1.
-
-**This document is itself an instance.** It reached revision 4 in one day — three commits, three
-decision rows, two CHANGELOG entries — and its revision-3 program proposed six new mechanisms for a
-system whose measured problem is addition. § 5.1 withdraws them.
 
 ### 4.1 Consequence 2 — "converged" is a fact about the reviewer, not about the artifact
 
@@ -406,8 +411,8 @@ is the one prose command whose source states, per artifact, a closed completenes
 the loop opens: its Convergence Contract table carries a *"Complete when (the bidirectional
 contract)"* column per doc (`commands/_sources/fabrik-doc-converge.md:25-27`), and its Phase 1
 opens with *"the doc is the CLAIM, never the source"* — every claim must open to something real
-today (`:43-55`). That is the acceptance-list shape of § 5.2 item 1, already in the corpus, already
-converging. The spec, plan and docs reviews carry no such column.
+today (`:43-55`). That is the shape § 5 item 1 asks of every project — the check stated before the loop opens —
+already in the corpus, already converging. The spec, plan and docs reviews carry no such column.
 
 ### 4.2 The mechanism this produces — the fix between rounds is the next round's defect
 
@@ -495,8 +500,8 @@ is about.
   contract floor of 3 for round 1 alone and 7 for a 3-unit surface. But the direction is not
   established: runs at under 2 seats per round take a median of 4 rounds against 2 for runs at 4 or
   more (n=106 vs 21), and surface size drives both numbers, so the comparison is confounded. Seat
-  density is a candidate, not a cause, and this document does not spend a program item on it until
-  items 1–3 have moved the metrics they target.
+  density is a candidate, not a cause — and under § 5 it is moot: with the review family retired as
+  a correctness mechanism, seat density stops being a variable at all.
 
 ### 4.6 The tool's author on how it is meant to be used — the source for § 4.00
 
@@ -509,14 +514,14 @@ The talk is a **ladder of trust**, one rung per section, and the rungs are the m
 
 | Rung | What he says | What this repo does instead |
 |---|---|---|
-| 1 · Ask first | Day-one Q&A on the codebase; it *"teaches the boundary: what can be one-shotted, two-shotted, three-shotted."* The person learns the model's envelope by using it. | Sizing is computed by a gate that counts files; the person has been one remove away, behind commands and agents, for a month. |
-| 2 · Then edit | Three tools; the one failure he names is *"the thing it builds is not at all the thing you wanted"* and the fix is upstream: *"make a plan, run it by me."* | A 10.2-hour spec chain before a line is written, then review downstream. |
-| 3 · Give it a feedback tool | Tests, screenshots — *"then it can iterate... two or three times... by itself."* | Reviews that end when a reader is quiet — 30 rounds, 0 of 27 runs with a terminal anyone can run. |
+| 1 · Ask first | Day-one Q&A on the codebase; it *"start[s] teaching them this boundary of... what can be one-shotted? What can be two-shotted, three-shotted?"* The person learns the model's envelope by using it. | Sizing is computed by a gate that counts files; the person has been one remove away, behind commands and agents, for a month. |
+| 2 · Then edit | Three tools; the one failure he names is *"the thing that it builds is not at all the thing that you wanted"* and the fix is upstream: *"make a plan, run it by me, ask for approval before you write code."* | A 10.2-hour spec chain before a line is written, then review downstream. |
+| 3 · Give it a feedback tool | Tests, screenshots — *"then it can iterate... two or three times... by itself."* | Reviews that end when a reader is quiet — 30 rounds; 0 of 27 runs name a check of the delivered thing as their terminal. |
 | 4 · More context, short file | *"The more context, the smarter the decisions"* — and `CLAUDE.md` *"as short as you can"*; nested files, slash commands and `@`-mentions pulled in **on demand**. | 134 KB every turn; the actual context — code, tests, the running thing — reached only through a seat's report. |
-| 5 · Share once | One project file, one `.mcp.json`, one permissions allow-list — *"write it once and everyone benefits."* | 47 copies of a 128 KB file, synced on every commit that touches it. |
-| 6 · Steer constantly | Shift-tab, `#`, escape — *"you can always safely hit escape"*, *"19 of 20 lines look perfect, change one."* Interruption is the normal mode. | Rules against mid-run asks; `NEXT: operator decision` has a bar; the operator's interruptions today were the only thing that reached the cause. |
+| 5 · Share once | One project file, one `.mcp.json`, one permissions allow-list — *"you write this once and then you share it with everyone on the team... and everyone on the team benefits."* | 47 copies of a 128 KB file, synced on every commit that touches it. |
+| 6 · Steer constantly | Shift-tab, `#`, escape — *"you can always safely hit escape"*, *"19 of these lines look perfect but one line you should change."* Interruption is the normal mode. | Rules against mid-run asks; `NEXT: operator decision` has a bar; the operator's interruptions today were the only thing that reached the cause. |
 | 7 · Then headless | `claude -p` as *"a super intelligent Unix utility"* — pipe a log in, JSON out; CI, incidents, labelling. Small, bounded jobs. | Autonomous multi-hour runs. |
-| 8 · Then many | Worktrees, tmux; *"I'm a Claude normie — one at a time."* | Three concurrent sessions plus a pipeline, from the start. |
+| 8 · Then many | Worktrees, tmux; *"I'm sort of a Claude normie. So I'll have usually like one Claude running at a time."* | Up to three concurrent sessions plus a daily pipeline, by contract. |
 | Q&A · Layers | *"Avoid over-investing in UI and other layers on top... it may not be useful work pretty soon."* | 2.8 MB of layers. |
 
 The two things missed on the first two readings: the warning about layers (it sits in an answer
@@ -552,7 +557,11 @@ Applied to this repo, in the author's own order:
 
 ### 5.1 What stood here before
 
-Revision 1: a round cap (refused, D-321). Revisions 2–3: six additive mechanisms (D-322, withdrawn
+Revision 1: a round cap — refused by the operator (D-321), and the ledger agreed on three counts:
+it cuts real work (2,168 of 6,919 confirmed defects, 31%, arrive at round 4 or later); its cheapest
+satisfaction is to *find less* — narrow the brief, refute instead of confirm — which reads green
+while the artifact worsens; and it acts on the wrong variable, since § 4.1 shows the round count
+tracks stamina, not quality. Revisions 2–3: six additive mechanisms (D-322, withdrawn
 D-323). Revision 4: five byte cuts (demoted). Revision 5: one sentence — *the one check the operator
 can run* — close, but with the wrong runner and the wrong moment: the check is Claude's, during the
 work, against reality; the operator approves the shape and sees the result. Each revision was one
@@ -562,13 +571,13 @@ layer of the apparatus looking at the layer beneath it.
 
 ## 6. How we will know it worked
 
-Read from the same ledger, two weeks after § 5 is applied, against the 2026-09-21 baseline. The first
-row is the one keyed to § 4.0; every other row is expected to follow it, and a row that moves
-without the first one having moved is a symptom treated, not a cause.
+Read from the same ledger, two weeks after § 5 is applied, against the 2026-09-21 baseline. The
+first row is the one keyed to § 4.00 and § 5; every other row is expected to follow it, and a row
+that moves without the first one having moved is a symptom treated, not a cause.
 
 | Metric | Baseline | Target |
 |---|---:|---|
-| **Runs whose terminal condition is a feedback tool Claude ran itself** (a test, a screenshot, a probe) | **0 of 27** | every run |
+| **Runs whose terminal condition is a check of the delivered thing** — a test of the feature, a screenshot of the screen, a probe of the service — run by Claude itself, not a check of the process | **0 of 27** | every run |
 | **Review-family share of all hours** | 456 of 803, **57%** | under 15% |
 | **Closes that ran to a quiet round** (terminal condition actually met) | 78 of 191, **41%** | over 90% |
 | **Closes `done` with defects still confirmed at the last round** | **71** (452 defects standing) | 0 |
@@ -582,27 +591,34 @@ without the first one having moved is a symptom treated, not a cause.
 | **Template `CLAUDE.md` bytes** (×47) | **127,624** | **≤ 25,000** |
 | **Largest rendered command** | 123,843 | ≤ 30,000 |
 | Rendered corpus, 37 commands | 2,783,253 | ≤ 1,000,000 |
-| `commands/_sources` + `_fragments` bytes | 1,230,048 | falling (§ 5.4) |
+| `commands/_sources` + `_fragments` bytes | 1,230,048 | falling (§ 5 item 3) |
 
-The third row carries its own guard deliberately: *"with the total NOT falling"*. Driving
+The round-4+ row carries its own guard deliberately: *"with the total NOT falling"*. Driving
 late-round defects to zero by finding fewer defects overall is the failure mode, not the goal.
 
 ### 6.1 The cobra check on each metric (D-253)
 
-- **"Ran to a quiet round" up** is satisfied most cheaply by declaring a round quiet without
-  sweeping — the cheapest quiet round is the one nobody ran. Counter: item 3, the terminal round
-  requires a fresh non-authoring seat, and the close records its id.
-- **"Hot `done` closes" to zero** is satisfied most cheaply by not RECORDING the last round's
-  confirmations. Counter: item 2 asserts per criterion, so an undischarged criterion refuses the
-  close whether or not a round was written down.
-- **"Round 4+ defects" down** is satisfied most cheaply by stopping at round 3 — which is the cap
-  this program just refused. Counter: the paired guard in the row above, plus item 5, which makes a
-  long loop legal and visible rather than something to hide.
-- **"Rising series" down** is satisfied most cheaply by reporting a flat or falling number
-  regardless. Counter: the series is written per round by the tool, not at the close.
-- **Hours and tokens down** are satisfied most cheaply by skipping probes. Counter: item 4 refuses
-  the dispatch when the evidence is absent, so a skipped probe costs a round rather than saving one.
-- **Corpus bytes flat** is satisfied most cheaply by moving text into a doc the weight check does
+- **"Terminal is a check of the delivered thing" up** is satisfied most cheaply by naming a vacuous
+  check — a test that cannot fail, a screenshot nobody compares. Counter: the check is named in the
+  plan the person approves (§ 5 item 2), and a person sees a vacuous check in one line.
+- **"Review-family share" down** is satisfied most cheaply by running the same reader-loop under a
+  command with a different name. Counter: the measure is hours in runs whose seats read another
+  model's output and converge on a verdict, whatever the command is called — not the command name.
+- **"Ran to a quiet round" up** and **"hot `done` closes" to zero** are satisfied most cheaply by
+  declaring quiet, or by not recording the last round. Counter: under § 5 the terminal is the tool's
+  own pass — a log line, not a declaration — so there is nothing to declare or omit.
+- **"Round 4+ defects" down** is satisfied most cheaply by stopping at round 3 — the cap this
+  document refused (§ 5.1). Counter: the paired guard *with the total not falling*; and a feedback
+  tool does not count rounds — its pass is the end, at whatever round that is.
+- **"Rising series" down** is satisfied most cheaply by reporting a flat number regardless.
+  Counter: the series is written per round by the tool, not at the close.
+- **Hours and tokens down** are satisfied most cheaply by skipping the feedback tool. Counter: a
+  task with no named check does not start (§ 5 item 1).
+- **Always-on contract bytes down** is satisfied most cheaply by moving the text into a fragment
+  every command includes, or a nested file every directory loads — still loaded every turn. Counter:
+  the measure is the bytes an agent actually loads per turn, contract plus rendered command, not the
+  size of one file. Moving text to a genuinely on-demand file is the outcome, not a cobra.
+- **Corpus bytes down** is satisfied most cheaply by moving text into a doc the weight check does
   not read. Counter: `check_corpus_weight.py` measures four surfaces as directory aggregates; the
   escape is `docs/reference/` and `docs/workstation/`, named here so the next reader can grep it —
   and this document lives in `docs/reference/`, so it is itself inside its own blind spot.
@@ -611,7 +627,7 @@ late-round defects to zero by finding fewer defects overall is the failure mode,
 
 ## 7. Evidence, populations and bounds
 
-Every figure above comes from one of five sources, each named with its population and its bound.
+Every figure above comes from one of six sources, each named with its population and its bound.
 
 | Source | Population | Bound |
 |---|---|---|
@@ -620,7 +636,7 @@ Every figure above comes from one of five sources, each named with its populatio
 | Run records `~/.claude/state/command-runs/*.json` | 27 records, 19 with a round series | older records are deleted; only their ledger row survives |
 | Seat transcripts in session scratch | 814, 6 repos | only since the last scratch sweep |
 | Git history of `commands/` and `CLAUDE.md` | full month | none |
-| The tool author's talk, `/opt/youtube/output/XFYUKBPfUMw_transcript.txt` | 5,589 words, one speaker + Q&A | a transcript, not a spec — quotes are verbatim, the mapping in § 4.6 is this document's reading |
+| The tool author's talk, `/opt/youtube/output/XFYUKBPfUMw_transcript.txt` | 5,589 words, one speaker + Q&A | a transcript of speech, not a spec — quotes are verbatim up to disfluencies (*um*, repeated words) and are never reordered; the mapping in § 4.6 is this document's reading |
 
 **What is NOT covered.** 4,725 sessions predate 2026-09-01 and carry no per-command trace; most are
 `youtube` and scratch sessions rather than command runs. That era ran a different convergence bar
@@ -631,7 +647,7 @@ Every figure above comes from one of five sources, each named with its populatio
 classifier over the 335 `waste:` and `confusion:` fields and are indicative only — one verdict can
 match two classes. The QUOTES are verbatim and are the evidence; the counts are the ranking.
 
-### 7.1 How § 4.1's figures were derived (revision 2)
+### 7.1 How the figures were derived
 
 Reproducible against the same snapshot, so the root cause can be refuted rather than believed.
 
@@ -646,14 +662,14 @@ Reproducible against the same snapshot, so the root cause can be refuted rather 
 | size-stratified prose vs code (rev. 3) | size proxy = `tok_out + tok_seat_out`, quartiles over the 232 prose+code rows carrying it; ⚠️ the proxy grows with rounds, so this bounds the confound rather than removing it — the ledger records no surface size |
 | noise rate and its decay (rev. 3) | the 248 rows whose `findings` and `confirmed` lists are equal-length and all-int; per-round rate = Σ confirmed / Σ findings at that round index, rounds 10+ pooled |
 | positive control (rev. 3) | prose rows with a clean confirmed series (62), `len ≤ 3` and `confirmed[-1] == 0` → 9; the command of each read off the row |
-| terminal-condition census (rev. 5) | `~/.claude/state/command-runs/*.json` on disk → 27 records carrying a `terminal` field; 25 match a process-vocabulary regex (confirmed · quiet · round · gate · converge · receipt · commit · pass …), the 2 non-matches read by hand name internal build state; older records are DELETED and the surviving ledger row carries no `terminal`, so 27 is the whole readable population, not a sample of 335 |
+| terminal-condition census (rev. 5, re-read rev. 6) | `~/.claude/state/command-runs/*.json` on disk → 27 records carrying a `terminal` field; 25 match a process-vocabulary regex (confirmed · quiet · round · gate · converge · receipt · commit · pass …) — that set INCLUDES executable process checks such as `gate green` and `docs_updater --check green`, which is why the claim is "none names a check of the delivered thing", not "none names a tool"; the 2 non-matches, read by hand, name internal build state; older records are DELETED and the surviving ledger row carries no `terminal`, so 27 is the whole readable population, not a sample of 335 |
 | CLAUDE.md census (rev. 4) | `find /opt -type f -name CLAUDE.md` excluding `.claude/worktrees/`, `.tmp/`, `node_modules/` → 70 (+177 worktree copies); grouped by md5 → 47 identical to the template, 23 others, of which 20 are archived/vendored/stubs; sizes by `stat -c %s`; no `~/.claude/CLAUDE.md` exists |
 | load-vs-cost (rev. 4) | bytes = `~/.claude/commands/fabrik-*.md` (the RENDERED file an agent loads); commands with ≥ 4 closes → 11; median `wall_s/60` per command; Pearson r over log(bytes) vs log(median minutes) → +0.64; not a causal claim, a direction — the ledger records no surface size (§ 4.1) |
 | ADD-verb count (rev. 3) | the five clauses cited in § 4.3 by `CLAUDE.md` line; the negative is bounded to `CLAUDE.md` at HEAD (605 lines), `grep -n "retire\|delete\|remove"` → 15 lines, each read: a class retiring inside the loop (`:39`), "retirement" as a decision type (`:138`, `:320`), the volume-deletion ban (`:288`), file-removal doc-sync triggers (`:304`, `:314`, `:318`), scratch cleanup (`:369`), recipe prose — none an obligation to retire text |
 
 **Two bounds on all of it.** (1) `confirmed` is written by the agent running the loop, so a run
 that under-reports its confirmations looks convergent — the numbers describe what was RECORDED, and
-§ 5's items 2 and 3 exist partly to make the record harder to write falsely. (2) The hot-close
+§ 5 replaces the recorded count with a tool's own output, which is harder to write falsely. (2) The hot-close
 count cannot distinguish an abandoned run from one whose final fixes were applied after the last
 recorded round; § 4.1 rests on that ambiguity being unresolvable, not on every one of the 71 being
 an abandonment.
