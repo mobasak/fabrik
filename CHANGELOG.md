@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — hub CLAUDE.md: lean pass 2d — the universal-markers index, every anchor kept (D-331, 2026-09-21)
+
+- § UNIVERSAL governance markers 5,682 → 4,585 B; the 14 labels and anchors parse identically for
+  fabrik-lib's drift check, every why kept, incident parentheticals removed; hub file 100892 B.
+
 ### Changed — both contracts: lean pass 2c — the denominator HARD STOP row, every shape kept (D-331, 2026-09-21)
 
 - One text for both contracts, 8,684 / 8,497 → 5,160 B; the seven masks of a bound, the shim-grep rule and

@@ -362,8 +362,7 @@ These rules are **universal** — they bind every repo on the box (hub · the ~4
 repos like `fabrik-lib`), whatever each repo's local governance customizes. Each has a **load-bearing anchor
 phrase that must survive rewording**: a sync-excluded repo's `/opt/fabrik-lib/scripts/enforcement/check_governance_drift.py`
 reads THIS hub file (`/opt/fabrik/CLAUDE.md`) and flags (advisory, never a hard fail) any anchor present here
-but missing from its own `CLAUDE.md` — turning silent governance drift into a gate warning BEFORE it poisons a
-shared tree (the fabrik-lib stale commit-push incident, 2026-08-12).
+but missing from its own `CLAUDE.md` — silent governance drift becomes a gate warning BEFORE it poisons a shared tree.
 
 - `commit-at-task-end` — anchor **COMMIT your own work NOW** — stage-and-stop poisons a shared-master tree with dirty WIP
 - `push-at-task-end` — anchor **PUSH it** — an unpushed task is off-box-unprotected
@@ -371,25 +370,22 @@ shared tree (the fabrik-lib stale commit-push incident, 2026-08-12).
 - `provenance-trailers` — anchor **Agent Provenance Trailers** — git cannot otherwise attribute a commit to an agent
 - `no-force-push` — anchor **NEVER `--force`** — a force-push on a shared branch destroys sibling commits
 - `proxy-never-evidence` — anchor **EXECUTE the real check** — a cheap proxy is navigation, never the basis of a completion claim when the real check can be run
-- `denominator-honesty` — anchor **A bounded search returns "not found in N"** — a count, ratio or negative without its denominator is indistinguishable from having looked at nothing (originated at fabrik-lib, four wrong numbers in two days; re-proven by the trade-intelligence quantifier escape 2026-08-29)
-- `decision-ledger` — anchor **its row in `docs/DECISIONS.md` in the SAME change** — a decision made or received and never recorded is re-litigated or reconstructed by hunt; the ledger is also queried FIRST on any where-is/did-we-decide question (operator directive 2026-08-30)
-- `operator-decision-bar` — anchor **`NEXT: operator decision` HAS A BAR** — it was the only sanctioned exit with no gate on it (`BLOCKED:` has three named causes; a named command obliges you to run it), so it became the lowest-friction legal way to stall; legitimate ONLY on a contractual human gate, an underivable answer, or a decision the operator already owns — never a menu, never your own uncertainty (operator directive 2026-08-31)
-- `doc-script-coupling` — anchor **The header is the only hand-written half** — a doc and a script must point at each other, but from ONE declaration: the script's `# AFTER-EDIT:` header is written by hand and the doc's `## Related scripts` block is rendered from it, because two hand-kept lists drift and the stale one is indistinguishable from the current one (hub, 2026-09-06: a doc restating another file's values had BOTH of them stale, one changed that same day)
-- `review-after-change` — anchor **EVERY code-changing chunk of work gets a review-family pass** — a change reviewed only by its author is unreviewed; the Stop hook enforces it PER CHANGE (code authored after the last closed command owes `/fabrik-review-scoped` or `/fabrik-review`), because a per-session exemption let one morning record license ten unreviewed commits (hub, 2026-09-06)
-- `final-output-block` — anchor **last 7 lines of every task-completing response** — every repo's agents close a task-completing response with the SAME seven lines (GATE · DOCS UPDATED · CHANGELOG · LESSONS LEARNT · DONE · NEXT · FEEDBACK); a contract that trims one line ships a different definition of done, and the Stop hook (fleet-synced) refuses a closing block that carries three or more of the seven keys but not all (operator directive 2026-09-07, D-173)
-- `clean-own-scratch` — anchor **CLEAN your own scratch** — a session's scratch is disposable by contract and nobody else may delete it blindly, so the owner sweeps it at task end and the janitor takes only DEAD sessions (operator directive 2026-09-08)
-- `cobra-effect` — anchor **you get the behavior you measure** — a metric is an intervention, so for every gate, ratchet, counter, target or score the repo introduces, the cheapest way to satisfy it WITHOUT producing the outcome is written down in the same change, and a counter-measure (or a different measure) ships with it when that way is cheaper than the work; a repo that counts something and never asks what the count rewards gets the counted behaviour instead of the wanted one (operator directive 2026-09-14, D-253; measured at D-252 and the lint-ratchet re-seed)
+- `denominator-honesty` — anchor **A bounded search returns "not found in N"** — a count, ratio or negative without its denominator is indistinguishable from having looked at nothing
+- `decision-ledger` — anchor **its row in `docs/DECISIONS.md` in the SAME change** — a decision made or received and never recorded is re-litigated or reconstructed by hunt; the ledger is also queried FIRST on any where-is/did-we-decide question
+- `operator-decision-bar` — anchor **`NEXT: operator decision` HAS A BAR** — the one sanctioned exit with no gate on it (`BLOCKED:` has three named causes; a named command obliges you to run it) is the lowest-friction way to stall; legitimate ONLY on a contractual human gate, an underivable answer, or a decision the operator already owns — never a menu, never your own uncertainty
+- `doc-script-coupling` — anchor **The header is the only hand-written half** — a doc and a script point at each other from ONE declaration: the script's `# AFTER-EDIT:` header is written by hand and the doc's `## Related scripts` block is rendered from it, because two hand-kept lists drift and the stale one is indistinguishable from the current one
+- `review-after-change` — anchor **EVERY code-changing chunk of work gets a review-family pass** — a change reviewed only by its author is unreviewed; the Stop hook enforces it PER CHANGE (code authored after the last closed command owes `/fabrik-review-scoped` or `/fabrik-review`), never per session
+- `final-output-block` — anchor **last 7 lines of every task-completing response** — every repo's agents close a task-completing response with the SAME seven lines (GATE · DOCS UPDATED · CHANGELOG · LESSONS LEARNT · DONE · NEXT · FEEDBACK); a contract that trims one line ships a different definition of done, and the Stop hook (fleet-synced) refuses a closing block that carries three or more of the seven keys but not all (D-173)
+- `clean-own-scratch` — anchor **CLEAN your own scratch** — a session's scratch is disposable by contract and nobody else may delete it blindly, so the owner sweeps it at task end and the janitor takes only DEAD sessions
+- `cobra-effect` — anchor **you get the behavior you measure** — a metric is an intervention, so for every gate, ratchet, counter, target or score the repo introduces, the cheapest way to satisfy it WITHOUT producing the outcome is written down in the same change, and a counter-measure (or a different measure) ships with it when that way is cheaper than the work (D-253)
 
 **Adding a universal rule:** write it in § EXIT / § HARD STOPS with its anchor, then add a bullet here —
-fabrik-lib's `check_governance_drift.py` PARSES this list from the hub file (ruling `01KZXM0XA6` made the
-hub's list canonical; the parse-hardening came later, after `proxy-never-evidence` had to arrive by mail),
-so a new bullet propagates to the drift check without editing any sync-excluded repo's script.
+fabrik-lib's `check_governance_drift.py` PARSES this list from the hub file (the hub's list is canonical), so a
+new bullet propagates to the drift check without editing any sync-excluded repo's script.
 **Never reword an anchor in place** — detectors key on the exact substring; reword the surrounding prose
 freely, keep the anchor verbatim. ⚠️ **Exact means CASE-exact, so an anchor is written lowercase and
 MID-sentence in the rule that carries it** — opening a sentence with it capitalises the first letter and
-the check reports the rule MISSING while it is plainly there, which reads as a broken detector rather than
-a capital letter (reproduced on a copy of fabrik-lib's `CLAUDE.md` 2026-09-14: capitalise the anchor, the
-drift check prints `missing: cobra-effect`; fabrik-lib hit it adopting that anchor in good faith).
+the check reports the rule MISSING while it is plainly there.
 
 ## Past sessions are searchable (session-recall)
 
