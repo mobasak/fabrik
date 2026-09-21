@@ -4683,3 +4683,20 @@ was correcting rather than closing it.
 Owner: whoever next touches `scripts/sysadmin/agent_memory.sh`. Destination: a `/fabrik-task` —
 one `_is_num` guard on `live`, and one grader using a `\012`-named device fixture. Both are small;
 they are routed only because the loop that found them had stopped being able to judge its own work.
+
+## [fleet] `fabrik fix` seeds every project from the python-api template map unless `--type` is passed (2026-09-22)
+
+Found by the /fabrik-doc-converge closing seat over `docs/workflows/SCAFFOLD_STRUCTURE.md` (round 4, the
+substance behind a doc wording defect). `scaffold.py::fix_project` takes `project_type: str = "python-api"`
+(`:6278`) and builds `combined_template_map` from SHARED_TEMPLATE_MAP plus `_PYTHON_API_TEMPLATE_MAP` when
+that equals `python-api` (`:6292-6293`). Its only caller, `cli.py::fix` (`:1964-1972`), feeds it a `--type`
+option whose default is also `python-api`; `project.yaml` is read inside `fix_project` only for the
+`has_user_guide` backfill (`:6559`) and never reaches the map. So `fabrik fix /opt/<saas-skeleton project>`
+with no `--type` seeds missing files from the FULL python-api map, and a saas type's real `server/` FastAPI
+files (laid by `_scaffold_fastapi_backend` from `_scaffold_saas_backend`, `:3251`) are never re-seeded.
+Executed 2026-09-22.
+
+Owner: fleet (scaffolding). Destination: a `/fabrik-task` — read `type` from `project.yaml` when `--type` is
+absent (refuse when neither exists), carry the type's real map and prefix, plus one grader: scaffold a
+`saas-skeleton` fixture, delete one `server/` file, run `fix_project` with no `--type`, assert it is back
+and no python-api file appeared. Mailed to fleet from the converge close.
