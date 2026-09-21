@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — command-loop-performance.md revision 6: the root cause grounded in the tool author's design stance (2026-09-21)
+
+- **§ 4.00 new — the ground under revision 5's cause.** This repo built a thick apparatus on a tool
+  whose author says the apparatus should be as thin as possible; the apparatus replaced the person
+  and the feedback tool, so it can only measure itself — which is why "done" became process
+  compliance (§ 4.0, kept as the mechanism). D-325.
+- **§ 4.6 new — the source.** The talk by Claude Code's creator, read three times on the operator's
+  instruction, laid out as the ladder of trust it is, each rung against what this repo does instead.
+- **§ 5 rewritten as the author's method:** a short file · a real feedback tool Claude runs itself ·
+  a person who approves the plan and interrupts freely · two or three iterations · done. The review
+  family is retired as a correctness mechanism, not perfected. **§ 6** gains the review-family share
+  (57% → under 15%) and re-keys the first row to the feedback tool; **§ 7** lists the transcript as a
+  source with its bound.
+
 ### Changed — command-loop-performance.md revision 5: the root cause the operator confirmed, and a one-sentence program (2026-09-21)
 
 - **§ 4.0 now leads with the real root:** "done" is defined as process compliance and never as an

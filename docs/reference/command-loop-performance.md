@@ -1,8 +1,13 @@
 # Command loop performance — what we aim for, what it costs, and the program to fix it
 
-**Status:** DRAFT § 5 — one sentence, awaiting the operator's ruling. The root cause in § 4.0 is the
-one the operator confirmed 2026-09-21 (*"ok good"*, D-324). Revision 4's five cuts are kept in § 5 as
-what follows from it, not as the program.
+**Status:** DRAFT § 5 — awaiting the operator's ruling. The root cause is now grounded in how the
+tool's author says it is meant to be used (§ 4.00, § 4.6, D-325), read on the operator's instruction
+three times until comprehended rather than mined.
+**Revision 6 (2026-09-21, after the operator's *"reread and comprehend it now"*, three times):** the
+root cause gains its ground. Revision 5 said *done is process compliance*; that is true and it is
+what the apparatus produces. Under it: **we built a thick apparatus on top of a tool whose author
+says the apparatus should be as thin as possible — because the value is in the model and the model
+is moving.** § 4.00 states it, § 4.6 carries the source, § 5 is rewritten as his method.
 **Revision 5 (2026-09-21):** the root cause goes one level further down than revision 4 — not the
 load, but what the load was built to serve: **"done" is defined as process compliance, never as an
 outcome the operator can see.** § 4.0 is rewritten to lead with it; the load (rev. 4) and the loop
@@ -184,7 +189,43 @@ loaded in that session, in a `CLAUDE.md` that had tripled in size over the month
 
 ## 4. Why
 
-### 4.0 The root cause — "done" is process compliance, not an outcome the operator can see
+### 4.00 The ground — we built an apparatus on a tool designed to need almost none
+
+The person who built Claude Code gave a talk on how to use it (§ 4.6, the primary source for this
+section). It is not a list of tips. It is a design stance, and it is the opposite of what this repo
+did:
+
+- *"There's nothing in the system prompt about looking through git history. It knows it because the
+  model is awesome."* — said three times, about git, about commit/push, about tools. **Do not tell the
+  model what it already knows.**
+- *"Try to keep it as short as you can... if it gets too long, it's just going to use up a bunch of
+  context and it's usually not that useful."* — on `CLAUDE.md`. Theirs: bash commands, a style guide,
+  a few core files. Everything else on demand. **More context, thinner always-on file.**
+- *"Give it some sort of tool that it can use for feedback to check its work... if you let it iterate
+  two or three times, often it gets it almost perfect... it will iterate by itself."* — tests, a
+  screenshot, a probe. **Correctness comes from a tool that touches reality, run by Claude itself,
+  during the work.** He describes no reviewer, no convergence, no rounds.
+- *"Before you write code, make a plan, run it by me."* and *"anytime, no matter what Claude is doing,
+  you can always safely hit escape... I'll tell it that and tell it to redo the edit."* — **the person
+  approves the shape once and interrupts freely.** That is the judgement loop: a glance, not a panel.
+- *"We want to avoid over-investing in UI and other layers on top, given the way the models are
+  progressing — it may not be useful work pretty soon."* — **Layers on top of the model are the thing
+  not to build.**
+
+This repo built the layers. A 134 KB always-on contract, 2.8 MB of rendered commands, run records,
+seat panels, coverage checkers, a feedback ledger, a kaizen loop, a lane table, hooks on hooks — and
+a review family that is **57% of all recorded hours**, every command in it a model judging another
+model's prose. None of that is in the tool's design. It was built to replace two things the design
+relies on and this repo removed: **the person** (rules were written against consulting them, because
+stalls were frustrating) and **the feedback tool** (a test, a screenshot, a probe that Claude runs
+itself). An apparatus built to replace a person and a tool can only measure itself — which is why
+its definition of *done* became the one in § 4.0, and why a month spent perfecting it made things
+worse. The author's stance says: do not perfect it. Remove it, and put the person and the tool back.
+
+### 4.0 The mechanism — "done" is process compliance, not an outcome the operator can see
+
+*What the apparatus of § 4.00 produces, necessarily: it can see only itself, so it measures only
+itself.*
 
 **Every run in this system ends when its process is satisfied, and nothing checks whether the
 operator got what they asked for.** The Stop hook releases a turn when the run record is closed,
@@ -457,34 +498,65 @@ is about.
   density is a candidate, not a cause, and this document does not spend a program item on it until
   items 1–3 have moved the metrics they target.
 
+### 4.6 The tool's author on how it is meant to be used — the source for § 4.00
+
+Read on the operator's instruction 2026-09-21, three times — the first two readings mined it for
+quotes agreeing with revisions 4–5; the third read it as what it is. Transcript:
+`/opt/youtube/output/XFYUKBPfUMw_transcript.txt` (5,589 words; the speaker introduces himself as
+Boris, member of technical staff at Anthropic, who created Claude Code).
+
+The talk is a **ladder of trust**, one rung per section, and the rungs are the method:
+
+| Rung | What he says | What this repo does instead |
+|---|---|---|
+| 1 · Ask first | Day-one Q&A on the codebase; it *"teaches the boundary: what can be one-shotted, two-shotted, three-shotted."* The person learns the model's envelope by using it. | Sizing is computed by a gate that counts files; the person has been one remove away, behind commands and agents, for a month. |
+| 2 · Then edit | Three tools; the one failure he names is *"the thing it builds is not at all the thing you wanted"* and the fix is upstream: *"make a plan, run it by me."* | A 10.2-hour spec chain before a line is written, then review downstream. |
+| 3 · Give it a feedback tool | Tests, screenshots — *"then it can iterate... two or three times... by itself."* | Reviews that end when a reader is quiet — 30 rounds, 0 of 27 runs with a terminal anyone can run. |
+| 4 · More context, short file | *"The more context, the smarter the decisions"* — and `CLAUDE.md` *"as short as you can"*; nested files, slash commands and `@`-mentions pulled in **on demand**. | 134 KB every turn; the actual context — code, tests, the running thing — reached only through a seat's report. |
+| 5 · Share once | One project file, one `.mcp.json`, one permissions allow-list — *"write it once and everyone benefits."* | 47 copies of a 128 KB file, synced on every commit that touches it. |
+| 6 · Steer constantly | Shift-tab, `#`, escape — *"you can always safely hit escape"*, *"19 of 20 lines look perfect, change one."* Interruption is the normal mode. | Rules against mid-run asks; `NEXT: operator decision` has a bar; the operator's interruptions today were the only thing that reached the cause. |
+| 7 · Then headless | `claude -p` as *"a super intelligent Unix utility"* — pipe a log in, JSON out; CI, incidents, labelling. Small, bounded jobs. | Autonomous multi-hour runs. |
+| 8 · Then many | Worktrees, tmux; *"I'm a Claude normie — one at a time."* | Three concurrent sessions plus a pipeline, from the start. |
+| Q&A · Layers | *"Avoid over-investing in UI and other layers on top... it may not be useful work pretty soon."* | 2.8 MB of layers. |
+
+The two things missed on the first two readings: the warning about layers (it sits in an answer
+about IDEs, not in the tips), and that *"keep it short"* is not *"less context"* — it is **more
+context, delivered lazily, with a thin always-on file.** This repo inverted both.
+
 ---
 
-## 5. The program
+## 5. The program — use the tool the way it is designed
 
-**Every task begins with the one check the operator can run to see it worked, and ends when that
-check passes. Nothing else is mandatory.**
+**A short file. A real feedback tool Claude runs itself. A person who approves the plan and
+interrupts freely. Two or three iterations. Done.** That is the author's method (§ 4.6), and it is
+the program. Nothing in it needs a reviewer, a ledger, a seat panel or a convergence bar; those were
+built to replace the person and the tool, and they are removed rather than perfected.
 
-That is the whole program. A spec is done when it answers the questions the operator would ask
-before letting it be built — written at the top, in their words, before anyone reviews it. A change
-is done when the operator can run the thing and it does what they asked. A review is done when
-those checks pass, not when a reader is tired. Every rule that does not help that check pass is
-visibly dead weight and goes; the load falls because it has nothing to justify itself against; the
-reviews end because the target is finite and stated by someone other than the reviewer; the runs get
-shorter because the agent knows from the first minute what it is aiming at.
+Applied to this repo, in the author's own order:
 
-### 5.1 What follows from it, not the program
+1. **Put the feedback tool back.** Every project names the thing Claude runs to see its result —
+   the test suite, the screenshot harness (`fabrik-gui` + Playwright already exist), a probe against
+   the running service. A task is done when that passes. A task with no such tool gets one before it
+   gets a reviewer.
+2. **Put the person back.** The plan is a paragraph and the operator says yes to it; the operator
+   interrupts whenever they like and that is not a stall. The rules that say otherwise go.
+3. **Thin the always-on file.** The three `CLAUDE.md`s to a page each — what the author's is: the
+   commands, the style, the few core files, the HARD STOPS that guard against data loss. Everything
+   else becomes on-demand: nested files where they apply, slash commands when invoked. The
+   executable guards — hooks, gates — stay, because they are tools, not prose.
+4. **Retire the review family as a correctness mechanism.** `/fabrik-review-scoped` survives as the
+   one short pass a person would want; the spec-review, plan-review, docs-review and data-contract
+   loops are replaced by the feedback tool of item 1 and the plan approval of item 2.
+5. **Stop building layers.** No new mechanism, ledger, ratchet or rule for the loop. The model is
+   moving; the author says the layers are the wasted work.
 
-Revision 4's five cuts — the contract to ≤ 25 KB, each command to its spine, the artifacts capped,
-the five mandatory additions per fix deleted, the dead copies removed — are what the sentence
-above produces when applied to the corpus. They are listed in the git history of this file at
-`e16a4f2a3` and are not restated here, because restating them as a program would be revision 4's
-mistake again: treating the consequence as the cause. Do the sentence; the cuts follow.
+### 5.1 What stood here before
 
-### 5.2 What stood here before
-
-Revision 1: a round cap — refused by the operator (D-321). Revisions 2–3: six additive mechanisms —
-item 1 approved (D-322), all six withdrawn by the author (D-323). Revision 4: five subtractive cuts —
-kept as § 5.1, demoted. Each was the layer just above the real one.
+Revision 1: a round cap (refused, D-321). Revisions 2–3: six additive mechanisms (D-322, withdrawn
+D-323). Revision 4: five byte cuts (demoted). Revision 5: one sentence — *the one check the operator
+can run* — close, but with the wrong runner and the wrong moment: the check is Claude's, during the
+work, against reality; the operator approves the shape and sees the result. Each revision was one
+layer of the apparatus looking at the layer beneath it.
 
 ---
 
@@ -496,7 +568,8 @@ without the first one having moved is a symptom treated, not a cause.
 
 | Metric | Baseline | Target |
 |---|---:|---|
-| **Runs whose terminal condition is a check the operator can run** | **0 of 27** | every run |
+| **Runs whose terminal condition is a feedback tool Claude ran itself** (a test, a screenshot, a probe) | **0 of 27** | every run |
+| **Review-family share of all hours** | 456 of 803, **57%** | under 15% |
 | **Closes that ran to a quiet round** (terminal condition actually met) | 78 of 191, **41%** | over 90% |
 | **Closes `done` with defects still confirmed at the last round** | **71** (452 defects standing) | 0 |
 | **Confirmed defects found at round 4 or later** | 2,168 of 6,919, **31%** | under 10%, with the total NOT falling |
@@ -547,6 +620,7 @@ Every figure above comes from one of five sources, each named with its populatio
 | Run records `~/.claude/state/command-runs/*.json` | 27 records, 19 with a round series | older records are deleted; only their ledger row survives |
 | Seat transcripts in session scratch | 814, 6 repos | only since the last scratch sweep |
 | Git history of `commands/` and `CLAUDE.md` | full month | none |
+| The tool author's talk, `/opt/youtube/output/XFYUKBPfUMw_transcript.txt` | 5,589 words, one speaker + Q&A | a transcript, not a spec — quotes are verbatim, the mapping in § 4.6 is this document's reading |
 
 **What is NOT covered.** 4,725 sessions predate 2026-09-01 and carry no per-command trace; most are
 `youtube` and scratch sessions rather than command runs. That era ran a different convergence bar
