@@ -655,6 +655,12 @@ an abandonment.
 
 ## 8. Revision history
 
+### 8.1 Progress on § 5 — one line per step as it lands
+
+| Step | Landed | Commit | Result |
+|---|---|---|---|
+| 1a · hub `CLAUDE.md` cut, pinned spans verbatim | 2026-09-21 | `a6f42dafa` (D-326) | 134,466 → 82,296 B; 51 test files green bar 4 pre-existing failures named in D-326; the ~57 KB of grader-pinned spans wait on 1b |
+
 All on 2026-09-21. Each revision is one layer further down than the last; the operator refused every one until § 4.00.
 
 **Revision 1 (2026-09-21):** the first draft — a diagnosis leading with *the fix between rounds is the next round's defect* and a five-item program headed by a hard round cap. Commit `93dba9a39`.
