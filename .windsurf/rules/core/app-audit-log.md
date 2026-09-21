@@ -59,8 +59,7 @@ The action string is a dotted identifier `<domain>.<verb>` (lowercase, snake_cas
 ⚠️ The three `auth.passwordless_*` rows below are additive, not optional: the default IdP
 (`fabrik-lib/fastapi-user-auth`) already WRITES `action="auth.passwordless_login"` in its router.
 Without them a vendored module violates this closed vocabulary by construction, and the vendoring
-project cannot fix it — `.windsurf/rules/` is synced and `check_synced_unmodified.py` correctly
-blocks the local edit (transdoc, 2026-08-28). `binding_mismatch` is a named refusal reason on
+project cannot fix it — `.windsurf/rules/` is synced and `check_synced_unmodified.py` correctly blocks the local edit. `binding_mismatch` is a named refusal reason on
 purpose: an approval link opened in a browser that never requested the login must leave its own
 audit trace.
 

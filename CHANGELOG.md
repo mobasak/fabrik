@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — .windsurf/rules/core: lean pass 3e — self-healing, app-audit-log, 30-ops, every rule kept (D-331, 2026-09-21)
+
+- Incident narrative removed (self-healing 16,156 → 15832 B, app-audit-log 13,321 → 13298 B, 30-ops 32,611 → 31327 B);
+  every rule, checklist item and pinned literal kept; synced fleet-wide.
+
 ### Changed — commands/_sources: lean pass 3d — fabrik-review, fabrik-plan-after-chat, fabrik-spec, every rule kept (D-331, 2026-09-21)
 
 - Twenty-two incident-provenance spans removed (fabrik-review 59,699 → 58954 B, plan-after-chat 70,253 → 69509 B,

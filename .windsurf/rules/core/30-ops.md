@@ -14,7 +14,7 @@ trigger: glob
 **Activation:** Glob `**/Dockerfile`, `**/compose.yaml`, `**/compose.yml`
 **Purpose:** Docker standards, deployment, infrastructure
 
-> **Deploy = SSH + Docker Compose via `fabrik apply`. The Docker network is `fabrik`** (renamed from `coolify` 2026-05-31; `fabrik apply` REJECTS a compose that declares the old `coolify` network). No Coolify UI/API is in the loop — `fabrik` SSHes to the VPS and runs `docker compose`.
+> **Deploy = SSH + Docker Compose via `fabrik apply`. The Docker network is `fabrik`** (`fabrik apply` REJECTS a compose that declares the old `coolify` network). No Coolify UI/API is in the loop — `fabrik` SSHes to the VPS and runs `docker compose`.
 
 ---
 
@@ -78,7 +78,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
-COPY . .
+COPY ..
 
 # Port fixed at build (Traefik routes by label). CMD + HEALTHCHECK use the SAME literal.
 # Target /healthz — the DEP-FREE liveness probe (10-python § health split): a DB blip must
@@ -109,7 +109,7 @@ All services deploy via `fabrik apply` (SSH + Docker Compose) on the `fabrik` ne
 ```yaml
 services:
   api:
-    build: .
+    build:.
     platform: linux/amd64
     environment:
       - DATABASE_URL=postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-main:5432/${DB_NAME}
@@ -212,30 +212,24 @@ claim about RUNTIME, not a config value** — the registrar believes it and wire
 - [ ] **`exposes_metrics: true` ⇒ the metrics path actually SERVES.** The prometheus registrar scrapes
       `monitoring.metrics_path` (default `/metrics`); a wrong or unenabled path produces a job that
       404s forever while `fabrik apply` reports success — `_provision_prometheus` swallows failures as
-      non-fatal and `add_scrape_target` only means "job appended to file". *Measured: zitadel declared
-      `exposes_metrics: true` with `metrics_path: /debug/metrics`, served neither, and its target sat DOWN
-      with `ServiceUnhealthy` firing for 2.5 days before anyone asked.* Verify the built image serves the
+      non-fatal and `add_scrape_target` only means "job appended to file".  Verify the built image serves the
       path before the flag goes in the spec, and assert target health (`/api/v1/targets` → `up`), never a
       bare `curl` of a path you assumed.
 - [ ] **`has_persistent_data: true` ⇒ name WHERE the data actually lives.** The backrest registrar
       hardcodes `paths = [/opt/<name>/data]` regardless of reality, so a service persisting to a NAMED
       VOLUME gets a plan pointed at a directory that never exists — a paper backup that reads green and
-      archives nothing. *Measured: `/opt/zitadel/data` is absent while the `zitadel-data` plan points at
-      it.* If the data is a volume, say so in the spec comment and rely on the global `docker-volumes`
+      archives nothing.  If the data is a volume, say so in the spec comment and rely on the global `docker-volumes`
       plan; never let a service-named plan be mistaken for the protection.
 - [ ] **Cold start: does the datastore initialise ITSELF?** Read the base image's entrypoint, the compose
       `command:`, and any baked init script — do not assume. If nothing initialises the schema, a
       health-enabled service can NEVER pass `up -d --wait` on a fresh database, and the deploy hangs to
-      timeout. *Measured: trytond bakes an init script but sets no `command:`, and its base entrypoint is
-      a bare `exec "$@"`.* An init the deploy cannot perform itself is a runbook step the plan MUST own.
+      timeout.  An init the deploy cannot perform itself is a runbook step the plan MUST own.
 - [ ] **A credential GENERATED during init goes stale the instant it is generated.** If a bootstrap script
       mints and prints a password, the value already in `.env` no longer matches — the service authenticates
       against nothing. Name the propagation step, or make the script consume the existing value.
 - [ ] **Check the shared `fabrik` network for NAME and ALIAS collisions before naming a service.** The net
       is flat and shared fleet-wide; a name another stack already owns silently resolves to THEIR container.
-      *Measured: a standalone `gotenberg` owns both the name and the alias, so a stack's own renamed
-      `crm-gotenberg` still had to be pointed at explicitly — the code default would have hit the
-      basic-auth'd neighbour and 401'd.*
+
 - [ ] **First-boot DSN ordering.** The registrar injects `DATABASE_URL` POST-deploy, so a container that
       needs a real DSN at first boot crashes before it arrives. Either set `deploy.db_before_boot: true`
       (which pre-provisions via `create_database`, and therefore also registers the per-DB backup plan and
@@ -292,7 +286,7 @@ The fleet is a **vps1 hub + vps2/vps3 spokes**. `fabrik apply` / `plan` / `redep
 
 Spokes are full deploy targets, not standby boxes — a spoke-targeted service runs its container on the spoke but **wires back to the shared vps1 data plane** over the WireGuard mesh. Those shared backing services always live on vps1 regardless of `target_vps`; only the app container moves. **The connection host differs by target — WireGuard routes IP packets but carries NO DNS, so the `*-main` Docker-DNS names SERVFAIL on a spoke:** a vps1 app reaches them by name (`postgres-main:5432`, `redis-main:6379`, `glitchtip-web:8000`) over the local `fabrik` bridge; a spoke app reaches them at vps1's **mesh IP** (`10.99.0.1:5432` / `:6379` / `:8000`, published mesh-only, same ports). The infra registrar picks the right host automatically from `target_vps` and injects it into `DATABASE_URL` / `REDIS_URL` / `SENTRY_DSN` — the app needs no special config. Source of truth: `docs/infrastructure/vps-urls.md` § Mesh URLs.
 
-**Place a service next to its data.** A spoke-hosted service reaches `postgres-main`/`redis-main` over the WireGuard mesh, and that hop is cross-Atlantic (Coventry ↔ LA) on EVERY query — a per-request chatty service pays it hundreds of times per page. So a DB-chatty service targets vps1; a spoke earns a service whose data traffic is light, batched or cached; a service PINNED to a spoke by hardware (GPU) batches or caches its data access — the data never moves off vps1. Measure before choosing (`ping 10.99.0.1` from the spoke, and the request's query count), never assume — the correctness rule ("container DNS, never localhost") says nothing about latency (web-ecommerce-factory 01M1Q8X9, 2026-09-05).
+**Place a service next to its data.** A spoke-hosted service reaches `postgres-main`/`redis-main` over the WireGuard mesh, and that hop is cross-Atlantic (Coventry ↔ LA) on EVERY query — a per-request chatty service pays it hundreds of times per page. So a DB-chatty service targets vps1; a spoke earns a service whose data traffic is light, batched or cached; a service PINNED to a spoke by hardware (GPU) batches or caches its data access — the data never moves off vps1. Measure before choosing (`ping 10.99.0.1` from the spoke, and the request's query count), never assume — the correctness rule ("container DNS, never localhost") says nothing about latency.
 
 ---
 
@@ -357,8 +351,6 @@ Docker bypasses UFW by inserting NAT rules in `PREROUTING`/`FORWARD` chains. The
 | Allow ports 80, 443 | Traefik front door |
 | DROP all other external traffic | Blocks raw port access to containers |
 
-(The legacy Coolify Realtime ALLOW rules for 6001/6002 were removed in the 2026-05-31 cleanup sweep — Coolify is decommissioned.)
-
 **Invariant:** Never use `ports:` in compose.yaml to expose internal services to the host. All external traffic must go through Traefik.
 
 **Exception:** Only Traefik (80/443) may bind to host ports.
@@ -374,7 +366,7 @@ All admin dashboards are protected by Authelia (`auth.vps1.ocoron.com`) via Trae
 | Category | Auth Mechanism | Examples |
 |----------|---------------|----------|
 | Public | None (bypass) | `ocoron.com`, `status.vps1.ocoron.com` |
-| Admin dashboards | Authelia (2FA) | `auto` (n8n), `monitor` (Grafana), `backup` (Backrest), `notify` (Netdata removed 2026-05-30 → Grafana/cAdvisor) |
+| Admin dashboards | Authelia (2FA) | `auto` (n8n), `monitor` (Grafana), `backup` (Backrest), `notify` (Grafana/cAdvisor) |
 | API services | `X-Internal-Token` header | `site-provisioner` (the only live Fabrik microservice; `pdf`/`captcha`/`proxy`/`translator`/`files-api`/`emailgateway`/`dns`/`images` all retired) |
 
 **Adding Authelia to a new admin service:**
@@ -457,14 +449,7 @@ The VPS Traefik uses these entrypoint names:
   than merely avoided. Non-zero exit is the deployer's rollback trigger.
 - Separate admin container/image for heavy admin tasks (same codebase)
 
-> **Two mechanisms were struck from this list on 2026-08-28 because they do not exist** (transdoc
-> `01M14BK0JD`, verified against `/opt/fabrik` before and after filing): **`fabrik run`** — the real CLI
-> answers `Error: No such command 'run'`; and **`.fabrik/hooks/post-deploy/`** — the literal string appears
-> **nowhere** in the platform, and `_post_deploy_sync()` (`cli.py:64`) only refreshes `data/projects.yaml`.
-> This is the expensive kind of wrong: an agent following it writes `.fabrik/hooks/post-deploy/migrate.sh`,
-> sees a file that looks exactly like a migration step, and ships a deploy where migrations never run —
-> the rule producing the very defect it exists to prevent. Do not re-add either without a `path:line` in
-> `src/fabrik/` that executes it.
+> **`fabrik run` and `.fabrik/hooks/post-deploy/` do NOT exist** — the real CLI answers `Error: No such command 'run'`, the hook path appears nowhere in the platform, and `_post_deploy_sync()` (`cli.py:64`) only refreshes `data/projects.yaml`; an agent following either ships a deploy where migrations never run. Do not re-add either without a `path:line` in `src/fabrik/` that executes it.
 
 **Processes are share-nothing:** any state shared across requests MUST go to Redis (`redis-main`) with a TTL. A project using Redis for sessions MUST declare `shape.needs_cache: true` in `specs/services/<id>.yaml`, or `fabrik apply` skips the Redis registrar and the deploy is silently broken.
 
