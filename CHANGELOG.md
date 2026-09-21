@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — templates/governance/CLAUDE.md: lean pass 1 — stories removed, every rule kept, synced to 46 repos (D-331, 2026-09-21)
+
+- 127,624 → 119008 B. Every project-side divergence kept; grader-pinned spans verbatim for this pass. Loss
+  check: 182 old rule units accounted for, the 17 rules the reverted cut lost all present, every hub
+  anchor carried, 53 test files green bar the 4 pre-existing failures. Forced sync after the commit.
+
 ### Changed — CLAUDE.md (hub): lean pass 1 — stories removed, every rule kept (D-331, 2026-09-21)
 
 - 134,466 → 117035 B. Every section restated as the rule and its constraint; incident narratives, dates

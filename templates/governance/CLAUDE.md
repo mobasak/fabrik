@@ -8,47 +8,42 @@ Solo dev WSL Ubuntu. **Fast but pro. Ship, iterate, no over-engineering.** Read 
 
 ## ⚠️ COMMAND RUN-RECORD — the pinned `RUN:` line (EVERY response, whenever a run is active)
 
-Invoking a `/fabrik-*` command means **opening a run record and keeping it current**. The record is
-one json per session (`scripts/command_run.py`; state in `~/.claude/state/command-runs/`), and it is
-what makes an in-flight command visible and un-abandonable.
-
-- **`start`** it as the command's first act — `python3 scripts/command_run.py start --command <name>
-  --phases <N> --terminal "<the condition that ends the run>"`; **`step --phase <N> --title "<t>"`**
-  at every phase; **`round --findings <N> --confirmed <N> --classes-swept a,b --classes-new c,d`**
-  per convergence pass; **`done --command <name> --evidence "<proof>"`** ONLY when the terminal
-  condition is actually met, or **`blocked --command <name> --reason "<one of the three sanctioned
-  BLOCKED cases>"`**.
-  **Closing REQUIRES naming the run you are closing, and a name that is not the live one is refused**
-  — closing "whatever is live" is how a retried `done` silently ends the CALLER after a nested command
-  pops back to it, taking the pinned line and the Stop hook with it. Closing an already-closed record
-  is a warned no-op, never a mutation.
-- **While a run is active, EVERY response opens with the `RUN:` line — before `RULES ACTIVE`.** Produce
-  it with `python3 scripts/command_run.py line`; paste its output verbatim. Shape:
-  `RUN: /<command> · phase <c>/<t> (<title>) · round <r> · terminal: <condition>`.
-  **When no run is active the command prints nothing and the line is omitted entirely** — no `RUN:`
-  spam on conversational turns.
-- **Rounds converge by RE-SWEEPING a fixed class ledger, never by re-scoping.** The ledger persists
-  across rounds; only a round that sweeps a class clean retires it. A round that sweeps every known
-  class and CONFIRMS zero code or doc defects (`round --confirmed 0`) IS the quiet round — refuted
-  and recorded candidates never reopen the loop (D-206); a record whose rounds never state
-  `confirmed` keeps the `--findings 0` rule. `command_run.py` prints the TERMINAL verdict, and
-  that is when you call `done`. If findings start oscillating (43 → 11 → 30 → 13 → 22 instead of
-  5 → 3 → 0) the tool says so, loudly and advisorily: the loop is inventing a new brief each pass
-  instead of re-running the same one. Re-sweep the ledger; don't re-scope.
-- **The Stop hook is the enforcement, not this paragraph.** `.claude/hooks/final_gate_stop.py` BLOCKS
-  end-of-turn while a record says `running` — because prose alone cannot bind an agent that read this
-  contract hours ago and is now deciding, from memory, that round 3 is good enough (Lesson 116: a
-  documentation fix is invisible to every session already running; only a check at the moment the
-  output is still editable binds). The fail direction is deliberately asymmetric — a missing, corrupt
-  or stale (>12h) record fails OPEN and never traps you; only a live `running` record blocks, and it
-  warns through after the same 3 attempts every other cause uses.
+Invoking a `/fabrik-*` command means opening a run record and keeping it current — one json per session
+(`scripts/command_run.py`, synced; state in `~/.claude/state/command-runs/`).
+- **`start`** as the command's first act — `python3 scripts/command_run.py start --command <name> --phases <N>
+  --terminal "<the condition that ends the run>"`; **`step --phase <N> --title "<t>"`** at every phase;
+  **`round --findings <N> --confirmed <N> --classes-swept a,b --classes-new c,d`** per convergence pass;
+  **`done --command <name> --evidence "<proof>"`** only when the terminal condition is met, or **`blocked
+  --command <name> --reason "<one of the three BLOCKED cases>"`**. **Closing names the run you are closing; a
+  name that is not the live one is refused.** Closing an already-closed record is a warned no-op.
+- **While a run is active, every response opens with the `RUN:` line — before `RULES ACTIVE`.** Produce it with
+  `python3 scripts/command_run.py line` and paste it verbatim: `RUN: /<command> · phase <c>/<t> (<title>) · round
+  <r> · terminal: <condition>`. **When no run is active the command prints nothing and the line is omitted.**
+- **Rounds converge by RE-SWEEPING a fixed class ledger, never by re-scoping.** The ledger persists across
+  rounds; only a round that sweeps a class clean retires it. A round that sweeps every known class and CONFIRMS
+  zero code or doc defects (`round --confirmed 0`) IS the quiet round; refuted and recorded candidates never
+  reopen the loop (hub D-206); a record whose rounds never state `confirmed` keeps the `--findings 0` rule.
+  `command_run.py` prints the TERMINAL verdict — that is when you call `done`. If findings oscillate the tool
+  says so, advisorily: the loop is inventing a new brief each pass. Re-sweep the ledger; don't re-scope.
+- **The Stop hook is the enforcement, not this paragraph.** `.claude/hooks/final_gate_stop.py` (synced) BLOCKS
+  end-of-turn while a record says `running`; a missing, corrupt or stale (>12h) record fails OPEN; only a live
+  `running` record blocks, and it warns through after 3 attempts like every other cause.
 
 ## Orient (every task)
 
-**Session start (ONCE per chat, before item 0 — all four fail silently if skipped):**
-**(a) ARM the self-watch** — `Monitor(persistent: true, command: "bash ~/.claude/bin/claude-selfwatch.sh <sid>", description: "resume-mesh self-watch")`; **the fleet-quota hold's lift wakes ONLY an armed watch** (the tick writes `<sid>.holdlifted` for armed watches, nothing reaches an unarmed pane — 8 of 9 panes sat idle for eight hours on 2026-09-07); it is a STANDING watch — one arm per session for its whole life, any number of wakes; never re-arm after a wake (a duplicate arm exits at once), re-arm only if the Monitor itself ended. `description` is tool-REQUIRED, and `<sid>` is a **literal** id — there is no `$CLAUDE_SESSION_ID` and an empty arg exits 1, ending the watch as you arm it; take it from the SessionStart arming line, or post-compact from the transcript path in the compaction notice. This line exists because that hook **skips on `source=compact` and headless** — a session that never armed pre-compact is never told again. Never a `nohup … &` arm: it eats the death marker and wakes nothing (authority: `/opt/fabrik/docs/workstation/hooks-index.md`).
-**(b) PROBE your assigned MCPs** — `python3 /opt/fabrik/scripts/sysadmin/mcp_health.py`. Assigned-but-dead is a broken tool, FIX-FIRST (§ Behavior), never a silent fallback; a server only a reload restores needs a NEW window — say so.
-**(c) CATCH UP on a NEW chat** — `/fabrik-catchup` and/or `session-recall` before acting on inherited context (§ Past sessions); ledger first for decision-shaped questions.
+**Session start (ONCE per chat, before item 0 — all fail silently if skipped):**
+**(a) ARM the self-watch** — `Monitor(persistent: true, command: "bash ~/.claude/bin/claude-selfwatch.sh <sid>",
+description: "resume-mesh self-watch")`. The fleet-quota hold's lift wakes ONLY an armed watch. One arm per
+session for its whole life; never re-arm after a wake (a duplicate arm exits at once); re-arm only if the
+Monitor itself ended. `description` is tool-required; `<sid>` is a LITERAL id (there is no `$CLAUDE_SESSION_ID`;
+an empty arg exits 1) — take it from the SessionStart arming line, or post-compact from the transcript path.
+Never a `nohup … &` arm. The SessionStart hook skips on `source=compact` and headless — a session that never
+armed pre-compact is never told again (authority: `/opt/fabrik/docs/workstation/hooks-index.md`).
+**(b) PROBE your assigned MCPs** — `python3 /opt/fabrik/scripts/sysadmin/mcp_health.py`. Assigned-but-dead is a
+broken tool, FIX-FIRST (§ Behavior), never a silent fallback; a server only a reload restores needs a NEW
+window — say so.
+**(c) CATCH UP on a NEW chat** — `/fabrik-catchup` and/or `session-recall` before acting on inherited context
+(§ Past sessions); ledger first for a decision-shaped question.
 **(d) MORE THAN ONE AGENT in this repo? Agents 2..N launch as `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>` and work ONLY inside that linked worktree (`.claude/worktrees/<name>/`, branch `worktree-<name>`) — never edit the main checkout: only the merge owner (agent 1, launched `CLAUDE_AGENT=<name> claude -n <name>-<repo>`) writes there, and Claude Code's isolation check refuses main-checkout edits, `cd`/`git -C` redirects into it, and command shapes it cannot trace — so every heredoc is QUOTED (`<<'EOF'`; an unquoted `<<EOF` expands `$` and is refused). Worktrees isolate FILES, not the runtime: a project with a database has ONE `DATABASE_URL` across every worktree, so a migration run in one is live for all — one ticket owns any migration, nobody else runs one. An EXISTING repo with several windows already running is adopted ONCE — agent-1 runs `python scripts/docs_updater.py --adopt <names>` in the main checkout (the first name becomes the merge owner), after which `docs/development/PLANS.md` shows who owns what.
 
 0. **Task→skill routing:** step 0 applies to the operator request that STARTS a run — not to steps inside a command or plan already executing (the plan-execution override and invoked-command rule govern those). At that point, classify the request against the pipeline stages below and invoke the matching skill — a task that matches a stage and is executed without its skill is a defect, the sibling of "Invoked command = loaded command" (§ Behavior). Full command chain: § Pipeline (this table names stages only, it doesn't duplicate the chain).
@@ -84,72 +79,76 @@ what makes an in-flight command visible and un-abandonable.
 
    Fork rules: journey-shaped work → `2-contract` (`/fabrik-flows` + `/fabrik-flows-review` — EVERY scaffold type: user, consumer, or reader journeys; sits before the data contract); data-shaped work → `2-contract` (`/fabrik-data-contract`); GUI work also routes through `/fabrik-ui-design` + `/fabrik-ui-design-review` (`2-contract`); headless types (§ Pipeline item 2) skip GUI-only stages — their `5-certify` runs `/fabrik-service-test`, never `/fabrik-user-test`. Escape: a matched stage that genuinely doesn't fit — say so in one line and proceed without invoking it; no stage applies at all (pure conversation, a one-off read-only question) — no declaration owed, proceed silently.
 1. `project.yaml::type` tells you which of the 13 `SCAFFOLD_TYPES` this is (12 scaffoldable — `wordpress` is out of fabrik, `/opt/wpf` archived 2026-08-07). All projects use `.venv` for local WSL development. ⚠️ **The completion gate needs a toolchain-bearing interpreter, and a fresh `.venv` is not one:** `scripts/final_gate.py` refuses with `status: setup-error` rather than guessing when the interpreter running it cannot import `ruff` (that refusal is correct — it is NOT a verdict on your tree). Either `uv pip install ruff mypy bandit` into `.venv` (a `requirements.txt`-only project: `.venv/bin/pip install ruff mypy bandit` — the gate needs an interpreter that can IMPORT them, not `uv`), or run the gate with an interpreter that has them. A gate that cannot run is not a green gate (transdoc, 2026-08-28). **VPS-surface types deploy as Docker containers via `fabrik apply`** (SSH + Docker Compose); **store surfaces do NOT** — `mobile-app` ships via EAS/store submission, `chrome-extension` via the Web Store, and `desktop-app` via a signed release artifact, none of which touch `fabrik apply`.
-2. `AFCL.md`: read if exists; append friction findings as you hit them.
-3. Packs in `.windsurf/rules/` activate via frontmatter globs when you touch matching files. If a ticket lists specific packs in Context Files, read those too.
-4. **Only when PLANNING** (producing/revising a plan): (a) read `agents-fabrik.md` (the canonical infra + codebase map — `AGENTS.md` is a stub); (b) run `python scripts/select_rules.py` and **read every ACTIVE pack + any AVAILABLE pack whose description matches the work** — binding; (c) ground every step in real `path:line`. Same awareness Traycer plans with. **Not planning** (routine implementation)? Skip this — the applicable `.windsurf/rules` auto-activate by glob when you edit matching files.
-5. **When executing a plan** (`/execute-plan`): read the plan + its spec + `agents-fabrik.md` + all ACTIVE rule packs (via `python scripts/select_rules.py`) before starting. Those, plus `.windsurf/rules/`, `docs/`, `AFCL.md`, and codebase `Grep`, are self-service sources — exhaust them all before escalating to a human.
+2. `AFCL.md`: read if it exists; append friction findings as you hit them.
+3. Packs in `.windsurf/rules/` activate via frontmatter globs when you touch matching files. If a ticket lists
+   specific packs in Context Files, read those too.
+4. **Only when PLANNING** (producing/revising a plan): run `python scripts/select_rules.py` and read every ACTIVE
+   pack + any AVAILABLE pack whose description matches the work — binding; ground every step in real
+   `path:line`. Routine implementation skips this — the applicable packs auto-activate by glob.
+5. **When executing a plan** (`/execute-plan`): read the plan + its spec + all ACTIVE packs before starting.
+   Those, `.windsurf/rules/`, `docs/`, `AFCL.md` and codebase `Grep` are self-service sources — exhaust them all
+   before escalating to a human.
 
 ## Behavior
-- **Check before create:** verify file does not exist before write. Exists = STOP, ask.
-- **The decision ledger (write + query — operator directive 2026-08-30).** A DECISION made or
-  received this run — an operator ruling, a spec/plan approval or Status flip, a
-  retirement/adoption, an architecture/storage/scope choice, "we built X at Y", a rejected option
-  worth not re-proposing — gets its row in `docs/DECISIONS.md` in the SAME change (rows immutable;
-  a changed decision is a NEW row `supersedes D-NNN`; the file header carries the format). **Mint the id
-  with `python3 /opt/fabrik/scripts/decisions.py --next-id .`, not by eye** — hand-deriving "the next
-  number" picks up a stale maximum whenever a concurrent agent appended while you were reading (three
-  agents in one repo produced a duplicate D-006 that way, 2026-09-03). It reads, it does not reserve:
-  minting in the SAME change as the row keeps the window to seconds, and the gate refuses duplicates.
-  Subagents and the pipeline never hold the pen — the dispatching session appends. And before
-  answering "where is X / did we decide Y / why is Z like this / what did we build for W":
-  **grep `docs/DECISIONS.md` first** (fleet-wide questions: the hub runs
-  `python3 /opt/fabrik/scripts/decisions.py <term>`) — the row's what+why+where is the full
-  answer; the wider hunt is legitimate only after the ledger misses, and its answer then belongs
-  in a new row. NOT a decision: routine fixes, refactors, doc edits — those are CHANGELOG's beat.
-  **Classify at mint time — reversible or ONE-WAY** (the Operating Manifesto's Phase-0 triage;
-  canonical: `/opt/fabrik/docs/reference/operating-manifesto.md` — box-local absolute path, works
-  from every repo): a ONE-WAY decision (structural, public, expensive or impossible to unwind)
-  grows its row with the manifesto § Binding field block —
-  `CLASS/BUDGET/KILL/CONFIDENCE/COUNTER/TRIPWIRE/CLOSE-OUT` — in the same change; under ambiguity
-  the default is the most-reversible option (manifesto Invariant 3 — classification ambiguity
-  never halts a decision; only the three BLOCKED cases halt execution).
-- **⚠️ READ BEFORE YOU EDIT — never append blindly to a command, rule, or doc file.** Open the file
-  and find where the subject already lives BEFORE writing: the overwhelming majority of "add a rule
-  about X" edits belong INSIDE an existing section, not bolted onto the end. An append that restates
-  something the file already says does not add emphasis — it creates two sources of truth in one
-  document, and the next reader cannot tell which one is current. **The mechanical minimum:** grep
-  the file for the subject's own vocabulary, read the section you land in, then EDIT that section.
-  If the subject genuinely has no home, add the heading deliberately — and say in the commit why a
-  new section was needed. ⚠️ **A restatement in different words is the same defect and no grep will
-  find it** — this one is on your reading, not on a check.
+- **Check before create:** verify the file does not exist before writing. Exists = STOP, ask.
+- **⚠️ READ BEFORE YOU EDIT — never append blindly to a command, rule, or doc file.** Grep the file for the
+  subject's own vocabulary, read the section you land in, then EDIT that section. An append that restates
+  something the file already says creates two sources of truth. If the subject genuinely has no home, add the
+  heading deliberately and say in the commit why. ⚠️ A restatement in different words is the same defect and no
+  grep will find it — that one is on your reading.
 - **Present before execute:** plan → approval → execute. Read-only calls (`Read`, `Grep`, `Glob`, `LS`) exempt.
-- **Plan-execution override:** when executing a pre-approved plan dispatched via `/execute-plan`, *present-before-execute* is **suspended for the plan's scope** — the plan IS the approval (task-end commits are ALWAYS required per § EXIT; the plan additionally mandates them per phase). Re-applying present-before-execute to a step you judge risky ("I'd better ask before the Company.create hook") is **requesting permission you already have** — a live observed stall, not caution; a genuinely wrong step is a BLOCKED spec-contradiction, never a mid-run ask. Commit per phase (explicit paths only, never `git add -A`), run `/fabrik-review` at phase boundaries, fix autonomously, and obey all other HARD STOPS. **Run the plan to COMPLETION — no partial work, no deferral, no unprompted stopping:** finish every phase FULLY (all steps, all tests, all docs, the `/fabrik-review` no-op) before starting the next; never leave a phase half-done, never defer a step to "later"/"a follow-up"/"the operator", and never pause to ask when a self-service source (the `.windsurf/rules`, `agents-fabrik.md`, `docs/`, `AFCL.md`, codebase `Grep`) can settle it — exhaust those first. The ONLY legitimate reasons to halt autonomous execution are the three BLOCKED cases → Stop only on: 3 consecutive same-test failures, missing infra, or an unresolvable spec contradiction — format: `BLOCKED: <what> — searched: <sources> — missing: <need>`. Anything short of one of those three: keep going.
-- **Invoked command = loaded command:** when the operator invokes `/command`, INVOKE the skill — **never
-  execute from memory of what it involves** (live defect: an agent ran a whole turn of plan execution "from
-  memory" of `/fabrik-user-test`, bound by none of its contracts). And the invoked command is the
-  deliverable: a prerequisite discovered mid-run is fixed minimally (or BLOCKED as a pre-start finding) and
-  you **RETURN to the invoked command in the same run** — delivering a different command's output is
-  answering the wrong question, however good the commits look.
-- **An MCP tool failure is a FIX-FIRST event, never a detour.** Your ORIENT block names your
-  ASSIGNED servers; a tool error or an assigned-but-absent server is a broken tool, and silently
-  routing around it (grep instead of serena, curl instead of firecrawl) is the absorb-the-friction
-  defect. Diagnose against the known classes (`/opt/fabrik/docs/workstation/mcp-roster.md` § the
-  servers; `python3 /opt/fabrik/scripts/sysadmin/mcp_health.py` diffs assigned-vs-live in seconds),
-  fix or file with the evidence, and SAY SO in the response — a fallback is allowed, an unreported
-  one is not. (Advisory tier, D-033 — fire rate measured before anything blocks.)
-- **Read it, don't recall it.** Before asserting what a script, glob, schema or config DOES, open the
-  code path — the symptom you observed can be real while your mechanism is invented (a filed upstream
-  claim that `select_rules.py` "fails open without project.yaml" crossed a repo boundary before anyone
-  read the line showing it splits purely on glob match). Sibling of READ BEFORE YOU EDIT (writing) and
-  the proxy ban (completion claims): this one governs plain assertions.
-- **Every contract change has a MIRROR — name the shape you just broke.** Changing an interface to fit
-  one caller enumerates the shapes that now FAIL: a keyword-only fix breaks positional-only, a widened
-  type breaks the narrow consumer, a relaxed validator breaks whoever relied on rejection, a new default
-  breaks whoever passed nothing on purpose. A fix with no stated cost is a fix whose cost you did not
-  look for — on a synced or vendored surface that cost lands fleet-wide before anyone notices.
+- **Plan-execution override:** when executing a pre-approved plan via `/execute-plan`, present-before-execute is
+  suspended for the plan's scope — the plan IS the approval (task-end commits are always required per § EXIT; the
+  plan additionally mandates them per phase). Re-asking permission for a step you judge risky is a stall; a
+  genuinely wrong step is a BLOCKED spec-contradiction, never a mid-run ask. Commit per phase (explicit paths
+  only), run `/fabrik-review` at phase boundaries, fix autonomously, obey all other HARD STOPS. **Run the plan to
+  COMPLETION:** finish every phase FULLY before the next; never leave a phase half-done, never defer a step to
+  "later"/"a follow-up"/"the operator", never pause to ask when a self-service source can settle it. The ONLY
+  legitimate halts are the three BLOCKED cases: 3 consecutive same-test failures, missing infra, or an
+  unresolvable spec contradiction — format `BLOCKED: <what> — searched: <sources> — missing: <need>`.
+- **Invoked command = loaded command:** when the operator invokes `/command`, INVOKE the skill — never execute
+  from memory of what it involves. The invoked command is the deliverable: a prerequisite discovered mid-run is
+  fixed minimally (or BLOCKED as a pre-start finding) and you RETURN to the invoked command in the same run.
+- **An MCP tool failure is a FIX-FIRST event, never a detour.** Your ORIENT block names your ASSIGNED servers; a
+  tool error or an assigned-but-absent server is a broken tool. Diagnose against the known classes
+  (`/opt/fabrik/docs/workstation/mcp-roster.md`; `python3 /opt/fabrik/scripts/sysadmin/mcp_health.py`), fix or
+  file with the evidence, and SAY SO — a fallback is allowed, an unreported one is not (advisory tier, hub D-033).
+- **Read it, don't recall it.** Before asserting what a script, glob, schema or config DOES, open the code path —
+  a real symptom can carry an invented mechanism. Sibling of READ BEFORE YOU EDIT (writing) and the proxy ban
+  (completion claims): this one governs plain assertions.
+- **Every contract change has a MIRROR — name the shape you just broke.** Changing an interface to fit one
+  caller enumerates the shapes that now FAIL: a keyword-only fix breaks positional-only, a widened type breaks
+  the narrow consumer, a relaxed validator breaks whoever relied on rejection, a new default breaks whoever
+  passed nothing on purpose. A fix with no stated cost is a fix whose cost you did not look for — on a synced
+  or vendored surface that cost lands fleet-wide.
+- **The decision ledger (write + query).** A DECISION made or received this run — an operator ruling, a
+  spec/plan approval or Status flip, a retirement/adoption, an architecture/storage/scope choice, "we built X at
+  Y", a rejected option worth not re-proposing — gets its row in `docs/DECISIONS.md` in the SAME change (rows
+  immutable; a changed decision is a NEW row `supersedes D-NNN`; the file header carries the format). **Mint the
+  id with `python3 /opt/fabrik/scripts/decisions.py --next-id .`, never by eye** — it reads, it does not reserve,
+  so mint in the SAME change as the row; the gate refuses duplicates. Subagents and the pipeline never hold the
+  pen — the dispatching session appends. Before answering "where is X / did we decide Y / why is Z like this /
+  what did we build for W": **grep `docs/DECISIONS.md` first** (fleet-wide questions: the hub runs `python3
+  /opt/fabrik/scripts/decisions.py <term>`) — the wider hunt is legitimate only after the ledger misses, and its
+  answer then belongs in a new row. **Classify at mint time — reversible or ONE-WAY**
+  (`/opt/fabrik/docs/reference/operating-manifesto.md`): a ONE-WAY decision (structural, public, expensive or
+  impossible to unwind) grows its row with the manifesto § Binding field block —
+  `CLASS/BUDGET/KILL/CONFIDENCE/COUNTER/TRIPWIRE/CLOSE-OUT` — in the same change; under ambiguity the default is
+  the most-reversible option; classification ambiguity never halts a decision. NOT a decision: routine fixes,
+  refactors, doc edits — CHANGELOG's beat.
 - **Stay on task:** no unsolicited advice or process commentary.
-- **Every `/fabrik-*` run owes a `FEEDBACK:` line before it closes its run record — a USAGE report in four labelled fields:** `confusion:` (what in the command text misled you) · `waste:` (steps, turns or tokens spent without changing the outcome) · `change:` (the ONE concrete edit to the command or a rule that would have made the run faster or more accurate) · `filed:` (mail ids to a beat, or `none — surfaces exercised: …`). `command_run.py done|blocked|handoff` REFUSES a close missing any field, captures wall-clock and rounds itself, appends the row to the box-wide ledger and prints the finished line to paste (D-175: the hub optimises the corpus from these — fewer rounds, less confusion, fewer tokens). Auto-appended to every command by the assembler (§ Close-out feedback); routed by beat (infra · fleet · intel). You are the only witness to how the machinery behaved on that run; `none` is a valid verdict, silence is not. ⚠️ **`change:` is AXIS-KEYED** — lead the value with ONE axis then a colon (`change: lean: …`; axis ∈ `lean|fast|accurate|waste|infra|rules|manifesto`, and `change: none` carries no key); the axis is the property of the COMMAND TEXT your edit improves, not your run's topic, **and the close REFUSES an unkeyed or unknown-axis value** — it names the seven keys and re-keys your own text as the example. **Your verdict is READ:** the hub groups each command's queue by that axis and the HUB runs `/fabrik-command-improve` to turn it into ONE corpus edit whose trailer names the rows it answers, and the HUB fires it when a command's queue is non-empty — after each usage. ⚠️ That command edits `/opt/fabrik`; running it from a project is the cross-repo HALT below. Your job is the verdict, not the edit. That is why the key matters: the axis is how the hub GROUPS each command's queue, so a verdict that cannot be keyed cannot be answered — which is exactly why the close refuses one rather than filing it into an `unkeyed` bucket nobody can act on.
-- **Conflict resolution:** rule pack > ticket (for *how* to write). `spec.shape` is canonical for *what* the code must match — orthogonal axis, never up for negotiation. Surface any conflict before proceeding.
+- **Every `/fabrik-*` run owes a `FEEDBACK:` line before it closes its run record** — four labelled fields:
+  `confusion:` (what in the command text misled you) · `waste:` (steps, turns or tokens spent without changing the
+  outcome) · `change:` (the ONE edit to the command or a rule that would have made the run faster or more
+  accurate) · `filed:` (mail ids to a beat, or `none — surfaces exercised: …`). `command_run.py done|blocked|handoff`
+  REFUSES a close missing any field, captures wall-clock and rounds, appends the row to the fleet ledger and
+  prints the line to paste (hub D-175). `none` per field is a valid verdict you sign; silence is not. ⚠️
+  **`change:` is AXIS-KEYED** — lead with ONE axis then a colon (`change: lean: …`; axis ∈
+  `lean|fast|accurate|waste|infra|rules|manifesto`; `change: none` carries no key); the axis is the property of
+  the COMMAND TEXT your edit improves, and the close REFUSES an unkeyed or unknown-axis value. A defect in
+  Fabrik-owned machinery is filed upstream (§ Upstream feedback), never absorbed.
+- **Conflict resolution:** rule pack > ticket (for HOW to write). `spec.shape` is canonical for WHAT the code
+  must match — an orthogonal axis, never up for negotiation. Surface any conflict before proceeding.
 - **State conflict:** task contradicts existing state → stop, report. Never silently overwrite.
 - **Shared repo — you are NOT alone:** other AI agents (and the daily pipeline) work in this repo concurrently and routinely have **uncommitted, half-finished work in the tree**. **Each agent OWNS a task / epic / plan, and that ownership is DOCUMENTED, always** — an `Owner:` line on the plan or epic it belongs to, plus `.fabrik/plan-locks/<plan>.json` `owned_paths` for the files. Locks stop path collisions; the `Owner:` line is what tells the next agent (and the operator) whose work a half-finished tree belongs to — an undocumented owner makes every rule below unenforceable, because you cannot defer to someone you cannot name. Commit and push carefully so you never destroy another AI's work: stage explicit paths only (never `git add -A` / `git add .` / `git commit -a`), read the diff you are about to commit before every commit — `git diff --cached --name-only` when you STAGED it, `git diff HEAD -- <paths>` when you are committing by PATHSPEC, which reads the working tree and not the index (the two are not interchangeable; see the pathspec rule below) — `git fetch` + fast-forward before pushing, and **never stash, revert, or overwrite a sibling's UNCOMMITTED changes, and never commit or `noqa` a file carrying their live WIP** — dirty files in the tree are their half-finished work, and touching them is how work gets destroyed; message the author instead. **But a defect in COMMITTED code is the REPO'S, not the author's — "not my work" is not a disposition (operator directive 2026-08-29).** You own every committed line of your repo (you likely wrote a good share of them and forgot); the author check (`git log -S`) decides who to INFORM, never whether to FIX. Fix it lean at the root cause with a regression guard, cite the attribution in your commit body, and message the author only when they are mid-flight on that surface. Naming a defect and walking away — "reported, not mine" — is the deflection this clause exists to end; the ONLY hands-off case is uncommitted WIP. Causing data loss of another AI's work is a critical failure. ⚠️ **NEVER a bare `git stash pop` / `git stash apply` on a shared tree, and prefer not to stash at all.** **Recover a seat's stash by CONTENT, never by pop:** `git stash show --name-only 'stash@{0}'` lists the swept files, then `git show 'stash@{0}':<path> > <path>` per file, each md5-verified against its pre-incident value, and the entry is left for a human — never a pop (the classifier blocks it, and a pop takes whatever is on top). The stack is SHARED and is not yours — a bare pop takes `stash@{0}`, which is whatever is on top, not necessarily what you just pushed. Live near-miss 2026-08-28: a `git stash push -q <one file>` FAILED, the `&&` short-circuited so the guard never ran, and the following bare `git stash pop` tried to restore a SIBLING's parked stash over the working tree. It failed safely only because their files were dirty — on a clean tree it would have silently unparked another agent's work into the diff. It also meant the red-on-revert it was wrapping ran with the fix STILL PRESENT and reported a false green. **For a revert test, copy the file** (`cp f <scratch>/f.bak` … `git show HEAD:f > f` … `cp <scratch>/f.bak f`) and ASSERT BOTH halves before trusting the result — the backup HOLDS the mutation (`grep -c <marker> "$B"` = 1) and the reverted file LACKS it (= 0); intel lost an edit 2026-09-03 when a sibling's pre-commit stash landed BEFORE the backup, so `$B` was already the stripped file and the "revert" was a no-op that printed green. ⚠️ **On a SHARED tree, run the mutate-restore cycle in a throwaway WORKTREE — `git worktree add <scratch>/probe HEAD` — never in the shared checkout, and never on a single copied FILE.** A one-file copy does not work and fails in the worst direction: every grader here resolves its subject by tree path (`Path(__file__).resolve().parents[1] / …`), so it runs against the UNMUTATED original and prints a FALSE GREEN — the very outcome the sentences above it exist to prevent. Executed 2026-09-17: `_command_name` killed in a scratchpad copy, all 80 graders that exist to catch that reported green. Two reasons the shared checkout is the wrong place. (1) A sibling committing in your mutation window ships the MUTANT to HEAD — their pathspec need never name your file, because a directory or glob pathspec commits the WORKING TREE (this bullet's own pathspec rule), and `final_gate.py`'s auto-stage widens the window; so the damage is not only to another agent's OBSERVATION, it can reach committed state. (2) Every guard in this recipe protects YOUR file's integrity and none of them asks who else is READING: measured 2026-09-16, a review seat watched the file under review change and change back mid-pass and reported that, had it re-read the live path instead of its SHA pin, it would have filed a CONFIRMED defect as REFUTED. ⚠️ You cannot know who is reading — you see siblings' files, never their chat — so on a shared tree treat the condition as TRUE by default. § Completion Contract 1's *neuter the change … never left in the tree* is satisfied in that throwaway worktree, which is also why it is never staged or committed. Mirror rule for the dispatcher: pin the surface by SHA in the brief and tell the seat the pin wins over the live path. And write the `.bak` BEFORE the first mutation and restore from it after ANY exit — a `finally` never runs on the harness's SIGKILL timeout (fabrik-lib, 2026-09-03: a 5-mutant batch died at mutation 4 and left a guard deleted); only an artifact already on disk survives the kill — never borrow the shared stash stack for a local experiment. ⚠️ **A pathspec protects the FILE LIST, never the CONTENT.** `git commit -m <msg> -- <paths>` commits the WORKING TREE for those paths, not the index — so on a file a sibling is also appending to (`CHANGELOG.md`, `docs/DECISIONS.md`, `docs/STRATEGIC_BACKLOG.md`, `INDEX.md`) your named-paths commit ships THEIR half-finished hunks under your name, and the pathspec discipline reads green the whole time (01M1RGRVT, 01M1RHJEY). ⚠️ So the pre-commit guard for a pathspec commit is a WORKING-TREE diff — `git diff HEAD -- <paths>` — never `git diff --cached`: `--cached` compares the index to HEAD and is structurally blind to the sibling hunk the commit will actually ship (executed: the cached guard read `1 0` while the commit landed `2 0`). For a shared-append file, commit a PRIVATE INDEX holding `HEAD`'s blob plus your own hunk, never the working file:
   1. `base=$(git rev-parse HEAD)` — FIRST, and keep it; every step below is a compare-and-swap against this SHA.
@@ -191,53 +190,62 @@ Friction too small for a proposal (a confusing prompt line, a noisy warn) still 
 
 Every "fix X" / "handle Y" request runs this sequence — each verb CHECKABLE, none self-graded:
 
-1. **MEASURE before you touch** — reproduce the failure, attribute it (`git log -S`, the real
-   log, the live probe), and name the ROOT CAUSE as a falsifiable claim. A fix written before the
-   cause is proven is a guess wearing a commit message.
-2. **FIX THE CLASS at the root, at minimum size** — the leanest diff that closes the WHOLE class,
-   not the instance ("fix the class, not the location"). Leanest is measured in blast radius, not
-   line count: prefer editing the cause over guarding every symptom.
-3. **NO temporary anything** — no workaround, no `noqa`/skip/sleep/retry-harder, no new dependency,
-   no "TODO: proper fix later". If a stopgap is genuinely unavoidable it is a BLOCKED escalation or
-   a filed finding with an owner — never silent code.
-4. **PERMANENT = fix + grader** — ship the regression test or check IN THE SAME CHANGE, proven
-   red→green (watched-fail-first / red-on-revert, mutation asserted on disk). A fix nothing guards
-   is temporary by construction, whatever the commit message says.
-5. **NO overengineering — measured, not vibed** — before adding any new rule/check/mechanism,
-   measure its fire rate; a detector that fires on legitimate patterns is wallpaper, and wallpaper
-   is how enforcement dies. Rejecting a mechanism after measuring is a valid, recordable outcome.
-   ⚠️ **Then measure the MIRROR: you get the behavior you measure, not the behavior you want** (the
-   Cobra Effect — canonical: `/opt/fabrik/docs/reference/operating-manifesto.md` § Phase 3, D-253).
-   Fire rate asks whether the check fires WRONGLY; this asks what it REWARDS when it fires correctly.
-   So for every gate, ratchet, counter, target or score you introduce, **the cheapest way to satisfy it
-   without producing the outcome is written down IN THE SAME CHANGE — in the mechanism's own docstring
-   or its decision row, where the next reader can grep it** — and when that way is cheaper than the real
-   work, the measure is the defect: change what is measured, or ship the counter-measure with it. Two
-   measured here, both in machinery built to help. A review loop's confirmed count ran 8 · 6 · 5 · 7 · 4
-   · 2 across rounds 15–20 of its Pass Ledger while every finding from round 14 on lay inside the
-   review's own fix prose (D-252; its counter-measure is the scope-growth stop, whose own cheapest path
-   is to omit `--own-fix` — the stop then computes nothing, which is why `command_run.py` prints a NOTE
-   on exactly that path rather than leaving the omission silent). And a lint ratchet re-seeded its
-   recorded linter version at an unchanged error count, so the reference it measures against floats
-   (mail `01M1RE497`).
-6. **REVIEW your own fix and fix what the review finds** — the scoped `/fabrik-review` of § 1a;
-   its findings are yours to close in the same run, never to file as someone else's problem.
+1. **MEASURE before you touch** — reproduce the failure, attribute it (`git log -S`, the real log, the live
+   probe), and name the ROOT CAUSE as a falsifiable claim. A fix written before the cause is proven is a guess.
+2. **FIX THE CLASS at the root, at minimum size** — the leanest diff that closes the WHOLE class, not the
+   instance. Leanest is measured in blast radius, not line count: edit the cause over guarding every symptom.
+3. **NO temporary anything** — no workaround, no `noqa`/skip/sleep/retry-harder, no new dependency, no "TODO:
+   proper fix later". An unavoidable stopgap is a BLOCKED escalation or a filed finding with an owner — never
+   silent code.
+4. **PERMANENT = fix + grader** — ship the regression test or check IN THE SAME CHANGE, proven red→green
+   (watched-fail-first / red-on-revert, mutation asserted on disk). A fix nothing guards is temporary.
+5. **NO overengineering — measured, not vibed** — before adding any rule/check/mechanism, measure its fire rate;
+   a detector that fires on legitimate patterns is wallpaper. Rejecting a mechanism after measuring is a valid,
+   recordable outcome. ⚠️ **Then measure the MIRROR: you get the behavior you measure, not the behavior you want**
+   (the Cobra Effect — `/opt/fabrik/docs/reference/operating-manifesto.md` § Phase 3, hub D-253). For every gate,
+   ratchet, counter, target or score you introduce, **the cheapest way to satisfy it without producing the
+   outcome is written down IN THE SAME CHANGE — in the mechanism's own docstring or its decision row** — and when
+   that way is cheaper than the real work, the measure is the defect: change what is measured, or ship the
+   counter-measure with it.
+6. **REVIEW your own fix and fix what the review finds** — the scoped `/fabrik-review` of § 1a; its findings
+   are yours to close in the same run, never to file as someone else's problem.
 
 ## Completion Contract
-1. **IMPLEMENT** — Stay within ticket Scope; adjacent fixes in same files OK. No hardcoded secrets/localhost (`os.getenv("KEY","default")`), no silent failures. **Behavior Contract:** cover every distinct user-observable behavior / acceptance criterion with a test (one per behavior, risk-ordered, TDD for the risky ones); skip trivia (getters / framework glue / config) — lean-but-complete, NOT 100%-coverage dogma (skip docs-only). **Watched-fail-first** (for tests THIS change adds or modifies): a non-trivial behavior's test must be SEEN RED — either written first and watched fail, or proven red-on-revert after the fact (neuter the change, watch the test fail, then RESTORE and re-run to green; the neutered state is never staged, committed, or left in the tree) — "it passes" is not evidence the test tests anything.
+1. **IMPLEMENT** — Stay within ticket Scope; adjacent fixes in the same files OK. No hardcoded
+   secrets/localhost (`os.getenv("KEY","default")`), no silent failures. **Behavior Contract:** cover every
+   distinct user-observable behavior / acceptance criterion with a test (one per behavior, risk-ordered, TDD for
+   the risky ones); skip trivia (getters / framework glue / config; docs-only) — lean-but-complete, not
+   100%-coverage dogma. **Watched-fail-first** (for tests THIS change adds or modifies): a non-trivial behavior's
+   test must be SEEN RED — written first and watched fail, or proven red-on-revert (neuter the change, watch the
+   test fail, RESTORE, re-run to green; the neutered state is never staged, committed, or left in the tree).
 1a. **SELF-REVIEW (iterate to a fixed point)** — Don't ship first-draft code. Re-read your own diff for bugs, unhandled edge cases, and deviations from the plan (if any) and the applicable `.windsurf/rules`; fix; re-run the gate. Repeat until the gate is green AND a fresh review surfaces nothing new. **EVERY code-changing chunk of work gets a review-family pass, sized to the surface** (operator directive 2026-08-29): spontaneous/plain-chat changes → `/fabrik-review-scoped` (diff-scoped, same convergence spine, minutes — the Stop hook BLOCKS a record-less code-editing session until one runs); heavy surfaces (a new mechanism outside the `/fabrik-task` lane (D-315), gate/hook/enforcement, a governance-sync path, auth/schema/migrations/concurrency, >5 files, or anything an operator asked for by name) → the full `/fabrik-review`. Either way: FIX what it finds in the same run — a review that files its findings as someone else's problem has not reviewed. **And when the change was mail-driven, the review comes BEFORE the reply** — a reply is a claim to another repo about a state you must already have checked (the reply FEELS like the finish line; a post-reply review has immediately found the mirror defect in the fix and forced an addendum).
 2. **GATE** — Run ticket's `Final Gate Instruction` (`scripts/final_gate.py`); fix to `status:"success"`. ⚠️ **The pytest leg is OPT-IN per repo:** it runs — in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:2895-2901`) whose diff is not `.md`-only; `--lean`, `--systemic` and a docs-only Tier-2 diff carry NO pytest row at all (`:990`, `:1106`, `:1007`) — when `tests/` exists in the directory the gate is run from (`PROJECT_ROOT = Path.cwd()`, `:69`) AND (the sentinel `.fabrik/run-pytest` exists OR a workflow names pytest) AND (the sentinel OR an empty diff OR a `src/`/`tests/`/`scripts/` change) — `scripts/final_gate.py:1261-1271`, cited because the paraphrase drifted once (hub D-284); otherwise that run carries a GREEN `pytest (NOT RUN)` row, and a leg that ran but collected nothing a GREEN `pytest (NO TESTS COLLECTED)` (`:1280`). Read `status` (green is necessary), `skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory` (the rows that can never fail — `WARN_ONLY_CHECKS`, `:327-340` — carrying each one's own text; the two pytest rows never reach `warnings`); `checks` is the roster that asserts a NAMED check ran (prefix-match: `pytest (NOT RUN)`, `pytest (NO TESTS COLLECTED)` and `pytest (SUITE REFUSED — usage error)` are decorated; only a leg that ran to completion is the bare `pytest`); a `status: "setup-error"` envelope (`:2877-2893` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys. A leg that runs uses `-x`, so a test-failure red names the FIRST failure and the gate prints the no-`-x` remedy itself (`:1320`) — a 900s timeout or an exit-4 `SUITE REFUSED` red carries neither; a green that skipped or deselected tests says so in a ⚠ prefix, the only place those counts exist, and arm the sentinel where the suite FITS the gate's pytest budget (`TIMEOUTS["pytest"]`, 900s) — a suite that does not fit is a `docs/DECISIONS.md` decision for THIS repo, not an arming target (web-ecommerce-factory 01M1QEY5 + 01M1R81T, 2026-09-05: 40+ test files, `status: success`, suite never run; first measured 791s against 900s, then re-measured 431s while a sibling suite ran and ARMED — their D-111 — so the rule is measure, then decide; a suite that genuinely cannot fit waits on the hub's diff-scoped leg). Flags: **`--json` (std — the FULL Tier‑2 gate: mypy + bandit + semgrep + schema/plan/docs checks)** · `--lean --json` (quick Tier‑1 subset, for fast self-review DURING iteration only — not the completion gate) · `--systemic --json` (Tier‑3 repo-health only — docker, .env contract, docs sprawl, duplicates, docs drift, VPS docs freshness, the convention validator and Kilo health, plus the every-tier advisory block; NARROWER than Tier‑2, never a completion gate. ⚠️ It does NOT check ports or deps — `check_ports.py` and `check_deps_sync.py` are UNWIRED and runnable only by hand; this row said otherwise until 2026-09-14, and `tests/test_final_gate_tier_counts.py` now asserts the tier composition against instrumented execution). Add **`--check`** for a READ-ONLY run that never mutates the tree; a bare run auto-fixes + auto-stages **only the files your change touched** (never a whole-tree sweep — the gate scopes every fixer + `ruff` to the diff, incl. your committed-but-unpushed commits). Full tier/mode + per-check reference: `/opt/fabrik/docs/workflows/FINAL_GATE_WORKFLOW.md` (fabrik-upstream; not synced to projects).
 3. **CHANGELOG** — One entry under `## [Unreleased]`: `### Added|Changed|Fixed — Title (YYYY-MM-DD)`. Gate-enforced.
-4. **LESSONS LEARNT** — Ticket field = `none` OR entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
-5. **EXIT** — Gate green → **COMMIT your own work NOW** (explicit pathspecs only — `git commit -m <msg> -- <your files>` — with Agent Provenance Trailers; never bundle files you didn't author). **An uncommitted task is an UNFINISHED task**: parked WIP is the only work that can be silently destroyed (pre-commit stash, resets) and it reds every sibling's diff-scoped gates. Stop-hook-enforced. **Then PUSH it** (`git push` — an unpushed task is an OFF-BOX-UNPROTECTED task; Stop-hook-enforced, 4th cause). Rejected? the ladder: tree DIRTY (sibling WIP) → defer + report (the wip-net holds the off-box copy; retry next task end) · tree CLEAN → `git pull --rebase=merges` (replays only YOUR unpushed commits, merge topology preserved) then push · rebase conflict → `git rebase --abort` + report · **NEVER `--force`**. **Then CLEAN your own scratch** — `python3 /opt/fabrik/scripts/scratch_sweep.py` (dry-run: every stale entry in THIS session's scratchpad with size · class · reason; nothing is deleted), read the table, then `--apply`; `--worktrees` LISTS EVERY worktree the repo has registered — not only yours — with a verdict each (`wt-removable` · `wt-prunable` · `wt-dirty` · `wt-unmerged` · `wt-locked` · `wt-held` · `wt-foreign` · `wt-orphan-dir` · `wt-ignored-data` · `wt-sync-only` · `wt-harness`), and `--apply` removes ONLY `wt-removable` and `wt-prunable`: merged, clean, unlocked and unheld. Expect most rows to be `wt-foreign` — a worktree registered before this process started, including your own after a `--resume` — and foreign is never removed. A worktree the HARNESS created (`<repo>/.claude/worktrees/`, where `EnterWorktree` puts it) is listed only; `--include-harness` promotes it ONLY if its own verdict was already removable. It never touches `/opt/<repo>` files other than a worktree it classified removable — and a worktree is a worktree wherever it sits, `<repo>/.tmp` included, which it declines to SCAN but does not exempt from that rule. Nor transcripts, `~/.claude/state` (beyond its own `scratch-sweep.lock`), docker, another live session's scratch, or `tasks/`. The run-record close prints the table for you; the SessionStart line names it on a resume whose residue has grown; a DEAD session's scratch is swept by the daily janitor — an interrupted run heals on its next resume, compaction or restart, never by a sibling's hand. **Ad-hoc branch/worktree work** (NON-plan — any `/fabrik-execute-plan` run keeps its own §Finish): unless the operator already named the disposition this turn (then do that and say which), the DEFAULT disposition is merge to base locally **then push base**; PRESENT only the genuine choices — keep the branch as-is (work already committed on it) · discard (only a branch/worktree THIS run created — never a sibling's tree) — when merging is genuinely arguable. On merge: resolve base as the MAIN checkout's branch — `MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')` — and pin every mutation (`git -C "$MAIN"`), then merge → verify (tests on the MERGED result) → only then clean up the worktree → delete the branch.
+4. **LESSONS LEARNT** — Ticket field = `none` OR an entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
+5. **EXIT** — Gate green → **COMMIT your own work NOW** (explicit pathspecs only — `git commit -m <msg> -- <your
+   files>` — with Agent Provenance Trailers; never bundle files you didn't author). **An uncommitted task is an
+   UNFINISHED task** (Stop-hook-enforced). **Then PUSH it** (an unpushed task is OFF-BOX-UNPROTECTED;
+   Stop-hook-enforced). Rejected? the ladder: tree DIRTY (another agent's WIP) → defer + report (the wip-net
+   holds the off-box copy; retry next task end) · tree CLEAN → `git pull --rebase=merges` (replays only YOUR
+   unpushed commits) then push · rebase conflict → `git rebase --abort` + report · **NEVER `--force`**.
+   **Then CLEAN your own scratch** — `python3 /opt/fabrik/scripts/scratch_sweep.py` (dry-run table: size · class ·
+   reason), read it, then `--apply`; `--worktrees` lists EVERY registered worktree with a verdict (`wt-removable`
+   · `wt-prunable` · `wt-dirty` · `wt-unmerged` · `wt-locked` · `wt-held` · `wt-foreign` · `wt-orphan-dir` ·
+   `wt-ignored-data` · `wt-sync-only` · `wt-harness`) and `--apply` removes ONLY `wt-removable` and
+   `wt-prunable`; foreign (registered before this process) is never removed; a harness worktree
+   (`<repo>/.claude/worktrees/`) is listed only unless `--include-harness` and already removable. It never touches
+   transcripts, `~/.claude/state` (beyond its own lock), docker, another live session's scratch, or `tasks/`; a
+   DEAD session's scratch is the daily janitor's. **Ad-hoc branch/worktree work** (non-plan): unless the operator
+   named the disposition this turn, the DEFAULT is merge to base locally **then push base**; PRESENT only the
+   genuine choices — keep the branch as-is · discard (only a branch/worktree THIS run created) — when merging is
+   genuinely arguable. On merge: resolve base as the MAIN checkout's branch — `MAIN=$(git worktree list
+   --porcelain | sed -n '1s/^worktree //p')` — pin every mutation (`git -C "$MAIN"`), merge → verify (tests on
+   the MERGED result) → only then clean up the worktree → delete the branch.
 
 ## External Knowledge — Search, Don't Guess
-When the ticket references a 3rd-party API or SDK:
-1. Repo first: `Grep docs/` + check `AFCL.md`.
-2. Else: `WebSearch` → `WebFetch` official docs; cite URL in code.
-3. After 3 misses: `BLOCKED: <vendor> — <searched> — <missing>`; stop.
-
-Skip: stdlib, syntax, Fabrik conventions.
+When the ticket references a 3rd-party API or SDK: 1. Repo first: `Grep docs/` + `AFCL.md`. 2. Else `WebSearch` →
+`WebFetch` official docs; cite the URL in code. 3. After 3 misses: `BLOCKED: <vendor> — <searched> — <missing>`;
+stop. Skip: stdlib, syntax, Fabrik conventions.
 
 ## HARD STOPS — NEVER
 | Rule | Instead |
@@ -245,24 +253,24 @@ Skip: stdlib, syntax, Fabrik conventions.
 | `git push --force`/`-f` to ANY shared branch · pushing a branch you don't own · a commit WITHOUT Agent Provenance Trailers · bundling files you didn't author into a commit | committing AND PUSHING your own work at task end is REQUIRED (§ EXIT — pathspecs + trailers, then `git push`; the rejection ladder never includes force). The only sanctioned force-push is `wip_backup.sh`'s `refs/wip/*` backup refs |
 | `git add -A` / `git add .` / `git commit -a` · overwriting `CHANGELOG.md` `[Unreleased]` | Shared tree — multiple agents + the daily pipeline commit to one `master`. Stage explicit paths only (`git add <file>…`); read the diff before commit — `git diff --cached --name-only` for a STAGED commit, `git diff HEAD -- <paths>` for a PATHSPEC commit, which ships the working tree rather than the index; never bundle files you didn't author. Append your entry atop `[Unreleased]` (don't reset the section). After the gate auto-stages on success, `git reset` then re-add only your files. |
 | edit outside ticket Scope | stay strict |
-| modify deps files (`pyproject.toml`/`requirements.txt`/`package.json`/`uv.lock`/`package-lock.json`) | only if ticket authorises |
-| files outside project tree | local paths only — EXCEPT `/opt/fabrik-mail/` (operator-sanctioned fabrik-mail store: `mail.py`/`mail_notify.py` read+write the durable `<repo>/{inbox,archive}` mailboxes there) |
-| create/edit/**commit** files in a repo OTHER than the one you were launched in (cross-repo) | HALT — needs the user's **explicit approval THIS turn**. A `/opt/fabrik` agent reaching into `/opt/fabrik-lib` (or vice-versa) is the #1 cause of shared-tree commit collisions; each repo has its own gate that never sees the other's commits. Stay in your own project tree; to change another repo, tell the user which repo + why and let *its* agent do it. |
-| foreground command likely >30s (build/deploy/test/sync/`fabrik`/`docker`/`pytest`/`npm i`) | Bash `run_in_background=true`, OR `rund -- <cmd>`; `runwait $(runlast) <s>`; `runc $(runlast)`. Doc: `docs/reference/long-command-monitoring.md` |
-| `fabrik redeploy` on git-sourced app without `git push` first | commit → push → redeploy; the VPS runs `git pull` from the GitHub remote, not from your local `/opt/` |
-| compose without `deploy.resources.limits.memory` | Memory limit required per service to prevent OOM on the shared VPS (Fabrik invariant; enforced by `deployer_ssh._validate_compose()`). Scaffolder auto-emits via `_write_canonical_compose`; manual composes MUST declare |
-| `DB_HOST=localhost` / `DATABASE_URL=...@localhost:` | use `postgres-main:5432`, `redis-main:6379` — `localhost` = the container, not the shared DB |
+| modify deps files (`pyproject.toml`/`requirements.txt`/`package.json`/`uv.lock`/`package-lock.json`) | only if the ticket authorises |
+| files outside the project tree | local paths only — EXCEPT `/opt/fabrik-mail/` (the operator-sanctioned fabrik-mail store: `mail.py`/`mail_notify.py` read+write the durable `<repo>/{inbox,archive}` mailboxes there) |
+| create/edit/**commit** files in a repo OTHER than the one you were launched in (cross-repo) | HALT — needs the user's **explicit approval THIS turn**. Each repo has its own gate that never sees the other's commits. Stay in your own tree; to change another repo, tell the user which repo + why and let *its* agent do it. |
+| foreground command likely >30s (build/deploy/test/sync/`fabrik`/`docker`/`pytest`/`npm i`) | Bash `run_in_background=true`, OR `rund -- <cmd>`; `runwait $(runlast) <s>`; `runc $(runlast)`. Doc: `/opt/fabrik/docs/reference/long-command-monitoring.md` |
+| `fabrik redeploy` on a git-sourced app without `git push` first | commit → push → redeploy; the VPS runs `git pull` from the GitHub remote, not from your local `/opt/` |
+| compose without `deploy.resources.limits.memory` | a memory limit per service is a Fabrik invariant (enforced by `deployer_ssh._validate_compose()`); the scaffolder emits it via `_write_canonical_compose`; manual composes MUST declare it |
+| `DB_HOST=localhost` / `DATABASE_URL=...@localhost:` | `postgres-main:5432`, `redis-main:6379` — `localhost` is the container, not the shared DB |
 | Authelia config reload via SIGHUP | exits, doesn't reload — `docker restart <authelia-container>` after edits |
-| New Gatus endpoint using UUID container name | stable Docker DNS only: compose service name (Service stacks) or registered alias (single-image Apps). UUID drifts per redeploy. Pairs in `vps_apply_limits.sh` |
-| Health check `/health` behind auth | Authelia bypass is **resource-based, not domain-bound** — `/health`, `/healthz`, `/metrics`, `/api/health` are bypassed on every domain routed through Authelia (hub + spokes via `authelia-vps1@file`). Never protect these paths. |
-| Container ports bound to host directly | all on `fabrik` net (renamed from `coolify` 2026-05-31; `fabrik apply` rejects `coolify`); Traefik routes. Middleware (scaffold-emitted): admin `authelia-forward@docker,gzip@docker`; API `gzip@docker`; public none |
-| new `.md` outside allowlist | root files · scaffold docs · `docs/development/plans/YYYY-MM-DD-plan-<n>.md` · `docs/development/plans/YYYY-MM-DD-plan-<slug>/` spine+ticket plan sets (same-stem spine + `T##[a-z]?-<slug>.md` tickets ONLY — gate-enforced shape, not a free `**`) · `docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md` (the orchestrator's ticket store — we have no native one) · `docs/reference/**/*.md` · `docs/archive/**` · `docs/superpowers/plans/**` · `docs/superpowers/specs/**` · `docs/development/reviews/**/*.md` (the review artifacts the convergence HARD STOP below MANDATES — brand-identity-creator 2026-09-02: the list forbade what the next row required) |
-| destructive script on prod data w/o dry-run | dry-run first, show diff |
-| propose/offer ANY docker volume deletion (`volume prune`, `rm -v`, compose `down -v`) as cleanup | **Volumes are DATA — "dangling" ≠ disposable** (operator directive 2026-08-30: real dev DBs, a Tryton filestore and a retired site's content were found sitting among 852 "dangling" volumes on the shared box). Content-classify read-only first, fix the LEAK at its generator (a test harness's `docker rm -f` without `-v` minted 845 of them), and any deletion is an explicit id list on the operator's word — a prune is NEVER offered as a next step. Test containers: prefer `--tmpfs` for throwaway DBs so no volume is ever minted |
+| New Gatus endpoint using a UUID container name | stable Docker DNS only: compose service name (Service stacks) or registered alias (single-image Apps). UUIDs drift per redeploy. Pairs in `vps_apply_limits.sh` |
+| Health check `/health` behind auth | the Authelia bypass is **resource-based, not domain-bound** — `/health`, `/healthz`, `/metrics`, `/api/health` are bypassed on every domain routed through Authelia (hub + spokes via `authelia-vps1@file`). Never protect these paths. |
+| Container ports bound to host directly | all on the `fabrik` net (`fabrik apply` rejects `coolify`); Traefik routes. Middleware (scaffold-emitted): admin `authelia-forward@docker,gzip@docker`; API `gzip@docker`; public none |
+| new `.md` outside the allowlist | root files · scaffold docs · `docs/development/plans/YYYY-MM-DD-plan-<n>.md` · `docs/development/plans/YYYY-MM-DD-plan-<slug>/` spine+ticket plan sets (same-stem spine + `T##[a-z]?-<slug>.md` tickets ONLY — gate-enforced shape) · `docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md` (the orchestrator's ticket store) · `docs/development/certifications/YYYY-MM-DD-cert-<slug>/` cert boards (same-stem spine + `ledger.md` + `TC##[a-z]?-<slug>.md` tickets ONLY — a SEPARATE namespace from plan sets: `## Test Board` not `## Ticket Board`, `TC##` not `T##`, `.fabrik/cert-locks/` not `plan-locks/`, because `/fabrik-execute-plan`'s dispatcher triggers on the bare heading string) · `docs/reference/**/*.md` · `docs/archive/**` · `docs/superpowers/plans/**` · `docs/superpowers/specs/**` · `docs/development/reviews/**/*.md` |
+| destructive script on prod data w/o dry-run | dry-run first, show the diff |
+| propose/offer ANY docker volume deletion (`volume prune`, `rm -v`, compose `down -v`) as cleanup | **Volumes are DATA — "dangling" ≠ disposable.** The sequence is fixed: content-classify every volume first (signatures + catalogs, read-only) → fix the LEAK at its generator → even a provably-throwaway set is deleted only as an explicit id list on the operator's word. A prune is NEVER offered as a next step |
 | credentials change w/o backup + diff approval | `cp <f> backups/<f>.backup.$(date +%Y%m%d-%H%M%S)` first |
 | edit a **Fabrik-synced** file (canonical list: `/opt/fabrik/scripts/fabrik_synced_manifest.py` — the `.gitignore` "Fabrik-synced" block is generated from it) | these are centrally distributed from `/opt/fabrik` and **overwritten on every sync** (gate-enforced by `scripts/enforcement/check_synced_unmodified.py`). Never edit locally. If the change is correct for **ALL** projects, make it in `/opt/fabrik/<path>` + re-sync; otherwise propose it upstream — don't fork it here |
 | state a COUNT, a RATIO or a NEGATIVE without its DENOMINATOR | **A bounded search returns "not found in N", never "does not exist".** Originated at fabrik-lib (four wrong numbers in two days: an `awk` range swept past its section → "56 of 56" when the header said 32 · `git log -30` on a 79-commit file → "we edited it" · a regex demanding one literal phrase → "9 of 68" when it was 45 · a lock seeded from a partial list → "0 unexplained" with 35 files out of scope) and re-proven fleet-side 2026-08-29 ("the only beats are X and Y" survived TWO converged reviews; there were seven). When a query bounds itself (`-N`, `head`, a range, a hand-picked path list), state the bound and compare it to the population before believing a negative; if the tool prints a total, READ THE TOTAL. A "0 findings" claim must also say how many subjects it examined. Two more shapes, measured at tryton-crm 2026-08-29 (both self-caught, same round): `grep -A5` CONTEXT TRUNCATION read as the full list (a dependency block longer than the window 'verified' a five-module closure that wasn't closed), and CASE-SENSITIVITY (`grep -l released` reporting 24 of 25 when the files say RELEASED — a false disjointness finding from a lowercase pattern). A THIRD shape, measured at web-ecommerce-factory 2026-08-31 (fired FOUR times in one session): WIDTH truncation — `cut -c`/`cut -b`, awk field slices, `grep -m` — is a bounded search too, and its bound must be declared in the finding; for an over-long LINE use `fold -w`, `grep -o` around the term, or read the whole line — never leading-N-chars. A FOURTH shape, measured at seo 2026-09-02 (three wrong counts in one session, one of them into CHANGELOG + the ledger before a finder caught it): `tail` is the same bound wearing the opposite mask — on a DESC-ordered result it drops exactly the rows that matter (13 sites summing to 43 briefs shown; 1,269 across 38 was the population), and a COUNT derived from a text-munging pipeline whose output format you assumed (`--collect-only -q` in one format, `grep -c "^    def test_"` missing module-level tests) fails SILENTLY with a plausible number. So: prefer the PRODUCING tool's own total (pytest's `N tests collected` line, `wc -l` over the full output, the SQL `count(*)`) over a pipeline-derived one; when a pipeline is unavoidable, print its raw tail beside the number so a zero or an undercount is visible; and a bound is dangerous in whichever direction the sort put the interesting rows. A FIFTH shape, measured at the hub 2026-09-03 (01M1KC917): a diff FILTER that shares an alphabet with its payload — a `git diff` piped into `grep '^[+-]'` and then into `grep -v '^[+-][+-]'` strips the `+++`/`---` headers AND every added or removed markdown BULLET (`- ` doubles the marker), so a governance diff of 7/1 lines showed 5 and a whole clause vanished from its own review; `--numstat` is the denominator, `--word-diff=plain` the honest read — and a `grep -o '{+[^}]*+}'` over word-diff output stops at the first literal `}` in the content. A SIXTH shape, measured at the hub 2026-09-02 (01M1GGMK): a STRUCTURAL line counted as a data row — a `grep -c` whose pattern anchors on the row's own leading pipe over a markdown table counts the HEADER (and a separator, a fence marker) and is off by exactly one; when a file-read and a shell search disagree about the same file in the same turn, the SHELL is the tiebreak (a cached `Read` view stamped a stale row while `grep -n` showed the edit). A SEVENTH shape, measured 2026-09-10 (youtube `01M25D51A9BBK44MK03G4T65TR`, every number below re-derived by an author-blind seat): **the shell `grep` is a FUNCTION, not `/usr/bin/grep`** — Claude Code's shell snapshot re-execs its own binary as ugrep with `--ignore-files`, which honours `.gitignore`, and in a PROJECT repo the Fabrik-synced set is gitignored BY DESIGN (43 of the 45 git repos under `/opt` carry a rule ignoring `scripts/enforcement/`; in 3 of those the files are TRACKED so the rule is inert, leaving 40 where it bites — at `.gitignore` line numbers spanning 67–194 and genuinely SCATTERED — 28 distinct values across those 43 when last measured, so no line number is typical (re-derive it; the count moved 27→28 in forty minutes, which is why the RANGE is quoted and the count is dated) — so cite the RULE, never a line number, and say which command you asked: plain `git check-ignore` is silent for a tracked path, `--no-index` shows the rule). A search from the repo root is therefore blind to exactly the machinery the hub distributes, with no warning and no exit-code difference. Measured in `/opt/youtube`, same pattern, same minute: `command grep -rn --include='*.py' 'pick_models' .` → **57**, the shim → **0**, `rg` (default) → **4**, `git grep` → **0**, the shim with `--no-ignore-files` → **57**. The bound is keyed on the SEARCH ROOT — the same tree, rooted at `scripts` instead, matched 13 — which is why it survives review; it nearly deleted a vendored module whose three surviving call sites were all synced files. **So: a NEGATIVE about a synced, generated or otherwise ignored path is asserted only from `command grep` or `rg --no-ignore --hidden` — the two that work in ANY shell — and the TOOL is named beside the count.** `grep --no-ignore-files` is a third, but only while the shim is LIVE: it is a ugrep flag, so in a shell where `type -t grep` is not `function` real GNU grep answers `unrecognized option '--no-ignore-files'` and your search returns nothing at all — which reads exactly like a clean zero. ⚠️ Plain `rg --no-ignore` is NOT one of them — it un-ignores but still skips every HIDDEN directory, so it never descends `.claude/` or `.windsurf/`: one pattern (`check_convergence`, from the repo root of `/opt/web-ecommerce-factory`) returned 51 against 1,551 that hour — a 30× undercount on the very machinery this rule protects. Name the pattern and the root or the pair is unfalsifiable; the repo is live, so re-running moves the absolutes while the invariant holds: 94–97% of the matches sit under `.claude/`. `git grep` and `git ls-files` are TRACKED-only and blind the same way wherever the synced set is untracked (fabrik-lib measured 93 of 723 on-disk PYTHON files invisible in trade-intelligence, `01M21TG2YAW0KFBKY25HFGV900`), though in the 3 repos (of the 47 carrying `.fabrik/synced.lock`) that TRACK `scripts/enforcement/` they see MORE than the shim does — repo-dependent, so name the repo and the population you counted. And the shim is not always the shim: an output-format flag (`-Z`, `-z`, `--null`, `--*-config`) falls through to real `grep`, so the same command answers differently depending on a flag you did not think was semantic. ⚠️ **NAME THE POPULATION YOU COUNTED — three are defensible and they differ by more than an order of magnitude.** Three seats answered one question with 1,275 / 1,832 / 72,768 (trade-intelligence, 01M20K4FK6TKPDF529Q1HQ2N4P). On this tree, over `*.py`: **770** tracked (count the lines of `git ls-files -- '*.py'`), **24,059** on disk once the stale worktree copies are skipped (count the lines of `find . -type f -name '*.py' -not -path './.claude/worktrees/*' -not -path './.tmp/*'`), and **37,506** on disk unscoped — the worktrees are 36% of that last number, and skipping them is the difference between counting the repo and counting it however many times it happens to be checked out today. A count whose population is unnamed is not a denominator; it is a number. ⚠️ **Count FILES with `find`, not with a `grep` pipeline**, and heed the anti-pipeline rule three sentences up rather than restating it: the first cut of this very clause shipped four `grep -r`/`git ls-files -z` pipelines and its own review found ELEVEN defects in them — `grep -rl ''` silently omits every EMPTY file (593 here, a 2.5% undercount in the worked example itself), counting `git ls-files -z` through a `tr` of NUL to newline OVERCOUNTS a filename containing a newline, where counting plain `git ls-files` is correct, `--exclude-dir` is GNU-grep-only and makes `rg` exit 2 with empty output, `--exclude-dir` matches a NAME component so `.claude/worktrees` can never match while `.claude` wrongly drops the seven fleet-synced hooks, and a bare `command grep -rn` with no pattern exits 2 and prints nothing — which piped to `wc -l` is a clean, confident **0**. Every one of those is the failure this rule exists to prevent, committed by the rule. |
-| report a thing WORKS from a PROXY when the real check is executable | **EXECUTE the real check.** Reading, grepping, structural comparison and "it looks right" are NAVIGATION, never EVIDENCE. If the artifact you produced is consumed by a gate, produce it and RUN THAT GATE on it *before* you report — not after the operator pushes back. Cheap tools are fine for finding things; they are banned as the basis of a completion claim whenever an executable check of the real thing exists. **A question asked TWICE is evidence your METHOD is wrong, not the detail** — change the method, do not re-run the same check harder. (Live 2026-08-23: four "yes, it matches" answers from static comparison of a new command; then ONE run of `check_review_coverage.py` against the ledger that command emits found FIVE defects in ninety seconds — including a rubric line the gate strips before reading. The executable check was available from the first minute.) |
+| report a thing WORKS from a PROXY when the real check is executable | **EXECUTE the real check.** Reading, grepping, structural comparison and "it looks right" are NAVIGATION, never EVIDENCE. If the artifact you produced is consumed by a gate, produce it and RUN THAT GATE on it *before* you report. Cheap tools are fine for finding things; they are banned as the basis of a completion claim whenever an executable check exists. **A question asked TWICE is evidence your METHOD is wrong, not the detail** — change the method, do not re-run the same check harder. |
 | claim "converged"/"reviewed"/"in-sync"/"100%"/"zero unknowns" without embedded proof + the matching gate green | **PLAN** → `## Evidence` per Phase (≥1 `path:line` AND ≥1 fenced command-output block) + a `## Self-audit`; set `Status: CONVERGED` only after `final_gate.py --check`. **CODE REVIEW** → `docs/development/reviews/<plan>-review.md` embedding the verbatim `final_gate.py --json` `"status":"success"` + a per-Phase verdict. **DOCS** → `docs_updater.py --check` green + a per-file claim→proof line. A column *name* ≠ its values (read them); subagent summaries ≠ proof. `scripts/enforcement/check_convergence.py` fails the gate otherwise. Prompt templates: `docs/reference/convergence-prompts.md` |
 
 ## Doc Sync Matrix (update matched docs in same change — gate-enforced)
@@ -296,7 +304,8 @@ judgment. *"My change type isn't in the table"* is never a reason to leave a doc
 | Deferred-work / session findings (every project — operator rule 2026-08-27) | `docs/STRATEGIC_BACKLOG.md` |
 
 ## Agent Provenance Trailers (required on all AI-authored commits)
-Git can't distinguish AI agents — every commit is authored by the same user. Trailers are the metadata layer for post-hoc attribution (`git log --format='%h %s %(trailers:key=Agent-Role)'`).
+Git can't distinguish AI agents — every commit is authored by the same user. Trailers are the attribution layer
+(`git log --format='%h %s %(trailers:key=Agent-Role)'`).
 
 | Trailer | Values | When |
 |---|---|---|
@@ -308,7 +317,11 @@ Git can't distinguish AI agents — every commit is authored by the same user. T
 | `Merged-From` | comma-separated branch list | orchestrator squash commits |
 | `Conflicts-Resolved` | count | orchestrator squash commits |
 
-Standalone work (not plan execution) → `Agent-Role: primary`. Trailers go in the commit **body** (blank line before them), above `Co-Authored-By`. ⚠️ **The trailer block must be its OWN paragraph, with NO blank line inside it.** Git parses only the LAST paragraph, and only if it is all-trailers — so BOTH of these return empty from `%(trailers:key=Agent-Role)`: a blank line *between* `Agent-Context:` and `Co-Authored-By:` (which demotes everything above it to prose), and a prose line *glued* to the top of the block with no blank line before it (which demotes the whole paragraph). Verified both empirically 2026-08-15. Measured the same day: 200 of the last 200 hub commits carried `Agent-Role:` and only **10** parsed, because this example shipped the first mistake — and the commit that fixed it made the second. ⚠️ **And a THIRD trap, the one neither contract named until 2026-09-15 (T14.3, 01M25EJZG): a WRAPPED value with no indentation discards the whole block.** Git folds a continuation line into the value only when it begins with whitespace; an unindented second line is a prose line, and a paragraph that is not all-trailers parses as none. Executed: an `Agent-Context:` wrapped onto a bare next line returned EMPTY from `%(trailers:key=Agent-Role,valueonly)` and printed nothing from `git interpret-trailers --parse`, while the same value indented by two spaces parsed whole — as did the same value on one long unwrapped line, which is the simplest fix. **Verify with `git log -1 --format='%B' | git interpret-trailers --parse`**: it prints every trailer git can see, so an empty or short list is the failure, and unlike `git show` it cannot look right while parsing as nothing. Put a blank line before the block, none within, and keep each value on ONE line (or indent its continuation). Example:
+Standalone work → `Agent-Role: primary`. Trailers go in the commit **body** (blank line before them), above
+`Co-Authored-By`. ⚠️ **The trailer block must be its OWN paragraph, with NO blank line inside it** — git parses
+only the LAST paragraph, and only if it is all-trailers: a blank line between `Agent-Context:` and
+`Co-Authored-By:` demotes everything above it to prose, and a prose line glued to the top of the block demotes
+the whole paragraph. ⚠️ **And a THIRD trap, the one neither contract named until 2026-09-15 (T14.3, 01M25EJZG): a WRAPPED value with no indentation discards the whole block.** Git folds a continuation line into the value only when it begins with whitespace; an unindented second line is a prose line, and a paragraph that is not all-trailers parses as none. Executed: an `Agent-Context:` wrapped onto a bare next line returned EMPTY from `%(trailers:key=Agent-Role,valueonly)` and printed nothing from `git interpret-trailers --parse`, while the same value indented by two spaces parsed whole — as did the same value on one long unwrapped line, which is the simplest fix. **Verify with `git log -1 --format='%B' | git interpret-trailers --parse`**: it prints every trailer git can see, so an empty or short list is the failure, and unlike `git show` it cannot look right while parsing as nothing. Put a blank line before the block, none within, and keep each value on ONE line (or indent its continuation). Example:
 ```
 fix(worker): handle OOM exit code -9 in poll_worker
 
@@ -316,7 +329,11 @@ Agent-Role: primary
 Agent-Context: added OOM detection to _handle_crashed_job, triggers alert
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 ```
-**Verify after committing:** `git log -1 --format='%(trailers:key=Agent-Role,valueonly)'` — empty output means the block did not parse. Query: `git log --grep='Agent-Role: subagent'` · `git log --format='%h %(trailers:key=Conflicts-Resolved)'`. Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + `Agent-Phase`/`Agent-Task`/`Merged-From` (see the execute-plan skill).
+
+**Verify after committing:** `git log -1 --format='%(trailers:key=Agent-Role,valueonly)'` — empty output means the
+block did not parse. Query: `git log --grep='Agent-Role: subagent'` · `git log --format='%h
+%(trailers:key=Conflicts-Resolved)'`. Plan execution extends this with the `orchestrator`/`subagent`/`review-fix`
+roles + `Agent-Phase`/`Agent-Task`/`Merged-From` (see the execute-plan skill).
 
 ## UNIVERSAL governance markers (the drift contract)
 
@@ -339,17 +356,14 @@ plainly there.
 ## Past sessions are searchable (session-recall)
 
 Full Claude Code history on this box is indexed locally. MCP tools: **`search_chats`** (keyword+substring,
-`project=`/`after=` filters) · **`get_chat`** (read a session window) · **`recent_chats`** (latest sessions).
-USE THEM when: resuming work ("continue where we left off"), the user references a prior decision/discussion
-not in this conversation ("as we decided", "the bug we fixed"), or after compaction when earlier context is
-unclear. Never claim no previous conversation exists without searching first. **A reloaded VS Code window shows only what follows the LAST compaction** — the panel and the CLI walk the transcript's
-parent chain and every compaction is a new root (hub D-235); nothing before it is loaded, in any account, after any
-restart. The earlier turns are NOT gone: they sit in the same transcript, `search_chats`/`get_chat` read ALL of it,
-and `python3 /opt/fabrik/scripts/render_chat_history.py --project <repo>` renders it per session. **In doubt about anything before the
-visible summary — what was decided, tried, or left half-done — SEARCH it; never assume it and never reconstruct it
-from the summary alone** (operator directive 2026-09-12). **Ledger first:** for a
-DECISION-shaped question, `docs/DECISIONS.md` comes BEFORE session-recall — structured rows beat
-lexical transcripts (a decision phrased differently is invisible to recall).
+`project=`/`after=`) · **`get_chat`** (read a session window) · **`recent_chats`**. USE THEM when resuming work,
+when the user references a prior decision not in this conversation, or after compaction. Never claim no previous
+conversation exists without searching first. **A reloaded VS Code window shows only what follows the LAST
+compaction** — every compaction is a new root (hub D-235); the earlier turns sit in the same transcript, which
+`search_chats`/`get_chat` read whole and `python3 /opt/fabrik/scripts/render_chat_history.py --project <repo>`
+renders per session. **In doubt about anything before the visible summary — SEARCH it; never reconstruct it from
+the summary alone.** **Ledger first:** for a DECISION-shaped question, `docs/DECISIONS.md` comes BEFORE
+session-recall — structured rows beat lexical transcripts.
 
 ## fabrik-mail — you can message the hub, fabrik-lib, and sibling repos
 
@@ -537,17 +551,62 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   against the writer; anything restated here is a second source of truth by construction.
 - **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → `backups/` dir (gitignored).
 - **Password policy** (32-char `[a-zA-Z0-9]` via `secrets.choice()`).
-- **Naming:** kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `DECISIONS.md`, `CLAUDE.md`, `Makefile`, `Dockerfile`, Python pkgs (snake_case), auto-generated, dotfiles.
-- **Authoring a prompt** (system prompt · subagent brief · skill · tool/function description · `AGENTS.md`): follow `docs/reference/MD/ai-prompt-templates.md` — the template (Part A) + the agentic patterns you MUST enforce (Part B: termination contract · evidence-before-assertion · path:line grounding · question bar · untrusted-input) + the markdown rules (Part C). Distil, don't dump.
-- **Same code in 2 envs:** WSL dev (PG localhost, `.env`) · VPS Docker (`postgres-main`, `compose.yaml`). Must run unmodified. (Supabase retired as a runtime target — self-host by default; see `agents-fabrik.md` § Supabase.)
+- **Naming:** kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`,
+  `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `DECISIONS.md`, `CLAUDE.md`, `Makefile`, `Dockerfile`, Python pkgs
+  (snake_case), auto-generated, dotfiles.
+- **Authoring a prompt** (system prompt · subagent brief · skill · tool description · `AGENTS.md`): follow
+  `/opt/fabrik/docs/reference/MD/ai-prompt-templates.md` — the template (Part A) + the agentic patterns you MUST
+  enforce (Part B: termination contract · evidence-before-assertion · path:line grounding · question bar ·
+  untrusted-input) + the markdown rules (Part C). Distil, don't dump.
+- **Same code in 2 envs:** WSL dev (PG localhost, `.env`) · VPS Docker (`postgres-main`, `compose.yaml`). Must run
+  unmodified; host names are env-layer, never code logic.
 - **Health endpoint:** test real deps (`await db.execute("SELECT 1")`).
 - **Before new scripts:** `Grep` `scripts/` + `enforcement/`. Extend, don't duplicate.
-- **Script coupling header — ONE declaration:** every `scripts/**/*.py` carries a `# AFTER-EDIT: <files to update when this script changes | none>` line in its first ~25 lines. ⚠️ **The header is the only hand-written half** — here it is the WHOLE declaration: a doc-side `## Related scripts` block is rendered from these headers hub-side and no project carries the renderer, so never hand-keep such a list in a page. Two hand-kept lists are two things to drift, and the stale one is indistinguishable from the current one. Gate-enforced (WARN) by `check_script_headers.py` — touch-on-change: warns on a missing header or a listed coupled file you didn't also stage. `none` is a valid, honest header.
-- **fabrik-lib** (`/opt/fabrik-lib/`): reusable modules — vendor (copy), don't import. Check `fabrik-lib/README.md` for the module table before building from scratch. New module = must have `README.md` + `requirements.txt` + row in `fabrik-lib/README.md` table.
-- **Subagent fan-out** (detail: `.windsurf/rules/core/62-using-subagents.md`): **⚠️ THE OPENROUTER POOL IS OFF — D-181 (operator, 2026-09-07) — OFF BY POLICY: D-182 revised the mechanism, the provider credentials stay provisioned, so a `fanout` would still dispatch and spend; this text and the gate are the control.** Every fan-out a command names runs **NATIVE** — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge you own. Nothing records to the flywheel (a native seat has no `AgentResult`) and nothing is scored; `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182), so **no `NO-POOL:` declaration is owed**. Native sizing has TWO shapes. **The partitioned review loops** (`/fabrik-review` and `/fabrik-repo-review` by FILE; the `term-edit` family's `/fabrik-spec-review` and `/fabrik-plan-review` by SECTION, Opus on the rule/grammar sections and Sonnet on the rest with no Haiku seat — D-207, D-212, D-218, on the operator's ruling D-203) cut the surface into DISJOINT slices — by file, Opus on the RISKY units only (concurrency and locks, record and file formats, fleet-synced paths — `scripts/enforcement/`, `scripts/command_run.py`, the hooks, `templates/governance/` — auth, schema, migrations, secrets; a surface with no risky unit still gets one Opus seat over its most consequential slice, carved OUT of Sonnet's allocation), Sonnet on every other code and doc unit, at most ONE Haiku seat for a judgement-shaped inventory class the close-out hygiene script cannot express and only when the brief names it, and Fable (Opus by name when Fable refuses) orchestrating and EXECUTING every refutation and every confirmed reproduction, never a finder — the union of the slices IS the full pass, no file's logic read by two seats; round 1 is the only full pass and every later round is a DELTA over the fix diff plus one hop of callers and callees (the hop bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule — `term-edit`/`term-coverage`), sized by the fix under the fragments' delta budget (`dispatch_headroom.py --delta <n>` beside the round-1 `--slices`/`--units` — one fresh seat PLUS the hygiene script at or under 20 changed lines; D-229 narrows D-208's floor to round 1), closing only on a delta round that carried a fresh non-authoring seat and CONFIRMED zero code or doc defects (D-206). **Every OTHER command is UNITS-sized** — `/fabrik-review-scoped`, the grounding and adjudication commands and the sweep and audit reviews: per INDEPENDENT unit of the surface (failure class · file · screen · doc · pack · journey · fact · behaviour) a Sonnet breadth seat plus a Haiku mechanical seat, plus the Opus authoritative seat(s), all dispatched in a SINGLE message so they run in parallel — a 3-unit surface with a mechanical angle is 7 seats (4 with `--mechanical 0`), never a token 1–2; the cap is independence OF THE SURFACE (partition so no unit's ground truth is another's) and THERE the FLOOR is three seats — a surface with fewer than three units still gets three on DIFFERENT angles, never solo and never two (D-208; under a partition the floor stands down, satisfied by construction — and D-229 binds it to ROUND 1, so a delta round at or under the fragments' budget is ONE fresh seat plus the hygiene script), and blocking on one seat is where the wall-clock goes. EVERY partitioned review loop runs `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` (a section partition passes `opus=N,sonnet=N` only — no Haiku seat, D-218) before it dispatches, however small the partition — the floor stands down under a partition, the budget and the stamp never do; a units-sized surface runs `--units <N> [--heavy] [--risky <R>] [--mechanical <M>]` before any fan-out wider than the floor; a floor-sized units fan-out (1 unit = 3 seats = the floor) needs no script — stamp its three seats with `dispatch --seats 3`. Either way dispatch **exactly** the `SEATS:` and mix it prints — stamped FIRST with `python3 scripts/command_run.py dispatch --seats <n>` (sibling sessions subtract that stamp for 25 minutes — accumulated within the round, released at its close; a `round --seats` written at the round's close reserves nothing while the seats run) — the box, the CLI cap and the quota are the ceiling, the slices or units only the partition: under `--slices` SEATS is Σ slices with NO floor padding; under `--units`, a Sonnet breadth seat plus a Haiku mechanical seat per unit (the mechanical angle is grep-shaped and GLOBAL — `--mechanical <M>` for the classes the surface has, 0 for a grounding/adjudication surface; trimmed below one per unit, each Haiku seat sweeps one class across every unit) plus the Opus authoritative seat(s), all in ONE message, each seat a distinct slice — or unit × angle — brief (D-191/D-207; a 3-unit surface with a mechanical angle on an idle box is 7 seats (4 with `--mechanical 0`), never 3; floor 3 for those surfaces — D-188/D-208); model by ROLE: Fable orchestrates/adjudicates, Opus is the authoritative pass, Sonnet is breadth, Haiku is every unit's mechanical seat — priced haiku 1× · sonnet 2× · opus 5× · fable 10× (D-190), so breadth on Opus is a 2.5× overspend. **The unit count is what the SURFACE HAS, so the rule scales itself** — a one-file diff in a small repo yields one or two units, not eight — and only the authoritative seat is Opus: breadth runs on Sonnet, the mechanical seat on Haiku (the quota line in `/fabrik-execute-plan` § Dispatch economics still binds) — so the spend is bounded by the unit count (one unit = 3 seats) — or, under a partition, by the slice count — never by how idle the box looks. The `ai-consult` lane is off with it (same ruling: no metered fan-out). The pool contract stays in the corpus in `<!-- POOL OFF -->` comments so re-enabling is an uncomment, not a rewrite.
-  <!-- POOL OFF (D-181, 2026-09-07) — the pool-default bullet, kept verbatim for re-enable:
-  - **Subagent fan-out** (detail: `.windsurf/rules/core/62-using-subagents.md`): **pool-default for gradeable fan-out** — the OpenRouter pool (`fanout` → `pick_models(task_type)` — flywheel-ranked, NO default price cap; `max_cost_per_mtok=` opt-in) is the DEFAULT worker for review finders / research grounders / doc reconcilers / rules auditors / implementers; it records + feeds the flywheel. **Native Claude Task subagents** are for GUI (`fabrik-gui`), the authoritative/high-risk pass (auth/schema/migrations/concurrency), and the decide/refute/merge you own. **BOTH, never either/or:** a *substantial* review runs the pool breadth layer (finders that record) AND native on top for the high-risk slices — native is **added**, never a replacement; going all-native lands zero flywheel rows (advisory-WARN'd). A single-shot (`tools_enabled=False`) repo-grounded pool worker (`review`/`docs`/`plan`) needs `allow_ungrounded=True` (or `tools_enabled=True`) — the module refuses ungrounded single-shot verification (it hallucinates). ⚠️ **Via `fanout`, `mode="read_only"` SETS that for you and passing it yourself RAISES** (`fanout: ['allow_ungrounded'] are set by fanout itself`, `agent.py:1188`); the explicit kwarg belongs only on a hand-built `AgentSpec` — web-ecommerce-factory followed the old sentence verbatim and the dispatch died (01M1GNKP). **Parallelism has exactly two shapes (per `62` § Parallelism) or it SILENTLY SERIALIZES:** read-only fan-out → `tools_enabled=False` (the parallelism trigger — each its own group → parallel; `allow_ungrounded=True`+inline is a *separate* anti-refusal need for grounded `review`/`docs`/`plan`, not a parallelism condition); tools-enabled fan-out → `tools_enabled=True` + **disjoint `owned_paths`** (empty/overlapping `owned_paths` + `tools_enabled=True` = one serial group, the #1 trap). Pass `n` to `pick_models` (default `n=1`); `max_concurrency` default 4. **Flywheel rule:** a **pool** dispatch owes both a `results_table` and a `record_agent_run(spec, result)` per unit (one 0–5 verdict in both), enforced by `scripts/enforcement/check_subagent_flywheel.py`. A **native** Task subagent produces no `AgentResult` — it does **not** record. `record_run(result, …)` silently no-ops — always `record_agent_run(spec, result, …)`. **THIRD lane — `ai-consult`** (fabrik-lib, metered frontier panel, records nothing): different eyes at a DECISION FORK only — the four entry points + stinginess rules live in `62` § Dispatch policy (operator-named · a genuine spec fork the question bar would punt · `BLOCKED: NON-CONVERGENCE` · pre-freeze on an irreversible heavy surface). ALWAYS check the OpenRouter remaining credits first and ask the operator for a top-up when short — never spend the tail silently; single-model before panel; report `cost_usd`; never for gradeable fan-out; no Claude models through it (`claude -p` is free-tier here).
-  -->
+- **Script coupling header — ONE declaration:** every `scripts/**/*.py` carries a `# AFTER-EDIT: <files to update
+  when this script changes | none>` line in its first ~25 lines, and every doc a header names carries the mirror
+  — a `## Related scripts` block. ⚠️ **The header is the only hand-written half**: the doc block is RENDERED from
+  the headers (`scripts/render_doc_script_links.py`), so you add a link by editing the SCRIPT, never the page.
+  Gate-enforced (WARN) both ways. `none` is a valid header. ⚠️ **RETROACTIVE — backfill, don't grandfather:**
+  `render_doc_script_links.py --coverage` ratchets the headerless count and it may only go DOWN; in a repo with a
+  backlog, take a bite. The declaration must be a real COMMENT — an `# AFTER-EDIT:` inside the module docstring
+  declares nothing. Never rendered into frozen plans/specs or the Doc Sync ledgers — detail:
+  `/opt/fabrik/docs/reference/doc-script-coupling.md`.
+- **fabrik-lib** (`/opt/fabrik-lib/`): reusable modules — vendor (copy), don't import. Check `fabrik-lib/README.md`
+  for the module table before building from scratch.
+- **Subagent fan-out** (detail: `.windsurf/rules/core/62-using-subagents.md`): **⚠️ THE OPENROUTER POOL IS OFF —
+  hub D-181/D-182 — OFF BY POLICY:** the provider credentials stay provisioned, so a `fanout` would still dispatch
+  and spend; this text and the gate are the control. Every fan-out a command names runs **NATIVE** — Claude Task
+  subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same
+  author-blind rule, same decide/refute/merge you own; nothing records to the flywheel and **no `NO-POOL:`
+  declaration is owed**. Native sizing has TWO shapes. **The partitioned review loops** (`/fabrik-review` and
+  `/fabrik-repo-review` by FILE; `/fabrik-spec-review` and `/fabrik-plan-review` by SECTION — Opus on the
+  rule/grammar sections, Sonnet on the rest, no Haiku seat) cut the surface into DISJOINT slices: Opus on the
+  RISKY units only (concurrency/locks, record and file formats, fleet-synced paths, auth, schema, migrations,
+  secrets — a surface with no risky unit still gets one Opus seat over its most consequential slice), Sonnet on
+  every other code and doc unit, at most ONE Haiku seat for a judgement-shaped inventory class only when the
+  brief names it, and Fable (Opus when Fable refuses) orchestrating and EXECUTING every refutation and every
+  confirmed reproduction, never a finder. The union of the slices IS the full pass, no file's logic read by two
+  seats; round 1 is the only full pass; every later round is a DELTA over the fix diff plus one hop of callers
+  and callees (the hop bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule —
+  `term-edit`/`term-coverage`), sized under the fragments' delta budget (`dispatch_headroom.py --delta <n>` beside
+  the round-1 `--slices`/`--units` — one fresh seat plus the hygiene script at or under 20 changed lines), closing
+  only on a delta round that carried a fresh non-authoring seat and CONFIRMED zero code or doc defects (hub
+  D-206). **Every OTHER command is UNITS-sized** — `/fabrik-review-scoped`, the grounding and adjudication
+  commands, the sweep and audit reviews: per INDEPENDENT unit (failure class · file · screen · doc · pack ·
+  journey · fact · behaviour) a Sonnet breadth seat plus a Haiku mechanical seat, plus the Opus authoritative
+  seat(s), all dispatched in a SINGLE message; the cap is independence OF THE SURFACE and the FLOOR is three seats
+  (under a partition the floor stands down; it binds round 1 only). EVERY partitioned loop runs `python3
+  /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` before it dispatches (a
+  section partition passes `opus=N,sonnet=N`); a units-sized surface runs `--units <N> [--heavy] [--risky <R>]
+  [--mechanical <M>]` before any fan-out wider than the floor; a floor-sized fan-out (1 unit = 3 seats) needs no
+  script — stamp with `dispatch --seats 3`. Dispatch **exactly** the `SEATS:` and mix it prints — stamped FIRST
+  with `python3 scripts/command_run.py dispatch --seats <n>` (concurrent agents subtract that stamp for 25
+  minutes; a `round --seats` at the close reserves nothing). The box, the CLI cap and the quota are the ceiling;
+  the slices or units only the partition. Model by ROLE: Fable orchestrates/adjudicates, Opus authoritative,
+  Sonnet breadth, Haiku mechanical — priced haiku 1× · sonnet 2× · opus 5× · fable 10× (hub D-190), so breadth on
+  Opus is a 2.5× overspend. The unit count is what the SURFACE HAS; spend is bounded by units (or slices), never
+  by how idle the box looks. The `ai-consult` lane is off with the pool. The pool contract stays in the corpus in
+  `<!-- POOL OFF -->` comments so re-enabling is an uncomment, not a rewrite.
 
 ## Pipeline — next-command chaining (every `/fabrik-*` command ends by pointing to the next)
 
@@ -591,26 +650,58 @@ ONCE, at the true end of the run.
 
 ## Spec contract awareness
 
-Every Fabrik project has `specs/services/<id>.yaml` with a `shape:` block that drives:
+Every Fabrik project has `specs/services/<id>.yaml` (on the hub) with a `shape:` block that drives which
+Postgres DB / Redis index / Backrest plan / Gatus endpoint / Prometheus job / GlitchTip project / Authelia rule /
+Meilisearch index get auto-created on `fabrik apply`. The shape contract is canonical: code MUST match it. Adds a
+database call → `shape.needs_database` MUST be `true` · a Redis cache → `shape.needs_cache` · exposes `/metrics` →
+`shape.exposes_metrics` · Meilisearch indexes → `shape.has_search_feature` · an admin UI behind auth →
+`shape.is_admin_dashboard`. If you change code in a way that affects any of these, ALSO update the spec —
+otherwise `fabrik apply` skips the registrar and the deploy is silently broken. `fabrik` is a hub-side CLI, not
+on a project's PATH — ground it by READING the spec's `shape:` block and the flag→registrar mapping above
+(inspection, not a shell-out).
 
-- Which Postgres DB / Redis index / Backrest plan / Gatus endpoint / Prometheus job / GlitchTip project / Authelia rule / Meilisearch index get auto-created on `fabrik apply`
-- The shape contract is canonical: code MUST match it, not the other way around
+## ⚠️ FINAL OUTPUT (last 7 lines of every task-completing response)
 
-If your code:
+```
+GATE: <command run> → success|failure
+DOCS UPDATED: <files | none>
+CHANGELOG: <entry title | n/a>
+LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
+DONE: <one line — what this run delivered: the commits/artifacts, not intentions>
+NEXT: <the next command or step, NAMED — /fabrik-<x> <args> | operator decision: <what> | none — terminal>
+FEEDBACK: /<command> · <wall-clock> · rounds <n> (<confirmed trend, or the findings trend when a round never stated confirmed>) · tokens <input> input / <output> output (<n>% cached) · confusion: <…|none> · waste: <…|none> · change: <lean|fast|accurate|waste|infra|rules|manifesto>: <the one edit to this command or a rule | none — `none` carries no key> · filed: <mail id(s) to a beat | none — surfaces exercised: …> [· cost: <a plain amount, e.g. 0.0125 — prose is refused>]
+```
 
-- Adds a database call → `shape.needs_database` MUST be `true` in the spec
-- Adds a Redis cache → `shape.needs_cache` MUST be `true`
-- Exposes `/metrics` → `shape.exposes_metrics` MUST be `true`
-- Adds Meilisearch indexes → `shape.has_search_feature` MUST be `true`
-- Adds an admin UI behind auth → `shape.is_admin_dashboard` MUST be `true`
+Missing any line on a task-completing response = failure. Re-run the gate until `success`, then output the 7
+lines. The `FEEDBACK:` line is the run-record close verdict made chat-visible: a "filed" claim names a durable
+artifact; a bare "none" is a defect — `none — <surfaces exercised>` or the filing. **EVERY OTHER response —
+conversational, clarifying, read-only, mid-plan status — ends with the two-line STATE footer** (no gate, no
+changelog owed):
 
-If you change code in a way that affects any of the above, ALSO update `specs/services/<id>.yaml`.
-Don't ship code that contradicts the spec — `fabrik apply` will skip the registrar and you'll have a silently broken deploy.
+```
+STATE: <where things stand — the stage/board/loop position, one line>
+NEXT: <the successor: exact command · the operator decision awaited · "awaiting your reply" · none — terminal>
+```
 
-To preview what the spec will trigger, **hub-side** (from `/opt/fabrik`): `fabrik plan specs/services/<id>.yaml`. `fabrik` is not on a project's PATH — from a project, ground it by **reading the spec's `shape:` block** and the flag→registrar mapping above (inspection, not a shell-out).
+The footer never substitutes for the 7-line block on a task-completing response; a footer `NEXT:` naming
+undispatched own-session work is the same checkpoint-stall as a bare block `NEXT:`. **`DONE:`/`NEXT:`
+discipline:** `DONE:` states only what actually happened (commit hashes / files / verdicts — never "mostly done");
+`NEXT:` names the successor precisely enough to run without re-derivation — the exact command + argument, the
+exact operator decision, or `none — terminal`. A vague `NEXT:` is a missing line. If `NEXT:` names work THIS agent
+owns in THIS session, it is dispatched, not narrated.
+
+**⚠️ `NEXT: operator decision` HAS A BAR — it was the contract's only UNGUARDED exit, which is exactly why it gets abused.** Compare the three sanctioned `NEXT:` values: `BLOCKED:` has three named causes and a required format; a named command obliges you to RUN it; `operator decision` had no gate whatsoever — so it is the lowest-friction legal way to end a turn, and the Stop hook accepts the phrase verbatim. Live defect 2026-08-31: an agent closed with `NEXT: operator decision — (a) mine the unread session, or (b) deploy`, where (a) was simply the unfinished half of the task it had just been given and the ordering was never in doubt. The fork was manufactured to transfer the agent's OWN uncertainty to the operator ("this session has three verification slips"). It reads as deference and functions as a stall — the operator's words: *"i dont want to decide that kind of things, the tasks and their order is obvious."* **It is legitimate on EXACTLY three grounds, and you NAME which one applies:** (1) a **contractual human gate** — Gate 2, design approval, a store publish act, or a destructive/irreversible action needing authorisation; (2) the answer **materially changes the work AND cannot be resolved** from the artifacts, the code, or `docs/DECISIONS.md` (§ Question bar, applied to the exit line); (3) the operator **already owns** that decision this turn and has not yet answered. **Everything else is DISPATCHED, not offered.** Two shapes are NEVER legitimate: one presenting **options `(a)/(b)`** — that is a menu, and menuing is already forbidden (derive the verdict, state it, proceed; the § EXIT ad-hoc-branch disposition — keep-as-is · discard — is ground (1), a destructive act needing authorisation, not a menu); and one citing **your own reliability, fatigue or context budget** as the reason — that is a `BLOCKED:` if it is anything at all. A remaining task that is obvious is not a decision; it is your next action.
+
+**⚠️ The block is a TASK terminator, never a phase/loop terminator.** Mid-`/fabrik-execute-plan` phase
+boundaries and mid-certification rounds are NOT task-completing responses — do NOT emit this block there, and
+NEVER treat having emitted it as permission to stop. Emit it ONCE, at the true end of the run.
+
+**Freshness — evidence before assertions.** The `GATE:` line must report a run made **in THIS turn**; never cite
+an earlier run's result. If ANY file changed since your last gate run — yours OR another agent's on shared
+`master` — re-run before you claim. The same binds every "fixed / passing / converged / reviewed" claim anywhere
+in a response: run the proving command in the same message you make the claim, read its actual output, then
+claim. A subagent's "success" is a claim, not proof — verify it yourself (its diff + re-run its tests).
 
 ## Platform core (auto-loaded)
 
 @agents-fabrik-core.md
-
-(The full canonical map is `agents-fabrik.md` — read it when PLANNING, per § Orient. `AGENTS.md` is a stub.)
