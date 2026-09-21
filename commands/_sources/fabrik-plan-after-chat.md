@@ -216,9 +216,7 @@ pool tiers). Per phase the review is `/fabrik-review-scoped` (tests + gate + the
 the ONE heavy round — the `/fabrik-execute-plan` D7 floor (≥1 Opus authoritative seat + one Sonnet AND one Haiku mechanical seat per independent failure-class group — `dispatch_headroom.py --units <groups>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — D-191 — never a fixed three), ONE receipt — runs over the whole-plan diff at Finish.
 Behavior Contract rows stay one per behaviour, but the TEST budget is proportional: target ≤ ~1.5× the
 code diff in test lines, and seam tests are written ONCE, in the last phase, never repeated per phase.
-Measured 2026-09-06 on this hub: the full machinery applied to an 851-line feature produced 7 tickets,
-21 review rounds, 63 pool units, 5.7 test lines per code line and 4 h 20 min of execution, ~110 min of
-it polling for coders; the profile's floor is about an hour. Larger than that ⇒ the shape decision.
+The profile's floor is about an hour of execution; larger than that ⇒ the shape decision.
 
 **⚠️ SHAPE DECISION FIRST — monolith or spine+tickets.** Emit the **spine+ticket plan SET** when ANY
 of: the work decomposes into **>3 phases** · the projected monolith would exceed **~300 lines** · any
@@ -235,8 +233,7 @@ NOT force the monolith:** the per-ticket budget exempts the set's single `Integr
 (`check_plan_tickets.py`, the `if t.integration: continue` before the per-entry sum — a tally also
 skipped under `Profile: small`), so an
 indivisible oversized file (a 436 KB `app.py`, a 281 KB `scaffold.py`) is OWNED by that ticket, last
-in Merge Order, and the SET shape stays available — splitting divides the ticket, never the file
-(youtube 01M1QBPW, 2026-09-05: two plans a week apart chose a monolith for want of this sentence).
+in Merge Order, and the SET shape stays available — splitting divides the ticket, never the file.
 
 **The spine+ticket shape** (gate-enforced grammar — `check_plan_tickets.py` + `check_plan_quality.py`):
 `docs/development/plans/YYYY-MM-DD-plan-<n>-<slug>/` holding the **same-stem spine**
@@ -474,10 +471,7 @@ that mapping must NOT do is delete the three pillars from the artifact: a per-ti
 is not something an operator reading the plan — or an agent auditing it — can see. **So the SPINE
 states all three ONCE, verbatim-binding, in a dedicated **`## Execution Discipline`** section**
 (a parenthetical such as "(binding on /fabrik-execute-plan)" after the heading text is fine —
-write it WITHOUT backticks, so the heading itself never contains a code span) (live defect 2026-08-10: a
-14-ticket set was asked "is `/fabrik-review` per ticket to a no-op in here?" and the honest answer
-was "it appears nowhere in the set"; the executor's D4 loop did own it, but nothing in the plan said
-so, so the reviewing agent correctly called it a defect and the operator had no way to trust it):
+write it WITHOUT backticks, so the heading itself never contains a code span):
 
 - **Review floor** — "every ticket, on the coder's return, runs `/fabrik-review` on its changed
   surface to a coverage-adjudicated exit BEFORE its merge; no ticket merges on a first-pass green."
@@ -612,9 +606,7 @@ carries none of the three is a defective plan, not a shape difference:
 ## Phase 4 — Convergence scaffolding (so /fabrik-plan-review + check_convergence pass)
 
 **⚠️ The CONVERGED flip's gate reads TWO things Phase 4's section list used to omit — author them
-NOW, not at gate time** (cost a builder 2 gate rounds ≈ 12 min to discover by reading
-`_checklist_section` + `RUBRIC_RUN` in `check_convergence.py` (grep the symbols — line anchors
-drift); job-agent burned 4 round-trips on the same wall 2026-08-28): a
+NOW, not at gate time** (the rule lives in `_checklist_section` + `RUBRIC_RUN` in `check_convergence.py` — grep the symbols, line anchors drift): a
 MONOLITH plan flipping CONVERGED must ALSO carry **`## Coverage Checklist`** (rubric-derived rows
 plus the four standing recurrence classes) **with an embedded `review_rubric.py` invocation**
 (fenced) — `_checklist_section` and `RUBRIC_RUN` enforce both mechanically (both live in

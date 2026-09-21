@@ -192,14 +192,11 @@ build this — never pick an approach from training memory or first instinct:
   **actually fetch it this session** (`WebFetch` / `firecrawl_scrape`) — a claim you didn't
   open is memory. ⚠️ **To QUOTE, fetch the RAW document** (`raw.githubusercontent.com`, view-source,
   `firecrawl_scrape`) and match the string — normalising whitespace first (raw HTML wraps lines
-  mid-sentence; a bare `grep -c` on a true quote returns 0 and flags a REAL quote as fabricated,
-  hit live 2026-08-30): a `WebFetch` reply is a small model's ANSWER about the page,
-  not an extract, and quoting it ships a sentence the page does not contain (live 2026-08-27 — the
-  fabricated quote also inverted the mechanism, under the spec's central verdict).
+  mid-sentence; a bare `grep -c` on a true quote returns 0 and flags a REAL quote as fabricated): a `WebFetch` reply is a small model's ANSWER about the page,
+  not an extract, and quoting it ships a sentence the page does not contain.
 - ⚠️ **A cached/mirroring fetch tool is NOT a liveness oracle.** `mcp__exa__web_fetch_exa` serves crawl
   cache: it returned a complete, live-looking page for `docs.exa.ai/reference/find-similar-links`, which
-  actually **307s to an HTTP 404** (reproduced twice by brand-identiy-creator `01M14R5WAD`; the 307→404
-  re-verified here by `curl` on 2026-08-28). So an **existence or liveness claim** — "this endpoint still
+  actually **307s to an HTTP 404** . So an **existence or liveness claim** — "this endpoint still
   exists", "this SDK method is current", "this page is live" — grounded ONLY through a mirroring fetch
   returns a **false CONFIRMED**. Such a claim needs a **NON-CACHING second path** that reports a STATUS
   CODE, not rendered content. ⚠️ **The ORCHESTRATOR owns that probe, not the grounder** —
@@ -238,10 +235,7 @@ build this — never pick an approach from training memory or first instinct:
   is grounded by its `docs/DECISIONS.md` row, minted in the same run — cite the row; do not go looking
   for a citation that agrees with the operator. External literature is owed only where a design STEP
   would change if the fact were false; a Grounding row that ends "not a cited law" or "design axis"
-  should not exist. (brand-identiy-creator 2026-09-05: 7 of 9 Grounding rows were literature about a
-  ruled number, and `/fabrik-spec-review` then spent finder passes resolving their DOIs — hub
-  ruling D-153: *"citations are not needed if I manually rule"* — and the ≥2-URL APPROACH floor above is
-  unchanged: a spec whose every behaviour is ruled still grounds HOW it is built.)
+  should not exist. (Hub ruling D-153: *"citations are not needed if I manually rule"* — and the ≥2-URL APPROACH floor above is unchanged: a spec whose every behaviour is ruled still grounds HOW it is built.)
 
 **Parallelism — UNCONDITIONAL, every run.** Ground with **one native `fabrik-researcher` seat PER DEPENDENCY/capability, run in parallel** (recipe in **§ Subagents** below): a serial grounding that could
 have been parallel is wasted wall-clock. Keep ≥1 native `fabrik-researcher` on Opus for the authoritative-source
@@ -334,11 +328,9 @@ interfaces — for each you can state *what it does / how you use it / what it d
   then that section is written in full. The interrogative floor below still holds: the six answers live in
   fewer sections, never in none. **The heading FLOOR under the profile is exactly three — `## Personas`,
   `## Lifecycle`, `## Intake Inventory` — because those are what `check_spec_convergence.py` greps for; a
-  collapsed section keeps its heading and its one line** (first live delta run 2026-09-06: the author
-  re-derived this from the script — say it here instead). The 1c URL floor is unchanged — a delta on an existing engine
+  collapsed section keeps its heading and its one line** . The 1c URL floor is unchanged — a delta on an existing engine
   still grounds its approach. A brief that fails the trigger (any item with no existing code behind it)
-  takes the full section set; state the profile verdict either way. (Measured cause: a 14-line brief became
-  15 H2 sections at minute 11 and 672 lines after review, brand-identiy-creator 2026-09-05.)
+  takes the full section set; state the profile verdict either way.
 - The spec MUST contain a **`## Personas`** section, FIRST among the content sections (operator law
   2026-08-29: *"all specs must address all relevant personas"*): **(a)** EVERY relevant persona
   enumerated — including the ones specs forget (the RECEIVER of anything sent, the payer if distinct
@@ -349,8 +341,7 @@ interfaces — for each you can state *what it does / how you use it / what it d
   subagent-surfaced decision, 2026-08-30); **(b)** the **PRIMARY persona named in the operator's own
   words, quoted** — never your paraphrase; **(c)** the primary's **minimal start-to-finish loop
   walked step by step with the steps COUNTED — the count is a frozen STEP BUDGET** downstream
-  contracts must meet or force a bump (transdoc shipped nine steps before the first file because no
-  budget existed to violate); **(d)** every feature/entity in the spec **traced to a named persona**
+  contracts must meet or force a bump ; **(d)** every feature/entity in the spec **traced to a named persona**
   — an untraceable one is scaffold gravity, not product (the same product carried ~1,100 lines of
   invitation flow and zero lines of share because the template afforded it and no persona demanded
   it): justify it or cut it.
@@ -365,11 +356,10 @@ interfaces — for each you can state *what it does / how you use it / what it d
   only when a real adoption question exists — an internal tool still fights AF-17 habit) · **Chosen approach** · **Rejected
   alternatives** (+ why — and the enumeration MUST cover the obvious adjacent variants of the chosen
   shape: the other storage format, per-X vs single-X, buy vs build; **an alternative the operator has to
-  ask about is a spec defect**, live 2026-08-30: "why not db, or jsonl file?" — JSONL was never
-  adjudicated) · **`## Lifecycle`** (the WHEN axis, a mandated heading: adoption/first-run · what happens
+  ask about is a spec defect**) · **`## Lifecycle`** (the WHEN axis, a mandated heading: adoption/first-run · what happens
   as it GROWS — with measured scale/escalation triggers, never "we'll see" · degradation/failure behavior ·
   how it is superseded or retired; the growth question is the one operators always ask and specs never
-  answer, live 2026-08-30: "what will happen to the file if it grows too much?") · **External
+  answer) · **External
   dependencies** (each with the cited URL + date + grounded facts: endpoint / limits / pricing) ·
   **fabrik-lib verdict table** (capability → vendor / vendor+enhance / build → the module + one-line why +
   any upstream note) · **Shape/infra implications** (scaffold type + `shape:` flags) · **Documentation
@@ -413,7 +403,7 @@ command mandates it · engineering nicety). Countable: rows ≥ Intake Inventory
 anchor; a brief item with no row is the SILENT DROP the inventory exists to catch. The Intake Inventory inside
 the artifact grades coverage for the AGENT; this table is the same fact laid out for the OPERATOR, side by
 side, in their wording — how a 672-line spec got approved-for-review while its operator was "totally lost"
-(brand-identiy-creator 2026-09-05). `/fabrik-spec-review` presents the same table, recomputed against the
+. `/fabrik-spec-review` presents the same table, recomputed against the
 CONVERGED text, at its approval gate. On approval, the pipeline continues —
 **data + UI contracts are frozen BEFORE planning** for anything data/GUI-shaped:
 

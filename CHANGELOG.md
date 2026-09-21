@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — commands/_sources: lean pass 3d — fabrik-review, fabrik-plan-after-chat, fabrik-spec, every rule kept (D-331, 2026-09-21)
+
+- Twenty-two incident-provenance spans removed (fabrik-review 59,699 → 58954 B, plan-after-chat 70,253 → 69509 B,
+  fabrik-spec 46,852 → 45920 B); every rule, worked example and pinned literal kept; corpus re-rendered.
+
 ### Fixed — commands/_sources/fabrik-task.md: back under its 8,980 B cap (D-296) by a lean pass, every rule kept (D-331, 2026-09-21)
 
 - 9,129 → 8903 B; four rationale clauses shortened, no rule or pinned literal touched; the size-cap test is
