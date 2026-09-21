@@ -424,8 +424,9 @@ re-check of a known criterion.
 
 ### 4.3 The multiplier — every fix for § 4.2 has been more rule text, and the contract mandates it
 
-**The generator is the contract itself, and it can be counted.** For every fix, `CLAUDE.md` mandates
-additions in the same change: a grader (*"PERMANENT = fix + grader — ship the regression test or
+**The generator is the contract itself, and it can be counted.** For every fix, `CLAUDE.md` — read at
+commit `341c839a0`, the last before § 5 item 3 began cutting it; the line numbers below are that
+commit's — mandates additions in the same change: a grader (*"PERMANENT = fix + grader — ship the regression test or
 check IN THE SAME CHANGE"*, `:230`), a cobra note (*"written down IN THE SAME CHANGE"*, `:240`), a
 decision row (*"gets its row in `docs/DECISIONS.md` in the SAME change"*, `:139`), a CHANGELOG
 entry and a LESSONS LEARNT entry (§ Completion Contract 3–4), and every Doc Sync Matrix row the change

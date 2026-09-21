@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — CLAUDE.md: step 1a of the subtractive program — 134 → 80 KB, every pinned span verbatim (D-326, 2026-09-21)
+
+- The hub contract is cut to what binds and what graders pin. Rewritten to a line or a pointer: the
+  session-start steps, the Behavior bullets, the FIX DIRECTIVE, the HARD STOPS rows not pinned, the
+  trailers table, the subagent pointer, the pipeline, the pointers list. Kept verbatim: the commit
+  recipe bullet, the QUOTA bullet, § Orient step 0, the GATE paragraph, the Doc Sync Matrix, the
+  universal-anchor index, the trailer example and THIRD-trap clause. New at the top: `## The method`.
+- Proven in a throwaway worktree: 51 test files naming `CLAUDE.md` → 2,561 passed; the 4 failures
+  that remain fail identically against the old file and are named in D-326.
+- `docs/reference/command-loop-performance.md` § 4.3 now pins its `CLAUDE.md` line citations to
+  `341c839a0`, the last commit before the cut.
+
 ### Fixed — command-loop-performance.md: second full read-through (2026-09-21)
 
 - Revision history moved from the head of the document to a new § 8, in order, with revision 1
