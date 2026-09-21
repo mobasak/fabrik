@@ -1,34 +1,7 @@
 # Command loop performance — what we aim for, what it costs, and the program to fix it
 
-**Status:** DRAFT § 5 — awaiting the operator's ruling. The root cause is now grounded in how the
-tool's author says it is meant to be used (§ 4.00, § 4.6, D-325), read on the operator's instruction
-three times until comprehended rather than mined.
-**Revision 6 (2026-09-21, after the operator's *"reread and comprehend it now"*, three times):** the
-root cause gains its ground. Revision 5 said *done is process compliance*; that is true and it is
-what the apparatus produces. Under it: **we built a thick apparatus on top of a tool whose author
-says the apparatus should be as thin as possible — because the value is in the model and the model
-is moving.** § 4.00 states it, § 4.6 carries the source, § 5 is rewritten as his method.
-**Revision 5 (2026-09-21):** the root cause goes one level further down than revision 4 — not the
-load, but what the load was built to serve: **"done" is defined as process compliance, never as an
-outcome the operator can see.** § 4.0 is rewritten to lead with it; the load (rev. 4) and the loop
-(rev. 2–3) are ranked beneath it as its two consequences. § 5 is one sentence.
-**Revision 4 (2026-09-21, on *"i still dont think you understand what is the problem"*):** the root
-cause is re-cut one level up, to the system (§ 4.0): the process cannot shrink and its load is its
-cost. § 4.1's loop mechanics are now stated as the consequence they are. § 5 is replaced whole. The
-three-contract census and the load-vs-cost test are added with their derivations (§ 7.1).
-**Revision 2 (2026-09-21, same day):** § 4 and § 5 rewritten. The operator refused the round
-cap (*"capping is not a solution"*) and the first draft's root cause (*"you could not find the root
-cause properly"*). Both refusals were right; the new root cause is § 4.1, the cap is refused in
-§ 5.1, and two claims from revision 1 are withdrawn in § 4.5. The same revision adds § 2.5 (where
-the rounds and the hours actually sit), the non-convergence detector's two measured limits inside
-§ 4.1, and the full seat arithmetic behind § 4.5's second withdrawal.
-**Revision 3 (2026-09-21, on *"be 100% sure first"*):** the document was stress-tested against its
-own standard. § 4.1's prose-vs-code test is CORRECTED — the ledger records no surface size, so the
-gap is real in direction but overstated in size; § 4.1 gains the positive control it lacked (the one
-prose command that already carries an artifact-side terminal condition converges in 2–3 rounds);
-§ 4.2 gains the supply side (seats are recall-optimised by design and the confirmed rate decays
-from 69% at round 1 to 44% at round 10+); § 4.3 names the generator of the growth; § 7.1 carries
-every new derivation.
+**Status:** DRAFT § 5 — awaiting the operator's ruling. The root cause is grounded in how the tool's
+author says it is meant to be used (§ 4.00, § 4.6, D-325). Revision history: § 8.
 **Written:** 2026-09-21, by the unnamed hub window, on the operator's directive
 ("create a full documentation ... for the last month we are working these and it gets worse, not better").
 **Nature:** a diagnosis and a program. Every number is measured, with its population named in § 7.
@@ -110,7 +83,7 @@ The operator's "a day" is not an impression. It is the sum of the medians.
 | `/fabrik-data-contract` | 2 | 17 | 2% | 522 min |
 | the other 16 commands | 63 | 56 | 7% | — |
 
-Six commands hold 86%. `/fabrik-execute-plan` is itself mostly review: 73 review-family closes
+Six commands hold 88%. `/fabrik-execute-plan` is itself mostly review: 73 review-family closes
 fall inside plan windows in the same repo, 144 of its 245 hours. `/fabrik-review-scoped` is the
 least-loaded command in the family and the fastest — 83 runs, the most of any command, at a
 31-minute median — which is what § 4.00's load-vs-cost predicts, not a vindication of the loop.
@@ -316,7 +289,7 @@ for the loop were, every one, more text for the loop to load.
    by definition keeps finding (§ 4.2).
 4. Each fix for *that* was another rule. Back to 1.
 
-### 4.1 Consequence 2 — "converged" is a fact about the reviewer, not about the artifact
+### 4.1 "converged" is a fact about the reviewer, not about the artifact (consequence 2)
 
 *What § 4.0 produces inside a single review: a terminal condition that is the reviewer's, because
 nobody stated the operator's. Everything measured here holds; what changed since revision 3 is its
@@ -391,7 +364,7 @@ surface size (no diff lines, no artifact bytes), and the only proxy it offers �
 WITH the round count, so it cannot cleanly separate "bigger surface" from "more rounds". Stratifying
 on it anyway, as the best available check:
 
-| Size band (output-token quartile) | Prose median rounds | Code median rounds |
+| Size band (output-token quartile) — over the 232 rows carrying token fields: all 73 prose, 159 of the 169 code | Prose median rounds | Code median rounds |
 |---|---:|---:|
 | smallest quarter | 2 (n=17) | 2 (n=41) |
 | second | 4 (n=17) | 3 (n=41) |
@@ -463,8 +436,9 @@ delete grows at the incident rate, which is what § 3.1 measured.
 
 Rule text is loaded on every turn of every session in every repo. The corpus doubled and
 `CLAUDE.md` tripled in the month the loop was being repaired. `CLAUDE.md` alone is now ≈ 33,600
-tokens per turn before any command is read; the largest command source is 101 KB; the review
-family's shared fragments are another 68 KB.
+tokens per turn before any command is read; the largest command source is 101 KB
+(`fabrik-execute-plan.md`, 101,374 B); the `term-*` fragments the review family shares are another 54 KB
+(all fragments, 136 KB). Revision 1 printed 68 KB here; it does not reproduce and is withdrawn.
 
 Three consequences, all measured:
 
@@ -481,7 +455,7 @@ Three consequences, all measured:
 `/fabrik-plan-after-chat` and `/fabrik-spec` are not convergence loops. They write 400-line
 artifacts with 70+ citations while the spec beneath them is still moving
 (*"the intake re-derived figures the spec already carried because the spec was mid-amendment"*).
-Their fix is an input freeze, not anything in § 5.
+Their fix is an input freeze — which § 5 item 2's approved plan is.
 
 ### 4.5 Two claims from this document's first draft, withdrawn
 
@@ -505,8 +479,9 @@ is about.
 
 ### 4.6 The tool's author on how it is meant to be used — the source for § 4.00
 
-Read on the operator's instruction 2026-09-21, three times — the first two readings mined it for
-quotes agreeing with revisions 4–5; the third read it as what it is. Transcript:
+Read on the operator's instruction 2026-09-21, five times — the first two readings mined it for
+quotes agreeing with revisions 4–5; the third read it as what it is; the fourth and fifth, each
+paired with a full read of this document, found nothing the third had not. Transcript:
 `/opt/youtube/output/XFYUKBPfUMw_transcript.txt` (5,589 words; the speaker introduces himself as
 Boris, member of technical staff at Anthropic, who created Claude Code).
 
@@ -665,6 +640,7 @@ Reproducible against the same snapshot, so the root cause can be refuted rather 
 | terminal-condition census (rev. 5, re-read rev. 6) | `~/.claude/state/command-runs/*.json` on disk → 27 records carrying a `terminal` field; 25 match a process-vocabulary regex (confirmed · quiet · round · gate · converge · receipt · commit · pass …) — that set INCLUDES executable process checks such as `gate green` and `docs_updater --check green`, which is why the claim is "none names a check of the delivered thing", not "none names a tool"; the 2 non-matches, read by hand, name internal build state; older records are DELETED and the surviving ledger row carries no `terminal`, so 27 is the whole readable population, not a sample of 335 |
 | CLAUDE.md census (rev. 4) | `find /opt -type f -name CLAUDE.md` excluding `.claude/worktrees/`, `.tmp/`, `node_modules/` → 70 (+177 worktree copies); grouped by md5 → 47 identical to the template, 23 others, of which 20 are archived/vendored/stubs; sizes by `stat -c %s`; no `~/.claude/CLAUDE.md` exists |
 | load-vs-cost (rev. 4) | bytes = `~/.claude/commands/fabrik-*.md` (the RENDERED file an agent loads); commands with ≥ 4 closes → 11; median `wall_s/60` per command; Pearson r over log(bytes) vs log(median minutes) → +0.64; not a causal claim, a direction — the ledger records no surface size (§ 4.1) |
+| plan-window overlap (rev. 1) | "73 review-family closes fall inside plan windows in the same repo, 144 of its 245 hours" (§ 2.3) — derived in revision 1 from run start/end windows per repo; NOT re-derived since, and the only figure in § 2 not reproducible from a single ledger read |
 | ADD-verb count (rev. 3) | the five clauses cited in § 4.3 by `CLAUDE.md` line; the negative is bounded to `CLAUDE.md` at HEAD (605 lines), `grep -n "retire\|delete\|remove"` → 15 lines, each read: a class retiring inside the loop (`:39`), "retirement" as a decision type (`:138`, `:320`), the volume-deletion ban (`:288`), file-removal doc-sync triggers (`:304`, `:314`, `:318`), scratch cleanup (`:369`), recipe prose — none an obligation to retire text |
 
 **Two bounds on all of it.** (1) `confirmed` is written by the agent running the loop, so a run
@@ -673,3 +649,23 @@ that under-reports its confirmations looks convergent — the numbers describe w
 count cannot distinguish an abandoned run from one whose final fixes were applied after the last
 recorded round; § 4.1 rests on that ambiguity being unresolvable, not on every one of the 71 being
 an abandonment.
+
+---
+
+## 8. Revision history
+
+All on 2026-09-21. Each revision is one layer further down than the last; the operator refused every one until § 4.00.
+
+**Revision 1 (2026-09-21):** the first draft — a diagnosis leading with *the fix between rounds is the next round's defect* and a five-item program headed by a hard round cap. Commit `93dba9a39`.
+
+**Revision 2 (2026-09-21, same day)** § 4 and § 5 rewritten. The operator refused the round cap (*"capping is not a solution"*) and the first draft's root cause (*"you could not find the root cause properly"*). Both refusals were right; the new root cause is § 4.1, the cap is refused in § 5.1, and two claims from revision 1 are withdrawn in § 4.5. The same revision adds § 2.5 (where the rounds and the hours actually sit), the non-convergence detector's two measured limits inside § 4.1, and the full seat arithmetic behind § 4.5's second withdrawal.
+
+**Revision 3 (2026-09-21, on *"be 100% sure first"*)** the document was stress-tested against its own standard. § 4.1's prose-vs-code test is CORRECTED — the ledger records no surface size, so the gap is real in direction but overstated in size; § 4.1 gains the positive control it lacked (the one prose command that already carries an artifact-side terminal condition converges in 2–3 rounds); § 4.2 gains the supply side (seats are recall-optimised by design and the confirmed rate decays from 69% at round 1 to 44% at round 10+); § 4.3 names the generator of the growth; § 7.1 carries every new derivation.
+
+**Revision 4 (2026-09-21, on *"i still dont think you understand what is the problem"*)** the root cause is re-cut one level up, to the system (§ 4.0): the process cannot shrink and its load is its cost. § 4.1's loop mechanics are now stated as the consequence they are. § 5 is replaced whole. The three-contract census and the load-vs-cost test are added with their derivations (§ 7.1).
+
+**Revision 5 (2026-09-21)** the root cause goes one level further down than revision 4 — not the load, but what the load was built to serve: **"done" is defined as process compliance, never as an outcome the operator can see.** § 4.0 is rewritten to lead with it; the load (rev. 4) and the loop (rev. 2–3) are ranked beneath it as its two consequences. § 5 is one sentence.
+
+**Revision 6 (2026-09-21, after the operator's *"reread and comprehend it now"*, three times)** the root cause gains its ground. Revision 5 said *done is process compliance*; that is true and it is what the apparatus produces. Under it: **we built a thick apparatus on top of a tool whose author says the apparatus should be as thin as possible — because the value is in the model and the model is moving.** § 4.00 states it, § 4.6 carries the source, § 5 is rewritten as his method.
+
+**Revision 7 (2026-09-21, on *"comprehend again... fully review the document... be 100% sure"*, twice):** two full read-throughs of the document against two full readings of the transcript. The first found eleven non-verbatim quotes, an overstated census and twenty stale cross-references; the second found a wrong share in § 2.3 (86% → 88%), an unexplained population change in § 4.1's stratified table, and this revision block sitting where the reader's first thirty lines should be — moved here. The fourth and fifth readings of the transcript found nothing the third had not.

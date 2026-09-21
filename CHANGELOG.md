@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — command-loop-performance.md: second full read-through (2026-09-21)
+
+- Revision history moved from the head of the document to a new § 8, in order, with revision 1
+  added — the reader's first thirty lines were six paragraphs of changelog, which is the document
+  doing the thing § 4.00 criticises.
+- § 2.3 "six commands hold 86%" → 88% (the shares sum to it); § 4.1's stratified table now states
+  its population (232 rows: all 73 prose, 159 of 169 code); § 4.3's "68 KB of shared fragments"
+  does not reproduce (`term-*` = 54 KB, all = 136 KB) and is withdrawn in place; § 4.4 no longer
+  reads as contradicting § 5; § 4.1's heading no longer claims a sibling numbering with a nested
+  item; § 7.1 flags the one § 2 figure not reproducible from a single ledger read.
+- § 2.2's 456 h reconciled to the tenth against the ledger, which has not moved since the snapshot.
+
 ### Fixed — command-loop-performance.md: full read-through after revision 6 (2026-09-21)
 
 - **Quotes made verbatim.** Six quotes in § 4.00 and five in § 4.6 had been spliced, reordered or
