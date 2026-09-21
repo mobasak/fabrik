@@ -7,6 +7,13 @@ cause properly"*). Both refusals were right; the new root cause is § 4.1, the c
 § 5.1, and two claims from revision 1 are withdrawn in § 4.5. The same revision adds § 2.5 (where
 the rounds and the hours actually sit), the non-convergence detector's two measured limits inside
 § 4.1, and the full seat arithmetic behind § 4.5's second withdrawal.
+**Revision 3 (2026-09-21, on *"be 100% sure first"*):** the document was stress-tested against its
+own standard. § 4.1's prose-vs-code test is CORRECTED — the ledger records no surface size, so the
+gap is real in direction but overstated in size; § 4.1 gains the positive control it lacked (the one
+prose command that already carries an artifact-side terminal condition converges in 2–3 rounds);
+§ 4.2 gains the supply side (seats are recall-optimised by design and the confirmed rate decays
+from 69% at round 1 to 44% at round 10+); § 4.3 names the generator of the growth; § 7.1 carries
+every new derivation.
 **Written:** 2026-09-21, by the unnamed hub window, on the operator's directive
 ("create a full documentation ... for the last month we are working these and it gets worse, not better").
 **Nature:** a diagnosis and a program. Every number is measured, with its population named in § 7.
@@ -233,10 +240,47 @@ The partition is named in full so it can be disputed. **Prose:** `spec-review`, 
 The remaining 23 of the 265 round-recording closes are in neither set and are excluded, not
 assigned.
 
-Code is not reviewed more carefully than prose here. It has a gate — a finite, pre-stated,
-executable list — and it converges in three-fifths the rounds and blows up half as often.
+**Corrected in revision 3 — the size of that gap is overstated.** The ledger records no measure of
+surface size (no diff lines, no artifact bytes), and the only proxy it offers — output tokens — grows
+WITH the round count, so it cannot cleanly separate "bigger surface" from "more rounds". Stratifying
+on it anyway, as the best available check:
+
+| Size band (output-token quartile) | Prose median rounds | Code median rounds |
+|---|---:|---:|
+| smallest quarter | 2 (n=17) | 2 (n=41) |
+| second | 4 (n=17) | 3 (n=41) |
+| third | 5 (n=22) | 4 (n=36) |
+| largest quarter | 10 (n=17) | 8 (n=41) |
+
+The **direction holds in every band** — prose never converges faster than code at the same size —
+which is what the terminal-condition theory predicts and what a size-only theory does not. But the
+**magnitude is about one round, not two**, and rounds climb steeply with size in BOTH columns. Read
+it as: the missing terminal condition is the reason the loop cannot end on evidence; the size of the
+artifact is what makes that expensive. § 4.3 is therefore not second-order — it is the multiplier.
+
+**The positive control — the prose command that already HAS an artifact-side terminal condition.**
+Of the 62 prose reviews with a clean confirmed series, 9 ran dry within three rounds. **Five of
+those nine are `/fabrik-doc-converge`** — 2 or 3 rounds each, 3 to 18 minutes, 2 to 5 seats. It
+is the one prose command whose source states, per artifact, a closed completeness criterion BEFORE
+the loop opens: its Convergence Contract table carries a *"Complete when (the bidirectional
+contract)"* column per doc (`commands/_sources/fabrik-doc-converge.md:25-27`), and its Phase 1
+opens with *"the doc is the CLAIM, never the source"* — every claim must open to something real
+today (`:43-55`). That is the acceptance-list shape of § 5.2 item 1, already in the corpus, already
+converging. The spec, plan and docs reviews carry no such column.
 
 ### 4.2 The mechanism this produces — the fix between rounds is the next round's defect
+
+**The supply side first, because it is the half nobody measured.** The finder seat is optimised for
+recall BY DESIGN — its definition says so in its first line, *"to maximize RECALL over a changed
+surface"*, and its brief's step 3 is *"Surface every candidate"*
+(`commands/_agents/fabrik-reviewer.md:3`, `:28`). A seat measured on what it raises will raise
+things. Over the 248 runs with paired findings/confirmed series: **10,636 raised, 6,919 confirmed
+— 35% of what seats raise is refuted or dropped**, identically for prose and code (65% confirmed in
+both). And the rate DECAYS with the round: **69% confirmed at round 1, 64% at round 5, 57% at round
+7, 44% at round 10 and beyond.** By round 10 more than half of what a seat raises is not a defect
+— it is a candidate the orchestrator then spends a round refuting. This is § 4.1 seen from the
+seat's side: the seat has no terminal condition either, so late rounds do not find fewer defects,
+they manufacture more candidates.
 
 With no criteria list to discharge, a round's only possible output is *what I happened to notice*,
 and the fixer mutates the artifact between rounds. Each round therefore searches a **different
@@ -259,7 +303,17 @@ the edit shifts the line numbers every citation in the artifact depends on. A fr
 finds the residue — and, having no list to discharge, files it as a new defect rather than as a
 re-check of a known criterion.
 
-### 4.3 The second-order cause — every fix for § 4.2 has been more rule text
+### 4.3 The multiplier — every fix for § 4.2 has been more rule text, and the contract mandates it
+
+**The generator is the contract itself, and it can be counted.** For every fix, `CLAUDE.md` mandates
+additions in the same change: a grader (*"PERMANENT = fix + grader — ship the regression test or
+check IN THE SAME CHANGE"*, `:230`), a cobra note (*"written down IN THE SAME CHANGE"*, `:240`), a
+decision row (*"gets its row in `docs/DECISIONS.md` in the SAME change"*, `:139`), a CHANGELOG
+entry and a LESSONS LEARNT entry (§ Completion Contract 3–4), and every Doc Sync Matrix row the change
+touches. That is at least **five mandatory ADD verbs per incident and zero mandatory DELETE verbs** —
+of the 15 lines in `CLAUDE.md` (605 lines at HEAD) that mention *retire*, *delete* or *remove*, none
+obliges a writer to retire text when adding it (§ 7.1). A system with add-on-every-incident and no
+delete grows at the incident rate, which is what § 3.1 measured.
 
 Rule text is loaded on every turn of every session in every repo. The corpus doubled and
 `CLAUDE.md` tripled in the month the loop was being repaired. `CLAUDE.md` alone is now ≈ 33,600
@@ -341,6 +395,11 @@ of being legislated.
 | 4 | **The pin gate.** Seats are not dispatched for round N+1 until every number, `path:line` and `file::symbol` the last fix ADDED carries executed evidence, and the artifact's citations still resolve. | `/fabrik-task` | 1 file, ~40 min | § 4.2's residue, at its source |
 | 5 | **Round 4+ states its reason.** Not a refusal. A run entering round 4 records WHY in the ledger, where the improve loop reads it. Today there are 47-round runs with no recorded explanation for a single one of them. | `/fabrik-task` | 1 file, ~30 min | makes long loops legible instead of invisible |
 | 6 | **Then the instrument.** `/fabrik-command-improve` reads every queue, clusters verdicts by CAUSE across commands rather than by axis within one, targets the fragment or the mechanism owner, and records rounds and hours per command so an edit can be graded. | `/fabrik-spec` | spec-sized | whether items 1–5 held |
+
+**Item 1 is not a hypothesis.** `/fabrik-doc-converge` already carries exactly this shape — a
+per-artifact *"Complete when"* column stated before the loop opens (§ 4.1) — and it is the prose
+command that converges in 2–3 rounds. The pilot ports that shape to a second command and measures
+whether the rounds follow.
 
 **Item 1 is piloted, not rolled out.** Making the acceptance list a corpus-wide contract is
 spec-chain work, and specifying it through the 10.2-hour chain that this document exists to fix
@@ -441,6 +500,10 @@ Reproducible against the same snapshot, so the root cause can be refuted rather 
 | prose vs code medians | commands partitioned by the artifact each reviews; the partition is a JUDGEMENT and is listed member by member under § 4.1's table; 23 closes fall in neither set and are excluded |
 | round-1 share, median 33% | `confirmed[0] / sum(confirmed)` over the 98 rows with 4+ rounds and a non-zero total |
 | seat density | `seats_declared / rounds`; 64 of 265 round-recording rows carry no seat stamp at all and are excluded from the density comparison, not counted as zero |
+| size-stratified prose vs code (rev. 3) | size proxy = `tok_out + tok_seat_out`, quartiles over the 232 prose+code rows carrying it; ⚠️ the proxy grows with rounds, so this bounds the confound rather than removing it — the ledger records no surface size |
+| noise rate and its decay (rev. 3) | the 248 rows whose `findings` and `confirmed` lists are equal-length and all-int; per-round rate = Σ confirmed / Σ findings at that round index, rounds 10+ pooled |
+| positive control (rev. 3) | prose rows with a clean confirmed series (62), `len ≤ 3` and `confirmed[-1] == 0` → 9; the command of each read off the row |
+| ADD-verb count (rev. 3) | the five clauses cited in § 4.3 by `CLAUDE.md` line; the negative is bounded to `CLAUDE.md` at HEAD (605 lines), `grep -n "retire\|delete\|remove"` → 15 lines, each read: a class retiring inside the loop (`:39`), "retirement" as a decision type (`:138`, `:320`), the volume-deletion ban (`:288`), file-removal doc-sync triggers (`:304`, `:314`, `:318`), scratch cleanup (`:369`), recipe prose — none an obligation to retire text |
 
 **Two bounds on all of it.** (1) `confirmed` is written by the agent running the loop, so a run
 that under-reports its confirmations looks convergent — the numbers describe what was RECORDED, and

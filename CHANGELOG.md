@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — command-loop-performance.md revision 3: the document stress-tested against its own standard (2026-09-21)
+
+- **§ 4.1's prose-vs-code test corrected.** The ledger records no surface size; stratified on the
+  only proxy it has (output tokens, which grows with rounds), the direction holds in all four size
+  bands but the gap is about one round, not two. Size is named the multiplier, not second-order.
+- **§ 4.1 gains its positive control.** Five of the nine prose reviews that ran dry within three
+  rounds are `/fabrik-doc-converge` — the one prose command whose source carries a per-artifact
+  "Complete when" column before the loop opens (`fabrik-doc-converge.md:25-27`). § 5.2 item 1 is
+  now a port of that shape, not a hypothesis.
+- **§ 4.2 gains the supply side.** The finder seat is recall-optimised by definition
+  (`_agents/fabrik-reviewer.md:3,28`); 35% of the 10,636 findings raised were refuted or dropped,
+  and the confirmed rate decays from 69% at round 1 to 44% at round 10+.
+- **§ 4.3 names the generator.** Five mandatory same-change ADD verbs per fix in `CLAUDE.md`
+  (`:139,:230,:240`, § Completion Contract 3-4, the Doc Sync Matrix) against zero mandatory DELETE
+  verbs — the 15 retire/delete/remove lines each read and none an obligation to retire text.
+- **§ 7.1** carries every revision-3 derivation with its population and bound.
+
 ### Changed — command-loop-performance.md revision 2: root cause re-derived, the round cap refused (2026-09-21)
 
 - **§ 4.1 replaced.** The root cause is no longer "the fix between rounds is the next round's
