@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/workflows/FINAL_GATE_WORKFLOW.md: lean pass 4a — every check row kept, provenance removed (D-331, 2026-09-22)
+
+- 95,057 → 83206 B; the duplicated every-tier bullets stated once, fleet censuses and dated stamps removed;
+  GATE-COUNTS, every row's tier/flag, the transcribed fire rate and the generated Related-scripts block untouched.
+
 ### Changed — .windsurf/rules: lean pass 3f — 55-observability, 58-resilience, 60-saas-ui, every rule kept (D-331, 2026-09-22)
 
 - Incident narrative removed (55-observability 45,238 → 44616 B, 58-resilience 53,536 → 53232 B, 60-saas-ui 27,624 → 27601 B);
