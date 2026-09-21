@@ -1,8 +1,12 @@
 # Command loop performance — what we aim for, what it costs, and the program to fix it
 
-**Status:** DRAFT § 5 — the revision-3 program (six additive mechanisms, item 1 approved in D-322) is
-WITHDRAWN by the author in D-323 as wrong in kind; the replacement program in § 5 is subtractive and
-awaits the operator's ruling. §§ 1–4 and 6–7 stand.
+**Status:** DRAFT § 5 — one sentence, awaiting the operator's ruling. The root cause in § 4.0 is the
+one the operator confirmed 2026-09-21 (*"ok good"*, D-324). Revision 4's five cuts are kept in § 5 as
+what follows from it, not as the program.
+**Revision 5 (2026-09-21):** the root cause goes one level further down than revision 4 — not the
+load, but what the load was built to serve: **"done" is defined as process compliance, never as an
+outcome the operator can see.** § 4.0 is rewritten to lead with it; the load (rev. 4) and the loop
+(rev. 2–3) are ranked beneath it as its two consequences. § 5 is one sentence.
 **Revision 4 (2026-09-21, on *"i still dont think you understand what is the problem"*):** the root
 cause is re-cut one level up, to the system (§ 4.0): the process cannot shrink and its load is its
 cost. § 4.1's loop mechanics are now stated as the consequence they are. § 5 is replaced whole. The
@@ -180,7 +184,37 @@ loaded in that session, in a `CLAUDE.md` that had tripled in size over the month
 
 ## 4. Why
 
-### 4.0 The root cause — the process cannot shrink, and its load is its cost
+### 4.0 The root cause — "done" is process compliance, not an outcome the operator can see
+
+**Every run in this system ends when its process is satisfied, and nothing checks whether the
+operator got what they asked for.** The Stop hook releases a turn when the run record is closed,
+the gate is green, the commit is pushed, a review-family pass ran and the seven-line block is present
+— GATE · DOCS · CHANGELOG · LESSONS · DONE · NEXT · FEEDBACK. Not one of those is the operator's
+question. And the runs define their own ends the same way: of the **27 run records on disk, 25 name
+a process event as their terminal condition** — *"a delta pass raises zero"*, *"gate green"*, *"a
+quiet closing round"* — and the other two name internal build state. **Zero name something the
+operator could run.** (Bound: run records are deleted over time; the ledger row that survives them
+carries no terminal field, so 27 is the whole readable population — § 7.1.)
+
+Agents optimise what is measured. Measured on compliance, they produce compliance, and the
+operator's demand is incidental to it. That is the mechanism under every symptom in this document:
+
+- **Why the rules grew (consequence 1, below):** every failure was an agent doing the wrong thing,
+  and the only lever was to describe the right thing in more text. Text does not change behaviour;
+  the definition of *done* does. So the text grew and the behaviour did not.
+- **Why reviews run 30 rounds (consequence 2, § 4.1):** a review's *done* is *a reader was quiet* —
+  a process event. Were it *the artifact is correct against the three things it must get right*,
+  round three would be the end, because the target is finite and someone else set it.
+- **Why a cap, an acceptance list and a byte cut are all symptoms:** each changes the process. None
+  changes what the process is *for*.
+- **Why the month got worse:** every fix was more of the thing being measured.
+
+**This document is the demonstration.** It reached revision 5 in one day — four commits, four
+decision rows, five CHANGELOG entries, every gate green, everything pushed — and after each
+revision the operator said it had not found the cause. Every definition of *done* this system has
+was met; the operator's was not.
+
+#### Consequence 1 — the process cannot shrink, and its load is its cost
 
 The operator's contract opens with one line: *fast but pro — ship, iterate, no over-engineering.*
 The other six hundred lines of the same file violate it, and so does every command built under it.
@@ -236,10 +270,11 @@ for the loop were, every one, more text for the loop to load.
 decision rows, two CHANGELOG entries — and its revision-3 program proposed six new mechanisms for a
 system whose measured problem is addition. § 5.1 withdraws them.
 
-### 4.1 The loop-level consequence — "converged" is a fact about the reviewer, not about the artifact
+### 4.1 Consequence 2 — "converged" is a fact about the reviewer, not about the artifact
 
-*What § 4.0 produces inside a single review. Everything measured here holds; what changed in
-revision 4 is its rank — this is the mechanism, not the cause.*
+*What § 4.0 produces inside a single review: a terminal condition that is the reviewer's, because
+nobody stated the operator's. Everything measured here holds; what changed since revision 3 is its
+rank.*
 
 Every convergence loop in this corpus terminates on one condition: *a round that swept the class
 ledger and confirmed zero defects*. Read that for what it is. It is a statement about **what one
@@ -424,50 +459,40 @@ is about.
 
 ---
 
-## 5. The program — subtract
+## 5. The program
 
-### 5.1 What stood here before, and why it is withdrawn
+**Every task begins with the one check the operator can run to see it worked, and ends when that
+check passes. Nothing else is mandatory.**
 
-Revision 1 led with a hard round cap; the operator refused it (D-321) and the ledger agreed — it
-cuts real work, its cheapest satisfaction is to find less, and it acts on a variable that is already
-the wrong one. Revisions 2–3 replaced it with six **additive** mechanisms — an acceptance list, a
-close assertion, a fixer rule, a pin gate, a reason log, an instrument — and the operator approved
-the first (D-322). **The author withdraws all six (D-323).** § 4.0 is the reason: a system whose
-measured problem is that it can only add cannot be repaired by six additions, however well-aimed.
-The acceptance-list idea survives inside item 2 below as a *shape for what stays*, not as a new
-layer.
+That is the whole program. A spec is done when it answers the questions the operator would ask
+before letting it be built — written at the top, in their words, before anyone reviews it. A change
+is done when the operator can run the thing and it does what they asked. A review is done when
+those checks pass, not when a reader is tired. Every rule that does not help that check pass is
+visibly dead weight and goes; the load falls because it has nothing to justify itself against; the
+reviews end because the target is finite and stated by someone other than the reviewer; the runs get
+shorter because the agent knows from the first minute what it is aiming at.
 
-### 5.2 The items — every one ends smaller than it started
+### 5.1 What follows from it, not the program
 
-| # | Cut | What stays | Before → target |
-|---|---|---|---|
-| 1 | **The contract.** Every incident narrative, every *"executed 2026-09-xx"* paragraph, every restatement of a rule that lives elsewhere, every mechanism explanation that belongs beside its code. Three edits: the hub file, the template (reaches 46 repos on one sync), a mail to fabrik-lib for theirs. | The lane table · the HARD STOPS table · the universal anchors (verbatim — detectors key on them) · the FINAL OUTPUT block · the commit recipe **as a pointer to a script**, not as prose · the `@` import. Every executable guard — hooks, gates, `command_run.py` — is untouched: prose never bound anyway (Lesson 116), the checks do. | 134,466 → **≤ 25,000 B** (hub) · 127,624 → ≤ 25,000 (template) |
-| 2 | **The commands.** Each cut to its spine: what it does · its terminal condition as ONE table in `/fabrik-doc-converge`'s shape (*ground truth to sweep · complete when*) · its NEXT. The fragments the same. | The run record · the seat stamp · the fixer-never-closes rule (the one loop rule the ledger proves — 53% rising series) as the terminal table's last row, not a new mechanism. | no rendered command over **30 KB** (today 4 of 11 exceed 100 KB); corpus 2.78 MB → ≤ 1 MB |
-| 3 | **The artifacts.** The demand that a spec carry 70 citations, evidence blocks and a self-audit. A spec is a page; a plan is a list and its tickets; a review receipt is its ledger and its verdict. | `path:line` grounding for a claim that names code; the D-row for a decision. | spec ≤ 150 lines · plan spine ≤ 100 · receipt ≤ 60 — stated in each command's terminal table, no new check |
-| 4 | **The five mandatory additions per fix** (§ 4.3). | A D-row for a DECISION — not for every fix. A CHANGELOG line. A grader for a CODE fix. | LESSONS per ticket, the cobra note per mechanism, and the grader-for-prose become optional; the contract says so in one sentence and deletes the five that said otherwise |
-| 5 | **The dead copies.** 14 `CLAUDE.md` under `/opt/archived/`, two 11-byte stubs, the two drifted fabrik-lib siblings. | — | 70 → 52 files on disk; the fabrik-lib siblings by mail |
+Revision 4's five cuts — the contract to ≤ 25 KB, each command to its spine, the artifacts capped,
+the five mandatory additions per fix deleted, the dead copies removed — are what the sentence
+above produces when applied to the corpus. They are listed in the git history of this file at
+`e16a4f2a3` and are not restated here, because restating them as a program would be revision 4's
+mistake again: treating the consequence as the cause. Do the sentence; the cuts follow.
 
-### 5.3 How it is done — not through the loop
+### 5.2 What stood here before
 
-Direct edits, in one session, by hand. Each cut is read ONCE by a fresh non-authoring seat with a
-single question — *did anything that binds get cut?* — and the answer is checked against the hooks
-and gates, which are the things that bind. No spec chain. No partitioned review. One forced sync
-for the template. **This is the operator's word overriding the contract's own ceremony, and the
-D-row for the cut says so**, because the alternative — running the cut through the process it is
-cutting — is the month again.
-
-### 5.4 The budget rule, inverted
-
-Revision 3 said *retire at least as many bytes as you add*. Revision 4 says **every item ends
-smaller than it started, and the D-row carries the before and after in bytes.** An item that ends
-larger has failed, whatever else it achieved.
+Revision 1: a round cap — refused by the operator (D-321). Revisions 2–3: six additive mechanisms —
+item 1 approved (D-322), all six withdrawn by the author (D-323). Revision 4: five subtractive cuts —
+kept as § 5.1, demoted. Each was the layer just above the real one.
 
 ---
 
 ## 6. How we will know it worked
 
-Read from the same ledger, two weeks after § 5.2 item 1 lands, against the 2026-09-21 baseline. The
-size rows are the ones keyed to § 4.0; the round rows are how we know the size rows mattered.
+Read from the same ledger, two weeks after § 5 is applied, against the 2026-09-21 baseline. The first
+row is the one keyed to § 4.0; every other row is expected to follow it, and a row that moves
+without the first one having moved is a symptom treated, not a cause.
 
 | Metric | Baseline | Target |
 |---|---:|---|
@@ -479,6 +504,7 @@ size rows are the ones keyed to § 4.0; the round rows are how we know the size 
 | Spec-chain cost at the medians | 611 min | under 300 min |
 | Total hours per week | 375 | falling, with runs per week flat or up |
 | Total tokens per week | 22.6 G | falling |
+| **Runs whose terminal condition is a check the operator can run** | **0 of 27** | every run |
 | **Hub `CLAUDE.md` bytes** (loaded every turn) | **134,466** | **≤ 25,000** |
 | **Template `CLAUDE.md` bytes** (×47) | **127,624** | **≤ 25,000** |
 | **Largest rendered command** | 123,843 | ≤ 30,000 |
@@ -546,6 +572,7 @@ Reproducible against the same snapshot, so the root cause can be refuted rather 
 | size-stratified prose vs code (rev. 3) | size proxy = `tok_out + tok_seat_out`, quartiles over the 232 prose+code rows carrying it; ⚠️ the proxy grows with rounds, so this bounds the confound rather than removing it — the ledger records no surface size |
 | noise rate and its decay (rev. 3) | the 248 rows whose `findings` and `confirmed` lists are equal-length and all-int; per-round rate = Σ confirmed / Σ findings at that round index, rounds 10+ pooled |
 | positive control (rev. 3) | prose rows with a clean confirmed series (62), `len ≤ 3` and `confirmed[-1] == 0` → 9; the command of each read off the row |
+| terminal-condition census (rev. 5) | `~/.claude/state/command-runs/*.json` on disk → 27 records carrying a `terminal` field; 25 match a process-vocabulary regex (confirmed · quiet · round · gate · converge · receipt · commit · pass …), the 2 non-matches read by hand name internal build state; older records are DELETED and the surviving ledger row carries no `terminal`, so 27 is the whole readable population, not a sample of 335 |
 | CLAUDE.md census (rev. 4) | `find /opt -type f -name CLAUDE.md` excluding `.claude/worktrees/`, `.tmp/`, `node_modules/` → 70 (+177 worktree copies); grouped by md5 → 47 identical to the template, 23 others, of which 20 are archived/vendored/stubs; sizes by `stat -c %s`; no `~/.claude/CLAUDE.md` exists |
 | load-vs-cost (rev. 4) | bytes = `~/.claude/commands/fabrik-*.md` (the RENDERED file an agent loads); commands with ≥ 4 closes → 11; median `wall_s/60` per command; Pearson r over log(bytes) vs log(median minutes) → +0.64; not a causal claim, a direction — the ledger records no surface size (§ 4.1) |
 | ADD-verb count (rev. 3) | the five clauses cited in § 4.3 by `CLAUDE.md` line; the negative is bounded to `CLAUDE.md` at HEAD (605 lines), `grep -n "retire\|delete\|remove"` → 15 lines, each read: a class retiring inside the loop (`:39`), "retirement" as a decision type (`:138`, `:320`), the volume-deletion ban (`:288`), file-removal doc-sync triggers (`:304`, `:314`, `:318`), scratch cleanup (`:369`), recipe prose — none an obligation to retire text |

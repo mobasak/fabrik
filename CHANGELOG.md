@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — command-loop-performance.md revision 5: the root cause the operator confirmed, and a one-sentence program (2026-09-21)
+
+- **§ 4.0 now leads with the real root:** "done" is defined as process compliance and never as an
+  outcome the operator can see — 0 of 27 run records name a terminal condition the operator could
+  run (D-324). The load (rev. 4) and the loop (rev. 2–3) are ranked beneath it as consequences 1 and 2.
+- **§ 5 is one sentence** — every task begins with the one check the operator can run to see it
+  worked and ends when that check passes; nothing else is mandatory. Revision 4's five cuts stay as
+  § 5.1, "what follows from it, not the program".
+- **§ 6** gains the one metric that matters at the top (runs whose terminal is an operator-runnable
+  check: 0 of 27 → every run); **§ 7.1** carries the terminal-condition census with its bound.
+
 ### Changed — command-loop-performance.md revision 4: root cause re-cut to the system, program replaced with a subtractive one (2026-09-21)
 
 - **§ 4.0 new — the root cause one level up.** The process cannot shrink and its load is its cost:
