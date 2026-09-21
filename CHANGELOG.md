@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — CLAUDE.md (hub): lean pass 1 — stories removed, every rule kept (D-331, 2026-09-21)
+
+- 134,466 → 117035 B. Every section restated as the rule and its constraint; incident narratives, dates
+  and mail ids removed. Grader-pinned spans kept verbatim for this pass. Loss check: 186 old rule
+  units accounted for, the 21 rules the reverted cut lost all present, 14 anchors in their rules,
+  53 test files green bar the 4 pre-existing failures.
+
 ### Reverted — the 2026-09-21 command-loop program, in full (D-330)
 
 - Restored: `CLAUDE.md` to its content at `341c839a0`, `templates/governance/CLAUDE.md` to its content
