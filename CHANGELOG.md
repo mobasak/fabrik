@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — CLAUDE.md: step 1b(ii) — the QUOTA bullet is a pointer (D-327, 2026-09-21)
+
+- 12,474 B → ≈1,700 B: the authority, the fleet-band rule, the re-derivation ban, the band actions, the
+  wall, conditional compaction, the pin rule. The machinery stays beside `claude_rotate.py`.
+- `tests/test_governance_template_split.py`: the three-way byte-identical QUOTA graders retired; one
+  pointer test replaces them. Template unchanged until step 2; fabrik-lib mailed.
+
 ### Changed — CLAUDE.md: step 1a of the subtractive program — 134 → 80 KB, every pinned span verbatim (D-326, 2026-09-21)
 
 - The hub contract is cut to what binds and what graders pin. Rewritten to a line or a pointer: the

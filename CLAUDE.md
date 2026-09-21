@@ -264,134 +264,20 @@ drift check prints `missing: cobra-effect`; fabrik-lib hit it adopting that anch
 the last compaction; search before assuming. Ledger first for a decision-shaped question.
 
 ## Pointers
-- **The fleet quota picture — every agent, every repo, one query (operator directive 2026-09-07):** `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status` (add `--json` for machines; the `picture` key) tells you which account is ACTIVE, which are eligible / session-exhausted / weekly- or cap-walled, the rotation QUEUE in the picker's own order with when each returns, the NEXT RELIEF the tick would name, whether the fleet-exhausted HOLD is on, at which TIER (only `walled` actually holds — D-306), and the resume it promised, and the last flip and its kind. Read it before dispatching long subagent work near a cap, and whenever a quota notice lands — the absolute path works from any `/opt` repo, fabrik-lib included. Authority: `/opt/fabrik/docs/workstation/claude-account-rotation.md` § `--status`.
-  ⚠️ **THE QUOTA BANDS ARE A BEHAVIOUR CONTRACT, not just a dashboard — and the band is the
-  FLEET'S, computed per window, never one account's.** The tick computes it FOR you and it is the
-  only band you act on. Capacity is per window TYPE across every account that can still serve
-  that window: an account whose session is spent still holds its weekly (it is back within 5h), an
-  account at its weekly cap holds nothing, and each window's fleet reading is the coolest such
-  account. The band is the hottest of the fleet's session and weekly readings — and, only on a
-  Fable model, its Fable reading — on the same thresholds. So it is GREEN while any account can
-  serve, whatever the ACTIVE account reads; AMBER or RED mean every account that could serve the
-  hot window is there too. ⚠️ **Never re-derive the band from the percentages** — they are the
-  ACTIVE account's, a true fact about one account, and they tell you a flip is coming and what it
-  costs in cached prefix, not that you must slow down (operator ruling 2026-09-17: agents read
-  `weekly 87%` and declared AMBER themselves while fresh accounts sat in the queue — *"it is not
-  prospective. it behaves like there is only one account exist"*). Each band names an ACTION; the
-  axis PARTITIONS, so every reading lands in exactly one. **the lines are the WALL's, not fixed percentages (D-299):** each window is banded against the
-  wall of the account that provided its reading — that account's `caps.json` cap for weekly, 100
-  for the uncapped `five_hour` and Fable windows — and the hottest BAND wins, never the hottest
-  percentage. 91% on a 95-cap account is four points of runway while 91% on a 99-cap one is eight,
-  and one shared pair of lines cannot tell them apart. **more than 5 points of runway — GREEN:**
-  work normally — the tick rotates; you never pick accounts. **5 points or fewer — AMBER: finish
-  what you started, start nothing heavy** — no new fan-out, no new plan phase, no fresh review
-  round, because the wall is next and a flip cannot save the round. **AT the wall —
-  RED: commit, push, close your run record, and start nothing new.** Fleet-wide that RED arrives
-  as absence rather than as a number: an account that has REACHED its cap is dropped from the
-  readings, so when every account has, the window has no reading at all and THAT is the fleet's
-  wall. ⚠️ Rotation keeps its own thresholds — `ROTATE_DRAIN_THRESHOLD` (85) gates the relief
-  flip, the flip-target bar and the successor hysteresis, `ROTATE_URGENT_DRAIN_PCT` (90) arms the
-  `fleet-exhausted` stamp at its WARNING tier — because those govern when the POINTER moves. The only band
-  they draw is `band_account`, THIS ACCOUNT'S OWN reading — never the FLEET's band, which D-299
-  draws from each window's own wall. `ROTATE_URGENT_DRAIN_PCT` additionally decides whether you
-  get the CHECKPOINT nudge below. **the WALL**
-  (`fleet-exhausted` stamp at its `walled` tier): `.claude/hooks/quota_stop.py` holds every
-  world-changing tool by
-  default-deny, and commit + push + close + stop is the only path through — every tool it needs is
-  allowed. ⚠️ THE STAMP HAS TWO TIERS AND ONLY THAT ONE HOLDS (D-306). Its other tier,
-  `urgent-90` — the session window at 90 with no successor, so EIGHT points of runway remain
-  on the default `ROTATE_THRESHOLD` of 98 (that arm watches the SESSION window; a `caps.json` cap
-  walls the WEEKLY one on its own axis and can open an episode at `walled` outright) — denies NOTHING and instead puts a CHECKPOINT clause on your next prompt line: commit,
-  push and keep your run record current while you still can. Killing work that still has quota to
-  finish is the premature stop the bands exist to prevent, so a warning is a warning and only the
-  wall is a wall.
-  **The `QUOTA:` line (D-269, D-275).** Every prompt opens with one injected line — `QUOTA: <slug> · 5h
-  <n>% (<forecast>) · weekly <n>% (<forecast>) · Fable <n>% · band <GREEN|AMBER|RED|WALL>[ on
-  <window>] (fleet-wide: 5h <n>% <slug> · weekly <n>% <slug>[ · Fable <n>% <slug>])[ — this
-  account alone reads <band>; the band is the fleet's, act on it] · successor <slug or none>` —
-  where `<forecast>` is `reset in <h:mm>` or `wall in ~<m>m at <n>%/m` whichever comes FIRST, or
-  `no burn` when neither is derivable yet; a figure the tick has no reading for prints `—` and a
-  band it cannot compute prints `?`. A required window NO account can serve prints
-  `<window> — nobody serves it` inside the parenthesis, and that window is the one the band
-  is `on` — both, joined as `on 5h and weekly`, when neither is served. ⚠️ **Read the line, not the arithmetic.** The three
-  percentages are the ACTIVE account's. The parenthesis is the FLEET's reading per window — the
-  coolest account that can still serve it, which is what the band was computed from; at AMBER or
-  RED it names the window that binds; the Fable reading appears only on a Fable model. When this
-  account alone would read a worse band, the line says so and tells you to act on the fleet's —
-  that sentence is there because agents holding the old per-account table in context re-derived
-  AMBER from `weekly 89%` and overrode a correct GREEN by hand (operator ruling 2026-09-17). It
-  is written by the rotation tick and read by the box-level
-  `/opt/fabrik/scripts/sysadmin/quota_posture_hook.py` (not `quota_stop.py`, which owns the WALL
-  alone). `posture unavailable` means the posture could not be READ — a dead or stale tick, or an
-  unreadable file — not that quota is fine; no `QUOTA:` line at all means the hook is not wired
-  into this session's settings, or did not run; same reading, same action: run
-  `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status`. **The band names the
-  action:** at AMBER the line is advice; at RED the hook HOLDS `Agent` and a new `command_run.py
-  start` (a run record already live and readable keeps its seats, and a review-family start —
-  `/fabrik-review-scoped` or `/fabrik-review` — stays allowed because it is the mandated review
-  of the change you are checkpointing, never a fresh round on something new) — everything a
-  checkpoint needs stays allowed, so RED is finish-and-checkpoint, never freeze. Because the band
-  is the fleet's, a RED means every account that could serve the hot window is RED too — the
-  hold is the fleet's wall approaching, never one account's, and a `successor` still named is a
-  flip the tick will make, not capacity it can buy on that window. **A session on
-  a Fable model is banded on its Fable window too** — Fable's weekly-scoped limit is reported as
-  its own percentage, and on a Fable model the band is the hottest of 5h, weekly and Fable.
-  ⚠️ **THAT LAST ONE IS THE SINGLE PLACE A BAND IS NOT THE FLEET'S, and the reason is
-  mechanical:** the relief leg flips on the session and weekly windows only and never reads Fable,
-  so an account at its Fable wall is never a flip trigger and the fleet's cool Fable reading names
-  headroom no automated flip can deliver — it is reachable by PINNING alone. So the Fable band is
-  raised to THIS ACCOUNT'S OWN Fable reading whenever that is hotter than the fleet's, a Fable RED
-  can be one account's while every other account sits cool, the line says which (`on this
-  account's own Fable window`), and the remedy is a pin, never a wait (D-295).
-  ⚠️ **`claude_rotate.py --status` is the authority on WHEN you resume, in every band — the
-  line's `<forecast>` is a projection from a smoothed burn, never the authority.**
-  The urgent-drain mail names a resume instant too, but it does not fire in every state and its
-  line is the SESSION window — so read `--status`, and never wait on a mail you cannot confirm was
-  sent. A reading that is missing entirely is not a band at all: read `--status` rather than
-  assuming. ⚠️ **The bands are the ACTIONS; the machinery that produces them is not restated
-  here** (the `QUOTA:` line's own format and the actions it binds, above, are the one carve-out
-  — the three contracts are graded identical on it, and Phase C's hook grader asserts the
-  emitted line byte for byte)
-  — `_fleet_tick_inner` and `_fleet_active_wall_advisory` in
-  `/opt/fabrik/scripts/sysadmin/claude_rotate.py` carry it in comments beside the code, which is
-  the only copy that cannot go stale against it. Three rounds of trying to summarise that machinery
-  in this bullet put a wrong claim in it every single time (D-265).
-  ⚠️ **COMPACTION IS CONDITIONAL — reflexive compaction is the
-  trap.** A flip invalidates your cached prefix (caches are per-account AND model-scoped), so
-  re-creation costs a cache WRITE (1.25x base input on the 5-minute TTL, 2x on the 1-hour) against
-  the ~0.1x you were paying to read it; compacting first shrinks what gets
-  re-created, but a compaction ALSO discards the prefix and pays summarization, so it is a pure
-  LOSS whenever no flip arrives. Judge it on the three facts `claude_rotate.py --status` gives
-  you (the `QUOTA:` line carries the reset only when its `<forecast>` reads `reset in <h:mm>`) —
-  your current %, when your window RESETS, and whether an eligible successor exists:
-  compact when a flip is likely to beat your reset, ride it out when the reset comes first.
-  ⚠️ **Never "help" by moving the knobs.** Lowering `ROTATE_THRESHOLD` (98) or `ROTATE_DWELL_MIN`
-  (30m) makes flips frequent and thrashy, and every point down re-creates every live session's
-  prefix. RAISING the two that draw the ACCOUNT's own band is worse and cheaper: `ROTATE_DRAIN_THRESHOLD` (85)
-  gates the relief flip leg itself, so raising it silences AMBER *and* stops relief flips, and
-  (the `nan`/`inf` escape is CLOSED — `_env_float` rejects a non-finite value loudly and keeps the
-  default);
-  `ROTATE_URGENT_DRAIN_PCT` (90) draws RED. Those four are the cobra path on this rule. ⚠️ **Pin
-  heavy work; never round-robin accounts:** a session launched with
-  `CLAUDE_CONFIG_DIR=$HOME/.claude-fleet/<slug>` AND `CLAUDE_QUOTA_HOME` set to the same slug —
-  both, or the binding is a no-op and the window sleeps on another account's wall — does not
-  follow the shared pointer, so a global
-  flip cannot touch its cache — check that slug's WEEKLY headroom covers the whole job first
-  (session windows refill in hours, weekly ones do not; a pinned session receives no relief flip).
-  ⚠️ THE COBRA CHECK (D-253): the cheapest way to satisfy "compact at 85" WITHOUT producing the
-  outcome is to compact reflexively on every entry to the band, which is a loss whenever the reset
-  arrives first — and per the OPERATOR's own measurement, most amber episodes end in a reset.
-  That is why the
-  rule hands you the three decision inputs instead of ordering a compaction. ⚠️ **Do not
-  re-argue that
-  ratio from `rotate-ledger.jsonl` — take the hedge as the operator measured it.** Two attempts to
-  re-derive it shipped refuted claims into this contract (D-264), and a third round of trying to
-  describe the ledger's shape HERE put a fresh wrong claim in this bullet every time (D-265). What
-  the rows can and cannot answer — which window each field holds, which legs write `at_pct`, and
-  the four bounds on the `weekly_pct` series added 2026-09-16 — is documented in comments beside
-  the code that writes them, in `_fleet_tick_inner` and `_fleet_active_wall_advisory`
-  (`/opt/fabrik/scripts/sysadmin/claude_rotate.py`). Read it there, where it cannot go stale
-  against the writer; anything restated here is a second source of truth by construction.
+- **Quota — read the line, act on the band.** Every prompt opens with a `QUOTA:` line written by the rotation
+  tick; `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status` is the authority on the accounts, the
+  queue and WHEN you resume, in every band (`docs/workstation/claude-account-rotation.md`). THE QUOTA BANDS ARE A
+  BEHAVIOUR CONTRACT, and the band is the FLEET'S, computed per window, never one account's — Never re-derive
+  the band from the percentages, which are the active account's alone. **more than 5 points of runway — GREEN:**
+  work normally; the tick rotates, you never pick accounts. **5 points or fewer — AMBER:** finish what you
+  started, start nothing heavy. **RED: commit, push, close your run record, and start nothing new.** The wall
+  (the `fleet-exhausted` stamp at its `walled` tier) is held by `.claude/hooks/quota_stop.py`; commit + push +
+  close + stop is the only path through. `posture unavailable` means the posture could not be read, not that
+  quota is fine — run `--status`. COMPACTION IS CONDITIONAL: compact when a flip is likely to beat your reset,
+  ride it out when the reset comes first; never move the rotation knobs. Pin heavy work with
+  `CLAUDE_CONFIG_DIR=$HOME/.claude-fleet/<slug>` AND `CLAUDE_QUOTA_HOME` set to the same slug — both, or the
+  pin is a no-op — and never refresh a token on a COPY of a credential file. The machinery is documented beside
+  the code that runs it (`_fleet_tick_inner`, `_fleet_active_wall_advisory` in `claude_rotate.py`), never here.
 - **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`) → `backups/` (gitignored).
 - **Naming:** kebab-case, with the usual exceptions (`README.md`, `CHANGELOG.md`, `CLAUDE.md`, Python packages).
 - **Authoring a prompt:** `docs/reference/MD/ai-prompt-templates.md`.

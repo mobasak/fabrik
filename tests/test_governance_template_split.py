@@ -236,142 +236,26 @@ def test_the_governance_files_are_on_the_sync_trigger_path() -> None:
 
 
 # --- Phase A of docs/development/plans/2026-09-16-plan-1-quota-posture.md (D-269) ---------------
-THIRD_CONTRACT = Path("/opt/fabrik-lib/CLAUDE.md")
-
-# The quota BANDS (D-265) and the QUOTA line (D-269) live INSIDE the D-175 quota bullet of all THREE
-# contracts — the hub's own, the template that reaches ~46 repos, and the sync-excluded
-# fabrik-lib's hand-kept copy, which was measured one version behind on 2026-09-16. Short substrings
-# of the shared sentences; counted on whitespace-normalised text because the hub and the template
-# hard-wrap the bullet at ~93-96 columns while fabrik-lib keeps it on one line.
-QUOTA_CLAIMS = (
-    "**more than 5 points of runway — GREEN:**",
-    "5 points or fewer",
-    "RED: commit, push, close your run record",
-    "posture unavailable",
-    # ⚠️ re-pinned 2026-09-17 on the operator's ruling: the hold is FLEET-aware, so the claim must
-    # carry the precondition. Pinning the bare "at RED the hook HOLDS" would let a contract that
-    # dropped the successor caveat pass — which is the version that stopped agents while eligible
-    # accounts sat in the queue.
-    "at RED the hook HOLDS `Agent` and a new",
-    # T6.6 (operator ruling 2026-09-17) — the band is the FLEET's, per window. A contract that
-    # slid back to a per-account band, or one that let agents re-derive it from the percentages,
-    # is the version that stopped agents while fresh accounts sat in the queue.
-    "FLEET'S, computed per window, never one account's",
-    # T6.7 (2026-09-17, 01M2P42QZMTX8RAQ24SCV45VSY) — the LINE explains its own band, because the
-    # contract cannot reach a session that loaded the old table hours ago.
-    "**The `QUOTA:` line (D-269, D-275).**",
-    "Read the line, not the arithmetic.",
-    "account alone reads <band>; the band is the fleet's, act on it]",
+_QUOTA_POINTER = (
+    # D-326 / command-loop-performance.md § 5 item 3 (2026-09-21): the QUOTA paragraph is a POINTER, not
+    # the machinery — the four behaviours an agent must still act on live in the hub file; the machinery
+    # lives beside the code that runs it. The three-way byte-identical graders that held the 12 KB
+    # paragraph across hub, template and fabrik-lib are retired with the paragraph (fabrik-lib mailed).
+    "`python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status` is the authority",
+    "the band is the FLEET'S, computed per window, never one account's",
     "Never re-derive the band from the percentages",
-    "a `successor` still named is a",
-    "is banded on its Fable window too",
-    "is the authority on WHEN you resume, in every band",
-    # Delta 9 seat C — the line can print a token the contracts never described.
-    "nobody serves it` inside the parenthesis",
-    "joined as `on 5h and weekly`, when neither is served",
+    "`CLAUDE_QUOTA_HOME` set to the same slug",
 )
 
 
-def _normalised(path: Path) -> str:
-    import re
-
-    return re.sub(r"\s+", " ", path.read_text(encoding="utf-8"))
-
-
-def test_the_quota_bands_and_the_quota_line_are_identical_in_all_three_contracts() -> None:
-    """Each QUOTA claim appears exactly once in the hub file, the template AND fabrik-lib's contract.
-
-    fabrik-lib is sync-excluded and hand-maintained, so nothing but a grader like this one binds a
-    shared sentence across it and the hub (it carried D-264's `85-90` / `90+ with NO eligible
-    successor` text for a day after the hub moved to D-265). The third file is skipped with a
-    stated reason when it is not checked out, so the suite stays portable.
-    """
-    hub = _normalised(FABRIK / "CLAUDE.md")
-    template = _normalised(FABRIK / TEMPLATE_REL)
-    missing = [
-        (c[:48], hub.count(c), template.count(c))
-        for c in QUOTA_CLAIMS
-        if hub.count(c) != 1 or template.count(c) != 1
-    ]
-    assert not missing, f"claim | hub count | template count -> {missing}"
-    if not THIRD_CONTRACT.exists():
-        import pytest
-
-        pytest.skip("fabrik-lib is not checked out on this box — the third-file half is ungraded")
-    third = _normalised(THIRD_CONTRACT)
-    missing3 = [(c[:48], third.count(c)) for c in QUOTA_CLAIMS if third.count(c) != 1]
-    assert not missing3, f"claim | fabrik-lib count -> {missing3}"
+def test_the_quota_pointer_carries_the_four_behaviours() -> None:
+    """The hub's QUOTA bullet names the authority, the fleet-band rule, the re-derivation ban and the
+    pin rule — each once. Everything else about quota is read from `claude_rotate.py --status`."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    missing = [(c[:48], hub.count(c)) for c in _QUOTA_POINTER if hub.count(c) != 1]
+    assert not missing, f"claim | hub count -> {missing}"
 
 
-# The two shared spans, extracted from the NORMALISED text: the D-269 sentence set and the D-265
-# resume-authority sentences. Anchors are the spans' own first and last words, so a wrap boundary
-# inside either span is not a miss.
-_SHARED_SPANS = (
-    r"\*\*The `QUOTA:` line \(D-269, D-275\)\.\*\*.*?the hottest of 5h, weekly and Fable\.",
-    r"`claude_rotate\.py --status` is the authority on WHEN you resume.*?read `--status` rather than assuming\.",
-    # D-295: the Fable clamp is the ONE place a band is not the fleet's, so the sentences that say
-    # so are graded three-way identical like every other shared QUOTA span. Pinned as its OWN span
-    # rather than by widening the first: that one ends on `the hottest of 5h, weekly and Fable.`,
-    # and extending the wording past that period silently unanchors it (measured — the first cut of
-    # this change did exactly that and `_shared_spans` reported the span MISSING, not drifted).
-    r"THAT LAST ONE IS THE SINGLE PLACE A BAND IS NOT THE FLEET'S.*?never a wait \(D-295\)\.",
-    # D-306: the stamp's two tiers are a BEHAVIOUR claim — only `walled` holds — so the sentences
-    # that say so are graded three-way like every other shared QUOTA span. Pinned as its OWN span
-    # with fresh endpoints, never by widening a neighbour: the span above ends on
-    # `never a wait (D-295).`, and rewording past that period unanchors it, which the grader
-    # reports as MISSING (a deleted sentence) rather than as drift. Measured 2026-09-18 on the
-    # D-295 carve-out; the memory note `extending-a-sentence-unanchors-its-pinned-span` carries it.
-    # ⚠️ fabrik-lib carried the PRE-D-306 wording for a day after the hub moved — exactly the drift
-    # this file exists to catch, and nothing caught it because the paragraph was unpinned.
-    r"⚠️ THE STAMP HAS TWO TIERS AND ONLY THAT ONE HOLDS \(D-306\)\..*?only the wall is a wall\.",
-)
-
-
-def _shared_spans(text: str) -> tuple[str, ...]:
-    import re
-
-    found = tuple(m.group(0) if (m := re.search(p, text)) else "" for p in _SHARED_SPANS)
-    assert all(found), f"a shared span is missing from a contract: {[bool(f) for f in found]}"
-    return found
-
-
-def test_the_quota_line_sentence_set_is_identical_across_the_three_contracts() -> None:
-    """A1b: the shared spans are IDENTICAL (after whitespace normalisation) in all three contracts.
-
-    The eight-anchor count above catches a sentence that went missing; only this grader catches a
-    format token, a band name or an action that DRIFTED in one file while every anchor still counts
-    one — which is what the contract's carve-out claims is graded. The third file skips as above.
-    """
-    hub = _shared_spans(_normalised(FABRIK / "CLAUDE.md"))
-    template = _shared_spans(_normalised(FABRIK / TEMPLATE_REL))
-    assert hub == template, "the hub and the template drifted on a shared QUOTA span"
-    if not THIRD_CONTRACT.exists():
-        import pytest
-
-        pytest.skip("fabrik-lib is not checked out on this box — the third-file half is ungraded")
-    assert _shared_spans(_normalised(THIRD_CONTRACT)) == hub, (
-        "fabrik-lib drifted on a shared QUOTA span"
-    )
-
-
-def test_the_third_contract_half_skips_with_a_reason_when_fabrik_lib_is_absent(
-    monkeypatch, tmp_path
-) -> None:
-    """A2: the hub/template half still grades when the third file is missing; the skip names why."""
-    import pytest
-
-    monkeypatch.setitem(globals(), "THIRD_CONTRACT", tmp_path / "absent" / "CLAUDE.md")
-    with pytest.raises(pytest.skip.Exception) as excinfo:
-        test_the_quota_bands_and_the_quota_line_are_identical_in_all_three_contracts()
-    assert "not checked out" in str(excinfo.value)
-
-
-# ── T04a: the /fabrik-task lane table in § Orient step 0 ───────────────────────────────────────
-# docs/development/plans/2026-09-18-plan-1-fabrik-task-lane/T04a-hub-claude-md.md, implementing
-# docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md § The decision rule (D-289/D-291/
-# D-292). The six tests decide the LANE before any drafting, and the table is the only place the
-# five `--declare` answers `/fabrik-task` asks for are defined — `commands/_sources/fabrik-task.md`
-# sends the agent here by name, so a missing or renamed table breaks the command it documents.
 # Hub-only for now; T04b mirrors it into templates/governance/CLAUDE.md for the ~46 repos.
 _STEP0_START = "0. **Task→skill routing:**"
 _STEP0_END = "1. **Hub identity, not a scaffold type:**"
