@@ -1,5 +1,5 @@
 {
-  "amortized_per_mtok": 0.012219174022301747,
+  "amortized_per_mtok": 0.013036441797198985,
   "amortized_per_mtok_by_family": {
     "opus": 0.005489476973706957,
     "haiku": 0.008287347458697648,
@@ -7,25 +7,25 @@
     "sonnet": 0.0031955059617919837
   },
   "quota_draw_pct": 0.0,
-  "window_start": "2026-08-22",
-  "window_end": "2026-09-20",
+  "window_start": "2026-08-23",
+  "window_end": "2026-09-21",
   "accounts": 4,
   "spend_usd": 800.0,
-  "tokens": 65470873771,
-  "built_at": "2026-09-20T06:01:06+03:00",
+  "tokens": 61366438208,
+  "built_at": "2026-09-21T06:01:05+03:00",
   "per_model_spend": {
-    "window_start": "2026-08-22",
-    "window_end": "2026-09-20",
-    "spend_usd": 791.3978494623653,
+    "window_start": "2026-08-23",
+    "window_end": "2026-09-21",
+    "spend_usd": 792.2580645161288,
     "accounts": 4,
-    "base_rate_per_mtok": 0.001139243141195362,
+    "base_rate_per_mtok": 0.0011697370551520243,
     "tiers": {
       "opus": {
         "weight": 5.0,
-        "tokens": 95149807250,
-        "share": 0.7425956580097594,
-        "rate_per_mtok": 0.005696215705976809,
-        "cost_usd": 541.993826478116,
+        "tokens": 92327652342,
+        "share": 0.7372796539782189,
+        "rate_per_mtok": 0.0058486852757601215,
+        "cost_usd": 539.9953807981549,
         "models": [
           "claude-opus-5",
           "claude-opus-4-8"
@@ -33,10 +33,10 @@
       },
       "fable": {
         "weight": 10.0,
-        "tokens": 19207496452,
-        "share": 0.14990470163556804,
-        "rate_per_mtok": 0.011392431411953619,
-        "cost_usd": 218.82008592475248,
+        "tokens": 18824083324,
+        "share": 0.15031914369669808,
+        "rate_per_mtok": 0.011697370551520243,
+        "cost_usd": 220.19227793352087,
         "models": [
           "claude-fable-5-1",
           "claude-fable-5"
@@ -44,10 +44,10 @@
       },
       "sonnet": {
         "weight": 2.0,
-        "tokens": 13071760833,
-        "share": 0.10201841829929545,
-        "rate_per_mtok": 0.002278486282390724,
-        "cost_usd": 29.783827744682842,
+        "tokens": 13341048708,
+        "share": 0.10653453787285734,
+        "rate_per_mtok": 0.0023394741103040487,
+        "cost_usd": 31.211038056671278,
         "models": [
           "claude-sonnet-5",
           "claude-sonnet-4-6"
@@ -55,23 +55,23 @@
       },
       "haiku": {
         "weight": 1.0,
-        "tokens": 702316552,
-        "share": 0.005481222055377158,
-        "rate_per_mtok": 0.001139243141195362,
-        "cost_usd": 0.8001093148139757,
+        "tokens": 734667440,
+        "share": 0.005866664452225696,
+        "rate_per_mtok": 0.0011697370551520243,
+        "cost_usd": 0.8593677277816766,
         "models": [
           "claude-haiku-4-5-20251001"
         ]
       }
     },
     "models": {
-      "claude-opus-5": 84947359286,
-      "claude-opus-4-8": 10202447964,
-      "claude-fable-5": 5229784440,
-      "claude-haiku-4-5-20251001": 702316552,
-      "claude-sonnet-5": 13033688204,
-      "claude-fable-5-1": 13977712012,
-      "claude-sonnet-4-6": 38072629
+      "claude-opus-5": 83163239641,
+      "claude-opus-4-8": 9164412701,
+      "claude-haiku-4-5-20251001": 734667440,
+      "claude-fable-5": 4588880315,
+      "claude-sonnet-5": 13302729607,
+      "claude-fable-5-1": 14235203009,
+      "claude-sonnet-4-6": 38319101
     },
     "daily": [
       {
@@ -1506,13 +1506,24 @@
       },
       {
         "date": "2026-09-20",
-        "tokens": 586405609,
-        "cost_usd": 2.9783028182833595,
+        "tokens": 1786879586,
+        "cost_usd": 10.122840111325857,
         "by_tier": {
-          "haiku": 28696852,
-          "sonnet": 159562808,
-          "opus": 342999995,
-          "fable": 55145954
+          "haiku": 61047740,
+          "sonnet": 428850683,
+          "opus": 984344212,
+          "fable": 312636951
+        }
+      },
+      {
+        "date": "2026-09-21",
+        "tokens": 32313,
+        "cost_usd": 0.00018898856731563684,
+        "by_tier": {
+          "haiku": 0,
+          "sonnet": 0,
+          "opus": 32313,
+          "fable": 0
         }
       }
     ],
