@@ -32,14 +32,9 @@ Two environment variables — both, or the binding is a no-op:
 
 - `CLAUDE_CONFIG_DIR` → `~/.claude-fleet/active` (the CLI's config dir: credentials and
   `.claude.json` are per account; `agents/`, `commands/`, `skills/`, `projects/` and `sessions/`
-  are symlinks to the one shared `~/.claude/<name>` — `_SHARED_DIR_LINKS`. `sessions/` joined the
-  set on 2026-09-17 (D-287): it is the CLI's peer registry, read through the pointer as it stands
-  now but written under the dir the pointer named at each session's start, so per-account it
-  emptied every window's `ListAgents` on every flip. A dir created before that date is healed by
-  hand once: check for a same-named `<pid>.json` across the REAL dirs AND the destination first
+  are symlinks to the one shared `~/.claude/<name>` — `_SHARED_DIR_LINKS`. `sessions/` is in the set (D-287): it is the CLI's peer registry, read through the pointer as it stands now but written under the dir the pointer named at each session's start, so per-account it empties every window's `ListAgents` on every flip. A REAL `sessions/` dir is healed by hand once: check for a same-named `<pid>.json` across the REAL dirs AND the destination first
   (`for d in ~/.claude-fleet/*/sessions ~/.claude/sessions; do [ -e "$d" ] && [ ! -L "$d" ] && ls
-  "$d"; done | sort | uniq -d` — the unfiltered `ls` lists the shared dir once per link and reports
-  every file as a collision; none on 2026-09-17), move its `sessions/*` into `~/.claude/sessions/`
+  "$d"; done | sort | uniq -d` — the unfiltered `ls` lists the shared dir once per link and reports every file as a collision), move its `sessions/*` into `~/.claude/sessions/`
   with `mv -n` (a same-named record in the destination must never be clobbered), `rmdir` the
   emptied dir (it refuses a non-empty one, so a record `mv -n` declined stops the replacement
   instead of being deleted with it), then replace
@@ -48,8 +43,7 @@ Two environment variables — both, or the binding is a no-op:
   canonical dir exists or it can create it (and leaves it in place, named, when it cannot), and
   `--status`/the tick warn on a real dir, a file, a dangling link or a link elsewhere — the D-287
   state has a signal. Records whose pid another process has since reused are never reaped by the CLI
-  (it only trusts ESRCH); harmless — their socket is gone — but the merge concentrated them, five
-  of 911 on 2026-09-17)
+  (it only trusts ESRCH); harmless — their socket is gone)
 - `CLAUDE_QUOTA_HOME` → the same path; the wall/resume layer (`claude-quota.py`) resolves its
   home from THIS variable, not from `CLAUDE_CONFIG_DIR`.
 
@@ -58,7 +52,7 @@ They are exported from **two** places, and both are required:
 | File | Covers | Why both |
 |---|---|---|
 | `~/.bashrc` | terminals, login shells | interactive shells only |
-| `~/.vscode-server/server-env-setup` | **the VS Code extension host** | `.bashrc` returns early for non-interactive shells, so extension windows never read it — they silently fell back to the shared `~/.claude` and ignored the pointer entirely (2026-08-15; 15 sessions, caught by the occupancy monitor) |
+| `~/.vscode-server/server-env-setup` | **the VS Code extension host** | `.bashrc` returns early for non-interactive shells, so extension windows never read it — they silently fell back to the shared `~/.claude` and ignored the pointer entirely |
 
 ⚠️ The server-env file takes effect only after the VS Code **server** restarts:
 `wsl --shutdown` from Windows, then reopen. "Reload Window" is NOT enough — the server
@@ -66,27 +60,14 @@ survives it.
 
 ## Rotation — when the pointer moves, and where
 
-The `*/5` tick reads every account dir (five as of 2026-09-06 — it discovers them, nothing enumerates them), then decides (`_fleet_flip_leg`, `claude_rotate.py`):
+The `*/5` tick reads every account dir (it discovers them, nothing enumerates them), then decides (`_fleet_flip_leg`, `claude_rotate.py`):
 
-- **Flip-away trigger:** the active account reaches `ROTATE_THRESHOLD` (default **98** since 2026-09-08 —
-  operator rule, D-201: "we can switch a lot faster now so i want to utilize them better — switch as soon as
-  it reaches 98%". This SUPERSEDES the 95 of 2026-09-03, which had itself replaced a 98 that lost the same
-  day. The burst that beat 98 then is unchanged and still measurable in the last usable sample — 305
-  inter-tick gaps, 2026-08-13..15: gap median 5.0 min / p90 5.0 / max 10.0, per-gap RISE median 0 points,
-  p90 3, p99 35, so P(rise > 5) = 4.7% against P(rise > 2) = 21.7%, i.e. an account read AT the line walls
-  roughly 4.6x more often at 98 than at 95. What changed is the COST of losing that race: the relief wake
-  (D-177/D-178/D-180, 2026-09-07) holds a walled session and wakes it when relief lands instead of letting
-  it die. ⚠️ Those numbers were unrefreshable when this was decided and are not any more: the FLEET tick never
-  wrote the `{"event": "tick", "pct": …}` row the LEGACY tick did, so the samples stop dead on 2026-08-15 — the
-  day this box moved to fleet mode. Restored in the same change (one row per tick, ACTIVE account, its SESSION
-  window, graded by `test_the_fleet_tick_ledgers_the_active_session_reading`), so the next tuning has evidence
-  rather than a three-week-old snapshot. ONE helper
+- **Flip-away trigger:** the active account reaches `ROTATE_THRESHOLD` (default **98** — operator rule D-201, *"switch as soon as it reaches 98%"*: an account read AT the line walls more often at 98 than at 95, but the relief wake (D-177/D-178/D-180) holds a walled session and wakes it when relief lands instead of letting it die; the fleet tick ledgers one `{"event": "tick", "pct": …}` row per tick for the ACTIVE account's SESSION window, graded by `test_the_fleet_tick_ledgers_the_active_session_reading`, so the next tuning has evidence. ONE helper
   `_rotate_threshold()` feeds every call site, and `quota_dashboard.TRIGGER_THRESHOLD` is pinned equal to it
   by a grader) on either the 5-hour or the weekly window — **on the PROJECTED reading**
-  (2026-09-03 19:50, D-103): each leg trips on reading + the burn since the previous tick, remembered per
+  (D-103): each leg trips on reading + the burn since the previous tick, remembered per
   account + window in `~/.claude/state/tick-last-reading.json` (`_tick_burn`; same account, same window by
-  reset epoch, memory ≤ 15 min, else 0). The tick had logged ob@ at 89 → 93 → 96 "below 98, no flip" and the
-  next tick found the wall: at a 5-minute cadence and a 3–4% inter-tick burn no tick observes [98, 100), so a
+  reset epoch, memory ≤ 15 min, else 0). At a 5-minute cadence and a 3–4% inter-tick burn no tick observes [98, 100), so a
   line checked every 5 minutes must be crossed BEFORE the wall. The no-flip line shows `(+N since last
   tick)`; a projected flip says so in its ledger line. **Latency:** the quota dashboard
   server probes every 20s and invokes `--tick` the moment the active account crosses the line (or is
@@ -94,20 +75,17 @@ The `*/5` tick reads every account dir (five as of 2026-09-06 — it discovers t
   (`docs/workstation/quota-dashboard.md` § the rotation trigger). The **weekly** leg is governed by the account's `caps.json` cap when one exists
   (the cap IS the operator's weekly rule — a cap of 99 trips at 99, not at the session threshold) and by
   `ROTATE_THRESHOLD` otherwise; the 5-hour leg is never cap-gated.
-- **Drain-band relief flip (D-171, 2026-09-06; hardened 2026-09-07):** a SECOND flip trigger, below the trip
+- **Drain-band relief flip (D-171):** a SECOND flip trigger, below the trip
   line. When the active account's hottest window is at/over `ROTATE_DRAIN_THRESHOLD` (default **85**) but not
   tripped, and a live-validated sibling is BELOW 85 on both windows (the strict-both-windows hysteresis that
   stops ping-pong), the tick flips to it — walking down the ranking past in-band candidates, dwell-exempt like
-  a trip, ledgered with `kind: relief`. Born of the 23:01–23:17 incident: the hold lifted on ozgurbasak@'s
-  reset while the pointer stayed on mob@ (93/97, cap 99) because only a trip moved it. Accepted cost: the
+  a trip, ledgered with `kind: relief`. Without it a hold lifts on a sibling's reset while the pointer stays on the drained account, because only a trip moves it. Accepted cost: the
   85→cap weekly band of the account flipped away from is deferred, not spent. The board's fast path mirrors it
-  (a `relief` trigger tier + the ghost return row, R6, 2026-09-07), so a weekly-driven relief lands within the
+  (a `relief` trigger tier + the ghost return row), so a weekly-driven relief lands within the
   20 s probe cadence like a trip.
-- **URGENT drain at 90 with NO successor (operator rule 2026-09-03, `_urgent_drain_pct`, `ROTATE_URGENT_DRAIN_PCT`):**
+- **URGENT drain at 90 with NO successor (`_urgent_drain_pct`, `ROTATE_URGENT_DRAIN_PCT`):**
   when the ACTIVE account's session is at/over **90** and `_validated_pick` finds no eligible sibling (every
-  one session-exhausted, weekly-walled or cap-walled), the wall advisory fires EIGHT POINTS EARLY — five until
-  2026-09-08, when D-201 moved the flip line 95 -> 98 and widened the gap; the runway a graceful stop needs, and
-  the ordering (90 < the flip line) is the design rather than a coincidence, graded by
+  one session-exhausted, weekly-walled or cap-walled), the wall advisory fires EIGHT POINTS EARLY — the runway a graceful stop needs; the ordering (90 < the flip line) is the design, graded by
   `test_the_no_successor_mail_always_precedes_the_flip_line` — as one Telegram + one broadcast fabrik-mail to every mailbox repo, in the operator's
   words: **STOP YOUR WORK ASAP, GRACEFULLY, and HOOK YOURSELF TO RESUME 1 MINUTE AFTER the next account's
   session resets** — with that instant as local time, UTC and epoch, plus a copy-paste `sleep` line
@@ -115,35 +93,28 @@ The `*/5` tick reads every account dir (five as of 2026-09-06 — it discovers t
   soonest weekly reset when every sibling is weekly-blocked; skips stale past resets). Same latch and re-arm as
   the wall tier (one message per episode; re-armed the instant relief arrives). The quota board invokes the
   tick on this tier within one 20 s probe, on a cooldown of its own so it can never delay the flip tier.
-- **Target — PERISHABLE-FIRST (operator rule 2026-09-02):** among accounts that are alive, not
+- **Target — PERISHABLE-FIRST:** among accounts that are alive, not
   walled, not cap-walled, and not themselves already ≥ threshold on either window, the one whose
   **weekly reset is soonest** wins (quota about to refresh is the cheapest to burn); ties break
-  to lower weekly, then lower session utilization; an unknown reset time sorts last. The same
-  rule the reactive path (`_pick_successor`) always applied; the tick used to rank by headroom
-  instead. The weekly reserves live in `caps.json` — **§ Per-account caps below; read the file
+  to lower weekly, then lower session utilization; an unknown reset time sorts last. The same rule the reactive path (`_pick_successor`) applies. The weekly reserves live in `caps.json` — **§ Per-account caps below; read the file
   or `--status`, never this page, for the numbers.** At weekly ≥ cap the account flips away
   whatever its session says.
-  **A target must have 5h budget** (operator rule, same day): its session reading must be KNOWN and
+  **A target must have 5h budget:** its session reading must be KNOWN and
   ≤ `ROTATE_TARGET_SESSION_MAX_PCT` (default = `ROTATE_DRAIN_THRESHOLD`, **85** — a target at or over the drain line would be flagged the moment it became active) — a weekly reading alone proves nothing about
   the session window, and a sibling near its own session wall would be flipped to and away from on
   the next tick. A cached standby whose 5h reset time has already passed is read as 0% (an idle
   account cannot burn fleet quota; the window rolled over — the board applies the same rule). A candidate ranked off
   a CACHED reading is live-probed once before it can become the pointer — **and when that probe
-  fails, a reading younger than `ROTATE_CACHE_TRUST_S` (default: the refresh line `ROTATE_READING_MAX_AGE_S` **plus one tick of slack**, 3600 + 420 s — it used to EQUAL the refresh line, which left every reading untrusted between crossing the hour and the next tick's refresh; 2026-09-06) on a chain that passes the
+  fails, a reading younger than `ROTATE_CACHE_TRUST_S` (default: the refresh line `ROTATE_READING_MAX_AGE_S` **plus one tick of slack**, 3600 + 420 s — equal to the refresh line, every reading would be untrusted between crossing the hour and the next tick's refresh) on a chain that passes the
   liveness gate is accepted anyway.** The probe runs with the standby's OWN access token, which is
   expired by construction for an idle account (only the active chain self-refreshes; the CLI rolls
-  it on first use), so before 2026-09-02 every idle sibling read as "unverifiable" and the tick
-  logged `NO successor has headroom` while `can@` sat at 12%/12% — a flip only ever worked when
-  the successor happened to be live that tick. An OLDER cache still never becomes the pointer.
+  it on first use), so without that trust every idle sibling reads as "unverifiable" and no flip ever finds a successor. An OLDER cache still never becomes the pointer.
 - **No successor ⇒ the tick says why, per sibling** (`walled` · `weekly N% ≥ cap` · `a window
   ≥ threshold` · `no quota reading` · `chain stale or no credentials` · `cached Nm ago and the
   live re-verify failed…`) — read `~/.claude/rotate-tick.log` before touching anything.
 - **Never a dead chain:** the target's refresh token must pass the liveness gate
   (`_chain_stale_reason`) — a dir whose chain expired can never become the fleet's pointer.
-- **Dwell:** 30 minutes between automatic flips (`ROTATE_DWELL_MIN`) — but **never on a trip** (operator
-  directive 2026-09-03, D-104: a session wall stops every running agent at once, so a trip is a wall,
-  never churn; on 2026-09-03 mob@ sat cap-walled with `flip to ob within dwell — holding` until the operator
-  switched by hand). The tick's trip flips and the missing/dangling-pointer repair are dwell-exempt; churn is
+- **Dwell:** 30 minutes between automatic flips (`ROTATE_DWELL_MIN`) — but **never on a trip** (D-104: a session wall stops every running agent at once, so a trip is a wall, never churn). The tick's trip flips and the missing/dangling-pointer repair are dwell-exempt; churn is
   prevented where it belongs — the candidate predicate never targets a sibling at/over the threshold or
   without 5h budget. The dwell still bounds the legacy (non-fleet) tick.
 - **No headroom anywhere:** nothing flips; ONE advisory per wall episode goes to Telegram AND
@@ -167,31 +138,27 @@ The `*/5` tick reads every account dir (five as of 2026-09-06 — it discovers t
   premature stop D-299 forbids — and `quota_posture_hook.py` puts the same nudge on the next
   prompt line, the last moment an agent can checkpoint by choice rather than be denied mid-edit;
   that hook also keeps enforcing its own band at `urgent-90`, since nothing else is; the hold lifts the moment the tick clears the stamp (an
-  unclearable stamp keeps the hold and wakes nobody — `_clear_stamp`) — and since 2026-09-07 (the
-  RELIEF WAKE, plan `2026-09-07-plan-1-relief-wake`, D-177/D-178) the same unlink — the relief site and
+  unclearable stamp keeps the hold and wakes nobody — `_clear_stamp`) — and (the RELIEF WAKE, D-177/D-178) the same unlink — the relief site and
   the transient-dwell site alike — writes `<lockdir>/<safe-sid>.holdlifted` (the lift epoch) for every
   session whose self-watch is ARMED (`_wake_held_sessions`: a held `selfwatch.lock`, the one decider
   `selfwatch_check.py` uses, vendored lockstep) and appends a `hold-lifted` ledger row with
-  `reason` (`relief`/`dwell`; the helper's `no-reading` value is defensive only since D-180 — the tick keeps the stamp instead), `site` (which unlink fired) and `armed/dead/woken/pending/errors`; `pending` = an ARMED watch that never consumed the previous lift — a watch armed before the lift branch shipped (an old script in memory), healed only by ENDING that watch's Monitor (`TaskStop`, allowed under the hold — a plain re-arm exits at once as a duplicate while the old watch still holds the lock) and arming again. ⚠️ Until 2026-09-07 the Stop decider's 2-hour lock-dir prune deleted every self-watch's lock FILE (its mtime never changes), orphaning 25 of 30 watchers on this box — invisible to this census, and each re-arm the nag ordered died the same way two hours later; the prune now skips flock-held files and the watch exits when its lock file vanishes (harness W11); the self-watch consumes the file and prints the RESUME line naming
+  `reason` (`relief`/`dwell`; the helper's `no-reading` value is defensive only since D-180 — the tick keeps the stamp instead), `site` (which unlink fired) and `armed/dead/woken/pending/errors`; `pending` = an ARMED watch that never consumed the previous lift (an old script in memory), healed only by ENDING that watch's Monitor (`TaskStop`, allowed under the hold — a plain re-arm exits at once as a duplicate while the old watch still holds the lock) and arming again. The Stop decider's lock-dir prune skips flock-held files and the watch exits when its lock file vanishes (harness W11); the self-watch consumes the file and prints the RESUME line naming
   the run record and thread anchors. A probe blackout (every window `None`) is NOT relief:
-  since D-180 (2026-09-07, the plan's heavy review) the tick KEEPS the stamp and logs `stamp KEPT — no reading`; the
+  since D-180 the tick KEEPS the stamp and logs `stamp KEPT — no reading`; the
   hold stands until a reading says otherwise, so the one present→absent transition the wake fires on is never
-  consumed blind (before D-180 the stamp went and every held session slept until the NEXT episode). A stamp the
+  consumed blind. A stamp the
   tick cannot unlink also keeps the hold and appends a `hold-stuck` ledger row. A lock the tick cannot probe is
   counted in `errors` and never aborts the census for the others. A session
   whose watch was NOT armed stays idle until the operator restarts it — which is why the hold's own
-  denial text orders the arm (Monitor is allowed under the hold). Before 2026-09-02 the four broadcasts of the day
-  were the picker bug (§ Target) talking, not real exhaustion. Work resumes
+  denial text orders the arm (Monitor is allowed under the hold). Work resumes
   as windows reset. **The latch has a THIRD re-arm: the promise coming due.** The message names a
   resume instant and tells every repo not to poll before it, so the `fleet-exhausted` stamp's
   CONTENT holds that epoch (`0` when none could be given) and `_promised_resume` re-arms the latch
-  once it passes with the wall unbroken — but never inside `_ADVISORY_MIN_GAP_S` (30 min) of the episode's start, which binds the STAMP path too since 2026-09-17: a promise falling due sooner waits for the floor, so the follow-up notice can land up to ~28 min after the epoch it named on the code clock, and up to one `*/5` tick more (≤ ~33 min) since the release is evaluated only on a tick — the next message then carries the next time to try.
-  Without it the fleet goes silent until the week-long re-arm: on 2026-09-04 one message at 20:55
-  UTC named 21:31, nothing switched, and 47 "NO successor has headroom" ticks passed unannounced
-  until the operator flipped the pointer by hand at 07:36. For the same reason the message says
+  once it passes with the wall unbroken — but never inside `_ADVISORY_MIN_GAP_S` (30 min) of the episode's start, which binds the STAMP path too: a promise falling due sooner waits for the floor, so the follow-up notice can land up to ~28 min after the epoch it named on the code clock, and up to one `*/5` tick more (≤ ~33 min) since the release is evaluated only on a tick — the next message then carries the next time to try.
+  Without it the fleet goes silent until the week-long re-arm. For the same reason the message says
   relief is EXPECTED, not promised — the rotation switches only if the named account really has
   headroom when its window turns. A stamp written before this field existed holds its own write
-  time, which is never later than its mtime, so it migrates silently to the old behaviour. ⚠️ Since 2026-09-17 a SECOND end-of-episode row exists, `wall-episode-closed` (`site`, `relieved`, `closed_for` — the accounts whose episodes it ended, a list because the row is fleet-wide and two can be open at once, empty when the ledger could not be read; no census counters): the relief path writes it when there was no stamp to clear, so the ledger latch on the wall advisory re-arms; like a RELIEF-site `hold-lifted` and a `flip` it is FLEET-wide (a DWELL-site `hold-lifted` is a hold cleared on expectation and ends nothing) — the reader (`_open_wall_episode`) treats any of the three as ending every account's open episode. It is never a `hold-lifted` row, because that row's counters are the relief wake's census and a close with hardcoded zeros would read as a lift that found nobody. And the MESSAGE latch is not the HOLD: when the ledger says the episode was advised but the stamp is gone (the dwell branch cleared it expecting a flip, and the successor drained first), the tick re-arms the stamp from the episode's own row — content the promised resume, mtime the row's `ts` — without a second broadcast (Delta 10).
+  time, which is never later than its mtime, so it migrates silently to the old behaviour. ⚠️ A SECOND end-of-episode row exists, `wall-episode-closed` (`site`, `relieved`, `closed_for` — the accounts whose episodes it ended, a list because the row is fleet-wide and two can be open at once, empty when the ledger could not be read; no census counters): the relief path writes it when there was no stamp to clear, so the ledger latch on the wall advisory re-arms; like a RELIEF-site `hold-lifted` and a `flip` it is FLEET-wide (a DWELL-site `hold-lifted` is a hold cleared on expectation and ends nothing) — the reader (`_open_wall_episode`) treats any of the three as ending every account's open episode. It is never a `hold-lifted` row, because that row's counters are the relief wake's census and a close with hardcoded zeros would read as a lift that found nobody. And the MESSAGE latch is not the HOLD: when the ledger says the episode was advised but the stamp is gone (the dwell branch cleared it expecting a flip, and the successor drained first), the tick re-arms the stamp from the episode's own row — content the promised resume, mtime the row's `ts` — without a second broadcast.
 - **Manual:** `--switch <account>` flips now — pause- and dwell-exempt, the deliberate
   override. It warns if the target carries a cap.
 
@@ -207,25 +174,17 @@ exceed:
 {"ob@ocoron.com": 90}
 ```
 
-⚠️ **The live values are the file, and this doc does not restate them** — deliberately, as of
-2026-09-06. Read `cat ~/.claude-fleet/caps.json`, or `claude_rotate.py --status`, which prints
-`(cap N)` on every account row (`claude_rotate.py:3636`). The caps are the operator's browser
-reserve: they are edited by hand, take effect with no restart, and therefore change with no
-commit and no reviewer. Both values this page used to name had drifted silently — `sarp` was
-raised 90 → 95 on 2026-09-06 (D-150) and `ob` had moved 80 → 90 before that, with the prose left
-untouched each time. A number copied out of a live JSON file into prose is stale from the day
-after it is written.
+⚠️ **The live values are the file, and this doc does not restate them** (D-150). Read `cat ~/.claude-fleet/caps.json`, or `claude_rotate.py --status`, which prints `(cap N)` on every account row. The caps are the operator's browser reserve: they are edited by hand, take effect with no restart, and therefore change with no commit and no reviewer — a number copied out of a live JSON file into prose is stale from the day after it is written.
 
 At or above the cap the account is **cap-walled**: automated flips exclude it and `--status`
 says so, reserving the remainder for the operator's own claude.ai browser use. `--switch` may
 still target it deliberately. Keys are matched case-insensitively; a key matching no known
 account warns ("cap inactive") rather than failing silently. The file is mirrored off-box by
-`scripts/dr_claude_backup.sh` (D-150, 2026-09-06 — until then it had no backup at all, because
-that script's fleet loop walks account *directories* and caps.json sits at the fleet root).
+`scripts/dr_claude_backup.sh` (D-150 — that script's fleet loop walks account *directories*, and caps.json sits at the fleet root).
 
 ## `--status` — the board
 
-**The picture (2026-09-07, operator directive "all agents should be able to reach/query the entire picture"):**
+**The picture:**
 after the per-account lines, `--status` prints four more — `picture:` (the fleet-exhausted HOLD: none, or held
 since when and the resume it promised; `picture.hold.tier` says whether it is the `walled` hold or the
 `urgent-90` warning), `queue:` (the rotation order: the active first, then eligible accounts in
@@ -252,7 +211,7 @@ python3 scripts/sysadmin/claude_rotate.py --status [--json]
   lapse (`_CHAIN_EXPIRY_WARN_S`) · carrier problems · occupancy · identity mismatch.
 - `--json` carries `active`, `weekly_cap`/`cap_walled` per row, `pause`, and `fleet_warnings`.
 
-**The `posture:` line and the posture file (2026-09-16, D-269).** Under `last flip:` the board prints ONE
+**The `posture:` line and the posture file (D-269).** Under `last flip:` the board prints ONE
 more line — `posture: <band> · 5h <n>% <forecast> · weekly <n>% <forecast> · Fable <n>% · burn 5h <n>%/m ·
 written <m>m ago` — read from `~/.claude/state/quota-posture.json` (`_posture_path()`), which the rotation tick
 writes atomically (tmp + `os.replace`) every cycle for the account the pointer names AFTER its flip leg ran:
@@ -260,7 +219,7 @@ writes atomically (tmp + `os.replace`) every cycle for the account the pointer n
 `weekly_scoped` limit) the `utilization`, `resets_at`, `wall_pct` (100, or the `caps.json` cap for the weekly),
 `burn_per_min` (a smoothed rate over the last ~35 minutes of tick samples, `null` on the first sample or when
 the window's reset epoch moved), `minutes_to_wall`, `minutes_to_reset` and a `verdict` — `reset_first`,
-`wall_first` or `unknown`; `active.band` — the FLEET's band (operator ruling 2026-09-17): per window, the coolest account that can still serve it (`fleet.windows`, each naming its account, and `fleet.measured`, how many accounts a required window was READ for among the accounts that are a quota fact (state not `unavailable` — a dead refresh chain with cached readings is not one) — an empty `fleet.windows` with `measured > 0` is scarcity, RED, and the line says `nobody serves it`; with `measured == 0` it is a blackout, band `?`, nothing to explain; `--status` prints the fleet readings after the account's own and shows `GREEN (account AMBER)` when they differ — a session-exhausted account still holds its weekly, a capped one holds nothing), then the hottest of the fleet's 5h and weekly (and, for `band_fable`, Fable) — ⚠️ each window banded against ITS OWN WALL, the providing account's `caps.json` cap for weekly and 100 for the uncapped 5h and Fable windows, with the hottest BAND winning rather than the hottest PERCENTAGE: RED at the wall, AMBER within 5 points of it, GREEN beyond (D-299, operator *"utilize quotas utmost without causing premature stops"*). Each reading in `fleet.windows` carries the `wall` it was measured against so no consumer re-derives it, and fleet-wide RED arrives as ABSENCE — an account that has reached its cap is dropped from the readings, so when every account has, the window has no reading and that is the wall. Rotation keeps the raw `ROTATE_DRAIN_THRESHOLD`/`ROTATE_URGENT_DRAIN_PCT` lines: they govern when the POINTER moves, and the only band they draw is `active.band_account` — this account's OWN reading — never the FLEET's band, which D-299 draws from each window's own wall; `ROTATE_URGENT_DRAIN_PCT` additionally decides whether an agent gets the `urgent-90` CHECKPOINT nudge — ⚠️ with ONE exception, the Fable clamp: `band_fable` is additionally raised to the ACTIVE account's own Fable reading whenever that is hotter, because the relief leg flips on `hot` = max(five_hour, seven_day) and never reads the Fable window, so an account at its Fable wall is never a flip trigger and the fleet's cool Fable reading names headroom no automated flip can deliver — reachable by PINNING alone. The clamp applies to EVERY return of the Fable path, the scarcity arm included, or a probe blackout hands a Fable-walled account a `null` band the hook reads as pass; a blackout with a COOL account reading stays `null` rather than becoming a fabricated GREEN. `active.band_fable_clamped` records whether it bound, and every consumer that EXPLAINS a band must read it: the account's Fable figure is not in `fleet.windows`, so naming the hottest fleet window as what binds points the reader at a window that still has headroom (D-295); `active.band_account` (and `active.band_account_fable`, its Fable-inclusive twin) keeps the active account's own reading (`GREEN`/`AMBER`/`RED` on the hottest of 5h and weekly at the live
+`wall_first` or `unknown`; `active.band` — the FLEET's band: per window, the coolest account that can still serve it (`fleet.windows`, each naming its account, and `fleet.measured`, how many accounts a required window was READ for among the accounts that are a quota fact (state not `unavailable` — a dead refresh chain with cached readings is not one) — an empty `fleet.windows` with `measured > 0` is scarcity, RED, and the line says `nobody serves it`; with `measured == 0` it is a blackout, band `?`, nothing to explain; `--status` prints the fleet readings after the account's own and shows `GREEN (account AMBER)` when they differ — a session-exhausted account still holds its weekly, a capped one holds nothing), then the hottest of the fleet's 5h and weekly (and, for `band_fable`, Fable) — ⚠️ each window banded against ITS OWN WALL, the providing account's `caps.json` cap for weekly and 100 for the uncapped 5h and Fable windows, with the hottest BAND winning rather than the hottest PERCENTAGE: RED at the wall, AMBER within 5 points of it, GREEN beyond (D-299). Each reading in `fleet.windows` carries the `wall` it was measured against so no consumer re-derives it, and fleet-wide RED arrives as ABSENCE — an account that has reached its cap is dropped from the readings, so when every account has, the window has no reading and that is the wall. Rotation keeps the raw `ROTATE_DRAIN_THRESHOLD`/`ROTATE_URGENT_DRAIN_PCT` lines: they govern when the POINTER moves, and the only band they draw is `active.band_account` — this account's OWN reading — never the FLEET's band, which D-299 draws from each window's own wall; `ROTATE_URGENT_DRAIN_PCT` additionally decides whether an agent gets the `urgent-90` CHECKPOINT nudge — ⚠️ with ONE exception, the Fable clamp: `band_fable` is additionally raised to the ACTIVE account's own Fable reading whenever that is hotter, because the relief leg flips on `hot` = max(five_hour, seven_day) and never reads the Fable window, so an account at its Fable wall is never a flip trigger and the fleet's cool Fable reading names headroom no automated flip can deliver — reachable by PINNING alone. The clamp applies to EVERY return of the Fable path, the scarcity arm included, or a probe blackout hands a Fable-walled account a `null` band the hook reads as pass; a blackout with a COOL account reading stays `null` rather than becoming a fabricated GREEN. `active.band_fable_clamped` records whether it bound, and every consumer that EXPLAINS a band must read it: the account's Fable figure is not in `fleet.windows`, so naming the hottest fleet window as what binds points the reader at a window that still has headroom (D-295); `active.band_account` (and `active.band_account_fable`, its Fable-inclusive twin) keeps the active account's own reading (`GREEN`/`AMBER`/`RED` on the hottest of 5h and weekly at the live
 `ROTATE_DRAIN_THRESHOLD`/`ROTATE_URGENT_DRAIN_PCT` lines, `WALL` while the `fleet-exhausted` stamp stands at its
 `walled` tier — the WALL band asserts that `quota_stop.py` IS holding, and since D-306 only that tier does,
 `null` with no reading), `active.band_fable` (the same with the Fable window joining the hottest-of, THEN raised to the ACTIVE account's own Fable band when that is hotter — see the Fable clamp below — with `active.band_fable_clamped` saying whether that raise is what produced the band), and the
@@ -306,7 +265,7 @@ nothing to partition and prints 0 with the reason. `--json` also carries `box_ca
 floor when the active account's hottest window is ≥85% or no standby account is eligible (`eligible` counts standbys; the active account is `state=active`) —
 the same bands `core/62` § Dispatch economics names. `--heavy` is for seats whose TOOLS load the box
 (pytest, builds, renders): a native seat lives inside its parent `claude` process, so only its
-subprocesses count, bounded by `min(MemAvailable, CommitLimit − Committed_AS)` at 2 GB per heavy seat (1 GB read-only) and one core per seat over `load1`, minus the seats OTHER sessions DISPATCHED in the last 25 minutes (`command_run.py dispatch --seats <n>` — stamped before the seats go out, accumulated within the round, released at its close; the caller's own record is never subtracted; measured on 245 seat transcripts: median 550 s, p95 1354 s), never below the floor the box has room for — this box bound is driven by BOX capacity alone and stays live in both modes. Every probe fails
+subprocesses count, bounded by `min(MemAvailable, CommitLimit − Committed_AS)` at 2 GB per heavy seat (1 GB read-only) and one core per seat over `load1`, minus the seats OTHER sessions DISPATCHED in the last 25 minutes (`command_run.py dispatch --seats <n>` — stamped before the seats go out, accumulated within the round, released at its close; the caller's own record is never subtracted), never below the floor the box has room for — this box bound is driven by BOX capacity alone and stays live in both modes. Every probe fails
 soft and prints its reason with the floor, never a silent 20. It also prices the mix per D-190 — haiku 1× · sonnet 2× · opus 5× · fable 10× — for the mix it chose (`--units 3` → `{opus: 1, sonnet: 3, haiku: 3}`, `COST: 14 haiku-units`; `--slices opus=1,sonnet=1` → `COST: 7 haiku-units`) or one you pass (`--mix opus=1,sonnet=5` → 15), with the Fable adjudicator (10) printed beside the total, never inside it. Tests: `tests/sysadmin/test_dispatch_headroom.py`.
 
 ### The occupancy monitor
@@ -329,9 +288,7 @@ never a credential-file copy.**
 ## Re-login — the only recurring duty, monthly, per account
 
 A refresh chain runs **~30 days from its `/login` and nothing extends it** — not a claude turn,
-not a `claude -p ping`, not the tick's own refresh. Measured 2026-09-12: mob@'s chain was
-refreshed at 14:48 and its `refreshTokenExpiresAt` did not move; ob@ lapsed at its stored expiry
-(12:28) while it was the ACTIVE account serving a session every ten minutes. When a chain lapses
+not a `claude -p ping`, not the tick's own refresh (`refreshTokenExpiresAt` never moves). When a chain lapses
 the tool refuses to `--switch` onto it (`_stale_snapshot_reason`) and the dashboard shows
 `Switch failed (502)`; when it is the only account with headroom, the fleet HOLD stays on.
 
@@ -384,12 +341,8 @@ refuses the stamp is printed with the error and the push repeats within that bou
 refuses the notifier's own artifact defeats both, because the stamp is written only after the
 artifact advanced and the notifier's window is read from that same file — every tick then
 re-attempts the push, and delivers it again whenever the send itself succeeds, until the dir is
-fixed); `--status` prints the warning regardless. The old `--keepalive` ping is RETIRED
-(2026-09-12): its premise was false and, keyed on a credential mtime the tick renews daily, both
-logged Monday runs (2026-08-31, 2026-09-07 — `~/.claude/keepalive.log`) pinged nothing. The flag is
-kept as a no-op that prints why (rc 0), so the cron line below can be deleted at leisure — crontab
-edits are the operator's. `--touch` (the temp-dir-copy refresh of the legacy pool) is RETIRED the
-same way (2026-09-13): a copy's refresh consumes the single-use refresh token.
+fixed); `--status` prints the warning regardless. The old `--keepalive` ping is RETIRED: its premise was false, and keyed on a credential mtime the tick renews daily it pinged nothing. The flag is kept as a no-op that prints why (rc 0), so the cron line below can be deleted at leisure — crontab
+edits are the operator's. `--touch` (the temp-dir-copy refresh of the legacy pool) is RETIRED the same way: a copy's refresh consumes the single-use refresh token.
 
 ## Recovery rules
 
@@ -426,7 +379,7 @@ flip; nothing installs into `~/.claude`.
 */10 * * * * /usr/bin/python3 /opt/fabrik/scripts/sysadmin/quota_dashboard.py --ensure >> $HOME/.claude/quota-dashboard.log 2>&1
 ```
 
-The `--keepalive` line is RETIRED (2026-09-12): the flag is a no-op that prints why on every run,
+The `--keepalive` line is RETIRED: the flag is a no-op that prints why on every run,
 so the line is harmless until the operator deletes it (crontab edits are the operator's — the block
 above is the crontab as installed, byte for byte).
 
@@ -438,18 +391,10 @@ paths, re-creating the capture/retarget hazard this design retires.
 
 **The refresh-ping budget is spent on the STALEST reading, never by alphabet (`_ping_slots`).**
 A reading that falls behind `ROTATE_READING_MAX_AGE_S` (1h) is refreshed by one `claude -p ping`
-against that account's own dir, capped at `ROTATE_REFRESH_MAX_PER_RUN` (3) per tick. That budget
-used to be spent inside `for email in sorted(groups)`, so a fleet with MORE stale accounts than
-budget starved whichever account sorted last — deterministically, every run, for ever. Measured on
-the 2026-09-04 freeze: four accounts, budget 3, and `sarp@` (last in sort) reached a 405-minute
-reading while the other three were re-pinged each tick. `_validated_pick` refuses any cache past
-`ROTATE_CACHE_TRUST_S` (60m), so the one account that HAD headroom — 30% on its first live reading after the operator switched
-to it by hand — was structurally invisible to the picker, and the fleet sat walled for 10h41m. The
-slots are therefore allocated once per run, oldest reading first, which cannot starve: an account
+against that account's own dir, capped at `ROTATE_REFRESH_MAX_PER_RUN` (3) per tick. A budget spent in `sorted(groups)` order starves whichever account sorts last whenever more accounts are stale than the budget — and since `_validated_pick` refuses any cache past `ROTATE_CACHE_TRUST_S`, the starved account is invisible to the picker even when it is the one with headroom. The slots are therefore allocated once per run, oldest reading first, which cannot starve: an account
 dropped this run is the stalest next run and outranks the ones just served. The same three gates
 still bind (a credentialed chain too old to answer a live probe, a reading at/past the age line, its
-own per-account stamp elapsed), so no ping is issued that the old code would not have issued — only
-the ORDER of spending changed. Guarded by `tests/test_claude_fleet.py::test_the_ping_budget_serves_*`
+own per-account stamp elapsed), so only the ORDER of spending is a policy. Guarded by `tests/test_claude_fleet.py::test_the_ping_budget_serves_*`
 and `::test_a_skipped_account_is_served_on_the_next_run_*`.
 
 **Cron PATH — why the pings resolve `claude` without a `PATH=` line.** Cron runs with a minimal
@@ -466,15 +411,13 @@ chains are never warmed. Regression-guarded in `tests/test_claude_fleet.py`
 identity `profile` probe) go through `_oauth_get`, which retries **transient** failures
 (timeout / connection reset / 5xx) with a short per-attempt timeout and backoff, so one stalled
 `urlopen` under a flaky link (VPN drop) no longer blanks the quota dashboard — its ping-free
-`--status` probe runs behind a 60s cap that a single 15s stall used to trip ("Live probe failed
-— TimeoutExpired after 60s", 2026-08-22). A **4xx (esp. 401/403) is definitive auth and is never
+`--status` probe runs behind a 60s cap that a single stall would otherwise trip. A **4xx (esp. 401/403) is definitive auth and is never
 retried** — retrying a dead/wrong token only burns the budget. Both knobs are env-tunable:
 `OAUTH_GET_TIMEOUT_S` (default **8s**) and `OAUTH_GET_ATTEMPTS` (default **2**) — PER HOST, and there
 are two hosts. ONE call is inside the 60s cap; the AGGREGATE is not: the live fleet path makes
 `usage` + an hourly `profile` call per fresh account with no budget across the loop, so any
 sustained slowness breaches the cap. The derived figures live in one place — the STRATEGIC_BACKLOG
-row `claude_rotate.py --status --json can exceed …` (2026-09-05); this sentence used to claim two
-attempts fit the budget. A sustained outage still falls soft to the last-good
+row `claude_rotate.py --status --json can exceed …`. A sustained outage still falls soft to the last-good
 reading (the dashboard's red banner) — no retry conjures a working network. Regression-guarded
 in `tests/test_claude_fleet.py` (`test_oauth_get_*`).
 
@@ -482,10 +425,9 @@ in `tests/test_claude_fleet.py` (`test_oauth_get_*`).
 
 ### The logins (chains run ~30 days from each /login — § Re-login is the monthly duty)
 
-Every account is logged in once and never again. The fifth, `ozgurbasak` (2026-09-06), was
-scaffolded with `--new-dir ozgurbasak ozgurbasak@ocoron.com --from ob` — **`--from` matters**:
+Every account is logged in once and never again. A new account is scaffolded with `--new-dir <slug> <email> --from <existing slug>` — **`--from` matters**:
 with no source the seed falls back to `~/.claude.json`, the stale post-migration leftover, and
-the new dir would inherit neither the current MCP roster nor the 58 trusted repos (a `claude -p`
+the new dir would inherit neither the current MCP roster nor the trusted repos (a `claude -p`
 coder there would refuse every command). Adding or re-homing an account is:
 
 ```bash
@@ -530,11 +472,7 @@ stores (`~/.claude/manager-accounts/<name>/`). It retires at the M4 sweep — do
   + one Telegram (24h suppress), keep-warm for parked snapshots.
 - `--capture-current` · `--drift-check` — snapshot the live chain (identity-gated); the cron
   and hook triggers are removed, the flags remain invocable by hand until the sweep.
-- `--touch [<account>]` — RETIRED 2026-09-13: prints why, touches nothing, rc 0. It refreshed on a
-  temp-dir COPY of a parked store's credentials to "keep the chain alive" — a premise the 2026-09-12
-  measurement falsified (§ Re-login), and a hazard: refresh tokens are single-use, so the copy
-  consumes the live token and a pair the liveness gate refuses to file leaves the real store dead
-  (mob@, 2026-09-12). ⚠️ Never refresh on a COPY of a credential file; only a `/login` in the
+- `--touch [<account>]` — RETIRED: prints why, touches nothing, rc 0. It refreshed on a temp-dir COPY of a parked store's credentials to "keep the chain alive" — a false premise (§ Re-login) and a hazard: refresh tokens are single-use, so the copy consumes the live token and a pair the liveness gate refuses to file leaves the real store dead. ⚠️ Never refresh on a COPY of a credential file; only a `/login` in the
   account's own dir re-mints a chain.
 - Safety invariants: atomic credential writes under the rotation flock with a `.prev` backup;
   nothing filed without positive identity verification; the tick never signals processes.
@@ -543,8 +481,7 @@ stores (`~/.claude/manager-accounts/<name>/`). It retires at the M4 sweep — do
 
 ## Successor plan (named, NOT done)
 
-- **M4 retirement sweep** — retire the switch/capture/drift machinery (`--touch` is already
-  retired, 2026-09-13 — only its dead code remains to delete) + the
+- **M4 retirement sweep** — retire the switch/capture/drift machinery (`--touch` is already retired — only its dead code remains to delete) + the
   `manager-accounts` stores (archived to the DR store first), sweeping every consumer:
   `capture-watch.sh` (box-local, `~/.claude/state/`), the removed drift-check triggers'
   remnants, `claude-mesh-test.sh` (box-local, `~/.claude/bin/`)

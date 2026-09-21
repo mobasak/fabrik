@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/workstation: lean pass 4b — hooks-index and claude-account-rotation, every rule kept (D-331, 2026-09-22)
+
+- hooks-index 56,559 → 49275 B (the cron row's stale 95 flip line corrected to 98, D-201); claude-account-rotation
+  53,149 → 49088 B (the stale 60m for ROTATE_CACHE_TRUST_S dropped); every hook row, rule and reader literal kept.
+
 ### Changed — docs/workflows/FINAL_GATE_WORKFLOW.md: lean pass 4a — every check row kept, provenance removed (D-331, 2026-09-22)
 
 - 95,057 → 83206 B; the duplicated every-tier bullets stated once, fleet censuses and dated stamps removed;
