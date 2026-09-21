@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — both contracts: lean pass 2a — the shared-repo bullet, every rule kept (D-331, 2026-09-21)
+
+- Hub bullet 27,018 → 16,644 B, template bullet 22,892 → 12,694 B, one shared core text; every T6 pin
+  and the stash-recovery span byte-identical in both; hub file 106710 B, template 108859 B, synced.
+
 ### Changed — templates/governance/CLAUDE.md: lean pass 1 — stories removed, every rule kept, synced to 46 repos (D-331, 2026-09-21)
 
 - 127,624 → 119008 B. Every project-side divergence kept; grader-pinned spans verbatim for this pass. Loss
