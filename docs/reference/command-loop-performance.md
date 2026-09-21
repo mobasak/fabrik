@@ -660,6 +660,9 @@ an abandonment.
 | Step | Landed | Commit | Result |
 |---|---|---|---|
 | 1a · hub `CLAUDE.md` cut, pinned spans verbatim | 2026-09-21 | `a6f42dafa` (D-326) | 134,466 → 82,296 B; 51 test files green bar 4 pre-existing failures named in D-326; the ~57 KB of grader-pinned spans wait on 1b |
+| 1b(ii) · the QUOTA bullet → a pointer | 2026-09-21 | `06cd26a94` + fix `acc108b4c` (D-327) | 12,474 → 1,550 B; file 71,372 B; the three-way byte-identical graders retired for one pointer test; fabrik-lib mailed (`01M31Y7ZHBAM0T7YR61ANVKM9M`). The first commit landed red — two pins wrapped across line breaks and the chain read `tail`'s exit, not pytest's — fixed in the second |
+| 1b(iii) · the lane table's parentheticals | deferred | — | ~45 pins, each from an executed mutant, on the live interface to `_task_size_gate`; the lane/spec-chain routing is what step 3 retires, so this is cut with step 3, not trimmed before it |
+| 1b(i) · the commit recipe → a tested script | awaiting the operator's paragraph-approval | — | the recipe's own text asked for this ("the executable form belongs in a tested script"); nine executed defects in three prose cuts is why it is pinned by ~20 T6 claims; realistic floor after it: ~56 KB, because the bullet's other half is rules, not recipe |
 
 All on 2026-09-21. Each revision is one layer further down than the last; the operator refused every one until § 4.00.
 
