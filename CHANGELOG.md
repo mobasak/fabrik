@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — both contracts: lean pass 2b — gate, trailer trap, peer channels, mail, upstream (D-331, 2026-09-21)
+
+- Seven pinned spans leaned, every rule kept (93 units audited, 0 lost); THIRD-trap clause 992 → 601 B in
+  both, hub GATE 4,376 → 3,933, template GATE 3,533 → 3,131, hub peer tail 4,140 → 3,779, template
+  § fabrik-mail 5,082 → 4,686, § Upstream 2,436 → 2,015; hub file 105513 B, template 107249 B, synced.
+
 ### Changed — both contracts: lean pass 2a — the shared-repo bullet, every rule kept (D-331, 2026-09-21)
 
 - Hub bullet 27,018 → 16,644 B, template bullet 22,892 → 12,694 B, one shared core text; every T6 pin
