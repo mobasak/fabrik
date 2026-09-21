@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/workstation: lean pass 4c — mcp-roster and quota-dashboard, every ruling kept (D-331, 2026-09-22)
+
+- mcp-roster 23,893 → 20894 B (non-connector table restated as classes; the stale "split pending" section restated as
+  its two rulings, split EXECUTED); quota-dashboard 33,016 → 30945 B; every row, knob and reader literal kept.
+
 ### Changed — docs/workstation: lean pass 4b — hooks-index and claude-account-rotation, every rule kept (D-331, 2026-09-22)
 
 - hooks-index 56,559 → 49275 B (the cron row's stale 95 flip line corrected to 98, D-201); claude-account-rotation

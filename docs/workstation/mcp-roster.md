@@ -10,16 +10,16 @@ see all of it. Adding a server without its row here is the defect this doc exist
 
 ---
 
-## Config topology — and the rotation law (POST-SPLIT, 2026-08-30)
+## Config topology — and the rotation law (post-split)
 
 Since plan-3's emission run, MCP config is **layered** (Claude Code precedence: project beats user):
 
 | Layer | File | Content |
 |---|---|---|
 | PROJECT (per repo) | `<repo>/.mcp.json` — EMITTED by `scripts/sysadmin/emit_mcp_project_config.py`, GITIGNORED (carries the repo's resolved `DATABASE_URL`) | the repo's RULED set: universal 6 + per-type + overlays (this doc's tables are canonical); hub + fabrik-lib carry the full 16 |
-| USER (per account) | `~/.claude.json` (ad-hoc leftover) + `~/.claude-fleet/{ob,can,sarp,mob}/.claude.json` (the **active** symlink picks the live one) | **TRIMMED 2026-08-30 — the 5** (session-recall, exa, brave-search, firecrawl, serena; postgres-pro rides per-repo per D-031) (rotator-synced, md5-identical across all 5 fleet files + the ad-hoc; DR-backed). fabrik-lib interim: universal 6 until their own .mcp.json lands (01M19TVBJ1, operator-waived wait) |
+| USER (per account) | `~/.claude.json` (ad-hoc leftover) + `~/.claude-fleet/{ob,can,sarp,mob}/.claude.json` (the **active** symlink picks the live one) | **the 5** (session-recall, exa, brave-search, firecrawl, serena; postgres-pro rides per-repo per D-031) — rotator-synced, md5-identical across every fleet file and the ad-hoc copy; DR-backed. fabrik-lib interim: universal 6 until its own .mcp.json lands |
 | POOL (Runtime B) | `/opt/fabrik/mcp.json` | research four (incl. pool-only context7) — untouched by the split |
-| PROFILE | `~/.claude-youtube-headless/.claude.json` | separate CLAUDE_CONFIG_DIR profile; **set to the universal 6, 2026-08-30** (its roster was EMPTY before — DR history 039d2c7) |
+| PROFILE | `~/.claude-youtube-headless/.claude.json` | separate CLAUDE_CONFIG_DIR profile; **the universal 6** |
 
 **Never hand-edit an emitted `.mcp.json`** — change the ruling (ledger + this doc), re-run the
 emitter (idempotent; `--check` to preview). `enableAllProjectMcpServers: true` in the synced
@@ -37,45 +37,37 @@ precondition).
 on demand — zero context cost), but the *processes* spawn regardless. That is the CPU/RAM problem:
 18 servers × 1–3 windows × 46+ repos.
 
-**Measured 2026-08-30** (a few windows open, post-restart): 34 processes, **2.2 GB RSS** already.
-At ~13 sessions the same roster measured ~23 GB (intel finding 01KZX92Q).
+**Measured** (a few windows open, post-restart): 34 processes, **2.2 GB RSS**; at ~13 sessions the full roster measured ~23 GB.
 
-**⚠️ Fetch-at-spawn fragility — FIXED 2026-08-30 (D-042): every npx/uvx fetch-at-spawn server is now a LOCAL PINNED INSTALL** (npm -g for the 9 node servers, `uv tool install` for serena + postgres-mcp) — a spawn is an exec, no registry fetch, no herd: full hub resolution measured **15/15 Connected in 9.2s** (was 60-90s with 4-8 timeouts). ⚠️ nvm-upgrade caveat: the bins live under the node VERSION dir (`~/.nvm/versions/node/v24.18.0/bin`) — a node major upgrade orphans them (the node-pty ABI class); after upgrading node, re-run the npm -g installs and re-run the emitter. Historical record of the fragility this fixes: 13 of 18 servers are `npx -y`/`uvx`
-fetch-at-spawn. After cache-prune's weekly `rm -rf ~/.npm/_npx` (00:06) + a WSL restart (13:40),
-every window cold-fetched 13 servers simultaneously — connect timeouts, and the harness marks them
-disconnected for the whole session (only the 5 locally-installed servers survived: session-recall,
-grafana, media-engine, maestro, citation-verifier). A cold `npx` spawn succeeds in <25 s once the
-herd is gone — the registry was fine; the simultaneity wasn't. Fixes that compose with the split:
-pin/install servers locally instead of `npx @latest` per spawn, and/or drop the `_npx` wipe from
-cache-prune (it re-downloads weekly for no gain). A window reload reconnects on the warm cache.
+**⚠️ **Fetch-at-spawn fragility (D-042): every npx/uvx fetch-at-spawn server is a LOCAL PINNED INSTALL** (npm -g for the 9 node servers, `uv tool install` for serena + postgres-mcp) — a spawn is an exec, no registry fetch, no herd: full hub resolution measured **15/15 Connected in 9.2s** (was 60-90s with 4-8 timeouts). ⚠️ nvm-upgrade caveat: the bins live under the node VERSION dir (`~/.nvm/versions/node/v24.18.0/bin`) — a node major upgrade orphans them (the node-pty ABI class); after upgrading node, re-run the npm -g installs and re-run the emitter. The fragility this closes: a fetch-at-spawn server cold-fetched by every window at once (after an `_npx` cache wipe plus a WSL restart) times out on connect, and the harness marks it disconnected for the whole session — the registry is fine, the simultaneity is not; a window reload reconnects on the warm cache.
 
 ---
 
 ## The servers (16 active + 2 retired + 1 planned)
 
-Weight = measured RSS on 2026-08-30 across live processes (per-window cost scales with window count).
+Weight = measured RSS across live processes (per-window cost scales with window count).
 
 | MCP | What it does | Who actually needs it (scaffold types / repos) | Weight | Recommended default |
 |---|---|---|---|---|
 | **session-recall** | past-session search (`search_chats`/`get_chat`) — governance-mandated by ORIENT + commands | ALL repos | 201 MB / 4p | **ON everywhere** |
-| ~~context7~~ | live library/framework docs | **RETIRED 2026-08-30 (operator decision):** measured usage was 45 tool calls in the box's ENTIRE transcript history (vs exa 563 · brave 417 · firecrawl 689) for 364 MB / 7 procs per-window; official-docs `WebFetch` covers the need. Removed from all 5 rosters via `claude_rotate.py --sync-mcp` + every corpus reference swapped to official-docs WebFetch same-change (phantom-arm law). Pool agents keep on-demand context7 via their own mcp.json (zero idle cost) | — | OFF everywhere |
+| ~~context7~~ | live library/framework docs | **RETIRED (operator decision):** measured usage was 45 tool calls in the box's entire transcript history against hundreds for each search server, for 364 MB / 7 procs per window; official-docs `WebFetch` covers the need. Removed from every roster via `claude_rotate.py --sync-mcp` with every corpus reference swapped to official-docs WebFetch in the same change (phantom-arm law). Pool agents keep on-demand context7 via their own mcp.json (zero idle cost) | — | OFF everywhere |
 | **exa** | web search + raw fetch — grounding order #1 in every spec/review command | all repos, design/review phases | 183 MB / 4p | **ON everywhere** |
-| ~~github~~ | GitHub API (PRs, issues, code search) | **RETIRED 2026-08-30 (D-014):** every corpus ref swapped to the `gh` CLI (`gh search code`/`gh api` — authenticated, zero idle processes) in the same change; removed from all 5 rosters via the rotator (16 servers remain) | — | OFF everywhere |
+| ~~github~~ | GitHub API (PRs, issues, code search) | **RETIRED (D-014):** every corpus ref swapped to the `gh` CLI (`gh search code`/`gh api` — authenticated, zero idle processes) in the same change; removed from every roster via the rotator | — | OFF everywhere |
 | brave-search | second search engine — NAMED in the grounding order of 6 pipeline commands that run in EVERY repo (spec, spec-review, plan-after-chat, plan-review, data-contract, docs-review) | all repos | 384 MB / 7p | **ON everywhere** (corpus-driven; scoping it off would plant a phantom arm fleet-wide) |
-| **firecrawl** | scrape/crawl (raw HTML) — fallback arm in 5 pipeline commands | ALL repos (operator ruling 2026-08-30, D-013: universal, no exception) | light | **ON everywhere** — the startup crash was a CORRUPTED npx cache entry (wipe-incident residue), cleared + respawn verified 2026-08-30; the curl-swap candidate is DEAD per the ruling |
-| playwright | browser automation — fabrik-gui, /design-review, /fabrik-user-test; NEVER crawling (no grounding order names it — the research chain is exa/brave/firecrawl) | the 6 UI-bearing types | 102 MB / 2p | ON UI types only — **RULED 2026-08-30 (D-015)** |
-| chrome-devtools | deep browser debug/perf traces (Core-Web-Vitals in the Build-Verification Loop) | DECLARED in fabrik-gui's own mcpServers allow-list | 321 MB / 5p | ON web-GUI types (with playwright) — **RULED 2026-08-30 (D-015 + D-019: rides with playwright everywhere playwright is granted, overlays included — § ruling in full)** |
+| **firecrawl** | scrape/crawl (raw HTML) — fallback arm in 5 pipeline commands | ALL repos (D-013: universal, no exception) | light | **ON everywhere** — a startup crash here is a CORRUPTED npx cache entry: clear that one entry, never the whole `_npx`; the curl-swap candidate is DEAD per the ruling |
+| playwright | browser automation — fabrik-gui, /design-review, /fabrik-user-test; NEVER crawling (no grounding order names it — the research chain is exa/brave/firecrawl) | the 6 UI-bearing types | 102 MB / 2p | ON UI types only — **RULED (D-015)** |
+| chrome-devtools | deep browser debug/perf traces (Core-Web-Vitals in the Build-Verification Loop) | DECLARED in fabrik-gui's own mcpServers allow-list | 321 MB / 5p | ON web-GUI types (with playwright) — **RULED (D-015 + D-019: rides with playwright everywhere playwright is granted, overlays included — § ruling in full)** |
 | shadcn | SaaS UI component registry (MIT-B pair, operator-wired) | saas-skeleton | light | ON saas-skeleton only |
 | magicui | motion component registry (the pair's other half) | saas-skeleton | 99 MB / 2p | ON saas-skeleton only |
 | mobile-mcp | device/emulator automation | mobile-app | light | ON mobile-app only |
-| maestro | mobile/web UI test flows — **heaviest server on the box** | mobile-app | **724 MB / 4p** | ON mobile-app only. ✅ The mcp_health false-DEAD is **FIXED at the probe (2026-08-30)**, not worked around: the probe used `communicate()`, which closes stdin and killed this JVM server before it answered — measured DEAD at timeout 8s *and* 45s, so no budget could have helped. It now keeps stdin open and returns on the first JSON-RPC frame, exactly like Claude's handshake; maestro reports CONNECTED. No `claude mcp list` confirmation step is owed any more |
-| postgres-pro | restricted Postgres inspection (`--access-mode=restricted`) | ALL repos — data-contract/debug DB lens | light | ON all types — **RULED 2026-08-30 (D-020: universal, operator word)**; crash FIXED same day (`uvx --with 'mcp<2'` pin, synced to all 5 fleet rosters). **D-031 refinement (2026-08-30): emitted per-repo ONLY with a proven-connecting DATABASE_URL** (emission-time psycopg probe — postgres-mcp blocks its handshake ~30s on any non-connecting URI and refuses to start env-less, both measured). 7 repos qualify (llm_batch_processor, fabrik-citation-verifier, trade-intelligence, seo, site-provisioner, brand-identiy-creator, iterative_image_editor — the last 3 were wrongly denied until the +asyncpg scheme normalization, author-blind review 2026-08-30); a repo gains the server by adding a working DATABASE_URL to .env + re-running the emitter. User-level carries the 5 |
+| maestro | mobile/web UI test flows — **heaviest server on the box** | mobile-app | **724 MB / 4p** | ON mobile-app only. The `mcp_health` probe keeps stdin open and returns on the first JSON-RPC frame, exactly like Claude's handshake — a `communicate()` probe closes stdin and kills this JVM server before it answers, a false DEAD no timeout budget can fix |
+| postgres-pro | restricted Postgres inspection (`--access-mode=restricted`) | ALL repos — data-contract/debug DB lens | light | ON all types — **RULED (D-020: universal, operator word)**; pinned `uvx --with 'mcp<2'` on every fleet roster (postgres-mcp is v1 code; the mcp 2.x SDK renamed FastMCP). **D-031 refinement: emitted per-repo ONLY with a proven-connecting DATABASE_URL** (emission-time psycopg probe, `+asyncpg` scheme normalised first — postgres-mcp blocks its handshake ~30s on any non-connecting URI and refuses to start env-less); a repo gains the server by adding a working DATABASE_URL to .env + re-running the emitter. User-level carries the 5 |
 | grafana | fleet observability (Prometheus/Loki/dashboards) — runs as a docker container per window | hub (deploy/monitoring, fleet beat) | docker | ON hub only |
-| media-engine | image/video generation (`/opt/iterative_image_editor`) — product/catalog/packshot, avatar + faceless video, edit suite, stock, compliance | media producers: wef, brand-identiy-creator, youtube | 295 MB / 4p | ON those three only — **RULED 2026-08-30 (D-018): CONTENT-driven, never type-driven.** Standing rule: any future repo whose product/pipeline output IS media gets the overlay at adoption (one rotator edit); one-off design assets (hero/og/empty-state) route through a producer or hub window, or the engine's own API — never a fleet-wide MCP grant |
+| media-engine | image/video generation (`/opt/iterative_image_editor`) — product/catalog/packshot, avatar + faceless video, edit suite, stock, compliance | media producers: wef, brand-identiy-creator, youtube | 295 MB / 4p | ON those three only — **RULED (D-018): CONTENT-driven, never type-driven.** Standing rule: any future repo whose product/pipeline output IS media gets the overlay at adoption (one rotator edit); one-off design assets (hero/og/empty-state) route through a producer or hub window, or the engine's own API — never a fleet-wide MCP grant |
 | pubchem | chemistry database lookups | chemical-commerce content (wef) + the health/verification pair + the health projects | light | ON wef + fabrik-citation-verifier + fabrik-claim-validator (D-022) + longephedia-vault + supplement-tracker-advisor — **D-025 sweep**: the health-overlay predicate applied to the EXISTING fleet, not only future adoptions |
-| fabrik-citation-verifier | academic citation verification (PubMed/Crossref/…, `/opt/fabrik-citation-verifier`, MCP :8033) | dossier/research: transdoc + fabrik-claim-validator (cross-wire) + future health repos | service | ON transdoc + fabrik-claim-validator — **RULED 2026-08-30 (D-022: the health pair is cross-wired MCP↔MCP)** |
+| fabrik-citation-verifier | academic citation verification (PubMed/Crossref/…, `/opt/fabrik-citation-verifier`, MCP :8033) | dossier/research: transdoc + fabrik-claim-validator (cross-wire) + future health repos | service | ON transdoc + fabrik-claim-validator — **RULED (D-022: the health pair is cross-wired MCP↔MCP)** |
 | fabrik-claim-validator | multi-tradition claim validation + substance discovery (`/opt/fabrik-claim-validator`, :8002) — **MCP server NOT YET BUILT** (no MCP surface in its src; build requested of the owning repo by mail) | fabrik-citation-verifier (cross-wire) + future health repos | — (planned) | PLANNED per D-022 — joins the roster when the owning repo ships its MCP endpoint |
-| serena | LSP semantic code navigation | ALL repos — symbol-level grounding (find_symbol, find_referencing_symbols) | light idle | ON all types — **RULED 2026-08-30 (D-021: adopt-and-wire)**. Root cause of prior zero usage was zero corpus wiring, not quality; now named in plan-after-chat's grounding phase + review's adjudication. Measured trial: still unused after wiring = a retirement case with evidence |
+| serena | LSP semantic code navigation | ALL repos — symbol-level grounding (find_symbol, find_referencing_symbols) | light idle | ON all types — **RULED (D-021: adopt-and-wire)**: zero usage before wiring was zero corpus wiring, not quality; named in plan-after-chat's grounding phase + review's adjudication. Still unused after wiring = a retirement case with evidence |
 
 **Net effect of the split as RULED:** a typical headless API repo drops 16 → **6** servers (the
 universal set: session-recall + exa + brave-search + firecrawl + postgres-pro + serena); the full
@@ -83,27 +75,25 @@ roster survives only hub-class (hub + fabrik-lib, D-015).
 
 ---
 
-## Per-scaffold-type default sets (rebuilt 2026-08-30 from a corpus scan, not pipeline intuition)
+## Per-scaffold-type default sets (from a corpus scan, not pipeline intuition)
 
 **Method:** grep every `mcp__server__` reference + name mention across the rendered corpus (32
 commands, agent defs, fragments, rule packs), read each ambiguous hit in context, and let COMMANDS
 decide — a server a universal command names must exist everywhere it runs, or the reference is a
 phantom arm (the wef 01M17XXF defect class).
 
-**Universal base — every type, every repo (command-evidence; context7 left this set 2026-08-30):**
+**Universal base — every type, every repo (command-evidence):**
 
 | Server | Evidence |
 |---|---|
 | `session-recall` | named by 22 commands + ORIENT mandate |
 | `exa` | grounding order #1 in 7 pipeline commands (spec, spec-review, plan-after-chat, plan-review, data-contract, docs-review, execute-plan) |
 | `brave-search` | named in the same grounding orders (6 commands) — every repo runs these |
-| `firecrawl` | RULED universal 2026-08-30 (D-013, "no exception"); its crash was a corrupted npx-cache entry, fixed same day |
-| `postgres-pro` | RULED universal 2026-08-30 (D-020) — operator: "fix postgres-pro and wire it all type of projects"; overrides the shape-driven proposal |
-| `serena` | RULED universal 2026-08-30 (D-021: adopt-and-wire) — corpus now names it for symbol-level grounding (plan-after-chat + review); unused-after-wiring = measured retirement case |
+| `firecrawl` | RULED universal (D-013, "no exception") |
+| `postgres-pro` | RULED universal (D-020) — operator: "fix postgres-pro and wire it all type of projects" |
+| `serena` | RULED universal (D-021: adopt-and-wire) — the corpus names it for symbol-level grounding (plan-after-chat + review); unused-after-wiring = a measured retirement case |
 
-(The old "swap github/firecrawl out via corpus edits" recommendation is resolved: `github` RETIRED
-end-to-end per D-014 — corpus now teaches the `gh` CLI; `firecrawl` went the other way, universal
-per D-013.)
+(`github` is RETIRED end-to-end per D-014 — the corpus teaches the `gh` CLI; `firecrawl` is universal per D-013.)
 
 | Scaffold type | Beyond the universal 6 | Evidence |
 |---|---|---|
@@ -129,18 +119,18 @@ overlay (D-017 supersedes the boundary for that one repo) (original operator bou
 **Per-REPO overlays (content-driven, never type-driven):** wef → +playwright (D-016: it drives/verifies
 the ecommerce sites it produces) +chrome-devtools (D-019: rides with playwright wherever granted) +shadcn +magicui (D-017: React/Tailwind storefronts; motion = conversion
 tooling — supersedes the magicui saas-only boundary for wef ONLY, it stands elsewhere) +pubchem
-+media-engine (firecrawl now universal per D-013) · brand-identiy-creator, youtube → +media-engine ·
++media-engine · brand-identiy-creator, youtube → +media-engine ·
 transdoc → +fabrik-citation-verifier (data-contract's only mention is a NEGATIVE — "does not apply
 here") · **the health pair (D-022): fabrik-citation-verifier ↔ fabrik-claim-validator cross-wired as
 MCPs to each other, both +pubchem** (claim-validator's MCP server is still owed by its repo — see
-the planned row) — standing rule: any health project gets all three overlays at adoption — and the EXISTING fleet swept against that predicate 2026-08-30 (D-025, operator-prompted audit): **longephedia-vault** (longevity ontology/RAG) and **supplement-tracker-advisor** (health supplement tracking/advisory) → +fabrik-citation-verifier +fabrik-claim-validator(when built) +pubchem ·
+the planned row) — standing rule: any health project gets all three overlays at adoption — and the EXISTING fleet swept against that predicate (D-025): **longephedia-vault** (longevity ontology/RAG) and **supplement-tracker-advisor** (health supplement tracking/advisory) → +fabrik-citation-verifier +fabrik-claim-validator(when built) +pubchem ·
 hub → +grafana (deploy-verify/decommission run hub-side only; user-test's "Grafana" is
 vendored-client example prose, verified).
 
 **Headcount effect (post-D-021):** headless types run **6 servers instead of 16**; web-GUI types
 8-10; mobile-app 8.
 
-## Playwright — the ruling in full (D-015 + D-016, operator-saved verbatim rationale)
+## Playwright — the ruling in full (D-015 + D-016)
 
 Playwright is NEVER a crawling tool: no grounding order in the corpus names it — the research chain
 is exa → brave → firecrawl (+ raw `curl`). Its job is the opposite direction: it drives **our own
@@ -157,11 +147,9 @@ render.** Disposition: ON for the 6 UI-bearing types, OFF for headless; the hub 
 its hub-class full roster. Its companion `chrome-devtools` (performance/Core-Web-Vitals audits in
 the same loop) takes the same disposition. **Plus the per-repo overlay: `web-ecommerce-factory`
 (D-016)** — wef drives and verifies the ecommerce sites it produces, rendered-surface work its own
-repo type would not otherwise grant. (2026-08-30 census note: the operator confirmed wef IS
-`saas-skeleton`, so playwright comes by TYPE and D-016's "type would not grant it" rationale was
-written on a wrong type assumption — the overlay stands, redundant but harmless.)
+repo type would not otherwise grant. (wef IS `saas-skeleton`, so playwright already comes by TYPE; the D-016 overlay is redundant but harmless.)
 
-## Chrome-devtools — the ruling in full (D-015 + D-019, saved 2026-08-30)
+## Chrome-devtools — the ruling in full (D-015 + D-019)
 
 Chrome-devtools is playwright's MEASURING companion, never its duplicate: playwright DRIVES the
 screen (navigate, click, type, screenshot, a11y snapshot — does it work?); chrome-devtools MEASURES
@@ -180,19 +168,17 @@ overlay (D-019: wef gets +chrome-devtools with its D-016 playwright — CWV on a
 is conversion tooling, a slow shop loses sales). `mobile-app` stays out (maestro/mobile-mcp loop);
 headless types have nothing to measure. Like playwright, it is NEVER a crawling/research tool.
 
-## Chronic non-connectors — root-caused 2026-08-30 (distinct from the herd outage)
+## Known non-connector classes (distinct from the herd outage)
 
-Three servers were NOT herd victims; they are broken independently, each probed to its exact error:
-
-| Server | Root cause (verbatim evidence) | Fix direction |
+| Server | Class | What to do |
 |---|---|---|
-| firecrawl | ~~CRASHED at startup~~ **FIXED 2026-08-30**: the `FSLegacyMainResolve` error was a corrupted `~/.npm/_npx/12b05d58…` cache entry (the 2026-08-30 wipe incident's residue — `mcp-proxy` present, its `@modelcontextprotocol/server` dep missing). Cleared the one entry; clean respawn verified. If it recurs after a cache event: clear the entry, never the whole `_npx` | the curl-swap candidate is DEAD (D-013: firecrawl universal) |
-| postgres-pro | ~~`uvx postgres-mcp` crashes: `No module named 'mcp.server.fastmcp'`~~ **FIXED 2026-08-30 (D-020)**: the mcp 2.x SDK renamed FastMCP; postgres-mcp is v1 code. Pinned `uvx --with 'mcp<2' postgres-mcp` via the rotator — MCP initialize handshake verified (`postgres-mcp 1.29.1` responds), all 5 fleet rosters carry the pin. Residue: `DATABASE_URI` layer is per-repo (split-plan item) — the old URI targeted dead :15432 | done — URI repoint rides the split |
-| fabrik-citation-verifier | ~~:8033 answers nothing (curl 000)~~ **RESOLVED 2026-08-30**: `:8033/mcp` answers 406 to a bare GET — the normal streamable-HTTP MCP response, i.e. the server is UP (REST `:8032/health` 200 alongside). The morning outage was transient; no roster change needed | none — watch for recurrence |
+| firecrawl | a `FSLegacyMainResolve` startup crash is a corrupted `~/.npm/_npx/<hash>` cache entry (`mcp-proxy` present, its `@modelcontextprotocol/server` dep missing) | clear that ONE entry, never the whole `_npx`; the curl-swap candidate is DEAD (D-013) |
+| postgres-pro | `No module named 'mcp.server.fastmcp'` — the mcp 2.x SDK renamed FastMCP and postgres-mcp is v1 code | the rotator pins `uvx --with 'mcp<2' postgres-mcp` on every fleet roster; `DATABASE_URI` is per-repo (D-031) |
+| fabrik-citation-verifier | `:8033/mcp` answers 406 to a bare GET — the normal streamable-HTTP MCP response, i.e. the server is UP (REST `:8032/health` 200 alongside) | none — a bare-GET 406 is not an outage |
 
 `maestro` is a fourth, milder case: slow cold start (JVM), flappy across reloads — works once warm.
 
-## Our OWN crawling MCP — built and never wired (found 2026-08-30)
+## Our OWN crawling MCP — built and never wired
 
 `/opt/apidoccreator` (docs-registry, port 8302) is the box's own crawling/docs service: registers any
 docs URL, auto-detects OpenAPI/llms.txt/sitemap/HTML, scrapes, LLM-generates + chunks, serves via
@@ -201,21 +187,9 @@ REST — and ships its own MCP server (`docs-mcp` console script → `/opt/apido
 Claude window. Candidate: wire it (self-hosted, $0) as a partial context7 replacement for
 already-registered sources; decision rides the same split.
 
-## Status of the split (decision pending — PARTIALLY RULED)
+## The two standing rulings behind the split
 
-**fabrik-lib is HUB-CLASS (operator ruling 2026-08-30, D-015): full roster, exactly like /opt/fabrik —
-it builds modules for every scaffold type and its agent needs the whole toolbox. (Today this is
-automatic: the roster is USER-level, every window on the box loads it; the split implementation must
-preserve fabrik-lib + hub at full set while trimming project windows.)**
-
-**Operator ruling 2026-08-30 (D-013): session-recall · exa · brave-search · firecrawl are UNIVERSAL —
-every project, no exception. Any trim below excludes these four; the firecrawl→curl corpus swap is DEAD.**
-
-Proposed 2026-08-30, remainder of the decision pending: trim the user-level roster to the universal set above;
-each repo gains a project-level `.mcp.json` with its extras — emitted per scaffold type by the
-scaffolder (fleet's beat) and backfilled to existing repos; every roster edit applied via the
-rotator's sync (the rotation law above). When implemented, update this doc's table with the
-per-type `.mcp.json` contents and flip this section to EXECUTED.
+**fabrik-lib is HUB-CLASS (D-015): full roster, exactly like /opt/fabrik** — it builds modules for every scaffold type and its agent needs the whole toolbox; the split trims project windows and leaves hub + fabrik-lib at the full set. **session-recall · exa · brave-search · firecrawl are UNIVERSAL (D-013) — every project, no exception**; any trim excludes these four, and the firecrawl→curl corpus swap is DEAD. The split itself is EXECUTED: the user-level roster is the universal set and every repo's `.mcp.json` is emitted from this doc's tables (§ Config topology).
 
 **Related:** [MCP_HTTP_TRANSPORT.md](MCP_HTTP_TRANSPORT.md) (transport detail) ·
 [wsl-shell-mcp-setup.md](wsl-shell-mcp-setup.md) (the Claude-Desktop bridge server) ·
