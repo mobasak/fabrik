@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — commands/_sources/fabrik-task.md: back under its 8,980 B cap (D-296) by a lean pass, every rule kept (D-331, 2026-09-21)
+
+- 9,129 → 8903 B; four rationale clauses shortened, no rule or pinned literal touched; the size-cap test is
+  green again at HEAD; corpus re-rendered.
+
 ### Changed — commands/_fragments: lean pass 3b — term-coverage and term-edit, every rule kept (D-331, 2026-09-21)
 
 - The incident parentheticals inside the two termination contracts removed (term-coverage 26,972 → 24395 B,

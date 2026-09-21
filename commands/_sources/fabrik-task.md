@@ -41,8 +41,8 @@ success it prints `RECORD: <started_at>` — paste it into the phase-2 path.
 
 ⚠️ **COBRA (D-253).** The cheapest way to satisfy this gate without producing the outcome is to
 UNDER-DECLARE here and touch more at phase 3; the counter is phase 5's re-measure of this run's own
-commit. All twelve, each with its counter or its honest lack of one, are (1)–(12) in § Constraints C3 of
-`/opt/fabrik/docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md`; read them there, not here.
+commit. All twelve cobras and their counters are § Constraints C3 of
+`/opt/fabrik/docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md`.
 
 ## Phase 1 — MEASURE
 
@@ -80,8 +80,7 @@ Invoke `/fabrik-review-scoped` as the skill — unchanged, never from memory. Gi
 the phase-2 `design.md` path and the phase-0 declaration, plus three questions: *does the change ESCAPE the declared files? did it add a mechanism the declaration said `no` to?
 can you name a second approach the declaration said did not exist?* A `yes` to the first or third is that seat's UPGRADE verdict — take it; a `yes` to the second corrects the D-row (name the mechanism there), never the lane (D-315). A declared file left UNTOUCHED is padding
 (a guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in the D-row — never
-an UPGRADE, which would strand the run. This is
-where spec-review is folded in: the design is reviewed with what it produced.
+an UPGRADE, which would strand the run.
 
 ## Phase 5 — CLOSE, in this order
 
@@ -90,7 +89,7 @@ where spec-review is folded in: the design is reviewed with what it produced.
    reversible/ONE-WAY classification stay the decision-ledger rule's.
 3. `CHANGELOG.md` atop `[Unreleased]`; `docs/LESSONS_LEARNT.md` or an explicit `none`.
 4. `python scripts/final_gate.py --json` → `status: "success"`.
-5. Commit with explicit pathspecs + provenance trailers, **chaining the capture off the commit** — that narrows the window to the instant the commit returns; it never closes, and a sibling landing inside is captured instead:
+5. Commit with explicit pathspecs + provenance trailers, **chaining the capture off the commit** (the window never closes — a sibling landing inside is captured instead):
 
 ```bash
 mkdir -p <scratchpad>/fabrik-task/<sid>/<started_at> \
@@ -107,8 +106,8 @@ python3 scripts/command_run.py done --command fabrik-task \
   --evidence "<what proves the terminal condition>" --feedback "<the four fields>"
 ```
 
-The close re-measures that commit and records `oversized_mini`. A non-zero count is not a failure to
-hide — it is the lane's own honesty; `change:` is where you say what the gate should have asked.
+The close re-measures that commit and records `oversized_mini`. A non-zero count is the lane's own
+honesty, not a failure to hide; `change:` says what the gate should have asked.
 
 ## UPGRADE — the one-way ratchet, available from phase 1
 
