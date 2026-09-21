@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — .windsurf/rules: lean pass 3f — 55-observability, 58-resilience, 60-saas-ui, every rule kept (D-331, 2026-09-22)
+
+- Incident narrative removed (55-observability 45,238 → 44616 B, 58-resilience 53,536 → 53232 B, 60-saas-ui 27,624 → 27601 B);
+  every rule, mechanism and pinned literal kept; synced fleet-wide.
+
 ### Changed — .windsurf/rules/core: lean pass 3e — self-healing, app-audit-log, 30-ops, every rule kept (D-331, 2026-09-21)
 
 - Incident narrative removed (self-healing 16,156 → 15832 B, app-audit-log 13,321 → 13298 B, 30-ops 32,611 → 31327 B);

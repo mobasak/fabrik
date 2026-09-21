@@ -115,7 +115,7 @@ IdP this pack names — `fabrik-lib/fastapi-user-auth` (Pattern A in `core/35-se
 ships `passwordless_enabled: bool = True` (`settings.py:38`), so treating `/forgot-password` as a
 required page contradicts the fleet's own default auth module. Read the project's auth mode first;
 `/signup` and `/verify-email` stay as REDIRECTS under passwordless rather than 404s, because links
-to them survive in old emails and bookmarks (transdoc, 2026-08-28).
+to them survive in old emails and bookmarks.
 | Page | Route | Why |
 |---|---|---|
 | **Terms of Service** | `/terms` | Required before accepting payment (see `88-saas-launch-checklist.md`). |

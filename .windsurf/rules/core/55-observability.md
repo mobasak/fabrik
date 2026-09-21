@@ -139,9 +139,7 @@ logger.info("event_name", key="value")
 > `uvicorn.error`, `gunicorn` and SQLAlchemy keep their own stdlib handlers and emit
 > unstructured lines like `INFO:     127.0.0.1:54012 - "GET /health HTTP/1.1" 200 OK` into the
 > same stdout — so a service that looks "properly logging" ships a MIX, and every unstructured
-> line is one Loki cannot label, filter or alert on. Measured live on this fleet (2026-09-01):
-> the scaffolded `site-provisioner` emits textbook structlog JSON *and* raw uvicorn access lines
-> side by side.
+> line is one Loki cannot label, filter or alert on.
 > **The fix is THREE steps and all three are load-bearing** (the scaffold is being updated to emit
 > them; a service that predates it backfills):
 > 1. **Route, don't just configure** — `structlog.stdlib.LoggerFactory()` + end the chain with
@@ -184,7 +182,7 @@ logger.info({ event: 'event_name', key: 'value' });
 
 ## `/metrics` Endpoint (Prometheus)
 
-Every `python-api` and `node-api` scaffold emits a pre-configured `/metrics` endpoint. DO NOT create custom metrics modules. **A VENDORED module (fabrik-lib copies) never constructs its own `Counter`/`Histogram` either:** the scaffold serves `/metrics` from a PRIVATE `CollectorRegistry` (`scaffold.py::metrics_app`), so a module-made metric on the global default registry is invisible on 8 of the 11 `/metrics` surfaces measured 2026-09-02 and the module cannot know which registry its host scrapes. A module exposes an injectable callback (`on_<event>: Callable | None`) and a structured log-once; the HOST wires the callback to the registry it owns in one line. Precedent: fabrik-lib `async-http-client` (01M1GVYN, 01M1GY91).
+Every `python-api` and `node-api` scaffold emits a pre-configured `/metrics` endpoint. DO NOT create custom metrics modules. **A VENDORED module (fabrik-lib copies) never constructs its own `Counter`/`Histogram` either:** the scaffold serves `/metrics` from a PRIVATE `CollectorRegistry` (`scaffold.py::metrics_app`), so a module-made metric on the global default registry is invisible on most `/metrics` surfaces and the module cannot know which registry its host scrapes. A module exposes an injectable callback (`on_<event>: Callable | None`) and a structured log-once; the HOST wires the callback to the registry it owns in one line. Precedent: fabrik-lib `async-http-client` (01M1GVYN, 01M1GY91).
 
 **What the scaffold emits** (Python — `src/{package}/metrics.py`):
 
@@ -278,8 +276,7 @@ Every `sentry_sdk.init` / `Sentry.init` in the fleet MUST still set both:
 | `include_local_variables=False` | `includeLocalVariables: false` | frame LOCALS — the SDK default is `True`, so with `LoggingIntegration`'s ERROR level any `logger.error/exception` in a function holding a settings object ships its **repr**: `DATABASE_URL`, the JWT signing secret, everything |
 | `max_request_body_size="never"` | **n/a — see below** | the request BODY, attached irrespective of `send_default_pii` (that flag gates COOKIES). Every auth, payments-webhook and token-exchange route is exposed the moment it logs an error while handling its request. **PYTHON ONLY** |
 
-⚠️ **The two SDKs are NOT symmetric, and the Node column originally said otherwise — that was my
-error, corrected 2026-08-28 by fleet.** `maxRequestBodySize` is a PYTHON option name;
+⚠️ **The two SDKs are NOT symmetric.** `maxRequestBodySize` is a PYTHON option name;
 `@sentry/node` has no such init key, so a project that dutifully added it got a silently-ignored
 unknown key — a line that reads like a fix and does nothing. In `@sentry/node` the body channel is
 already closed by `sendDefaultPii: false`, which makes the SDK report body **size only, never
@@ -302,8 +299,7 @@ dropped because they were never named, which is exactly the inversion this secti
 **A `before_send` denylist is NOT an acceptable substitute — it is the thing that already failed.**
 Sentry scrubs BY VARIABLE NAME: a live probe filtered a local named `token`, missed one named
 `code`, and could not see the signing secret at all because it sat inside a `Settings(...)` repr
-STRING, which name matching cannot look into (transdoc, 2026-08-28: a real one-time passcode and
-JWT secret reached GlitchTip from a scaffolded service). Both flags remove the data
+STRING, which name matching cannot look into. Both flags remove the data
 **structurally**; a denylist only removes the names somebody remembered.
 
 **What is left after the shape — stated exactly, because an overstatement here is how the last
@@ -325,9 +321,7 @@ channels above open.** Nothing back-fills it. Vendor `templates/scaffold/python/
 the hub over your own `src/{package}/glitchtip_init.py`, keeping your `{pkg}` import line and your
 service name, then prove it with the captured-event guard rather than by reading the diff.
 
-**Which projects this section applies to** — census derived 2026-09-05 by scaffolding **all twelve**
-scaffoldable types into a tmpdir and looking for the emitted file. ⚠️ An earlier version of this list said
-three Python types; that came from scaffolding only six of the twelve and is corrected here. `static-site`
+**Which projects this section applies to** — derived by scaffolding **all twelve** scaffoldable types and looking for the emitted file. `static-site`
 and `office-extension` each scaffold a `server/` FastAPI backend, so they get the module too:
 
 **Python projects** (`python-api`, `python-api-gpu`, `saas-skeleton`, `office-extension`, `static-site` —
@@ -458,8 +452,7 @@ Every JSON log entry must include these core fields:
 - In Next.js: extract in `middleware.ts`, propagate via `AsyncLocalStorage` or explicit child logger passing.
 - Return the `X-Request-ID` in the response headers so clients can reference it in bug reports.
 
-⚠️ **Why this fleet stops at a correlation ID, and what to name the field.** Probed 2026-09-01 across
-ALL THREE fleet hosts (vps1/vps2/vps3): Loki + Prometheus + Grafana only — **no DEDICATED trace
+⚠️ **Why this fleet stops at a correlation ID, and what to name the field.** Probed across ALL THREE fleet hosts (vps1/vps2/vps3): Loki + Prometheus + Grafana only — **no DEDICATED trace
 backend (Tempo/Jaeger) and no OTel collector on any of them**, and Grafana carries exactly two
 datasources (loki, prometheus). ⚠️ Not "no spans at all": Sentry-SDK services already emit
 performance transactions to GlitchTip at `GLITCHTIP_TRACES_SAMPLE_RATE` (§ config above) — that is
@@ -519,7 +512,7 @@ Alert only on **user-facing symptoms** using the RED method (Rate, Errors, Durat
 |--------|--------|-----------|--------|
 | External availability | Gatus | 3 consecutive failures / 60s | Push notification |
 | Registrar drift | Prometheus (`fabrik_audit_drift_total`) | Any drift for > 10 min | Alertmanager → Telegram |
-| CPU / RAM spikes | cAdvisor / node-exporter → Prometheus (Netdata removed 2026-05-30) | N/A — do not page | Dashboard only |
+| CPU / RAM spikes | cAdvisor / node-exporter → Prometheus | N/A — do not page | Dashboard only |
 
 ---
 
@@ -600,7 +593,7 @@ Install procedure + currently-registered alias pairs (`browserless`, `gotenberg`
 
 ---
 
-## OpenTelemetry — deliberately NOT adopted at the instrumentation layer (measured, 2026-09-01)
+## OpenTelemetry — deliberately NOT adopted at the instrumentation layer
 
 Do not propose OTel instrumentation for a fleet service without new evidence. Measured against
 this stack: OTel **logs** remain the weakest-maturity signal in both Python and JS — exactly the

@@ -119,12 +119,10 @@ RETRYABLE_STATUS = {408, 429, 500, 502, 503, 504}
 _FALLBACK = wait_random_exponential(multiplier=1, max=10)  # JITTERED — see the rules below
 _RETRY_AFTER_CAP_S = 60.0
 
-
 def _is_retryable(exc: BaseException) -> bool:
     if isinstance(exc, (httpx.TimeoutException, httpx.ConnectError)):
         return True
     return isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in RETRYABLE_STATUS
-
 
 def _wait(state: RetryCallState) -> float:
     """Honour Retry-After (429/503) in BOTH legal formats, clamped; else jittered backoff."""
@@ -147,7 +145,6 @@ def _wait(state: RetryCallState) -> float:
             if delay is not None and math.isfinite(delay):
                 return min(max(delay, 0.0), _RETRY_AFTER_CAP_S)
     return _FALLBACK(state)
-
 
 # 3. Wrap calls with retry + jittered backoff
 @retry(
@@ -228,7 +225,7 @@ async def get_item(item_id: str) -> dict | None:
    session.request = _request
    ```
 
-   **Verify in the library source** that every request path is timeout-bounded — "the library has timeouts" is not the same as "every call has one" (the offending lib timed out its AJAX calls but not its initial page fetch).
+   **Verify in the library source** that every request path is timeout-bounded — "the library has timeouts" is not the same as "every call has one".
 
 2. **A request `timeout=` does NOT bound DNS resolution.** `requests`/`httpx`/`urllib3` timeouts cover connect + read, not `getaddrinfo` — a stalled resolver hangs *through* the timeout. Harden the resolver (static, immutable DNS) rather than trusting `timeout=`; diagnose with `getent ahostsv4 <host>` (hangs) vs `nslookup -type=A <host> 1.1.1.1` (instant). Long-lived clients get a resolver with its own deadline.
 
@@ -504,7 +501,7 @@ there. Production reference: `/opt/youtube/docs/reference/pipeline-resilience.md
    (`self-healing` row 4). ⚠️ **`fabrik-lib/alerting/` does NOT give you that property, and the provider-death row 3 of
    § Provider-death resilience points here rather than repeating it** — NOT the coverage map's
    row 3, which is the circuit-breaker row. Read at
-   `/opt/fabrik-lib/alerting/__init__.py` (youtube, 01M1SSV9YR), its dedup is a module-level
+   `/opt/fabrik-lib/alerting/__init__.py`, its dedup is a module-level
    `_last_sent` dict, so it is per-process — and a forked child INHERITS the parent's, rather than
    starting clean. Four things it is not. (1) Not a latch: the window is `ALERT_MIN_INTERVAL`
    (300 s) anchored on the last SUCCESSFUL send and re-armed by each one — a suppressed call does
@@ -516,10 +513,9 @@ there. Production reference: `/opt/youtube/docs/reference/pipeline-resilience.md
    ⚠️ And for a CRON the floor does not apply at ALL — each run is a fresh process with an empty dict, so an hourly cron alerts hourly whatever `ALERT_MIN_INTERVAL` says; set it to 24 h and nothing changes. Tuning that variable to throttle a cron alert is a no-op with no error. (3) Not suppression at all while
    delivery is FAILING: `_last_sent` is written only `if delivered`, so a caller looping against a
    dead transport attempts every time, unthrottled. (4) Not exactly-once even INSIDE one process:
-   the read and the write straddle a delivery that can block, so concurrent callers all pass the
-   check — measured, 8 threads on one title produced 8 alerts. ⚠️ And the key is not stable across
+   the read and the write straddle a delivery that can block, so concurrent callers all pass the check. ⚠️ And the key is not stable across
    the fleet: `fabrik-lib`'s copy and `/opt/youtube`'s key on `title`, while the HUB's own
-   `libs/alerting/` has keyed on `severity:title` since 2026-08-16 — deliberately, because
+   `libs/alerting/` keys on `severity:title` — deliberately, because
    title-only let an `info` alert swallow the `critical` escalation of the same condition. So a
    durable latch is yours to build, and "the module does it" is wrong in every way the bullet below enumerates — the four
    numbered, plus per-process, plus a key that is not stable across the fleet. A
@@ -587,9 +583,7 @@ control. A standard for every such service, not a suggestion; no such loop, no o
 
 **Why the rest of this pack is not enough.** Timeout, retry, backoff, breakers and checkpointing all
 heal a **transient** fault. None heals a **permanent provider death**: an endpoint down for the whole
-run needs a **SWAP**, a decision no retry loop is empowered to make. `self-healing` row 10 carries the
-motivating incident — a backfill stalled 8h at zero progress while every mechanism here ran correctly,
-and nothing alarmed, because zero progress is not an error.
+run needs a **SWAP**, a decision no retry loop is empowered to make. Zero progress is not an error, so nothing alarms — `self-healing` row 10.
 
 **A plan or spec introducing such a loop states how it satisfies all THREE outcomes; retry/backoff with
 no provider-death handling and no zero-progress alarm is a DEFECT** — what `/fabrik-spec-review` §E and
