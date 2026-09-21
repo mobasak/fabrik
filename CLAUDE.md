@@ -264,20 +264,22 @@ drift check prints `missing: cobra-effect`; fabrik-lib hit it adopting that anch
 the last compaction; search before assuming. Ledger first for a decision-shaped question.
 
 ## Pointers
-- **Quota — read the line, act on the band.** Every prompt opens with a `QUOTA:` line written by the rotation
-  tick; `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status` is the authority on the accounts, the
-  queue and WHEN you resume, in every band (`docs/workstation/claude-account-rotation.md`). THE QUOTA BANDS ARE A
-  BEHAVIOUR CONTRACT, and the band is the FLEET'S, computed per window, never one account's — Never re-derive
-  the band from the percentages, which are the active account's alone. **more than 5 points of runway — GREEN:**
-  work normally; the tick rotates, you never pick accounts. **5 points or fewer — AMBER:** finish what you
-  started, start nothing heavy. **RED: commit, push, close your run record, and start nothing new.** The wall
-  (the `fleet-exhausted` stamp at its `walled` tier) is held by `.claude/hooks/quota_stop.py`; commit + push +
-  close + stop is the only path through. `posture unavailable` means the posture could not be read, not that
-  quota is fine — run `--status`. COMPACTION IS CONDITIONAL: compact when a flip is likely to beat your reset,
-  ride it out when the reset comes first; never move the rotation knobs. Pin heavy work with
-  `CLAUDE_CONFIG_DIR=$HOME/.claude-fleet/<slug>` AND `CLAUDE_QUOTA_HOME` set to the same slug — both, or the
-  pin is a no-op — and never refresh a token on a COPY of a credential file. The machinery is documented beside
-  the code that runs it (`_fleet_tick_inner`, `_fleet_active_wall_advisory` in `claude_rotate.py`), never here.
+- **Quota — read the line, act on the band.** Every prompt opens with a `QUOTA:` line written by the rotation tick.
+  `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status` is the authority on the accounts, the queue and
+  WHEN you resume, in every band (`docs/workstation/claude-account-rotation.md`).
+  THE QUOTA BANDS ARE A BEHAVIOUR CONTRACT, and
+  the band is the FLEET'S, computed per window, never one account's —
+  Never re-derive the band from the percentages, which are the active account's alone.
+  **more than 5 points of runway — GREEN:** work normally; the tick rotates, you never pick accounts.
+  **5 points or fewer — AMBER:** finish what you started, start nothing heavy.
+  **RED: commit, push, close your run record, and start nothing new.** The wall (the `fleet-exhausted` stamp at
+  its `walled` tier) is held by `.claude/hooks/quota_stop.py`; commit + push + close + stop is the only path
+  through. `posture unavailable` means the posture could not be read, not that quota is fine — run `--status`.
+  COMPACTION IS CONDITIONAL: compact when a flip is likely to beat your reset, ride it out when the reset comes
+  first; never move the rotation knobs. Pin heavy work with `CLAUDE_CONFIG_DIR=$HOME/.claude-fleet/<slug>` AND
+  `CLAUDE_QUOTA_HOME` set to the same slug — both, or the pin is a no-op — and never refresh a token on a COPY
+  of a credential file. The machinery is documented beside the code that runs it (`_fleet_tick_inner`,
+  `_fleet_active_wall_advisory` in `claude_rotate.py`), never here.
 - **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`) → `backups/` (gitignored).
 - **Naming:** kebab-case, with the usual exceptions (`README.md`, `CHANGELOG.md`, `CLAUDE.md`, Python packages).
 - **Authoring a prompt:** `docs/reference/MD/ai-prompt-templates.md`.
