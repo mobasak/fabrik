@@ -496,6 +496,7 @@ without the first one having moved is a symptom treated, not a cause.
 
 | Metric | Baseline | Target |
 |---|---:|---|
+| **Runs whose terminal condition is a check the operator can run** | **0 of 27** | every run |
 | **Closes that ran to a quiet round** (terminal condition actually met) | 78 of 191, **41%** | over 90% |
 | **Closes `done` with defects still confirmed at the last round** | **71** (452 defects standing) | 0 |
 | **Confirmed defects found at round 4 or later** | 2,168 of 6,919, **31%** | under 10%, with the total NOT falling |
@@ -504,7 +505,6 @@ without the first one having moved is a symptom treated, not a cause.
 | Spec-chain cost at the medians | 611 min | under 300 min |
 | Total hours per week | 375 | falling, with runs per week flat or up |
 | Total tokens per week | 22.6 G | falling |
-| **Runs whose terminal condition is a check the operator can run** | **0 of 27** | every run |
 | **Hub `CLAUDE.md` bytes** (loaded every turn) | **134,466** | **≤ 25,000** |
 | **Template `CLAUDE.md` bytes** (×47) | **127,624** | **≤ 25,000** |
 | **Largest rendered command** | 123,843 | ≤ 30,000 |
