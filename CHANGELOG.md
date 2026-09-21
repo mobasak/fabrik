@@ -21,6 +21,16 @@ All notable changes to this project will be documented in this file.
 - **§ 4.5 new — two revision-1 claims withdrawn**: "round 1 finds 1–10% of defects" (a tail read
   as the population; the true median share is 33% over 98 runs) and "under-seating is the root
   cause" (demoted to contributing and unproven — the comparison is confounded by surface size).
+- **§ 2.5 added** — the round distribution with its cost: half the runs already close in 3 rounds
+  or fewer, and the 35 runs of 10+ rounds are 13% of the population against 42% of the hours.
+- **§ 4.1 gains the detector's two measured limits.** `command_run.py::_non_convergence` is
+  advisory by construction (`:399` — "a heuristic that blocks is a heuristic that gets gamed",
+  which independently corroborates § 5.1's refusal of the cap) and reads only the last three rounds
+  (`CONVERGENCE_WINDOW = 3`), so replayed over the ledger it speaks on 47 of 96 long runs and is
+  silent on 49 — one of them 29 rounds.
+- **§ 4.5's second withdrawal carries its full arithmetic** — 64 of 265 runs stamped no seats at
+  all (9 of them 10+ rounds, 132 unseated rounds), long runs average 2.43 seats per round against a
+  contract floor of 3 for round 1 — and still concludes the direction is unestablished.
 
 ### Added — a macOS sound layer for Volkan's Mac, filed as request 016 (2026-09-20)
 

@@ -4,7 +4,9 @@
 **Revision 2 (2026-09-21, same day):** § 4 and § 5 rewritten. The operator refused the round
 cap (*"capping is not a solution"*) and the first draft's root cause (*"you could not find the root
 cause properly"*). Both refusals were right; the new root cause is § 4.1, the cap is refused in
-§ 5.1, and two claims from revision 1 are withdrawn in § 4.5.
+§ 5.1, and two claims from revision 1 are withdrawn in § 4.5. The same revision adds § 2.5 (where
+the rounds and the hours actually sit), the non-convergence detector's two measured limits inside
+§ 4.1, and the full seat arithmetic behind § 4.5's second withdrawal.
 **Written:** 2026-09-21, by the unnamed hub window, on the operator's directive
 ("create a full documentation ... for the last month we are working these and it gets worse, not better").
 **Nature:** a diagnosis and a program. Every number is measured, with its population named in § 7.
@@ -104,6 +106,22 @@ command, at a 31-minute median.
 A round costs about 22 minutes whatever the diff size, because the seat re-reads the whole pin
 regardless. Rounds do not get cheaper as the surface shrinks; they only get fewer, and they have not.
 
+### 2.5 The shape of the distribution — where the rounds actually are
+
+All 265 closes that record a round count, holding 613 h between them:
+
+| Rounds | Runs | % of runs | Hours | % of hours |
+|---|---:|---:|---:|---:|
+| 1 | 25 | 9% | 24 | 4% |
+| 2–3 | 107 | 40% | 91 | 15% |
+| 4–9 | 98 | 37% | 240 | 39% |
+| 10–19 | 26 | 10% | 139 | 23% |
+| **20+** | **9** | **3%** | **120** | **19%** |
+
+Half the runs already close in three rounds or fewer. **The 35 runs of 10+ rounds are 13% of the
+population and 42% of the hours** — and § 4.1 is why they and the 3-round runs cannot be told apart
+by their round count alone.
+
 ---
 
 ## 3. Did a month of fixes help?
@@ -177,6 +195,27 @@ The record cannot tell the two apart**, because nothing requires the quiet round
 A 44-round run and a 3-round run can therefore end in the same state, and the ledger cannot say
 which artifact is sounder. This is why a round cap is not the fix (§ 5.1): a cap legislates the
 round count, and the round count is already the wrong variable.
+
+**And the one instrument aimed at this pathology cannot act, and half the time cannot see.**
+`command_run.py` carries a non-convergence detector (`_non_convergence`, `scripts/command_run.py:288`)
+that reads the round series and says when a loop is oscillating rather than converging. Two
+properties, both read from the source:
+
+- **It is advisory by construction.** Its own output closes *"(Advisory only — nothing is
+  blocked.)"*, and the reason sits beside the code at `:399` — *"advisory is deliberately NEVER a
+  gate — a heuristic that blocks is a heuristic that gets gamed."* That is the same argument § 5.1
+  uses to refuse the round cap, reached independently by whoever wrote the detector, and it
+  corroborates the refusal.
+- **It looks only at the last three rounds** (`CONVERGENCE_WINDOW = 3`, `:71`) and never speaks
+  before round five (`NON_CONVERGENCE_MIN_ROUNDS = 5`, `:65`). A loop grinding slowly downward is
+  therefore "converging" by its rule. Replayed over the ledger: of **96 runs of five or more rounds**
+  carrying a clean findings series it would have spoken on **47**, and stayed **silent on 49** — one
+  of them a **29-round** run — because each one's last three rounds happened to be non-increasing.
+
+So the system watches itself run 20, 30 and 47 rounds, is silent for half of them and powerless on
+the rest. That is not a defect in the detector; a heuristic that blocked would be gamed, exactly as
+its comment says. It is the shape of the problem — **nothing in the loop can act on the round count,
+because the round count is not the thing that is wrong.**
 
 **The falsifying test, and it holds.** If the cause is the absence of a checkable terminal
 condition, then artifacts carrying a *partial* external criterion should converge faster than
@@ -255,10 +294,14 @@ is about.
   as the population — the `denominator-honesty` rule, broken in the course of writing the document
   that invokes it.
 - **"The loop is under-seated, and that is the root cause" — DEMOTED to contributing, unproven.**
-  The under-seating is real: **64 of 265** round-recording runs declared no seats at all, and long
-  runs average 2.43 seats per round. But runs at under 2 seats per round take a median of 4 rounds
-  against 2 for runs at 4 or more (n=106 vs 21), and surface size drives both numbers, so the
-  comparison is confounded and establishes no direction. Seat density is a candidate, not a cause.
+  The under-seating is real and worth its own row in a later program: **64 of 265** round-recording
+  runs declared no seats at all — 9 of those ran 10+ rounds, 132 rounds between them with no seat
+  ever stamped — and the 26 long runs that did stamp seats averaged **2.43 per round**, against a
+  contract floor of 3 for round 1 alone and 7 for a 3-unit surface. But the direction is not
+  established: runs at under 2 seats per round take a median of 4 rounds against 2 for runs at 4 or
+  more (n=106 vs 21), and surface size drives both numbers, so the comparison is confounded. Seat
+  density is a candidate, not a cause, and this document does not spend a program item on it until
+  items 1–3 have moved the metrics they target.
 
 ---
 
