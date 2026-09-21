@@ -131,12 +131,9 @@ T6_CLAIMS = (
     # T6.2 (01M1RGRVT, 01M1RHJEY) — the private-index recipe. Round 1 fixed a vacuous CAS; round 2
     # fixed four steps that were wrong when executed; round 3 fixed four more the edges exposed.
     "**A pathspec protects the FILE LIST, never the CONTENT.**",
-    "The last argument is the expected OLD value and it MUST be the captured `$base`.",
-    "the `env -u` is load-bearing",
     # T6.3 (fabrik-lib 01M2JZC35M5K9V7XWMCMA5GM4W, 2026-09-16) — step 7 warned what happens if the
     # carry is SKIPPED but pointed at no guard, so a just-committed row sat in the working tree as a
     # pending DELETION and the next pathspec commit would have removed it. Measured twice in one run.
-    "Then run step 5b's guard",
     # D-284 (2026-09-17) — the pytest leg's semantics have ONE prose home: the GATE row's shared
     # sentence cites the arming conjunction and names the three `--json` keys; a commit message
     # claimed this grader proved the two copies identical when it asserted nothing about the
@@ -147,12 +144,10 @@ T6_CLAIMS = (
     "only a leg that ran to completion is the bare `pytest`",
     "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
     "a `status: \"setup-error\"` envelope (`:2877-2893` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys",
-    "FROM THE REPO ROOT",
     # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
     # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
     # [Unreleased], which is a `-`/`+` PAIR and loses nothing. Executed in a throwaway repo, and
     # reverting it failed 0 of the other 18 claims.
-    "sanctioned `CHANGELOG.md` relocation, not a loss",
     # T6.4 (operator directive 01M2K9JZNG4Y6110629YZGA65A, 2026-09-16) — the quota BANDS are a
     # behaviour contract, and they live INSIDE the D-175 quota bullet that teaches the read.
     # AMBER forbids STARTING heavy work rather than ordering a compaction, because a compaction
@@ -181,14 +176,7 @@ T6_CLAIMS = (
     "5 points or fewer",
     "RED: commit, push, close your run record",
     "COMPACTION IS CONDITIONAL",
-    "follow it with a real `unset GIT_INDEX_FILE`",
-    "never `cp <scratch>/<file> <file>`",
-    "never put the hunk in printf's FORMAT position",
-    'Assert `git diff-index --cached --numstat "$base"` is YOUR hunk alone',
-    "On rc 128 your work is not lost and the fix is not to weaken the guard",
-    "their commit is in HEAD but NOT in your working file",
     "no COMMIT hook runs",
-    "Count it git-aware",
     # T6.3 (01M20DXPT) — `0 0` is a verdict about LINES.
     "Two different questions, two different expectations",
     # Round 2: the bullet's opening line and the HARD STOPS row mandated the guard the pathspec
@@ -236,6 +224,24 @@ def test_the_governance_files_are_on_the_sync_trigger_path() -> None:
 
 
 # --- Phase A of docs/development/plans/2026-09-16-plan-1-quota-posture.md (D-269) ---------------
+_RECIPE_POINTER = (
+    # D-328 (2026-09-21): the private-index commit recipe is `scripts/private_index_commit.py`, graded by
+    # tests/test_private_index_commit.py; the twelve T6 pins that held its prose steps are retired with
+    # the prose. The hub carries the pointer; the template keeps the prose until step 2.
+    "`python3 scripts/private_index_commit.py --msg-file <msg> --append <file> <hunk-file> '<anchor-regex>'",
+    "carries your hunk into the working file by INSERT",
+    "no COMMIT hook runs",
+)
+
+
+def test_the_recipe_pointer_names_the_script_and_its_two_invariants() -> None:
+    """The hub's shared-append rule points at the script, says the carry is by INSERT, and says no
+    commit hook runs — each once. The steps themselves live in the script's docstring and graders."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    missing = [(c[:48], hub.count(c)) for c in _RECIPE_POINTER if hub.count(c) != 1]
+    assert not missing, f"claim | hub count -> {missing}"
+
+
 _QUOTA_POINTER = (
     # D-326 / command-loop-performance.md § 5 item 3 (2026-09-21): the QUOTA paragraph is a POINTER, not
     # the machinery — the four behaviours an agent must still act on live in the hub file; the machinery

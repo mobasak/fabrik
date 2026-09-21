@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+### Added — `scripts/private_index_commit.py`: the shared-append commit recipe as a tested script (D-328, 2026-09-21)
+
+- Steps 1–7 of the private-index recipe, executable: HEAD's blob + your hunk after an anchor, CAS on the
+  base SHA with a bounded retry that three-way-merges the working file up to the new base, blob/mode/ref
+  assertions against the bound SHA, shared-index realignment, carry by INSERT, trailer and
+  shared-append-as-own refusals, the sync-trigger notice. Nine graders, red-first; the 5b merge proven by
+  a mutant that fails exactly the CAS test.
+- `CLAUDE.md`: the 11,136-byte recipe is a pointer; `tests/test_governance_template_split.py`: twelve
+  recipe pins retired for one pointer test. This entry landed through the script.
 
 ### Changed — CLAUDE.md: step 1b(ii) — the QUOTA bullet is a pointer (D-327, 2026-09-21)
 
