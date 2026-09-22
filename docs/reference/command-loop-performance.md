@@ -1,6 +1,6 @@
 # Command loop performance — what we aim for, what it costs, and the program to fix it
 
-**Status:** REVISION 23 (2026-09-23). The program of revisions 4–7 (the old § 5: remove the apparatus) was
+**Status:** REVISION 24 (2026-09-23). The program of revisions 4–7 (the old § 5: remove the apparatus) was
 executed in part on 2026-09-21 and REVERTED the same day (D-330) — it removed developments the operator built on
 purpose. § 1.0 records what the three `CLAUDE.md` contracts are now (D-331, lean without loss). § 4.7 states the
 root cause the operator confirmed on 2026-09-21 16:38, and § 5 is rewritten as the engineering that follows from it:
@@ -1004,8 +1004,12 @@ each, 1 was irrelevant, 1 could not be fetched (71). What the new ones change, i
     ICSE 2008). The Harel–Kantorowitz iterative estimator needs no finder overlap: from the SAME reviewers' per-pass found
     counts it predicts the next pass's yield, and they stopped when it fell below 0.5 fault — the loop's own confirmed
     series is that input. **For the loop:** finding 18's Chapman number is printed as a floor; the pair is judged by what
-    each model found ALONE, not by overlap; and `CLAUDE_CODE_SUBAGENT_MODEL`, if set, overrides the script's per-seat
-    models and silently collapses the pair into one model (docs/en/workflows).
+    each model found ALONE, not by overlap. *Corrected in revision 24 (raw fetch of docs/en/model-config):*
+    `CLAUDE_CODE_SUBAGENT_MODEL` is only the default for a seat "that aren't assigned a model another way … A
+    per-invocation model or a definition's `model` field, including `inherit`, takes precedence"; only
+    `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` collapses every seat onto one model. The real risks are a seat whose `agent()`
+    call sets no `model` (it inherits the lead's — finding 43) and `CLAUDE_CODE_EFFORT_LEVEL`, which overrides a
+    seat's frontmatter `effort`.
 38. *Keep the recall-first finder brief; effort does not buy recall* — "If your review prompt says 'only report
     high-severity issues' or 'be conservative,' the model may follow that instruction literally and report less; ask it
     to report everything and filter in a separate pass instead" (prompting-claude-opus-5; the same in CodeRabbit's Opus 5
@@ -1066,6 +1070,30 @@ each, 1 was irrelevant, 1 could not be fetched (71). What the new ones change, i
     proxies for LLM-written tests fail exactly on code that already has the bug (arXiv 2607.22880); in production 36.4% of
     an agentic reviewer's comments were accepted and 56.3% rejected, correctness findings most often invalid (arXiv
     2607.03316, 31,073 comments) — the noise the executor absorbs.
+
+43. *The Opus 5.5 system card on teams, and the defaults that quietly undo a cheap pair* (fabrik-lib `deep-research`, 2026-09-23;
+    its ten cards read whole, the 230-page system card's § 6.5.3 and § 8.12 by raw fetch and `pdftotext` after both
+    in-session arms stopped at its first 7%). **Small tasks lose to coordination:** on DRACO (13–71-minute tasks)
+    "multi-agent teams can take longer than their single-agent counterparts to finish a task due to their coordination
+    overhead"; on ProgramBench a five-agent team reached the same score 2.7× faster at a higher token cost. **A latency
+    budget is where teams win:** they "dominate the score–latency Pareto frontier at increasingly tight time budgets" —
+    at 0.5× the single-agent time a five-agent team more than matched it, about 2.8× faster; "reducing effort and
+    tightening a latency budget … have a fundamentally different effect … The former results in less work overall,
+    whereas the latter preserves more of the work at a given latency by sustaining higher effective parallelism" (this
+    settles finding 40's trial toward the budget); under tight budgets async subagents collapse — "the lead spawns them
+    at a much lower rate and prefers to act as a single agent" — while a pre-spawned fixed team keeps its parallelism.
+    **Team size has diminishing returns**, and a 100-agent knowledge-base team organised itself flat: "the lead divided
+    the records among the helpers at the start of the task, each helper then owned its part … and helpers communicated
+    relatively little" — the slice partition, arrived at by the model. **Self-preference when grading** is small but
+    significant: 0.07 of 10 when reminded the transcript is Claude's (§ 6.5.3) — the case for finding 36's
+    different-family verifier is weak but not zero. **Defaults that undo the pair:** an `agent()` call without `model`
+    inherits the session's model — "auto-authored fan-outs inherit expensive model by default" (claude-code #63693,
+    #67343, #78994; bundled `/code-review` and deep-research included) — so every seat in the loop's script names
+    `model` and `effort`; "context anxiety" (premature wrap-up near the context limit) vanished between Sonnet 4.5 and
+    Opus 4.5 and harness guards against it "can go stale as models improve" (anthropic.com/engineering/managed-agents),
+    so each such guard is re-measured per model. fabrik-lib's engine returned cards for one of its three briefs; the
+    other two shipped none because its `claude -p` step ran past 900 s three times at concurrency 2 — the LLM leg is
+    `scripts/rivals_run.py`'s `claude -p` wiring (the hub's), too slow for multi-brief runs; routed to intel's rivals beat.
 
 *Corrections from the read-whole pass:* finding 9's METR citation (above, finding 40); finding 19's "52% → 76%" joins
 two Cursor posts — the launch post says "52% to over 70%", the autofix post "52% to 76%" — and its "3-8 rounds" is the
@@ -1383,6 +1411,10 @@ The build of § 5 begins with the two fragments, the reviewer brief and the sour
 | 5b · the loop's follow-ups from its two runs and the research (findings 25–42): `unverified` never counted as refuted and never closing a pass, refutation citing its counter-evidence (36); checks under ~10 calls run by the lead inline, one fresh refuter per slice for the rest (27, 41); finders at `medium` effort, the recall-first brief kept (38); the review lead on a short prefix with the ledger in a file (30); seat hygiene — `cacheTtl: 1h` on the reviewer agent (41), OpenTelemetry for seat tokens (33), `CLAUDE_CODE_SUBAGENT_MODEL` refused while a pair runs (37); the first stop condition and fix-hunk size logged (39); the stages-per-change count (35) | not started | — | measured on the next real review against the operator's ≤ 3 passes and D-344's per-seat counts |
 | 6 · the same script for the section-partition reviews (`/fabrik-spec-review`, `/fabrik-plan-review`) and the reviews nested in `/fabrik-execute-plan` (144 of its 245 hours) | not started | — | ≤ 20 lead turns each; execute-plan ≤ 60 |
 | 7 · the producing commands delegate their reading and judging — `/fabrik-spec` and `/fabrik-plan-after-chat` send large reads to seats that return summaries and use a judge panel instead of the lead iterating alone; the closing chain fixed at four calls (receipt fill and check · commit through the recipe · gate · close), inputs written first | not started | — | ≤ 25 lead turns each; the chain under 120 |
+
+**Revision 24 (2026-09-23):** finding 43 from the late deep-research run (its ten cards read whole, the Opus 5.5
+system card's team and self-preference sections by raw fetch); finding 37's `CLAUDE_CODE_SUBAGENT_MODEL` claim
+corrected — an explicit per-seat model wins, only the `_FORCE` variable collapses the pair.
 
 **Revision 23 (2026-09-23, the read-whole pass):** every fact and card the research returned is filed in a ledger
 (`docs/reference/research/2026-09-23-loop-program-research-ledger.md`, 162 rows, each dispositioned); the 71 URLs (69 pages) no
