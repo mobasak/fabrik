@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
   `CLAUDE.md` § External Knowledge requires the ledger before any synthesis (D-352).
 - The research agent is wired to firecrawl and told to fetch one URL per call, read PDFs through exa, and distrust
   stale exa copies of docs pages.
-- The loop program's own research is the first ledger: 162 rows, the 71 uncited sources read whole;
+- The loop program's own research is the first ledger: 162 rows, the 71 uncited URLs (69 pages) read whole;
   `docs/reference/command-loop-performance.md` rev 23 gains findings 36–42 and six corrections.
 
 ### Changed — rules(67-file-api): file 21 of the currency pass, to the 11-row bar (D-351) (2026-09-23)
