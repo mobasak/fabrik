@@ -48,9 +48,9 @@ import time
 from pathlib import Path
 
 FLOOR = 3
-# D5 (review-family pass 3, D-229): a delta round whose fix diff — changed lines, the review
-# receipt excluded — is at or under this many lines dispatches ONE fresh non-authoring seat; above
-# it the round-1 partition over the touched slices stands. The ONE place the number lives: both
+# D5 (D-335 supersedes D-229): a later pass is sized by the slices whose ledgers hold an open claim, on
+# the seats that owned them in round 1 — the round-1 union is the ceiling; there is no changed-line budget
+# and no fresh seat. `budget()` takes no delta; `--delta` is an unknown flag.
 # termination fragments cite it and `tests/enforcement/test_review_exit_contract.py` binds them.
 # D-191 (operator, three times: "maximum count of viable and useful subagents"): the BOX is the
 # ceiling and the units are the PARTITION. Every unit gets one seat per ANGLE — breadth (Sonnet),
