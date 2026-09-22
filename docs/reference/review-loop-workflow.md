@@ -33,8 +33,8 @@ The tool returns `async_launched`; the ledger arrives as one result. **Each pass
              gaps, raised, distinct, overlap, estimate_unseen, candidates: [..], verdicts: [..] }] }
 ```
 
-- `candidates` — the two finders' union (deduped on file · line/6 · class; a candidate both raised keeps both ids).
-- `verdicts` — one per candidate from the Sonnet verify seat: `confirmed | refuted | recorded | unverified`, with
+- `candidates` — the two finders' union: two DIFFERENT seats citing the same file and class within five lines are one candidate (`also` carries the twin's id, `also_seat` its seat); the same seat's neighbours are never merged. A candidate both raised credits both seats' `confirmed`.
+- `verdicts` — one per candidate from the Sonnet verify seat: `confirmed | refuted | recorded` (the seat's schema), or `unverified` written by the script for a seat that returned nothing; the `id` is always the candidate's, never the seat's echo; with
   the command it ran, the output (≤ 1500 chars), the mechanism, a destination when recorded.
 - `gaps` — slice files no finder listed in `files_read`; logged, and the slice is UNVERIFIED until read.
 - `estimate_unseen` — Chapman's capture-recapture estimate over the two finders' candidate sets; advice for the
@@ -64,7 +64,7 @@ advice and nothing in the record keys on it.
 the KILL for chunk 5 (D-347): two `/fabrik-review` runs at ≤ 15 lead turns with confirmed counts not below the
 D-335 runs (14, 21, 15) and the escaped-defect rate not up, else the script is reverted.
 
-## Related scripts
+## Related surfaces
 
 `.claude/workflows/fabrik-review-loop.js` · `scripts/command_run.py` (`round --slices`, `done`) ·
 `scripts/sysadmin/dispatch_headroom.py --slices` · `scripts/review_receipt.py` · `commands/_sources/fabrik-review.md`

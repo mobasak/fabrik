@@ -108,7 +108,7 @@ function finderPrompt(slice, model) {
 
 SURFACE: ${args.surface}
 BASE: ${args.base_sha} · DIGEST: ${args.digest}
-PINS: ${args.pins_dir} (read the pinned copies, never the live tree — the pin wins over the live path)
+PINS: each slice file's pinned copy is at ${args.pins_dir}/<its repo-relative path> — e.g. ${args.pins_dir}/${slice.files[0]}; read the pin, never the live tree (the pin wins over the live path)
 SCRATCH: ${args.scratch_dir}/${slice.name}-${model}/ (every probe on a COPY there)
 YOUR SLICE (${slice.files.length} files — read EVERY one; hunt priority: ${slice.priority || 'none named'}):
 ${files}${ledgerText}
@@ -119,7 +119,7 @@ RETURN the structured output: files_read MUST list every file you opened (repo-r
 }
 
 function verifyPrompt(slice, c) {
-  return `VERIFY SEAT — execute ONE candidate from slice ${slice.name} and return the verdict with the command you ran and its output. Never fix, never edit, git READ-ONLY, every probe on a COPY under ${args.scratch_dir}/verify-${c.id}/; read the PINNED copy under ${args.pins_dir} (base ${args.base_sha}, digest ${args.digest}).
+  return `VERIFY SEAT — execute ONE candidate from slice ${slice.name} and return the verdict with the command you ran and its output. Never fix, never edit, git READ-ONLY, every probe on a COPY under ${args.scratch_dir}/verify-${c.id}/; read the PINNED copy at ${args.pins_dir}/${c.file} (base ${args.base_sha}, digest ${args.digest}).
 
 CANDIDATE ${c.id} · ${c.file}:${c.line} · class ${c.failure_class}
 CLAIM: ${c.claim}
@@ -131,25 +131,32 @@ Run the check (or the smallest command that proves or refutes the claim on the p
 ${args.brief}`
 }
 
-function keyOf(c) {
-  return `${c.file}:${Math.floor((c.line || 0) / 6)}:${String(c.failure_class || '').toLowerCase()}`
+// Two candidates are ONE defect only when two DIFFERENT seats cite the same file and class within five lines;
+// the same seat's neighbours are two defects (a dedupe key that merged them lost the second one — review of
+// 2026-09-22, A-S1), and a fixed bucket split one defect cited at lines 5 and 7 (A-S5).
+function sameDefect(a, b) {
+  return (
+    a.file === b.file &&
+    String(a.failure_class || '').toLowerCase() === String(b.failure_class || '').toLowerCase() &&
+    Math.abs((a.line || 0) - (b.line || 0)) <= 5
+  )
 }
 
 function unionSlice(r) {
-  const seen = new Map()
+  const candidates = []
   let overlap = 0
   for (const seat of r.seats) {
     for (const c of seat.candidates || []) {
-      const k = keyOf(c)
-      if (seen.has(k)) {
+      const twin = candidates.find((k) => k.seat !== seat.model && !k.also && sameDefect(k, c))
+      if (twin) {
         overlap += 1
-        seen.get(k).also = c.id
+        twin.also = c.id
+        twin.also_seat = seat.model
       } else {
-        seen.set(k, { ...c, seat: seat.model })
+        candidates.push({ ...c, seat: seat.model })
       }
     }
   }
-  const candidates = [...seen.values()]
   const read = new Set(r.seats.flatMap((s) => s.files_read || []))
   const gaps = r.slice.files.filter((f) => !read.has(f))
   const [n1, n2] = r.seats.map((s) => (s.candidates || []).length)
@@ -157,7 +164,7 @@ function unionSlice(r) {
   // Chapman's capture-recapture estimator over the two finders' candidate sets — ADVICE, never a gate.
   const estimate = Math.max(0, Math.round(((n1 + 1) * (n2 + 1)) / (overlap + 1) - 1) - distinct)
   const failed = r.seats.filter((s) => s.failed).length
-  log(`find:${r.slice.name} gaps ${gaps.length} of ${r.slice.files.length} files unread · sonnet ${n1} · haiku ${n2} · shared ${overlap} · distinct ${distinct} · est. unseen ${estimate}${failed ? ` · ${failed} SEAT FAILED` : ''}`)
+  log(`find:${r.slice.name} gaps ${gaps.length} of ${r.slice.files.length} files unread · sonnet ${n1} · haiku ${n2} · shared ${overlap} · distinct ${distinct} · est. unseen ${estimate} (Chapman — advice only, unreliable below 3 shared)${failed ? ` · ${failed} SEAT FAILED` : ''}`)
   if (gaps.length) log(`find:${r.slice.name} coverage gap — unread: ${gaps.join(', ')} (slice UNVERIFIED until read)`)
   return { ...r, candidates, gaps, raised: n1 + n2, distinct, overlap, estimate_unseen: estimate }
 }
@@ -200,9 +207,12 @@ const results = await pipeline(
       )
     ).then((vs) => ({
       ...r,
-      verdicts: vs.map(
-        (v, i) =>
-          v || { id: r.candidates[i].id, verdict: 'unverified', command: '', output: '', mechanism: 'verify seat failed (null result)' }
+      // the id is the candidate's, never the seat's echo (A-S3); 'unverified' is script-emitted for a null seat —
+      // the VERDICT schema binds the seat's three values only (A-S2)
+      verdicts: vs.map((v, i) =>
+        v
+          ? { ...v, id: r.candidates[i].id }
+          : { id: r.candidates[i].id, verdict: 'unverified', command: '', output: '', mechanism: 'verify seat failed (null result)' }
       ),
     }))
 )
@@ -221,7 +231,16 @@ return {
   slices: slices.map((r) => ({
     name: r.slice.name,
     files: r.slice.files,
-    seats: r.seats.map((s) => ({ model: s.model, files_read: s.files_read.length, raised: s.candidates.length, failed: s.failed, ledger_status: s.ledger_status, notes: s.notes })),
+    // a candidate both finders raised credits BOTH seats (B-S2) — `confirmed/raised` per seat is the Pass-row's `seats:` cell
+    seats: r.seats.map((s) => ({
+      model: s.model,
+      files_read: s.files_read.length,
+      raised: s.candidates.length,
+      confirmed: r.verdicts.filter((v, i) => v.verdict === 'confirmed' && (r.candidates[i].seat === s.model || r.candidates[i].also_seat === s.model)).length,
+      failed: s.failed,
+      ledger_status: s.ledger_status,
+      notes: s.notes,
+    })),
     gaps: r.gaps,
     raised: r.raised,
     distinct: r.distinct,

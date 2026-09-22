@@ -10,7 +10,9 @@ seat is the ``fabrik-reviewer`` agent type on a cheap model (D-344), the script 
 
 from __future__ import annotations
 
+import json
 import re
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -56,7 +58,7 @@ def test_every_seat_is_the_reviewer_agent_on_a_cheap_model_and_no_run_is_resumed
         f"exactly two agent() sites (finder map, verify seat), found {len(sites)}"
     )
     for start in sites:
-        opts = body[start : body.index("})", start)]
+        opts = body[start : _call_end(body, start)]
         assert "agentType: 'fabrik-reviewer'" in opts, (
             "every seat is the fabrik-reviewer agent type"
         )
@@ -85,3 +87,126 @@ def test_the_sources_and_the_brief_name_the_script() -> None:
     brief = BRIEF.read_text(encoding="utf-8")
     assert "files_read" in brief, "the brief must tell a finder to list every file it opened"
     assert DOC.is_file(), "the workflow's reference doc is missing"
+
+
+def _call_end(body: str, start: int) -> int:
+    """The index just past the `)` that closes the call opened at `start` — a balanced scan, so a `})`
+    inside a comment or a string before the options object cannot truncate the window (A-S8)."""
+    depth = 0
+    for i in range(body.index("(", start), len(body)):
+        if body[i] == "(":
+            depth += 1
+        elif body[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+    raise AssertionError("unbalanced call")
+
+
+def _run_ledger(args: dict, seat_results: dict) -> tuple[dict, str]:
+    """Execute the script's own pipeline under node with the Workflow globals stubbed: `agent` returns the
+    canned result keyed by the call's label (`None` → a null seat), `parallel`/`pipeline` run the stages,
+    `log` goes to stderr. Returns the ledger the script returns and the log text."""
+    src = _script().replace("export const meta", "const meta", 1)
+    harness = f"""
+globalThis.args = {json.dumps(args)};
+const results = {json.dumps(seat_results)};
+globalThis.log = (m) => console.error(String(m));
+globalThis.parallel = async (thunks) => Promise.all(thunks.map((t) => t()));
+globalThis.pipeline = async (items, ...stages) =>
+  Promise.all(items.map(async (item) => {{ let v = item; for (const s of stages) v = await s(v, item); return v; }}));
+globalThis.agent = async (_prompt, opts) => (Object.hasOwn(results, opts.label) ? results[opts.label] : null);
+(async () => {{ {src} }})().then((out) => console.log(JSON.stringify(out)));
+"""
+    proc = subprocess.run(
+        ["node", "--input-type=module", "-e", harness],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        stdin=subprocess.DEVNULL,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr[-1500:]
+    return json.loads(proc.stdout.strip().splitlines()[-1]), proc.stderr
+
+
+_ARGS = {
+    "pass": 1,
+    "surface": "t",
+    "base_sha": "0",
+    "digest": "0",
+    "pins_dir": "/p",
+    "scratch_dir": "/s",
+    "brief": "b",
+    "slices": [{"name": "S", "files": ["a.py", "b.py"], "priority": "p"}],
+}
+
+
+def _cand(cid: str, line: int, cls: str = "logic") -> dict:
+    return {
+        "id": cid,
+        "file": "a.py",
+        "line": line,
+        "failure_class": cls,
+        "claim": cid,
+        "scenario": "s",
+        "check": "true",
+        "confidence": "PLAUSIBLE",
+    }
+
+
+def test_the_union_merges_only_across_seats_near_the_same_line_and_never_drops_a_same_seat_neighbour() -> (
+    None
+):
+    ledger, _ = _run_ledger(
+        _ARGS,
+        {
+            "find:S:sonnet": {
+                "files_read": ["a.py", "b.py"],
+                "notes": "",
+                "candidates": [_cand("S-S1", 3), _cand("S-S2", 5)],
+            },
+            "find:S:haiku": {"files_read": ["a.py"], "notes": "", "candidates": [_cand("S-H1", 7)]},
+            "verify:S:S-S1": {
+                "id": "WRONG-ECHO",
+                "verdict": "confirmed",
+                "command": "c",
+                "output": "o",
+                "mechanism": "m",
+            },
+            # verify:S:S-S2 absent → a null verify seat
+        },
+    )
+    s = ledger["slices"][0]
+    ids = [c["id"] for c in s["candidates"]]
+    assert ids == ["S-S1", "S-S2"], f"the same seat's two neighbours are two defects, kept: {ids}"
+    assert s["overlap"] == 1 and s["candidates"][0]["also"] == "S-H1", (
+        "S-H1 at line 7 is S-S1's twin (cross-seat, within 5 lines)"
+    )
+    assert s["gaps"] == [], "b.py was read by the sonnet seat"
+    verdict_ids = [v["id"] for v in s["verdicts"]]
+    assert verdict_ids == ["S-S1", "S-S2"], (
+        f"the verdict id is the candidate's, never the seat's echo: {verdict_ids}"
+    )
+    assert s["verdicts"][1]["verdict"] == "unverified", (
+        "a null verify seat is unverified, never dropped"
+    )
+    by_model = {x["model"]: x for x in s["seats"]}
+    assert by_model["sonnet"]["confirmed"] == 1 and by_model["haiku"]["confirmed"] == 1, (
+        "a shared confirmed candidate credits both seats"
+    )
+
+
+def test_a_null_finder_makes_every_unread_file_a_logged_gap_and_the_seat_failed() -> None:
+    ledger, log = _run_ledger(
+        _ARGS,
+        {
+            "find:S:sonnet": {"files_read": ["a.py"], "notes": "", "candidates": []},
+            # find:S:haiku absent → a null finder
+        },
+    )
+    s = ledger["slices"][0]
+    assert s["gaps"] == ["b.py"], s["gaps"]
+    assert ledger["dropped_seats"] == 1 and any(x["failed"] for x in s["seats"])
+    assert "coverage gap" in log and "SEAT FAILED" in log, log
+    assert s["verdicts"] == [], "zero candidates run zero verify seats"
