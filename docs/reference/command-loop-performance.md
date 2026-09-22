@@ -585,6 +585,20 @@ one nuance of the previous fix — one of them a mechanism copied from a seat's 
 had re-executed true. The operator stopped the second run: *"this review approach is too time consuming and you
 know we will change it."* Round one was the factory; everything after it was the hunt.
 
+**The same cause in the seat numbers (ledger and this session's transcripts, 2026-09-22).** Parallelism exists only
+in round one: across the 203 runs that stamped seats, the median is **1.75 seats per round**, 108 of them average
+under 2, and 64 further runs never stamped a seat; the review family runs a median of 4 rounds at 1.67 seats per
+round on a box that allows 20 concurrent (`dispatch_headroom.py` caps 20/22); the DATA_SYNC run above reads 3, 2, 1,
+1, 1, 1. The mix is inverted toward the expensive model: seats dispatched by this session were **Opus 181, Sonnet 99,
+Haiku 28, Fable 3** — Opus 58% where the rule puts it on risky slices only, about 4.6× the cost-weighted spend of the
+Sonnet seats, the 2.5× overspend the dispatch rule itself names. And the most expensive model does the most reading:
+the orchestrator (Fable at 10×, Opus at 5× on 210 of the rows) holds **64% of all input tokens and 39% of all
+output**, because after round one it re-reads the artifact and re-executes every claim itself, and it is the one
+refuting the 35% of candidates the seats raise wrongly. Executing a seat's claim before writing is right; re-reading
+whole files for it is the 10× model doing 1× work. Under § 5 the same runs keep N seats busy in every pass, re-verify
+each slice's ledger on Sonnet or Haiku with Opus only on a risky slice, and the orchestrator — Fable or Opus, whichever
+the quota allows (D-334) — adjudicates from the seats' executed outputs and reads nothing twice.
+
 **What the cause is not.** Not the size of the contract — D-331 cut a quarter of it without loss and the two runs
 above still degenerated. Not the number of commands. Not a round cap (D-321: it legislates the wrong variable), not
 an acceptance list (D-323: an addition to a system whose problem is not additions), not fewer seats, not the operator
@@ -669,7 +683,8 @@ the operator as a gate.** The loop keeps every part the operator built; it is ma
    (`term-coverage`, `term-edit`, the dispatch fragments, the `fabrik-reviewer` brief), and `command_run.py`'s round
    record. Not in `CLAUDE.md`, not in a new mechanism beside the loop. Nothing in this program caps rounds, adds an
    acceptance list, sets a byte target, retires a command, drops a seat or puts the operator between review and
-   execution (D-321, D-323, D-330).
+   execution (D-321, D-323, D-330). D-335 supersedes D-229's fresh-seat delta sizing and the fresh-non-authoring
+   closing-seat clause of D-206/D-212 with the owning-seat shape of items 1–2; D-230's bounded hop stands.
 
 ### 5.1 What stood here before
 
@@ -846,3 +861,8 @@ goal in the operator's words and the two-hour target against the measured 611 mi
 the rule text and the ledger — the loop's objective has one term (accuracy; `accurate` 124 : `fast` 4 in the close
 verdicts, 1 of 27 terminals naming a cost) and enforces MCPs / rules / infra / manifesto in 9 / 7 / 0 / 0 of 38
 commands; § 5 item 4 gains the budget term, item 5 the refuted/recorded mechanics and item 7 the enforcement step; § 6 gains the three rows that measure them.
+
+**Revision 10 (2026-09-22, on *"fable or opus can orchestrate. yes make these changes"*):** § 4.7 gains the seat
+numbers — 1.75 seats per round, Opus 58% of seats, the orchestrator at 64% of input — and the orchestrator ruling
+(D-334); § 5 names D-335, the row that supersedes D-229's delta sizing and the fresh-non-authoring closing clause.
+The build of § 5 begins with the two fragments, the reviewer brief and the sources that restate them.

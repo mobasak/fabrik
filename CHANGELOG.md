@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/reference/command-loop-performance.md revision 10: the seat numbers and two rulings (D-334, D-335; 2026-09-22)
+
+- § 4.7 gains the measured seat use (1.75 seats per round, Opus 58% of seats, the orchestrator at 64% of input tokens)
+  and the ruling that Fable or Opus orchestrates (D-334); § 5 names D-335, which supersedes D-229's delta sizing and the
+  fresh-non-authoring closing clause with the owning-seat shape.
+
 ### Changed — docs/reference/command-loop-performance.md revision 9: the goal in the operator's words, the one-term objective (2026-09-22)
 
 - § 1 opens with the goal (every command enforces MCPs · rules · infra · manifesto; lean, fast, accurate, complete;
