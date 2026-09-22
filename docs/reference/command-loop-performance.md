@@ -599,6 +599,16 @@ whole files for it is the 10× model doing 1× work. Under § 5 the same runs ke
 each slice's ledger on Sonnet or Haiku with Opus only on a risky slice, and the orchestrator — Fable or Opus, whichever
 the quota allows (D-334) — adjudicates from the seats' executed outputs and reads nothing twice.
 
+**Measured after § 5's first chunk landed (2026-09-22, the `/fabrik-review` over that chunk itself — 13 files, 17
+confirmed defects, 25 minutes, closed at zero by the owning seat).** Seats per round 3, 3, 1, 1: the full partition in
+round one, then only the slice that still failed — the two clean slices were never re-dispatched. Model mix as the
+rule says, for the first time: Opus on the one risky slice, Sonnet on the other two, no Fable seat. The orchestrator's
+share fell from 64% to 50% of input tokens and from 39% to 32% of output. Against the command's 94-minute median, 25
+minutes. Two wastes remain, and both are named: rounds two to four were the orchestrator's OWN fix residue on one slice
+(three passes, about 12 minutes) because the fixer skipped the round-zero probe on its own hunks before the owning seat
+re-read them; and the orchestrator still re-executed every candidate by reading the files instead of adjudicating from
+seat reports that carry the executed output — which is what the per-slice ledger of the second chunk changes.
+
 **What the cause is not.** Not the size of the contract — D-331 cut a quarter of it without loss and the two runs
 above still degenerated. Not the number of commands. Not a round cap (D-321: it legislates the wrong variable), not
 an acceptance list (D-323: an addition to a system whose problem is not additions), not fewer seats, not the operator
@@ -672,9 +682,12 @@ the operator as a gate.** The loop keeps every part the operator built; it is ma
    destination (a backlog row, a mail, a sibling ticket) and re-opens nothing. (d) If a recorded candidate is fixed
    anyway, its owning slice executes the fix in the same pass; it owes no fresh reader — the 2026-09-22 runs paid
    rounds 5 and 6 for exactly that.
-6. **One to three passes, by construction.** Pass one verifies in parallel; pass two fixes and the owning seats
-   re-verify; pass three confirms. A slice still failing after pass three is handed off with its failing claims
-   NAMED — never a pass four over the whole artifact.
+6. **One to three passes, by construction — per slice, never a cap on the run.** Pass one verifies in parallel; pass
+   two fixes and the owning seats re-verify; pass three confirms. A slice whose claims still fail after its third pass
+   is handed off with those claims NAMED while the other slices keep running; the run is never re-opened as a fresh
+   full pass over the whole artifact. That is a handoff of one slice, not a round cap (item 8, D-330): a slice whose
+   confirmed count is still falling is not handed off, and the orchestrator runs the round-zero probe on its own fix
+   hunks before the owning seat re-reads them, so the residue rounds of 2026-09-22 do not recur.
 7. **Every command opens by enforcing the four things the goal names.** Its first phase runs `mcp_health.py` for
    its assigned MCPs, `select_rules.py` for its packs, reads `agents-fabrik.md` for the infrastructure it touches and
    names the manifesto section it runs under — executed lines in the command, not a sentence in `CLAUDE.md`
@@ -866,3 +879,16 @@ commands; § 5 item 4 gains the budget term, item 5 the refuted/recorded mechani
 numbers — 1.75 seats per round, Opus 58% of seats, the orchestrator at 64% of input — and the orchestrator ruling
 (D-334); § 5 names D-335, the row that supersedes D-229's delta sizing and the fresh-non-authoring closing clause.
 The build of § 5 begins with the two fragments, the reviewer brief and the sources that restate them.
+
+### 5.2 Progress on § 5 — one line per chunk as it lands
+
+| Chunk | Landed | Commits | Result |
+|---|---|---|---|
+| 1 · the two termination fragments, subagents-core, the reviewer brief's passes-after-the-first mode, nine sources, the test pin | 2026-09-22 | `d03f9a918`, `f6beb8b88`; review fixes `863701479`, `811c3d340`, `93ea1f6eb`; receipt `5d435de09` | every pass after round one is the round-1 seats over their own slices; refuted/recorded opens nothing; the budget clause gated on `start` declaring it; reviewed in its own shape — 4 passes, 11 → 3 → 3 → 0, 25 min; `62-using-subagents.md:74/:211` still carries the old clause (intel's live pass — theirs to edit) |
+| 2 · `command_run.py` (`--budget` on `start`, the per-slice ledger on `round`, a round without `--confirmed` refused, `done` refusing a failing slice) and `dispatch_headroom.py` (`--delta` retired) | not started | — | fleet-synced; the orchestrator adjudicates from seat reports instead of re-reading files |
+| 3 · every command's first phase executes MCP · rules · infra · manifesto (§ 5 item 7) | not started | — | 0 / 9 / 7 / 0 of 38 today |
+
+**Revision 11 (2026-09-22, on *"we are updating the doc"*):** § 4.7 gains the run measured after chunk 1 (seats 3, 3, 1,
+1; the rule's model mix for the first time; orchestrator share 64% → 50% of input; 25 min against a 94-min median; the
+two remaining wastes named); § 5 item 6 is reconciled with item 8 — a per-slice handoff, never a cap; § 5.2 records the
+chunks as they land.
