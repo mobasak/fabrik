@@ -24,6 +24,26 @@ All notable changes to this project will be documented in this file.
   over its own cap (infra), `fabrik fix --type` defaulting to python-api for every project (fleet +
   `docs/STRATEGIC_BACKLOG.md`).
 
+### Changed — docs/workflows/SCAFFOLD_STRUCTURE.md converged to the scaffolder's truth (/fabrik-doc-converge, 2026-09-22)
+
+- The tree re-derived from a fresh python-api emission (283 paths): 56 packs in six subdirs (was a flat list of 22
+  dead paths), 6 workflows (was 10, six phantom), 78 enforcement files (was 49), the 14 CORE_SCRIPTS + 11 RUN_SCRIPTS
+  (was 3 retired names), `.claude/`, `libs/health_probe/`, `.mcp.json`, `CLAUDE.md`, 8 src modules, the pruned
+  `templates/saas-skeleton/` (43 files, every type) and `templates/spec-pipeline/`; no `.github/`.
+- SHARED_TEMPLATE_MAP's 17 rows (was 11), `docs/LESSONS_LEARNT.md` (was `lessons-learnt.md`), type-aware seeding
+  named; the sync is POST-commit (was pre-commit); variable substitution is bracket-token replace (was "Jinja2");
+  validate-deploy and GitHub creation belong to the CLI wrapper, not `create_project`; the "copied at scaffold time"
+  table names what the scaffolder itself copies (3 of the 7 REFERENCE_DOCS; the generated `PORTS.md` replaced by the
+  hub's on the first sync, 46 of 48 projects measured; the kilo json in no manifest list); `fix_project`'s full rmtree
+  + overwrite list; `office-extension` row added; wordpress refusal and `/opt/archived/wpf` stated; every stale line
+  cite dropped for a symbol name. 15,195 → 22,217 B.
+- Rounds: 1 (three seats, 49 raised, 32 confirmed, 4 refuted) · 2 (three fresh seats, 13 confirmed) · 3 (three fresh
+  seats, 5 confirmed in-hunk, 2 recorded) · 4 (one fresh seat over the 12-line delta, 2 confirmed) · 5 (one fresh seat
+  over the 4-line delta, 2 confirmed) · 6 (one fresh seat over the 2-line delta, 1 confirmed) · 7 (one fresh seat over
+  the 1-line delta, confirmed 0, md5 unchanged). Recorded and routed: PORTS.md ownership (fleet), `.windsurfrules`
+  over its own cap (infra), `fabrik fix --type` defaulting to python-api for every project (fleet +
+  `docs/STRATEGIC_BACKLOG.md`).
+
 ### Changed — docs/workstation: lean pass 4c — mcp-roster and quota-dashboard, every ruling kept (D-331, 2026-09-22)
 
 - mcp-roster 23,893 → 20894 B (non-connector table restated as classes; the stale "split pending" section restated as
