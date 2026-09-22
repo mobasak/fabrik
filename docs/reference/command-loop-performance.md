@@ -1,6 +1,6 @@
 # Command loop performance — what we aim for, what it costs, and the program to fix it
 
-**Status:** REVISION 18 (2026-09-22). The program of revisions 4–7 (the old § 5: remove the apparatus) was
+**Status:** REVISION 19 (2026-09-22). The program of revisions 4–7 (the old § 5: remove the apparatus) was
 executed in part on 2026-09-21 and REVERTED the same day (D-330) — it removed developments the operator built on
 purpose. § 1.0 records what the three `CLAUDE.md` contracts are now (D-331, lean without loss). § 4.7 states the
 root cause the operator confirmed on 2026-09-21 16:38, and § 5 is rewritten as the engineering that follows from it:
@@ -182,6 +182,22 @@ parallel and finish in minutes; the lead session's turns — reading, dispatchin
 running a gate, committing — are serial and each costs about a minute of clock and one full re-read of the transcript
 (§ 4.9: 76% of the orchestrator's tokens are that re-read). The chain's 611 minutes are ~615 lead turns. **The two-hour
 goal is a 120-turn chain.** Rounds, seats and models are second-order to this one variable; § 5's chunks 5–7 act on it.
+
+**The distribution, not only the median (2026-09-22, `tok_msgs` per close carrying it; n per command):**
+
+| Command | n | p10 | p25 | p50 | p75 | § 6 target |
+|---|---:|---:|---:|---:|---:|---:|
+| `/fabrik-review` | 78 | 21 | 38 | 99 | 254 | 15 |
+| `/fabrik-review-scoped` | 81 | 9 | 19 | 36 | 71 | 15 |
+| `/fabrik-spec-review` | 28 | 25 | 39 | 58 | 86 | 20 |
+| `/fabrik-plan-review` | 18 | 27 | 56 | 92 | 267 | 20 |
+| `/fabrik-spec` | 17 | 26 | 31 | 56 | 80 | 25 |
+| `/fabrik-plan-after-chat` | 13 | 21 | 41 | 83 | 104 | 25 |
+| `/fabrik-execute-plan` | 34 | 74 | 126 | 326 | 486 | 60 |
+
+Every target sits at or below today's 10th percentile. A turn cap at a loop's 25th percentile cost 20–59% of solved
+tasks and one at the 75th cost nothing (§ 4.9 finding 8), so the turn budget is reached by changing the SHAPE (§ 5.3),
+never by refusing the lead a turn: it is printed at `start` and read at the close, and each chunk's KILL reads it.
 
 ---
 
@@ -758,6 +774,46 @@ corpus's own wiring for an engineering question is this fan-out).** Seven findin
    none of the three documented restart cases apply, and the seat still loads the contract. Until explained, every seat
    pays the hub `CLAUDE.md`, which makes D-331's lean program a direct seat-cost lever.
 
+**The final research (2026-09-22; three more `fabrik-researcher` seats, 34 quoted facts, ~600 k seat tokens):**
+8. *A turn cap on the current shape fails; a shape change does not* — capping SWE-agents at the 25th percentile of
+   their natural turn distribution cost 20–59% of solved tasks, at the 75th −5 to +3%; "the dynamic-turn strategy
+   is unequivocally superior to a fixed-budget approach … start with a lower turn limit and grant an extension only
+   to tasks that truly need it … reducing costs by an additional 12% to 24%" (arXiv 2510.16786, ICSE '26); a hard
+   stop AT the cap kills the synthesis turn — `error_max_turns` carries no result (anthropics/claude-code#41143;
+   docs/en/agent-sdk/agent-loop). Our targets are below today's p10 (§ 2.6), so they are a shape, not a cap.
+9. *A countdown makes agents panic* — "'you have five minutes left' … makes the agents freak out towards the end,
+   and they start doing irrational stuff" (terminal-bench authors, arXiv 2604.28093); "an agent given too few tokens
+   might 'panic' and submit a lot of its solutions right at the end" (metr.org, 2026-02-13); frontier agents are
+   over-optimistic about remaining budget, and an external early-stop on a slice predicted impossible saves 28–64% of
+   the tokens of failed trajectories at 1.6–4.2 points of success (BAGEN, arXiv 2606.00198); 19% of unresolved runs
+   are self-declared early exits, "overconfidence" (arXiv 2607.08964). So: the budget is information at the top of
+   the run, one closing turn is reserved, one extension is allowed by rule, and an early self-declared close is
+   refused until the ledgers are executed true (D-339 already does this).
+10. *The recall-losing move under pressure is coverage overclaim* — "agents do not read all the files they were asked
+    to review in 67.9% of runs … among runs where not all files are read, agents are misleading 80.4% of the time …
+    agents that falsely claimed a complete review missed planted defects at about 1.8 times the rate" (OverclaimBench,
+    arXiv 2609.20812, production CLIs, no turn cap). Completeness is measured from what a seat READ, never from its claim.
+11. *Seeded canaries are a weak recall guard; the lagging measure is not* — synthetic defects overstate real recall by
+    an order of magnitude ("F1 = 0.066 versus 0.847 on synthetic samples"; diff size dominant, 0.657 under 10 lines →
+    0.043 over 150 — arXiv 2606.15689); naming a defect class raises its detection 12× (doi 10.1145/3377811.3380385);
+    capture-recapture needs ≥ 4 inspectors (ISSRE 1997); "if we pressure an agent to identify more bugs … the noise
+    increases" (CR-Bench, arXiv 2603.11078). The measure a reviewer cannot move is the lagging one — Meta's RADAR reads
+    revert rate ⅓ and incident rate 1/50 of unreviewed diffs (arXiv 2605.30208); ours is commits touching a reviewed
+    surface's files after the review's close, from git (§ 6).
+12. *The Workflow tool's documented constraints* (code.claude.com/docs/en/workflows, /agent-sdk/typescript,
+    /prompt-caching, /sub-agents, all fetched 2026-09-22): launch returns `async_launched` and one consolidated result,
+    so launch + receipt is two lead turns; the script has no filesystem or shell, the agents "read, write, and run
+    commands" under the session's permission rules (pre-allow the gate and pytest or a prompt pauses the run); `schema`
+    retries five times then fails; a `null` is a stopped or failed agent; "Runs count toward your plan's usage"; each
+    agent starts cache-cold on a 5-minute TTL and shares a prefix only with a sibling of identical model, effort, agent
+    type, tools, schema and cwd; **resume is position-keyed — a resumed run re-runs every agent after the first
+    fan-out** (anthropics/claude-code#95076, open at 2.1.274: "40 redundant opus agents, 231M tokens"), so each pass
+    is its OWN invocation carrying the previous pass's ledger as `args`; a `context: fork` skill cannot launch one (the
+    subagent filter removes `Workflow`), a plain wrapper can; saved named workflows live in `.claude/workflows/`, a new
+    synced path if shipped fleet-wide; 16 concurrent by default, 1,000 agents per run, v2.1.154+.
+13. *`omitClaudeMd` stays unexplained* — documented at 2.1.271, no upstream issue found in two engines, no effect at
+    2.1.276 (pilot 1); every brief is sized as if the contract loads.
+
 ---
 
 ## 5. The program — make the loop run as designed
@@ -823,6 +879,42 @@ person back, contracts to a page, the review family retired, no more layers. Its
 *no* apparatus where the operator had built it on purpose. The lean half survives as D-331 (§ 1.0); the loop half is
 § 5 as it now stands.
 
+### 5.3 The path by command shape — all 38 commands (2026-09-22, D-347)
+
+One lever, six shapes. The lever: the lead's serial reading, dispatching and claim-executing moves into a workflow
+script that returns one structured ledger, and the close is fixed at four calls. Today's figure is the median lead
+turns (`tok_msgs`) of that command's closes; a command with no close has no figure and gets no target until two runs
+exist (16 of 38 have never run).
+
+| Shape | Commands (median lead turns today) | Mechanism | Target |
+|---|---|---|---|
+| Partitioned-by-file review loop (`review loop` floor) | `/fabrik-review` 99 · `/fabrik-repo-review` never run | **chunk 5** — per slice one Sonnet + one Haiku finder with a schema listing files read and candidates; a Sonnet verify stage executing each candidate and returning command + result; the lead executes only the confirmed, fixes, launches pass 2 as a new run with the ledger as `args` | 15 |
+| Section-partition reviews | `/fabrik-spec-review` 58 · `/fabrik-plan-review` 92 | **chunk 6** — the same script, slices are sections, Opus on the rule/grammar sections (D-212) | 20 |
+| Units-sized review family (the other 12 of the 16 in `CONFIRMED_REQUIRED_COMMANDS`) | `/fabrik-review-scoped` 36 · `/fabrik-docs-review` 87 · `/fabrik-doc-converge` 45 · `/fabrik-conformance-review` 113 · `/fabrik-workflow-review` 208 · `/fabrik-data-contract` 166 · `/fabrik-ui-design-review` 16 · `/fabrik-flows-review`, `/fabrik-rules-review`, `/fabrik-epics-review`, `/fabrik-deploy-plan-review`, `/design-review` never run; plus `/fabrik-features` 35 and `/fabrik-deploy-checklist` 129, sweeps outside the set | **chunk 6b** — the same script with `--units` in place of slices; the three-seat floor (D-208) is one `parallel()` | 15–25 by units |
+| The plan executor | `/fabrik-execute-plan` 326 | its nested reviews take chunk 6's script; its coder dispatch already fans out; the phase-boundary chain fixed at four calls | 60 |
+| Producing commands | `/fabrik-spec` 56 · `/fabrik-plan-after-chat` 83 · `/fabrik-ui-design` 26 · `/fabrik-vision`, `/fabrik-epics`, `/fabrik-flows`, `/fabrik-rivals`, `/fabrik-deploy-plan` never run | **chunk 7** — reads above ~30 k tokens go to seats returning summaries (finding 4); a judge panel replaces the lead iterating alone; the four-call close | 25 |
+| Certification and utility | `/fabrik-user-test` 145 · `/fabrik-service-test` 122 · `/fabrik-catchup` 255 · `/fabrik-command-improve` 46 · `/fabrik-task` 30 · `/fabrik-release` 12 · `/fabrik-deploy`, `/fabrik-deploy-verify`, `/fabrik-decommission`, `/fabrik-upstream`, `/fabrik-generate-tests` never run | only the four-call close and delegated reads; `/fabrik-task` unchanged (§ 6) | measured on the next run; no target until two runs exist |
+
+**The four-call close** is the one edit all 38 commands share: receipt fill and check from a values file · commit
+through the recipe · gate `--check` · close by name. Its input files are written first, each in its own call.
+
+**The order, by the hours** (runs × median wall): `/fabrik-execute-plan` 245 h, `/fabrik-review` 118 h, and the
+review is nested inside the executor — so chunk 5, measured on two runs, then 6, then 7. Never three chunks open at
+once (the manifesto's WIP invariant).
+
+**How the turn budget acts** (findings 8–9): it is NEVER a refusal on the lead — reached by the shape change,
+printed at `start` beside D-339's minute budget, read at the close and by each chunk's KILL; one closing turn is
+reserved; one extension is allowed by rule; nothing counts down. D-339's minute budget keeps its per-slice handoff —
+the most reversible action when a gate cannot close within budget (manifesto Invariant 3).
+
+**Where the manifesto binds each chunk.** Phase 0: a script beside the loop is reversible, so each chunk takes the
+fast path with a one-line kill criterion at entry and the turn budget as its decision budget. Phase 1: chunk 5's
+kill criterion — two `/fabrik-review` runs at ≤ 15 lead turns with confirmed counts not below this session's D-335
+runs and the escaped-defect rate not up, else reverted. Phase 3: every measure ships with its cheapest satisfying
+move (§ 6.1) in the script's docstring and its D-row. Phase 4: `/fabrik-review` only, instrumented by `tok_msgs`,
+two runs before chunk 6 opens. Phase 5: the close prints turns against budget on every run and the daily feedback
+relay carries it; the loop re-enters at chunk 6 or closes.
+
 ---
 
 ## 6. How we will know it worked
@@ -843,7 +935,9 @@ that moves without the first one having moved is a symptom treated, not a cause.
 | **Confirmed defects found at round 4 or later** | 2,168 of 6,919, **31%** | under 10%, with the total NOT falling |
 | **Multi-round series that rise at least once** | 94 of 178, **53%** | under 20% |
 | Median rounds, prose artifacts vs code-with-a-gate | 5 vs 3 | converged, at 3 or below |
-| Spec-chain cost at the medians | 611 min = ~615 lead turns at ~1 min each (§ 2.6) | **≤ 120 lead turns** — spec 25 · spec-review 20 · plan 25 · plan-review 20 · execute 60 (its nested reviews included) · review 15; `tok_msgs` per run is the reading, printed beside the minute budget |
+| Spec-chain cost at the medians | 611 min = ~615 lead turns at ~1 min each (§ 2.6) | **≤ 120 lead turns** — spec 25 · spec-review 20 · plan 25 · plan-review 20 · execute 60 (its nested reviews included) · review 15; `tok_msgs` per run is the reading, printed beside the minute budget; never a refusal on the lead (§ 5.3) |
+| **Slices read in full by their finders** — the files each finder returned as read, diffed by the script against its slice | not measured — today's seats return no read list | every slice, every pass; a gap is logged and the slice is unverified (§ 4.9 finding 10) |
+| **Escaped defects** — commits touching a reviewed surface's files within 14 days of the review's close, any subject, not only `fix` | not measured — first read at chunk 5's first run, from git and the ledger's `surface` | not rising while turns fall (§ 4.9 finding 11: the one measure the reviewer cannot move) |
 | Total hours per week | 375 | falling, with runs per week flat or up |
 | Total tokens per week | 22.6 G | falling |
 | Hub `CLAUDE.md` bytes (loaded every turn) | 134,466 → **100,892** (2026-09-22) | falls only where a story goes; the rule count never falls (D-331) |
@@ -880,6 +974,19 @@ late-round defects to zero by finding fewer defects overall is the failure mode,
   not read. Counter: `check_corpus_weight.py` measures four surfaces as directory aggregates; the
   escape is `docs/reference/` and `docs/workstation/`, named here so the next reader can grep it —
   and this document lives in `docs/reference/`, so it is itself inside its own blind spot.
+- **"Lead turns ≤ N" down** (D-347) is satisfied most cheaply four ways. (a) Push the work into seats — tokens and
+  clock rise while turns fall. Counter: minutes and tokens per run are read WITH it, and every chunk's KILL reads all
+  three. (b) Skip files and claim the slice complete — the 1.8× miss rate of § 4.9 finding 10. Counter: the finder
+  schema returns the files it read, the script diffs that list against the slice and logs every gap, and a slice with
+  a gap is unverified. (c) Refute instead of confirm, narrow the brief. Counter: the paired guard *confirmed total not
+  falling* plus the escaped-defect row, which no reviewer can move. (d) Stop before the closing turn. Counter: one
+  closing turn reserved, one extension by rule, and the close refuses without executed ledgers (D-339).
+- **"Escaped defects" flat** is satisfied most cheaply by not committing the follow-up, or labelling it as something
+  other than a fix. Counter: any commit on the files counts, the window is 14 days, and the relay reads it, not the run.
+- **Seeded-canary recall** is NOT adopted (§ 4.9 finding 11): the loop learns the operator set and turns green on seeds
+  while real recall stays near F1 0.07.
+- **The minute budget** is satisfied most cheaply by a countdown that makes the lead panic-submit (§ 4.9 finding 9).
+  Counter: printed once at `start`, never counted down; an overrun hands off one slice, never the run.
 
 ---
 
@@ -995,9 +1102,16 @@ The build of § 5 begins with the two fragments, the reviewer brief and the sour
 | 1 · the two termination fragments, subagents-core, the reviewer brief's passes-after-the-first mode, nine sources, the test pin | 2026-09-22 | `d03f9a918`, `f6beb8b88`; review fixes `863701479`, `811c3d340`, `93ea1f6eb`; receipt `5d435de09` | every pass after round one is the round-1 seats over their own slices; refuted/recorded opens nothing; the budget clause gated on `start` declaring it; reviewed in its own shape — 4 passes, 11 → 3 → 3 → 0, 25 min; `62-using-subagents.md:74/:211` still carries the old clause (intel's live pass — theirs to edit) |
 | 2 · `command_run.py` (`--budget` on `start`, the per-slice ledger on `round`, a review-family round without `--confirmed` refused, `done` refusing a failing slice) and `dispatch_headroom.py` (`--delta` retired) | 2026-09-22 | `2e917b17c` (D-339; ledger `16adffc3c`, `5853c00e8`) | fleet-synced and distributed by the post-commit sync; ten graders red-first; the refusal scoped to 15 review-family commands, every other caller keeps D-206's tolerant rule; the contract sentence mirrored in both `CLAUDE.md` copies; reviewed in the D-335 shape — 4 passes, 14 → 6 → 3 → 0 on the same three seats, 21 confirmed (13 in round one, then 8 residuals of the fixes), 62 min against a 45-min budget (over, printed, never a cap), fixes `65ae40693`, `103d19ebd`, `e0490606d`, D-341 (the set is 16 by rule), receipt `5e0a21db4` |
 | 3 · every command's first phase executes MCP · rules · infra · manifesto (§ 5 item 7) | 2026-09-22 | `128050dbc` (D-342) | one fragment, `orient.md`, included by all 38 sources right after the run record: the four executed lines and the `ORIENT:` reply line; rendered 38 / 38 / 38 / 38 of 38 (measured over `~/.claude/commands/*.md`, the rendered corpus — a source count reads 0 / 9 / 6 / 0 because the lines live in the fragment); grader `tests/test_orient_fragment.py`; the same change removed D-229's delta round from the assembler's two floors and both `CLAUDE.md` contracts, and the round-zero probe now runs before every re-dispatch; reviewed in the D-335 shape — 3 passes on the same three seats, 17 → 1 → 0, 15 confirmed (14 in round one — among them a FLEET defect, two hub-only paths in the fragment, caught by the orchestrator's own round-zero probe before the seats returned — then 1 mirror residual of the fix), 45 min against a 30-min budget (over, printed, never a cap), fixes `1fd4898a8`, `02c8898b9`, `e61baa6ed`, receipt `69140bfca` |
-| 5 · the review loop as a workflow script — finders per slice with a schema, a cheap verify seat executing each candidate and returning the command and result, one structured ledger back to the lead, re-run with resume so only changed slices re-run; `/fabrik-review` first | not started | — | the turn budget (§ 2.6, § 6): a review at ≤ 15 lead turns against 99 today; D-335's shape unchanged, moved out of the transcript; measured on the first two runs before anything else moves |
+| 5 · the review loop as a workflow script — finders per slice with a schema, a cheap verify seat executing each candidate and returning the command and result, one structured ledger back to the lead, each pass its OWN invocation carrying the previous pass's ledger as `args` (resume re-runs a fan-out — § 4.9 finding 12), the finder schema returning the files it read so the script diffs coverage against the slice and logs every gap (finding 10); `/fabrik-review` first | not started | — | the turn budget (§ 2.6, § 5.3, § 6): a review at ≤ 15 lead turns against 99 today; D-335's shape unchanged, moved out of the transcript; KILL on two runs: confirmed below this session's D-335 runs (14, 21, 15) or the escaped-defect rate up — reverted; measured before anything else moves |
 | 6 · the same script for the section-partition reviews (`/fabrik-spec-review`, `/fabrik-plan-review`) and the reviews nested in `/fabrik-execute-plan` (144 of its 245 hours) | not started | — | ≤ 20 lead turns each; execute-plan ≤ 60 |
 | 7 · the producing commands delegate their reading and judging — `/fabrik-spec` and `/fabrik-plan-after-chat` send large reads to seats that return summaries and use a judge panel instead of the lead iterating alone; the closing chain fixed at four calls (receipt fill and check · commit through the recipe · gate · close), inputs written first | not started | — | ≤ 25 lead turns each; the chain under 120 |
+
+**Revision 19 (2026-09-22, the final research and the path by command, D-347):** § 2.6 gains the `tok_msgs`
+distribution — every § 6 target is below today's p10, so the budget is a shape, never a cap; § 4.9 gains findings 8–13
+(turn caps and countdowns, coverage overclaim, canaries vs the lagging measure, the Workflow tool's constraints, the
+resume trap); § 5.2 row 5 corrected — each pass its own invocation, resume re-runs a fan-out; § 5.3 states the path
+for all 38 commands in six shapes, the four-call close, the order and the manifesto binding; § 6 gains the
+slices-read and escaped-defect rows; § 6.1 the turn-budget cobras.
 
 **Revision 18 (2026-09-22, the research and the path):** § 2.6 — wall clock is the orchestrator's message count times
 ~1 minute in every chain command, so the two-hour goal is a 120-turn chain; § 4.9 gains the seven research findings with
