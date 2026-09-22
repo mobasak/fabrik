@@ -4,25 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed — docs/workflows/SCAFFOLD_STRUCTURE.md converged to the scaffolder's truth (/fabrik-doc-converge, 2026-09-22)
+### Changed — docs/workflows/DATA_SYNC_WORKFLOW.md converged to the scripts, the hook and the crontab (/fabrik-doc-converge, 2026-09-22)
 
-- The tree re-derived from a fresh python-api emission (283 paths): 56 packs in six subdirs (was a flat list of 22
-  dead paths), 6 workflows (was 10, six phantom), 78 enforcement files (was 49), the 14 CORE_SCRIPTS + 11 RUN_SCRIPTS
-  (was 3 retired names), `.claude/`, `libs/health_probe/`, `.mcp.json`, `CLAUDE.md`, 8 src modules, the pruned
-  `templates/saas-skeleton/` (43 files, every type) and `templates/spec-pipeline/`; no `.github/`.
-- SHARED_TEMPLATE_MAP's 17 rows (was 11), `docs/LESSONS_LEARNT.md` (was `lessons-learnt.md`), type-aware seeding
-  named; the sync is POST-commit (was pre-commit); variable substitution is bracket-token replace (was "Jinja2");
-  validate-deploy and GitHub creation belong to the CLI wrapper, not `create_project`; the "copied at scaffold time"
-  table names what the scaffolder itself copies (3 of the 7 REFERENCE_DOCS; the generated `PORTS.md` replaced by the
-  hub's on the first sync, 46 of 48 projects measured; the kilo json in no manifest list); `fix_project`'s full rmtree
-  + overwrite list; `office-extension` row added; wordpress refusal and `/opt/archived/wpf` stated; every stale line
-  cite dropped for a symbol name. 15,195 → 22,217 B.
-- Rounds: 1 (three seats, 49 raised, 32 confirmed, 4 refuted) · 2 (three fresh seats, 13 confirmed) · 3 (three fresh
-  seats, 5 confirmed in-hunk, 2 recorded) · 4 (one fresh seat over the 12-line delta, 2 confirmed) · 5 (one fresh seat
-  over the 4-line delta, 2 confirmed) · 6 (one fresh seat over the 2-line delta, 1 confirmed) · 7 (one fresh seat over
-  the 1-line delta, confirmed 0, md5 unchanged). Recorded and routed: PORTS.md ownership (fleet), `.windsurfrules`
-  over its own cap (infra), `fabrik fix --type` defaulting to python-api for every project (fleet +
-  `docs/STRATEGIC_BACKLOG.md`).
+- Rewritten from a fresh sweep: the env consolidation retired (audit is read-only; the DR pipeline mirrors the hub
+  `.env`); the external-services chain added as the real Projects→Fabrik consolidation; the enforcement sync's four
+  triggers (post-commit `--force`, watcher, 06:00 cron, manual) and the manifest's live lists (6/3/4/14/11/7/9, 78
+  checks, 3 retired); the boot hook's real 17 steps and the cron's 10 in order; the model-catalog pipeline moved to
+  `/opt/ai-model-catalog/engine` (05:00) with `deliver_to_fabrik` at 06:00 — 18 script names that no longer exist
+  under `scripts/` dropped; the 4a-4j / 5a-5i tables, the stale §5/§6 recommendation tables and the phantom Kilo
+  pipeline removed. 18,158 → 22,577 B. Rounds: 1 (three seats over the rewrite, 13 raised, 12 confirmed) · 2 (two seats over the 24-line delta, 6 confirmed — one of them my own "dead cron" claim, refuted by a log census) · 3 (one seat, 1 confirmed) · 4 (one seat, confirmed 0) · 5-6 (two heartbeat cells, executed by the orchestrator against the liveness registry and the chain script). Routed: the retired-by-header `generate_kilo_agents.py` the cron still runs (intel), the kilo_model_sync timeout + unrotated log (intel), the two retired Windsurf helpers in RUN_SCRIPTS and the watcher's hand-kept list (infra).
 
 ### Changed — docs/workflows/SCAFFOLD_STRUCTURE.md converged to the scaffolder's truth (/fabrik-doc-converge, 2026-09-22)
 
