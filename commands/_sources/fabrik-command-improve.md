@@ -35,8 +35,8 @@ five runs, each of which a reader can judge on its own.
   no extra seat; a busy one is subtracted when you run `dispatch_headroom.py`, which discounts the
   seats sibling records still RUNNING stamped in the last 25 minutes — never below the floor, and a
   record with no stamp is a named lower bound, not a zero.
-- **Passes.** Round 1, then delta rounds sized by the fix (`--delta <n>`: one fresh seat at or under
-  20 changed lines, D-229). The target is a quiet round 2. The stop is D-278's, computed from the
+- **Passes.** Round 1, then the round-1 seat re-verifies its own ledger (D-335; a refuted candidate opens
+  nothing). The target is a quiet round 2. The stop is D-278's, computed from the
   `--confirmed`/`--own-fix` pair you state on every `round`: two of the last three rounds at or
   above two-thirds own-fix means stop HUNTING — fix every confirmed defect still open in that
   window, route only the genuinely own-fix residue to a backlog row with a named destination, and

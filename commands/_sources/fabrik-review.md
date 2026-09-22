@@ -1,5 +1,5 @@
 ---
-description: Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — the surface partitioned into disjoint file slices → independent finders → YOU execute every candidate and refutation → fix with regression guards → LOOP in DELTA rounds until every Coverage-Checklist class is CLEAN/FIXED/REFUTED/RECORDED and a delta round with a fresh non-authoring seat returns confirmed:0·fixed:0 (refuted/recorded never count; no round cap). TRIGGER — EN: "review this diff", "is this PR safe to merge"; TR: "bu diff'i incele", "bu değişiklikleri gözden geçir" — fires on a changed-surface review, not a whole-repo one. SKIP: whole-repo audits (→ /fabrik-repo-review), rules-pack compliance (→ /fabrik-rules-review), Traycer artifact convergence (→ /fabrik-workflow-review), rendered-UI review (→ /design-review). Stage: gate.
+description: Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — the surface partitioned into disjoint file slices → independent finders → YOU execute every candidate and refutation → fix with regression guards → LOOP in DELTA rounds until every Coverage-Checklist class is CLEAN/FIXED/REFUTED/RECORDED and the closing pass — the round-1 seats confirming their own slices — returns confirmed:0·fixed:0 (refuted/recorded never count; no round cap). TRIGGER — EN: "review this diff", "is this PR safe to merge"; TR: "bu diff'i incele", "bu değişiklikleri gözden geçir" — fires on a changed-surface review, not a whole-repo one. SKIP: whole-repo audits (→ /fabrik-repo-review), rules-pack compliance (→ /fabrik-rules-review), Traycer artifact convergence (→ /fabrik-workflow-review), rendered-UI review (→ /design-review). Stage: gate.
 argument-hint: "[path, PR number, or git range — omit to review the working-tree/branch diff]"
 ---
 
@@ -443,13 +443,13 @@ Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`c
   not skip this because the change was small or "obviously safe" — that judgment is exactly what the
   next round exists to check. A pass that confirmed nothing is quiet however many candidates it
   raised: refuted and `RECORDED` candidates never reopen the loop (D-206).
-- ⚠️ **The closing delta round ALWAYS carries a fresh, non-authoring finder seat** (Opus if any hunk
-  in the delta is risky, else Sonnet) — the fix diff is YOUR work, and `62-using-subagents.md`
-  § Role separation binds: the loop-closing round's finder pass runs in a context that did not author
-  the artifact. **A delta round that dispatched no finder seat may not close**; the hygiene script and
+- ⚠️ **The closing pass is the round-1 seats re-verifying their OWN slices** (the same seat per slice —
+  Opus where the slice is risky, else Sonnet; never a fresh whole-artifact reader, D-335) — the fix diff is YOUR
+  work, and `62-using-subagents.md` § Role separation binds: the loop-closing pass's finder work runs in a context
+  that did not author the artifact. **A closing pass that dispatched no finder seat may not close**; the hygiene script and
   your own execution never close a review alone.
 - **Every Coverage Checklist row is adjudicated** (CLEAN / FIXED / REFUTED / RECORDED), the delta round
-  returned **`confirmed: 0` and `fixed: 0` with `unexecuted:` 0 or absent**, it carried that fresh seat,
+  returned **`confirmed: 0` and `fixed: 0` with `unexecuted:` 0 or absent**, it carried the owning seats,
   and the mechanical gates are green → **EXIT** (the Termination
   contract's conditions). This is the ONLY thing that ends the review and lets the
   caller (e.g. `/fabrik-execute-plan` at a phase boundary) proceed. A finding stuck after 3 fix attempts:
@@ -514,7 +514,7 @@ value.) Write the rows bare, under the `## Pass Ledger` heading.
 ```text
 | Pass 1 | opus×1 + sonnet×3 | found: 5, new: 5, confirmed: 3, fixed: 3, unexecuted: 0 | full partitioned pass; hygiene run at start and close |
 | Pass 2 | sonnet×1 | found: 2, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | delta over pass 1's fix diff + one hop |
-| Pass 3 | sonnet×1 | found: 1, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | delta, fresh non-authoring seat; classes not touched standing-clean from pass 1 → EXIT |
+| Pass 3 | sonnet×1 | found: 1, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | closing pass, the round-1 seats over their own slices; classes not touched standing-clean from pass 1 → EXIT |
 ```
 
 Note pass 3: the finder DID re-raise the standing DESIGN-GAP row (an unbuilt endpoint, a missing
@@ -535,7 +535,7 @@ unexecuted None, and the REFUSAL names `confirmed:`/`unexecuted:`, not the `new:
 
 You may claim completion **only** when the last row carries `confirmed: 0, fixed: 0` with `unexecuted: 0`
 or absent (`found:` and `fixed:` are also ON the row — the graders refuse a row without that pair), **from a
-DELTA round that carried a fresh non-authoring seat**, with every candidate ever raised adjudicated
+closing pass in which the round-1 seats confirmed their own slices**, with every candidate ever raised adjudicated
 (FIXED / REFUTED / RECORDED). A ledger ending on a row that confirmed anything is an unfinished review —
 run the next delta round. A ledger with a single row is only valid if that row is a demonstrably-thorough
 full pass carrying those counters, read by a seat that did not author the surface.

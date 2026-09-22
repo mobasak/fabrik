@@ -126,8 +126,8 @@ that survive this refutation are real. Equally, do not let a finder's ✅ COMPLI
 ## Phase 4 — Iterate to the closing round, then output
 
 **Do not stop after one pass.** Re-run the fan-out + merge/refute (Phases 2–3) until a full
-pass is the Termination contract's closing round: a delta round with a fresh non-authoring seat
-that CONFIRMS no NEW gap and reclassifies none — `confirmed: 0`, the gap list's md5 unchanged. The pass in which
+pass is the Termination contract's closing round: the round-1 seats, over their own slices,
+CONFIRMING no NEW gap and reclassifies none — `confirmed: 0`, the gap list's md5 unchanged. The pass in which
 the list *changed* is never the last; run one more, and if anything is added, removed, or
 reclassified, keep going. A single pass, or "I think I caught them all," is not convergence — the
 stable (identical-to-prior) pass is. This converges the AUDIT to completeness; it does **not** fix

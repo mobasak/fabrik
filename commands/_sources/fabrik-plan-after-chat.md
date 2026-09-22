@@ -592,7 +592,7 @@ carries none of the three is a defective plan, not a shape difference:
    surface *plus everything it calls/is called by* — independent finder subagents (parallel) for recall
    → refute false positives → **prove-before-fix** with a kept regression test → classify
    correctness/security vs style → **re-run the gate after each fix**. Phase N+1 does not begin until a
-   delta round with a fresh non-authoring seat CONFIRMS **zero code or doc defects** (D-206). Not a one-line "review here" — the full
+   closing pass — the round-1 seats over their own slices — CONFIRMS **zero code or doc defects** (D-206, D-335). Not a one-line "review here" — the full
    methodology, and progression is gated on it.
 2. **Subagents mandated where the work is independently decomposable** — implementation, research,
    grounding, and review are dispatched to subagents, stated in each phase's steps. **The plan must specify

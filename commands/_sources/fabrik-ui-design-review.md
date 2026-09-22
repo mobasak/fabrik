@@ -43,11 +43,11 @@ checked against its four binding sources, all read THIS session:
   `mobile-app/80-mobile.md` (RN screen inventory + a11y) · `chrome-ext/70-chrome-ext.md` (MV3 surfaces) ·
   `desktop-app/72-desktop.md`. Read the pack(s) that match. **Size ceiling: 25,000 tokens (about 1,100 lines) — the Read tool's page cap; a contract above it is read PARTIALLY by every seat, so the review's first finding is the split: history to `docs/ui-design-history.md`, the live contract under the ceiling (01M25G1BN).**
 
-## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later rounds sized by the fix, D-229)
+## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)
 
 Treat every screen/flow/mapping as unproven until verified against those sources. Run repeated passes until one
 demonstrably-thorough pass finds zero new gaps. Cover six axes — at round 1 one INDEPENDENT seat per axis when the contract is large, after it a
-delta round sized by the fix (D-229 — the fragment's D5 sentence); **spot-verify against the spec's INTENT, since the written spec can itself be wrong.**
+closing pass by the round-1 seats over their own axes (D-335 — the fragment's D5 sentence); **spot-verify against the spec's INTENT, since the written spec can itself be wrong.**
 
 **A) Design-system integrity.** Every screen's components (Phase-5 blocks) come **only** from the established
 system — flag any bespoke/invented component where a system primitive exists, any off-token visual, any screen

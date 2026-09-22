@@ -138,8 +138,8 @@ found, then fix. **Dispatch the doc author-fixes through the Tier-1 reconcile lo
 `scripts/doc_reconcile.py` (its pool author is OFF — D-181 — so its author leg is a native `general-purpose` seat, or you) emitting a **minimal
 structured patch, verified-before-applied** — rather than hand-editing
 each doc; keep the Opus adjudication (what's actually wrong + the routing decision) yours.
-**The loop ends ONLY at the Termination contract's closing round** (the fragment above: a delta
-round with a fresh non-authoring seat at `confirmed: 0`, the md5s unchanged). A pass that finds
+**The loop ends ONLY at the Termination contract's closing round** (the fragment above: the closing
+pass, the round-1 seats over their own docs at `confirmed: 0`, the md5s unchanged). A pass that finds
 nothing must still enumerate its coverage (what you actually read); an empty pass with no evidence
 does not count.
 
@@ -201,7 +201,7 @@ without that embedded proof + the gate green.
 Do not promise "zero discrepancies" as a claim — iterate to a fixed point, then
 explicitly list any residual risks the tooling can't catch (hard-to-verify prose,
 screenshots/diagrams, external-facing copy, examples that need a live service to run).
-Convergence = the Termination contract's closing round (a delta round with a fresh non-authoring
-seat at `confirmed: 0`, md5 unchanged); not your say-so, and not "I fixed what I found."
+Convergence = the Termination contract's closing round (the round-1 seats confirming their own docs
+at `confirmed: 0`, md5 unchanged); not your say-so, and not "I fixed what I found."
 
 {{include:subagents-core}}

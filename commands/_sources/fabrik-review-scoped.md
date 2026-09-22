@@ -60,8 +60,8 @@ proportionate answer.
    reports; this one's proof is the record the Stop hook reads (that asymmetry is the lightness,
    stated so nobody "fixes" it).
 5. **Loop:** pass 1 reads the whole changed surface; every later pass is a DELTA round exactly as the
-   fragment defines it (COUNTED under D-230, SIZED under D-229 — the floor paragraph below), over the
-   same class ledger (a pass is never a re-scope). Done ONLY on a delta pass with a fresh non-authoring reader that **CONFIRMS zero** —
+   fragment defines it (COUNTED under D-230, SIZED under D-335 — the floor paragraph below), over the
+   same class ledger (a pass is never a re-scope). Done ONLY on a closing pass in which the round-1 seats, over their own slices, **CONFIRM zero** —
    minimum two passes, the fixing pass is never the last. Every pass's seats are STAMPED first, before the message that dispatches them (the floor paragraph below carries the command; 01M2368XB). Every seat brief names a PIN — a copy of the surface under the scratchpad and the md5 of `git diff HEAD -- <surface>` — and the finder re-diffs the pin before reporting (01M236V84, 01M23ESF5); a delta seat's brief carries the previous seat's REFUTED list verbatim, so a refuted candidate is never re-raised as new. **While seats are out you do not edit the pinned files either** — queue what you find and fix it when you adjudicate the union. ⚠️ **A brief states the QUESTION for THIS change's SHAPE — never a generic invariant, and never the expected ANSWER** (`/opt/fabrik/docs/LESSONS_LEARNT.md` 2026-09-17: an expected output in a brief is a claim the seat must be told to attack, not ground truth). A check impossible for the shape burns the seat — verbatim-survival of every base line fails on any line the edit modifies and passes vacuously on a pure addition, 35 to 74 of the last 200 commits across six `/opt` repos, asserting nothing either way. So: the RULE an edit states is itself APPLIED to the case that motivated it, NAMED in the brief by SHA or ledger row, and the result reported (the hub's 37d849ffa — two successive cuts of one rule were each refuted by the SAME motivating example, from opposite sides); and a surface with a fleet-wide read path is measured over the NAMED population its path reaches, counted never assumed, never your cwd (D-296's rationale). **At the SECOND consecutive round that confirms
    defects, the symptom has TWO causes** — the surface outgrew this pass, or the loop is correcting
    its own corrections — **and they have OPPOSITE correct remedies. From the third round on the
@@ -113,12 +113,12 @@ proportionate answer.
    through the independent layer — including a commit whose comment AND message both described a
    redirect that was never added, which two self-sweeps had read straight past.
    **The floor is 3 readers at ROUND 1, not the heavy command's file partition** (D-208, narrowed to
-   round 1 by D-229) — that is what keeps this light: 3 seats on ONE brief, the measured duplicate-brief
+   round 1 by D-335) — that is what keeps this light: 3 seats on ONE brief, the measured duplicate-brief
    technique (`core/62`:65) — three readers of the same one-unit diff on different angles,
    `dispatch_headroom.py --units 1`; a multi-file diff partitions by file and sizes by `--units <N>`.
-   **Every later round is sized by the fragment's D5 sentence:** `dispatch_headroom.py --units <N>
-   --delta <changed lines of the previous round's fix>` prints the seat count under the fragment's budget (read the number THERE) — one fresh seat plus
-   the hygiene script at or under it, the round-1 shape above it. **The partition rule of
+   **Every later pass is sized by the fragment's D5 sentence:** one seat per unit whose ledger holds an open
+   claim, on the seat that owned it in round 1 (D-335); a unit with none is not re-dispatched, and the round-1
+   count is the ceiling. **The partition rule of
    `/fabrik-review` (`--slices`, Opus on the risky slices) never applies here** — this command's
    escape hatch for a surface that needs it is routing UP, not partitioning down. Stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (the stamp is what sibling sessions subtract; step 4's `round --seats` closes it), dispatched in a single message and adjudicated as a union (D-186 — a lone reader is not a round; this command's own
    measurement is why) (measured on one diff: 1 seat found 0, 3 seats found 0 / 5 / 0, and the 5 held a real fail-open two self-sweeps had read past — web-ecommerce-factory 01M1RAAX, 2026-09-05). It must have RETURNED: a seat that was dispatched and died is not a reader, and its absence is not a clean round. The pool form of this floor is kept below for re-enable (D-181):

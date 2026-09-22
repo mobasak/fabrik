@@ -275,8 +275,8 @@ def test_01m1djyh_verify_review_named_by_service_satisfies_the_flip():
 
 
 def test_both_fragments_carry_the_bounded_hop_the_delta_budget_and_the_round_zero_rules():
-    """Review-family pass 3 (D-229, D-230, D-231): D4's counting sentence, D5's budget — the ONE
-    number, bound to `dispatch_headroom.DELTA_BUDGET` by this test — and D10's three rule phrases
+    """Review-family pass 3 (D-229, D-230, D-231): D4's counting sentence, D5's budget — the owning-seat
+    sentence of D-335 (which superseded the D-229 delta budget) — and D10's three rule phrases
     live in BOTH termination fragments; `term-coverage` reads the `confirmed:` exit row and carries
     no retired `found: 0 · new: 0 · fixed: 0` literal (D2)."""
     _dh_spec = importlib.util.spec_from_file_location(
@@ -290,7 +290,8 @@ def test_both_fragments_carry_the_bounded_hop_the_delta_budget_and_the_round_zer
     tc = (frag / "term-coverage.md").read_text(encoding="utf-8")
     for name, text in (("term-edit", te), ("term-coverage", tc)):
         assert "INSIDE the previous round's fix hunks" in text, name  # D4
-        assert f"at or under {dh.DELTA_BUDGET} changed lines" in text, name  # D5
+        assert "SIZED BY THE SLICES (D5, D-335 superseding D-229)" in text, name  # D5 (D-335)
+        assert "never a fresh whole-artifact reader" in text, name  # D-335
         for phrase in ("probe script", "--claim", "class rewrite"):  # D10 (1)–(3)
             assert phrase in text, (name, phrase)
     assert "confirmed: 0 · fixed: 0 · unexecuted: 0" in tc

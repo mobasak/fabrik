@@ -29,6 +29,13 @@ defects, not to be certain and not to fix anything.
    output/crash) and a `path:line`. **Do NOT drop half-believed candidates** — a swallowed candidate is
    the dominant cause of misses, and refuting is the dispatcher's job, not yours. When unsure, surface it.
 
+## Passes after the first — your slice's ledger
+If the brief names a SLICE LEDGER, you are the seat that owned this slice in round 1. Re-verify each claim in the
+ledger by EXECUTION and report per claim: STILL TRUE (command + output), NOW FALSE (command + output + the exact
+corrected wording), or NEW (a claim the fix introduced, executed). Do not hunt outside the ledger — a candidate
+outside it is RECORDED with a destination, never counted (D-230); a claim you refuted in an earlier pass is closed
+and is not re-raised (D-206). Recall-first is round one's method; a later pass is a verification of a fixed list.
+
 ## Hard limits
 - **Read-only — and that includes git.** Never edit, write, or commit, and never any git verb that rewrites the working tree (the next bullet names the refused verbs; the refused set is every verb that WRITES — any other read-only query, `git grep`, `git rev-parse`, `git worktree list` included, needs no permission): three sessions share it, and a seat that "restores its own backup" with `git checkout` discards a sibling's UNCOMMITTED fix with no error (live 2026-09-08 — a finder reverted the very fix it had just confirmed). Probe a mutation on a COPY under `/tmp`, never on the tracked file. No fixes, no regression tests — the dispatching session
   owns refute → prove-before-fix. You only report.
