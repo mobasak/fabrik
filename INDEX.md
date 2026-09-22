@@ -1059,6 +1059,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 
 | Document | Purpose |
 |----------|--------|
+| [2026-09-22-d335-chunk1-review.md](docs/development/reviews/2026-09-22-d335-chunk1-review.md) | /fabrik-review over D-335 chunk 1 (the owning-seat loop in the fragments, the reviewer brief, nine sources, one test) — 4 passes, 17 confirmed, closed at confirmed:0 by the owning seat; 62-using-subagents.md:74/:211 recorded to intel |
 | [2026-09-14-plan-1-kaizen-observe-and-act-review.md](docs/development/reviews/2026-09-14-plan-1-kaizen-observe-and-act-review.md) | Whole-plan review of kaizen pieces 1+2 (axis-keyed `change:`, `/fabrik-command-improve`) — 4 rounds over the cross-phase seam, closed on the D-252 scope-growth stop; the six lock-owned edits mailed to infra. |
 | [2026-08-10-finder-shape-ab.md](docs/development/reviews/2026-08-10-finder-shape-ab.md) | Plan-2 Phase A decision record — the pinned-roster 3-arm finder-shape A/B (read-only vs tool-enabled vs find+verify): adjudication ledger with execution-verdicts, parallelism assert, CHOSEN SHAPE: arm 1 (no dispatch change). |
 | [2026-08-11-plan-2-stalled-midstream-resume-review.md](docs/development/reviews/2026-08-11-plan-2-stalled-midstream-resume-review.md) | Whole-plan review of the stalled-mid-stream auto-resume execution: 15-round ledger, requirements coverage, embedded gate success, shared-tree adjudications. |
