@@ -3354,8 +3354,8 @@ def test_terminal_verdict_names_the_closing_pass_rule_and_oscillation_names_both
     """01M1GYB7 (trade-intelligence ×3) + 01M1H7ZQ item 4 (youtube): the TERMINAL line fired on a
     SCOPED round and agents closed two rounds early; the oscillation line diagnosed re-scoping on a
     loop whose ledger was identical every round. The verdicts state their own precondition — and
-    D-206/D-207 REPLACED the full-sweep one: round 1 is the only full pass, every later round is a
-    DELTA over the fix diff, and it closes when it carried a fresh non-authoring finder seat."""
+    D-335 REPLACED the full-sweep one: round 1 is the only full pass, every later pass is the
+    round-1 seats over their own slices, and it closes when every slice's ledger is verified."""
     spec = importlib.util.spec_from_file_location("cr_wording", _SCRIPT)
     cr = importlib.util.module_from_spec(spec)
     assert spec.loader
@@ -4153,9 +4153,9 @@ def test_the_round_line_prints_confirmed_beside_findings(run_dir: Path) -> None:
 
 
 def test_the_terminal_banner_names_confirmed_zero_and_the_closing_pass_rule(run_dir: Path) -> None:
-    """D-206/D-207 retired "a scoped round never closes the loop": round 1 is the only full pass,
-    every later round is a DELTA over the fix diff, and it closes when it carried a fresh
-    non-authoring finder seat and cited the standing-clean classes from the last full pass."""
+    """D-206/D-207 retired "a scoped round never closes the loop"; D-335 re-cut the closing pass:
+    round 1 is the only full pass, every later pass is the round-1 seats over their own slices,
+    and it closes when every slice is verified and the standing-clean classes are cited."""
     _start(run_dir)
     _cr(run_dir, "round", "--findings", "5", "--confirmed", "2", "--classes-new", "auth")
     final = _cr(
@@ -6366,6 +6366,12 @@ def test_a_malformed_stored_slice_row_never_turns_done_into_a_silent_success(run
         out.stderr,
     )
     assert "error, continuing" not in out.stderr, out.stderr
+    # a keyless row (no claims at all) is OPEN — fail-closed — never a clean 0/0
+    rec = _rec(run_dir)
+    rec["rounds"][-1]["slices"] = [{"name": "A"}]
+    (run_dir / "s1.json").write_text(json.dumps(rec))
+    bare = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e")
+    assert bare.returncode == 1 and "slice A" in bare.stderr, bare.stderr
 
 
 def test_omitting_slices_after_stating_them_is_not_terminal_and_a_zero_claim_ledger_is_refused(
@@ -6391,9 +6397,7 @@ def test_omitting_slices_after_stating_them_is_not_terminal_and_a_zero_claim_led
     out = _cr(
         run_dir, "round", "--findings", "0", "--confirmed", "0", "--classes-swept", "a"
     ).stdout
-    assert "NOT TERMINAL" in out and "A" in out and "B" in out and "TERMINAL VERDICT" not in out, (
-        out
-    )
+    assert "NOT TERMINAL" in out and "(A, B)" in out and "TERMINAL VERDICT" not in out, out
     # dropping only the OPEN slice is the same cobra: B vanished while A reads verified
     part = _cr(
         run_dir,
@@ -6528,4 +6532,7 @@ def test_every_review_command_that_includes_a_termination_fragment_states_confir
     )
     _cr(run_dir, "round", "--findings", "0", "--confirmed", "0", "--classes-swept", "a")
     out = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e")
-    assert out.returncode == 1 and "omits it" in out.stderr, (out.returncode, out.stderr)
+    assert out.returncode == 1 and "missing from the last round's ledger" in out.stderr, (
+        out.returncode,
+        out.stderr,
+    )

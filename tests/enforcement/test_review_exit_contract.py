@@ -352,9 +352,9 @@ def test_the_mail_triage_fragment_sentences_are_present_once_at_their_source():
 
 
 def test_neither_command_run_nor_dispatch_headroom_carries_a_delta_budget() -> None:
-    """Review round 1 (Phase B): `command_run.DELTA_BUDGET` says it mirrors dispatch_headroom's
-    but nothing bound the two — the oscillation suppression would diverge from the seat budget
-    silently."""
+    """D-335 retired the delta budget (D-229) from BOTH scripts: neither module carries a
+    `DELTA_BUDGET`, and neither CLI accepts `--delta` — a mirror test that once bound the two
+    constants now asserts their shared absence, so one script cannot grow it back alone."""
     mods = {}
     for name, rel in (
         ("dh_mirror", "scripts/sysadmin/dispatch_headroom.py"),

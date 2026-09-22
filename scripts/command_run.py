@@ -349,7 +349,9 @@ def _slice_rows(row: Any) -> list[dict[str, Any]]:
 
 def _failing_slices(row: Any) -> list[dict[str, Any]]:
     """The slices of a round row whose ledger still holds an open claim (verified < claims)."""
-    return [s for s in _slice_rows(row) if s["verified"] < s["claims"]]
+    # a row with no claims at all (a hand-edited record — the CLI refuses `A:0/0`) is OPEN,
+    # never clean: fail-closed, and escapable by re-stating the ledger
+    return [s for s in _slice_rows(row) if s["verified"] < s["claims"] or s["claims"] < 1]
 
 
 def _vanished_slices(rounds: list[Any]) -> list[str]:
@@ -728,17 +730,18 @@ def _round_report(rec: dict[str, Any]) -> str:
         lines.append(
             "  slices: "
             + " · ".join(
-                f"{s['name']} {s['verified']}/{s['claims']} {'✓' if s['verified'] >= s['claims'] else '✗'}"
+                f"{s['name']} {s['verified']}/{s['claims']} "
+                + ("✓" if s["claims"] >= 1 and s["verified"] >= s["claims"] else "✗")
                 for s in slices
             )
         )
     terminal = quiet and len(rounds) >= 2 and not failing and not vanished
     if quiet and len(rounds) >= 2 and vanished:
         lines.append(
-            "⛔ NOT TERMINAL — an earlier round stated the slice ledger ("
+            "⛔ NOT TERMINAL — slice ledger missing this round for ("
             + ", ".join(vanished)
-            + ") and this round states none; every later pass re-states `--slices` for the "
-            "round-1 slices — an omitted ledger is open, never clean (D-335)"
+            + "), stated by an earlier round; every later pass re-states `--slices` for every "
+            "round-1 slice — an omitted slice is open, never clean (D-335)"
         )
     if quiet and len(rounds) >= 2 and failing:
         lines.append(
@@ -4263,15 +4266,15 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
                 + "; ".join(
                     [
                         f"slice {s['name']} has {s['claims'] - s['verified']} open claim(s) "
-                        f"({s['verified']}/{s['claims']} verified)"
+                        f"({s['verified']}/{s['claims']} verified) on the last round"
                         for s in _fail
                     ]
                     + [
-                        f"slice {n} was stated by an earlier round and the last round omits it"
+                        f"slice {n}, stated by an earlier round, is missing from the last round's ledger"
                         for n in _gone
                     ]
                 )
-                + " on the last round. A run closes `done` only when every slice's ledger is "
+                + ". A run closes `done` only when every slice's ledger is "
                 f'verified; hand off instead: handoff --command {live} --reason "<the failing '
                 'slices and their claims>" --resume "…" (D-335)'
             )
