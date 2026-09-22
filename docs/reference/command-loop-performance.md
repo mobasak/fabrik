@@ -696,7 +696,8 @@ receipt tool filling the ledger from a values file instead of a scratch script w
 units — the same as the D-207 mix would have cost. Per seat, confirmed / raised · tokens: A-sonnet 3/4 · 156 k, A-haiku
 0/1 · 108 k, B-sonnet 5/5 · 158 k, B-haiku 3/3 · 75 k, C-sonnet 4/5 · 132 k, C-haiku 1/1 · 98 k. The Sonnet seat
 out-found its Haiku twin on every slice; the Haiku twin added two candidates the Sonnet missed (the brief's missing house
-rules, the baseline's missing provenance) and shared two; union 14 confirmed, 2 refuted. Against the D-207 baseline (7 of
+rules, the baseline's missing provenance); three candidates were raised by two seats, so 19 raised are 16 distinct: 14
+confirmed, 2 refuted. Against the D-207 baseline (7 of
 13, 6 of 14 from the Opus seat on the risky slice) the risky slice's pair confirmed 3 of 14 — below it — but the risky
 slice here (a generator, a headroom script, two contracts) held fewer defects than the 14-file corpus slice; one run is
 one point, the KILL reads five. Pilot 1: no effect (above).
