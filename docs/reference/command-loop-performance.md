@@ -649,14 +649,23 @@ the operator as a gate.** The loop keeps every part the operator built; it is ma
    unverifiable close goes away). The budget is declared at `start` from the surface's size, printed on the pinned
    `RUN:` line beside the rounds, and a run that would overrun it hands off with its failing slices named (§ 4.8) —
    a refuted or recorded candidate never re-opens a pass (D-206, D-230).
-5. **One to three passes, by construction.** Pass one verifies in parallel; pass two fixes and the owning seats
+5. **A refuted or recorded candidate never re-opens a pass — and the record enforces it.** D-206 and D-230
+   already say it; four mechanics make it true. (a) `command_run.py` refuses a `round` without `--confirmed`, so
+   the terminal and the oscillation advisory read the confirmed series only, never findings — today
+   `_trend_series` falls back to the findings series, refuted candidates included, whenever one round omitted the
+   field. (b) A candidate a seat refuted is closed in that seat's ledger by the executed disproof and the seat is
+   never re-dispatched for it. (c) A recorded candidate — out of the slice, one hop away — goes to its named
+   destination (a backlog row, a mail, a sibling ticket) and re-opens nothing. (d) If a recorded candidate is fixed
+   anyway, its owning slice executes the fix in the same pass; it owes no fresh reader — the 2026-09-22 runs paid
+   rounds 5 and 6 for exactly that.
+6. **One to three passes, by construction.** Pass one verifies in parallel; pass two fixes and the owning seats
    re-verify; pass three confirms. A slice still failing after pass three is handed off with its failing claims
    NAMED — never a pass four over the whole artifact.
-6. **Every command opens by enforcing the four things the goal names.** Its first phase runs `mcp_health.py` for
+7. **Every command opens by enforcing the four things the goal names.** Its first phase runs `mcp_health.py` for
    its assigned MCPs, `select_rules.py` for its packs, reads `agents-fabrik.md` for the infrastructure it touches and
    names the manifesto section it runs under — executed lines in the command, not a sentence in `CLAUDE.md`
    (today 9, 0, 7 and 0 of 38 sources do so, § 4.8).
-7. **Where it is built.** In the loop itself: the review-family command sources and the fragments they share
+8. **Where it is built.** In the loop itself: the review-family command sources and the fragments they share
    (`term-coverage`, `term-edit`, the dispatch fragments, the `fabrik-reviewer` brief), and `command_run.py`'s round
    record. Not in `CLAUDE.md`, not in a new mechanism beside the loop. Nothing in this program caps rounds, adds an
    acceptance list, sets a byte target, retires a command, drops a seat or puts the operator between review and
@@ -836,4 +845,4 @@ must be done in 2 hours … i think it is cobra effect, we are optimizing agains
 goal in the operator's words and the two-hour target against the measured 611 minutes; § 4.8 answers the question with
 the rule text and the ledger — the loop's objective has one term (accuracy; `accurate` 124 : `fast` 4 in the close
 verdicts, 1 of 27 terminals naming a cost) and enforces MCPs / rules / infra / manifesto in 9 / 7 / 0 / 0 of 38
-commands; § 5 item 4 gains the budget term and item 6 the enforcement step; § 6 gains the three rows that measure them.
+commands; § 5 item 4 gains the budget term, item 5 the refuted/recorded mechanics and item 7 the enforcement step; § 6 gains the three rows that measure them.
