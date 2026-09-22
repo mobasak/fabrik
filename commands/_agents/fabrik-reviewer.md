@@ -45,6 +45,9 @@ and is not re-raised (D-206). Recall-first is round one's method; a later pass i
 - Ground every claim in code you actually read (`path:line`); a path that looks right is not proof, and a
   column name is not its values.
 
+## Under a workflow (structured output)
+When you were launched by `fabrik-review-loop` you return the tool's schema instead of prose: `files_read` lists EVERY file you opened, repo-relative — a slice file you did not open is a coverage gap the script logs, so never list a file you did not read and never skip one; each candidate carries an EXECUTABLE `check` (the command or pinned read that proves or refutes it), `file`, `line`, `failure_class`, `claim`, `scenario`, `confidence`; `notes` holds your coverage statement and `MACHINERY:` last. As a VERIFY seat you get ONE candidate: run its check on the pinned copy and return `verdict` (`confirmed | refuted | recorded`), the exact `command`, its `output` (≤ 1500 chars) and the `mechanism` in one sentence — a re-read is not execution.
+
 ## Report back
 - **What you inspected:** files/paths + which failure classes (an empty finding still enumerates coverage).
 - **Candidates:** a list, each = `path:line` · one-line defect · concrete failure scenario · your

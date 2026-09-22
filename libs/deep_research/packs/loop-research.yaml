@@ -1,0 +1,74 @@
+# Engineering-evidence pack (hub, 2026-09-22, D-348) — quoted, dated, primary-source evidence for an engineering
+# question (agent loops, review recall, tool limits). Same engine as competitor-discovery; only the worldview differs.
+# Run it as scripts/rivals_run.py wires the engine (claude -p sonnet, exa/firecrawl/brave), at RIVALS_LLM_TIMEOUT_S=900
+# or LLM concurrency 2 — the extract stage exceeds the 300 s default under four-way concurrency. Brief keys: topic,
+# question, known (facts already held, not re-found), want (the shape of a useful answer).
+
+query_plan_prompt: |
+  [stage:query-plan] You are a research query planner for a software-engineering question about LLM
+  coding/review agents. Produce ONLY a JSON object of the shape {"exa": [..], "firecrawl": [..],
+  "brave": [..]} — ranked query strings per leg. The brief carries `question` (what we must learn),
+  `known` (facts already held — do NOT re-find these; hunt what is beyond them) and `want` (the shape of
+  a useful answer). Target primary sources: arXiv/ACM/IEEE papers with numbers, vendor documentation
+  (code.claude.com, docs.anthropic.com, GitHub issues in anthropics/claude-code), engineering blogs of
+  teams that run such systems in production (Anthropic, Google, Meta, Microsoft, Uber, Sourcegraph,
+  Cursor, CodeRabbit, Graphite), and benchmark reports (SWE-bench, terminal-bench, METR). Use
+  2025–2026 phrasing. Exa queries are semantic descriptions of the page wanted; brave queries are
+  keyword queries; firecrawl queries are keyword queries. At least 6 brave queries so reallocated
+  budget has queries to spend.
+
+shortlist_prompt: |
+  [stage:shortlist] Merge and dedupe these search rows into a shortlist of at most {cap} DISTINCT
+  primary sources (one per paper/doc page/post — never two rows of the same document; prefer the
+  canonical URL: arxiv.org/abs or /html, the vendor doc page, the original blog post over an
+  aggregator or a tweet). Exclude marketing pages with no numbers, SEO listicles, and anything the
+  brief's `known` field already cites. Produce ONLY a JSON array, each {"name": .., "url": ..}.
+
+verify_prompt: |
+  [stage:extract] From each candidate's page text, produce ONLY a JSON array of evidence cards,
+  exactly this closed shape per card:
+  {"name","url","verified","quote","numbers","date","source_kind","applies_to","cobra_note"}.
+  `quote` is a VERBATIM passage of at most 60 words copied from the page text that answers the
+  brief's `question`; `verified` may be true ONLY when `quote` is verbatim from the page text and
+  bears on the question. `numbers` lists every quantitative claim in the quote or its paragraph
+  (percentages, counts, costs, versions). `date` is the page's own date (YYYY-MM-DD or YYYY-MM) or
+  "undated". `source_kind` is one of paper|vendor-doc|engineering-blog|issue|benchmark|other.
+  `applies_to` says in one sentence how it bears on a code-review or planning loop that must finish
+  inside a turn budget without losing recall. `cobra_note` names, in one sentence, the cheapest way an
+  agent could satisfy the measure or rule the source proposes WITHOUT producing the outcome, or
+  "none stated". Unverifiable candidates ship with verified=false — never dropped.
+
+shortlist_cap: 10
+verify_cap: 8
+
+legs:
+  - {name: exa, cap: 5, num_results: 6}
+  - {name: firecrawl, cap: 3, num_results: 5, include_market: true}
+  - {name: brave, cap: 3, is_free: true, num_results: 6}
+
+card_schema:
+  - {name: name, type: str}
+  - {name: url, type: str}
+  - {name: verified, type: bool, default: false}
+  - {name: quote, type: str}
+  - {name: numbers, type: list}
+  - {name: date, type: str}
+  - {name: source_kind, type: str}
+  - {name: applies_to, type: str}
+  - {name: cobra_note, type: str}
+
+fallback_templates:
+  exa:
+    - "research paper measuring {subject}"
+    - "engineering blog on {subject} in production LLM agents"
+  firecrawl:
+    - "{subject} LLM agent evaluation"
+    - "{subject} code review agent"
+  brave:
+    - "{subject} arxiv 2026"
+    - "{subject} claude code docs"
+    - "{subject} SWE-bench agent"
+
+brief_keys: [topic, question]
+subject_name_key: topic
+demote_rule: [verified, quote]   # verified→false unless a verbatim quote is present
