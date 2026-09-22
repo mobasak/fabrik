@@ -67,7 +67,7 @@ def check(path: Path) -> list[str]:
     for r in rows:
         if not ROW_ID.match(r[0]):
             bad.append(
-                f"{path}: {r[0] or '(empty id)'}: malformed id — `<lowercase source>-<1–3 digit number>`"
+                f"{path}: {r[0] or '(empty id)'}: malformed id — must match `[a-z0-9][a-z0-9.-]*-<1–3 digits>` (lowercase letters, digits, dots, hyphens)"
             )
             continue
         disp = r[-1] if len(r) >= 5 else ""
