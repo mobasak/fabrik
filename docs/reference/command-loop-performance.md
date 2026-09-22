@@ -952,6 +952,29 @@ code.claude.com's sub-agents / workflows / agent-teams / costs / best-practices 
     trusted. Machinery for the next research run: four seats lost oversized exa results written under a `$HOME/.claude*`
     path the brief forbids them to read (fetch one URL per call, or cap `maxCharacters`), and the research agent's own
     definition still says firecrawl "is not connected" while the contract names it tier 2 — both unverified, one edit.
+35. *Count the chain before judging its findings — a review loop has no damping term* (shimo4228, dev.to, 2026-08-27, read
+    whole on the operator's hand-over 2026-09-23). A solo Claude Code setup grew to six standing review stages in ten
+    days; "one stage does not mean one agent" — about ten agents reviewed each change. The loop "never ended not because
+    of the content or accuracy of the findings, but because of its structure": review → fix → re-review "has no term
+    that shrinks the amplitude over time" and "every cycle supplies new findings", so "stop when findings hit zero" was
+    never reached. Recounted, six stages had produced ONE proven discovery (a reachable command-injection flaw in hooks,
+    proven with a PoC); of six out-of-diff HIGH findings, filing on the spot changed the outcome for one — "a defect that
+    breaks the review loop itself". The cut: six standing stages → one fresh-context `/code-review` plus one conditional
+    security stage that fires only on a trust-boundary diff; effort pinned `high` → explicit `medium` ("levels up to
+    medium restrict reports to high-confidence findings; high and above cast a wider net" — "the flip side of the
+    over-engineering supply"); re-review after a fix kept, each fix "the minimal diff that answers the finding"; the
+    decision ships with its rollback conditions, and "the only thing that reduces the total amount of machinery is
+    deletion". The author labels the token saving "a projection with no after-the-fact measurement". **What it adds here:**
+    (a) this loop's damping terms already exist — D-206 (refuted and recorded never reopen) and D-230 (a later pass counts
+    only defects inside the previous fix hunks); chunk 5's run 2 is the case: its one pass-2 defect lay inside its own fix;
+    (b) a lever this document has not measured: **how many review stages fire per change across the chain** —
+    `/fabrik-spec-review`, `/fabrik-plan-review`, a `/fabrik-review` + `/fabrik-docs-review` per execute-plan phase, the
+    whole-plan review, `/fabrik-review-scoped` after plain-chat edits — and the proven-defect yield of each; that count,
+    not any one loop's rounds, is where `/fabrik-execute-plan`'s 245 hours may sit; (c) our finder brief says "RECALL
+    first … surface every candidate", the widest net; Anthropic's own prescription (finding 27; best-practices) is to flag
+    only gaps that affect correctness or the stated requirements. Here every candidate is EXECUTED, so the wide net costs
+    verify tokens rather than over-engineering — which makes it a cost question for § 6's stage-yield row, not a quality
+    rule to change blind.
 
 ---
 
@@ -1085,6 +1108,7 @@ that moves without the first one having moved is a symptom treated, not a cause.
 | Median rounds, prose artifacts vs code-with-a-gate | 5 vs 3 | converged, at 3 or below |
 | Spec-chain cost at the medians | 611 min = ~615 lead turns at ~1 min each (§ 2.6) | **≤ 120 lead turns** (a diagnostic proxy for the two-hour goal, never a kill criterion — the criterion is ≤ 3 passes per review, D-330) — spec 25 · spec-review 20 · plan 25 · plan-review 20 · execute 60 (its nested reviews included) · review 15; `tok_msgs` per run is the reading, printed beside the minute budget; never a refusal on the lead (§ 5.3) |
 | **Slices read in full by their finders** — the files each finder returned as read, diffed by the script against its slice | not measured — today's seats return no read list | every slice, every pass; a gap is logged and the slice is unverified (§ 4.9 finding 10) |
+| **Review stages per change, and each stage's yield** — how many review-family runs fire for one change across the chain (spec review, plan review, per-phase review and docs review, whole-plan review, scoped reviews), and the confirmed defects each returned | not measured — first read before chunk 6, from the ledger's `surface` and `confirmed` per command (§ 4.9 finding 35) | every standing stage earns its place by yield; a stage with none over a month goes conditional, never silently |
 | **Escaped defects** — commits touching a reviewed surface's files within 14 days of the review's close, any subject, not only `fix` | not measured — first read at chunk 5's first run, from git and the ledger's `surface` | not rising while turns fall (§ 4.9 finding 11: the one measure the reviewer cannot move) |
 | Total hours per week | 375 | falling, with runs per week flat or up |
 | Total tokens per week | 22.6 G | falling |
@@ -1258,6 +1282,9 @@ The build of § 5 begins with the two fragments, the reviewer brief and the sour
 | 5 · the review loop as a workflow script (`.claude/workflows/fabrik-review-loop.js`) — two cheap finders per slice with a schema whose `files_read` is diffed against the slice, a Sonnet verify seat per candidate returning command + output, one ledger back, each pass its OWN invocation with the ledger in `args`; `/fabrik-review` and `/fabrik-repo-review` launch it | 2026-09-22/23 | `7f429a341` (D-350); run-1 fixes `5a7803da2`, `55fca7db8`, `214bbdb6c`, `819e2f01a`, receipt `310762e24`; run-1 lessons `f5eb13f3a`; run-2 fixes `d53d0db2c`, `0929d6e6d`, receipt `2c08ac005` | two measured runs, both reviews of the loop itself. **Run 1** (10 files): 2 passes, 20 raised / 13 confirmed / 4 refuted, 30 agents, 2.61 M seat tokens, **19 lead turns**, 35 min. **Run 2** (4 files): 3 passes, 7 confirmed, 18 agents, 0.56 M seat tokens, **17 lead turns**, 21 min. Against today's `/fabrik-review` median of 99 lead turns and 86 min. **Against the operator's criterion both runs settled — 2 passes and 3 (D-330: 1–3).** **The D-347 KILL fired as written** — keyed on the lead-turn proxy (withdrawn as a criterion in revision 22) — both runs sit above the 15-turn target, and confirmed counts (13, 7) fall below the D-335 baseline (14, 21, 15), which was measured on 16–51-file surfaces against these 10 and 4; Invariant 4 defaults a fired criterion to kill, and an override is a new written claim with a new criterion, never an edit of this one (operator decision, pending). What the runs showed: the lead's turns went to in-turn waits (the Stop hook holds the turn while a record runs) and to reading results, not to seats; every workflow agent is invisible to the run record's seat counters (`seats_seen 0` on both closes — seat tokens come from the notifications); a status vocabulary restated in four places drifted in one run (run 2's second-pass defect: the candidates rule inverted when the statuses were keyed on the defect) — a vocabulary is stated once and pointed at; a closing seat reported the lead's latest operator message relayed into its prompt, which it ignored. |
 | 6 · the same script for the section-partition reviews (`/fabrik-spec-review`, `/fabrik-plan-review`) and the reviews nested in `/fabrik-execute-plan` (144 of its 245 hours) | not started | — | ≤ 20 lead turns each; execute-plan ≤ 60 |
 | 7 · the producing commands delegate their reading and judging — `/fabrik-spec` and `/fabrik-plan-after-chat` send large reads to seats that return summaries and use a judge panel instead of the lead iterating alone; the closing chain fixed at four calls (receipt fill and check · commit through the recipe · gate · close), inputs written first | not started | — | ≤ 25 lead turns each; the chain under 120 |
+
+**Revision 22a (2026-09-23):** § 4.9 finding 35 — a practitioner's measured cut of a six-stage review chain to one, read
+whole on the operator's hand-over; § 6 gains the stages-per-change and per-stage-yield row.
 
 **Revision 22 (2026-09-23, the Opus 5.5 week):** § 4.9 gains findings 25–34 from five research seats and one probe
 (Opus 5.5 as the cheaper orchestrator; Anthropic's two-or-three-continuations stop rule; no seat for a check the lead can
