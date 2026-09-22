@@ -1,6 +1,6 @@
 # Command loop performance — what we aim for, what it costs, and the program to fix it
 
-**Status:** REVISION 15 (2026-09-22). The program of revisions 4–7 (the old § 5: remove the apparatus) was
+**Status:** REVISION 16 (2026-09-22). The program of revisions 4–7 (the old § 5: remove the apparatus) was
 executed in part on 2026-09-21 and REVERTED the same day (D-330) — it removed developments the operator built on
 purpose. § 1.0 records what the three `CLAUDE.md` contracts are now (D-331, lean without loss). § 4.7 states the
 root cause the operator confirmed on 2026-09-21 16:38, and § 5 is rewritten as the engineering that follows from it:
@@ -661,6 +661,38 @@ goal restated as a number the run can see. And every command's opening act names
 and the manifesto section it runs under — executed, not recalled — so the second half of the goal is a step, not a
 hope.
 
+### 4.9 The seats — where the tokens go, and the two pilots that follow (2026-09-22)
+
+**Our own ledger first** (210 review-family runs with token data, `~/.claude/state/command-feedback.jsonl`, medians): the
+seats are **35%** of a run's token cost and the orchestrator **65%** — and 76% of the orchestrator's cost is re-reading
+its own growing prefix, 62 messages a run. Per seat-pass ≈ 0.52 M cost units, per orchestrator round ≈ 1.2 M. A seat's
+cost is 46% cache reads and 18% output. In the chunk-3 review the seats' round took 6 of the run's 31 minutes; the other
+25 were the orchestrator's serial chain. So the seats are not the waste; the serial chain is, in tokens and in wall clock.
+
+**What the outside evidence says.** Every subagent starts fresh and loads every `CLAUDE.md` level — our hub contract is
+100 KB, so each seat carried ~25 k tokens of contract it does not use; `omitClaudeMd: true` exists for exactly this
+(Claude Code docs, sub-agents). Token usage explains 80% of multi-agent performance variance; 3–5 parallel workers cut
+time by up to 90% on complex work; duplicated effort comes from vague boundaries (Anthropic, multi-agent research
+system). Fan-outs on SMALL tasks cost 2.6–5.9× the tokens and were never faster; pinning workers to a cheaper model cut
+tokens 37% (Systima, 2026-07). A single LLM code review recalls ~30% of real defects; ten aggregated reviews raised recall
+119%; five runs of one model overlapped on 27 defects — redundancy, not size, buys recall (SWR-Bench, arXiv 2509.01494).
+Haiku 4.5 out-reviewed Sonnet 4.6 (F1 0.365 vs 0.343, +18% recall) at 3.2× lower cost (arXiv 2606.15689). Teams that
+vote by consensus lose up to 37.6% to their best member; a union that is then EXECUTED does not — D-335's shape.
+
+**The two answers.** How we use them: partitioned by file, Opus on the risky slice, Sonnet on the rest, the same seats
+every pass, every claim executed by the orchestrator. Wisely: parallelism yes; waste no, three times over — each seat
+loaded a contract it did not need, Opus was spent on finding where a cheaper model finds as well or better and its value
+is execution, and the orchestrator's own chain was most of the cost and nearly all of the clock.
+
+**The pilots (D-344, operator "1 approved, 2 ok").** (1) Seats stop loading `CLAUDE.md` — measure: seat cache-read
+tokens per seat-pass, baseline 1.73 M. (2) Finders are cheap and redundant, execution is expensive: each slice gets one
+Sonnet and one Haiku finder over the whole slice, candidates unioned, never voted, no Opus finder; Opus/Fable execute —
+same cost as the old mix (chunk 3: 9 units either way), twice the readers; measure: confirmed per seat and model on the
+receipt's Pass-1 row over five runs; KILL: a pair below D-207's baseline (7 of 13, 6 of 14) on the same kind of slice.
+(3) The orchestrator's chain — not yet decided; the measure exists today (`tok_msgs` in the ledger, median 62; 16, 68 and
+28 in this session's three reviews), the candidates are a fixed four-call closing chain in the command text and the
+receipt tool filling the ledger from a values file instead of a scratch script written per run.
+
 ---
 
 ## 5. The program — make the loop run as designed
@@ -898,6 +930,10 @@ The build of § 5 begins with the two fragments, the reviewer brief and the sour
 | 1 · the two termination fragments, subagents-core, the reviewer brief's passes-after-the-first mode, nine sources, the test pin | 2026-09-22 | `d03f9a918`, `f6beb8b88`; review fixes `863701479`, `811c3d340`, `93ea1f6eb`; receipt `5d435de09` | every pass after round one is the round-1 seats over their own slices; refuted/recorded opens nothing; the budget clause gated on `start` declaring it; reviewed in its own shape — 4 passes, 11 → 3 → 3 → 0, 25 min; `62-using-subagents.md:74/:211` still carries the old clause (intel's live pass — theirs to edit) |
 | 2 · `command_run.py` (`--budget` on `start`, the per-slice ledger on `round`, a review-family round without `--confirmed` refused, `done` refusing a failing slice) and `dispatch_headroom.py` (`--delta` retired) | 2026-09-22 | `2e917b17c` (D-339; ledger `16adffc3c`, `5853c00e8`) | fleet-synced and distributed by the post-commit sync; ten graders red-first; the refusal scoped to 15 review-family commands, every other caller keeps D-206's tolerant rule; the contract sentence mirrored in both `CLAUDE.md` copies; reviewed in the D-335 shape — 4 passes, 14 → 6 → 3 → 0 on the same three seats, 21 confirmed (13 in round one, then 8 residuals of the fixes), 62 min against a 45-min budget (over, printed, never a cap), fixes `65ae40693`, `103d19ebd`, `e0490606d`, D-341 (the set is 16 by rule), receipt `5e0a21db4` |
 | 3 · every command's first phase executes MCP · rules · infra · manifesto (§ 5 item 7) | 2026-09-22 | `128050dbc` (D-342) | one fragment, `orient.md`, included by all 38 sources right after the run record: the four executed lines and the `ORIENT:` reply line; rendered 38 / 38 / 38 / 38 of 38 (measured over `~/.claude/commands/*.md`, the rendered corpus — a source count reads 0 / 9 / 6 / 0 because the lines live in the fragment); grader `tests/test_orient_fragment.py`; the same change removed D-229's delta round from the assembler's two floors and both `CLAUDE.md` contracts, and the round-zero probe now runs before every re-dispatch; reviewed in the D-335 shape — 3 passes on the same three seats, 17 → 1 → 0, 15 confirmed (14 in round one — among them a FLEET defect, two hub-only paths in the fragment, caught by the orchestrator's own round-zero probe before the seats returned — then 1 mirror residual of the fix), 45 min against a 30-min budget (over, printed, never a cap), fixes `1fd4898a8`, `02c8898b9`, `e61baa6ed`, receipt `69140bfca` |
+
+**Revision 16 (2026-09-22, the seat-cost research):** § 4.9 — where a review's tokens go (our ledger: seats 35%,
+orchestrator 65%, 76% of it prefix re-reads), the outside evidence, the two answers, and the two pilots minted as D-344
+(no `CLAUDE.md` in a finder; two cheap finders per slice, no Opus finder); pilot 3 stated with its measure, undecided.
 
 **Revision 15 (2026-09-22, chunk 3's review closed):** § 5.2 row 3 records the review (3 passes, 15 confirmed, 45 min over a
 30-min budget); § 4.7 gains the third measured run — the round-zero probe before every re-dispatch cut the residue passes

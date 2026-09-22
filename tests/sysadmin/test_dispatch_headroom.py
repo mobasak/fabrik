@@ -1171,12 +1171,14 @@ def test_slices_cli_zero_sum_prints_seats_zero_with_a_reason(monkeypatch, capsys
 
 def test_slices_no_opus_slice_names_the_dd2_gap_never_injects_a_seat():
     """F5(a): the budget must not invent an Opus seat for a no-Opus partition (any count is
-    accepted, DD2's carve-out is the orchestrator's duty) — but it says so."""
+    accepted) — and it names the shape: under D-344 a no-Opus partition is the pilot's own,
+    under D-207 the orchestrator carved one Opus seat out of Sonnet."""
     r = dh.budget(0, False, BOX_OK, Q_OK, slices={"sonnet": 5})
     assert r["caps"]["wanted"] == 5  # no phantom Opus seat added to the count
     assert any(
-        "partition carries no Opus slice — DD2 wants one authoritative seat over the most "
-        "consequential slice, carved out of the Sonnet count" in x
+        "partition carries no Opus slice — the D-344 pilot's shape (two cheap finders per slice, "
+        "Opus/Fable execute in the orchestrator); under D-207 one Opus seat was carved out of Sonnet"
+        in x
         for x in r["reasons"]
     )
     # a partition that DOES carry an Opus slice never gets this reason

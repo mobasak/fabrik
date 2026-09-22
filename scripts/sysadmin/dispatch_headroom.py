@@ -734,8 +734,8 @@ def budget(
         # grammar allows (round-1 review finding F5) but SAYS when the caller's partition has no
         # Opus slice at all, so `_mix_story` below can tell the truth about the mix it prints
         reasons.append(
-            "partition carries no Opus slice — DD2 wants one authoritative seat over the most "
-            "consequential slice, carved out of the Sonnet count"
+            "partition carries no Opus slice — the D-344 pilot's shape (two cheap finders per slice, "
+            "Opus/Fable execute in the orchestrator); under D-207 one Opus seat was carved out of Sonnet"
         )
     seats = min(caps.values())
     if seats < caps["wanted"]:

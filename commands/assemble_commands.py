@@ -280,10 +280,11 @@ def _floor(kind: str, native: str) -> str:
     # The pool form ("pool breadth AND ≥1 native Opus") is kept in git history for re-enable.
     if kind in _PARTITION_KINDS:
         angles = (
-            f"**plus the partition — the surface cut into DISJOINT slices by file: Opus on the "
-            f"risky slices, Sonnet {native} seats on the rest, at most ONE Haiku class seat when "
-            f"the brief names a non-scriptable inventory class; every file read once; sized by "
-            f"`dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` (D-207); every later pass is the "
+            f"**plus the partition — the surface cut into DISJOINT slices by file: two cheap finders per "
+            f"slice, one Sonnet and one Haiku {native}, candidates unioned, no Opus finder (pilot D-344 "
+            f"over D-207); at most ONE extra Haiku class seat when the brief names a non-scriptable "
+            f"inventory class; every file read by its two finders; sized by "
+            f"`dispatch_headroom.py --slices sonnet=N,haiku=N`; every later pass is the "
             f"round-1 seats over their OWN slices' claim ledgers (`round --slices`), never a fresh "
             f"whole-surface reader (D-335)"
         )

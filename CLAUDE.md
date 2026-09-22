@@ -571,11 +571,13 @@ session-recall — structured rows beat lexical transcripts.
   declaration is owed** (`check_subagent_flywheel.py`'s pool layer stands down, `_POOL_POLICY_ON = False`). Native
   sizing has TWO shapes. **The partitioned review loops** (`/fabrik-review` and `/fabrik-repo-review` by FILE;
   `/fabrik-spec-review` and `/fabrik-plan-review` by SECTION — Opus on the rule/grammar sections, Sonnet on the
-  rest, no Haiku seat; D-207, D-212, D-218, D-203) cut the surface into DISJOINT slices: Opus on the RISKY units
-  only (concurrency/locks, record and file formats, fleet-synced paths, auth, schema, migrations, secrets — a
-  surface with no risky unit still gets one Opus seat over its most consequential slice), Sonnet on every other
-  code and doc unit, at most ONE Haiku seat for a judgement-shaped inventory class only when the brief names it,
-  and Fable (Opus when Fable refuses) orchestrating and EXECUTING every refutation and every confirmed
+  rest, no Haiku seat; D-207, D-212, D-218, D-203) cut the surface into DISJOINT slices: two cheap finders per slice —
+  one Sonnet and one Haiku, each
+  over the whole slice, candidates unioned, never voted — and no Opus finder (pilot D-344, superseding D-207's
+  Opus-on-the-risky mix; the risky units — concurrency/locks, record and file formats, fleet-synced paths, auth,
+  schema, migrations, secrets — are the slice's named hunt priority), at most ONE extra Haiku seat for a
+  judgement-shaped inventory class only when the brief names it, and Fable (Opus when Fable refuses) orchestrating and
+  EXECUTING every refutation and every confirmed
   reproduction, never a finder. The union of the slices IS the full pass, no file's logic read by two seats; round
   1 is the only full pass; every later pass is the round-1 seats re-verifying their OWN slices' claim ledgers over
   the fix diff plus one hop of callers and callees (`command_run.py round --slices A:n/m,…`; the hop bounds the

@@ -42,11 +42,7 @@ and say so.
 ## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)
 
 One reviewer per SLICE, READ-ONLY — no edits, so parallel workers can't collide. **The repo is cut
-into DISJOINT slices by file and every file is read once (D-207): Opus on the risky slices
-(concurrency and locks, record and file formats, fleet-synced paths, auth, schema, migrations,
-secrets), Sonnet on the rest, at most ONE Haiku class seat when the brief names a non-scriptable
-inventory class — a slice the Opus seat takes is carved OUT of Sonnet's allocation, never added to
-it. Scale the fan-out to the repo — as many seats as `dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` prints for each slice batch, never a token 2–3.** Dispatch the bulk of slices as
+into DISJOINT slices by file and every file is read once (D-207): two cheap finders per slice — one Sonnet and one Haiku, each over the whole slice, candidates unioned — and no Opus finder (pilot D-344, superseding D-207's Opus-on-the-risky mix; the risky units — concurrency and locks, record and file formats, fleet-synced paths, auth, schema, migrations, secrets — are the slice's named hunt priority; Opus/Fable execute in the orchestrator), at most ONE extra Haiku class seat when the brief names a non-scriptable inventory class. Scale the fan-out to the repo — as many seats as `dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` prints for each slice batch, never a token 2–3.** Dispatch the bulk of slices as
 **native `fabrik-reviewer` seats (Sonnet; Opus for the highest-blast-radius units — each one priced at 5× a Sonnet seat (D-190): name them and count them, never "the risky ones" unbounded) — the pool is OFF, D-181.** A unit touching secret-material paths (`.env` / `.env.*` except `.env.example`, `secrets/`, key files) still goes to the Opus seat with the secret redacted from the brief.
 <!-- POOL OFF (D-181): **`fanout("review", units=[<unit code inlined> …], repo=…, project="repo-review", mode="read_only", max_concurrency=…)`** -->
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:

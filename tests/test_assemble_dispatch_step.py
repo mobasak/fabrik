@@ -97,10 +97,11 @@ def test_judgement_floors_name_no_haiku_seat_and_review_floors_name_a_class_wide
 # check is not enough: two mutants of the partition floor — `(D-207)` -> `(D-999)` and the deletion
 # of the Haiku-class-seat clause — survived every earlier assertion in this file (review round 1).
 _PARTITION_SENTENCE = (
-    "**plus the partition — the surface cut into DISJOINT slices by file: Opus on the risky "
-    "slices, Sonnet `fabrik-reviewer` seats on the rest, at most ONE Haiku class seat when the "
-    "brief names a non-scriptable inventory class; every file read once; sized by "
-    "`dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` (D-207)"
+    "**plus the partition — the surface cut into DISJOINT slices by file: two cheap finders per "
+    "slice, one Sonnet and one Haiku `fabrik-reviewer`, candidates unioned, no Opus finder (pilot D-344 "
+    "over D-207); at most ONE extra Haiku class seat when the brief names a non-scriptable "
+    "inventory class; every file read by its two finders; sized by "
+    "`dispatch_headroom.py --slices sonnet=N,haiku=N`"
 )
 
 

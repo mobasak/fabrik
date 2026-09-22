@@ -120,7 +120,7 @@ proportionate answer.
    **Every later pass is sized by the fragment's D5 sentence:** one seat per unit whose ledger holds an open
    claim, on the seat that owned it in round 1 (D-335); a unit with none is not re-dispatched, and the round-1
    count is the ceiling. **The partition rule of
-   `/fabrik-review` (`--slices`, Opus on the risky slices) never applies here** — this command's
+   `/fabrik-review` (`--slices`, two cheap finders per slice — D-344) never applies here** — this command's
    escape hatch for a surface that needs it is routing UP, not partitioning down. Stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (the stamp is what sibling sessions subtract; step 4's `round --seats` closes it), dispatched in a single message and adjudicated as a union (D-186 — a lone reader is not a round; this command's own
    measurement is why) (measured on one diff: 1 seat found 0, 3 seats found 0 / 5 / 0, and the 5 held a real fail-open two self-sweeps had read past — web-ecommerce-factory 01M1RAAX, 2026-09-05). It must have RETURNED: a seat that was dispatched and died is not a reader, and its absence is not a clean round. The pool form of this floor is kept below for re-enable (D-181):
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
