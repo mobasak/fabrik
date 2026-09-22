@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review family's seats: no CLAUDE.md in a finder, two cheap finders per slice, no Opus finder (D-344 pilot) (2026-09-22)
+- `fabrik-reviewer` gains `omitClaudeMd: true` (the brief carries its rules); `/fabrik-review` and `/fabrik-repo-review` partition each slice to one Sonnet and one Haiku finder with unioned candidates and no Opus finder — same cost as the old mix, twice the readers; the assembler's floor sentence, `dispatch_headroom.py`'s no-Opus advisory and both `CLAUDE.md` contracts say the same; measured over the next five runs against D-207's baseline (§ 4.9 of `docs/reference/command-loop-performance.md`).
+
 ### Added — every command opens by executing MCPs · rules · infra · manifesto (D-335 chunk 3) (2026-09-22)
 - `commands/_fragments/orient.md`, included by all 38 command sources right after the run record opens: one Bash call (`mcp_health.py`, `select_rules.py --changed`, the `agents-fabrik.md` and operating-manifesto sections) and the `ORIENT:` reply line — executed, never recalled; grader `tests/test_orient_fragment.py`. In the same change the assembler's two partition floors, both `CLAUDE.md` contracts and `term-coverage.md` stop describing D-229's delta round (0 of 38 rendered commands say `--delta`), and the round-zero probe runs before every re-dispatch.
 - Round 1 of its review: the four orient lines are hub-absolute with `--repo .` / `--project-root .` (two of them exist in no project repo), the fragment says what `--changed` takes and carries the D-253 cobra note, the grader's phase regex sees `## PHASE` too, the contracts keep the one-hop EXTENT bound, and the doc reads the four-count in one order (0 · 9 · 6 · 0 of 38 sources).
