@@ -102,6 +102,12 @@ repos:
         language: system
         files: ^docs/DECISIONS\.md$
         pass_filenames: false
+      - id: research-ledger-check
+        name: Every returned research fact is dispositioned
+        entry: python3 scripts/check_research_ledger.py
+        language: system
+        files: '^docs/reference/research/.*-ledger\.md$'
+        pass_filenames: true
       - id: command-corpus-check
         name: Command corpus matches rendered sources
         entry: bash -c 'if [ "$(pwd)" = "/opt/fabrik" ]; then python3 /opt/fabrik/commands/assemble_commands.py --check; fi'

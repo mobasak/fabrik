@@ -1,6 +1,6 @@
 # Command loop performance — what we aim for, what it costs, and the program to fix it
 
-**Status:** REVISION 22 (2026-09-23). The program of revisions 4–7 (the old § 5: remove the apparatus) was
+**Status:** REVISION 23 (2026-09-23). The program of revisions 4–7 (the old § 5: remove the apparatus) was
 executed in part on 2026-09-21 and REVERTED the same day (D-330) — it removed developments the operator built on
 purpose. § 1.0 records what the three `CLAUDE.md` contracts are now (D-331, lean without loss). § 4.7 states the
 root cause the operator confirmed on 2026-09-21 16:38, and § 5 is rewritten as the engineering that follows from it:
@@ -976,6 +976,106 @@ code.claude.com's sub-agents / workflows / agent-teams / costs / best-practices 
     verify tokens rather than over-engineering — which makes it a cost question for § 6's stage-yield row, not a quality
     rule to change blind.
 
+**The read-whole pass (2026-09-23; on the operator's "why do we make research if you will not read them?").** Every fact
+and card the research of 2026-09-22/23 returned — 162 rows from eight seats and the module run — is filed in
+`docs/reference/research/2026-09-23-loop-program-research-ledger.md`; the 111 rows no finding cited sent their 71 distinct
+sources to eight `fabrik-researcher` readers, which read each one whole (or as far as the tools reach, and said how
+far) against findings 1–35. Verdicts: 45 sources carried something new, 22 restated a finding, 1 was irrelevant, 1 could
+not be fetched. What the new ones change, in seven findings, and six corrections to the earlier ones:
+36. *A verifier that did not run is not a verifier that refuted — and refutation needs counter-evidence* — in one
+    find→verify workflow "All 111 findings are recorded as refuted. Nothing was actually refuted — every refuter died on
+    the session limit", and the run reported `completed` (anthropics/claude-code#94530); the workflows page, "as of
+    v2.1.196, when the verifier agents can't check a claim … lists that claim as unverified instead of counting it as
+    refuted"; a reproduce-or-drop gate "silently" drops races and intermittent faults — "the highest-stakes findings" —
+    unless they go to a "suspected-but-not-reproduced" channel (agentpatterns.ai); a verifier that treated uncertainty as
+    evidence against a finding halved delivered recall, and requiring "a concrete reason to refute" roughly doubled it,
+    while majority voting among verifiers kept 52 of 83 true positives (kodus.io). Practitioners report independent
+    verifiers refuting 30–50% of finder output when the verifier sees only the claim, never the finder's reasoning
+    (jeremyknox.ai, self-reported); our D-344 pilot refuted 2 of 16 (12.5%). **For the loop:** a verdict is
+    `confirmed | refuted | recorded | unverified`, `unverified` (a null or failed seat, a claim not reproducible on demand)
+    is never counted as refuted and never closes a pass (D-206's "refuted never reopens" applies to executed disproofs
+    only), and a refutation cites the command or `path:line` that disproves the claim.
+37. *Redundancy buys less than independence would, so every remaining-defect estimate here is a floor* — three- and
+    five-version LLM ensembles realise "only 0.43 and 0.44 of the reliability gain achievable under independence,
+    dropping below 0.3 when ensembles are built from the same model" (arXiv 2607.02808, code generation, by analogy);
+    capture-recapture below four inspectors underestimates (ISSRE 1997; Petersson et al. 2004: two-reviewer Mh-JK and
+    Mt-Ch "non-robust … produces underestimates"; Wohlin et al. 1995: easy faults dominate the overlap, and zero overlap
+    gives an infinite estimate); sample-coverage estimators beat Jackknife on inspection data (Walia, Carver & Nagappan,
+    ICSE 2008). The Harel–Kantorowitz iterative estimator needs no finder overlap: from the SAME reviewers' per-pass found
+    counts it predicts the next pass's yield, and they stopped when it fell below 0.5 fault — the loop's own confirmed
+    series is that input. **For the loop:** finding 18's Chapman number is printed as a floor; the pair is judged by what
+    each model found ALONE, not by overlap; and `CLAUDE_CODE_SUBAGENT_MODEL`, if set, overrides the script's per-seat
+    models and silently collapses the pair into one model (docs/en/workflows).
+38. *Keep the recall-first finder brief; effort does not buy recall* — "If your review prompt says 'only report
+    high-severity issues' or 'be conservative,' the model may follow that instruction literally and report less; ask it
+    to report everything and filter in a separate pass instead" (prompting-claude-opus-5; the same in CodeRabbit's Opus 5
+    review: "conservative language suppresses recall"); higher effort lowered or did not move review recall for Fable
+    5.1 (61.0% low vs 57.1% high, slower), Sonnet 5 ("barely moved its score and roughly doubled the cost") and Opus 5.5,
+    whose reviews also used 40–60% more tokens than CodeRabbit's baseline (coderabbit.ai, 2026-06/09); aggregation gains
+    flatten past five reviews while cost grows linearly (SWR-Bench, TOSEM, doi 10.1145/3808144); Cursor's largest Bugbot
+    gain came from replacing eight majority-voted passes with one agentic reviewer prompted to investigate aggressively
+    ("52% to over 70%" — cursor.com/blog/building-bugbot); Haiku 4.5 ran about 6× slower and cost more than Sonnet 5 on
+    short reviews (marcindudek.dev). **For the loop:** finding 35(c) is settled — the brief stays recall-first; finders
+    run at `medium` effort; the Haiku seat and a single Opus 5.5 agentic finder are the two arms the D-344 pilot's
+    remaining runs compare.
+39. *What ends a loop well, measured* — at Google, "over 80% of all changes involve at most one iteration of resolving
+    comments" with a single reviewer (Sadowski et al., ICSE-SEIP 2018); Bugbot caps its fix loop at "max 3 attempts per
+    PR to prevent loops" and feeds prior comments back "to avoid duplicate suggestions" (cursor.com/docs/bugbot);
+    interactive actor-critic review converges in 3–5 rounds (zylos.ai — correcting finding 19's "3-8"); failing agent
+    runs are the long ones (SWE-agent: success median 12 steps vs 21 for failures, arXiv 2405.15793; RepairAgent 22 vs
+    40, arXiv 2506.18824) and repeat identical actions; a fix diff far larger than the finding it answers is itself a stop
+    signal (tianpan.co); only about 15% of human review comments indicate a possible defect, a reviewer's useful share
+    rises from 33% to 67% by the third look at the same code, and usefulness falls past about 20 changed files
+    (Czerwonka et al., Microsoft 2015). **For the loop:** the operator's 1–3 passes sits between Google's human norm and
+    the vendors' caps; a slice is bounded near 20 files; the fix hunk's size against its finding is logged; the first stop
+    condition that fired is recorded on every run (solana.garden).
+40. *Budgets, reconciled — finding 9 overstated METR* — METR's "panic" was a signature they looked for, not an observed
+    behaviour: they gave agents their remaining token budget and a four-times-larger budget "barely changed" the result
+    (metr.org, 2026-02-13); a budget stated as framing is absorbed into planning while "a hard cap ambushes the model
+    mid-sentence", and a countdown works when it names the next action; Claude Code already injects a padded
+    `<total_tokens>` countdown into every session (monperrus.net); moderate time pressure raised human review efficiency
+    with no measured loss of effectiveness (Mäntylä et al., ICSE 2014); a timebox holds the deadline and cuts SCOPE, "not
+    quality" (McConnell, via Wikipedia; Jalote); the Opus 5.5 guide calls its elapsed-time budget "advisory … if you need
+    a hard stop, keep your own timeout", and warns the model "may search and verify a little less"; a workflow `budget` is
+    a hard throw on the next `agent()` call (a reverse-engineering of 2.1.201). **For the loop:** D-339's minute budget
+    stays advisory, printed with the next action it implies, never a hard stop; finding 34's elapsed line is tried on one
+    run with its verification counts compared.
+41. *Platform mechanics this loop has to use* — workflows hold same-prefix siblings up to 5 s so they read the first
+    agent's cache (finding 4's race is mitigated inside Workflow, not for plain Agent fan-outs); an agent definition's
+    `experimental.cacheTtl: 1h` raises one seat type's TTL (ignored while usage credits are being spent); a `model:` in a
+    command's frontmatter is a model switch that re-reads the whole conversation uncached; `/usage` shows the lead's cache
+    hit ratio and the likely cause of the last miss (docs/en/prompt-caching); a workflow's reported `totalTokens`
+    excluded cache reads and understated real use 11.6× in #94530; usage-limit pauses happen only interactively and a
+    third hit fails the agent (docs/en/workflows); a subagent stopped by `maxTurns` returns PARTIAL output since 2.1.246
+    (qualifying finding 8, which describes the SDK loop); nested reviewer → verifier subagents keep the per-finding
+    verification out of the lead's transcript (docs/en/sub-agents); 2.1.277 fixed resumed subagents losing their cache
+    and removed `TaskOutput`; `omitClaudeMd` has existed inside the CLI since 2.1.84 behind a feature flag (#40459) — a
+    likelier cause of pilot 1's null at 2.1.276 than a defect; a Stop hook is overridden after 8 consecutive blocks and
+    `/goal` re-checks a condition with a separate evaluator after every turn (best-practices); delegation pays above
+    roughly ten tool calls or eighty lines of edits, a seat's floor is about 25 k tokens of tool schemas and system prompt
+    nobody can cut, and cutting installed plugins and MCP servers paid about three times what trimming rules and memory did
+    (practicalsystems.io) — a measured lever for D-331; one small build task ran about 35% faster as a workflow at 1.3–2.2×
+    the cost (thenewstack.io, n = 1).
+42. *Measures and their gaming, from the field* — DORA's "deployment rework rate" (unplanned deploys to fix production
+    incidents) is the standard name and shape of § 6's escaped-defect row, and a rate can be improved by spreading the same
+    errors across more units, so the absolute count rides beside it (dora.dev; InfoQ); every added guard metric raises the
+    false-alarm rate (3 guards at α 0.05 → ~14%, 10 → 40% — PostHog), so guards stay few; honest optimisation also drifts
+    from the goal and paired guards can deadlock (Hillel Wayne); a count metric is gamed by splitting items, relaxing what
+    counts as done and re-counting old items as new (age-of-product) — the three shapes of "confirmed per seat";
+    reference-free review-quality scoring agrees with humans at ρ 0.54 (CRScore, NAACL 2025); coverage and mutation
+    proxies for LLM-written tests fail exactly on code that already has the bug (arXiv 2607.22880); in production 36.4% of
+    an agentic reviewer's comments were accepted and 56.3% rejected, correctness findings most often invalid (arXiv
+    2607.03316, 31,073 comments) — the noise the executor absorbs.
+
+*Corrections from the read-whole pass:* finding 9's METR citation (above, finding 40); finding 19's "52% → 76%" joins
+two Cursor posts — the launch post says "52% to over 70%", the autofix post "52% to 76%" — and its "3-8 rounds" is the
+page summary, the body says 3–5; finding 28's CodeRabbit Sonnet 5 post is dated 2026-06-30; finding 18's estimate is a
+floor (finding 37); finding 33's "medium … from 15 to 10 agents" disagrees with the live workflows page ("fewer than 15")
+— unresolved, re-read the 2.1.271 notes before relying on either; finding 8's hard-stop claim holds for the SDK loop, a
+Claude Code subagent at `maxTurns` returns partial output. Tool machinery: `mcp__exa__web_fetch_exa` extracts PDFs but has
+no offset (a long page's tail is a raw fetch), serves stale copies of some docs pages, and WebFetch saves a PDF as binary
+under a path seats may not read — all four recorded in the research agent's fetch-routing section.
+
 ---
 
 ## 5. The program — make the loop run as designed
@@ -1280,8 +1380,16 @@ The build of § 5 begins with the two fragments, the reviewer brief and the sour
 | 2 · `command_run.py` (`--budget` on `start`, the per-slice ledger on `round`, a review-family round without `--confirmed` refused, `done` refusing a failing slice) and `dispatch_headroom.py` (`--delta` retired) | 2026-09-22 | `2e917b17c` (D-339; ledger `16adffc3c`, `5853c00e8`) | fleet-synced and distributed by the post-commit sync; ten graders red-first; the refusal scoped to 15 review-family commands, every other caller keeps D-206's tolerant rule; the contract sentence mirrored in both `CLAUDE.md` copies; reviewed in the D-335 shape — 4 passes, 14 → 6 → 3 → 0 on the same three seats, 21 confirmed (13 in round one, then 8 residuals of the fixes), 62 min against a 45-min budget (over, printed, never a cap), fixes `65ae40693`, `103d19ebd`, `e0490606d`, D-341 (the set is 16 by rule), receipt `5e0a21db4` |
 | 3 · every command's first phase executes MCP · rules · infra · manifesto (§ 5 item 7) | 2026-09-22 | `128050dbc` (D-342) | one fragment, `orient.md`, included by all 38 sources right after the run record: the four executed lines and the `ORIENT:` reply line; rendered 38 / 38 / 38 / 38 of 38 (measured over `~/.claude/commands/*.md`, the rendered corpus — a source count reads 0 / 9 / 6 / 0 because the lines live in the fragment); grader `tests/test_orient_fragment.py`; the same change removed D-229's delta round from the assembler's two floors and both `CLAUDE.md` contracts, and the round-zero probe now runs before every re-dispatch; reviewed in the D-335 shape — 3 passes on the same three seats, 17 → 1 → 0, 15 confirmed (14 in round one — among them a FLEET defect, two hub-only paths in the fragment, caught by the orchestrator's own round-zero probe before the seats returned — then 1 mirror residual of the fix), 45 min against a 30-min budget (over, printed, never a cap), fixes `1fd4898a8`, `02c8898b9`, `e61baa6ed`, receipt `69140bfca` |
 | 5 · the review loop as a workflow script (`.claude/workflows/fabrik-review-loop.js`) — two cheap finders per slice with a schema whose `files_read` is diffed against the slice, a Sonnet verify seat per candidate returning command + output, one ledger back, each pass its OWN invocation with the ledger in `args`; `/fabrik-review` and `/fabrik-repo-review` launch it | 2026-09-22/23 | `7f429a341` (D-350); run-1 fixes `5a7803da2`, `55fca7db8`, `214bbdb6c`, `819e2f01a`, receipt `310762e24`; run-1 lessons `f5eb13f3a`; run-2 fixes `d53d0db2c`, `0929d6e6d`, receipt `2c08ac005` | two measured runs, both reviews of the loop itself. **Run 1** (10 files): 2 passes, 20 raised / 13 confirmed / 4 refuted, 30 agents, 2.61 M seat tokens, **19 lead turns**, 35 min. **Run 2** (4 files): 3 passes, 7 confirmed, 18 agents, 0.56 M seat tokens, **17 lead turns**, 21 min. Against today's `/fabrik-review` median of 99 lead turns and 86 min. **Against the operator's criterion both runs settled — 2 passes and 3 (D-330: 1–3).** **The D-347 KILL fired as written** — keyed on the lead-turn proxy (withdrawn as a criterion in revision 22) — both runs sit above the 15-turn target, and confirmed counts (13, 7) fall below the D-335 baseline (14, 21, 15), which was measured on 16–51-file surfaces against these 10 and 4; Invariant 4 defaults a fired criterion to kill, and an override is a new written claim with a new criterion, never an edit of this one (operator decision, pending). What the runs showed: the lead's turns went to in-turn waits (the Stop hook holds the turn while a record runs) and to reading results, not to seats; every workflow agent is invisible to the run record's seat counters (`seats_seen 0` on both closes — seat tokens come from the notifications); a status vocabulary restated in four places drifted in one run (run 2's second-pass defect: the candidates rule inverted when the statuses were keyed on the defect) — a vocabulary is stated once and pointed at; a closing seat reported the lead's latest operator message relayed into its prompt, which it ignored. |
+| 5b · the loop's follow-ups from its two runs and the research (findings 25–42): `unverified` never counted as refuted and never closing a pass, refutation citing its counter-evidence (36); checks under ~10 calls run by the lead inline, one fresh refuter per slice for the rest (27, 41); finders at `medium` effort, the recall-first brief kept (38); the review lead on a short prefix with the ledger in a file (30); seat hygiene — `cacheTtl: 1h` on the reviewer agent, OpenTelemetry for seat tokens, `CLAUDE_CODE_SUBAGENT_MODEL` refused while a pair runs (37, 41); the first stop condition and fix-hunk size logged (39); the stages-per-change count (35) | not started | — | measured on the next real review against the operator's ≤ 3 passes and D-344's per-seat counts |
 | 6 · the same script for the section-partition reviews (`/fabrik-spec-review`, `/fabrik-plan-review`) and the reviews nested in `/fabrik-execute-plan` (144 of its 245 hours) | not started | — | ≤ 20 lead turns each; execute-plan ≤ 60 |
 | 7 · the producing commands delegate their reading and judging — `/fabrik-spec` and `/fabrik-plan-after-chat` send large reads to seats that return summaries and use a judge panel instead of the lead iterating alone; the closing chain fixed at four calls (receipt fill and check · commit through the recipe · gate · close), inputs written first | not started | — | ≤ 25 lead turns each; the chain under 120 |
+
+**Revision 23 (2026-09-23, the read-whole pass):** every fact and card the research returned is filed in a ledger
+(`docs/reference/research/2026-09-23-loop-program-research-ledger.md`, 162 rows, each dispositioned); the 71 sources no finding
+had cited were read whole by eight readers; § 4.9 gains findings 36–42 and six corrections; § 5.2 gains row 5b, the
+design changes they imply. The same change makes the ledger permanent: `scripts/check_research_ledger.py` refuses a
+ledger with an undispositioned row, a hub pre-commit hook runs it, `CLAUDE.md` § External Knowledge requires it before
+any synthesis, and the research agent is wired to firecrawl.
 
 **Revision 22a (2026-09-23):** § 4.9 finding 35 — a practitioner's measured cut of a six-stage review chain to one, read
 whole on the operator's hand-over; § 6 gains the stages-per-change and per-stage-yield row.
