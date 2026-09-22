@@ -22,6 +22,7 @@ converges the artifact set instead. It is AUTONOMOUS: the operator already agree
 spec/plan approval upstream — and deploy-out, Gate 2). It halts only on the 3 BLOCKED cases.
 
 {{include:run-record}}
+{{include:orient}}
 {{include:term-edit}}
 
 ## Phase 0 — Reads budget, orientation, and the owner set

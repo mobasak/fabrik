@@ -23,6 +23,7 @@ contract derives from CODE + SPEC + DEV; **PROD is never read by this command** 
 from the deployed state launders drift into documentation). Nothing here needs fleet SSH.
 
 {{include:run-record}}
+{{include:orient}}
 {{include:term-edit}}
 {{include:grounding-artifact}}
 {{include:injection}}

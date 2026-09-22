@@ -14,6 +14,7 @@ refute/merge, fix-or-handoff, and convergence. Optimize for COVERAGE first, then
 **Coverage is a reconciled number against discovered denominators — never a feeling.**
 
 {{include:run-record}}
+{{include:orient}}
 {{include:autonomy-run}}
 {{include:term-coverage}}
 {{include:injection}}

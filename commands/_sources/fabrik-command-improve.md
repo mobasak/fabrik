@@ -75,6 +75,7 @@ five runs, each of which a reader can judge on its own.
   its cobra where `CLAUDE.md` § THE FIX DIRECTIVE 5 says (the operating manifesto, D-253).
 
 {{include:run-record}}
+{{include:orient}}
 
 ## PHASE 1 — Read the queue
 

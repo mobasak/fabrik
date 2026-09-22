@@ -10,6 +10,7 @@ already owns that fix. This command never reconciles a doc or contract itself �
 which owns its own convergence loop.
 
 {{include:run-record}}
+{{include:orient}}
 ## ⚠️ Termination contract
 
 This is a bounded MEASURE → QUEUE → EXECUTE run, not an open-ended loop. You are done **only when a

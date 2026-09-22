@@ -32,6 +32,7 @@ errand. If the engine is in neither place the driver says so and names the fix; 
 a hand-off.
 
 {{include:run-record}}
+{{include:orient}}
 {{include:injection}}
 
 ## ⚠️ DISCOVERY termination — when the rival SET stops growing

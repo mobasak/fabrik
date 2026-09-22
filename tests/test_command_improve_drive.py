@@ -49,7 +49,9 @@ def test_the_source_sizes_seats_from_the_box_by_role() -> None:
 
 def test_the_source_bounds_the_passes_with_the_real_d278_remedy() -> None:
     sec = _drive_section()
-    assert "D-229" in sec and "D-278" in sec
+    # D-335 superseded D-229's delta sizing (chunk 1, f6beb8b88 re-cut this section) — the pin
+    # kept the old id and read red at HEAD for a day; the stop's remedy (D-278) is unchanged
+    assert "D-335" in sec and "D-278" in sec
     assert "`--confirmed`/`--own-fix` pair" in sec  # the stop reads the PAIR; --own-fix alone is silence
     assert "fix every confirmed defect still open" in sec
     assert "re-verify that fixed set alone" in sec  # the remainder rounds TERMINATE

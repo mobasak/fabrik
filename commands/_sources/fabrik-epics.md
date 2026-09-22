@@ -14,6 +14,7 @@ epic at a time — and the `owner:` field this command writes empty into each ti
 `/fabrik-epics-review`'s Step 1.5 (`scripts/epic_order.py --assign`) fills, per named agent, to make that assignment real.
 
 {{include:run-record}}
+{{include:orient}}
 
 ## Phase 0 — Consume the confirmed Vision Summary
 

@@ -17,6 +17,7 @@ seeded this command's section list; each is also glossed inline where it binds.
 {{include:deploy-chain}}
 
 {{include:run-record}}
+{{include:orient}}
 ## ⚠️ Termination contract
 
 This run has exactly FIVE legitimate endings:

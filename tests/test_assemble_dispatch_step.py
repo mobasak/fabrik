@@ -135,20 +135,22 @@ def test_the_two_partitioned_review_loops_get_the_slice_floor_and_nothing_else_d
     assert slice_floors == ["fabrik-repo-review", "fabrik-review"], slice_floors
 
 
-_DELTA_CLAUSE = (
-    "a delta round at or under the fragment's budget dispatches ONE fresh seat plus the hygiene "
-    "script (`--delta`, D5)"
+_CLOSING_PASS_CLAUSE = (
+    "every later pass is the round-1 seats over their OWN slices' claim ledgers (`round --slices`), "
+    "never a fresh whole-surface reader (D-335)"
 )
 
 
-def test_the_two_partition_floors_carry_the_delta_clause_and_the_judgement_floors_do_not():
-    """D5 (review-family pass 3, D-229): round 1 keeps its partition; every later round is sized
-    by the fix — the two partition FLOOR sentences say so, the judgement kinds (no partition,
-    `--mechanical 0`) do not."""
+def test_the_two_partition_floors_carry_the_closing_pass_clause_and_the_judgement_floors_do_not():
+    """D-335 (superseding D-229's one-fresh-seat delta round): round 1 keeps its partition; every
+    later pass is the round-1 seats over their own slices — the two partition FLOOR sentences say
+    so, the judgement kinds (no partition, `--mechanical 0`) do not, and no floor names `--delta`."""
     for kind in ("review loop", "section partition"):
-        assert _DELTA_CLAUSE in ac._floor(kind, "`fabrik-reviewer`"), kind
+        assert _CLOSING_PASS_CLAUSE in ac._floor(kind, "`fabrik-reviewer`"), kind
     for kind in ("grounding", "adjudication"):
-        assert _DELTA_CLAUSE not in ac._floor(kind, "`fabrik-reviewer`"), kind
+        assert _CLOSING_PASS_CLAUSE not in ac._floor(kind, "`fabrik-reviewer`"), kind
+    for kind in ("review loop", "section partition", "grounding", "adjudication"):
+        assert "--delta" not in ac._floor(kind, "`fabrik-reviewer`"), kind
 
 
 _SECTION_PARTITION_SENTENCE = (
@@ -1163,7 +1165,9 @@ _MAIL_TRIAGE_PHASE_A = {
         "The probe covers the LANE it dispatches to",  # T2.7 D2 (01M2803TM)
     ),
     "fabrik-doc-converge.md": ("project-local `docs/reference/<name>.md`",),  # T2.13 (01M1V443G)
-    "fabrik-ui-design.md": ("Split history (retired screens, superseded versions) into `docs/ui-design-history.md`",),  # T2.11 (01M25G1BN)
+    "fabrik-ui-design.md": (
+        "Split history (retired screens, superseded versions) into `docs/ui-design-history.md`",
+    ),  # T2.11 (01M25G1BN)
     "fabrik-ui-design-review.md": ("the review's first finding is the split",),  # T2.11 twin
     "fabrik-decommission.md": ("`command grep -rn` across `/opt/*`",),  # T2.21
 }
@@ -1190,14 +1194,19 @@ def test_the_mail_triage_phase_a_sentences_reach_their_rendered_commands_once(tm
     lost = [
         p.name
         for p in tmp_path.glob("*.md")  # design-review.md carries no fabrik- prefix
-        if "before any seat sees a delta" in p.read_text() or "before any finder sees a delta" in p.read_text()
+        if "before any seat sees a delta" in p.read_text()
+        or "before any finder sees a delta" in p.read_text()
         if ac._HTML_COMMENT_RE.sub("", p.read_text()).count("REFUTED list verbatim") != 1
     ]
     assert not lost, lost
     doubled = []
     for name in _REVIEW_LOOP_CONSUMERS:
         live = ac._HTML_COMMENT_RE.sub("", (tmp_path / name).read_text())
-        for needle in ("REFUTED list verbatim", "explicit `timeout` at or above", "Scope-growth stop"):
+        for needle in (
+            "REFUTED list verbatim",
+            "explicit `timeout` at or above",
+            "Scope-growth stop",
+        ):
             if live.count(needle) > 1:
                 doubled.append((name, needle, live.count(needle)))
     assert not doubled, doubled

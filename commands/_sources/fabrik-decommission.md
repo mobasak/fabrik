@@ -10,6 +10,7 @@ needs fleet DNS/SSH reachability a project-side agent does not have (deploy is t
 projects; the hub is the execution side).
 
 {{include:run-record}}
+{{include:orient}}
 ## ⚠️ Termination contract
 
 This is a bounded GROUND TRUTH → DECIDE → CONFIRM → EXECUTE run for ONE name, not an open loop. Phase 0

@@ -9,6 +9,7 @@ grounded, every step runnable, every dependency named. Strictly obey the `.winds
 globs match the work, and the plan-file conventions in `CLAUDE.md`.
 
 {{include:run-record}}
+{{include:orient}}
 ## Phase 0 — Distill + richness check (the hybrid gate)
 
 First capture the **source of truth** — do NOT invent scope:

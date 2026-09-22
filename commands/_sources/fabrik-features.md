@@ -15,6 +15,7 @@ The denominator is the project's LIVE REGISTRY (its routes, menus, jobs, endpoin
 This command's own guardrail says the same thing: *the CODE is the denominator; the doc is the claim.*
 
 {{include:run-record}}
+{{include:orient}}
 {{include:term-edit}}
 {{include:grounding-artifact}}
 ## Phase 0 — Establish scope + MODE

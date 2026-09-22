@@ -577,16 +577,15 @@ session-recall — structured rows beat lexical transcripts.
   code and doc unit, at most ONE Haiku seat for a judgement-shaped inventory class only when the brief names it,
   and Fable (Opus when Fable refuses) orchestrating and EXECUTING every refutation and every confirmed
   reproduction, never a finder. The union of the slices IS the full pass, no file's logic read by two seats; round
-  1 is the only full pass; every later round is a DELTA over the fix diff plus one hop of callers and callees (the
-  hop bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule — `term-edit`/
-  `term-coverage`), sized under the fragments' delta budget (`dispatch_headroom.py --delta <n>` beside the round-1
-  `--slices`/`--units` — one fresh seat plus the hygiene script at or under 20 changed lines; D-229), closing only
-  on a delta round that carried a fresh non-authoring seat and CONFIRMED zero code or doc defects (D-206). **Every
+  1 is the only full pass; every later pass is the round-1 seats re-verifying their OWN slices' claim ledgers
+  (`command_run.py round --slices A:n/m,…`; what a later pass may COUNT is the fragments' bounded-hop rule —
+  `term-edit`/`term-coverage`), never a fresh whole-surface reader, closing when every slice is verified and the
+  closing pass CONFIRMS zero code or doc defects (D-206, D-335, D-339). **Every
   OTHER command is UNITS-sized** — `/fabrik-review-scoped`, the grounding and adjudication commands, the sweep and
   audit reviews: per INDEPENDENT unit (failure class · file · screen · doc · pack · journey · fact · behaviour) a
   Sonnet breadth seat plus a Haiku mechanical seat, plus the Opus authoritative seat(s), all dispatched in a
   SINGLE message; the cap is independence OF THE SURFACE and the FLOOR is three seats (D-208; under a partition
-  the floor stands down; D-229 binds it to round 1). EVERY partitioned loop runs `python3
+  the floor stands down; D-335 binds it to round 1). EVERY partitioned loop runs `python3
   /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` before it dispatches (a
   section partition passes `opus=N,sonnet=N`); a units-sized surface runs `--units <N> [--heavy] [--risky <R>]
   [--mechanical <M>]` before any fan-out wider than the floor; a floor-sized fan-out (1 unit = 3 seats) needs no

@@ -9,6 +9,7 @@ One doc per run — depth over breadth (the whole-tree sweep is `/fabrik-docs-re
 single-doc deep converge).
 
 {{include:run-record}}
+{{include:orient}}
 {{include:term-edit}}
 {{include:grounding-artifact}}
 ## Phase 0 — Establish scope + pick the contract

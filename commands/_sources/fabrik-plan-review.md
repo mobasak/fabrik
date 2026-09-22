@@ -8,6 +8,7 @@ argument-hint: "[path to the plan file OR a spine+ticket plan-set directory — 
 Converge this plan to a fixed point — do not stop after one pass. **Fixed point = the fragment's quiet CLOSING round (§ Termination contract defines it; D-206, D-212);** the round in which you *made* edits is never the last one.
 
 {{include:run-record}}
+{{include:orient}}
 {{include:term-edit}}
 (Flip preconditions this gate reads mechanically: a MONOLITH plan must carry
 `## Coverage Checklist` + an embedded `review_rubric.py` invocation — `_checklist_section` and `RUBRIC_RUN` in

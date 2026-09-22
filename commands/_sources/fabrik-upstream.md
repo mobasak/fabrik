@@ -28,6 +28,7 @@ string, and never by asking):
   file a proposal to yourself.
 
 {{include:run-record}}
+{{include:orient}}
 {{include:repo-identity}}
 
 ## ⚠️ Termination contract

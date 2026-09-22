@@ -19,6 +19,7 @@ for anything that deliberately survived the halt.
 {{include:deploy-chain}}
 
 {{include:run-record}}
+{{include:orient}}
 ## ⚠️ Termination contract
 
 This run has exactly FOUR legitimate ENDINGS — plus ONE sanctioned mid-run SUSPENSION (the

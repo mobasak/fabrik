@@ -25,6 +25,7 @@ the ⛔BLOCKING dual live-research gate (Phase 3) — and they are **always** pr
 command produced. If either is missing, that gate did not run: say so, don't quietly re-derive it.
 
 {{include:run-record}}
+{{include:orient}}
 
 ## Phase 0 — Reads budget, orientation, and mode declaration
 

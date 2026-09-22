@@ -9,6 +9,7 @@ feedback and the decision-ledger rule keep their own text. New here: the SIZE ga
 commit, and the UPGRADE ratchet.
 
 {{include:run-record}}
+{{include:orient}}
 
 ⚠️ **Neither generic line above is this lane's** — `command_run.py` REFUSES a `fabrik-task` `start`
 without `--file`/`--declare` and a `done` without `--commit`; paste the SIZE line and phase 5's close.

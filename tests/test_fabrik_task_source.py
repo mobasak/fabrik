@@ -130,8 +130,9 @@ def test_source_size_and_single_include() -> None:
         f"(D-296) by {len(data) - SIZE_CAP} B"
     )
     includes = set(_INCLUDE_RE.findall(data.decode("utf-8")))
-    assert includes == {"run-record"}, (
-        f"includes are {sorted(includes)}; C2 allows exactly ['run-record'] — "
+    assert includes == {"run-record", "orient"}, (
+        f"includes are {sorted(includes)}; C2 allows exactly ['run-record'] plus `orient` "
+        "(D-342 — the four executed opening lines every command carries, 19 B in the source) — "
         "`close-feedback` is auto-appended by the assembler and `term-coverage`/`term-edit` "
         "are the weight this cap exists to keep out"
     )

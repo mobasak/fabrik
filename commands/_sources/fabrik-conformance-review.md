@@ -19,6 +19,7 @@ CONFORMS · 9 PARTIAL · 2 NOT-IMPLEMENTED · 1 drain-list · 1 superseded-in-pa
 re-run as evidence. Every discriminator below earned its place by catching something real there.
 
 {{include:run-record}}
+{{include:orient}}
 {{include:term-coverage}}
 {{include:grounding-artifact}}
 

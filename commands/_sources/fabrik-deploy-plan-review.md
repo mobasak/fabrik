@@ -14,6 +14,7 @@ class definitions live in `docs/development/reviews/2026-08-10-tryton-crm-deploy
 re-open every file — the author's memory of a file is not a read.
 
 {{include:run-record}}
+{{include:orient}}
 {{include:term-edit}}
 
 **Additional sanctioned endings for THIS command** (besides the fragment's closing-round flip, stall

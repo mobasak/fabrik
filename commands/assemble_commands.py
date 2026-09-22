@@ -283,9 +283,9 @@ def _floor(kind: str, native: str) -> str:
             f"**plus the partition — the surface cut into DISJOINT slices by file: Opus on the "
             f"risky slices, Sonnet {native} seats on the rest, at most ONE Haiku class seat when "
             f"the brief names a non-scriptable inventory class; every file read once; sized by "
-            f"`dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` (D-207); a delta round at or "
-            f"under the fragment's budget dispatches ONE fresh seat plus the hygiene script "
-            f"(`--delta`, D5)"
+            f"`dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` (D-207); every later pass is the "
+            f"round-1 seats over their OWN slices' claim ledgers (`round --slices`), never a fresh "
+            f"whole-surface reader (D-335)"
         )
     elif kind in _SECTION_PARTITION_KINDS:
         angles = (
@@ -293,9 +293,9 @@ def _floor(kind: str, native: str) -> str:
             f"rule/grammar sections, Sonnet {native} seats on the rest, `fabrik-researcher` seats "
             f"only for the external facts the artifact cites (counted inside `opus=`/`sonnet=` by their "
             f"model token), NO Haiku seat (the hygiene script is the class sweep); sized by "
-            f"`dispatch_headroom.py --slices opus=N,sonnet=N` (D-207, D-218); a delta round at or "
-            f"under the fragment's budget dispatches ONE fresh seat plus the hygiene script "
-            f"(`--delta`, D5)"
+            f"`dispatch_headroom.py --slices opus=N,sonnet=N` (D-207, D-218); every later pass is the "
+            f"round-1 seats over their OWN slices' claim ledgers (`round --slices`), never a fresh "
+            f"whole-surface reader (D-335)"
         )
     elif kind in _JUDGEMENT_KINDS:
         angles = (

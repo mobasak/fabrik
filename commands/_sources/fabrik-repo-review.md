@@ -13,6 +13,7 @@ AGENTS.md. If an argument was given, scope the whole run to it: `$ARGUMENTS` (a
 subsystem, dir, or risk-tier); otherwise review the ENTIRE repo.
 
 {{include:run-record}}
+{{include:orient}}
 {{include:term-coverage}}
 {{include:grounding-code}}
 ## PHASE 0 — DISCOVER THIS PROJECT (you, first — do NOT assume conventions)

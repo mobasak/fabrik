@@ -39,6 +39,7 @@ compliance drift is suspected) — not per-commit.
     `python scripts/select_rules.py`.
 
 {{include:run-record}}
+{{include:orient}}
 {{include:term-edit}}
 {{include:grounding-artifact}}
 - Verify globs via `python scripts/select_rules.py` — a plausible-looking glob is not proof it matches.

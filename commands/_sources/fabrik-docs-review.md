@@ -19,6 +19,8 @@ python3 scripts/command_run.py start --command fabrik-docs-review --phases 5 \
   --terminal "closing round confirmed 0 + docs_updater --check green"
 ```
 
+{{include:orient}}
+
 `step --phase <N> --title "<phase title>"` on entering each phase; one
 `round --seats <seats dispatched this pass> --findings <discrepancies raised> --confirmed <discrepancies that held, executed>
 --classes-swept <doc/claim classes swept clean> --classes-new <classes this pass opened>` per Phase-2/3 pass. The ledger is the doc set — re-sweep the

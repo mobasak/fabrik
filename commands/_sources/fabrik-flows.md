@@ -35,6 +35,7 @@ sent but never accepted — no token-landing surface ever designed), and an *asy
    `/fabrik-ui-design` consumes it.
 
 {{include:run-record}}
+{{include:orient}}
 {{include:term-edit}}
 (This command owns the AUTHOR'S self-convergence; the separate `/fabrik-flows-review` runs the INDEPENDENT
 author-blind pass — the split mirrors `/fabrik-spec` → `/fabrik-spec-review`.)

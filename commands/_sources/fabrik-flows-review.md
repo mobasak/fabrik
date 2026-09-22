@@ -15,6 +15,7 @@ landing), and **(3) a Success Criterion no journey covers — or a journey servi
 invisible until a non-author re-walks the journeys against the spec.
 
 {{include:run-record}}
+{{include:orient}}
 {{include:term-edit}}
 (After the closing round: the approval gate at the end.)
 

@@ -19,6 +19,8 @@ python3 scripts/command_run.py start --command fabrik-review --phases 5 \
   --terminal "confirmed:0 closing pass — the round-1 seats over their own slices"
 ```
 
+{{include:orient}}
+
 A routed-up review names the trigger in its surface: `--surface "ROUTED-UP: step 1 — <the trigger> · <the diff range>"` — the ledger's only positive witness that `/fabrik-review-scoped`'s route-up fired (`command_run.py:1863` → `:2702`); its `done` then reaches back to the previous AGENT-closed window (`:2585`), which is what covers the pre-`start` edits.
 
 Then, for the whole run: `step --phase <N> --title "<the phase title>"` on entering each phase, and

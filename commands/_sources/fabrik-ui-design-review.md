@@ -22,6 +22,7 @@ someone re-grounds the contract against the spec, the data contract, the design 
 This command is #1: it never opens a browser — it grounds text against text.
 
 {{include:run-record}}
+{{include:orient}}
 {{include:term-edit}}
 (After the closing round: the approval gate at the end.)
 

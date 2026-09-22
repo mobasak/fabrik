@@ -11,6 +11,7 @@ catch — are **(1) an external fact taken from training memory or backed by a d
 against the real world.
 
 {{include:run-record}}
+{{include:orient}}
 {{include:term-edit}}
 (After the quiet closing round: the approval gate below — unlike `/fabrik-plan-review`, this command ends at user approval, not auto-handoff.)
 

@@ -14,6 +14,7 @@ seats author the tests (the pool is OFF, D-181); you own WHAT gets tested and th
 (`git diff`). Never author trivia (getters / framework glue / config) — lean-but-complete, one test per behavior.
 
 {{include:run-record}}
+{{include:orient}}
 ## Import — nothing to import while the pool is OFF (D-181)
 
 The suggest/author seats are native Claude Task subagents; `libs/subagents` is not called. The vendored-pool import contract is kept below for re-enable.

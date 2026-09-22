@@ -20,6 +20,8 @@ python3 scripts/command_run.py start --command fabrik-execute-plan --phases <pla
   --terminal "every phase EXECUTED + its /fabrik-review round clean"
 ```
 
+{{include:orient}}
+
 `step --phase <N> --title "<the plan's phase title>"` on entering each phase. **The `/fabrik-review` at a
 phase boundary opens its OWN nested record — the storage parks this run in the record's `stack` and the child's `done` restores it (01M280CV7)** — so a green phase gate
 never reads as "the plan is done" — and every close NAMES its own run, so a retried `done` from the

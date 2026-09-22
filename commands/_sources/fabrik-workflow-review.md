@@ -10,6 +10,7 @@ Converge one workflow artifact to a fixed point. This is to the `-fabrik` doer c
 Reads (open NOTHING else to act): the artifact under review · its upstream (the Vision Summary for a decomposition or an expanded epic; the research or interview inputs for a vision) · the doer twin's own `## Acceptance Criteria` · **the checklist Phase 0 names** (see Phase 0 — reference it **by path, never by an item count**). Everything the artifact cites is provenance — do not open it to review; if the artifact's claim can't be acted on without opening a cited file, that IS a finding (the applicable checklist's **hollow-citation** item).
 
 {{include:run-record}}
+{{include:orient}}
 {{include:term-edit}}
 {{include:grounding-artifact}}
 {{include:subagents-core}}

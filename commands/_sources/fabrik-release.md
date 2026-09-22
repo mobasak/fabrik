@@ -8,6 +8,7 @@ approval is the operator's, always). This command **verifies and prepares; it ne
 no `eas submit --auto`, no Web Store "Submit for Review" click, no store credential use.
 
 {{include:run-record}}
+{{include:orient}}
 ## ⚠️ Termination contract
 
 You are done when EVERY item of the surface's checklist below has a verdict — **PASS (with evidence: a

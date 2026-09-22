@@ -18,6 +18,7 @@ reach `FROZEN` (the closing round of its Termination contract — `confirmed: 0`
 half-agreed field list is the exact drift this command exists to prevent.
 
 {{include:run-record}}
+{{include:orient}}
 {{include:term-edit}}
 ## Phase 0 — Establish MODE + scope
 

@@ -28,6 +28,7 @@ violation of it. Each phase below is labeled `[anywhere]` (a public DNS/HTTPS pr
 `[hub-side]` (needs the fleet SSH path — `ssh <target_vps> ...` or a hub-container `exec`).
 
 {{include:run-record}}
+{{include:orient}}
 {{include:grounding-artifact}}
 
 ## ⚠️ Termination contract
