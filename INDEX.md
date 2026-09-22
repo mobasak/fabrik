@@ -29,6 +29,10 @@
 | **KILO_CLI_RULES.md** | Kilo CLI spec-contract awareness — full shape/registrar snippet loaded by Kilo via `opencode.json` `instructions:` array. Same content also appears in CLAUDE.md / .windsurfrules / AFCL.md; AGENTS-compact.md carries only a one-line cross-reference (T3-02, 2026-05-16). Propagated to all projects via `scripts/sync_enforcement_to_projects.py` GOVERNANCE_FILES. | Never edit (managed by Fabrik) | Step 3 (ERROR) |
 | **opencode.json** | Kilo CLI bootstrap config (schema: `https://opencode.ai/config.json`). `instructions:` array tells Kilo which markdown files to load on context init: `["AGENTS-compact.md", "KILO_CLI_RULES.md"]`. | New rule file added to Kilo's bootstrap | N/A |
 | **.windsurf/workflows/registrar-audit.md** | Cascade slash-command `/registrar-audit` — wraps `fabrik audit-registrars` with MISSING/DRIFT handling (T3-02 G-C2, 2026-05-16). | New registrar workflow surfaces | Manual |
+| **.claude/workflows/fabrik-review-loop.js** | The D-335 review loop as a Claude Code workflow — two cheap finders per slice with `files_read`, a verify seat per candidate, one ledger back; launched by `/fabrik-review` and `/fabrik-repo-review` once per pass (chunk 5, D-347/D-348). | Command-loop program | Manual |
+| **docs/reference/review-loop-workflow.md** | Contract of `fabrik-review-loop`: `args`, the returned ledger, what the lead still executes, the Agent-tool fallback, the cobra notes, the measurement. | Command-loop program | Manual |
+| **libs/deep_research/packs/loop-research.yaml** | Engineering-evidence pack for fabrik-lib's `deep-research` engine — quoted, dated primary sources with a cobra note per card (D-348). | Research packs | Manual |
+| **tests/test_review_loop_workflow.py** | Pins on the workflow script: literal `meta`, `files_read` required, `fabrik-reviewer` seats on cheap models, no resume, the sources and brief name it. | Command-loop program | Manual |
 
 ---
 
