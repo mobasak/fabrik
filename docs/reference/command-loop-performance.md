@@ -608,7 +608,10 @@ rule says, for the first time: Opus on the one risky slice (four passes), Sonnet
 Fable seat — 28 cost units of seat time. The Opus share of that cost stayed high because the risky slice was the one
 that kept failing on the orchestrator's own residue; the fix for that is the probe below, not a cheaper seat. The orchestrator's
 share fell from 64% to 50% of input tokens and from 39% to 32% of output. Against the command's 94-minute median, 25
-minutes. Two wastes remain, and both are named: rounds two to four were the orchestrator's OWN fix residue on one slice
+minutes. The second measured run (chunk 2's own review, same day): seats 3, 3, 3, 2 — the partition held every pass, 34
+cost units, 21 confirmed, 62 minutes against a declared 45 — over, and the run says so on its RUN: line; passes two to
+four were again residue of the orchestrator's own fixes (wording, a citation, a stale tag), which the round-zero probe
+did not catch because it was run once, before round one, not before each re-dispatch. Two wastes remain, and both are named: rounds two to four were the orchestrator's OWN fix residue on one slice
 (three passes, about 12 minutes) because the fixer skipped the round-zero probe on its own hunks before the owning seat
 re-read them; and the orchestrator still re-executed every candidate by reading the files instead of adjudicating from
 seat reports that carry the executed output — which is what the per-slice ledger of the second chunk changes.
@@ -889,8 +892,12 @@ The build of § 5 begins with the two fragments, the reviewer brief and the sour
 | Chunk | Landed | Commits | Result |
 |---|---|---|---|
 | 1 · the two termination fragments, subagents-core, the reviewer brief's passes-after-the-first mode, nine sources, the test pin | 2026-09-22 | `d03f9a918`, `f6beb8b88`; review fixes `863701479`, `811c3d340`, `93ea1f6eb`; receipt `5d435de09` | every pass after round one is the round-1 seats over their own slices; refuted/recorded opens nothing; the budget clause gated on `start` declaring it; reviewed in its own shape — 4 passes, 11 → 3 → 3 → 0, 25 min; `62-using-subagents.md:74/:211` still carries the old clause (intel's live pass — theirs to edit) |
-| 2 · `command_run.py` (`--budget` on `start`, the per-slice ledger on `round`, a review-family round without `--confirmed` refused, `done` refusing a failing slice) and `dispatch_headroom.py` (`--delta` retired) | 2026-09-22 | `2e917b17c` (D-339; ledger `16adffc3c`, `5853c00e8`) | fleet-synced and distributed by the post-commit sync; ten graders red-first; the refusal scoped to 15 review-family commands, every other caller keeps D-206's tolerant rule; the contract sentence mirrored in both `CLAUDE.md` copies; review in the D-335 shape follows |
+| 2 · `command_run.py` (`--budget` on `start`, the per-slice ledger on `round`, a review-family round without `--confirmed` refused, `done` refusing a failing slice) and `dispatch_headroom.py` (`--delta` retired) | 2026-09-22 | `2e917b17c` (D-339; ledger `16adffc3c`, `5853c00e8`) | fleet-synced and distributed by the post-commit sync; ten graders red-first; the refusal scoped to 15 review-family commands, every other caller keeps D-206's tolerant rule; the contract sentence mirrored in both `CLAUDE.md` copies; reviewed in the D-335 shape — 4 passes, 14 → 6 → 3 → 0 on the same three seats, 21 confirmed (13 in round one, then 8 residuals of the fixes), 62 min against a 45-min budget (over, printed, never a cap), fixes `65ae40693`, `103d19ebd`, `e0490606d`, D-341 (the set is 16 by rule), receipt `5e0a21db4` |
 | 3 · every command's first phase executes MCP · rules · infra · manifesto (§ 5 item 7) | not started | — | 0 / 9 / 7 / 0 of 38 today |
+
+**Revision 12 (2026-09-22):** § 5.2 row 2 records chunk 2's review (4 passes on the same three seats, 21 confirmed, 62
+min over a 45-min budget, D-341); § 4.7 gains the second measured run and names the residue class the round-zero
+probe misses when it runs once instead of before every re-dispatch.
 
 **Revision 11 (2026-09-22, on *"we are updating the doc"*):** § 4.7 gains the run measured after chunk 1 (seats 3, 3, 1,
 1; the rule's model mix for the first time; orchestrator share 64% → 50% of input; 25 min against a 94-min median; the
