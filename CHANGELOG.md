@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — web research is a two-tier ladder in all three contracts (D-337) (2026-09-22)
+
+- § External Knowledge in the hub contract, the fleet template and fabrik-lib's contract now say: `WebSearch` →
+  `WebFetch` and `brave-search` first; when those fail or do not find it, `exa` and `firecrawl`. A first-tier
+  miss is not a miss until the second tier has run, and `BLOCKED` counts misses across both tiers.
+- Why: on today's currency turn every claim was grounded by the first tier and the assigned engines sat idle,
+  because the contract only ever named `WebSearch → WebFetch`. The currency bar said "the FULL arsenal";
+  the base contract, which every non-pass turn reads, did not.
+- fabrik-lib's `CLAUDE.md` line 1 claimed the file was GENERATED and must not be edited; its generator's own
+  comment says that branch has been dead since 2026-08-12 and the file is edited directly. Header corrected.
+
 ### Changed — rules(75-workers-jobs): file 16 of the currency pass, to the 11-row bar (D-336) (2026-09-22)
 
 - The pack mandated a fork-based pool with `tini` as PID 1 that no scaffold emits, and its code samples used

@@ -264,9 +264,13 @@ Every "fix X" / "handle Y" request runs this sequence — each verb CHECKABLE, n
    worktree → delete the branch.
 
 ## External Knowledge — Search, Don't Guess
-When the ticket references a 3rd-party API or SDK: 1. Repo first: `Grep docs/` + `AFCL.md`. 2. Else `WebSearch` →
-`WebFetch` official docs; cite the URL in code. 3. After 3 misses: `BLOCKED: <vendor> — <searched> — <missing>`;
-stop. Skip: stdlib, syntax, Fabrik conventions.
+When the ticket references a 3rd-party API or SDK: 1. Repo first: `Grep docs/` + `AFCL.md`. 2. Else the web, in
+TWO TIERS (operator ruling 2026-09-22): first `WebSearch` → `WebFetch` and `brave-search`; **when those fail or
+do not find it, `exa` (semantic — describe the page you want) and `firecrawl` (structured extraction — a table
+or a versioned fact as JSON)**. A first-tier miss is not a miss until the second tier has run — the three
+engines index differently, and one engine's silence is what once deleted a true citation. Cite the URL in
+code, and name the engine that found it when it mattered. 3. After 3 misses ACROSS BOTH TIERS: `BLOCKED:
+<vendor> — <searched, tier by tier> — <missing>`; stop. Skip: stdlib, syntax, Fabrik conventions.
 
 ## HARD STOPS — NEVER
 | Rule | Instead |
