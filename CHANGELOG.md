@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — command_run.py + dispatch_headroom.py: the budget, the per-slice ledger, the refused unstated exit counter, the delta budget retired (D-335 chunk 2, D-339; 2026-09-22)
+
+- `start --budget <minutes>` on the RUN: line; `round --slices` per-slice claim ledger gating TERMINAL and `done`; a
+  review-family `round` without `--confirmed` refused (mirror: the contract sentence in both CLAUDE.md copies);
+  `--delta`/DELTA_BUDGET gone from both scripts; ten graders red-first; protocol doc § "The budget and the per-slice
+  ledger".
+
 ### Changed — web research is a two-tier ladder in all three contracts (D-337) (2026-09-22)
 
 - § External Knowledge in the hub contract, the fleet template and fabrik-lib's contract now say: `WebSearch` →
