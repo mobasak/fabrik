@@ -12,6 +12,11 @@ All notable changes to this project will be documented in this file.
 - Why: on today's currency turn every claim was grounded by the first tier and the assigned engines sat idle,
   because the contract only ever named `WebSearch → WebFetch`. The currency bar said "the FULL arsenal";
   the base contract, which every non-pass turn reads, did not.
+- Closing pass (remainder): four defects inside the rewrite itself closed — the deferral predicate no longer
+  demands a "floor" (3 of the 7 exa-first commands have none, and `/fabrik-rivals` failed its own example); a
+  lacking or dead tier-2 engine satisfies the tier-2 GATE rather than "counting a miss" against a QUERY
+  threshold; fabrik-lib's copy now points at its own Orient item 4 instead of a hub section it lacks; the
+  contract cites D-337 "as refined by D-338" and names where the engine is cited. V1/V7 → backlog.
 - Scoped review (D-338): the ladder is rewritten once in all three copies — trigger widened to any external
   fact, tier 1 any-of / tier 2 each-you-have, a lacking or dead tier-2 engine is reported and the miss counts,
   exa/firecrawl named METERED in the contract, a miss is a query, the engine is always cited. Commands that wire
