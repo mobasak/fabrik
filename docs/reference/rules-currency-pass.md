@@ -28,7 +28,7 @@ A file is not done until every row is satisfied or explicitly N/A with a stated 
 | 8 | External claims registered in `.windsurf/rules/CLAIMS.yaml` with verify hints + windows | D-061 |
 | 9 | Cross-pack classes deferred to the OWNING pack's turn and recorded in the backlog ledger — never a solo flip that sets packs against each other | D-062 |
 | 10 | **D-065 fleet-AI lens** on deploy-surface packs: check the rules ENFORCE `OPERATIONS.md`/`DEPLOYMENT.md` currency, not merely mention the files | D-065 |
-| 11 | **The pack SAYS SO ITSELF** — `currency_pass: YYYY-MM-DD` in its own frontmatter, the date its turn last met this bar. Not the date you touched the file; the date the LAST bar row closed (files 10 and 11 carry `2026-09-02` because that is when their backfilled research leg landed, not the 1st when the rest of their turn did) | operator 2026-09-22 |
+| 11 | **The pack SAYS SO ITSELF** — `currency_pass: YYYY-MM-DD` in its own frontmatter, the date its turn last met this bar. Not the date you touched the file; the date the LAST bar row closed. ⚠️ You are the turn: WRITE the date, never derive it. The 15 packs marked on 2026-09-22 were BACKFILLED from commit subjects + a two-day window, and that proxy is backfill-only — it agreed with the truth for all 15 solely because the campaign occupied two clean calendar days with no unrelated `rules(` commit inside them (files 10 and 11 carry `2026-09-02` because that is when their backfilled research leg landed, not the 1st). Re-run on a pack whose turn shares a day with unrelated maintenance, it picks the wrong date silently | operator 2026-09-22 |
 
 ## Version literals — banned in EVERY shape, with three dispositions
 

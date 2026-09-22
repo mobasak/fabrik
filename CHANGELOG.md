@@ -26,8 +26,8 @@ All notable changes to this project will be documented in this file.
   earlier attempts at it returned 0 and 8, both wrong.
 - Safe as an optional key: `select_rules.py::_parse_frontmatter` is two key-specific regexes rather
   than a schema, `applies_to:` is already an optional fifth key, and nothing whitelists these keys.
-  Executed after the edit: `select_rules.py --json` parses 30 entries with 0 empty
-  descriptions, `check_pack_reachability.py` rc=0.
+  Executed after the edit: `select_rules.py --json` parses 56 entries (26 active + 30 available)
+  with 0 empty descriptions, `check_pack_reachability.py` rc=0.
 
 ### Changed — docs/workflows/DATA_SYNC_WORKFLOW.md converged to the scripts, the hook and the crontab (/fabrik-doc-converge, 2026-09-22)
 
