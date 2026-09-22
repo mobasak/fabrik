@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — command_run: the slice gate closes its own cobras; `--budget` refuses < 1 (2026-09-22)
+- Round 1 of the D-335 chunk-2 `/fabrik-review`: `done` no longer fails open (rc 0) on a malformed slice row; `A:0/0`, a duplicate slice name and a ledger omitted after an earlier round stated it are refused or `⛔ NOT TERMINAL` with the vanished slices named (the D-253 cobra note lives in `_parse_slices`); `start --budget` < 1 is refused rc 2; the BUDGET advisory stands down on a terminal round; `fabrik-deploy-plan-review` joins `CONFIRMED_REQUIRED_COMMANDS` (a grader derives the `*-review` half from the corpus); `dispatch_headroom.py` loses its dead `delta_sized` branches; the protocol doc's overrun sentence is guidance, not a mechanism.
+
 ### Changed — command_run.py + dispatch_headroom.py: the budget, the per-slice ledger, the refused unstated exit counter, the delta budget retired (D-335 chunk 2, D-339; 2026-09-22)
 
 - `start --budget <minutes>` on the RUN: line; `round --slices` per-slice claim ledger gating TERMINAL and `done`; a
