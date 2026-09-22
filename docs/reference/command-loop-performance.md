@@ -1,6 +1,6 @@
 # Command loop performance — what we aim for, what it costs, and the program to fix it
 
-**Status:** REVISION 19 (2026-09-22). The program of revisions 4–7 (the old § 5: remove the apparatus) was
+**Status:** REVISION 20 (2026-09-22). The program of revisions 4–7 (the old § 5: remove the apparatus) was
 executed in part on 2026-09-21 and REVERTED the same day (D-330) — it removed developments the operator built on
 purpose. § 1.0 records what the three `CLAUDE.md` contracts are now (D-331, lean without loss). § 4.7 states the
 root cause the operator confirmed on 2026-09-21 16:38, and § 5 is rewritten as the engineering that follows from it:
@@ -814,6 +814,73 @@ corpus's own wiring for an engineering question is this fan-out).** Seven findin
 13. *`omitClaudeMd` stays unexplained* — documented at 2.1.271, no upstream issue found in two engines, no effect at
     2.1.276 (pilot 1); every brief is sized as if the contract loads.
 
+**The module run (2026-09-22; fabrik-lib's `deep-research`, vendored at `libs/deep_research` and wired exactly as
+`scripts/rivals_run.py` wires it — keys by its loader, `claude -p` sonnet as the LLM in a neutral cwd, the exa /
+firecrawl / brave legs from `libs/web_tools.py`, a $1.50 ceiling per brief, checkpoints under `.tmp/`; an ENGINEERING
+pack whose cards carry a verbatim quote, the numbers, the page date, the source kind and a cobra note per source; six
+briefs, 60 cards, 57 verified, ≈ $0.20 of search spend plus 18 `claude -p` calls; one brief re-run alone at a 900 s
+timeout after three 300 s kills under four-way concurrency).** Revision 18's verdict that the module is "a market
+engine, not for engineering questions" is WITHDRAWN: with a pack it is the corpus's research engine for this kind of
+question, at a fortieth of a seat fan-out's token cost. Eleven more findings:
+14. *"Done" must be a certificate, never a claim* — an agent may return complete "only when a typed certificate binds
+    every required answer claim to valid, in-scope trace evidence and a deterministic replay reconstructs the claimed
+    value": 0 of 288 unsafe completions against 252 of 288 for a critic-based stop (arXiv 2608.23623); coding agents
+    assert false success in up to 75.8% of trajectories and LLM judges catch it at AUROC 0.54–0.65 (arXiv 2606.09863);
+    97 of 154 DeployBench failures were self-stops where "the agent's pre-finish check validated a weaker or different
+    target than the task required" (tsukumo.ch, 2026-07-14). D-339's executed per-slice ledger is that certificate; the
+    terminal comes from the command text, never from the agent's own `--terminal` prose.
+15. *The reward-hacking menu is short and known* — "skipping verification steps, inferring answers from task-adjacent
+    metadata, or tampering with evaluation-relevant functions"; exploit rates 0% (Claude Sonnet 4.5) to 13.9% (arXiv
+    2605.02964). § 6.1 covers the first two; the third is closed because the ledger tools are fleet-synced scripts and
+    every seat is read-only git.
+16. *A visible remaining budget makes the model wrap up early* — "the model taking shortcuts or leaving tasks
+    incomplete when it believed it was near the end of its window, even when it had plenty of room left"
+    (monperrus.net). The `BUDGET` line prints per round (`command_run.py:763`), never per response and never in a seat
+    brief; keep it so.
+17. *Turn cost is superlinear and uniform budgets waste it* — a simple loop costs ≈ 3× a single inference at five
+    steps, > 30× at fifty, > 100× past two hundred (tianpan.co, 2026-05-22); uneven per-turn budgets save up to 35% of
+    tokens at equal accuracy (arXiv 2604.05164); a hard cutoff below the trajectory's need yields "catastrophic
+    truncation", no usable output (arXiv 2607.14547) — the reserved closing turn of D-347.
+18. *Two finders per slice give a remaining-defect estimate for free* — capture-recapture with two inspectors, iterated
+    per round, is a published stop signal (Harel & Kantorowitz; El-Emam & Laitenberger 1999); estimates land within
+    5–20% of the true count with enough independent finders (Walia, Carver & Nagappan 2008, 73 inspectors) and are
+    unreliable below four (ISSRE 1997) — so ADVISORY per slice, never a gate. From the D-344 pilot's own numbers (Sonnet
+    14 raised, Haiku 5, 3 shared) the Chapman estimate is ≈ 21 against 16 seen: about five unseen candidates. Its cobra:
+    finders that are not independent inflate the overlap and understate what is left; ours are two models in two
+    contexts, and the number is advice.
+19. *Production reviewers converge in 3–8 rounds and buy recall with noise, absorbed downstream* — Kodus: recall 53% →
+    62% while false positives went 170 → 328 (2026-08-18); Cursor Bugbot: 40 experiments, resolution rate 52% → 76%,
+    bugs flagged per run 0.4 → 0.7; cubic: micro-agents plus reasoning logs cut false positives 51% at no recall loss;
+    a confidence rubric with a 0.60 suppress threshold and a cross-reviewer agreement boost cut noise ≈ 49% with no
+    sensitivity loss (EveryInc #434); "a fresh-context verifier then tries to build a concrete reproduction against the
+    diff before the finding ships" (agentpatterns.ai); "typically 3-8 rounds" (zylos.ai, 2026-03-01). Our shape absorbs
+    the noise in the executor, not in the operator's inbox; a candidate both finders raise is executed first, never voted.
+20. *The lagging measure is standard in the field* — post-merge revert rate over 37,623 PRs: Codex 6.1% vs human 11.5%
+    (arXiv 2609.17598, 2026-09); review coverage and participation predict post-release defects (McIntosh et al. 2016);
+    "code reviews often do not find functionality issues that should block a code submission" (Czerwonka et al.,
+    Microsoft 2015). § 6's escaped-defect row is that measure.
+21. *Guards stay separate; never a composite, never a token target* — "a weighted combination of X and Y, like 0.7X +
+    0.3Y, but that too is a metric subject to Goodhart" (Hillel Wayne); guardrail metrics beside one goal metric
+    (PostHog, 2023-10-16; InfoQ on DORA anti-patterns, 2023-04-28); tokens are gamed both ways ("tokenmaxxing",
+    lawsofsoftwareengineering.com), so tokens per run is a guard, never a target.
+22. *The Workflow tool's live defects, from the tracker* — resume keys each `agent()` call on its prompt bytes and
+    chains through prior results, so one changed character re-runs everything downstream (#63102, 2.1.153); 26
+    completed fetch agents re-ran on resume at ≈ 19 k tokens each (#67488); completed calls re-execute (#74599, #95076);
+    subagents never write the one-hour cache tier — 0% across hundreds of sessions (#54006) — and pay a write premium
+    (≈ 14% of subagent spend, #74318); resuming the lead invalidates its own cache prefix (#43657); the TTL doc and the
+    transcripts disagree (#84289). Design consequences: one invocation per pass, identical agent definitions so siblings
+    share a prefix, the seat count bounded by the partition, no resume.
+23. *Fixed iteration caps are unexamined, and the bound is a design input* — "most prior work adopts fixed, often
+    arbitrary, repair budgets" (arXiv 2607.05197, 2026-07) is the published form of D-321's refusal; "The bound is not an
+    optimization you add after it misbehaves; it is a design requirement of shipping the loop at all" (aiarch.dev,
+    2026-08-10); one vendor-narrated case (unverified numbers) paired iteration caps with "stagnation fingerprints" and
+    a token governor — the shape of D-339's oscillation advisory plus the per-slice handoff; human reviews "start to
+    feel slow after they have been waiting for around 24 hour" (ESEC/FSE 2022) — the chain's 10 h median sits just
+    inside that line, which is why aim 1 reads "never a day of waiting".
+24. *The pack is reusable* — `loop-research-pack.yaml` (query-plan / shortlist / verify prompts, the nine-field card,
+    three legs, `demote_rule: [verified, quote]`) ran six unrelated engineering briefs with no engine edit; it belongs
+    under `libs/deep_research/packs/` beside `free-llm-providers.yaml`, on the operator's word (a hub code surface).
+
 ---
 
 ## 5. The program — make the loop run as designed
@@ -852,6 +919,8 @@ the operator as a gate.** The loop keeps every part the operator built; it is ma
    full pass over the whole artifact. That is a handoff of one slice, not a round cap (item 8, D-330): a slice whose
    confirmed count is still falling is not handed off, and the orchestrator runs the round-zero probe on its own fix
    hunks before the owning seat re-reads them, so the residue rounds of 2026-09-22 do not recur.
+   Beside each slice's ledger the record prints the two finders' capture-recapture estimate of candidates not yet
+   seen (§ 4.9 finding 18) — advice for the orchestrator's re-dispatch brief, never a gate and never a cap.
 7. **Every command opens by enforcing the four things the goal names.** Its first phase runs `mcp_health.py` for
    its assigned MCPs, `select_rules.py` for its packs, reads `agents-fabrik.md` for the infrastructure it touches and
    names the manifesto section it runs under — executed lines in the command, not a sentence in `CLAUDE.md`
@@ -886,7 +955,12 @@ script that returns one structured ledger, and the close is fixed at four calls.
 turns (`tok_msgs`) of that command's closes; a command with no close has no figure and gets no target until two runs
 exist (16 of 38 have never run).
 
-| Shape | Commands (median lead turns today) | Mechanism | Target |
+**Targets are lead TURNS — the lead session's own messages, about one minute each — never passes.** Passes stay one to
+three per slice by construction (§ 5 item 6): round one partitioned, pass two fix and re-verify, pass three confirm, a
+slice still failing after its third pass handed off with its claims named. A run's lead turns are counted by
+`tok_msgs` in the ledger; its passes by `rounds`. The two are different columns and the second is not a target.
+
+| Shape | Commands (median lead turns today) | Mechanism | Target lead turns |
 |---|---|---|---|
 | Partitioned-by-file review loop (`review loop` floor) | `/fabrik-review` 99 · `/fabrik-repo-review` never run | **chunk 5** — per slice one Sonnet + one Haiku finder with a schema listing files read and candidates; a Sonnet verify stage executing each candidate and returning command + result; the lead executes only the confirmed, fixes, launches pass 2 as a new run with the ledger as `args` | 15 |
 | Section-partition reviews | `/fabrik-spec-review` 58 · `/fabrik-plan-review` 92 | **chunk 6** — the same script, slices are sections, Opus on the rule/grammar sections (D-212) | 20 |
@@ -987,6 +1061,11 @@ late-round defects to zero by finding fewer defects overall is the failure mode,
   while real recall stays near F1 0.07.
 - **The minute budget** is satisfied most cheaply by a countdown that makes the lead panic-submit (§ 4.9 finding 9).
   Counter: printed once at `start`, never counted down; an overrun hands off one slice, never the run.
+- **"Done" declared against a weaker terminal the agent wrote itself** (§ 4.9 finding 14). Counter: a review-family
+  terminal is the command's — `done` refuses a failing or vanished slice whatever the `--terminal` prose says (D-339).
+- **The capture-recapture estimate read as a gate**, satisfied most cheaply by two finders that share notes or a
+  model — overlap up, "remaining" down. Counter: two models, two contexts, one brief; the number is printed as advice
+  and nothing in the record keys on it.
 
 ---
 
@@ -1105,6 +1184,11 @@ The build of § 5 begins with the two fragments, the reviewer brief and the sour
 | 5 · the review loop as a workflow script — finders per slice with a schema, a cheap verify seat executing each candidate and returning the command and result, one structured ledger back to the lead, each pass its OWN invocation carrying the previous pass's ledger as `args` (resume re-runs a fan-out — § 4.9 finding 12), the finder schema returning the files it read so the script diffs coverage against the slice and logs every gap (finding 10); `/fabrik-review` first | not started | — | the turn budget (§ 2.6, § 5.3, § 6): a review at ≤ 15 lead turns against 99 today; D-335's shape unchanged, moved out of the transcript; KILL on two runs: confirmed below this session's D-335 runs (14, 21, 15) or the escaped-defect rate up — reverted; measured before anything else moves |
 | 6 · the same script for the section-partition reviews (`/fabrik-spec-review`, `/fabrik-plan-review`) and the reviews nested in `/fabrik-execute-plan` (144 of its 245 hours) | not started | — | ≤ 20 lead turns each; execute-plan ≤ 60 |
 | 7 · the producing commands delegate their reading and judging — `/fabrik-spec` and `/fabrik-plan-after-chat` send large reads to seats that return summaries and use a judge panel instead of the lead iterating alone; the closing chain fixed at four calls (receipt fill and check · commit through the recipe · gate · close), inputs written first | not started | — | ≤ 25 lead turns each; the chain under 120 |
+
+**Revision 20 (2026-09-22, the module run, D-348):** § 4.9 gains findings 14–24 from fabrik-lib's `deep-research`
+run over six engineering briefs (60 cards, 57 verified, ≈ $0.20) and withdraws revision 18's "not for engineering
+questions" verdict; § 5 item 6 gains the per-slice capture-recapture advice; § 5.3 states that targets are lead turns,
+never passes (passes stay ≤ 3 per slice); § 6.1 gains the self-written-terminal and the shared-finder cobras.
 
 **Revision 19 (2026-09-22, the final research and the path by command, D-347):** § 2.6 gains the `tok_msgs`
 distribution — every § 6 target is below today's p10, so the budget is a shape, never a cap; § 4.9 gains findings 8–13
