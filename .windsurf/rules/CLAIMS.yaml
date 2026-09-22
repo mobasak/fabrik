@@ -1154,3 +1154,75 @@ claims:
     verify: "https://www.nvidia.com/en-us/data-center/h200/ ; https://www.nvidia.com/en-us/data-center/l40s/ ; the per-GPU NVIDIA datasheets"
     window_days: 365
     last_verified: 2026-09-22
+
+  - id: cc-subagent-concurrency-cap
+    pack: core/62-using-subagents.md
+    claim: "Claude Code refuses to spawn a subagent when 20 are running in the session (CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS, default 20, per session, adjustable never disableable): 'Concurrent subagent limit reached … Do not retry'; spawning succeeds again when the running count drops"
+    kind: version
+    verify: "https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit ; https://code.claude.com/docs/en/env-vars"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: cc-tool-use-concurrency
+    pack: core/62-using-subagents.md
+    claim: "CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY caps how many read-only tools AND subagents execute in parallel (default 10), so a dispatch wider than 10 runs 10-wide below the 20-seat cap"
+    kind: version
+    verify: "https://code.claude.com/docs/en/env-vars"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: cc-subagent-spawn-depth
+    pack: core/62-using-subagents.md
+    claim: "A subagent may spawn subagents up to 3 layers below the main conversation by default (CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH; 1 turns nesting off); a type keeps a seat from spawning by omitting Agent from its tools list or adding it to disallowedTools; the per-session total cap CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION is removed"
+    kind: version
+    verify: "https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents ; https://code.claude.com/docs/en/env-vars"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: cc-subagent-model-resolution
+    pack: core/62-using-subagents.md
+    claim: "Subagent model resolves per-invocation parameter → frontmatter model (inherit = parent's) → CLAUDE_CODE_SUBAGENT_MODEL → the main conversation's model; CLAUDE_CODE_SUBAGENT_MODEL_FORCE (any value, 0 included) discards every definition's model and the per-invocation parameter — seats then run on CLAUDE_CODE_SUBAGENT_MODEL, or on the parent's model when that is unset; a per-invocation model also applies when the seat is resumed by message"
+    kind: version
+    verify: "https://code.claude.com/docs/en/sub-agents (Model resolution)"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: cc-subagent-frontmatter
+    pack: core/62-using-subagents.md
+    claim: "Documented subagent frontmatter keys: name, description, tools, disallowedTools, model (sonnet|opus|haiku|fable|<model id>|inherit), permissionMode, mcpServers, skills, hooks, memory, background, isolation, maxTurns, effort, initialPrompt, omitClaudeMd, color; omitted tools = the parent's full tool set"
+    kind: version
+    verify: "https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: cc-subagent-resume-and-compaction
+    pack: core/62-using-subagents.md
+    claim: "A subagent dispatched run_in_background is continued by SendMessage to its recorded agentId with its context intact (no agent-teams flag required) — a synchronous seat has no resumable id, and a resume is also refused for an oversized transcript or a worktree outside the session's isolation fences; subagents auto-compact under the main conversation's rules and CLAUDE_AUTOCOMPACT_PCT_OVERRIDE; per-seat transcripts live at <project>/<sessionId>/subagents/agent-<id>.jsonl"
+    kind: practice
+    verify: "https://code.claude.com/docs/en/sub-agents#resume-subagents ; https://code.claude.com/docs/en/env-vars"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: multi-agent-token-cost
+    pack: core/62-using-subagents.md
+    claim: "Anthropic's multi-agent research post: agents use ~4x the tokens of chat and multi-agent systems ~15x; token usage explains ~80% of performance variance; an Opus lead with Sonnet subagents beat single-agent Opus by 90.2% on their eval — width is paid in tokens, and 'an independent reader catches what the author cannot' is Fabrik's own measured finding, not a claim in that post or in Cognition's 'Don't build multi-agents'"
+    kind: rationale
+    verify: "https://www.anthropic.com/engineering/multi-agent-research-system ; https://cognition.ai/blog/dont-build-multi-agents"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: mcp-python-sdk-v2-stable
+    pack: docs/reference/subagent-pool-contract.md
+    claim: "The mcp Python SDK v2 is the current stable line (pip install mcp resolves to v2); v1.x is maintenance-only (security fixes) — the frozen pool rule 'pin v1, v2 is pre-release' is inverted"
+    kind: deprecation
+    verify: "https://github.com/modelcontextprotocol/python-sdk (README + releases)"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: openrouter-credits-management-key
+    pack: docs/reference/subagent-pool-contract.md
+    claim: "GET https://openrouter.ai/api/v1/credits (data.total_credits / data.total_usage) requires a MANAGEMENT key — a normal inference key gets 403 'Only management keys can perform this operation'; GET /api/v1/key works with a regular key (limit_remaining); GET /api/v1/models is public"
+    kind: version
+    verify: "https://openrouter.ai/docs/api-reference/authentication ; https://openrouter.ai/docs/api/api-reference/credits/get-remaining-credits"
+    window_days: 180
+    last_verified: 2026-09-22

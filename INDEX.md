@@ -864,6 +864,7 @@ docs/
 │   ├── rules-currency-pass.md
 │   ├── service-contracts
 │   │   └── site-provisioner.md
+│   ├── subagent-pool-contract.md # FROZEN pool/ai-consult/flywheel contract (paused D-181/D-182; moved out of core/62 2026-09-22)
 │   ├── sync-excluded-repo-audit.md
 │   ├── technology-stack-decision-guide.md # Tech decision flowchart
 │   ├── terminal-bench-runner.md

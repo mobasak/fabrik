@@ -8,6 +8,21 @@ All notable changes to this project will be documented in this file.
 - `commands/_fragments/orient.md`, included by all 38 command sources right after the run record opens: one Bash call (`mcp_health.py`, `select_rules.py --changed`, the `agents-fabrik.md` and operating-manifesto sections) and the `ORIENT:` reply line — executed, never recalled; grader `tests/test_orient_fragment.py`. In the same change the assembler's two partition floors, both `CLAUDE.md` contracts and `term-coverage.md` stop describing D-229's delta round (0 of 38 rendered commands say `--delta`), and the round-zero probe runs before every re-dispatch.
 - Round 1 of its review: the four orient lines are hub-absolute with `--repo .` / `--project-root .` (two of them exist in no project repo), the fragment says what `--changed` takes and carries the D-253 cobra note, the grader's phase regex sees `## PHASE` too, the contracts keep the one-hop EXTENT bound, and the doc reads the four-count in one order (0 · 9 · 6 · 0 of 38 sources).
 
+### Changed — rules(62-using-subagents): file 18 of the currency pass, to the 11-row bar (D-343) (2026-09-22)
+
+- The pack carried 19 KB of `<!-- POOL OFF -->` OpenRouter-pool contract into every activation and ~46
+  repos for a runtime the operator re-confirmed paused (OpenRouter + Kilo subagents, 2026-09-22). The
+  pool, `ai-consult` and flywheel text is FROZEN verbatim in `docs/reference/subagent-pool-contract.md`
+  (with two pool-era rules already refuted at freeze: the mcp SDK v1 pin, the OpenRouter credits check)
+  and the pack keeps one status banner; re-enabling is an operator ruling, then a restore.
+- § Dispatch policy re-cut to D-335: later passes are the round-one seats re-verifying their own slices,
+  the closing pass is those seats confirming — `dispatch_headroom.py --delta` and D-229's 20-line budget
+  are gone from the pack (the CLAUDE.md twin is the D-335 chunk-2 owner's).
+- § Parallelism states the three documented limits (20 concurrent per session, refused not queued; 10
+  parallel tool uses incl. subagents; spawn depth 3 and the `tools`/`disallowedTools` control), the
+  model resolution order and the `_FORCE` variable, resume-by-message, per-seat compaction; 9 claims
+  registered; the pack shrinks from 47.9 KB to 26 KB with every live rule kept.
+
 ### Fixed — command_run: pass 2 of the chunk-2 review — the omission banner names the missing slices; a claimless slice row is open (2026-09-22)
 - The `⛔ NOT TERMINAL` banner names the slices missing from this round's ledger whatever the round states (it said "states none" on a partial ledger); the `done` refusal no longer repeats its tail; a stored slice row with no claims reads as OPEN, never a clean `0/0`; three test docstrings stop describing the retired delta round; `term-coverage.md` no longer tags the budget "to build" (D-339); D-341 corrects D-339's set size to 16 and states the membership rule.
 - Pass 3: the `done` refusal on a hand-edited slice row with no claims says "has no claims in its ledger" instead of "0 open claim(s)"; the second `(D-335 — to build)` tag in `term-coverage.md` re-cut; D-341's evidence cell corrected to cite its minting commit.

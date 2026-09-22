@@ -2228,7 +2228,7 @@ def check_plan_dir(
                             f"never-route path '{p}' — route it native",
                             t.path,
                             hint="Set the ticket's Complexity to the never-route tier "
-                            "(native worktree coder), per 62-using-subagents.md:118-120",
+                            "(native worktree coder), per 62-using-subagents.md § NEVER delegate",
                         )
                     )
 
