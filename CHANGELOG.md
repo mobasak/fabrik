@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — command_run: pass 2 of the chunk-2 review — the omission banner names the missing slices; a claimless slice row is open (2026-09-22)
+- The `⛔ NOT TERMINAL` banner names the slices missing from this round's ledger whatever the round states (it said "states none" on a partial ledger); the `done` refusal no longer repeats its tail; a stored slice row with no claims reads as OPEN, never a clean `0/0`; three test docstrings stop describing the retired delta round; `term-coverage.md` no longer tags the budget "to build" (D-339); D-341 corrects D-339's set size to 16 and states the membership rule.
+
 ### Fixed — command_run: the slice gate closes its own cobras; `--budget` refuses < 1 (2026-09-22)
 - Round 1 of the D-335 chunk-2 `/fabrik-review`: `done` no longer fails open (rc 0) on a malformed slice row; `A:0/0`, a duplicate slice name and a ledger omitted after an earlier round stated it are refused or `⛔ NOT TERMINAL` with the vanished slices named (the D-253 cobra note lives in `_parse_slices`); `start --budget` < 1 is refused rc 2; the BUDGET advisory stands down on a terminal round; `fabrik-deploy-plan-review` joins `CONFIRMED_REQUIRED_COMMANDS` (a grader derives the `*-review` half from the corpus); `dispatch_headroom.py` loses its dead `delta_sized` branches; the protocol doc's overrun sentence is guidance, not a mechanism.
 
