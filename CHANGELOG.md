@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the research ledger: every returned research fact is filed and dispositioned before synthesis (2026-09-23)
+
+- `scripts/check_research_ledger.py` refuses a `docs/reference/research/*-ledger.md` with an undispositioned row
+  (`USED → · DUPLICATE of · REJECTED — read whole: · UNREACHABLE — …; tried …`); a hub pre-commit hook runs it;
+  `CLAUDE.md` § External Knowledge requires the ledger before any synthesis (D-352).
+- The research agent is wired to firecrawl and told to fetch one URL per call, read PDFs through exa, and distrust
+  stale exa copies of docs pages.
+- The loop program's own research is the first ledger: 162 rows, the 71 uncited sources read whole;
+  `docs/reference/command-loop-performance.md` rev 23 gains findings 36–42 and six corrections.
+
 ### Changed — rules(67-file-api): file 21 of the currency pass, to the 11-row bar (D-351) (2026-09-23)
 - The pack now opens with what the `file-api` scaffold actually emits (emitted into scratch, not read from
   `scaffold.py`): a CommonJS Express presigned-URL issuer with `R2_*` env names and a `HeadBucket` health
