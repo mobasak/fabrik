@@ -2,8 +2,9 @@
 
 The `orient` fragment carries the four executed lines (MCPs · rules · infra · manifesto) and the
 `ORIENT:` reply line; every command source includes it right after its run record opens, before
-its first phase. Measured before this landed (2026-09-22): 0 / 9 / 7 / 0 of 38 sources named
-`mcp_health.py` / `select_rules.py` / `agents-fabrik.md` / the operating manifesto.
+its first phase. Measured before this landed (2026-09-22): 0 / 9 / 6 / 0 of 38 sources named
+`mcp_health.py` / `select_rules.py` / `agents-fabrik.md` (exact name; `agents-fabrik-core.md` is
+another file) / the operating manifesto — the seven earlier counts read a substring.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ SOURCES = REPO / "commands" / "_sources"
 FRAGMENT = REPO / "commands" / "_fragments" / "orient.md"
 
 _START_RE = re.compile(r"\{\{include:run-record\}\}|command_run\.py start ")
-_PHASE_RE = re.compile(r"^#{2,3} .*Phase [01]\b|step --phase 1\b", re.M)
+_PHASE_RE = re.compile(r"^#{2,3} .*(?:Phase|PHASE) [01]\b|step --phase 1\b", re.M)
 
 
 def test_the_orient_fragment_names_the_four_executables_and_the_reply_line() -> None:
@@ -47,3 +48,16 @@ def test_every_command_source_includes_orient_between_its_start_and_its_first_ph
             misplaced.append(path.name)
     assert not missing, f"sources without {{{{include:orient}}}}: {missing}"
     assert not misplaced, f"orient included before the start or after phase 1: {misplaced}"
+
+
+def test_the_phase_regex_sees_both_heading_cases() -> None:
+    """Round-1 review (seat B): `## PHASE 1` — three sources use the upper-case heading — matched nothing,
+    so a misplaced include after their real first phase passed silently."""
+    for line in (
+        "## Phase 1 — Read",
+        "## PHASE 1 — Read the queue",
+        "### Phase 0 — Scope",
+        "step --phase 1 --title x",
+    ):
+        assert _PHASE_RE.search(line), line
+    assert _PHASE_RE.search("## Phase 2 — Later") is None

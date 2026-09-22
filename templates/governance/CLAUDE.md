@@ -593,9 +593,10 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   brief names it, and Fable (Opus when Fable refuses) orchestrating and EXECUTING every refutation and every
   confirmed reproduction, never a finder. The union of the slices IS the full pass, no file's logic read by two
   seats; round 1 is the only full pass; every later pass is the round-1 seats re-verifying their OWN slices'
-  claim ledgers (`command_run.py round --slices A:n/m,…`; what a later pass may COUNT is the fragments'
-  bounded-hop rule — `term-edit`/`term-coverage`), never a fresh whole-surface reader, closing when every slice is
-  verified and the closing pass CONFIRMS zero code or doc defects (hub D-206, D-335, D-339). **Every OTHER command is UNITS-sized** — `/fabrik-review-scoped`, the grounding and adjudication
+  claim ledgers over the fix diff plus one hop of callers and callees (`command_run.py round --slices A:n/m,…`;
+  the hop bounds the EXTENT, what a later pass may COUNT is the fragments' bounded-hop rule —
+  `term-edit`/`term-coverage`), never a fresh whole-surface reader, closing when every slice is verified and the
+  closing pass CONFIRMS zero code or doc defects (hub D-206, D-335, D-339). **Every OTHER command is UNITS-sized** — `/fabrik-review-scoped`, the grounding and adjudication
   commands, the sweep and audit reviews: per INDEPENDENT unit (failure class · file · screen · doc · pack ·
   journey · fact · behaviour) a Sonnet breadth seat plus a Haiku mechanical seat, plus the Opus authoritative
   seat(s), all dispatched in a SINGLE message; the cap is independence OF THE SURFACE and the FLOOR is three seats

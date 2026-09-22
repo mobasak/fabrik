@@ -35,7 +35,9 @@ def test_the_source_states_fable_drives_else_opus() -> None:
     # the TRIGGER is locked, not only the phrases: a mutant that loosened "when" survived round 1
     assert "bands RED and the window it names is Fable" in sec
     assert "this account's own Fable window" in sec and "/model claude-fable-5-1" in sec
-    assert "D-295" in sec  # the band is raised to the account's own Fable reading; no flip reaches it
+    assert (
+        "D-295" in sec
+    )  # the band is raised to the account's own Fable reading; no flip reaches it
 
 
 def test_the_source_sizes_seats_from_the_box_by_role() -> None:
@@ -43,7 +45,9 @@ def test_the_source_sizes_seats_from_the_box_by_role() -> None:
     assert "dispatch_headroom.py" in sec
     assert "haiku 1× · sonnet 2× · opus 5× · fable 10×" in sec
     assert "not restated here" in sec  # the dispatch shape is pointed at, never copied (round-1 C1)
-    assert "still RUNNING" in sec  # the subtraction is dispatch_headroom.py's, over running records only
+    assert (
+        "still RUNNING" in sec
+    )  # the subtraction is dispatch_headroom.py's, over running records only
     assert "never below the floor" in sec  # the sibling subtraction never starves a session
 
 
@@ -52,7 +56,9 @@ def test_the_source_bounds_the_passes_with_the_real_d278_remedy() -> None:
     # D-335 superseded D-229's delta sizing (chunk 1, f6beb8b88 re-cut this section) — the pin
     # kept the old id and read red at HEAD for a day; the stop's remedy (D-278) is unchanged
     assert "D-335" in sec and "D-278" in sec
-    assert "`--confirmed`/`--own-fix` pair" in sec  # the stop reads the PAIR; --own-fix alone is silence
+    assert (
+        "`--confirmed`/`--own-fix` pair" in sec
+    )  # the stop reads the PAIR; --own-fix alone is silence
     assert "fix every confirmed defect still open" in sec
     assert "re-verify that fixed set alone" in sec  # the remainder rounds TERMINATE
     assert "backlog row with a named destination" in sec
@@ -61,7 +67,12 @@ def test_the_source_bounds_the_passes_with_the_real_d278_remedy() -> None:
 
 def test_the_source_grounds_against_fabrik_lib_and_the_ledgers_before_drafting() -> None:
     sec = _drive_section()
-    for needle in ("/opt/fabrik-lib/README.md", "docs/STRATEGIC_BACKLOG.md", "select_rules.py --changed", "EXECUTED before the render"):
+    for needle in (
+        "/opt/fabrik-lib/README.md",
+        "docs/STRATEGIC_BACKLOG.md",
+        "select_rules.py --changed",
+        "EXECUTED before the render",
+    ):
         assert needle in sec, needle
 
 
