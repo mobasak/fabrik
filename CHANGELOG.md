@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — every command opens by executing MCPs · rules · infra · manifesto (D-335 chunk 3) (2026-09-22)
+- `commands/_fragments/orient.md`, included by all 38 command sources right after the run record opens: one Bash call (`mcp_health.py`, `select_rules.py --changed`, the `agents-fabrik.md` and operating-manifesto sections) and the `ORIENT:` reply line — executed, never recalled; grader `tests/test_orient_fragment.py`. In the same change the assembler's two partition floors, both `CLAUDE.md` contracts and `term-coverage.md` stop describing D-229's delta round (0 of 38 rendered commands say `--delta`), and the round-zero probe runs before every re-dispatch.
+
 ### Fixed — command_run: pass 2 of the chunk-2 review — the omission banner names the missing slices; a claimless slice row is open (2026-09-22)
 - The `⛔ NOT TERMINAL` banner names the slices missing from this round's ledger whatever the round states (it said "states none" on a partial ledger); the `done` refusal no longer repeats its tail; a stored slice row with no claims reads as OPEN, never a clean `0/0`; three test docstrings stop describing the retired delta round; `term-coverage.md` no longer tags the budget "to build" (D-339); D-341 corrects D-339's set size to 16 and states the membership rule.
 - Pass 3: the `done` refusal on a hand-edited slice row with no claims says "has no claims in its ledger" instead of "0 open claim(s)"; the second `(D-335 — to build)` tag in `term-coverage.md` re-cut; D-341's evidence cell corrected to cite its minting commit.
