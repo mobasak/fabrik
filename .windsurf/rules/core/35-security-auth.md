@@ -3,6 +3,7 @@ activation: glob
 globs: ["**/auth/**", "**/security/**", "**/middleware/**", "**/.env", "**/.env.*", "**/secrets/**", "**/.ssh/**", "**/internal_auth.py", "**/*.key", "**/*.pem"]
 description: Security & auth discipline — JWT rules, CORS policy, secret handling, CSP, session patterns, sensitive-file backup, generated-password policy, M2M internal-auth canonical pattern
 trigger: glob
+currency_pass: 2026-09-01
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (tech-plan step)
      GOAL: Auth architecture (Pattern A: FastAPI / Pattern B: Supabase Auth), CORS, CSP, token storage, M2M auth

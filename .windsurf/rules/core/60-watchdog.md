@@ -3,6 +3,7 @@ activation: glob
 globs: ["**/watchdog*", "**/specs/services/*.yaml", "**/fabrik-lib/watchdog/**", "**/state.db", "**/emitter_inbox*", "**/WatchdogConfig*", "**/cost_ledger*"]
 description: Watchdog sidecar contract — when to enable, how Tier A/B/C/D act, OAuth inheritance, fail-safe emitter, cost ceilings
 trigger: glob
+currency_pass: 2026-09-02
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (tech-plan step)
      GOAL: Per-project AI sysadmin sidecar — autonomous diagnosis + Tier A bleed-stop, Tier B opt-in, Tier C escalate, Tier D code-remediation (opt-in, human-gated), cost-capped, OAuth-inherited Claude Code subprocess

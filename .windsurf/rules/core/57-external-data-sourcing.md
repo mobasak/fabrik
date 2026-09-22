@@ -3,6 +3,7 @@ activation: glob
 globs: ["**/scrapers/**", "**/scraper*", "**/*scrape*", "**/*crawl*", "**/ingest/**", "**/connectors/**", "**/webhooks/**", "**/webhook*", "**/docs/reference/apis/**"]
 description: External data sourcing — which mechanism (API/webhook/stream/file/DB/scrape) and which vendor or fabrik-lib module to reach for BEFORE writing an integration, and where the legal bypass line sits; pairs with 58-resilience (how to call safely)
 trigger: glob
+currency_pass: 2026-09-02
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (tech-plan step)
      GOAL: Pick the RIGHT acquisition mechanism + an existing vendor/module before hand-rolling an integration.

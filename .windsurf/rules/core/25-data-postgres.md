@@ -3,6 +3,7 @@ activation: glob
 globs: ["**/db/**", "**/models/**", "**/schema.sql", "**/migrations/**"]
 description: PostgreSQL discipline — migrations, transactions, indexing, nullability, schema evolution
 trigger: glob
+currency_pass: 2026-09-01
 ---
 <!-- CONSUMER: Coding agents (all) working on database code
      GOAL: PostgreSQL discipline — migrations, transactions, indexing, nullability, schema evolution

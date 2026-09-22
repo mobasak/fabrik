@@ -3,6 +3,7 @@ activation: glob
 globs: ["**/docusaurus.config.*", "**/sidebars.*"]
 description: Docusaurus discipline — MDX, sidebar org, versioning, search, deployment, content quality
 trigger: glob
+currency_pass: 2026-09-02
 ---
 <!-- CONSUMER: Coding agents building Docusaurus sites
      GOAL: Docusaurus-specific rules — static generation, Pagefind search, Scalar API docs, deployment

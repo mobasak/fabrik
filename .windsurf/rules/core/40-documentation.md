@@ -2,6 +2,7 @@
 activation: glob
 globs: ["**/*.md", "docs/**/*"]
 description: Documentation rules — scaffolded doc templates, Documentation Sync Matrix, plan documents, writing style
+currency_pass: 2026-09-02
 ---
 <!-- CONSUMER: Coding agents (all) + the planning layer (the plan set /fabrik-plan-after-chat emits — spine + tickets — injects this file's matrix into ticket ACs)
      GOAL: Scaffolded doc templates, Documentation Sync Matrix, changelog, INDEX.md, writing style

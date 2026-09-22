@@ -3,6 +3,7 @@ activation: glob
 globs: ["**/docs/RESILIENCE.md", "**/pause_state*", "**/error_classifier*", "**/circuit_breaker*", "**/health*", "**/orphan_sweep*", "**/balance_check*", "**/dispatch*", "**/beat.py", "**/httpx*", "**/client*"]
 description: Resilience contract — timeout/retry/circuit-breaker for all services, plus autonomous pause-state/queue-bloat for workers
 trigger: glob
+currency_pass: 2026-09-02
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (tech-plan step)
      GOAL: Every production failure class bounded by a primitive AND recovered without a human — timeout/retry/circuit-breaker

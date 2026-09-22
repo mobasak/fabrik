@@ -3,6 +3,7 @@ activation: glob
 globs: ["**/*.ts", "**/*.tsx"]
 description: TypeScript language discipline — strict mode, type safety, module patterns, error handling
 trigger: glob
+currency_pass: 2026-09-01
 ---
 <!-- CONSUMER: Coding agents (Claude Code + dispatched subagents)
      GOAL: TypeScript language discipline — strict mode, type safety, module patterns, logging, Docker

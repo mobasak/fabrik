@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the rules currency pass records itself in the pack it evaluated (D-332) (2026-09-22)
+
+- Bar row 11: an evaluated pack carries `currency_pass: YYYY-MM-DD` in its own frontmatter, dated to
+  when its LAST bar row closed. All 15 already-evaluated packs backfilled from their own commits —
+  `50-code-review` and `55-observability` get 2026-09-02 because that is when their backfilled
+  research leg landed, not the 1st when the rest of their turn did.
+- The roster is now one command instead of a reconstruction: 0 of 56 packs were marked before, 15 are
+  now, 41 remain. Answering the same question the day before took three forensic instruments, and two
+  earlier attempts at it returned 0 and 8, both wrong.
+- Safe as an optional key: `select_rules.py::_parse_frontmatter` is two key-specific regexes rather
+  than a schema, `applies_to:` is already an optional fifth key, and nothing whitelists these keys.
+  Executed after the edit: `select_rules.py --json` parses 30 entries with 0 empty
+  descriptions, `check_pack_reachability.py` rc=0.
+
 ### Changed — docs/workflows/DATA_SYNC_WORKFLOW.md converged to the scripts, the hook and the crontab (/fabrik-doc-converge, 2026-09-22)
 
 - Rewritten from a fresh sweep: the env consolidation retired (audit is read-only; the DR pipeline mirrors the hub

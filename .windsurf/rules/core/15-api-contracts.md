@@ -3,6 +3,7 @@ activation: glob
 globs: ["**/routes/**", "**/api/**", "**/route.ts", "**/router.py", "**/lib/api*", "**/lib/client/**", "**/*api-client*", "**/*.api.ts", "**/*client.ts"]
 description: API contract discipline — OpenAPI-first, error schema, pagination, idempotency, versioning
 trigger: glob
+currency_pass: 2026-09-01
 ---
 <!-- CONSUMER: Coding agents (all) building API endpoints
      GOAL: API contract discipline — OpenAPI-first, error schema, pagination, idempotency, versioning

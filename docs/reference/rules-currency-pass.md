@@ -28,6 +28,7 @@ A file is not done until every row is satisfied or explicitly N/A with a stated 
 | 8 | External claims registered in `.windsurf/rules/CLAIMS.yaml` with verify hints + windows | D-061 |
 | 9 | Cross-pack classes deferred to the OWNING pack's turn and recorded in the backlog ledger — never a solo flip that sets packs against each other | D-062 |
 | 10 | **D-065 fleet-AI lens** on deploy-surface packs: check the rules ENFORCE `OPERATIONS.md`/`DEPLOYMENT.md` currency, not merely mention the files | D-065 |
+| 11 | **The pack SAYS SO ITSELF** — `currency_pass: YYYY-MM-DD` in its own frontmatter, the date its turn last met this bar. Not the date you touched the file; the date the LAST bar row closed (files 10 and 11 carry `2026-09-02` because that is when their backfilled research leg landed, not the 1st when the rest of their turn did) | operator 2026-09-22 |
 
 ## Version literals — banned in EVERY shape, with three dispositions
 
@@ -67,5 +68,27 @@ a pack of purely internal conventions legitimately registers zero.
 
 ## Scope and ledger
 
-`core/` first, then ALL rules folders, to completion. Progress, cross-pack classes and deferred
-findings: `docs/STRATEGIC_BACKLOG.md` § Rules currency pass.
+`core/` first, then ALL rules folders, to completion. Cross-pack classes and deferred findings:
+`docs/STRATEGIC_BACKLOG.md` § Rules currency pass.
+
+**The ROSTER is row 11, and it is one command** — never a reconstruction:
+
+```bash
+command grep -rl '^currency_pass:' .windsurf/rules --include='*.md'   # evaluated
+command grep -rL '^currency_pass:' .windsurf/rules --include='*.md'   # still to do
+```
+
+`command grep`, not the shell's `grep`: the shim is ugrep with `--ignore-files` and these are paths
+under a HIDDEN directory. Row 11 exists because answering "which packs are done?" on 2026-09-22 took
+three separate forensic instruments — commit subjects naming `file N`, the `pack:` field in
+`CLAIMS.yaml`, and the introducing commit of all 110 claim rows. They agreed on 15 of 56, and two
+earlier attempts at the same roster returned 0 and 8, both wrong (one attached files to the wrong
+commit through a record separator; the other used `--since`, which prunes git's walk and silently
+dropped every pass commit before 18:54 on day one). A standard whose progress can only be recovered
+by forensics is a standard that will be re-derived wrongly.
+
+⚠️ **COBRA (D-253): the cheapest way to satisfy row 11 without doing the work is to add the line.**
+It is self-asserted and nothing can execute it. So it is never read alone — the date is only
+credible beside the claims that turn registered for that pack (bar row 8), which is what the
+§ evidence test below checks. A `currency_pass:` date with no `CLAIMS.yaml` rows dated to that turn
+is the shape to distrust, and it is exactly the shape the files-10-and-11 backfill already wore.

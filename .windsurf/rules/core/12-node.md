@@ -3,6 +3,7 @@ activation: glob
 globs: ["**/*.js", "**/*.mjs", "**/*.cjs", "**/*.ts", "**/package.json", "**/package-lock.json"]
 description: Node.js production backend patterns (current LTS) — Fastify/Express, ESM, pino + ALS, graceful drain, npm hygiene, helmet, CVE-aware
 trigger: glob
+currency_pass: 2026-09-01
 ---
 <!-- CONSUMER: Coding agents (Claude Code + dispatched subagents)
      GOAL: Node.js backend service patterns for Fabrik VPS deployment — framework, runtime, observability, lifecycle, security, supply chain

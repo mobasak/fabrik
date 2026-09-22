@@ -3,6 +3,7 @@ activation: glob
 globs: ["**/*.py"]
 description: Python/FastAPI patterns, typing, environment handling
 trigger: glob
+currency_pass: 2026-09-01
 ---
 <!-- CONSUMER: Coding agents (Claude Code + dispatched subagents)
      GOAL: Python/FastAPI implementation patterns — typing, config, error handling, async, Docker

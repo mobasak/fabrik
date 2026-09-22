@@ -3,6 +3,7 @@ activation: glob
 globs: ["**/Dockerfile", "**/compose.yaml", "**/compose.yml", "**/docker-compose.yaml", "**/docker-compose.yml"]
 description: Docker standards, deployment, infrastructure
 trigger: glob
+currency_pass: 2026-09-01
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (deploy-plan step)
      GOAL: Docker, compose.yaml, Docker Compose via `fabrik apply` — base images, DNS, Traefik, resource limits, security

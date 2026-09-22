@@ -3,6 +3,7 @@ activation: glob
 globs: ["**/tests/**", "**/test_*", "**/*_test.*", "**/*.test.*", "**/*.spec.*"]
 description: Testing strategy — what to test per ticket type, smoke vs integration, regression rules
 trigger: glob
+currency_pass: 2026-09-01
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (ticket-breakdown test criteria)
      GOAL: What to test per ticket type, framework per scaffold, tenant isolation testing

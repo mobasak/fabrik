@@ -3,6 +3,7 @@ activation: glob
 globs: ["**/health*", "**/logging*", "**/logger*", "**/metrics*", "**/middleware/**", "**/monitoring/**", "**/glitchtip*", "**/sentry*"]
 description: Observability discipline — structured logs (stdout only, no logfiles), correlation IDs, health/readiness, metrics, alert thresholds, crash reporting
 trigger: glob
+currency_pass: 2026-09-02
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (tech-plan step)
      GOAL: Structured logging, /health, /metrics, GlitchTip, alerts, per-scaffold observability matrix

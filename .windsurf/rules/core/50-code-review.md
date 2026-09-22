@@ -1,6 +1,7 @@
 ---
 activation: model_decision
 description: Code review workflow, quality gate commands, and reusability discipline. Apply when running a self-review/gate, closing a milestone, deciding what tests to write, or judging whether a function should be extracted to a shared module.
+currency_pass: 2026-09-02
 ---
 <!-- CONSUMER: Coding agents (all) — loaded on-demand for self-review/gate tasks
      GOAL: Quality gate commands (lean/full/systemic), self-review audit, reusability discipline
