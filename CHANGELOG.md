@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules(67-file-api): file 21 of the currency pass, to the 11-row bar (D-351) (2026-09-23)
+- The pack now opens with what the `file-api` scaffold actually emits (emitted into scratch, not read from
+  `scaffold.py`): a CommonJS Express presigned-URL issuer with `R2_*` env names and a `HeadBucket` health
+  check; every code sample is CJS, loading the ESM-only `file-type` and `@noble/hashes` by dynamic `import()`.
+- Removed on evidence: the undici handler as a mandate (AWS-published but optional; the 35–45% figure
+  misquoted a local benchmark), `ConfiguredRetryStrategy` as "adaptive", the NIST basis for the 900 s PUT
+  window (no such NIST text — kept as house policy), B2 "requires path-style", the busboy/file-type version
+  floors, blake3 "256-bit", delegation to `image-broker` (a retired stock-photo API), clamd in `/health`,
+  and the mandatory `BEFORE INSERT` chain trigger (now `app-audit-log.md`'s app-level algorithm under an
+  advisory lock; KVKK mandates the 3-year record, not a hash).
+- Added: `signableHeaders: new Set(['content-type'])` (the presigner leaves it unsigned) plus a per-backend
+  Content-Length probe; busboy's silent `fileSize` truncation handled; clamd as its own 4 GiB-class service
+  with an exact `OK`/`FOUND` reply parse; `blake3_hash` nullable until `/finalize` with a live-row unique
+  index; object delete before row delete in the erasure transaction; R2's equal-part rule; the SDK checksum
+  default (and a `WHEN_REQUIRED` client for presigning — the default signs an empty-body CRC32 into the
+  URL); `throwOnRequestTimeout` (a bare `requestTimeout` only warns); the `/healthz` liveness vs `/health`
+  readiness split; the erasure chain's column order and `ts` clamp (the lock alone forks); busboy's
+  non-multipart/no-file/over-size paths (415/400/413) under one response guard that also removes orphaned
+  objects; cross-tenant sweepers as a dedicated `NOBYPASSRLS` role (under forced RLS the app role sees
+  nothing and would erase nothing), the scan worker and retention job setting the tenant per job, and a
+  `delete_reason` column (CHECK-guarded) that every soft-delete path sets and the audit row copies. 18 claims registered; seven scaffold findings mailed to fleet (01M35GSMKNRNT3WDAWWVSP60Z9).
+
 ### Changed — rules(66-rag-chunking): file 20 of the currency pass, to the 11-row bar (D-349) (2026-09-22)
 - The pack described a Markdown chunker nobody has: the vendored fabrik-lib `rag` module's `chunk_text()` is the
   plaintext path and parses no Markdown, so the pack now names heading-first splitting as the CALLER's pre-pass

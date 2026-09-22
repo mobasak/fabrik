@@ -1426,3 +1426,133 @@ claims:
     verify: "https://raw.githubusercontent.com/pgvector/pgvector/master/vector.control"
     window_days: 180
     last_verified: 2026-09-22
+
+  - id: node-require-esm
+    pack: core/67-file-api.md
+    kind: version
+    claim: "Node require() of an ES module is unflagged since 22.12/20.19/23.0 and silent by default since 22.13/20.19/23.5; marked no-longer-experimental only from 25.4; it throws ERR_REQUIRE_ASYNC_MODULE on a module with top-level await \u2014 dynamic import() is the safe path in CJS"
+    verify: "https://nodejs.org/api/modules.html (exa, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+  - id: r2-s3-limits
+    pack: core/67-file-api.md
+    kind: practice
+    claim: "Cloudflare R2: region is 'auto' (empty and us-east-1 alias to it); multipart parts 5 MiB-5 GiB, all non-final parts uniform in size, <=10,000 parts, 5 TiB max object; presigned URLs 1 s-7 days and only on <account>.r2.cloudflarestorage.com; default lifecycle expires incomplete multipart uploads 7 days after initiation, AbortIncompleteMultipartUpload rules supported; egress free"
+    verify: "https://developers.cloudflare.com/r2/platform/limits/ ; https://developers.cloudflare.com/r2/buckets/object-lifecycles/ ; https://developers.cloudflare.com/r2/api/s3/presigned-urls/ ; https://developers.cloudflare.com/r2/pricing/ (exa, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+  - id: b2-s3-addressing-limits
+    pack: core/67-file-api.md
+    kind: practice
+    claim: "Backblaze B2 S3 API accepts both virtual-hosted (bucket.s3.<region>.backblazeb2.com) and path-style addressing; multipart parts 5 MB-5 GB (last part >=1 byte), <=10,000 parts; egress free up to 3x average stored bytes, unlimited via partner CDNs incl. Cloudflare"
+    verify: "https://www.backblaze.com/docs/cloud-storage-call-the-s3-compatible-api ; https://www.backblaze.com/docs/cloud-storage-large-files ; https://www.backblaze.com/apidocs/s3-upload-part ; https://www.backblaze.com/cloud-storage/pricing (exa, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+  - id: supabase-storage-s3-auth
+    pack: core/67-file-api.md
+    kind: practice
+    claim: "Supabase Storage S3 session-token auth: accessKeyId = project_ref, secretAccessKey = anon key, sessionToken = user JWT, forcePathStyle true, endpoint https://<ref>.storage.supabase.co/storage/v1/s3; RLS respected for session tokens, generated S3 keys bypass RLS; x-amz-acl / x-amz-grant-* and versioning not implemented"
+    verify: "https://supabase.com/docs/guides/storage/s3/authentication ; https://supabase.com/docs/guides/storage/s3/compatibility (exa, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+  - id: aws-sdk-checksum-defaults
+    pack: core/67-file-api.md
+    kind: practice
+    claim: "@aws-sdk/client-s3 from 3.729.0 (2025-01-16) defaults requestChecksumCalculation/responseChecksumValidation to WHEN_SUPPORTED (CRC32 on uploads); WHEN_REQUIRED disables it for incompatible third-party backends; Cloudflare R2 (checksum table) and Backblaze B2 (unsupported list no longer names checksum headers, updated 2025-12-10) accept the default per current docs"
+    verify: "https://github.com/aws/aws-sdk-js-v3/issues/6810 ; https://docs.aws.amazon.com/sdkref/latest/guide/feature-dataintegrity.html ; https://developers.cloudflare.com/r2/api/s3/api/ ; https://www.backblaze.com/docs/cloud-storage-s3-compatible-api (exa + WebFetch, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+  - id: aws-sdk-undici-handler
+    pack: core/67-file-api.md
+    kind: practice
+    claim: "@smithy/undici-http-handler (and @aws-sdk/undici-http-handler) is AWS-published and documented in aws-sdk-js-v3 CLIENTS.md as an optional alternative; the Node default handler uses node:http/https with keepAlive true, maxSockets 50; the README benchmark reports 35-50% less time in request handling on a local server and says to benchmark your own case"
+    verify: "https://raw.githubusercontent.com/aws/aws-sdk-js-v3/main/supplemental-docs/CLIENTS.md ; https://github.com/smithy-lang/smithy-typescript/tree/main/packages/undici-http-handler ; https://registry.npmjs.org/@smithy/undici-http-handler/latest (exa + WebFetch, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+  - id: aws-sdk-retry-modes
+    pack: core/67-file-api.md
+    kind: practice
+    claim: "ConfiguredRetryStrategy lives in @smithy/util-retry (@aws-sdk/util-retry is deprecated) and extends StandardRetryStrategy with a custom backoff \u2014 it is not adaptive; adaptive mode (AdaptiveRetryStrategy / retryMode adaptive) adds a per-client rate limiter that can delay first attempts, and AWS does not recommend it as a general default or for one client serving many tenants"
+    verify: "https://raw.githubusercontent.com/smithy-lang/smithy-typescript/main/packages/util-retry/src/ConfiguredRetryStrategy.ts ; https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html ; https://registry.npmjs.org/@aws-sdk/util-retry/latest (exa + WebFetch, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+  - id: presigned-url-expiry
+    pack: core/67-file-api.md
+    kind: rationale
+    claim: "SigV4 presigned URLs expire at most 604,800 s (7 days); getSignedUrl defaults to 900 s; NIST SP 800-63B-4 contains no presigned-URL rule, no 'observation contract' and no 900 s cap (its 15-minute figure is the AAL3 inactivity timeout) \u2014 the 900 s cap is Fabrik house policy"
+    verify: "https://raw.githubusercontent.com/smithy-lang/smithy-typescript/main/packages/signature-v4/src/constants.ts ; https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html ; https://pages.nist.gov/800-63-4/sp800-63b.html (exa + WebFetch + brave, 2026-09-23)"
+    window_days: 365
+    last_verified: 2026-09-23
+  - id: presigner-signed-headers
+    pack: core/67-file-api.md
+    kind: practice
+    claim: "@aws-sdk/s3-request-presigner adds content-type to unsignableHeaders, so ContentType binds only with signableHeaders: new Set(['content-type']); content-length is not unsignable and stays a signed header when set (source inference); only x-amz-* headers are hoisted to the query; R2 documents 403 on a mismatched signed Content-Type but not Content-Length enforcement"
+    verify: "https://raw.githubusercontent.com/aws/aws-sdk-js-v3/main/packages/s3-request-presigner/src/presigner.ts ; https://developers.cloudflare.com/r2/api/s3/presigned-urls/ (exa, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+  - id: busboy-multer-facts
+    pack: core/67-file-api.md
+    kind: version
+    claim: "busboy latest 1.6.0 (2022, no v2, repo dormant since 2023); limits.fileSize truncates the stream (truncated=true + 'limit' event), it never errors; multer (latest 2.4.0) is built on busboy, memoryStorage holds the entire file as a Buffer, and 2.4.0 fixes the latest of its 2025-2026 advisories"
+    verify: "https://registry.npmjs.org/busboy ; https://github.com/mscdex/busboy ; https://registry.npmjs.org/multer/latest ; https://github.com/expressjs/multer/security/advisories (WebFetch + exa, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+  - id: file-type-facts
+    pack: core/67-file-api.md
+    kind: version
+    claim: "file-type latest 22.x is ESM-only (type module, Node >=22); exports fileTypeFromBuffer/FromStream(web ReadableStream only)/FromFile/FromBlob/FromTokenizer; default sampleSize 4100 bytes; detects OOXML docx/xlsx/pptx distinctly from zip, not legacy CFB .doc/.xls without @file-type/cfbf"
+    verify: "https://registry.npmjs.org/file-type/latest ; https://github.com/sindresorhus/file-type (WebFetch + exa, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+  - id: blake3-security-level
+    pack: core/67-file-api.md
+    kind: rationale
+    claim: "BLAKE3 with at least a 32-byte output targets a security level of at least 128 bits for all its goals (not 256); @noble/hashes 2.x is ESM-only and exports it at '@noble/hashes/blake3.js'"
+    verify: "https://www.ietf.org/archive/id/draft-aumasson-blake3-00.html ; https://registry.npmjs.org/@noble/hashes/latest ; https://github.com/paulmillr/noble-hashes (exa + WebFetch, 2026-09-23)"
+    window_days: 365
+    last_verified: 2026-09-23
+  - id: sharp-untrusted-input-defaults
+    pack: core/67-file-api.md
+    kind: practice
+    claim: "sharp limitInputPixels defaults to 268402689 (0x3FFF squared); failOn 'warning' recommended for untrusted input; output strips all metadata (EXIF incl. orientation, ICC, XMP, IPTC) unless keepMetadata/withMetadata/keepExif etc. is called"
+    verify: "https://sharp.pixelplumbing.com/api-constructor ; https://sharp.pixelplumbing.com/api-output (exa, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+  - id: clamav-clamd-facts
+    pack: core/67-file-api.md
+    kind: practice
+    claim: "clamd INSTREAM: z/n-prefixed command, chunks framed by a 4-byte network-order length, zero-length terminator; replies 'stream: OK' / '<sig> FOUND'; the whole stream is capped by StreamMaxLength (default 100M) and an overflow replies 'INSTREAM size limit exceeded'; MaxFileSize 100M, MaxScanSize 400M; stock clamd.conf TCPSocket off, the official clamav/clamav image enables 3310; docker docs: min 3 GiB, prefer 4 GiB \u2014 db load >1.2 GiB, doubled during reload unless ConcurrentDatabaseReload no; 1.4 is the LTS line (EOL 2027-08-15)"
+    verify: "https://docs.clamav.net/manual/Usage/ClamdProtocol.html ; https://raw.githubusercontent.com/Cisco-Talos/clamav/main/etc/clamd.conf.sample ; https://docs.clamav.net/manual/Installing/Docker.html ; https://docs.clamav.net/faq/faq-eol.html (WebSearch + exa + WebFetch, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+  - id: kvkk-deletion-regulation
+    pack: core/67-file-api.md
+    kind: rationale
+    claim: "KVKK deletion regulation (under Law 6698 Art. 7(3)): Art. 11(2) periodic destruction interval set in the retention policy and 'her halde alt\u0131 ay\u0131 ge\xE7emez'; Art. 7(3) all deletion/destruction/anonymisation operations recorded and kept 'en az \xFC\xE7 y\u0131l'; the regulation names no hash chain or tamper-evidence mechanism \u2014 record-keeping plus 'gerekli her t\xFCrl\xFC teknik ve idari tedbirler'"
+    verify: "https://www.kvkk.gov.tr/Icerik/5441 ; https://www.kvkk.gov.tr/Icerik/6649/Personal-Data-Protection-Law (exa + WebFetch, 2026-09-23)"
+    window_days: 365
+    last_verified: 2026-09-23
+
+  - id: opossum-trip-rule
+    pack: core/67-file-api.md
+    kind: practice
+    claim: "opossum opens when the rolling-window error percentage exceeds errorThresholdPercentage, counted only once fires >= volumeThreshold; volumeThreshold defaults to 0, so a single failure in a quiet window reads 100% and opens; half-open admits one probe and a success closes"
+    verify: "https://github.com/nodeshift/opossum/blob/main/lib/circuit.js (volumeThreshold default + the errorRate check) ; https://registry.npmjs.org/opossum/latest (source read by the second-opinion seat, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: smithy-request-timeout
+    pack: core/67-file-api.md
+    kind: practice
+    claim: "@smithy/node-http-handler: when requestTimeout elapses it only logs a warning (logger.warn) unless throwOnRequestTimeout is true, in which case the request is destroyed and the promise rejects with a TimeoutError; the default handler sets no request timeout"
+    verify: "https://github.com/smithy-lang/smithy-typescript/tree/main/packages/node-http-handler/src (set-request-timeout) ; executed against @smithy/node-http-handler 4.12.1 with a never-replying server by the review seat, 2026-09-23"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: presign-empty-body-checksum
+    pack: core/67-file-api.md
+    kind: practice
+    claim: "With the client default requestChecksumCalculation WHEN_SUPPORTED, getSignedUrl for a PutObjectCommand signs x-amz-checksum-crc32=AAAAAA== (the CRC32 of an empty body) plus x-amz-sdk-checksum-algorithm=CRC32 into the URL; a client built with WHEN_REQUIRED omits both"
+    verify: "executed: getSignedUrl with @aws-sdk/client-s3 + s3-request-presigner 3.1138.0, default vs WHEN_REQUIRED client, by two review seats 2026-09-23 ; https://github.com/aws/aws-sdk-js-v3/tree/main/packages/s3-request-presigner"
+    window_days: 180
+    last_verified: 2026-09-23
