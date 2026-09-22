@@ -300,7 +300,7 @@ The per-call cap caught you. Either:
 - Raise `--max-cost` to match the workload
 - Use a cheaper `--kind` (e.g. `pod-rtx-4090` vs `pod-h100`)
 - Use `--cloud COMMUNITY` for ~50% cheaper pods (shared kernel — see
-  rule line 342)
+  rule pack `core/76-gpu-workers.md` § Provider Gotchas)
 
 ### `✗ budget exceeded: daily GPU spend $X + estimate $Y would exceed MAX_DAILY_GPU_COST=$Z` (`GPUBudgetExceededError`)
 

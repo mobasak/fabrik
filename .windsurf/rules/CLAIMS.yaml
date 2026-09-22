@@ -986,3 +986,171 @@ claims:
     verify: "https://docs.python.org/3/whatsnew/3.13.html (os: process_cpu_count, gh-109649)"
     window_days: 365
     last_verified: 2026-09-22
+
+  - id: gpu-tgi-archived
+    pack: core/76-gpu-workers.md
+    claim: "HF text-generation-inference entered maintenance mode 2025-12-11 and the repo was archived 2026-03-21; Inference Endpoints docs recommend vLLM or SGLang (engine chosen per endpoint, no default)"
+    kind: deprecation
+    verify: "https://github.com/huggingface/text-generation-inference (archive banner); https://huggingface.co/docs/inference-endpoints/en/engines/tgi"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: gpu-trtllm-pytorch-only
+    pack: core/76-gpu-workers.md
+    claim: "TensorRT-LLM >= 1.0: PyTorch is the sole execution backend; the TensorRT engine backend, trtllm-build and convert_checkpoint are removed — no compile step; published H100 runs put it single-digit to ~30% over vLLM, config-dependent"
+    kind: deprecation
+    verify: "https://nvidia.github.io/TensorRT-LLM/legacy/tensorrt-backend-removal.html ; https://github.com/NVIDIA/TensorRT-LLM/releases/tag/v1.0.0"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: gpu-dcp-async-save
+    pack: core/76-gpu-workers.md
+    claim: "torch.distributed.checkpoint: dcp.save is synchronous; dcp.async_save returns a Future and overlaps the write; fully background staging (DefaultStager / async_stager) is new in torch 2.9"
+    kind: practice
+    verify: "https://docs.pytorch.org/tutorials/recipes/distributed_async_checkpoint_recipe.html"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: gpu-expandable-segments
+    pack: core/76-gpu-workers.md
+    claim: "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True reduces fragmentation via growable per-stream segments; it is off by default, documented experimental, and ignored under backend:cudaMallocAsync"
+    kind: rationale
+    verify: "https://docs.pytorch.org/docs/stable/notes/cuda.html (Memory management / environment variables)"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: gpu-nvfp4-blackwell
+    pack: core/76-gpu-workers.md
+    claim: "NVFP4 is hardware-native on Blackwell (B200/GB200/B300): within ~1% of FP8 accuracy on large models, ~1.8x smaller than FP8, up to ~3x FP8 peak throughput; FP4-ready checkpoints published under the nvidia/ HF namespace"
+    kind: practice
+    verify: "https://developer.nvidia.com/blog/introducing-nvfp4-for-efficient-and-accurate-low-precision-inference/ ; https://developer.nvidia.com/blog/3-ways-nvfp4-accelerates-ai-training-and-inference/"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: gpu-moe-quantizes-proportionally
+    pack: core/76-gpu-workers.md
+    claim: "Quantizing MoE expert weights cuts VRAM proportionally like dense models (Mixtral 8x7B ~94GB FP16 -> ~32GB AWQ; DeepSeek-V3 ~1.4TB BF16 -> ~700GB FP8); the MoE caveat is that ALL experts must be resident, not that quantization saves little"
+    kind: rationale
+    verify: "search: mixtral 8x7b vram awq gptq; deepseek v3 fp8 vram — any two independent sizing pages"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: gpu-vllm-cold-start-measured
+    pack: core/76-gpu-workers.md
+    claim: "vLLM weight load into GPU memory is ~30s for a 7-8B model and minutes for 70B (excluding image pull); sub-10s starts need snapshots / NVMe caches, never a baseline"
+    kind: rationale
+    verify: "https://dudeperf3ct.github.io/posts/vllm_startup_load_time/ ; https://tensorfuse.io/docs/blogs/reducing_gpu_cold_start"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: gpu-groq-self-serve-catalog
+    pack: core/76-gpu-workers.md
+    claim: "Groq self-serve chat catalog is openai/gpt-oss-120b ($0.15/$0.60 per 1M) and openai/gpt-oss-20b ($0.075/$0.30); llama-3.3-70b-versatile and llama-3.1-8b-instant left the free and developer tiers 2026-08-16 (enterprise-only); groq.com/pricing no longer publishes a table"
+    kind: version
+    verify: "https://console.groq.com/docs/deprecations ; https://console.groq.com/docs/models"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: gpu-together-prices
+    pack: core/76-gpu-workers.md
+    claim: "Together AI: meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8 (the exact id) $0.27/$0.85 per 1M; meta-llama/Llama-3.3-70B-Instruct-Turbo $1.04 flat (was $0.88)"
+    kind: version
+    verify: "https://www.together.ai/models/llama-4-maverick ; https://www.together.ai/models/llama-3-3-70b"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: gpu-70b-api-rate-spread
+    pack: core/76-gpu-workers.md
+    claim: "A 70B-class open-weight model costs $0.10/$0.32 (DeepInfra Llama-3.3-70B-Instruct-Turbo) to $0.90 flat (Fireworks) to $1.04 flat (Together) per 1M — a 10x provider spread, so the self-host break-even is provider-specific"
+    kind: version
+    verify: "https://deepinfra.com/meta-llama/Llama-3.3-70B-Instruct-Turbo/api ; https://fireworks.ai/pricing ; https://www.together.ai/models/llama-3-3-70b"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: gpu-openai-compat-base-urls
+    pack: core/76-gpu-workers.md
+    claim: "OpenAI-compatible base URLs: Groq https://api.groq.com/openai/v1 ; Together https://api.together.ai/v1 ; Fireworks https://api.fireworks.ai/inference/v1 (no trailing slash, accounts/fireworks/models/… ids) ; RunPod serverless vLLM https://api.runpod.ai/v2/<endpoint-id>/openai/v1"
+    kind: practice
+    verify: "https://console.groq.com/docs/openai ; https://docs.fireworks.ai/tools-sdks/openai-compatibility ; https://docs.runpod.io/serverless/vllm/openai-compatibility"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: gpu-runpod-prices
+    pack: core/76-gpu-workers.md
+    claim: "RunPod H100: serverless $4.79/hr flex, $9.98/hr active; Secure Cloud pods $2.89-3.49/hr by SKU (PCIe/SXM/NVL); Community ~$2.69/hr; FlashBoot (~0.5s best, 95% < 2.3s) free on every endpoint; $0 egress"
+    kind: version
+    verify: "https://www.runpod.io/pricing ; https://www.runpod.io/blog/introducing-flashboot-serverless-cold-start"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: gpu-modal-prices
+    pack: core/76-gpu-workers.md
+    claim: "Modal: H100 SXM5 $0.001097/s (~$3.95/hr), B200 ~$6.25/hr, H200 ~$4.54/hr; CPU $0.0000131/core-s and memory $0.00000222/GiB-s billed separately; non-preemptible = 3x base price; region multiplier 1.15-1.75x; cold-start levers are Memory Snapshots, min_containers, scaledown_window"
+    kind: version
+    verify: "https://modal.com/pricing ; https://modal.com/docs/guide/cold-start"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: gpu-marketplace-h100-rates
+    pack: core/76-gpu-workers.md
+    claim: "H100 $/hr on the marketplace tier: Vast.ai $1.30-2.50 verified hosts, interruptible spot ~50% lower (egress per byte host-set, no published range; hosts scored on uptime/DLPerf, no VRAM guarantee); TensorDock $1.91 spot / $2.25 on-demand; Spheron ~$2.0-2.1 spot SXM5 / ~$2.5-3.4 on-demand SXM5, PCIe on-demand from $2.01; Thunder Compute $3.20 PCIe (A100 80GB $1.09), $0 egress"
+    kind: version
+    verify: "https://docs.vast.ai/guides/instances/pricing ; https://www.tensordock.com/gpu-h100.html ; https://www.spheron.network/pricing/ ; https://www.thundercompute.com/pricing"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: gpu-hardware-market-rates
+    pack: core/76-gpu-workers.md
+    claim: "Market $/hr ranges: B200 $3.75-6.79, H200 $2.09-4.44, H100 SXM $1.30-3.49, A100 80GB $0.40-1.85, L40S $0.55-1.47, RTX 4090 $0.33-0.49, L4 $0.31-0.90, T4 $0.15-0.64; RTX PRO 6000 Blackwell (96GB GDDR7 ECC, 1.79 TB/s, from ~$2.26) and RTX 5090 (32GB GDDR7, ~1.8 TB/s, ~$0.55-0.67) are now common rentals"
+    kind: version
+    verify: "https://getdeploying.com/gpus ; https://getdeploying.com/gpus/nvidia-h100"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: gpu-roce-alternative
+    pack: core/76-gpu-workers.md
+    claim: "Multi-node training needs an RDMA fabric: InfiniBand is the default, RoCEv2 on 400GbE+ with a lossless (PFC/ECN) config is proven at scale (Meta's 24k-GPU Llama 3 RoCE cluster); 1-10 Gbps Ethernet is unusable above ~2 nodes"
+    kind: practice
+    verify: "https://www.runpod.io/blog/roce-vs-infiniband-multi-node-gpu-training ; search: llama 3 roce cluster 24k"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: gpu-salad-consumer-only
+    pack: core/76-gpu-workers.md
+    claim: "Salad Cloud offers consumer RTX nodes plus an RTX PRO 6000 Blackwell dedicated tier — no H100/A100; nodes preempt (~30 min minimum runs) and no churn percentage is published; $0 egress"
+    kind: rationale
+    verify: "https://www.salad.com/pricing ; https://docs.salad.com"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: gpu-moe-hardware-minimums
+    pack: core/76-gpu-workers.md
+    claim: "Frontier open-weight MoE minimum hardware: Llama 4 Maverick (400B total) ~4x H100 at INT4 / 8x H200 FP16; DeepSeek-V3/R1 (671B) ~8x H200 at FP8; gpt-oss-120b fits ONE 80GB GPU because its experts are MXFP4 by training"
+    kind: rationale
+    verify: "https://huggingface.co/openai/gpt-oss-120b ; search: llama 4 maverick system requirements; deepseek v3 hardware requirements"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: gpu-vision-api-prices
+    pack: core/76-gpu-workers.md
+    claim: "Open-weight vision models on the managed tier: Qwen3-VL-30B-A3B-Instruct $0.15/$0.60 and Qwen3-VL-235B-A22B-Instruct $0.20/$0.88 per 1M (DeepInfra); Llama 4 Maverick is vision-capable at $0.27/$0.85 (Together)"
+    kind: version
+    verify: "https://deepinfra.com/pricing ; https://www.together.ai/models/llama-4-maverick"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: gpu-replicate-billing
+    pack: core/76-gpu-workers.md
+    claim: "Replicate bills per second of hardware for most public/custom models (T4 through H100 tiers) and per token only for a set of popular LLMs — several times a dense per-token rate on an under-utilised GPU"
+    kind: rationale
+    verify: "https://replicate.com/pricing"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: gpu-hardware-specs
+    pack: core/76-gpu-workers.md
+    claim: "Datasheet VRAM / memory bandwidth: B200 192GB HBM3e ~8TB/s; H200 141GB 4.8TB/s; H100 SXM 80GB 3.35TB/s; A100 80GB ~2TB/s; L40S 48GB 864GB/s; RTX 4090 24GB ~1TB/s; L4 24GB 300GB/s; T4 16GB 300GB/s"
+    kind: rationale
+    verify: "https://www.nvidia.com/en-us/data-center/h200/ ; https://www.nvidia.com/en-us/data-center/l40s/ ; the per-GPU NVIDIA datasheets"
+    window_days: 365
+    last_verified: 2026-09-22

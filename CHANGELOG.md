@@ -8,6 +8,23 @@ All notable changes to this project will be documented in this file.
 - The `⛔ NOT TERMINAL` banner names the slices missing from this round's ledger whatever the round states (it said "states none" on a partial ledger); the `done` refusal no longer repeats its tail; a stored slice row with no claims reads as OPEN, never a clean `0/0`; three test docstrings stop describing the retired delta round; `term-coverage.md` no longer tags the budget "to build" (D-339); D-341 corrects D-339's set size to 16 and states the membership rule.
 - Pass 3: the `done` refusal on a hand-edited slice row with no claims says "has no claims in its ledger" instead of "0 open claim(s)"; the second `(D-335 — to build)` tag in `term-coverage.md` re-cut; D-341's evidence cell corrected to cite its minting commit.
 
+### Changed — rules(76-gpu-workers): file 17 of the currency pass, to the 11-row bar (D-340) (2026-09-22)
+
+- The pack narrated the hub's GPU surface as "future / not yet implemented" beside a paragraph saying it
+  shipped, told services to write `shape.needs_gpu: true` (the `Shape` model forbids unknown keys — the
+  spec fails to load), and called fabrik-lib's chain-rebuild helper "not yet shipped" (it is
+  `health_probe.live_chain()`). Now: the lifecycle IS `fabrik gpu` / `gpu_rent.rent()` — try/finally
+  destroy, both cost caps before the provider call, the five `FABRIK_*` tags, the reaper as the enforcer
+  of `max_lifetime_hours` — with its hub-side precondition stated (a deployed orchestrator enqueues a
+  hub-run job or calls a pinned serverless endpoint; `fabrik` is never imported in a container).
+- Web-grounded corrections (three seats + brave/exa/firecrawl on every load-bearing number): TensorRT-LLM
+  1.0 removed the compile step; TGI is archived (2026-03-21); the MoE-quantization rule was backwards;
+  the "async" checkpoint sample called the blocking `dcp.save`; NVFP4/Blackwell row added; Groq's Llama
+  rows are enterprise-only since 2026-08-16 (snapshot re-verified 2026-09-22); 19 claims registered.
+- The standard's row 3 now names the executable grounding for scaffold claims: emit the project into
+  scratch with `create_project(..., generate_spec=False)` and grep the result. Two in-repo line-number
+  cites into this pack (`docs/operations/gpu-rent.md`, `gpu_checkpoint.py`) now cite the section.
+
 ### Fixed — command_run: the slice gate closes its own cobras; `--budget` refuses < 1 (2026-09-22)
 - Round 1 of the D-335 chunk-2 `/fabrik-review`: `done` no longer fails open (rc 0) on a malformed slice row; `A:0/0`, a duplicate slice name and a ledger omitted after an earlier round stated it are refused or `⛔ NOT TERMINAL` with the vanished slices named (the D-253 cobra note lives in `_parse_slices`); `start --budget` < 1 is refused rc 2; the BUDGET advisory stands down on a terminal round; `fabrik-deploy-plan-review` joins `CONFIRMED_REQUIRED_COMMANDS` (a grader derives the `*-review` half from the corpus); `dispatch_headroom.py` loses its dead `delta_sized` branches; the protocol doc's overrun sentence is guidance, not a mechanism.
 

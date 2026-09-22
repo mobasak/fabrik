@@ -1,6 +1,6 @@
 """Async checkpoint helper for GPU training workloads — Phase 3.
 
-The rule (``.windsurf/rules/core/76-gpu-workers.md`` lines 305–319) prescribes
+The rule (``.windsurf/rules/core/76-gpu-workers.md`` § Checkpoint) prescribes
 async checkpointing as mandatory for training, frequency 15–30 min on
 on-demand pods, 5 min on spot/preemptible. Storage to S3/R2/B2, never local
 disk alone (dies with the instance).
@@ -23,8 +23,8 @@ Design choices
 - **Resume from last checkpoint**: ``load_latest_checkpoint(run_id)``
   lists the prefix, finds the highest step number, downloads it. Used by
   spot/preemptible workloads where the pod can vanish mid-training.
-- **Naming**: ``{project}/{run_id}/checkpoint-{step:08d}-{ts}.tar.gz``
-  (matches rule line 310).
+- **Naming**: ``fabrik-gpu-checkpoints/{project}/{run_id}/checkpoint-{step:08d}-{ts}.tar.gz``
+  (matches the rule's § Checkpoint naming).
 
 What this is NOT
 ================
