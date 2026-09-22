@@ -4,7 +4,7 @@ Every fact and card the loop program's research returned, filed whole with its d
 Knowledge; checked by `scripts/check_research_ledger.py`). Sources: three `fabrik-researcher` seats of 2026-09-22
 (turn budgets, the Workflow tool, reviewer-independent recall), fabrik-lib `deep-research` over six briefs (2026-09-22),
 five seats of 2026-09-23 (Opus 5.5, the Claude Code changelog, Anthropic guidance, model roles, practitioners), and
-eight read-whole readers over the 71 sources no finding had cited (their reports decide the USED / REJECTED rows that
+eight read-whole readers over the 71 URLs (69 pages) no finding had cited (their reports decide the USED / REJECTED rows that
 say "read-whole pass"). The synthesis is § 4.9 of `docs/reference/command-loop-performance.md`, findings 8–42.
 
 | id | source | fact | url | disposition |

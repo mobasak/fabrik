@@ -33,14 +33,25 @@ REJ = re.compile(r"^REJECTED\s*[—-]+\s*read whole:\s*(.+)$")
 UNR = re.compile(r"^UNREACHABLE\s*[—-]+\s*.+;\s*tried\s+\S.*$")
 
 
+CELL_SPLIT = re.compile(r"(?<!\\)\|")
+SEPARATOR = re.compile(r"^\|(\s*:?-{3,}:?\s*\|)+\s*$")
+
+
 def _rows(text: str) -> list[list[str]]:
-    rows = []
-    for line in text.splitlines():
-        if not line.startswith("| "):
+    """Every table row after a header+separator pair is a FACT row — never filtered by its id, because a row the check
+    skips is exactly the undispositioned fact it exists to catch (review of 2026-09-23: an uppercase or unnumbered id
+    made its row invisible). A literal pipe inside a cell is written `\\|`."""
+    rows, lines = [], text.splitlines()
+    in_table = False
+    for i, line in enumerate(lines):
+        if SEPARATOR.match(line.strip()):
+            in_table = True
             continue
-        cells = [c.strip() for c in line.strip().strip("|").split(" | ")]
-        if cells and ROW_ID.match(cells[0]):
-            rows.append(cells)
+        if not line.startswith("|"):
+            in_table = False
+            continue
+        if in_table and not (i + 1 < len(lines) and SEPARATOR.match(lines[i + 1].strip())):
+            rows.append([c.strip() for c in CELL_SPLIT.split(line.strip().strip("|"))])
     return rows
 
 
@@ -54,6 +65,11 @@ def check(path: Path) -> list[str]:
     ids = {r[0] for r in rows}
     bad = []
     for r in rows:
+        if not ROW_ID.match(r[0]):
+            bad.append(
+                f"{path}: {r[0] or '(empty id)'}: malformed id — `<lowercase source>-<1–3 digit number>`"
+            )
+            continue
         disp = r[-1] if len(r) >= 5 else ""
         if USED.match(disp) or UNR.match(disp):
             continue

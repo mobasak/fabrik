@@ -59,6 +59,23 @@ def test_a_rejection_without_a_real_reason_or_a_dangling_duplicate_is_refused(
     )
 
 
+def test_a_row_with_a_malformed_id_is_refused_never_skipped(tmp_path: Path) -> None:
+    p = _ledger(
+        tmp_path,
+        "| S-01 | seat | uppercase | https://a | OPEN |\n| s-abc | seat | no number | https://b | |\n"
+        "| s-1234 | seat | four digits | https://c | OPEN |\n| s-02 | seat | fine | https://d | USED → x |\n",
+    )
+    bad = crl.check(p)
+    assert len(bad) == 3 and all("malformed id" in b for b in bad), bad
+    assert crl.main([str(p)]) == 1
+
+
+def test_an_escaped_pipe_inside_a_fact_keeps_the_row_in_its_five_cells(tmp_path: Path) -> None:
+    p = _ledger(tmp_path, "| s-01 | seat | rate 5 \\| 10 req/s | https://a | OPEN |\n")
+    assert crl._rows(p.read_text(encoding="utf-8"))[0][4] == "OPEN"
+    assert len(crl.check(p)) == 1
+
+
 def test_a_ledger_with_no_fact_rows_is_refused_and_a_missing_path_is_a_usage_error(
     tmp_path: Path,
 ) -> None:
