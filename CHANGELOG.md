@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
   estimate printed as advice, one ledger back; each pass its own invocation (never `resumeFromRunId`).
   `/fabrik-review` and `/fabrik-repo-review` launch it as ONE call per pass; the reviewer brief gains the
   structured-output section; `docs/reference/review-loop-workflow.md` is the contract; graders in
-  `tests/test_review_loop_workflow.py` (red-first). Measured on its first two runs against the D-347 KILL.
+  `tests/test_review_loop_workflow.py` (red-first). To be measured on its first two runs against the D-347 KILL, the first being its own review.
 - `libs/deep_research/packs/loop-research.yaml` — the engineering-evidence pack for fabrik-lib's
   `deep-research` engine (D-348): quote · numbers · date · source kind · cobra note per card.
 
