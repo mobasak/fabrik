@@ -445,7 +445,7 @@ Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`c
 - ⚠️ **The closing pass is the round-1 seats re-verifying their OWN slices** (the same two seats per slice — its Sonnet and its Haiku, D-344; never a fresh whole-artifact reader, D-335) — the fix diff is YOUR
   work, and `62-using-subagents.md` § Role separation binds: the loop-closing pass's finder work runs in a context
   that did not author the artifact. **A closing pass that dispatched no finder seat may not close**; the hygiene script and
-  your own execution never close a review alone. Under the workflow, pass 2 and the closing pass are NEW `Workflow` invocations with `pass: 2|3` and each slice's `ledger` in `args` — each claim stated as the DEFECT, so `STILL_TRUE` means it persists — never `resumeFromRunId` (a resumed run re-runs the fan-out; `docs/reference/review-loop-workflow.md`).
+  your own execution never close a review alone. Under the workflow, pass 2 and the closing pass are NEW `Workflow` invocations with `pass: 2|3` and each slice's `ledger` in `args` — each claim stated as the DEFECT — `STILL_TRUE` the defect persists · `NOW_FALSE` it is gone (the fix holds) · `NEW` a defect the fix introduced — never `resumeFromRunId` (a resumed run re-runs the fan-out; `docs/reference/review-loop-workflow.md`).
 - **Every Coverage Checklist row is adjudicated** (CLEAN / FIXED / REFUTED / RECORDED), the delta round
   returned **`confirmed: 0` and `fixed: 0` with `unexecuted:` 0 or absent**, it carried the owning seats,
   and the mechanical gates are green → **EXIT** (the Termination

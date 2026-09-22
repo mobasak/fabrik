@@ -243,3 +243,16 @@ def test_a_later_pass_prompt_defines_its_ledger_status_on_the_defect_and_every_s
     assert "StructuredOutput" in prompts["find:S:haiku"], (
         "every finder is told to finish with the schema"
     )
+    _, _, p1 = _harness(
+        _ARGS,
+        {
+            "find:S:sonnet": {
+                "files_read": ["a.py", "b.py"],
+                "notes": "",
+                "candidates": [_cand("S-S1", 3)],
+            }
+        },
+    )
+    assert "StructuredOutput" in p1["verify:S:S-S1"], (
+        "a verify seat that answers in prose is a null seat"
+    )

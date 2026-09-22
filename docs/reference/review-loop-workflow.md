@@ -18,10 +18,10 @@ Workflow({ scriptPath: "/opt/fabrik/.claude/workflows/fabrik-review-loop.js", ar
 | `surface`, `base_sha`, `digest` | the Phase-0 surface, the pinned commit, `git diff HEAD \| md5sum` |
 | `pins_dir`, `scratch_dir` | the pinned copies every seat reads; the per-seat scratch root |
 | `brief` | the dispatcher's shared text: the 16 failure classes, the D8 lessons, the house rules, the referents |
-| `slices` | `[{ name, files: [repo-relative…], priority, ledger?: [{ id, file, line, claim }] }]` — `ledger` on pass ≥ 2; each `claim` states the DEFECT as raised, so `STILL_TRUE` means it persists and `NOW_FALSE` that the fix holds |
+| `slices` | `[{ name, files: [repo-relative…], priority, ledger?: [{ id, file, line, claim }] }]` — `ledger` on pass ≥ 2; each `claim` states the DEFECT as raised — `STILL_TRUE` the defect persists · `NOW_FALSE` it is gone (the fix holds) · `NEW` a defect the fix introduced |
 | `box_minutes` | the seats' hard time box (default 15) |
 
-The tool returns `async_launched`; the ledger arrives as one result. **Each pass is its own invocation** — never
+The tool returns `async_launched`; the ledger arrives as one result — the lead waits for it with ONE bounded in-turn poll per pass, and when the result is truncated reads the run's `journal.jsonl` (one `result` row per completed agent), never the escaped task-output copy. **Each pass is its own invocation** — never
 `resumeFromRunId`: a resumed run re-runs every agent after the first fan-out (anthropics/claude-code #63102,
 #67488, #74599, #95076 at 2.1.27x).
 

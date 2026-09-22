@@ -63,7 +63,7 @@ const FINDINGS = {
     candidates: { type: 'array', items: CANDIDATE },
     ledger_status: {
       type: 'array',
-      description: 'pass ≥ 2 only: one row per ledger claim',
+      description: 'pass ≥ 2 only: one row per ledger claim; each claim states a DEFECT — STILL_TRUE it persists, NOW_FALSE it is gone, NEW the fix introduced one',
       items: {
         type: 'object',
         required: ['id', 'status', 'command', 'output'],
@@ -128,7 +128,7 @@ CHECK TO EXECUTE: ${c.check}
 
 Return id "${c.id}" exactly. Run the check (or the smallest command that proves or refutes the claim on the pinned copy). verdict: confirmed = the check reproduces the failure; refuted = the check proves it cannot happen (say the mechanism); recorded = outside the slice or more than one hop away, with a destination. output ≤ 1500 characters, verbatim. mechanism: one sentence, the WHY. A re-read is not execution — run it. HARD TIME BOX ${box} minutes.
 
-${args.brief}`
+${args.brief} FINISH by calling the StructuredOutput tool — a report in prose is a failed seat.`
 }
 
 // Two candidates are ONE defect only when two DIFFERENT seats cite the same file and class within five lines;
