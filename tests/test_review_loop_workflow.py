@@ -240,6 +240,7 @@ def test_a_later_pass_prompt_defines_its_ledger_status_on_the_defect_and_every_s
         "pass ≥ 2 keys the status on the DEFECT (R-3)"
     )
     assert "NOW_FALSE means it is gone" in finder
+    assert "ONLY the STILL_TRUE and NEW rows" in finder, "a fix that holds is never a candidate"
     assert "StructuredOutput" in prompts["find:S:haiku"], (
         "every finder is told to finish with the schema"
     )
