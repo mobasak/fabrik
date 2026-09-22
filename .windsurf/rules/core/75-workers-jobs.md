@@ -4,6 +4,7 @@ globs: ["**/workers/**", "**/worker/**", "**/worker.py", "**/jobs/**", "**/jobs.
 applies_to: ["file-worker"]
 description: Workers & jobs discipline — PG queue, retry/backoff, dead-letter, idempotency, pause-state, orphan sweep, beat tasks
 trigger: glob
+currency_pass: 2026-09-22
 ---
 <!-- CONSUMER: Coding agents building background workers/jobs
      GOAL: PG queue (SKIP LOCKED), adaptive worker pool, retry/backoff, orphan sweep, beat scheduler
@@ -21,9 +22,9 @@ Apply when working on background job processing, task queues, workers, scheduled
 | Scaffold | When this pack applies |
 |---|---|
 | `file-worker` | Always — core pattern |
-| `file-api` | Always — processes files asynchronously |
+| `file-api` | When it processes files asynchronously (the scaffold emits no worker) |
 | `python-api` | Only if the service has async jobs (file processing, email sending, data pipelines) |
-| `saas-skeleton` | Only if the backend has background jobs (commission runs, report generation, data sync) |
+| `saas-skeleton` | Always — the scaffold emits `worker.py` and a `jobs` table |
 | `node-api` | Only if async job processing exists |
 | Other scaffolds | N/A |
 
@@ -31,7 +32,7 @@ Apply when working on background job processing, task queues, workers, scheduled
 
 ## PostgreSQL as Queue
 
-- PostgreSQL on **`postgres-main:5432`** is the default message broker. External brokers (Celery, RabbitMQ, ARQ, Kombu) are banned. Redis (`redis-main:6379`) is permitted **only** when a proven PostgreSQL queue throughput bottleneck is measured (realistically low-thousands of jobs/sec on a single instance — you are nowhere near this), or for ephemeral fire-and-forget messages where data loss is acceptable.
+- PostgreSQL on **`postgres-main:5432`** is the default message broker. External brokers (Celery, RabbitMQ, ARQ, Kombu) are banned. Redis (`redis-main:6379`) is permitted **only** when a PostgreSQL queue throughput bottleneck has been MEASURED on this workload (not assumed — no Fabrik service has reached one), or for ephemeral fire-and-forget messages where data loss is acceptable.
 - Use `SELECT ... FOR UPDATE SKIP LOCKED` for contention-free job dequeuing. Without `SKIP LOCKED`, concurrent workers block each other into a single-threaded bottleneck.
 - Use libraries like PgQueuer or Procrastinate, or a custom `SKIP LOCKED` implementation.
 - Connection string: `postgres-main:5432`, never `localhost`. See `30-ops.md` § Docker DNS.
@@ -56,10 +57,8 @@ Apply when working on background job processing, task queues, workers, scheduled
 
 ## Retry & Backoff
 
-- All job decorators / task definitions must explicitly declare `max_retries` and `retry_backoff`. Default-free decorators are banned.
-- Default: `max_retries = 5`, exponential backoff with jitter: `delay = base * 2^attempt + random_jitter`.
-- Base delay: 5 seconds. Jitter prevents thundering herd on external service recovery.
-- Retry counts and base delay are env vars (tuning knobs per `58-resilience.md` §7a).
+- Every job carries an explicit retry budget on its queue row — `max_retries` (default 5) — and a backoff computed into `run_at`: `base * 2^attempt + jitter`, base 5 seconds. A handler with no declared budget is banned. **A backoff with no jitter is banned:** `POWER(2, attempts)` alone re-fires every failed job of a burst at the same instant — the thundering herd on the vendor's recovery that backoff exists to prevent.
+- The count and the base are env vars (`58-resilience.md` §7a tuning knobs), never literals in SQL or code.
 
 ---
 
@@ -67,7 +66,7 @@ Apply when working on background job processing, task queues, workers, scheduled
 
 - Jobs exceeding `max_retries` must transition to `status = 'failed'` (in-place) or move to a dedicated `dead_letters` table.
 - Poison-pill messages must never loop infinitely. The DLQ is for human inspection — automated agents do not resolve DLQ entries.
-- **A dead-lettered job carries WHY, and the why must be honest about transport vs content.** A job that died from an operational cause (hard-timeout/poison, network, proxy, lock contention, worker restart) is an **operational** terminal — record it as `processing_timeout`/transient and present it as "timed out, will retry / re-runnable", and keep it resettable. **Never** stamp it with a *content* verdict (`deleted`, `unavailable`, `no_captions`) — that tells the user the content is gone when only the transport failed, and it's silent unrecoverable loss. A content terminal requires positive content evidence. See `58-resilience.md` § Operational failures are transient and `docs/LESSONS_LEARNT.md` Lesson 73.
+- **A dead-lettered job carries WHY, and the why must be honest about transport vs content.** A job that died from an operational cause (hard-timeout/poison, network, proxy, lock contention, worker restart) is an **operational** terminal — record it as `processing_timeout`/transient and present it as "timed out, will retry / re-runnable", and keep it resettable. **Never** stamp it with a *content* verdict (`deleted`, `unavailable`, `no_captions`) — that tells the user the content is gone when only the transport failed, and it's silent unrecoverable loss. A content terminal requires positive content evidence. See `58-resilience.md` § Operational failures are transient.
 
 ---
 
@@ -107,21 +106,20 @@ Jobs can become orphaned when workers crash, are OOM-killed, or lose connectivit
 
 ```python
 # LISTEN connection: DIRECT to Postgres, bypassing the transaction-mode PgBouncer.
-import psycopg2, select, os
+# asyncpg is the scaffold's driver; psycopg 3 (its `notifies()` generator) is the other current choice. psycopg2 is legacy-only.
+import asyncio, os
+import asyncpg
 
-listen_conn = psycopg2.connect(os.environ["DATABASE_URL_DIRECT"])  # :5432, not the :6432 pooler
-listen_conn.autocommit = True
-with listen_conn.cursor() as cur:
-    cur.execute("LISTEN job_inserted;")
-
-while not shutting_down:
-    if select.select([listen_conn], [], [], POLL_FALLBACK_SEC)[0]:
-        listen_conn.poll()
-        while listen_conn.notifies:
-            listen_conn.notifies.pop(0)
-        wake_and_claim()
-    else:
-        wake_and_claim()  # 60s safety-net poll
+async def listen(wake: asyncio.Event) -> None:
+    conn = await asyncpg.connect(os.environ["DATABASE_URL_DIRECT"])  # :5432, not the :6432 pooler
+    await conn.add_listener("job_inserted", lambda *_: wake.set())
+    while not shutting_down:
+        try:
+            await asyncio.wait_for(wake.wait(), timeout=POLL_FALLBACK_SEC)  # 60s safety-net poll
+        except asyncio.TimeoutError:
+            pass
+        wake.clear()
+        await wake_and_claim()
 ```
 
 - **Reconnect on drop.** `LISTEN` connections die on network blips or PG restarts — wrap in a reconnect loop or you go permanently deaf to notifies.
@@ -136,7 +134,7 @@ For recurring tasks (orphan sweep, vendor balance checks, report generation, cac
 - **Single-leader pattern:** only ONE instance runs the beat scheduler. Use `pg_advisory_lock` or a Redis `SET NX EX` to ensure single-leader across replicas. Without this, every replica fires every beat task — N replicas = N duplicates.
 - **Schedule definition:** define beat tasks in a dedicated config file or table, not inline in application code. Each task has: name, callable, interval/cron, enabled flag.
 - **Beat tasks are jobs.** The scheduler inserts into the same job queue — beat tasks are dispatched, not executed inline by the scheduler process.
-- **Proactive monitoring:** every billable external API must have a `<api>_balance_check` Beat task. See `58-resilience.md` §7 Proactive Monitoring Schedule.
+- **Proactive monitoring:** every billable external API must have a `<api>_balance_check` Beat task. See `58-resilience.md` row 7, Proactive monitoring.
 
 ---
 
@@ -170,9 +168,9 @@ Workers need the same observability as any Fabrik service:
 
 ## Process Isolation & Lifecycle
 
-- Execute job handlers in **forked child processes**. The parent monitors via `os.waitpid()`. If the child OOMs or segfaults, the parent marks the job failed and continues.
+- I/O-bound handlers run in-process on the asyncio pool (the scaffold's default). Isolate a handler that can take the worker down with it — CPU-bound or memory-heavy — in a **child process** (shelling out is handled in-process by § External Subprocess Lifecycle); the parent monitors and marks a crashed child's job failed. ⚠️ Fork is opt-in under the pinned Python: since 3.14 `multiprocessing`'s POSIX default is `forkserver`, so `fork` must be requested explicitly (`multiprocessing.get_context("fork")`) and never from a process with threads alive (`os.fork()` warns on that since 3.12).
 - Workers must trap `SIGTERM` and `SIGINT` via Python's `signal` module. On signal: stop accepting new jobs, finish the current task, then exit cleanly.
-- Docker Compose `stop_grace_period` must be >= the longest possible task execution time (default: 45s).
+- Docker Compose `stop_grace_period` must be >= the longest possible task execution time (default: 45s) — a deploy-time fact that `docs/OPERATIONS.md`/`docs/DEPLOYMENT.md` carry in the same change (`58-resilience.md` § Doc Sync).
 
 ### SIGTERM Requeue Fast Path (Factor IX)
 
@@ -207,9 +205,9 @@ Twelve-factor app processes **must never daemonize or write PID files.** Scale o
 
 Two Fabrik patterns are explicitly compatible — they are NOT 12F violations:
 
-1. **`tini` as PID 1** (mandatory — see Adaptive Worker Pool architecture and Done When checklist). `tini` is a minimal init/reaper. It reaps zombie children and forwards signals. It does **not** daemonize, double-fork, log to a file, or write a `.pid` file. It is the container's PID 1, not a daemon manager.
+1. **A reaping PID 1** — compose `init: true` (Docker's own init: forwards signals, reaps children; nothing to install) or `tini` as the Dockerfile ENTRYPOINT. Required whenever the container spawns processes — a fork pool or an external subprocess (§ External Subprocess Lifecycle). It does **not** daemonize, double-fork, log to a file, or write a `.pid` file.
 
-2. **The Adaptive Worker Pool parent process** (§ Adaptive Worker Pool) forks child workers. This is a deliberate Fabrik pattern for within-container concurrency. Children are share-nothing processes synchronised through the PG queue (`SKIP LOCKED`). This is **not** a 12F violation: (a) the parent runs as the foreground CMD — it never daemonizes; (b) children are stateless workers, not daemons; (c) scaling *out* is still done by adding container replicas (`compose.yaml` `deploy.replicas`). The pool scales *within* one container; replicas scale *across* containers.
+2. **The Adaptive Worker Pool parent** (§ Adaptive Worker Pool) supervises N independent claim loops — asyncio tasks by default, forked children for CPU-bound work — synchronised through the PG queue (`SKIP LOCKED`), not through each other. This is **not** a 12F violation: (a) the parent runs as the foreground CMD — it never daemonizes; (b) children are stateless workers, not daemons; (c) scaling *out* is still done by adding container replicas (`compose.yaml` `deploy.replicas`). The pool scales *within* one container; replicas scale *across* containers.
 
 These ARE 12F violations and are banned inside the container:
 
@@ -226,7 +224,7 @@ These ARE 12F violations and are banned inside the container:
 
 ## External Subprocess Lifecycle
 
-When a job handler shells out to an external CLI (yt-dlp, ffmpeg, a scraper, a downloader) via `subprocess`/`Popen`, that subprocess is a **resilience surface, not a function call**. It forks its own children (yt-dlp spawns ffmpeg; scrapers spawn helpers), so killing the direct child orphans the tree. The YouTube pipeline accumulated 100+ zombie subprocesses this way and froze workers for 20–30 min (`docs/LESSONS_LEARNT.md` Lesson 75). Four mandatory rules:
+When a job handler shells out to an external CLI (yt-dlp, ffmpeg, a scraper, a downloader) via `subprocess`/`Popen`, that subprocess is a **resilience surface, not a function call**. It forks its own children (yt-dlp spawns ffmpeg; scrapers spawn helpers), so killing the direct child orphans the tree. Four mandatory rules:
 
 1. **Spawn as a process-group leader.** Always `subprocess.Popen(..., start_new_session=True)` so the subprocess and everything it forks share a new process group you can signal as a unit.
 2. **Kill the group, never just the child.** On timeout/early-exit, `os.killpg(os.getpgid(proc.pid), SIGTERM)` then escalate to `SIGKILL` after a grace period. `proc.terminate()` signals only the direct child — grandchildren keep running, keep burning bandwidth/proxy, and keep per-resource locks held.
@@ -251,20 +249,20 @@ When a job handler shells out to an external CLI (yt-dlp, ffmpeg, a scraper, a d
 
 ## Adaptive Worker Pool (mandatory for all worker scaffolds)
 
-Every `file-worker` and `file-api` scaffold must use the adaptive worker pool pattern. Fixed-concurrency workers waste resources when idle and bottleneck when loaded. The pool scales worker count between `min_workers` and `max_workers` based on queue depth and system resources.
+Every worker runs an adaptive pool: N independent claim loops scaled between `WORKER_MIN` and `WORKER_MAX` on queue depth. Fixed-concurrency workers waste resources when idle and bottleneck when loaded. The rules below are the pool's PROPERTIES; asyncio tasks are the default implementation, forked children the CPU-bound one — the same properties, not a second pattern. ⚠️ Do not assume the scaffold satisfies this section — verify the emitted worker against the Done When list before building on it.
 
 ### Architecture
 
 ```
-Parent Process (PID 1 via tini)
+Parent Process (under a reaping PID 1 — `init: true` or tini)
 ├── monitor_loop     (1s tick)  — timeout enforcement, crash detection, respawn
 ├── metrics_loop     (60s tick) — logs worker stats as structured JSON
 ├── scale_loop       (30s tick) — reads queue depth, spawns/kills workers
-└── N child processes (min..max)
-    └── claim_loop — claim job via SKIP LOCKED → process → repeat
+└── N claim loops (min..max) — asyncio tasks by default, forked children for CPU-bound
+    └── claim job via SKIP LOCKED → process → repeat
 ```
 
-The parent is the **orchestrator only** — it never processes jobs. Children are forked processes, each running an independent claim loop against the PG queue.
+The parent is the **orchestrator only** — it never processes jobs. Each claim loop is independent against the PG queue.
 
 ### Resource Detection (container-aware)
 
@@ -276,7 +274,7 @@ cpu_max = read_file("/sys/fs/cgroup/cpu.max")        # "200000 100000" = 2 cores
 mem_max = read_file("/sys/fs/cgroup/memory.max")      # bytes or "max"
 
 # 2. Fall back to host resources
-cpu_cores = multiprocessing.cpu_count()
+cpu_cores = os.process_cpu_count()                    # 3.13+: CPUs this process may USE (affinity/cgroup-aware), not the host's
 available_mem = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
 
 # 3. Calculate
@@ -291,9 +289,9 @@ min_workers = int(os.getenv("WORKER_MIN", max(1, max_workers // 4)))
 
 **Rules:**
 - Always read cgroup v2 first (`/sys/fs/cgroup/cpu.max`, `/sys/fs/cgroup/memory.max`) — these reflect Docker `deploy.resources.limits`, not the host.
-- Fall back to host resources (`multiprocessing.cpu_count()`, `os.sysconf`) only when cgroup files are absent or contain `max` (unbounded).
+- Fall back to process resources (`os.process_cpu_count()` — the affinity-aware count the pinned Python ships since 3.13; never `multiprocessing.cpu_count()`, which reports the HOST — and `os.sysconf`) only when cgroup files are absent or contain `max` (unbounded).
 - `WORKER_MIN` and `WORKER_MAX` env vars always take precedence over auto-detection.
-- `mem_per_fork` should be measured per project (run a single worker, observe RSS). Default estimate: 95 MB for I/O-bound Python workers.
+- `mem_per_fork` should be measured per project (run a single worker, observe RSS). Default estimate: 95 MB for I/O-bound Python workers. Under the asyncio default all loops share one process, so the memory bound is the process's, not per-loop — `max_by_cpu` and `WORKER_MAX` are the limits; `max_by_memory` applies to forked children.
 - `reserved_memory` covers OS, DB connections, Redis, and the parent process. Default: 2.0 GB.
 
 ### Scale-Up Rules
@@ -330,25 +328,22 @@ Every `scale_check_interval` (default 30s), the parent reads queue depth from DB
 | `mem_per_fork` | 95 MB | `WORKER_MEMORY_PER_FORK_MB` | Observed RSS per worker (measure per project) |
 | `reserved_memory` | 2.0 GB | `WORKER_RESERVED_MEMORY_GB` | OS + DB + Redis headroom |
 
-### Parent Process DB Connections (critical lesson)
+### Parent Process DB Connections
 
-The parent runs 3 loops (monitor, metrics, scale) that need DB access. Workers are forked children that each create their own connection pool. **The parent must NOT use the shared connection pool** — it competes with worker pools and causes `PoolError: connection pool exhausted`.
+The parent runs 3 loops (monitor, metrics, scale) that need DB access. The claim loops share one connection pool sized for them. **The parent must NOT use the shared connection pool** — under load `pool.acquire()` waits for a free connection, and the scale/beat loop that needed it hangs silently (asyncpg raises only if you pass `timeout=`).
 
 ```python
-# WRONG — competes with worker pools
-from db_connection import get_db_connection
-conn = get_db_connection()  # PoolError under load
+# WRONG — competes with the claim loops for the shared pool
+async with pool.acquire() as conn:  # blocks behind the claim loops under load
+    ...
 
-# RIGHT — dedicated short-lived connection, no pool contention
-import psycopg2
-conn = psycopg2.connect(**DB_CONFIG)
-conn.autocommit = True
+# RIGHT — a dedicated short-lived connection, no pool contention (the pooled DSN is fine here:
+# a connect per 30-60 s tick through the pooler port costs nothing)
+conn = await asyncpg.connect(DB_DSN)
 try:
-    with conn.cursor() as cur:
-        cur.execute("SELECT COUNT(*) FROM jobs WHERE status = 'pending'")
-        pending = cur.fetchone()[0]
+    pending = await conn.fetchval("SELECT COUNT(*) FROM jobs WHERE status = 'pending'")
 finally:
-    conn.close()
+    await conn.close()
 ```
 
 Parent loops run infrequently (every 30-60s) — the overhead of connect/close per check is negligible. Pool contention under load is not.
@@ -401,17 +396,17 @@ Workers deploy via `fabrik apply` (SSH + Docker Compose) like any other Fabrik s
 FROM python:<!--v:python_stable-->3.14<!--/v-->-slim-<!--v:debian_codename-->trixie<!--/v-->    # machine-injected from .windsurf/rules/versions.yaml (D-062) — never hand-edit the number
 WORKDIR /app
 # ... (uv sync, copy, etc. — see 30-ops.md Dockerfile template)
-ENTRYPOINT ["/usr/bin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--"]   # or omit, and set `init: true` on the compose service
 CMD ["python", "-m", "src.worker"]
 ```
 
-- **`tini` as PID 1** — handles zombie child reaping and signal proxying. Without it, forked child processes become zombies.
+- **A reaping PID 1** whenever the container spawns processes — `init: true` in compose (lean, nothing to install) or `tini` as ENTRYPOINT. Every `file-worker` does spawn (OCR and PDF tools are subprocesses). Without one, forked children and external subprocesses become zombies.
 - **JSON exec form** for CMD — shell form swallows SIGTERM.
-- **`-slim-<debian_codename>`** base image — `<debian_codename>` is a PLACEHOLDER for the value in `.windsurf/rules/versions.yaml` (`debian_codename:`); write the real codename in the Dockerfile, and take it from that file rather than from memory (the `10-python.md` Dockerfile shows the rendered form), `platform: linux/amd64`.
+- **`-slim-<debian_codename>`** base image — `<debian_codename>` is a PLACEHOLDER for the value in `.windsurf/rules/versions.yaml` (`debian_codename:`); write the real codename in the Dockerfile, and take it from that file rather than from memory (`10-python.md` carries the same span), `platform: linux/amd64`.
 - **`deploy.resources.limits.memory`** mandatory in compose.yaml. Workers processing large files may need higher limits than API services.
 - **`fabrik` network** — worker connects to `postgres-main:5432` and `redis-main:6379` via Docker DNS.
 - **No `ports:` section** in compose.yaml — Traefik routes all traffic. See `30-ops.md`.
-- **Traefik labels required** — workers expose `/health` (Gatus) and `/metrics` (Prometheus) via HTTP. These endpoints need Traefik labels even though the worker's primary job is background processing, not serving API requests.
+- **Traefik labels only for a worker WITH an HTTP surface** — one that serves `/health` (Gatus) and `/metrics` (Prometheus) needs them even though its job is background processing. An HTTP-less worker (the `file-worker` scaffold: no labels, a process/heartbeat `healthcheck:` in compose) is healthy by that probe and reports through structured logs; do not add labels for a port nothing listens on.
 
 ---
 
@@ -449,7 +444,7 @@ CMD ["python", "-m", "src.worker"]
 | `localhost` in DB/Redis connection strings | `postgres-main:5432`, `redis-main:6379` |
 | Fixed-concurrency workers (`--concurrency=N` as the only mode) | Adaptive worker pool with auto-scaling between min/max |
 | Reading host resources inside a container without checking cgroup | Read cgroup v2 first, fall back to host |
-| Parent process using the shared connection pool | Dedicated `psycopg2.connect()` per parent loop iteration |
+| Parent process using the shared connection pool | A dedicated short-lived connection per parent loop iteration, never the pool |
 | Killing workers mid-job during scale-down | Only kill workers with `job_id == 0` (idle) |
 | Immediate scale-down on first idle check | Require `scale_down_idle_checks` consecutive idle checks (hysteresis) |
 | Hardcoded worker count without env override | `WORKER_MIN` / `WORKER_MAX` env vars |
@@ -471,7 +466,7 @@ CMD ["python", "-m", "src.worker"]
 - [ ] Jobs dequeued via `FOR UPDATE SKIP LOCKED` on `postgres-main` — no external broker dependencies.
 - [ ] Job insertion occurs in the same transaction as the business state change (outbox pattern).
 - [ ] Every job handler has a deterministic idempotency key — no random UUIDs.
-- [ ] All task definitions declare explicit `max_retries` and `retry_backoff` (env vars, not literals).
+- [ ] Every job row carries `max_retries`; backoff is exponential WITH jitter; count and base are env vars, not literals.
 - [ ] Failed jobs transition to `failed` status or DLQ table after exhausting retries.
 - [ ] Partial index exists on the jobs table: `WHERE status = 'pending'`.
 - [ ] `updated_at` column exists and refreshes on heartbeat and status transitions.
@@ -481,21 +476,21 @@ CMD ["python", "-m", "src.worker"]
 - [ ] External subprocesses spawned with `start_new_session=True`; timeouts kill the **group** (`killpg`), not just the child.
 - [ ] Per-subprocess hard-timeout wall + kill-count poison cap; poison classified as operational/transient, never a content verdict.
 - [ ] OS-process orphan reaper runs (separate from the DB orphan-job sweep); identifies orphans by "parent not a live worker", not `PPID == 1`.
-- [ ] Dockerfile uses `tini` as ENTRYPOINT, JSON exec form for CMD, `-slim-<debian_codename>` base (`<debian_codename>` = the value in `versions.yaml`, written out — not the placeholder).
+- [ ] A reaping PID 1 whenever the container spawns processes (`init: true` in compose, or `tini` as ENTRYPOINT), JSON exec form for CMD, `-slim-<debian_codename>` base (`<debian_codename>` = the value in `versions.yaml`, written out — not the placeholder).
 - [ ] `stop_grace_period` in compose >= longest task execution time.
 - [ ] `deploy.resources.limits.memory` set in compose.yaml.
 - [ ] Structured logging via `structlog` — no `print()`.
-- [ ] `/health` endpoint verifies DB + Redis + worker-alive.
-- [ ] `/metrics` exposes `ACTIVE_JOBS`, `PROCESSING_COUNT` gauges.
+- [ ] `/health` endpoint verifies DB + Redis + worker-alive — or, for an HTTP-less worker, the compose `healthcheck:` proves the process is alive and ticking.
+- [ ] `/metrics` exposes `ACTIVE_JOBS`, `PROCESSING_COUNT` gauges (workers with an HTTP surface).
 - [ ] GlitchTip initialized before worker starts processing.
 - [ ] `docs/RESILIENCE.md` §2a has a row for every external call site in worker code.
 - [ ] For workers with external deps: pause-state pipeline wired per `58-resilience.md`.
 - [ ] For workers with billable APIs: balance-check Beat tasks running per §7.
-- [ ] Adaptive worker pool implemented: parent orchestrator + N forked children.
+- [ ] Adaptive worker pool implemented: parent orchestrator + N independent claim loops (asyncio by default; forked children only for CPU-bound work, with the start method set explicitly).
 - [ ] Resource detection reads cgroup v2 first, falls back to host, respects `WORKER_MIN` / `WORKER_MAX` env vars.
 - [ ] Scale-up: triggers when `queue_pending > 0 AND busy >= 80%`; adds workers in batches, not all-at-once.
 - [ ] Scale-down: requires 3 consecutive idle checks (hysteresis); kills highest slot_id first; only idle workers; never below `min_workers`.
 - [ ] `--concurrency=N` backward-compat: sets `min = max = N`, disabling adaptive scaling.
 - [ ] Parent DB access uses dedicated connections, not the shared pool.
-- [ ] `/health` reports worker pool state (alive, busy, idle, min, max) + queue depth.
+- [ ] `/health` reports worker pool state (alive, busy, idle, min, max) + queue depth (workers with an HTTP surface); an HTTP-less worker logs the same numbers on the `metrics_loop` tick.
 - [ ] Prometheus gauges: `worker_alive`, `worker_busy`, `worker_idle`, `queue_pending`.

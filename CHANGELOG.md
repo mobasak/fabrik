@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules(75-workers-jobs): file 16 of the currency pass, to the 11-row bar (D-336) (2026-09-22)
+
+- The pack mandated a fork-based pool with `tini` as PID 1 that no scaffold emits, and its code samples used
+  psycopg2 while the scaffold uses asyncpg. Now: the pool's properties are the rule, asyncio is the default,
+  fork is the explicit CPU-bound option (Python 3.14 made `forkserver` the POSIX default), a reaping PID 1 is
+  `init: true` or tini, retries are stated in queue-row terms with jitter mandatory, and Traefik labels are
+  required only of a worker with an HTTP surface — the file-worker compose is deliberately HTTP-less.
+- The author-blind second opinion refuted my own grounding: the asyncio pool at `scaffold.py:2596` is
+  saas-skeleton's; the file-worker template ships a Supabase, fixed-concurrency, `time.sleep` poller that
+  breaks three of the pack's bans. The pack no longer claims the scaffold satisfies it; fleet has the mail.
+- 9 claims registered; two dangling `Lesson 73/75` cites removed; `os.process_cpu_count()` replaces the
+  host-reporting `multiprocessing.cpu_count()`; the D-064 codename debt was found already cleared (`214d9e49a`).
+
 ### Changed — docs/reference/command-loop-performance.md revision 10: the seat numbers and two rulings (D-334, D-335; 2026-09-22)
 
 - § 4.7 gains the measured seat use (1.75 seats per round, Opus 58% of seats, the orchestrator at 64% of input tokens)

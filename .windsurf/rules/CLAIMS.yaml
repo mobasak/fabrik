@@ -913,3 +913,76 @@ claims:
     verify: "https://learn.microsoft.com/en-us/graph/throttling-limits + /graph/throttling + /graph/change-notifications-delivery-webhooks + /entra/identity-platform/how-to-add-credentials"
     window_days: 180
     last_verified: 2026-09-02
+
+  # --- core/75-workers-jobs.md — file 16 of the currency pass, 2026-09-22 ---
+  - id: py314-forkserver-default
+    pack: core/75-workers-jobs.md
+    claim: "Since Python 3.14 multiprocessing's default start method on POSIX is forkserver; fork is no longer the default on any platform and must be requested via get_context('fork'); os.fork() warns in a multithreaded process since 3.12"
+    kind: deprecation
+    verify: "https://docs.python.org/3/library/multiprocessing.html (Changed in version 3.14 note; gh-84559)"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: psycopg3-for-new-projects
+    pack: core/75-workers-jobs.md
+    claim: "New projects should use Psycopg 3 (package `psycopg`); psycopg2 is maintained for legacy applications and receives no new features"
+    kind: deprecation
+    verify: "https://www.psycopg.org/ ; https://pypi.org/project/psycopg/"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: pgbouncer-txn-listen-never
+    pack: core/75-workers-jobs.md
+    claim: "PgBouncer transaction pooling: LISTEN is Never supported, NOTIFY is Yes — a listener needs a session-mode or direct connection"
+    kind: rationale
+    verify: "https://www.pgbouncer.org/features.html (feature-support table)"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: compose-init-reaps
+    pack: core/75-workers-jobs.md
+    claim: "Compose `init: true` runs a platform-bundled init as PID 1 that forwards signals and reaps processes — equivalent to tini as ENTRYPOINT"
+    kind: rationale
+    verify: "https://docs.docker.com/reference/compose-file/services/#init"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: pgqueuer-maintained
+    pack: core/75-workers-jobs.md
+    claim: "PgQueuer is maintained — 1.4.0 released 2026-09-14, requires Python >=3.10"
+    kind: version
+    verify: "https://pypi.org/project/pgqueuer/"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: procrastinate-maintained
+    pack: core/75-workers-jobs.md
+    claim: "Procrastinate is maintained — 3.9.0 released 2026-06-20, requires Python >=3.10"
+    kind: version
+    verify: "https://pypi.org/project/procrastinate/"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: cgroup-v2-cpu-max-format
+    pack: core/75-workers-jobs.md
+    claim: "cgroup v2 cpu.max reads '$MAX $PERIOD' with 'max' meaning no limit; memory.max defaults to 'max'"
+    kind: standard
+    verify: "https://docs.kernel.org/admin-guide/cgroup-v2.html (cpu.max, memory.max)"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: asyncpg-add-listener
+    pack: core/75-workers-jobs.md
+    claim: "asyncpg Connection.add_listener(channel, callback) is the LISTEN API; the callback receives (connection, pid, channel, payload)"
+    kind: standard
+    verify: "https://magicstack.github.io/asyncpg/current/api/index.html (add_listener)"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: os-process-cpu-count
+    pack: core/75-workers-jobs.md
+    claim: "os.process_cpu_count() (Python 3.13+) returns the logical CPUs usable by the calling thread — affinity/cgroup-aware — and is what concurrent.futures now sizes by; multiprocessing.cpu_count() reports the host"
+    kind: standard
+    verify: "https://docs.python.org/3/whatsnew/3.13.html (os: process_cpu_count, gh-109649)"
+    window_days: 365
+    last_verified: 2026-09-22
