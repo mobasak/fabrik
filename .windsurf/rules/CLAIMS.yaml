@@ -1556,3 +1556,75 @@ claims:
     verify: "executed: getSignedUrl with @aws-sdk/client-s3 + s3-request-presigner 3.1138.0, default vs WHEN_REQUIRED client, by two review seats 2026-09-23 ; https://github.com/aws/aws-sdk-js-v3/tree/main/packages/s3-request-presigner"
     window_days: 180
     last_verified: 2026-09-23
+
+  - id: iyzico-subscription-non3d
+    pack: core/85-payments-billing.md
+    kind: practice
+    claim: "iyzico processes every subscription transaction as NON3D, the first included ('Abonelik işlemlerinde ilk işlem dahil, tüm işlemler NON3D olarak gerçekleştirilmektedir'); both start paths (Checkout Form POST /v2/subscription/checkoutform/initialize and the NON-3DS raw-card path) are documented; the English page omits the sentence; the subscription feature is a paid add-on enabled per account on request"
+    verify: "https://docs.iyzico.com/urunler/abonelik/abonelik-entegrasyonu/abonelik-islemleri ; https://docs.iyzico.com/urunler/abonelik (exa, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: stripe-unsupported-turkey
+    pack: core/85-payments-billing.md
+    kind: rationale
+    claim: "Turkey is not a Stripe-supported country, so a Turkey-resident entity cannot open a Stripe account"
+    verify: "https://stripe.com/global (WebFetch; exa dropped the country list; WebSearch secondary sources agree, 2026-09-23)"
+    window_days: 365
+    last_verified: 2026-09-23
+
+  - id: paddle-billing-api-basics
+    pack: core/85-payments-billing.md
+    kind: version
+    claim: "The product is Paddle Billing (legacy: Paddle Classic); the REST API is version 1 (Paddle-Version: 1); @paddle/paddle-js is for Paddle.js v2 (Billing only); overlay and inline checkout are both documented, both via Checkout.open (inline adds displayMode inline), overlay described as quicker; portal sessions are POST /customers/{customer_id}/portal-sessions returning urls.general.overview and per-subscription URLs with a temporary token, lifetime undocumented, not to be stored, cached or iframed; sandbox and live are separate accounts (pdl_sdbx_/pdl_live_ API keys, test_/live_ client tokens, environment 'sandbox' | 'production')"
+    verify: "https://developer.paddle.com/api-reference/about/versioning ; https://www.npmjs.com/package/@paddle/paddle-js ; https://developer.paddle.com/concepts/sell/self-serve-checkout ; https://developer.paddle.com/api-reference/customer-portals/create-customer-portal-session ; https://developer.paddle.com/build/tools/sandbox (exa + WebFetch, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: paddle-webhook-signature
+    pack: core/85-payments-billing.md
+    kind: practice
+    claim: "Paddle-Signature is ts=<unix>;h1=<hash>; the signed payload is the timestamp, a colon and the raw body, HMAC-SHA256 keyed with the destination's secret; checking ts age is optional and Paddle's SDKs default to a 5-second tolerance; at least one h1, more than one during a future secret rotation"
+    verify: "https://developer.paddle.com/webhooks/signature-verification (exa + WebFetch, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: paddle-webhook-delivery
+    pack: core/85-payments-billing.md
+    kind: practice
+    claim: "Paddle expects a 200 within five seconds; live accounts retry 60 times within 3 days (20 in the first hour, 47 in the first day), sandbox 3 times within 15 minutes; delivery order is not guaranteed (use occurred_at); exhausted deliveries become failed and can be replayed"
+    verify: "https://developer.paddle.com/webhooks/respond-to-webhooks ; https://developer.paddle.com/build/tools/sandbox (exa, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: paddle-adjustments
+    pack: core/85-payments-billing.md
+    kind: practice
+    claim: "Paddle Billing has no transaction.refunded event; refunds and credits are POST /adjustments with action (refund, credit are merchant-created; chargeback, chargeback_reverse, chargeback_warning, chargeback_warning_reverse, credit_reverse are created by Paddle), type full|partial (partial needs items), transaction_id, reason; tax_mode defaults to internal (amounts tax-inclusive); most live refunds start pending_approval; events adjustment.created and adjustment.updated"
+    verify: "https://developer.paddle.com/api-reference/adjustments/create-adjustment ; https://developer.paddle.com/webhooks/overview (exa + WebFetch, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: iyzico-webhooks
+    pack: core/85-payments-billing.md
+    kind: practice
+    claim: "iyzico webhooks: configured under Settings > Merchant Settings > Merchant Notifications (HTTPS); first notification 10-15 s after the first attempt, resent every 15 minutes until a 2xx, about three more times (TR says '3 defa tekrar', EN '3 attempts'); signature header X-IYZ-SIGNATURE-V3 (V1/V2 unsupported) is sent only once webhook signing is enabled on the account; HMAC-SHA256 hex keyed with the secret key over family-specific field concatenations that also include the secret key; no general refund webhook; the Checkout Form result is read back with its token and a subscription's status re-checked after a notification"
+    verify: "https://docs.iyzico.com/ek-servisler/webhook ; https://docs.iyzico.com/en/advanced/webhook ; https://docs.iyzico.com/odeme-metotlari/odeme-formu/cf-entegrasyonu/cf-sorgulama (exa, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: paytr-iframe-callback
+    pack: core/85-payments-billing.md
+    kind: practice
+    claim: "PayTR iFrame callback hash = base64(HMAC-SHA256(merchant_key, merchant_oid + merchant_salt + status + total_amount)); the merchant must answer the plain text OK only; without it PayTR treats the notification as failed and (per the English page) retries after a minute, so duplicates are de-duplicated on merchant_oid; test_mode=1 makes test transactions; recurring payments and non_3d need a separately granted Non3D permission (Direkt API)"
+    verify: "https://dev.paytr.com/iframe-api/iframe-api-2-adim ; https://dev.paytr.com/en/iframe-api/iframe-api-2-adim ; https://dev.paytr.com/direkt-api/kart-saklama-api/kayitli-kart-tekrarlayan-odeme (exa, 2026-09-23)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: kdv-rate-and-export-exemption
+    pack: core/85-payments-billing.md
+    kind: rationale
+    claim: "Turkish standard KDV rate is 20% (from 2023-07-10, Cumhurbaşkanı Kararı 7346); services performed for customers abroad are exempt (KDV Kanunu md. 11/1-a) only if performed for a customer abroad AND used abroad (md. 12/2)"
+    verify: "https://www.mevzuat.gov.tr/anasayfa/MevzuatFihristDetayIframe?MevzuatTur=1&MevzuatNo=3065&MevzuatTertip=5 (exa) ; GİB KDV oranları PDF (exa search highlight, 2026-09-23)"
+    window_days: 365
+    last_verified: 2026-09-23

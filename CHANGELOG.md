@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules(85-payments-billing): file 22 of the currency pass, to the 11-row bar (D-353) (2026-09-23)
+- The pack now describes the vendored fabrik-lib `payments` module as the reference implementation and
+  adopts the three fabrik-lib rulings it had missed: routing by billing model (international → Paddle,
+  TRY subscription → iyzico, TRY one-off → PayTR, no domestic fallback — replacing "PayTR primary,
+  iyzico fallback"), no Non3D on any lane, and iyzico's all-NON3D subscription lane with no merchant
+  account (TRY recurring becomes a planning decision to escalate).
+- Paddle corrected on its docs: Paddle Billing, API version 1, Paddle.js v2; inline checkout is a house
+  ban; portal URLs are temporary; only `refund`/`credit` adjustments are merchant-created, live refunds
+  start `pending_approval`, and `adjustment.created` does not revoke access; the 5 s signature window
+  needs NTP. A PayTR section is added from its docs (callback hash, literal `OK`, test mode, recurring
+  needs Non3D and is therefore banned); iyzico's V3 webhook header needs account-side enablement.
+- From the author-blind review, each checked in the module: the scoped ingest role must be asserted with
+  `verify_service_role(…, allow_policy_based=True)` (the default refuses it); the module verifies iyzico's
+  SUBSCRIPTION webhooks only; `PADDLE_*`/`IYZICO_*` secrets vanish from a project `.env` like `PAYTR_*`;
+  a first declined payment fail-opens to grace; TRY-lane refunds revoke outside the module; PayTR stops
+  retrying until someone restarts it; Paddle answers within 3 s, not at the 5 s limit.
+- From the scoped review, executed on a scratch Postgres: no sanctioned role can write the `purchases`
+  table (module schema expects a BYPASSRLS writer, the hub bans one), so PayTR stays disabled in
+  production until a write path exists (mailed to fabrik-lib and fleet); `allow_policy_based=True`
+  checks nothing, so the pack asserts the ingest role with a boot query instead; seam refusals are 400,
+  not 409; TRY subscriptions require the recorded NON3D planning decision before any iyzico wiring.
+- 9 claims registered; mailed to fabrik-lib (01M35MWWGG038XJVG2MAV3V2F2, 01M35P4TBZVB665H5DVD25SD29, correction
+  01M35P9VK6JCHWAPZSGGPNWP35) and fleet (01M35P4TDRECDC4J6D0B2P4EHY, correction 01M35P9VMZAVB9HHZPQV9635XT).
+
 ### Added — the research ledger: every returned research fact is filed and dispositioned before synthesis (2026-09-23)
 
 - `scripts/check_research_ledger.py` refuses a `docs/reference/research/*-ledger.md` with an undispositioned row
