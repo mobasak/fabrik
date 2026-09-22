@@ -12,7 +12,7 @@
 
 ## Pool-era rules that were live one-liners in the pack
 
-- **The runtime:** fabrik-lib `subagents` pool — OpenRouter-API models in a sandboxed worktree. Not Claude; tools = the module's `web_tools` (Exa/Firecrawl/Context7/Brave HTTP) + `mcp_servers` (MCP client) + `allowed_commands`. **No browser** — GUI work never routes here. Design authorities (pool side): fabrik-lib `subagents/PROPOSED_RULE-using-subagents.md` + its `docs/superpowers/specs/2026-07-07-subagents-mcp-client-design.md`.
+- **The runtime:** fabrik-lib `subagents` pool — OpenRouter-API models in a sandboxed worktree. Not Claude; tools = the module's `web_tools` (Exa/Firecrawl/Context7/Brave HTTP) + `mcp_servers` (MCP client) + `allowed_commands`. **No browser** — GUI work never routes here. Design authorities (pool side): fabrik-lib `subagents/PROPOSED_RULE-using-subagents.md` + fabrik-lib's spec `2026-07-07-subagents-mcp-client-design.md` (under `/opt/fabrik-lib/docs/superpowers/specs/`, not this repo).
 - **Never route to the pool** (fabrik-lib PROPOSED_RULE): auth/identity/session/crypto · schema/migrations · secrets/`.env`/keys · security controls (RLS, rate-limits, `final_gate`) · deploy/infra. Never web/MCP-enable a task carrying sensitive context — the model's output exfiltrates via a scraped URL. **Keep the bwrap sandbox on (`sandbox=True`, fail-closed).**
 - **mcp.json reader:** the pool's MCP client reads the hub-owned `/opt/fabrik/mcp.json` via `AgentSpec.mcp_config` (a path → unwrap the `mcpServers` key; a dict → the bare server map); adding a tool for the pool touches that file, never a brief.
 - **Banned (pool):** hard-coding the `mcp` SDK API line or the Tool schema attribute name (see refutation 1 above for the SDK half).
