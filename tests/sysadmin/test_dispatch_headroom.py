@@ -1375,7 +1375,7 @@ def test_an_untrimmed_slices_partition_still_says_every_file_read_once(monkeypat
     )
     assert dh.main(["--slices", "opus=1,sonnet=1"]) == 0
     out = capsys.readouterr().out
-    assert "every file read by its two finders" in out, out
+    assert "every file read once by its seat" in out, out  # opus=1,sonnet=1: no Haiku seat
     assert "TRIMMED partition" not in out, out
 
 
@@ -1482,3 +1482,20 @@ def test_an_unreadable_overcommit_mode_never_invents_a_ceiling(monkeypatch) -> N
 
     monkeypatch.setattr(dh.Path, "read_text", strict)
     assert dh.box().get("commit_enforced") is True
+
+
+def test_the_story_names_a_haiku_finder_only_when_the_mix_has_one(monkeypatch, capsys):
+    """D-344 review pass 2 (seat A-sonnet): the Haiku clause was glued onto every `--slices` mix, so a
+    section partition (`opus=1,sonnet=2`, no Haiku seat) read "one Haiku finder per slice"."""
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    assert dh.main(["--slices", "opus=1,sonnet=2"]) == 0
+    out = capsys.readouterr().out
+    assert "no Haiku seat (a section partition)" in out, out
+    assert "one Haiku finder per slice" not in out, out
+    assert dh.main(["--slices", "sonnet=2,haiku=2"]) == 0
+    out2 = capsys.readouterr().out
+    assert "one Haiku finder per slice beside its Sonnet" in out2, out2

@@ -1,6 +1,6 @@
 # Command loop performance — what we aim for, what it costs, and the program to fix it
 
-**Status:** REVISION 16 (2026-09-22). The program of revisions 4–7 (the old § 5: remove the apparatus) was
+**Status:** REVISION 17 (2026-09-22). The program of revisions 4–7 (the old § 5: remove the apparatus) was
 executed in part on 2026-09-21 and REVERTED the same day (D-330) — it removed developments the operator built on
 purpose. § 1.0 records what the three `CLAUDE.md` contracts are now (D-331, lean without loss). § 4.7 states the
 root cause the operator confirmed on 2026-09-21 16:38, and § 5 is rewritten as the engineering that follows from it:
@@ -692,6 +692,15 @@ receipt's Pass-1 row over five runs; KILL: a pair below D-207's baseline (7 of 1
 28 in this session's three reviews), the candidates are a fixed four-call closing chain in the command text and the
 receipt tool filling the ledger from a values file instead of a scratch script written per run.
 
+**The pilot's first run (this change's own review, 2026-09-22):** six seats, one Sonnet and one Haiku per slice, 9 cost
+units — the same as the D-207 mix would have cost. Per seat, confirmed / raised · tokens: A-sonnet 3/4 · 156 k, A-haiku
+0/1 · 108 k, B-sonnet 5/5 · 158 k, B-haiku 3/3 · 75 k, C-sonnet 4/5 · 132 k, C-haiku 1/1 · 98 k. The Sonnet seat
+out-found its Haiku twin on every slice; the Haiku twin added two candidates the Sonnet missed (the brief's missing house
+rules, the baseline's missing provenance) and shared two; union 14 confirmed, 2 refuted. Against the D-207 baseline (7 of
+13, 6 of 14 from the Opus seat on the risky slice) the risky slice's pair confirmed 3 of 14 — below it — but the risky
+slice here (a generator, a headroom script, two contracts) held fewer defects than the 14-file corpus slice; one run is
+one point, the KILL reads five. Pilot 1: no effect (above).
+
 ---
 
 ## 5. The program — make the loop run as designed
@@ -929,6 +938,10 @@ The build of § 5 begins with the two fragments, the reviewer brief and the sour
 | 1 · the two termination fragments, subagents-core, the reviewer brief's passes-after-the-first mode, nine sources, the test pin | 2026-09-22 | `d03f9a918`, `f6beb8b88`; review fixes `863701479`, `811c3d340`, `93ea1f6eb`; receipt `5d435de09` | every pass after round one is the round-1 seats over their own slices; refuted/recorded opens nothing; the budget clause gated on `start` declaring it; reviewed in its own shape — 4 passes, 11 → 3 → 3 → 0, 25 min; `62-using-subagents.md:74/:211` still carries the old clause (intel's live pass — theirs to edit) |
 | 2 · `command_run.py` (`--budget` on `start`, the per-slice ledger on `round`, a review-family round without `--confirmed` refused, `done` refusing a failing slice) and `dispatch_headroom.py` (`--delta` retired) | 2026-09-22 | `2e917b17c` (D-339; ledger `16adffc3c`, `5853c00e8`) | fleet-synced and distributed by the post-commit sync; ten graders red-first; the refusal scoped to 15 review-family commands, every other caller keeps D-206's tolerant rule; the contract sentence mirrored in both `CLAUDE.md` copies; reviewed in the D-335 shape — 4 passes, 14 → 6 → 3 → 0 on the same three seats, 21 confirmed (13 in round one, then 8 residuals of the fixes), 62 min against a 45-min budget (over, printed, never a cap), fixes `65ae40693`, `103d19ebd`, `e0490606d`, D-341 (the set is 16 by rule), receipt `5e0a21db4` |
 | 3 · every command's first phase executes MCP · rules · infra · manifesto (§ 5 item 7) | 2026-09-22 | `128050dbc` (D-342) | one fragment, `orient.md`, included by all 38 sources right after the run record: the four executed lines and the `ORIENT:` reply line; rendered 38 / 38 / 38 / 38 of 38 (measured over `~/.claude/commands/*.md`, the rendered corpus — a source count reads 0 / 9 / 6 / 0 because the lines live in the fragment); grader `tests/test_orient_fragment.py`; the same change removed D-229's delta round from the assembler's two floors and both `CLAUDE.md` contracts, and the round-zero probe now runs before every re-dispatch; reviewed in the D-335 shape — 3 passes on the same three seats, 17 → 1 → 0, 15 confirmed (14 in round one — among them a FLEET defect, two hub-only paths in the fragment, caught by the orchestrator's own round-zero probe before the seats returned — then 1 mirror residual of the fix), 45 min against a 30-min budget (over, printed, never a cap), fixes `1fd4898a8`, `02c8898b9`, `e61baa6ed`, receipt `69140bfca` |
+
+**Revision 17 (2026-09-22, the D-344 review):** § 4.9's numbers reconciled by its review — the run-record 31 minutes vs the 45
+elapsed, the ≈4 bytes/token divisor, § 4.7's Opus sentence dated as the pre-D-344 mix, the KILL's home (the Pass-1 row's
+Method cell) and the baseline's provenance, pilot 1's null result at 2.1.276; the pilot's first-run measurement added.
 
 **Revision 16 (2026-09-22, the seat-cost research):** § 4.9 — where a review's tokens go (our ledger: seats 35%,
 orchestrator 65%, 76% of it prefix re-reads), the outside evidence, the two answers, and the two pilots minted as D-344

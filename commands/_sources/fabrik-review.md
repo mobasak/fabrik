@@ -174,8 +174,7 @@ secret-material paths (`.env` / `.env.*` **except `.env.example`** — the Doc-S
 env-var change touches, `check_plan_tickets.py`'s own carve-out — `secrets/`, key/cert files) is
 reviewed **NATIVE-ONLY** — a
 `read_only` pool unit inlines the raw hunk into its task text, which ships the literal secret to a
-third-party API. Partition, don't skip (moot while every seat is native — D-181/D-182): the Sonnet seats read the non-secret remainder, the native
-Opus finder covers the secret-bearing hunks with the secret redacted from its brief
+third-party API. Partition, don't skip (moot while every seat is native — D-181/D-182): the slice's two finders cover the secret-bearing hunks with the secret redacted from both briefs
 (a diff that is ENTIRELY secret-material → all-native, which every diff is while the pool is OFF; no
 `NO-POOL:` waiver is owed — `check_subagent_flywheel.py` stands down by the same ruling, D-182). The two mechanisms:
 
