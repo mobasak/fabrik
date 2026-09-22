@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules(65-rag-search): file 19 of the currency pass, to the 11-row bar (D-345) (2026-09-22)
+
+- The pack promised pgvector "on `postgres-main` — enabled"; the fleet's `postgres-main` is the plain
+  alpine Postgres image with no `vector` extension available at all (probed 2026-09-22). It now states
+  that as the fleet fact, makes the fleet infra request Phase 0 of any RAG epic, and wraps the
+  bare `pgvector:pg16` literal in the `postgres_major` span (row 6).
+- The vendored fabrik-lib `rag/` module is now the reference implementation the rules describe: the
+  THREE-leg hybrid (dense + tsvector + pg_trgm + RRF k=60), `chunk_text()`, `embed.py`'s `dimensions`,
+  the opt-in fail-open reranker over OpenRouter `/rerank` (with its tenant-text egress named), and the
+  `rag.eval` harness (recall/precision/hit/mrr/map/ndcg, source-granularity) replacing "only Ragas".
+- Web-grounded corrections: Meilisearch's default ranking rules are version-dependent (seven with `attributeRank`/`wordPosition` from v1.36.0; the fleet's `v1.13` container still six — `meilisearch_major` added to `versions.yaml` as fleet state),
+  pgvector's `hnsw.iterative_scan` for filtered queries and `halfvec`, `pg_textsearch` beside the two
+  BM25 extensions, `client.messages.count_tokens()`, the current Claude line's 1M default context (the
+  hand-typed `MODEL_LIMITS` dict is replaced by a fetch of OpenRouter's `context_length`),
+  `text-embedding-3-small` IS on OpenRouter ($0.02/M) but outside the roster floors; the Kilo gateway rows
+  and `free_lanes_chat` are named PAUSED with the pool. 17 claims registered; fabrik-lib mailed the
+  module's six revisions (01M34G3PPNQ2AE1SAZYM6N1E54).
+
 ### Changed — the review family's seats: no CLAUDE.md in a finder, two cheap finders per slice, no Opus finder (D-344 pilot) (2026-09-22)
 - `fabrik-reviewer` gains `omitClaudeMd: true` (the brief carries its rules); `/fabrik-review` and `/fabrik-repo-review` partition each slice to one Sonnet and one Haiku finder with unioned candidates and no Opus finder — same cost as the old mix, twice the readers; the assembler's floor sentence, `dispatch_headroom.py`'s no-Opus advisory and both `CLAUDE.md` contracts say the same; measured over the next five runs against D-207's baseline (§ 4.9 of `docs/reference/command-loop-performance.md`).
 - Round 1 of its review (the pilot's first run, six seats): the old Opus-finder rule left its downstream restatements (repo-review's dispatch sentence, fabrik-review's Phase 4, 62's constraint 5, the assembler's floor HEAD, the COST story) — all re-cut; the KILL's per-seat count lives in the Pass-1 row's Method cell; the reviewer brief names both dispatch shapes and carries the house rules; pilot 1 recorded as no observable effect at 2.1.276.

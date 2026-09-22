@@ -1226,3 +1226,139 @@ claims:
     verify: "https://openrouter.ai/docs/api-reference/authentication ; https://openrouter.ai/docs/api/api-reference/credits/get-remaining-credits"
     window_days: 180
     last_verified: 2026-09-22
+
+  - id: fleet-postgres-main-no-pgvector
+    pack: core/65-rag-search.md
+    claim: "postgres-main runs the plain postgres:<major>-alpine image (PostgreSQL 16.x, musl); pg_available_extensions lists pg_trgm 1.6 (installed only in glitchtip) and NO vector extension — pgvector cannot be created on any database there until the fleet changes the image"
+    kind: rationale
+    verify: "ssh vps 'sudo -n docker exec -i postgres-main psql -U postgres -tA' <<< \"select name, default_version from pg_available_extensions where name in ('vector','pg_trgm')\""
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: pgvector-hnsw-defaults
+    pack: core/65-rag-search.md
+    claim: "pgvector HNSW defaults are m=16, ef_construction=64 at build and hnsw.ef_search=40 (max 1000) at query; IVFFlat needs manual rebuilds to keep recall"
+    kind: practice
+    verify: "https://github.com/pgvector/pgvector/blob/master/README.md (HNSW / Query options)"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: pgvector-iterative-scan-halfvec
+    pack: core/65-rag-search.md
+    claim: "pgvector 0.8.0 (2024-10-30) added hnsw.iterative_scan (strict_order|relaxed_order) so filtered approximate queries no longer starve (a 10% filter at ef_search=40 averaged 4 rows); 0.7.0 added halfvec (2-byte floats, up to 4,000 dims) and bit vectors; the 0.8.x line is current"
+    kind: version
+    verify: "https://github.com/pgvector/pgvector/blob/master/CHANGELOG.md"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: pg-bm25-extensions
+    pack: core/65-rag-search.md
+    claim: "Native Postgres full-text has no BM25 (ts_rank_cd is coverage-density); maintained BM25-on-Postgres extensions are ParadeDB pg_search, VectorChord-bm25 (with pg_tokenizer.rs) and Tiger Data's pg_textsearch"
+    kind: practice
+    verify: "https://pgxn.org/dist/pg_search/ ; https://github.com/tensorchord/VectorChord-bm25 ; https://www.tigerdata.com/blog/pg-textsearch-bm25-full-text-search-postgres"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: rrf-k60-origin
+    pack: core/65-rag-search.md
+    claim: "Reciprocal Rank Fusion score = sum 1/(k+rank), k=60 — Cormack, Clarke & Buettcher, SIGIR 2009; k=60 is the default in pgvector's own hybrid-search example"
+    kind: rationale
+    verify: "https://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf ; https://github.com/pgvector/pgvector-python/blob/master/examples/hybrid_search/rrf.py"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: meili-ranking-rules-seven
+    pack: core/65-rag-search.md
+    claim: "Meilisearch v1.36.0 (2026-03) split the attribute ranking rule into attributeRank + wordPosition, making the default seven rules (words, typo, proximity, attributeRank, sort, wordPosition, exactness); before v1.36 the default is six with attribute, and the two forms cannot be mixed; the fleet's meilisearch container is getmeili/meilisearch:v1.13 (probed 2026-09-22); changing searchable/filterable/sortable attributes triggers a full reindex; current stable is the v1.5x line"
+    kind: version
+    verify: "https://github.com/meilisearch/meilisearch/releases/tag/v1.36.0 ; https://www.meilisearch.com/docs/capabilities/full_text_search/relevancy/ranking_rules ; ssh vps 'sudo -n docker ps --format {{.Image}} | grep meili'"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: meili-hybrid-embedders
+    pack: core/65-rag-search.md
+    claim: "Meilisearch ships native vector/hybrid search: per-index embedders (OpenAI, HuggingFace, Ollama, REST) and a per-search semanticRatio (0-1, default 0.5) — the pack keeps it OFF by rule (one vector store)"
+    kind: practice
+    verify: "https://www.meilisearch.com/docs/capabilities/hybrid_search/advanced/custom_hybrid_ranking"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: chroma-chunking-eval
+    pack: core/65-rag-search.md
+    claim: "Chroma's chunking evaluation (2024) is the primary source on semantic vs recursive chunking: ClusterSemanticChunker IoU 8.0±6.0 vs RecursiveCharacterTextSplitter 7.0±5.6 — single-digit-point gains for an embedding call per split; no primary source states a '3–5%' figure"
+    kind: rationale
+    verify: "https://www.trychroma.com/research/evaluating-chunking"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: rag-eval-metric-names
+    pack: core/65-rag-search.md
+    claim: "Ragas names its metrics Faithfulness and Context Precision; DeepEval's are Faithfulness and Contextual Precision (ContextualPrecisionMetric); both packages are maintained"
+    kind: practice
+    verify: "https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/ ; https://deepeval.com/docs/metrics-contextual-precision"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: openrouter-embeddings-rerank-endpoints
+    pack: core/65-rag-search.md
+    claim: "OpenRouter exposes POST /api/v1/embeddings (fields model, input, dimensions, encoding_format, input_type, provider), GET /api/v1/embeddings/models, and POST /api/v1/rerank (model, query, documents, top_n → results[].relevance_score); rerank models include cohere/rerank-v3.5 and the free nvidia/llama-nemotron-rerank-vl-1b-v2"
+    kind: practice
+    verify: "https://openrouter.ai/docs/api-reference/embeddings/create-embeddings ; https://openrouter.ai/docs/cookbook/evaluate-and-optimize/rag ; https://openrouter.ai/nvidia/llama-nemotron-rerank-vl-1b-v2"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: qwen3-embedding-8b-on-openrouter
+    pack: core/65-rag-search.md
+    claim: "qwen/qwen3-embedding-8b on OpenRouter: $0.01/M input, 32,768-token context (shown as 33K), 4096 native dims with Matryoshka output 32–4096 (Qwen3-Embedding card, arXiv 2506.05176); 100+ languages; no primary source gives the accuracy at 1024 dims; per-provider honouring of `dimensions` through OpenRouter is not documented"
+    kind: version
+    verify: "https://openrouter.ai/qwen/qwen3-embedding-8b ; https://huggingface.co/Qwen/Qwen3-Embedding-8B"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: embedding-alternatives-on-openrouter
+    pack: core/65-rag-search.md
+    claim: "On OpenRouter: openai/text-embedding-3-large $0.13/M 8k (13x the default); mistralai/codestral-embed-2505 $0.15/M 8k; openai/text-embedding-3-small IS listed at $0.02/M 8k (outside the roster floors); voyageai/voyage-4 $0.06/M 32k; google/gemini-embedding-001 $0.15/M 20k"
+    kind: version
+    verify: "https://openrouter.ai/openai/text-embedding-3-large ; https://openrouter.ai/mistralai/codestral-embed-2505 ; https://openrouter.ai/openai/text-embedding-3-small ; https://openrouter.ai/voyageai/voyage-4 ; https://openrouter.ai/google/gemini-embedding-001"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: claude-count-tokens-and-1m-context
+    pack: core/65-rag-search.md
+    claim: "Anthropic token counting is client.messages.count_tokens() (POST /v1/messages/count_tokens; the bare client.count_tokens() is removed); the current Claude line (Sonnet 4.6, Opus 5, Fable/Mythos 5.x, Sonnet 5) has a 1M-token context by default with no beta header, older models such as Sonnet 4.5 have 200k"
+    kind: version
+    verify: "https://platform.claude.com/docs/en/api/messages/count_tokens ; https://platform.claude.com/docs/en/build-with-claude/context-windows"
+    window_days: 90
+    last_verified: 2026-09-22
+
+  - id: openrouter-models-context-length
+    pack: core/65-rag-search.md
+    claim: "OpenRouter's public GET /api/v1/models returns each model's context_length — the source for per-model context limits at runtime instead of a hand-typed table (e.g. qwen/qwen3-32b 131,072 with YaRN on OpenRouter vs 32,768 native; qwen/qwen3-8b $0.117/$0.455 per M, 131k)"
+    kind: practice
+    verify: "https://openrouter.ai/api/v1/models (public) ; https://openrouter.ai/qwen/qwen3-8b"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: tiktoken-encodings
+    pack: core/65-rag-search.md
+    claim: "tiktoken encodings: o200k_base for current OpenAI models (GPT-4o line onward), cl100k_base for the older GPT-4/3.5 and text-embedding-3 models — the module's chunker counts with cl100k_base as an approximation for non-OpenAI embedders"
+    kind: practice
+    verify: "https://github.com/openai/tiktoken (README model→encoding table)"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: ollama-api-show-context-length
+    pack: core/65-rag-search.md
+    kind: practice
+    claim: "Ollama's model-information endpoint is POST /api/show (JSON body naming the model) and its response carries the context length under model_info as <arch>.context_length, e.g. llama.context_length"
+    verify: "https://github.com/ollama/ollama/blob/main/docs/api.md#show-model-information (WebFetch on the raw file, 2026-09-22)"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: pgvector-control-not-trusted
+    pack: core/65-rag-search.md
+    claim: "pgvector's vector.control declares no `trusted = true` (upstream master and the on-box 0.6.0 copy), so CREATE EXTENSION vector needs a superuser — the fleet ask is the image AND the superuser step; if a release marks it trusted the ask shrinks to the image"
+    kind: version
+    verify: "https://raw.githubusercontent.com/pgvector/pgvector/master/vector.control"
+    window_days: 180
+    last_verified: 2026-09-22
