@@ -92,7 +92,7 @@ data-contract field / the pack rule that makes it a non-issue) before editing.
 
 After each pass, list what you re-grounded (which screens you read, which `docs/data-contract.md` fields you
 confirmed, which pack rules you checked) and what you found, then fix the contract. **The loop terminates ONLY
-at the Termination contract's closing round — a delta round with a fresh seat at `confirmed: 0`, md5 unchanged** — the only proof of convergence. The
+at the Termination contract's closing round — the round-1 seats over their own axes at `confirmed: 0`, md5 unchanged** — the only proof of convergence. The
 pass in which you fixed anything is never the last; run one more. A pass that finds nothing must still enumerate
 its coverage; an empty pass with no evidence doesn't count.
 

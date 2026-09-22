@@ -274,17 +274,11 @@ def test_01m1djyh_verify_review_named_by_service_satisfies_the_flip():
     assert not ccv._cite_matches_plan("tryton-crm-deploy-review.md", plan)
 
 
-def test_both_fragments_carry_the_bounded_hop_the_delta_budget_and_the_round_zero_rules():
-    """Review-family pass 3 (D-229, D-230, D-231): D4's counting sentence, D5's budget — the owning-seat
-    sentence of D-335 (which superseded the D-229 delta budget) — and D10's three rule phrases
+def test_both_fragments_carry_the_bounded_hop_the_owning_seat_rule_and_the_round_zero_rules():
+    """Review-family pass 3 (D-230, D-231; D-335 superseding the delta budget): D4's counting sentence, D5 — the owning-seat
+    sentence of D-335 — and D10's three rule phrases
     live in BOTH termination fragments; `term-coverage` reads the `confirmed:` exit row and carries
     no retired `found: 0 · new: 0 · fixed: 0` literal (D2)."""
-    _dh_spec = importlib.util.spec_from_file_location(
-        "dh", REPO / "scripts" / "sysadmin" / "dispatch_headroom.py"
-    )
-    assert _dh_spec and _dh_spec.loader
-    dh = importlib.util.module_from_spec(_dh_spec)
-    _dh_spec.loader.exec_module(dh)
     frag = REPO / "commands" / "_fragments"
     te = (frag / "term-edit.md").read_text(encoding="utf-8")
     tc = (frag / "term-coverage.md").read_text(encoding="utf-8")

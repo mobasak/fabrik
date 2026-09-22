@@ -7,7 +7,7 @@ argument-hint: "[a specific pack or rules subdir to scope — omit to audit all 
 
 Run a `.windsurf/rules` COMPLIANCE GAP AUDIT. **READ-ONLY — do NOT modify code, config, docs, or the
 rules; produce an audit only.** And do NOT stop after one pass: **iterate the audit until it
-converges** (Phase 4) — the Termination contract's closing round (a delta round with a fresh seat that
+converges** (Phase 4) — the Termination contract's closing round (a closing pass by the round-1 seats over their own slices that
 CONFIRMS zero new gaps, the gap list's md5 unchanged) is the only proof the audit is complete. Propose nothing as fixed/done until I say so.
 **Context is never a reason to stop:** the harness auto-compacts and the run continues — keep going.
 

@@ -8,16 +8,15 @@ first and then DEPTH.
 
 {{include:term-coverage}}
 {{include:grounding-code}}
-## Run record — open it FIRST, keep it current, close it only at the closing delta round (`confirmed: 0`, the fragment's exit)
+## Run record — open it FIRST, keep it current, close it only at the closing pass (`confirmed: 0`, the round-1 seats over their own slices)
 
-This command has **5 phases (0–4)** and exactly one terminal condition, and it has TWO parts that are BOTH required (neither alone is enough — see § Termination): **a DELTA round carrying a fresh
-non-authoring finder seat that returns **`confirmed: 0 · fixed: 0`** with `unexecuted:` 0 or absent, and every candidate ever raised adjudicated** (a re-raise of an
+This command has **5 phases (0–4)** and exactly one terminal condition, and it has TWO parts that are BOTH required (neither alone is enough — see § Termination): **a closing pass — the round-1 seats over their own slices — that returns **`confirmed: 0 · fixed: 0`** with `unexecuted:` 0 or absent, and every candidate ever raised adjudicated** (a re-raise of an
 already-adjudicated STANDING row is cited in its row, never counted — see § Reporting). Open the record before Phase 0 does anything else:
 
 ```bash
 python3 scripts/command_run.py start --command fabrik-review --phases 5 \
   --surface "<what this run is OVER — the spec | plan dir | ticket | diff range>" \
-  --terminal "confirmed:0 delta round"
+  --terminal "confirmed:0 closing pass — the round-1 seats over their own slices"
 ```
 
 A routed-up review names the trigger in its surface: `--surface "ROUTED-UP: step 1 — <the trigger> · <the diff range>"` — the ledger's only positive witness that `/fabrik-review-scoped`'s route-up fired (`command_run.py:1863` → `:2702`); its `done` then reaches back to the previous AGENT-closed window (`:2585`), which is what covers the pre-`start` edits.
@@ -29,7 +28,7 @@ Coverage-Checklist classes this pass swept CLEAN> --classes-new <classes this pa
 The class ledger persists across rounds: **re-sweep it, never re-scope it** — a pass that invents a
 fresh brief is why a review runs 30 rounds instead of 4. A class check must LOAD the artefact it grades — a grep for the wording that describes a defect matches the artifact's own correction and is refuted by any rewording; narrowing such a check is not converging (01M25Q9S0). When a round sweeps every known class and
 confirms zero (`--confirmed 0`), `command_run.py` prints the TERMINAL verdict; **only then**
-`done --command fabrik-review --evidence "<the round number + its confirmed:0 · fixed:0 and the fresh seat that read it>" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"`. A genuinely stuck
+`done --command fabrik-review --evidence "<the round number + its confirmed:0 · fixed:0 and the round-1 seats that re-verified it>" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"`. A genuinely stuck
 review exits via `blocked --command fabrik-review --reason "…" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"` on one of the three sanctioned cases —
 never by simply stopping. **Always name the run you close**: a bare close would end whatever is live,
 which after this review pops back to its CALLER (`/fabrik-execute-plan`) means silently ending the
@@ -474,7 +473,7 @@ first pass found" is not an exit — those classes return to UNCHECKED until the
 verdict — every known class clean, `--confirmed 0` — is the machine-readable form of the EXIT above, and
 its NON-CONVERGENCE warning names the failure mode this loop actually has: re-scoping instead of
 re-sweeping. Close the run at that verdict with
-`done --command fabrik-review --evidence "round <n> quiet: confirmed:0 · fixed:0, read by <the fresh seat>, all adjudicated" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"`.
+`done --command fabrik-review --evidence "round <n> quiet: confirmed:0 · fixed:0, re-verified by <the round-1 seats>, all adjudicated" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"`.
 
 ## Behavior Contract test generation — native seats author, you curate (the fix for an untested behavior)
 

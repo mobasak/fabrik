@@ -126,7 +126,7 @@ features documented-but-removed or shipped-but-undocumented.
 Dispatch one INDEPENDENT native seat per doc/subsystem, every run (recipe in
 § Subagents), run them in parallel, then merge + dedupe their findings — refuting any that are provably wrong
 (quote the code/doc line that disproves the discrepancy) before acting — before the next pass.
-**Round 1 keeps the units-sized floor (D-208 — never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles, measured not assumed — 1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186); every later round is sized by the fragment's D5 sentence (`dispatch_headroom.py --units <N> --delta <n>`).**
+**Round 1 keeps the units-sized floor (D-208 — never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles, measured not assumed — 1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186); every later round is sized by the fragment's D5 sentence (one seat per unit with an open claim, the round-1 `--units` count as the ceiling, D-335).**
 
 **Verify subagents:** after merging subagent ledgers, independently re-check a random
 sample (~20%) of each subagent's VERIFIED claims against the code. Subagent summaries
@@ -153,7 +153,7 @@ obviously clean."* Only the closing round is convergence.
 
 ```
 Pass 1 — reconcilers: <doc types> | found: 4, new: 4, confirmed: 4, fixed: 4, unexecuted: 0, edits: 4 | → not done (changed docs)
-Pass 2 — sonnet×1 (fresh) · delta over the fixed docs | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | → CONVERGED (the closing round, md5 stable)
+Pass 2 — sonnet×1 (round-1 owner) · the same seats over their own fixed docs | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | → CONVERGED (the closing round, md5 stable)
 ```
 
 **⚠️ The WHOLE loop runs inside THIS ONE invocation — you do NOT yield control between passes.** **Context is never a reason to stop:** the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred. When a pass
