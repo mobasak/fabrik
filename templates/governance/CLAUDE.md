@@ -246,13 +246,17 @@ Every "fix X" / "handle Y" request runs this sequence — each verb CHECKABLE, n
    the MERGED result) → only then clean up the worktree → delete the branch.
 
 ## External Knowledge — Search, Don't Guess
-When the ticket references a 3rd-party API or SDK: 1. Repo first: `Grep docs/` + `AFCL.md`. 2. Else the web, in
-TWO TIERS (operator ruling 2026-09-22): first `WebSearch` → `WebFetch` and `brave-search`; **when those fail or
-do not find it, `exa` (semantic — describe the page you want) and `firecrawl` (structured extraction — a table
-or a versioned fact as JSON)**. A first-tier miss is not a miss until the second tier has run — the three
-engines index differently, and one engine's silence is what once deleted a true citation. Cite the URL in
-code, and name the engine that found it when it mattered. 3. After 3 misses ACROSS BOTH TIERS: `BLOCKED:
-<vendor> — <searched, tier by tier> — <missing>`; stop. Skip: stdlib, syntax, Fabrik conventions.
+When you need an EXTERNAL fact — a 3rd-party API or SDK, a vendor limit, a version, a claim you are
+re-verifying: 1. Repo first: `Grep docs/` + `AFCL.md`. 2. Else the web, in TWO TIERS (operator ruling
+2026-09-22, D-337): tier 1 is `WebSearch` → `WebFetch` or `brave-search` — any of them; **when they fail or do
+not find it, tier 2 is `exa` (semantic — describe the page you want) and `firecrawl` (structured extraction — a
+table or a versioned fact as JSON), EACH engine you have, before a miss is called.** The engines index
+differently, and one engine's silence once deleted a true citation. A tier-2 engine you lack or that is down is
+REPORTED (§ Behavior, the MCP FIX-FIRST bullet) and the miss then counts. `exa` and `firecrawl` are METERED:
+tier 2 is for a miss, never a habit. A `/fabrik-*` command that wires its own research chain and floor
+(`/fabrik-spec`, `/fabrik-rivals`, …) keeps them inside that run; this ladder is the default everywhere else.
+Cite the URL and the engine that found it. 3. After 3 QUERIES with no usable answer, tier 2 included:
+`BLOCKED: <vendor> — <searched, tier by tier> — <missing>`; stop. Skip: stdlib, syntax, Fabrik conventions.
 
 ## HARD STOPS — NEVER
 | Rule | Instead |

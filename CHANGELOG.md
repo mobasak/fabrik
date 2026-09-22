@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
 - Why: on today's currency turn every claim was grounded by the first tier and the assigned engines sat idle,
   because the contract only ever named `WebSearch → WebFetch`. The currency bar said "the FULL arsenal";
   the base contract, which every non-pass turn reads, did not.
+- Scoped review (D-338): the ladder is rewritten once in all three copies — trigger widened to any external
+  fact, tier 1 any-of / tier 2 each-you-have, a lacking or dead tier-2 engine is reported and the miss counts,
+  exa/firecrawl named METERED in the contract, a miss is a query, the engine is always cited. Commands that wire
+  their own chain (`/fabrik-spec` exa-first, `/fabrik-rivals` all legs) keep it; whether to flip them is infra's.
 - fabrik-lib's `CLAUDE.md` line 1 claimed the file was GENERATED and must not be edited; its generator's own
   comment says that branch has been dead since 2026-08-12 and the file is edited directly. Header corrected.
 
