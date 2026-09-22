@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/reference/command-loop-performance.md restored and re-cut to the confirmed root cause (revision 8, 2026-09-22)
+
+- Restored from `f5a4c367f` (deleted by the D-330 revert). § 1.0 records the three `CLAUDE.md` contracts as they
+  stand after the lean-without-loss program (hub 134,466 → 100,892 B, template 127,624 → 103,912 B synced 46/49,
+  fabrik-lib 115,366 B mail-only) and the reverted 2026-09-21 cuts (38 ungraded rules lost). § 4.7 states the
+  operator-confirmed root cause — the review loop is a partitioned verification only in round one — with the two
+  2026-09-22 doc-converge runs (7 and 6 rounds) as the demonstration. § 5 rewritten as engineering inside the loop
+  (partition held, seats own slices through fix and re-verification, every claim executed, terminal "every part
+  verified", ≤ 3 passes by construction); the old removal program withdrawn in § 5.1, its item 4 stated as wrong;
+  § 6 byte targets replaced by the D-331 rule. Ledger figures re-derived the same day (338 closes, 807 h).
+
 ### Added — the rules currency pass records itself in the pack it evaluated (D-332) (2026-09-22)
 
 - Bar row 11: an evaluated pack carries `currency_pass: YYYY-MM-DD` in its own frontmatter, dated to

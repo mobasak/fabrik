@@ -795,6 +795,7 @@ docs/
 │   ├── certification-denominator.md
 │   ├── command-corpus-check.md
 │   ├── command-evaluation-checklist.md
+│   ├── command-loop-performance.md
 │   ├── command-run-protocol.md
 │   ├── convergence-prompts.md
 │   ├── decision-ledger.md
