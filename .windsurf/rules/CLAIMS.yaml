@@ -1355,6 +1355,70 @@ claims:
     window_days: 180
     last_verified: 2026-09-22
 
+  - id: anthropic-contextual-retrieval
+    pack: core/66-rag-chunking.md
+    kind: practice
+    claim: "Anthropic's Contextual Retrieval (2024): prepending a chunk-specific context sentence before embedding and BM25 cut the top-20-chunk retrieval failure rate by 35% (contextual embeddings alone, 5.7%→3.7%), 49% (with contextual BM25, →2.9%) and 67% with reranking (→1.9%); one-time cost about $1.02 per million document tokens with prompt caching; a knowledge base under ~200,000 tokens (~500 pages) goes in the prompt whole with no RAG"
+    verify: "https://www.anthropic.com/news/contextual-retrieval (WebFetch, 2026-09-22)"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: chroma-chunking-eval-sizes
+    pack: core/66-rag-chunking.md
+    kind: practice
+    claim: "Chroma's Evaluating Chunking Strategies for Retrieval (Smith & Troynikov, July 2024) measures token-level recall/precision/IoU; RecursiveCharacterTextSplitter at 200 tokens with no overlap performs consistently well, OpenAI Assistants' default of 800 tokens with 400 overlap gives slightly below-average recall and the lowest scores on the other metrics, ClusterSemanticChunker at 400 tokens reaches 0.913 recall while 200 tokens gives the highest precision/IoU; reducing overlap improves IoU; recall spans 83.6%–91.9% across strategies"
+    verify: "https://www.trychroma.com/research/evaluating-chunking (WebFetch + brave, 2026-09-22)"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: chunk-size-multidataset-2025
+    pack: core/66-rag-chunking.md
+    kind: practice
+    claim: "Rethinking Chunk Size For Long-Document Retrieval: A Multi-Dataset Analysis (Bhat, Rudat, Spiekermann, Flores-Herr, arXiv 2505.21700, May 2025): smaller chunks of 64–128 tokens perform better on datasets with concise fact-based answers, larger chunks of 512–1024 tokens on datasets needing broader context; the optimum also depends on the embedding model"
+    verify: "https://arxiv.org/abs/2505.21700 (WebFetch, 2026-09-22)"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: semantic-chunking-cost-2024
+    pack: core/66-rag-chunking.md
+    kind: practice
+    claim: "Is Semantic Chunking Worth the Computational Cost? (Qu, Tu, Bao, arXiv 2410.13070, Oct 2024) evaluates document retrieval, evidence retrieval and answer generation and concludes the computational costs of semantic chunking are not justified by consistent performance gains over fixed-size chunking"
+    verify: "https://arxiv.org/abs/2410.13070 (WebFetch, 2026-09-22)"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: late-chunking-jina-2024
+    pack: core/66-rag-chunking.md
+    kind: practice
+    claim: "Late Chunking (Günther et al., Jina AI, arXiv 2409.04701, Sept 2024): embed all tokens of a long document with a long-context mean-pooling embedding model, then pool per chunk; averaged over three models and four BeIR datasets it improves naive chunking's nDCG@10 by 1.5–1.9 points absolute (2.7–3.6% relative), more on long documents; overlapping chunks generally neither improves nor harms retrieval; it needs token-level embeddings, so it is not reachable through a one-vector-per-input embeddings API"
+    verify: "https://arxiv.org/abs/2409.04701 ; https://github.com/jina-ai/late-chunking (exa, 2026-09-22)"
+    window_days: 365
+    last_verified: 2026-09-22
+
+  - id: azure-chunking-overlap-guidance
+    pack: core/66-rag-chunking.md
+    kind: practice
+    claim: "Azure AI Search's chunking guidance recommends starting at 512 tokens (about 2,000 characters) with a 25% initial overlap (128 tokens), 10–15% overlap for fixed-size chunks, and names Markdown/HTML heading syntax as a chunk-by-section boundary; it states each token is around four characters for common OpenAI models"
+    verify: "https://learn.microsoft.com/en-us/azure/search/vector-search-how-to-chunk-documents (WebFetch, 2026-09-22)"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: langchain-markdown-header-splitter
+    pack: core/66-rag-chunking.md
+    kind: practice
+    claim: "LangChain's MarkdownHeaderTextSplitter(headers_to_split_on=[('#','Header 1'),('##','Header 2'),…], strip_headers=True by default, return_each_line=False) splits a Markdown file by the given headers and attaches the header values as per-chunk metadata; the documented pattern applies a size splitter such as RecursiveCharacterTextSplitter inside each header group afterwards, with overlap never crossing a section boundary"
+    verify: "https://reference.langchain.com/python/langchain-text-splitters/markdown/MarkdownHeaderTextSplitter ; https://docs.langchain.com/oss/python/integrations/splitters/markdown_header_metadata_splitter (exa, 2026-09-22 — python.langchain.com URLs redirect)"
+    window_days: 180
+    last_verified: 2026-09-22
+
+  - id: rag-module-chunker-bounds
+    pack: core/66-rag-chunking.md
+    kind: practice
+    claim: "fabrik-lib rag/chunker.py is the plaintext path only (its docstring: no Markdown headings, tables or fences; heading_path is a caller-supplied breadcrumb): TOKEN_TARGET_MIN/MAX 512/800, TOKEN_HARD_MIN/MAX 120/1200, RAG_EMBED_TOKEN_CEILING default 6800 with a token-grid hard split, _add_overlap default 0.15 on sentence boundaries capped at the hard max, cl100k_base counting; Chunk.chunk_header is computed but ingest_text() embeds c.content without it; the two fleet copies (trade-intelligence, youtube) declare TOKEN_API_CEILING = 6800 but neither enforces it (trade-intelligence has no token-grid split; youtube splits a >1,200-token sentence at target_max)"
+    verify: "grep -nE 'TOKEN_|overlap_ratio|get_encoding' /opt/fabrik-lib/rag/chunker.py ; grep -nE 'c.content|chunk_header' /opt/fabrik-lib/rag/ingest.py"
+    window_days: 90
+    last_verified: 2026-09-22
+
   - id: pgvector-control-not-trusted
     pack: core/65-rag-search.md
     claim: "pgvector's vector.control declares no `trusted = true` (upstream master and the on-box 0.6.0 copy), so CREATE EXTENSION vector needs a superuser — the fleet ask is the image AND the superuser step; if a release marks it trusted the ask shrinks to the image"

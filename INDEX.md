@@ -863,6 +863,7 @@ docs/
 │   │   ├── mobile-gui-research.md
 │   │   ├── research-prompt-preamble-for-agent-rules.md
 │   │   └── saas-alternative-gui.md
+│   ├── review-loop-workflow.md # the D-335 review loop as a Claude Code workflow script, one run per pass (D-347, D-348)
 │   ├── rivals-command.md
 │   ├── rule-pack-reachability.md
 │   ├── rules-currency-pass.md

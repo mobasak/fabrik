@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules(66-rag-chunking): file 20 of the currency pass, to the 11-row bar (D-349) (2026-09-22)
+- The pack described a Markdown chunker nobody has: the vendored fabrik-lib `rag` module's `chunk_text()` is the
+  plaintext path and parses no Markdown, so the pack now names heading-first splitting as the CALLER's pre-pass
+  feeding `chunk_text(section, heading_path=…)` (LangChain's `MarkdownHeaderTextSplitter` + size splitter is the
+  same shape). Chunk sizes are keyed to the module's constants (target 512–800, hard 120–1,200, embedding ceiling
+  `RAG_EMBED_TOKEN_CEILING`) and counted in tokens only — the character row and the "300–500 for pure keyword"
+  band are gone (one `rag_chunks` row feeds all three legs; Meili stays keyword) and the table's target lower bound moves 300→512; `65-rag-search.md:87`'s cite
+  of that band is re-cut in the same commit. The unsourced "beyond 1,200 precision drops" became the measured
+  picture (Chroma's token-level eval, the 2025 multi-dataset study, Azure's 512 start): evidence points smaller,
+  the 512–800 target buys context, move it only with `rag.eval`. Overlap is stated as a continuity aid, not a
+  retrieval gain (Jina, Chroma). The chunk header the pack recommends is computed by the module but never
+  embedded by `ingest_text()` — the pack says so and grounds prepending it on Anthropic's Contextual Retrieval
+  (−35–49% top-20 failures); a corpus under ~200k tokens goes in the prompt whole. Late chunking recorded as
+  self-run-embedder-only, semantic chunking as not repaid. Envelope aligned to `to_metadata()`; identity columns
+  named for citations. 8 claims registered; `currency_pass: 2026-09-22`; six module defects across two mails (item 3 corrected in a reply) mailed to
+  fabrik-lib (01M34V4146R9SNMNF8QZKJBFC3, 01M34VNWQD453PB8D3MXWM9WES, 01M34WBKN4JCRXAWZNP11GRHER).
+
 ### Added — the review loop as a workflow script, chunk 5 of the loop program (2026-09-22)
 
 - `.claude/workflows/fabrik-review-loop.js` — the D-335 loop as a Claude Code workflow: two cheap
