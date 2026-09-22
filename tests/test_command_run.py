@@ -6371,7 +6371,9 @@ def test_a_malformed_stored_slice_row_never_turns_done_into_a_silent_success(run
     rec["rounds"][-1]["slices"] = [{"name": "A"}]
     (run_dir / "s1.json").write_text(json.dumps(rec))
     bare = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e")
-    assert bare.returncode == 1 and "slice A" in bare.stderr, bare.stderr
+    assert bare.returncode == 1 and "slice A has no claims in its ledger" in bare.stderr, (
+        bare.stderr
+    )
 
 
 def test_omitting_slices_after_stating_them_is_not_terminal_and_a_zero_claim_ledger_is_refused(

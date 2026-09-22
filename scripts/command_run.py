@@ -4265,8 +4265,13 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
                 "REFUSED — "
                 + "; ".join(
                     [
-                        f"slice {s['name']} has {s['claims'] - s['verified']} open claim(s) "
-                        f"({s['verified']}/{s['claims']} verified) on the last round"
+                        (
+                            f"slice {s['name']} has no claims in its ledger "
+                            f"({s['verified']}/{s['claims']}) on the last round"
+                            if s["claims"] < 1
+                            else f"slice {s['name']} has {s['claims'] - s['verified']} open claim(s) "
+                            f"({s['verified']}/{s['claims']} verified) on the last round"
+                        )
                         for s in _fail
                     ]
                     + [
