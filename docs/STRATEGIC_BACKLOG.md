@@ -4700,3 +4700,24 @@ Owner: fleet (scaffolding). Destination: a `/fabrik-task` — read `type` from `
 absent (refuse when neither exists), carry the type's real map and prefix, plus one grader: scaffold a
 `saas-skeleton` fixture, delete one `server/` file, run `fix_project` with no `--type`, assert it is back
 and no python-api file appeared. Mailed to fleet from the converge close.
+
+## [infra] Deferred: the measured doc-converge queue — 6 tier-1 and 9 tier-2 docs describe machinery that no longer exists (2026-09-22)
+
+Operator 2026-09-22: "defer all of these doc updates … i have more urgent things to do." Measured the same day
+over 62 docs (docs/, docs/workflows, docs/reference; ledgers excluded): repo-path references dead in both the hub
+and a real project, script names absent on disk, retired-subject mentions. Done before the stop:
+`docs/workflows/SCAFFOLD_STRUCTURE.md` (1fe9943ff) and `docs/workflows/DATA_SYNC_WORKFLOW.md` (21442fe88 + 6d20fc83f).
+
+Tier 1 (converge needed): `docs/workflows/KILO_AGENT_MANAGEMENT.md` (23 absent scripts, 55 Kilo mentions) ·
+`docs/workflows/KILO_BENCHMARK_WORKFLOW.md` (22 absent) — the two describe one pipeline that now runs in
+`/opt/ai-model-catalog/engine` and may collapse into one pointer doc · `docs/FEATURES.md` (31 absent script names,
+two `scripts/` paths that live in `templates/i18n-kit/`, 10 wpf mentions) · `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md`
+(28 wpf, 8 Cascade, 6 dead paths, 61 KB) · `docs/CONFIGURATION.md` (8 absent scripts, 14 Kilo, 57 KB).
+Tier 2: `docs/DEPLOYMENT_ARCHITECTURE.md`, `docs/CAPABILITIES.md`, `docs/reference/architecture.md`,
+`docs/workflows/development-and-deployment-workflow.md`, `docs/reference/LOCAL_LLM_INFRASTRUCTURE.md`,
+`docs/reference/external-services-registry.md`, `docs/reference/fabrik-cli-reference.md` (16 wpf), `docs/SERVICES.md`
+and `docs/workflows/SYNC_PROJECTS_WORKFLOW.md` (captcha, retired).
+
+Owner: infra (hub docs). Destination: `/fabrik-doc-converge <doc>` per doc, in the order above, AFTER the review-loop
+re-engineering lands — the two runs done took 7 and 6 rounds because the loop degenerates after round 1 into a
+one-seat-per-cell hunt (memory: converge-fast-no-serial-delta-chain). Trigger: the operator's word, not a schedule.
