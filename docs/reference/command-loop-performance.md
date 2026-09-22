@@ -1,6 +1,6 @@
 # Command loop performance — what we aim for, what it costs, and the program to fix it
 
-**Status:** REVISION 21 (2026-09-23). The program of revisions 4–7 (the old § 5: remove the apparatus) was
+**Status:** REVISION 22 (2026-09-23). The program of revisions 4–7 (the old § 5: remove the apparatus) was
 executed in part on 2026-09-21 and REVERTED the same day (D-330) — it removed developments the operator built on
 purpose. § 1.0 records what the three `CLAUDE.md` contracts are now (D-331, lean without loss). § 4.7 states the
 root cause the operator confirmed on 2026-09-21 16:38, and § 5 is rewritten as the engineering that follows from it:
@@ -767,6 +767,8 @@ corpus's own wiring for an engineering question is this fan-out).** Seven findin
    loss (41.1%) is a consensus-averaging failure and does not apply to union-then-execute (arXiv 2602.01011); weak
    judges lose signal, so the strong model adjudicates; Anthropic's own system is an Opus lead with Sonnet workers,
    scaling effort to complexity — "1 agent with 3–10 tool calls" for a simple task (anthropic.com/engineering).
+   *Qualified 2026-09-23 (finding 28): the Haiku-over-Sonnet result compared against Sonnet 4.6, and its ensemble table is
+   internally impossible; it does not carry to Sonnet 5.*
 6. *Later passes must be narrower than round one* — "a reviewer prompted to find gaps will usually report some, even when
    the work is sound"; "include stopping conditions" (docs/en/best-practices; Building effective agents). Passes 2–4
    of this session's reviews finding only wording residue is that effect.
@@ -881,6 +883,76 @@ question, at a fortieth of a seat fan-out's token cost. Eleven more findings:
     three legs, `demote_rule: [verified, quote]`) ran six unrelated engineering briefs with no engine edit; it belongs
     under `libs/deep_research/packs/` beside `free-llm-providers.yaml`, on the operator's word (a hub code surface).
 
+**The Opus 5.5 week (2026-09-23; asked by the operator when Opus 5.5 was released: "make a new research … meticulously").
+Five `fabrik-researcher` seats, one sub-question each, 64 quoted facts from primary sources — the Opus 5.5 announcement,
+model pages and prompting guide (dated 2026-09-22), the Claude Code release pages 2.1.270–2.1.280 read one by one,
+code.claude.com's sub-agents / workflows / agent-teams / costs / best-practices pages, and GitHub issues from
+2026-08/09 — plus one executed probe; the deep-research run over three briefs was still extracting at this revision.**
+25. *Opus 5.5 is the cheaper orchestrator* — "Input and output tokens are $4 and $20 per million, 20% less than Opus 5.
+    Cache reads … are $0.20 per million tokens, 60% less"; at default `medium` effort it "matched or beat Claude Opus 5
+    at `high` effort … in fewer steps and with fewer tokens"; the models overview now says "start with Claude Opus 5.5
+    for most workloads. Use Claude Fable 5.1 for demanding reasoning and long-horizon agentic work" (anthropic.com/
+    claude-opus-5-5; platform.claude.com/docs/en/models/overview; prompting-claude-opus-5-5). Cache reads are most of the
+    lead's cost (§ 4.9: 76% of it is prefix re-reads). Three constraints ride with it: changing top-level `effort` between
+    requests invalidates the prompt cache (use the per-message beta); a forced `tool_choice` returns a 400 on Opus 5.5;
+    a conversation moved off Opus 5.5 to any model but Fable or Mythos loses its thinking blocks.
+26. *Anthropic's stop rule is the operator's* — "stop after two or three automatic continuations on the same task";
+    "Treat a text-only end of turn as a report rather than as proof the task is done"; the workflows page: "stop once two
+    rounds in a row find nothing new" (prompting-claude-opus-5-5; docs/en/workflows). D-330's 1–3 passes is that rule.
+27. *Do not spawn a seat for a check the lead can run* — "Do not delegate work you can finish yourself in a handful of
+    tool calls, and do not use subagents to verify or double-check your own work"; "use a subagent to verify" instructions
+    "cause over-verification … removing them reduces wasted tokens with no loss in quality" (prompting-claude-opus-5, which
+    the 5.5 guide keeps as its starting point). But a fresh refuter for FINDINGS is endorsed: "a verification subagent or a
+    dynamic workflow … has a fresh model try to refute the result, so the agent doing the work isn't the one grading it"
+    (best-practices). Per-finding verify fan-outs are the documented blow-up: 547 planned agents (3 skeptics × ~180
+    findings), ~36.6 M tokens, ~$606 before it was stopped (anthropics/claude-code#95816, 2026-09-21); one `/review high`
+    of 14 agents, ~66 M tokens, ~20% of a weekly plan (#89249). Chunk 5's verify stage spawned one Sonnet seat per
+    candidate, most running one grep — 14 in run 1, 12 in run 2.
+28. *The finder pair is open again* — Sonnet 5 as a reviewer: "Sonnet 5 lands around 50 to 51% … Sonnet 4.6 caught more
+    than either of them, around 63%", precision "from about 29% … to roughly 38% to 40%" (coderabbit.ai, 2026-09); the
+    only Haiku-vs-Sonnet-5 comparison puts Haiku 4.5 clearly below (review scores 5.5 vs 8.0 and 6.5 vs 8.8; "it burn[s] a
+    huge token budget on simple tasks" — marcindudek.dev, 2026-07-17, small n); finding 5's arXiv 2606.15689 compared
+    Haiku with Sonnet 4.6, and its Table 9 prints a union recalling fewer bugs than one of its members, which cannot be.
+    Diversity still pays: "56.5% of confirmed defects (87 of 154) were found by exactly one model … the largest marginal
+    gain from adding a second, different-provider model (33.6% to 57.1%)" (zenodo 20519585) — cross-provider evidence, so
+    a Sonnet + Haiku pair is its weaker form. Opus 5.5 as a reviewer: recall 63.8% vs a 61.3% baseline, and "caught 11 …
+    issues that the baseline missed, but missed nine that the baseline caught" (coderabbit.ai, 2026-09-22); a customer
+    reports it "caught 72% of known bugs … to Opus 5's 56% at high effort" at its lowest effort (testimonial). No source
+    compares one strong finder with two cheap ones at equal cost. Sonnet 5.5 and Haiku 5.5 are announced for "the coming
+    weeks".
+29. *Fresh seats per pass is the right mechanism; waking parked ones is not* — waking a parked subagent with SendMessage
+    re-cached "54 full-context rewrites, 5.2M tokens … at write rates … roughly a quarter of total weighted token cost"
+    (#87215, 2026-08-16); Workflow resume still replays by position in 2.1.280 (#95076 open; #63102 and #67488 closed as
+    stale, not fixed; the docs: "the first agent whose prompt differs … runs again, and so does every agent after it").
+    This resolves finding 3's tension with chunk 5: continuity rides the ledger, not the seat's context.
+30. *The lead's transcript is still the cost — keep it short* — "A clean session with a better prompt almost always
+    outperforms a long session with accumulated corrections"; "Keep a checklist in TASKS.md … read the file, not the
+    scrollback" (best-practices; claude.dev, 2026-09-22); "The fix round costs more than the implementation … 46M
+    cache-read tokens against 257k of output, so the spend is context reconstruction, not reasoning" (#93202). Chunk 5's
+    two runs: the lead 10.2 M and 9.6 M tokens against 2.6 M and 0.56 M for all seats.
+31. *Seat arrival cost, and the pilot-1 reversal* — a lean agent type arrived at "15,746 tokens" against "38,401" for
+    general-purpose (practicalsystems.io, 2026-09-14). **Pilot 1 now takes effect:** at Claude Code 2.1.280 a Haiku
+    `fabrik-reviewer` probe reported neither the hub contract nor the core map in its context (executed 2026-09-23); at
+    2.1.276 the same probe saw both, twice. No release line in 2.1.272–2.1.280 names a fix; the probe is the evidence.
+32. *Sibling seats share a cache only when identical* — "same model, effort level, agent type, tools, output schema, and
+    working directory … reads that sibling's cache on its first request"; subagents get "five minutes even on a
+    subscription until you choose a longer one" (`subagentPromptCacheTtl`, docs/en/prompt-caching; #84289 open). A Sonnet
+    and a Haiku finder never share; the verify seats (one model, one schema) can, inside five minutes.
+33. *The platform itself moved away from many review subagents* — 2.1.274: "Changed `/code-review` to use leaner inline
+    review prompts for every model that has no tuned settings of its own, instead of spawning many review subagents";
+    2.1.271: workflows "pause when you hit your usage limit and continue automatically", the medium size guideline "from 15
+    to 10 agents"; the workflows page warns past "25 agents, or … 1.5 million" projected tokens (run 1 used 30 agents);
+    2.1.280 "Fixed a finished subagent's report being lost when the conversation that launched it was compacted". Per-agent
+    tokens are exposed only through OpenTelemetry (`OTEL_LOG_TOOL_DETAILS=1`, 2.1.273), which is why the run record's seat
+    counters read 0 for workflow agents.
+34. *A time budget is now Anthropic's own pattern — and this document's finding 9 warned against a countdown* — "Have your
+    harness add a short line at the end of each message … `elapsed 340s / 1200s`"; "lowering effort reduces the work
+    itself, whereas a budget mostly keeps more agents working in parallel" (prompting-claude-opus-5-5). Finding 9's evidence
+    (panic-submit, METR; terminal-bench authors) predates Opus 5.5; the two disagree, so it is tried on one run before it is
+    trusted. Machinery for the next research run: four seats lost oversized exa results written under a `$HOME/.claude*`
+    path the brief forbids them to read (fetch one URL per call, or cap `maxCharacters`), and the research agent's own
+    definition still says firecrawl "is not connected" while the contract names it tier 2 — both unverified, one edit.
+
 ---
 
 ## 5. The program — make the loop run as designed
@@ -955,10 +1027,12 @@ script that returns one structured ledger, and the close is fixed at four calls.
 turns (`tok_msgs`) of that command's closes; a command with no close has no figure and gets no target until two runs
 exist (16 of 38 have never run).
 
-**Targets are lead TURNS — the lead session's own messages, about one minute each — never passes.** Passes stay one to
-three per slice by construction (§ 5 item 6): round one partitioned, pass two fix and re-verify, pass three confirm, a
-slice still failing after its third pass handed off with its claims named. A run's lead turns are counted by
-`tok_msgs` in the ledger; its passes by `rounds`. The two are different columns and the second is not a target.
+**The operator's criterion is PASSES — "finish in 1–3 passes" (D-330, confirmed "you get it right this time"; Anthropic's
+own stop rule, finding 26).** Passes are one to three per slice by construction (§ 5 item 6): round one partitioned, pass
+two fix and re-verify, pass three confirm; a slice still failing after its third pass is handed off with its claims
+named. The lead-turn column below is this document's PROXY for the two-hour goal (D-346: wall clock ≈ lead messages ×
+~1 min) — a diagnostic read from `tok_msgs`, never a kill criterion; D-347 used it as one, and revision 22 withdraws that
+use (§ 5.2 row 5).
 
 | Shape | Commands (median lead turns today) | Mechanism | Target lead turns |
 |---|---|---|---|
@@ -1009,7 +1083,7 @@ that moves without the first one having moved is a symptom treated, not a cause.
 | **Confirmed defects found at round 4 or later** | 2,168 of 6,919, **31%** | under 10%, with the total NOT falling |
 | **Multi-round series that rise at least once** | 94 of 178, **53%** | under 20% |
 | Median rounds, prose artifacts vs code-with-a-gate | 5 vs 3 | converged, at 3 or below |
-| Spec-chain cost at the medians | 611 min = ~615 lead turns at ~1 min each (§ 2.6) | **≤ 120 lead turns** — spec 25 · spec-review 20 · plan 25 · plan-review 20 · execute 60 (its nested reviews included) · review 15; `tok_msgs` per run is the reading, printed beside the minute budget; never a refusal on the lead (§ 5.3) |
+| Spec-chain cost at the medians | 611 min = ~615 lead turns at ~1 min each (§ 2.6) | **≤ 120 lead turns** (a diagnostic proxy for the two-hour goal, never a kill criterion — the criterion is ≤ 3 passes per review, D-330) — spec 25 · spec-review 20 · plan 25 · plan-review 20 · execute 60 (its nested reviews included) · review 15; `tok_msgs` per run is the reading, printed beside the minute budget; never a refusal on the lead (§ 5.3) |
 | **Slices read in full by their finders** — the files each finder returned as read, diffed by the script against its slice | not measured — today's seats return no read list | every slice, every pass; a gap is logged and the slice is unverified (§ 4.9 finding 10) |
 | **Escaped defects** — commits touching a reviewed surface's files within 14 days of the review's close, any subject, not only `fix` | not measured — first read at chunk 5's first run, from git and the ledger's `surface` | not rising while turns fall (§ 4.9 finding 11: the one measure the reviewer cannot move) |
 | Total hours per week | 375 | falling, with runs per week flat or up |
@@ -1181,9 +1255,16 @@ The build of § 5 begins with the two fragments, the reviewer brief and the sour
 | 1 · the two termination fragments, subagents-core, the reviewer brief's passes-after-the-first mode, nine sources, the test pin | 2026-09-22 | `d03f9a918`, `f6beb8b88`; review fixes `863701479`, `811c3d340`, `93ea1f6eb`; receipt `5d435de09` | every pass after round one is the round-1 seats over their own slices; refuted/recorded opens nothing; the budget clause gated on `start` declaring it; reviewed in its own shape — 4 passes, 11 → 3 → 3 → 0, 25 min; `62-using-subagents.md:74/:211` still carries the old clause (intel's live pass — theirs to edit) |
 | 2 · `command_run.py` (`--budget` on `start`, the per-slice ledger on `round`, a review-family round without `--confirmed` refused, `done` refusing a failing slice) and `dispatch_headroom.py` (`--delta` retired) | 2026-09-22 | `2e917b17c` (D-339; ledger `16adffc3c`, `5853c00e8`) | fleet-synced and distributed by the post-commit sync; ten graders red-first; the refusal scoped to 15 review-family commands, every other caller keeps D-206's tolerant rule; the contract sentence mirrored in both `CLAUDE.md` copies; reviewed in the D-335 shape — 4 passes, 14 → 6 → 3 → 0 on the same three seats, 21 confirmed (13 in round one, then 8 residuals of the fixes), 62 min against a 45-min budget (over, printed, never a cap), fixes `65ae40693`, `103d19ebd`, `e0490606d`, D-341 (the set is 16 by rule), receipt `5e0a21db4` |
 | 3 · every command's first phase executes MCP · rules · infra · manifesto (§ 5 item 7) | 2026-09-22 | `128050dbc` (D-342) | one fragment, `orient.md`, included by all 38 sources right after the run record: the four executed lines and the `ORIENT:` reply line; rendered 38 / 38 / 38 / 38 of 38 (measured over `~/.claude/commands/*.md`, the rendered corpus — a source count reads 0 / 9 / 6 / 0 because the lines live in the fragment); grader `tests/test_orient_fragment.py`; the same change removed D-229's delta round from the assembler's two floors and both `CLAUDE.md` contracts, and the round-zero probe now runs before every re-dispatch; reviewed in the D-335 shape — 3 passes on the same three seats, 17 → 1 → 0, 15 confirmed (14 in round one — among them a FLEET defect, two hub-only paths in the fragment, caught by the orchestrator's own round-zero probe before the seats returned — then 1 mirror residual of the fix), 45 min against a 30-min budget (over, printed, never a cap), fixes `1fd4898a8`, `02c8898b9`, `e61baa6ed`, receipt `69140bfca` |
-| 5 · the review loop as a workflow script (`.claude/workflows/fabrik-review-loop.js`) — two cheap finders per slice with a schema whose `files_read` is diffed against the slice, a Sonnet verify seat per candidate returning command + output, one ledger back, each pass its OWN invocation with the ledger in `args`; `/fabrik-review` and `/fabrik-repo-review` launch it | 2026-09-22/23 | `7f429a341` (D-350); run-1 fixes `5a7803da2`, `55fca7db8`, `214bbdb6c`, `819e2f01a`, receipt `310762e24`; run-1 lessons `f5eb13f3a`; run-2 fixes `d53d0db2c`, `0929d6e6d`, receipt `2c08ac005` | two measured runs, both reviews of the loop itself. **Run 1** (10 files): 2 passes, 20 raised / 13 confirmed / 4 refuted, 30 agents, 2.61 M seat tokens, **19 lead turns**, 35 min. **Run 2** (4 files): 3 passes, 7 confirmed, 18 agents, 0.56 M seat tokens, **17 lead turns**, 21 min. Against today's `/fabrik-review` median of 99 lead turns and 86 min. **The D-347 KILL fired as written** — both runs sit above the 15-turn target, and confirmed counts (13, 7) fall below the D-335 baseline (14, 21, 15), which was measured on 16–51-file surfaces against these 10 and 4; Invariant 4 defaults a fired criterion to kill, and an override is a new written claim with a new criterion, never an edit of this one (operator decision, pending). What the runs showed: the lead's turns went to in-turn waits (the Stop hook holds the turn while a record runs) and to reading results, not to seats; every workflow agent is invisible to the run record's seat counters (`seats_seen 0` on both closes — seat tokens come from the notifications); a status vocabulary restated in four places drifted in one run (run 2's second-pass defect: the candidates rule inverted when the statuses were keyed on the defect) — a vocabulary is stated once and pointed at; a closing seat reported the lead's latest operator message relayed into its prompt, which it ignored. |
+| 5 · the review loop as a workflow script (`.claude/workflows/fabrik-review-loop.js`) — two cheap finders per slice with a schema whose `files_read` is diffed against the slice, a Sonnet verify seat per candidate returning command + output, one ledger back, each pass its OWN invocation with the ledger in `args`; `/fabrik-review` and `/fabrik-repo-review` launch it | 2026-09-22/23 | `7f429a341` (D-350); run-1 fixes `5a7803da2`, `55fca7db8`, `214bbdb6c`, `819e2f01a`, receipt `310762e24`; run-1 lessons `f5eb13f3a`; run-2 fixes `d53d0db2c`, `0929d6e6d`, receipt `2c08ac005` | two measured runs, both reviews of the loop itself. **Run 1** (10 files): 2 passes, 20 raised / 13 confirmed / 4 refuted, 30 agents, 2.61 M seat tokens, **19 lead turns**, 35 min. **Run 2** (4 files): 3 passes, 7 confirmed, 18 agents, 0.56 M seat tokens, **17 lead turns**, 21 min. Against today's `/fabrik-review` median of 99 lead turns and 86 min. **Against the operator's criterion both runs settled — 2 passes and 3 (D-330: 1–3).** **The D-347 KILL fired as written** — keyed on the lead-turn proxy (withdrawn as a criterion in revision 22) — both runs sit above the 15-turn target, and confirmed counts (13, 7) fall below the D-335 baseline (14, 21, 15), which was measured on 16–51-file surfaces against these 10 and 4; Invariant 4 defaults a fired criterion to kill, and an override is a new written claim with a new criterion, never an edit of this one (operator decision, pending). What the runs showed: the lead's turns went to in-turn waits (the Stop hook holds the turn while a record runs) and to reading results, not to seats; every workflow agent is invisible to the run record's seat counters (`seats_seen 0` on both closes — seat tokens come from the notifications); a status vocabulary restated in four places drifted in one run (run 2's second-pass defect: the candidates rule inverted when the statuses were keyed on the defect) — a vocabulary is stated once and pointed at; a closing seat reported the lead's latest operator message relayed into its prompt, which it ignored. |
 | 6 · the same script for the section-partition reviews (`/fabrik-spec-review`, `/fabrik-plan-review`) and the reviews nested in `/fabrik-execute-plan` (144 of its 245 hours) | not started | — | ≤ 20 lead turns each; execute-plan ≤ 60 |
 | 7 · the producing commands delegate their reading and judging — `/fabrik-spec` and `/fabrik-plan-after-chat` send large reads to seats that return summaries and use a judge panel instead of the lead iterating alone; the closing chain fixed at four calls (receipt fill and check · commit through the recipe · gate · close), inputs written first | not started | — | ≤ 25 lead turns each; the chain under 120 |
+
+**Revision 22 (2026-09-23, the Opus 5.5 week):** § 4.9 gains findings 25–34 from five research seats and one probe
+(Opus 5.5 as the cheaper orchestrator; Anthropic's two-or-three-continuations stop rule; no seat for a check the lead can
+run, a fresh refuter for findings; the finder pair open again — Sonnet 5's recall below 4.6's, finding 5 qualified; fresh
+seats per pass confirmed over SendMessage wakes; the lead's transcript as the cost; pilot 1 now working at 2.1.280; the
+seat-cache and telemetry facts; the time-budget pattern against finding 9); § 5.3 and § 6 state that the operator's
+criterion is passes (1–3, D-330) and the lead-turn budget a diagnostic proxy; § 5.2 row 5 reads both runs against it.
 
 **Revision 21 (2026-09-23, chunk 5 measured):** § 5.2 row 5 lands with both measured runs (19 and 17 lead turns
 against 99; confirmed 13 and 7 on 10- and 4-file surfaces), states that the D-347 KILL fired as written and that its
