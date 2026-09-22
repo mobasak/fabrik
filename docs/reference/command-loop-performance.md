@@ -599,10 +599,14 @@ whole files for it is the 10× model doing 1× work. Under § 5 the same runs ke
 each slice's ledger on Sonnet or Haiku with Opus only on a risky slice, and the orchestrator — Fable or Opus, whichever
 the quota allows (D-334) — adjudicates from the seats' executed outputs and reads nothing twice.
 
-**Measured after § 5's first chunk landed (2026-09-22, the `/fabrik-review` over that chunk itself — 13 files, 17
-confirmed defects, 25 minutes, closed at zero by the owning seat).** Seats per round 3, 3, 1, 1: the full partition in
+**Do we use the seats wisely — maximum parallelism, least waste, fast and accurate? Not yet, but the direction has
+moved, and the numbers say by how much. Measured after § 5's first chunk landed (2026-09-22, the `/fabrik-review` over
+that chunk itself — 13 files, 17 confirmed defects, 25 minutes inside a declared 45-minute budget, closed at zero by
+the owning seat).** Seats per round 3, 3, 1, 1: the full partition in
 round one, then only the slice that still failed — the two clean slices were never re-dispatched. Model mix as the
-rule says, for the first time: Opus on the one risky slice, Sonnet on the other two, no Fable seat. The orchestrator's
+rule says, for the first time: Opus on the one risky slice (four passes), Sonnet on the other two (two passes each), no
+Fable seat — 28 cost units of seat time. The Opus share of that cost stayed high because the risky slice was the one
+that kept failing on the orchestrator's own residue; the fix for that is the probe below, not a cheaper seat. The orchestrator's
 share fell from 64% to 50% of input tokens and from 39% to 32% of output. Against the command's 94-minute median, 25
 minutes. Two wastes remain, and both are named: rounds two to four were the orchestrator's OWN fix residue on one slice
 (three passes, about 12 minutes) because the fixer skipped the round-zero probe on its own hunks before the owning seat
