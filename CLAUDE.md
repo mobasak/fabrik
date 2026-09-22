@@ -30,7 +30,7 @@ Invoking a `/fabrik-*` command means opening a run record and keeping it current
 - **Rounds converge by RE-SWEEPING a fixed class ledger, never by re-scoping.** The ledger persists across
   rounds; only a round that sweeps a class clean retires it. A round that sweeps every known class and CONFIRMS
   zero code or doc defects (`round --confirmed 0`) IS the quiet round; refuted and recorded candidates never
-  reopen the loop (D-206); a record whose rounds never state `confirmed` keeps the `--findings 0` rule.
+  reopen the loop (D-206); a record whose rounds never state `confirmed` keeps the `--findings 0` rule, except a review-family run, where a `round` without `--confirmed` is REFUSED (D-335).
   `command_run.py` prints the TERMINAL verdict — that is when you call `done`. If findings oscillate
   (43 → 11 → 30 instead of 5 → 3 → 0) the tool says so, advisorily: the loop is inventing a new brief each pass.
   Re-sweep the ledger; don't re-scope.

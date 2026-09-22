@@ -364,4 +364,7 @@ def test_command_run_mirrors_the_delta_budget_of_dispatch_headroom() -> None:
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         mods[name] = mod
-    assert mods["cr_mirror"].DELTA_BUDGET == mods["dh_mirror"].DELTA_BUDGET == 20
+    # D-335 chunk 2: the mirror is retired on BOTH sides — neither module carries a delta budget
+    assert not hasattr(mods["cr_mirror"], "DELTA_BUDGET") and not hasattr(
+        mods["dh_mirror"], "DELTA_BUDGET"
+    )

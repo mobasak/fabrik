@@ -1377,138 +1377,33 @@ def test_an_untrimmed_slices_partition_still_says_every_file_read_once(monkeypat
     assert "TRIMMED partition" not in out, out
 
 
-def test_a_delta_at_or_under_the_budget_sizes_one_fresh_seat_under_a_partition(monkeypatch, capsys):
-    """D5 (review-family pass 3, D-229 narrowing D-208): round 1 keeps its partition; a later
-    round whose fix diff — changed lines, the receipt excluded — is at or under DELTA_BUDGET
-    dispatches ONE fresh non-authoring seat plus the hygiene script. `delta=None` is byte-identical
-    to today; above the budget the partition's Σ slices stands. The mix needs no code: `trim()`
-    already yields the partition's single highest seat for `seats == 1`."""
+def test_the_delta_budget_is_retired_a_later_pass_is_sized_by_its_slices(monkeypatch, capsys):
+    """D-335 supersedes D-229: `budget()` takes no `delta`, the module carries no DELTA_BUDGET,
+    and `--delta` on the CLI is an unknown flag — every later pass is one seat per slice with an
+    open claim, on the seat that owned it in round 1, the round-1 union as the ceiling."""
+    import inspect
+
+    assert not hasattr(dh, "DELTA_BUDGET")
+    assert "delta" not in inspect.signature(dh.budget).parameters
     part = {"opus": 1, "sonnet": 1}
-    assert dh.DELTA_BUDGET == 20
-    for delta, seats in ((4, 1), (20, 1), (21, 2), (None, 2)):
-        r = dh.budget(0, False, BOX_OK, Q_OK, slices=part, delta=delta)
-        assert r["seats"] == seats, (delta, r["caps"], r["reasons"])
-        assert any("one fresh seat (D5)" in x for x in r["reasons"]) == (seats == 1), (
-            delta,
-            r["reasons"],
-        )
-    # the CLI prints the same number on its first line
-    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
-    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
-    monkeypatch.setattr(
-        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
-    )
-    assert dh.main(["--slices", "opus=1,sonnet=1", "--delta", "4"]) == 0
-    first = capsys.readouterr().out.splitlines()[0]
-    assert first.startswith("SEATS: 1 "), first
-    # --delta without --slices is argparse's OWN usage error (`ap.error` → SystemExit(2)) — a
-    # DIFFERENT mechanism from the --slices grammar's `return 2`, and it fires BEFORE the
-    # `--units is required` refusal would return 2
-    with pytest.raises(SystemExit) as exc:
-        dh.main(["--delta", "4"])
-    assert exc.value.code == 2
-    assert "--delta needs --slices or --units" in capsys.readouterr().err
-    # the one seat IS the round: never the TRIMMED-partition sentence, which orders a re-sweep of
-    # "unread slices" and would make a delta round unclosable (round-1 finding)
-    assert dh.main(["--slices", "opus=1,sonnet=3", "--delta", "4"]) == 0
-    out = capsys.readouterr().out
-    assert out.startswith("SEATS: 1 ") and "TRIMMED partition" not in out, out
-    assert "sized by the fix (D5)" in out, out
-    # a units-sized surface (the scoped review, the grounding loops) is delta-sized too — D-229
-    # narrows the D-208 floor to round 1, so no floor padding on a delta round
-    r = dh.budget(3, False, BOX_OK, Q_OK, delta=4)
-    assert r["seats"] == 1 and not any("raised to the floor" in x for x in r["reasons"]), r
-    # …nor the floor's TWIN branch ("below the floor because a HARD cap binds (=1)" — round 2)
-    assert not any("below the floor" in x for x in r["reasons"]), r
-    assert r["delta_sized"] is True and dh.budget(3, False, BOX_OK, Q_OK)["delta_sized"] is False
-    # the ONE floor rule (round-3 class rewrite): a delta round asks for ONE seat — at 0 it still
-    # cannot run and says so; the sibling-reservation grant is bounded by its own need, never 3
-    tiny = dict(BOX_OK, mem_available_gb=0.1)
-    r = dh.budget(3, False, tiny, Q_OK, delta=4)
-    assert r["seats"] == 0, r
-    assert any(
-        "below the delta round's one seat because a HARD cap binds (box_cap=0)" in x
-        for x in r["reasons"]
-    ), r["reasons"]
-    r = dh.budget(3, False, tiny, Q_OK)  # the non-delta wording is byte-identical to before
-    assert any("below the floor because a HARD cap binds (box_cap=0)" in x for x in r["reasons"]), (
-        r["reasons"]
-    )
-    r = dh.budget(
-        0, False, tiny, Q_OK, slices={"opus": 1, "sonnet": 3}, delta=4
-    )  # under --slices too
-    assert r["seats"] == 0 and any("below the delta round's one seat" in x for x in r["reasons"]), (
-        r["reasons"]
-    )
-    held = {"ok": True, "seats": 40, "sessions": 3, "skipped": []}
-    r = dh.budget(3, False, BOX_OK, Q_OK, held, delta=4)
-    assert r["seats"] == 1 and r["floor_granted"] == 1, (r["seats"], r["floor_granted"])
-    assert any("bounded by the round's own floor of 1" in x for x in r["reasons"]), r["reasons"]
-    # EVERY cap site reads the round's own floor — no line beside a delta round names the floor of
-    # three, orders "sweep the rest next round", or holds a failed probe "at the floor" (round 4)
-    joined = "\n".join(r["reasons"])
-    assert "never below the delta round's one seat" in joined and "floor of 3" not in joined, joined
-    # …and the guarantee is stated on a SMALL box too — AT the boundary, where the grant fires:
-    # one seat of physical room, one sibling seat live (round 6: a fixture one notch off the
-    # boundary graded prose only)
-    small = {"ok": True, "mem_available_gb": 1.0, "mem_total_gb": 8.0, "cores": 24, "load1": 1.0}
-    one_live = {"ok": True, "seats": 1, "sessions": 1, "skipped": []}
-    one = dh.budget(3, False, small, Q_OK, one_live, delta=4)
-    assert one["seats"] == 1 and one["floor_granted"] == 1, one
-    assert any("never below the delta round's one seat" in x for x in one["reasons"]), one
-    # the non-delta grant message is byte-identical to before (its producer-side pin is the
-    # parked-parent-frame test's prefix assertion above; the board's caveat tests hand-build it)
-    plain = dh.budget(3, False, BOX_OK, Q_OK, held)
-    assert any("bounded by the floor of 3; a session never starves" in x for x in plain["reasons"])
-    hot = dh.budget(3, False, BOX_OK, dict(Q_OK, hottest_pct=92.0), delta=4)
-    assert hot["seats"] == 1 and hot["caps"]["quota_cap"] == 1, hot
-    assert any("run the delta round's one seat" in x for x in hot["reasons"]), hot["reasons"]
-    assert not any("sweep the rest" in x for x in hot["reasons"]), hot["reasons"]
-    dead = dh.budget(3, False, {"ok": False, "why": "x"}, {"ok": False, "why": "y"}, delta=4)
-    assert dead["seats"] == 1 and dead["caps"]["box_cap"] == 1 == dead["caps"]["quota_cap"], dead
-    assert sum("held at the delta round's one seat" in x for x in dead["reasons"]) == 2, dead[
-        "reasons"
-    ]
-    # the export predicate: above the budget is NOT delta-sized
-    assert dh.budget(3, False, BOX_OK, Q_OK, delta=21)["delta_sized"] is False
-    # an idle box, one seat: no imperative, no floor prose at all
-    idle = dh.budget(3, False, BOX_OK, Q_OK, delta=4)
-    assert not any("HARD cap binds" in x or "floor" in x.lower() for x in idle["reasons"]), idle
-    # a partition of NOTHING is never delta-sized to one seat (the `wanted > 0` clause)
-    assert dh.budget(0, False, BOX_OK, Q_OK, slices={"opus": 0}, delta=4)["seats"] == 0
-    assert dh.budget(3, False, BOX_OK, Q_OK, delta=21)["seats"] == 7  # above the budget: as today
-    assert dh.main(["--units", "3", "--delta", "4"]) == 0
-    out = capsys.readouterr().out
-    assert out.startswith("SEATS: 1 ") and "TRIMMED partition" not in out, out
-    assert "below the floor" not in out, out
-    # the JSON envelope exports the D5 input and verdict, and BOTH box halves carry the reason —
-    # the board banner scans `heavy_reasons`/`reasons_read_only` (round-2 surviving mutant)
-    assert dh.main(["--units", "3", "--delta", "4", "--json"]) == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["delta"] == 4 and payload["delta_sized"] is True
-    assert payload["full_mix"] == {"opus": 1} == payload["mix"]  # what the round WANTS (round 3)
-    for key in ("reasons", "heavy_reasons", "reasons_read_only"):
-        assert any("one fresh seat (D5)" in x for x in payload[key]), (key, payload[key])
-    # a binding cap names the basis it actually used (F7's class): the delta budget, not Σ slices
-    r = dh.budget(
-        4, True, dict(BOX_OK, mem_available_gb=0.5), Q_OK, slices={"opus": 1, "sonnet": 3}, delta=4
-    )
-    assert r["seats"] == 0 and any("wanted 1 (the delta budget" in x for x in r["reasons"]), r
+    r = dh.budget(0, False, BOX_OK, Q_OK, slices=part)
+    assert r["seats"] == 2, (r["caps"], r["reasons"])
+    with pytest.raises(SystemExit) as e:
+        dh.main(["--slices", "opus=1,sonnet=1", "--delta", "4"])
+    assert e.value.code == 2
 
 
-def test_the_delta_round_floor_invariants_hold_across_the_whole_grid():
-    """THE ONE FLOOR RULE as an executed GRID, not a list of hand-picked assertions (rounds 2–6 of
-    the pass-3 review each confirmed one more FLOOR site the previous patch had missed; D10 rule 3
-    — the class is graded from its probe). Every surface shape × delta × box × quota × siblings ×
-    heavy: a delta-sized round is one seat by design — never raised to, granted past, held at or
-    below the floor of three; at 0 it says so; a non-delta round carries no delta prose."""
+def test_the_floor_invariants_hold_across_the_whole_grid_with_no_delta_axis():
+    """THE ONE FLOOR RULE as an executed GRID (D10 rule 3 — the class is graded from its probe),
+    re-cut for D-335: the delta axis is gone — `budget()` takes no `delta`, no cell is ever
+    delta-sized, and no reason line carries the retired delta prose; the floor sites read `need`
+    (= FLOOR) everywhere. Every surface shape × box × quota × siblings × heavy."""
     import itertools
 
     tiny = dict(BOX_OK, mem_available_gb=0.1)
     grid = {
         "units": [0, 1, 3],
         "slices": [None, {"opus": 1, "sonnet": 3}, {"opus": 0}, {"haiku": 2}],
-        "delta": [None, 0, 4, 20, 21],
         "box": [BOX_OK, tiny, {"ok": False, "why": "bx"}],
         "quota": [
             Q_OK,
@@ -1522,39 +1417,17 @@ def test_the_delta_round_floor_invariants_hold_across_the_whole_grid():
         ],
         "heavy": [False, True],
     }
-    forbidden = (
-        "floor of 3",
-        "run the FLOOR",
-        "held at the floor",
-        "raised to the floor",
-        "below the floor",
-    )  # ("TRIMMED partition" is `_mix_story`'s, graded on the CLI output above — never a reason)
-    delta_prose = ("delta round's one seat", "round's own floor of 1", "(D5)")
-    calls = sized = 0
-    for u, sl, d, b, q, sb, hv in itertools.product(*grid.values()):
-        r = dh.budget(u, hv, b, q, sb, slices=sl, delta=d)
+    delta_prose = ("delta round's one seat", "round's own floor of 1", "(D5)", "changed lines")
+    calls = 0
+    for u, sl, b, q, sb, hv in itertools.product(*grid.values()):
+        r = dh.budget(u, hv, b, q, sb, slices=sl)
         calls += 1
         joined = "\n".join(r["reasons"])
-        if not r["delta_sized"]:
-            assert not any(t in joined for t in delta_prose), (u, sl, d, r["reasons"])
-            if sl == {"opus": 0}:  # a partition of nothing is refused, never delta-sized to one
-                assert r["seats"] == 0 and "sum to 0" in joined, (d, r["reasons"])
-            continue
-        sized += 1
-        assert r["seats"] <= 1 and r["floor_granted"] <= 1, (u, sl, d, r)
-        assert not any(t in joined for t in forbidden), (u, sl, d, r["reasons"])
-        if r["seats"] == 0:
-            # the imperative a delta round at 0 ALWAYS carries ("nothing to partition"/"sum to 0"
-            # need wanted == 0, so they cannot be delta-sized; "dispatch nothing" rides the SAME
-            # line under a quota hold — round 8)
-            assert "HARD cap binds" in joined, r["reasons"]
-        else:
-            assert "HARD cap binds" not in joined, r["reasons"]
-        if not b["ok"]:
-            assert r["caps"]["box_cap"] == 1, r["caps"]
-        if not q["ok"] or q.get("hold") or (q.get("hottest_pct") or 0) >= 85:
-            assert r["caps"]["quota_cap"] <= 1, r["caps"]
-    assert calls == 2880 and sized == 1152, (calls, sized)  # the grid's own denominator
+        assert r["delta_sized"] is False, (u, sl, r)
+        assert not any(tok in joined for tok in delta_prose), (u, sl, r["reasons"])
+        if sl == {"opus": 0}:  # a partition of nothing is refused, never sized to one
+            assert r["seats"] == 0 and "sum to 0" in joined, r["reasons"]
+    assert calls == 576, calls  # the grid's own denominator (2880 / the retired 5-value delta axis)
 
 
 def test_commit_headroom_caps_seats_only_under_strict_overcommit() -> None:

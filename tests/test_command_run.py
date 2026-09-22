@@ -3068,7 +3068,11 @@ def test_the_scope_growth_stop_fires_when_a_loop_only_reviews_its_own_fixes() ->
     # ⚠️ N5 — and it must NOT fire on a round that is itself readable and QUIET
     assert (
         cr.scope_growth_warning(
-            [{"n": 1, "confirmed": 5}, {"n": 2, "confirmed": 3}, {"n": 3, "confirmed": 0, "own_fix": 0}]
+            [
+                {"n": 1, "confirmed": 5},
+                {"n": 2, "confirmed": 3},
+                {"n": 3, "confirmed": 0, "own_fix": 0},
+            ]
         )
         == ""
     )
@@ -3078,7 +3082,11 @@ def test_the_scope_growth_stop_fires_when_a_loop_only_reviews_its_own_fixes() ->
     # ⚠️ N1 — a FALLING count that is mostly own-fix still fires. The pack said otherwise about the
     # mechanism's own founding series (8 · 6 · 5 · 7 · 4 · 2) until this grader pinned it.
     assert "SCOPE GROWTH" in cr.scope_growth_warning(
-        [{"confirmed": 8, "own_fix": 8}, {"confirmed": 6, "own_fix": 6}, {"confirmed": 5, "own_fix": 5}]
+        [
+            {"confirmed": 8, "own_fix": 8},
+            {"confirmed": 6, "own_fix": 6},
+            {"confirmed": 5, "own_fix": 5},
+        ]
     )
     # and it stays NARROW: when the omission cannot decide, nothing prints. Firing on every
     # omitting record would print on the ~78% of rounds that omit the flag — wallpaper.
@@ -3364,8 +3372,8 @@ def test_terminal_verdict_names_the_delta_round_rule_and_oscillation_names_both_
         "classes": {"a": "clean"},
     }
     text = cr._round_report(rec)
-    assert "CONFIRMED 0 defects" in text and "delta round" in text.lower(), text
-    assert "non-authoring" in text and "standing-clean" in text, text
+    assert "CONFIRMED 0 defects" in text and "closing pass" in text.lower(), text
+    assert "own slices" in text and "standing-clean" in text, text
     assert "FULL fresh sweep" not in text and "scoped round never closes" not in text, text
     warn = cr.convergence_warning([9, 15, 10, 6, 4, 9, 9], "fabrik-review")
     assert "RE-SCOPING" in warn and "ledger was IDENTICAL" in warn
@@ -4154,7 +4162,7 @@ def test_the_terminal_banner_names_confirmed_zero_and_the_delta_round_rule(run_d
         run_dir, "round", "--findings", "1", "--confirmed", "0", "--classes-swept", "auth"
     ).stdout
     assert "CONFIRMED 0 defects" in final, final
-    assert "delta round" in final.lower() and "non-authoring" in final, final
+    assert "closing pass" in final.lower() and "own slices" in final, final
     assert "FULL fresh sweep" not in final and "scoped round never closes" not in final, final
 
 
@@ -4383,7 +4391,7 @@ def test_a_clean_round_one_is_not_terminal_but_round_two_is(run_dir: Path) -> No
     assert "TERMINAL VERDICT" not in one.stdout, one.stdout
     assert "NOT TERMINAL" in one.stdout, one.stdout
     assert "round 1 is the full pass" in one.stdout, one.stdout
-    assert "fresh non-authoring seat" in one.stdout, one.stdout
+    assert "round-1 seats over their own slices" in one.stdout, one.stdout
     two = _cr(run_dir, "round", "--confirmed", "0", "--classes-swept", "auth,races")
     assert "TERMINAL VERDICT" in two.stdout, two.stdout
     assert "NOT TERMINAL" not in two.stdout, two.stdout
@@ -4538,32 +4546,6 @@ def test_the_plan_stem_survives_trailing_punctuation_in_the_surface() -> None:
         assert cr._plan_stem({"surface": surface}) == "foo", surface
     assert cr._plan_stem({"surface": "no plan here"}) is None
     assert cr._plan_stem({}) is None
-
-
-def test_round_refuses_a_negative_delta_and_the_cli_delta_reaches_the_advisory(
-    run_dir: Path,
-) -> None:
-    """Review round 1 (Phase B): `--delta` was stored unvalidated and no test drove it through
-    the CLI, so a dropped `delta` field or a dropped `deltas=` argument left the suite green."""
-    _start(run_dir)
-    r = _cr(run_dir, "round", "--findings", "0", "--confirmed", "0", "--delta", "-9")
-    assert r.returncode == 2 and "--delta" in r.stderr, r.stderr
-    series = ["9", "5", "3", "1", "3", "2", "1", "3"]  # the series the direct test fires on
-    for (
-        n
-    ) in series:  # findings-trend records: the advisory reads `findings` until `--confirmed` lands
-        r = _cr(run_dir, "round", "--findings", n, "--delta", "5")
-        assert r.returncode == 0, r.stderr
-    assert "oscillat" not in (r.stdout + r.stderr).lower(), r.stdout + r.stderr
-    rec = json.loads(next(run_dir.glob("*.json")).read_text(encoding="utf-8"))
-    assert [x.get("delta") for x in rec["rounds"]] == [5] * 8
-    # the same series without deltas fires
-    run2 = run_dir / "second"
-    run2.mkdir()
-    _start(run2)
-    for n in series:
-        r = _cr(run2, "round", "--findings", n)
-    assert "oscillat" in (r.stdout + r.stderr).lower(), r.stdout + r.stderr
 
 
 def test_round_refuses_an_own_fix_that_is_not_a_subset_and_notes_an_uncounted_review_round(
@@ -4908,19 +4890,6 @@ def test_round_derives_new_from_the_classes_ledger_and_refuses_a_new_above_findi
     assert "new: 2" in r.stdout, r.stdout
 
 
-def test_the_oscillation_advisory_stays_quiet_over_delta_rounds_under_the_budget() -> None:
-    """T3.3 (01M215G84): a 1 → 3 bump across ≤ 20-line delta rounds is a fix's residue, not a
-    re-scope — the advisory reads the rounds' `delta` sizes and stays quiet when every round in
-    its window is under the budget; without deltas the same series still fires."""
-    cr = _cr_module("osc")
-    series = [9, 5, 3, 1, 3, 2, 1, 3]
-    assert cr.convergence_warning(series, "fabrik-review"), "the bare series must still fire"
-    deltas = [None, 330, 50, 22, 10, 8, 12, 8]
-    assert cr.convergence_warning(series, "fabrik-review", deltas=deltas) == ""
-    big = [None, 330, 50, 22, 10, 8, 40, 8]  # one round in the window above the budget
-    assert cr.convergence_warning(series, "fabrik-review", deltas=big)
-
-
 def test_only_a_first_review_done_close_records_a_reach(run_dir: Path) -> None:
     """Phase C review round 1, seat finding F5. The Stop hook's first-review base case used to be
     DERIVED per stop from the live record ("is it a review-family `done` with an empty ledger?"),
@@ -5151,7 +5120,7 @@ def test_the_derived_new_count_cannot_state_what_the_explicit_one_refuses(run_di
         )
 
     run("start", "--command", "fabrik-spec-review", "--phases", "2", "--terminal", "x")
-    out = run("round", "--findings", "0", "--classes-new", "a,b,c").stdout
+    out = run("round", "--findings", "0", "--confirmed", "0", "--classes-new", "a,b,c").stdout
     assert "classes open: a, b, c" in out, out
     rec = json.loads(next(run_dir.glob("*.json")).read_text())
     last = rec["rounds"][-1]
@@ -6098,7 +6067,9 @@ def test_execute_plan_names_review_waived_for_the_profile_small_case() -> None:
     Pins the flag AND the case together: the flag alone was already in the text, so a pin on it
     could not have caught this.
     """
-    src = (_SCRIPT.parents[1] / "commands" / "_sources" / "fabrik-execute-plan.md").read_text(encoding="utf-8")
+    src = (_SCRIPT.parents[1] / "commands" / "_sources" / "fabrik-execute-plan.md").read_text(
+        encoding="utf-8"
+    )
     flat = " ".join(src.split())
     assert "--review-waived" in flat, "the sanctioned exit is gone from the command"
     assert "Under `Profile: small` this and item 3 bind at once" in flat, (
@@ -6124,13 +6095,39 @@ def test_the_artifact_floor_holds_under_a_malformed_ambient_git_config(tmp_path)
         env, repo = _artifact_repo(tmp_path, name=f"floor-{var.lower()}")
         env[var] = val
         subprocess.run(
-            [sys.executable, script, "start", "--command", "fabrik-review", "--phases", "1", "--terminal", "t"],
-            cwd=repo, env=env, check=True, timeout=15,
+            [
+                sys.executable,
+                script,
+                "start",
+                "--command",
+                "fabrik-review",
+                "--phases",
+                "1",
+                "--terminal",
+                "t",
+            ],
+            cwd=repo,
+            env=env,
+            check=True,
+            timeout=15,
         )
         r = subprocess.run(
-            [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "nothing written",
-             "--feedback", "confusion: none · waste: none · change: none · filed: none — harness setup"],
-            cwd=repo, env=env, capture_output=True, text=True, timeout=15,
+            [
+                sys.executable,
+                script,
+                "done",
+                "--command",
+                "fabrik-review",
+                "--evidence",
+                "nothing written",
+                "--feedback",
+                "confusion: none · waste: none · change: none · filed: none — harness setup",
+            ],
+            cwd=repo,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         assert r.returncode == 1, f"{var}: the floor closed with no report ({r.stdout})"
         assert "persisted report" in r.stdout, (var, r.stdout)
@@ -6148,8 +6145,21 @@ def test_the_artifact_floor_finds_a_committed_report_under_a_malformed_ambient_g
     script = str(_SCRIPT)
     env, repo = _artifact_repo(tmp_path, name="floor-committed")
     subprocess.run(
-        [sys.executable, script, "start", "--command", "fabrik-review", "--phases", "1", "--terminal", "t"],
-        cwd=repo, env=env, check=True, timeout=15,
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+        ],
+        cwd=repo,
+        env=env,
+        check=True,
+        timeout=15,
     )
     rep = repo / "docs/development/reviews/2026-09-19-fabrik-review-x.md"
     rep.parent.mkdir(parents=True)
@@ -6157,12 +6167,170 @@ def test_the_artifact_floor_finds_a_committed_report_under_a_malformed_ambient_g
     subprocess.run(["git", "add", "docs/development/reviews"], cwd=repo, check=True, timeout=15)
     subprocess.run(
         ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "report"],
-        cwd=repo, check=True, timeout=15,
+        cwd=repo,
+        check=True,
+        timeout=15,
     )
     env["GIT_CONFIG_PARAMETERS"] = "'core.'"
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "committed report",
-         "--feedback", "confusion: none · waste: none · change: none · filed: none — harness setup"],
-        cwd=repo, env=env, capture_output=True, text=True, timeout=15,
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "committed report",
+            "--feedback",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
+        ],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
     )
-    assert r.returncode == 0, f"a committed report was not found under an ambient value ({r.stdout})"
+    assert r.returncode == 0, (
+        f"a committed report was not found under an ambient value ({r.stdout})"
+    )
+
+
+# ── D-335 chunk 2: the budget, the per-slice ledger, the refusal of an unstated exit counter ──
+
+
+def test_start_stores_the_declared_budget_and_the_pinned_line_prints_it(run_dir: Path) -> None:
+    """D-335 § 5 item 4: the budget is the second term of the objective — declared at `start`,
+    printed on the RUN: line beside the rounds, so a run can see how much of it is spent."""
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "2", "--terminal", "t", "--budget", "45")
+    assert _rec(run_dir)["budget_min"] == 45
+    line = _cr(run_dir, "line").stdout
+    assert "budget" in line and "/45 min" in line, line
+
+
+def test_a_round_records_its_slice_ledger_and_a_failing_slice_is_never_terminal(
+    run_dir: Path,
+) -> None:
+    """D-335 § 5 items 1–2 and 4: the terminal is every slice verified — a round that states
+    `--slices` with an open claim can sweep every class clean and still not close."""
+    _start(run_dir)
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "5",
+        "--confirmed",
+        "3",
+        "--classes-new",
+        "auth",
+        "--slices",
+        "A:10/12,B:6/6",
+    )
+    rec = _rec(run_dir)
+    assert rec["rounds"][-1]["slices"] == [
+        {"name": "A", "verified": 10, "claims": 12},
+        {"name": "B", "verified": 6, "claims": 6},
+    ]
+    out = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "auth",
+        "--slices",
+        "A:11/12,B:6/6",
+    ).stdout
+    assert "NOT TERMINAL" in out and "A" in out and "1 open claim" in out, out
+    final = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "auth",
+        "--slices",
+        "A:12/12,B:6/6",
+    ).stdout
+    assert "TERMINAL VERDICT" in final and "every slice verified" in final, final
+
+
+def test_a_malformed_slice_ledger_is_refused(run_dir: Path) -> None:
+    _start(run_dir)
+    bad = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "1",
+        "--confirmed",
+        "1",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:13/12",
+    )
+    assert bad.returncode == 2 and "REFUSED" in bad.stderr and "--slices" in bad.stderr, bad.stderr
+
+
+def test_a_review_family_round_without_confirmed_is_refused(run_dir: Path) -> None:
+    """D-335 § 5 item 5 (a): for the review family the exit counter is not optional — a round
+    without `--confirmed` is refused, so the terminal and the oscillation advisory can only ever
+    read the confirmed series. Every other command keeps the tolerant `--findings 0` rule."""
+    _start_named(run_dir, "fabrik-review")
+    out = _cr(run_dir, "round", "--findings", "4", "--classes-new", "auth")
+    assert out.returncode == 2 and "REFUSED" in out.stderr and "--confirmed" in out.stderr, (
+        out.stderr
+    )
+    assert not _rec(run_dir).get("rounds"), "the refused round must not be recorded"
+    ok = _cr(run_dir, "round", "--findings", "4", "--confirmed", "1", "--classes-new", "auth")
+    assert ok.returncode == 0, ok.stderr
+
+
+def test_done_refuses_while_a_slice_still_has_an_open_claim(run_dir: Path) -> None:
+    """D-335 § 5 item 4: `done` reads the last round's slice ledgers — a failing slice is a
+    handoff with its claims named, never a `done`."""
+    _start(run_dir)
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "2",
+        "--confirmed",
+        "1",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:3/4",
+    )
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "A:3/4",
+    )
+    out = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e")
+    assert out.returncode == 1 and "REFUSED" in out.stderr and "slice A" in out.stderr, out.stderr
+    assert _rec(run_dir)["state"] == "running"
+
+
+def test_the_advisory_and_the_round_verb_carry_no_delta_budget() -> None:
+    """D-335 supersedes D-229: the `--delta` round flag and the DELTA_BUDGET mirror are gone
+    from the record — a later pass is sized by the slices with open claims, never by a
+    changed-line count."""
+    spec = importlib.util.spec_from_file_location("cr_nodelta", _SCRIPT)
+    cr = importlib.util.module_from_spec(spec)
+    assert spec.loader
+    spec.loader.exec_module(cr)
+    assert not hasattr(cr, "DELTA_BUDGET")
+    import inspect
+
+    assert "deltas" not in inspect.signature(cr.convergence_warning).parameters

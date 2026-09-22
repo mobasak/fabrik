@@ -257,6 +257,10 @@ def pinned_line(rec: dict[str, Any]) -> str:
     rounds = rec.get("rounds") or []
     if rounds:
         out += f" · round {len(rounds)}"
+    budget = rec.get("budget_min")
+    if isinstance(budget, int):
+        used = _minutes_used(rec)
+        out += f" · budget {used}/{budget} min" + (" ⚠️ OVER" if used > budget else "")
     terminal = (rec.get("terminal") or "").strip()
     if terminal:
         out += f" · terminal: {terminal}"
@@ -271,19 +275,65 @@ def pinned_line(rec: dict[str, Any]) -> str:
 # run (2026-08-28), named a specific wrong cause, and instructed a fix that did not apply. A loud
 # advisory that is confidently wrong costs more than silence, because an agent that believes it
 # starts re-scoping a loop that was converging.
+# D-335: the review family states the exit counter on EVERY round — a `round` without
+# `--confirmed` is refused for these commands (every other command keeps the tolerant
+# `--findings 0` rule of D-206 for its untouched callers).
+CONFIRMED_REQUIRED_COMMANDS = frozenset(
+    {
+        "fabrik-review",
+        "fabrik-review-scoped",
+        "fabrik-repo-review",
+        "fabrik-spec-review",
+        "fabrik-plan-review",
+        "fabrik-docs-review",
+        "fabrik-doc-converge",
+        "fabrik-data-contract",
+        "fabrik-rules-review",
+        "fabrik-flows-review",
+        "fabrik-ui-design-review",
+        "fabrik-workflow-review",
+        "fabrik-epics-review",
+        "fabrik-conformance-review",
+        "design-review",
+    }
+)
+
+
+def _parse_slices(raw: str) -> list[dict[str, Any]] | None:
+    """`A:12/12,B:5/6` → [{"name", "verified", "claims"}] — None when malformed (D-335 § 5 item 4)."""
+    out: list[dict[str, Any]] = []
+    for part in str(raw).split(","):
+        part = part.strip()
+        m = re.fullmatch(r"([A-Za-z0-9_.\-]{1,40}):(\d{1,5})/(\d{1,5})", part)
+        if not m:
+            return None
+        verified, claims = int(m.group(2)), int(m.group(3))
+        if verified > claims:
+            return None
+        out.append({"name": m.group(1), "verified": verified, "claims": claims})
+    return out or None
+
+
+def _failing_slices(row: Any) -> list[dict[str, Any]]:
+    """The slices of a round row whose ledger still holds an open claim (verified < claims)."""
+    if not isinstance(row, dict):
+        return []
+    return [
+        s
+        for s in (row.get("slices") or [])
+        if isinstance(s, dict) and int(s.get("verified", 0)) < int(s.get("claims", 0))
+    ]
+
+
 PER_UNIT_ROUND_COMMANDS = frozenset(
     {"fabrik-execute-plan", "fabrik-repo-review"}
 )  # waves: round 15
-
-
-DELTA_BUDGET = 20  # mirrors scripts/sysadmin/dispatch_headroom.py — one fresh seat at or under it
 
 
 def convergence_warning(
     series: list[int],
     command: str = "",
     label: str = "findings",
-    deltas: list[Any] | None = None,
 ) -> str:
     """Advisory oscillation diagnosis, or "" — NEVER blocks (a heuristic must not trap).
 
@@ -298,12 +348,6 @@ def convergence_warning(
     window = series[-CONVERGENCE_WINDOW:]
     if all(a >= b for a, b in zip(window, window[1:], strict=False)):
         return ""  # still non-increasing — converging, say nothing
-    # T3.3 (01M215G84): a bump across DELTA rounds at or under the budget is a fix's residue swept
-    # by one fresh seat over a shrinking surface, not a re-scope — the counts are not comparable
-    if deltas is not None and len(deltas) == len(series):
-        dw = deltas[-CONVERGENCE_WINDOW:]
-        if all(isinstance(d, (int, float)) and 0 <= d <= DELTA_BUDGET for d in dw):
-            return ""
     arrow = " → ".join(str(n) for n in window)
     full = " → ".join(str(n) for n in series)
     return (
@@ -427,9 +471,7 @@ def scope_growth_warning(rows: list[Any], command: str = "") -> str:
         return ""
     window = rows[-SCOPE_GROWTH_ROUNDS:]
     pairs = [(_confirmed(r), _own_fix(r)) for r in window]
-    arrow = " → ".join(
-        f"{'?' if c is None else c}/{'?' if o is None else o}" for c, o in pairs
-    )
+    arrow = " → ".join(f"{'?' if c is None else c}/{'?' if o is None else o}" for c, o in pairs)
 
     # A round QUALIFIES at or above two-thirds own-fix. ⚠️ The `c > 0` guard is load-bearing and
     # not decoration: without it a quiet 0/0 round satisfies `0 * 3 >= 0 * 2` and qualifies
@@ -442,9 +484,7 @@ def scope_growth_warning(rows: list[Any], command: str = "") -> str:
         # qualify, so loosening `==` to a ratio silently re-opened a hole the CLI guard closes
         # only for values it sees. This function reads RECORDS — hand-edited, or written by
         # another vintage of this script — and must not trust its own front door.
-        return (
-            c is not None and o is not None and c > 0 and 0 <= o <= c and o * 3 >= c * 2
-        )
+        return c is not None and o is not None and c > 0 and 0 <= o <= c and o * 3 >= c * 2
 
     # READABLE is stricter than "not None": own-fix counts a SUBSET of confirmed, so a pair
     # outside `0 <= o <= c` is not a low ratio, it is an unreadable one. Routing it to ESCALATE
@@ -639,12 +679,40 @@ def _round_report(rec: dict[str, Any]) -> str:
     # one-`Pass`-row receipt the coverage gate hard-refuses — the two halves of the same redesign
     # disagreeing about whether one clean pass can end a loop (D7 seam #1).
     quiet = swept_all and not lapsed and counter == 0
-    terminal = quiet and len(rounds) >= 2
+    slices = last.get("slices") if isinstance(last, dict) else None
+    failing = _failing_slices(last)
+    if slices:
+        lines.append(
+            "  slices: "
+            + " · ".join(
+                f"{s['name']} {s['verified']}/{s['claims']} {'✓' if s['verified'] >= s['claims'] else '✗'}"
+                for s in slices
+            )
+        )
+    terminal = quiet and len(rounds) >= 2 and not failing
+    if quiet and len(rounds) >= 2 and failing:
+        lines.append(
+            "⛔ NOT TERMINAL — "
+            + "; ".join(
+                f"slice {s['name']} has {s['claims'] - s['verified']} open claim"
+                + ("s" if s["claims"] - s["verified"] != 1 else "")
+                + f" ({s['verified']}/{s['claims']} verified)"
+                for s in failing
+            )
+            + " — its owning seat's next pass is owed; a slice still failing after its third pass "
+            "is handed off with those claims named (D-335)"
+        )
+    budget = rec.get("budget_min")
+    if isinstance(budget, int) and _minutes_used(rec) > budget:
+        lines.append(
+            f"⚠️  BUDGET — {_minutes_used(rec)} of {budget} min used: close with `handoff`, the "
+            "failing slices and their claims named (D-335); rounds are not capped, the budget is"
+        )
     if quiet and len(rounds) < 2:
         lines.append(
-            "⛔ NOT TERMINAL — round 1 is the full pass, never the closing round; run one delta "
-            "round with a fresh non-authoring seat over the fix diff (the receipt gate demands a "
-            "confirming Pass 2)"
+            "⛔ NOT TERMINAL — round 1 is the full pass, never the closing round; run the closing "
+            "pass — the round-1 seats over their own slices (the receipt gate demands a confirming "
+            "Pass 2)"
         )
     if lapsed and swept_all:
         lines.append(
@@ -664,9 +732,10 @@ def _round_report(rec: dict[str, Any]) -> str:
                 "`--confirmed`, so the old findings rule closed it — the exit counter is "
                 "`round --confirmed 0`)"
             )
-            + ". A delta round closes when it carried a fresh non-authoring finder seat over "
-            "the fix diff and its receipt cites the standing-clean classes from the last full "
-            "pass (D-206/D-207). Close the run: "
+            + (" — every slice verified" if slices else "")
+            + ". The closing pass is the round-1 seats confirming their own slices' ledgers, its "
+            "receipt citing the standing-clean classes from the last full pass (D-206, D-335). "
+            "Close the run: "
             f"python3 scripts/command_run.py done --command {rec.get('command') or '<name>'} "
             '--evidence "<proof>" --feedback "<what you filed, to whom | none — surfaces swept>"'
         )
@@ -684,7 +753,6 @@ def _round_report(rec: dict[str, Any]) -> str:
         # all carrying delta=5 stayed silent, and the same five plus ONE junk row fired
         # NON-CONVERGENCE. Advisory-only and fail-loud, so it traps nobody — but it is a
         # hole in a guard this plan added.
-        deltas=[r.get("delta") for r in rounds if isinstance(r, dict)],
     )
     if warn:
         lines.append(warn)
@@ -2111,6 +2179,15 @@ def _iter_lines_backwards(path: Path, max_bytes: int):
             yield None
 
 
+def _minutes_used(rec: dict[str, Any]) -> int:
+    """Whole minutes since the record's start (0 when the start epoch is unreadable)."""
+    started = rec.get("started_epoch") or 0.0
+    try:
+        return max(0, int((time.time() - float(started)) // 60)) if started else 0
+    except (TypeError, ValueError):
+        return 0
+
+
 def _line_epoch(raw: bytes) -> float | None:
     """The ENVELOPE's timestamp. One regex match is it; several mean a `timestamp` key nested in
     the message (a tool_use input is serialised BEFORE the envelope's own stamp — 2,226 of
@@ -2432,6 +2509,13 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--phases", required=True, type=int)
     p.add_argument("--terminal", default="", help="the run's terminal condition")
     p.add_argument(
+        "--budget",
+        type=int,
+        default=None,
+        help="the run's declared budget in MINUTES — the second term of the objective, printed on "
+        "the RUN: line beside the rounds; an overrun closes with handoff (D-335)",
+    )
+    p.add_argument(
         "--surface",
         default="",
         help="what the run is OVER — the spec, plan dir, ticket or diff range (ledger dimension)",
@@ -2513,10 +2597,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="candidates NEW this round (derived from --classes-new when omitted; never above --findings)",
     )
     p.add_argument(
-        "--delta",
-        type=int,
+        "--slices",
         default=None,
-        help="changed lines of the fix this delta round swept (dispatch_headroom --delta)",
+        help="the per-slice claim ledger this round verified — `A:12/12,B:5/6` (verified/claims "
+        "per round-1 slice); the terminal is every slice verified (D-335)",
     )
     # D-186 made fan-out SIZE a rule, and the ledger had no column to evaluate it with: the ruling's
     # own "seats do not drive wall-clock" was an inference, not a measurement, because nothing here
@@ -3525,6 +3609,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             "phase": 1,
             "phase_title": "",
             "terminal": args.terminal,
+            **({} if args.budget is None else {"budget_min": max(0, args.budget)}),
             "state": "running",
             "started_at": _now(),
             # numeric epoch alongside the display string — round 33: the close parsed
@@ -3783,10 +3868,21 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         if args.findings < 0:
             print("[command_run] REFUSED — round --findings must be >= 0", file=sys.stderr)
             return 2
-        if args.delta is not None and args.delta < 0:
+        slices = None
+        if args.slices is not None:
+            slices = _parse_slices(args.slices)
+            if slices is None:
+                print(
+                    f"[command_run] REFUSED — round --slices {args.slices!r} must be "
+                    "`<name>:<verified>/<claims>[,…]` with 0 <= verified <= claims (D-335)",
+                    file=sys.stderr,
+                )
+                return 2
+        if args.confirmed is None and (rec.get("command") or "") in CONFIRMED_REQUIRED_COMMANDS:
             print(
-                f"[command_run] REFUSED — round --delta {args.delta} is a changed-line count and "
-                "cannot be negative",
+                f"[command_run] REFUSED — /{rec.get('command')} is a review-family run: every "
+                "`round` states `--confirmed <n>` (the exit counter; 0 on a quiet pass) — the "
+                "terminal and the oscillation advisory read the confirmed series only (D-335)",
                 file=sys.stderr,
             )
             return 2
@@ -3960,7 +4056,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 # in one row. `_round_report` prints both fields for the same reason.
                 "new_count": args.new,
                 "new_classes": len(new_c),
-                **({} if args.delta is None else {"delta": args.delta}),
+                **({} if slices is None else {"slices": slices}),
                 "phase": _phase_now,
             }
         )
@@ -4094,6 +4190,24 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         print(msg)
         return 1
 
+    if args.cmd == "done":
+        _rounds = rec.get("rounds") or []
+        _fail = _failing_slices(_rounds[-1]) if _rounds else []
+        if _fail:
+            msg = (
+                "REFUSED — "
+                + "; ".join(
+                    f"slice {s['name']} has {s['claims'] - s['verified']} open claim(s) "
+                    f"({s['verified']}/{s['claims']} verified)"
+                    for s in _fail
+                )
+                + " on the last round. A run closes `done` only when every slice's ledger is "
+                f'verified; hand off instead: handoff --command {live} --reason "<the failing '
+                'slices and their claims>" --resume "…" (D-335)'
+            )
+            sys.stderr.write(f"[command_run] {msg}\n")
+            print(msg)
+            return 1
     if args.cmd == "done" and live in (
         "fabrik-review",
         "fabrik-repo-review",

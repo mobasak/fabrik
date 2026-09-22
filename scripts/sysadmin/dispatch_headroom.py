@@ -52,7 +52,6 @@ FLOOR = 3
 # receipt excluded — is at or under this many lines dispatches ONE fresh non-authoring seat; above
 # it the round-1 partition over the touched slices stands. The ONE place the number lives: both
 # termination fragments cite it and `tests/enforcement/test_review_exit_contract.py` binds them.
-DELTA_BUDGET = 20
 # D-191 (operator, three times: "maximum count of viable and useful subagents"): the BOX is the
 # ceiling and the units are the PARTITION. Every unit gets one seat per ANGLE — breadth (Sonnet),
 # mechanical (Haiku) — plus the authoritative Opus seats (one per risky unit, at least one). A
@@ -555,7 +554,6 @@ def budget(
     mechanical: int | None = None,
     *,
     slices: dict[str, int] | None = None,
-    delta: int | None = None,
 ) -> dict:
     s = s or {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
     reasons: list[str] = []
@@ -578,10 +576,7 @@ def budget(
     # 14 of the 18 termination-fragment consumers are units-sized — scoped review round 1). The mix
     # needs no code: `trim()` already yields the highest seat for 1. A zero-sum partition or a
     # zero-unit surface keeps its own refusal below; `delta=None` is byte-identical to today.
-    delta_sized = delta is not None and delta <= DELTA_BUDGET and wanted > 0
-    if delta_sized:
-        wanted = 1
-        reasons.append(f"delta {delta} ≤ {DELTA_BUDGET} changed lines → one fresh seat (D5)")
+    delta_sized = False  # D-335: a later pass is sized by its slices with open claims, never by a changed-line count
     caps = {"wanted": wanted, "concurrency_cap": CONCURRENCY_CAP}
     if risky > units > 0:
         reasons.append(
@@ -816,14 +811,6 @@ def _mix_story(
     tail = " — D-190: haiku 1x · sonnet 2x · opus 5x · fable 10x"
     if a.mix:
         return tail
-    if delta_sized:
-        # D5: the one seat IS the round — never the TRIMMED-partition sentence below, which orders
-        # a re-sweep of "unread slices" and would make a delta round unclosable (round-1 finding)
-        return (
-            f" — sized by the fix (D5): {a.delta} changed lines ≤ {DELTA_BUDGET}, ONE fresh "
-            "non-authoring seat over the most consequential slice plus the hygiene script — this "
-            "IS the round, not a trimmed partition" + tail
-        )
     if a.slices:
         # DD2/D3: an orchestrator-computed partition, not a units-sized surface — the
         # floor-padding sentence below never applies to it (`mix == full` here is the partition
@@ -957,18 +944,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Haiku seats wanted: the grep-able classes the surface HAS (default: one per unit; "
         "0 for a grounding/adjudication surface — a judgement unit has no mechanical angle)",
     )
-    ap.add_argument(
-        "--delta",
-        type=_count,
-        default=None,
-        help="changed lines of the previous round's fix (receipt excluded) — at or under "
-        "DELTA_BUDGET sizes ONE fresh seat, D5; beside --slices or --units",
-    )
     a = ap.parse_args(argv)
-    if a.delta is not None and not a.slices and a.units is None:
-        # argparse's own usage error (SystemExit 2) — a delta sizes a round-1 partition (--slices)
-        # or a units-sized surface (--units); the --slices grammar's own refusals `return 2`
-        ap.error("--delta needs --slices or --units")
     try:
         slices = parse_mix(a.slices, flag="--slices") if a.slices else None
     except ValueError as exc:
@@ -1011,7 +987,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         a.units = sum(slices.values())  # DD2/D3: the slice count, not the D-186/D-188 unit floor
     b, q, s = box(), quota(), siblings()
-    r = budget(a.units, a.heavy, b, q, s, a.risky, a.mechanical, slices=slices, delta=a.delta)
+    r = budget(a.units, a.heavy, b, q, s, a.risky, a.mechanical, slices=slices)
     full = dict(slices) if slices is not None else full_mix(a.units, a.risky, a.mechanical)
     if r["delta_sized"]:
         # D5: the round WANTS one seat — `full_mix` says so in the JSON, and `_mix_story` below
@@ -1035,8 +1011,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     # both box bounds in one probe, so a caller that wants the pair (the board banner) runs this
     # script — and its fleet round-trip — ONCE, not twice
-    _ro = budget(a.units, False, b, q, s, a.risky, a.mechanical, slices=slices, delta=a.delta)
-    _hv = budget(a.units, True, b, q, s, a.risky, a.mechanical, slices=slices, delta=a.delta)
+    _ro = budget(a.units, False, b, q, s, a.risky, a.mechanical, slices=slices)
+    _hv = budget(a.units, True, b, q, s, a.risky, a.mechanical, slices=slices)
     # the mix/budget caution was appended to `r` AFTER the halves were computed, so the half that
     # matches this run never carried it (round-12 finding) — the halves are the run's own list
     (_hv if a.heavy else _ro)["reasons"] = list(r["reasons"])
@@ -1052,7 +1028,6 @@ def main(argv: list[str] | None = None) -> int:
         tiers=TIERS,
         units=a.units,
         heavy=a.heavy,
-        delta=a.delta,  # the D5 input, exported like `units`/`slices` (round-2 finding)
         price=PRICE,
         mix=mix,
         full_mix=full,
