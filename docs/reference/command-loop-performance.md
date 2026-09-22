@@ -423,8 +423,8 @@ is the one prose command whose source states, per artifact, a closed completenes
 the loop opens: its Convergence Contract table carries a *"Complete when (the bidirectional
 contract)"* column per doc (`commands/_sources/fabrik-doc-converge.md:25-27`), and its Phase 1
 opens with *"the doc is the CLAIM, never the source"* — every claim must open to something real
-today (`:43-55`). That is the shape § 5 item 1 asks of every project — the check stated before the loop opens —
-already in the corpus, already converging. The spec, plan and docs reviews carry no such column.
+today (`:43-55`). That is the shape § 5 item 4 asks of every slice — the claims stated before the loop opens, verified by execution —
+already in the corpus, already converging in round one. The spec, plan and docs reviews carry no such column.
 
 ### 4.2 The mechanism this produces — the fix between rounds is the next round's defect
 
@@ -495,7 +495,7 @@ Three consequences, all measured:
 `/fabrik-plan-after-chat` and `/fabrik-spec` are not convergence loops. They write 400-line
 artifacts with 70+ citations while the spec beneath them is still moving
 (*"the intake re-derived figures the spec already carried because the spec was mid-amendment"*).
-Their fix is an input freeze — which § 5 item 2's approved plan is.
+Their fix is an input freeze — outside this document's program, which is the loop (§ 5).
 
 ### 4.5 Two claims from this document's first draft, withdrawn
 
@@ -514,8 +514,8 @@ is about.
   contract floor of 3 for round 1 alone and 7 for a 3-unit surface. But the direction is not
   established: runs at under 2 seats per round take a median of 4 rounds against 2 for runs at 4 or
   more (n=106 vs 21), and surface size drives both numbers, so the comparison is confounded. Seat
-  density is a candidate, not a cause — and under § 5 it is moot: with the review family retired as
-  a correctness mechanism, seat density stops being a variable at all.
+  density is a candidate, not a cause — and under § 5 it is fixed by construction: the partition of round one
+  names the seats, and every later pass keeps them.
 
 ### 4.6 The tool's author on how it is meant to be used — the source for § 4.00
 
@@ -633,7 +633,7 @@ person back, contracts to a page, the review family retired, no more layers. Its
 ## 6. How we will know it worked
 
 Read from the same ledger, two weeks after § 5 is applied, against the 2026-09-21 baseline. The
-first row is the one keyed to § 4.00 and § 5; every other row is expected to follow it, and a row
+first row is the one keyed to § 4.7 and § 5; every other row is expected to follow it, and a row
 that moves without the first one having moved is a symptom treated, not a cause.
 
 | Metric | Baseline | Target |
@@ -658,22 +658,22 @@ late-round defects to zero by finding fewer defects overall is the failure mode,
 
 ### 6.1 The cobra check on each metric (D-253)
 
-- **"Terminal is a check of the delivered thing" up** is satisfied most cheaply by naming a vacuous
-  check — a test that cannot fail, a screenshot nobody compares. Counter: the check is named in the
-  plan the person approves (§ 5 item 2), and a person sees a vacuous check in one line.
-- **"Review-family share" down** is satisfied most cheaply by running the same reader-loop under a
-  command with a different name. Counter: the measure is hours in runs whose seats read another
-  model's output and converge on a verdict, whatever the command is called — not the command name.
+- **"Terminal is every slice verified" up** is satisfied most cheaply by a slice ledger of vacuous claims — one
+  claim per slice, or claims that cannot be false. Counter: the ledger is the seat's round-one findings plus the
+  claims the fix introduced, each with the command that executed it; a slice with no executed command is unverified.
+- **"Rounds ≤ 3" down** is satisfied most cheaply by stopping at pass three with slices still failing — the cap this
+  document refused (§ 5.1). Counter: a failing slice is handed off with its failing claims NAMED in the record, and
+  a `done` with a failing slice is refused by the close.
 - **"Ran to a quiet round" up** and **"hot `done` closes" to zero** are satisfied most cheaply by
-  declaring quiet, or by not recording the last round. Counter: under § 5 the terminal is the tool's
-  own pass — a log line, not a declaration — so there is nothing to declare or omit.
-- **"Round 4+ defects" down** is satisfied most cheaply by stopping at round 3 — the cap this
-  document refused (§ 5.1). Counter: the paired guard *with the total not falling*; and a feedback
-  tool does not count rounds — its pass is the end, at whatever round that is.
+  declaring quiet, or by not recording the last round. Counter: under § 5 the terminal is read from the per-slice
+  ledgers in the run record, written per pass by the seats' executed commands, not declared at the close.
+- **"Round 4+ defects" down** is satisfied most cheaply by finding fewer defects overall. Counter: the paired guard
+  *with the total not falling*; round one's partition is the same width whatever the round count.
 - **"Rising series" down** is satisfied most cheaply by reporting a flat number regardless.
-  Counter: the series is written per round by the tool, not at the close.
-- **Hours and tokens down** are satisfied most cheaply by skipping the feedback tool. Counter: a
-  task with no named check does not start (§ 5 item 1).
+  Counter: the series is written per pass from the slice ledgers, not at the close.
+- **Hours and tokens down** are satisfied most cheaply by dispatching fewer seats than the partition needs. Counter:
+  the seat count is the surface's unit count (D-208, D-229 round one), stamped before dispatch, and a pass with fewer
+  seats than slices is not a pass.
 - **Contract bytes down** is satisfied most cheaply by cutting rules with the stories — which is what the
   2026-09-21 cuts did (38 ungraded rules lost, D-330). Counter: the loss audit — every sentence unit of the old
   text either survives or is named as a story in the commit — and the grader pins; a pass that loses a rule is
@@ -730,7 +730,7 @@ Reproducible against the same snapshot, so the root cause can be refuted rather 
 
 **Two bounds on all of it.** (1) `confirmed` is written by the agent running the loop, so a run
 that under-reports its confirmations looks convergent — the numbers describe what was RECORDED, and
-§ 5 replaces the recorded count with a tool's own output, which is harder to write falsely. (2) The hot-close
+§ 5 replaces the recorded count with per-slice ledgers of executed commands, which are harder to write falsely. (2) The hot-close
 count cannot distinguish an abandoned run from one whose final fixes were applied after the last
 recorded round; § 4.1 rests on that ambiguity being unresolvable, not on every one of the 71 being
 an abandonment.
@@ -752,7 +752,7 @@ the surviving successor is D-331 (§ 1.0).
 | 1b(i) · the commit recipe → a tested script | 2026-09-21 | `fa463ffcc` (D-328) — committed BY the script | `private_index_commit.py` (removed with the revert) + nine red-first graders in `tests/test_private_index_commit.py`; the graders caught the prose's own step 5b missing (working file not brought up to the new base after a CAS retry) — now a three-way merge, proven by mutant; the 11,136-byte recipe is a 1,302-byte pointer; twelve T6 pins retired. File **61,400 B** — step 1 complete: 134,466 → 61,400 (46%), every remaining pinned span kept verbatim |
 | 2 · the project template cut and synced | 2026-09-21 | `230212243` (D-329) — committed by the script | 127,624 → **62,003 B** (49%), every project-side divergence preserved; 53 test files → 2,599 passed and the same 4 pre-existing failures as the unchanged file; dry-run read first (46 files, worktree copies untouched, wrote nothing), then one forced sync: **41 of 41 in-scope synced projects** carry the new file; the 2 non-matching `/opt/*/CLAUDE.md` are `fabrik-lib`'s linked worktrees, sync-excluded by design |
 
-All on 2026-09-21. Each revision is one layer further down than the last; the operator refused every one until § 4.00.
+Revisions 1–7 all on 2026-09-21. Each went one layer further down than the last; the operator refused every one, and revision 8 replaces the program with the determination confirmed the same evening (§ 4.7).
 
 **Revision 1 (2026-09-21):** the first draft — a diagnosis leading with *the fix between rounds is the next round's defect* and a five-item program headed by a hard round cap. Commit `93dba9a39`.
 
