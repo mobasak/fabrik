@@ -734,7 +734,7 @@ that moves without the first one having moved is a symptom treated, not a cause.
 |---|---:|---|
 | **A simple change end to end** — spec → spec review → plan → plan review → execute → review | **611 min** at the medians (§ 2.1); `/fabrik-task` 41 min | **≤ 120 min**; `/fabrik-task` unchanged |
 | **Runs whose terminal carries a cost term** (the declared budget beside the correctness term) | **1 of 27** | every run |
-| **Commands whose first phase executes MCP · rules · infra · manifesto** | 9 · 7 · 0 · 0 of 38 | 38 of 38 |
+| **Commands whose first phase executes MCP · rules · infra · manifesto** | 9 · 7 · 0 · 0 of 38 (sources, 2026-09-21) → 38 · 38 · 38 · 38 of 38 rendered commands (2026-09-22, D-342) | 38 of 38 |
 | **Runs whose terminal is "every slice verified"** — a per-slice claim ledger in the run record, every claim executed true, not a reader's quiet round | **0 of 27** | every run |
 | **Rounds per review-family run** | median 3–4; 35 runs of 10+ hold 42% of the hours (§ 2.5) | ≤ 3 by construction, a failing slice handed off with its claims named |
 | **Closes that ran to a quiet round** (terminal condition actually met) | 78 of 191, **41%** | over 90% |
@@ -893,7 +893,10 @@ The build of § 5 begins with the two fragments, the reviewer brief and the sour
 |---|---|---|---|
 | 1 · the two termination fragments, subagents-core, the reviewer brief's passes-after-the-first mode, nine sources, the test pin | 2026-09-22 | `d03f9a918`, `f6beb8b88`; review fixes `863701479`, `811c3d340`, `93ea1f6eb`; receipt `5d435de09` | every pass after round one is the round-1 seats over their own slices; refuted/recorded opens nothing; the budget clause gated on `start` declaring it; reviewed in its own shape — 4 passes, 11 → 3 → 3 → 0, 25 min; `62-using-subagents.md:74/:211` still carries the old clause (intel's live pass — theirs to edit) |
 | 2 · `command_run.py` (`--budget` on `start`, the per-slice ledger on `round`, a review-family round without `--confirmed` refused, `done` refusing a failing slice) and `dispatch_headroom.py` (`--delta` retired) | 2026-09-22 | `2e917b17c` (D-339; ledger `16adffc3c`, `5853c00e8`) | fleet-synced and distributed by the post-commit sync; ten graders red-first; the refusal scoped to 15 review-family commands, every other caller keeps D-206's tolerant rule; the contract sentence mirrored in both `CLAUDE.md` copies; reviewed in the D-335 shape — 4 passes, 14 → 6 → 3 → 0 on the same three seats, 21 confirmed (13 in round one, then 8 residuals of the fixes), 62 min against a 45-min budget (over, printed, never a cap), fixes `65ae40693`, `103d19ebd`, `e0490606d`, D-341 (the set is 16 by rule), receipt `5e0a21db4` |
-| 3 · every command's first phase executes MCP · rules · infra · manifesto (§ 5 item 7) | not started | — | 0 / 9 / 7 / 0 of 38 today |
+| 3 · every command's first phase executes MCP · rules · infra · manifesto (§ 5 item 7) | 2026-09-22 | `128050dbc` (D-342) | one fragment, `orient.md`, included by all 38 sources right after the run record: the four executed lines and the `ORIENT:` reply line; rendered 38 / 38 / 38 / 38 of 38 (measured over `~/.claude/commands/*.md`, the rendered corpus — a source count reads 0 / 9 / 7 / 0 because the lines live in the fragment); grader `tests/test_orient_fragment.py`; the same change removed D-229's delta round from the assembler's two floors and both `CLAUDE.md` contracts, and the round-zero probe now runs before every re-dispatch; review in the D-335 shape follows |
+
+**Revision 13 (2026-09-22, chunk 3):** § 5.2 row 3 lands — the `orient` fragment in all 38 sources, measured 38 of 38
+over the RENDERED corpus (the honest population once the lines live in a fragment); § 6's row carries both readings.
 
 **Revision 12 (2026-09-22):** § 5.2 row 2 records chunk 2's review (4 passes on the same three seats, 21 confirmed, 62
 min over a 45-min budget, D-341); § 4.7 gains the second measured run and names the residue class the round-zero
