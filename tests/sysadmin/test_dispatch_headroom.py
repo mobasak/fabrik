@@ -1199,12 +1199,12 @@ def test_slices_story_never_claims_opus_on_the_risky_slices_without_an_opus_seat
     assert dh.main(["--slices", "sonnet=5"]) == 0
     out = capsys.readouterr().out
     assert "Opus on the risky slices" not in out
-    assert "no Opus slice in this partition (see the reason above)" in out
+    assert "two cheap finders per slice, no Opus finder (D-344)" in out
     # a partition WITH an Opus slice keeps the original sentence
     assert dh.main(["--slices", "opus=1,sonnet=5"]) == 0
     out2 = capsys.readouterr().out
-    assert "Opus on the risky slices, Sonnet on the rest" in out2
-    assert "no Opus slice in this partition" not in out2
+    assert "an Opus finder in the partition — D-207's mix, not the D-344 pilot's" in out2
+    assert "no Opus finder (D-344)" not in out2
 
 
 def test_mix_by_slice_is_the_trimmed_partition_independent_of_a_mix_price_override(

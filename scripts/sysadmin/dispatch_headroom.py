@@ -804,9 +804,9 @@ def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int])
                 "next round" + tail
             )
         opus_clause = (
-            "Opus on the risky slices, Sonnet on the rest"
+            "an Opus finder in the partition — D-207's mix, not the D-344 pilot's"
             if mix.get("opus", 0) > 0
-            else "no Opus slice in this partition (see the reason above)"
+            else "two cheap finders per slice, no Opus finder (D-344)"
         )
         return (
             f" — the orchestrator-computed partition (DD2): {opus_clause}, at most one Haiku "
