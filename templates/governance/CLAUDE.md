@@ -611,8 +611,9 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   the slices or units only the partition. Model by ROLE: Fable orchestrates/adjudicates, Opus authoritative,
   Sonnet breadth, Haiku mechanical — priced haiku 1× · sonnet 2× · opus 5× · fable 10× (hub D-190), so breadth on
   Opus is a 2.5× overspend. The unit count is what the SURFACE HAS; spend is bounded by units (or slices), never
-  by how idle the box looks. The `ai-consult` lane is off with the pool. The pool contract stays in the corpus in
-  `<!-- POOL OFF -->` comments so re-enabling is an uncomment, not a rewrite.
+  by how idle the box looks. The `ai-consult` lane is off with the pool. The pool contract is frozen in
+  `docs/reference/subagent-pool-contract.md` (hub D-343); the corpus keeps its `<!-- POOL OFF -->` comments, and
+  re-enabling is an operator ruling first, then a restore from that file — never a quiet uncomment.
 
 ## Pipeline — next-command chaining (every `/fabrik-*` command ends by pointing to the next)
 
