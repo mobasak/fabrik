@@ -1375,7 +1375,7 @@ def test_an_untrimmed_slices_partition_still_says_every_file_read_once(monkeypat
     )
     assert dh.main(["--slices", "opus=1,sonnet=1"]) == 0
     out = capsys.readouterr().out
-    assert "every file read once" in out, out
+    assert "every file read by its two finders" in out, out
     assert "TRIMMED partition" not in out, out
 
 

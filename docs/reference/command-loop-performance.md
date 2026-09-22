@@ -596,7 +596,7 @@ the orchestrator (Fable at 10×, Opus at 5× on 210 of the rows) holds **64% of 
 output**, because after round one it re-reads the artifact and re-executes every claim itself, and it is the one
 refuting the 35% of candidates the seats raise wrongly. Executing a seat's claim before writing is right; re-reading
 whole files for it is the 10× model doing 1× work. Under § 5 the same runs keep N seats busy in every pass, re-verify
-each slice's ledger on Sonnet or Haiku with Opus only on a risky slice, and the orchestrator — Fable or Opus, whichever
+each slice's ledger on Sonnet or Haiku with Opus only on a risky slice (the mix before D-344 — § 4.9), and the orchestrator — Fable or Opus, whichever
 the quota allows (D-334) — adjudicates from the seats' executed outputs and reads nothing twice.
 
 **Do we use the seats wisely — maximum parallelism, least waste, fast and accurate? Not yet, but the direction has
@@ -666,11 +666,10 @@ hope.
 **Our own ledger first** (210 review-family runs with token data, `~/.claude/state/command-feedback.jsonl`, medians): the
 seats are **35%** of a run's token cost and the orchestrator **65%** — and 76% of the orchestrator's cost is re-reading
 its own growing prefix, 62 messages a run. Per seat-pass ≈ 0.52 M cost units, per orchestrator round ≈ 1.2 M. A seat's
-cost is 46% cache reads and 18% output. In the chunk-3 review the seats' round took 6 of the run's 31 minutes; the other
-25 were the orchestrator's serial chain. So the seats are not the waste; the serial chain is, in tokens and in wall clock.
+cost is 46% cache reads and 18% output. In the chunk-3 review the seats' round took 6 of the run record's 31 minutes (45 elapsed from the first read); the other 25 were the orchestrator's serial chain. So the seats are not the waste; the serial chain is, in tokens and in wall clock.
 
 **What the outside evidence says.** Every subagent starts fresh and loads every `CLAUDE.md` level — our hub contract is
-100 KB, so each seat carried ~25 k tokens of contract it does not use; `omitClaudeMd: true` exists for exactly this
+100 KB, so each seat carried ~25 k tokens of contract it does not use (at ≈4 bytes per token); `omitClaudeMd: true` exists for exactly this
 (Claude Code docs, sub-agents). Token usage explains 80% of multi-agent performance variance; 3–5 parallel workers cut
 time by up to 90% on complex work; duplicated effort comes from vague boundaries (Anthropic, multi-agent research
 system). Fan-outs on SMALL tasks cost 2.6–5.9× the tokens and were never faster; pinning workers to a cheaper model cut
@@ -688,7 +687,7 @@ is execution, and the orchestrator's own chain was most of the cost and nearly a
 tokens per seat-pass, baseline 1.73 M. (2) Finders are cheap and redundant, execution is expensive: each slice gets one
 Sonnet and one Haiku finder over the whole slice, candidates unioned, never voted, no Opus finder; Opus/Fable execute —
 same cost as the old mix (chunk 3: 9 units either way), twice the readers; measure: confirmed per seat and model on the
-receipt's Pass-1 row over five runs; KILL: a pair below D-207's baseline (7 of 13, 6 of 14) on the same kind of slice.
+receipt's Pass-1 row over five runs; KILL: a pair below D-207's baseline (7 of 13, 6 of 14 — the Opus seat's share of round one's confirmed in the chunk-2 and chunk-3 runs, taken from the seat reports; the receipts carried no per-seat count until this run, which records it in the Pass-1 row's Method cell as `seats: <name> <confirmed>/<raised> · …`) on the same kind of slice. **Pilot 1, executed twice at Claude Code 2.1.276 (the field needs ≥ 2.1.271):** a Haiku probe seat spawned after the reload window still listed the hub contract's headings in its context and `omitClaudeMd` nowhere — no effect observed; the key stays, the measure is null until the CLI honours it, and the brief now carries the house rules a finder used to get from the contract.
 (3) The orchestrator's chain — not yet decided; the measure exists today (`tok_msgs` in the ledger, median 62; 16, 68 and
 28 in this session's three reviews), the candidates are a fixed four-call closing chain in the command text and the
 receipt tool filling the ledger from a values file instead of a scratch script written per run.

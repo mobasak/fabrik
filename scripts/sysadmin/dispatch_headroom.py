@@ -809,9 +809,9 @@ def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int])
             else "two cheap finders per slice, no Opus finder (D-344)"
         )
         return (
-            f" — the orchestrator-computed partition (DD2): {opus_clause}, at most one Haiku "
-            "class seat; every file read once — the third angle is the orchestrator's execution, "
-            "not a third reader" + tail
+            f" — the orchestrator-computed partition: {opus_clause}; one Haiku finder per slice beside "
+            "its Sonnet, every file read by its two finders — the authoritative angle is the "
+            "orchestrator's execution, never a third reader" + tail
         )
     haiku = mix.get("haiku", 0)
     if mix == full:

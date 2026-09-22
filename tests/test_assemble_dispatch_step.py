@@ -1211,3 +1211,17 @@ def test_the_mail_triage_phase_a_sentences_reach_their_rendered_commands_once(tm
             if live.count(needle) > 1:
                 doubled.append((name, needle, live.count(needle)))
     assert not doubled, doubled
+
+
+def test_the_partition_floors_no_longer_name_an_opus_finder_and_the_judgement_floors_still_do():
+    """D-344 (chunk-4 review, seat A-sonnet): the floor's HEAD sentence rendered "every review loop
+    dispatches ≥1 native `fabrik-reviewer` on Opus as the authoritative pass" beside a partition
+    clause that says "no Opus finder" — one sentence contradicting itself. Under a partition the
+    authoritative pass is the orchestrator's own execution; the section partition and the judgement
+    kinds keep their Opus seat."""
+    floor = ac._floor("review loop", "`fabrik-reviewer`")
+    assert "on Opus as the authoritative pass" not in floor, floor
+    assert "the authoritative pass is YOUR Opus/Fable execution" in floor, floor
+    # the section partition (D-212/D-218) keeps its Opus seats on the rule/grammar sections — untouched
+    for kind in ("section partition", "grounding", "adjudication"):
+        assert "on Opus as the authoritative pass" in ac._floor(kind, "`fabrik-reviewer`"), kind

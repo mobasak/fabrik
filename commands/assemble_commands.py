@@ -315,6 +315,13 @@ def _floor(kind: str, native: str) -> str:
             f'the model is the per-dispatch token, `model: "opus"` for the authoritative seat, '
             f'`model: "sonnet"` for breadth, `model: "haiku"` for the mechanical angle'
         )
+    if kind in _PARTITION_KINDS:
+        # D-344: no Opus finder — the authoritative pass is the orchestrator's own execution
+        return (
+            f" **⚠️ Floor — every {kind} dispatches its partition, and the authoritative pass is YOUR "
+            f"Opus/Fable execution of every candidate, never a seat** {angles}** **plus your own Opus "
+            f"decide/refute/merge.**"
+        )
     return (
         f" **⚠️ Floor — every {kind} dispatches ≥1 native {native} on Opus as the authoritative pass** "
         f"(Opus-only is still not a substantial {kind}) {angles}** **plus your own Opus decide/refute/merge.**"

@@ -586,12 +586,14 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   author-blind rule, same decide/refute/merge you own; nothing records to the flywheel and **no `NO-POOL:`
   declaration is owed**. Native sizing has TWO shapes. **The partitioned review loops** (`/fabrik-review` and
   `/fabrik-repo-review` by FILE; `/fabrik-spec-review` and `/fabrik-plan-review` by SECTION — Opus on the
-  rule/grammar sections, Sonnet on the rest, no Haiku seat) cut the surface into DISJOINT slices: two cheap finders per slice — one Sonnet and one Haiku, each
+  rule/grammar sections, Sonnet on the rest, no Haiku seat) cut the surface into DISJOINT slices: two cheap finders
+  per slice — one Sonnet and one Haiku, each
   over the whole slice, candidates unioned, never voted — and no Opus finder (pilot hub D-344, superseding D-207's
   Opus-on-the-risky mix; the risky units — concurrency/locks, record and file formats, fleet-synced paths, auth,
   schema, migrations, secrets — are the slice's named hunt priority), at most ONE extra Haiku seat for a
   judgement-shaped inventory class only when the brief names it, and Fable (Opus when Fable refuses) orchestrating and
-  EXECUTING every refutation and every confirmed reproduction, never a finder. The union of the slices IS the full pass, no file's logic read by two
+  EXECUTING every refutation and every confirmed reproduction, never a finder. The union of the slices IS the full
+  pass, no file's logic read by two
   seats; round 1 is the only full pass; every later pass is the round-1 seats re-verifying their OWN slices'
   claim ledgers over the fix diff plus one hop of callers and callees (`command_run.py round --slices A:n/m,…`;
   the hop bounds the EXTENT, what a later pass may COUNT is the fragments' bounded-hop rule —
