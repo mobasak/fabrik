@@ -3350,7 +3350,7 @@ def test_a_siblings_dirty_midloop_report_cannot_veto_a_committed_converged_close
     assert r.returncode == 0, r.stdout + r.stderr
 
 
-def test_terminal_verdict_names_the_delta_round_rule_and_oscillation_names_both_diagnoses():
+def test_terminal_verdict_names_the_closing_pass_rule_and_oscillation_names_both_diagnoses():
     """01M1GYB7 (trade-intelligence ×3) + 01M1H7ZQ item 4 (youtube): the TERMINAL line fired on a
     SCOPED round and agents closed two rounds early; the oscillation line diagnosed re-scoping on a
     loop whose ledger was identical every round. The verdicts state their own precondition — and
@@ -4152,7 +4152,7 @@ def test_the_round_line_prints_confirmed_beside_findings(run_dir: Path) -> None:
     assert "confirmed: unstated" in unstated, unstated
 
 
-def test_the_terminal_banner_names_confirmed_zero_and_the_delta_round_rule(run_dir: Path) -> None:
+def test_the_terminal_banner_names_confirmed_zero_and_the_closing_pass_rule(run_dir: Path) -> None:
     """D-206/D-207 retired "a scoped round never closes the loop": round 1 is the only full pass,
     every later round is a DELTA over the fix diff, and it closes when it carried a fresh
     non-authoring finder seat and cited the standing-clean classes from the last full pass."""
@@ -4385,7 +4385,7 @@ def test_a_delta_round_may_confirm_more_than_it_raised(run_dir: Path) -> None:
 
 
 def test_a_clean_round_one_is_not_terminal_but_round_two_is(run_dir: Path) -> None:
-    """A clean round 1 that swept every class STILL owes its confirming delta round."""
+    """A clean round 1 that swept every class STILL owes its closing pass (the round-1 seats over their own slices)."""
     _start(run_dir)
     one = _cr(run_dir, "round", "--confirmed", "0", "--classes-swept", "auth,races")
     assert "TERMINAL VERDICT" not in one.stdout, one.stdout
@@ -6334,3 +6334,198 @@ def test_the_advisory_and_the_round_verb_carry_no_delta_budget() -> None:
     import inspect
 
     assert "deltas" not in inspect.signature(cr.convergence_warning).parameters
+
+
+# ── D-335 chunk 2, round-1 review fixes (seat A: A1 fail-open, A2 bypass, A3 budget, A9 duplicates) ──
+
+
+def test_a_malformed_stored_slice_row_never_turns_done_into_a_silent_success(run_dir: Path) -> None:
+    """A1: an older or hand-edited record can carry `verified: null`; `int(None)` raised inside
+    `done`, main()'s fail-soft swallowed it and returned rc 0 with the record still `running`.
+    The counts are read through `_int0`, so junk reads as 0 and the close is decided, never
+    silently skipped."""
+    _start(run_dir)
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "1",
+        "--confirmed",
+        "1",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:1/2",
+    )
+    rec = _rec(run_dir)
+    rec["rounds"][-1]["slices"] = [{"name": "A", "verified": None, "claims": 2}]
+    (run_dir / "s1.json").write_text(json.dumps(rec))
+    out = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e")
+    assert out.returncode == 1 and "REFUSED" in out.stderr and "slice A" in out.stderr, (
+        out.returncode,
+        out.stderr,
+    )
+    assert "error, continuing" not in out.stderr, out.stderr
+
+
+def test_omitting_slices_after_stating_them_is_not_terminal_and_a_zero_claim_ledger_is_refused(
+    run_dir: Path,
+) -> None:
+    """A2 (the cobra of the slice gate): the cheapest way to satisfy "every slice verified" is to
+    stop passing `--slices`, or to pass `A:0/0`. A round that omits the ledger after an earlier
+    round stated it is NOT TERMINAL and names the vanished slices; a slice with zero claims is
+    refused."""
+    _start(run_dir)
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "3",
+        "--confirmed",
+        "2",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:1/5,B:0/5",
+    )
+    out = _cr(
+        run_dir, "round", "--findings", "0", "--confirmed", "0", "--classes-swept", "a"
+    ).stdout
+    assert "NOT TERMINAL" in out and "A" in out and "B" in out and "TERMINAL VERDICT" not in out, (
+        out
+    )
+    # dropping only the OPEN slice is the same cobra: B vanished while A reads verified
+    part = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "A:5/5",
+    ).stdout
+    assert "NOT TERMINAL" in part and "(B)" in part and "TERMINAL VERDICT" not in part, part
+    zero = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "A:0/0,B:5/5",
+    )
+    assert zero.returncode == 2 and "--slices" in zero.stderr, zero.stderr
+    dup = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "A:1/1,A:0/2",
+    )
+    assert dup.returncode == 2 and "duplicate" in dup.stderr.lower(), dup.stderr
+
+
+def test_a_non_positive_budget_is_refused_not_coerced(run_dir: Path) -> None:
+    """A3: `--budget -5` was silently stored as 0 (over from minute one); a budget is minutes ≥ 1,
+    and a run with no budget omits the flag."""
+    for bad in ("-5", "0"):
+        out = _cr(
+            run_dir,
+            "start",
+            "--command",
+            _PROBE,
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+            "--budget",
+            bad,
+        )
+        assert out.returncode == 2 and "--budget" in out.stderr, (bad, out.stderr)
+    assert not (run_dir / "s1.json").exists()
+
+
+def test_the_budget_line_stands_down_on_a_terminal_round(run_dir: Path) -> None:
+    """A4: an over-budget round whose every slice is verified printed "close with handoff, the
+    failing slices named" directly above the TERMINAL verdict — two close verbs, no failing slice."""
+    _start(run_dir)
+    rec = _rec(run_dir)
+    rec["budget_min"] = 1
+    rec["started_epoch"] = 1.0
+    (run_dir / "s1.json").write_text(json.dumps(rec))
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "1",
+        "--confirmed",
+        "1",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:1/1",
+    )
+    final = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "A:1/1",
+    ).stdout
+    assert "TERMINAL VERDICT" in final and "BUDGET" not in final, final
+
+
+def test_every_review_command_that_includes_a_termination_fragment_states_confirmed(
+    run_dir: Path,
+) -> None:
+    """A8: the review-family set is DERIVED, not hand-picked — every `*-review` source that includes
+    `term-edit` or `term-coverage` is in `CONFIRMED_REQUIRED_COMMANDS` (fabrik-deploy-plan-review
+    was missing while design-review was in). A producing command that includes a fragment is not."""
+    import re as _re
+
+    command_run = _load("cr_family", _SCRIPT)
+    src_dir = Path(__file__).resolve().parents[1] / "commands" / "_sources"
+    review_sources = {
+        p.stem
+        for p in src_dir.glob("*-review.md")
+        if _re.search(r"\{\{include:term-(?:edit|coverage)\}\}", p.read_text(encoding="utf-8"))
+    }
+    assert review_sources, "no *-review source includes a termination fragment — the corpus moved"
+    missing = sorted(review_sources - set(command_run.CONFIRMED_REQUIRED_COMMANDS))
+    assert not missing, f"review sources absent from CONFIRMED_REQUIRED_COMMANDS: {missing}"
+    assert "fabrik-deploy-plan-review" in command_run.CONFIRMED_REQUIRED_COMMANDS
+    for producing in ("fabrik-features", "fabrik-flows", "fabrik-rivals", "fabrik-user-test"):
+        assert producing not in command_run.CONFIRMED_REQUIRED_COMMANDS, producing
+    _start(run_dir)
+    # and an omitted ledger after a stated one refuses `done` too, not only the terminal
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "1",
+        "--confirmed",
+        "1",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:1/2",
+    )
+    _cr(run_dir, "round", "--findings", "0", "--confirmed", "0", "--classes-swept", "a")
+    out = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e")
+    assert out.returncode == 1 and "omits it" in out.stderr, (out.returncode, out.stderr)

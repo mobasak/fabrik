@@ -351,7 +351,7 @@ def test_the_mail_triage_fragment_sentences_are_present_once_at_their_source():
     assert not bad, bad
 
 
-def test_command_run_mirrors_the_delta_budget_of_dispatch_headroom() -> None:
+def test_neither_command_run_nor_dispatch_headroom_carries_a_delta_budget() -> None:
     """Review round 1 (Phase B): `command_run.DELTA_BUDGET` says it mirrors dispatch_headroom's
     but nothing bound the two — the oscillation suppression would diverge from the seat budget
     silently."""
