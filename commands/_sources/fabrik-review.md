@@ -556,8 +556,8 @@ Pre-existing issues this change did not introduce, and findings in code this cha
 EXPLICITLY escalated / upstreamed (name where — e.g. an `UPSTREAM_FEEDBACK.md` entry), are rowed there with
 their reason. An in-scope CONFIRMED finding **never** belongs there — it goes to FIXED.
 
-Do NOT claim convergence on your own say-so: convergence = a DELTA round, read by a fresh non-authoring
-seat, that **CONFIRMED nothing and changed nothing** (`confirmed: 0`, `fixed: 0`, `unexecuted:` 0 or absent)
+Do NOT claim convergence on your own say-so: convergence = the closing pass, the round-1 seats over
+their own slices, that **CONFIRMED nothing and changed nothing** (`confirmed: 0`, `fixed: 0`, `unexecuted:` 0 or absent)
 **AND** every candidate ever raised sitting at FIXED, REFUTED or RECORDED in the ledger. "I fixed what I
 found" is not convergence, and neither is a round you read yourself. When unsure whether something is a bug,
 surface it and EXECUTE it — never assume it's fine.
