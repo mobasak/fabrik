@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the review loop as a workflow script, chunk 5 of the loop program (2026-09-22)
+
+- `.claude/workflows/fabrik-review-loop.js` — the D-335 loop as a Claude Code workflow: two cheap
+  `fabrik-reviewer` finders per slice (Sonnet + Haiku) returning a schema whose `files_read` is diffed
+  against the slice (a gap is logged, the slice unverified), candidates unioned, one Sonnet verify seat
+  per candidate executing its check and returning command + output, the two-finder capture-recapture
+  estimate printed as advice, one ledger back; each pass its own invocation (never `resumeFromRunId`).
+  `/fabrik-review` and `/fabrik-repo-review` launch it as ONE call per pass; the reviewer brief gains the
+  structured-output section; `docs/reference/review-loop-workflow.md` is the contract; graders in
+  `tests/test_review_loop_workflow.py` (red-first). Measured on its first two runs against the D-347 KILL.
+- `libs/deep_research/packs/loop-research.yaml` — the engineering-evidence pack for fabrik-lib's
+  `deep-research` engine (D-348): quote · numbers · date · source kind · cobra note per card.
+
 ### Changed — rules(65-rag-search): file 19 of the currency pass, to the 11-row bar (D-345) (2026-09-22)
 
 - The pack promised pgvector "on `postgres-main` — enabled"; the fleet's `postgres-main` is the plain
