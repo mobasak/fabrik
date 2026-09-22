@@ -98,7 +98,7 @@ const box = args.box_minutes || 15
 function finderPrompt(slice, model) {
   const ledger = slice.ledger && slice.ledger.length
   const head = ledger
-    ? `PASS ${args.pass} — you are the ${model} seat that owned slice ${slice.name} in round 1. Re-verify EVERY claim in your slice ledger by EXECUTION and report each as STILL_TRUE, NOW_FALSE or NEW in ledger_status (command + output each). Candidates are ONLY the NOW_FALSE and NEW rows; a candidate outside the ledger is RECORDED with a destination, never counted (D-230); a claim refuted in an earlier pass is closed (D-206).`
+    ? `PASS ${args.pass} — you are the ${model} seat that owned slice ${slice.name} in round 1. Every ledger claim states a DEFECT as it was raised. Re-verify each by EXECUTION and report it in ledger_status (command + output each): STILL_TRUE means the defect is still there, NOW_FALSE means it is gone (the fix holds), NEW is a defect the fix itself introduced. Candidates are ONLY the NOW_FALSE and NEW rows; a candidate outside the ledger is RECORDED with a destination, never counted (D-230); a claim refuted in an earlier pass is closed (D-206).`
     : `PASS 1 — you are the ${model} finder for slice ${slice.name}: one of TWO cheap finders over this whole slice (the other is a ${model === 'sonnet' ? 'haiku' : 'sonnet'} seat; never coordinate, candidates are unioned and every one is executed by the orchestrator). RECALL first: surface every candidate with a concrete failure scenario and an EXECUTABLE check; never drop a half-believed one.`
   const files = slice.files.map((f) => `  - ${f}`).join('\n')
   const ledgerText = ledger
@@ -115,7 +115,7 @@ ${files}${ledgerText}
 
 ${args.brief}
 
-RETURN the structured output: files_read MUST list every file you opened (repo-relative) — a slice file you did not open is a coverage gap the script logs and the slice is then unverified; candidates each with id "${slice.name}-${model[0].toUpperCase()}<n>", file, line, failure_class, claim, scenario, check, confidence; notes: coverage statement, then MACHINERY last. HARD TIME BOX ${box} minutes.`
+RETURN the structured output: files_read MUST list every file you opened (repo-relative) — a slice file you did not open is a coverage gap the script logs and the slice is then unverified; candidates each with id "${slice.name}-${model[0].toUpperCase()}<n>", file, line, failure_class, claim, scenario, check, confidence; notes: coverage statement, then MACHINERY last. HARD TIME BOX ${box} minutes. FINISH by calling the StructuredOutput tool — a report in prose is a failed seat.`
 }
 
 function verifyPrompt(slice, c) {

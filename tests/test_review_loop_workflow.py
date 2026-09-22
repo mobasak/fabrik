@@ -104,9 +104,16 @@ def _call_end(body: str, start: int) -> int:
 
 
 def _run_ledger(args: dict, seat_results: dict) -> tuple[dict, str]:
-    """Execute the script's own pipeline under node with the Workflow globals stubbed: `agent` returns the
-    canned result keyed by the call's label (`None` → a null seat), `parallel`/`pipeline` run the stages,
-    `log` goes to stderr. Returns the ledger the script returns and the log text."""
+    """The ledger the script returns and the log text (see `_harness`)."""
+    out, log, _ = _harness(args, seat_results)
+    return out, log
+
+
+def _harness(args: dict, seat_results: dict) -> tuple[dict, str, dict]:
+    """Execute the script's own pipeline under node with the Workflow globals stubbed: `agent` records the
+    prompt it was sent and returns the canned result keyed by the call's label (`None` → a null seat),
+    `parallel`/`pipeline` run the stages, `log` goes to stderr. Returns the ledger, the log text and the
+    prompts by label."""
     src = _script().replace("export const meta", "const meta", 1)
     harness = f"""
 globalThis.args = {json.dumps(args)};
@@ -115,8 +122,12 @@ globalThis.log = (m) => console.error(String(m));
 globalThis.parallel = async (thunks) => Promise.all(thunks.map((t) => t()));
 globalThis.pipeline = async (items, ...stages) =>
   Promise.all(items.map(async (item) => {{ let v = item; for (const s of stages) v = await s(v, item); return v; }}));
-globalThis.agent = async (_prompt, opts) => (Object.hasOwn(results, opts.label) ? results[opts.label] : null);
-(async () => {{ {src} }})().then((out) => console.log(JSON.stringify(out)));
+const prompts = {{}};
+globalThis.agent = async (prompt, opts) => {{
+  prompts[opts.label] = prompt;
+  return Object.hasOwn(results, opts.label) ? results[opts.label] : null;
+}};
+(async () => {{ {src} }})().then((out) => console.log(JSON.stringify({{ out, prompts }})));
 """
     proc = subprocess.run(
         ["node", "--input-type=module", "-e", harness],
@@ -127,7 +138,8 @@ globalThis.agent = async (_prompt, opts) => (Object.hasOwn(results, opts.label) 
         check=False,
     )
     assert proc.returncode == 0, proc.stderr[-1500:]
-    return json.loads(proc.stdout.strip().splitlines()[-1]), proc.stderr
+    doc = json.loads(proc.stdout.strip().splitlines()[-1])
+    return doc["out"], proc.stderr, doc["prompts"]
 
 
 _ARGS = {
@@ -210,3 +222,24 @@ def test_a_null_finder_makes_every_unread_file_a_logged_gap_and_the_seat_failed(
     assert ledger["dropped_seats"] == 1 and any(x["failed"] for x in s["seats"])
     assert "coverage gap" in log and "SEAT FAILED" in log, log
     assert s["verdicts"] == [], "zero candidates run zero verify seats"
+
+
+def test_a_later_pass_prompt_defines_its_ledger_status_on_the_defect_and_every_seat_must_finish_structured() -> (
+    None
+):
+    args = {**_ARGS, "pass": 2}
+    args["slices"] = [
+        {
+            **_ARGS["slices"][0],
+            "ledger": [{"id": "S-S1", "file": "a.py", "line": 3, "claim": "off by one"}],
+        }
+    ]
+    _, _, prompts = _harness(args, {})
+    finder = prompts["find:S:sonnet"]
+    assert "STILL_TRUE means the defect is still there" in finder, (
+        "pass ≥ 2 keys the status on the DEFECT (R-3)"
+    )
+    assert "NOW_FALSE means it is gone" in finder
+    assert "StructuredOutput" in prompts["find:S:haiku"], (
+        "every finder is told to finish with the schema"
+    )
