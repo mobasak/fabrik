@@ -18,8 +18,16 @@ re-derive before quoting, never copy a figure forward.
 
 ## 1. What we aim for
 
-The operator has stated these across 2026-09-07 to 2026-09-21. They are the contract every
-`/fabrik-*` command is judged against. The third column is the measured state at the date above.
+**The goal, in the operator's words (2026-09-22, restated because revision 8 left it out):** every command
+enforces the use of our MCPs, our rules, our infrastructure and the manifesto; every run is **lean, fast, accurate
+and complete** — all four, not one at the cost of the others; and a single doc edit or a single simple development
+— its spec, spec review, plan, plan review, execution and review — is done in **two hours**, not the one or two days
+it takes today. `/fabrik-task` was created for the smallest of those; the spec chain must meet the same bar for the
+rest. Measured today (§ 2.1): the chain costs 611 minutes at the medians, five times the target; `/fabrik-task`
+costs 41. § 4.8 says why the loops miss it: the objective they run on has one term.
+
+The fourteen aims below were stated across 2026-09-07 to 2026-09-21 and are the same goal in detail. They are the
+contract every `/fabrik-*` command is judged against. The third column is the measured state at the snapshot date.
 
 | # | The aim, in the operator's terms | Source | Holds today |
 |---|---|---|---|
@@ -583,6 +591,41 @@ an acceptance list (D-323: an addition to a system whose problem is not addition
 as the review's terminal (D-330). Each of those changes the process around the loop; none changes what happens
 inside it after round one.
 
+### 4.8 The objective function has one term — the cobra the operator named
+
+*Asked by the operator 2026-09-22: "current loops are extremely long and i think it is cobra effect, we are optimizing
+against a wrong goal?" Yes, and it can be read off the rule text and the ledger (all executed 2026-09-22).*
+
+**What the loop is told to maximise.** The two fragments every review-family command includes say, verbatim:
+*"Accuracy outranks pass-count"* and *"Minimum two full rounds, ALWAYS"* (`commands/_fragments/term-coverage.md:32`),
+*"There is NO round ceiling … 5, 15, 30 rounds; the loop runs until the exit conditions hold"* (`:34`), and *"the
+round in which you edited the artifact is NEVER the last round"* (`term-edit.md:3`). The words *time*, *minutes*,
+*budget*, *wall-clock* and *deadline* do not occur in either fragment (0 hits over 49,954 B). The finder brief is
+*"RECALL first"* and *"surface every candidate"*. Of the 27 run records on disk, **1 names time or cost in its
+terminal condition; 26 name only correctness**. The objective, as written and as recorded, is *no confirmed defect
+standing* — with no cost term at all.
+
+**What that objective buys, measured.** An objective with one term is satisfied most cheaply by spending the other:
+the loop runs until a reader is tired (§ 4.1), a seat rewarded for raising raises more the longer it runs (§ 4.2,
+69% → 44% confirmed), and every close asks for MORE accuracy — of the 338 close verdicts, the `change:` axis reads
+**`accurate` 124 times and `fast` 4 times**. The agents optimise exactly what they are measured on, and they are
+measured on accuracy alone; *lean, fast, complete* live in the contract's first line (`CLAUDE.md:3`) and nowhere in
+any terminal condition. That is the cobra (D-253): the metric — a quiet round — is satisfied by more rounds, and the
+counter-measure — a cost the run must stay inside — was never written down beside it.
+
+**The second half of the goal is enforced almost nowhere.** Of the 38 command sources, 9 name `select_rules.py`
+(the rule packs), 7 name `agents-fabrik.md` (the infrastructure map), **0 name `mcp_health.py`** (the assigned MCPs)
+and **0 name the operating manifesto**. "Each command enforces our MCPs, rules, infra and manifesto" is a goal the
+corpus states in `CLAUDE.md` and leaves to the agent's memory in 29 of 38 commands.
+
+**What follows for § 5.** The terminal keeps its correctness term — every slice verified — and gains the cost term the
+goal always had: a run declares its budget at `start` from the size of its surface (the same arithmetic that sizes
+its seats), reports against it at every round, and a run that would overrun hands off with its failing slices named
+instead of running on. That is not a round cap (D-321): rounds are free while the budget holds; the budget is the
+goal restated as a number the run can see. And every command's opening act names its MCPs, its packs, its infra map
+and the manifesto section it runs under — executed, not recalled — so the second half of the goal is a step, not a
+hope.
+
 ---
 
 ## 5. The program — make the loop run as designed
@@ -600,13 +643,20 @@ the operator as a gate.** The loop keeps every part the operator built; it is ma
 3. **Every claim is executed before it is written** — the file opened, the count re-derived, the test run — by the
    one writing it. A mechanism copied from a seat's report is a claim, not a verification (the 2026-09-22 runs paid
    three rounds for one such sentence).
-4. **The terminal is "every part verified" and nothing else.** A run ends when every slice's ledger of claims is
-   executed true — not when a reader is quiet, not at a round count. The run record carries the slice ledgers, not
-   only per-round totals, so the terminal is readable from the record (§ 4.1's unverifiable close goes away).
+4. **The terminal is "every part verified, inside the run's budget" and nothing else.** A run ends when every
+   slice's ledger of claims is executed true — not when a reader is quiet, not at a round count. The run record
+   carries the slice ledgers, not only per-round totals, so the terminal is readable from the record (§ 4.1's
+   unverifiable close goes away). The budget is declared at `start` from the surface's size, printed on the pinned
+   `RUN:` line beside the rounds, and a run that would overrun it hands off with its failing slices named (§ 4.8) —
+   a refuted or recorded candidate never re-opens a pass (D-206, D-230).
 5. **One to three passes, by construction.** Pass one verifies in parallel; pass two fixes and the owning seats
    re-verify; pass three confirms. A slice still failing after pass three is handed off with its failing claims
    NAMED — never a pass four over the whole artifact.
-6. **Where it is built.** In the loop itself: the review-family command sources and the fragments they share
+6. **Every command opens by enforcing the four things the goal names.** Its first phase runs `mcp_health.py` for
+   its assigned MCPs, `select_rules.py` for its packs, reads `agents-fabrik.md` for the infrastructure it touches and
+   names the manifesto section it runs under — executed lines in the command, not a sentence in `CLAUDE.md`
+   (today 9, 0, 7 and 0 of 38 sources do so, § 4.8).
+7. **Where it is built.** In the loop itself: the review-family command sources and the fragments they share
    (`term-coverage`, `term-edit`, the dispatch fragments, the `fabrik-reviewer` brief), and `command_run.py`'s round
    record. Not in `CLAUDE.md`, not in a new mechanism beside the loop. Nothing in this program caps rounds, adds an
    acceptance list, sets a byte target, retires a command, drops a seat or puts the operator between review and
@@ -638,6 +688,9 @@ that moves without the first one having moved is a symptom treated, not a cause.
 
 | Metric | Baseline | Target |
 |---|---:|---|
+| **A simple change end to end** — spec → spec review → plan → plan review → execute → review | **611 min** at the medians (§ 2.1); `/fabrik-task` 41 min | **≤ 120 min**; `/fabrik-task` unchanged |
+| **Runs whose terminal carries a cost term** (the declared budget beside the correctness term) | **1 of 27** | every run |
+| **Commands whose first phase executes MCP · rules · infra · manifesto** | 9 · 7 · 0 · 0 of 38 | 38 of 38 |
 | **Runs whose terminal is "every slice verified"** — a per-slice claim ledger in the run record, every claim executed true, not a reader's quiet round | **0 of 27** | every run |
 | **Rounds per review-family run** | median 3–4; 35 runs of 10+ hold 42% of the hours (§ 2.5) | ≤ 3 by construction, a failing slice handed off with its claims named |
 | **Closes that ran to a quiet round** (terminal condition actually met) | 78 of 191, **41%** | over 90% |
@@ -777,3 +830,10 @@ rewritten as engineering inside the loop; the old § 5's removal program is with
 review family) stated as wrong. § 6 loses its byte targets for the lean-without-loss rule. Every figure in §§ 2–4 was
 re-derived from the ledger the same day and reproduces to the percentage (338 closes, 807 h; 57% review family; 41%
 quiet; 71 hot `done` closes, 452 standing; 53% rising; 66% after round 1; 31% at round 4+).
+
+**Revision 9 (2026-09-22, on the operator's *"goal is missing … we must do lean, fast, accurate, complete runs … it
+must be done in 2 hours … i think it is cobra effect, we are optimizing against a wrong goal?"*):** § 1 opens with the
+goal in the operator's words and the two-hour target against the measured 611 minutes; § 4.8 answers the question with
+the rule text and the ledger — the loop's objective has one term (accuracy; `accurate` 124 : `fast` 4 in the close
+verdicts, 1 of 27 terminals naming a cost) and enforces MCPs / rules / infra / manifesto in 9 / 7 / 0 / 0 of 38
+commands; § 5 item 4 gains the budget term and item 6 the enforcement step; § 6 gains the three rows that measure them.

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docs/reference/command-loop-performance.md revision 9: the goal in the operator's words, the one-term objective (2026-09-22)
+
+- § 1 opens with the goal (every command enforces MCPs · rules · infra · manifesto; lean, fast, accurate, complete;
+  a simple change end to end in 2 h against 611 min today). § 4.8: the loop optimises one term — `accurate` 124 :
+  `fast` 4 across 338 close verdicts, 1 of 27 terminals naming a cost, zero time words in the two fragments — and
+  enforces the four things in 9 / 7 / 0 / 0 of 38 commands. § 5 item 4 gains the budget term, item 6 the enforcement
+  step; § 6 gains the rows that measure both.
+
 ### Changed — docs/reference/command-loop-performance.md restored and re-cut to the confirmed root cause (revision 8, 2026-09-22)
 
 - Restored from `f5a4c367f` (deleted by the D-330 revert). § 1.0 records the three `CLAUDE.md` contracts as they
