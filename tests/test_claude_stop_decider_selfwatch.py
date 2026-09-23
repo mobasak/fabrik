@@ -91,3 +91,76 @@ def test_a_command_that_merely_names_the_arm_script_is_still_a_waker(tmp_path: P
     transcript = tmp_path / "t.jsonl"
     transcript.write_text("".join(json.dumps(r) + "\n" for r in rows))
     assert "bcat00001" in mod.pending_shell_tasks(transcript, now=time.time())
+
+
+def test_every_real_arm_shape_is_excluded(tmp_path: Path) -> None:
+    """Review of the exclusion, A-S1/A-S2: a quoted path, another shell, a `cd` prefix, `bash -c`, a trailing
+    comment and a long sid are all the arm — a narrower match re-opens the false waker_lost."""
+    mod = _load_decider(tmp_path / "locks")
+    arm = "/opt/fabrik/scripts/sysadmin/selfwatch_arm.sh"
+    shapes = [
+        f'bash "{arm}" dd3c06d1',
+        f"/bin/bash {arm} dd3c06d1",
+        "cd /opt/fabrik && bash scripts/sysadmin/selfwatch_arm.sh dd3c06d1",
+        f"bash -c 'bash {arm} dd3c06d1'",
+        f"bash {arm} dd3c06d1  # re-arm",
+        f"bash {arm} " + "a" * 120,
+        f"bash -x {arm} dd3c06d1",
+        f"bash -- {arm} dd3c06d1",
+    ]
+    rows = []
+    for n, cmd in enumerate(shapes):
+        rows += _dispatch(f"toolu_{n}", f"barm{n:05d}", cmd)
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    pending = mod.pending_shell_tasks(transcript, now=time.time())
+    assert not [p for p in pending if p.startswith("barm")], pending
+
+
+def test_the_exclusion_holds_whatever_the_row_order(tmp_path: Path) -> None:
+    """Review, A-H1: the result row read before its assistant row must still be excluded."""
+    mod = _load_decider(tmp_path / "locks")
+    a, u = _dispatch(
+        "toolu_arm", "barm00001", "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh s1"
+    )
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text(json.dumps(u) + "\n" + json.dumps(a) + "\n")
+    assert "barm00001" not in mod.pending_shell_tasks(transcript, now=time.time())
+
+
+def test_an_arm_row_without_an_id_excludes_nothing(tmp_path: Path) -> None:
+    """Review, A-H2: a tool_use with no id must not seed the literal 'None' and exempt a real job."""
+    mod = _load_decider(tmp_path / "locks")
+    a, _ = _dispatch(
+        "toolu_arm", "barm00001", "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh s1"
+    )
+    del a["message"]["content"][0]["id"]
+    _, job = _dispatch("None", "bjob00001", "pytest -q")
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text(json.dumps(a) + "\n" + json.dumps(job) + "\n")
+    assert "bjob00001" in mod.pending_shell_tasks(transcript, now=time.time())
+
+
+def test_a_command_that_only_reads_or_edits_the_arm_script_stays_a_waker(tmp_path: Path) -> None:
+    """Review pass 2, A-N1: the arm is the script RUN by a shell (or as the command), never grep/vim/sed/python3
+    over it with a trailing argument — excluding those would silence a real pending job."""
+    mod = _load_decider(tmp_path / "locks")
+    arm = "/opt/fabrik/scripts/sysadmin/selfwatch_arm.sh"
+    readers = [
+        f"grep -n pattern {arm} foo",
+        "vim selfwatch_arm.sh x",
+        f"sed -n 1p {arm} 2",
+        f"python3 {arm} sid",
+        f"ssh host {arm} sid",
+    ]
+    rows = []
+    for n, cmd in enumerate(readers):
+        rows += _dispatch(f"toolu_{n}", f"bjob{n:05d}", cmd)
+    rows += _dispatch("toolu_direct", "barm00001", f"{arm} sid")
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    pending = mod.pending_shell_tasks(transcript, now=time.time())
+    assert sorted(p for p in pending if p.startswith("bjob")) == [
+        f"bjob{n:05d}" for n in range(5)
+    ], pending
+    assert "barm00001" not in pending, "the script run directly as the command is the arm"
