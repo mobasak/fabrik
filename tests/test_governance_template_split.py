@@ -777,3 +777,90 @@ def test_the_templates_outcome_ii_points_at_the_lane_table_and_keeps_all_three()
         "the review comes BEFORE",
     ):
         assert kept in tpl, f"outcome (i), (ii) or (iii) lost an obligation: {kept}"
+
+
+# ── T02a: the DECISION block lives in § FINAL OUTPUT, plus # Compact instructions ────────────
+# docs/development/plans/2026-09-23-plan-1-stop-and-compaction/T02a-hub-claude-md.md, implementing
+# docs/superpowers/specs/2026-09-23-stop-and-compaction-enforcement-design.md § C2 (the DECISION
+# block) and § C4 (the summarizer's instructions). Hub-only; T02b mirrors it into
+# templates/governance/CLAUDE.md, serialized after this ticket per the plan's Merge Order.
+
+_DECISION_FORMAT_LINES = (
+    "DECISION NEEDED (ground: gate|underivable|owned)",
+    "- Question:",
+    "- Why it is yours:",
+    "- Options:",
+    "- Recommendation:",
+)
+
+
+def _final_output_section(text: str) -> str:
+    start = "## ⚠️ FINAL OUTPUT"
+    assert text.count(start) == 1, "§ FINAL OUTPUT heading drifted"
+    body = text.split(start, 1)[1]
+    end = "\n## "
+    return body.split(end, 1)[0] if end in body else body
+
+
+def test_final_output_carries_the_decision_block_format() -> None:
+    """T02a Behavior Contract: the DECISION block's shape lives in § FINAL OUTPUT (spec § C2).
+
+    Red-first note: watched RED before this ticket landed — § FINAL OUTPUT held only the 7-line
+    and STATE-footer templates, neither of which names `DECISION NEEDED` or its four fields."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    section = _final_output_section(hub)
+    for line in _DECISION_FORMAT_LINES:
+        assert line in section, f"§ FINAL OUTPUT is missing the DECISION block line: {line!r}"
+
+
+def test_final_output_carries_exactly_two_decision_examples() -> None:
+    """The section carries one legitimate and one refused DECISION example (spec § C2, graft G-c)."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    section = _final_output_section(hub)
+    assert section.count("DECISION NEEDED (ground:") == 3, (
+        "expected the format block plus exactly two examples beside it"
+    )
+    assert "ground: gate)" in section, "no legitimate (ground: gate) example"
+    assert "ground: owned)" in section, "no refused (ground: owned) example"
+    assert "Legitimate" in section, "the legitimate example is not labelled"
+    assert "Refused" in section and "REFUSED" in section, "the refused example is not labelled"
+
+
+def test_operator_decision_bar_bullet_keeps_its_anchor_and_names_the_block() -> None:
+    """The § UNIVERSAL governance markers bullet (CLAUDE.md:385) keeps its anchor verbatim
+    (anchors are case-exact and must never be reworded) and now names the DECISION block."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    bullets = [ln for ln in hub.split("\n") if ln.lstrip().startswith("- `operator-decision-bar`")]
+    assert len(bullets) == 1, f"operator-decision-bar bullet moved or duplicated ({len(bullets)})"
+    bullet = bullets[0]
+    assert "`NEXT: operator decision` HAS A BAR" in bullet, "the anchor was reworded"
+    assert "DECISION NEEDED" in bullet, "the bullet does not name the DECISION block"
+
+
+_COMPACT_INSTRUCTIONS_LINES = (
+    "the live command and its terminal condition",
+    "every file path and plan/spec path being worked",
+    "every operator ruling of the session, in the operator's words",
+    "the pending DECISION block",
+    "the last `NEXT:`",
+)
+
+
+def test_compact_instructions_heading_exists_with_its_five_lines() -> None:
+    """T02a Behavior Contract: a top-level `# Compact instructions` heading (spec § C4, E5) — the
+    summarizer reads this exact heading from the root CLAUDE.md, so it is an H1 like the file's own
+    title, not one of its usual `##` sections."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    assert hub.count("\n# Compact instructions\n") == 1, (
+        "the heading is missing, duplicated, or not written as a top-level H1"
+    )
+    body = hub.split("# Compact instructions", 1)[1]
+    for line in _COMPACT_INSTRUCTIONS_LINES:
+        assert line in body, f"# Compact instructions is missing a required line: {line!r}"
+    # whitespace-normalised: the file hard-wraps prose at ~100 columns, and a wrap boundary
+    # landing inside this sentence must not read as the sentence being missing (memory note
+    # extending-a-sentence-unanchors-its-pinned-span).
+    normalised = re.sub(r"\s+", " ", body)
+    assert "never summarise a pending operator question as settled" in normalised.lower()
+    assert "Context is never a reason to stop, and a fresh session is never the remedy" in normalised
+    assert "D-374" in body, "the sentence must cite D-374"
