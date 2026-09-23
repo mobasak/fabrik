@@ -1093,3 +1093,146 @@ def test_compact_instructions_heading_exists_with_its_five_lines() -> None:
     assert "never summarise a pending operator question as settled" in normalised.lower()
     assert "Context is never a reason to stop, and a fresh session is never the remedy" in normalised
     assert "D-374" in body, "the sentence must cite D-374"
+
+
+# ── T02b: the DECISION block MIRRORED into templates/governance/CLAUDE.md ──────────────────────
+# docs/development/plans/2026-09-23-plan-1-stop-and-compaction/T02b-template-claude-md.md. The
+# template carries § FINAL OUTPUT TWICE (:629, :672 pre-edit) — the duplication itself is routed to
+# docs/STRATEGIC_BACKLOG.md by T06, never fixed here — so every grader below checks BOTH copies.
+# Nothing binds the template to the hub's T02a text but a grader like this one: the hub agent who
+# wrote the DECISION block reads it every session and would never notice the ~46 synced repos
+# still taught the old, unguarded `operator decision:` exit.
+
+
+def _final_output_sections(text: str) -> list[str]:
+    """Every § FINAL OUTPUT section in document order — the template carries the block twice."""
+    start = "## ⚠️ FINAL OUTPUT"
+    assert text.count(start) >= 1, "§ FINAL OUTPUT heading missing"
+    end = "\n## "
+    parts = text.split(start)[1:]
+    return [p.split(end, 1)[0] if end in p else p for p in parts]
+
+
+def _has_a_bar_paragraph_in(section: str) -> str:
+    """The HAS A BAR paragraph scoped to ONE § FINAL OUTPUT section, bounded at 'Legitimate:'."""
+    assert section.count(_BAR_PARAGRAPH_MARKER) == 1, (
+        "the HAS A BAR paragraph is missing or duplicated in this § FINAL OUTPUT copy"
+    )
+    after = section.split(_BAR_PARAGRAPH_MARKER, 1)[1]
+    end = "\n\nLegitimate:"
+    assert end in after, "the paragraph no longer precedes the Legitimate example"
+    return _BAR_PARAGRAPH_MARKER + after.split(end, 1)[0]
+
+
+def test_the_templates_final_output_copies_carry_the_decision_block_format() -> None:
+    """T02b Behavior Contract: every § FINAL OUTPUT copy in the template carries the SAME DECISION
+    block FORMAT as the hub's, byte-identical (spec § Contract deltas).
+
+    Mutant: delete '- Recommendation: <A or B, and the one-line reason>' from ONE of the two
+    template copies' format blocks only — RED for that copy, proving the check is per-copy, not a
+    single whole-file substring search that the other copy's surviving text would satisfy."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    hub_block = _decision_format_block(_final_output_section(hub))
+    tpl_sections = _final_output_sections(tpl)
+    assert len(tpl_sections) == 2, f"expected 2 § FINAL OUTPUT copies, found {len(tpl_sections)}"
+    for i, section in enumerate(tpl_sections, start=1):
+        block = _decision_format_block(section)
+        assert block == hub_block, f"template copy {i}'s DECISION format block drifted from the hub"
+
+
+def test_the_templates_final_output_copies_carry_the_two_decision_examples() -> None:
+    """The Legitimate/Refused worked examples, byte-identical to the hub's, in BOTH copies.
+
+    Mutant: swap the `ground:` tokens between the two examples in one copy only — RED for that
+    copy."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    hub_section = _final_output_section(hub)
+    hub_gate = _decision_example(hub_section, "gate")
+    hub_owned = _decision_example(hub_section, "owned")
+    for i, section in enumerate(_final_output_sections(tpl), start=1):
+        assert section.count("DECISION NEEDED (ground:") == 3, (
+            f"template copy {i}: expected the format block plus exactly two examples"
+        )
+        assert "Legitimate" in section, f"template copy {i}: legitimate example not labelled"
+        assert "Refused" in section and "REFUSED" in section, (
+            f"template copy {i}: refused example not labelled"
+        )
+        assert _decision_example(section, "gate") == hub_gate, (
+            f"template copy {i}: legitimate example drifted from the hub"
+        )
+        assert _decision_example(section, "owned") == hub_owned, (
+            f"template copy {i}: refused example drifted from the hub"
+        )
+
+
+def test_the_templates_final_output_next_lines_point_at_the_decision_block() -> None:
+    """S1/O5 mirrored: the 7-line template's `NEXT:` and the STATE footer's `NEXT:` both point at
+    the DECISION block in BOTH template copies.
+
+    Mutant: delete ' — see DECISION NEEDED above' from one copy's 7-line `NEXT:` line — RED for
+    that copy."""
+    tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    for i, section in enumerate(_final_output_sections(tpl), start=1):
+        assert "operator decision: <what> — see DECISION NEEDED above" in section, (
+            f"template copy {i}: the 7-line template's NEXT field does not point at the DECISION "
+            "block"
+        )
+        assert "the operator decision awaited — see DECISION NEEDED above" in section, (
+            f"template copy {i}: the STATE footer's NEXT field does not point at the DECISION block"
+        )
+
+
+def test_the_templates_bar_paragraph_matches_the_hub_in_both_copies() -> None:
+    """The full HAS A BAR paragraph — every restored and new rule from the hub's T02a round —
+    byte-identical in BOTH template copies.
+
+    Mutant: delete 'is a `BLOCKED:` if it is anything at all' from one copy's paragraph only — RED
+    for that copy."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    hub_para = _has_a_bar_paragraph(hub)
+    for i, section in enumerate(_final_output_sections(tpl), start=1):
+        assert _has_a_bar_paragraph_in(section) == hub_para, (
+            f"template copy {i}'s HAS A BAR paragraph drifted from the hub"
+        )
+
+
+def test_the_templates_universal_marker_index_names_the_decision_block() -> None:
+    """The template's condensed UNIVERSAL-markers index line (the anchor-only list, a sanctioned
+    format divergence from the hub's per-bullet table) keeps the `operator-decision-bar` anchor
+    verbatim and now names the DECISION block, mirroring the hub bullet's own T02a addition.
+
+    Mutant: delete '(the `DECISION NEEDED` block)' from the index line — RED."""
+    tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    # Excludes the two HAS A BAR paragraphs (one per § FINAL OUTPUT copy), which also carry the
+    # anchor substring but are identified by their own unique lead-in text.
+    lines = [
+        ln
+        for ln in tpl.split("\n")
+        if "NEXT: operator decision` HAS A BAR" in ln and "UNGUARDED exit" not in ln
+    ]
+    assert len(lines) == 1, f"the anchor line moved or duplicated ({len(lines)})"
+    line = lines[0]
+    assert "`NEXT: operator decision` HAS A BAR" in line, "the anchor was reworded"
+    assert "DECISION NEEDED" in line, "the index line does not name the DECISION block"
+
+
+def test_the_templates_compact_instructions_match_the_hub() -> None:
+    """T02b: `# Compact instructions` is a top-level H1 in the template too, identical to the
+    hub's (the section names no hub-only path or fact, so nothing in it is a sanctioned
+    divergence).
+
+    Mutant: wrap '- the pending DECISION block, if any;' in a ``` fence inside the template's
+    section — RED (fences are stripped before comparison, so the line reads as missing)."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    unfenced_hub = _unfenced(hub)
+    unfenced_tpl = _unfenced(tpl)
+    assert unfenced_tpl.count("\n# Compact instructions\n") == 1, (
+        "the heading is missing, duplicated, fenced, or not written as a top-level H1"
+    )
+    hub_body = _next_heading_bound(unfenced_hub.split("# Compact instructions", 1)[1])
+    tpl_body = _next_heading_bound(unfenced_tpl.split("# Compact instructions", 1)[1])
+    assert tpl_body == hub_body, "the template's # Compact instructions drifted from the hub's"
