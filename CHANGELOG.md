@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed — The unused duplicate `postgres-main` compose, and a ruling that `PORTS.md` is the hub's registry (2026-09-24)
+- **`apps/postgres-main/compose.yaml` is gone (D-379).** It was a second tracked compose for the shared `postgres-main` container, with a different image and no memory limit; nothing referenced it, and the live container runs from `infra/vps1/postgres/compose.yaml`. Fleet mail 01M34JT9QNJFPBEQBDMQGV0CBT, item 1.
+- **Decision D-380: `PORTS.md` is the hub's port registry**, and a project's synced copy is read-only. Recorded now; the scaffolder and Doc Sync Matrix changes follow as their own reviewed change. Fleet mail 01M335ERZMNPVHZN8PQACQR5GC.
+
 ### Added — plan: stop-and-compaction enforcement, CONVERGED (D-381) (2026-09-24)
 
 - `docs/development/plans/2026-09-23-plan-1-stop-and-compaction/`: eight tickets from the approved spec (D-371, D-377). `/fabrik-plan-review` ran four passes on the review-loop workflow, 21 → 5 → 3 → 0 confirmed, closed under the scope-growth stop. The review established that every merge on a governance-sync path distributes fleet-wide through the post-commit hook, so V1 (backtest + judged sample) runs inside T03 before its commit ships the hook.

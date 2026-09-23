@@ -153,7 +153,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ├── tasks.md                         # Active task tracker
 ├── apps/                            # Deployable application containers
 │   ├── example-api/                 # Example FastAPI service (Dockerfile, compose.yaml)
-│   └── postgres-main/               # Shared PostgreSQL instance (compose.yaml)
+│   └── fabrik-proxy/                # compose.yaml + .env.example
 ├── config/                          # Runtime configuration files
 │   └── platform.yaml.example        # Platform config template
 ├── configs/                         # Runtime service configs (deployed services)

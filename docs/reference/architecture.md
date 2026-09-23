@@ -274,7 +274,7 @@ src/fabrik/
 
 | Directory | Purpose | Status |
 |-----------|---------|--------|
-| `apps/` | **Legacy deploy convention** — compose files for services deployed before the spec-driven pipeline. `postgres-main/` and `fabrik-proxy/` are active running services; `example-api/` is an obsolete template | Partially active |
+| `apps/` | **Legacy deploy convention** — compose files for services deployed before the spec-driven pipeline. `fabrik-proxy/` is an active running service; `example-api/` is an obsolete template (the shared Postgres compose is `infra/vps1/postgres/`, D-379) | Partially active |
 | `backups/` | Credential/config backups (gitignored). Target for CLAUDE.md backup rule: `cp <f> backups/<f>.backup.$(date)`. Created by scaffold for all project types | Active |
 | `build/` | **Moved to `/opt/wpf/build/`** (May 2026). Was WordPress deployer output (`build/sites/<site>/plan.json`, manifests, reports) | Moved |
 | `config/` | `platform.yaml.example` — config schema reference for VPS/Coolify/DNS/backup settings. Referenced by `src/fabrik/config.py` as `CONFIG_DIR` | Active (example only) |
