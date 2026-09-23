@@ -1530,6 +1530,12 @@ _NEXT_TO_OPERATOR_RE = re.compile(r"[ \t*_]*(?:the[ \t]+)?operator\b[ \t*_]*[—
 # ...unless that line asks for what only the operator's harness can do: a window reload for the MCP
 # roster (CLAUDE.md: "a server only a reload restores needs a NEW window — say so").
 _TOOL_FACT_RE = re.compile(r"\b(?:MCP|roster|reload)\b")
+# ...or marks the ask OPTIONAL ("optionally …", "otherwise nothing pending"): no successor is owed.
+_OPTIONAL_ASK_RE = re.compile(r"\boptionally\b|\botherwise nothing\b", re.I)
+# A NEXT: line whose value begins with `none` ("none — terminal", "none owed", "none pending")
+# names NO successor, so an optional ask later on the line is not a deferral (V1 precision judges:
+# the whole NOT-DEFERRAL residue of the seed-923 sample was this one shape).
+_NEXT_NONE_RE = re.compile(r"[ \t*_]*none\b", re.I)
 # The DEFERRAL's `BLOCKED:` exemption is the agent's own escalation HEADER — at a line start, as
 # CLAUDE.md formats it — never a mention mid-line ("closed the run `BLOCKED: NON-CONVERGENCE`"):
 # V1 found mentions like that silencing real `NEXT: operator decision` footers.
@@ -1916,9 +1922,12 @@ def _deferral_match(text: str) -> tuple[str, str] | None:
         le = text.find("\n", m.end())
         le = n if le == -1 else le
         line = text[m.start() : le].strip()[:200]
+        if _NEXT_NONE_RE.match(text, m.end()):
+            continue
         if (
             _NEXT_TO_OPERATOR_RE.match(text, m.end())
             and not _TOOL_FACT_RE.search(text, m.end(), le)
+            and not _OPTIONAL_ASK_RE.search(text, m.end(), le)
             and not _defer_skip(text, m.end(), fences)
         ):
             return "D1", line

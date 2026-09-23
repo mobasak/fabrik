@@ -526,6 +526,7 @@ def test_last_assistant_message_alone_is_enough(tmp_path: Path) -> None:
 _GREEN = [
     "Committed.\n\nSTATE: phase 2 of 4 green\nNEXT: awaiting your reply",
     "Committed.\n\nNEXT: none — terminal",
+    "Committed.\n\nNEXT: /fabrik-docs-review — the chain is terminal after it",
     "Committed.\n\nNEXT: /fabrik-spec-review docs/superpowers/specs/2026-09-23-x-design.md",
     "Fixed three findings: (a) the parser dropped rows, (b) the regex over-matched, "
     "(c) the test was vacuous. All committed.",
@@ -649,6 +650,10 @@ def test_a_v1_miss_now_fires(tmp_path: Path, text: str, shape: str) -> None:
         "The MCP roster changed, so anything MCP-dependent needs a new window.",
         "The config fix is committed; it needs a new window to take effect.",
         "Option two, which I'd slightly prefer, is already committed.",
+        "Shipped.\n\nNEXT: none — terminal. A cleanup pass is possible if you want it later.",
+        "Shipped.\n\nNEXT: none owed — all green. Still open if you want them: (1) docs, (2) a bench.",
+        "Shipped.\n\nNEXT: none — terminal. The unrelated migration still awaits your go.",
+        "Shipped.\n\nNEXT: operator — optionally rename the dashboard tile; otherwise nothing pending.",
     ],
     ids=[
         "quoted-fence-mid-message",
@@ -658,6 +663,10 @@ def test_a_v1_miss_now_fires(tmp_path: Path, text: str, shape: str) -> None:
         "tool-fact-before-the-window",
         "window-to-take-effect",
         "own-preference-is-not-an-offer",
+        "next-none-terminal-if-you-want",
+        "next-none-owed-still-open",
+        "next-none-awaits-your-go",
+        "next-operator-optionally",
     ],
 )
 def test_a_v1_green_stays_silent(tmp_path: Path, text: str) -> None:
