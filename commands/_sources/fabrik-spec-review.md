@@ -236,7 +236,7 @@ a NEW `Workflow` call with `pass: 2|3` and each slice's `ledger` from `python3 s
 <scratch>/pass-<n>.json --ids <the confirmed ids>` — the round-1 seats re-verifying their OWN slices over the fix
 diff plus one hop (D-335), never a fresh seat sized by the fix; a researcher seat re-fetches only the facts on its
 ledger, and an unchanged URL is never re-fetched. When the `Workflow` tool is absent the seats go out through the
-`Agent` tool in ONE message with the same briefs, and the round notes `shape: agent-tool`. Opus stays yours for
+`Agent` tool in ONE message with the same briefs, and the Pass Ledger's row notes `shape: agent-tool`. Opus stays yours for
 the adjudication, the decide-clean and the md5-verified close.
 
 After each pass, list what you re-verified (which URLs you fetched, which modules you read) and what you

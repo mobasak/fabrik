@@ -257,8 +257,7 @@ partition the three-seat floor stands down (D-208, D-218). Every later pass is a
 `pass: 2|3` and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next <scratch>/pass-<n>.json
 --ids <the confirmed ids>` — the round-1 seats re-verifying their OWN slices over the fix diff plus one hop, the
 tickets and sections whose tokens cite the edited step (D-335) — plus the hygiene script on the re-pin. When the
-`Workflow` tool is absent the seats go out through the `Agent` tool in ONE message with the same briefs, and the
-round notes `shape: agent-tool`. (This replaces the old GREENFIELD-monolith exemption: a monolith that
+`Workflow` tool is absent the seats go out through the `Agent` tool in ONE message with the same briefs, and the Pass Ledger's row notes `shape: agent-tool`. (This replaces the old GREENFIELD-monolith exemption: a monolith that
 modifies or wires into EXISTING code still owes its author-blind pass (live proof: a ~40-line monolith's
 author nearly converged solo; the author-blind finder returned a CONFIRMED-HIGH invalidating the plan's core
 mechanism — every anchor was real, the defect was the author's inference) — and a plan SET always partitions

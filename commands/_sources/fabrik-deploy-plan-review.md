@@ -158,9 +158,11 @@ vague or unrunnable, and any `OPERATOR-GATE` marker missing from a step only the
 
 **Finder fan-out — native seats, every round (the pool is OFF, D-181).** Decompose the pass into
 independent units (one per checklist class, or per plan section) and dispatch **one native `fabrik-reviewer`
-seat on Sonnet PER UNIT, all in one message** (the unit count is the PARTITION — `dispatch_headroom.py --units <N>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — never a token 1–2; D-191)
+seat on Sonnet PER UNIT, together in ONE `Workflow` call (below)** (the unit count is the PARTITION — `dispatch_headroom.py --units <N>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>`, the printed seats plus one refuter per unit, so sibling sessions subtract them — never a token 1–2; D-191)
 with the plan + the relevant ground-truth files per unit. **EVERY round ALSO dispatches at
-least one native Opus finder as the authoritative pass.**<!-- POOL OFF (D-181): the breadth went to the OpenRouter pool — `fanout("review", units, mode="read_only")`, auto-recorded, `set_quality` back-filled per unit --> Two slices are ADDITIONALLY native-only:
+least one native Opus finder as the authoritative pass.** The seats run as ONE `Workflow` call on the review-loop script
+(`/opt/fabrik/.claude/workflows/fabrik-review-loop.js`, chunk 6b): each unit a slice `{name, files, scope: "<the class or section>",
+models: ["sonnet"]}`, the riskiest unit — the first, when none stands out, so every round keeps its Opus finder — `models: ["sonnet", "opus"]`, and one refuter per unit executes every candidate.<!-- POOL OFF (D-181): the breadth went to the OpenRouter pool — `fanout("review", units, mode="read_only")`, auto-recorded, `set_quality` back-filled per unit --> Two slices are ADDITIONALLY native-only:
 anything needing live SSH probes, and the secrets-flow class (secret-adjacent content never goes to pool
 APIs). Then YOU merge, dedupe by (section, failure-class), and **refute-with-evidence** — a finding dies
 only by quoting the line/probe output that disproves it, and survives only into a fix.

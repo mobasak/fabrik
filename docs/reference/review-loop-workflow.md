@@ -1,6 +1,6 @@
 # The review loop as a workflow — `fabrik-review-loop`
 
-**What:** the D-335 review loop (`/fabrik-review`, `/fabrik-repo-review` by file; `/fabrik-spec-review`, `/fabrik-plan-review` by section, chunk 6) run as a Claude Code workflow script,
+**What:** the D-335 review loop (`/fabrik-review`, `/fabrik-repo-review` by file; `/fabrik-spec-review`, `/fabrik-plan-review` by section, chunk 6; `/fabrik-review-scoped` and every review-shaped units fan-out, one slice per unit, chunk 6b) run as a Claude Code workflow script,
 `.claude/workflows/fabrik-review-loop.js`, so the seat dispatch, the seats' reports and the execution of every
 candidate's check happen outside the lead session's transcript — one fresh refuter per slice executes them. One `Workflow` call per pass, one ledger back.
 Built as chunk 5 of `docs/reference/command-loop-performance.md` § 5.2 (D-346, D-347, D-348). The shape is
@@ -60,7 +60,7 @@ while `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set, because that variable puts ever
 ## Fallback
 
 When the `Workflow` tool is absent from the session, the seats go out through the `Agent` tool in one message
-with the same briefs and schemas, and the run record's round notes `shape: agent-tool`. Both shapes are the
+with the same briefs and schemas, and the receipt's Pass row (or, with no receipt, the close's `--evidence`) names `shape: agent-tool`. Both shapes are the
 same loop; the workflow is the one that keeps the lead's turns flat.
 
 ## Cobra notes (D-253)

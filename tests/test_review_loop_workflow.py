@@ -5,7 +5,8 @@ contract the command sources and the reviewer brief rely on: the file exists whe
 point, its ``meta`` block is a pure literal (the tool refuses anything else), every finder call
 returns a schema that REQUIRES ``files_read`` (the coverage-overclaim guard, § 4.9 finding 10), every
 seat is the ``fabrik-reviewer`` agent type on a cheap model (D-344), the script never resumes a run
-(resume re-runs a fan-out — finding 22), and the two partitioned sources plus the brief name it.
+(resume re-runs a fan-out — finding 22), and every launcher — the partitioned and section reviews, /fabrik-review-scoped, /fabrik-deploy-plan-review and the
+`subagents-core` fragment — plus the brief name it.
 """
 
 from __future__ import annotations
@@ -22,6 +23,9 @@ SOURCES = [
     ROOT / "commands" / "_sources" / "fabrik-repo-review.md",
     ROOT / "commands" / "_sources" / "fabrik-spec-review.md",
     ROOT / "commands" / "_sources" / "fabrik-plan-review.md",
+    ROOT / "commands" / "_sources" / "fabrik-review-scoped.md",
+    ROOT / "commands" / "_sources" / "fabrik-deploy-plan-review.md",
+    ROOT / "commands" / "_fragments" / "subagents-core.md",
 ]
 BRIEF = ROOT / "commands" / "_agents" / "fabrik-reviewer.md"
 DOC = ROOT / "docs" / "reference" / "review-loop-workflow.md"
