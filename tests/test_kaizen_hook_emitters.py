@@ -389,9 +389,13 @@ def _with_upstream(tmp_path: Path, proj: Path) -> None:
 
 
 def test_stop_block_cause_unpushed(tmp_path: Path) -> None:
+    """The unpushed commit must be THIS session's (the push law is session-scoped since T13.4):
+    the transcript's Edit of `committed.txt` is what attributes it; without it the cause is silent."""
     proj = _project(tmp_path)
+    tp = _transcript(proj, edited=["committed.txt"])
     _with_upstream(tmp_path, proj)
-    proc = _run_stop(proj, tmp_path, "sidpush")
+    proc = _run_stop(proj, tmp_path, "sidpush", transcript=tp)
+    assert proc.stdout.strip(), "no block: the unpushed commit was not attributed to this session"
     assert json.loads(proc.stdout)["decision"] == "block"
     blocks = _of_type(_events(tmp_path, "sidpush"), "stop_block")
     assert [(b["cause"], b["outcome"]) for b in blocks] == [("unpushed", "blocked")]
@@ -435,12 +439,18 @@ def test_warn_through_is_recorded_as_its_own_outcome(tmp_path: Path) -> None:
     # After CAP blocked stops the hook gives up and lets the turn end. That give-up was
     # invisible: it looked identical to a clean pass, so "enforcement worked" counted a
     # cause the agent simply outlasted.
+    """The unpushed commit must be THIS session's (the push law is session-scoped since T13.4):
+    the transcript's Edit of `committed.txt` is what attributes it; without it the cause is silent."""
     proj = _project(tmp_path)
+    tp = _transcript(proj, edited=["committed.txt"])
     _with_upstream(tmp_path, proj)
     for _ in range(3):
-        proc = _run_stop(proj, tmp_path, "sidwarn", reset=False)
+        proc = _run_stop(proj, tmp_path, "sidwarn", transcript=tp, reset=False)
+        assert proc.stdout.strip(), (
+            "no block: the unpushed commit was not attributed to this session"
+        )
         assert json.loads(proc.stdout)["decision"] == "block"
-    proc = _run_stop(proj, tmp_path, "sidwarn", reset=False)  # 4th: over the cap
+    proc = _run_stop(proj, tmp_path, "sidwarn", transcript=tp, reset=False)  # 4th: over the cap
     assert proc.stdout.strip() == ""  # allowed through
     evs = _events(tmp_path, "sidwarn")
     warned = [b for b in _of_type(evs, "stop_block") if b["outcome"] == "warned_through"]
@@ -529,11 +539,16 @@ def test_a_blocked_turn_emits_no_final_block(tmp_path: Path) -> None:
     # THE RETRY MULTIPLICATION: a turn that gets blocked N times used to emit
     # final_block_emitted on every retry, so one task terminator counted N times.
     # Message-shaped events belong to the exit that actually ENDS the turn.
+    """The unpushed commit must be THIS session's (the push law is session-scoped since T13.4):
+    the transcript's Edit of `committed.txt` is what attributes it; without it the cause is silent."""
     proj = _project(tmp_path)
+    tp = _transcript(proj, text="Done.\n\n" + _SIX_LINE_BLOCK, edited=["committed.txt"])
     _with_upstream(tmp_path, proj)
-    tp = _transcript(proj, text="Done.\n\n" + _SIX_LINE_BLOCK)
     for _ in range(3):
         proc = _run_stop(proj, tmp_path, "sidretry", transcript=tp, reset=False)
+        assert proc.stdout.strip(), (
+            "no block: the unpushed commit was not attributed to this session"
+        )
         assert json.loads(proc.stdout)["decision"] == "block"
     assert _of_type(_events(tmp_path, "sidretry"), "final_block_emitted") == []
     _run_stop(proj, tmp_path, "sidretry", transcript=tp, reset=False)  # cap → allowed

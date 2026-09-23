@@ -1525,6 +1525,19 @@ _DEFER_RE = re.compile(
 )
 # A `NEXT:` footer line, bold or plain (`**NEXT:**`, `**NEXT**:`, `> NEXT:`).
 _NEXT_LINE_RE = re.compile(r"^[ \t>*_-]*NEXT\**[ \t]*:\**", re.M)
+# D1's second form: the successor named IS the operator ("NEXT: operator — relay item 6 …").
+_NEXT_TO_OPERATOR_RE = re.compile(r"[ \t*_]*(?:the[ \t]+)?operator\b[ \t*_]*[—–:-]", re.I)
+# ...unless that line asks for what only the operator's harness can do: a window reload for the MCP
+# roster (CLAUDE.md: "a server only a reload restores needs a NEW window — say so").
+_TOOL_FACT_RE = re.compile(r"\b(?:MCP|roster|reload)\b")
+# The DEFERRAL's `BLOCKED:` exemption is the agent's own escalation HEADER — at a line start, as
+# CLAUDE.md formats it — never a mention mid-line ("closed the run `BLOCKED: NON-CONVERGENCE`"):
+# V1 found mentions like that silencing real `NEXT: operator decision` footers.
+_DEFER_BLOCKED_RE = re.compile(r"^[ \t>*_#-]*(?:[\w.-]+-)?BLOCKED:", re.M)
+# The closing footer's keys (FINAL OUTPUT block and the STATE/NEXT footer).
+_FOOTER_LINE_RE = re.compile(
+    r"^[ \t>*_-]*(?:GATE|DOCS UPDATED|CHANGELOG|LESSONS LEARNT|DONE|NEXT|FEEDBACK|STATE)[*_]*:"
+)
 # D2 — a menu: `(a) … (b)`, `option A … option B`, or a numbered list, AND a cue that hands the
 # choice over. A FINDINGS or STEPS list carries no cue (spec § C1's green column).
 _MENU_RE = re.compile(
@@ -1548,8 +1561,8 @@ _OFFER_RE = re.compile(
     r"|\bwould you like me to\b[^?\n]{0,160}\?"
     r"|\bshall I\b[^?\n]{0,160}\?"
     r"|\bshould I\b(?!\s+have\b)[^?\n]{0,160}\?"
-    r"|\blet me know (?:if|which|whether)\b"
-    r"|\bwhich\b[^?\n.]{0,60}\bprefer\b[^?\n]{0,120}\??"
+    r"|\blet me know (?:if|which|whether)\b|\bon your (?:yes|word|go)\b"
+    r"|\bwhich\b[^?\n.]{0,60}\byou(?:'d)?\s+(?:would\s+)?prefer\b[^?\n]{0,120}\??"
     r"|\bdo you want\b[^?\n]{0,160}\?",
     re.I,
 )
@@ -1558,15 +1571,23 @@ _SELF_ANSWER_RE = re.compile(
     r"\A[\s*_]*(?:[—–:-][\s*_]*)?(?:yes|no|nope|yep|not\b|answer\b|already\b)", re.I
 )
 # D4 — the agent hands ITS OWN WORK to a later session (A-O40: a factual sentence about new
-# sessions never fires). Verbatim from the ticket's step 3, executed in plan-review round 1.
+# sessions never fires). The ticket's step 3 pattern, plus two V1 exclusions (executed over 16,278
+# real turn ends): a window that only makes a fix "take effect" or "lands on" another account, and
+# a fresh session "in /another/tree" — both harness or routing facts, not the agent's excuse.
 _WHERE_RE = r"(?:fresh|new|clean|separate)\s+(?:session|window|context|chat)"
 _CONTEXT_EXCUSE_RE = re.compile(
     rf"\b(?:open|use|needs?|wants?|deserves?|requires?)\s+a\s+{_WHERE_RE}\b"
-    r"(?![^.\n]{0,60}\b(?:MCP|roster|reload|quota|5h|weekly|reset)\b)"
+    r"(?![^.\n]{0,60}\b(?:MCP|roster|reload|quota|5h|weekly|reset|takes? effect|lands on)\b)"
+    r"(?!\s+in\s+[/~])"
     rf"|\b(?:a|the)\s+{_WHERE_RE}\s+(?:finishes|should|must|checks)\b"
     r"|\bcontext\s+(?:is\s+)?getting\s+(?:long|full|low|tight)\b|\bcompact\s+first\b"
     r"|\bthis\s+session\s+(?:is|has\s+been)\s+(?:running\s+)?long\b",
     re.I,
+)
+# What a fresh window genuinely buys (a harness fact, never the agent's excuse): an MCP reload, or
+# another account's quota. Read before a D4 match in its own sentence.
+_WINDOW_FACT_RE = re.compile(
+    r"\b(?:MCP|roster|reload|quota|5h|weekly|reset|--switch|switch(?:ed)?|spending)\b", re.I
 )
 # The DEFERRAL window: the same 600-char tail the pattern shapes read, widened back to the start
 # of the line it cuts into (at most this far) so a quote/blockquote test sees the whole line.
@@ -1868,17 +1889,42 @@ def _deferral_match(text: str) -> tuple[str, str] | None:
     if not text:
         return None
     fences = _fence_spans(text)
+    # A TRAILING fenced block — nothing but whitespace after it, or unclosed to the end — is the
+    # agent's OWN closing footer (the contract showed the seven-line block fenced for years, and
+    # agents copy it), never a quotation: the fence skip must not apply to it. V1, executed over
+    # 16,278 turn ends: the skip hid the real `NEXT: … awaiting your go` in exactly this shape.
+    if fences and not text[fences[-1][1] :].strip():
+        fences = fences[:-1]
     n = len(text)
-    tail = max(0, n - _DEFER_TAIL_CHARS)
+    # The prose tail is the 600 chars BEFORE the closing footer (plus the footer itself): the
+    # seven-line block alone runs past 600 chars and pushed the real excuse out of a raw tail.
+    tail = max(0, _footer_start(text, fences) - _DEFER_TAIL_CHARS)
     ls = text.rfind("\n", 0, tail) + 1
     if tail - ls <= _DEFER_LINE_BACK:
         tail = ls
+    # D4 first: when a message both defers and blames its context, the excuse is the diagnosis.
+    for m in _CONTEXT_EXCUSE_RE.finditer(text, tail):
+        if _defer_skip(text, m.start(), fences):
+            continue
+        # The same tool facts as the pattern's lookahead, stated BEFORE the match in its
+        # sentence ("the MCP roster changed, so anything MCP-dependent needs a new window").
+        ss = max(text.rfind(c, 0, m.start()) for c in ".\n") + 1
+        if _WINDOW_FACT_RE.search(text, max(ss, m.start() - 120), m.start()):
+            continue
+        return "D4", m.group(0)
     for m in _NEXT_LINE_RE.finditer(text, min(tail, _last_lines_start(text, _DEFER_TAIL_LINES))):
         le = text.find("\n", m.end())
         le = n if le == -1 else le
+        line = text[m.start() : le].strip()[:200]
+        if (
+            _NEXT_TO_OPERATOR_RE.match(text, m.end())
+            and not _TOOL_FACT_RE.search(text, m.end(), le)
+            and not _defer_skip(text, m.end(), fences)
+        ):
+            return "D1", line
         for d in _DEFER_RE.finditer(text, m.end(), le):
             if not _defer_skip(text, d.start(), fences):
-                return "D1", text[m.start() : le].strip()[:200]
+                return "D1", line
     for m in _MENU_RE.finditer(text, tail):
         if _defer_skip(text, m.start(), fences):
             continue
@@ -1893,20 +1939,40 @@ def _deferral_match(text: str) -> tuple[str, str] | None:
         if m.group(0).endswith("?") and _SELF_ANSWER_RE.match(text[m.end() : m.end() + 80]):
             continue  # a question followed by its own answer
         return "D3", m.group(0)
-    for m in _CONTEXT_EXCUSE_RE.finditer(text, tail):
-        if not _defer_skip(text, m.start(), fences):
-            return "D4", m.group(0)
     return None
+
+
+def _footer_start(text: str, fences: list[tuple[int, int]]) -> int:
+    """Offset where the message's closing footer begins, or its end when it has none. The footer
+    is a TRAILING fenced block (``fences`` has already dropped it, so it is recomputed here) or
+    the trailing run of footer-key lines, blank lines allowed between them."""
+    body = text.rstrip()
+    all_fences = _fence_spans(text)
+    if all_fences and not text[all_fences[-1][1] :].strip() and all_fences[-1] not in fences:
+        return all_fences[-1][0]
+    start = len(body)
+    pos = len(body)
+    while pos > 0:
+        ls = body.rfind("\n", 0, pos) + 1
+        line = body[ls:pos]
+        if _FOOTER_LINE_RE.match(line):
+            start = ls
+        elif line.strip():
+            break
+        pos = ls - 1 if ls > 0 else 0
+        if ls == 0:
+            break
+    return start
 
 
 def deferral_shape(text: str) -> str | None:
     """Return "D1".."D4" when the final message ``text`` defers to the operator, else None.
 
     The ONE vocabulary: the hook's DEFERRAL check and `scripts/sysadmin/stop_mine.py` both count
-    with it. `BLOCKED:` anywhere exempts (spec § C1). A DECISION block does NOT enter here: its
+    with it. A `BLOCKED:` escalation header (at a line start) exempts (spec § C1). A DECISION block does NOT enter here: its
     `asked:`/`scope:` checks need the session's transcript and run record, so the hook applies it
     (`_detect_stall`) and a transcript-less miner counts the raw shape. Pure: no I/O."""
-    if not text or _GATE_EXEMPT_GLOBAL_RE.search(text):
+    if not text or _DEFER_BLOCKED_RE.search(text):
         return None
     hit = _deferral_match(text)
     return hit[0] if hit else None
@@ -2314,7 +2380,9 @@ def _deferral_stall(
         hit = _deferral_match(text)
     if hit is None:
         return None
-    if escalation:
+    # The DEFERRAL's own exemption is the escalation HEADER (`_DEFER_BLOCKED_RE`), narrower than
+    # the pattern shapes' anywhere-`escalation`; a header always implies that one.
+    if escalation and _DEFER_BLOCKED_RE.search(text):
         if waived is not None:
             waived.append(("blocked-escalation", escalation.group(0)))
         return None

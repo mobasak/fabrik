@@ -583,6 +583,87 @@ def test_a_window_needed_for_a_reload_or_a_quota_reset_never_fires(sentence: str
     assert hook.deferral_shape(sentence) is None
 
 
+# --- V1 fixups (the backtest over 16,278 real turn ends; shapes paraphrased, never quoted) --------
+
+_LONG_FOOTER = (
+    "```\n"
+    "GATE: python scripts/final_gate.py --json → success\n"
+    "DOCS UPDATED: docs/FEATURES.md, docs/SERVICES.md, docs/CONFIGURATION.md, INDEX.md, CHANGELOG.md\n"
+    "CHANGELOG: Added — the widget export and its retry ledger (2026-09-01)\n"
+    "LESSONS LEARNT: none\n"
+    "DONE: three commits pushed; 41 tests green; the export runs nightly from the scheduler, "
+    "its retry ledger is capped at 500 rows and the dashboard tile shows the last run's status\n"
+    "NEXT: none — terminal\n"
+    "FEEDBACK: /fabrik-execute-plan · 2h · rounds 3 (4→1→0) · confusion: none · waste: none · "
+    "change: none · filed: none — surfaces exercised: the export, the scheduler and the ledger\n"
+    "```"
+)
+
+
+@pytest.mark.parametrize(
+    ("text", "shape"),
+    [
+        # the agent's OWN closing footer written inside a trailing fence is not a quotation
+        (
+            "Plan 4 executed.\n\n```\nGATE: success\nDONE: pushed\n"
+            "NEXT: /fabrik-plan-review docs/p5.md — awaiting your go\n```",
+            "D1",
+        ),
+        # a BLOCKED: MENTION mid-line is not the agent's escalation header
+        (
+            "The earlier review closed `BLOCKED: NON-CONVERGENCE` on its own receipt.\n\n"
+            "NEXT: operator decision — resume that review or re-scope it",
+            "D1",
+        ),
+        # the successor named on the NEXT: line is the operator
+        ("Nothing to distribute.\n\nNEXT: operator — hand item 6 to the other repo's agent", "D1"),
+        # an offer that waits on the operator's word outside a NEXT: line
+        ("The revision and its ledger row land on your word.", "D3"),
+        # the excuse sits before a closing block that alone runs past the 600-char tail
+        ("Phase 1 committed. The rest wants a fresh session with a lock.\n\n" + _LONG_FOOTER, "D4"),
+        # a context excuse is the diagnosis even when the same message also defers on NEXT:
+        ("Findings written.\nNEXT: on your word, I write the memo, then open a new window.", "D4"),
+    ],
+    ids=[
+        "trailing-fenced-footer",
+        "blocked-mention-mid-line",
+        "next-names-the-operator",
+        "on-your-word-in-prose",
+        "excuse-before-a-long-footer",
+        "d4-wins-over-d1",
+    ],
+)
+def test_a_v1_miss_now_fires(tmp_path: Path, text: str, shape: str) -> None:
+    assert hook.deferral_shape(text) == shape, hook._deferral_match(text)
+    got = _stall(tmp_path, text)
+    assert got and got[0] == f"deferral:{shape}", got
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "```\nNEXT: operator decision — pick one\n```\n\nThat footer shape is now refused.",
+        "BLOCKED: the vendor API — searched: docs/ — missing: auth scheme\n\nNEXT: operator decision — x",
+        "Roster changed.\n\nNEXT: operator — reload the window so the MCP roster refreshes",
+        "Open a fresh session in /opt/other-repo and run its deploy there.",
+        "The MCP roster changed, so anything MCP-dependent needs a new window.",
+        "The config fix is committed; it needs a new window to take effect.",
+        "Option two, which I'd slightly prefer, is already committed.",
+    ],
+    ids=[
+        "quoted-fence-mid-message",
+        "blocked-header",
+        "operator-line-for-a-reload",
+        "fresh-session-in-another-tree",
+        "tool-fact-before-the-window",
+        "window-to-take-effect",
+        "own-preference-is-not-an-offer",
+    ],
+)
+def test_a_v1_green_stays_silent(tmp_path: Path, text: str) -> None:
+    assert hook.deferral_shape(text) is None, hook._deferral_match(text)
+
+
 # --- the T04/T05 interfaces ----------------------------------------------------------------
 
 
