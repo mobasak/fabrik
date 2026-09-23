@@ -931,14 +931,26 @@ def test_the_bar_paragraph_keeps_every_restored_and_new_rule() -> None:
     paragraph (`git show 5c31f796c:CLAUDE.md`) — the positive instruction after the menu ban
     ("derive the verdict, state it, proceed"), and the own-reliability/fatigue/context-budget
     citation being a `BLOCKED:`. O1 (write the block unfenced) and O6 (the closed gate-class list)
-    are rules this round adds. Each is asserted INSIDE the paragraph itself, and the universal
-    bullet keeps its own closing phrase.
+    are rules this round adds. Round 2 (O3) fixed the closed list's own worked example — the §
+    EXIT ad-hoc-branch disposition is now named by an actual list token (`destructive`) instead of
+    being cited as its own, undeclared ground. Round 2 (O2) also widened this grader to the
+    paragraph's headline rules: the `(a)/(b)` menu ban, "DISPATCHED, not offered", `scope:`
+    refused mid-run, and `searched:` for `underivable`. Each is asserted INSIDE the paragraph
+    itself, and the universal bullet keeps its own closing phrase.
 
     Mutants (each deleted alone from the paragraph, each must go RED):
     - H1: delete "derive the verdict, state it, proceed"
     - O2: delete "is a `BLOCKED:` if it is anything at all"
     - O1: delete "written unfenced"
     - O6: delete "Gate 1 · Gate 2 · production data" from the closed class list
+    - O3 (round 2): delete "is named `destructive`, since discarding a branch/worktree is the
+      destructive act" — the ad-hoc-branch disposition would again cite itself as a ground with no
+      list token, which the hook refuses
+    - O2 (round 2), one mutant per rule:
+      - delete "an `(a)/(b)` options menu is never legitimate"
+      - delete "**Everything else is DISPATCHED, not offered**"
+      - delete "refused while a command run record is `running`"
+      - delete "with `searched:` naming what came back silent"
     """
     hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
     para = _has_a_bar_paragraph(hub)
@@ -952,6 +964,22 @@ def test_the_bar_paragraph_keeps_every_restored_and_new_rule() -> None:
     )
     assert "written unfenced" in para, "O1: the unfenced-writing rule is missing"
     assert _CLOSED_GATE_CLASS_LIST in para, "O6: the closed gate-class list is missing or drifted"
+    assert (
+        "is named `destructive`, since discarding a branch/worktree is the destructive act"
+        in para
+    ), "O3 (round 2): the ad-hoc-branch disposition names no list token"
+    assert "an `(a)/(b)` options menu is never legitimate" in para, (
+        "O2 (round 2): the (a)/(b) options-menu ban is missing"
+    )
+    assert "**Everything else is DISPATCHED, not offered**" in para, (
+        "O2 (round 2): the DISPATCHED-not-offered rule is missing"
+    )
+    assert "refused while a command run record is `running`" in para, (
+        "O2 (round 2): the scope:-refused-while-live rule is missing"
+    )
+    assert "with `searched:` naming what came back silent" in para, (
+        "O2 (round 2): the underivable ground's searched: requirement is missing"
+    )
 
     bullets = [ln for ln in hub.split("\n") if ln.lstrip().startswith("- `operator-decision-bar`")]
     assert len(bullets) == 1
@@ -998,17 +1026,21 @@ def test_compact_instructions_heading_exists_with_its_five_lines() -> None:
     """T02a Behavior Contract: a top-level `# Compact instructions` heading (spec § C4, E5) — the
     summarizer reads this exact heading from the root CLAUDE.md, so it is an H1 like the file's own
     title, not one of its usual `##` sections. Bounded to the NEXT heading and fenced text
-    stripped (O7): a mutation that wraps a required line in a code fence must still read as that
-    line being ABSENT, not present.
+    stripped (O7), and the HEADING ITSELF is now checked fence-aware too (round 2, O1): a heading
+    that exists only inside a code fence is a worked example, never a real top-level heading the
+    summarizer would honour.
 
     Mutant (O7): wrap '- the pending DECISION block, if any;' in a ``` fence inside the section
-    (leaving every other line untouched) — RED."""
+    (leaving every other line untouched) — RED. Mutant (O1, round 2): wrap the
+    '# Compact instructions' heading LINE ITSELF in a ``` fence — RED (the heading no longer counts
+    once fences are stripped first)."""
     hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
-    assert hub.count("\n# Compact instructions\n") == 1, (
-        "the heading is missing, duplicated, or not written as a top-level H1"
+    unfenced_hub = _unfenced(hub)
+    assert unfenced_hub.count("\n# Compact instructions\n") == 1, (
+        "the heading is missing, duplicated, fenced, or not written as a top-level H1"
     )
-    raw_body = hub.split("# Compact instructions", 1)[1]
-    body = _unfenced(_next_heading_bound(raw_body))
+    raw_body = unfenced_hub.split("# Compact instructions", 1)[1]
+    body = _next_heading_bound(raw_body)
     for line in _COMPACT_INSTRUCTIONS_LINES:
         assert line in body, f"# Compact instructions is missing a required line: {line!r}"
     # whitespace-normalised: the file hard-wraps prose at ~100 columns, and a wrap boundary
