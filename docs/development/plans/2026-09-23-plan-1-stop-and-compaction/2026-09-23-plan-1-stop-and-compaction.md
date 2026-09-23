@@ -37,7 +37,7 @@ Intake: 7 items — 6 IN, 1 OUT-OF-SCOPE (named), 0 ASK.
 |---|---|---|---|---|---|
 | T01a | gate-ending command sources state their gate as a DECISION block | — | ⚡ | ✅ | 48120c74f |
 | T01b | the kaizen vocabulary: the `decision_block` event and `deferral` as a premature cause | — | ⚡ | ✅ | a99e54f66 |
-| T02a | hub `CLAUDE.md`: the DECISION block, the bar bullet, `# Compact instructions` | — | ⚡ | ⬜ | |
+| T02a | hub `CLAUDE.md`: the DECISION block, the bar bullet, `# Compact instructions` | — | ⚡ | ✅ | a769949fd |
 | T02b | `templates/governance/CLAUDE.md`: the same, in every § FINAL OUTPUT copy | T02a | ⛓️ | ⬜ | |
 | T03 | the Stop hook: DEFERRAL D1–D4, the DECISION parser, the reasons, the input, the V1 backtest | T01a, T01b, T02b | ⛓️ | ⬜ | |
 | T04 | `thread_anchor.py`: WHERE YOU ARE on compact, the DECISION harvest and clear, the 72 h fold | T03 | ⛓️ | ⬜ | |

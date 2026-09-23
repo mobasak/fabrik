@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — hub CLAUDE.md: the DECISION block is the only legitimate hand-off, and `# Compact instructions` (2026-09-24)
+
+- § FINAL OUTPUT's "`NEXT: operator decision` HAS A BAR" paragraph now states the bar as a four-line `DECISION NEEDED (ground: gate|underivable|owned)` block, written unfenced, with the gate ground's closed class list (deploy · destructive · irreversible · spend · cross-repo · publish · credentials · design approval · plan approval · Gate 1 · Gate 2 · production data), one legitimate and one refused example; the 7-line template and the STATE footer point `operator decision` at the block. Every rule the old paragraph carried is kept, the incident story is gone.
+- A top-level `# Compact instructions` section tells the summarizer what to carry across a compaction: the live command and its terminal, paths, operator rulings verbatim, the pending DECISION block, the last `NEXT:`.
+- `tests/test_governance_template_split.py` grades the block's format, its examples, the rules kept, the template pointers and the compact section (plan `docs/development/plans/2026-09-23-plan-1-stop-and-compaction`, T02a).
+
 ### Changed — kaizen vocabulary: the `decision_block` event and `deferral` as a premature-stop cause (2026-09-24)
 
 - `scripts/sysadmin/kaizen_events.py` registers `decision_block` (carries `ground`); `scripts/sysadmin/kaizen_collect_v2.py` counts `deferral` in `PREMATURE_CAUSES`. Both are inert until the Stop hook's DEFERRAL check emits them (plan `docs/development/plans/2026-09-23-plan-1-stop-and-compaction`, T01b).

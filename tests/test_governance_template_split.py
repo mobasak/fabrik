@@ -822,3 +822,274 @@ def test_the_gate_rows_line_citations_land_on_what_they_name() -> None:
         assert gate[int(cite[1:]) - 1].startswith(construct), (
             f"final_gate.py{cite} no longer holds {construct!r}"
         )
+
+# ── T02a: the DECISION block lives in § FINAL OUTPUT, plus # Compact instructions ────────────
+# docs/development/plans/2026-09-23-plan-1-stop-and-compaction/T02a-hub-claude-md.md, implementing
+# docs/superpowers/specs/2026-09-23-stop-and-compaction-enforcement-design.md § C2 (the DECISION
+# block) and § C4 (the summarizer's instructions). Hub-only; T02b mirrors it into
+# templates/governance/CLAUDE.md, serialized after this ticket per the plan's Merge Order.
+#
+# Round 1 review (orchestrator-adjudicated) found the first cut's graders read the SECTION as a
+# whole, so a defect INSIDE one fenced block (a dropped field, a mislabelled example, required
+# text hidden in a fence) stayed invisible as long as the phrase existed SOMEWHERE else in the
+# section. The helpers below scope each check to the fenced block or paragraph that actually owns
+# the claim.
+
+_DECISION_FORMAT_LINES = (
+    "DECISION NEEDED (ground: gate|underivable|owned)",
+    "- Question:",
+    "- Why it is yours:",
+    "- Options:",
+    "- Recommendation:",
+)
+
+
+def _final_output_section(text: str) -> str:
+    start = "## ⚠️ FINAL OUTPUT"
+    assert text.count(start) == 1, "§ FINAL OUTPUT heading drifted"
+    body = text.split(start, 1)[1]
+    end = "\n## "
+    return body.split(end, 1)[0] if end in body else body
+
+
+def _fenced_blocks(text: str) -> list[str]:
+    """Every fenced code block's CONTENTS (between a `` ``` `` pair), in document order."""
+    return re.findall(r"```\n(.*?)```", text, re.DOTALL)
+
+
+def _decision_format_block(section: str) -> str:
+    """The canonical DECISION block FORMAT — the fenced block headed by the bare
+    `ground: gate|underivable|owned` heading, never one of the two worked examples below it."""
+    for block in _fenced_blocks(section):
+        if block.startswith("DECISION NEEDED (ground: gate|underivable|owned)"):
+            return block
+    raise AssertionError("no fenced block headed by the canonical DECISION NEEDED format line")
+
+
+def _decision_example(section: str, ground: str) -> str:
+    """One worked example's fenced block, addressed by its own `ground:` token (`gate`/`owned`)."""
+    for block in _fenced_blocks(section):
+        if block.startswith(f"DECISION NEEDED (ground: {ground})"):
+            return block
+    raise AssertionError(f"no fenced DECISION example for ground={ground!r}")
+
+
+def test_final_output_carries_the_decision_block_format() -> None:
+    """T02a Behavior Contract: the DECISION block's shape lives in § FINAL OUTPUT (spec § C2),
+    scoped to the CANONICAL format block (O3) — both worked examples below it also carry
+    `- Question:` etc., so an unscoped check stays green even when a field is deleted from the
+    format block alone.
+
+    Mutant (O3): delete `- Recommendation: <A or B, and the one-line reason>` from the format
+    block only, leaving both examples' own `- Recommendation:` lines untouched — RED."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    section = _final_output_section(hub)
+    block = _decision_format_block(section)
+    for line in _DECISION_FORMAT_LINES:
+        assert line in block, f"the DECISION format block is missing: {line!r}"
+
+
+def test_final_output_carries_exactly_two_decision_examples() -> None:
+    """The section carries one legitimate and one refused DECISION example (spec § C2, graft G-c)."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    section = _final_output_section(hub)
+    assert section.count("DECISION NEEDED (ground:") == 3, (
+        "expected the format block plus exactly two examples beside it"
+    )
+    assert "ground: gate)" in section, "no legitimate (ground: gate) example"
+    assert "ground: owned)" in section, "no refused (ground: owned) example"
+    assert "Legitimate" in section, "the legitimate example is not labelled"
+    assert "Refused" in section and "REFUSED" in section, "the refused example is not labelled"
+
+
+def test_final_output_examples_bind_the_right_label_to_the_right_ground() -> None:
+    """O8: the Legitimate label must sit with the `ground: gate` example, and Refused with
+    `ground: owned` — not merely present somewhere in the section (which a swap would still
+    satisfy).
+
+    Mutant (O8): swap the two `ground:` tokens between the two example blocks so the Legitimate
+    example reads `(ground: owned)` and the Refused one reads `(ground: gate)` — RED."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    section = _final_output_section(hub)
+    legit_idx = section.index("Legitimate")
+    refused_idx = section.index("Refused")
+    assert legit_idx < refused_idx, "the legitimate example must precede the refused one"
+    legit_span = section[legit_idx:refused_idx]
+    refused_span = section[refused_idx:]
+    assert "DECISION NEEDED (ground: gate)" in legit_span, (
+        "the Legitimate label is not bound to the ground: gate example"
+    )
+    assert "DECISION NEEDED (ground: owned)" in refused_span, (
+        "the Refused label is not bound to the ground: owned example"
+    )
+
+
+def test_final_output_templates_point_at_the_decision_block() -> None:
+    """S1/O5: the 7-line template's `NEXT:` field and the STATE footer's `NEXT:` field both point
+    at the DECISION block, instead of leaving a bare `operator decision` unexplained.
+
+    Mutant (S1/O5-a): delete ' — see DECISION NEEDED above' from the 7-line template's NEXT
+    line — RED. Mutant (S1/O5-b): delete it from the STATE footer's NEXT line — RED."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    section = _final_output_section(hub)
+    assert "operator decision: <what> — see DECISION NEEDED above" in section, (
+        "the 7-line template's NEXT field does not point at the DECISION block"
+    )
+    assert "the operator decision awaited — see DECISION NEEDED above" in section, (
+        "the STATE footer's NEXT field does not point at the DECISION block"
+    )
+
+
+def test_operator_decision_bar_bullet_keeps_its_anchor_and_names_the_block() -> None:
+    """The § UNIVERSAL governance markers bullet (CLAUDE.md:385) keeps its anchor verbatim
+    (anchors are case-exact and must never be reworded) and now names the DECISION block."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    bullets = [ln for ln in hub.split("\n") if ln.lstrip().startswith("- `operator-decision-bar`")]
+    assert len(bullets) == 1, f"operator-decision-bar bullet moved or duplicated ({len(bullets)})"
+    bullet = bullets[0]
+    assert "`NEXT: operator decision` HAS A BAR" in bullet, "the anchor was reworded"
+    assert "DECISION NEEDED" in bullet, "the bullet does not name the DECISION block"
+
+
+_BAR_PARAGRAPH_MARKER = "**⚠️ `NEXT: operator decision` HAS A BAR"
+
+
+def _has_a_bar_paragraph(hub: str) -> str:
+    """The HAS A BAR paragraph, bounded at the 'Legitimate:' label that follows it."""
+    assert hub.count(_BAR_PARAGRAPH_MARKER) == 1, "the HAS A BAR paragraph moved or duplicated"
+    after = hub.split(_BAR_PARAGRAPH_MARKER, 1)[1]
+    end = "\n\nLegitimate:"
+    assert end in after, "the paragraph no longer precedes the Legitimate example"
+    return _BAR_PARAGRAPH_MARKER + after.split(end, 1)[0]
+
+
+_CLOSED_GATE_CLASS_LIST = (
+    "deploy · destructive · irreversible · spend (real money) · cross-repo · publish · "
+    "credentials · design approval · plan approval · Gate 1 · Gate 2 · production data"
+)
+
+
+def test_the_bar_paragraph_keeps_every_restored_and_new_rule() -> None:
+    """H1/O2 restore two rules the DECISION-block rewrite silently dropped from the pre-T02a
+    paragraph (`git show 5c31f796c:CLAUDE.md`) — the positive instruction after the menu ban
+    ("derive the verdict, state it, proceed"), and the own-reliability/fatigue/context-budget
+    citation being a `BLOCKED:`. O1 (write the block unfenced) and O6 (the closed gate-class list)
+    are rules this round adds. Round 2 (O3) fixed the closed list's own worked example — the §
+    EXIT ad-hoc-branch disposition is now named by an actual list token (`destructive`) instead of
+    being cited as its own, undeclared ground. Round 2 (O2) also widened this grader to the
+    paragraph's headline rules: the `(a)/(b)` menu ban, "DISPATCHED, not offered", `scope:`
+    refused mid-run, and `searched:` for `underivable`. Each is asserted INSIDE the paragraph
+    itself, and the universal bullet keeps its own closing phrase.
+
+    Mutants (each deleted alone from the paragraph, each must go RED):
+    - H1: delete "derive the verdict, state it, proceed"
+    - O2: delete "is a `BLOCKED:` if it is anything at all"
+    - O1: delete "written unfenced"
+    - O6: delete "Gate 1 · Gate 2 · production data" from the closed class list
+    - O3 (round 2): delete "is named `destructive`, since discarding a branch/worktree is the
+      destructive act" — the ad-hoc-branch disposition would again cite itself as a ground with no
+      list token, which the hook refuses
+    - O2 (round 2), one mutant per rule:
+      - delete "an `(a)/(b)` options menu is never legitimate"
+      - delete "**Everything else is DISPATCHED, not offered**"
+      - delete "refused while a command run record is `running`"
+      - delete "with `searched:` naming what came back silent"
+    """
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    para = _has_a_bar_paragraph(hub)
+    assert "`gate`" in para and "`underivable`" in para and "`owned`" in para
+    assert "`asked:`" in para and "`scope:`" in para
+    assert "derive the verdict, state it, proceed" in para, (
+        "H1: the positive after-menu-ban rule is missing"
+    )
+    assert "is a `BLOCKED:` if it is anything at all" in para, (
+        "O2: the own-reliability -> BLOCKED: rule is missing"
+    )
+    assert "written unfenced" in para, "O1: the unfenced-writing rule is missing"
+    assert _CLOSED_GATE_CLASS_LIST in para, "O6: the closed gate-class list is missing or drifted"
+    assert (
+        "is named `destructive`, since discarding a branch/worktree is the destructive act"
+        in para
+    ), "O3 (round 2): the ad-hoc-branch disposition names no list token"
+    assert "an `(a)/(b)` options menu is never legitimate" in para, (
+        "O2 (round 2): the (a)/(b) options-menu ban is missing"
+    )
+    assert "**Everything else is DISPATCHED, not offered**" in para, (
+        "O2 (round 2): the DISPATCHED-not-offered rule is missing"
+    )
+    assert "refused while a command run record is `running`" in para, (
+        "O2 (round 2): the scope:-refused-while-live rule is missing"
+    )
+    assert "with `searched:` naming what came back silent" in para, (
+        "O2 (round 2): the underivable ground's searched: requirement is missing"
+    )
+
+    bullets = [ln for ln in hub.split("\n") if ln.lstrip().startswith("- `operator-decision-bar`")]
+    assert len(bullets) == 1
+    assert "never a menu, never your own uncertainty" in bullets[0], (
+        "the universal bullet lost its closing phrase"
+    )
+
+
+def test_the_decision_block_is_stated_as_unfenced_beside_the_format() -> None:
+    """O1: nothing in the pre-round-1 text said the REAL block must be written outside a code
+    fence, so a well-formed but fenced block silently read as compliant. The rule now sits right
+    beside the format block it governs.
+
+    Mutant: delete 'a fenced example, like the two below, never exempts a turn' — RED."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    para = _has_a_bar_paragraph(hub)
+    assert "written unfenced" in para
+    assert "a fenced example, like the two below, never exempts a turn" in para
+
+
+_COMPACT_INSTRUCTIONS_LINES = (
+    "the live command and its terminal condition",
+    "every file path and plan/spec path being worked",
+    "every operator ruling of the session, in the operator's words",
+    "the pending DECISION block",
+    "the last `NEXT:`",
+)
+
+
+def _next_heading_bound(text: str) -> str:
+    """Bounded at the NEXT heading of any level, never the whole rest of the file."""
+    m = re.search(r"\n#{1,6} ", text)
+    return text[: m.start()] if m else text
+
+
+def _unfenced(text: str) -> str:
+    """Strip fenced code blocks out of consideration (O7) — required instructional text that
+    exists only inside a fence is not read by the summarizer as an instruction, mirroring the
+    DECISION block's own unfenced rule."""
+    return re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+
+
+def test_compact_instructions_heading_exists_with_its_five_lines() -> None:
+    """T02a Behavior Contract: a top-level `# Compact instructions` heading (spec § C4, E5) — the
+    summarizer reads this exact heading from the root CLAUDE.md, so it is an H1 like the file's own
+    title, not one of its usual `##` sections. Bounded to the NEXT heading and fenced text
+    stripped (O7), and the HEADING ITSELF is now checked fence-aware too (round 2, O1): a heading
+    that exists only inside a code fence is a worked example, never a real top-level heading the
+    summarizer would honour.
+
+    Mutant (O7): wrap '- the pending DECISION block, if any;' in a ``` fence inside the section
+    (leaving every other line untouched) — RED. Mutant (O1, round 2): wrap the
+    '# Compact instructions' heading LINE ITSELF in a ``` fence — RED (the heading no longer counts
+    once fences are stripped first)."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    unfenced_hub = _unfenced(hub)
+    assert unfenced_hub.count("\n# Compact instructions\n") == 1, (
+        "the heading is missing, duplicated, fenced, or not written as a top-level H1"
+    )
+    raw_body = unfenced_hub.split("# Compact instructions", 1)[1]
+    body = _next_heading_bound(raw_body)
+    for line in _COMPACT_INSTRUCTIONS_LINES:
+        assert line in body, f"# Compact instructions is missing a required line: {line!r}"
+    # whitespace-normalised: the file hard-wraps prose at ~100 columns, and a wrap boundary
+    # landing inside this sentence must not read as the sentence being missing (memory note
+    # extending-a-sentence-unanchors-its-pinned-span).
+    normalised = re.sub(r"\s+", " ", body)
+    assert "never summarise a pending operator question as settled" in normalised.lower()
+    assert "Context is never a reason to stop, and a fresh session is never the remedy" in normalised
+    assert "D-374" in body, "the sentence must cite D-374"

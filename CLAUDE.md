@@ -382,7 +382,7 @@ but missing from its own `CLAUDE.md` — silent governance drift becomes a gate 
 - `proxy-never-evidence` — anchor **EXECUTE the real check** — a cheap proxy is navigation, never the basis of a completion claim when the real check can be run
 - `denominator-honesty` — anchor **A bounded search returns "not found in N"** — a count, ratio or negative without its denominator is indistinguishable from having looked at nothing
 - `decision-ledger` — anchor **its row in `docs/DECISIONS.md` in the SAME change** — a decision made or received and never recorded is re-litigated or reconstructed by hunt; the ledger is also queried FIRST on any where-is/did-we-decide question
-- `operator-decision-bar` — anchor **`NEXT: operator decision` HAS A BAR** — the one sanctioned exit with no gate on it (`BLOCKED:` has three named causes; a named command obliges you to run it) is the lowest-friction way to stall; legitimate ONLY on a contractual human gate, an underivable answer, or a decision the operator already owns — never a menu, never your own uncertainty
+- `operator-decision-bar` — anchor **`NEXT: operator decision` HAS A BAR** — the one sanctioned exit with no gate on it (`BLOCKED:` has three named causes; a named command obliges you to run it) is the lowest-friction way to stall; legitimate ONLY behind a `DECISION NEEDED (ground: gate|underivable|owned)` block — never a menu, never your own uncertainty
 - `doc-script-coupling` — anchor **The header is the only hand-written half** — a doc and a script point at each other from ONE declaration: the script's `# AFTER-EDIT:` header is written by hand and the doc's `## Related scripts` block is rendered from it, because two hand-kept lists drift and the stale one is indistinguishable from the current one
 - `review-after-change` — anchor **EVERY code-changing chunk of work gets a review-family pass** — a change reviewed only by its author is unreviewed; the Stop hook enforces it PER CHANGE (code authored after the last closed command owes `/fabrik-review-scoped` or `/fabrik-review`), never per session
 - `final-output-block` — anchor **last 7 lines of every task-completing response** — every repo's agents close a task-completing response with the SAME seven lines (GATE · DOCS UPDATED · CHANGELOG · LESSONS LEARNT · DONE · NEXT · FEEDBACK); a contract that trims one line ships a different definition of done, and the Stop hook (fleet-synced) refuses a closing block that carries three or more of the seven keys but not all (D-173)
@@ -636,7 +636,7 @@ DOCS UPDATED: <files | none>
 CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 DONE: <one line — what this run delivered: the commits/artifacts, not intentions>
-NEXT: <the next command or step, NAMED — /fabrik-<x> <args> | operator decision: <what> | none — terminal>
+NEXT: <the next command or step, NAMED — /fabrik-<x> <args> | operator decision: <what> — see DECISION NEEDED above | none — terminal>
 FEEDBACK: /<command> · <wall-clock> · rounds <n> (<confirmed trend, or the findings trend when a round never stated confirmed>) · tokens <input> input / <output> output (<n>% cached) · confusion: <…|none> · waste: <…|none> · change: <lean|fast|accurate|waste|infra|rules|manifesto>: <the one edit to this command or a rule | none — `none` carries no key> · filed: <mail id(s) to a beat | none — surfaces exercised: …> [· cost: <a plain amount, e.g. 0.0125 — prose is refused>]
 ```
 
@@ -648,7 +648,7 @@ changelog owed):
 
 ```
 STATE: <where things stand — the stage/board/loop position, one line>
-NEXT: <the successor: exact command · the operator decision awaited · "awaiting your reply" · none — terminal>
+NEXT: <the successor: exact command · the operator decision awaited — see DECISION NEEDED above · "awaiting your reply" · none — terminal>
 ```
 
 The footer never substitutes for the 7-line block on a task-completing response; a footer `NEXT:` naming
@@ -658,7 +658,36 @@ discipline:** `DONE:` states only what actually happened (commit hashes / files 
 exact operator decision, or `none — terminal`. A vague `NEXT:` is a missing line. If `NEXT:` names work THIS agent
 owns in THIS session, it is dispatched, not narrated.
 
-**⚠️ `NEXT: operator decision` HAS A BAR — it was the contract's only UNGUARDED exit, which is exactly why it gets abused.** Compare the three sanctioned `NEXT:` values: `BLOCKED:` has three named causes and a required format; a named command obliges you to RUN it; `operator decision` had no gate whatsoever — so it is the lowest-friction legal way to end a turn, and the Stop hook accepts the phrase verbatim. Live defect 2026-08-31: an agent closed with `NEXT: operator decision — (a) mine the unread session, or (b) deploy`, where (a) was simply the unfinished half of the task it had just been given and the ordering was never in doubt. The fork was manufactured to transfer the agent's OWN uncertainty to the operator ("this session has three verification slips"). It reads as deference and functions as a stall — the operator's words: *"i dont want to decide that kind of things, the tasks and their order is obvious."* **It is legitimate on EXACTLY three grounds, and you NAME which one applies:** (1) a **contractual human gate** — Gate 2, design approval, a store publish act, or a destructive/irreversible action needing authorisation; (2) the answer **materially changes the work AND cannot be resolved** from the artifacts, the code, or `docs/DECISIONS.md` (§ Question bar, applied to the exit line); (3) the operator **already owns** that decision this turn and has not yet answered. **Everything else is DISPATCHED, not offered.** Two shapes are NEVER legitimate: one presenting **options `(a)/(b)`** — that is a menu, and menuing is already forbidden (derive the verdict, state it, proceed; the § EXIT ad-hoc-branch disposition — keep-as-is · discard — is ground (1), a destructive act needing authorisation, not a menu); and one citing **your own reliability, fatigue or context budget** as the reason — that is a `BLOCKED:` if it is anything at all. A remaining task that is obvious is not a decision; it is your next action.
+**⚠️ `NEXT: operator decision` HAS A BAR — it was the contract's only UNGUARDED exit, which is exactly why it gets abused.** Compare the three sanctioned `NEXT:` values: `BLOCKED:` has three named causes and a required format; a named command obliges you to RUN it; `operator decision` is legitimate only behind a **DECISION block**, written unfenced — a fenced example, like the two below, never exempts a turn:
+
+```
+DECISION NEEDED (ground: gate|underivable|owned)
+- Question: <one plain sentence, no internal ids without their meaning>
+- Why it is yours: <gate → the class; underivable → what changes if the answer differs, and `searched:` what came back silent; owned → `asked:` the operator's earlier question still unanswered, or `scope:` the line of the operator's request this step goes past>
+- Options: <A — what changes if chosen> · <B — what changes if chosen>
+- Recommendation: <A or B, and the one-line reason>
+```
+
+The three grounds, kept whole from D-054: (1) `gate` — a **contractual human gate**, named by a token from the closed list: deploy · destructive · irreversible · spend (real money) · cross-repo · publish · credentials · design approval · plan approval · Gate 1 · Gate 2 · production data (the § EXIT ad-hoc-branch disposition — keep-as-is · discard — is named `destructive`, since discarding a branch/worktree is the destructive act, never a menu). (2) `underivable` — the answer **materially changes the work AND cannot be resolved** from the artifacts, the code, or `docs/DECISIONS.md`, with `searched:` naming what came back silent. (3) `owned` — the operator **already owns** that decision this turn: `asked:` quotes their own still-unanswered question verbatim; `scope:` quotes the line of their request this step goes past, refused while a command run record is `running` (the invoked command already grants its own scope). **Everything else is DISPATCHED, not offered** — an `(a)/(b)` options menu is never legitimate: derive the verdict, state it, proceed. Citing your own reliability, fatigue or context budget is a `BLOCKED:` if it is anything at all. A remaining task that is obvious is not a decision; it is your next action.
+
+Legitimate:
+```
+DECISION NEEDED (ground: gate)
+- Question: Deploy the certified build to production now?
+- Why it is yours: gate — Gate 2, a destructive/irreversible action needing authorisation.
+- Options: A — deploy now, live in ~5 min · B — hold for one more smoke pass (+15 min)
+- Recommendation: A — the certification gauntlet already passed; holding adds no new evidence.
+```
+
+Refused (a manufactured fork, not a decision):
+```
+DECISION NEEDED (ground: owned)
+- Question: (a) mine the unread session first, or (b) deploy first?
+- Why it is yours: owned — asked: [no such operator question exists]
+- Options: A — mine first · B — deploy first
+- Recommendation: none
+```
+REFUSED — both tasks were already agreed and their order was never in doubt; this is the agent's own uncertainty relabelled as the operator's decision, exactly the `(a)/(b)` menu the grounds above forbid.
 
 **⚠️ The block is a TASK terminator, never a phase/loop terminator.** Mid-`/fabrik-execute-plan` phase
 boundaries and mid-certification rounds are NOT task-completing responses — do NOT emit this block there, and
@@ -687,3 +716,15 @@ block (inspection, not a shell-out).
 @agents-fabrik-core.md
 
 (The full canonical map is `agents-fabrik.md` — read it when PLANNING, per § Orient. `AGENTS.md` is a stub.)
+
+# Compact instructions
+
+When compacting, carry forward, verbatim where possible:
+- the live command and its terminal condition;
+- every file path and plan/spec path being worked;
+- every operator ruling of the session, in the operator's words;
+- the pending DECISION block, if any;
+- the last `NEXT:`.
+
+Never summarise a pending operator question as settled. Context is never a reason to stop, and a
+fresh session is never the remedy (D-374).
