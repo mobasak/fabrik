@@ -1254,6 +1254,8 @@ that moves without the first one having moved is a symptom treated, not a cause.
 | Largest rendered command | 123,843 → 120,521 | the same rule — no byte target |
 | Rendered corpus, 37 commands | 2,783,253 → 2,743,865 | the same rule |
 
+**First measured chain, stages 1–2 (2026-09-23, the stop-and-compaction spec, 51098f062):** `/fabrik-spec` 84 min (measurement, grounding, a three-judge panel) and `/fabrik-spec-review` 70 min over 5 passes, 38 → 12 → 6 → 0 → 0 confirmed, closed under the scope-growth stop in ONE run. The last three hub spec reviews took 12.55 h (5 runs, 29 rounds), 14.06 h (3 runs, 32 rounds) and 9.4 h (3 runs, 12 rounds) (`command_feedback_report.py --stages`). Lead turns are not counted by any report yet. Plan, plan review and execution follow on the operator's design approval.
+
 The round-4+ row carries its own guard deliberately: *"with the total NOT falling"*. Driving
 late-round defects to zero by finding fewer defects overall is the failure mode, not the goal.
 
