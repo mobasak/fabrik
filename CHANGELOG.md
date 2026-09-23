@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped and the review-shaped units fan-outs run on the review-loop workflow (2026-09-23)
+
+- Each independent unit becomes one slice of the review-loop script: `/fabrik-review-scoped`'s three-reader floor is one three-finder unit, one refuter per unit executes every candidate, and later passes carry only units with an open claim. `subagents-core` routes every review-shaped units fan-out the same way; grounding, authoring and adjudication fan-outs stay on the `Agent` tool. `/fabrik-deploy-plan-review` keeps its every-round Opus finder on the riskiest unit (D-365).
+
 ### Changed — rules(ai/00-ai-model-selection): file 25 of the currency pass, to the 11-row bar (D-364) (2026-09-23)
 - The AI selection index now puts Claude on the Max subscription (`claude -p`) first for any task Claude can do, grounded
   in the hub cost sidecar's amortized rate; metered APIs only for what Claude cannot serve and for non-LLM categories.
