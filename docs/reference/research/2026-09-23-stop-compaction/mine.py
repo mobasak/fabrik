@@ -9,9 +9,9 @@ For each turn end we record the shapes below and the operator's reply that follo
 from __future__ import annotations
 
 import collections
-import random
 import importlib.util
 import json
+import random
 import re
 import sys
 from pathlib import Path
@@ -196,7 +196,7 @@ for r in rows:
         "next_line": bool(nxt),
         "next_opdec": bool(OPDEC.search(nxt)),
         "next_opdec_grounded": bool(OPDEC.search(nxt) and (fgs._GATE_CLASS_RE.search(nxt) or fgs._GATE_EXEMPT_NAMED_RE.search(nxt))),
-        "ends_question": "?" in "\n".join(l for l in tail.splitlines()[-6:] if not l.lstrip().startswith(("STATE:", "GATE:", "DONE:", "FEEDBACK:"))),
+        "ends_question": "?" in "\n".join(ln for ln in tail.splitlines()[-6:] if not ln.lstrip().startswith(("STATE:", "GATE:", "DONE:", "FEEDBACK:"))),
         "asks": bool(QUESTION_ASK.search(tail)),
         "menu": bool(MENU.search(tail)),
         "context_excuse": bool(CONTEXT_EXCUSE.search(text)),

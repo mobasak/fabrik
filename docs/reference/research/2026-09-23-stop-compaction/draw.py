@@ -3,7 +3,9 @@
 Writes sample-opdec.json (80), sample-context.json (40) and sample-compact.json (40) into OUT_DIR. Those files hold raw
 transcript text and are never committed; samples.sha256 pins what the 2026-09-23 judges read.
 """
-import json, random, sys
+import json
+import random
+import sys
 from pathlib import Path
 
 src = Path(sys.argv[1] if len(sys.argv) > 1 else ".")  # the directory holding mine.py's samples2.json + compactions2.json

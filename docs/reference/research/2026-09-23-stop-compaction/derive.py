@@ -1,5 +1,8 @@
 """Re-derive every judged number in the stop-and-compaction spec from the committed verdict files."""
-import collections, json, pathlib
+import collections
+import json
+import pathlib
+
 D = pathlib.Path(__file__).parent
 o = json.loads((D / "verdict-opdec.json").read_text())
 c = json.loads((D / "verdict-context.json").read_text())

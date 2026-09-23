@@ -3,7 +3,10 @@
 Run over the judged context records' deciding quotes (red: STOP-EXCUSE, green: FALSE-MATCH) and over ordinary prose that
 merely mentions a session or a context (green fixtures raised by the round-3 review seat, A-O34).
 """
-import json, pathlib, re
+import json
+import pathlib
+import re
+
 D = pathlib.Path(__file__).parent
 _WHERE = r"(?:fresh|new|clean|separate)\s+(?:session|window|context|chat)"
 D4 = re.compile(
