@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — two kaizen upsert tests failed on master: they listed `tmp_path` whole (2026-09-24)
+
+- `tests/test_kaizen_collect_v2.py::test_upsert_leaves_no_tmp_residue` and `::test_upsert_replace_failure_leaves_the_log_untouched` listed every entry of `tmp_path` against a hand-kept exclusion list, and `tests/conftest.py`'s autouse isolation (2026-09-16 on) now plants its own dirs there, so both failed on every run. Each test now works in its own `tmp_path / "upsert"` directory and allows only the log in it; the stale `*.lock` exclusion is gone, since the log lock lives in `KAIZEN_LOCK_DIR`. Proven red by three mutants (a tmp left by a copy instead of a replace, a tmp leaked on a failed write, a stray `.lock` beside the log).
+
 ### Changed — the fleet contract carries the DECISION block and `# Compact instructions` (2026-09-24)
 
 - `templates/governance/CLAUDE.md` (distributed to every synced project) mirrors the hub's reviewed § FINAL OUTPUT text in BOTH of its § FINAL OUTPUT copies: the `DECISION NEEDED (ground: gate|underivable|owned)` block, written unfenced, with the closed gate-class list, the two examples, every rule of the old bar paragraph, and `NEXT:` templates that point `operator decision` at the block; the UNIVERSAL-markers index names the block; `# Compact instructions` closes the file. Hub decision ids are written `hub D-054` / `hub D-374`, since D-054 is a different row in two project ledgers.

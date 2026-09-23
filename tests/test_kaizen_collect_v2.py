@@ -3246,19 +3246,17 @@ def test_malformed_warn_counts_multiple_same_week_rows(tmp_path: Path) -> None:
 def test_upsert_leaves_no_tmp_residue(tmp_path: Path) -> None:
     """W19-4: the role log is the one kaizen artifact holding hand-authored
     cells — its rewrite goes through tmp + atomic replace, and a completed
-    upsert leaves no temp file behind."""
-    log = tmp_path / "log.md"
+    upsert leaves no temp file behind. It works in its OWN directory: tests/conftest.py's autouse
+    isolation plants its dirs in tmp_path, so listing tmp_path itself counts the fixture's files."""
+    work = tmp_path / "upsert"
+    work.mkdir()
+    log = work / "log.md"
     header = "| " + " | ".join(kc.COLUMNS) + " |"
     sep = "|" + "---|" * len(kc.COLUMNS)
     log.write_text("\n".join([header, sep]) + "\n", encoding="utf-8")
     assert kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
     assert "| 2026-08-19 |" in log.read_text()
-    leftovers = [
-        p.name
-        for p in tmp_path.iterdir()
-        if p.name not in ("log.md", "state-env", "events-env", "lock-env")
-        and not p.name.endswith(".lock")
-    ]
+    leftovers = [p.name for p in work.iterdir() if p.name != "log.md"]  # the log lock lives in KAIZEN_LOCK_DIR
     assert leftovers == [], leftovers
 
 
@@ -3270,7 +3268,9 @@ def test_upsert_replace_failure_leaves_the_log_untouched(
     with a warn. The pre-wave direct write_text had already truncated the file
     by this point (this test fails on that implementation: no os.replace to
     intercept, the row lands, the content changes)."""
-    log = tmp_path / "log.md"
+    work = tmp_path / "upsert"
+    work.mkdir()
+    log = work / "log.md"
     header = "| " + " | ".join(kc.COLUMNS) + " |"
     sep = "|" + "---|" * len(kc.COLUMNS)
     original = "\n".join([header, sep]) + "\n"
@@ -3291,12 +3291,7 @@ def test_upsert_replace_failure_leaves_the_log_untouched(
         "the original log must survive a failed replace byte-for-byte"
     )
     assert "row skipped" in buf.getvalue()
-    leftovers = [
-        p.name
-        for p in tmp_path.iterdir()
-        if p.name not in ("log.md", "state-env", "events-env", "lock-env")
-        and not p.name.endswith(".lock")
-    ]
+    leftovers = [p.name for p in work.iterdir() if p.name != "log.md"]  # the log lock lives in KAIZEN_LOCK_DIR
     assert leftovers == [], "the failed write cleans up its unique tmp"
 
 
