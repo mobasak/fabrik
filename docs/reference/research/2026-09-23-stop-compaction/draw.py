@@ -1,0 +1,18 @@
+"""Draw the judged samples from the miner's reservoirs (seed 923): run mine.py first, then this beside its outputs.
+
+Writes sample-opdec.json (80), sample-context.json (40) and sample-compact.json (40) into OUT_DIR. Those files hold raw
+transcript text and are never committed; samples.sha256 pins what the 2026-09-23 judges read.
+"""
+import json, random, sys
+from pathlib import Path
+
+src = Path(sys.argv[1] if len(sys.argv) > 1 else ".")  # the directory holding mine.py's samples2.json + compactions2.json
+out = Path(sys.argv[2] if len(sys.argv) > 2 else ".")
+rng = random.Random(923)
+s = json.loads((src / "samples2.json").read_text())
+c = json.loads((src / "compactions2.json").read_text())
+cc = [x for x in c if x["first_after"] and x["summary_tail"]]
+for name, rows in (("opdec", rng.sample(s["next_opdec"], 80)), ("context", rng.sample(s["context_excuse"], 40)), ("compact", rng.sample(cc, 40))):
+    for i, r in enumerate(rows):
+        r["id"] = f"{name[0].upper()}{i + 1:02d}"
+    (out / f"sample-{name}.json").write_text(json.dumps(rows, indent=1))

@@ -1,0 +1,748 @@
+[
+ {
+  "id": "O01",
+  "verdict": "FALSE",
+  "shape": "say-the-word",
+  "reply_unneeded": "YES",
+  "quote": "awaiting your go",
+  "repo": "-opt-trade-intelligence",
+  "session": "37887efc-b5b9-4c00-b0f9-1590ad4b58c7",
+  "ts": "2026-08-13T12:59:13.326Z"
+ },
+ {
+  "id": "O02",
+  "verdict": "FALSE",
+  "shape": "menu",
+  "reply_unneeded": "YES",
+  "quote": "the receipt's \u00a7 BLOCKED names two options",
+  "repo": "-opt-fabrik",
+  "session": "4e90716e-696b-4ddf-90ab-70e30f51f294",
+  "ts": "2026-09-10T12:54:43.342Z"
+ },
+ {
+  "id": "O03",
+  "verdict": "OWNED",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "place the daily janitor cron line",
+  "repo": "-opt-fabrik",
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "ts": "2026-09-08T12:43:59.419Z"
+ },
+ {
+  "id": "O04",
+  "verdict": "GATE",
+  "reply_unneeded": "NO",
+  "quote": "touches tryton-crm's lane",
+  "repo": "-opt-trade-intelligence",
+  "session": "1991fa9b-fc01-4eba-a3b0-c5d04349c135",
+  "ts": "2026-08-28T23:52:24.502Z"
+ },
+ {
+  "id": "O05",
+  "verdict": "FALSE",
+  "shape": "menu",
+  "reply_unneeded": "YES",
+  "quote": "new remediation plan (recommended) vs annotating",
+  "repo": "-opt-trade-intelligence",
+  "session": "37887efc-b5b9-4c00-b0f9-1590ad4b58c7",
+  "ts": "2026-09-15T09:21:46.095Z"
+ },
+ {
+  "id": "O06",
+  "verdict": "UNDERIVABLE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "build ShipmentIn ... or accept inbound customs in TI",
+  "repo": "-opt-tryton-crm",
+  "session": "a0cc0bfb-7c0f-4b90-aba4-f901fd1c3501",
+  "ts": "2026-08-29T23:43:16.494Z"
+ },
+ {
+  "id": "O07",
+  "verdict": "OWNED",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "ground (3) of the operator decision bar",
+  "repo": "-opt-youtube",
+  "session": "50328fe3-24e5-489b-b2ff-74b80bc12a81",
+  "ts": "2026-09-10T18:05:07.148Z"
+ },
+ {
+  "id": "O08",
+  "verdict": "FALSE",
+  "shape": "awaiting-nothing",
+  "reply_unneeded": "YES",
+  "quote": "none open on my lane",
+  "repo": "-opt-fabrik-lib",
+  "session": "67ccc993-3fda-4dcd-a392-4531f01c6e5d",
+  "ts": "2026-09-15T09:57:55.873Z"
+ },
+ {
+  "id": "O09",
+  "verdict": "FALSE",
+  "shape": "say-the-word",
+  "reply_unneeded": "YES",
+  "quote": "doc rev 22 + D-351 on your word",
+  "repo": "-opt-fabrik",
+  "session": "dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e",
+  "ts": "2026-09-22T22:21:34.053Z"
+ },
+ {
+  "id": "O10",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "money and data changes live",
+  "repo": "-opt-trade-intelligence",
+  "session": "1991fa9b-fc01-4eba-a3b0-c5d04349c135",
+  "ts": "2026-08-13T14:20:41.540Z"
+ },
+ {
+  "id": "O11",
+  "verdict": "OWNED",
+  "reply_unneeded": "NO",
+  "quote": "ground 3 \u2014 it is your design call on a command",
+  "repo": "-opt-fabrik",
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "ts": "2026-09-02T19:49:18.500Z"
+ },
+ {
+  "id": "O12",
+  "verdict": "UNDERIVABLE",
+  "reply_unneeded": "NO",
+  "quote": "95 plus a burst-aware projection, or 95 alone",
+  "repo": "-opt-fabrik",
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "ts": "2026-09-03T20:22:10.147Z"
+ },
+ {
+  "id": "O13",
+  "verdict": "FALSE",
+  "shape": "menu",
+  "reply_unneeded": "YES",
+  "quote": "deep-research recovery, or the degraded Firecrawl leg",
+  "repo": "-opt-brand-identiy-creator",
+  "session": "a79679a4-f4f1-40ac-bef6-08f216442cf2",
+  "ts": "2026-08-14T21:07:31.071Z"
+ },
+ {
+  "id": "O14",
+  "verdict": "FALSE",
+  "shape": "menu",
+  "reply_unneeded": "YES",
+  "quote": "accept the TaskStop comment ... or authorise a stamp",
+  "repo": "-opt-fabrik",
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "ts": "2026-09-19T11:54:43.955Z"
+ },
+ {
+  "id": "O15",
+  "verdict": "OWNED",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "ledger-retention spec still awaits your go",
+  "repo": "-opt-fabrik",
+  "session": "4e90716e-696b-4ddf-90ab-70e30f51f294",
+  "ts": "2026-09-03T08:35:07.175Z"
+ },
+ {
+  "id": "O16",
+  "verdict": "UNDERIVABLE",
+  "reply_unneeded": "NO",
+  "quote": "awaiting iterative-image-editor-19's ledger",
+  "repo": "-opt-fabrik",
+  "session": "4e90716e-696b-4ddf-90ab-70e30f51f294",
+  "ts": "2026-09-13T08:10:38.134Z"
+ },
+ {
+  "id": "O17",
+  "verdict": "FALSE",
+  "shape": "say-the-word",
+  "reply_unneeded": "YES",
+  "quote": "say the word and I'll open the spec",
+  "repo": "-opt-fabrik-lib",
+  "session": "610c3b1c-a5ef-4ba0-a662-f3f87399a58b",
+  "ts": "2026-08-30T20:15:14.803Z"
+ },
+ {
+  "id": "O18",
+  "verdict": "FALSE",
+  "shape": "say-the-word",
+  "reply_unneeded": "YES",
+  "quote": "NON-CONVERGENCE escalation) \u2014 on your word",
+  "repo": "-opt-fabrik",
+  "session": "dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e",
+  "ts": "2026-09-10T08:53:17.401Z"
+ },
+ {
+  "id": "O19",
+  "verdict": "GATE",
+  "reply_unneeded": "NO",
+  "quote": "this is the design approval gate",
+  "repo": "-opt-transdoc",
+  "session": "35797342-fb5a-429f-b8c7-0f651cb81927",
+  "ts": "2026-08-27T20:14:11.197Z"
+ },
+ {
+  "id": "O20",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "deploy quota-governance to the VPS fleet",
+  "repo": "-opt-fabrik",
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "ts": "2026-08-30T14:54:36.786Z"
+ },
+ {
+  "id": "O21",
+  "verdict": "OWNED",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "raising that cap is the fastest relief",
+  "repo": "-opt-fabrik",
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "ts": "2026-09-04T13:08:47.006Z"
+ },
+ {
+  "id": "O22",
+  "verdict": "GATE",
+  "reply_unneeded": "NO",
+  "quote": "this is the design approval gate, so I've stopped",
+  "repo": "-opt-web-ecommerce-factory",
+  "session": "86cf0e31-98b4-4156-bce7-6b47d64cdc8c",
+  "ts": "2026-08-25T17:09:36.486Z"
+ },
+ {
+  "id": "O23",
+  "verdict": "FALSE",
+  "shape": "awaiting-nothing",
+  "reply_unneeded": "YES",
+  "quote": "Awaiting your reply",
+  "repo": "-opt-youtube",
+  "session": "dbd15ddd-7074-4ac0-81ad-e73671b90ff2",
+  "ts": "2026-09-01T21:40:27.352Z"
+ },
+ {
+  "id": "O24",
+  "verdict": "FALSE",
+  "shape": "awaiting-nothing",
+  "reply_unneeded": "YES",
+  "quote": "nothing else is touched until you say so",
+  "repo": "-opt-fabrik",
+  "session": "dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e",
+  "ts": "2026-09-22T09:10:32.950Z"
+ },
+ {
+  "id": "O25",
+  "verdict": "FALSE",
+  "shape": "menu",
+  "reply_unneeded": "YES",
+  "quote": "(a) run the re-scoped gap analysis ... (b) ... (c)",
+  "repo": "-opt-web-ecommerce-factory",
+  "session": "b612103c-fb2b-4bc3-8325-e4763823e5ba",
+  "ts": "2026-08-29T20:29:36.418Z"
+ },
+ {
+  "id": "O26",
+  "verdict": "OWNED",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "paused on your instruction while you change network",
+  "repo": "-opt-fabrik",
+  "session": "4e90716e-696b-4ddf-90ab-70e30f51f294",
+  "ts": "2026-09-23T19:00:24.162Z"
+ },
+ {
+  "id": "O27",
+  "verdict": "GATE",
+  "reply_unneeded": "NO",
+  "quote": "removing a live port forward needs your authorisation",
+  "repo": "-opt-fabrik",
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "ts": "2026-09-23T15:40:37.715Z"
+ },
+ {
+  "id": "O28",
+  "verdict": "FALSE",
+  "shape": "say-the-word",
+  "reply_unneeded": "YES",
+  "quote": "relay item 6 to the fabrik-lib AI",
+  "repo": "-opt-fabrik",
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "ts": "2026-08-12T06:39:38.744Z"
+ },
+ {
+  "id": "O29",
+  "verdict": "FALSE",
+  "shape": "menu",
+  "reply_unneeded": "YES",
+  "quote": "fold all of this into one pass rather than patching",
+  "repo": "-opt-transdoc",
+  "session": "35797342-fb5a-429f-b8c7-0f651cb81927",
+  "ts": "2026-08-20T16:26:57.582Z"
+ },
+ {
+  "id": "O30",
+  "verdict": "OWNED",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "adopt the six missing section types into the catalogue",
+  "repo": "-opt-web-ecommerce-factory",
+  "session": "b612103c-fb2b-4bc3-8325-e4763823e5ba",
+  "ts": "2026-08-29T21:33:19.445Z"
+ },
+ {
+  "id": "O31",
+  "verdict": "GATE",
+  "reply_unneeded": "NO",
+  "quote": "a contractual human gate \u2014 /fabrik-spec-review stops here",
+  "repo": "-opt-fabrik",
+  "session": "dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e",
+  "ts": "2026-09-06T11:28:12.042Z"
+ },
+ {
+  "id": "O32",
+  "verdict": "FALSE",
+  "shape": "awaiting-nothing",
+  "reply_unneeded": "YES",
+  "quote": "awaiting your reply",
+  "repo": "-opt-youtube",
+  "session": "4515c58d-27f5-41e3-8384-2935aafab01e",
+  "ts": "2026-08-30T21:30:11.405Z"
+ },
+ {
+  "id": "O33",
+  "verdict": "UNDERIVABLE",
+  "reply_unneeded": "NO",
+  "quote": "supply product TDS/CoA docs for extraction",
+  "repo": "-opt-web-ecommerce-factory",
+  "session": "86cf0e31-98b4-4156-bce7-6b47d64cdc8c",
+  "ts": "2026-08-12T11:25:33.012Z"
+ },
+ {
+  "id": "O34",
+  "verdict": "OWNED",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "resolve these three files (commit, stash, or restore)",
+  "repo": "-opt-youtube",
+  "session": "0e0ecb6f-8ab5-493d-8ce5-e16d7c8dd755",
+  "ts": "2026-08-29T02:27:48.596Z"
+ },
+ {
+  "id": "O35",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "stop there for your approval rather than chaining onward",
+  "repo": "-opt-fabrik",
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "ts": "2026-09-11T09:37:50.220Z"
+ },
+ {
+  "id": "O36",
+  "verdict": "UNDERIVABLE",
+  "reply_unneeded": "NO",
+  "quote": "appears to be in flight in a sibling lane already",
+  "repo": "-opt-fabrik-lib",
+  "session": "67ccc993-3fda-4dcd-a392-4531f01c6e5d",
+  "ts": "2026-08-26T18:56:05.944Z"
+ },
+ {
+  "id": "O37",
+  "verdict": "OWNED",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "ground (2): lane A must rule on who owns settled spend",
+  "repo": "-opt-iterative-image-editor",
+  "session": "bab3f244-3f89-4655-9b81-ae360be45e80",
+  "ts": "2026-09-10T13:28:14.723Z"
+ },
+ {
+  "id": "O38",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "Vendure (GPLv3, decided) vs Medusa (MIT)",
+  "repo": "-opt-web-ecommerce-factory",
+  "session": "b612103c-fb2b-4bc3-8325-e4763823e5ba",
+  "ts": "2026-08-30T13:19:55.159Z"
+ },
+ {
+  "id": "O39",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "GH013 rejects any push containing 1aafb7c0's token",
+  "repo": "-opt-fabrik",
+  "session": "dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e",
+  "ts": "2026-08-30T19:13:51.215Z"
+ },
+ {
+  "id": "O40",
+  "verdict": "FALSE",
+  "shape": "say-the-word",
+  "reply_unneeded": "YES",
+  "quote": "say the word and I'll ask wef3, via the hub relay",
+  "repo": "-opt-web-ecommerce-factory",
+  "session": "86cf0e31-98b4-4156-bce7-6b47d64cdc8c",
+  "ts": "2026-09-02T09:24:40.002Z"
+ },
+ {
+  "id": "O41",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "~seconds of ingress loss for traefik",
+  "repo": "-opt-fabrik",
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "ts": "2026-09-04T23:33:51.081Z"
+ },
+ {
+  "id": "O42",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "approve \u00a7 5 (item 1, the hard round cap, first)",
+  "repo": "-opt-fabrik",
+  "session": "dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e",
+  "ts": "2026-09-21T09:49:38.940Z"
+ },
+ {
+  "id": "O43",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "operator decision stands: first /fabrik-release cut",
+  "repo": "-opt-fabrik",
+  "session": "dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e",
+  "ts": "2026-08-09T15:21:28.848Z"
+ },
+ {
+  "id": "O44",
+  "verdict": "FALSE",
+  "shape": "awaiting-nothing",
+  "reply_unneeded": "YES",
+  "quote": "no action needed; safe to close the window",
+  "repo": "-opt-youtube",
+  "session": "50328fe3-24e5-489b-b2ff-74b80bc12a81",
+  "ts": "2026-08-31T10:24:39.962Z"
+ },
+ {
+  "id": "O45",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "approve generating the 8 heroes ... ($1.232)",
+  "repo": "-opt-web-ecommerce-factory",
+  "session": "86cf0e31-98b4-4156-bce7-6b47d64cdc8c",
+  "ts": "2026-08-11T07:19:53.902Z"
+ },
+ {
+  "id": "O46",
+  "verdict": "FALSE",
+  "shape": "say-the-word",
+  "reply_unneeded": "YES",
+  "quote": "T\u00dc\u0130K watch-list re-driven now to clear the staleness",
+  "repo": "-opt-trade-intelligence",
+  "session": "37887efc-b5b9-4c00-b0f9-1590ad4b58c7",
+  "ts": "2026-09-15T14:00:25.852Z"
+ },
+ {
+  "id": "O47",
+  "verdict": "GATE",
+  "reply_unneeded": "NO",
+  "quote": "ground (1): approve the v28 UI contract when quota returns",
+  "repo": "-opt-brand-identiy-creator",
+  "session": "a79679a4-f4f1-40ac-bef6-08f216442cf2",
+  "ts": "2026-09-05T19:37:52.549Z"
+ },
+ {
+  "id": "O48",
+  "verdict": "GATE",
+  "reply_unneeded": "NO",
+  "quote": "the provisioner's distinct IndexNow key",
+  "repo": "-opt-web-ecommerce-factory",
+  "session": "a3d02ca4-d266-480d-82f1-15d9930ecfe7",
+  "ts": "2026-09-16T18:49:11.457Z"
+ },
+ {
+  "id": "O49",
+  "verdict": "OWNED",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "routes to the sentinel (their module); nothing owed",
+  "repo": "-opt-fabrik-lib",
+  "session": "610c3b1c-a5ef-4ba0-a662-f3f87399a58b",
+  "ts": "2026-09-02T04:00:18.086Z"
+ },
+ {
+  "id": "O50",
+  "verdict": "GATE",
+  "reply_unneeded": "NO",
+  "quote": "promote check_feedback_duty from warn_only to blocking",
+  "repo": "-opt-fabrik",
+  "session": "dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e",
+  "ts": "2026-08-27T21:44:21.000Z"
+ },
+ {
+  "id": "O51",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "M1\u2192M2 variance sign-off is yours to trigger",
+  "repo": "-opt-fabrik",
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "ts": "2026-09-10T10:38:35.795Z"
+ },
+ {
+  "id": "O52",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "small-plan profile across fabrik-plan-after-chat ... on your word",
+  "repo": "-opt-fabrik",
+  "session": "dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e",
+  "ts": "2026-09-06T17:37:12.113Z"
+ },
+ {
+  "id": "O53",
+  "verdict": "OWNED",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "Still paused, as you asked, while you change network",
+  "repo": "-opt-fabrik",
+  "session": "4e90716e-696b-4ddf-90ab-70e30f51f294",
+  "ts": "2026-09-23T19:00:06.121Z"
+ },
+ {
+  "id": "O54",
+  "verdict": "UNDERIVABLE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "what did the command print, and did Volkan see",
+  "repo": "-opt-fabrik",
+  "session": "4e90716e-696b-4ddf-90ab-70e30f51f294",
+  "ts": "2026-09-09T14:39:27.771Z"
+ },
+ {
+  "id": "O55",
+  "verdict": "OWNED",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "harden the canonical pause-state module ... or terminal",
+  "repo": "-opt-fabrik-lib",
+  "session": "610c3b1c-a5ef-4ba0-a662-f3f87399a58b",
+  "ts": "2026-08-28T22:59:21.490Z"
+ },
+ {
+  "id": "O56",
+  "verdict": "UNDERIVABLE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "once you give me a CIF value and Incoterm",
+  "repo": "-opt-trade-intelligence",
+  "session": "1991fa9b-fc01-4eba-a3b0-c5d04349c135",
+  "ts": "2026-08-27T10:22:05.659Z"
+ },
+ {
+  "id": "O57",
+  "verdict": "FALSE",
+  "shape": "awaiting-nothing",
+  "reply_unneeded": "YES",
+  "quote": "NEXT:** awaiting your reply",
+  "repo": "-opt-youtube",
+  "session": "b019f418-a5b2-421c-8346-8f344112a2c4",
+  "ts": "2026-08-29T01:08:54.949Z"
+ },
+ {
+  "id": "O58",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "/fabrik-release blocks on it",
+  "repo": "-opt-web-ecommerce-factory",
+  "session": "86cf0e31-98b4-4156-bce7-6b47d64cdc8c",
+  "ts": "2026-08-15T13:14:56.548Z"
+ },
+ {
+  "id": "O59",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "file the reviewer-gate fix ... or leave the roster as-is",
+  "repo": "-opt-fabrik",
+  "session": "dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e",
+  "ts": "2026-08-12T03:19:45.812Z"
+ },
+ {
+  "id": "O60",
+  "verdict": "OWNED",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "sudo systemsetup -setremotelogin on",
+  "repo": "-opt-fabrik",
+  "session": "4e90716e-696b-4ddf-90ab-70e30f51f294",
+  "ts": "2026-09-09T09:18:43.133Z"
+ },
+ {
+  "id": "O61",
+  "verdict": "FALSE",
+  "shape": "say-the-word",
+  "reply_unneeded": "YES",
+  "quote": "then Phase E, or the resume block on your word",
+  "repo": "-opt-fabrik",
+  "session": "dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e",
+  "ts": "2026-09-14T17:23:44.149Z"
+ },
+ {
+  "id": "O62",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "changes selection for every task type's callers",
+  "repo": "-opt-fabrik",
+  "session": "4e90716e-696b-4ddf-90ab-70e30f51f294",
+  "ts": "2026-09-05T15:48:42.465Z"
+ },
+ {
+  "id": "O63",
+  "verdict": "GATE",
+  "reply_unneeded": "NO",
+  "quote": "deploy quota-governance to the VPS fleet",
+  "repo": "-opt-fabrik",
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "ts": "2026-08-30T15:33:16.546Z"
+ },
+ {
+  "id": "O64",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "present the ask\u2194spec table for your approval",
+  "repo": "-opt-web-ecommerce-factory",
+  "session": "a3d02ca4-d266-480d-82f1-15d9930ecfe7",
+  "ts": "2026-09-11T17:17:37.386Z"
+ },
+ {
+  "id": "O65",
+  "verdict": "OWNED",
+  "reply_unneeded": "NO",
+  "quote": "govern the ungoverned ~/.claude/agents/ surface",
+  "repo": "-opt-fabrik",
+  "session": "dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e",
+  "ts": "2026-08-27T19:58:08.050Z"
+ },
+ {
+  "id": "O66",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "ground 1, human gate) \u2014 three one-liners",
+  "repo": "-opt-iterative-image-editor--claude-worktrees-store-content-set",
+  "session": "35204643-3618-4c94-844a-6ed6a094216a",
+  "ts": "2026-09-18T19:55:24.715Z"
+ },
+ {
+  "id": "O67",
+  "verdict": "OWNED",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "tell me the role for this window (infra \u00b7 fleet \u00b7 intel)",
+  "repo": "-opt-fabrik",
+  "session": "18aff27c-e2c8-4b70-a0ea-58f839c498e8",
+  "ts": "2026-09-03T22:56:22.871Z"
+ },
+ {
+  "id": "O68",
+  "verdict": "OWNED",
+  "reply_unneeded": "NO",
+  "quote": "say the word and I'll spec the extraction",
+  "repo": "-opt-fabrik",
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "ts": "2026-09-04T12:26:26.746Z"
+ },
+ {
+  "id": "O69",
+  "verdict": "FALSE",
+  "shape": "say-the-word",
+  "reply_unneeded": "YES",
+  "quote": "say go and I'll trace where the ~146 spec rows went",
+  "repo": "-opt-fabrik",
+  "session": "4e90716e-696b-4ddf-90ab-70e30f51f294",
+  "ts": "2026-09-02T10:43:21.217Z"
+ },
+ {
+  "id": "O70",
+  "verdict": "FALSE",
+  "shape": "say-the-word",
+  "reply_unneeded": "YES",
+  "quote": "all $0, all reversible",
+  "repo": "-opt-seo",
+  "session": "bb0c0dca-0389-4545-a809-4c6408f65abd",
+  "ts": "2026-08-11T09:34:55.639Z"
+ },
+ {
+  "id": "O71",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "present the ask\u2194spec table for your approval",
+  "repo": "-opt-web-ecommerce-factory",
+  "session": "a3d02ca4-d266-480d-82f1-15d9930ecfe7",
+  "ts": "2026-09-11T17:46:54.860Z"
+ },
+ {
+  "id": "O72",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "a contractual human act, not mine to fire",
+  "repo": "-opt-fabrik",
+  "session": "4e90716e-696b-4ddf-90ab-70e30f51f294",
+  "ts": "2026-09-02T08:28:09.875Z"
+ },
+ {
+  "id": "O73",
+  "verdict": "FALSE",
+  "shape": "awaiting-nothing",
+  "reply_unneeded": "YES",
+  "quote": "close SB-002 \u2014 awaiting your reply",
+  "repo": "-opt-fabrik-lib",
+  "session": "67ccc993-3fda-4dcd-a392-4531f01c6e5d",
+  "ts": "2026-09-10T10:23:35.162Z"
+ },
+ {
+  "id": "O74",
+  "verdict": "FALSE",
+  "shape": "say-the-word",
+  "reply_unneeded": "YES",
+  "quote": "your call on committing the untracked ... design spec",
+  "repo": "-opt-fabrik-lib",
+  "session": "413b420e-3b36-4d13-b4f6-ee3f71f98de2",
+  "ts": "2026-09-12T15:30:43.910Z"
+ },
+ {
+  "id": "O75",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "keeps flywheel recording intact",
+  "repo": "-opt-fabrik",
+  "session": "4e90716e-696b-4ddf-90ab-70e30f51f294",
+  "ts": "2026-09-06T17:27:01.312Z"
+ },
+ {
+  "id": "O76",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "will not do without your word: commit anything",
+  "repo": "-opt-fabrik",
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "ts": "2026-09-03T20:30:31.560Z"
+ },
+ {
+  "id": "O77",
+  "verdict": "GATE",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "present the ask\u2194spec table for your approval",
+  "repo": "-opt-web-ecommerce-factory",
+  "session": "a3d02ca4-d266-480d-82f1-15d9930ecfe7",
+  "ts": "2026-09-11T14:55:57.056Z"
+ },
+ {
+  "id": "O78",
+  "verdict": "FALSE",
+  "shape": "say-the-word",
+  "reply_unneeded": "NO",
+  "quote": "it is infra's beat, so it would route there",
+  "repo": "-opt-fabrik",
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "ts": "2026-09-09T08:32:33.915Z"
+ },
+ {
+  "id": "O79",
+  "verdict": "FALSE",
+  "shape": "say-the-word",
+  "reply_unneeded": "YES",
+  "quote": "say go and I'll trace where the ~146 spec rows went",
+  "repo": "-opt-fabrik",
+  "session": "4e90716e-696b-4ddf-90ab-70e30f51f294",
+  "ts": "2026-09-02T10:43:21.217Z"
+ },
+ {
+  "id": "O80",
+  "verdict": "OWNED",
+  "reply_unneeded": "UNKNOWN",
+  "quote": "the orchestrator commits it with the governance deltas",
+  "repo": "-opt-transdoc",
+  "session": "fb82914d-25f6-477e-b664-652941a21612",
+  "ts": "2026-08-25T11:26:51.797Z"
+ }
+]

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — spec: premature stops and compaction survival, CONVERGED (D-371–D-376) (2026-09-23)
+
+- `docs/superpowers/specs/2026-09-23-stop-and-compaction-enforcement-design.md`. Measured first: 5,442 of 25,412 interactive turn ends in 45 days defer to the operator, and 26 of a uniform random 80 (32.5%) are false stops. 9 of 25 judged compactions with no live command run diverged, 0 of 12 with one.
+- The design: a deterministic DEFERRAL shape in the Stop hook's stall lane (same 3-attempt valve), a four-line DECISION block as the only legitimate hand-off, a compact-time WHERE YOU ARE block rebuilt from records, old anchors folded into one line, and `# Compact instructions` in both contracts. It chose approach C over a per-stop model judge and prose-only, 3/3 on a blind panel.
+- Two operator rulings recorded late: "do not act without asking me" (D-373) and "i never use a fresh session" (D-374).
+- Evidence committed beside it: `docs/reference/research/2026-09-23-stop-compaction/` (the miner, `derive.py`, per-record verdicts, sample hashes; raw transcript samples stay out of git) and the research ledger `docs/reference/research/2026-09-23-stop-and-compaction-ledger.md` (41 rows, 0 refused).
+
 ### Fixed — One WordPress refusal text, two red test fixtures, and four docstrings that described code that is not there (2026-09-23)
 - **`fabrik scaffold --type wordpress` and `fabrik apply` on a WordPress project stopped telling users to run the `wpf` CLI.** `/opt/wpf` was archived to `/opt/archived/wpf` and its CLI no longer exists, yet three hand-kept copies of the refusal still recommended it (`cli.py` twice, `deploy_router.py`). All four sites, `create_project` included, now print one constant, `scaffold.WORDPRESS_REFUSAL`, and `TestWordpressRefusalIsOneText` (4 tests, all red at HEAD) holds them to it. Two stale comments went with them (`spec_generator.py`, `_TYPE_SCAFFOLDERS`). Mail 01M332X97K1D4BE5ZFCKJNBBGR.
 - **`tests/test_scaffold_logging.py`: 13 of 33 red at HEAD, 33 of 33 green.** The fixture hand-listed the scaffolder's Python templates and missed `glitchtip_init.py`; it now copies the real `templates/scaffold/python/` whole, so a template the scaffolder learns to read cannot go missing again. Mail 01M32AZ3Z10TPJ9N8PC31B0ZX9.
