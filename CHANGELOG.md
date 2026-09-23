@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules(saas/60-saas-ui): file 26 of the currency pass, to the 11-row bar (D-366) (2026-09-23)
+
+- The SaaS UI pack now matches what the saas-skeleton scaffold emits: brand tokens map into the scaffold's shadcn
+  variables, the app lives under `/app`, the theme hook is set before first paint, and the scaffold's placeholder
+  shell, unwired `I18nProvider` and missing test devDeps are named as first-ticket work.
+- The house identity (ocoron fonts, dark default, shadow rule, voice) applies only to a project that declares it (D-051).
+- Auth rows follow the fleet IdP: it generates no magic link and answers `GET /auth/passwordless/verify` with JSON
+  `401`/`403` (the frontend maps them to two states), `AUTH_WEB_LOGIN_REDIRECT` replaces its `/` default, and `/admin` goes
+  on its own hostname behind Authelia, never on the public app domain.
+- Billing management goes through a per-click Paddle portal session; the Lighthouse box asks for TBT in the lab and INP in
+  the field; drafts are keyed by user and tenant; the retired Traycer and Kilo mentions are gone; WCAG 3.3.7 is added.
+- 7 new `CLAIMS.yaml` rows and a 34-row research ledger; scaffold gaps mailed to fleet.
+
 ### Changed — /fabrik-review-scoped and the review-shaped units fan-outs run on the review-loop workflow (2026-09-23)
 
 - Each independent unit becomes one slice of the review-loop script: `/fabrik-review-scoped`'s three-reader floor is one three-finder unit, one refuter per unit executes every candidate, and later passes carry only units with an open claim. `subagents-core` routes every review-shaped units fan-out the same way; grounding, authoring and adjudication fan-outs stay on the `Agent` tool. `/fabrik-deploy-plan-review` keeps its every-round Opus finder on the riskiest unit (D-365).

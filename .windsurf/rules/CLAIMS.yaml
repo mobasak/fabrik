@@ -1788,3 +1788,59 @@ claims:
     verify: "/opt/fabrik/scripts/kilo-benchmarks/claude_p_cost.json (`amortized_per_mtok`, `window_start`/`window_end`, rebuilt by scripts/claude_p_cost.py) + https://platform.claude.com/docs/en/about-claude/pricing — re-read both; the claim holds while the amortized rate stays below the cheapest metered route in the bake-off browser"
     window_days: 90
     last_verified: 2026-09-23
+
+  - id: core-web-vitals-thresholds
+    pack: saas/60-saas-ui.md
+    kind: practice
+    claim: "Core Web Vitals 'good' thresholds are LCP ≤ 2.5 s, INP ≤ 200 ms and CLS ≤ 0.1, assessed at the 75th percentile of field page loads, segmented mobile/desktop"
+    verify: "https://web.dev/articles/vitals (WebFetch + brave, 2026-09-23; ledger ui-01..04)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: lighthouse-lab-has-no-inp
+    pack: saas/60-saas-ui.md
+    kind: practice
+    claim: "A Lighthouse navigation run (what Lighthouse CI runs) cannot measure INP — it needs a user interaction; the lab responsiveness proxy is Total Blocking Time, and INP is measured only in a timespan run or a scripted user flow (or in the field)"
+    verify: "https://developer.chrome.com/blog/inp-tools-2022 ; https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time (WebFetch + exa, 2026-09-23; ledger ui-10..13)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: wcag22-aa-criteria
+    pack: saas/60-saas-ui.md
+    kind: standard
+    claim: "WCAG 2.2 is the current W3C Recommendation (WCAG 3.0 is still a Working Draft); the pack cites 2.4.11 Focus Not Obscured (Minimum, AA), 2.5.8 Target Size (Minimum, AA, 24×24 CSS px or spacing), 3.3.8 Accessible Authentication (Minimum, AA) and 3.3.7 Redundant Entry (Level A)"
+    verify: "https://www.w3.org/WAI/standards-guidelines/wcag/ ; https://www.w3.org/TR/wcag-3.0/ ; the Understanding pages under https://www.w3.org/WAI/WCAG22/Understanding/ ; https://www.w3.org/WAI/standards-guidelines/wcag/new-in-22/ (exa + brave + WebFetch, 2026-09-23; ledger ui-05..09, op-04)"
+    window_days: 365
+    last_verified: 2026-09-23
+
+  - id: nextjs-font-self-hosting
+    pack: saas/60-saas-ui.md
+    kind: practice
+    claim: "`next/font/google` downloads font CSS and files at build time and self-hosts them, so the browser sends no requests to Google (`display` defaults to 'swap'); App Router layouts and pages are Server Components by default"
+    verify: "https://nextjs.org/docs/app/api-reference/components/font ; https://nextjs.org/docs/app/getting-started/server-and-client-components (WebFetch, 2026-09-23; ledger ui-14..16)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: tailwind-v4-css-first
+    pack: saas/60-saas-ui.md
+    kind: version
+    claim: "Tailwind CSS v4 is configured CSS-first (`@theme`), with no auto-detected `tailwind.config.js` (a JS config loads only via `@config`); theme values are CSS variables; breakpoints ship `max-*` variants — the saas-skeleton scaffold still emits Tailwind v3 with a `tailwind.config.ts`"
+    verify: "https://tailwindcss.com/docs/upgrade-guide ; https://tailwindcss.com/docs/responsive-design (WebFetch, 2026-09-23; ledger ui-17..20) + emit a saas-skeleton and read package.json"
+    window_days: 90
+    last_verified: 2026-09-23
+
+  - id: aria-apg-dialog-tooltip
+    pack: saas/60-saas-ui.md
+    kind: standard
+    claim: "WAI-ARIA APG: a modal dialog container has role=dialog and aria-modal=true, traps Tab focus and closes on Escape; a tooltip has role=tooltip, is referenced by its trigger's aria-describedby and dismisses on Escape"
+    verify: "https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/ ; https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/ (WebFetch, 2026-09-23; ledger ui-21..25)"
+    window_days: 365
+    last_verified: 2026-09-23
+
+  - id: paddle-customer-portal
+    pack: saas/60-saas-ui.md
+    kind: practice
+    claim: "Paddle Billing includes a Paddle-hosted customer portal by default (invoices, subscription management, payment details); an authenticated deep link is minted per customer via POST /customers/{customer_id}/portal-sessions, and sessions are temporary and must not be cached"
+    verify: "https://developer.paddle.com/concepts/sell/customer-portal/ ; https://developer.paddle.com/api-reference/customer-portals/create-customer-portal-session/ (exa + WebSearch, 2026-09-23; ledger ui-26..28)"
+    window_days: 180
+    last_verified: 2026-09-23

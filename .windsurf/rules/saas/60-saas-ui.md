@@ -1,12 +1,12 @@
 ---
 activation: glob
-globs: ["**/*.tsx", "**/*.jsx", "**/tailwind.config.*"]
+globs: ["**/*.tsx", "**/*.jsx", "**/tailwind.config.*", "**/app/globals.css"]
 description: SaaS UI patterns — navigation, components, dashboards, performance, billing UI, tenant UI, i18n
 trigger: glob
+currency_pass: 2026-09-23
 ---
 <!-- CONSUMER: Coding agents building SaaS frontend (Next.js/React)
      GOAL: SaaS UI patterns — navigation, dashboards, billing UI, tenant UI, performance, i18n
-     TRAYCER USAGE: Injects as Context File for frontend tickets in SaaS projects.
      AGENT USAGE: Follow verbatim when building SaaS UI components and pages. -->
 
 # SaaS UI Rules
@@ -22,7 +22,7 @@ UI is **designed and its truth frozen BEFORE it is built**, then **verified agai
 1. **Freeze the fields** — `/fabrik-data-contract` → `docs/data-contract.md` (every GUI field ↔ its DB column). A screen never shows a field absent from this file.
 2. **Freeze the screens** — `/fabrik-ui-design` → `docs/ui-design.md` (design-system-FIRST, then screen inventory + **minimal-click flows with a click budget** + IA + per-screen components/states/field-mapping). Build every screen against it verbatim; invent no screen/flow/component not listed.
 3. **Build with the toolchain** — see `docs/reference/gui-toolchain.md` (hub) for the verified stack: **shadcn MCP** (install real components, don't hand-write markup), the **`frontend-design`** skill (anti-slop: tokens + signature element + self-critique before CSS), and this design system for tokens/components.
-4. **Verify each built screen — a blocking loop to a no-op** (the UI analogue of `/fabrik-review`): **Playwright MCP** (open the running screen, read the a11y tree, click the flow, screenshot 375/768/1440) → the a11y/visual/token gate (`@axe-core/playwright` + `toHaveScreenshot` + design-token lint) → **`/design-review`**. Every finding FIXED or REFUTED; iterate until `found: 0, fixed: 0`.
+4. **Verify each built screen — a blocking loop to a no-op** (the UI analogue of `/fabrik-review`): **Playwright MCP** (open the running screen, read the a11y tree, click the flow, screenshot 375/768/1440) → the a11y/visual/token gate (`@axe-core/playwright` + `toHaveScreenshot` + design-token lint) → **`/design-review`**. Every finding FIXED or REFUTED; iterate until `found: 0, fixed: 0`. The scaffold emits none of this gate's devDeps (`@playwright/test`, `@axe-core/playwright`, `@lhci/cli`) or its configs — installing them is a named first ticket in the plan, since a deps-file edit needs a ticket's authority.
 
 The rules below are the *standards* the frozen design and the verification enforce.
 
@@ -56,23 +56,26 @@ our component stack couples every customer artifact to our toolchain.
 
 Key points for agents (token discipline — binding whichever system resolves):
 
-- **Design tokens:** CSS custom properties (`--color-*`, `--surface-*`, `--text-*`) or Tailwind theme equivalents. Never raw hex values, arbitrary colors, or hardcoded font names.
-- **Typography:** Space Grotesk (headings), Inter (body/UI), JetBrains Mono (code/data). No substitutions.
-- **Both dark and light mode are mandatory.** Dark is default. Detect OS `prefers-color-scheme` on first load; manual toggle in Settings; persist in `localStorage`. Switch via `[data-theme="light"]` on `<html>`.
-- **No box-shadows in dark mode.** Use `1px solid var(--border)`.
+- **Design tokens:** the resolved system's tokens (`tokens.css`) are mapped INTO the scaffold's shadcn semantic variables (`--background`, `--foreground`, `--primary`, `--muted`, `--border`, …) in `app/globals.css` — brand tokens feed shadcn's names; never rename shadcn's variables (every installed component reads them). The scaffold stores them as HSL channel triplets (`221 83% 53%`) read through `hsl(var(--x))`, so convert a brand hex to channels (or switch the Tailwind mapping to `var(--x)` with full colours) — a hex assigned to an `hsl()`-wrapped variable silently renders nothing. Tailwind theme values live in `tailwind.config.*` on the JS-config majors (what the scaffold emits — read `package.json` first) and in `@theme` CSS variables on the CSS-first major, which auto-detects no JS config. Never raw hex values, arbitrary colors, or hardcoded font names in components.
+- **Typography, default mode, elevation and voice come from the RESOLVED design system** — never from this pack. Judging a BIC-branded product against the house identity is itself a finding (D-051).
+- **Both dark and light mode are mandatory.** Resolve the mode as `localStorage`, else the resolved system's first-visit rule (ocoron: OS `prefers-color-scheme`, dark when the OS states none), with a manual toggle in Settings. Switch with ONE hook on `<html>` — the scaffold's Tailwind `darkMode: ["class"]` + `.dark`, or `data-theme="dark|light"` with `darkMode: ['selector', '[data-theme="dark"]']` (an ocoron project uses `data-theme`, which its CSS keys on) — set BEFORE first paint by an inline pre-hydration script (or `next-themes`), with `<html suppressHydrationWarning>`; a `localStorage` read after hydration flashes the wrong theme.
+- **When the resolved system is the house web identity (ocoron):** Space Grotesk (headings), Inter (body/UI), JetBrains Mono (code/data) with no substitutions; dark is the default; no box-shadows in dark mode — a 1px border instead (`border border-border` on the scaffold's shadcn mapping) — except the modal overlay shadow `ocoron-design-system.md` itself specifies.
 - **Component patterns** (cards, tags, pills, buttons, tabs, progress bars, KPI cards, data tables, forms) follow the canonical specs. Do not reinvent.
-- **Motion** follows the duration scale (`--motion-fast` through `--motion-deliberate`) and easing tokens. No bounce, no spring physics outside celebrations. See design system § Motion Language.
-- **Spacing** uses the token scale (`xs/sm/md/lg/xl/2xl`). No arbitrary pixel values.
-- **Density modes** (Comfortable/Compact/Spacious) apply to data-heavy views. See design system § Density Modes.
+- **Motion, spacing and density** follow the resolved system's scales — the names below are ocoron's, for a project that declares ocoron or the interim hybrid. Motion follows the duration scale (`--motion-fast` through `--motion-deliberate`) and easing tokens; no bounce, no spring physics outside celebrations (ocoron § Motion Language).
+- **Spacing** uses the token scale (ocoron: `xs/sm/md/lg/xl/2xl`). No arbitrary pixel values.
+- **Density modes** (ocoron: Comfortable/Compact/Spacious) apply to data-heavy views (ocoron § Density Modes).
 - **States** — every interactive component handles all enriched states (loading, empty, error, permission denied, success, partial success, disabled). See design system § States.
-- **Microcopy** follows the Ocoron Verbal Identity and Voice Across Surfaces table.
+- **Microcopy** follows the resolved system's verbal identity (ocoron: its Verbal Identity and Voice Across Surfaces table).
 
 ### Font Loading (Next.js)
+
+The example loads the house identity's three families; load the resolved system's families the same way.
 
 ```typescript
 // app/layout.tsx
 import { Space_Grotesk, Inter, JetBrains_Mono } from 'next/font/google';
-import { detectLanguage } from '@/lib/i18n/server';
+import { detectLanguage, loadTranslations, SUPPORTED } from '@/lib/i18n/server';
+import { I18nProvider } from '@/lib/i18n/I18nProvider';
 
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-heading', display: 'swap' });
 const inter = Inter({ subsets: ['latin'], variable: '--font-body', display: 'swap' });
@@ -80,13 +83,18 @@ const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mon
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const lang = await detectLanguage();
+  const { strings, fallback } = loadTranslations(lang);
   return (
-    <html lang={lang} className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable}`}>
-      <body>{children}</body>
+    <html lang={lang} suppressHydrationWarning className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable}`}>
+      <body>
+        <I18nProvider lang={lang} strings={strings} fallback={fallback} supported={SUPPORTED}>{children}</I18nProvider>
+      </body>
     </html>
   );
 }
 ```
+
+The scaffold's own `app/layout.tsx` mounts no `I18nProvider`, and `useI18n()` throws outside one — wiring it is part of the first UI ticket. MERGE the example into that layout rather than replacing it: keep its `./globals.css` import, `metadata` and `<Toaster />`, and map the font variables in `tailwind.config.*` (`fontFamily: { heading: ['var(--font-heading)'], body: ['var(--font-body)'], mono: ['var(--font-mono)'] }`) with `font-body` on `<body>`, or the fonts load and nothing uses them.
 
 `next/font` self-hosts the fonts at build time — no external CDN requests, no GDPR concern, optimal loading. Never use `<link>` to Google Fonts CDN.
 
@@ -94,7 +102,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
 ## Page Inventory (minimum viable SaaS)
 
-Every SaaS project must ship these pages. Traycer ensures each maps to a ticket during epic decomposition.
+Every SaaS project must ship these pages. The plan (`/fabrik-plan-after-chat`) maps each to a ticket.
 
 ### Public (unauthenticated)
 
@@ -103,50 +111,57 @@ Every SaaS project must ship these pages. Traycer ensures each maps to a ticket 
 | **Landing / marketing** | `/` | Value proposition + CTA. Never shown to authenticated users. |
 | **Pricing** | `/pricing` | All tiers side-by-side, feature matrix, annual/monthly toggle. |
 | **Login** | `/login` | FastAPI login (Pattern A, default — `fabrik-lib/fastapi-user-auth`). Legacy Supabase Auth (Pattern B) only if the project already runs on it. |
-| **Signup** | `/signup` | Registration. Redirects to onboarding after email verification. |
+| **Signup** | `/signup` | Registration. After email verification the user lands in the app — `/app/onboarding` while onboarding is neither completed nor dismissed, else `/app`. |
 | **Verify email** | `/verify-email` | *(password auth only)* "Check your email" — shown after signup. Displays sent-to address, resend button, change email link. User cannot enter the app until verified. Under passwordless: keep as a REDIRECT to `/login`, never a 404. |
 | **Forgot password** | `/forgot-password` | *(password auth only)* Email input → triggers reset flow. Under passwordless there is no password to reset — redirect to `/login`. |
 | **Reset password** | `/reset-password` | *(password auth only)* Token-validated form. Expires in 1h. Under passwordless: redirect to `/login`. |
-| **Magic-link landing** | `/login/link/[token]` | *(passwordless only)* Consumes the emailed token and establishes the session. Must render its own expired / already-used / wrong-browser states — this is where a user lands from a mail client, so it is frequently the FIRST page they ever see. |
-| **Unrequested-login notice** | `/security/unrequested` | *(passwordless only)* PUBLIC page an approval link points to when the browser opening it never requested the login (`binding_mismatch`). Explains what happened and what to do; it must be reachable without a session, because the person seeing it does not have one. |
+| **Magic-link states** | `/login?reason=invalid\|wrong-browser` | *(passwordless only)* The fleet IdP (`fastapi-user-auth`) generates NO link — its email carries a bare token and it has no base-URL setting — and its `GET /auth/passwordless/verify?token=…&mode=web` answers with JSON: `401` for unknown / expired / used (deliberately indistinguishable) and `403` for a browser that did not start the login (`binding_mismatch`, `core/35-security-auth.md`). So the project serves `/auth` from the app's OWN host (a Traefik `PathPrefix(`/auth`)` route to the backend, or a Next.js rewrite — the IdP's `__Host-` session cookies are host-only, so a separate IdP origin can never carry the session to the frontend), builds the link on that host, installs the module's `CsrfOriginMiddleware` (web mode requires it; the scaffold's `main.py` does not add it), and maps the `401`/`403` to these two frontend states — say what happened and offer "request a new link". A mail client is often where a user first arrives, so these states are frequently the FIRST page they see. |
 
-⚠️ **The four password rows above are NOT launch-blocking for a passwordless project.** The default
+⚠️ **The three *(password auth only)* rows above are NOT launch-blocking for a passwordless project.** The default
 IdP this pack names — `fabrik-lib/fastapi-user-auth` (Pattern A in `core/35-security-auth.md`) —
 ships `passwordless_enabled: bool = True` (`settings.py:38`), so treating `/forgot-password` as a
 required page contradicts the fleet's own default auth module. Read the project's auth mode first;
 `/signup` and `/verify-email` stay as REDIRECTS under passwordless rather than 404s, because links
-to them survive in old emails and bookmarks.
+to them survive in old emails and bookmarks (passwordless signs a new user up on their first login, so `/signup`
+has no form to show).
+
+### Legal (public, launch-blocking)
+
 | Page | Route | Why |
 |---|---|---|
 | **Terms of Service** | `/terms` | Required before accepting payment (see `88-saas-launch-checklist.md`). |
 | **Privacy Policy** | `/privacy` | Required by GDPR/KVKK + payment processors. |
+| **Cookie Policy** | `/cookies` | EU ePrivacy (`88-saas-launch-checklist.md` Phase 1). |
+| **Cookie consent** | banner, all locales | Opt-in, never assumed (`88-saas-launch-checklist.md` Phase 1). |
 
 ### Authenticated (core app)
 
+Routes follow the saas-skeleton scaffold: the app lives under `/app` (route group `app/(app)/app/`), settings under `/app/settings/`. Never add a parallel `/dashboard`. The scaffold ships ONE `/app/settings` placeholder page — split it into the sub-routes below and replace its in-app "Upgrade to Pro" card with Paddle Overlay Checkout for a first upgrade and the portal session for an existing subscription (`core/85-payments-billing.md`).
+
 | Page | Route | Purpose |
 |---|---|---|
-| **Dashboard** | `/dashboard` | Actionable overview: KPI cards, quick actions, recent activity. See § Dashboard Design below. |
-| **[Core feature pages]** | `/[domain]/*` | Project-specific — the product's primary workflow. Defined per epic. |
-| **Settings — Profile** | `/settings/profile` | Display name, email (change triggers verification), avatar, locale, timezone. |
-| **Settings — Organization** | `/settings/organization` | Org name, slug, logo, default currency, billing email. See § Multi-Tenant UI. |
-| **Settings — Team** | `/settings/team` | Member list, invite, role management. See § Multi-Tenant UI. |
-| **Settings — Billing** | `/settings/billing` | Current plan, usage, payment method, invoices. Redirects to Paddle Customer Portal. See § Billing & Subscription UI. |
-| **Settings — Notifications** | `/settings/notifications` | Per event-type × channel toggle (email, in-app, push). |
-| **Settings — Sessions** | `/settings/sessions` | Active sessions list, revoke individual sessions. |
-| **Onboarding** | `/onboarding` | 3-5 step wizard. First-time only, dismissible, tracks completion. See `88-saas-launch-checklist.md`. |
+| **Dashboard** | `/app` | Actionable overview: KPI cards, quick actions, recent activity. See § Dashboard Design below. |
+| **[Core feature pages]** | `/app/[domain]/*` | Project-specific — the product's primary workflow. Defined per epic. |
+| **Settings — Profile** | `/app/settings/profile` | Display name, email (change triggers verification), avatar, locale, timezone. |
+| **Settings — Organization** | `/app/settings/organization` | Org name, slug, logo, default currency, timezone, billing email. See § Multi-Tenant UI. |
+| **Settings — Team** | `/app/settings/team` | Member list, invite, role management. See § Multi-Tenant UI. |
+| **Settings — Billing** | `/app/settings/billing` | Current plan, next billing date, usage. Invoices, payment method, cancel and plan changes go to the Paddle-hosted customer portal through a session the backend mints per click (`POST /customers/{customer_id}/portal-sessions`) — never stored, cached or iframed (`core/85-payments-billing.md`). See § Billing & Subscription UI. |
+| **Settings — Notifications** | `/app/settings/notifications` | Per event-type × channel toggle (email, in-app, push). |
+| **Settings — Sessions** | `/app/settings/sessions` | Active sessions list, revoke individual sessions. |
+| **Onboarding** | `/app/onboarding` | A contextual checklist or 3-step wizard (`88-saas-launch-checklist.md`). First-time only, dismissible, tracks completion. See `88-saas-launch-checklist.md`. |
 
 ### Admin (admin role only)
 
 | Page | Route | Purpose |
 |---|---|---|
-| **Admin dashboard** | `/admin` | System health: worker status, queue depth, error rates. Behind Authelia 2FA. |
+| **Admin dashboard** | `/admin` | System health: worker status, queue depth, error rates. Its own hostname with `shape.is_admin_dashboard: true` there (Authelia 2FA); never that registrar on the public app domain — its rule is per-domain, so it would put `/`, `/pricing` and `/login` behind 2FA too. An in-app admin needs a second factor the fleet IdP does not have yet (`fastapi-user-auth` ships none), and any cross-tenant read a scoped role — never BYPASSRLS on the public app (`95-multi-tenant-saas.md`). |
 | **Admin — Users** | `/admin/users` | User management, impersonation (if needed). |
 
 **Rules:**
 - Every page in the public section must exist before go-live — these are launch-blocking.
 - Settings pages ship in Phase 2 (first 30 days) per `88-saas-launch-checklist.md`.
 - Admin pages are admin-role gated — regular users see nothing (hidden, not disabled).
-- Core feature pages are project-specific — Traycer defines them during epic-brief, not this pack.
+- Core feature pages are project-specific — the spec and plan define them (`/fabrik-spec` → `/fabrik-plan-after-chat`), not this pack.
 
 ---
 
@@ -163,9 +178,9 @@ to them survive in old emails and bookmarks.
 **Separate routes, not auth-gated same route:**
 
 - `/` is always the public landing page (marketing, value proposition, pricing CTA). May be a separate static deploy.
-- `/dashboard` is always the authenticated app entry point. Logged-in users never see `/`.
-- **Login redirects to `/dashboard`.** After successful auth (login, signup + verify, OAuth callback), redirect to `/dashboard`, never to `/`.
-- **Unauthenticated `/dashboard` access redirects to `/login`.** Middleware catches this — UX redirect only, not security gate (see `35-security-auth.md` § Next.js Defense-in-Depth).
+- `/app` is always the authenticated app entry point. Logged-in users never see `/`.
+- **Login redirects to `/app`.** After successful auth (login, signup + verify, magic link, OAuth callback), redirect to `/app` (or `/app/onboarding` while onboarding is neither completed nor dismissed), never to `/`. The fleet IdP's magic-link redirect defaults to `/` (`fastapi-user-auth` `web_login_redirect`) — set `AUTH_WEB_LOGIN_REDIRECT` in the BACKEND's env (the scaffold's root `.env.example` is frontend-only) and `docs/CONFIGURATION.md` — `/app`, which resolves on the app's own host once `/auth` is served there (see § Page Inventory (minimum viable SaaS), the magic-link row).
+- **Unauthenticated `/app` access redirects to `/login`.** The request proxy catches this — read the `next` major in `package.json` first: `middleware.ts` on majors before the Proxy rename, `proxy.ts` after it — the scaffold's pin predates the rename (see `core/35-security-auth.md` on a leftover `middleware.ts`), with a matcher that excludes `_next/*` — UX redirect only, not a security gate: every Server Component and Server Function still verifies the session itself (see `35-security-auth.md` § Next.js Defense-in-Depth).
 - Never show marketing content to authenticated users. Never render the landing page inside the app shell.
 
 ---
@@ -190,10 +205,10 @@ to them survive in old emails and bookmarks.
 
 ## Real-Time Updates
 
-- Use 30s `setInterval` + `fetch` polling for dashboard status updates. This is what production SaaS tools use.
+- Poll dashboard status every 30s — `router.refresh()` for server-rendered widgets, SWR or `useEffect` + `fetch` for client widgets — and pause while the tab is hidden. This is what production SaaS tools use.
 - Do NOT use WebSocket for dashboards — the complexity is not justified for data that changes every few seconds.
 - Reserve WebSocket for: real-time chat, collaborative editing, live notifications that must appear within 1s. If the data can be 30s stale, poll.
-- Auto-refresh endpoints return JSON; the client patches React state. Never reload the full page.
+- Never reload the full page.
 
 ---
 
@@ -230,9 +245,9 @@ For SaaS products with paid tiers (reference `88-saas-launch-checklist.md` and S
 
 ### Billing Settings
 
-- Current plan, next billing date, payment method summary.
-- Invoice history with download links.
-- Cancel flow: state the consequence clearly, offer alternatives (downgrade, pause), require confirmation.
+- Current plan, next billing date and usage, shown in-app.
+- Invoices, payment method, plan changes and cancellation go through the Paddle customer portal — a session the backend creates per click; never build custom billing-management UI (`core/85-payments-billing.md`). That is the Paddle lane; TRY lanes follow `core/85` (PayTR one-off payments have no portal).
+- Before handing off to cancel, state the consequence clearly, offer the alternatives the plan allows (downgrade, pause), and require explicit confirmation.
 
 ---
 
@@ -270,8 +285,8 @@ For SaaS products with tenant isolation (reference `95-multi-tenant-saas.md`):
 
 **Every SaaS page must be responsive from 375px to 2560px. No exceptions.** For the full breakpoint system, grid, and component behavior rules, see `ocoron-design-system.md` § Responsive Layout (RWD1–RWD10). Key points for SaaS:
 
-- **Mobile-first CSS.** Base styles target smallest viewport; `sm:`, `md:`, `lg:` layer up. Never write `max-width` queries.
-- **Sidebar:** full (240px) at `lg:` (1024px+), icon rail (56px) at `md:` (768px), hidden + hamburger below `md:`.
+- **Mobile-first CSS.** Base styles target smallest viewport; `sm:`, `md:`, `lg:` layer up. Never write `max-width` queries (`max-*` variants included) as the base layout.
+- **Sidebar:** full (240px) at `lg:` (1024px+), icon rail (56px) at `md:` (768px), hidden + hamburger below `md:`. The scaffold's `components/shell/AppShell.tsx` is a placeholder (a persistent 240px column from `md:`, no hamburger) — replace it in the first UI ticket.
 - **Data tables:** transform to card list OR horizontal scroll with sticky first column below `md:`. Unmodified desktop tables on phone viewports are banned.
 - **Modals:** become full-screen sheets below `sm:` (640px).
 - **Dashboard grids:** 1 column below `sm:`, 2 columns at `md:`, 3-4 columns at `lg:`.
@@ -282,7 +297,7 @@ For SaaS products with tenant isolation (reference `95-multi-tenant-saas.md`):
 ## Performance Budgets
 
 - Core Web Vitals targets (p75 field): LCP <= 2.5s, INP <= 200ms, CLS <= 0.1.
-- No render-blocking CSS/JS on the initial route; inline critical CSS, defer the rest.
+- Initial route: no third-party render-blocking scripts, fonts through `next/font`, and a small route CSS chunk — judged by the LCP budget, not by "zero render-blocking resources" (Next.js emits route CSS as stylesheets; its CSS inlining is experimental).
 - Apply route-level code splitting; lazy-load admin-only or rarely used UI.
 - Static assets (JS/CSS/fonts) must have explicit `Cache-Control`; user-specific API responses must not be publicly cached.
 
@@ -297,14 +312,15 @@ Target WCAG 2.2 AA as the baseline — non-negotiable. For detailed rules see `o
 - Interactive touch targets must meet WCAG 2.5.8 minimum size or spacing.
 - Modals: trap focus, support Escape, use `role="dialog"` with `aria-modal="true"`.
 - Tooltips: use `role="tooltip"` + `aria-describedby` on the trigger; support keyboard dismiss.
-- Do not block autofill or password managers (WCAG 3.3.8).
+- Login never makes the user solve, recall or transcribe something (WCAG 3.3.8): allow paste, password managers and OTP autofill, with `autocomplete` on auth fields (`email`, `one-time-code`, …; WCAG 1.3.5).
+- Never ask for the same information twice in one flow (WCAG 3.3.7, Level A) — onboarding pre-fills what signup collected.
 - Never use ARIA incorrectly — no ARIA is better than bad ARIA.
 
 ---
 
 ## Microcopy
 
-All user-facing text follows the Ocoron Verbal Identity (see design system § Voice Across Surfaces for word budgets per surface type):
+All user-facing text follows the resolved system's verbal identity (for ocoron, § Voice Across Surfaces sets word budgets per surface type):
 
 - Error messages: short, specific, actionable; avoid "invalid" — say what to fix and how.
 - Use interaction-neutral verbs: "select" not "click" or "tap".
@@ -321,11 +337,11 @@ All user-facing text follows the Ocoron Verbal Identity (see design system § Vo
 - In Server Components: `const t = await serverT();` from `@/lib/i18n/server`.
 - Language detection: `await detectLanguage()` reads cookie → Accept-Language header → defaults to `en`.
 - Language switching: `<LanguageSwitcher />` from `@/lib/i18n/LanguageSwitcher` — sets cookie + reloads.
-- Every user-visible string must use `t('key')` or `data-i18n` — no hardcoded English in JSX.
+- Every user-visible string must use `t('key')` — no hardcoded English in JSX (`data-i18n` attributes are for static HTML pages served by the i18n kit's JS loader, not React).
 - Adding a language: copy `public/i18n/en.json` → `public/i18n/<lang>.json`, AI-translate, then validate:
   - `python scripts/validate_i18n.py` — Level 1: structural checks (missing keys, placeholder mismatches, empty values). Free, instant.
-  - `python scripts/validate_i18n.py --validate <lang>` — Level 1 + 2 + 3: structural + back-translation (catches meaning loss) + native-speaker critique (catches tone/grammar). Auto-applies fixes via Kilo CLI.
-  - Full i18n kit (validate script, `_context.json`, snippets, JS loader): `templates/scaffold/i18n-kit/`.
+  - `python scripts/validate_i18n.py --validate <lang>` — Level 2 + 3 (back-translation, native-speaker critique) shell out to the Kilo CLI and a `kilo/…` model, a toolchain the fleet has retired (D-364) — never make them a gate; Level 1 is the gate. Review a new locale by hand (or with `claude -p`) until the validator is ported.
+  - Full i18n kit (validate script, `_context.json`, snippets, JS loader): `templates/i18n-kit/` (hub — the copy `scaffold.py` seeds; `templates/scaffold/i18n-kit/` is an older, divergent copy).
 - Locale-aware formatting: use `formatDate()`, `formatNumber()`, `formatCurrency()` from `useI18n()` — never hardcode date/number formats.
 - For RTL support, multilingual rules, and formatting rules see `ocoron-design-system.md` § Multilingual and RTL + § Date/Time/Currency Formatting.
 - See `templates/i18n-kit/docs/multilingual-plan.md` (hub — the copy `scaffold.py` actually seeds; landed in projects as `docs/reference/multilingual-plan.md`) for the full architecture, key naming convention, and anti-patterns.
@@ -336,13 +352,13 @@ All user-facing text follows the Ocoron Verbal Identity (see design system § Vo
 
 | Pattern | Use Instead |
 |---------|-------------|
-| Raw hex values or hardcoded colors | Design tokens (`--color-*`, `--surface-*`) or Tailwind theme |
+| Raw hex values or hardcoded colors | Semantic tokens (the scaffold's shadcn variables, fed by the resolved system) or the Tailwind theme |
 | Hardcoded font names in CSS/JSX | Font tokens (`--font-heading`, `--font-body`, `--font-mono`) |
 | `<link>` to Google Fonts CDN | `next/font` (self-hosted at build time) |
-| Arbitrary pixel spacing | Token scale (`xs/sm/md/lg/xl/2xl`) |
-| Box-shadows in dark mode | `1px solid var(--border)` |
-| Bounce/spring animations | Design system motion tokens (`--motion-*`, `--ease-default`) |
-| `console.log()` in production code | `pino` logger (see `55-observability.md`) |
+| Arbitrary pixel spacing | The resolved system's spacing scale (ocoron: `xs/sm/md/lg/xl/2xl`) |
+| Box-shadows in dark mode (house identity) | A 1px border (`border border-border`) |
+| Bounce/spring animations | The resolved system's motion tokens (ocoron: `--motion-*`, `--ease-default`) |
+| `console.log()` in production code | `pino` on the server (Server Components, route handlers); client code surfaces errors through the error boundary and toast, never the console (see `55-observability.md`) |
 | Marketing content shown to logged-in users | Gate on auth state; dashboard for authenticated |
 | WebSocket for dashboards | 30s polling with `fetch` |
 | `localStorage` / `sessionStorage` for auth tokens | HttpOnly cookies (Pattern A default; legacy Supabase SDK) — see `35-security-auth.md` |
@@ -360,7 +376,7 @@ All user-facing text follows the Ocoron Verbal Identity (see design system § Vo
 
 ## Related Rule Packs
 
-- `ocoron-design-system.md` — single source of truth for all visual and verbal patterns (tokens, components, motion, density, tables, forms, charts, states, notifications, AI patterns, accessibility, **responsive layout RWD1-RWD10**, multilingual, formatting, print/export)
+- `ocoron-design-system.md` — the house web identity (brand, voice, fonts) for a project that DECLARES it (D-051), and the structural reference every project may use for components, motion, density, tables, forms, charts, states, notifications, AI patterns, accessibility, **responsive layout RWD1-RWD10**, multilingual, formatting and print/export
 - `35-security-auth.md` — auth patterns (Pattern A / B), CSP, CORS, token storage
 - `55-observability.md` — no `console.log`, structured logging, health endpoints
 - `86-email-templates.md` — email/notification template patterns (MJML+Jinja2)
@@ -377,10 +393,10 @@ A UI component or page is done when all of the following are true:
 - [ ] All enriched states implemented (loading, empty, error, permission denied, success, partial, disabled) per design system § States.
 - [ ] Every form control has a programmatic label; errors are identified and suggest a fix.
 - [ ] Focus is managed correctly in modals and overlays; keyboard-only flow works end-to-end.
-- [ ] Lighthouse CI passes performance budgets (LCP, INP, CLS thresholds).
-- [ ] No render-blocking resources on the initial route.
+- [ ] Lighthouse CI passes the lab budgets (LCP, CLS, and TBT as the responsiveness proxy — a navigation run cannot measure INP); INP is confirmed at p75 in field data, or in a Lighthouse user-flow/timespan run before launch.
+- [ ] No third-party render-blocking scripts on the initial route; LCP within budget.
 - [ ] Optimistic updates have a rollback path and a visible retry on failure.
-- [ ] Microcopy follows Voice Across Surfaces word budgets and plain-language rules.
+- [ ] Microcopy follows the resolved system's verbal identity (ocoron: Voice Across Surfaces word budgets) and plain-language rules.
 - [ ] Design tokens used throughout — no raw hex values, hardcoded fonts, or arbitrary spacing.
 - [ ] Fonts loaded via `next/font` — no external CDN links.
 - [ ] Motion follows design system duration/easing tokens — no arbitrary `transition` values.
@@ -392,7 +408,7 @@ A UI component or page is done when all of the following are true:
 - [ ] Sidebar collapses to icon rail at `md:` and hides behind hamburger below `md:`.
 - [ ] Data tables use card transformation or sticky-column scroll on mobile viewports.
 - [ ] Modals render as full-screen sheets below `sm:` (640px).
-- [ ] Both dark and light mode functional. OS `prefers-color-scheme` detected; manual toggle in Settings; preference persists in `localStorage`.
+- [ ] Both dark and light mode functional. First visit follows the resolved system's rule (ocoron: OS `prefers-color-scheme`, dark when none); manual toggle in Settings; preference persists in `localStorage`; no theme flash on first paint.
 - [ ] Dashboard stat cards each answer a stated question; no card exceeds the 6-8 cap without progressive disclosure.
 - [ ] Infrastructure metrics (queue depth, worker PIDs, proxy stats) are admin-only.
 - [ ] Paywalled features show soft gate (locked + upgrade CTA), not hidden.
@@ -404,5 +420,8 @@ Every form/wizard/editor/AI-populated surface persists its full working state **
 change** (debounce ≤1s + flush on blur/hide/background) to durable browser storage (`localStorage`/IndexedDB); **restore is automatic and
 silent** on every return path (refresh, Back, reopened tab/app, crash, days-old session) — the
 user continues down to the last letter typed. The draft clears on exactly ONE event: successful
-creation/submission of the entity (or explicit user discard). Canonical detail:
-`core/ocoron-design-system.md` § Save Behavior.
+creation/submission of the entity (or explicit user discard). Key every draft by user, tenant and entity
+(`<userId>:<tenantId>:<entity>:<id|new>`), purge a user's drafts on logout and org switch, and never persist
+secrets or card fields — a shared browser must never restore someone else's draft. Canonical detail:
+`core/ocoron-design-system.md` § Save Behavior — except the key and the purge above, which win until that
+section is corrected (backlog FILE 26).
