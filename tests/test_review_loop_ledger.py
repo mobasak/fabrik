@@ -231,3 +231,96 @@ def test_an_identical_repeat_is_one_claim_and_an_orphan_seat_cannot_pass_for_a_r
     ]
     labels = [s["label"] for s in json.loads(out.read_text())["seats"]]
     assert labels == ["a9", "orphan:a9"], labels
+
+
+def test_every_seat_carries_its_tokens_counted_once_per_message(tmp_path: Path) -> None:
+    """Row 5b chunk 3 (D-358): a seat's tokens come from its own transcript — every assistant message's `usage`,
+    counted ONCE per message id (a streamed message is logged more than once). No collector is needed: Claude
+    Code's token metrics label a user-defined agent `custom`, while the transcript names the seat."""
+    d = tmp_path / "wf_t"
+    d.mkdir()
+    (d / "journal.jsonl").write_text(
+        json.dumps({"type": "started", "agentId": "a1", "label": "find:A:sonnet"})
+        + "\n"
+        + json.dumps({"type": "result", "agentId": "a1", "result": {"candidates": []}})
+        + "\n"
+    )
+    u1 = {
+        "input_tokens": 10,
+        "output_tokens": 100,
+        "cache_read_input_tokens": 1000,
+        "cache_creation_input_tokens": 50,
+    }
+    u2 = {
+        "input_tokens": 5,
+        "output_tokens": 40,
+        "cache_read_input_tokens": 2000,
+        "cache_creation_input_tokens": 0,
+    }
+    lines = [
+        {"timestamp": "2026-09-23T06:00:00Z", "message": {"id": "m1", "usage": u1}},
+        {"timestamp": "2026-09-23T06:00:01Z", "message": {"id": "m1", "usage": u1}},
+        {"timestamp": "2026-09-23T06:02:00Z", "message": {"id": "m2", "usage": u2}},
+    ]
+    (d / "agent-a1.jsonl").write_text("".join(json.dumps(x) + "\n" for x in lines))
+    out = tmp_path / "p.json"
+    r = _tool("read", str(d), "--out", str(out))
+    assert r.returncode == 0, r.stderr
+    seat = json.loads(out.read_text())["seats"][0]
+    assert seat["tokens"] == {
+        "input": 15,
+        "output": 140,
+        "cache_read": 3000,
+        "cache_create": 50,
+        "messages": 2,
+    }, seat
+    assert "3,000 cache read" in r.stdout and "140 out" in r.stdout, r.stdout
+
+
+def test_a_message_logged_with_a_trailing_zero_line_or_no_id_is_still_counted(
+    tmp_path: Path,
+) -> None:
+    """Review of D-358 pass 1: last-write-wins let a trailing all-zero line for an id erase its real usage (A-S3 —
+    command_run.py takes the per-field maximum for exactly this), and a message without an id was dropped (B-S2)."""
+    d = tmp_path / "wf_z"
+    d.mkdir()
+    (d / "journal.jsonl").write_text(
+        json.dumps({"type": "started", "agentId": "a1", "label": "s"}) + "\n"
+    )
+    real = {
+        "input_tokens": 10,
+        "output_tokens": 100,
+        "cache_read_input_tokens": 1000,
+        "cache_creation_input_tokens": 5,
+    }
+    zero = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+    }
+    lines = [
+        {"message": {"id": "m1", "usage": real}},
+        {"message": {"id": "m1", "usage": zero}},
+        {
+            "message": {
+                "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 2,
+                    "cache_read_input_tokens": 3,
+                    "cache_creation_input_tokens": None,
+                }
+            }
+        },
+    ]
+    (d / "agent-a1.jsonl").write_text("".join(json.dumps(x) + "\n" for x in lines))
+    out = tmp_path / "p.json"
+    _tool("read", str(d), "--out", str(out))
+    t = json.loads(out.read_text())["seats"][0]["tokens"]
+    assert t == {
+        "input": 11,
+        "output": 102,
+        "cache_read": 1003,
+        "cache_create": 5,
+        "messages": 2,
+    }, t

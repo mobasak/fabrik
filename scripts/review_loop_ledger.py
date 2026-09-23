@@ -46,6 +46,42 @@ def _minutes(transcript: Path) -> float | None:
     return round((max(stamps) - min(stamps)).total_seconds() / 60, 1) if len(stamps) > 1 else None
 
 
+_USAGE = (
+    ("input", "input_tokens"),
+    ("output", "output_tokens"),
+    ("cache_read", "cache_read_input_tokens"),
+    ("cache_create", "cache_creation_input_tokens"),
+)
+
+
+def _tokens(transcript: Path) -> dict | None:
+    """A seat's tokens from its own transcript (D-358): every assistant message's `usage`, counted ONCE per
+    message id (the per-field maximum over its lines) — a streamed message is logged more than once. No OpenTelemetry collector is needed for this:
+    Claude Code's token metrics label a user-defined agent `custom`, while the transcript is the seat's own."""
+    # per message id, the per-field MAXIMUM over its lines — command_run.py's rule, because an id can carry a
+    # trailing all-zero line beside the real one (review of D-358, A-S3); a message with no id is its own message,
+    # never dropped (B-S2)
+    per: dict[str, dict] = {}
+    try:
+        for n, line in enumerate(transcript.read_text(encoding="utf-8", errors="replace").splitlines()):
+            try:
+                m = json.loads(line).get("message")
+            except (ValueError, AttributeError):
+                continue
+            if not (isinstance(m, dict) and isinstance(m.get("usage"), dict)):
+                continue
+            key = m.get("id") or f"#line{n}"
+            prev = per.setdefault(key, {})
+            for _, src in _USAGE:
+                v = m["usage"].get(src)
+                if isinstance(v, int) and not isinstance(v, bool) and v > prev.get(src, 0):
+                    prev[src] = v
+    except OSError:
+        return None
+    tot = {k: sum(u.get(src, 0) for u in per.values()) for k, src in _USAGE}
+    return {**tot, "messages": len(per)}
+
+
 def read_run(run: Path, box: float | None) -> dict:
     journal = run / "journal.jsonl"
     if not journal.is_file():
@@ -97,6 +133,7 @@ def read_run(run: Path, box: float | None) -> dict:
                 "minutes": minutes,
                 "over_box": bool(box is not None and minutes is not None and minutes > box),
                 "untimed": minutes is None,
+                "tokens": _tokens(run / f"agent-{aid}.jsonl"),
                 "returned": bool(got),
                 "duplicate_results": len(got),
             }
@@ -129,7 +166,13 @@ def _print(doc: dict) -> None:
                 else ""
             )
         )
-        print(f"seat {s['label']:<18} {mins:>9}{flags}")
+        t = s.get("tokens") or {}
+        toks = (
+            f"  {t['output']:,} out · {t['cache_read']:,} cache read · {t['input'] + t['cache_create']:,} new in"
+            if t.get("messages")
+            else ""
+        )
+        print(f"seat {s['label']:<18} {mins:>9}{toks}{flags}")
     for c in doc["candidates"]:
         print(
             f"candidate {c.get('id')} {c.get('file')}:{c.get('line')} [{c.get('failure_class')}] {_one(c.get('claim'), 240)}"
@@ -139,6 +182,12 @@ def _print(doc: dict) -> None:
     for s in doc["ledger_status"]:
         print(
             f"ledger {s.get('id')} {s.get('status')} ({s.get('seat')}) — {_one(s.get('output'), 160)}"
+        )
+    tot = [s["tokens"] for s in doc["seats"] if s.get("tokens")]
+    if tot:
+        print(
+            f"pass tokens: {sum(t['output'] for t in tot):,} out · {sum(t['cache_read'] for t in tot):,} cache read · "
+            f"{sum(t['input'] + t['cache_create'] for t in tot):,} new in, over {sum(t['messages'] for t in tot)} messages"
         )
     if doc.get("unreadable_rows"):
         print(

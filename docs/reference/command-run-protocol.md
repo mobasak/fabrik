@@ -406,7 +406,7 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   wedge a close), a non-finite usage value counts as absent, and NOTHING the reader raises can
   escape (a pure accounting read).
 - **The report:** `python3 scripts/command_feedback_report.py [--since DAYS] [--command NAME]
-  [--agent NAME] [--observer-rank] [--queue COMMAND] [--json]` — per command: runs, done/blocked/handoff, median and max wall-clock, median
+  [--agent NAME] [--observer-rank] [--queue COMMAND] [--stages] [--json]` — `--stages` (D-358) is its own report: review-family runs (every `*-review` command and `/fabrik-review-scoped`) grouped by the change their `surface` names — a plan slug, else a spec slug, else a D-row — with stages, hours, rounds and summed confirmed defects per change, led by its coverage (keyed of all review runs; the unkeyed are counted, never dropped). Otherwise, per command: runs, done/blocked/handoff, median and max wall-clock, median
   rounds, how many runs said `change: none`, summed pool `cost_usd` (with how many rows carried a
   number), median tokens per run with the rows that carried them, the cache-hit share, the seats'
   tokens beside them (rows · seats seen — never folded into the orchestrator's total) — `--json` keys per command: `seat_total`, `seat_rows` (rows carrying seat spend), `seats_seen`, `seats_seen_rows` (its denominator — a 0 over 0 rows prints "—"), `seats_skipped`, `seats_partial_rows`, `seats_mismatch_rows`, `tok_partial_rows`; the text report lists the last three under "⚠ LOWER BOUNDS"

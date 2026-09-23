@@ -23,6 +23,7 @@ import argparse
 import collections
 import json
 import math
+import re
 import statistics
 import sys
 import time
@@ -1336,6 +1337,95 @@ def observer_rank(rows: list[dict], seats: int = OBSERVER_SEATS) -> str:
     return "\n".join([head, *body])
 
 
+_PLAN_KEY = re.compile(r"(\d{4}-\d{2}-\d{2}-plan-[\w.-]+?)(?=\.md|/|\s|$|[,;)])")
+_SPEC_KEY = re.compile(r"(\d{4}-\d{2}-\d{2}-[\w-]+?-design)")
+_DROW_KEY = re.compile(r"\bD-\d{3,}\b")
+
+
+def _pos(x: object) -> float:
+    """`x` when it is a finite non-negative number, else 0 — never a string, a bool, a negative or a NaN."""
+    n = _num(x)
+    return n if n is not None and n >= 0 else 0.0
+
+
+def _is_review(command: str) -> bool:
+    """The review family by NAME: every `*-review` command plus `/fabrik-review-scoped`."""
+    return command.endswith("-review") or command == "fabrik-review-scoped"
+
+
+def stages(rows: list[dict]) -> dict:
+    """How many review stages fire per change, and what each yields (§ 4.9 finding 35; D-358).
+
+    A change is keyed from `surface`: a plan slug, else a spec slug, else the first decision id. A spec and the
+    plan built from it carry DIFFERENT slugs, so one feature can read as two changes — the report says so rather
+    than guessing a join. COBRA (D-253): the cheapest way to a low stages-per-change figure is a surface that names
+    no key, which drops the run out of every change; so every unkeyed review run is COUNTED in `coverage`, and
+    the text leads with that coverage."""
+    changes: dict[tuple, dict] = {}
+    review = [r for r in rows if _is_review(str(r.get("command") or ""))]
+    unkeyed = 0
+    for r in review:
+        surf = str(r.get("surface") or "")
+        m = _PLAN_KEY.search(surf) or _SPEC_KEY.search(surf) or _DROW_KEY.search(surf)
+        if not m:
+            unkeyed += 1
+            continue
+        key = m.group(1) if m.re is not _DROW_KEY else m.group(0)
+        if m.re is _PLAN_KEY:
+            key = key.removesuffix("-review")  # a receipt is named `<plan>-review.md` — the same change
+        c = changes.setdefault(
+            (str(r.get("repo") or ""), key),
+            {
+                "repo": str(r.get("repo") or ""),
+                "key": key,
+                "stages": 0,
+                "commands": {},
+                "rounds": 0,
+                "confirmed": 0,
+                "seconds": 0.0,
+            },
+        )
+        cmd = str(r.get("command"))
+        c["stages"] += 1
+        c["commands"][cmd] = c["commands"].get(cmd, 0) + 1
+        # a figure counts only when it is a finite NON-NEGATIVE number, the rule every other rollup in this file
+        # keeps — one corrupt row must not bend a change negative (review of D-358, A-S1)
+        c["rounds"] += int(_pos(r.get("rounds")))
+        conf = r.get("confirmed")  # the ledger's per-round list (command_run.py writes it); a scalar is tolerated
+        c["confirmed"] += int(sum(_pos(x) for x in conf) if isinstance(conf, list) else _pos(conf))
+        c["seconds"] += _pos(r.get("wall_s"))  # summed raw, rounded once below (B-S1)
+    for c in changes.values():
+        c["hours"] = round(c.pop("seconds") / 3600, 2)
+    ordered = sorted(changes.values(), key=lambda c: (-c["stages"], -c["hours"], c["repo"], c["key"]))
+    return {
+        "coverage": {
+            "review_rows": len(review),
+            "keyed": len(review) - unkeyed,
+            "unkeyed": unkeyed,
+        },
+        "changes": ordered,
+    }
+
+
+def _stages_text(doc: dict) -> str:
+    cov = doc["coverage"]
+    lines = [
+        f"{cov['keyed']} of {cov['review_rows']} review-family runs keyed to a change (plan slug, spec slug or "
+        f"D-row in the surface); {cov['unkeyed']} unkeyed runs are in no change below",
+        "stages\thours\trounds\tconfirmed\trepo\tchange\tcommands",
+    ]
+    for c in doc["changes"]:
+        cmds = ", ".join(
+            f"{k.removeprefix('fabrik-')}×{v}" for k, v in sorted(c["commands"].items())
+        )
+        # the change is keyed per repo, so the repo is printed: two repos sharing a slug are two rows (A-S2)
+        repo = Path(c["repo"]).name or c["repo"] or "?"
+        lines.append(
+            f"{c['stages']}\t{c['hours']}\t{c['rounds']}\t{c['confirmed']}\t{repo}\t{c['key']}\t{cmds}"
+        )
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="Per-command optimisation report over the feedback ledger."
@@ -1377,9 +1467,19 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--repo", type=Path, default=Path("/opt/fabrik"), help="--mark-answered: repo to verify in"
     )
+    ap.add_argument(
+        "--stages",
+        action="store_true",
+        help="review stages per change (plan/spec/D-row keyed from the surface) with their yield, and its "
+        "coverage; honours --since/--agent/--command windows",
+    )
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--ledger", type=Path, default=None)
     a = ap.parse_args(argv)
+    if a.stages and (a.queue is not None or a.observer_rank or a.mark_answered is not None):
+        ap.error(
+            "--stages is its own report; pass it without --queue/--observer-rank/--mark-answered"
+        )
     # `a.ledger or _default_ledger()` was the bug: `Path("")` is `PosixPath(".")`, which is TRUTHY
     # and a directory, so a caller-computed empty path silently read the CWD and reported zero rows.
     ledger = a.ledger if a.ledger is not None else _default_ledger()
@@ -1401,8 +1501,10 @@ def main(argv: list[str] | None = None) -> int:
         # at rc 0, in the flattering direction. The cheapest cobra path on this metric is appending
         # one redundant flag.
         ap.error("--queue already names the command; drop --command")
-    if a.queue is not None and a.queue.lstrip("/") == "fabrik-task" and (
-        a.since is not None or a.agent is not None
+    if (
+        a.queue is not None
+        and a.queue.lstrip("/") == "fabrik-task"
+        and (a.since is not None or a.agent is not None)
     ):
         # ⚠️ The `--command` guard above closed ONE cobra path on the adoption share and left its
         # twins open: `--since` and `--agent` window `rows` before `queue()` sees them in exactly
@@ -1419,7 +1521,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     if a.queue is not None and a.observer_rank:
         ap.error("--queue and --observer-rank are two different reports; pass one of them")
-    if a.queue is not None or a.observer_rank:
+    if a.queue is not None or a.observer_rank or a.stages:
         # the same window and filters the report uses — an all-time answer to a --since question
         # would name a command retired months ago, silently. `is not None` and not truthiness:
         # `--queue ""` is a name the caller computed, and falling through to the full report on it
@@ -1480,6 +1582,10 @@ def main(argv: list[str] | None = None) -> int:
         if message.startswith("PARTIAL") or message.startswith("REFUSED"):
             return 1
         return 0 if (written or message.startswith("nothing to do")) else 1
+    if a.stages:
+        doc = stages(rows)
+        sys.stdout.write((json.dumps(doc, indent=1) if a.json else _stages_text(doc)) + "\n")
+        return 0
     if a.queue is not None:
         text = queue(rows, a.queue, ledger)
         if a.json:

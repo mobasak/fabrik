@@ -48,7 +48,7 @@ The tool returns `async_launched`; the ledger arrives as one result — the lead
 ## What the lead still does (Phase 2 of `/fabrik-review`)
 
 Read the pass into a file — `python3 scripts/review_loop_ledger.py read <run transcript dir> --out
-<scratch>/pass-<n>.json --box <box_minutes>` — which prints every seat's minutes (`OVER BOX`: nothing in the Workflow
+<scratch>/pass-<n>.json --box <box_minutes>` — which prints every seat's minutes and tokens — from the seat's own transcript, counted once per message id — (`OVER BOX`: nothing in the Workflow
 API times a seat out; one refuter ran 59 minutes against a 12-minute box) and `NO RESULT` for a seat that returned
 nothing. Re-run the command of every `confirmed` verdict on the pinned copy before writing a fix; treat `unverified`
 and every `gaps` entry as open; fix; record the round (`command_run.py round --slices …`) and name its stop and fix
