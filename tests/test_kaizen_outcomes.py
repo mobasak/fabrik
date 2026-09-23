@@ -839,8 +839,8 @@ def test_registry_pin_no_formula_change_ships_without_a_version_bump() -> None:
         "rules_compliance": (4, "be837b4449c15df7ff7916588350ac20856e9b1af75f2f9ea80e3c16bcd94135"),
         "terminator_spam": (3, "0838226b9136f445aeccb48455a970554f82b3ad6d5a7970e6e8cf65e31a1b59"),
         "premature_stop_rate": (
-            3,
-            "82f20ffd81e26326bc5c3b33051aa295a8c9db5bf2c6168d479579081eeaa1de",
+            4,
+            "e22b518520e3649027ace3ffcbdd14ec0d4687bc0a6c64da3aec7fc6507561cb",
         ),
         "first_attempt_gate_pass": (
             3,

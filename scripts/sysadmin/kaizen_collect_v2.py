@@ -119,6 +119,12 @@ RUN_CLOSE_VERDICTS = frozenset({"done", "blocked", "handoff"})
 #: `cause="promise-stall"` to `cause="deferral"`; both land here BEFORE the hook emits
 #: either, and are inert until it does (spec § Contract deltas; A-O19).
 PREMATURE_CAUSES = frozenset({"run-record", "promise-stall", "deferral"})
+#: The human-facing rendering of PREMATURE_CAUSES for the premature_stop_rate formula
+#: string and its MetricResult detail — sorted for a deterministic sentence, and
+#: DERIVED (never hand-typed) so a set member can never drift out of the text (and
+#: therefore out of the def_hash, which the formula feeds — see `_def_hash`) again
+#: (T01b review round 1: S1/H1/H2/O1/O3/O6).
+_PREMATURE_CAUSES_TEXT = "{" + ", ".join(sorted(PREMATURE_CAUSES)) + "}"
 
 # The kaizen-log table columns, verbatim from kaizen_metrics.py — the daily upsert must
 # not reshape the shipped tables. Cells 1..5 are mechanical; 6..7 are the analyst's.
@@ -1029,10 +1035,13 @@ METRIC_DEFS: tuple[dict, ...] = (
         # (malformed stop_block causes counted, truncated lines envelope-only) — the
         # same def_hash must never span differently-populated points in one series.
         # v3 (fix-wave 3): root-law population — bump-day-gap rows excluded.
-        "version": 3,
+        # v4 (T01b review round 1): `deferral` joined PREMATURE_CAUSES — the formula
+        # now RENDERS the set (_PREMATURE_CAUSES_TEXT) instead of naming its two prior
+        # members by hand, so the counted population widened and the def_hash bumps.
+        "version": 4,
         "counter_metric": "first_attempt_gate_pass",
         "formula": (
-            "stop_block events with cause in {run-record, promise-stall} / all stop "
+            "stop_block events with cause in " + _PREMATURE_CAUSES_TEXT + " / all stop "
             "verdicts (stop_pass + stop_block)." + _BUMP_GAP_SENTENCE
         ),
         # NOT part of the def hash (versioned-definitions law: _def_hash bases on
@@ -1544,7 +1553,7 @@ def compute_metrics(
         out["premature_stop_rate"] = MetricResult(
             id="premature_stop_rate",
             cell=_pct(premature, stops),
-            detail="stop_block cause in {run-record, promise-stall} over all stop verdicts"
+            detail="stop_block cause in " + _PREMATURE_CAUSES_TEXT + " over all stop verdicts"
             + _gap_note("premature_stop_rate"),
             value=premature / stops,
             numerator=premature,
