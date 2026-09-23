@@ -142,7 +142,7 @@ function finderPrompt(slice, model) {
 SURFACE: ${args.surface}
 BASE: ${args.base_sha} · DIGEST: ${args.digest}
 PINS: each slice file's pinned copy is at ${args.pins_dir}/<its repo-relative path> — e.g. ${args.pins_dir}/${slice.files[0]}; read the pin, never the live tree (the pin wins over the live path)
-SCRATCH: ${args.scratch_dir}/${slice.name}-${model}/ (every probe on a COPY there)
+SCRATCH: ${args.scratch_dir}/${slice.name}-${model}/ (every probe on a COPY there; never write, copy, mkdir or cd-and-create anything outside SCRATCH — your working directory is the LIVE repo, and a seat's stray file there reaches the next gate; wrap every command that can block in \`timeout 120\` — nothing times a seat out but you)
 YOUR SLICE (${slice.files.length} files — read EVERY one; hunt priority: ${slice.priority || 'none named'}):
 ${files}${ledgerText}
 
@@ -156,7 +156,7 @@ function refutePrompt(slice, cands) {
     .map((c) => `CANDIDATE ${c.id} · ${c.file}:${c.line} · class ${c.failure_class}\n  CLAIM: ${c.claim}\n  SCENARIO: ${c.scenario}\n  CHECK TO EXECUTE: ${c.check}`)
     .join('\n\n')
   const refuteBox = Math.max(box, 3 * cands.length)
-  return `REFUTER SEAT — fresh context: you did not find these, and you owe the finders nothing. Execute EVERY candidate from slice ${slice.name} below and return one verdict per candidate id with the command you ran and its output. Never fix, never edit, git READ-ONLY, every probe on a COPY under ${args.scratch_dir}/refute-${slice.name}/; read the PINNED copies under ${args.pins_dir}/<repo-relative path> (base ${args.base_sha}, digest ${args.digest}).
+  return `REFUTER SEAT — fresh context: you did not find these, and you owe the finders nothing. Execute EVERY candidate from slice ${slice.name} below and return one verdict per candidate id with the command you ran and its output. Never fix, never edit, git READ-ONLY, every probe on a COPY under ${args.scratch_dir}/refute-${slice.name}/ (SCRATCH) — never write, copy, mkdir or cd-and-create anything outside SCRATCH, your working directory is the LIVE repo; wrap every command that can block in \`timeout 120\`, nothing times a seat out but you; read the PINNED copies under ${args.pins_dir}/<repo-relative path> (base ${args.base_sha}, digest ${args.digest}).
 
 ${list}
 

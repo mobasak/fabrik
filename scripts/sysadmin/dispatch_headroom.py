@@ -917,6 +917,18 @@ def main(argv: list[str] | None = None) -> int:
         "0 for a grounding/adjudication surface — a judgement unit has no mechanical angle)",
     )
     a = ap.parse_args(argv)
+    # Row 5b (D-357): CLAUDE_CODE_SUBAGENT_MODEL_FORCE puts every subagent on ONE model, a per-invocation
+    # `model` included (code.claude.com/docs/en/model-config) — every mix this tool prints would collapse while
+    # its counts still read as if it held (§ 4.9 findings 37, 43). Refuse before any budget is computed.
+    # Any SET, non-empty value refuses — a whitespace-only one included: fail closed (review of D-357, A-S6).
+    forced = os.environ.get("CLAUDE_CODE_SUBAGENT_MODEL_FORCE", "")
+    if forced:
+        print(
+            f"dispatch_headroom.py: error: CLAUDE_CODE_SUBAGENT_MODEL_FORCE={forced!r} forces every seat onto one "
+            "model, so no model mix can run — unset it for this session, then size the fan-out",
+            file=sys.stderr,
+        )
+        return 2
     try:
         slices = parse_mix(a.slices, flag="--slices") if a.slices else None
     except ValueError as exc:

@@ -591,3 +591,25 @@ def test_a_real_command_whose_output_is_a_placeholder_word_still_refutes() -> No
         },
     )
     assert ledger["slices"][0]["verdicts"][0]["verdict"] == "refuted"
+
+
+def test_every_seat_is_told_never_to_write_under_the_repo_and_to_time_box_blocking_commands() -> (
+    None
+):
+    """Two review runs of 2026-09-23 found seat files in the repo root (`pins_copy/`, two probe scripts), and one
+    refuter spent 57 minutes in a single call against a 12-minute box — nothing in the Workflow API times an
+    agent out, so the prompt must."""
+    _, _, prompts = _harness(
+        _ARGS,
+        {
+            "find:S:sonnet": {
+                "files_read": ["a.py", "b.py"],
+                "notes": "",
+                "candidates": [_cand("S-S1", 3)],
+            }
+        },
+    )
+    for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
+        p = prompts[label]
+        assert "never write" in p and "outside SCRATCH" in p, label
+        assert "timeout" in p, label
