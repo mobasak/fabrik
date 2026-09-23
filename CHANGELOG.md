@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Every command but /fabrik-task closes through the four-call chain, and the reading commands delegate large reads (2026-09-23)
+
+- `close-chain` ends 37 of 38 command sources and yields to each command's own close wherever that names a different order, exit, gate, pause or nested caller; it runs before the response's closing block. `delegated-reads` goes to the 23 commands that read large sources themselves. `/fabrik-decommission`'s Phase 1.5 pause now closes with `handoff`, never `done` (D-367).
+
 ### Changed — rules(saas/60-saas-ui): file 26 of the currency pass, to the 11-row bar (D-366) (2026-09-23)
 
 - The SaaS UI pack now matches what the saas-skeleton scaffold emits: brand tokens map into the scaffold's shadcn
