@@ -24,6 +24,7 @@ Exit 0 = zero broken references; exit 1 otherwise (Tier-2 blocking).
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -216,20 +217,31 @@ def _resolves(target: str, src: Path, extra_bases: list[str] | None = None) -> b
             norm = norm[2:]
     if norm.rstrip("/") in PROJECT_CONTEXT_ALLOW or norm in PROJECT_CONTEXT_ALLOW:
         return True
-    # repo-root resolution
-    if (REPO / norm).exists():
-        return True
-    # declared per-file bases (`<!-- link-base: … -->`), tried after the repo root
-    for base in extra_bases or ():
-        if (REPO / base / norm).exists():
+    # repo-root resolution, then declared per-file bases (`<!-- link-base: … -->`). Bounded LEXICALLY: a deep
+    # `../` walks past `/` (the kernel caps it there), so an unbounded `(REPO / norm).exists()` resolved to any
+    # host file. Lexical, not `.resolve()`, so an in-repo symlink keeps resolving as before.
+    for base in ("", *(extra_bases or ())):
+        cand = Path(os.path.normpath(REPO / base / norm))
+        if _bounded(cand) and cand.exists():
             return True
     # source-relative resolution
     cand = (src.parent / t).resolve()
-    in_repo = str(cand).startswith(str(REPO) + "/")
-    in_fabrik_lib = str(cand).startswith("/opt/fabrik-lib/")  # sanctioned sibling repo
-    if not (in_repo or in_fabrik_lib):
-        return False  # escaped to the host FS — never resolve there
+    if not _bounded(cand):
+        return False  # escaped to the rest of the host FS — never resolve there
     return cand.exists()
+
+
+def _bounded(cand: Path) -> bool:
+    """Inside this repo, or inside one of the two sanctioned sibling repos.
+
+    The Fabrik repos are sanctioned siblings: a project doc cites hub or fabrik-lib files by their ABSOLUTE path
+    (a repo-relative `docs/…` would be checked against the project's own tree), and such a citation resolves on
+    the host — so a cited file that is later moved goes red instead of passing silently (D-370, mail
+    01M35H43N07E0S9Z43QYGXPPW4). The trailing slash keeps `/opt/fabrikX/` out. Every resolution branch of
+    `_resolves` goes through here, so no branch reaches the rest of the host FS.
+    """
+    s = str(cand)
+    return s.startswith((str(REPO) + "/", "/opt/fabrik/", "/opt/fabrik-lib/"))
 
 
 def main() -> int:

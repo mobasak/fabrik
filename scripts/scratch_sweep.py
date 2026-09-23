@@ -424,7 +424,12 @@ def _du_kb(path: Path, deadline: float) -> int | None:
         return None
     try:
         out = subprocess.run(
-            ["du", "-sk", str(path)], capture_output=True, text=True, timeout=3
+            ["du", "-sk", str(path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="surrogateescape",
+            timeout=3,
         ).stdout.split()
         return int(out[0]) if out else None
     except (OSError, ValueError, IndexError, subprocess.SubprocessError):
@@ -1184,6 +1189,13 @@ def _own_session(sid: str) -> tuple[bool, list[str]]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Scratch legitimately holds paths with non-UTF-8 bytes (the git-decoder spec's fixture repos), which
+    # os.fsdecode turns into lone surrogates. One reconfigure covers every print this script makes: under a UTF-8
+    # locale a strict stdout raised "surrogates not allowed" and killed the run, under the C locale it wrote the raw
+    # byte (mail 01M2ZF211DF1AQ5PKGKSEGQA19). Paths now render escaped (`\udcff`); the filesystem ops keep the bytes.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     args = build_parser().parse_args(argv)
     try:
         if args.unowned_older_than is not None and not (args.unowned_older_than >= 1):
@@ -1417,7 +1429,15 @@ def run_dead_mode(args: argparse.Namespace) -> int:
 def _git(repo: Path, *args: str, timeout: int = 20) -> tuple[int, str]:
     try:
         p = subprocess.run(
-            ["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=timeout
+            ["git", "-C", str(repo), *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            # git prints a non-UTF-8 byte in a worktree path unescaped; a strict decode blanked the whole
+            # --worktrees table as "bad invocation". surrogateescape round-trips to the real bytes for the
+            # filesystem calls, and the reconfigured stdout renders it escaped (review of 01M2ZF211…).
+            errors="surrogateescape",
+            timeout=timeout,
         )
         return p.returncode, (p.stdout or "") + (p.stderr or "")
     except (OSError, subprocess.SubprocessError) as exc:

@@ -11,6 +11,22 @@ All notable changes to this project will be documented in this file.
 - Two operator rulings recorded late: "do not act without asking me" (D-373) and "i never use a fresh session" (D-374).
 - Evidence committed beside it: `docs/reference/research/2026-09-23-stop-compaction/` (the miner, `derive.py`, per-record verdicts, sample hashes; raw transcript samples stay out of git) and the research ledger `docs/reference/research/2026-09-23-stop-and-compaction-ledger.md` (41 rows, 0 refused).
 
+### Fixed — Three mailed defects: the self-watch arm's in-place-edit race, the scratch sweep's non-UTF-8 crash, and cross-repo doc citations (D-370) (2026-09-23)
+
+- `scripts/sysadmin/selfwatch_arm.sh` is one function called on its last line, so bash parses it whole before running
+  it: an arm waiting at `read` resumed at its old byte offset after an in-place edit and ran the new file's comments
+  as commands (mail 01M36FPTT9YS7ADH3CYQ5MQ1P3). Pinned by a test that rewrites the file mid-wait.
+- `scripts/scratch_sweep.py` reconfigures stdout/stderr with `backslashreplace`: a scratch path with a non-UTF-8 byte
+  killed the run ("surrogates not allowed") or wrote the raw byte; it now renders escaped and `--apply` still removes
+  it (mail 01M2ZF211DF1AQ5PKGKSEGQA19). `--worktrees` also decodes git's output with `surrogateescape`, so a worktree
+  at such a path is classified instead of aborting the run as a usage error.
+- `scripts/enforcement/check_doc_links.py` resolves a project doc's link whose path lands under `/opt/fabrik/` or
+  `/opt/fabrik-lib/` on the host — the absolute form is the sanctioned way to cite hub files (D-370, mail
+  01M35H43N07E0S9Z43QYGXPPW4). Every resolution branch now shares that one boundary: the repo-root branch was
+  unbounded, and a `../` run deeper than the repo resolved ANY host file (the hub's checker, run over the 45
+  `/opt` repos with a `docs/` dir, gave the same 321 broken refs with and without the boundary).
+  `tests/enforcement/test_check_doc_links.py` now imports the checkout it sits in, not a hard-coded `/opt/fabrik`.
+
 ### Fixed — One WordPress refusal text, two red test fixtures, and four docstrings that described code that is not there (2026-09-23)
 - **`fabrik scaffold --type wordpress` and `fabrik apply` on a WordPress project stopped telling users to run the `wpf` CLI.** `/opt/wpf` was archived to `/opt/archived/wpf` and its CLI no longer exists, yet three hand-kept copies of the refusal still recommended it (`cli.py` twice, `deploy_router.py`). All four sites, `create_project` included, now print one constant, `scaffold.WORDPRESS_REFUSAL`, and `TestWordpressRefusalIsOneText` (4 tests, all red at HEAD) holds them to it. Two stale comments went with them (`spec_generator.py`, `_TYPE_SCAFFOLDERS`). Mail 01M332X97K1D4BE5ZFCKJNBBGR.
 - **`tests/test_scaffold_logging.py`: 13 of 33 red at HEAD, 33 of 33 green.** The fixture hand-listed the scaffolder's Python templates and missed `glitchtip_init.py`; it now copies the real `templates/scaffold/python/` whole, so a template the scaffolder learns to read cannot go missing again. Mail 01M32AZ3Z10TPJ9N8PC31B0ZX9.

@@ -5,7 +5,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO = Path("/opt/fabrik")
+REPO = (
+    Path(__file__).resolve().parents[2]
+)  # the checkout under test, so a worktree grades its own copy
 sys.path.insert(0, str(REPO / "scripts" / "enforcement"))
 
 import check_doc_links as cdl  # noqa: E402
@@ -121,3 +123,68 @@ def test_link_base_marker_never_escapes_the_repo():
     assert cdl._link_bases(
         "<!-- link-base: ../../etc -->\n<!-- link-base: /opt/x -->\n<!-- link-base: a/../b -->\n<!-- link-base: sites/a/ -->"
     ) == ["sites/a"]
+
+
+# ── Cross-repo citations from a PROJECT doc (mail 01M35H43N07E0S9Z43QYGXPPW4) ─────────────────────────
+# A project report that cites hub files had no sanctioned form: a repo-relative `docs/…` is checked against
+# the PROJECT tree (0 of 42 resolved), and an absolute link was refused as "escaped to the host FS". The two
+# Fabrik repos are sanctioned siblings BY DESIGN: an absolute path under /opt/fabrik/ or /opt/fabrik-lib/
+# resolves on the host (so a cited hub doc that is later moved goes red), and nothing else on the host does.
+
+
+def test_an_absolute_hub_link_from_a_project_doc_resolves_on_the_host(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(cdl, "REPO", tmp_path)
+    src = tmp_path / "docs" / "report.md"
+    assert cdl._resolves("/opt/fabrik/docs/QUICKSTART.md", src) is True
+    assert cdl._resolves("/opt/fabrik-lib/README.md", src) is True
+
+
+def test_a_moved_hub_doc_cited_from_a_project_goes_red(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(cdl, "REPO", tmp_path)
+    src = tmp_path / "docs" / "report.md"
+    assert cdl._resolves("/opt/fabrik/docs/this-file-does-not-exist-xyz.md", src) is False
+
+
+def test_the_rest_of_the_host_filesystem_never_resolves(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(cdl, "REPO", tmp_path)
+    src = tmp_path / "docs" / "report.md"
+    assert cdl._resolves("/etc/hostname", src) is False
+    assert (
+        cdl._resolves("/opt/fabrikX/docs/QUICKSTART.md", src) is False
+    )  # a prefix is not the repo
+
+
+def test_a_bare_absolute_citation_is_not_read_as_a_project_path() -> None:
+    """The prose form `/opt/fabrik/docs/x.md` is a citation, never a repo-relative ref — by design, pinned."""
+    assert cdl._BARE_RE.findall("see /opt/fabrik/docs/QUICKSTART.md for the hub copy") == []
+
+
+def test_a_relative_path_that_resolves_into_a_sibling_repo_is_sanctioned_too(
+    tmp_path, monkeypatch
+) -> None:
+    """The rule is on where the target RESOLVES, not on how it is spelled: `../../…/fabrik/docs/x.md` from a
+    project doc lands under /opt/fabrik/ and resolves exactly as the absolute form does (review of D-370)."""
+    import os
+
+    monkeypatch.setattr(cdl, "REPO", tmp_path)
+    src = tmp_path / "docs" / "report.md"
+    rel = os.path.relpath("/opt/fabrik/docs/QUICKSTART.md", src.parent)
+    assert rel.startswith("..")
+    assert cdl._resolves(rel, src) is True
+
+
+def test_a_deep_relative_escape_never_reaches_the_host_through_the_repo_root_branch(
+    tmp_path, monkeypatch
+) -> None:
+    """A `../` run longer than the repo's depth is capped at `/` by the kernel, so `REPO / "../…/opt/x"` named a
+    real host file and the unbounded repo-root branch resolved it — before the sibling boundary was ever asked.
+    Every branch shares one boundary now; this is the closing-pass finding of the D-370 review."""
+    monkeypatch.setattr(cdl, "REPO", tmp_path)
+    src = tmp_path / "docs" / "report.md"
+    assert cdl._resolves("../" * 40 + "etc/hostname", src) is False
+    assert cdl._resolves("../" * 40 + "etc/hostname", src, extra_bases=["docs"]) is False
+    assert (
+        cdl._resolves("../" * 40 + "opt/fabrik/docs/QUICKSTART.md", src) is True
+    )  # a sibling stays sanctioned

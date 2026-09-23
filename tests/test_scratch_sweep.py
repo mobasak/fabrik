@@ -1748,3 +1748,49 @@ def test_a_dormant_foreign_tree_never_triggers_a_repo_wide_prune(repo: Path) -> 
         "a dormant tree whose registration is stale must NOT become removable:\n" + proc.stdout
     )
     assert "prune" in proc.stdout, "the row must say what to run instead:\n" + proc.stdout
+
+
+def test_a_non_utf8_scratch_path_is_rendered_not_fatal(scratch: Path) -> None:
+    """A fixture repo with a 0xFF byte in a path is legitimate scratch (the git-decoder spec's probes make them).
+    The path reaches the table as a surrogate-escaped str and used to kill the run at print time with
+    "'utf-8' codec can't encode character '\\udcff' … surrogates not allowed" — dry run AND --apply
+    (mail 01M2ZF211DF1AQ5PKGKSEGQA19). It must render escaped (`\\udcff` — the surrogate for byte 0xFF; display only,
+    the removal uses the real bytes), and --apply must still remove it."""
+    pad = scratch / SLUG / SID / "scratchpad"
+    bad = os.path.join(os.fsencode(pad), b"bad\xffname")
+    os.mkdir(bad)
+    open(os.path.join(bad, b"f.py"), "wb").close()
+    when = NOW - 3 * DAY
+    os.utime(os.path.join(bad, b"f.py"), (when, when))
+    os.utime(bad, (when, when))
+    for argv in (("--session", SID), ("--session", SID, "--apply")):
+        res = _run(*argv, env=_env(scratch))
+        assert res.returncode == 0, res.stdout + res.stderr
+        assert "surrogates not allowed" not in res.stdout + res.stderr
+        assert "\\udcff" in res.stdout, res.stdout
+    assert not os.path.exists(bad), "the non-UTF-8 stale dir was rendered but not removed"
+
+
+def test_a_worktree_with_a_non_utf8_path_is_classified_not_a_usage_error(tmp_path: Path) -> None:
+    """`--worktrees` read `git worktree list --porcelain` with a strict decode; git prints a raw 0xFF byte in a
+    worktree path unescaped, so one such worktree blanked the whole table as "bad invocation" (rc 1) — the same
+    class as the session-mode crash (review of mail 01M2ZF211DF1AQ5PKGKSEGQA19)."""
+    repo = tmp_path / "repo"
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "GIT_CONFIG_GLOBAL": "/dev/null"}
+    git = ["git", "-C", str(repo), "-c", "user.email=t@t", "-c", "user.name=t"]
+    subprocess.run(["git", "init", "-q", str(repo)], check=True, env=env)
+    (repo / "f").write_text("x")
+    subprocess.run([*git, "add", "f"], check=True, env=env)
+    subprocess.run([*git, "commit", "-qm", "i"], check=True, env=env)
+    wt = os.fsencode(tmp_path) + b"/wt\xffname"
+    subprocess.run(
+        [os.fsencode("git"), b"-C", os.fsencode(repo), b"worktree", b"add", b"-q", wt],
+        check=True,
+        env=env,
+    )
+    res = _run(
+        "--worktrees", str(repo), env={"HOME": str(tmp_path), "GIT_CONFIG_GLOBAL": "/dev/null"}
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert "bad invocation" not in res.stdout + res.stderr
+    assert "wt\\udcffname" in res.stdout, res.stdout

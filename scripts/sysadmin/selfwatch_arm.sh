@@ -13,6 +13,11 @@
 # Arm: Bash(run_in_background: true, command: "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh <sid>")
 # One wake per arm: after a wake the lock is free and selfwatch_check.py's arm order returns on the next prompt.
 set -u
+# The whole body is ONE function, called on the file's last line and followed by `exit`: bash then parses every
+# byte before running any of it and never reads this file again. Unwrapped, an arm waiting at `read` for up to an
+# hour resumed at its old byte offset in whatever the file held after an in-place edit and ran the new file's
+# comments as commands (mail 01M36FPTT9YS7ADH3CYQ5MQ1P3; tests/test_selfwatch_arm.py pins it).
+main() {
 sid="${1:?session id}"
 watcher="${SELFWATCH_BIN:-$HOME/.claude/bin/claude-selfwatch.sh}"
 [ -f "$watcher" ] || { printf 'self-watch NOT armed: %s is missing\n' "$watcher"; exit 1; }
@@ -48,3 +53,5 @@ line="${line%% — this self-watch STAYS ARMED*}"
 printf '%s\n' "${line:-self-watch ended without a line}"
 case "$line" in "self-watch already armed"*) exit 0 ;; esac  # the standing arm still holds the lock
 printf 'This wake ENDED the watch (armed through selfwatch_arm.sh, one wake per arm) — re-arm it: Bash(run_in_background: true, command: "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh %s")\n' "$sid"
+}
+main "$@"; exit $?

@@ -231,3 +231,38 @@ def test_a_final_line_without_a_newline_is_still_the_wake(tmp_path: Path) -> Non
     )
     lines = r.stdout.splitlines()
     assert r.returncode == 0 and lines[0] == "RESUME: woke S1" and "re-arm it" in lines[1], r.stdout
+
+
+def test_an_in_place_rewrite_while_the_arm_waits_never_executes_the_new_bytes(
+    tmp_path: Path,
+) -> None:
+    """bash reads a script incrementally, so an arm waiting at `read` for up to an hour resumes at its old byte
+    offset in whatever the file NOW holds — an in-place edit ran the new file's comments as commands
+    (mail 01M36FPTT9YS7ADH3CYQ5MQ1P3). The whole body must be parsed before any of it runs."""
+    arm = tmp_path / "arm.sh"
+    arm.write_text(ARM.read_text())
+    env = _env(tmp_path)
+    proc = subprocess.Popen(
+        ["bash", str(arm), "S1"],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.DEVNULL,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        lock = tmp_path / "S1.selfwatch.lock"
+        deadline = time.time() + 10
+        while time.time() < deadline and not (lock.exists() and _held(lock)):
+            time.sleep(0.05)
+        assert _held(lock), "the stub watcher never took its lock"
+        with arm.open("w") as fh:  # truncate + write in place, as an editor does
+            fh.write(":; echo MUTATED\n" * 400)
+        (tmp_path / "S1.errparked").write_text("")
+        out, err = proc.communicate(timeout=15)
+    finally:
+        if proc.poll() is None:
+            os.killpg(proc.pid, signal.SIGKILL)
+    assert "MUTATED" not in out + err, out + err
+    assert "RESUME: woke S1" in out
