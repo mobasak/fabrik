@@ -166,7 +166,17 @@ every screen/flow in it, so a **human signs off on the UI before planning/buildi
 round (`confirmed: 0`) earns the attestation:
 
 - **Present** the reviewed contract + a short summary (screens, key flows + their click budgets, any
-  reconciliations) + the full Pass Ledger, and **STOP — explicitly ask the user to approve the UI design.**
+  reconciliations) + the full Pass Ledger, then **end the turn with the block below** — never a plain-prose
+  approval ask.
+
+```
+DECISION NEEDED (ground: gate)
+- Question: Do you approve this UI design?
+- Why it is yours: UI design approval — a frozen UI contract commits agents to build every screen/flow in it.
+- Options: A — approve, and planning starts from this frozen contract · B — request changes, and the loop re-opens on your feedback.
+- Recommendation: A, once the contract, the click budgets and the full Pass Ledger above show nothing unattested.
+```
+
 - **Do NOT auto-invoke planning.** Name what comes next so it's clear, but don't call it: **Claude Code path** →
   `/fabrik-plan-after-chat` (references `docs/ui-design.md` + the design system + `docs/data-contract.md` as
   binding UI truth, its screen-building phases each running the Build Verification Loop to its closing round); **Traycer

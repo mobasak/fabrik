@@ -242,6 +242,16 @@ FINDERS: native `fabrik-reviewer` ×<n> per unit (Sonnet) + Opus ×<n> named per
 STATUS: CONVERGED (md5 <hash>) | DRAFT — <the named blocker>
 ```
 
+On a CONVERGED ending, end the turn with:
+
+```
+DECISION NEEDED (ground: gate)
+- Question: Do you approve this converged deploy plan for execution?
+- Why it is yours: Gate 2 — the deploy triad's human approval gate; no agent deploys without it.
+- Options: A — approve, and the operator dispatches /fabrik-deploy <plan> · B — request changes, and the plan re-opens on your feedback.
+- Recommendation: A, once the Phase verdicts, the Class verdicts and the fenced final_gate.py runs above are all green.
+```
+
 Next command: Gate 2 — human approval; on the operator's explicit go: /fabrik-deploy <plan>.
 
 {{include:close-chain}}

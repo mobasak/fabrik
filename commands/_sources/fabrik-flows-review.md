@@ -160,7 +160,17 @@ was used to justify not building the thing that would have caught it.
 
 Like its siblings, this is a **design approval gate**: the frozen journeys commit every downstream stage to
 serve them. Once the closing round (`confirmed: 0`) earns the attestation, **present** the contract + the flow index + any
-"contract bump needed" findings + the full Pass Ledger, and **STOP — ask the user to approve the journeys.**
+"contract bump needed" findings + the full Pass Ledger, then **end the turn with the block below** — never a
+plain-prose approval ask.
+
+```
+DECISION NEEDED (ground: gate)
+- Question: Do you approve these frozen journeys?
+- Why it is yours: journey-freeze approval — the design approval gate every downstream stage builds on.
+- Options: A — approve, and `/fabrik-data-contract` freezes the fields the journeys surfaced · B — request changes, and the loop re-opens on your feedback.
+- Recommendation: A, once the contract, the flow index and the full Pass Ledger above show nothing unattested.
+```
+
 Name the successor without invoking it: `/fabrik-data-contract` — freeze the fields the journeys surfaced
 (the Contract inputs section is its evidence list). Only on the user's explicit approval does it run; on
 requested changes, re-open the loop. Never hand off on an unattested / `DRAFT` contract.

@@ -25,9 +25,9 @@ for anything that deliberately survived the halt.
 ## ⚠️ Termination contract
 
 This run has exactly FOUR legitimate ENDINGS — plus ONE sanctioned mid-run SUSPENSION (the
-verify-in-session operator handoff, Phase 2 step 1: push the ledger commits first, make the footer's
-`NEXT:` line the single `operator decision: <the act>` line — the hook exemption is line-scoped —
-end the turn, resume on the reply — a suspension is not a stop and
+verify-in-session operator handoff, Phase 2 step 1: push the ledger commits first, then end the turn
+with the gate-grounded DECISION block that step names — it is the well-formed block itself, never a bare
+`NEXT:` phrase, that the deferral check exempts — resume on the reply; a suspension is not a stop and
 never triggers the halt protocol):
 
 1. **Deployed** — every runbook step ran with its verification **PASS (fenced output, this run)**, the
@@ -233,11 +233,19 @@ close it; execute them with these guarantees:
    operator handoff**, in two shapes the plan declares per step: **verify-in-session** (the act's
    result is immediately checkable — e.g. notarization before a staple) → name the exact act and its
    expected result, then END THE TURN on that handoff — first PUSH the ledger commits (the task-end law
-   binds mid-run pauses too; an unpushed suspension gets hook-blocked), and shape the closing footer
-   so the `NEXT:` line IS the single `operator decision: <the act>` line, with the `STATE:` line (and
-   every other line) free of promise/obligation constructions ('I'll run it', '<work> is
-   outstanding') — the enforcement mesh's exemption is LINE-scoped, so the stall-bearing text must
-   sit only on the exempt line —
+   binds mid-run pauses too; an unpushed suspension gets hook-blocked), and close the turn with:
+
+   ```
+   DECISION NEEDED (ground: gate)
+   - Question: Has <the exact act> completed with <the expected result>?
+   - Why it is yours: the plan's OPERATOR-GATE step — a mid-session handoff no agent can perform or verify for itself.
+   - Options: A — confirm it completed, and the step's VERIFICATION column runs next · B — it has not (or it failed), and the halt protocol runs instead.
+   - Recommendation: A once you have performed the act; reply either way.
+   ```
+
+   with the `STATE:` line (and every other line) free of promise/obligation constructions ('I'll run
+   it', '<work> is outstanding') — it is the well-formed block itself, never a bare `NEXT:` phrase,
+   that the deferral check exempts —
    and on the operator's reply run the step's VERIFICATION column and continue; **verify-deferred**
    (the act's result is inherently slow — a store review measured in days) → the handoff IS this
    surface's completion. **The deferred-gate battery rule (any surface):** when the NEXT step to
