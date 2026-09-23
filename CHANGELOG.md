@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the fleet contract carries the DECISION block and `# Compact instructions` (2026-09-24)
+
+- `templates/governance/CLAUDE.md` (distributed to every synced project) mirrors the hub's reviewed § FINAL OUTPUT text in BOTH of its § FINAL OUTPUT copies: the `DECISION NEEDED (ground: gate|underivable|owned)` block, written unfenced, with the closed gate-class list, the two examples, every rule of the old bar paragraph, and `NEXT:` templates that point `operator decision` at the block; the UNIVERSAL-markers index names the block; `# Compact instructions` closes the file. Hub decision ids are written `hub D-054` / `hub D-374`, since D-054 is a different row in two project ledgers.
+- `tests/test_governance_template_split.py` holds the template byte-identical to the hub across the whole span, with the `hub D-` prefix as the one named divergence, and asserts exactly two § FINAL OUTPUT copies (plan `docs/development/plans/2026-09-23-plan-1-stop-and-compaction`, T02b).
+
 ### Changed — hub CLAUDE.md: the DECISION block is the only legitimate hand-off, and `# Compact instructions` (2026-09-24)
 
 - § FINAL OUTPUT's "`NEXT: operator decision` HAS A BAR" paragraph now states the bar as a four-line `DECISION NEEDED (ground: gate|underivable|owned)` block, written unfenced, with the gate ground's closed class list (deploy · destructive · irreversible · spend · cross-repo · publish · credentials · design approval · plan approval · Gate 1 · Gate 2 · production data), one legitimate and one refused example; the 7-line template and the STATE footer point `operator decision` at the block. Every rule the old paragraph carried is kept, the incident story is gone.
