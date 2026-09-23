@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-spec and /fabrik-plan-after-chat delegate large reads, rank approaches by a judge panel and close in four calls (2026-09-23)
+
+- Three command fragments. `delegated-reads` sends a read over ~30 k tokens to one seat per source, returning `path:line`-anchored claims the lead still executes. `judge-panel` has three Sonnet seats rank the approaches blind before the lead recommends. `close-chain` writes the inputs first, then runs the artifact's check, the commits (artifact and code first, then the ledgers, then a push), the gate and the close by name. `/fabrik-spec` takes all three; `/fabrik-plan-after-chat` takes the reads and the close (D-363).
+
 ### Changed — rules(self-healing): file 24 of the currency pass, to the 11-row bar (D-362) (2026-09-23)
 - The ladder now says which watchdog steps can run: the sidecar dispatches actions with empty parameters, so only
   `restart_container` and `reset_db_pool` execute, and rows 2, 5, 7 and 8 fall back to escalate plus the deadman restart.
