@@ -8,8 +8,10 @@
 //
 // THE SHAPE IS D-335 / D-344, UNCHANGED: the surface cut into disjoint slices by file; TWO cheap finders per
 // slice (one Sonnet, one Haiku `fabrik-reviewer`), each over the whole slice, candidates UNIONED never voted;
-// no Opus finder; a Sonnet verify seat EXECUTES each candidate's check and returns the command and its output;
-// the lead re-runs the confirmed ones. Every pass after the first is the same slice ownership re-verifying the
+// no Opus finder; ONE fresh Sonnet refuter per slice EXECUTES every candidate's check and returns the command
+// and its output (§ 4.9 findings 27, 36, 41 — row 5b: a seat per candidate mostly ran one grep); the lead
+// re-runs the confirmed ones. Every seat names its model AND effort — an unnamed one inherits the session's
+// (finding 43): finders at `medium` with the recall-first brief kept (finding 38), the refuter at `high`. Every pass after the first is the same slice ownership re-verifying the
 // slice's claim ledger; refuted and recorded candidates never re-open (D-206, D-230, D-339).
 //
 // COBRA NOTES (D-253) — the cheapest way to satisfy each measure this script produces WITHOUT the outcome:
@@ -20,23 +22,31 @@
 //   * the capture-recapture estimate → two finders that share notes or a model inflate the overlap and read
 //     "nothing left": the finders are two models in two contexts, the number is printed as ADVICE and nothing
 //     keys on it.
-//   * "verified" → the verify seat returns a plausible command it never ran: the lead re-executes every
+//   * "verified" → the refuter returns a plausible command it never ran: the lead re-executes every
 //     CONFIRMED command before a fix (Phase 2), so a fabricated confirmation costs one lead command, and a
 //     fabricated refutation is caught by the same slice's next pass or the escaped-defect row (§ 6).
+//   * `closable` → the cheapest way to a closable slice is a refuter that answers `refuted` to everything:
+//     a refutation with an empty command or output is rewritten to `unverified` (finding 36 — refutation
+//     needs counter-evidence), an unanswered candidate is `unverified`, and `unverified` never closes. What
+//     the script cannot see is a refutation whose command was never run; the lead executes the refutations
+//     it relies on (Phase 2). `closable` is a floor for "may close", never a reason to stop early: ≤ 3
+//     passes is a target, not a cap (operator ruling 2026-09-23).
 //
 // ARGS (all strings unless noted; the command source builds them — see docs/reference/review-loop-workflow.md):
 //   pass: 1|2|3 · surface · base_sha · digest · pins_dir · scratch_dir · brief (the dispatcher's shared text:
-//   hunt classes, lessons, house rules) · slices: [{ name, files: [..], priority, ledger?: [{ id, file, line,
-//   claim }] }] (ledger present on pass ≥ 2) · box_minutes (default 15)
-// RETURNS one ledger: { pass, slices: [{ name, files, seats: [{ model, files_read, raised, failed }],
-//   gaps, raised, distinct, overlap, estimate_unseen, candidates: [..], verdicts: [..] }], dropped_seats }
+//   hunt classes, lessons, house rules) · slices: [{ name, files: [..], priority, ledger?: [ { id, file, line,
+//   claim } | "<the claim as one string>" ] }] (ledger present on pass ≥ 2; any other row shape is REFUSED
+//   before a seat is dispatched) · box_minutes (default 15)
+// RETURNS one ledger: { pass, closable, slices: [{ name, files, seats: [{ model, files_read, raised, failed }],
+//   gaps, raised, distinct, overlap, estimate_unseen, candidates: [..], verdicts: [..], closable, open: [..] }],
+//   dropped_seats }
 
 export const meta = {
   name: 'fabrik-review-loop',
-  description: 'D-335 review loop: two cheap finders per slice, one verify seat per candidate, one ledger back',
+  description: 'D-335 review loop: two cheap finders per slice, one refuter per slice, one ledger back',
   phases: [
     { title: 'Find', detail: 'one Sonnet and one Haiku fabrik-reviewer per slice, candidates unioned' },
-    { title: 'Verify', detail: 'one Sonnet fabrik-reviewer executes each candidate and returns command + output' },
+    { title: 'Verify', detail: 'one fresh Sonnet refuter per slice executes every candidate and returns command + output' },
   ],
 }
 
@@ -84,7 +94,7 @@ const VERDICT = {
   required: ['id', 'verdict', 'command', 'output', 'mechanism'],
   properties: {
     id: { type: 'string' },
-    verdict: { enum: ['confirmed', 'refuted', 'recorded'] },
+    verdict: { enum: ['confirmed', 'refuted', 'recorded', 'unverified'] },
     command: { type: 'string', description: 'the exact command you ran on the pinned copy' },
     output: { type: 'string', description: 'its output, at most 1500 characters' },
     mechanism: { type: 'string', description: 'one sentence: WHY it fails or does not' },
@@ -92,8 +102,31 @@ const VERDICT = {
   },
 }
 
+const REFUTATION = {
+  type: 'object',
+  required: ['verdicts'],
+  properties: { verdicts: { type: 'array', items: VERDICT, description: 'one verdict per candidate id you were handed' } },
+}
+
 const MODELS = ['sonnet', 'haiku']
 const box = args.box_minutes || 15
+
+// A ledger row is `{ id, file, line, claim }` or the claim as one string; anything else is refused HERE, before a
+// seat runs — a string row once rendered as `undefined · undefined:undefined · undefined` and nothing failed.
+function normalizeLedger(slice) {
+  return (slice.ledger || []).map((row, i) => {
+    if (typeof row === 'string' && row.trim()) return { id: `${slice.name}-L${i + 1}`, claim: row.trim() }
+    if (row && typeof row === 'object' && typeof row.claim === 'string' && row.claim.trim()) {
+      return { ...row, id: row.id || `${slice.name}-L${i + 1}` }
+    }
+    throw new Error(`slice ${slice.name}: ledger row ${i + 1} is neither { id, file, line, claim } nor a claim string — got ${JSON.stringify(row)}`)
+  })
+}
+for (const s of args.slices) s.ledger = normalizeLedger(s)
+
+function ledgerLine(c) {
+  return c.file ? `  - ${c.id} · ${c.file}:${c.line} · ${c.claim}` : `  - ${c.id} · ${c.claim}`
+}
 
 function finderPrompt(slice, model) {
   const ledger = slice.ledger && slice.ledger.length
@@ -102,7 +135,7 @@ function finderPrompt(slice, model) {
     : `PASS 1 — you are the ${model} finder for slice ${slice.name}: one of TWO cheap finders over this whole slice (the other is a ${model === 'sonnet' ? 'haiku' : 'sonnet'} seat; never coordinate, candidates are unioned and every one is executed by the orchestrator). RECALL first: surface every candidate with a concrete failure scenario and an EXECUTABLE check; never drop a half-believed one.`
   const files = slice.files.map((f) => `  - ${f}`).join('\n')
   const ledgerText = ledger
-    ? '\nSLICE LEDGER:\n' + slice.ledger.map((c) => `  - ${c.id} · ${c.file}:${c.line} · ${c.claim}`).join('\n')
+    ? '\nSLICE LEDGER (report every id below in ledger_status, exactly as written):\n' + slice.ledger.map(ledgerLine).join('\n')
     : ''
   return `${head}
 
@@ -118,15 +151,16 @@ ${args.brief}
 RETURN the structured output: files_read MUST list every file you opened (repo-relative) — a slice file you did not open is a coverage gap the script logs and the slice is then unverified; candidates each with id "${slice.name}-${model[0].toUpperCase()}<n>", file, line, failure_class, claim, scenario, check, confidence; notes: coverage statement, then MACHINERY last. HARD TIME BOX ${box} minutes. FINISH by calling the StructuredOutput tool — a report in prose is a failed seat.`
 }
 
-function verifyPrompt(slice, c) {
-  return `VERIFY SEAT — execute ONE candidate from slice ${slice.name} and return the verdict with the command you ran and its output. Never fix, never edit, git READ-ONLY, every probe on a COPY under ${args.scratch_dir}/verify-${c.id}/; read the PINNED copy at ${args.pins_dir}/${c.file} (base ${args.base_sha}, digest ${args.digest}).
+function refutePrompt(slice, cands) {
+  const list = cands
+    .map((c) => `CANDIDATE ${c.id} · ${c.file}:${c.line} · class ${c.failure_class}\n  CLAIM: ${c.claim}\n  SCENARIO: ${c.scenario}\n  CHECK TO EXECUTE: ${c.check}`)
+    .join('\n\n')
+  const refuteBox = Math.max(box, 3 * cands.length)
+  return `REFUTER SEAT — fresh context: you did not find these, and you owe the finders nothing. Execute EVERY candidate from slice ${slice.name} below and return one verdict per candidate id with the command you ran and its output. Never fix, never edit, git READ-ONLY, every probe on a COPY under ${args.scratch_dir}/refute-${slice.name}/; read the PINNED copies under ${args.pins_dir}/<repo-relative path> (base ${args.base_sha}, digest ${args.digest}).
 
-CANDIDATE ${c.id} · ${c.file}:${c.line} · class ${c.failure_class}
-CLAIM: ${c.claim}
-SCENARIO: ${c.scenario}
-CHECK TO EXECUTE: ${c.check}
+${list}
 
-Return id "${c.id}" exactly. Run the check (or the smallest command that proves or refutes the claim on the pinned copy). verdict: confirmed = the check reproduces the failure; refuted = the check proves it cannot happen (say the mechanism); recorded = outside the slice or more than one hop away, with a destination. output ≤ 1500 characters, verbatim. mechanism: one sentence, the WHY. A re-read is not execution — run it. HARD TIME BOX ${box} minutes.
+For each id, exactly as written: run its check (or the smallest command that proves or refutes the claim on the pinned copy). verdict: confirmed = the check reproduces the failure; refuted = ONLY with counter-evidence — the command and its output that show it cannot happen, and the mechanism; recorded = outside the slice or more than one hop away, with a destination; unverified = you could not execute it (say why in mechanism). Uncertainty is unverified, never refuted. output ≤ 1500 characters, verbatim. A re-read is not execution — run it. Work in the order given; when the box runs out, return unverified for the rest. HARD TIME BOX ${refuteBox} minutes.
 
 ${args.brief} FINISH by calling the StructuredOutput tool — a report in prose is a failed seat.`
 }
@@ -153,7 +187,11 @@ function unionSlice(r) {
         twin.also = c.id
         twin.also_seat = seat.model
       } else {
-        candidates.push({ ...c, seat: seat.model })
+        // ids key the refuter's verdicts, so they must be unique in the slice: a reused or missing id gets a
+        // suffix here, before the refuter sees it (review of 2026-09-23, A-S2)
+        let id = String(c.id || '').trim() || `${r.slice.name}-${seat.model[0].toUpperCase()}?`
+        for (let n = 2; candidates.some((k) => k.id === id); n += 1) id = `${String(c.id || '').trim() || r.slice.name}#${n}`
+        candidates.push({ ...c, id, seat: seat.model })
       }
     }
   }
@@ -169,6 +207,47 @@ function unionSlice(r) {
   return { ...r, candidates, gaps, raised: n1 + n2, distinct, overlap, estimate_unseen: estimate }
 }
 
+// The id is the candidate's, never the seat's echo (A-S3). A candidate the refuter never answered — a null seat, a
+// missing id, a timed-out box — is `unverified`; a `refuted` with no command or no output is uncertainty dressed as a
+// disproof and is rewritten to `unverified` (finding 36: refutation needs counter-evidence).
+const PLACEHOLDER = /^(?:n\/?a|none|null|nil|-+|—|\.+|tbd|skipped|not run)$/i
+function evidence(x) {
+  const s = String(x || '').trim()
+  return s !== '' && !PLACEHOLDER.test(s)
+}
+function verdictFor(c, out) {
+  const rows = ((out && out.verdicts) || []).filter((x) => x && x.id === c.id)
+  if (!rows.length) return { id: c.id, verdict: 'unverified', command: '', output: '', mechanism: out ? 'the refuter returned no verdict for this id' : 'refuter seat failed (null result)' }
+  if (new Set(rows.map((x) => x.verdict)).size > 1) {
+    return { id: c.id, verdict: 'unverified', command: '', output: '', mechanism: `conflicting verdicts for one id: ${rows.map((x) => x.verdict).join(', ')}` }
+  }
+  const v = rows[0]
+  // the COMMAND is the counter-evidence locator: a placeholder there means nothing ran; the output only has to
+  // exist — a real command may genuinely print `None` or `-` (review pass 2, A-S8)
+  if (v.verdict === 'refuted' && !(evidence(v.command) && String(v.output || '').trim())) {
+    return { ...v, id: c.id, verdict: 'unverified', mechanism: `refuted without counter-evidence (no command or output, or a placeholder): ${v.mechanism || ''}` }
+  }
+  return { ...v, id: c.id }
+}
+
+// A slice may close only when nothing in it is still open: every file read, every seat returned, no candidate
+// confirmed or unverified, and on a later pass every ledger claim re-verified by a seat. `open` names each reason.
+function closeCheck(r) {
+  const open = []
+  if (r.gaps.length) open.push(`unread: ${r.gaps.join(', ')}`)
+  for (const s of r.seats) if (s.failed) open.push(`seat failed: ${s.model}`)
+  for (const v of r.verdicts) if (v.verdict === 'confirmed' || v.verdict === 'unverified') open.push(`${v.verdict}: ${v.id}`)
+  // an exact id wins; a case- or space-slipped id counts only when it folds onto exactly ONE claim, so a slip is
+  // forgiven but one report never closes two claims (review pass 2, A-S7)
+  const fold = (id) => String(id || '').trim().toLowerCase()
+  const ids = r.slice.ledger.map((c) => c.id)
+  const said = r.seats.flatMap((s) => (s.ledger_status || []).map((x) => String(x.id || '').trim()))
+  const hit = (id) => said.includes(id) || (ids.filter((k) => fold(k) === fold(id)).length === 1 && said.some((x) => fold(x) === fold(id)))
+  for (const c of r.slice.ledger) if (!hit(c.id)) open.push(`ledger claim ${c.id} not re-verified by any seat`)
+  if (open.length) log(`slice ${r.slice.name} NOT closable: ${open.join(' · ')}`)
+  return { ...r, closable: open.length === 0, open }
+}
+
 const results = await pipeline(
   args.slices,
   (s) =>
@@ -179,6 +258,7 @@ const results = await pipeline(
           phase: 'Find',
           schema: FINDINGS,
           model: m,
+          effort: 'medium',
           agentType: 'fabrik-reviewer',
         })
       )
@@ -195,26 +275,18 @@ const results = await pipeline(
     })),
   (r) => unionSlice(r),
   (r) =>
-    parallel(
-      r.candidates.map((c) => () =>
-        agent(verifyPrompt(r.slice, c), {
-          label: `verify:${r.slice.name}:${c.id}`,
+    (r.candidates.length
+      ? agent(refutePrompt(r.slice, r.candidates), {
+          label: `refute:${r.slice.name}`,
           phase: 'Verify',
-          schema: VERDICT,
+          schema: REFUTATION,
           model: 'sonnet',
+          effort: 'high',
           agentType: 'fabrik-reviewer',
         })
-      )
-    ).then((vs) => ({
-      ...r,
-      // the id is the candidate's, never the seat's echo (A-S3); 'unverified' is script-emitted for a null seat —
-      // the VERDICT schema binds the seat's three values only (A-S2)
-      verdicts: vs.map((v, i) =>
-        v
-          ? { ...v, id: r.candidates[i].id }
-          : { id: r.candidates[i].id, verdict: 'unverified', command: '', output: '', mechanism: 'verify seat failed (null result)' }
-      ),
-    }))
+      : Promise.resolve({ verdicts: [] })
+    ).then((out) => ({ ...r, verdicts: r.candidates.map((c) => verdictFor(c, out)) })),
+  (r) => closeCheck(r)
 )
 
 const slices = results.filter(Boolean)
@@ -222,10 +294,12 @@ const droppedSlices = args.slices.length - slices.length
 if (droppedSlices) log(`DROPPED ${droppedSlices} of ${args.slices.length} slices (a stage threw) — those slices are UNVERIFIED`)
 const droppedSeats = slices.reduce((n, r) => n + r.seats.filter((s) => s.failed).length, 0)
 const unverified = slices.reduce((n, r) => n + r.verdicts.filter((v) => v.verdict === 'unverified').length, 0)
-log(`pass ${args.pass}: ${slices.length} slices · ${slices.reduce((n, r) => n + r.distinct, 0)} distinct candidates · confirmed ${slices.reduce((n, r) => n + r.verdicts.filter((v) => v.verdict === 'confirmed').length, 0)} · dropped seats ${droppedSeats} · unverified ${unverified}`)
+const closable = droppedSlices === 0 && slices.every((r) => r.closable)
+log(`pass ${args.pass}: ${closable ? 'CLOSABLE' : 'NOT closable'} · ${slices.length} slices · ${slices.reduce((n, r) => n + r.distinct, 0)} distinct candidates · confirmed ${slices.reduce((n, r) => n + r.verdicts.filter((v) => v.verdict === 'confirmed').length, 0)} · dropped seats ${droppedSeats} · unverified ${unverified}`)
 
 return {
   pass: args.pass,
+  closable,
   dropped_slices: droppedSlices,
   dropped_seats: droppedSeats,
   slices: slices.map((r) => ({
@@ -248,5 +322,7 @@ return {
     estimate_unseen: r.estimate_unseen,
     candidates: r.candidates,
     verdicts: r.verdicts,
+    closable: r.closable,
+    open: r.open,
   })),
 }

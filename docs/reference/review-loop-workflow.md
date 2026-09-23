@@ -2,9 +2,13 @@
 
 **What:** the D-335 review loop (`/fabrik-review`, `/fabrik-repo-review`) run as a Claude Code workflow script,
 `.claude/workflows/fabrik-review-loop.js`, so the seat dispatch, the seats' reports and the execution of every
-candidate's check happen outside the lead session's transcript. One `Workflow` call per pass, one ledger back.
+candidate's check happen outside the lead session's transcript — one fresh refuter per slice executes them. One `Workflow` call per pass, one ledger back.
 Built as chunk 5 of `docs/reference/command-loop-performance.md` § 5.2 (D-346, D-347, D-348). The shape is
-D-335 / D-344 unchanged; only where it runs moved.
+D-335 / D-344 unchanged; only where it runs moved. Row 5b (D-354) replaced one verify seat per candidate with one
+refuter per slice: every candidate is still executed (D-330's "every claim executed" holds), the seat per candidate
+mostly ran one grep (§ 4.9 findings 27, 41), and the refuter's box grows with its candidates (3 minutes each, never
+below `box_minutes`). The reviewer agent carries `experimental.cacheTtl: 1h`, which Claude Code ignores while a
+subscription is spending usage credits (finding 41).
 
 ## Launch (the command source does this; the lead never dispatches seats one by one)
 
@@ -18,7 +22,7 @@ Workflow({ scriptPath: "/opt/fabrik/.claude/workflows/fabrik-review-loop.js", ar
 | `surface`, `base_sha`, `digest` | the Phase-0 surface, the pinned commit, `git diff HEAD \| md5sum` |
 | `pins_dir`, `scratch_dir` | the pinned copies every seat reads; the per-seat scratch root |
 | `brief` | the dispatcher's shared text: the 16 failure classes, the D8 lessons, the house rules, the referents |
-| `slices` | `[{ name, files: [repo-relative…], priority, ledger?: [{ id, file, line, claim }] }]` — `ledger` on pass ≥ 2; each `claim` states the DEFECT as raised — `STILL_TRUE` the defect persists · `NOW_FALSE` it is gone (the fix holds) · `NEW` a defect the fix introduced |
+| `slices` | `[{ name, files: [repo-relative…], priority, ledger?: [{ id, file, line, claim } \| "<claim>"] }]` — `ledger` on pass ≥ 2 (a string row gets the id `<slice>-L<n>`; any other row shape stops the script before a seat runs); each `claim` states the DEFECT as raised — `STILL_TRUE` the defect persists · `NOW_FALSE` it is gone (the fix holds) · `NEW` a defect the fix introduced |
 | `box_minutes` | the seats' hard time box (default 15) |
 
 The tool returns `async_launched`; the ledger arrives as one result — the lead waits for it with ONE bounded in-turn poll per pass, and when the result is truncated reads the run's `journal.jsonl` (one `result` row per completed agent), never the escaped task-output copy. **Each pass is its own invocation** — never
@@ -28,15 +32,16 @@ The tool returns `async_launched`; the ledger arrives as one result — the lead
 ## What comes back
 
 ```text
-{ pass, dropped_slices, dropped_seats,
-  slices: [{ name, files, seats: [{ model, files_read, raised, failed, ledger_status, notes }],
-             gaps, raised, distinct, overlap, estimate_unseen, candidates: [..], verdicts: [..] }] }
+{ pass, closable, dropped_slices, dropped_seats,
+  slices: [{ name, files, seats: [{ model, files_read, raised, confirmed, failed, ledger_status, notes }],
+             gaps, raised, distinct, overlap, estimate_unseen, candidates: [..], verdicts: [..], closable, open: [..] }] }
 ```
 
 - `candidates` — the two finders' union: two DIFFERENT seats citing the same file and class within five lines are one candidate (`also` carries the twin's id, `also_seat` its seat); the same seat's neighbours are never merged. A candidate both raised credits both seats' `confirmed`.
-- `verdicts` — one per candidate from the Sonnet verify seat: `confirmed | refuted | recorded` (the seat's schema), or `unverified` written by the script for a seat that returned nothing; the `id` is always the candidate's, never the seat's echo; with
+- `verdicts` — one per candidate from the slice's Sonnet refuter (`effort: high`; the finders run at `medium`): `confirmed | refuted | recorded | unverified`; the script writes `unverified` for a candidate the refuter never answered and for a `refuted` with no command or output (refutation needs counter-evidence); a `refuted` whose command is a placeholder (`n/a`, `none`, `-`) or whose output is empty counts as none, and two rows for one id that disagree are `unverified`; the `id` is always the candidate's — the union suffixes a reused id (`#2`) before the refuter sees it — never the seat's echo; with
   the command it ran, the output (≤ 1500 chars), the mechanism, a destination when recorded.
 - `gaps` — slice files no finder listed in `files_read`; logged, and the slice is UNVERIFIED until read.
+- `closable` / `open` — a slice may close only with no gap, no failed seat, no `confirmed` or `unverified` verdict and, on a later pass, every ledger claim reported by a seat; `open` names each reason. It is a floor for "may close", never a stop signal: ≤ 3 passes is a target, not a cap (D-354).
 - `estimate_unseen` — Chapman's capture-recapture estimate over the two finders' candidate sets; advice for the
   re-dispatch brief, never a gate (`command-loop-performance.md` § 4.9 finding 18).
 
