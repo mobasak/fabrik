@@ -188,6 +188,17 @@ ARTIFACT: <SHA · zip/build path | n/a (vps: deploy from remote)>
 GATE 2 → OPERATOR: <the one action only the human takes>
 ```
 
+On a fully-PASS verdict, end the turn with the block below, written as plain lines, not inside a code
+fence:
+
+```
+DECISION NEEDED (ground: gate)
+- Question: Do you approve <the one action from GATE 2 → OPERATOR above>?
+- Why it is yours: Gate 2 — no agent deploys, submits, or ships an artifact to users; that act is always the operator's.
+- Options: A — approve, and the printed hand-off action runs (VPS: dispatch /fabrik-deploy-plan · store: submit) · B — hold, and name what must change first.
+- Recommendation: A, once every CHECKLIST row above is PASS-with-evidence.
+```
+
 Next command: Gate 2 — human approval; VPS: /fabrik-deploy-plan (the deploy triad). Stores: operator submits, then /fabrik-deploy-verify.
 
 {{include:close-chain}}

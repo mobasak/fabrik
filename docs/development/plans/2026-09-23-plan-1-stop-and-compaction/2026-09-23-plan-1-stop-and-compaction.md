@@ -35,7 +35,7 @@ Intake: 7 items — 6 IN, 1 OUT-OF-SCOPE (named), 0 ASK.
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01a | gate-ending command sources state their gate as a DECISION block | — | ⚡ | ⬜ | |
+| T01a | gate-ending command sources state their gate as a DECISION block | — | ⚡ | ✅ | 48120c74f |
 | T01b | the kaizen vocabulary: the `decision_block` event and `deferral` as a premature cause | — | ⚡ | ⬜ | |
 | T02a | hub `CLAUDE.md`: the DECISION block, the bar bullet, `# Compact instructions` | — | ⚡ | ⬜ | |
 | T02b | `templates/governance/CLAUDE.md`: the same, in every § FINAL OUTPUT copy | T02a | ⛓️ | ⬜ | |

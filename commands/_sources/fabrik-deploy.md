@@ -25,9 +25,9 @@ for anything that deliberately survived the halt.
 ## ⚠️ Termination contract
 
 This run has exactly FOUR legitimate ENDINGS — plus ONE sanctioned mid-run SUSPENSION (the
-verify-in-session operator handoff, Phase 2 step 1: push the ledger commits first, make the footer's
-`NEXT:` line the single `operator decision: <the act>` line — the hook exemption is line-scoped —
-end the turn, resume on the reply — a suspension is not a stop and
+verify-in-session operator handoff, Phase 2 step 1: push the ledger commits first, then end the turn
+with the gate-grounded DECISION block that step names — it is the well-formed block itself, never a bare
+`NEXT:` phrase, that the deferral check exempts — resume on the reply; a suspension is not a stop and
 never triggers the halt protocol):
 
 1. **Deployed** — every runbook step ran with its verification **PASS (fenced output, this run)**, the
@@ -233,11 +233,20 @@ close it; execute them with these guarantees:
    operator handoff**, in two shapes the plan declares per step: **verify-in-session** (the act's
    result is immediately checkable — e.g. notarization before a staple) → name the exact act and its
    expected result, then END THE TURN on that handoff — first PUSH the ledger commits (the task-end law
-   binds mid-run pauses too; an unpushed suspension gets hook-blocked), and shape the closing footer
-   so the `NEXT:` line IS the single `operator decision: <the act>` line, with the `STATE:` line (and
-   every other line) free of promise/obligation constructions ('I'll run it', '<work> is
-   outstanding') — the enforcement mesh's exemption is LINE-scoped, so the stall-bearing text must
-   sit only on the exempt line —
+   binds mid-run pauses too; an unpushed suspension gets hook-blocked), and close the turn with the
+   block below, written as plain lines, not inside a code fence:
+
+   ```
+   DECISION NEEDED (ground: gate)
+   - Question: Has <the exact act> completed with <the expected result>?
+   - Why it is yours: deploy — the plan's OPERATOR-GATE step, a mid-session handoff no agent can perform or verify itself.
+   - Options: A — confirm it completed, and the step's VERIFICATION column runs next · B — it has not (or it failed), and the halt protocol runs instead.
+   - Recommendation: A once you have performed the act; reply either way.
+   ```
+
+   with the `STATE:` line (and every other line) free of promise/obligation constructions ('I'll run
+   it', '<work> is outstanding') — it is the well-formed block itself, never a bare `NEXT:` phrase,
+   that the deferral check exempts —
    and on the operator's reply run the step's VERIFICATION column and continue; **verify-deferred**
    (the act's result is inherently slow — a store review measured in days) → the handoff IS this
    surface's completion. **The deferred-gate battery rule (any surface):** when the NEXT step to
@@ -343,8 +352,18 @@ print; proceed to Phase 5 directly.
 5. Hand off — `/fabrik-deploy-verify` (VPS: fresh-probe certification of the live service — the
    hand-off names the contract version and the container leg the plan was authored against, so the
    verify run's Phase 0 header read and Phase 6 legs are checked against the SAME facts this deploy
-   pre-flighted) or the operator's publish act (stores) — and print the 7-line FINAL OUTPUT block per
-   CLAUDE.md:
+   pre-flighted) or, for store surfaces, the operator's publish act — stated as the block below,
+   written as plain lines, not inside a code fence:
+
+   ```
+   DECISION NEEDED (ground: gate)
+   - Question: Do you approve <the publish act, named precisely>?
+   - Why it is yours: publish — no agent ships an artifact to users; that act is always the operator's.
+   - Options: A — approve, and you perform the publish act · B — hold, and name what must change first.
+   - Recommendation: A, once every runbook step and the battery above are green.
+   ```
+
+   — then print the 7-line FINAL OUTPUT block per CLAUDE.md:
 
 ```
 GATE: <the battery + the plan's own gate commands run this turn> → success|failure
@@ -352,7 +371,7 @@ DOCS UPDATED: <files | none>
 CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 DONE: <what actually deployed — SHA, target, battery verdict, plan archived at <path>>
-NEXT: /fabrik-deploy-verify <service> (parity contract v<N>, container leg <service|app>) | operator decision: <the publish act> — named precisely
+NEXT: /fabrik-deploy-verify <service> (parity contract v<N>, container leg <service|app>) | operator decision: <the publish act> — see DECISION NEEDED above
 ```
 
 Next command: /fabrik-deploy-verify — prove the deployed service against its live checklist.

@@ -290,7 +290,17 @@ field-freeze / UI / plan work begins. Once the quiet closing round (§ Terminati
   resolves is a defect of THIS round); countable: rows ≥ the A0a inventory you enumerated yourself, every
   row anchored — a brief item with no row is a silent drop and re-opens the loop; (2) the converged spec + a
   short summary of what hardened (facts re-verified, vendor verdicts confirmed, gaps closed); (3) the full
-  Pass Ledger — and **STOP — explicitly ask the user to approve.**
+  Pass Ledger; then **end the turn with the block below**, written as plain lines, not inside a code
+  fence — never a plain-prose approval ask.
+
+  ```
+  DECISION NEEDED (ground: gate)
+  - Question: Do you approve this converged design spec?
+  - Why it is yours: design approval — the human gate before any field-freeze / UI / plan work begins.
+  - Options: A — approve, and the applicable next command (named below) runs · B — request changes, and the grounding loop re-opens on your feedback.
+  - Recommendation: A, once the ask ↔ spec comparison table and the full Pass Ledger above show every brief item accounted for.
+  ```
+
 - **Do NOT auto-invoke the next command.** Unlike `/fabrik-spec` → `/fabrik-spec-review` (no human gate
   there), this hand-off IS the human gate; auto-chaining past it would skip the design sign-off. Name the
   applicable next so the operator (or the next turn) knows what follows, but do not call it:

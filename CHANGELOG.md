@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — six gate-ending commands state their human gate as a DECISION block (2026-09-24)
+
+- `/fabrik-spec-review`, `/fabrik-flows-review`, `/fabrik-ui-design-review`, `/fabrik-deploy-plan-review`, `/fabrik-release` and `/fabrik-deploy` now end at their gate with `DECISION NEEDED (ground: gate)` — question, why it is the operator's (a class from the Stop hook's closed list), options with what each changes, and a recommendation — written unfenced. `/fabrik-deploy`'s verify-in-session suspension and its store ending use the same block; the "hook exemption is line-scoped" instruction is gone. This lands before the Stop hook's DEFERRAL check (plan `docs/development/plans/2026-09-23-plan-1-stop-and-compaction`, T01a), so no legitimate gate is refused on the day the hook arrives.
+- `tests/test_gate_decision_blocks.py` grades every block: four fields, none empty, a closed-list class on a word boundary, the unfenced instruction, and no bare `operator decision` NEXT template in `/fabrik-deploy`.
+
 ### Fixed — core/60-watchdog.md states the Tier-D window default D-378 set: 300 s, not 1800 s (2026-09-24)
 
 - The fleet pack said the `code_fix_window_sec` silence window defaults to 1800 s in two places, and argued for 1800. The hub default is 300 s again by operator ruling D-378 (mail 01M3806TBQ86A96X9K9N7RVR4P). Both statements now say 300 s and name where it lives (`WatchdogConfig`, `src/fabrik/spec_loader.py`). The rationale says what the code does: a silence-applied fix has passed the tests, the secret scan and the blast-radius guard, deploys after a snapshot marker, and rolls back on a health or golden regression, while a wrong fix that passes both is never caught.
