@@ -801,6 +801,10 @@ PARAMS = {
         },
     },
     "fabrik-plan-after-chat": {
+        "close-chain": {
+            "COMMAND": "fabrik-plan-after-chat",
+            "ARTIFACT_CHECK": "`python3 scripts/enforcement/check_plan_tickets.py --plan-dir <the set>` for a plan set, and `python3 scripts/enforcement/check_convergence.py` for either shape",
+        },
         "subagents-core": {
             "HEADLINE": "pool-default for gradeable fan-out (records to the flywheel)",
             "TASK_TYPE": '"research"',
@@ -813,6 +817,10 @@ PARAMS = {
         },
     },
     "fabrik-spec": {
+        "close-chain": {
+            "COMMAND": "fabrik-spec",
+            "ARTIFACT_CHECK": "`python3 scripts/enforcement/check_spec_convergence.py` (repo-wide; the spec is CONVERGED by then)",
+        },
         "subagents-core": {
             "HEADLINE": "`fanout` the grounding, `set_quality` the verdict",
             "TASK_TYPE": '"research"',

@@ -93,6 +93,8 @@ to vendor/enhance, not its exact signatures — that still needs grounding); (b)
 source is **still fresh** (re-research only if the spec is stale or the dependency changed since its date).
 Only when there is **no** spec do you run the full intake below from scratch.
 
+{{include:delegated-reads}}
+
 Every design selection — what to build, what to vendor, how to deploy, which invariants bind — MUST be
 justified against these sources, not made blind. Consult each that applies and cite it in the plan:
 
@@ -692,7 +694,7 @@ Append, so the downstream converge/execute commands have what they need:
   set — tickets never carry one) — this command writes `Status: DRAFT`, and the enforced
   `/fabrik-plan-review` flips it to `Status: CONVERGED` in place. Do not create a second file or rename
   on convergence.
-- Do **not** commit unless the user says so this turn (`git add` is fine). ⚠️ **Superseded where it conflicts with CLAUDE.md § EXIT:** an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed. **COMMIT the artifact** — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that. What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (trade-intelligence, 2026-08-28).
+- **COMMIT the artifact** at the close (the chain below), never "only when the user says so": an uncommitted artifact is an unfinished task the Stop hook blocks, and on a shared tree parked WIP is the only work that can be silently destroyed. A committed `DRAFT` is not an approved one — its own `Status:` line carries that; the user's word is needed only for the APPROVAL and for anything beyond this artifact's own paths.
 - **Plan set only — BEFORE invoking the review: fix emit-gate findings (WARNs included) and
   `git add` the SPINE.** The `--plan-dir` run is the only place the advisory set (≤8-behavior,
   ≤3-`Gate:`, File-Scope-unparseable, File-Scope-orphan,
@@ -725,5 +727,7 @@ is stronger: ERROR at the emit gate and the flip, advisory only on the shared pa
 
 Do not promise the plan is complete or correct — `/fabrik-plan-after-chat` delivers a *converged* plan
 (DRAFT grounded here → hardened by the enforced `/fabrik-plan-review`); execution remains the user's call.
+
+{{include:close-chain}}
 
 {{include:subagents-core}}

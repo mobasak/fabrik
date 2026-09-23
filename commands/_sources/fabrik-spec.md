@@ -12,6 +12,8 @@ Turn a rough idea into an **approved design spec** — *what* to build, *why*, a
 {{include:chat-intake}}
 ## Phase 0 — Scope + decompose
 
+{{include:delegated-reads}}
+
 - Explore project context first: files, recent commits, existing `specs/`/`docs/`, `AFCL.md`.
 - **Epic-file intake (spec § Chain consolidation (d)):** when the argument is a file under
   `docs/development/epics/` (an already-decomposed epic, not a from-scratch idea), this run's
@@ -277,7 +279,8 @@ the /fabrik-spec-review approval mint covers only the approval itself, never the
 
 ## Phase 3 — Approaches (2–3) + recommendation
 
-Propose 2–3 approaches with tradeoffs; **lead with your recommendation and why.** Each MUST be justified
+Propose 2–3 approaches with tradeoffs; the judge panel below ranks them, and only then does your write-up **lead with
+your recommendation and why.** Each MUST be justified
 against Phase 1: which fabrik-lib modules it **vendors / enhances**, what it **builds** (and why that's
 unavoidable), which external APIs it uses **with their real grounded limits/pricing**, the `shape:`
 implications, **and which cited current best-practice (1c) makes it the lean / low-maintenance / pro-grade
@@ -301,6 +304,8 @@ demonstrably more maintenance/complexity than the researched standard.
 - **High-maintenance where set-and-forget exists?** Prefer what auto-heals / auto-backs-up / auto-monitors via the existing Prometheus/Gatus/Backrest stack.
 - **Incompatible with Fabrik infra?** Port conflicts (`PORTS.md`), Alpine, `localhost` assumptions (use `postgres-main:5432`), non-amd64, 12-Factor violations.
 - **Duplicate functionality?** Re-check `docs/BUSINESS_MODEL.md` § Portfolio (you did this in Phase 0 — confirm the approach didn't drift into an existing product).
+
+{{include:judge-panel}}
 
 If the research direction is fundamentally wrong for Fabrik (e.g. AWS serverless when everything deploys to a VPS via `fabrik apply`), **say so directly** and recommend the alternative — don't quietly spec it.
 
@@ -418,6 +423,8 @@ CONVERGED text, at its approval gate. On approval, the pipeline continues —
   cited facts) plus the frozen contracts — and does the *full* binding-context grounding (`.windsurf/rules`,
   `agents-fabrik.md` invariants, fabrik-lib real API at `path:line`, `shape:`, lifecycle) to emit the phased plan.
   The heavy implementation grounding happens THERE, not here — this spec grounded the **design**; the contracts freeze the **fields + screens**; the plan grounds the **build**.
+
+{{include:close-chain}}
 
 ## Guardrails — never
 
