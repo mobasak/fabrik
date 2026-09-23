@@ -1756,3 +1756,35 @@ claims:
     verify: "https://www.rfc-editor.org/rfc/rfc6598.html (WebSearch + WebFetch, 2026-09-23; ledger sh-ext-07)"
     window_days: 180
     last_verified: 2026-09-23
+
+  - id: claude-code-model-aliases
+    pack: ai/00-ai-model-selection.md
+    kind: practice
+    claim: "Claude Code's `--model` aliases `haiku`, `sonnet`, `opus`, `fable` point to the recommended (newest) model of each family for the provider and update over time — code that selects by alias never goes stale; `best` = what `fable` resolves to where available, else `opus`; `fable` has resolved to Fable 5.1 since v2.1.257 (Fable 5 in Claude apps gateway sessions); no Fable model is ever an account default; on Pro/Max/Team/Enterprise/API the default is Opus 5.5; on Bedrock/Vertex/Foundry some aliases resolve to OLDER models (e.g. `sonnet` → Sonnet 4.5); `opusplan`, `sonnet[1m]` and `default` also exist"
+    verify: "https://code.claude.com/docs/en/model-config.md ; https://code.claude.com/docs/en/cli-reference.md (claude-code-guide agent via WebFetch, 2026-09-23; ledger docs/reference/research/2026-09-23-ai-model-selection-currency-ledger.md cc-01..14, cc-17..19)"
+    window_days: 90
+    last_verified: 2026-09-23
+
+  - id: claude-model-lineup-ids
+    pack: ai/00-ai-model-selection.md
+    kind: version
+    claim: "Current Claude API ids: claude-fable-5-1, claude-opus-5-5, claude-sonnet-5, claude-haiku-4-5-20251001 (API alias claude-haiku-4-5); API list price per MTok input/output: Fable 10/50, Opus 4/20, Sonnet 2/10, Haiku 1/5 USD. Claude Mythos 5 (claude-mythos-5) shares Fable 5's capabilities without its safety classifiers, only via Project Glasswing, and has no Claude Code alias. The ids are mirrored in .windsurf/rules/versions.yaml (claude_*_id) — refresh both together"
+    verify: "https://platform.claude.com/docs/en/about-claude/models/overview (firecrawl query + WebFetch, 2026-09-23) ; https://platform.claude.com/docs/en/models/fable-5/introducing-claude-fable-5-and-claude-mythos-5.md (ledger cc-15, cc-16, cc-26..30, self-01)"
+    window_days: 90
+    last_verified: 2026-09-23
+
+  - id: claude-p-json-envelope
+    pack: ai/00-ai-model-selection.md
+    kind: practice
+    claim: "`claude -p --output-format json` returns result, session_id, total_cost_usd and modelUsage (per-model; preferred for accounting — `usage` covers the main loop only); both cost figures are client-side estimates, not a bill; with `--json-schema` the conforming output is in `structured_output`"
+    verify: "https://code.claude.com/docs/en/headless.md ; https://code.claude.com/docs/en/agent-sdk/typescript.md (WebFetch, 2026-09-23; ledger cc-20..25)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: claude-subscription-beats-metered
+    pack: ai/00-ai-model-selection.md
+    kind: rationale
+    claim: "Per token, `claude -p` on the Max subscription costs less than nearly every metered model: the hub cost sidecar's amortized rate (fee ÷ tokens over a rolling 30-day window, 4 accounts) sat around 0.013 USD per MTok on 2026-09-23 — undercut only by free tiers and a priced micro-model (27 of 410 active catalog rows below it) — against Anthropic API list prices of 1–10 USD per MTok input; the operator's standing measurement"
+    verify: "/opt/fabrik/scripts/kilo-benchmarks/claude_p_cost.json (`amortized_per_mtok`, `window_start`/`window_end`, rebuilt by scripts/claude_p_cost.py) + https://platform.claude.com/docs/en/about-claude/pricing — re-read both; the claim holds while the amortized rate stays below the cheapest metered route in the bake-off browser"
+    window_days: 90
+    last_verified: 2026-09-23

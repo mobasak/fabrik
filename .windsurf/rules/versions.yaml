@@ -17,3 +17,7 @@ versions:
   postgres_major: "16"       # postgres-main's actual major (FLEET STATE, not auto-watched; flip = fleet DB upgrade — also rewrite 25-data-postgres § Primary Keys AND re-run 65-rag-search § Vector Storage's probe — its two spans sit inside a dated observation; see claims rows pg-fleet-major, fleet-postgres-main-no-pgvector)
   meilisearch_major: "1.13"  # the meilisearch container's actual tag (FLEET STATE, not auto-watched; flip = fleet Meili upgrade — re-read 65-rag-search § Ranking & Relevance: the default ranking rules split at v1.36; see claims row meili-ranking-rules-seven)
   uv_version: "0.12.8"       # uv pin for the COPY --from build stage (Astral's pin-exact guidance; refreshed via claims row uv-copy-pinned, not auto-watched)
+  claude_opus_id: "claude-opus-5-5"             # current Opus API id — pin only when reproducibility beats currency; code selects by the `opus` alias (NOT auto-watched; refreshed via claims row claude-model-lineup-ids)
+  claude_sonnet_id: "claude-sonnet-5"           # current Sonnet API id (same rule and claims row)
+  claude_haiku_id: "claude-haiku-4-5-20251001"  # current Haiku API id (same rule and claims row)
+  claude_fable_id: "claude-fable-5-1"           # current Fable API id (same rule and claims row)

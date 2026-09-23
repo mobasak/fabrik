@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules(ai/00-ai-model-selection): file 25 of the currency pass, to the 11-row bar (D-364) (2026-09-23)
+- The AI selection index now puts Claude on the Max subscription (`claude -p`) first for any task Claude can do, grounded
+  in the hub cost sidecar's amortized rate; metered APIs only for what Claude cannot serve and for non-LLM categories.
+- Models are selected by the `haiku`/`sonnet`/`opus`/`fable` aliases, which always resolve to the latest model; the current
+  ids live once in `.windsurf/rules/versions.yaml` (four new `claude_*_id` keys) behind marker spans.
+- Removed the retired Kilo gateway as a peer route, the stale two-generations-old Claude default and lineup, and the
+  `claude-fable-5` pin in the dispatch ladder; the pool-only reachability recipe is wholly inside its frozen comment.
+- The Fable second opinion (14 confirmed, 2 plausible — all taken) corrected the cost claim, the live fleet keys behind
+  `llm-dispatch`'s any-failure fallback, the ladder's `sonnet` rung and the removed `fabrik ai generate`.
+- 4 claims registered; research (31 facts) filed in `docs/reference/research/2026-09-23-ai-model-selection-currency-ledger.md`;
+  fabrik-lib mailed (01M37KGQVQPJRJR6RW4CDTRHEQ), intel mailed (01M37KGQXG8DBC9PVRWYC4401R).
+
 ### Changed — /fabrik-spec and /fabrik-plan-after-chat delegate large reads, rank approaches by a judge panel and close in four calls (2026-09-23)
 
 - Three command fragments. `delegated-reads` sends a read over ~30 k tokens to one seat per source, returning `path:line`-anchored claims the lead still executes. `judge-panel` has three Sonnet seats rank the approaches blind before the lead recommends. `close-chain` writes the inputs first, then runs the artifact's check, the commits (artifact and code first, then the ledgers, then a push), the gate and the close by name. `/fabrik-spec` takes all three; `/fabrik-plan-after-chat` takes the reads and the close (D-363).
