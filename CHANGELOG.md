@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Review passes read into a file, every seat timed; the FORCE refusal; seats kept out of the repo (2026-09-23)
+
+- New `scripts/review_loop_ledger.py`: `read` writes a review pass's seats, candidates, verdicts and ledger rows from the workflow run into a file, with each seat's minutes and `OVER BOX` / `UNTIMED` / `NO RESULT` / `DUPLICATE RESULT` flags (one refuter had run 59 minutes against a 12-minute box unseen); `next` builds the next pass's claim ledger from it. `dispatch_headroom.py` refuses while `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set. The review loop's seat prompts forbid writing outside the seat's scratch and time-box blocking commands. `/fabrik-review` uses the helper and logs each pass's stop and fix size. D-357.
+
 ### Fixed — The self-watch no longer lapses every 30 minutes: armed as one background Bash task (2026-09-23)
 
 - New `scripts/sysadmin/selfwatch_arm.sh` runs the resume-mesh watcher as a background Bash task and exits on its first line, freeing the lock for the re-arm and printing the re-arm order; a Monitor (the old arm) has no persistent mode at Claude Code 2.1.280 and ended every watch within 30 minutes. Every arm order moves to it — the orient hooks, the per-prompt check, the quota-hold text and both CLAUDE.md contracts — and `quota_stop.py` admits the exact arm command while the hold stands. `tests/test_selfwatch_arm.py` (4 graders); live-tested: a probe death record woke the session in 24 s. D-356.
