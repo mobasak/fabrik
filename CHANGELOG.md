@@ -8,6 +8,24 @@ All notable changes to this project will be documented in this file.
 
 - `.claude/workflows/fabrik-review-loop.js`: one fresh Sonnet refuter per slice (`effort: high`) executes every candidate; finders run at `effort: medium`; a refutation with a placeholder command or no output is `unverified`, and `unverified` never closes; each slice and pass return `closable` with the `open` reasons; pass-2 ledger rows are objects or plain claim strings, anything else refused before a seat runs (it rendered `undefined`); reused candidate ids are suffixed, conflicting verdict rows are `unverified`, a case-slipped ledger id counts only when it names one claim. 19 graders in `tests/test_review_loop_workflow.py` (was 8). `fabrik-reviewer` agent: `experimental.cacheTtl: 1h`, frontmatter now valid YAML. D-355 — "≤ 3 passes" is a target, never a cap.
 
+### Changed — rules(86-email-templates): file 23 of the currency pass, to the 11-row bar (D-354) (2026-09-23)
+- The pack now opens with the three vendored fabrik-lib modules it governs — `email-templates`, `email-transport`,
+  `expo-push` — and binds their gotchas; it had described none of them and told agents to build the same plumbing.
+- Six research seats returned 109 facts, filed in `docs/reference/research/2026-09-23-email-templates-currency-ledger.md`.
+  They refuted or corrected: Resend's free plan (3 domains, 100 a day), Listmonk's one-click unsubscribe (native since
+  2020), SES review and pause thresholds, its single sending rate and its July 2026 plan pricing, the dark-mode matrix
+  (classic Outlook honours neither mechanism), the RTL mechanism, MJML's CSS inlining, and the İYS integrator list.
+- Added the Gmail/Yahoo/Outlook.com 5,000-a-day sender rules, the 48-hour unsubscribe window and body link, the İYS
+  3-business-day, B2B, no-promotion and retention rules, and the Expo push limits and Firebase credential.
+- The Fable second opinion (16 confirmed, 3 plausible, all taken) moved dunning to the transactional stream, scoped the
+  approve gate, named the İYS reconcile for ESP-dispatched sends, and fixed the vendor path, the tree location, caller-side
+  retry, off-request sends and the Debian codename span.
+- The scoped review confirmed 14 more: the build's fixed template list, the inert `.env` autoload under package
+  vendoring, the implicit-TLS-only SES transport, queue-owned transient-only retries, the `tr.json` gate path and WP
+  variant, the İYS exclusion reason, the push failure contract, and EU double opt-in stated as required.
+- 12 claims registered; fabrik-lib mailed (01M36A3GQ0MRMPAN528CBJ0KBS, 01M36AKQW6NX3JCGH560030HYX,
+  01M36BHCQR0MDHNJWG6AJKPS50).
+
 ### Changed — rules(85-payments-billing): file 22 of the currency pass, to the 11-row bar (D-353) (2026-09-23)
 - The pack now describes the vendored fabrik-lib `payments` module as the reference implementation and
   adopts the three fabrik-lib rulings it had missed: routing by billing model (international → Paddle,

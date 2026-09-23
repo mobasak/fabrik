@@ -1628,3 +1628,99 @@ claims:
     verify: "https://www.mevzuat.gov.tr/anasayfa/MevzuatFihristDetayIframe?MevzuatTur=1&MevzuatNo=3065&MevzuatTertip=5 (exa) ; GİB KDV oranları PDF (exa search highlight, 2026-09-23)"
     window_days: 365
     last_verified: 2026-09-23
+
+  - id: resend-pricing-and-limits
+    pack: core/86-email-templates.md
+    kind: practice
+    claim: "Resend transactional: free 3,000 emails/mo capped at 100/day with 3 domains; Pro $20/mo for 50,000 ($0.90/1,000 overage); marketing (Broadcasts) priced by contacts — free to 1,000, $40/mo for 5,000; API default 10 requests/s per team; batch up to 100 (no attachments); 40 MB per email; Idempotency-Key kept 24 hours"
+    verify: "https://resend.com/pricing ; https://resend.com/docs/api-reference/rate-limit ; https://resend.com/docs/dashboard/emails/idempotency-keys (WebFetch + exa + brave, 2026-09-23; ledger docs/reference/research/2026-09-23-email-templates-currency-ledger.md resend-01..19)"
+    window_days: 90
+    last_verified: 2026-09-23
+
+  - id: postmark-pricing-and-streams
+    pack: core/86-email-templates.md
+    kind: practice
+    claim: "Postmark: free Developer tier 100 emails/mo, no overage; Basic $15/mo from 10,000 ($1.80/1,000 overage, $1.30 Pro, $1.20 Platform); running since 2010; transactional and broadcast Message Streams on separate infrastructure; 10 MB per message, 50 MB per batch payload"
+    verify: "https://postmarkapp.com/pricing ; https://postmarkapp.com/support/article/how-to-create-and-send-through-message-streams (WebFetch + exa + brave, 2026-09-23; ledger postmark rows resend-10..20)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: mailbox-bulk-sender-requirements
+    pack: core/86-email-templates.md
+    kind: standard
+    claim: "Gmail and Yahoo bulk senders (~5,000+ messages/day): SPF and DKIM and DMARC at least p=none with From aligned to SPF or DKIM; spam rate below 0.3%; RFC 8058 one-click for marketing mail only, plus a visible body link, honoured within 48 hours; every sender needs valid forward and reverse DNS and TLS. Outlook.com applies the same 5,000/day authentication rule and has junked non-compliant mail since 2025-05-05, with rejection announced for later; it recommends but does not mandate one-click"
+    verify: "https://support.google.com/mail/answer/81126 ; https://support.google.com/a/answer/14229414 ; https://senders.yahooinc.com/best-practices/ ; techcommunity.microsoft.com post 4399730 (WebFetch + exa + brave, 2026-09-23; ledger mailbox-01..12)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: rfc8058-one-click
+    pack: core/86-email-templates.md
+    kind: standard
+    claim: "RFC 8058: List-Unsubscribe carries one HTTPS URI; List-Unsubscribe-Post carries exactly List-Unsubscribe=One-Click; a valid DKIM signature must cover both headers"
+    verify: "https://www.rfc-editor.org/rfc/rfc8058 (WebFetch, 2026-09-23; ledger mailbox-07)"
+    window_days: 365
+    last_verified: 2026-09-23
+
+  - id: gmail-clip-and-dmarc-rollout
+    pack: core/86-email-templates.md
+    kind: practice
+    claim: "Gmail clips messages above ~102 KB of HTML/text (an ESP-measured figure; Google does not publish it); Google's DMARC rollout guidance is about a week at p=none, then quarantine on a small percentage ramped up, then reject — no fixed calendar"
+    verify: "https://mailchimp.com/help/gmail-is-clipping-my-email/ ; https://knowledge.workspace.google.com/admin/security/recommended-dmarc-rollout (WebSearch + exa + WebFetch, 2026-09-23; ledger mailbox-05, mailbox-06)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: email-dark-mode-support
+    pack: core/86-email-templates.md
+    kind: practice
+    claim: "Per caniemail: Apple Mail, Samsung Email and Thunderbird honour both the color-scheme meta and @media (prefers-color-scheme); Gmail honours only a light color-scheme and not the media query; classic Outlook for Windows honours neither; Outlook.com/new Outlook honour the meta but expose data-og* attributes instead of the query; Yahoo/AOL rewrite the query to a filtered no-op. New Outlook for Windows renders with WebView2"
+    verify: "https://www.caniemail.com/features/html-meta-color-scheme/ ; https://www.caniemail.com/features/css-at-media-prefers-color-scheme/ (firecrawl og:description + WebFetch; WebFetch alone misreads the colour grid) ; https://learn.microsoft.com/en-us/microsoft-365-apps/outlook/overview-new-outlook-windows (2026-09-23; ledger mjml-06..13, mjml-18..19)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: mjml-behaviour-and-major
+    pack: core/86-email-templates.md
+    kind: practice
+    claim: "MJML emits Outlook conditional tables and VML backgrounds itself; mj-style goes to <head> unless inline=\"inline\"; mj-raw is the templating pass-through and minification can break on template syntax; RTL is dir on the root <mjml> (direction=\"rtl\" on mj-section only reorders columns); the next major after the one the vendored build pins is breaking (includes opt-in, new minifiers, higher Node floor)"
+    verify: "https://documentation.mjml.io/ ; https://github.com/mjmlio/mjml/releases (the release notes of the current major) (brave + WebFetch, 2026-09-23; ledger mjml-01..05, mjml-14..17)"
+    window_days: 90
+    last_verified: 2026-09-23
+
+  - id: listmonk-one-click-and-features
+    pack: core/86-email-templates.md
+    kind: practice
+    claim: "Listmonk natively sends List-Unsubscribe and List-Unsubscribe-Post: List-Unsubscribe=One-Click (Settings → Privacy) and its unsubscribe endpoint accepts POST; SES bounces arrive at /webhooks/service/ses via an SNS HTTPS subscription; core sends through SES SMTP only (listmonk-messenger adds the SES API); campaigns schedule one send instant, not per-subscriber local time; SMTP server selectable per campaign; AGPL; Go + Postgres"
+    verify: "https://listmonk.app/docs/bounces/ ; https://listmonk.app/docs/concepts/ ; https://github.com/knadh/listmonk/commit/ec097909dbe84e8317f4def41806626c636512c2 ; https://github.com/knadh/listmonk/issues/2374 ; install doc names the minimum PostgreSQL (exa + WebSearch, 2026-09-23; ledger listmonk-01..19)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: ses-pricing-plans
+    pack: core/86-email-templates.md
+    kind: practice
+    claim: "From 2026-07-21 new SES accounts (and account/region pairs idle since 2025-06-01) start on the Essentials plan at $0.16 per 1,000 emails for the first 10M/month; à la carte outbound is $0.10 per 1,000 plus $0.12/GB attachments; dedicated IP $24.95/mo; VDM $0.07/1,000 plus a query fee under à la carte, included on higher plans; AWS Turkey invoices in TRY with 20% KDV"
+    verify: "https://aws.amazon.com/ses/pricing/ (exa + firecrawl query, 2026-09-23) ; https://aws.amazon.com/legal/awstr/ (ledger ses-01, ses-02, ses-08, ses-17, ses-20, self-01)"
+    window_days: 90
+    last_verified: 2026-09-23
+
+  - id: ses-limits-and-enforcement
+    pack: core/86-email-templates.md
+    kind: practice
+    claim: "SES sandbox: 200 messages/24h, 1/s, verified recipients only; AWS answers a production request within 24 hours; post-sandbox quota varies by use case (50,000/day common); one per-account sending rate for API and SMTP; review at 5% bounces or 0.1% complaints, possible pause at 10% or 0.5%; 40 MB per message (SMTP/current API), 50 recipients; SMTP STARTTLS on 587, TLS wrapper on 465; custom MAIL FROM MX feedback-smtp.<region>.amazonses.com priority 10 and SPF include:amazonses.com; Easy DKIM uses 3 CNAMEs; hold a dedicated IP at ~1,000 emails/day per provider"
+    verify: "https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html ; .../quotas.html ; .../faqs-enforcement.html ; .../smtp-connect.html ; .../mail-from.html ; .../dedicated-ip-warming.html (brave + exa + firecrawl; WebFetch times out on docs.aws.amazon.com, 2026-09-23; ledger ses-03..16, ses-19)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: iys-commercial-message-rules
+    pack: core/86-email-templates.md
+    kind: standard
+    claim: "İYS: a consent not registered in İYS is invalid; outside-İYS consents registered within 3 business days; opt-outs stop sends within 3 business days; tacir/esnaf need no prior consent but must be registered and checked; ongoing-transaction notices need no consent or İYS check only while promoting nothing; records kept 3 years; under 250,000 addresses the İLETİ API is reached only via an integrator, now Ministry-of-Trade-authorised (2024 communiqué; unauthorised partners lapsed 2025-06-30); İLETİ is an annual tiered fee, KDV-exclusive, two smallest tiers free"
+    verify: "https://www.mevzuat.gov.tr/mevzuat?MevzuatNo=20914&MevzuatTur=7&MevzuatTertip=5 (firecrawl; WebFetch fails TLS) ; https://iys.org.tr/hizmet-saglayici/kurumsal-hizmetler ; https://iys.org.tr/entegratorler (exa + firecrawl, 2026-09-23; ledger iys-01..08, iys-16..17)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: expo-push-limits
+    pack: core/86-email-templates.md
+    kind: practice
+    claim: "Expo push: one service call reaches APNs and FCM; ≤100 messages per send request; 600 notifications/s per project; ≤1,000 receipt ids per request; receipts cleared after 24 hours; DeviceNotRegistered means drop the token; total payload ≤4 KiB; Android needs an FCM service-account (HTTP v1) credential uploaded to EAS"
+    verify: "https://docs.expo.dev/push-notifications/sending-notifications/ ; https://docs.expo.dev/push-notifications/push-notifications-setup/ (firecrawl + WebFetch + exa, 2026-09-23; ledger iys-09..15, iys-18..19)"
+    window_days: 180
+    last_verified: 2026-09-23
