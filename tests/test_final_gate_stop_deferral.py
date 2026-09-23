@@ -1,0 +1,622 @@
+"""The Stop hook's DEFERRAL shape (D1-D4) and the DECISION block that is its one exemption.
+
+Spec: docs/superpowers/specs/2026-09-23-stop-and-compaction-enforcement-design.md § C1 (the four
+shapes, their scope and inputs) and § C2 (the block's parse and checks); ticket
+docs/development/plans/2026-09-23-plan-1-stop-and-compaction/T03-stop-hook-deferral.md.
+
+The red fixtures are drawn from the judged sample the spec measured
+(docs/reference/research/2026-09-23-stop-compaction/verdict-*.json, loaded at runtime), the green
+ones from the same files' FALSE-MATCH records and from d4_probe.py's ordinary-prose list.
+"""
+
+from __future__ import annotations
+
+import ast
+import importlib.util
+import io
+import json
+import sys
+import time
+from pathlib import Path
+
+import pytest
+
+REPO = Path(__file__).resolve().parents[1]
+_HOOK = REPO / ".claude" / "hooks" / "final_gate_stop.py"
+_spec = importlib.util.spec_from_file_location("final_gate_stop_deferral_probe", _HOOK)
+hook = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(hook)
+
+RESEARCH = REPO / "docs" / "reference" / "research" / "2026-09-23-stop-compaction"
+
+
+@pytest.fixture(autouse=True)
+def _interactive(monkeypatch, tmp_path) -> None:
+    """Every fixture here is an INTERACTIVE session unless it says otherwise, and no hook side
+    effect reaches the operator's real state (thread anchors, command runs, kaizen events)."""
+    monkeypatch.delenv("CLAUDE_MESH_HEADLESS", raising=False)
+    monkeypatch.setenv("THREAD_ANCHOR_DIR", str(tmp_path / "threads"))
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "runs"))
+    monkeypatch.setenv("KAIZEN_EVENTS_DIR", str(tmp_path / "events"))
+
+
+# --- transcript helpers (the shapes of tests/test_final_gate_stop_hook.py:816-835) ----------
+
+
+def _turn(transcript: Path, *entries: str) -> None:
+    transcript.write_text("\n".join(entries) + "\n", encoding="utf-8")
+
+
+def _user(text: str = "do the thing", **extra: object) -> str:
+    return json.dumps(
+        {"type": "user", "message": {"content": [{"type": "text", "text": text}]}, **extra}
+    )
+
+
+def _asst_text(text: str) -> str:
+    return json.dumps(
+        {"type": "assistant", "message": {"content": [{"type": "text", "text": text}]}}
+    )
+
+
+def _asst_tool(name: str, **inp: object) -> str:
+    return json.dumps(
+        {
+            "type": "assistant",
+            "message": {"content": [{"type": "tool_use", "name": name, "input": inp}]},
+        }
+    )
+
+
+def _stall(tmp_path: Path, final: str, *, user: str = "do the thing", **kw: object):
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(user), _asst_text(final))
+    return hook._detect_stall(str(tr), tmp_path, set(), **kw)
+
+
+def _load(name: str) -> list[dict]:
+    return json.loads((RESEARCH / name).read_text(encoding="utf-8"))
+
+
+def _prose() -> list[str]:
+    """d4_probe.py's PROSE list, read from the file rather than copied (one source)."""
+    tree = ast.parse((RESEARCH / "d4_probe.py").read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "PROSE" for t in node.targets
+        ):
+            return list(ast.literal_eval(node.value))
+    raise AssertionError("d4_probe.py lost its PROSE list")
+
+
+# --- red: the judged premature stops (verdict-opdec.json) -----------------------------------
+
+_OPDEC = [r for r in _load("verdict-opdec.json") if r.get("shape") in ("say-the-word", "menu")]
+# The records are EXCERPTS of at most 100 chars. These ids' excerpts carry the deferral itself;
+# the rest (O02 O05 O13 O14 O28 O29 O46 O70 O78) hold only the surrounding sentence, and the ≥ 17
+# of 19 bar is V1's, measured on the FULL message (ticket step 12), never on an excerpt.
+_OPDEC_SELF_CONTAINED = {"O01", "O09", "O17", "O18", "O25", "O40", "O61", "O69", "O74", "O79"}
+
+
+def test_the_self_contained_set_is_a_subset_of_the_judged_records() -> None:
+    assert {r["id"] for r in _OPDEC} >= _OPDEC_SELF_CONTAINED
+    assert len(_OPDEC) == 19, "the judged say-the-word + menu population changed"
+
+
+@pytest.mark.parametrize(
+    "rec", [r for r in _OPDEC if r["id"] in _OPDEC_SELF_CONTAINED], ids=lambda r: r["id"]
+)
+def test_a_judged_premature_deferral_blocks(tmp_path: Path, rec: dict) -> None:
+    """Each excerpt as it sat in the message: on the NEXT: line (the footer is where 281 of 905
+    deferrals were measured) — the shape it trips is whichever the vocabulary names."""
+    got = _stall(tmp_path, f"Work committed.\n\nNEXT: {rec['quote']}")
+    assert got and got[0].startswith("deferral:"), (rec["id"], rec["quote"], got)
+
+
+# --- red: the judged context excuses (verdict-context.json) ---------------------------------
+
+_CONTEXT = _load("verdict-context.json")
+
+
+def test_d4_fires_on_six_of_the_eight_judged_excuses() -> None:
+    rows = [r for r in _CONTEXT if r["verdict"] == "STOP-EXCUSE"]
+    fired = [r["id"] for r in rows if hook.deferral_shape(r["quote"]) == "D4"]
+    assert len(rows) == 8
+    assert len(fired) >= 6, fired
+
+
+@pytest.mark.parametrize(
+    "rec", [r for r in _CONTEXT if r["verdict"] == "STOP-EXCUSE"], ids=lambda r: r["id"]
+)
+def test_a_context_excuse_blocks_through_the_hook(tmp_path: Path, rec: dict) -> None:
+    got = _stall(tmp_path, f"Phase 2 committed. {rec['quote']}")
+    if hook.deferral_shape(rec["quote"]) is None:
+        pytest.skip(f"{rec['id']}: below D4's recall floor by design (2 of 8 allowed)")
+    assert got and got[0] == "deferral:D4", (rec["id"], got)
+
+
+# --- red: one per shape, synthetic ---------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "shape"),
+    [
+        ("Committed.\n\nNEXT: operator decision — resume or reshape the plan", "D1"),
+        ("Committed.\n\nNEXT: your call on the second half", "D1"),
+        ("Committed.\n\n**NEXT:** awaiting your go on the sweep", "D1"),
+        ("Committed.\n\nNEXT: Gate 2 — human gate on the deploy", "D1"),
+        (
+            "Two ways forward: (a) rerun the sweep on the new diff, or (b) fold it into T04. "
+            "Which do you want?",
+            "D2",
+        ),
+        (
+            "Option A keeps the flag; option B deletes it. Your call.",
+            "D2",
+        ),
+        ("All done and committed. Want me to also fold these in?", "D3"),
+        ("Shall I run the next pass now?", "D3"),
+        ("say the word and I'll open the spec.", "D3"),
+        ("Let me know which of the two you prefer.", "D3"),
+        ("It needs a clean session to finish; context is getting long.", "D4"),
+    ],
+)
+def test_each_shape_blocks_outside_a_run(tmp_path: Path, text: str, shape: str) -> None:
+    got = _stall(tmp_path, text)
+    assert got and got[0] == f"deferral:{shape}", got
+    assert hook.deferral_shape(text) == shape
+
+
+def test_the_permission_shape_now_blocks_without_a_midrun_marker(tmp_path: Path) -> None:
+    """The one behaviour that moves (spec § C1): D3 replaces `_PERMISSION_RE`'s mid-run-only
+    loop, so no plan lock or UNCHECKED review is needed."""
+    got = _stall(tmp_path, "Findings fixed. Should I push it?")
+    assert got == ("deferral:D3", got[1]) and "Should I push it?" in got[1]
+
+
+def test_a_named_gate_on_the_same_line_does_not_exempt_a_deferral(tmp_path: Path) -> None:
+    """K2's per-line exemption is superseded for DEFERRAL only (spec § C1)."""
+    got = _stall(tmp_path, "Done.\n\nNEXT: operator decision [cross-repo] — deploy approval")
+    assert got and got[0] == "deferral:D1"
+
+
+def test_a_dispatch_in_the_turn_does_not_keep_a_deferral(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(
+        tr,
+        _user(),
+        _asst_tool("Agent", prompt="round 2 finders"),
+        _asst_text("Round 2 dispatched. Which do you prefer for round 3 — slices or units?"),
+    )
+    got = hook._detect_stall(str(tr), tmp_path, set())
+    assert got and got[0] == "deferral:D3"
+
+
+def test_blocked_exempts_a_deferral_globally(tmp_path: Path) -> None:
+    waived: list[tuple[str, str]] = []
+    text = (
+        "BLOCKED: vendor API — searched: docs/, web — missing: the auth scheme.\n"
+        + "detail\n" * 80
+        + "NEXT: operator decision — supply the scheme"
+    )
+    assert _stall(tmp_path, text, waived=waived) is None
+    assert ("blocked-escalation", "BLOCKED:") in waived
+    assert hook.deferral_shape(text) is None
+
+
+# --- the DECISION block --------------------------------------------------------------------
+
+_GATE_BLOCK = (
+    "Certified build is ready.\n\n"
+    "DECISION NEEDED (ground: gate)\n"
+    "- Question: Deploy the certified build to production now?\n"
+    "- Why it is yours: gate — Gate 2, a destructive/irreversible action needing authorisation.\n"
+    "- Options: A — deploy now, live in ~5 min · B — hold for one more smoke pass (+15 min)\n"
+    "- Recommendation: A — the certification gauntlet already passed; holding adds no new "
+    "evidence.\n\n"
+    "NEXT: operator decision — see DECISION NEEDED above"
+)
+
+_OPERATOR_Q = "should the retention window be 30 days or 90?"
+
+
+def _block(ground: str, why: str, *, question: str = "Pick the retention window?") -> str:
+    return (
+        "Analysis done.\n\n"
+        f"DECISION NEEDED (ground: {ground})\n"
+        f"- Question: {question}\n"
+        f"- Why it is yours: {why}\n"
+        "- Options: A — 30 days, smaller disk · B — 90 days, longer audit trail\n"
+        "- Recommendation: A — nothing in the spec needs 90.\n\n"
+        "NEXT: operator decision — see DECISION NEEDED above"
+    )
+
+
+_WELL_FORMED = {
+    "gate": _GATE_BLOCK,
+    "underivable": _block(
+        "underivable",
+        "underivable — 30 vs 90 days changes the disk budget and the purge job; searched: "
+        "docs/DECISIONS.md, `grep -rn retention docs/`, D-212 — all silent",
+    ),
+    "owned-asked": _block("owned", f'owned — asked: "{_OPERATOR_Q}"'),
+    "owned-scope": _block("owned", 'owned — scope: "only touch the parser, nothing else"'),
+}
+
+
+@pytest.mark.parametrize("key", list(_WELL_FORMED))
+def test_a_well_formed_block_exempts_the_deferral(tmp_path: Path, key: str) -> None:
+    user = (
+        f"Please look at the retention bug. {_OPERATOR_Q} Also only touch the parser, nothing else."
+    )
+    text = _WELL_FORMED[key]
+    assert hook.deferral_shape(text) == "D1", "the fixture must carry a real deferral to exempt"
+    assert _stall(tmp_path, text, user=user) is None
+    ok, ground = hook.parse_decision_block(
+        text, run_live=False, transcript_path=str(tmp_path / "t.jsonl")
+    )
+    assert ok and ground == key.split("-")[0]
+
+
+def test_the_contract_example_parses_and_the_refused_example_is_refused(tmp_path: Path) -> None:
+    """CLAUDE.md's own Legitimate/Refused pair (§ FINAL OUTPUT), read from the file."""
+    claude = (REPO / "CLAUDE.md").read_text(encoding="utf-8")
+    legit = claude.split("Legitimate:\n```\n", 1)[1].split("```", 1)[0]
+    refused = claude.split("Refused (a manufactured fork, not a decision):\n```\n", 1)[1].split(
+        "```", 1
+    )[0]
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user("(a) mine the unread session, then (b) deploy"))
+    assert hook.parse_decision_block(legit, run_live=False, transcript_path=str(tr)) == (
+        True,
+        "gate",
+    )
+    ok, why = hook.parse_decision_block(refused, run_live=False, transcript_path=str(tr))
+    assert not ok and "asked" in why
+
+
+_GATE_SOURCES = [
+    "fabrik-spec-review.md",
+    "fabrik-flows-review.md",
+    "fabrik-ui-design-review.md",
+    "fabrik-deploy-plan-review.md",
+    "fabrik-release.md",
+    "fabrik-deploy.md",
+]
+
+
+@pytest.mark.parametrize("name", _GATE_SOURCES)
+def test_every_gate_ending_command_block_parses(tmp_path: Path, name: str) -> None:
+    """The six gate-ending commands (T01a) tell the agent to write their block unfenced; the
+    block AS THEY STATE IT must pass `ground: gate` — their Why lines name design approval,
+    Gate 2, deploy and publish."""
+    import textwrap
+
+    src = (REPO / "commands" / "_sources" / name).read_text(encoding="utf-8")
+    blocks = []
+    for chunk in src.split("DECISION NEEDED (ground: gate)")[1:]:
+        body = chunk.split("```", 1)[0]
+        blocks.append(
+            "DECISION NEEDED (ground: gate)" + textwrap.dedent("\n" + body.split("\n", 1)[1])
+        )
+    assert blocks, f"{name} states no gate block"
+    for block in blocks:
+        text = textwrap.dedent(block)
+        assert hook.parse_decision_block(text, run_live=True, transcript_path="") == (
+            True,
+            "gate",
+        ), text
+
+
+def test_a_fenced_block_never_exempts(tmp_path: Path) -> None:
+    fenced = _GATE_BLOCK.replace("DECISION NEEDED", "```\nDECISION NEEDED", 1).replace(
+        "\n\nNEXT:", "\n```\n\nNEXT:", 1
+    )
+    assert hook.extract_decision_block(fenced) is None
+    got = _stall(tmp_path, fenced)
+    assert got and got[0] == "deferral:D1"
+
+
+def test_extract_takes_the_last_block(tmp_path: Path) -> None:
+    two = _block("owned", "owned — nothing") + "\n\n" + _GATE_BLOCK
+    block = hook.extract_decision_block(two)
+    assert block and block.startswith("DECISION NEEDED (ground: gate)")
+    assert block.count("\n") == 4
+
+
+@pytest.mark.parametrize(
+    ("text", "names"),
+    [
+        (
+            _GATE_BLOCK.replace(
+                "- Options: A — deploy now, live in ~5 min · B — hold for one more smoke pass (+15 min)\n",
+                "",
+            ),
+            "Options",
+        ),
+        (_block("hunch", "hunch — it feels risky"), "unknown ground"),
+        (_block("gate", "gate — the operator likes to see these"), "gate class"),
+        (
+            _block("underivable", "underivable — the purge job changes; nothing searched"),
+            "searched:",
+        ),
+        (
+            _block("underivable", "underivable — the purge job changes; searched: my memory"),
+            "searched:",
+        ),
+        (
+            _block(
+                "underivable",
+                "underivable — the purge job changes; searched: the spec and/or ledger",
+            ),
+            "searched:",
+        ),
+        (_block("owned", "owned — the operator owns retention"), "asked: or scope:"),
+        (_block("owned", 'owned — asked: "why?"'), "12"),
+        (_block("owned", 'owned — asked: "the retention window is theirs"'), "?"),
+        (_block("owned", 'owned — asked: "is the retention window 7 days or 1?"'), "operator"),
+        (_block("owned", 'owned — scope: "rewrite the whole storage layer"'), "operator"),
+    ],
+    ids=[
+        "missing-field",
+        "unknown-ground",
+        "gate-without-class",
+        "underivable-without-searched",
+        "underivable-searched-names-nothing",
+        "underivable-searched-prose-slash",
+        "owned-without-quote",
+        "asked-under-12",
+        "asked-not-a-question",
+        "asked-not-in-operator-entries",
+        "scope-not-in-operator-entries",
+    ],
+)
+def test_a_malformed_block_is_itself_a_deferral(tmp_path: Path, text: str, names: str) -> None:
+    user = f"Please look at the retention bug. {_OPERATOR_Q}"
+    got = _stall(tmp_path, text, user=user)
+    assert got and got[0] == "deferral:block", got
+    assert names in got[1], got[1]
+
+
+def test_an_asked_quote_only_in_a_meta_row_is_refused(tmp_path: Path) -> None:
+    """A command's expansion body (`isMeta: true`, the rows render_chat_history.py skips) is the
+    command's words, not the operator's."""
+    tr = tmp_path / "t.jsonl"
+    text = _block("owned", f'owned — asked: "{_OPERATOR_Q}"')
+    _turn(tr, _user("/fabrik-x"), _user(_OPERATOR_Q, isMeta=True), _asst_text(text))
+    got = hook._detect_stall(str(tr), tmp_path, set())
+    assert got and got[0] == "deferral:block" and "operator" in got[1]
+
+
+def test_an_asked_quote_in_a_tool_result_or_summary_is_refused(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    text = _block("owned", f'owned — asked: "{_OPERATOR_Q}"')
+    tool_row = json.dumps(
+        {
+            "type": "user",
+            "message": {"content": [{"type": "tool_result", "content": _OPERATOR_Q}]},
+            "toolUseResult": {"stdout": _OPERATOR_Q},
+        }
+    )
+    _turn(tr, _user("go"), tool_row, _user(_OPERATOR_Q, isCompactSummary=True), _asst_text(text))
+    got = hook._detect_stall(str(tr), tmp_path, set())
+    assert got and got[0] == "deferral:block"
+
+
+def _write_run(tmp_path: Path, sid: str, state: str) -> None:
+    runs = tmp_path / "runs"
+    runs.mkdir(parents=True, exist_ok=True)
+    (runs / f"{sid}.json").write_text(
+        json.dumps({"command": "fabrik-review", "state": state, "updated_ts": time.time()}),
+        encoding="utf-8",
+    )
+
+
+def _run_main(monkeypatch, tmp_path: Path, payload: dict) -> str:
+    proj = tmp_path / "proj"
+    (proj / "scripts").mkdir(parents=True, exist_ok=True)
+    (proj / "scripts" / "final_gate.py").write_text("", encoding="utf-8")
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"cwd": str(proj), **payload})))
+    out = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.setattr(hook.tempfile, "gettempdir", lambda: str(tmp_path))
+    assert hook.main([]) == 0
+    return out.getvalue().strip()
+
+
+def _scope_turn(tmp_path: Path) -> Path:
+    tr = tmp_path / "t.jsonl"
+    text = _block("owned", 'owned — scope: "only touch the parser, nothing else"')
+    _turn(tr, _user("fix it. only touch the parser, nothing else."), _asst_text(text))
+    return tr
+
+
+def test_owned_scope_is_refused_inside_a_live_run(monkeypatch, tmp_path: Path) -> None:
+    """The invoked command already grants its own scope (spec § C2); read the way `_run_record`
+    reads it — `state: running` with a numeric fresh `updated_ts`."""
+    tr = _scope_turn(tmp_path)
+    _write_run(tmp_path, "sidrun", "running")
+    out = _run_main(monkeypatch, tmp_path, {"session_id": "sidrun", "transcript_path": str(tr)})
+    body = json.loads(out)
+    assert body["decision"] == "block" and "DEFERRAL" in body["reason"]
+    assert "scope:" in body["reason"]
+
+
+def test_owned_scope_passes_outside_a_run(monkeypatch, tmp_path: Path) -> None:
+    tr = _scope_turn(tmp_path)
+    _write_run(tmp_path, "siddone", "done")
+    out = _run_main(monkeypatch, tmp_path, {"session_id": "siddone", "transcript_path": str(tr)})
+    assert out == ""
+    events = [
+        json.loads(line)
+        for f in (tmp_path / "events").rglob("*.jsonl")
+        for line in f.read_text(encoding="utf-8").splitlines()
+    ]
+    grounds = [e.get("ground") for e in events if e.get("event") == "decision_block"]
+    assert grounds == ["owned"], events
+
+
+def test_a_deferral_block_event_names_its_cause_and_shape(monkeypatch, tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text("Done.\n\nNEXT: your call on the second half"))
+    out = _run_main(monkeypatch, tmp_path, {"session_id": "sidev", "transcript_path": str(tr)})
+    body = json.loads(out)
+    assert body["decision"] == "block"
+    assert "DECISION block (CLAUDE.md § FINAL OUTPUT)" in body["reason"]
+    assert "do it now" in body["reason"]
+    events = [
+        json.loads(line)
+        for f in (tmp_path / "events").rglob("*.jsonl")
+        for line in f.read_text(encoding="utf-8").splitlines()
+    ]
+    blocks = [e for e in events if e.get("event") == "stop_block"]
+    assert blocks and blocks[0].get("cause") == "deferral" and blocks[0].get("shape") == "D1"
+
+
+def test_a_deferral_warns_through_after_three_blocks(monkeypatch, tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text("Done.\n\nNEXT: your call on the second half"))
+    payload = {"session_id": "sidcap", "transcript_path": str(tr)}
+    for _ in range(3):
+        assert json.loads(_run_main(monkeypatch, tmp_path, payload))["decision"] == "block"
+    assert _run_main(monkeypatch, tmp_path, payload) == ""
+
+
+# --- scope: headless sessions and the payload's own final message -------------------------
+
+
+def test_headless_env_skips_the_deferral(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("CLAUDE_MESH_HEADLESS", "1")
+    assert _stall(tmp_path, "Done.\n\nNEXT: operator decision — resume or reshape") is None
+
+
+def test_an_sdk_cli_session_skips_the_deferral(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(
+        tr,
+        _user("run the daily pass", entrypoint="sdk-cli"),
+        _asst_text("Done.\n\nNEXT: operator decision — resume or reshape"),
+    )
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_last_assistant_message_takes_precedence(monkeypatch, tmp_path: Path) -> None:
+    """The transcript's last text entry is OLDER than the turn's real final message (the race
+    `_final_message_text` works around); the payload's `last_assistant_message` wins."""
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text("Working on it."))
+    final = "Done.\n\nNEXT: operator decision — resume or reshape"
+    got = hook._detect_stall(str(tr), tmp_path, set(), text=final)
+    assert got and got[0] == "deferral:D1"
+    out = _run_main(
+        monkeypatch,
+        tmp_path,
+        {"session_id": "sidlam", "transcript_path": str(tr), "last_assistant_message": final},
+    )
+    assert json.loads(out)["decision"] == "block"
+
+
+def test_last_assistant_message_alone_is_enough(tmp_path: Path) -> None:
+    got = hook._detect_stall("", tmp_path, set(), text="Want me to push it?")
+    assert got and got[0] == "deferral:D3"
+
+
+# --- green: must NOT fire -------------------------------------------------------------------
+
+_GREEN = [
+    "Committed.\n\nSTATE: phase 2 of 4 green\nNEXT: awaiting your reply",
+    "Committed.\n\nNEXT: none — terminal",
+    "Committed.\n\nNEXT: /fabrik-spec-review docs/superpowers/specs/2026-09-23-x-design.md",
+    "Fixed three findings: (a) the parser dropped rows, (b) the regex over-matched, "
+    "(c) the test was vacuous. All committed.",
+    "Steps done:\n1. rebuilt the index\n2. re-ran the gate\n3. pushed.",
+    'You asked "should I keep the old flag?" — yes, it stays; committed.',
+    "The guard now refuses `want me to run it?` as a D3 offer.",
+    "Should I have caught this earlier? Yes — the grader was vacuous; fixed now.",
+    "Do you want the old flag kept? No — it is dead code, so it is removed and committed.",
+    "> Shall I run the next pass now?\n\nThat was the old stall shape; it now blocks.",
+]
+
+
+@pytest.mark.parametrize("text", _GREEN)
+def test_a_green_message_never_fires(tmp_path: Path, text: str) -> None:
+    assert hook.deferral_shape(text) is None, text
+    assert _stall(tmp_path, text) is None
+
+
+@pytest.mark.parametrize(
+    "rec", [r for r in _CONTEXT if r["verdict"] == "FALSE-MATCH"], ids=lambda r: r["id"]
+)
+def test_a_judged_false_match_never_fires(rec: dict) -> None:
+    assert hook.deferral_shape(rec["quote"]) is None, rec
+
+
+@pytest.mark.parametrize("sentence", _prose())
+def test_ordinary_prose_about_sessions_never_fires(sentence: str) -> None:
+    assert hook.deferral_shape(sentence) is None
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "The fix takes effect in a new session; nothing to do.",
+        "Hooks load when you start a new session.",
+        "Verified in a fresh session: the hook fires.",
+        "The new session will inherit the synced hooks.",
+        "A new session runs SessionStart first.",
+    ],
+)
+def test_a_factual_new_session_sentence_never_fires(sentence: str) -> None:
+    """A-O40: D4 fires only when the agent hands its OWN work to a later session."""
+    assert hook.deferral_shape(sentence) is None
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "The MCP servers load at startup, so open a fresh window to pick up the new roster.",
+        "This one needs a new session after the 5h reset lands at 14:40.",
+    ],
+)
+def test_a_window_needed_for_a_reload_or_a_quota_reset_never_fires(sentence: str) -> None:
+    """Spec § C1 D4: a fresh window for MCP/roster/reload/quota/5h/weekly/reset is a tool fact."""
+    assert hook.deferral_shape(sentence) is None
+
+
+# --- the T04/T05 interfaces ----------------------------------------------------------------
+
+
+def test_the_vocabulary_is_one_importable_constant() -> None:
+    assert hook._DEFER_RE.search("awaiting the operator's decision")
+    assert not hook._DEFER_RE.search("awaiting your reply")
+    assert hook._DECISION_GATE_RE.search("UI design approval — the frozen screens")
+    assert not hook._DECISION_GATE_RE.search("unpublished draft, a policy about cost and quota")
+
+
+def _git(cwd: Path, *args: str) -> str:
+    import subprocess
+
+    return subprocess.run(
+        ["git", *args], cwd=cwd, capture_output=True, text=True, check=True
+    ).stdout
+
+
+def test_session_unpushed_lists_only_this_sessions_commits(tmp_path: Path) -> None:
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "master", str(origin))
+    repo = tmp_path / "repo"
+    _git(tmp_path, "clone", "-q", str(origin), str(repo))
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "t")
+    (repo / "base.txt").write_text("b", encoding="utf-8")
+    _git(repo, "add", "base.txt")
+    _git(repo, "commit", "-qm", "base")
+    _git(repo, "push", "-q", "-u", "origin", "master")
+    for name, subject in (("mine.py", "feat: mine"), ("theirs.py", "feat: a sibling's")):
+        (repo / name).write_text(name, encoding="utf-8")
+        _git(repo, "add", name)
+        _git(repo, "commit", "-qm", subject)
+    lines = hook.session_unpushed(repo, {"mine.py"})
+    assert len(lines) == 1 and lines[0].endswith(" feat: mine"), lines
+    assert hook.session_unpushed(repo, set()) == []
+    assert hook.session_unpushed(tmp_path, {"mine.py"}) == []  # no repo → indeterminate → []

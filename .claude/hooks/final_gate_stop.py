@@ -14,7 +14,12 @@ Safety:
   baseline → allow the stop (a hook must never trap the session, and inherited debt
   must never be attributed to the agent).
 - **Loop cap**: after CAP consecutive blocked stops it allows the stop with a loud
-  warning (Claude Code exposes no stop_hook_active flag, verified against the docs).
+  warning. Claude Code's Stop input DOES carry `stop_hook_active` and
+  `last_assistant_message` (https://code.claude.com/docs/en/hooks, E1 in the 2026-09-23
+  stop-and-compaction spec); the per-cause counter stays because that flag is one bit for
+  every cause, and Claude Code's own override ends the turn after 8 consecutive blocks.
+  The final message is read from `last_assistant_message` when present, the transcript
+  otherwise.
 - **Scoped**: clean worktree / non-fabrik project → instant pass.
 
 Contract (verified against https://code.claude.com/docs/en/hooks, 2026-06):
@@ -767,6 +772,60 @@ def _ahead_of_upstream(root: Path, authored: set[str] | None = None) -> int | No
         return None
 
 
+def session_unpushed(
+    root: Path, authored: set[str], *, timeout: float = 2.0, limit: int = 10
+) -> list[str]:
+    """`<sha> <subject>` for each of THIS session's commits not on the upstream, newest first.
+
+    The list form of `_ahead_of_upstream`'s count, for the compact-time WHERE block
+    (`scripts/thread_anchor.py`, T04): the same `@{upstream}..HEAD` range, the same NUL-delimited
+    read, and the same attribution (`_commit_is_mine`, with shared-append names never distinctive
+    on their own). Indeterminate — no upstream, no `authored`, any git error or timeout — is an
+    EMPTY list, never "every commit": a sibling's commit must not be listed as this session's."""
+    if not authored:
+        return []
+    distinctive = {f for f in authored if f not in _ROUTINE_GOVERNANCE}
+    try:
+        r = subprocess.run(
+            [
+                "git",
+                "log",
+                "-z",
+                "--no-renames",
+                "--name-only",
+                "--format=%x00%h %s",
+                "@{upstream}..HEAD",
+            ],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if r.returncode != 0:
+            return []
+        out: list[str] = []
+        head: str | None = None
+        touched: set[str] = set()
+        expect_head = True
+        for field in r.stdout.split("\0"):
+            if not field:
+                if head is not None and _commit_is_mine(touched, distinctive, authored):
+                    out.append(head)
+                head, touched, expect_head = None, set(), True
+                continue
+            if expect_head:
+                head, expect_head = field.strip("\n"), False
+                continue
+            path = field.lstrip("\n")
+            if path:
+                touched.add(path)
+        if head is not None and _commit_is_mine(touched, distinctive, authored):
+            out.append(head)
+        return out[: max(0, limit)]
+    except Exception:
+        return []
+
+
 # Spontaneous-work review checkpoint (operator, 2026-08-29). "Spontaneous" is mechanically
 # decidable: every /fabrik-* command opens a run record (corpus predicate 5, gate-enforced), so a
 # session that authored CODE files with NO record at all is record-less BY CONSTRUCTION — plain-chat
@@ -1332,6 +1391,9 @@ _ACTION_OBJECT_RE = re.compile(
     r"|\bsubagents?\b|\bcoders?\b|\bworkflow\b|\bnow\b",
     re.I,
 )
+# No longer read by `_detect_stall`: D3 (`_OFFER_RE`) replaced its mid-run-only loop (spec
+# 2026-09-23 § C1). Kept for its one importer, the frozen research miner
+# `docs/reference/research/2026-09-23-stop-compaction/mine.py`, whose baseline it reproduces.
 _PERMISSION_RE = re.compile(
     r"\b(?:want me to|shall I|should I(?!\s+have)|would you like me to|do you want me to)\b"
     r"[^?\n]{0,120}\?",
@@ -1437,6 +1499,125 @@ _GATE_CLASS_RE = re.compile(
     r"|\brule[- ]conflict\b.*?\b[\w./-]+\.\w+:\d+",
     re.I,
 )
+# --- DEFERRAL: the seventh stall shape (spec 2026-09-23-stop-and-compaction § C1) ------------
+# The final message hands the operator a decision the plan, the rules, the ledger or the code
+# already make. Four shapes, D1-D4. Unlike the five pattern shapes above, NO per-line class
+# exemption and NO named-gate wording clears one (D-372 supersedes K2 for this shape alone: a
+# named-gate phrase that exempts on sight is the cheapest way past D1 without producing the
+# outcome). Only `BLOCKED:` (global) and a well-formed DECISION block (C2) exempt.
+# ⚠️ COBRA (D-253): the cheapest way past D1-D4 is to REWORD the deferral into vocabulary the
+# closed lists do not name ("the ball is in your court"). The counter-measure is the measure:
+# `scripts/sysadmin/stop_mine.py` imports `_DEFER_RE` and `deferral_shape` (T05), so the fleet's
+# turn-end rate is counted with the SAME vocabulary and a reworded deferral shows up as a falling
+# fire rate beside a flat judged-premature rate. The cheapest way past the DECISION block is a
+# block with an invented ground; the parser therefore verifies `asked:`/`scope:` quotes against
+# the operator's own transcript entries and holds `gate` to a closed class list.
+#
+# D1 — a `NEXT:` line carrying ONE of the closed vocabulary (spec § C1, verbatim). "awaiting your
+# reply" is excluded by construction: "reply" is not in the list.
+_DEFER_RE = re.compile(
+    r"\boperator decision\b|\byour call\b|\byour go\b(?!-)|\bon your (?:yes|word|go|approval)\b"
+    r"|\bsay the word\b|\bif you want\b|\byou decide\b|\byours to (?:decide|choose)\b"
+    r"|\bawait(?:s|ed|ing)?\s+(?:your|the operator(?:'s|’s)?)\s+"
+    r"(?:decision|go|approval|call|word|direction)\b"
+    r"|\bhuman gate\b|\boperator[- ]gated\b|\byours to run\b",
+    re.I,
+)
+# A `NEXT:` footer line, bold or plain (`**NEXT:**`, `**NEXT**:`, `> NEXT:`).
+_NEXT_LINE_RE = re.compile(r"^[ \t>*_-]*NEXT\**[ \t]*:\**", re.M)
+# D2 — a menu: `(a) … (b)`, `option A … option B`, or a numbered list, AND a cue that hands the
+# choice over. A FINDINGS or STEPS list carries no cue (spec § C1's green column).
+_MENU_RE = re.compile(
+    r"\([aA]\)\s*\S[^\n]{0,400}?\([bB]\)\s*\S"
+    r"|^[ \t]*\([aA]\)[^\n]*\n(?:[^\n]*\n){0,6}?[ \t]*\([bB]\)"
+    r"|\b[Oo]ptions?\s+\(?(?:[aA]|1)\)?(?![\w'’])[\s\S]{0,400}?\b[Oo]ption\s+\(?(?:[bB]|2)\)?(?![\w'’])"
+    r"|^[ \t]*(?:1[.)]|\(1\))[ \t]+\S[^\n]*\n(?:[^\n]*\n){0,6}?[ \t]*(?:2[.)]|\(2\))[ \t]+\S",
+    re.M,
+)
+_MENU_CUE_RE = re.compile(
+    r"\?|\b(?:pick|choose|prefer(?:ence|red)?|your (?:call|pick|choice)|up to you|you decide)\b"
+    r"|\bwhich (?:one|option|way|path|of (?:the|these))\b",
+    re.I,
+)
+# D3 — an offer to act (subsumes `_PERMISSION_RE`, which blocked ONLY mid-run; spec § C1 "the one
+# behaviour that moves").
+_OFFER_RE = re.compile(
+    r"\bsay the word\b"
+    r"|\bsay\s+(?:\"[^\"\n]{1,30}\"|“[^”\n]{1,30}”|`[^`\n]{1,30}`|\w+(?:\s+\w+)?)\s+and\s+I(?:'|’)?ll\b"
+    r"|\b(?:do you )?want me to\b[^?\n]{0,160}\?"
+    r"|\bwould you like me to\b[^?\n]{0,160}\?"
+    r"|\bshall I\b[^?\n]{0,160}\?"
+    r"|\bshould I\b(?!\s+have\b)[^?\n]{0,160}\?"
+    r"|\blet me know (?:if|which|whether)\b"
+    r"|\bwhich\b[^?\n.]{0,60}\bprefer\b[^?\n]{0,120}\??"
+    r"|\bdo you want\b[^?\n]{0,160}\?",
+    re.I,
+)
+# A question followed in the same message by its own answer is rhetoric, not an offer.
+_SELF_ANSWER_RE = re.compile(
+    r"\A[\s*_]*(?:[—–:-][\s*_]*)?(?:yes|no|nope|yep|not\b|answer\b|already\b)", re.I
+)
+# D4 — the agent hands ITS OWN WORK to a later session (A-O40: a factual sentence about new
+# sessions never fires). Verbatim from the ticket's step 3, executed in plan-review round 1.
+_WHERE_RE = r"(?:fresh|new|clean|separate)\s+(?:session|window|context|chat)"
+_CONTEXT_EXCUSE_RE = re.compile(
+    rf"\b(?:open|use|needs?|wants?|deserves?|requires?)\s+a\s+{_WHERE_RE}\b"
+    r"(?![^.\n]{0,60}\b(?:MCP|roster|reload|quota|5h|weekly|reset)\b)"
+    rf"|\b(?:a|the)\s+{_WHERE_RE}\s+(?:finishes|should|must|checks)\b"
+    r"|\bcontext\s+(?:is\s+)?getting\s+(?:long|full|low|tight)\b|\bcompact\s+first\b"
+    r"|\bthis\s+session\s+(?:is|has\s+been)\s+(?:running\s+)?long\b",
+    re.I,
+)
+# The DEFERRAL window: the same 600-char tail the pattern shapes read, widened back to the start
+# of the line it cuts into (at most this far) so a quote/blockquote test sees the whole line.
+_DEFER_TAIL_CHARS = 600
+_DEFER_LINE_BACK = 200
+# D1 also reads every NEXT: line among the message's last lines: a long FEEDBACK: line can push
+# the footer's NEXT: out of the 600-char tail.
+_DEFER_TAIL_LINES = _FINAL_BLOCK_TAIL_LINES
+
+# --- the DECISION block (spec § C2) ------------------------------------------------------------
+# The gate classes a `ground: gate` block must name — a closed list, NOT `_GATE_CLASS_RE` (which
+# lacks credentials and design approval and accepts the house words policy/cost/quota; A-O2,
+# A-O3). Searched on WORD boundaries over the whole "Why it is yours" line, so "unpublished" is
+# not "publish".
+_DECISION_GATE_RE = re.compile(
+    r"\bdeploy(?:s|ed|ing|ment|ments)?\b|\bdestructive\b|\birreversible\b"
+    r"|\bspend(?:s|ing)?\b|\breal money\b|\$\d|\bcross[- ]repo\b|\bpublish(?:es|ed|ing)?\b"
+    r"|\bcredentials?\b|\bdesign approval\b|\bplan approval\b|\bgate\s*[12]\b"
+    r"|\bprod(?:uction)? data\b",
+    re.I,
+)
+_DECISION_GROUNDS = ("gate", "underivable", "owned")
+_DECISION_HEADING_RE = re.compile(
+    r"^[ \t>#*_]*DECISION NEEDED[ \t]*\([ \t]*ground:[ \t]*([^)\n]*?)[ \t]*\)[ \t*_]*$", re.M
+)
+_DECISION_FIELDS = ("Question", "Why it is yours", "Options", "Recommendation")
+_DECISION_LABEL_RE = re.compile(
+    r"^[ \t>]*(?:[-*•][ \t]+)?[*_]{0,2}(Question|Why it is yours|Options|Recommendation)[*_]{0,2}"
+    r"[ \t]*:[*_]{0,2}[ \t]*(.*)$",
+    re.I,
+)
+_FENCE_RE = re.compile(r"^[ \t>]*(?:```|~~~)")
+# `underivable` → `searched:` must name something checkable: a path, a command, a ledger id.
+_SEARCHED_EVIDENCE_RE = re.compile(
+    # a directory ends in `/` and a file carries an extension, so prose like "and/or" names nothing
+    r"\bD-\d{2,}\b|`[^`\n]+`|(?:[\w.-]*/)+[\w-]+\.\w{1,6}\b|\b(?:[\w.-]+/)+(?=[\s,;)]|$)"
+    r"|\b[\w-]+\.(?:py|md|json|jsonl|ya?ml|sh|toml|txt|sql|ts|js)\b|/fabrik-[\w-]+",
+)
+# An `asked:`/`scope:` quote shorter than this matches nearly any operator message, which is the
+# cheapest way past the verbatim check (a one-word "scope: the"). Stated for BOTH quotes.
+_DECISION_QUOTE_MIN = 12
+# Operator-entry rows that are the harness's or a hook's words, never the operator's
+# (`scripts/render_chat_history.py`'s `_SKIP_USER_PREFIXES`, plus the prompt hook's wrapper).
+_NOT_OPERATOR_PREFIXES = (
+    "<task-notification>",
+    "<local-command-caveat>",
+    "<local-command-stdout>",
+    "<user-prompt-submit-hook>",
+)
+_SYSTEM_REMINDER_RE = re.compile(r"<system-reminder>.*?</system-reminder>", re.S)
+
 # Tool names whose use in the final turn means a promise was KEPT (work dispatched).
 _DISPATCH_TOOLS = frozenset({"Task", "Agent", "Skill", "Workflow", "SlashCommand"})
 
@@ -1628,13 +1809,357 @@ def _in_quote(tail: str, start: int) -> bool:
     return False
 
 
+def _fence_spans(text: str) -> list[tuple[int, int]]:
+    """Character spans of fenced code blocks (``` or ~~~). An unclosed fence runs to the end."""
+    spans: list[tuple[int, int]] = []
+    pos, start = 0, None
+    for line in text.splitlines(keepends=True):
+        if _FENCE_RE.match(line):
+            if start is None:
+                start = pos
+            else:
+                spans.append((start, pos + len(line)))
+                start = None
+        pos += len(line)
+    if start is not None:
+        spans.append((start, len(text)))
+    return spans
+
+
+def _defer_skip(text: str, pos: int, fences: list[tuple[int, int]]) -> bool:
+    """A DEFERRAL match at ``pos`` is DISCUSSED, not made: inside a fenced block, on a `>`
+    blockquote line, directly after a quote character, or inside an open quote or code span on
+    its own line (spec § C1: "a quoted or in-quote match is skipped").
+
+    Line-scoped and PAIR-COUNTED on purpose. `_in_quote` finds the nearest quote char in an
+    80-char window, and for a symmetric char that is usually the CLOSING one — so any text after
+    a closed `code span` read as quoted, and `NEXT: \\`/fabrik-deploy\\` — awaiting your go` would
+    be skipped. Here an odd count of `"` or backticks before the match on its line means open."""
+    if any(lo <= pos < hi for lo, hi in fences):
+        return True
+    ls = text.rfind("\n", 0, pos) + 1
+    before = text[ls:pos]
+    if before.lstrip().startswith(">"):
+        return True
+    stripped = before.rstrip()
+    if stripped and stripped[-1] in "\"'`“‘«":
+        return True
+    if before.count('"') % 2 or before.count("`") % 2:
+        return True
+    return any(before.rfind(o) > before.rfind(c) for o, c in (("“", "”"), ("«", "»")))
+
+
+def _last_lines_start(text: str, k: int) -> int:
+    """Offset where the last ``k`` non-trailing lines of ``text`` begin."""
+    idx = len(text.rstrip())
+    for _ in range(k):
+        idx = text.rfind("\n", 0, idx)
+        if idx == -1:
+            return 0
+    return idx + 1
+
+
+def _deferral_match(text: str) -> tuple[str, str] | None:
+    """(shape, snippet) for the first of D1-D4 the message's tail makes, else None.
+
+    Vocabulary only: `BLOCKED:` and the DECISION block are the CALLER's exemptions, so the hook
+    can record a BLOCKED-waived deferral as an override. D1 reads every `NEXT:` line in the last
+    `_DEFER_TAIL_LINES` lines or the tail; D2-D4 read the tail."""
+    if not text:
+        return None
+    fences = _fence_spans(text)
+    n = len(text)
+    tail = max(0, n - _DEFER_TAIL_CHARS)
+    ls = text.rfind("\n", 0, tail) + 1
+    if tail - ls <= _DEFER_LINE_BACK:
+        tail = ls
+    for m in _NEXT_LINE_RE.finditer(text, min(tail, _last_lines_start(text, _DEFER_TAIL_LINES))):
+        le = text.find("\n", m.end())
+        le = n if le == -1 else le
+        for d in _DEFER_RE.finditer(text, m.end(), le):
+            if not _defer_skip(text, d.start(), fences):
+                return "D1", text[m.start() : le].strip()[:200]
+    for m in _MENU_RE.finditer(text, tail):
+        if _defer_skip(text, m.start(), fences):
+            continue
+        # The hand-off cue: a question or choice word from the menu on, or the menu sitting on
+        # the NEXT: line itself — alternatives offered as the successor ARE the operator's pick.
+        on_next = _NEXT_LINE_RE.match(text, text.rfind("\n", 0, m.start()) + 1) is not None
+        if on_next or _MENU_CUE_RE.search(text, m.start()):
+            return "D2", " ".join(m.group(0).split())[:200]
+    for m in _OFFER_RE.finditer(text, tail):
+        if _defer_skip(text, m.start(), fences):
+            continue
+        if m.group(0).endswith("?") and _SELF_ANSWER_RE.match(text[m.end() : m.end() + 80]):
+            continue  # a question followed by its own answer
+        return "D3", m.group(0)
+    for m in _CONTEXT_EXCUSE_RE.finditer(text, tail):
+        if not _defer_skip(text, m.start(), fences):
+            return "D4", m.group(0)
+    return None
+
+
+def deferral_shape(text: str) -> str | None:
+    """Return "D1".."D4" when the final message ``text`` defers to the operator, else None.
+
+    The ONE vocabulary: the hook's DEFERRAL check and `scripts/sysadmin/stop_mine.py` both count
+    with it. `BLOCKED:` anywhere exempts (spec § C1). A DECISION block does NOT enter here: its
+    `asked:`/`scope:` checks need the session's transcript and run record, so the hook applies it
+    (`_detect_stall`) and a transcript-less miner counts the raw shape. Pure: no I/O."""
+    if not text or _GATE_EXEMPT_GLOBAL_RE.search(text):
+        return None
+    hit = _deferral_match(text)
+    return hit[0] if hit else None
+
+
+def extract_decision_block(text: str) -> str | None:
+    """The LAST unfenced `DECISION NEEDED (ground: …)` heading with its labelled lines, or None.
+
+    Spec § C2 "Where the hook looks": only the last heading counts, only outside a fenced block,
+    read with the lines that follow it wherever it sits (the FINAL OUTPUT block pushes it out of
+    the 600-char tail, so no window applies). Returned as the heading plus one line per labelled
+    field; an indented continuation line is folded into its field. Blank lines between the fields
+    are allowed; once all four are seen a blank line ends the block."""
+    if not text or "DECISION NEEDED" not in text:
+        return None
+    lines = text.splitlines()
+    fenced, last = False, None
+    for i, line in enumerate(lines):
+        if _FENCE_RE.match(line):
+            fenced = not fenced
+        elif not fenced and _DECISION_HEADING_RE.match(line):
+            last = i
+    if last is None:
+        return None
+    out = [lines[last].strip()]
+    seen: set[str] = set()
+    open_field = False
+    for line in lines[last + 1 : last + 17]:
+        if _FENCE_RE.match(line) or _DECISION_HEADING_RE.match(line):
+            break
+        if not line.strip():
+            if len(seen) == len(_DECISION_FIELDS):
+                break
+            open_field = False
+            continue
+        lm = _DECISION_LABEL_RE.match(line)
+        if lm:
+            seen.add(lm.group(1).lower())
+            out.append(line.strip())
+            open_field = True
+        elif open_field and line[:1] in (" ", "\t"):
+            out[-1] = f"{out[-1]} {line.strip()}"
+        else:
+            break
+    return "\n".join(out)
+
+
+def _decision_quote(why: str, label: str) -> str | None:
+    """The quote after ``asked:``/``scope:`` on the Why line: a quoted span when it opens with a
+    quote character (its closer ends it), else the rest of the line."""
+    m = re.search(rf"\b{label}:\s*(.+)$", why, re.I)
+    if not m:
+        return None
+    rest = m.group(1).strip()
+    pairs = {'"': '"', "“": "”", "«": "»", "`": "`", "'": "'"}
+    if rest[:1] in pairs:
+        close = rest.find(pairs[rest[0]], 1)
+        return (rest[1:close] if close != -1 else rest[1:]).strip()
+    return rest.rstrip(" .;,").strip()
+
+
+def _norm_ws(s: str) -> str:
+    return " ".join(s.split())
+
+
+def _operator_text(entry: dict) -> str | None:
+    """An operator's own words from a transcript row, or None when the row is not the operator's:
+    a tool result, a compaction summary, an `isMeta` command expansion, or a harness/hook block
+    (`scripts/render_chat_history.py` skips the same rows)."""
+    if entry.get("type") != "user" or entry.get("toolUseResult") is not None:
+        return None
+    if entry.get("isMeta") or entry.get("isCompactSummary"):
+        return None
+    content = (entry.get("message") or {}).get("content")
+    if isinstance(content, str):
+        text = content
+    elif isinstance(content, list):
+        if any(isinstance(b, dict) and b.get("type") == "tool_result" for b in content):
+            return None
+        text = "\n".join(
+            str(b.get("text") or "")
+            for b in content
+            if isinstance(b, dict) and b.get("type") == "text"
+        )
+    else:
+        return None
+    text = _SYSTEM_REMINDER_RE.sub("", text).strip()
+    if not text or text.startswith(_NOT_OPERATOR_PREFIXES):
+        return None
+    return text
+
+
+def _in_operator_entries(quote: str, transcript_path: str) -> bool | None:
+    """Does ``quote`` occur verbatim (whitespace-collapsed) in an operator message of this
+    transcript? None when the transcript cannot be read — the caller fails OPEN on None.
+
+    The WHOLE file is streamed, not the 2 MB tail: the operator's open question can be hours
+    old. It runs only when a block claims `ground: owned`, so the cost is paid rarely."""
+    if not transcript_path:
+        return None
+    want = _norm_ws(quote)
+    try:
+        with open(transcript_path, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if '"user"' not in line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except Exception:
+                    continue
+                if not isinstance(entry, dict):
+                    continue
+                said = _operator_text(entry)
+                if said and want in _norm_ws(said):
+                    return True
+    except OSError:
+        return None
+    return False
+
+
+def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> tuple[bool, str]:
+    """(True, ground) when the final message's DECISION block is well-formed and allowed, else
+    (False, <the missing or failing item>) — spec § C2's checks, in full:
+
+    - all four labelled lines present and non-empty; the ground one of gate · underivable · owned;
+    - `gate` → a `_DECISION_GATE_RE` class on the "Why it is yours" line;
+    - `underivable` → that line states what changes AND carries `searched:` naming at least one
+      path, command or ledger id;
+    - `owned` → an `asked:` quote (≥ 12 characters, ending in `?`) or a `scope:` quote
+      (≥ 12 characters), each occurring verbatim in an operator entry of the transcript, and
+      `scope:` refused while ``run_live`` (the invoked command already grants its own scope).
+
+    An unreadable transcript fails OPEN on the verbatim check (written to stderr)."""
+    block = extract_decision_block(text)
+    if block is None:
+        return False, "no unfenced `DECISION NEEDED (ground: …)` block"
+    head, *rest = block.split("\n")
+    hm = _DECISION_HEADING_RE.match(head)
+    ground = hm.group(1).strip().lower() if hm else ""
+    canon = {f.lower(): f for f in _DECISION_FIELDS}
+    fields: dict[str, str] = {}
+    for line in rest:
+        lm = _DECISION_LABEL_RE.match(line)
+        if lm:
+            fields.setdefault(canon[lm.group(1).lower()], lm.group(2).strip(" *_"))
+    missing = [f for f in _DECISION_FIELDS if not fields.get(f)]
+    if missing:
+        return False, (
+            f"the DECISION block is missing or empty: {', '.join(missing)} (it carries four "
+            "labelled lines: Question · Why it is yours · Options · Recommendation)"
+        )
+    if ground not in _DECISION_GROUNDS:
+        return False, f"unknown ground {ground!r} — one of gate · underivable · owned"
+    why = fields["Why it is yours"]
+    if ground == "gate":
+        if not _DECISION_GATE_RE.search(why):
+            return False, (
+                '`ground: gate` names no gate class on its "Why it is yours" line — one of '
+                "deploy · destructive · irreversible · spend (real money) · cross-repo · publish · "
+                "credentials · design approval · plan approval · Gate 1 · Gate 2 · production data"
+            )
+        return True, "gate"
+    if ground == "underivable":
+        i = why.lower().find("searched:")
+        if i == -1:
+            return False, (
+                "`ground: underivable` carries no searched: clause naming the path, command or "
+                "ledger id that came back silent"
+            )
+        if not _SEARCHED_EVIDENCE_RE.search(why[i + len("searched:") :]):
+            return False, "the searched: clause names no path, command or ledger id"
+        changes = re.sub(r"^\W*underivable\W*", "", why[:i], flags=re.I).strip(" —–-:;,.")
+        if len(changes) < _DECISION_QUOTE_MIN:
+            return False, (
+                "`ground: underivable` does not state what changes if the answer differs "
+                "(before its searched: clause)"
+            )
+        return True, "underivable"
+    asked = _decision_quote(why, "asked")
+    scope = _decision_quote(why, "scope")
+    if asked is None and scope is None:
+        return False, "`ground: owned` needs an asked: or scope: quote of the operator's own words"
+    if asked is not None:
+        if len(asked) < _DECISION_QUOTE_MIN:
+            return False, f"the asked: quote is under {_DECISION_QUOTE_MIN} characters"
+        if not asked.endswith("?"):
+            return (
+                False,
+                "the asked: quote does not end in `?` — it must be the operator's question",
+            )
+        quote, label = asked, "asked:"
+    else:
+        scope = scope or ""
+        if run_live:
+            return False, (
+                "scope: is refused while this session's command run record is `running` — the "
+                "invoked command already grants its own scope (close it first: "
+                "`python3 scripts/command_run.py handoff …`)"
+            )
+        if len(scope) < _DECISION_QUOTE_MIN:
+            return False, f"the scope: quote is under {_DECISION_QUOTE_MIN} characters"
+        quote, label = scope, "scope:"
+    found = _in_operator_entries(quote, transcript_path)
+    if found is None:
+        sys.stderr.write(
+            f"[deferral] cannot read the transcript to verify the {label} quote; allowing it\n"
+        )
+    elif not found:
+        return (
+            False,
+            f"the {label} quote is not found verbatim in any operator message of this session",
+        )
+    return True, "owned"
+
+
+def _is_headless(transcript_path: str) -> bool:
+    """No operator to defer to (spec § C1 Scope): `CLAUDE_MESH_HEADLESS=1`, or the transcript's
+    last user entry carries `"entrypoint": "sdk-cli"` (no hook input field carries it)."""
+    if os.environ.get("CLAUDE_MESH_HEADLESS") == "1":
+        return True
+    for line in reversed((_tail_lines(transcript_path) if transcript_path else None) or []):
+        if '"user"' not in line:
+            continue
+        try:
+            entry = json.loads(line)
+        except Exception:
+            continue
+        if isinstance(entry, dict) and entry.get("type") == "user":
+            return entry.get("entrypoint") == "sdk-cli"
+    return False
+
+
 def _detect_stall(
     transcript_path: str,
     root: Path,
     authored: set[str],
     waived: list[tuple[str, str]] | None = None,
+    *,
+    text: str | None = None,
+    run_live: bool = False,
+    judged: tuple[str, tuple[bool, str]] | None = None,
 ) -> tuple[str, str] | None:
-    """Return ("promise"|"permission", snippet) when the final message is a stall, else None.
+    """Return (kind, snippet) when the final message is a stall, else None.
+
+    ``kind`` is "promise", "final-block-incomplete", "deferral:D1".."deferral:D4" (spec
+    2026-09-23 § C1), or "deferral:block" for a DECISION block that fails spec § C2's checks
+    (the snippet then names the failing item).
+
+    ``text`` is the payload's `last_assistant_message`: when given it replaces the text
+    `_final_turn` reads, and a missing/unreadable transcript no longer ends the check — it runs
+    on ``text`` with no tools. ``run_live`` says this session's command run record is `running`
+    (a `scope:` DECISION block is refused then). ``judged`` is `(text, parse_decision_block
+    result)` already computed by `main` for the harvest; it is reused only for that same text.
 
     ``waived`` is an optional OUT-parameter recording ``(kind, marker)`` for every stall
     that MATCHED and was then exempted by a sanctioned-skip marker. From the outside a
@@ -1644,10 +2169,13 @@ def _detect_stall(
     ``NEXT: operator decision: …`` footer of nearly every operator-gated task end.
     """
     try:
-        turn = _final_turn(transcript_path)
-        if not turn:
-            return None
-        text, tools = turn
+        turn = _final_turn(transcript_path) if transcript_path else None
+        if text is None:
+            if not turn:
+                return None
+            text, tools = turn
+        else:
+            tools = turn[1] if turn else []
         if not text:
             return None
         # D-059 (SEVENTH cause vocabulary, rides the stall lane so the 3-attempt
@@ -1741,16 +2269,16 @@ def _detect_stall(
                 if not dispatched:
                     return "promise", m.group(0).strip()
                 break  # claim exists but work was dispatched this turn — kept
-        for m in _PERMISSION_RE.finditer(tail):
-            if _quoted(tail, m):
-                continue
-            if escalation or _line_exempt(tail, m):
-                _waive(m)
-                continue
-            if _midrun_marker(root, authored):
-                return "permission", m.group(0)
-            break
-        return None
+        # SEVENTH shape, DEFERRAL — after the others, the same counter, NO dispatch-kept and NO
+        # per-line exemption; D3 replaces the old `_PERMISSION_RE` loop (spec § C1).
+        return _deferral_stall(
+            text,
+            transcript_path,
+            run_live=run_live,
+            judged=judged,
+            escalation=escalation,
+            waived=waived,
+        )
     except Exception as e:
         # Fail open — but never SILENTLY (review finding: a MemoryError-disabled
         # guard was indistinguishable from "no stall").
@@ -1758,11 +2286,47 @@ def _detect_stall(
         return None
 
 
+def _deferral_stall(
+    text: str,
+    transcript_path: str,
+    *,
+    run_live: bool,
+    judged: tuple[str, tuple[bool, str]] | None,
+    escalation: re.Match[str] | None,
+    waived: list[tuple[str, str]] | None,
+) -> tuple[str, str] | None:
+    """The DEFERRAL check on a final message: a DECISION block decides it when one is present
+    (well-formed → no stall; malformed → itself a deferral, spec § C2), else D1-D4. Interactive
+    sessions only; `BLOCKED:` exempts globally and is recorded as a waiver."""
+    if _is_headless(transcript_path):
+        return None
+    hit: tuple[str, str] | None
+    if extract_decision_block(text) is not None:
+        ok, why = (
+            judged[1]
+            if judged is not None and judged[0] == text
+            else parse_decision_block(text, run_live=run_live, transcript_path=transcript_path)
+        )
+        if ok:
+            return None
+        hit = ("block", why)
+    else:
+        hit = _deferral_match(text)
+    if hit is None:
+        return None
+    if escalation:
+        if waived is not None:
+            waived.append(("blocked-escalation", escalation.group(0)))
+        return None
+    return f"deferral:{hit[0]}", hit[1]
+
+
 def _kaizen_pass(
     sid: object,
     transcript_path: str,
     waived: list[tuple[str, str]],
     warned: list[str],
+    decision_ground: str | None = None,
 ) -> None:
     """The NON-BLOCKING exit — the only place a Stop actually ends the turn.
 
@@ -1779,6 +2343,9 @@ def _kaizen_pass(
     - ``operator_override`` — an enforcement cause fired and a sanctioned-skip marker
       waved it through (:func:`_detect_stall`'s waiver ledger). The marker ALONE is not
       an override: it is the routine vocabulary of every operator-gated task end.
+    - ``decision_block`` — the turn ended on a well-formed DECISION block; ``ground`` is
+      gate · underivable · owned (spec 2026-09-23 § C2). Here, not at entry, for the same
+      retry reason as ``final_block_emitted``.
 
     Guard order matters: the module check comes FIRST, so a box without the emitter
     does not even pay the transcript read.
@@ -1796,6 +2363,8 @@ def _kaizen_pass(
             _kaizen("final_block_emitted", sid)
     except Exception:
         pass
+    if decision_ground:
+        _kaizen("decision_block", sid, ground=decision_ground)
     if waived:
         # ONE event per turn, carrying the WHOLE waiver ledger (P2): recording only
         # waived[0] under-counted turns where several stalls were waved through.
@@ -1809,6 +2378,45 @@ def _kaizen_pass(
             stalls=len(waived),
             kinds=[k for k, _ in waived],
         )
+
+
+_DEFERRAL_SHAPES = {
+    "D1": "a NEXT: line that defers to the operator",
+    "D2": "a menu of options handed to the operator",
+    "D3": "an offer to act that waits for the operator's word",
+    "D4": "your own work handed to a later session",
+}
+
+
+def _stall_cause(stall: tuple[str, str] | None) -> str:
+    """The kaizen `cause` of a stall kind: every `deferral:*` is `deferral` (T01b registered it
+    as a premature cause), everything else stays `promise-stall`."""
+    return "deferral" if stall and stall[0].startswith("deferral:") else "promise-stall"
+
+
+def _stall_fields(stall: tuple[str, str] | None) -> dict[str, str]:
+    """`cause`, plus `shape` (D1-D4, or `block` for a failing DECISION block) for a DEFERRAL."""
+    fields = {"cause": _stall_cause(stall)}
+    if stall and stall[0].startswith("deferral:"):
+        fields["shape"] = stall[0].split(":", 1)[1]
+    return fields
+
+
+def _deferral_reason(kind: str, snippet: str, attempt: int) -> str:
+    """The DEFERRAL block reason — one paragraph (spec § C1): the shape with its snippet, the
+    next step is yours, and the DECISION block as the one way to hand a human a decision."""
+    shape = kind.split(":", 1)[1]
+    if shape == "block":
+        matched = f"ends on a DECISION block that does not pass: {snippet}"
+    else:
+        matched = f'ends on {_DEFERRAL_SHAPES.get(shape, "a deferral")} ({shape}: "{snippet}")'
+    return (
+        f"DEFERRAL DETECTED (attempt {attempt}/{CAP}). Your final message {matched}. "
+        "The next step is yours if the plan, the rules, the ledger or the code decide it — do "
+        "it now. If a human is genuinely needed, end with a DECISION block (CLAUDE.md § FINAL "
+        "OUTPUT): `DECISION NEEDED (ground: gate|underivable|owned)` with its four lines — "
+        "Question · Why it is yours · Options · Recommendation — written unfenced."
+    )
 
 
 def main(argv: list[str]) -> int:
@@ -1833,23 +2441,45 @@ def main(argv: list[str]) -> int:
         # register stale, final_block_emitted dark, everything else fine) — the hook's own
         # location names its repo when the payload's cannot, and the anchor_harvest event
         # below is the trace that separates "hook never ran" from "ran and found nothing".
+        # The final message: the payload's `last_assistant_message` when present (the documented
+        # fix for the flush race `_final_message_text` works around, spec E1), else the
+        # transcript. Its presence is logged on every Stop (`lam`, spec U1).
+        _lam_raw = data.get("last_assistant_message")
+        lam = _lam_raw if isinstance(_lam_raw, str) and _lam_raw.strip() else None
+        # (text, parse result) of the DECISION block, judged ONCE: the harvest stores the block's
+        # NEXT: only when it passed, and the DEFERRAL check reuses the verdict.
+        judged: tuple[str, tuple[bool, str]] | None = None
         try:
             _ta = root / "scripts" / "thread_anchor.py"
             if not _ta.exists():
                 _ta = Path(__file__).resolve().parents[2] / "scripts" / "thread_anchor.py"
             _tp = data.get("transcript_path")
-            _text = _final_message_text(str(_tp)) if _tp else ""
+            _text = lam or (_final_message_text(str(_tp)) if _tp else "")
+            if _text and extract_decision_block(_text) is not None:
+                judged = (
+                    _text,
+                    parse_decision_block(
+                        _text,
+                        run_live=(_run_record(sid) or {}).get("state") == "running",
+                        transcript_path=str(_tp or ""),
+                    ),
+                )
             if _ta.exists() and _text:
+                _cmd = [sys.executable, str(_ta), "harvest", "--session", sid]
+                # Only a script that KNOWS the flag gets it: an older synced copy's argparse
+                # refuses an unknown option and would drop the whole harvest (T03 ships first).
+                if judged and judged[1][0] and "--decision-ok" in _ta.read_text(errors="replace"):
+                    _cmd.append("--decision-ok")
                 subprocess.run(
-                    [sys.executable, str(_ta), "harvest", "--session", sid],
+                    _cmd,
                     input=_text,
                     text=True,
                     capture_output=True,
                     timeout=5,
                 )
-            _kaizen("anchor_harvest", ev_sid, tp=bool(_tp), chars=len(_text))
-        except Exception:
-            pass
+            _kaizen("anchor_harvest", ev_sid, tp=bool(_tp), chars=len(_text), lam=lam is not None)
+        except Exception as e:
+            sys.stderr.write(f"[final_gate_stop] harvest/decision parse failed, skipped: {e}\n")
 
         if not (root / "scripts" / "final_gate.py").exists():
             return 0  # not a fabrik-style project → nothing to enforce
@@ -1930,8 +2560,19 @@ def main(argv: list[str]) -> int:
         waived: list[tuple[str, str]] = []
         warned: list[str] = []
         stall = (
-            _detect_stall(transcript_p, root, set(authored_map), waived) if transcript_p else None
+            _detect_stall(
+                transcript_p,
+                root,
+                set(authored_map),
+                waived,
+                text=lam,
+                run_live=(_run_record(sid) or {}).get("state") == "running",
+                judged=judged,
+            )
+            if (transcript_p or lam)
+            else None
         )
+        decision_ground = judged[1][1] if judged and judged[1][0] else None
 
         def _stall_gate() -> int:
             """Final causes on an otherwise-allowed stop: the PUSH law (committed
@@ -1985,13 +2626,13 @@ def main(argv: list[str]) -> int:
                         f"Final message still ends in a stall after {CAP} blocked stops — "
                         "stopping anyway.\n"
                     )
-                    warned.append("promise-stall")
+                    warned.append(_stall_cause(stall))
                     _kaizen(
                         "stop_block",
                         ev_sid,
-                        cause="promise-stall",
                         outcome="warned_through",
                         attempt=CAP,
+                        **_stall_fields(stall),
                     )
                 # FIFTH cause, last word: a command run still in flight. It applies
                 # regardless of tree state — an agent that committed, pushed and
@@ -2106,7 +2747,7 @@ def main(argv: list[str]) -> int:
                     counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att}")
                 # The ONE pass-through: every enforcement cause declined to block, so
                 # this Stop really ends the turn.
-                _kaizen_pass(ev_sid, transcript_p, waived, warned)
+                _kaizen_pass(ev_sid, transcript_p, waived, warned, decision_ground)
                 return 0
             counter.write_text(f"{g},{c},{s_att},{p_att},{r_att if run_active else 0},{v_att}")
             kind, snippet = stall  # type: ignore[misc]
@@ -2125,26 +2766,25 @@ def main(argv: list[str]) -> int:
                     )
                 )
             else:
-                what = (
-                    f'promises an action ("{snippet}") that was never dispatched'
-                    if kind == "promise"
-                    else f'asks permission ("{snippet}") that the active plan/review contract already grants'
+                what = f'promises an action ("{snippet}") that was never dispatched'
+            if kind.startswith("deferral:"):
+                reason = _deferral_reason(kind, snippet, s_att)
+            else:
+                reason = (
+                    f"STALL DETECTED (attempt {s_att}/{CAP}). Your final message {what}. "
+                    "Do the work NOW — dispatch it or run it in this same turn — instead of "
+                    "narrating or asking (CLAUDE.md: run every owed pass unprompted; the "
+                    "checkpoint-stall is a named live defect). A legitimate stop has exactly "
+                    "two exits: a well-formed `DECISION NEEDED (ground: gate)` block "
+                    "(CLAUDE.md § FINAL OUTPUT), or a formatted BLOCKED: escalation."
                 )
-            reason = (
-                f"STALL DETECTED (attempt {s_att}/{CAP}). Your final message {what}. "
-                "Do the work NOW — dispatch it or run it in this same turn — instead of "
-                "narrating or asking (CLAUDE.md: run every owed pass unprompted; the "
-                "checkpoint-stall is a named live defect). Legitimate stops must name "
-                "their human gate explicitly (design approval, Gate 2, operator "
-                "decision, or a formatted BLOCKED: escalation)."
-            )
             _kaizen(
                 "stop_block",
                 ev_sid,
-                cause="promise-stall",
                 outcome="blocked",
                 attempt=s_att,
                 kind=kind,
+                **_stall_fields(stall),
             )
             sys.stdout.write(json.dumps({"decision": "block", "reason": reason}) + "\n")
             return 0

@@ -572,6 +572,9 @@ def test_operator_override_when_a_blocked_escalation_waives_a_real_stall(tmp_pat
 def test_no_override_without_an_enforcement_cause_to_waive(tmp_path: Path) -> None:
     """The four reproduced false positives: sanctioned-skip VOCABULARY with no stall.
 
+    Inverted by T03: spec 2026-09-23-stop-and-compaction § C1/§ C2: the gated footer is now written as the `ground: gate` DECISION block — a bare
+    `NEXT: operator decision` is a D1 deferral, and the block is the legitimate gated stop.
+
     An override is 'a cause fired and a marker waved it through'. Matching the marker
     alone made every routine operator-gated task end an 'override', which is the single
     most common way a fabrik turn legitimately finishes — the metric would have been
@@ -579,8 +582,16 @@ def test_no_override_without_an_enforcement_cause_to_waive(tmp_path: Path) -> No
     """
     proj = _project(tmp_path)
     cases = {
-        # 1. the mandated FINAL OUTPUT footer of any operator-gated task
-        "fp_footer": "Readiness verified.\n\nNEXT: operator decision: approve the deploy (Gate 2).\n",
+        # 1. the mandated FINAL OUTPUT footer of any operator-gated task, behind its block
+        "fp_footer": (
+            "Readiness verified.\n\n"
+            "DECISION NEEDED (ground: gate)\n"
+            "- Question: Deploy the verified build now?\n"
+            "- Why it is yours: gate — Gate 2, the deploy needs authorisation.\n"
+            "- Options: A — deploy now · B — hold a day\n"
+            "- Recommendation: A — readiness is verified.\n\n"
+            "NEXT: operator decision — see DECISION NEEDED above\n"
+        ),
         # 2. a BLOCKED escalation that names no un-run own work
         "fp_blocked": "BLOCKED: vault sealed — searched: docs/, .env — missing: unseal key\n",
         # 3. a message DISCUSSING the vocabulary
