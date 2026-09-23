@@ -614,9 +614,10 @@ class WatchdogConfig(BaseModel):
             "Passed to the bootstrap as WATCHDOG_APPROVAL_WINDOW_SEC. 60s min / "
             "3600s max. Default 300s (5 min), the same as fabrik-lib watchdog's own "
             "default (operator ruling D-378, 2026-09-23): the fix has already passed "
-            "the blast-radius guard, the secret scan and the tests, and applies "
-            "behind a snapshot with automatic rollback. A project that wants longer "
-            "sets this field explicitly."
+            "the tests, the secret scan and the blast-radius guard, and it rolls back "
+            "to the previous code ref when post-apply health regresses (a wrong but "
+            "passing fix is not caught). A project that wants longer sets this field "
+            "explicitly."
         ),
     )
     critical_paths: list[str] = Field(

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — core/60-watchdog.md states the Tier-D window default D-378 set: 300 s, not 1800 s (2026-09-24)
+
+- The fleet pack said the `code_fix_window_sec` silence window defaults to 1800 s in two places, and argued for 1800. The hub default is 300 s again by operator ruling D-378 (mail 01M3806TBQ86A96X9K9N7RVR4P). Both statements now say 300 s and name where it lives (`WatchdogConfig`, `src/fabrik/spec_loader.py`). The rationale says what the code does: a silence-applied fix has passed the tests, the secret scan and the blast-radius guard, deploys after a snapshot marker, and rolls back on a health or golden regression, while a wrong fix that passes both is never caught.
+- The pack's three gate lists now name the blast-radius guard. `CLAIMS.yaml`'s window claim (renamed `watchdog-tier-d-window-is-300-fleet-wide`) and the `WatchdogConfig` field description are corrected the same way.
+
 ### Fixed — A warn-only check that times out no longer turns the gate red as a "broken contract" (D-382) (2026-09-24)
 
 - `scripts/final_gate.py::run_cmd` returns `RC_TIMEOUT` (124) on a timeout instead of 1. A warn-only check that ran out of time under load read as "registered warn_only=True but exited 1 — its contract changed" and turned every session's gate red at random (mail 01M37YR2KDNCE8V5YTRDHRB7D6). It is now a `<name> (NOT RUN — timed out)` skip row, counted in `skipped_checks`, whose ⚠ names the exact command the gate ran. A blocking check's timeout still fails, and `ruff check --fix` no longer reads a timeout as "issues found".

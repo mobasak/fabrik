@@ -109,11 +109,11 @@ DB-mutating actions that are impossible by default.
 
 **Tier D** — code-remediation, **off by default**, opt-in like B/C and **human-gated**. This is the only tier that can change running code, and it never does so silently.
 
-**Enable:** `watchdog: { auto_code_fix: true }` in the spec **plus** an injected `deploy_adapter` + `test_cmd` (the `code_fix_window_sec` silence window defaults to 1800s / 30 min — see below). Absent → Tier D is unavailable and code-class incidents behave exactly as today (Tier C escalate / `propose_fix_prs`).
+**Enable:** `watchdog: { auto_code_fix: true }` in the spec **plus** an injected `deploy_adapter` + `test_cmd` (the `code_fix_window_sec` silence window defaults to 300 s — `WatchdogConfig` in `src/fabrik/spec_loader.py`, D-378 — see below). Absent → Tier D is unavailable and code-class incidents behave exactly as today (Tier C escalate / `propose_fix_prs`).
 
 | Action | What | Guards |
 |---|---|---|
-| `apply_code_fix` | generate a fix on `watchdog/<incident_id>` → tests pass (**HARD gate**) → secret-scan the diff → Telegram the diff with **Approve / Reject / STOP** → on approval **OR** silence past `code_fix_window_sec` → `deploy_adapter.apply(branch)` → VERIFY health → **auto-rollback on regression** | Isolated clone only (never the RO `/project` mount); deploy mechanism **injected** (no in-place src edit); every apply/rollback written to the `deploys` audit table; push restrictions apply to the **LLM's own bash** (hook + settings deny-list: no main/master, no force-push, no `git config`/`rebase`/`reset --hard`/`tag`); the **deploy adapter is the sole sanctioned main-push path** — it merges the fix branch into `deploy_branch` (default `main`) and uses `--force-with-lease` ONLY on rollback |
+| `apply_code_fix` | generate a fix on `watchdog/<incident_id>` → tests pass (**HARD gate**) → secret-scan the diff → blast-radius guard → Telegram the diff with **Approve / Reject / STOP** → on approval **OR** silence past `code_fix_window_sec` → `deploy_adapter.apply(branch)` → VERIFY health → **auto-rollback on regression** | Isolated clone only (never the RO `/project` mount); deploy mechanism **injected** (no in-place src edit); every apply/rollback written to the `deploys` audit table; push restrictions apply to the **LLM's own bash** (hook + settings deny-list: no main/master, no force-push, no `git config`/`rebase`/`reset --hard`/`tag`); the **deploy adapter is the sole sanctioned main-push path** — it merges the fix branch into `deploy_branch` (default `main`) and uses `--force-with-lease` ONLY on rollback |
 
 ---
 
@@ -128,7 +128,7 @@ Same flow for `propose_fix_prs: true` — first PR fires `[Watchdog proposed PR]
 
 ### Tier-D code-remediation gate (the human-in-the-loop terminal)
 
-When `apply_code_fix` produces a **green, secret-scanned** diff, the sidecar fires a Telegram message carrying the diff + **Approve / Reject / STOP**:
+When `apply_code_fix` produces a **green, secret-scanned, blast-radius-clean** diff, the sidecar fires a Telegram message carrying the diff + **Approve / Reject / STOP**:
 
 - **Approve** → `deploy_adapter.apply(branch)` immediately.
 - **Reject** → discard the branch; fall back to Tier C escalate.
@@ -151,7 +151,7 @@ bearing — if any is disabled, the window stops being a review gate and becomes
 An operator turning off (1) or (2) while leaving `auto_code_fix: true` has built an
 unattended-deploy pipeline, not a supervised one. Prefer denial-on-silence wherever a missed window is cheaper than a wrong deploy.
 
-- **No response within `code_fix_window_sec`** (default **1800s / 30 min**) → treated as approval and applied. Since silence auto-applies a tested-green fix, the window is sized for a realistic human review (5 min was too short to reliably `Reject` a wrong-but-passing fix); it IS the operator-bound terminal (see [self-healing](self-healing.md) acceptance checklist), not a fully-autonomous layer.
+- **No response within `code_fix_window_sec`** (default **300 s**, spec range 60–3600; D-378) → treated as approval and applied. A fix that silence can auto-apply has already passed the tests, the secret scan and the blast-radius guard; it deploys only after a pre-apply snapshot marker is recorded, and rolls back to the previous code ref when post-apply health (or the opt-in golden check) regresses — so the default is short. Rollback catches a health regression and, where a golden file covers it, a known-answer regression; a wrong fix that passes both is never caught, so a project that wants a longer human review sets the field explicitly. It IS the operator-bound terminal (see [self-healing](self-healing.md) acceptance checklist), not a fully-autonomous layer.
 
 Every apply/rollback is written to the `deploys` table (and the approval to `approvals`); post-apply health VERIFY failing triggers automatic rollback. Tier-D requires the `auto_code_fix` opt-in **plus** an injected `deploy_adapter` + `test_cmd`; absent any of these, code-class incidents stay Tier C.
 
@@ -181,7 +181,7 @@ Every apply/rollback is written to the `deploys` table (and the approval to `app
 - **Bypassing the PreToolUse hook.** Hook + claude-settings allow-list + sandbox.filesystem + docker.sock scoping are 4-layer defense-in-depth. If you "just need" to let Claude run an arbitrary `bash` command, the right move is to add the command to claude-settings.json — never `chmod -x` the hook.
 - **Putting secret tokens in `details`.** The LLM sees every value. Even with WebFetch/WebSearch gated to allowedDomains, log exfil via reasoning text is the worst-case prompt injection. Pass IDs, not values.
 - **Running sidecar as root.** Claude Code refuses bypass mode under root/sudo on Linux. The Dockerfile creates UID 1000 `watchdog`; honor it.
-- **Editing `/opt/<id>/src` in-place from the sidecar.** In-place src editing from the sidecar is still **banned** — code changes go through the isolated workspace + injected deploy adapter. **Without Tier-D opt-in, watchdog never merges** (operator merges, via the PR workspace at `/var/lib/watchdog/proposed/<project_id>/` pushed to `watchdog/<incident_id>`). **With Tier-D**, watchdog MAY apply a tested, secret-scanned fix via the deploy adapter after explicit Telegram approval or a configured silence window, with auto-rollback armed and a STOP kill-switch.
+- **Editing `/opt/<id>/src` in-place from the sidecar.** In-place src editing from the sidecar is still **banned** — code changes go through the isolated workspace + injected deploy adapter. **Without Tier-D opt-in, watchdog never merges** (operator merges, via the PR workspace at `/var/lib/watchdog/proposed/<project_id>/` pushed to `watchdog/<incident_id>`). **With Tier-D**, watchdog MAY apply a tested, secret-scanned, blast-radius-clean fix via the deploy adapter after explicit Telegram approval or a configured silence window, with auto-rollback armed and a STOP kill-switch.
 - **Letting `emit_incident()` raise.** It catches everything by design. If you "fix" it to raise, you've coupled the main app's billing/checkout path to telemetry — exactly the brittleness this contract avoids.
 - **Reusing `<project_prefix>` across projects.** It namespaces redis keys + emitter events; collision = one project sees another's pause flag.
 
