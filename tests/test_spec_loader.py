@@ -371,7 +371,7 @@ class TestWatchdogConfig:
 
         w = WatchdogConfig()
         assert w.auto_code_fix is False
-        assert w.code_fix_window_sec == 1800  # 30-min human-review window (was 300 — too short)
+        assert w.code_fix_window_sec == 300  # D-378: back to 300 s, matching fabrik-lib
         assert w.critical_paths == []
 
     def test_auto_code_fix_requires_propose_fix_prs(self) -> None:

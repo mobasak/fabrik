@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The hub's watchdog Tier-D approval window defaults to 300 s again, matching fabrik-lib (2026-09-23)
+- **A spec that does not set `watchdog.code_fix_window_sec` now renders `WATCHDOG_APPROVAL_WINDOW_SEC=300`, not 1800.** Operator ruling D-378, superseding the 2026-07-05 bump (2c5b56e1a): the hub default had contradicted fabrik-lib's own default and its D-236 ruling. Both the `WatchdogConfig` default and the driver's raw-dict fallback moved, and `test_driver_defaults_match_pydantic` goes red if they drift apart. Explicit values in specs are unchanged. Mail 01M37F6Z1PC7Y5R92EA5CN3EPH.
+
 ### Added — spec: premature stops and compaction survival, CONVERGED (D-371–D-376) (2026-09-23)
 
 - `docs/superpowers/specs/2026-09-23-stop-and-compaction-enforcement-design.md`. Measured first: 5,442 of 25,412 interactive turn ends in 45 days defer to the operator, and 26 of a uniform random 80 (32.5%) are false stops. 9 of 25 judged compactions with no live command run diverged, 0 of 12 with one.
