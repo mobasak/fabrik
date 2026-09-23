@@ -5753,8 +5753,9 @@ This module is the bridge between the service's job handler and
 ``fabrik.orchestrator.gpu_rent.rent``. Use ``rent_for_workload(...)`` to
 provision a GPU on demand for a single job, then auto-destroy.
 
-Configuration is read from the spec's ``shape.gpu_kind`` field — change
-that in ``specs/services/{name}.yaml`` (default: pod-rtx-4090).
+The GPU kind is the module constant ``DEFAULT_KIND`` below (default:
+pod-rtx-4090) — change it here. The spec's ``Shape`` has no GPU field, and a
+spec carrying ``shape.gpu_kind`` or ``shape.needs_gpu`` fails to load.
 """
 
 from __future__ import annotations
@@ -5863,8 +5864,8 @@ def _write_office_manifest(project_dir: Path, name: str, description: str) -> No
 _TYPE_SCAFFOLDERS: dict[str, Callable[..., None]] = {
     "python-api": _scaffold_python_api,
     "python-api-gpu": _scaffold_python_api_gpu,  # NEW: Phase 5
-    # NB: "wordpress" is intentionally NOT here — scaffolding moved to /opt/wpf
-    # (see create_project's redirect). It stays in SCAFFOLD_TYPES for deploy/shape.
+    # NB: "wordpress" is intentionally NOT here — create_project refuses it with
+    # WORDPRESS_REFUSAL. It stays in SCAFFOLD_TYPES for deploy/shape.
     "saas-skeleton": _scaffold_saas_skeleton_with_docs,
     "node-api": _scaffold_node_api,
     "file-api": _scaffold_file_api,
@@ -6061,6 +6062,16 @@ def _ensure_dockerignore(project_dir: Path) -> Path | None:
         return None
 
 
+# The ONE WordPress refusal: create_project() raises it and cli.py prints it at both of its
+# `wordpress` intercepts (`fabrik apply`, `fabrik scaffold`), so the copies cannot drift.
+WORDPRESS_REFUSAL = (
+    "WordPress is out of fabrik: scaffolding moved to /opt/wpf (2026-06-17) "
+    "and that project was archived to /opt/archived/wpf (2026-08-07). There "
+    "is no supported WordPress scaffolder — the `wpf` CLI is gone. The type "
+    "remains only for legacy deploy/shape routing."
+)
+
+
 def create_project(
     name: str,
     description: str,
@@ -6108,12 +6119,7 @@ def create_project(
             # to a dead tool. `wordpress` stays in SCAFFOLD_TYPES for legacy deploy/shape
             # routing only. cli.py intercepts earlier; this guard covers direct
             # create_project() callers.
-            raise NotImplementedError(
-                "WordPress is out of fabrik: scaffolding moved to /opt/wpf (2026-06-17) "
-                "and that project was archived to /opt/archived/wpf (2026-08-07). There "
-                "is no supported WordPress scaffolder — the `wpf` CLI is gone. The type "
-                "remains only for legacy deploy/shape routing."
-            )
+            raise NotImplementedError(WORDPRESS_REFUSAL)
         raise NotImplementedError(f"Scaffolder for '{project_type}' not yet implemented")
     scaffolder = _TYPE_SCAFFOLDERS[project_type]
 

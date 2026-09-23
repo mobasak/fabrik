@@ -22,7 +22,7 @@ from fabrik.orchestrator.infrastructure import (
     format_resolved_summary,
     resolve_applicability,
 )
-from fabrik.scaffold import SCAFFOLD_TYPES, _detect_secrets
+from fabrik.scaffold import SCAFFOLD_TYPES, WORDPRESS_REFUSAL, _detect_secrets
 from fabrik.spec_generator import (
     SPEC_ENABLED_TYPES,
     extract_project_context,
@@ -488,10 +488,7 @@ def apply(
             raise SystemExit(1)
 
         if project_type == "wordpress":
-            click.echo(
-                "WordPress deployment has moved to /opt/wpf/. Use the `wpf` CLI instead.",
-                err=True,
-            )
+            click.echo(WORDPRESS_REFUSAL, err=True)
             raise SystemExit(1)
 
         try:
@@ -783,7 +780,6 @@ def status(spec_path: str):
             click.echo("   ❌ Not found in Coolify")
     except Exception as e:
         click.echo(f"   ⚠️  Could not check: {e}")
-
 
 
 @cli.command()
@@ -1288,8 +1284,7 @@ def redeploy(
                 # did not happen must not exit green — and this refresh path
                 # is exactly how failed registrars get re-run.
                 click.echo(
-                    f"⚠️  Refresh finished but {len(ctx.registrar_failures)} "
-                    f"registrar(s) FAILED:"
+                    f"⚠️  Refresh finished but {len(ctx.registrar_failures)} registrar(s) FAILED:"
                 )
                 for failure in ctx.registrar_failures:
                     click.echo(f"   ✗ {failure}")
@@ -1818,12 +1813,7 @@ def scaffold(
         click.echo(f"📝 Ingesting preplan: {preplan_path}")
 
     if project_type == "wordpress":
-        click.echo(
-            "WordPress scaffolding has moved to the standalone /opt/wpf project. "
-            f"Use the `wpf` CLI instead — e.g. `wpf new {name}` — not "
-            "`fabrik scaffold --type wordpress`.",
-            err=True,
-        )
+        click.echo(WORDPRESS_REFUSAL, err=True)
         raise SystemExit(1)
 
     click.echo(f"📁 Creating project: {name}")
@@ -2184,9 +2174,7 @@ def preplan_new(slug: str, date: str | None):
     click.echo(f"  2. fabrik scaffold {slug} --from-preplan {path.relative_to(FABRIK_ROOT)}")
 
 
-# WordPress commands moved to /opt/wpf/ (standalone project)
-# WordPress commands moved to /opt/wpf/ (standalone project).
-# Use the `wpf` CLI for: wpf plan, wpf apply, wpf verify, wpf flush
+# WordPress is out of fabrik — see scaffold.WORDPRESS_REFUSAL.
 
 
 @cli.group()

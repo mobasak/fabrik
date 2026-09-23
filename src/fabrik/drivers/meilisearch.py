@@ -1,6 +1,6 @@
 """MeiliSearch index provisioning on the shared Coolify-managed instance.
 
-Creates (and, for rollback, deletes) a search index via ``docker exec`` +
+Creates (and, for ``fabrik destroy --drop-data``, deletes) a search index via ``docker exec`` +
 ``curl`` against the in-container HTTP API. This avoids exposing port 7700
 to the host and avoids transmitting the master key over SSH — the
 ``MEILI_MASTER_KEY`` environment variable is already present inside the
@@ -35,8 +35,9 @@ Design notes
   (well under the 511 MeiliSearch limit) to keep shell commands short.
 * **Idempotent.** :func:`create_index` GETs the index first; HTTP 200
   means "exists" and short-circuits without mutating.
-* **Rollback:** :func:`delete_index` is the best-effort rollback path
-  (never raises, returns bool) consumed by ``DeploymentRollback``.
+* **Teardown:** :func:`delete_index` is best-effort (never raises, returns bool);
+  its only caller is the destroyer, and only under ``--drop-data`` — no deploy
+  rollback deletes an index.
 """
 
 from __future__ import annotations
@@ -55,7 +56,7 @@ MEILI_LABEL_SELECTOR = "label=coolify.serviceName=meilisearch"
 """Docker filter that resolves the Coolify-managed MeiliSearch container
 regardless of UUID suffix changes on recreate."""
 
-MEILI_INTERNAL_URL = "http://localhost:7700"
+MEILI_INTERNAL_URL = "http://localhost:7700"  # noqa: localhost is correct — runs INSIDE the meilisearch container via docker exec
 """URL used from inside the container. Port 7700 is MeiliSearch's default;
 the operator never reaches this URL directly — it goes through
 ``traefik`` → ``https://search.vps1.ocoron.com`` for external access."""
@@ -138,7 +139,7 @@ def _container_curl(container: str, curl_args: str) -> str:
     Args:
         container: Container name from :func:`_resolve_container`.
         curl_args: Everything after ``curl`` (e.g., ``"-s -X GET
-            http://localhost:7700/indexes/foo -H \"Authorization:
+            <MEILI_INTERNAL_URL>/indexes/foo -H \"Authorization:
             Bearer $MEILI_MASTER_KEY\""``). Must NOT be pre-shell-quoted.
 
     Returns:
@@ -220,7 +221,7 @@ def create_index(
 
 
 def delete_index(index_uid: str, dry_run: bool = False) -> bool:
-    """Rollback handler — delete a MeiliSearch index. Best-effort.
+    """Teardown handler (destroyer, ``--drop-data`` only) — delete a MeiliSearch index. Best-effort.
 
     Args:
         index_uid: Index to delete.
@@ -247,7 +248,7 @@ def delete_index(index_uid: str, dry_run: bool = False) -> bool:
         )
         logger.info("Deleted MeiliSearch index: %s", index_uid)
         return True
-    except Exception as e:  # noqa: BLE001 — rollback must not raise
+    except Exception as e:  # noqa: BLE001 — teardown must not raise
         logger.warning("MeiliSearch delete_index failed (non-fatal): %s", e)
         return False
 

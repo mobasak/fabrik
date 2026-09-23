@@ -111,14 +111,10 @@ def resolve_service_spec_path(project_dir: Path) -> Path:
 
 
 def _deploy_wordpress(project_dir: Path, dry_run: bool) -> int:
-    """WordPress deployment moved to /opt/wpf/ (standalone project).
+    """Refuse: WordPress is out of fabrik (the text is scaffold.WORDPRESS_REFUSAL)."""
+    from fabrik.scaffold import WORDPRESS_REFUSAL
 
-    Use the `wpf` CLI: wpf plan <site> && wpf apply <site>
-    """
-    raise NotImplementedError(
-        "WordPress deployment has moved to /opt/wpf/. "
-        "Use the `wpf` CLI for WordPress projects (not `fabrik apply`)."
-    )
+    raise NotImplementedError(WORDPRESS_REFUSAL)
 
 
 def _deploy_generic(project_dir: Path, dry_run: bool) -> int:

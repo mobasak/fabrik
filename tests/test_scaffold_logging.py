@@ -67,9 +67,12 @@ def mock_fabrik_root(temp_dir: Path) -> Path:
     (docker_dir / "dockerignore.template").write_text(".venv\n__pycache__\n")
     (docker_dir / "Makefile.python").write_text(".PHONY: dev\ndev:\n\tuvicorn myproject.main:app\n")
 
-    # Create python templates
+    # Python templates: copy the REAL directory wholesale, so a template the scaffolder learns to
+    # read (glitchtip_init.py, pause_state.py) reaches this fixture without a hand-kept list.
     python_dir = scaffold_tpl / "python"
-    python_dir.mkdir()
+    shutil.copytree(
+        Path(__file__).resolve().parents[1] / "templates" / "scaffold" / "python", python_dir
+    )
     (python_dir / "pyproject.toml.template").write_text('[project]\nname = "project-name"\n')
 
     # Create .windsurfrules and .windsurf/rules/ and .windsurf/workflows/

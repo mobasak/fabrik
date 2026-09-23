@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — One WordPress refusal text, two red test fixtures, and four docstrings that described code that is not there (2026-09-23)
+- **`fabrik scaffold --type wordpress` and `fabrik apply` on a WordPress project stopped telling users to run the `wpf` CLI.** `/opt/wpf` was archived to `/opt/archived/wpf` and its CLI no longer exists, yet three hand-kept copies of the refusal still recommended it (`cli.py` twice, `deploy_router.py`). All four sites, `create_project` included, now print one constant, `scaffold.WORDPRESS_REFUSAL`, and `TestWordpressRefusalIsOneText` (4 tests, all red at HEAD) holds them to it. Two stale comments went with them (`spec_generator.py`, `_TYPE_SCAFFOLDERS`). Mail 01M332X97K1D4BE5ZFCKJNBBGR.
+- **`tests/test_scaffold_logging.py`: 13 of 33 red at HEAD, 33 of 33 green.** The fixture hand-listed the scaffolder's Python templates and missed `glitchtip_init.py`; it now copies the real `templates/scaffold/python/` whole, so a template the scaffolder learns to read cannot go missing again. Mail 01M32AZ3Z10TPJ9N8PC31B0ZX9.
+- **`tests/test_deploy_router.py::test_generic_calls_orchestrator` was red at HEAD and sent a real webhook to `auto.vps1.ocoron.com` on every run.** Its MagicMock read as "registrars failed" once 1957a85d4 added that check. It now pins `registrar_failures = []` and patches `notify_deploy`, and the new `test_registrar_failures_deny_success` covers the branch nothing tested: a COMPLETE deploy with a failed registrar exits 1 (red with the guard removed).
+- **Docstrings corrected to the code:** `drivers/meilisearch.py` no longer calls `delete_index` a rollback path in four places (its only caller is `fabrik destroy --drop-data`; mail 01M34JT9QNJFPBEQBDMQGV0CBT); the emitted python-api-gpu `gpu_handler.py` no longer tells the reader to set `shape.gpu_kind`, a field that makes the spec fail to load (the kind is `DEFAULT_KIND`); `templates/python-api-gpu/defaults.yaml` names the real helper path `src/<package>/` (mail 01M3482ZN8MRHZXQ7E1066JH17); `docs/CONFIGURATION.md` stops recommending `verify_service_role(conn, allow_policy_based=True)`, which returns before checking anything, and gives the boot query that does (mail 01M35P4TDRECDC4J6D0B2P4EHY).
+- Reviewed by `/fabrik-review` (4 passes, confirmed 4 → 1 → 3 → 0): `docs/development/reviews/2026-09-23-fleet-mail-small-fixes-review.md`.
+
 ### Fixed — A sibling's commit no longer reverts other sessions' edits: the governance sync left pre-commit's stash cycle (D-369) (2026-09-23)
 
 - The hub's post-commit governance sync ran under pre-commit, which stashes every unstaged change with a tree-wide
