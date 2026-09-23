@@ -29,6 +29,8 @@ violation of it. Each phase below is labeled `[anywhere]` (a public DNS/HTTPS pr
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 {{include:grounding-artifact}}
 
 ## ⚠️ Termination contract
@@ -317,3 +319,5 @@ Next command: none — terminal. This closes the trigger→verify loop this plan
 (`/fabrik-review`, a registrar re-apply ask, or a rollback note) are the next actions, never auto-chained
 from here. An `UNVERIFIED` verdict routes to `/fabrik-deploy-checklist` — author and freeze the parity
 contract, then re-run this command.
+
+{{include:close-chain}}

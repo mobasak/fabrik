@@ -77,6 +77,8 @@ five runs, each of which a reader can judge on its own.
 {{include:run-record}}
 {{include:orient}}
 
+{{include:delegated-reads}}
+
 ## PHASE 1 — Read the queue
 
 ```bash
@@ -269,3 +271,5 @@ was mechanism-shaped and ROUTED (PHASE 2), an explicit `no edit this run — the
 to /fabrik-task`, naming the row and the `/fabrik-task` this session opens next (the record cannot exist yet — the close
 comes first) — **or**, when the run cannot reach any of those (§ Drive, Resilience), a `handoff` close naming the resume artifact. Anything else is an
 unfinished run.
+
+{{include:close-chain}}

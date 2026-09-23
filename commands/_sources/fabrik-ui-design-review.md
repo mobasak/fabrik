@@ -175,4 +175,7 @@ round (`confirmed: 0`) earns the attestation:
   path, then auto-invoke `/fabrik-plan-after-chat` (don't make them re-type it). If they ask for changes,
   **re-open the loop** on their feedback. Never hand off on an unattested / `DRAFT` contract.
 
+
 {{include:subagents-core}}
+
+{{include:close-chain}}

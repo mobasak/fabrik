@@ -9,6 +9,8 @@ no `eas submit --auto`, no Web Store "Submit for Review" click, no store credent
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 ## ⚠️ Termination contract
 
 You are done when EVERY item of the surface's checklist below has a verdict — **PASS (with evidence: a
@@ -187,3 +189,5 @@ GATE 2 → OPERATOR: <the one action only the human takes>
 ```
 
 Next command: Gate 2 — human approval; VPS: /fabrik-deploy-plan (the deploy triad). Stores: operator submits, then /fabrik-deploy-verify.
+
+{{include:close-chain}}

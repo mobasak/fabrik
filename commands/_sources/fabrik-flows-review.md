@@ -165,4 +165,7 @@ Name the successor without invoking it: `/fabrik-data-contract` — freeze the f
 (the Contract inputs section is its evidence list). Only on the user's explicit approval does it run; on
 requested changes, re-open the loop. Never hand off on an unattested / `DRAFT` contract.
 
+
 {{include:subagents-core}}
+
+{{include:close-chain}}

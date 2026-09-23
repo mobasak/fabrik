@@ -488,6 +488,7 @@ uncovered behaviors), generate the missing tests via the loop below (native seat
 
 {{include:test-generation-loop}}
 
+
 {{include:subagents-core}}
 ## Reporting
 
@@ -559,3 +560,5 @@ their own slices, that **CONFIRMED nothing and changed nothing** (`confirmed: 0`
 **AND** every candidate ever raised sitting at FIXED, REFUTED or RECORDED in the ledger. "I fixed what I
 found" is not convergence, and neither is a round you read yourself. When unsure whether something is a bug,
 surface it and EXECUTE it — never assume it's fine.
+
+{{include:close-chain}}

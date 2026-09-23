@@ -15,6 +15,8 @@ refute/merge, fix-or-handoff, and convergence. Optimize for COVERAGE first, then
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 {{include:autonomy-run}}
 {{include:term-coverage}}
 {{include:injection}}
@@ -394,3 +396,5 @@ paths + doc corrections), HANDED-OFF list (owner + repro), REFUTED list (proof),
 (reasons), and the persisted-suite inventory. End with the next command:
 defects handed off → the owning `/fabrik-review`/plan; contract drift found → `/fabrik-ui-design`
 re-freeze first; all green → `/fabrik-release`.
+
+{{include:close-chain}}

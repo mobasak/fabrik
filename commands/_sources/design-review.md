@@ -46,6 +46,9 @@ Follow and implement THIS project's design contract as the design principles + s
 3. A project-local `context/design-principles.md` / `context/style-guide.md` if present.
 If `docs/ui-design.md` is absent, fall back to the design system + `saas/60-saas-ui.md`'s "Done When" checklist.
 {{include:term-edit}}
+
 {{include:subagents-core}}
 {{include:run-record}}
 {{include:orient}}
+
+{{include:close-chain}}

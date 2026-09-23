@@ -206,4 +206,7 @@ screenshots/diagrams, external-facing copy, examples that need a live service to
 Convergence = the Termination contract's closing round (the round-1 seats confirming their own docs
 at `confirmed: 0`, md5 unchanged); not your say-so, and not "I fixed what I found."
 
+
 {{include:subagents-core}}
+
+{{include:close-chain}}

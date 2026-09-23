@@ -18,6 +18,8 @@ seeded this command's section list; each is also glossed inline where it binds.
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 ## ⚠️ Termination contract
 
 This run has exactly FIVE legitimate endings:
@@ -384,3 +386,5 @@ such heading inflates the per-heading citation denominator).
 End by naming the next command.
 
 Next command: /fabrik-deploy-plan-review — adversarially converge the deploy plan before it is trusted.
+
+{{include:close-chain}}

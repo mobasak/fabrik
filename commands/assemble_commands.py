@@ -1170,6 +1170,14 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
                 # phase count makes the pinned RUN: line lie about where the run is.
                 params.setdefault("COMMAND", name)
                 params.setdefault("PHASES", str(_phase_count(src)))
+            if fr == "close-chain":
+                # chunk 7 rollout: every command closes through the four-call chain; a command whose own close names no
+                # checker gets the generic pointer, never a guessed script
+                params.setdefault("COMMAND", name)
+                params.setdefault(
+                    "ARTIFACT_CHECK",
+                    "the check this command's own close already names (its checker, gate script, verification step or completion table)",
+                )
             # D-181/D-182 (2026-09-07): the per-command HEADLINE values above name `fanout` /
             # `set_quality` — the pool contract. While the pool is OFF by ruling every includer of
             # `subagents-core` renders ONE honest heading; the per-command values stay in PARAMS for

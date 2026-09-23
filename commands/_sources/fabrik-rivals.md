@@ -33,6 +33,8 @@ a hand-off.
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 {{include:injection}}
 
 ## ⚠️ DISCOVERY termination — when the rival SET stops growing
@@ -232,3 +234,5 @@ with the symptom + fix + `path:line` evidence in the body. Never append to fabri
 `UPSTREAM_FEEDBACK.md` yourself — `/opt/fabrik-lib` is another repo, and writing there is the
 cross-repo HARD STOP regardless of how invited the file looks (its owner curates it from mail).
 Never silently fork `libs/competitor_intel`. Re-vendor to pick up a fix.
+
+{{include:close-chain}}

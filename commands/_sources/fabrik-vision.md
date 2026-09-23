@@ -27,6 +27,8 @@ command produced. If either is missing, that gate did not run: say so, don't qui
 {{include:run-record}}
 {{include:orient}}
 
+{{include:delegated-reads}}
+
 ## Phase 0 — Reads budget, orientation, and mode declaration
 
 **Reads budget (the hollow-citation discipline).** Every backticked path in this command is one of two
@@ -1211,4 +1213,7 @@ gaps (owner decides per gap; auto-fix happens later as Retrofit epics).
   command is orientation only. **Never persist outside the allowlisted `specs/` tree**, and DISK stays
   source-of-truth.
 
+
 {{include:subagents-core}}
+
+{{include:close-chain}}

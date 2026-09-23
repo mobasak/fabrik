@@ -728,6 +728,7 @@ is stronger: ERROR at the emit gate and the flip, advisory only on the shared pa
 Do not promise the plan is complete or correct — `/fabrik-plan-after-chat` delivers a *converged* plan
 (DRAFT grounded here → hardened by the enforced `/fabrik-plan-review`); execution remains the user's call.
 
-{{include:close-chain}}
 
 {{include:subagents-core}}
+
+{{include:close-chain}}

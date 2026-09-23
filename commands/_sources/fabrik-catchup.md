@@ -11,6 +11,8 @@ which owns its own convergence loop.
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 ## ⚠️ Termination contract
 
 This is a bounded MEASURE → QUEUE → EXECUTE run, not an open-ended loop. You are done **only when a
@@ -129,3 +131,5 @@ GATE: python scripts/final_gate.py --check --json → success|failure
 Next command: this run's fix queue IS the routing — each item already named its owning command
 (`/fabrik-doc-converge` · `/fabrik-features` · `/fabrik-data-contract` · `/fabrik-ui-design`); once the
 re-measure is clean, resume whichever pipeline stage the project was actually in before it went stale.
+
+{{include:close-chain}}

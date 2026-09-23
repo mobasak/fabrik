@@ -19,6 +19,8 @@ half-agreed field list is the exact drift this command exists to prevent.
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 {{include:term-edit}}
 ## Phase 0 — Establish MODE + scope
 
@@ -223,4 +225,7 @@ holds the diff that names what changed, so only this run can say what the re-fre
    pipeline chain line. The gate's WARN will nag until that re-freeze lands; the impact list is the part
    only you know.
 
+
 {{include:subagents-core}}
+
+{{include:close-chain}}

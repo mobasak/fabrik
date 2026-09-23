@@ -197,4 +197,7 @@ Scale effort to blast radius: exhaustive on money / auth / data-integrity artifa
 on low-risk ones — and log anything you deliberately skip. When unsure whether a row conforms,
 surface it as PARTIAL; a wrong CONFORMS is the one verdict that ends inspection.
 
+
 {{include:subagents-core}}
+
+{{include:close-chain}}

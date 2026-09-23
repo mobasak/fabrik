@@ -424,7 +424,6 @@ CONVERGED text, at its approval gate. On approval, the pipeline continues —
   `agents-fabrik.md` invariants, fabrik-lib real API at `path:line`, `shape:`, lifecycle) to emit the phased plan.
   The heavy implementation grounding happens THERE, not here — this spec grounded the **design**; the contracts freeze the **fields + screens**; the plan grounds the **build**.
 
-{{include:close-chain}}
 
 ## Guardrails — never
 
@@ -439,3 +438,5 @@ CONVERGED text, at its approval gate. On approval, the pipeline continues —
 - **Inline a secret / credential / private DSN into a `GROUND_PROMPT` or any grounder task** — grounders reach the live internet + external MCP servers, so a secret in the task can exfiltrate. Ground only PUBLIC facts; the design needs no secrets.
 
 {{include:subagents-core}}
+
+{{include:close-chain}}

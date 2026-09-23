@@ -15,6 +15,8 @@ seats author the tests (the pool is OFF, D-181); you own WHAT gets tested and th
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 ## Import — nothing to import while the pool is OFF (D-181)
 
 The suggest/author seats are native Claude Task subagents; `libs/subagents` is not called. The vendored-pool import contract is kept below for re-enable.
@@ -190,3 +192,5 @@ sharpens for either role. `scripts/enforcement/check_subagent_flywheel.py` BLOCK
 change with ZERO pool runs (pool-or-declare) — running THIS command on a phase's Behavior Contract is exactly how
 you satisfy it for test-shaped work.
 -->
+
+{{include:close-chain}}

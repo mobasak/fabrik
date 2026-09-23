@@ -99,3 +99,81 @@ def test_every_artifact_check_the_close_names_is_a_real_script_and_flag() -> Non
                     script,
                     flag,
                 )
+
+
+_DELEGATED = {
+    "fabrik-spec",
+    "fabrik-plan-after-chat",
+    "fabrik-ui-design",
+    "fabrik-vision",
+    "fabrik-epics",
+    "fabrik-flows",
+    "fabrik-rivals",
+    "fabrik-deploy-plan",
+    "fabrik-user-test",
+    "fabrik-service-test",
+    "fabrik-catchup",
+    "fabrik-command-improve",
+    "fabrik-release",
+    "fabrik-deploy",
+    "fabrik-deploy-verify",
+    "fabrik-decommission",
+    "fabrik-upstream",
+    "fabrik-generate-tests",
+    "fabrik-execute-plan",
+    "fabrik-data-contract",
+    "fabrik-features",
+    "fabrik-deploy-checklist",
+    "fabrik-doc-converge",
+}
+
+
+def test_every_command_but_the_task_lane_closes_through_the_chain_and_the_readers_delegate() -> (
+    None
+):
+    """Chunk 7 rollout: the four-call close is the edit every command shares (§ 5.3) — /fabrik-task alone keeps its
+    own close; delegated reads go to the commands that read large sources themselves, never to the review family,
+    whose seats read."""
+    names = sorted(p.stem for p in SOURCES.glob("*.md"))
+    assert len(names) >= 38, len(names)
+    missing_close = [n for n in names if n != "fabrik-task" and "close-chain" not in _includes(n)]
+    assert not missing_close, missing_close
+    assert "close-chain" not in _includes("fabrik-task"), "/fabrik-task keeps its own close (§ 5.3)"
+    assert {n for n in names if "delegated-reads" in _includes(n)} == _DELEGATED
+
+
+def test_the_assembler_fills_the_close_chain_for_a_command_with_no_params() -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "assemble_probe2", REPO / "commands" / "assemble_commands.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    assert "close-chain" not in mod.PARAMS.get("fabrik-rivals", {}), (
+        "the default path is what this grades"
+    )
+    src = (REPO / "commands" / "assemble_commands.py").read_text()
+    assert 'if fr == "close-chain":' in src and 'params.setdefault("COMMAND", name)' in src
+
+
+def test_the_close_chain_follows_every_section_of_the_command_and_yields_to_its_own_close() -> None:
+    """Rollout review, pass 1: an include placed mid-file put the close before the run record (design-review),
+    before the phases (workflow-review) and before the sections its `done` consumes (review, deploy-checklist);
+    and a generic chain appended to a command with its own close contradicted it. (The assembler's close-out
+    feedback block still follows the chain in the render — the chain follows every section of the command's OWN text.) (halted, refused, handoff,
+    blocked and paused exits; a different order)."""
+    late = [
+        p.stem
+        for p in SOURCES.glob("*.md")
+        if "{{include:close-chain}}" in p.read_text()
+        and p.read_text().rstrip("\n").splitlines()[-1] != "{{include:close-chain}}"
+    ]
+    assert not late, late
+    body = " ".join((FRAGS / "close-chain.md").read_text().split())
+    assert "this command's own close text wins wherever it names something else" in body
+    assert "the close this command's own text names for how the run ended" in body
+    assert "It runs BEFORE the response's closing seven-line block" in body, (
+        "a chain placed after an Output section must still run before it (review pass 2)"
+    )

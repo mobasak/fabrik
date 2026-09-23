@@ -379,4 +379,7 @@ same rule from the review side:** if you are pointed at a plan already at `Statu
 the active dir, do not re-converge it — **archive it** (the `git mv` above) and report that. Never mark a plan
 `EXECUTED` — that is the executor's call — and never archive one that isn't verified-done.
 
+
 {{include:subagents-core}}
+
+{{include:close-chain}}

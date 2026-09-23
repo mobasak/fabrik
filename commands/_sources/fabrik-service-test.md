@@ -16,6 +16,8 @@ fix-or-handoff, and convergence. Optimize for COVERAGE first, then DEPTH.
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 {{include:autonomy-run}}
 {{include:term-coverage}}
 {{include:injection}}
@@ -294,3 +296,5 @@ SKIPPED list (reasons), and the persisted-suite inventory. End with the next com
 handed off → the owning `/fabrik-review`/plan; `shape:`/contract drift → fix the spec (and
 re-freeze the data contract via `/fabrik-data-contract` if fields changed) before any deploy;
 all green → **`/fabrik-release`** (release-readiness, then the hub-side `fabrik apply`).
+
+{{include:close-chain}}

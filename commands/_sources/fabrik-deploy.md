@@ -20,6 +20,8 @@ for anything that deliberately survived the halt.
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 ## ⚠️ Termination contract
 
 This run has exactly FOUR legitimate ENDINGS — plus ONE sanctioned mid-run SUSPENSION (the
@@ -354,3 +356,5 @@ NEXT: /fabrik-deploy-verify <service> (parity contract v<N>, container leg <serv
 ```
 
 Next command: /fabrik-deploy-verify — prove the deployed service against its live checklist.
+
+{{include:close-chain}}

@@ -16,6 +16,8 @@ epic at a time — and the `owner:` field this command writes empty into each ti
 {{include:run-record}}
 {{include:orient}}
 
+{{include:delegated-reads}}
+
 ## Phase 0 — Consume the confirmed Vision Summary
 
 Read the confirmed Vision Summary from **conversation context** — never from disk; `/fabrik-vision`
@@ -700,4 +702,7 @@ assign owners, and emit the phased dispatch order before any window starts build
   trips `check_doc_sprawl.py` and is a governance change, not something this command decides for
   itself.
 
+
 {{include:subagents-core}}
+
+{{include:close-chain}}

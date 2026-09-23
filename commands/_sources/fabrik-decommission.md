@@ -11,6 +11,8 @@ projects; the hub is the execution side).
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 ## ⚠️ Termination contract
 
 This is a bounded GROUND TRUTH → DECIDE → CONFIRM → EXECUTE run for ONE name, not an open loop. Phase 0
@@ -158,7 +160,9 @@ from the table itself.
 
 Two forms — which one you emit depends on whether Phase 2 ran.
 
-**Paused at Phase 1.5** (the mandatory stop — outcome stated, operator go-ahead not yet given):
+**Paused at Phase 1.5** (the mandatory stop — outcome stated, operator go-ahead not yet given; the run closes with
+`python3 scripts/command_run.py handoff --command fabrik-decommission --resume <a file holding this block under a ## RESUME heading> --reason "awaiting operator confirmation at Phase 1.5" --feedback …`,
+never `done` — nothing has executed):
 
 ```
 DECOMMISSION: AWAITING OPERATOR CONFIRMATION — outcome <A|B|C> proposed, evidence attached
@@ -188,3 +192,5 @@ Next command: none in the pipeline — this is a standalone hub-side runbook. If
 decommission*, the operator's own `fabrik destroy specs/services/<id>.yaml` run is the next action (never
 auto-chained from here); if it was *migrate-consumers-first*, the named blockers are the next work, owned
 by whichever project carries each consumer.
+
+{{include:close-chain}}

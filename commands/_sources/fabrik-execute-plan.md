@@ -22,6 +22,8 @@ python3 scripts/command_run.py start --command fabrik-execute-plan --phases <pla
 
 {{include:orient}}
 
+{{include:delegated-reads}}
+
 `step --phase <N> --title "<the plan's phase title>"` on entering each phase. **The `/fabrik-review` at a
 phase boundary opens its OWN nested record — the storage parks this run in the record's `stack` and the child's `done` restores it (01M280CV7)** — so a green phase gate
 never reads as "the plan is done" — and every close NAMES its own run, so a retried `done` from the
@@ -1247,3 +1249,5 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    operator call is **deploy**: `fabrik redeploy` / `fabrik apply` is **hub-side + user-run**
    (trigger-not-execute) — name it as the next step, don't run it. Don't trail off with "what next?" —
    push, name the deploy decision, stop.
+
+{{include:close-chain}}

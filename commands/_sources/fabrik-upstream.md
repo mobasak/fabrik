@@ -29,6 +29,8 @@ string, and never by asking):
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 {{include:repo-identity}}
 
 ## ⚠️ Termination contract
@@ -271,3 +273,5 @@ fabrik --to-agent infra --kind request --ack required`** (proposal path(s) in th
 mail and runs HUB mode; no operator relay, no hub shell-out. HUB mode ends at the reply-block: send a
 `kind: reply` (`--re <id>`) back to the requester with the disposition — a landed fix distributes fleet-wide
 on the next sync, and a deferred claim's tracking location is its own next action.
+
+{{include:close-chain}}

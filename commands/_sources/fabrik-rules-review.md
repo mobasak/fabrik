@@ -163,4 +163,7 @@ Then output:
 6. End with: which gaps are real TODOs vs deliberate, and which to fold into the active plan
    (`docs/development/plans/*`) — but do NOT edit anything unless I say so.
 
+
 {{include:subagents-core}}
+
+{{include:close-chain}}

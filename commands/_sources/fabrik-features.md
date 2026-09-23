@@ -16,6 +16,8 @@ This command's own guardrail says the same thing: *the CODE is the denominator; 
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 {{include:term-edit}}
 {{include:grounding-artifact}}
 ## Phase 0 — Establish scope + MODE
@@ -113,4 +115,7 @@ at the Termination contract's closing round (`confirmed: 0`, md5-verified).
 - Hand off to certification while the loop is non-quiet — an unconverged cross-check silently shrinks the
   gauntlet.
 
+
 {{include:subagents-core}}
+
+{{include:close-chain}}

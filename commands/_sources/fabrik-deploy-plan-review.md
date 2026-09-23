@@ -243,3 +243,5 @@ STATUS: CONVERGED (md5 <hash>) | DRAFT — <the named blocker>
 ```
 
 Next command: Gate 2 — human approval; on the operator's explicit go: /fabrik-deploy <plan>.
+
+{{include:close-chain}}

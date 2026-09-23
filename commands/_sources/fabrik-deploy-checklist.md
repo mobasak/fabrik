@@ -24,6 +24,8 @@ from the deployed state launders drift into documentation). Nothing here needs f
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 {{include:term-edit}}
 {{include:grounding-artifact}}
 {{include:injection}}
@@ -233,6 +235,7 @@ pass.
 3. **The NEXT line becomes the owed re-verify** when the impact is non-empty: `/fabrik-deploy-verify`
    against the bumped Version, with the changed rows named as its arguments.
 
+
 {{include:subagents-core}}
 ## Output (always, last thing)
 
@@ -249,3 +252,5 @@ STATUS: FROZEN v<N> | DRAFT (<why>)
 
 Next command: `/fabrik-release` — its VPS-path precondition reads the `FROZEN` header. On a version BUMP
 with downstream impact: `/fabrik-deploy-verify` re-run against the bumped contract, changed rows named.
+
+{{include:close-chain}}

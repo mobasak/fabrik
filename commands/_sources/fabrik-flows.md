@@ -36,6 +36,8 @@ sent but never accepted — no token-landing surface ever designed), and an *asy
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 {{include:term-edit}}
 (This command owns the AUTHOR'S self-convergence; the separate `/fabrik-flows-review` runs the INDEPENDENT
 author-blind pass — the split mirrors `/fabrik-spec` → `/fabrik-spec-review`.)
@@ -219,4 +221,7 @@ closing round (`confirmed: 0`, md5 unchanged). The split mirrors `/fabrik-spec` 
 author's word; the review is what makes it independent. If the review surfaces something it cannot
 reconcile, it routes back here; resolve that before the contract is consumed.
 
+
 {{include:subagents-core}}
+
+{{include:close-chain}}

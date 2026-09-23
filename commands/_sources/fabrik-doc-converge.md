@@ -10,6 +10,8 @@ single-doc deep converge).
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 {{include:term-edit}}
 {{include:grounding-artifact}}
 ## Phase 0 — Establish scope + pick the contract
@@ -85,4 +87,7 @@ and bumps `Last Updated:` only at the final flip. List what you re-read each pas
 - Declare converged on the pass that edited — the loop ends only at the Termination contract's closing round
   (`confirmed: 0`, md5-verified).
 
+
 {{include:subagents-core}}
+
+{{include:close-chain}}

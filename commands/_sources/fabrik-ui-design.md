@@ -28,6 +28,8 @@ design-first layer between the design *system* (how things look) and the build �
 
 {{include:run-record}}
 {{include:orient}}
+
+{{include:delegated-reads}}
 {{include:term-edit}}
 (This command owns the AUTHOR'S self-convergence; the separate `/fabrik-ui-design-review` runs the INDEPENDENT author-blind pass — the split mirrors `/fabrik-spec` → `/fabrik-spec-review`.)
 
@@ -276,3 +278,5 @@ holds the diff that names what changed, so only this run can say what the re-fre
    projects.domain needs a §5.3 control; §5.11 'unbuildable' passages now stale`) — never the first-run
    pipeline chain line. The gate's WARN will nag until that re-freeze lands; the impact list is the part
    only you know.
+
+{{include:close-chain}}

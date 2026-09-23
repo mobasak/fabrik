@@ -199,4 +199,7 @@ whether something is a bug, surface it. Scale effort to risk — exhaustive on
 money/auth/domain-correctness units, proportionate on low-blast-radius ones — and log
 anything you deliberately skip.
 
+
 {{include:subagents-core}}
+
+{{include:close-chain}}

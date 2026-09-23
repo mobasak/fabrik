@@ -312,4 +312,7 @@ field-freeze / UI / plan work begins. Once the quiet closing round (§ Terminati
   for changes instead, **re-open the loop** on their feedback (back to a full grounding pass). Never end at
   the gate on an unconverged `DRAFT` — converge first, then stop for approval.
 
+
 {{include:subagents-core}}
+
+{{include:close-chain}}
