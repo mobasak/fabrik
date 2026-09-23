@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The WSL box moves every live address off `172.16.0.0/12`: mirrored networking and pinned Docker pools (2026-09-23)
+
+- WSL now runs `networkingMode=mirrored`; `docker0` is pinned at `10.211.0.1/24` and every Docker network comes from `10.212.0.0/16` in `/24`s. The seven existing `172.x` networks were recreated on `10.212.x` with labels and aliases kept, and `tryton-crm`'s `TI_DATABASE_URI` moved off the dead `172.17.0.1` gateway, verified by a live query. All 49 repo mailboxes were notified. Decision D-360.
+
 ### Fixed — The stop decider no longer mistakes the self-watch arm for lost work (2026-09-23)
 
 - Since the self-watch became a background Bash task (D-356), the Stop decider counted it as a pending waker and woke every idle armed session with a false "resume the interrupted task" about an hour after each turn end. `~/.claude/bin/claude-stop-decider.py` now leaves out a background task that runs `selfwatch_arm.sh <sid>`, as it already did for the persistent Monitor, while a command that only reads the script still counts. Six graders in `tests/test_claude_stop_decider_selfwatch.py` (D-359).

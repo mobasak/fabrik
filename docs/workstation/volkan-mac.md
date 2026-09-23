@@ -65,8 +65,13 @@ hotspot (`192.168.137.68`), which WSL cannot route into; the bridge was `HostNam
 gateway) + `Port 2222` + a Windows `netsh portproxy 0.0.0.0:2222 → 192.168.137.68:22` and a firewall rule
 scoped to `172.22.16.0/20`. Two moving parts then: the WSL NAT gateway after a reboot (`ip route | awk
 '/default/{print $3}'`) and the Mac's hotspot lease. Windows-side probe that bypassed WSL:
-`powershell.exe -Command "(Test-NetConnection 192.168.137.68 -Port 22).TcpTestSucceeded"`. If he tethers
-again, restore those four values; nothing else in this runbook changes.
+`powershell.exe -Command "(Test-NetConnection 192.168.137.68 -Port 22).TcpTestSucceeded"`. ⚠️ **Mirrored networking (2026-09-23, D-360) makes this recipe obsolete:** WSL has no NAT gateway any more, so
+`HostName 172.22.16.1` cannot work. Mirrored mode mirrors Windows' interfaces into WSL, so if he tethers again the
+expected recipe is `HostName 192.168.137.68` + `Port 22` directly — no portproxy, no firewall rule. That follows from
+the mirrored-mode design and is NOT yet verified with the hotspot up. The old `netsh portproxy 0.0.0.0:2222 → 192.168.137.68:22` and its
+allow rule *WSL to Mac SSH (2222)* are still LIVE on Windows: it listens on `0.0.0.0:2222`, and the rule covers
+every profile, Public included. It forwards only while the hotspot carries `192.168.137.68`, and removing both
+needs an elevated shell.
 
 Non-interactive SSH has no Homebrew on `PATH`: prefix commands with `export
 PATH=/opt/homebrew/bin:$HOME/.local/bin:$PATH` (php, npm, flutter, claude live there). Python is the system
