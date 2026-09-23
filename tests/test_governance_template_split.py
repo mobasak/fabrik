@@ -1129,13 +1129,24 @@ def _has_a_bar_paragraph_in(section: str) -> str:
 
 
 _REFUSED_VERDICT_SENTENCE_END = "the `(a)/(b)` menu the grounds above forbid."
+_NEXT_PARAGRAPH_MARKER = "**⚠️ The block is a TASK terminator"
 
 
 def _bar_through_refused_verdict_in(section: str) -> str:
     """O4: the WHOLE load-bearing span, scoped to ONE § FINAL OUTPUT section — from the HAS A BAR
-    paragraph's own opening sentence through the REFUSED verdict sentence at the very end. This
-    covers the DECISION-format-block prose, BOTH worked examples with their 'Legitimate'/'Refused'
-    labels, and the closing verdict, as ONE contiguous byte span.
+    paragraph's own opening sentence through the END OF THE PARAGRAPH THAT FOLLOWS IT (the "TASK
+    terminator" marker, present in both the hub and the template right after the REFUSED example).
+    This covers the DECISION-format-block prose, BOTH worked examples with their
+    'Legitimate'/'Refused' labels, and everything after the REFUSED verdict sentence up to the next
+    paragraph, as ONE contiguous byte span.
+
+    Round 1 (O4) ended the span at the literal 'forbid.' — the REFUSED sentence's own last word —
+    which left text APPENDED after that word (same line, or new lines inserted before the next
+    paragraph) uncompared: neither the narrower fenced-block checks nor that boundary ever read
+    past 'forbid.', so a trailing addition drifted the template from the hub in total silence
+    (round 2 finding). Ending at the START of the next paragraph instead means the byte range this
+    helper returns is a literal prefix of "everything up to what comes next" — nothing between the
+    two paragraphs can hide.
 
     The narrower per-piece checks (the isolated fenced examples via `_decision_example`, the bar
     paragraph alone via `_has_a_bar_paragraph_in`) never read the text BETWEEN the fenced blocks,
@@ -1145,11 +1156,17 @@ def _bar_through_refused_verdict_in(section: str) -> str:
         "the HAS A BAR paragraph is missing or duplicated in this § FINAL OUTPUT copy"
     )
     start = section.index(_BAR_PARAGRAPH_MARKER)
-    assert section.count(_REFUSED_VERDICT_SENTENCE_END) == 1, (
-        "the REFUSED verdict sentence is missing or duplicated in this § FINAL OUTPUT copy"
+    assert section.count(_NEXT_PARAGRAPH_MARKER) == 1, (
+        "the TASK-terminator paragraph that follows the bar paragraph is missing or duplicated "
+        "in this § FINAL OUTPUT copy"
     )
-    end = section.index(_REFUSED_VERDICT_SENTENCE_END) + len(_REFUSED_VERDICT_SENTENCE_END)
-    return section[start:end]
+    end = section.index(_NEXT_PARAGRAPH_MARKER)
+    assert end > start, "the TASK-terminator marker appears BEFORE the HAS A BAR paragraph"
+    span = section[start:end]
+    assert _REFUSED_VERDICT_SENTENCE_END in span, (
+        "the REFUSED verdict sentence is missing from the span between the two paragraph markers"
+    )
+    return span
 
 
 # O3/S2: the ONLY sanctioned divergence inside the bar-paragraph/examples span and the Compact
