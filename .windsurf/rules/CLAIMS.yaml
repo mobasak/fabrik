@@ -1844,3 +1844,35 @@ claims:
     verify: "https://developer.paddle.com/concepts/sell/customer-portal/ ; https://developer.paddle.com/api-reference/customer-portals/create-customer-portal-session/ (exa + WebSearch, 2026-09-23; ledger ui-26..28)"
     window_days: 180
     last_verified: 2026-09-23
+
+  - id: audit-retention-legal-periods
+    pack: core/app-audit-log.md
+    kind: standard
+    claim: "TR commercial records (and the documents behind them, incl. invoices) are kept 10 years under TTK Art. 82 — VUK Art. 253's 5 years is only the tax floor; GDPR Art. 7(1) requires the controller to be able to demonstrate consent and Art. 5(2) to demonstrate compliance; KVKK Art. 7(1) requires personal data to be deleted, destroyed or anonymised once the reason for processing ends — so audit rows are kept for a legal period, never indefinitely"
+    verify: "https://www.turkhukuksitesi.com/mevzuat.php?mid=11233 (TTK 82) ; TÜRMOB VUK 253 note (ledger al-04/al-07) ; https://gdpr-info.eu/art-7-gdpr/ ; https://www.mevzuat.gov.tr/MevzuatMetin/1.5.6698.pdf (exa + brave, 2026-09-23; ledger al-01..al-09)"
+    window_days: 365
+    last_verified: 2026-09-23
+
+  - id: paddle-transaction-completed-shape
+    pack: core/app-audit-log.md
+    kind: practice
+    claim: "Paddle `transaction.completed`: `subscription_id` is nullable (one-time purchases), `details.totals.total` is a string in the currency's lowest unit, the currency is `currency_code`, every envelope carries an `event_id` usable for idempotency, and live deliveries are retried up to 60 times over 3 days"
+    verify: "https://developer.paddle.com/webhooks/transactions/transaction-completed ; https://developer.paddle.com/webhooks/about/respond-to-webhooks (exa + WebFetch, 2026-09-23; ledger al-10..al-14)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: audit-chain-advisory-lock
+    pack: core/app-audit-log.md
+    kind: standard
+    claim: "`pg_advisory_xact_lock(bigint)` takes an exclusive transaction-level lock, released only at transaction end, with no table privilege required — so it serialises audit-chain writers on an append-only table where `SELECT … FOR UPDATE` (which needs UPDATE) cannot"
+    verify: "https://www.postgresql.org/docs/current/functions-admin.html (WebFetch + brave, 2026-09-23; ledger al-17..al-18) + /opt/fabrik-lib/app-audit-log/audit_log.py record_event docstring"
+    window_days: 365
+    last_verified: 2026-09-23
+
+  - id: audit-owner-role-cannot-be-append-only
+    pack: core/app-audit-log.md
+    kind: standard
+    claim: "A PostgreSQL object's owner holds every privilege on it and can always re-grant them, so REVOKE UPDATE/DELETE cannot bind an owner role — and Fabrik's registrar makes each app's role the database owner, so the audit table is tamper-evident, not append-only, until a separate non-owning app role is provisioned"
+    verify: "https://www.postgresql.org/docs/current/ddl-priv.html (WebFetch, 2026-09-23; ledger op-01) + /opt/fabrik/src/fabrik/drivers/postgres.py (the ALTER DATABASE … OWNER TO line)"
+    window_days: 365
+    last_verified: 2026-09-23

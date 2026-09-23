@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules(core/app-audit-log): file 27 of the currency pass — the audit log is mandatory in every project (D-368) (2026-09-23)
+
+- Operator ruling: every project, of every scaffold type, carries the audit log "properly" — vendored, the table in
+  its schema, every sensitive operation recorded, retention scheduled, weekly verification. The pack now loads in
+  every repo (`db/schema.sql`, `alembic/`, `migrations/`) and states the per-type path.
+- Corrected against the module: the advisory lock plus ts clamp in one committed transaction, `record_event` is
+  sync-only, `strict=False` is test-only, the phantom `test.` retention clause and watchdog-runs-retention are gone.
+- Retention is per legal period, counted from year end, never indefinite; retention's mid-chain deletes leave a kept
+  row whose predecessor was deleted with only its content hash; the registrar's owner role makes the table tamper-evident, not append-only.
+- The vocabulary names what the default IdP really writes and gains eight rows (one a DEPRECATED alias for the IdP's `auth.login`) and the `anonymous` actor; billing
+  amounts are `amount_minor` strings; the Paddle example claims `event_id` first.
+- 4 new `CLAIMS.yaml` rows and a 25-row research ledger; 10 module changes mailed to fabrik-lib, scaffold emission
+  and a non-owning app role to fleet, vocabulary drift to transdoc and youtube.
+
 ### Changed — Every command but /fabrik-task closes through the four-call chain, and the reading commands delegate large reads (2026-09-23)
 
 - `close-chain` ends 37 of 38 command sources and yields to each command's own close wherever that names a different order, exit, gate, pause or nested caller; it runs before the response's closing block. `delegated-reads` goes to the 23 commands that read large sources themselves. `/fabrik-decommission`'s Phase 1.5 pause now closes with `handoff`, never `done` (D-367).
