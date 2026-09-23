@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The review loop: one refuter per slice, `closable`, ledger rows that render (2026-09-23)
+
+- `.claude/workflows/fabrik-review-loop.js`: one fresh Sonnet refuter per slice (`effort: high`) executes every candidate; finders run at `effort: medium`; a refutation with a placeholder command or no output is `unverified`, and `unverified` never closes; each slice and pass return `closable` with the `open` reasons; pass-2 ledger rows are objects or plain claim strings, anything else refused before a seat runs (it rendered `undefined`); reused candidate ids are suffixed, conflicting verdict rows are `unverified`, a case-slipped ledger id counts only when it names one claim. 19 graders in `tests/test_review_loop_workflow.py` (was 8). `fabrik-reviewer` agent: `experimental.cacheTtl: 1h`, frontmatter now valid YAML. D-355 — "≤ 3 passes" is a target, never a cap.
+
 ### Changed — rules(85-payments-billing): file 22 of the currency pass, to the 11-row bar (D-353) (2026-09-23)
 - The pack now describes the vendored fabrik-lib `payments` module as the reference implementation and
   adopts the three fabrik-lib rulings it had missed: routing by billing model (international → Paddle,
