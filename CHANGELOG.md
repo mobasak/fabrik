@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Review stages per change, seat tokens from transcripts; no telemetry collector, no lead-run checks (2026-09-23)
+
+- `command_feedback_report.py --stages` groups review-family runs by the change their surface names (plan slug, spec slug or D-row), with stages, hours, rounds and confirmed defects per change, and prints its coverage first (101 of 239 review runs keyed on its first run). `review_loop_ledger.py` totals each seat's tokens from its own transcript. Decided against after measuring: an OpenTelemetry collector (its token metric names a user-defined agent `custom`) and the lead running small checks itself (13–25× more cached tokens than one refuter seat for this loop's long-lived lead). D-358.
+
 ### Added — Review passes read into a file, every seat timed; the FORCE refusal; seats kept out of the repo (2026-09-23)
 
 - New `scripts/review_loop_ledger.py`: `read` writes a review pass's seats, candidates, verdicts and ledger rows from the workflow run into a file, with each seat's minutes and `OVER BOX` / `UNTIMED` / `NO RESULT` / `DUPLICATE RESULT` flags (one refuter had run 59 minutes against a 12-minute box unseen); `next` builds the next pass's claim ledger from it. `dispatch_headroom.py` refuses while `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set. The review loop's seat prompts forbid writing outside the seat's scratch and time-box blocking commands. `/fabrik-review` uses the helper and logs each pass's stop and fix size. D-357.
