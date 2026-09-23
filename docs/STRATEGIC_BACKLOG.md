@@ -4787,3 +4787,12 @@ and `docs/workflows/SYNC_PROJECTS_WORKFLOW.md` (captcha, retired).
 Owner: infra (hub docs). Destination: `/fabrik-doc-converge <doc>` per doc, in the order above, AFTER the review-loop
 re-engineering lands — the two runs done took 7 and 6 rounds because the loop degenerates after round 1 into a
 one-seat-per-cell hunt (memory: converge-fast-no-serial-delta-chain). Trigger: the operator's word, not a schedule.
+
+## [infra] CLAUDE.md's Subagent fan-out bullet reads its Sonnet + Haiku pair as covering the section loops
+
+The bullet names `/fabrik-spec-review` and `/fabrik-plan-review` among "the partitioned review loops", gives them
+"Opus on the rule/grammar sections, Sonnet on the rest, no Haiku seat", then continues in the same sentence with
+"two cheap finders per slice — one Sonnet and one Haiku … no Opus finder" (D-344), which is scoped to the FILE
+loops only. A reader following the literal sentence could build a section slice with the wrong pair. Found by
+the chunk-6 review (D-361, B-S3); older than that change and on a governance-sync path, so it waits for the
+next deliberate contract edit: scope the pair clause to the file loops. Owner: infra.

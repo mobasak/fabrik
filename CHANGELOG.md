@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The spec and plan reviews and execute-plan's nested reviews run on the review-loop workflow (2026-09-23)
+
+- `.claude/workflows/fabrik-review-loop.js` takes each slice's seats (`models`, `agent`, `scope`). `/fabrik-spec-review` and `/fabrik-plan-review` launch it with their section partition, and every later pass is the round-1 seats over their own slice ledgers. `/fabrik-execute-plan` points its phase and per-ticket reviews at `/fabrik-review`'s loop and keeps its per-round Opus finder as the riskiest slice's third finder. `review_loop_ledger.py next` keeps a hyphenated slice name whole (D-361).
+
 ### Changed — The WSL box moves every live address off `172.16.0.0/12`: mirrored networking and pinned Docker pools (2026-09-23)
 
 - WSL now runs `networkingMode=mirrored`; `docker0` is pinned at `10.211.0.1/24` and every Docker network comes from `10.212.0.0/16` in `/24`s. The seven existing `172.x` networks were recreated on `10.212.x` with labels and aliases kept, and `tryton-crm`'s `TI_DATABASE_URI` moved off the dead `172.17.0.1` gateway, verified by a live query. All 49 repo mailboxes were notified. Decision D-360.
