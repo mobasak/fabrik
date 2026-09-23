@@ -242,7 +242,8 @@ FINDERS: native `fabrik-reviewer` ×<n> per unit (Sonnet) + Opus ×<n> named per
 STATUS: CONVERGED (md5 <hash>) | DRAFT — <the named blocker>
 ```
 
-On a CONVERGED ending, end the turn with:
+On a CONVERGED ending, end the turn with the block below, written as plain lines, not inside a code
+fence:
 
 ```
 DECISION NEEDED (ground: gate)

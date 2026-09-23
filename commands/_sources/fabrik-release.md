@@ -188,7 +188,8 @@ ARTIFACT: <SHA · zip/build path | n/a (vps: deploy from remote)>
 GATE 2 → OPERATOR: <the one action only the human takes>
 ```
 
-On a fully-PASS verdict, end the turn with:
+On a fully-PASS verdict, end the turn with the block below, written as plain lines, not inside a code
+fence:
 
 ```
 DECISION NEEDED (ground: gate)

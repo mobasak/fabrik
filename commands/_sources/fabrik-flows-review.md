@@ -160,8 +160,8 @@ was used to justify not building the thing that would have caught it.
 
 Like its siblings, this is a **design approval gate**: the frozen journeys commit every downstream stage to
 serve them. Once the closing round (`confirmed: 0`) earns the attestation, **present** the contract + the flow index + any
-"contract bump needed" findings + the full Pass Ledger, then **end the turn with the block below** — never a
-plain-prose approval ask.
+"contract bump needed" findings + the full Pass Ledger, then **end the turn with the block below**,
+written as plain lines, not inside a code fence — never a plain-prose approval ask.
 
 ```
 DECISION NEEDED (ground: gate)
