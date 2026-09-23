@@ -24,9 +24,15 @@ have passed as naming "publish"/"deploy"/"spend"; the NEXT-template check matche
 literal `operator decision: <` and missed any other bare-operator-decision NEXT phrasing;
 and nothing graded round 1's own "written as plain lines, not inside a code fence" fix at
 all — a source could lose that sentence and every existing test would stay green. This file
-now uses word-boundary matching for the class check, flags any `NEXT:` line naming
-`operator decision` without a `see DECISION NEEDED` pointer, and asserts the fence-escape
-sentence precedes every block's fence.
+now uses word-boundary matching for the class check, flags a line naming `operator decision`
+after `NEXT:` without a `see DECISION NEEDED` pointer, and asserts the fence-escape sentence
+precedes every block's fence.
+
+Review round 3 found round 2's own NEXT-template fix too NARROW: requiring the line to
+*start* with `NEXT:` dropped the coverage round 1 already had — a backtick-wrapped or
+bullet-prefixed NEXT template (e.g. `` - `NEXT: … | operator decision: <x>` ``) with a bare
+operator decision was no longer flagged. The check now looks for `NEXT:` ANYWHERE in the
+line, not just at its start.
 
 This guards: every DECISION block in each of the six sources carries all four required
 fields within 12 lines of its heading, none of those fields is empty, every block's Why
@@ -181,13 +187,13 @@ def test_deploy_next_template_never_ends_on_a_bare_operator_decision() -> None:
     offending = [
         line.strip()
         for line in lines
-        if line.strip().startswith("NEXT:")
+        if "NEXT:" in line
         and "operator decision" in line
         and "see DECISION NEEDED" not in line
     ]
     assert not offending, (
-        "fabrik-deploy.md: a NEXT: line names an operator decision with no pointer to the "
-        f"DECISION block above it: {offending}"
+        "fabrik-deploy.md: a line names an operator decision after NEXT: with no pointer "
+        f"to the DECISION block above it: {offending}"
     )
 
 
