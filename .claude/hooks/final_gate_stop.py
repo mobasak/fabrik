@@ -1527,11 +1527,19 @@ _DEFER_RE = re.compile(
 _NEXT_LINE_RE = re.compile(r"^[ \t>*_-]*NEXT\**[ \t]*:\**", re.M)
 # D1's second form: the successor named IS the operator ("NEXT: operator — relay item 6 …").
 _NEXT_TO_OPERATOR_RE = re.compile(r"[ \t*_]*(?:the[ \t]+)?operator\b[ \t*_]*[—–:-]", re.I)
-# ...unless that line asks for what only the operator's harness can do: a window reload for the MCP
-# roster (CLAUDE.md: "a server only a reload restores needs a NEW window — say so").
-_TOOL_FACT_RE = re.compile(r"\b(?:MCP|roster|reload)\b")
-# ...or marks the ask OPTIONAL ("optionally …", "otherwise nothing pending"): no successor is owed.
-_OPTIONAL_ASK_RE = re.compile(r"\boptionally\b|\botherwise nothing\b", re.I)
+# ...unless the operator clause ITSELF begins optional ("operator — optionally …") or asks for what
+# only the operator's harness can do — reload/restart/refresh, or open a window (CLAUDE.md: "a server
+# only a reload restores needs a NEW window — say so"). Anchored at the clause start, so "…; no
+# reload needed" or "…; optionally tidy X" later on the line never waives the ask before it.
+_OPERATOR_WAIVER_RE = re.compile(
+    r"[ \t*_]*(?:optional(?:ly)?\b|(?:please[ \t]+)?(?:reload|restart|refresh|reopen)\b"
+    r"|(?:please[ \t]+)?open\b[^.;\n]{0,30}?\bwindows?\b)",
+    re.I,
+)
+# ...or the line closes "otherwise nothing pending": the whole ask is marked optional.
+_OTHERWISE_NOTHING_RE = re.compile(
+    r"\botherwise[ \t]+nothing(?:[ \t]+(?:pending|else|owed))?\W*$", re.I
+)
 # A NEXT: line whose value begins with `none` ("none — terminal", "none owed", "none pending")
 # names NO successor, so an optional ask later on the line is not a deferral (V1 precision judges:
 # the whole NOT-DEFERRAL residue of the seed-923 sample was this one shape).
@@ -1539,7 +1547,14 @@ _NEXT_NONE_RE = re.compile(r"[ \t*_]*none\b", re.I)
 # The DEFERRAL's `BLOCKED:` exemption is the agent's own escalation HEADER — at a line start, as
 # CLAUDE.md formats it — never a mention mid-line ("closed the run `BLOCKED: NON-CONVERGENCE`"):
 # V1 found mentions like that silencing real `NEXT: operator decision` footers.
-_DEFER_BLOCKED_RE = re.compile(r"^[ \t>*_#-]*(?:[\w.-]+-)?BLOCKED:", re.M)
+# The shapes admitted: a bare `BLOCKED:`, behind markdown (`## `, `**`, `- `, `> `) or a TICKET id
+# (`T03 BLOCKED:`, `T1a-BLOCKED:`) — never a word prefix, so `UN-BLOCKED:` / `NOT-BLOCKED:` are
+# prose. `_blocked_header` also refuses one inside a quoting (non-footer) fence.
+_DEFER_BLOCKED_RE = re.compile(r"^[ \t>*_#-]*(?:T\d{1,3}[a-z]?[- ])?\**BLOCKED:", re.M)
+# The same keys, captured, for telling a fenced FOOTER from a fenced example (`_own_footer_fence`).
+_FOOTER_KEY_RE = re.compile(
+    r"^[ \t>*_-]*(GATE|DOCS UPDATED|CHANGELOG|LESSONS LEARNT|DONE|NEXT|FEEDBACK|STATE)[*_]*:", re.M
+)
 # The closing footer's keys (FINAL OUTPUT block and the STATE/NEXT footer).
 _FOOTER_LINE_RE = re.compile(
     r"^[ \t>*_-]*(?:GATE|DOCS UPDATED|CHANGELOG|LESSONS LEARNT|DONE|NEXT|FEEDBACK|STATE)[*_]*:"
@@ -1574,7 +1589,7 @@ _OFFER_RE = re.compile(
 )
 # A question followed in the same message by its own answer is rhetoric, not an offer.
 _SELF_ANSWER_RE = re.compile(
-    r"\A[\s*_]*(?:[—–:-][\s*_]*)?(?:yes|no|nope|yep|not\b|answer\b|already\b)", re.I
+    r"\A[\s*_]*(?:[—–:-][\s*_]*)?(?:yes|no|nope|yep|not|answer|already)\b", re.I
 )
 # D4 — the agent hands ITS OWN WORK to a later session (A-O40: a factual sentence about new
 # sessions never fires). The ticket's step 3 pattern, plus two V1 exclusions (executed over 16,278
@@ -1616,12 +1631,14 @@ _DECISION_GATE_RE = re.compile(
     re.I,
 )
 _DECISION_GROUNDS = ("gate", "underivable", "owned")
+# Matched after `_decision_heading` normalises the line (bold, backticks, a leading emoji/⚠️/#/bullet,
+# a trailing colon); a `>`-quoted line never counts, and neither does one inside a fence.
 _DECISION_HEADING_RE = re.compile(
-    r"^[ \t>#*_]*DECISION NEEDED[ \t]*\([ \t]*ground:[ \t]*([^)\n]*?)[ \t]*\)[ \t*_]*$", re.M
+    r"DECISION NEEDED[ \t]*\([ \t]*ground:[ \t]*([^)\n]*?)[ \t]*\)[ \t]*:?[ \t]*$"
 )
 _DECISION_FIELDS = ("Question", "Why it is yours", "Options", "Recommendation")
 _DECISION_LABEL_RE = re.compile(
-    r"^[ \t>]*(?:[-*•][ \t]+)?[*_]{0,2}(Question|Why it is yours|Options|Recommendation)[*_]{0,2}"
+    r"^[ \t]*(?:[-*•][ \t]+)?[*_]{0,2}(Question|Why it is yours|Options|Recommendation)[*_]{0,2}"
     r"[ \t]*:[*_]{0,2}[ \t]*(.*)$",
     re.I,
 )
@@ -1635,13 +1652,21 @@ _SEARCHED_EVIDENCE_RE = re.compile(
 # An `asked:`/`scope:` quote shorter than this matches nearly any operator message, which is the
 # cheapest way past the verbatim check (a one-word "scope: the"). Stated for BOTH quotes.
 _DECISION_QUOTE_MIN = 12
-# Operator-entry rows that are the harness's or a hook's words, never the operator's
-# (`scripts/render_chat_history.py`'s `_SKIP_USER_PREFIXES`, plus the prompt hook's wrapper).
+# Operator-entry rows that are the harness's or a hook's words, never the operator's:
+# `scripts/render_chat_history.py`'s `_SKIP_USER_PREFIXES`, the prompt hook's wrapper, and the
+# mesh's machine appends — MIRRORED from `scripts/sysadmin/kaizen_coroner.py::MACHINE_APPEND_MARKS`
+# (a hook import that can fail would degrade every cause; the parity is pinned by
+# `test_the_machine_append_marks_mirror_the_coroner`).
 _NOT_OPERATOR_PREFIXES = (
     "<task-notification>",
     "<local-command-caveat>",
     "<local-command-stdout>",
     "<user-prompt-submit-hook>",
+    "<system-reminder>",
+    "Stop hook feedback:",
+    "[SYSTEM NOTIFICATION",
+    "[SCHEDULED TASK",
+    "[MESSAGE FROM NON-USER SOURCE",
 )
 _SYSTEM_REMINDER_RE = re.compile(r"<system-reminder>.*?</system-reminder>", re.S)
 
@@ -1876,6 +1901,34 @@ def _defer_skip(text: str, pos: int, fences: list[tuple[int, int]]) -> bool:
     return any(before.rfind(o) > before.rfind(c) for o, c in (("“", "”"), ("«", "»")))
 
 
+def _own_footer_fence(text: str, spans: list[tuple[int, int]]) -> tuple[int, int] | None:
+    """The fenced block that is the agent's OWN closing footer, or None: the LAST fence, when
+    nothing but whitespace follows it, or when it holds a `NEXT:` line AND another footer key
+    (`STATE:`, `DONE:`, `GATE:` …) — a footer, so a prose line after it does not make it a quote.
+    A fence holding a lone `NEXT:` line with prose after it is an EXAMPLE being discussed. The
+    contract showed the seven-line block fenced for years and agents copy it."""
+    if not spans:
+        return None
+    lo, hi = spans[-1]
+    if not text[hi:].strip():
+        return lo, hi
+    keys = list(_FOOTER_KEY_RE.finditer(text, lo, hi))
+    if any(m.group(1) == "NEXT" for m in keys) and len({m.group(1) for m in keys}) >= 2:
+        return lo, hi
+    return None
+
+
+def _blocked_header(text: str) -> bool:
+    """A real `BLOCKED:` escalation header (`_DEFER_BLOCKED_RE`) outside any QUOTING fence."""
+    spans = _fence_spans(text)
+    footer = _own_footer_fence(text, spans)
+    quoting = [s for s in spans if s != footer]
+    return any(
+        not any(lo <= m.start() < hi for lo, hi in quoting)
+        for m in _DEFER_BLOCKED_RE.finditer(text)
+    )
+
+
 def _last_lines_start(text: str, k: int) -> int:
     """Offset where the last ``k`` non-trailing lines of ``text`` begin."""
     idx = len(text.rstrip())
@@ -1895,16 +1948,14 @@ def _deferral_match(text: str) -> tuple[str, str] | None:
     if not text:
         return None
     fences = _fence_spans(text)
-    # A TRAILING fenced block — nothing but whitespace after it, or unclosed to the end — is the
-    # agent's OWN closing footer (the contract showed the seven-line block fenced for years, and
-    # agents copy it), never a quotation: the fence skip must not apply to it. V1, executed over
+    # The agent's OWN footer fence is never a quotation (`_own_footer_fence`). V1, executed over
     # 16,278 turn ends: the skip hid the real `NEXT: … awaiting your go` in exactly this shape.
-    if fences and not text[fences[-1][1] :].strip():
-        fences = fences[:-1]
+    footer = _own_footer_fence(text, fences)
+    fences = [f for f in fences if f != footer]
     n = len(text)
     # The prose tail is the 600 chars BEFORE the closing footer (plus the footer itself): the
     # seven-line block alone runs past 600 chars and pushed the real excuse out of a raw tail.
-    tail = max(0, _footer_start(text, fences) - _DEFER_TAIL_CHARS)
+    tail = max(0, _footer_start(text, footer) - _DEFER_TAIL_CHARS)
     ls = text.rfind("\n", 0, tail) + 1
     if tail - ls <= _DEFER_LINE_BACK:
         tail = ls
@@ -1922,18 +1973,19 @@ def _deferral_match(text: str) -> tuple[str, str] | None:
         le = text.find("\n", m.end())
         le = n if le == -1 else le
         line = text[m.start() : le].strip()[:200]
-        if _NEXT_NONE_RE.match(text, m.end()):
+        # A NEXT: line is the agent's own footer: only a QUOTING fence discusses it — never a
+        # leading `>` or a quote character before the term (review A-O2/A-O10).
+        if _NEXT_NONE_RE.match(text, m.end()) or any(lo <= m.start() < hi for lo, hi in fences):
             continue
+        op = _NEXT_TO_OPERATOR_RE.match(text, m.end())
         if (
-            _NEXT_TO_OPERATOR_RE.match(text, m.end())
-            and not _TOOL_FACT_RE.search(text, m.end(), le)
-            and not _OPTIONAL_ASK_RE.search(text, m.end(), le)
-            and not _defer_skip(text, m.end(), fences)
+            op
+            and not _OPERATOR_WAIVER_RE.match(text, op.end())
+            and not _OTHERWISE_NOTHING_RE.search(text[op.end() : le])
         ):
             return "D1", line
-        for d in _DEFER_RE.finditer(text, m.end(), le):
-            if not _defer_skip(text, d.start(), fences):
-                return "D1", line
+        if _DEFER_RE.search(text, m.end(), le):
+            return "D1", line
     for m in _MENU_RE.finditer(text, tail):
         if _defer_skip(text, m.start(), fences):
             continue
@@ -1951,14 +2003,13 @@ def _deferral_match(text: str) -> tuple[str, str] | None:
     return None
 
 
-def _footer_start(text: str, fences: list[tuple[int, int]]) -> int:
+def _footer_start(text: str, footer: tuple[int, int] | None) -> int:
     """Offset where the message's closing footer begins, or its end when it has none. The footer
-    is a TRAILING fenced block (``fences`` has already dropped it, so it is recomputed here) or
-    the trailing run of footer-key lines, blank lines allowed between them."""
+    is the agent's own footer fence (`_own_footer_fence`) or the trailing run of footer-key lines,
+    blank lines allowed between them."""
     body = text.rstrip()
-    all_fences = _fence_spans(text)
-    if all_fences and not text[all_fences[-1][1] :].strip() and all_fences[-1] not in fences:
-        return all_fences[-1][0]
+    if footer is not None:
+        return footer[0]
     start = len(body)
     pos = len(body)
     while pos > 0:
@@ -1981,10 +2032,21 @@ def deferral_shape(text: str) -> str | None:
     with it. A `BLOCKED:` escalation header (at a line start) exempts (spec § C1). A DECISION block does NOT enter here: its
     `asked:`/`scope:` checks need the session's transcript and run record, so the hook applies it
     (`_detect_stall`) and a transcript-less miner counts the raw shape. Pure: no I/O."""
-    if not text or _DEFER_BLOCKED_RE.search(text):
+    if not text or _blocked_header(text):
         return None
     hit = _deferral_match(text)
     return hit[0] if hit else None
+
+
+def _decision_heading(line: str) -> str | None:
+    """The ground a DECISION heading line names (lower-cased), or None. Tolerates the near-misses
+    agents write — `**bold**`, a backticked ground, a leading emoji/⚠️/`#`/bullet, a trailing colon —
+    and refuses a `>`-quoted line (discussed text, like a fenced one)."""
+    if "DECISION NEEDED" not in line or line.lstrip().startswith(">"):
+        return None
+    s = re.sub(r"^[^A-Za-z(]+", "", re.sub(r"[*_`]", "", line).strip())
+    m = _DECISION_HEADING_RE.match(s)
+    return m.group(1).strip().lower() if m else None
 
 
 def extract_decision_block(text: str) -> str | None:
@@ -2002,7 +2064,7 @@ def extract_decision_block(text: str) -> str | None:
     for i, line in enumerate(lines):
         if _FENCE_RE.match(line):
             fenced = not fenced
-        elif not fenced and _DECISION_HEADING_RE.match(line):
+        elif not fenced and _decision_heading(line) is not None:
             last = i
     if last is None:
         return None
@@ -2010,7 +2072,7 @@ def extract_decision_block(text: str) -> str | None:
     seen: set[str] = set()
     open_field = False
     for line in lines[last + 1 : last + 17]:
-        if _FENCE_RE.match(line) or _DECISION_HEADING_RE.match(line):
+        if _FENCE_RE.match(line) or _decision_heading(line) is not None:
             break
         if not line.strip():
             if len(seen) == len(_DECISION_FIELDS):
@@ -2030,37 +2092,63 @@ def extract_decision_block(text: str) -> str | None:
 
 
 def _decision_quote(why: str, label: str) -> str | None:
-    """The quote after ``asked:``/``scope:`` on the Why line: a quoted span when it opens with a
-    quote character (its closer ends it), else the rest of the line."""
+    """The quote after ``asked:``/``scope:`` on the Why line, in this order: a `"…"`, `“…”` or
+    `` `…` `` span; a single-quoted span whose closing quote is not followed by a letter (so a
+    mid-word apostrophe — "what's" — never closes it); else the unquoted text up to and including
+    its first `?`, or the rest of the line when it has none."""
     m = re.search(rf"\b{label}:\s*(.+)$", why, re.I)
     if not m:
         return None
     rest = m.group(1).strip()
-    pairs = {'"': '"', "“": "”", "«": "»", "`": "`", "'": "'"}
-    if rest[:1] in pairs:
-        close = rest.find(pairs[rest[0]], 1)
-        return (rest[1:close] if close != -1 else rest[1:]).strip()
-    return rest.rstrip(" .;,").strip()
+    dq = re.search(r'"([^"\n]+)"|“([^”\n]+)”|`([^`\n]+)`', rest)
+    if dq:
+        return next(g for g in dq.groups() if g is not None).strip()
+    if rest[:1] in ("'", "‘"):
+        closers = ("'", "’")
+        i = 1
+        while i < len(rest):
+            if rest[i] in closers and not rest[i + 1 : i + 2].isalpha():
+                return rest[1:i].strip()
+            i += 1
+        return rest[1:].strip()
+    q = rest.find("?")
+    return rest[: q + 1].strip() if q != -1 else rest.rstrip(" .;,").strip()
 
 
 def _norm_ws(s: str) -> str:
     return " ".join(s.split())
 
 
+def _is_operator_row(entry: object) -> bool:
+    """A user row the OPERATOR could have written: not a tool result, not a compaction summary,
+    not an `isMeta` command expansion (`scripts/render_chat_history.py` skips the same rows).
+    Shape-checked, so a malformed row is simply not one."""
+    if not isinstance(entry, dict) or entry.get("type") != "user":
+        return False
+    if (
+        entry.get("toolUseResult") is not None
+        or entry.get("isMeta")
+        or entry.get("isCompactSummary")
+    ):
+        return False
+    msg = entry.get("message")
+    content = msg.get("content") if isinstance(msg, dict) else None
+    return not (
+        isinstance(content, list)
+        and any(isinstance(b, dict) and b.get("type") == "tool_result" for b in content)
+    )
+
+
 def _operator_text(entry: dict) -> str | None:
-    """An operator's own words from a transcript row, or None when the row is not the operator's:
-    a tool result, a compaction summary, an `isMeta` command expansion, or a harness/hook block
-    (`scripts/render_chat_history.py` skips the same rows)."""
-    if entry.get("type") != "user" or entry.get("toolUseResult") is not None:
+    """An operator's own words from a transcript row, or None when the row is not the operator's
+    (`_is_operator_row`) or is a harness/hook block (`_NOT_OPERATOR_PREFIXES`)."""
+    if not _is_operator_row(entry):
         return None
-    if entry.get("isMeta") or entry.get("isCompactSummary"):
-        return None
-    content = (entry.get("message") or {}).get("content")
+    msg = entry.get("message")
+    content = msg.get("content") if isinstance(msg, dict) else None
     if isinstance(content, str):
         text = content
     elif isinstance(content, list):
-        if any(isinstance(b, dict) and b.get("type") == "tool_result" for b in content):
-            return None
         text = "\n".join(
             str(b.get("text") or "")
             for b in content
@@ -2089,12 +2177,9 @@ def _in_operator_entries(quote: str, transcript_path: str) -> bool | None:
                 if '"user"' not in line:
                     continue
                 try:
-                    entry = json.loads(line)
+                    said = _operator_text(json.loads(line))
                 except Exception:
-                    continue
-                if not isinstance(entry, dict):
-                    continue
-                said = _operator_text(entry)
+                    continue  # one malformed row never disables the check (review A-O13)
                 if said and want in _norm_ws(said):
                     return True
     except OSError:
@@ -2119,8 +2204,7 @@ def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> 
     if block is None:
         return False, "no unfenced `DECISION NEEDED (ground: …)` block"
     head, *rest = block.split("\n")
-    hm = _DECISION_HEADING_RE.match(head)
-    ground = hm.group(1).strip().lower() if hm else ""
+    ground = _decision_heading(head) or ""
     canon = {f.lower(): f for f in _DECISION_FIELDS}
     fields: dict[str, str] = {}
     for line in rest:
@@ -2198,8 +2282,9 @@ def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> 
 
 
 def _is_headless(transcript_path: str) -> bool:
-    """No operator to defer to (spec § C1 Scope): `CLAUDE_MESH_HEADLESS=1`, or the transcript's
-    last user entry carries `"entrypoint": "sdk-cli"` (no hook input field carries it)."""
+    """No operator to defer to (spec § C1 Scope): `CLAUDE_MESH_HEADLESS=1`, or the transcript's last
+    REAL user row (`_is_operator_row` — a tool-result row carries no entrypoint) has an `sdk-*`
+    entrypoint (sdk-cli, sdk-ts, sdk-py; no hook input field carries it)."""
     if os.environ.get("CLAUDE_MESH_HEADLESS") == "1":
         return True
     for line in reversed((_tail_lines(transcript_path) if transcript_path else None) or []):
@@ -2209,8 +2294,9 @@ def _is_headless(transcript_path: str) -> bool:
             entry = json.loads(line)
         except Exception:
             continue
-        if isinstance(entry, dict) and entry.get("type") == "user":
-            return entry.get("entrypoint") == "sdk-cli"
+        if _is_operator_row(entry):
+            ep = entry.get("entrypoint")
+            return isinstance(ep, str) and ep.startswith("sdk-")
     return False
 
 
@@ -2391,7 +2477,7 @@ def _deferral_stall(
         return None
     # The DEFERRAL's own exemption is the escalation HEADER (`_DEFER_BLOCKED_RE`), narrower than
     # the pattern shapes' anywhere-`escalation`; a header always implies that one.
-    if escalation and _DEFER_BLOCKED_RE.search(text):
+    if escalation and _blocked_header(text):
         if waived is not None:
             waived.append(("blocked-escalation", escalation.group(0)))
         return None
@@ -2851,9 +2937,8 @@ def main(argv: list[str]) -> int:
                     f"STALL DETECTED (attempt {s_att}/{CAP}). Your final message {what}. "
                     "Do the work NOW — dispatch it or run it in this same turn — instead of "
                     "narrating or asking (CLAUDE.md: run every owed pass unprompted; the "
-                    "checkpoint-stall is a named live defect). A legitimate stop has exactly "
-                    "two exits: a well-formed `DECISION NEEDED (ground: gate)` block "
-                    "(CLAUDE.md § FINAL OUTPUT), or a formatted BLOCKED: escalation."
+                    "checkpoint-stall is a named live defect). The one legitimate halt here "
+                    "is a formatted BLOCKED: escalation; anything short of it, do it now."
                 )
             _kaizen(
                 "stop_block",

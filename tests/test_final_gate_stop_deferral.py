@@ -38,6 +38,9 @@ def _interactive(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("THREAD_ANCHOR_DIR", str(tmp_path / "threads"))
     monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "runs"))
     monkeypatch.setenv("KAIZEN_EVENTS_DIR", str(tmp_path / "events"))
+    monkeypatch.setenv(
+        "HOME", str(tmp_path / "home")
+    )  # main()'s harvest never reaches the real HOME
 
 
 # --- transcript helpers (the shapes of tests/test_final_gate_stop_hook.py:816-835) ----------
@@ -156,7 +159,7 @@ def test_a_context_excuse_blocks_through_the_hook(tmp_path: Path, rec: dict) -> 
         ),
         ("All done and committed. Want me to also fold these in?", "D3"),
         ("Shall I run the next pass now?", "D3"),
-        ("say the word and I'll open the spec.", "D3"),
+        ("Just say the word and I will draft the migration.", "D3"),
         ("Let me know which of the two you prefer.", "D3"),
         ("It needs a clean session to finish; context is getting long.", "D4"),
     ],
@@ -621,7 +624,7 @@ _LONG_FOOTER = (
         # an offer that waits on the operator's word outside a NEXT: line
         ("The revision and its ledger row land on your word.", "D3"),
         # the excuse sits before a closing block that alone runs past the 600-char tail
-        ("Phase 1 committed. The rest wants a fresh session with a lock.\n\n" + _LONG_FOOTER, "D4"),
+        ("Phase 1 committed. The rest wants a clean session with a lock.\n\n" + _LONG_FOOTER, "D4"),
         # a context excuse is the diagnosis even when the same message also defers on NEXT:
         ("Findings written.\nNEXT: on your word, I write the memo, then open a new window.", "D4"),
     ],
@@ -654,6 +657,7 @@ def test_a_v1_miss_now_fires(tmp_path: Path, text: str, shape: str) -> None:
         "Shipped.\n\nNEXT: none owed — all green. Still open if you want them: (1) docs, (2) a bench.",
         "Shipped.\n\nNEXT: none — terminal. The unrelated migration still awaits your go.",
         "Shipped.\n\nNEXT: operator — optionally rename the dashboard tile; otherwise nothing pending.",
+        "Shipped.\n\nNEXT: operator — rename the dashboard tile; otherwise nothing pending.",
     ],
     ids=[
         "quoted-fence-mid-message",
@@ -667,6 +671,7 @@ def test_a_v1_miss_now_fires(tmp_path: Path, text: str, shape: str) -> None:
         "next-none-owed-still-open",
         "next-none-awaits-your-go",
         "next-operator-optionally",
+        "next-operator-otherwise-nothing",
     ],
 )
 def test_a_v1_green_stays_silent(tmp_path: Path, text: str) -> None:
@@ -710,3 +715,230 @@ def test_session_unpushed_lists_only_this_sessions_commits(tmp_path: Path) -> No
     assert len(lines) == 1 and lines[0].endswith(" feat: mine"), lines
     assert hook.session_unpushed(repo, set()) == []
     assert hook.session_unpushed(tmp_path, {"mine.py"}) == []  # no repo → indeterminate → []
+
+
+# --- /fabrik-review round 1 (T03): each confirmed defect, red first --------------------------
+
+
+def _tool_result_row() -> str:
+    return json.dumps(
+        {
+            "type": "user",
+            "message": {"content": [{"type": "tool_result", "content": "ok"}]},
+            "toolUseResult": {"stdout": "ok"},
+        }
+    )
+
+
+@pytest.mark.parametrize("entrypoint", ["sdk-cli", "sdk-ts", "sdk-py"])
+def test_headless_is_read_from_the_last_real_user_row(tmp_path: Path, entrypoint: str) -> None:
+    """A-S1/A-O6: the last `"user"` line is often a tool result carrying no entrypoint; the
+    session's entrypoint is read from the last REAL user row, and every `sdk-*` is headless."""
+    tr = tmp_path / "t.jsonl"
+    _turn(
+        tr,
+        _user("run the nightly pass", entrypoint=entrypoint),
+        _asst_tool("Bash", command="ls"),
+        _tool_result_row(),
+        _asst_text("Done.\n\nNEXT: operator decision — resume or reshape"),
+    )
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+def test_hook_injected_rows_are_never_the_operator(tmp_path: Path) -> None:
+    """A-O1: a machine-append row (Stop-hook feedback, a mesh notification) is not the operator's."""
+    q = "should the retention window be 30 days or 90?"
+    tr = tmp_path / "t.jsonl"
+    text = _block("owned", f'owned — asked: "{q}"')
+    _turn(tr, _user("go"), _user(f"Stop hook feedback: {q}"), _asst_text(text))
+    got = hook._detect_stall(str(tr), tmp_path, set())
+    assert got and got[0] == "deferral:block" and "operator" in got[1]
+
+
+def test_the_machine_append_marks_mirror_the_coroner() -> None:
+    """A-O1: the hook cannot import `kaizen_coroner` (a hook import that can fail degrades every
+    cause), so it MIRRORS its list; this pins the mirror to the source."""
+    spec = importlib.util.spec_from_file_location(
+        "kaizen_coroner_probe", REPO / "scripts" / "sysadmin" / "kaizen_coroner.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod  # its dataclasses resolve their module by name
+    spec.loader.exec_module(mod)
+    assert set(mod.MACHINE_APPEND_MARKS) <= set(hook._NOT_OPERATOR_PREFIXES)
+
+
+def test_a_malformed_row_is_skipped_not_fatal(tmp_path: Path) -> None:
+    """A-O13: a row whose `message` is not a dict used to raise out of the whole DEFERRAL check."""
+    tr = tmp_path / "t.jsonl"
+    text = _block("owned", 'owned — asked: "is the retention window seven days or one?"')
+    _turn(
+        tr,
+        json.dumps({"type": "user", "message": "a bare string"}),
+        _user("fix the retention bug"),
+        _asst_text(text),
+    )
+    got = hook._detect_stall(str(tr), tmp_path, set())
+    assert got and got[0] == "deferral:block", got
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Done.\n\n> NEXT: operator decision — resume or reshape",
+        "Done.\n\nNEXT: 'your call' — merge or hold the branch",
+    ],
+    ids=["blockquoted-next", "quote-before-the-term"],
+)
+def test_a_next_line_is_always_the_agents_own(text: str) -> None:
+    """A-O2/A-O10: a NEXT: line is the agent's footer; only a non-trailing fence quotes it."""
+    assert hook.deferral_shape(text) == "D1", hook._deferral_match(text)
+
+
+def test_a_footer_fence_followed_by_one_prose_line_is_still_the_footer() -> None:
+    """A-O9: the LAST fence holding a NEXT: line, with no fence after it, is the agent's footer."""
+    text = (
+        "Plan 4 executed.\n\n```\nGATE: success\nNEXT: operator decision — resume or reshape\n```\n"
+        "One more note about the logs."
+    )
+    assert hook.deferral_shape(text) == "D1", hook._deferral_match(text)
+
+
+def test_a_word_starting_with_no_is_not_an_answer() -> None:
+    """A-O3: 'Note', 'Now', 'Yesterday' after a question are not its answer."""
+    text = "Shall I run the next pass now? Note: the queue is empty."
+    assert hook.deferral_shape(text) == "D3", hook._deferral_match(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "```\nBLOCKED: an example header in a how-to\n```\n\nNEXT: operator decision — pick",
+        "UN-BLOCKED: the lane is free again.\n\nNEXT: operator decision — pick",
+        "NOT-BLOCKED: nothing waits.\n\nNEXT: operator decision — pick",
+    ],
+    ids=["fenced-header", "un-blocked", "not-blocked"],
+)
+def test_only_a_real_blocked_header_exempts(text: str) -> None:
+    """A-O4: the header must sit outside a quoting fence, and only `BLOCKED:` (optionally behind a
+    ticket id, `T03 BLOCKED:` / `T1a-BLOCKED:`, or markdown) is one."""
+    assert hook.deferral_shape(text) == "D1", hook._deferral_match(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "T03 BLOCKED: no DSN\n\nNEXT: operator decision — x",
+        "T1a-BLOCKED: no DSN\n\nNEXT: operator decision — x",
+        "## BLOCKED: no DSN\n\nNEXT: x — your call",
+    ],
+    ids=["ticket-space", "ticket-hyphen", "heading"],
+)
+def test_a_ticket_or_heading_blocked_header_still_exempts(text: str) -> None:
+    assert hook.deferral_shape(text) is None
+
+
+@pytest.mark.parametrize(
+    ("why", "user"),
+    [
+        (
+            "owned — asked: 'what's the retention window we keep?'",
+            "what's the retention window we keep?",
+        ),
+        (
+            "owned — asked: what's the retention window we keep? (still open)",
+            "what's the retention window we keep?",
+        ),
+    ],
+    ids=["single-quoted-with-apostrophe", "unquoted-up-to-the-question-mark"],
+)
+def test_an_asked_quote_survives_an_apostrophe_and_trailing_prose(
+    tmp_path: Path, why: str, user: str
+) -> None:
+    """A-O7: a mid-word apostrophe is not a closing quote; an unquoted asked: ends at its `?`."""
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(f"Look at the purge job. {user}"), _asst_text("x"))
+    assert hook.parse_decision_block(
+        _block("owned", why), run_live=False, transcript_path=str(tr)
+    ) == (True, "owned")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Done.\n\nNEXT: operator — merge the branch; optionally tidy the docs",
+        "Done.\n\nNEXT: operator — rerun the ingest; no reload needed",
+    ],
+    ids=["optional-later-on-the-line", "negated-tool-word"],
+)
+def test_the_operator_waiver_is_narrow(text: str) -> None:
+    """A-O8: only an operator clause that BEGINS optional, ends 'otherwise nothing pending', or
+    asks for a reload/restart is waived."""
+    assert hook.deferral_shape(text) == "D1", hook._deferral_match(text)
+
+
+def test_the_operator_tool_ask_is_case_insensitive() -> None:
+    text = "Done.\n\nNEXT: operator — Reload the window so the new mcp server loads"
+    assert hook.deferral_shape(text) is None
+
+
+@pytest.mark.parametrize(
+    "heading",
+    [
+        "**DECISION NEEDED (ground: gate)**",
+        "⚠️ DECISION NEEDED (ground: gate)",
+        "DECISION NEEDED (ground: gate):",
+        "DECISION NEEDED (ground: `gate`)",
+    ],
+    ids=["bold", "emoji", "trailing-colon", "backticked-ground"],
+)
+def test_the_heading_tolerates_near_misses(heading: str) -> None:
+    """A-O11: the near-misses agents write still parse; a fenced heading still never counts."""
+    text = _GATE_BLOCK.replace("DECISION NEEDED (ground: gate)", heading, 1)
+    assert hook.parse_decision_block(text, run_live=False, transcript_path="") == (True, "gate")
+
+
+def test_a_blockquoted_block_never_exempts(tmp_path: Path) -> None:
+    """A-O14: a `>`-quoted DECISION block is discussed text, like a fenced one."""
+    quoted = "\n".join(
+        ("> " + ln) if ln.startswith(("DECISION", "- ")) else ln for ln in _GATE_BLOCK.split("\n")
+    )
+    assert hook.extract_decision_block(quoted) is None
+    got = _stall(tmp_path, quoted)
+    assert got and got[0] == "deferral:D1"
+
+
+def test_the_promise_reason_does_not_offer_the_decision_block(monkeypatch, tmp_path: Path) -> None:
+    """A-O12: the promise/obligation loops never consult a DECISION block, so their reason names
+    only 'do it now, or BLOCKED:'."""
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text("I'll run the confirming pass now."))
+    out = _run_main(monkeypatch, tmp_path, {"session_id": "sidpr", "transcript_path": str(tr)})
+    body = json.loads(out)
+    assert "STALL" in body["reason"] and "BLOCKED:" in body["reason"]
+    assert "DECISION" not in body["reason"], body["reason"]
+
+
+def _words(s: str) -> list[str]:
+    import re
+
+    return re.findall(r"[a-z0-9']+", s.lower().replace("’", "'"))
+
+
+def test_no_fixture_copies_a_committed_quote() -> None:
+    """B-S1/B-S2/B-H1: the judged quotes are excerpts of real operator transcripts; a fixture is
+    a paraphrase of their SHAPE, never a copy. No string in this file shares a 6-word run with any
+    committed `quote` (the files are read at runtime, never pasted)."""
+    grams: set[tuple[str, ...]] = set()
+    for f in sorted(RESEARCH.glob("verdict-*.json")):
+        for r in json.loads(f.read_text(encoding="utf-8")):
+            w = _words(str(r.get("quote") or ""))
+            grams |= {tuple(w[i : i + 6]) for i in range(len(w) - 5)}
+    tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+    hits = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            w = _words(node.value)
+            shared = {tuple(w[i : i + 6]) for i in range(len(w) - 5)} & grams
+            if shared:
+                hits.append((node.lineno, " ".join(sorted(shared)[0])))
+    assert not hits, hits
