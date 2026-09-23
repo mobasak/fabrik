@@ -1,6 +1,6 @@
 # The review loop as a workflow — `fabrik-review-loop`
 
-**What:** the D-335 review loop (`/fabrik-review`, `/fabrik-repo-review`) run as a Claude Code workflow script,
+**What:** the D-335 review loop (`/fabrik-review`, `/fabrik-repo-review` by file; `/fabrik-spec-review`, `/fabrik-plan-review` by section, chunk 6) run as a Claude Code workflow script,
 `.claude/workflows/fabrik-review-loop.js`, so the seat dispatch, the seats' reports and the execution of every
 candidate's check happen outside the lead session's transcript — one fresh refuter per slice executes them. One `Workflow` call per pass, one ledger back.
 Built as chunk 5 of `docs/reference/command-loop-performance.md` § 5.2 (D-346, D-347, D-348). The shape is
@@ -22,7 +22,7 @@ Workflow({ scriptPath: "/opt/fabrik/.claude/workflows/fabrik-review-loop.js", ar
 | `surface`, `base_sha`, `digest` | the Phase-0 surface, the pinned commit, `git diff HEAD \| md5sum` |
 | `pins_dir`, `scratch_dir` | the pinned copies every seat reads; the per-seat scratch root |
 | `brief` | the dispatcher's shared text: the 16 failure classes, the D8 lessons, the house rules, the referents |
-| `slices` | `[{ name, files: [repo-relative…], priority, ledger?: [{ id, file, line, claim } \| "<claim>"] }]` — `ledger` on pass ≥ 2 (a string row gets the id `<slice>-L<n>`; any other row shape stops the script before a seat runs); each `claim` states the DEFECT as raised — `STILL_TRUE` the defect persists · `NOW_FALSE` it is gone (the fix holds) · `NEW` a defect the fix introduced |
+| `slices` | `[{ name, files: [repo-relative…], priority, scope?, models?, agent?, ledger?: [{ id, file, line, claim } \| "<claim>"] }]` — `models` is one to three distinct of `opus`/`sonnet`/`haiku` (default `["sonnet", "haiku"]`, D-344's file-slice pair; a section slice names one seat — `["opus"]` on the rule/grammar sections, `["sonnet"]` on the rest, D-212/D-218; `/fabrik-execute-plan` adds its per-round Opus finder as the riskiest slice's third); `agent` is `fabrik-reviewer` (default) or `fabrik-researcher` for a cited-fact slice, and seats that slice's refuter too; `scope` names the sections of `files` the slice owns; an unknown model or agent, or a repeated or fourth finder, stops the script before a seat runs. `ledger` on pass ≥ 2 (a string row gets the id `<slice>-L<n>`; any other row shape stops the script before a seat runs); each `claim` states the DEFECT as raised — `STILL_TRUE` the defect persists · `NOW_FALSE` it is gone (the fix holds) · `NEW` a defect the fix introduced |
 | `box_minutes` | the seats' hard time box (default 15) |
 
 The tool returns `async_launched`; the ledger arrives as one result — the lead waits for it with ONE bounded in-turn poll per pass, and when the result is truncated reads the run's `journal.jsonl` (one `result` row per completed agent), never the escaped task-output copy. **Each pass is its own invocation** — never
@@ -42,7 +42,7 @@ The tool returns `async_launched`; the ledger arrives as one result — the lead
   the command it ran, the output (≤ 1500 chars), the mechanism, a destination when recorded.
 - `gaps` — slice files no finder listed in `files_read`; logged, and the slice is UNVERIFIED until read.
 - `closable` / `open` — a slice may close only with no gap, no failed seat, no `confirmed` or `unverified` verdict and, on a later pass, every ledger claim reported by a seat; `open` names each reason. It is a floor for "may close", never a stop signal: ≤ 3 passes is a target, not a cap (D-355).
-- `estimate_unseen` — Chapman's capture-recapture estimate over the two finders' candidate sets; advice for the
+- `estimate_unseen` — Chapman's capture-recapture estimate over the two finders' candidate sets (`null` unless the slice has exactly two); advice for the
   re-dispatch brief, never a gate (`command-loop-performance.md` § 4.9 finding 18).
 
 ## What the lead still does (Phase 2 of `/fabrik-review`)

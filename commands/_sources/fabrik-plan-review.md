@@ -232,23 +232,33 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
 Also hunt: plan↔reality drift, unstated assumptions, missing edge cases and failure modes, and steps whose
 validation gate is vague or unrunnable.
 
-**Parallelism — the partition (D-207, D-212, D-218).** Round 1 is ONE combined pass with DISJOINT slices:
+**Parallelism — the partition (D-207, D-212, D-218), run as the review-loop workflow (chunk 6).** Round 1 is ONE
+combined pass with DISJOINT slices:
 one Opus `fabrik-reviewer` on the RULE/GRAMMAR content — for a set, the tickets that touch fleet-synced
 grammars or gates plus the spine's Interfaces, Behavior Contract, Global Constraints and Execution Discipline;
 for a monolith, the phases that touch them plus § Global Constraints, § File Scope, § Constraints digest,
 § Coverage Checklist and § Evidence — one Sonnet `fabrik-reviewer` on every other ticket or section, and
 `fabrik-researcher` seats only for the external facts the plan itself cites (a spec-fed plan cites none: the
 spec grounded them; the pool is OFF, D-181<!-- POOL OFF: `fanout("research", …, mode="read_only", web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents -->) — no ticket's or
-section's text read by two seats; the union IS the pass. Size, stamp and close it at THIS point:
-`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices opus=N,sonnet=N` prints the seats (never
-dispatch past `SEATS: 0` — re-run it until the box frees), `python3 scripts/command_run.py dispatch --seats <n>`
-BEFORE they go out, the seats in ONE message, `python3 scripts/command_run.py round --seats <n> --findings <found> --confirmed <confirmed> …`
-at the round's close (the recipe in § Subagents below is the same one); then merge + dedupe their findings,
-refute any that are provably wrong (quote the line/schema that disproves them) and EXECUTE every candidate you
-keep before acting — CONFIRMED means you ran it. Under the partition the three-seat floor stands down (D-208,
-D-218). Every later round is a DELTA over the fix diff plus one hop — the tickets and sections whose tokens
-cite the edited step — sized by the fix: one Opus seat for a rule or gate step, one Sonnet seat for wording,
-plus the hygiene script on the re-pin. (This replaces the old GREENFIELD-monolith exemption: a monolith that
+section's text read by two seats; the union IS the pass. Size and stamp it at THIS point:
+`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices opus=N,sonnet=N` prints the seats, each
+slice's refuter counted by its model token (never dispatch past `SEATS: 0` — read its reason line for what binds,
+the box, a cap, or your own invocation, and re-run it once that clears), `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, then ONE
+`Workflow` call — `Workflow({scriptPath: "/opt/fabrik/.claude/workflows/fabrik-review-loop.js", args: {pass: 1,
+surface, base_sha, digest, pins_dir, scratch_dir, brief, slices}})`, each slice `{name, files: [its ticket files,
+or the monolith], scope: "<the sections it owns>", models: ["opus"] | ["sonnet"], priority}` and a cited-fact
+slice `agent: "fabrik-researcher"` (contract: `docs/reference/review-loop-workflow.md`): one fresh refuter per
+slice EXECUTES every candidate and returns the command and output, and ONE ledger comes back. Read it into a file
+with `python3 scripts/review_loop_ledger.py read <the run's transcript dir> --out <scratch>/pass-<n>.json --box
+<box_minutes>`, re-run every `confirmed` candidate's check yourself before acting — CONFIRMED means you ran it —
+and close the round with `python3 scripts/command_run.py round --seats <n> --findings <found> --confirmed
+<confirmed> --slices <name>:<verified>/<claims>,…` (the recipe in § Subagents below is the same one). Under the
+partition the three-seat floor stands down (D-208, D-218). Every later pass is a NEW `Workflow` call with
+`pass: 2|3` and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next <scratch>/pass-<n>.json
+--ids <the confirmed ids>` — the round-1 seats re-verifying their OWN slices over the fix diff plus one hop, the
+tickets and sections whose tokens cite the edited step (D-335) — plus the hygiene script on the re-pin. When the
+`Workflow` tool is absent the seats go out through the `Agent` tool in ONE message with the same briefs, and the
+round notes `shape: agent-tool`. (This replaces the old GREENFIELD-monolith exemption: a monolith that
 modifies or wires into EXISTING code still owes its author-blind pass (live proof: a ~40-line monolith's
 author nearly converged solo; the author-blind finder returned a CONFIRMED-HIGH invalidating the plan's core
 mechanism — every anchor was real, the defect was the author's inference) — and a plan SET always partitions

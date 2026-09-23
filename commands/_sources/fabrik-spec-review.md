@@ -211,24 +211,33 @@ confidently-cited, genuinely-current best practice that is **illegal here** — 
 source URL. **A well-cited approach that violates a hard constraint is WORSE than an ungrounded one.** Check the
 constraint FIRST, the citation second.
 
-**Parallelism — the partition (D-207, D-212, D-218).** Round 1 is ONE combined pass with DISJOINT slices by
-section: one Opus `fabrik-reviewer` on the RULE/GRAMMAR sections (§ The delta, § Decisions taken, § Contract
-deltas, § Validation, § Constraints digest and the grounding tables), one Sonnet `fabrik-reviewer` on every
-other section, and `fabrik-researcher` seats only for the external facts the spec actually cites — Opus
-authoritative on the highest-risk fact, Sonnet breadth on the rest (the grounding floor of D-207 stays for
-that surface) — no section's text read by two seats; the union IS the pass. Size, stamp and
-close it at THIS point: `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices opus=N,sonnet=N`
-(the researcher seats counted inside `opus=`/`sonnet=` by their model token — `--slices` knows only
-opus/sonnet/haiku, and `--mechanical` is inert under it; never dispatch past `SEATS: 0` — re-run it until the box frees),
-`python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, the seats in ONE message, and
-`python3 scripts/command_run.py round --seats <n> --findings <found> --confirmed <confirmed> …` at the round's
-close (recipe in **§ Subagents** below). Under the partition the three-seat floor stands down (D-208, D-218).
-Every later round is a DELTA over the fix diff plus one hop, sized by the fix — one Opus seat for a rule or
-grammar paragraph, one Sonnet seat for wording — and a `fabrik-researcher` seat only when a cited fact CHANGED;
-an unchanged URL is never re-fetched. Then merge + **REFUTE** any finding you can disprove (quote the
-source/module line) before editing, and EXECUTE every candidate you keep — CONFIRMED means you ran it (the raw
-fetch, the re-derived count, the resolved anchor); reserve **Opus** for the merge / refute / decide-clean + the
-md5-verified close you own.
+**Parallelism — the partition (D-207, D-212, D-218), run as the review-loop workflow (chunk 6).** Round 1 is ONE
+combined pass with DISJOINT slices by section: one Opus `fabrik-reviewer` on the RULE/GRAMMAR sections (§ The
+delta, § Decisions taken, § Contract deltas, § Validation, § Constraints digest and the grounding tables), one
+Sonnet `fabrik-reviewer` on every other section, and `fabrik-researcher` seats only for the external facts the
+spec actually cites — Opus authoritative on the highest-risk fact, Sonnet breadth on the rest (the grounding
+floor of D-207 stays for that surface) — no section's text read by two seats; the union IS the pass. Size and
+stamp it at THIS point: `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices opus=N,sonnet=N`
+(the researcher seats and each slice's refuter counted inside `opus=`/`sonnet=` by their model token —
+`--slices` knows only opus/sonnet/haiku, and `--mechanical` is inert under it; never dispatch past `SEATS: 0` —
+read its reason line for what binds (the box, a cap, or your own invocation) and re-run it once that clears), then `python3 scripts/command_run.py dispatch --seats <n>`
+BEFORE they go out, then ONE `Workflow` call — `Workflow({scriptPath: "/opt/fabrik/.claude/workflows/fabrik-review-loop.js",
+args: {pass: 1, surface, base_sha, digest, pins_dir, scratch_dir, brief, slices}})`, each slice
+`{name, files: [the spec], scope: "<the sections it owns>", models: ["opus"] | ["sonnet"], priority}` and a
+cited-fact slice `agent: "fabrik-researcher"` (contract: `docs/reference/review-loop-workflow.md`): each slice's
+seat finds, one fresh refuter per slice EXECUTES every candidate (the live fetch, for a researcher slice) and
+returns the command and output, and ONE ledger comes back. Read it into a file with `python3
+scripts/review_loop_ledger.py read <the run's transcript dir> --out <scratch>/pass-<n>.json --box <box_minutes>`,
+re-run every `confirmed` candidate's check yourself before you edit (CONFIRMED means you ran it — the raw
+fetch, the re-derived count, the resolved anchor), fix, and close the round with `python3 scripts/command_run.py
+round --seats <n> --findings <found> --confirmed <confirmed> --slices <name>:<verified>/<claims>,…` (recipe in
+**§ Subagents** below). Under the partition the three-seat floor stands down (D-208, D-218). Every later pass is
+a NEW `Workflow` call with `pass: 2|3` and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next
+<scratch>/pass-<n>.json --ids <the confirmed ids>` — the round-1 seats re-verifying their OWN slices over the fix
+diff plus one hop (D-335), never a fresh seat sized by the fix; a researcher seat re-fetches only the facts on its
+ledger, and an unchanged URL is never re-fetched. When the `Workflow` tool is absent the seats go out through the
+`Agent` tool in ONE message with the same briefs, and the round notes `shape: agent-tool`. Opus stays yours for
+the adjudication, the decide-clean and the md5-verified close.
 
 After each pass, list what you re-verified (which URLs you fetched, which modules you read) and what you
 found, then fix the spec. **The loop terminates per § Termination contract — the quiet closing round** (its three counters at zero, md5 unchanged); the round in which you fixed anything is never the last.

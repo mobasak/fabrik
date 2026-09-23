@@ -6,9 +6,11 @@
 // NEW invocation carrying this pass's ledger in `args` — never `resumeFromRunId` (a resumed run re-runs every
 // agent after the first fan-out: anthropics/claude-code #63102 #67488 #74599 #95076).
 //
-// THE SHAPE IS D-335 / D-344, UNCHANGED: the surface cut into disjoint slices by file; TWO cheap finders per
+// THE SHAPE IS D-335 / D-344, UNCHANGED: the surface cut into disjoint slices; by default TWO cheap finders per
 // slice (one Sonnet, one Haiku `fabrik-reviewer`), each over the whole slice, candidates UNIONED never voted;
-// no Opus finder; ONE fresh Sonnet refuter per slice EXECUTES every candidate's check and returns the command
+// no Opus finder. A SECTION-partitioned loop (/fabrik-spec-review, /fabrik-plan-review — D-212/D-218, kept by
+// D-344 until its measure is in) names its own seats per slice: `models: ['opus']` on the rule/grammar sections,
+// `['sonnet']` on the rest, `agent: 'fabrik-researcher'` for a cited-fact slice, `scope` naming the sections; ONE fresh Sonnet refuter per slice EXECUTES every candidate's check and returns the command
 // and its output (§ 4.9 findings 27, 36, 41 — row 5b: a seat per candidate mostly ran one grep); the lead
 // re-runs the confirmed ones. Every seat names its model AND effort — an unnamed one inherits the session's
 // (finding 43): finders at `medium` with the recall-first brief kept (finding 38), the refuter at `high`. Every pass after the first is the same slice ownership re-verifying the
@@ -25,6 +27,9 @@
 //   * "verified" → the refuter returns a plausible command it never ran: the lead re-executes every
 //     CONFIRMED command before a fix (Phase 2), so a fabricated confirmation costs one lead command, and a
 //     fabricated refutation is caught by the same slice's next pass or the escaped-defect row (§ 6).
+//   * `scope` → a section slice's coverage is NOT diffed: a seat can open the file and read only another slice's
+//     sections, and `files_read` still lists it. A section-read field would be the same self-claim as `files_read`,
+//     so nothing here counts sections; the refuter's execution and the lead's Phase-2 re-run are what catch it.
 //   * `closable` → the cheapest way to a closable slice is a refuter that answers `refuted` to everything:
 //     a refutation with an empty command or output is rewritten to `unverified` (finding 36 — refutation
 //     needs counter-evidence), an unanswered candidate is `unverified`, and `unverified` never closes. What
@@ -34,9 +39,11 @@
 //
 // ARGS (all strings unless noted; the command source builds them — see docs/reference/review-loop-workflow.md):
 //   pass: 1|2|3 · surface · base_sha · digest · pins_dir · scratch_dir · brief (the dispatcher's shared text:
-//   hunt classes, lessons, house rules) · slices: [{ name, files: [..], priority, ledger?: [ { id, file, line,
-//   claim } | "<the claim as one string>" ] }] (ledger present on pass ≥ 2; any other row shape is REFUSED
-//   before a seat is dispatched) · box_minutes (default 15)
+//   hunt classes, lessons, house rules) · slices: [{ name, files: [..], priority, scope?, models?, agent?,
+//   ledger?: [ { id, file, line, claim } | "<the claim as one string>" ] }] (ledger present on pass ≥ 2; any other
+//   row shape is REFUSED before a seat is dispatched; `models` is one to three distinct of opus|sonnet|haiku,
+//   default ['sonnet', 'haiku'] (a third, Opus, is /fabrik-execute-plan's per-round Opus floor on its riskiest slice); `agent` is fabrik-reviewer (default) or fabrik-researcher, and seats BOTH the
+//   finders and the refuter; `scope` is the sections of `files` the slice owns) · box_minutes (default 15)
 // RETURNS one ledger: { pass, closable, slices: [{ name, files, seats: [{ model, files_read, raised, failed }],
 //   gaps, raised, distinct, overlap, estimate_unseen, candidates: [..], verdicts: [..], closable, open: [..] }],
 //   dropped_seats }
@@ -45,7 +52,7 @@ export const meta = {
   name: 'fabrik-review-loop',
   description: 'D-335 review loop: two cheap finders per slice, one refuter per slice, one ledger back',
   phases: [
-    { title: 'Find', detail: 'one Sonnet and one Haiku fabrik-reviewer per slice, candidates unioned' },
+    { title: 'Find', detail: 'each slice finders — by default one Sonnet and one Haiku fabrik-reviewer — candidates unioned' },
     { title: 'Verify', detail: 'one fresh Sonnet refuter per slice executes every candidate and returns command + output' },
   ],
 }
@@ -108,8 +115,22 @@ const REFUTATION = {
   properties: { verdicts: { type: 'array', items: VERDICT, description: 'one verdict per candidate id you were handed' } },
 }
 
-const MODELS = ['sonnet', 'haiku']
+const DEFAULT_MODELS = ['sonnet', 'haiku']
+const KNOWN_MODELS = ['opus', 'sonnet', 'haiku']
+const AGENTS = ['fabrik-reviewer', 'fabrik-researcher']
 const box = args.box_minutes || 15
+
+// A slice's seats are refused HERE, before any seat runs: an unknown model or agent, an empty or repeated model
+// list, or more than three finders (the capture-recapture estimate is defined over exactly two and is null otherwise).
+function normalizeSeats(slice) {
+  const models = slice.models === undefined ? DEFAULT_MODELS : slice.models
+  if (!Array.isArray(models) || models.length < 1 || models.length > 3 || new Set(models).size !== models.length || !models.every((m) => KNOWN_MODELS.includes(m))) {
+    throw new Error(`slice ${slice.name}: models must be one to three distinct of ${KNOWN_MODELS.join('|')} — got ${JSON.stringify(slice.models)}`)
+  }
+  const agentType = slice.agent === undefined ? 'fabrik-reviewer' : slice.agent
+  if (!AGENTS.includes(agentType)) throw new Error(`slice ${slice.name}: agent must be one of ${AGENTS.join('|')} — got ${JSON.stringify(slice.agent)}`)
+  return { models, agentType }
+}
 
 // A ledger row is `{ id, file, line, claim }` or the claim as one string; anything else is refused HERE, before a
 // seat runs — a string row once rendered as `undefined · undefined:undefined · undefined` and nothing failed.
@@ -122,7 +143,7 @@ function normalizeLedger(slice) {
     throw new Error(`slice ${slice.name}: ledger row ${i + 1} is neither { id, file, line, claim } nor a claim string — got ${JSON.stringify(row)}`)
   })
 }
-for (const s of args.slices) s.ledger = normalizeLedger(s)
+for (const s of args.slices) Object.assign(s, { ledger: normalizeLedger(s) }, normalizeSeats(s))
 
 function ledgerLine(c) {
   return c.file ? `  - ${c.id} · ${c.file}:${c.line} · ${c.claim}` : `  - ${c.id} · ${c.claim}`
@@ -132,7 +153,7 @@ function finderPrompt(slice, model) {
   const ledger = slice.ledger && slice.ledger.length
   const head = ledger
     ? `PASS ${args.pass} — you are the ${model} seat that owned slice ${slice.name} in round 1. Every ledger claim states a DEFECT as it was raised. Re-verify each by EXECUTION and report it in ledger_status (command + output each): STILL_TRUE means the defect is still there, NOW_FALSE means it is gone (the fix holds), NEW is a defect the fix itself introduced. Candidates are ONLY the STILL_TRUE and NEW rows (a NOW_FALSE row is a fix that holds, never a candidate); a candidate outside the ledger is RECORDED with a destination, never counted (D-230); a claim refuted in an earlier pass is closed (D-206).`
-    : `PASS 1 — you are the ${model} finder for slice ${slice.name}: one of TWO cheap finders over this whole slice (the other is a ${model === 'sonnet' ? 'haiku' : 'sonnet'} seat; never coordinate, candidates are unioned and every one is executed by the orchestrator). RECALL first: surface every candidate with a concrete failure scenario and an EXECUTABLE check; never drop a half-believed one.`
+    : `PASS 1 — you are the ${model} finder for slice ${slice.name}: ${slice.models.length > 1 ? `one of ${slice.models.length} finders over this whole slice (the others: ${slice.models.filter((m) => m !== model).join(', ')}; never coordinate, candidates are unioned and every one is executed by the orchestrator)` : 'the ONLY finder over this slice (every candidate is executed by a refuter and the orchestrator)'}. RECALL first: surface every candidate with a concrete failure scenario and an EXECUTABLE check; never drop a half-believed one.`
   const files = slice.files.map((f) => `  - ${f}`).join('\n')
   const ledgerText = ledger
     ? '\nSLICE LEDGER (report every id below in ledger_status, exactly as written):\n' + slice.ledger.map(ledgerLine).join('\n')
@@ -144,7 +165,7 @@ BASE: ${args.base_sha} · DIGEST: ${args.digest}
 PINS: each slice file's pinned copy is at ${args.pins_dir}/<its repo-relative path> — e.g. ${args.pins_dir}/${slice.files[0]}; read the pin, never the live tree (the pin wins over the live path)
 SCRATCH: ${args.scratch_dir}/${slice.name}-${model}/ (every probe on a COPY there; never write, copy, mkdir or cd-and-create anything outside SCRATCH — your working directory is the LIVE repo, and a seat's stray file there reaches the next gate; wrap every command that can block in \`timeout 120\` — nothing times a seat out but you)
 YOUR SLICE (${slice.files.length} files — read EVERY one; hunt priority: ${slice.priority || 'none named'}):
-${files}${ledgerText}
+${files}${slice.scope ? `\nSECTIONS YOU OWN (the rest of each file belongs to another slice — read it only to resolve a reference): ${slice.scope}` : ''}${ledgerText}
 
 ${args.brief}
 
@@ -156,11 +177,11 @@ function refutePrompt(slice, cands) {
     .map((c) => `CANDIDATE ${c.id} · ${c.file}:${c.line} · class ${c.failure_class}\n  CLAIM: ${c.claim}\n  SCENARIO: ${c.scenario}\n  CHECK TO EXECUTE: ${c.check}`)
     .join('\n\n')
   const refuteBox = Math.max(box, 3 * cands.length)
-  return `REFUTER SEAT — fresh context: you did not find these, and you owe the finders nothing. Execute EVERY candidate from slice ${slice.name} below and return one verdict per candidate id with the command you ran and its output. Never fix, never edit, git READ-ONLY, every probe on a COPY under ${args.scratch_dir}/refute-${slice.name}/ (SCRATCH) — never write, copy, mkdir or cd-and-create anything outside SCRATCH, your working directory is the LIVE repo; wrap every command that can block in \`timeout 120\`, nothing times a seat out but you; read the PINNED copies under ${args.pins_dir}/<repo-relative path> (base ${args.base_sha}, digest ${args.digest}).
+  return `REFUTER SEAT — fresh context: you did not find these, and you owe the finders nothing. Execute EVERY candidate from slice ${slice.name} below and return one verdict per candidate id with the command you ran and its output. Never fix, never edit. ${slice.agentType === 'fabrik-researcher' ? 'You have no shell: read the PINNED copies' : `git READ-ONLY, every probe on a COPY under ${args.scratch_dir}/refute-${slice.name}/ (SCRATCH) — never write, copy, mkdir or cd-and-create anything outside SCRATCH, your working directory is the LIVE repo; wrap every command that can block in \`timeout 120\`, nothing times a seat out but you; read the PINNED copies`} under ${args.pins_dir}/<repo-relative path> (base ${args.base_sha}, digest ${args.digest}).
 
 ${list}
 
-For each id, exactly as written: run its check (or the smallest command that proves or refutes the claim on the pinned copy). verdict: confirmed = the check reproduces the failure; refuted = ONLY with counter-evidence — the command and its output that show it cannot happen, and the mechanism; recorded = outside the slice or more than one hop away, with a destination; unverified = you could not execute it (say why in mechanism). Uncertainty is unverified, never refuted. output ≤ 1500 characters, verbatim. A re-read is not execution — run it. Work in the order given; when the box runs out, return unverified for the rest. HARD TIME BOX ${refuteBox} minutes.
+${slice.agentType === 'fabrik-researcher' ? 'A check is the LIVE fetch of the cited source (the URL, the date read, the verbatim quote); the command field is the URL you fetched. ' : ''}For each id, exactly as written: run its check (or the smallest command that proves or refutes the claim on the pinned copy). verdict: confirmed = the check reproduces the failure; refuted = ONLY with counter-evidence — the command and its output that show it cannot happen, and the mechanism; recorded = outside the slice or more than one hop away, with a destination; unverified = you could not execute it (say why in mechanism). Uncertainty is unverified, never refuted. output ≤ 1500 characters, verbatim. A re-read is not execution — run it. Work in the order given; when the box runs out, return unverified for the rest. HARD TIME BOX ${refuteBox} minutes.
 
 ${args.brief} FINISH by calling the StructuredOutput tool — a report in prose is a failed seat.`
 }
@@ -181,11 +202,12 @@ function unionSlice(r) {
   let overlap = 0
   for (const seat of r.seats) {
     for (const c of seat.candidates || []) {
-      const twin = candidates.find((k) => k.seat !== seat.model && !k.also && sameDefect(k, c))
+      // a candidate absorbs one twin per OTHER seat, so a defect three finders raise is one candidate (chunk 6 review)
+      const twin = candidates.find((k) => k.seat !== seat.model && !(k.also_seats || []).includes(seat.model) && sameDefect(k, c))
       if (twin) {
         overlap += 1
-        twin.also = c.id
-        twin.also_seat = seat.model
+        if (!twin.also) Object.assign(twin, { also: c.id, also_seat: seat.model })
+        twin.also_seats = [...(twin.also_seats || []), seat.model]
       } else {
         // ids key the refuter's verdicts, so they must be unique in the slice: a reused or missing id gets a
         // suffix here, before the refuter sees it (review of 2026-09-23, A-S2)
@@ -197,14 +219,15 @@ function unionSlice(r) {
   }
   const read = new Set(r.seats.flatMap((s) => s.files_read || []))
   const gaps = r.slice.files.filter((f) => !read.has(f))
-  const [n1, n2] = r.seats.map((s) => (s.candidates || []).length)
+  const counts = r.seats.map((s) => (s.candidates || []).length)
   const distinct = candidates.length
-  // Chapman's capture-recapture estimator over the two finders' candidate sets — ADVICE, never a gate.
-  const estimate = Math.max(0, Math.round(((n1 + 1) * (n2 + 1)) / (overlap + 1) - 1) - distinct)
+  // Chapman's capture-recapture estimator over the two finders' candidate sets — ADVICE, never a gate; any other
+  // seat count has no two-sample estimate, so none (null, never 0)
+  const estimate = counts.length === 2 ? Math.max(0, Math.round(((counts[0] + 1) * (counts[1] + 1)) / (overlap + 1) - 1) - distinct) : null
   const failed = r.seats.filter((s) => s.failed).length
-  log(`find:${r.slice.name} gaps ${gaps.length} of ${r.slice.files.length} files unread · sonnet ${n1} · haiku ${n2} · shared ${overlap} · distinct ${distinct} · est. unseen ${estimate} (Chapman — advice only, unreliable below 3 shared)${failed ? ` · ${failed} SEAT FAILED` : ''}`)
+  log(`find:${r.slice.name} gaps ${gaps.length} of ${r.slice.files.length} files unread · ${r.seats.map((s, i) => `${s.model} ${counts[i]}`).join(' · ')} · shared ${overlap} · distinct ${distinct} · est. unseen ${estimate === null ? 'n/a (not two finders)' : `${estimate} (Chapman — advice only, unreliable below 3 shared)`}${failed ? ` · ${failed} SEAT FAILED` : ''}`)
   if (gaps.length) log(`find:${r.slice.name} coverage gap — unread: ${gaps.join(', ')} (slice UNVERIFIED until read)`)
-  return { ...r, candidates, gaps, raised: n1 + n2, distinct, overlap, estimate_unseen: estimate }
+  return { ...r, candidates, gaps, raised: counts.reduce((a, b) => a + b, 0), distinct, overlap, estimate_unseen: estimate }
 }
 
 // The id is the candidate's, never the seat's echo (A-S3). A candidate the refuter never answered — a null seat, a
@@ -252,20 +275,20 @@ const results = await pipeline(
   args.slices,
   (s) =>
     parallel(
-      MODELS.map((m) => () =>
+      s.models.map((m) => () =>
         agent(finderPrompt(s, m), {
           label: `find:${s.name}:${m}`,
           phase: 'Find',
           schema: FINDINGS,
           model: m,
           effort: 'medium',
-          agentType: 'fabrik-reviewer',
+          agentType: s.agentType,
         })
       )
     ).then((rs) => ({
       slice: s,
       seats: rs.map((r, i) => ({
-        model: MODELS[i],
+        model: s.models[i],
         failed: !r,
         files_read: r ? r.files_read : [],
         candidates: r ? r.candidates : [],
@@ -282,7 +305,7 @@ const results = await pipeline(
           schema: REFUTATION,
           model: 'sonnet',
           effort: 'high',
-          agentType: 'fabrik-reviewer',
+          agentType: r.slice.agentType,
         })
       : Promise.resolve({ verdicts: [] })
     ).then((out) => ({ ...r, verdicts: r.candidates.map((c) => verdictFor(c, out)) })),
@@ -310,7 +333,7 @@ return {
       model: s.model,
       files_read: s.files_read.length,
       raised: s.candidates.length,
-      confirmed: r.verdicts.filter((v, i) => v.verdict === 'confirmed' && (r.candidates[i].seat === s.model || r.candidates[i].also_seat === s.model)).length,
+      confirmed: r.verdicts.filter((v, i) => v.verdict === 'confirmed' && (r.candidates[i].seat === s.model || (r.candidates[i].also_seats || []).includes(s.model))).length,
       failed: s.failed,
       ledger_status: s.ledger_status,
       notes: s.notes,

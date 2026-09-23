@@ -324,3 +324,25 @@ def test_a_message_logged_with_a_trailing_zero_line_or_no_id_is_still_counted(
         "cache_create": 5,
         "messages": 2,
     }, t
+
+
+def test_next_keeps_a_hyphenated_slice_name_whole() -> None:
+    """Review of chunk 6, A-S1: a section slice named `rule-grammar` raises `rule-grammar-O1`; splitting on the
+    first `-` renamed it `rule` and re-attached its ledger to no round-1 slice."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import review_loop_ledger as rl
+
+    doc = {
+        "candidates": [
+            {
+                "id": "rule-grammar-O1",
+                "file": "s.md",
+                "line": 3,
+                "claim": "x",
+                "seat": "find:rule-grammar:opus",
+            },
+            {"id": "rest-of-spec-S2", "file": "s.md", "line": 9, "claim": "y"},
+        ]
+    }
+    out = rl.next_ledger(doc, ["rule-grammar-O1", "rest-of-spec-S2"])
+    assert sorted(s["name"] for s in out) == ["rest-of-spec", "rule-grammar"], out

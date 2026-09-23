@@ -5,7 +5,7 @@ argument-hint: "<path to plan file>"
 
 # Autonomous Plan Executor
 
-> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy. **Dispatch step (D-191):** run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, all in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (what sibling sessions subtract), and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …` (the tripwire on D-186 is blind without it); the box is the ceiling, the units only the partition.
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy. **Dispatch step (D-191):** run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, all in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (what sibling sessions subtract), and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …` (the tripwire on D-186 is blind without it); the box is the ceiling, the units only the partition. A `/fabrik-review` round is sized by its own file partition instead (`--slices`, § Count discipline).
 
 You are executing the plan at `$ARGUMENTS`. The user has pre-approved this plan — it IS the approval. The plan and its design spec together govern this execution — `superpowers:subagent-driven-development` and `superpowers:executing-plans` are superseded by this command when invoked via `/fabrik-execute-plan`.
 
@@ -248,19 +248,17 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
 3. **Phase reviews run as parallel subagents.** **Under `Profile: small` the per-phase pass is
    `/fabrik-review-scoped` (its round ledger is the artifact; its route-up trigger defers to the Finish
    review) and the full round below runs ONCE at Finish over the whole-plan diff — the rest of this item
-   binds unchanged.** Otherwise, at each phase boundary, run the full `/fabrik-review`
-   methodology on the changed surface *plus everything it calls / is called by* — dispatch its independent
-   **finder passes as native seats** (the pool is OFF, D-181 — per `/fabrik-review` § Dispatch policy<!-- POOL OFF: `fanout("review", …, mode="read_only")`, auto-records each finder UNSCORED, `set_quality` back-fill -->), reserving
-   **native `fabrik-reviewer` (Opus)** for a phase diff touching auth / schema / migrations / secrets /
-   concurrency, then merge + **refute** false positives (you, the orchestrator on Opus), and
-   **prove-before-fix** each surviving finding — **CONFIRMED and PLAUSIBLE alike** — with a kept regression
-   test. Every finding terminates **FIXED or REFUTED** (proof required to refute); a PLAUSIBLE finding you
-   "couldn't reproduce" is NOT resolved — fix it defensively or prove it impossible. There is no
-   noted/deferred/residual bucket for an in-scope finding (see `/fabrik-review` Phase 3 + the disposition
-   ledger). After fixing, **re-run a fresh `/fabrik-review` finder round on the updated surface** (not just
-   the gate — the gate finds no logic bugs), and **iterate find → fix → re-review until one full round
-   returns zero CONFIRMED OR PLAUSIBLE findings and every finding sits at FIXED/REFUTED.** Re-run the phase
-   gate after each fix too. The next phase begins **only** after that clean round — a single pass is never enough.
+   binds unchanged.** Otherwise, at each phase boundary, run the full `/fabrik-review` on the changed surface
+   *plus everything it calls / is called by* — ITS loop, never a restatement of it: the surface partitioned by
+   file, two cheap finders per slice and one refuter per slice in ONE `Workflow` call per pass
+   (`.claude/workflows/fabrik-review-loop.js`), every later pass the round-1 seats over their own slice ledgers
+   (D-335, D-344); a phase diff touching auth / schema / migrations / secrets / concurrency names it as its
+   slice's hunt priority and that slice adds a native Opus finder (`models: ["sonnet", "haiku", "opus"]`). You adjudicate and **prove-before-fix** each confirmed finding with a kept regression
+   test. Every finding terminates **FIXED or REFUTED** (proof required to refute); an `unverified` verdict never
+   closes a pass — fix it defensively or prove it impossible. There is no noted/deferred/residual bucket for an
+   in-scope finding (see `/fabrik-review` Phase 3 + the disposition ledger). Re-run the phase gate after each
+   fix too (the gate finds no logic bugs; the loop's later passes do). The next phase begins **only** after that
+   review's closing pass — `confirmed: 0 · fixed: 0`, every slice verified; a single pass is never enough.
    Fixes are the least-reviewed code in any loop, so `/fabrik-review`'s proof standard binds here too:
    **a test that passes because the environment cannot express the failure has proven nothing** — "it
    passed locally" is not evidence when local is the one place the bug is unreachable (a superuser role
@@ -413,8 +411,8 @@ for each PHASE in dependency order:
     → any WARNING whose trigger file is in THIS phase's diff is BLOCKING: update the doc before commit
     STAGE the phase's code changes, THEN run the Tier-1 doc-reconcile loop on the STAGED diff: `python scripts/doc_reconcile.py` — **no `--range`**: it reads `git diff --cached`, so it sees the just-staged phase changes. (Do NOT use `--range <phase-base>..HEAD` HERE — the phase isn't committed yet, so a committed-history range is an empty no-op; `--range` is only for the Finish receipt, when all phases ARE committed.) Its pool author leg is OFF by ruling (D-181/D-182): `doc_reconcile.py` returns `skipped` for every doc while `check_subagent_flywheel.py::_POOL_POLICY_ON` is False, so the reconcile is native — a `general-purpose` seat per stale doc, or you — with the same verify-before-apply discipline. Then YOU review the applied patches for truth (inject a native-Claude verify_fn for a high-risk doc) and `git add` them so they ride THIS phase's commit. Replaces hand-authoring the declared doc-update steps; hand-write only judgment-heavy prose the loop can't.
     commit the phase CODE (authors run on committed HEAD via git worktree add --detach) → /fabrik-generate-tests on THIS phase's ## Behavior Contract: native seats author one test per behavior the implementer did NOT already TDD (one seat per behavior, disjoint test files, self-verified collection; the pool is OFF, D-181), you review test-quality + git apply the survivors → re-run the phase gate (now incl. the authored tests). Skip only if the phase added no user-observable behavior.
-    /fabrik-review on phase's changed surface (code + the authored tests) — PARALLEL native finders (Sonnet seats + the Opus seat — the pool is OFF, D-181) → refute → prove-before-fix
-    iterate: fix → re-run finders → repeat until one review round is clean, THEN next phase
+    /fabrik-review on phase's changed surface (code + the authored tests) — its review-loop workflow, one Workflow call per pass → execute the confirmed → prove-before-fix
+    iterate: fix → the next pass over the slice ledgers → repeat until its closing pass confirms 0, THEN next phase
     fix CONFIRMED findings → commit review fixes with Agent-Role: review-fix trailer
     re-run gate until clean
     UPDATE THE PLAN FILE: mark this phase ✅ EXECUTED <date> (<commit>) [+ flip Status on the first/last phase]
@@ -547,18 +545,21 @@ its Touches (contract violation → its diff is rejected at acceptance).
     exhaust in ~2–3 days) — meter Opus, prefer Sonnet seats for breadth, Haiku for trivial checks — priced haiku 1× · sonnet 2× · opus 5× · fable 10× (D-190; `dispatch_headroom.py` prints the round's cost), so an Opus breadth seat is 2.5× a Sonnet one and the Fable adjudicator is one seat per run.<!-- POOL OFF (D-181): two currencies — pool = metered dollars at cents-scale; never burn an Opus call to avoid a cents-scale pool unit -->
   - **Native tier map (four rungs — canonical in `core/62` § Dispatch economics; this restates it for the plan loop):** **Fable** = orchestrator/adjudication + the final validation's
     authoritative native seat (it SUBSTITUTES for, never adds to, the Opus seat there); never a routine
-    finder, never a coder. **Opus** = the per-round per-ticket authoritative finder + design-heavy
-    never-route coding. **Sonnet** = default never-route coder, and the ROUTINE
+    finder, never a coder. **Opus** = the per-round per-ticket authoritative finder (inside the loop, the third
+    finder on the riskiest slice) + design-heavy never-route coding. **Sonnet** = default never-route coder, and the ROUTINE
     breadth finder — one seat per independent failure-class group per the count discipline below
     (breadth is unit-funded, not trigger-funded; D-186 superseded the trigger precondition). **Haiku** = trivial-mechanical checks; never codes.
-  - **Count discipline — the floor IS the default, per review ROUND (the exception is `Profile: small`:
-    there the per-ticket layer is `/fabrik-review-scoped` and this floor runs once, at D7):** each per-ticket review round =
-    **one native Sonnet finder AND one Haiku mechanical seat per independent failure-class unit of the
-    phase diff, plus ≥1 native Opus finder** (the pool is OFF, D-181) — `dispatch_headroom.py --units <N>`
-    prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them, then closed with `python3 scripts/command_run.py round --seats <n> …` when THIS ticket's seats return (a partial close releases only what closed; the other tickets' seats stay reserved) — (D-191), all dispatched in ONE message; every material re-review round re-runs the
-    floor. The unit count is the PARTITION, so a named trigger (diff >~400 net LOC · never-route surface ·
-    a repeat-failed round) means MORE units to partition, not a bigger cap. Grounding fan-outs: one unit per
-    independent dependency, never per file.
+  - **Count discipline — a review round is sized by the review command it runs (the exception is
+    `Profile: small`: there the per-ticket layer is `/fabrik-review-scoped` and the full round runs once, at
+    D7):** `/fabrik-review` by its file partition — `dispatch_headroom.py --slices opus=1,sonnet=N,haiku=N`, two
+    cheap finders and one refuter per slice plus the Opus floor (D4) as the riskiest slice's third finder, ONE
+    `Workflow` call per pass — and `/fabrik-review-scoped` by its units
+    (`dispatch_headroom.py --units <N>`). Either way the seats are stamped BEFORE they go out with `python3
+    scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them, then closed with `python3
+    scripts/command_run.py round --seats <n> …` when THIS ticket's seats return (a partial close releases only
+    what closed; the other tickets' seats stay reserved — D-191). The partition is what the surface HAS, so a
+    named trigger (diff >~400 net LOC · never-route surface · a repeat-failed round) means MORE slices or units,
+    not a bigger cap. Grounding fan-outs: one unit per independent dependency, never per file.
   - **Quota-pause terminal:** a native call failing on quota exhaustion (not a transient error) → the
     plan PAUSES: lock `status: "paused"`, Board preserved, spine stays IN-PROGRESS; resume on quota
     reset/rotation. **The Opus floor is never substitutable downward** (the `Profile: small` per-ticket
@@ -586,9 +587,10 @@ mechanism.
 ### D4 — Per-ticket receive + review: the ettw-07 floor, per round
 
 ("ettw-07" is provenance — the epic-to-ticket workflow step this floor was adapted from; the CONTRACT
-is the text below, self-contained.) Each returned ticket converges to `/fabrik-review`'s coverage-adjudicated exit BEFORE merge — pool
-breadth (counts per D2) **AND exactly 1 native Opus finder per round, UNCONDITIONAL** (under
-`Profile: small` this floor runs ONCE, at D7 — the carve-out below). **Secrets
+is the text below, self-contained.) Each returned ticket converges to `/fabrik-review`'s coverage-adjudicated exit BEFORE merge — its
+review-loop workflow over the ticket's diff (file slices, two cheap finders and one refuter per slice, D-344) **AND
+exactly 1 native Opus finder per round, UNCONDITIONAL** — the riskiest slice's third finder
+(`models: ["sonnet", "haiku", "opus"]`; under `Profile: small` this floor runs ONCE, at D7 — the carve-out below). **Secrets
 carve-out:** a diff touching secret-material paths (`.env` / `.env.*` **except `.env.example`** — the
 Doc-Sync-Matrix file every env-var change touches; without the exemption a routine env-var phase would be
 misread as secret-bearing — `secrets/`, key files) is reviewed
@@ -880,7 +882,7 @@ powerful model that can do the role**, because **turn count beats token price**:
 | Implementer — 1–2 files, complete spec, mechanical | cheap |
 | Implementer — multi-file integration, pattern-matching, debugging judgment | standard (Sonnet) |
 | Implementer — design judgment / broad-codebase reasoning | most capable (Opus) |
-| Finder / reviewer | **native seats — the pool is OFF (D-181)**: `fabrik-reviewer` on Sonnet for breadth<!-- POOL OFF: pool-default `fanout("review", …)`, flywheel-ranked, auto-records, `set_quality` back-fill -->; native `fabrik-reviewer` on **Opus** when the diff touches auth / schema / migrations / secrets / concurrency — scale to the diff's risk, not a flat default |
+| Finder / reviewer | **native seats — the pool is OFF (D-181)**: the review command's own partition — `/fabrik-review`'s Sonnet + Haiku `fabrik-reviewer` pair per file slice (D-344), the risky surface (auth / schema / migrations / secrets / concurrency) named as the slice's hunt priority and carrying the per-round Opus finder (D4)<!-- POOL OFF: pool-default `fanout("review", …)`, flywheel-ranked, auto-records, `set_quality` back-fill --> |
 
 ### File handoffs — move artifacts as FILES, not pasted text
 

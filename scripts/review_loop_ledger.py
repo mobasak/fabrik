@@ -63,7 +63,9 @@ def _tokens(transcript: Path) -> dict | None:
     # never dropped (B-S2)
     per: dict[str, dict] = {}
     try:
-        for n, line in enumerate(transcript.read_text(encoding="utf-8", errors="replace").splitlines()):
+        for n, line in enumerate(
+            transcript.read_text(encoding="utf-8", errors="replace").splitlines()
+        ):
             try:
                 m = json.loads(line).get("message")
             except (ValueError, AttributeError):
@@ -203,6 +205,15 @@ class LedgerError(Exception):
     """`next` cannot name one claim for an id: never raised, raised twice, or no `<slice>-` prefix."""
 
 
+def _slice_of(c: dict, cid: str) -> str:
+    """The slice that raised a candidate: its finder's label (`find:<slice>:<model>`), else the id before its last
+    `-` — a section slice named `rule-grammar` raises `rule-grammar-O1` (review of chunk 6, A-S1)."""
+    seat = str(c.get("seat") or "")
+    if seat.startswith("find:") and seat.count(":") >= 2:
+        return seat[len("find:") :].rsplit(":", 1)[0]
+    return cid.rsplit("-", 1)[0]
+
+
 def next_ledger(doc: dict, ids: list[str]) -> list[dict]:
     # a byte-identical repeat (a result row delivered twice) is ONE claim; only distinct claims sharing an id
     # are ambiguous (A-NEW1)
@@ -229,7 +240,7 @@ def next_ledger(doc: dict, ids: list[str]) -> list[dict]:
     slices: dict[str, list] = {}
     for i in ids:
         c = by_id[i][0]
-        slices.setdefault(i.split("-", 1)[0], []).append(
+        slices.setdefault(_slice_of(c, i), []).append(
             {"id": i, "file": c.get("file"), "line": c.get("line"), "claim": c.get("claim")}
         )
     return [{"name": n, "ledger": rows} for n, rows in slices.items()]

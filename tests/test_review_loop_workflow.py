@@ -20,6 +20,8 @@ SCRIPT = ROOT / ".claude" / "workflows" / "fabrik-review-loop.js"
 SOURCES = [
     ROOT / "commands" / "_sources" / "fabrik-review.md",
     ROOT / "commands" / "_sources" / "fabrik-repo-review.md",
+    ROOT / "commands" / "_sources" / "fabrik-spec-review.md",
+    ROOT / "commands" / "_sources" / "fabrik-plan-review.md",
 ]
 BRIEF = ROOT / "commands" / "_agents" / "fabrik-reviewer.md"
 DOC = ROOT / "docs" / "reference" / "review-loop-workflow.md"
@@ -51,7 +53,7 @@ def test_every_finder_schema_requires_files_read_and_candidates() -> None:
         assert field in required.group(1), f"FINDINGS must require {field}"
 
 
-def test_every_seat_is_the_reviewer_agent_on_a_cheap_model_and_no_run_is_resumed() -> None:
+def test_every_seat_names_its_model_and_effort_and_no_run_is_resumed() -> None:
     body = _script()
     sites = [m.start() for m in re.finditer(r"\bagent\(", body)]
     assert len(sites) == 2, (
@@ -59,20 +61,98 @@ def test_every_seat_is_the_reviewer_agent_on_a_cheap_model_and_no_run_is_resumed
     )
     for start in sites:
         opts = body[start : _call_end(body, start)]
-        assert "agentType: 'fabrik-reviewer'" in opts, (
-            "every seat is the fabrik-reviewer agent type"
-        )
-        assert re.search(r"model: (?:m|'sonnet'),", opts), (
-            "seats run on the cheap models only (D-344)"
-        )
+        assert re.search(r"model: (?:m|'sonnet'),", opts), "every seat names its model"
         assert re.search(r"effort: '(?:low|medium|high)'", opts), (
             "every seat names its effort — an unnamed one inherits the session's (§ 4.9 finding 43)"
         )
-    assert "'opus'" not in body and "'fable'" not in body, "no Opus/Fable finder (D-344)"
+    assert "'fable'" not in body, "no Fable seat — Fable orchestrates, never finds (D-344)"
     code = "\n".join(line for line in body.splitlines() if not line.lstrip().startswith("//"))
     assert "resumeFromRunId" not in code and "workflow(" not in code, (
         "each pass is its own invocation"
     )
+
+
+def test_a_slice_without_seats_named_runs_the_d344_pair_and_a_section_slice_runs_its_own() -> None:
+    """Chunk 6: a file slice keeps D-344's Sonnet + Haiku reviewer pair; a section slice (D-212/D-218) runs the
+    one seat it names, and a cited-fact slice seats the researcher as finder AND refuter."""
+    args = {
+        **_ARGS,
+        "slices": [
+            {"name": "F", "files": ["a.py"]},
+            {"name": "R", "files": ["spec.md"], "models": ["opus"], "scope": "§ Decisions"},
+            {"name": "X", "files": ["spec.md"], "models": ["sonnet"], "agent": "fabrik-researcher"},
+        ],
+    }
+    one = {"files_read": ["spec.md"], "candidates": [_cand("R-O1", 3)], "notes": "n"}
+    one["candidates"][0]["file"] = "spec.md"
+    results = {
+        "find:F:sonnet": {"files_read": ["a.py"], "candidates": [], "notes": "n"},
+        "find:F:haiku": {"files_read": ["a.py"], "candidates": [], "notes": "n"},
+        "find:R:opus": one,
+        "find:X:sonnet": {"files_read": ["spec.md"], "candidates": [], "notes": "n"},
+        "refute:R": {"verdicts": []},
+    }
+    out, log, prompts, opts = _harness(args, results, with_opts=True)
+    assert sorted(k for k in opts if k.startswith("find:")) == [
+        "find:F:haiku",
+        "find:F:sonnet",
+        "find:R:opus",
+        "find:X:sonnet",
+    ]
+    assert opts["find:F:sonnet"]["agentType"] == "fabrik-reviewer"
+    assert opts["find:R:opus"]["model"] == "opus"
+    assert opts["find:X:sonnet"]["agentType"] == "fabrik-researcher"
+    assert opts["refute:R"]["agentType"] == "fabrik-reviewer"
+    assert "§ Decisions" in prompts["find:R:opus"] and "ONLY finder" in prompts["find:R:opus"]
+    by = {s["name"]: s for s in out["slices"]}
+    assert by["R"]["estimate_unseen"] is None, "one finder gives no capture-recapture estimate"
+    assert by["F"]["estimate_unseen"] == 0
+
+
+def test_a_researcher_slice_refuter_is_the_researcher_and_is_told_to_fetch() -> None:
+    args = {
+        **_ARGS,
+        "slices": [
+            {"name": "X", "files": ["a.py"], "models": ["sonnet"], "agent": "fabrik-researcher"}
+        ],
+    }
+    results = {
+        "find:X:sonnet": {"files_read": ["a.py"], "candidates": [_cand("X-S1", 1)], "notes": "n"}
+    }
+    _, _, prompts, opts = _harness(args, results, with_opts=True)
+    assert opts["refute:X"]["agentType"] == "fabrik-researcher"
+    assert "LIVE fetch" in prompts["refute:X"]
+    assert "timeout 120" not in prompts["refute:X"] and "mkdir" not in prompts["refute:X"], (
+        "a shell-less refuter is never given shell instructions (review of chunk 6, A-S4)"
+    )
+
+
+def test_the_riskiest_slice_can_carry_the_execute_plan_opus_floor_as_a_third_finder() -> None:
+    """Review of chunk 6, B-H2/C-S3: /fabrik-execute-plan keeps its per-round Opus finder (D4, ettw-07) inside
+    the loop — the riskiest slice runs Sonnet, Haiku and Opus; no two-sample estimate then."""
+    args = {
+        **_ARGS,
+        "slices": [{"name": "S", "files": ["a.py"], "models": ["sonnet", "haiku", "opus"]}],
+    }
+    seat = {"files_read": ["a.py"], "candidates": [], "notes": "n"}
+    results = {f"find:S:{m}": seat for m in ("sonnet", "haiku", "opus")}
+    out, _, prompts, opts = _harness(args, results, with_opts=True)
+    assert opts["find:S:opus"]["model"] == "opus"
+    assert "one of 3 finders" in prompts["find:S:opus"]
+    assert out["slices"][0]["estimate_unseen"] is None
+
+
+def test_an_unknown_model_or_agent_or_a_repeated_finder_is_refused_before_any_seat() -> None:
+    for bad in (
+        {"models": ["gpt"]},
+        {"models": []},
+        {"models": ["sonnet", "sonnet"]},
+        {"models": ["opus", "sonnet", "haiku", "opus"]},
+        {"agent": "general-purpose"},
+    ):
+        args = {**_ARGS, "slices": [{"name": "S", "files": ["a.py"], **bad}]}
+        _, err, _ = _harness(args, {}, expect_fail=True)
+        assert "slice S:" in err, (bad, err[-300:])
 
 
 def test_the_script_diffs_files_read_against_the_slice_and_logs_the_gap() -> None:
@@ -113,8 +193,8 @@ def _run_ledger(args: dict, seat_results: dict) -> tuple[dict, str]:
 
 
 def _harness(
-    args: dict, seat_results: dict, *, expect_fail: bool = False
-) -> tuple[dict, str, dict]:
+    args: dict, seat_results: dict, *, expect_fail: bool = False, with_opts: bool = False
+) -> tuple:
     """Execute the script's own pipeline under node with the Workflow globals stubbed: `agent` records the
     prompt it was sent and returns the canned result keyed by the call's label (`None` → a null seat),
     `parallel`/`pipeline` run the stages, `log` goes to stderr. Returns the ledger, the log text and the
@@ -130,11 +210,13 @@ globalThis.parallel = async (thunks) => Promise.all(thunks.map(async (t) => {{ t
 globalThis.pipeline = async (items, ...stages) =>
   Promise.all(items.map(async (item, i) => {{ try {{ let v = item; for (const s of stages) v = await s(v, item, i); return v; }} catch (e) {{ console.error('STAGE THREW: ' + e); return null; }} }}));
 const prompts = {{}};
+const optsBy = {{}};
 globalThis.agent = async (prompt, opts) => {{
   prompts[opts.label] = prompt;
+  optsBy[opts.label] = {{ model: opts.model, agentType: opts.agentType, effort: opts.effort }};
   return Object.hasOwn(results, opts.label) ? results[opts.label] : null;
 }};
-(async () => {{ {src} }})().then((out) => console.log(JSON.stringify({{ out, prompts }})));
+(async () => {{ {src} }})().then((out) => console.log(JSON.stringify({{ out, prompts, optsBy }})));
 """
     proc = subprocess.run(
         ["node", "--input-type=module", "-e", harness],
@@ -149,6 +231,8 @@ globalThis.agent = async (prompt, opts) => {{
         return {}, proc.stderr, {}
     assert proc.returncode == 0, proc.stderr[-1500:]
     doc = json.loads(proc.stdout.strip().splitlines()[-1])
+    if with_opts:
+        return doc["out"], proc.stderr, doc["prompts"], doc["optsBy"]
     return doc["out"], proc.stderr, doc["prompts"]
 
 
@@ -613,3 +697,29 @@ def test_every_seat_is_told_never_to_write_under_the_repo_and_to_time_box_blocki
         p = prompts[label]
         assert "never write" in p and "outside SCRATCH" in p, label
         assert "timeout" in p, label
+
+
+def test_a_defect_all_three_finders_raise_is_one_candidate_crediting_all_three() -> None:
+    """Review of chunk 6, pass 2: `!k.also` let a candidate absorb one twin only, so a defect raised by the Sonnet,
+    Haiku and Opus finders of a three-finder slice came back as two candidates."""
+    args = {
+        **_ARGS,
+        "slices": [{"name": "S", "files": ["a.py"], "models": ["sonnet", "haiku", "opus"]}],
+    }
+    results = {
+        f"find:S:{m}": {
+            "files_read": ["a.py"],
+            "candidates": [_cand(f"S-{m[0].upper()}1", 10)],
+            "notes": "n",
+        }
+        for m in ("sonnet", "haiku", "opus")
+    }
+    results["refute:S"] = {
+        "verdicts": [
+            {"id": "S-S1", "verdict": "confirmed", "command": "c", "output": "o", "mechanism": "m"}
+        ]
+    }
+    out, _ = _run_ledger(args, results)
+    sl = out["slices"][0]
+    assert [c["id"] for c in sl["candidates"]] == ["S-S1"], sl["candidates"]
+    assert all(s["confirmed"] == 1 for s in sl["seats"]), sl["seats"]
