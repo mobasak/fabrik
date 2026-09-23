@@ -129,6 +129,7 @@ EVENT_TYPES = (
     "operator_override",
     "fleet_health",
     "instrument_alarm",
+    "decision_block",  # carries `ground` — the plan's `NEXT: operator decision` moment (T01b)
 )
 
 _exposure_cache: dict | None = None

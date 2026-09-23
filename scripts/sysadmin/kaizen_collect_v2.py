@@ -115,7 +115,10 @@ RUN_CLOSE_VERDICTS = frozenset({"done", "blocked", "handoff"})
 #: were an untrue `done` or a stretched BLOCKED cause (transdoc, proposal 2026-08-27).
 #: stop_block causes that are premature-stop shaped: the agent tried to end the turn
 #: while a run record was still live, or while promising undispatched work.
-PREMATURE_CAUSES = frozenset({"run-record", "promise-stall"})
+#: `deferral` (T01b) — T03 relabels today's permission stall and every DEFERRAL from
+#: `cause="promise-stall"` to `cause="deferral"`; both land here BEFORE the hook emits
+#: either, and are inert until it does (spec § Contract deltas; A-O19).
+PREMATURE_CAUSES = frozenset({"run-record", "promise-stall", "deferral"})
 
 # The kaizen-log table columns, verbatim from kaizen_metrics.py — the daily upsert must
 # not reshape the shipped tables. Cells 1..5 are mechanical; 6..7 are the analyst's.
