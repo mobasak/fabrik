@@ -122,6 +122,76 @@ def test_a_warn_only_check_that_exits_non_zero_still_fails_the_gate(tmp_path: Pa
     assert "real defect" in message
 
 
+# ── a TIMEOUT is not an exit code (mail 01M37YR2KDNCE8V5YTRDHRB7D6) ─────────────────
+# `run_cmd` used to return rc 1 for a timeout, so a warn-only check that merely ran out of time on a
+# loaded box read as "exited 1 — its contract changed" and turned every session's gate red at random.
+
+
+def test_run_cmd_reports_a_timeout_as_its_own_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setitem(fg.TIMEOUTS, "default", 1)
+    code, out = fg.run_cmd([sys.executable, "-c", "import time; time.sleep(10)"])
+    assert code == fg.RC_TIMEOUT != 1
+    assert "timed out after 1s" in out
+
+
+def test_a_warn_only_check_that_times_out_is_a_skip_not_a_broken_contract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """It never finished, so it cannot have changed its contract: a visible SKIP, never a red."""
+    monkeypatch.setitem(fg.TIMEOUTS, "default", 1)
+    script = _check(tmp_path, "import time\ntime.sleep(10)\n")
+
+    name, passed, message = fg.run_optional_check(script, "Slow Row", warn_only=True)
+    assert passed is True
+    assert name.startswith("Slow Row (NOT RUN")
+    assert "contract changed" not in message
+    assert message.startswith("⚠"), "the ⚠ prefix is what carries it into --json `warnings`"
+    assert fg._summarize_skipped([(name, passed, message)])["skipped_checks"] == ["Slow Row"]
+
+
+def test_a_blocking_check_that_times_out_still_fails_the_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only a warn-only check is excused: a blocking check that hangs has asserted nothing."""
+    monkeypatch.setitem(fg.TIMEOUTS, "default", 1)
+    script = _check(tmp_path, "import time\ntime.sleep(10)\n")
+
+    name, passed, message = fg.run_optional_check(script, "Blocking Row")
+    assert (name, passed) == ("Blocking Row", False)
+    assert "timed out after 1s" in message
+
+
+def test_a_ruff_fix_timeout_is_red_not_read_as_issues_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`ruff check --fix` accepts rc 0 and 1 (1 = issues found). A timeout used to come back as 1
+    too, so a hung fixer was a silent green; RC_TIMEOUT now lands in the error branch."""
+    monkeypatch.setattr(
+        fg, "run_cmd", lambda cmd, **kw: (fg.RC_TIMEOUT, "Command timed out after 1s")
+    )
+    monkeypatch.setattr(fg, "_changed_text", lambda files: [])
+    monkeypatch.setattr(fg, "_changed_python", lambda files: ["x.py"])
+
+    fixes = fg.run_formatting_fixes(changed_files={"x.py"}, fix_all=True)
+    rows = {n: (ok, msg) for n, ok, msg in fixes}
+    assert rows["ruff --fix"] == (False, "Command timed out after 1s")
+
+
+def test_the_timeout_rerun_command_is_the_invocation_the_gate_ran(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ⚠ names a command a reader can paste: interpreter, script AND the registered args."""
+    monkeypatch.setitem(fg.TIMEOUTS, "default", 1)
+    script = _check(tmp_path, "import time\ntime.sleep(10)\n")
+
+    _, _, message = fg.run_optional_check(
+        script, "Args Row", "--changed", "--quiet", warn_only=True
+    )
+    assert message.endswith(f"re-run it alone: {fg.PYTHON} {script} --changed --quiet")
+
+
 # ── the declaration reaches --json, the mode agents read ─────────────────────────
 
 

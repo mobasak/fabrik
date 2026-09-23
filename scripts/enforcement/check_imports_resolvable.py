@@ -90,8 +90,8 @@ def _tracked_paths() -> frozenset[str]:
     ⚠️ PERFORMANCE IS CORRECTNESS HERE. The original forked `git ls-files` once per scanned file AND
     once per resolved origin — measured at **16 s / 3,298 imports** on the hub, on EVERY Tier-1 run
     (including `--lean`, the fast self-review loop), in all 47 projects. A larger monorepo would walk
-    into `final_gate`'s 120 s `run_cmd` timeout, which returns rc 1 — i.e. **the gate fails by
-    timeout**, indistinguishable from a real finding. One call + set membership removes that entirely.
+    into `final_gate`'s 120 s `run_cmd` timeout — this check is BLOCKING, so **the gate fails by
+    timeout** (`RC_TIMEOUT`), a red that names no finding. One call + set membership removes that entirely.
 
     `-z` also fixes a latent bug: passing a path to `git ls-files -- <p>` treats it as a PATHSPEC, so
     glob magic is interpreted — a source file honestly named `data[v2].py` would be matched as a
@@ -466,8 +466,8 @@ def _origin_of(mod: str) -> Path | None:
     #     `raise`) propagates straight out and takes the gate down with a traceback. The
     #     "validate settings at package import" pattern is standard FastAPI, so this is not exotic.
     #   • HANG — an `__init__.py` that opens a DB connection or blocks on the network runs into
-    #     final_gate's 120 s `run_cmd` timeout, which returns rc 1: **the gate fails by timeout**,
-    #     indistinguishable from a real finding.
+    #     final_gate's 120 s `run_cmd` timeout; this check is BLOCKING, so **the gate fails by
+    #     timeout** (`RC_TIMEOUT`), a red that names no finding.
     #   • SLOW — importing thousands of modules cost ~12 s on the hub, on EVERY Tier-1 run, ×47 repos.
     #
     # So resolve the dotted name against `sys.path` on the FILESYSTEM instead. It is pure I/O: no

@@ -373,7 +373,7 @@ def _run_json(root: Path, monkeypatch) -> dict:
 
 def test_main_returns_zero_even_with_findings(tmp_path, monkeypatch):
     """THE fleet-red guard: `return 1 if findings else 0` turns this advisory row into a
-    blocking red across ~46 repos (`final_gate.py:262-270`)."""
+    blocking red across ~46 repos (`final_gate.py:263-271`)."""
     _plan(tmp_path, "x1", "Status: EXECUTED 2026-08-01", archived=True)
     _lock(tmp_path, "x1", plan="docs/development/plans/archived/x1.md", status="active")
     r = _run_json(tmp_path, monkeypatch)
@@ -449,7 +449,7 @@ def test_terminal_but_unparseable_lock_does_not_inflate_evaluable(tmp_path, monk
 
 
 def test_finding_detail_bounds_a_long_status_value(tmp_path):
-    """One real fleet status value is ~900 chars. `final_gate.py:2092` ships advisory output as
+    """One real fleet status value is ~900 chars. `final_gate.py:2111` ships advisory output as
     `output[:500]`, so an unbounded quote silently truncates every finding after it."""
     _plan(tmp_path, "lg1", "Status: " + ("EXECUTED 2026-08-12 — " + "x" * 40) * 20, archived=True)
     lk = _lock(tmp_path, "lg1", plan="docs/development/plans/archived/lg1.md", status="active")
@@ -538,7 +538,7 @@ def test_absolute_plan_value_is_not_resolved_from_outside_the_root(tmp_path):
 
 
 def test_unknown_flag_does_not_exit_non_zero(tmp_path, monkeypatch):
-    """argparse exits 2 on an unrecognised flag, and `final_gate.py:265-269` converts any non-zero
+    """argparse exits 2 on an unrecognised flag, and `final_gate.py:266-270` converts any non-zero
     exit from a warn_only check into a fleet-wide blocking red."""
     monkeypatch.setattr(sys, "argv", ["c", "--project-root", str(tmp_path), "--bogus-flag"])
     assert cplr.main() == 0
@@ -729,7 +729,7 @@ def test_module_imports_nothing_outside_the_stdlib(tmp_path):
 
 
 def test_the_remedy_prints_once_not_per_finding(tmp_path, capsys, monkeypatch):
-    """140 chars x N blew `final_gate.py:2114`'s output[:500] budget — measured 662 chars on the
+    """140 chars x N blew `final_gate.py:2133`'s output[:500] budget — measured 662 chars on the
     fleet's only finding-bearing repo, cut mid-token with the second finding lost."""
     for i in range(3):
         _plan(tmp_path, f"r{i}", "Status: EXECUTED 2026-08-01", archived=True)
@@ -915,7 +915,7 @@ def test_say_is_ascii_by_construction_not_by_stream_configuration(capsys):
 def test_printed_block_respects_both_gate_caps_500_chars_and_10_lines(
     tmp_path, monkeypatch, capsys
 ):
-    """`final_gate.py:2114` cuts advisory output at `output[:500]` and `:387` prints TEN lines with
+    """`final_gate.py:2133` cuts advisory output at `output[:500]` and `:609` prints TEN lines with
     NO ellipsis — two independent caps. The budget arithmetic charged neither the newlines nor the
     line count. Worst case measured 491 chars against a 500 cap, a 9-char margin."""
     ar = tmp_path / "docs" / "development" / "plans" / "archived"
@@ -937,7 +937,7 @@ def test_printed_block_respects_both_gate_caps_500_chars_and_10_lines(
 def test_the_line_cap_holds_when_the_char_budget_is_not_the_binding_constraint(
     tmp_path, monkeypatch, capsys
 ):
-    """The 10-line cap (`final_gate.py:387`, no ellipsis) is a SECOND, independent limit, and today
+    """The 10-line cap (`final_gate.py:609`, no ellipsis) is a SECOND, independent limit, and today
     it is unreachable: the char budget collapses even a 40-finding corpus to 5 lines, so a test run
     at the real budget passes with the cap reverted — it proves nothing. That safety is EMERGENT,
     not stated: raising `_ADVISORY_BUDGET` alone would silently start dropping findings past line

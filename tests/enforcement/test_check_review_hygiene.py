@@ -477,7 +477,7 @@ def test_no_argument_mode_self_selects_a_changed_receipt(tmp_path, monkeypatch):
 
 
 def test_no_argument_mode_prefers_the_project_root_the_gate_exports(tmp_path):
-    """`final_gate.py:268-270` exports PROJECT_ROOT to every check it runs; a git toplevel derived
+    """`final_gate.py:269-271` exports PROJECT_ROOT to every check it runs; a git toplevel derived
     from cwd is the fallback, and the two differ whenever the gate runs from a subdirectory."""
     root = _scratch_repo(tmp_path)
     (root / "docs/development/reviews/2026-09-09-y-review.md").write_text(

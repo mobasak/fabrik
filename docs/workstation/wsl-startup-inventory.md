@@ -82,7 +82,7 @@ its project is restored; a permanently-failed unit hides the next real failure.
 
 ⚠️ **Audited and cleaned 2026-09-08** (backup `~/.bashrc.backup.20260908-015545`):
 - **A plaintext `SEMGREP_APP_TOKEN` was removed.** It sat in a `0644` file AND was redundant —
-  `~/.semgrep/settings.yml` (`0600`) holds the same token and `final_gate.py:470` reads it from
+  `~/.semgrep/settings.yml` (`0600`) holds the same token and `final_gate.py:489` reads it from
   there, never from the environment. Nothing consumed the export. It was never in reachable git
   history (0 commits); the only repo copy was a dangling object under `.git/lost-found`, pruned.
 - **The enforcement-watcher guard was `pgrep -f`, which races.** `pgrep -f` matches any cmdline

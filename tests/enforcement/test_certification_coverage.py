@@ -264,7 +264,7 @@ def test_main_exits_zero_on_a_clean_repo(tmp_path, capsys):
 
 
 def test_main_exits_zero_with_findings(tmp_path):
-    """THE fleet-red guard: `final_gate.py:198-208` turns a non-zero exit from a warn_only check
+    """THE fleet-red guard: `final_gate.py:199-209` turns a non-zero exit from a warn_only check
     into a blocking red across ~46 repos. The BLOCKING verdict is carried by the gate row, never by
     this file's exit code."""
     _board(tmp_path, ["| MENU-1 | T3 | gui | UNVISITED | - |"])

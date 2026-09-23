@@ -12,7 +12,7 @@ held ten paths for thirteen days. This check is the executable backing for
 `commands/_sources/fabrik-catchup.md:47-60` probe 1, which already specified the rule in prose.
 
 ADVISORY BY CONTRACT. Registered `warn_only=True` and **always exits 0** — findings included.
-`final_gate.py:262-270` turns any non-zero exit from a `warn_only` check into a BLOCKING red
+`final_gate.py:263-271` turns any non-zero exit from a `warn_only` check into a BLOCKING red
 ("its contract changed"), which on a governance-synced check means ~46 repos. Every failure
 path returns 0 with an honest line; the exception guard catches the CLASS, never a list of types.
 
@@ -120,11 +120,11 @@ _LABEL_TEXT = {
 }
 _KEY = {v: k for k, v in _LABEL_TEXT.items()}
 
-# `final_gate.py:2114` ships each advisory row as `output[:500]`.
+# `final_gate.py:2133` ships each advisory row as `output[:500]`.
 _ADVISORY_BUDGET = 500
 # No single finding line may consume the whole budget.
 _MAX_LINE = 220
-_MAX_LINES = 10  # `final_gate.py:387` prints ten lines of advisory output, with NO ellipsis
+_MAX_LINES = 10  # `final_gate.py:609` prints ten lines of advisory output, with NO ellipsis
 
 _REMEDY = (
     "the plan's OWNER releases it (Finish step 5); if that run is confirmed dead the OPERATOR "
@@ -242,8 +242,8 @@ def resolve_plan(root: Path, lock_path: Path, plan_field: str | None) -> PlanRef
 
 
 def _truncate(value: str, limit: int = 90) -> str:
-    """Quote a plan's Status value, bounded. `final_gate.py:2114` ships advisory output as
-    `output[:500]` and `:387` prints 10 lines — one real fleet status value is ~900 chars, so an
+    """Quote a plan's Status value, bounded. `final_gate.py:2133` ships advisory output as
+    `output[:500]` and `:609` prints 10 lines — one real fleet status value is ~900 chars, so an
     unbounded quote silently truncates every finding after it."""
     v = " ".join((value or "").split())
     return v if len(v) <= limit else v[: limit - 3] + "..."
@@ -451,7 +451,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Advisory: a finished plan must not hold its lock.")
     ap.add_argument("--project-root", type=Path, default=Path.cwd())
     ap.add_argument("--json", action="store_true")
-    # parse_KNOWN_args: argparse exits 2 on an unrecognised flag, and `final_gate.py:265-269`
+    # parse_KNOWN_args: argparse exits 2 on an unrecognised flag, and `final_gate.py:266-270`
     # turns any non-zero exit from a warn_only check into a fleet-wide blocking red.
     args, _unknown = ap.parse_known_args(argv)
     _ascii_safe_stdout()
@@ -463,7 +463,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # never a traceback out of a warn_only check
         # The OUTPUT path is inside the guard too. An earlier revision guarded only `_collect`,
         # so a UnicodeEncodeError from the census separator escaped as rc=1 — which
-        # `final_gate.py:262-270` converts into a blocking red across ~46 repos.
+        # `final_gate.py:263-271` converts into a blocking red across ~46 repos.
         try:
             # type name only — `repr(exc)` re-embeds the payload that may itself be unprintable.
             _say(f"could not evaluate plan locks: {type(exc).__name__}")
@@ -565,8 +565,8 @@ def _emit(args, counters, findings, examined, evaluable, foreign) -> int:
     # print forever in the one repo that owns seven of them. It stays in the census, where the
     # count is the honest signal, and out of the line list, where it would be pure noise.
     shown = [f for f in findings if f.label != "FOREIGN LOCK"]
-    # BOUND THE WHOLE BLOCK, not just each line. `final_gate.py:2114` ships advisory output as
-    # `output[:500]` and `:387` prints 10 lines with NO ellipsis — so an unbounded list is silently
+    # BOUND THE WHOLE BLOCK, not just each line. `final_gate.py:2133` ships advisory output as
+    # `output[:500]` and `:609` prints 10 lines with NO ellipsis — so an unbounded list is silently
     # truncated mid-token and every finding after the cut simply vanishes. Measured before this:
     # the fleet's one finding-bearing repo emitted 662 chars and lost its second finding. Dropping
     # detail is acceptable; dropping the EXISTENCE of a finding is not, so the overflow is counted
@@ -589,7 +589,7 @@ def _emit(args, counters, findings, examined, evaluable, foreign) -> int:
     budget = (
         _ADVISORY_BUDGET - (len(census) + 1) - (len(verdict_line) + 1) - remedy_cost - marker_cost
     )
-    # `final_gate.py:387` prints TEN lines with no ellipsis — a SECOND cap, independent of chars.
+    # `final_gate.py:609` prints TEN lines with no ellipsis — a SECOND cap, independent of chars.
     # Today the char budget makes it unreachable (measured: 40 findings still collapse to 5 lines,
     # because census + verdict eat ~260 of 500 and no finding line is shorter than ~90 chars), so
     # this is not a live defect. It is stated anyway because that safety is EMERGENT: raising
@@ -617,7 +617,7 @@ def _emit(args, counters, findings, examined, evaluable, foreign) -> int:
         emitted.append(line)
         emitted_findings.append(f)
     # The remedy prints ONCE, as a trailer. Repeating it per finding cost 140 chars each and blew
-    # `final_gate.py:2114`'s `output[:500]` budget on the fleet's only finding-bearing repo today
+    # `final_gate.py:2133`'s `output[:500]` budget on the fleet's only finding-bearing repo today
     # (measured 662 chars, cut mid-token, second finding lost).
     #
     # ⚠️ Keyed on what was actually EMITTED, not on `shown`. Keyed on `shown`, a corpus of 9 ORPHANs

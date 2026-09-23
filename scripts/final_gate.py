@@ -42,6 +42,7 @@ import contextlib
 import io
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -289,8 +290,15 @@ def clip_output(
 _PYTEST_EARLY_STOP = "stopping after "
 
 
+# A timeout is not an exit code. It used to come back as rc 1, so a warn-only check that merely ran
+# out of time on a loaded box read as "exited 1 — its contract changed" and turned every session's
+# gate red at random (mail 01M37YR2KDNCE8V5YTRDHRB7D6). 124 is coreutils `timeout`'s code and is
+# still non-zero, so every caller that treats non-zero as failure keeps doing so.
+RC_TIMEOUT = 124
+
+
 def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None) -> tuple[int, str]:
-    """Run a command and return (returncode, output)."""
+    """Run a command and return (returncode, output); a timeout returns `RC_TIMEOUT`."""
     timeout = timeout or TIMEOUTS["default"]
     # Pass PROJECT_ROOT to enforcement scripts so they know the correct project root
     env = os.environ.copy()
@@ -307,7 +315,7 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None)
         output = result.stdout + result.stderr
         return result.returncode, output.strip()
     except subprocess.TimeoutExpired:
-        return 1, f"Command timed out after {timeout}s"
+        return RC_TIMEOUT, f"Command timed out after {timeout}s"
     except FileNotFoundError:
         return 1, f"Command not found: {cmd[0]}"
 
@@ -449,10 +457,21 @@ def run_optional_check(
         # collects into `warnings`, where an operator (and CI) can actually see it.
         return (check_name, True, f"⚠ check not present, skipping: {script_path}")
 
-    if module:
-        code, out = run_cmd([PYTHON, "-m", module] + list(args))
-    else:
-        code, out = run_cmd([PYTHON, str(full_path)] + list(args))
+    cmd = [PYTHON, "-m", module, *args] if module else [PYTHON, str(full_path), *args]
+    code, out = run_cmd(cmd)
+    if code == RC_TIMEOUT and warn_only:
+        # It never finished, so it cannot have changed its contract: a SKIP row (the ` (NOT RUN`
+        # marker puts it in `skipped_checks`) with a ⚠ message (which puts it in `warnings`).
+        # ⚠ COBRA: a warn-only check that hangs on EVERY run would sit here as a permanent skip,
+        # which is why it is a named skip with its rerun command, never a silent pass. A BLOCKING
+        # check that times out still fails below.
+        row = f"{check_name} (NOT RUN — timed out)"
+        _CHECK_SCRIPTS[row] = script_path
+        return (
+            row,
+            True,
+            f"⚠ {check_name} did not finish ({out}); re-run it alone: {shlex.join(cmd)}",
+        )
     if code != 0:
         if warn_only:
             # The declaration is now false. Fail (never weaken enforcement) and name the
@@ -737,8 +756,8 @@ def run_formatting_fixes(
             [RUFF, "check", "--fix", *ruff_py],
             timeout=TIMEOUTS["ruff"],
         )
-        # returncode 0 = clean, 1 = issues found (some fixed), other = error
-        # We treat 0 and 1 as acceptable (remaining issues caught by ruff check)
+        # returncode 0 = clean, 1 = issues found (some fixed), other = error — RC_TIMEOUT included
+        # (before it existed a timeout read as 1 here, a silent green). 0 and 1 are acceptable.
         if code in (0, 1):
             results.append(("ruff --fix", True, ""))
         else:
@@ -1308,7 +1327,7 @@ def run_static_checks(
             tail = skip_advisory(out, tail)
             # T12.4 (01M2606BZ): the mail called this "a green over unreached tests". REFUTED by
             # execution — `-x` truncates only on a FAILURE, pytest then exits 1, `code == 0` is
-            # False and the row is RED; `run_cmd` also returns 1 on timeout. There is no green
+            # False and the row is RED; a timeout returns `RC_TIMEOUT`, also RED. There is no green
             # truncated run. What IS real is the other half: the red names the FIRST failure and
             # says nothing about the tests that never ran, so an agent fixes one, re-runs, meets
             # the next, and walks the suite serially. Executed on a 4-test suite with 2 failures:

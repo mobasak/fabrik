@@ -496,7 +496,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Advisory: certification coverage against the board.")
     ap.add_argument("--project-root", type=Path, default=Path.cwd())
     ap.add_argument("--json", action="store_true")
-    # parse_KNOWN_args: argparse exits 2 on an unrecognised flag, and final_gate.py:198-208 turns
+    # parse_KNOWN_args: argparse exits 2 on an unrecognised flag, and final_gate.py:199-209 turns
     # any non-zero exit from a warn_only check into a fleet-wide blocking red.
     args, _unknown = ap.parse_known_args(argv)
     try:

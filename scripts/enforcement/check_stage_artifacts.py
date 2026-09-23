@@ -59,7 +59,7 @@ check_review_coverage.py:185-231 (`check_cert_dispositions`) disposition-gates
 the SHAPE of every docs/development/reviews/*-{user,service}-test-*.md report
 that is ALREADY changed/staged (HANDOFF row grammar, repro: existence,
 CLOSED-needs-proof:, OPEN-forces-NOT-QUIET, NOT-QUIET-needs-##-RESUME) and is
-registered in final_gate.py for EVERY tier (scripts/final_gate.py:711-727,
+registered in final_gate.py for EVERY tier (scripts/final_gate.py:730-746,
 ahead of the tier switch). What it does NOT do: mechanically require the
 report to EXIST at all — `/fabrik-release`'s Gate-2 handoff is an ephemeral
 console print, never a committed file (see the "Two gaps" note below), so

@@ -129,7 +129,7 @@ nobody produced.
 
 - **Advisory** (`warn_only`) on landing, except the four namespace findings above. Promotion of the
   rest to blocking is a separate operator decision, taken once the fleet has run it.
-- **Always exits 0.** `final_gate.py:198-208` converts a non-zero `warn_only` exit into a fleet-wide
+- **Always exits 0.** `final_gate.py:199-209` converts a non-zero `warn_only` exit into a fleet-wide
   blocking red; the BLOCKING verdict rides the finding's flag, never the exit code.
 - **stdlib only**; ASCII output by construction; census first, within the 500-char / 10-line budget.
 

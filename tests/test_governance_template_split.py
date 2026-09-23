@@ -142,11 +142,11 @@ T6_CLAIMS = (
     # claimed this grader proved the two copies identical when it asserted nothing about the
     # sentence (scoped review seat C) — now it does, on a span no other clause repeats.
     "cited because the paraphrase drifted once (",
-    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:2895-2901`)",
-    "the rows that can never fail — `WARN_ONLY_CHECKS`, `:327-340` — carrying each one's own text",
+    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:2914-2920`)",
+    "the rows that can never fail — `WARN_ONLY_CHECKS`, `:335-348` — carrying each one's own text",
     "only a leg that ran to completion is the bare `pytest`",
     "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
-    "a `status: \"setup-error\"` envelope (`:2877-2893` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys",
+    "a `status: \"setup-error\"` envelope (`:2896-2912` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys",
     "FROM THE REPO ROOT",
     # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
     # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
@@ -777,3 +777,48 @@ def test_the_templates_outcome_ii_points_at_the_lane_table_and_keeps_all_three()
         "the review comes BEFORE",
     ):
         assert kept in tpl, f"outcome (i), (ii) or (iii) lost an obligation: {kept}"
+
+
+# The GATE row cites `final_gate.py` by LINE (D-284 — the paraphrase drifted once), and the pins above
+# only prove the two contracts say the SAME thing. Nothing proved the lines still hold what the
+# sentence names, so a 16-line insertion in `final_gate.py` (mail 01M37YR2KDNCE8V5YTRDHRB7D6) would
+# have left every cite pointing at the wrong code, green. Each cite -> the text its FIRST line must
+# carry. ⚠️ COBRA: the cheapest way to green this after moving code is to edit the expected text
+# here instead of the cite in both contracts; the text below names the construct, never a line, so
+# such an edit is visible in review as a change of MEANING.
+_GATE_CITES = {
+    ":70": "PROJECT_ROOT = Path.cwd()",
+    ":335-348": "WARN_ONLY_CHECKS: set[str] = {",
+    ":1009": "if tier == 3:",
+    ":1026": "return results",
+    ":1125": "return results",
+    "final_gate.py:1280-1290": "if (",
+    ":1299": "elif code == 5:",
+    ":1339": "if code != 0 and _PYTEST_EARLY_STOP in out:",
+    ":2896-2912": "missing = _toolchain_missing(PYTHON)",
+    ":2914-2920": "# Determine tier",
+}
+
+
+# The hub contract alone says where ruff must RESOLVE (the template's GATE row omits that sentence).
+_HUB_ONLY_GATE_CITES = {":81": "RUFF = str(VENV_RUFF)"}
+
+
+def test_the_gate_rows_line_citations_land_on_what_they_name() -> None:
+    gate = (FABRIK / "scripts" / "final_gate.py").read_text(encoding="utf-8").splitlines()
+    for contract in (FABRIK / "CLAUDE.md", FABRIK / "templates" / "governance" / "CLAUDE.md"):
+        text = contract.read_text(encoding="utf-8")
+        for cite, construct in _GATE_CITES.items():
+            assert cite in text, (
+                f"{contract.name}: the cite {cite} is gone — re-derive it, both contracts"
+            )
+            first = int(cite.rsplit(":", 1)[1].split("-")[0])
+            assert gate[first - 1].strip().startswith(construct), (
+                f"final_gate.py:{first} no longer holds {construct!r} — move the cite in BOTH contracts"
+            )
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    for cite, construct in _HUB_ONLY_GATE_CITES.items():
+        assert cite in hub, f"CLAUDE.md: the cite {cite} is gone — re-derive it"
+        assert gate[int(cite[1:]) - 1].startswith(construct), (
+            f"final_gate.py{cite} no longer holds {construct!r}"
+        )

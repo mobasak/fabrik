@@ -83,7 +83,7 @@ Eight labels — four findings, four self-reports about the check's own knowledg
 | `UNKNOWN STATUS` | self-report | a status value outside the writer's contract |
 | `UNEVALUABLE` | self-report | the plan resolved but its state could not be read |
 
-The census line prints **first, always all eight, including the zeros** — `final_gate.py:2092` ships
+The census line prints **first, always all eight, including the zeros** — `final_gate.py:2111` ships
 advisory output as `output[:500]` and `:387` prints ten lines with no ellipsis, so a finding without
 a leading census can be truncated into invisibility. A counter that prints only when non-zero is
 indistinguishable from a counter that was never computed.
@@ -229,7 +229,7 @@ violation — from the check's own output.
   lock is live, so a tier-gated registration would be absent precisely when the check matters.
   `tests/enforcement/test_final_gate_registration.py` pins the placement and rejects **any**
   `if tier …` ancestor — an `Eq`-only pin waves through `in (1, 2)` and `>= 2`.
-- **Always exits 0**, findings included. `final_gate.py:262-270` converts a non-zero exit from a
+- **Always exits 0**, findings included. `final_gate.py:263-271` converts a non-zero exit from a
   `warn_only` check into a **blocking red**, which on a governance-synced check means ~46 repos.
   Unknown flags are tolerated (`parse_known_args`) for the same reason.
 - **stdlib only** — `json`, `pathlib`, `re`, `sys`, `argparse`. Pinned by

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — A warn-only check that times out no longer turns the gate red as a "broken contract" (D-382) (2026-09-24)
+
+- `scripts/final_gate.py::run_cmd` returns `RC_TIMEOUT` (124) on a timeout instead of 1. A warn-only check that ran out of time under load read as "registered warn_only=True but exited 1 — its contract changed" and turned every session's gate red at random (mail 01M37YR2KDNCE8V5YTRDHRB7D6). It is now a `<name> (NOT RUN — timed out)` skip row, counted in `skipped_checks`, whose ⚠ names the exact command the gate ran. A blocking check's timeout still fails, and `ruff check --fix` no longer reads a timeout as "issues found".
+- The change moved `final_gate.py`'s lines, so every live `final_gate.py:N` citation was remapped to the same code (both CLAUDE.md contracts, three enforcement scripts, three tests, four docs). A new grader holds the GATE row's cites to the constructs they name.
+
 ### Removed — The unused duplicate `postgres-main` compose, and a ruling that `PORTS.md` is the hub's registry (2026-09-24)
 - **`apps/postgres-main/compose.yaml` is gone (D-379).** It was a second tracked compose for the shared `postgres-main` container, with a different image and no memory limit; nothing referenced it, and the live container runs from `infra/vps1/postgres/compose.yaml`. Fleet mail 01M34JT9QNJFPBEQBDMQGV0CBT, item 1.
 - **Decision D-380: `PORTS.md` is the hub's port registry**, and a project's synced copy is read-only. Recorded now; the scaffolder and Doc Sync Matrix changes follow as their own reviewed change. Fleet mail 01M335ERZMNPVHZN8PQACQR5GC.
