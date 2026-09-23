@@ -230,6 +230,10 @@ bash reads a script incrementally, so a script still running when its file is re
 
 `scripts/render_doc_script_links.py` (`_scripts()`) and `scripts/enforcement/check_script_headers.py` both select `.py` files only, so a shell script's `# AFTER-EDIT:` header is never rendered into the `docs/` page it names and never checked — e.g. `scripts/install_post_commit_hook.sh` → `docs/workstation/hooks-index.md`. (A header naming a file outside `docs/`, such as `governance_sync_postcommit.sh` → `CLAUDE.md`, is not rendered by design: `RENDER_ROOTS` is `docs/` only.) Found by the D-369 review's docs finder. Fix at the class: extend both to `scripts/**/*.sh`, measuring first how many shell scripts carry a header and how many docs then change. Owner: infra.
 
+## [infra] A review's fix diff can add new counts and citations with no grader — measure a WARN before building it (2026-09-23)
+
+Ask 4 of mail 01M2ZDAYX1EHVST1DWG8PV3Z57 (iterative_image_editor): WARN when a review's fix diff introduces a new number or citation that nothing executes, the own-fix growth that D-278's counter catches only after it has cost a round. Live instance, the D-370 review (docs/development/reviews/2026-09-23-mail-batch-arm-sweep-links-review.md): three of its seven rounds confirmed only numbers in ledger prose (a stale ref count, a fleet figure with no named population, a doc count a sibling moved). Before any detector: measure its fire rate over the committed receipts' fix commits (how many new numerals/`path:line` in ledger or doc hunks, and what share a later round confirmed wrong), and write down the cheapest way to silence it (spell the number out, move it to a fence) with the counter-measure. Asks 1 (hard round cap) is wontfix under D-330/D-339 (`--budget` is never a cap); asks 2-3 landed as D-335/D-339/D-341. Owner: infra.
+
 ## [infra] A plan authored and committed in one motion is a convergence subject at NO moment a gate runs
 
 `check_convergence.py:550` skips `??` paths — deliberately, so a sibling's mid-write scratch never
