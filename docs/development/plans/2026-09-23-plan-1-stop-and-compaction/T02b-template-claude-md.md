@@ -26,4 +26,5 @@ Docs: CHANGELOG (Deltas)
 ## Context Files
 - .windsurf/rules/core/40-documentation.md
 - templates/governance/CLAUDE.md
+- CLAUDE.md
 - tests/test_governance_template_split.py

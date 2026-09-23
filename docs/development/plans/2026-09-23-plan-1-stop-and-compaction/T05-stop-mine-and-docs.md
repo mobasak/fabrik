@@ -32,6 +32,7 @@ Docs: `docs/workstation/hooks-index.md` (the Stop row gains DEFERRAL and the DEC
 
 ## Context Files
 - .windsurf/rules/core/10-python.md
+- .claude/hooks/final_gate_stop.py
 - .windsurf/rules/core/40-documentation.md
 - docs/reference/research/2026-09-23-stop-compaction/mine.py
 - docs/reference/research/2026-09-23-stop-compaction/draw.py

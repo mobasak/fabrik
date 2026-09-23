@@ -29,4 +29,5 @@ Docs: CHANGELOG (Deltas)
 ## Context Files
 - .windsurf/rules/core/40-documentation.md
 - CLAUDE.md
+- docs/superpowers/specs/2026-09-23-stop-and-compaction-enforcement-design.md
 - tests/test_governance_template_split.py
