@@ -18,15 +18,27 @@ refuses the block as malformed); a field left empty after its colon (same refusa
 `fabrik-deploy.md`'s store-ending NEXT template, which can independently regress to a bare
 `operator decision: <...>` with no pointer to the block above it.
 
+Review round 2 found three of round 1's own graders too loose to prove what they claimed:
+the class check matched a bare substring, so "unpublished"/"redeployed"/"suspended" would
+have passed as naming "publish"/"deploy"/"spend"; the NEXT-template check matched only the
+literal `operator decision: <` and missed any other bare-operator-decision NEXT phrasing;
+and nothing graded round 1's own "written as plain lines, not inside a code fence" fix at
+all — a source could lose that sentence and every existing test would stay green. This file
+now uses word-boundary matching for the class check, flags any `NEXT:` line naming
+`operator decision` without a `see DECISION NEEDED` pointer, and asserts the fence-escape
+sentence precedes every block's fence.
+
 This guards: every DECISION block in each of the six sources carries all four required
 fields within 12 lines of its heading, none of those fields is empty, every block's Why
-line names a closed gate class, the retired sentence does not survive anywhere in the
-source corpus, and `fabrik-deploy.md` never ends a NEXT template on a bare operator
-decision.
+line names a closed gate class as a whole word/phrase, every block's fence is preceded
+within 3 lines by the fence-escape instruction, the retired sentence does not survive
+anywhere in the source corpus, and `fabrik-deploy.md` never ends a NEXT line on a bare
+operator decision.
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -55,8 +67,10 @@ WHY_FIELD = "- Why it is yours:"
 WINDOW_LINES = 12
 RETIRED_PHRASE = "the hook exemption is line-scoped"
 
-# The Stop hook's closed `gate` class list (spec § C2, `_DECISION_GATE_RE`), lowercased for
-# case-insensitive whole-phrase matching against a block's "Why it is yours:" line.
+# The Stop hook's closed `gate` class list (spec § C2, `_DECISION_GATE_RE`), matched as a
+# case-insensitive WHOLE WORD/PHRASE (`\b`-bounded) against a block's "Why it is yours:"
+# line — a bare substring test would pass "unpublished"/"redeployed"/"suspended" as if they
+# named "publish"/"deploy"/"spend".
 CLOSED_GATE_CLASSES: tuple[str, ...] = (
     "deploy",
     "destructive",
@@ -79,9 +93,9 @@ def _read_lines(source_name: str) -> list[str]:
 
 def _heading_indices(lines: list[str]) -> list[int]:
     """Every line index in `lines` that carries the DECISION heading (a file may have more
-    than one gate-ending block — `fabrik-deploy.md` has three: the mid-run suspension, the
-    store-ending publish hand-off, and the Termination-contract summary that just names
-    them)."""
+    than one gate-ending block — `fabrik-deploy.md` has two: the mid-run suspension and the
+    store-ending publish hand-off; its Termination-contract summary only NAMES the block by
+    reference and carries no heading of its own, so it is not counted here)."""
     return [i for i, line in enumerate(lines) if DECISION_HEADING in line]
 
 
@@ -139,8 +153,11 @@ def test_why_line_names_a_closed_gate_class(source_name: str) -> None:
             f"{source_name} (block at line {heading_idx + 1}): no '{WHY_FIELD}' line "
             f"within {WINDOW_LINES} lines"
         )
-        why_lower = why_line.lower()
-        matched = [cls for cls in CLOSED_GATE_CLASSES if cls in why_lower]
+        matched = [
+            cls
+            for cls in CLOSED_GATE_CLASSES
+            if re.search(r"\b" + re.escape(cls) + r"\b", why_line, re.IGNORECASE)
+        ]
         assert matched, (
             f"{source_name} (block at line {heading_idx + 1}): '{WHY_FIELD}' line names "
             f"no class from the hook's closed list — {why_line.strip()!r}"
@@ -164,9 +181,39 @@ def test_deploy_next_template_never_ends_on_a_bare_operator_decision() -> None:
     offending = [
         line.strip()
         for line in lines
-        if "operator decision: <" in line and "see DECISION NEEDED" not in line
+        if line.strip().startswith("NEXT:")
+        and "operator decision" in line
+        and "see DECISION NEEDED" not in line
     ]
     assert not offending, (
-        "fabrik-deploy.md: a NEXT template ends on a bare `operator decision: <...>` with "
-        f"no pointer to the DECISION block above it: {offending}"
+        "fabrik-deploy.md: a NEXT: line names an operator decision with no pointer to the "
+        f"DECISION block above it: {offending}"
     )
+
+
+def _fence_open_index(lines: list[str], heading_idx: int) -> int | None:
+    """The line index of the ``` that opens the fence a DECISION block at `heading_idx`
+    lives inside — the nearest bare ``` line above it — or None if none exists."""
+    for i in range(heading_idx - 1, -1, -1):
+        if lines[i].strip() == "```":
+            return i
+    return None
+
+
+@pytest.mark.parametrize("source_name", GATE_SOURCES)
+def test_fence_is_preceded_by_the_escape_instruction(source_name: str) -> None:
+    lines = _read_lines(source_name)
+    for heading_idx in _heading_indices(lines):
+        fence_idx = _fence_open_index(lines, heading_idx)
+        assert fence_idx is not None, (
+            f"{source_name} (block at line {heading_idx + 1}): no fence-open line found "
+            "above the DECISION heading"
+        )
+        lead_in = " ".join(
+            line.strip() for line in lines[max(0, fence_idx - 3) : fence_idx]
+        )
+        assert "not inside a code fence" in lead_in, (
+            f"{source_name} (fence at line {fence_idx + 1}): the 3 lines before it do not "
+            "say 'not inside a code fence' — an agent copying the fence verbatim into its "
+            "own output would hide the block from the Stop hook's extractor"
+        )
