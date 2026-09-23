@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — kaizen vocabulary: the `decision_block` event and `deferral` as a premature-stop cause (2026-09-24)
+
+- `scripts/sysadmin/kaizen_events.py` registers `decision_block` (carries `ground`); `scripts/sysadmin/kaizen_collect_v2.py` counts `deferral` in `PREMATURE_CAUSES`. Both are inert until the Stop hook's DEFERRAL check emits them (plan `docs/development/plans/2026-09-23-plan-1-stop-and-compaction`, T01b).
+- `premature_stop_rate` now builds its formula and detail text from the cause set, so the definition hash moves whenever the set does (version 3 → 4; the tripwire pin in `tests/test_kaizen_outcomes.py` re-pinned).
+
 ### Changed — six gate-ending commands state their human gate as a DECISION block (2026-09-24)
 
 - `/fabrik-spec-review`, `/fabrik-flows-review`, `/fabrik-ui-design-review`, `/fabrik-deploy-plan-review`, `/fabrik-release` and `/fabrik-deploy` now end at their gate with `DECISION NEEDED (ground: gate)` — question, why it is the operator's (a class from the Stop hook's closed list), options with what each changes, and a recommendation — written unfenced. `/fabrik-deploy`'s verify-in-session suspension and its store ending use the same block; the "hook exemption is line-scoped" instruction is gone. This lands before the Stop hook's DEFERRAL check (plan `docs/development/plans/2026-09-23-plan-1-stop-and-compaction`, T01a), so no legitimate gate is refused on the day the hook arrives.
