@@ -266,7 +266,7 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 | A-H1 | REFUTED (agent() itself resolves to null on an unrecoverable error per the workflow docs, so parallel() never saw a throw from this script; the harness was made faithful anyway under A-S4) |
 | A-H2 | REFUTED (a pinning gap of the orchestrator's — fabrik-repo-review.md was not pinned; the live file names the script; pinned from pass 2 on) |
 | A-H3 | REFUTED (the ledger check reads only seats' ledger_status, never candidate ids, so a candidate named S-L1 cannot close a ledger claim) |
-| R-1 | RECORDED — measured (the operator's ≤ 3 passes is a target, never a cap, D-354; this run took 3, the third a confirmation of a two-hunk fix) |
+| R-1 | RECORDED — measured (the operator's ≤ 3 passes is a target, never a cap, D-355; this run took 3, the third a confirmation of a two-hunk fix) |
 
 ## Per-phase verdicts
 
