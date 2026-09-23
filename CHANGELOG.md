@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules(self-healing): file 24 of the currency pass, to the 11-row bar (D-362) (2026-09-23)
+- The ladder now says which watchdog steps can run: the sidecar dispatches actions with empty parameters, so only
+  `restart_container` and `reset_db_pool` execute, and rows 2, 5, 7 and 8 fall back to escalate plus the deadman restart.
+- `drop_queue_items`/`rotate_locks` are the off-by-default Tier C approved-write lane, not Tier A; `scale_concurrency`
+  cannot write the project `.env` from the sidecar; Tier D needs `propose_fix_prs` in the spec and the Telegram tokens.
+- Corrected module calls (`set_global_pause`, `is_paused`, the `abuse-prevention` functions), the pause-key prefix
+  precondition, the reset-db-pool contract, the 5xx and lock rows, and six broken fabrik-lib links; dropped a phantom
+  per-project self-healing doc. Research (7 facts) filed in `docs/reference/research/2026-09-23-self-healing-currency-ledger.md`.
+- The scoped review confirmed 9 more: the deadman fires once and cannot be acknowledged, the 5xx log trigger is blind to
+  JSON access logs, the pause classifier ignores httpx timeouts, Tier D needs `trigger_sources: [error_webhook]` plus `critical_paths`, and the
+  pause-key and `is_paused` preconditions.
+- 4 claims registered; fabrik-lib mailed (01M37F6Z3F5GK9BHRFKE6H8JYG, 01M37FWQR19CQZ6CKMQCZFE39X,
+  01M37GQN02ETTD7AP4Y9SAW35F); fleet mailed (01M37F6Z1PC7Y5R92EA5CN3EPH).
+
 ### Changed — The spec and plan reviews and execute-plan's nested reviews run on the review-loop workflow (2026-09-23)
 
 - `.claude/workflows/fabrik-review-loop.js` takes each slice's seats (`models`, `agent`, `scope`). `/fabrik-spec-review` and `/fabrik-plan-review` launch it with their section partition, and every later pass is the round-1 seats over their own slice ledgers. `/fabrik-execute-plan` points its phase and per-ticket reviews at `/fabrik-review`'s loop and keeps its per-round Opus finder as the riskiest slice's third finder. `review_loop_ledger.py next` keeps a hyphenated slice name whole (D-361).

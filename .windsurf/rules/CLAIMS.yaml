@@ -1724,3 +1724,35 @@ claims:
     verify: "https://docs.expo.dev/push-notifications/sending-notifications/ ; https://docs.expo.dev/push-notifications/push-notifications-setup/ (firecrawl + WebFetch + exa, 2026-09-23; ledger iys-09..15, iys-18..19)"
     window_days: 180
     last_verified: 2026-09-23
+
+  - id: docker-oom-restart-and-signal
+    pack: core/self-healing.md
+    kind: practice
+    claim: "An OOM kill ends the container's main process (exit 137), so `restart: unless-stopped` restarts it, with a growing back-off between attempts (moby's restart manager); the kill shows as `State.OOMKilled: true` in `docker inspect` and in the host kernel log, NOT in the container's own `docker logs` stream"
+    verify: "https://docs.docker.com/engine/containers/start-containers-automatically/ ; moby daemon/internal/restartmanager/restartmanager.go ; https://www.netdata.cloud/guides/docker/docker-oomkilled/ (WebFetch + WebSearch + brave, 2026-09-23; ledger docs/reference/research/2026-09-23-self-healing-currency-ledger.md sh-ext-01, sh-ext-02)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: asyncpg-pool-size-api
+    pack: core/self-healing.md
+    kind: practice
+    claim: "asyncpg exposes pool occupancy as methods — get_size(), get_max_size(), get_idle_size() — not `pool.size`/`pool.max` attributes; `acquire()` takes a `timeout`; `Pool.close()` waits for released connections and shuts the pool down"
+    verify: "https://magicstack.github.io/asyncpg/current/api/index.html (WebSearch + WebFetch, 2026-09-23; ledger sh-ext-03)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: httpx-transport-exceptions
+    pack: core/self-healing.md
+    kind: practice
+    claim: "httpx.TimeoutException (base of Connect/Read/Write/PoolTimeout) and httpx.ConnectError (a NetworkError) are both TransportError subclasses under RequestError"
+    verify: "https://github.com/encode/httpx/blob/master/httpx/_exceptions.py ; https://www.python-httpx.org/exceptions/ (WebFetch + exa, 2026-09-23; ledger sh-ext-05)"
+    window_days: 180
+    last_verified: 2026-09-23
+
+  - id: cgnat-shared-address
+    pack: core/self-healing.md
+    kind: rationale
+    claim: "Carrier-grade NAT puts many subscribers behind one public address (RFC 6598 reserves 100.64.0.0/10 as its shared space), so blocking one IP can block many unrelated users — why network-level IP blocks stay operator-only"
+    verify: "https://www.rfc-editor.org/rfc/rfc6598.html (WebSearch + WebFetch, 2026-09-23; ledger sh-ext-07)"
+    window_days: 180
+    last_verified: 2026-09-23
