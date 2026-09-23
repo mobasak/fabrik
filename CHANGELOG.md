@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The stop decider no longer mistakes the self-watch arm for lost work (2026-09-23)
+
+- Since the self-watch became a background Bash task (D-356), the Stop decider counted it as a pending waker and woke every idle armed session with a false "resume the interrupted task" about an hour after each turn end. `~/.claude/bin/claude-stop-decider.py` now leaves out a background task that runs `selfwatch_arm.sh <sid>`, as it already did for the persistent Monitor, while a command that only reads the script still counts. Six graders in `tests/test_claude_stop_decider_selfwatch.py` (D-359).
+
 ### Added — Review stages per change, seat tokens from transcripts; no telemetry collector, no lead-run checks (2026-09-23)
 
 - `command_feedback_report.py --stages` groups review-family runs by the change their surface names (plan slug, spec slug or D-row), with stages, hours, rounds and confirmed defects per change, and prints its coverage first (101 of 239 review runs keyed on its first run). `review_loop_ledger.py` totals each seat's tokens from its own transcript. Decided against after measuring: an OpenTelemetry collector (its token metric names a user-defined agent `custom`) and the lead running small checks itself (13–25× more cached tokens than one refuter seat for this loop's long-lived lead). D-358.
