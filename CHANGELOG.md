@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The self-watch no longer lapses every 30 minutes: armed as one background Bash task (2026-09-23)
+
+- New `scripts/sysadmin/selfwatch_arm.sh` runs the resume-mesh watcher as a background Bash task and exits on its first line, freeing the lock for the re-arm and printing the re-arm order; a Monitor (the old arm) has no persistent mode at Claude Code 2.1.280 and ended every watch within 30 minutes. Every arm order moves to it — the orient hooks, the per-prompt check, the quota-hold text and both CLAUDE.md contracts — and `quota_stop.py` admits the exact arm command while the hold stands. `tests/test_selfwatch_arm.py` (4 graders); live-tested: a probe death record woke the session in 24 s. D-356.
+
 ### Changed — The review loop: one refuter per slice, `closable`, ledger rows that render (2026-09-23)
 
 - `.claude/workflows/fabrik-review-loop.js`: one fresh Sonnet refuter per slice (`effort: high`) executes every candidate; finders run at `effort: medium`; a refutation with a placeholder command or no output is `unverified`, and `unverified` never closes; each slice and pass return `closable` with the `open` reasons; pass-2 ledger rows are objects or plain claim strings, anything else refused before a seat runs (it rendered `undefined`); reused candidate ids are suffixed, conflicting verdict rows are `unverified`, a case-slipped ledger id counts only when it names one claim. 19 graders in `tests/test_review_loop_workflow.py` (was 8). `fabrik-reviewer` agent: `experimental.cacheTtl: 1h`, frontmatter now valid YAML. D-355 — "≤ 3 passes" is a target, never a cap.
