@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — A sibling's commit no longer reverts other sessions' edits: the governance sync left pre-commit's stash cycle (D-369) (2026-09-23)
+
+- The hub's post-commit governance sync ran under pre-commit, which stashes every unstaged change with a tree-wide
+  `git checkout -- .` around each run and rolls back tree-wide when the restore conflicts. For the ~60 s sync every
+  session's WIP vanished from disk and any edit made mid-window was destroyed. Reproduced in a scratch repo.
+- The sync now runs from a plain git post-commit hook (`scripts/install_post_commit_hook.sh`, re-run by
+  `wsl_startup_hook.sh`); the `governance-sync` entry stays as `stages: [manual]` to keep its regex the single trigger
+  source; `post-commit` left `default_install_hook_types`. 7 new guards in `tests/enforcement/test_governance_sync_postcommit.py`, one driving a
+  real `pre-commit install -t post-commit` takeover.
+- Residual: the commit stage keeps pre-commit's stash for ~0.5 s (backlog).
+
 ### Changed — rules(core/app-audit-log): file 27 of the currency pass — the audit log is mandatory in every project (D-368) (2026-09-23)
 
 - Operator ruling: every project, of every scaffold type, carries the audit log "properly" — vendored, the table in

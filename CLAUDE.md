@@ -185,8 +185,10 @@ FIX-FIRST (§ Behavior), never a silent fallback; a server only a reload restore
   corpus; "render after the commit" is the worktree/branch flow only.
 - **Sync-consciousness:** a commit touching the governance-sync trigger surfaces distributes fleet-wide via the
   POST-commit governance-sync — the exact trigger set IS the `governance-sync` files-filter in
-  `.pre-commit-config.yaml`; read it, don't recall it. ⚠️ **Pre-commit does NOT apply that filter** — the hook is
-  `stages: [post-commit]` + `always_run: true`; `scripts/governance_sync_postcommit.sh` re-implements the filter by
+  `.pre-commit-config.yaml`; read it, don't recall it. ⚠️ **Pre-commit does NOT run that hook** — its entry is
+  `stages: [manual]` and exists only to hold the regex; the sync runs from a PLAIN git post-commit hook
+  (`scripts/install_post_commit_hook.sh`, D-369 — pre-commit's post-commit stage stashed the whole tree around the
+  ~60 s sync and reverted siblings' edits), and `scripts/governance_sync_postcommit.sh` re-implements the filter by
   reading the same regex back out of the YAML and grepping HEAD's paths. The regex is canonical; the ENFORCER is
   the wrapper. Know the blast radius BEFORE staging; a hub-only experiment never goes on a synced path. ⚠️ NOT
   every manifest-synced path is a trigger (RUN_SCRIPTS, `.windsurf/workflows/`, most reference docs ride the next

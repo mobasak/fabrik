@@ -7,8 +7,8 @@
 # it the widest window for pre-commit's tree-delta detection to catch an UNRELATED concurrent
 # writer (a live session regenerating .windsurf/rules/ai blocks) — aborting rules commits with
 # "files were modified by this hook" while the sync itself had already succeeded (two sessions hit
-# it on 2026-08-29; measured: the sync writes NOTHING inside /opt/fabrik). Post-commit cannot abort
-# a commit and has no stash window; distribution still happens at commit time.
+# it on 2026-08-29; the sync writes NOTHING inside /opt/fabrik). It runs as a PLAIN git hook
+# (scripts/install_post_commit_hook.sh), never pre-commit's post-commit stage, whose stash reverts siblings' edits (D-369).
 #
 # WHY this wrapper exists: MEASURED 2026-08-29 in a scratch repo — at the post-commit stage
 # pre-commit passes NO file list, so a `files:`-filtered hook is ALWAYS "(no files to check)

@@ -11,7 +11,10 @@
 
 # New clones get BOTH hook types from a bare `pre-commit install`. Without this, the pre-push
 # gate below exists in config and is installed nowhere — config presence is not enforcement.
-default_install_hook_types: [pre-commit, post-commit, pre-push]
+# post-commit is NOT here: pre-commit's post-commit stage stashes and restores the WHOLE tree around
+# the ~60 s governance sync, silently reverting siblings' edits (D-369). The sync runs as a plain git
+# hook instead — scripts/install_post_commit_hook.sh.
+default_install_hook_types: [pre-commit, pre-push]
 # Without this, EVERY hook below with no explicit `stages:` also runs at pre-push — proven by
 # running the real hook: the governance-sync (which writes into 47 project trees) and the whole
 # commit-blocker set fired on a push. Pin the default to the commit stage; the push gate opts in.
@@ -145,18 +148,18 @@ repos:
         # legacy report is a move, not an endorsement — grading it there is a false red.
         exclude: '^docs/development/reviews/archived/'
 
-      # POST-COMMIT since the operator decision 2026-08-29: as the slowest pre-commit hook this was
-      # the widest window for the tree-delta check to catch an UNRELATED concurrent writer, aborting
-      # rules commits while the sync itself succeeded. Post-commit cannot abort and has no stash
-      # window. ⚠️ MEASURED: post-commit gets NO file list from pre-commit (a files:-filtered hook
-      # always Skips there), so the hook is always_run and the wrapper re-applies the `files:` regex
-      # below against HEAD's own paths — the regex stays the canonical trigger set (CLAUDE.md
-      # § Sync-consciousness), read by the wrapper at runtime, never duplicated.
+      # NOT RUN BY PRE-COMMIT (D-369). This entry exists only to hold the `files:` regex — the canonical
+      # trigger set (CLAUDE.md § Sync-consciousness) that scripts/governance_sync_postcommit.sh reads at
+      # runtime and re-applies against HEAD's own paths. The sync runs from a PLAIN git post-commit hook
+      # (scripts/install_post_commit_hook.sh): pre-commit's post-commit stage stashes the whole tree and
+      # restores it with `git checkout -- .`, which reverted any edit a sibling made during the ~60 s sync
+      # (mail 01M3492KY09K6DP47Z21XVM2SH). It left pre-commit's commit stage on 2026-08-29 for the same
+      # window problem (the tree-delta check aborting rules commits). `manual` = pre-commit never runs it.
       - id: governance-sync
         name: Sync governance + enforcement to all projects
         entry: bash /opt/fabrik/scripts/governance_sync_postcommit.sh
         language: system
-        stages: [post-commit]
+        stages: [manual]
         always_run: true
         files: '(^templates/governance/|^AGENTS\.md$|^agents-fabrik\.md$|^agents-fabrik-core\.md$|^AGENTS-compact\.md$|^opencode\.json$|^\.windsurfrules$|^\.windsurf/rules/|^\.claude/hooks/|^\.claude/settings\.json$|^\.windsurf/hooks\.json$|^scripts/(final_gate|kilo_code_review|kilo_docs_enforcer|docs_updater|update_agents_toc|health_checker|fabrik_synced_manifest|sync_enforcement_to_projects|doc_reconcile|select_rules|review_rubric|review_receipt|rules_match|release_cut|mail|command_run|rivals_run|thread_anchor|whoami_agent)\.py$|^scripts/enforcement/|^docs/reference/technology-stack-decision-guide\.md$|^docs/reference/prebuilt-app-containers\.md$|^scripts/kilo_47_agents_final\.json$)'
         pass_filenames: false

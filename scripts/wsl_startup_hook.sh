@@ -109,6 +109,12 @@ fi
 [ -x "$VENV_PYTHON" ] && ( cd "$FABRIK_ROOT" 2>/dev/null &&
     "$VENV_PYTHON" "$FABRIK_ROOT/scripts/check_commit_trailers.py" --install >/dev/null 2>&1 )
 
+# Keep the POST-COMMIT governance sync installed as a PLAIN git hook (D-369): pre-commit's post-commit
+# stage stashed the whole tree around the ~60 s sync and reverted siblings' edits. Same cwd pin, same
+# subshell, same idempotence as the trailer guard; the installer refuses to clobber a foreign hook.
+[ -f "$FABRIK_ROOT/scripts/install_post_commit_hook.sh" ] && ( cd "$FABRIK_ROOT" 2>/dev/null &&
+    bash "$FABRIK_ROOT/scripts/install_post_commit_hook.sh" >/dev/null 2>&1 )
+
 # Keep the PRE-PUSH gate installed, for exactly the reason stated above and proven the same day it
 # shipped: `.git/hooks/` is untracked, so a fresh clone, a new worktree, or another machine gets NO
 # hook — and since 0bd6cf31 deleted .github/workflows, there is no cloud CI left to catch what the
