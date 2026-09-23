@@ -38,10 +38,11 @@ if (
 print(
     "## ORIENT (resume mesh — this repo has no session_orient hook)\n"
     "- **ARM YOUR SELF-WATCH NOW (first tool action, operator-mandated):** call "
-    f"Monitor(persistent: true, command: \"bash ~/.claude/bin/claude-selfwatch.sh {sid}\", "
-    "description: \"resume-mesh self-watch\") — it wakes THIS pane automatically when a turn "
-    "dies on a healed API error or a lost waker. It is a STANDING watch: never re-arm after a "
-    "wake (a duplicate arm for this session exits at once). NEVER a `nohup ... &` Bash arm — "
-    "its wake line lands in /dev/null. Authority: /opt/fabrik/docs/workstation/hooks-index.md"
+    f"Bash(run_in_background: true, command: \"bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh {sid}\") "
+    "— it wakes THIS pane automatically when a turn dies on a healed API error or a lost waker. "
+    "ONE wake per arm (D-356): the task ENDS on its wake and the wake line carries the re-arm order "
+    "(a duplicate arm for this session exits at once). Never a Monitor arm (it ends within 30 "
+    "minutes) and NEVER a `nohup ... &` arm — its wake line lands in /dev/null. Authority: "
+    "/opt/fabrik/docs/workstation/hooks-index.md"
 )
 PY

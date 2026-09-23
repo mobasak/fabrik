@@ -419,10 +419,10 @@ def main() -> int:
     # Pane auto-continue (operator directive: always on in interactive sessions):
     # the self-watch is the ONLY pane-safe revival mechanism (the headless
     # reviver against a pane forks a second writer — spec-disqualified), and a
-    # Monitor can only be armed BY the agent — so the ORIENT block orders it
+    # background task can only be armed BY the agent — so the ORIENT block orders it
     # with the concrete session id. Skipped when: headless (the reviver exports
     # CLAUDE_MESH_HEADLESS=1 — no pane to wake) or source=compact (same process,
-    # the already-armed Monitor SURVIVES compaction — proven live 2026-08-09;
+    # the already-armed task SURVIVES compaction; selfwatch_check.py re-orders an arm whose lock is free — proven live 2026-08-09;
     # re-ordering there breeds duplicate watchers).
     arm_line = ""
     if sid and os.environ.get("CLAUDE_MESH_HEADLESS") != "1" \
@@ -431,15 +431,15 @@ def main() -> int:
             .joinpath(".claude/bin/claude-selfwatch.sh").is_file():
         arm_line = (
             "- **ARM YOUR SELF-WATCH NOW (first tool action, operator-mandated):** call "
-            f"Monitor(persistent: true, command: \"bash ~/.claude/bin/claude-selfwatch.sh {sid}\","
-            " description: \"resume-mesh self-watch\") — it wakes THIS pane automatically when a"
-            " turn dies on a healed API error or a lost waker. Zero cost while silent; skip ONLY"
-            " if this session already armed it. The Monitor event IS the wake channel — NEVER a"
-            " `nohup ... &` Bash arm: its wake line lands in /dev/null and the watch still"
-            " consumes the death marker (a wef session revived 13 times became unrevivable the"
-            " day it re-armed that way, 2026-08-30). It is a STANDING watch (2026-09-03): one wake"
-            " per death record, any number per arm — never re-arm after a wake; a duplicate arm"
-            " for this session exits at once.\n"
+            "Bash(run_in_background: true, command: "
+            f"\"bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh {sid}\") — it wakes THIS pane"
+            " automatically when a turn dies on a healed API error or a lost waker, or when the"
+            " fleet-quota hold lifts. Zero cost while silent; skip ONLY if this session already armed"
+            " it. ONE wake per arm (D-356): the task ENDS on its wake, and the wake line carries the"
+            " re-arm order. Never a Monitor arm — a Monitor ends within 30 minutes — and never a"
+            " `nohup ... &` arm: its wake line lands in /dev/null and the watch still consumes the"
+            " death marker (a wef session revived 13 times became unrevivable the day it re-armed"
+            " that way, 2026-08-30). A duplicate arm for this session exits at once.\n"
         )
 
     # Reboot sweep (plan 2026-08-10-plan-1, Phase D): a launcher that exports

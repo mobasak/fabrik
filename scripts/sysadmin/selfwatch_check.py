@@ -27,6 +27,7 @@ import sys
 from pathlib import Path
 
 WATCH = Path.home() / ".claude" / "bin" / "claude-selfwatch.sh"
+ARM = "/opt/fabrik/scripts/sysadmin/selfwatch_arm.sh"  # runs WATCH as one background Bash task (D-356)
 
 
 def _safe(sid: str) -> str:
@@ -123,12 +124,13 @@ def main() -> int:
         print(
             "## ⚠️ SELF-WATCH NOT ARMED (mechanical check, every prompt)\n"
             "No process holds this session's `selfwatch.lock`, so a mid-stream death would wait "
-            'for a human "proceed". ARM IT NOW — one persistent Monitor; once the lock is held this '
-            "notice stops:\n"
-            f'`Monitor(persistent: true, command: "bash {WATCH} {sid}", '
-            'description: "resume-mesh self-watch")`\n'
-            "(The literal sid above is required — an empty arg exits the watch as you arm it. "
-            "Never a `nohup … &` arm. Authority: docs/workstation/hooks-index.md.)"
+            'for a human "proceed". ARM IT NOW — one background Bash task; once the lock is held '
+            "this notice stops:\n"
+            f'`Bash(run_in_background: true, command: "bash {ARM} {_safe(sid)}")`\n'
+            "(The literal sid above is required — an empty arg exits the watch as you arm it. ONE "
+            "wake per arm (D-356): after a wake this notice returns — re-arm. Never a Monitor arm "
+            "(it ends within 30 minutes) and never a `nohup … &` arm. Authority: "
+            "docs/workstation/hooks-index.md.)"
         )
     except Exception as exc:  # noqa: BLE001 — fail-open by contract, but never SILENT (B4)
         print(f"selfwatch_check: skipped — {type(exc).__name__}: {exc}", file=sys.stderr)

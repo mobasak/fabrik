@@ -65,7 +65,11 @@ def test_unarmed_session_gets_the_arm_order_with_its_own_sid(tmp_path):
     out = _run(tmp_path)
     assert "NOT ARMED" in out, out
     assert SID in out, "the order must carry the literal sid — an empty arg exits the watch at once"
-    assert "claude-selfwatch.sh" in out and "Monitor(" in out
+    assert (
+        "selfwatch_arm.sh" in out
+        and "Bash(run_in_background: true" in out
+        and "Monitor(" not in out
+    )
 
 
 def test_armed_session_is_silent(tmp_path):
@@ -130,7 +134,7 @@ def test_an_unwritable_lock_dir_prints_the_diagnosis_not_an_arm_order(tmp_path):
     try:
         out = _run(tmp_path)
         assert "lock DIR" in out and "not writable" in out, out
-        assert "Monitor(" not in out, "must not order an arm that will die at once"
+        assert "run_in_background" not in out, "must not order an arm that will die at once"
     finally:
         locks.chmod(0o700)
 
@@ -211,3 +215,11 @@ def test_an_unwritable_lock_file_prints_the_diagnosis_not_an_arm_order(tmp_path)
     out = _run(tmp_path)
     assert "CANNOT ARM" in out and "lock FILE" in out, out
     assert "ARM IT NOW" not in out
+
+
+def test_the_printed_arm_order_carries_the_sanitized_sid(tmp_path):
+    """Review of D-356, B-H2/A-S3: the order is a command the agent RUNS; the sid goes in through the
+    watcher's own transform, never raw from the payload (the two orient hooks already sanitize)."""
+    out = _run(tmp_path, sid="ab c;touch x")
+    assert "selfwatch_arm.sh ab_c_touch_x" in out, out
+    assert "touch x" not in out

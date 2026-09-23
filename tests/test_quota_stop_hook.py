@@ -738,17 +738,33 @@ def test_monitor_stays_allowed_under_the_hold():
     assert hook.decide("Monitor", None, stamp_exists=True, tick_age_s=10.0) == ("allow", "")
 
 
+def test_the_self_watch_arm_is_allowed_under_the_hold_in_its_exact_form_only():
+    """D-355: the arm is a background Bash task, and the lift wakes only an armed session — so the
+    exact arm command passes the hold, and nothing that merely starts with it does."""
+    arm = "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh 1970a0ff-baa3-401b-ba52-fb0c5de43261"
+    assert hook.decide("Bash", arm, stamp_exists=True, tick_age_s=10.0) == ("allow", "")
+    for bad in (
+        arm + " && touch x",
+        arm + "; rm -rf y",
+        "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh",
+        "bash /tmp/scripts/sysadmin/selfwatch_arm.sh abc",
+        "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh abc > /tmp/x",
+        "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh $(evil)",
+    ):
+        assert hook.decide("Bash", bad, stamp_exists=True, tick_age_s=10.0)[0] == "deny", bad
+
+
 def test_the_hold_text_orders_the_self_watch_arm():
     """The denial text is the one message every held session is guaranteed to read; it names the
-    arm (the Monitor call with the self-watch script) and says the lift wakes only an armed watch."""
+    arm (the background Bash task running the arm wrapper) and says the lift wakes only an armed watch."""
     reason = hook._reason("Bash")
-    assert "ARM the self-watch" in reason and "claude-selfwatch.sh" in reason
-    assert "Monitor(" in reason and "armed" in reason
+    assert "ARM the self-watch" in reason and "selfwatch_arm.sh" in reason
+    assert "run_in_background: true" in reason and "Monitor(" not in reason and "armed" in reason
     assert "<your sid>" in reason, "no session id known → the placeholder, never an empty arg"
     # the payload's session id becomes the LITERAL arm argument (CLAUDE.md's arm rule; an empty
     # arg exits the watch as you arm it)
     with_sid = hook.decide("Edit", None, stamp_exists=True, tick_age_s=10.0, sid="abc-123")[1]
-    assert "claude-selfwatch.sh abc-123" in with_sid and "<your sid>" not in with_sid
+    assert "selfwatch_arm.sh abc-123" in with_sid and "<your sid>" not in with_sid
     assert len(with_sid) < 1000, len(with_sid)
 
 
@@ -758,10 +774,10 @@ def test_the_hold_text_refuses_a_malformed_sid():
     Monitor call (heavy review of the relief-wake plan, 2026-09-07)."""
     for bad in ('abc"def', "abc def", "abc\ndef", "a" * 81, "abcé", "٣٣٣"):
         text = hook._reason("Edit", bad)
-        assert "<your sid>" in text and "claude-selfwatch.sh <your sid>" in text, bad
+        assert "<your sid>" in text and "selfwatch_arm.sh <your sid>" in text, bad
         assert bad not in text
     good = hook._reason("Edit", "1970a0ff-baa3-401b-ba52-fb0c5de43261")
-    assert "claude-selfwatch.sh 1970a0ff-baa3-401b-ba52-fb0c5de43261" in good
+    assert "selfwatch_arm.sh 1970a0ff-baa3-401b-ba52-fb0c5de43261" in good
 
 
 def test_a_trailered_commit_passes_the_hold_and_a_multiline_command_does_not():
@@ -954,3 +970,18 @@ def test_the_nudge_does_not_claim_nothing_is_held(tmp_path):
     )
     assert "fleet-wide hold" in msg.lower(), "name WHICH hold has not armed"
     assert "checkpoint" in msg.lower(), "the actionable half must survive the correction"
+
+
+def test_every_arm_order_the_hold_prints_is_one_the_hold_allows():
+    """Review of D-356, B-S1/A-S2/C-S1: `_reason` embeds any sid it accepts (1–80 chars, `._-`), so the
+    allow-list must admit exactly that set — an order the hook prints and then denies strands a held session
+    unarmed, and the lift wakes only an armed one."""
+    import re as _re
+
+    for sid in ("1970a0ff-baa3-401b-ba52-fb0c5de43261", "a" * 80, "abc.def_ghi-1"):
+        order = hook._reason("Edit", sid)
+        cmd = _re.search(r'command: "(bash [^"]+)"', order).group(1)
+        assert sid in cmd, order
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=10.0) == ("allow", ""), cmd
+    too_long = "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh " + "a" * 81
+    assert hook.decide("Bash", too_long, stamp_exists=True, tick_age_s=10.0)[0] == "deny"

@@ -33,13 +33,13 @@ Invoking a `/fabrik-*` command means opening a run record and keeping it current
 ## Orient (every task)
 
 **Session start (ONCE per chat, before item 0 — all fail silently if skipped):**
-**(a) ARM the self-watch** — `Monitor(persistent: true, command: "bash ~/.claude/bin/claude-selfwatch.sh <sid>",
-description: "resume-mesh self-watch")`. The fleet-quota hold's lift wakes ONLY an armed watch. One arm per
-session for its whole life; never re-arm after a wake (a duplicate arm exits at once); re-arm only if the
-Monitor itself ended. `description` is tool-required; `<sid>` is a LITERAL id (there is no `$CLAUDE_SESSION_ID`;
+**(a) ARM the self-watch** — `Bash(run_in_background: true, command: "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh
+<sid>")`. The fleet-quota hold's lift wakes ONLY an armed watch. ONE wake per arm (D-356): the task ends on its wake
+and the wake line carries the re-arm order; a duplicate arm exits at once. Never a Monitor arm — a Monitor ends within
+30 minutes. `<sid>` is a LITERAL id (there is no `$CLAUDE_SESSION_ID`;
 an empty arg exits 1) — take it from the SessionStart arming line, or post-compact from the transcript path.
-Never a `nohup … &` arm. The SessionStart hook skips on `source=compact` and headless — a session that never
-armed pre-compact is never told again (authority: `/opt/fabrik/docs/workstation/hooks-index.md`).
+Never a `nohup … &` arm. The SessionStart hook skips on
+`source=compact` and headless; the per-prompt check (`selfwatch_check.py`) orders the arm whenever the lock is free (authority: `/opt/fabrik/docs/workstation/hooks-index.md`).
 **(b) PROBE your assigned MCPs** — `python3 /opt/fabrik/scripts/sysadmin/mcp_health.py`. Assigned-but-dead is a
 broken tool, FIX-FIRST (§ Behavior), never a silent fallback; a server only a reload restores needs a NEW
 window — say so.

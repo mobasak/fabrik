@@ -35,7 +35,8 @@ While the stamp stands the rule is DEFAULT-DENY: every tool that can change the 
 Edit/Write/MultiEdit/NotebookEdit, MCP editors (serena replace/insert/rename, browser clicks),
 Agent/Workflow dispatch, and any Bash that is not ONE simple checkpoint or read command — with one instruction — commit + push your own work with
 explicit pathspecs, close your run record, stop. Reads, git checkpointing, `command_run.py`, `mail.py`,
-`thread_anchor.py`, `Monitor` (the self-watch arm) and `TaskStop` stay allowed, so a session can finish
+`thread_anchor.py`, `Monitor`, the exact self-watch arm (`bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh <sid>`,
+D-356) and `TaskStop` stay allowed, so a session can finish
 cleanly and the Stop hook's commit-and-push law can be met. The block lifts when the tick clears the
 stamp; the lift WAKES every ARMED self-watch (D-178) — an unarmed ended session waits for the operator.
 
@@ -104,6 +105,10 @@ _ALLOWED_BASH = re.compile(
     # `python3.12` is a python; a repo segment may not be `..` (`/opt/../scripts/x.py` escaped
     # the anchor) and `.py` must END the token (`command_run.py.bak` ran) — pass 21, executed
     r"|python3?(?:\.\d+)?\s+(?:/opt/[\w-][\w.-]*/)?scripts/(command_run|mail|thread_anchor)\.py(?=\s|$)"
+    # the self-watch arm (D-356), EXACT form: the hold's lift wakes only an armed session, so an unarmed
+    # one must be able to arm while held; the wrapper only reads marker files and prints one line
+    # — the sid class is `_reason`'s own (1–80, alnum and `._-`): every order the hold prints must be one it allows
+    r"|bash\s+/opt/fabrik/scripts/sysadmin/selfwatch_arm\.sh\s+[A-Za-z0-9._-]{1,80}\s*$"
     # `find` is OFF the list: `find . -name x -delete` destroys files with no shell operator to
     # veto — proven by execution, a held session deleted a file (review 2026-09-05, pass 14). A
     # held session locating files uses `ls -R` or `grep -rl`; enumerating find's
@@ -629,11 +634,11 @@ def _reason(tool: str, sid: str | None = None) -> str:
         f"set). {tool} is held. STOP GRACEFULLY NOW: commit your own work with explicit pathspecs "
         "(`git commit -m '<msg>' -- <paths>` — SINGLE-QUOTE the message: a quoted newline is data, but `$(…)`/heredoc and a backtick in double quotes stay refused), `git push`, close your run record (`command_run.py done|blocked`), "
         "then end the turn — no new edits, no new phases. Reads, git, command_run.py, mail.py, "
-        "thread_anchor.py, Monitor and TaskStop stay allowed. The hold lifts when the tick sees relief, "
+        "thread_anchor.py, the self-watch arm and TaskStop stay allowed. The hold lifts when the tick sees relief, "
         "and the lift WAKES every session whose self-watch is armed (a RESUME line naming where it left "
         "off) — an unarmed session stays idle until the operator restarts it, so ARM the self-watch NOW "
-        'if it is not: Monitor(persistent: true, command: "bash ~/.claude/bin/claude-selfwatch.sh '
-        f'{who}", description: "resume-mesh self-watch").'
+        'if it is not: Bash(run_in_background: true, command: "bash '
+        f'/opt/fabrik/scripts/sysadmin/selfwatch_arm.sh {who}").'
     )
 
 

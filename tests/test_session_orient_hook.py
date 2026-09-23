@@ -84,14 +84,12 @@ def test_selfwatch_arm_order_carries_the_real_session_id(tmp_path: Path) -> None
     rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj), "session_id": "sid-42-abc"}))
     assert rc == 0
     assert "ARM YOUR SELF-WATCH" in out
-    # Pin the invocation SHAPE, not just a substring: persistent:true is the one
-    # property that makes the watch pane-safe — dropping it must fail this test.
-    assert "Monitor(persistent: true" in out
-    assert 'command: "bash ~/.claude/bin/claude-selfwatch.sh sid-42-abc"' in out
-    # 2026-09-03: the watch is STANDING (loops after a wake; a duplicate arm exits at once) —
-    # an order that still says "fires ONCE — RE-ARM" breeds duplicate watchers per wake.
-    assert "STANDING watch" in out and "never re-arm" in out
-    assert "fires ONCE" not in out and "RE-ARM" not in out
+    # Pin the invocation SHAPE (D-356): a background Bash task through the arm wrapper — a Monitor
+    # ends within 30 minutes and has no persistent mode at 2.1.280.
+    assert "Bash(run_in_background: true" in out
+    assert 'command: "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh sid-42-abc"' in out
+    assert "ONE wake per arm" in out and "re-arm order" in out
+    assert "Monitor(persistent" not in out
 
 
 def test_no_branch_teaches_the_nohup_arming_form(tmp_path: Path) -> None:
@@ -112,8 +110,8 @@ def test_no_branch_teaches_the_nohup_arming_form(tmp_path: Path) -> None:
         assert rc == 0
         assert "nohup bash" not in out, f"nohup arming form leaked (source={payload.get('source')})"
         if payload.get("source") != "compact":
-            # the one arm order that prints must mandate the Monitor channel
-            assert "Monitor(persistent: true" in out
+            # the one arm order that prints must mandate the background-task channel (D-356)
+            assert "Bash(run_in_background: true" in out
 
 
 def test_arm_order_sanitizes_a_garbage_sid(tmp_path: Path) -> None:
@@ -126,7 +124,7 @@ def test_arm_order_sanitizes_a_garbage_sid(tmp_path: Path) -> None:
     rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj), "session_id": evil}))
     assert rc == 0
     assert "touch /tmp/pwned" not in out
-    assert "claude-selfwatch.sh x_" in out  # sanitized to the shared allowlist
+    assert "selfwatch_arm.sh x_" in out  # sanitized to the shared allowlist
 
 
 def test_headless_run_gets_no_arm_order(tmp_path: Path) -> None:

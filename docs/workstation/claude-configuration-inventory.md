@@ -133,7 +133,7 @@ re-fires the pipeline → ring), `claude-selfwatch.sh` (pane self-watch — EVER
 is ordered to arm it, first tool action: by the hub's `session_orient.py` in synced repos, by the
 user-level SessionStart hook `/opt/fabrik/scripts/sysadmin/claude_selfwatch_orient.sh` in every other
 `/opt` repo; consumes a pre-arm marker silently, consumes on fire — one wake per death record,
-STANDING since 2026-09-03: keeps watching after a wake, a duplicate arm per sid exits at once
+the watcher itself is STANDING since 2026-09-03 (it keeps watching after a wake; a duplicate arm per sid exits at once), but since D-356 it is armed as a background Bash task through `/opt/fabrik/scripts/sysadmin/selfwatch_arm.sh`, which STOPS it on its first wake — so each ARM yields one wake and the per-prompt check re-orders the arm
 (`<sess>.selfwatch.lock`), a `rate_limit` wait re-asks the quota helper every slice so a manual
 account switch ends it; network-gated for all classes),
 `claude-mesh-test.sh` (sandboxed fixture harness — 158 fixtures, silent), `claude-quota.py` (quota-wall parser + the ONE wait computation both revival layers consult; state in `.claude-manager/wall-state.json`, 0600), `claude-reboot-sweep.sh` (@reboot: resumes AUTONOMOUS-marked, mid-work, not-still-live sessions, staggered). Markers in the sound lock

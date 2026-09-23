@@ -43,8 +43,8 @@ def _home_with_watch(tmp_path: Path) -> Path:
 def test_emits_the_arm_order_with_the_real_sid_for_an_unhooked_opt_repo(tmp_path: Path) -> None:
     home = _home_with_watch(tmp_path)
     out = _run({"session_id": "sid-42-abc", "cwd": "/opt/fabrik-lib", "source": "startup"}, home)
-    assert 'command: "bash ~/.claude/bin/claude-selfwatch.sh sid-42-abc"' in out
-    assert "STANDING watch" in out and "never re-arm" in out
+    assert 'command: "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh sid-42-abc"' in out
+    assert "run_in_background: true" in out and "ONE wake per arm" in out
     assert "nohup bash" not in out
 
 
@@ -80,4 +80,4 @@ def test_fails_open_on_garbage_payloads_and_sanitizes_the_sid(tmp_path: Path) ->
     assert _run("not json", home) == ""
     assert _run([1, 2], home) == ""
     out = _run({"session_id": "x;rm -rf /", "cwd": "/opt/fabrik-lib"}, home)
-    assert "claude-selfwatch.sh x_rm_-rf__" in out
+    assert "selfwatch_arm.sh x_rm_-rf__" in out
