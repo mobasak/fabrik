@@ -636,7 +636,7 @@ DOCS UPDATED: <files | none>
 CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 DONE: <one line — what this run delivered: the commits/artifacts, not intentions>
-NEXT: <the next command or step, NAMED — /fabrik-<x> <args> | operator decision: <what> | none — terminal>
+NEXT: <the next command or step, NAMED — /fabrik-<x> <args> | operator decision: <what> — see DECISION NEEDED above | none — terminal>
 FEEDBACK: /<command> · <wall-clock> · rounds <n> (<confirmed trend, or the findings trend when a round never stated confirmed>) · tokens <input> input / <output> output (<n>% cached) · confusion: <…|none> · waste: <…|none> · change: <lean|fast|accurate|waste|infra|rules|manifesto>: <the one edit to this command or a rule | none — `none` carries no key> · filed: <mail id(s) to a beat | none — surfaces exercised: …> [· cost: <a plain amount, e.g. 0.0125 — prose is refused>]
 ```
 
@@ -648,7 +648,7 @@ changelog owed):
 
 ```
 STATE: <where things stand — the stage/board/loop position, one line>
-NEXT: <the successor: exact command · the operator decision awaited · "awaiting your reply" · none — terminal>
+NEXT: <the successor: exact command · the operator decision awaited — see DECISION NEEDED above · "awaiting your reply" · none — terminal>
 ```
 
 The footer never substitutes for the 7-line block on a task-completing response; a footer `NEXT:` naming
@@ -658,7 +658,7 @@ discipline:** `DONE:` states only what actually happened (commit hashes / files 
 exact operator decision, or `none — terminal`. A vague `NEXT:` is a missing line. If `NEXT:` names work THIS agent
 owns in THIS session, it is dispatched, not narrated.
 
-**⚠️ `NEXT: operator decision` HAS A BAR — it was the contract's only UNGUARDED exit, which is exactly why it gets abused.** Compare the three sanctioned `NEXT:` values: `BLOCKED:` has three named causes and a required format; a named command obliges you to RUN it; `operator decision` is legitimate only behind a **DECISION block** — the one legitimate way to hand the operator a decision:
+**⚠️ `NEXT: operator decision` HAS A BAR — it was the contract's only UNGUARDED exit, which is exactly why it gets abused.** Compare the three sanctioned `NEXT:` values: `BLOCKED:` has three named causes and a required format; a named command obliges you to RUN it; `operator decision` is legitimate only behind a **DECISION block**, written unfenced — a fenced example, like the two below, never exempts a turn:
 
 ```
 DECISION NEEDED (ground: gate|underivable|owned)
@@ -668,7 +668,7 @@ DECISION NEEDED (ground: gate|underivable|owned)
 - Recommendation: <A or B, and the one-line reason>
 ```
 
-The three grounds, kept whole from D-054: (1) `gate` — a **contractual human gate** (Gate 2, design approval, a store publish act, or a destructive/irreversible action needing authorisation; the § EXIT ad-hoc-branch disposition — keep-as-is · discard — is this ground, never a menu). (2) `underivable` — the answer **materially changes the work AND cannot be resolved** from the artifacts, the code, or `docs/DECISIONS.md`, with `searched:` naming what came back silent. (3) `owned` — the operator **already owns** that decision this turn: `asked:` quotes their own still-unanswered question verbatim; `scope:` quotes the line of their request this step goes past, refused while a command run record is `running` (the invoked command already grants its own scope). **Everything else is DISPATCHED, not offered** — an `(a)/(b)` options menu and a citation of your own reliability, fatigue or context budget are never legitimate grounds. A remaining task that is obvious is not a decision; it is your next action.
+The three grounds, kept whole from D-054: (1) `gate` — a **contractual human gate**, named by a token from the closed list: deploy · destructive · irreversible · spend (real money) · cross-repo · publish · credentials · design approval · plan approval · Gate 1 · Gate 2 · production data (the § EXIT ad-hoc-branch disposition — keep-as-is · discard — is this ground, never a menu). (2) `underivable` — the answer **materially changes the work AND cannot be resolved** from the artifacts, the code, or `docs/DECISIONS.md`, with `searched:` naming what came back silent. (3) `owned` — the operator **already owns** that decision this turn: `asked:` quotes their own still-unanswered question verbatim; `scope:` quotes the line of their request this step goes past, refused while a command run record is `running` (the invoked command already grants its own scope). **Everything else is DISPATCHED, not offered** — an `(a)/(b)` options menu is never legitimate: derive the verdict, state it, proceed. Citing your own reliability, fatigue or context budget is a `BLOCKED:` if it is anything at all. A remaining task that is obvious is not a decision; it is your next action.
 
 Legitimate:
 ```
