@@ -1,6 +1,6 @@
 # Plan 1 (2026-09-23) — premature stops and compaction survival: the DEFERRAL shape, the DECISION block, WHERE YOU ARE
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: standard
 **Owner:** infra (the unnamed hub window)
 **Spec:** `docs/superpowers/specs/2026-09-23-stop-and-compaction-enforcement-design.md` — CONVERGED (D-371), design APPROVED by the operator 2026-09-23 (D-377).
