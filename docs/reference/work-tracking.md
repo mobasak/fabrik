@@ -18,16 +18,17 @@ A repo without `.fabrik/work/config.json` is untouched by every hook and every v
 nothing is created anywhere until `work.py init` runs once. `init` takes no lock — `config.json` is
 written by an exclusive link (one winner) — and refuses if another working tree of the same
 repository already has a store (every worktree shares one git common directory, so a second `init`
-would fork `config.json`). Without `--distributor`, it asks
-`python3 /opt/fabrik/scripts/decisions.py --merge-owner .` (hub-only, absolute path); with none
-recorded, the store's `distributor` field is left empty and `assign` is open to any agent.
+would fork `config.json`). Without `--distributor`, it runs `<the current interpreter>
+/opt/fabrik/scripts/decisions.py --merge-owner <the resolved absolute repo root>` (hub-only, 30 s
+timeout); a name that isn't a valid agent name is warned about on stderr and dropped. With no name
+recorded either way, the store's `distributor` field is left empty and `assign` is open to any agent.
 
 ## Two homes
 
 | State | Home | Versioned? | Why there |
 |---|---|---|---|
 | **Durable item** — what the work is, who owns it, where it stands | `.fabrik/work/<id>.json`, one pretty-printed JSON file per item, sorted keys | yes, committed | outlives every session; `git log -p` on the file is its history — items are never deleted, only ended `done`/`dropped` |
-| **Live claim, closed markers, readings** | `$(git rev-parse --path-format=absolute --git-common-dir)/fabrik-work/` | no (the store's own `.gitignore` covers stray temp files) | the git common directory is shared by the main checkout and every worktree, so all agents see one claim table without a worktree writing outside its own tree (`docs/reference/multi-agent-operating-model.md:111-117`) |
+| **Live claim, closed markers, readings** | `$(git rev-parse --path-format=absolute --git-common-dir)/fabrik-work/` | no (this lives inside `.git` itself, which git never tracks as content — no `.gitignore` covers it or could; the only `.gitignore` this mechanism writes is `.fabrik/work/.gitignore`, in the COMMITTED store, covering its own stray `*.tmp` files) | the git common directory is shared by the main checkout and every worktree, so all agents see one claim table without a worktree writing outside its own tree (`docs/reference/multi-agent-operating-model.md` § Locks — `.fabrik/plan-locks/`, per working tree — "never write a lock outside the tree you are in") |
 
 ## The item
 
@@ -38,12 +39,12 @@ plus a random nonce, exclusive-created so a collision just retries with a fresh 
 |---|---|
 | `id`, `title`, `creator`, `created` | identity |
 | `kind` | `backlog` · `decision` (awaiting the operator — created only by the Stop-hook harvest, never by `add`) · `next` · `task` |
-| `status` | closed vocabulary: `open` · `blocked` · `awaiting-operator` · `done` · `dropped`. **"Claimed" is never a stored status** — an item is claimed only while a live claim file exists in the shared dir and its lease has not passed, so a crashed claimer's item becomes ready again by itself. |
+| `status` | closed vocabulary: `open` · `blocked` · `awaiting-operator` · `done` · `dropped`. **"Claimed" is never a stored status** — an item is claimed only while a live claim file exists in the shared dir and its lease has not passed, so a crashed claimer's item becomes ready again by itself. `blocked` genuinely gates readiness when set (`ready`'s `_is_ready` excludes anything but `open`; `claim` refuses a `blocked` item by name) — but no verb ever WRITES it today; see `blocked_by`. |
 | `priority` | 0 (urgent) to 3 (someday), default 2 |
 | `owner` | agent name (`[a-z0-9-]{1,32}`, `whoami_agent.py`'s rule), set by the distributor; empty means unassigned |
 | `links` | `{spec, plan, decision}` — paths and D-ids the item tracks |
-| `blocked_by` | item ids; `claim`/`ready` treat the item as blocked until each one reads `done` or `dropped` (here, or closed by a marker elsewhere) — this, not the `blocked` status value, is what actually gates readiness today |
-| `next` | the concrete next action, one line (max 300 characters); a `NEXT:` line naming an item id updates this field |
+| `blocked_by` | item ids that, if present, would gate `ready` and `claim` until each reads `done`/`dropped` (here, or closed by a marker elsewhere) — genuinely READ by both (`_is_ready`, `_refuse_blocked`). In practice it never blocks anything today: `add` has no `--blocked-by` flag and every item is minted with `blocked_by: []`, so nothing currently WRITES this field. |
+| `next` | the concrete next action, one line. A `NEXT:` line naming an item id updates this field, clipped to 300 characters (`_set_next`'s own cap) — `add --next` and `migrate-backlog` store their text in full, with no such limit |
 | `evidence` | set by `done`: a commit SHA whose message names the item id |
 | `legacy` | `true` only on items `migrate-backlog` created from rows already resolved; exempt from the evidence rule |
 | `question`, `ground`, `msg_digests`, `block_digest` | `kind: decision` only: the plain-words question, the DECISION block's `ground:` token, every message digest that created or refreshed the item, and the block's own digest |
@@ -63,16 +64,21 @@ plus a random nonce, exclusive-created so a collision just retries with a fresh 
 - **The lease.** A claim is `{agent, session, at, lease_s, token}`; the default lease is 2 h. Any
   write by the claiming session renews it, and the Stop-hook harvest renews every live claim of the
   session on **every** Stop — including a blocked one — so a normal turn's heartbeat costs no extra
-  verb. `token` only ever grows: `done`/`release` are refused unless the caller's session holds the
-  live claim at its current token, or there is none — a session whose expired claim was taken over
-  cannot overwrite the new claimer's result (executed: a second session's `claim` on an already-held
-  item is refused by name — `claim W-… refused: it is held by session …, token …, lease until …`).
+  verb. `token` is a counter recorded on the claim, bumped by one on every new claim (including a
+  takeover) — it is never supplied by the caller (no verb has a `--token` flag) and the fence never
+  compares it. The fence itself (`_fence`) compares SESSION identity only: `done`/`release`/`answer`/
+  `drop` are refused unless the caller's session matches the live claim's session, or there is none — a
+  session whose expired claim was taken over cannot overwrite the new claimer's result (executed: a
+  second session's `claim` on an already-held item is refused by name — `claim W-… refused: it is
+  held by session …, token …, lease until …`).
 - **Closing across worktrees.** `done`, `drop` and `answer` write the item in the caller's own tree
   only, plus a closed marker in `fabrik-work/closed/`, so another tree of the repo stops listing an
-  item finished on an unmerged branch. A marker is pruned once the store's recorded base branch
+  item finished on an unmerged branch. A marker is DELETED only once the store's recorded base branch
   (`config.json`'s `base_branch`, read as a ref — never whatever a checkout happens to have checked
-  out) reads the item `done`/`dropped`, or after 14 days (the branch was never merged), whichever
-  first.
+  out) reads the item `done`/`dropped` (or it is this tree's own crash residue). Age never deletes a
+  marker: past 14 days it merely STOPS hiding its item — `ready`/`status` see the item again — while
+  the marker file itself stays on disk. Drift class 6 relies on exactly that: a marker still present
+  past 14 days, next to an item its base branch still reads open, is what class 6 reports.
 
 ## The CLI — `scripts/work.py`
 
@@ -96,8 +102,18 @@ verbs:
 | `render` | pipeline, agents | regenerate the backlog's `AUTO-GENERATED:BACKLOG` block — its only writer |
 | `migrate-backlog` | once per repo | turn existing `docs/STRATEGIC_BACKLOG.md` rows into items, idempotently (re-running adds nothing already migrated) |
 
-`--repo <path>` (any path inside the repo, default cwd) is common to every verb. `done`/`drop`/`claim`/
-`release`/`answer` default `--session` to `CLAUDE_CODE_SESSION_ID`.
+`--repo <path>` (any path inside the repo, default cwd) is a TOP-LEVEL option and must come BEFORE the
+verb — `work.py --repo <path> ready`, never `work.py ready --repo <path>` (after the verb it is an
+unrecognized argument, exit 2). `done`/`drop`/`claim`/`release`/`answer` default `--session` to
+`CLAUDE_CODE_SESSION_ID`.
+
+**Ownership is not identity-enforced for every verb.** `drop` checks `owner`/`distributor`, and
+`assign` checks `distributor` alone (when one is named); `claim`, `done`, `release` and `answer`
+check neither — they fence on SESSION identity alone (§ Identity, the lock, the lease, above), never
+on the item's `owner` field. So "the owner, the distributor, or anyone for an unassigned item"
+(`drop`'s row) and `assign`'s "distributor" are enforced rules, while "worker" (`claim`/`done`/
+`release`) and "the agent the operator answered" (`answer`'s row) above are conventions the CLI does
+not check — any named session can claim and finish any item regardless of who it is assigned to.
 
 ## Ownership and the distributor
 
@@ -124,6 +140,10 @@ also does, when the repo has a store:
   that, an OPEN awaiting item with the same block digest is refreshed (its `msg_digests` grows); failing
   that, a new item is created. An answered item is never reopened by the same message harvested again;
   a word-for-word re-ask **after** an answer arrives in a genuinely new message and starts a new item.
+  This `--decision-ok` re-run happens ONLY at a Stop the hook ALLOWS (a pass-through, the quota hold,
+  or a non-fabrik project) — never at a Stop it blocks. On a blocked Stop the accepted block becomes
+  neither a per-session slot entry nor a work-store item; it is genuinely lost unless a LATER, allowed
+  Stop re-judges the same text.
 - **Every Stop, blocked ones included, renews claims.** The plain harvest (never `--decision-ok`) runs
   on every Stop with `--repo` when the payload carries one — even when no text reached it (the
   end-of-turn flush race), it still calls `on_harvest`, which renews every live claim of the session.
@@ -172,8 +192,11 @@ window**: `config.json`'s `migrated_at` is set (by `migrate-backlog`, once) and 
 classes 1/7/8, drift is printed but the exit code stays 0. **On the completion gate**, this is the
 `Work items (sync)` row (`scripts/final_gate.py`): it reds on exactly that same
 `exit 1` + a `DRIFT <n> (blocking)` line combination — never on advisory drift, which passes with a
-`⚠` line the JSON `warnings` carries — and a broken tool (`work.py` missing, a timeout, an old copy
-with no `sync` verb, a crash) is reported as a named skip that still passes, never a red: a repo that
+`⚠` line the JSON `warnings` carries — and a broken tool is reported without ever reddening, in one
+of two SHAPES: a MISSING `work.py` prints the plain `Work items (sync)` row with `⚠ check not
+present, skipping: scripts/work.py`; a `work.py` that exists but times out, crashes, or predates the
+`sync` verb prints the DECORATED `Work items (sync) (NOT RUN — <reason>)` row instead — a different
+row name (`skipped_checks` sees the decorated one, never the plain one), both passing. A repo that
 never `init`s a store is not penalised, but the `⚠` lines keep a skip visible rather than silently
 green.
 
@@ -187,15 +210,21 @@ tag, a checkbox, or a strikethrough; or a row of a table with a Tag/Owner column
 an untagged bullet, a narrative sub-header, prose, a fenced block — is body text of the row above it,
 kept in full in the item's `next`. A row-start line that still fails to parse further (no tag found)
 becomes an item with an empty `owner`, listed by `migrate-backlog` as needing the distributor — nothing
-is dropped. A resolved row (a `[x]` checkbox, a leading strikethrough, or a RESOLVED/CLOSED/DONE/
-LANDED/MOOT/SHIPPED marker in status position) becomes `done` with `legacy: true`, exempt from the
-evidence rule.
+is dropped. A resolved row — a `[x]` checkbox or a leading strikethrough (either sufficient on its
+own), or `✅`/RESOLVED/CLOSED/DONE/LANDED/MOOT/DRILLED/SHIPPED sitting in a STATUS POSITION (right
+after the tag, after an em dash, immediately before a date/D-id, or — in a table row — as a cell's
+first token), UNLESS negated by an immediately preceding PARTIALLY/PARTLY/NOT or a following
+stays/still/remains-open phrase that is not itself past tense — becomes `done` with `legacy: true`,
+exempt from the evidence rule.
 
 After migration, `render` regenerates `docs/STRATEGIC_BACKLOG.md`'s `AUTO-GENERATED:BACKLOG` block —
-byte-deterministic, no timestamp, so the daily pipeline and agents never churn it — listing every open
-`kind: backlog` item as `- **[owner or "unassigned"]** title (\`id\`)`, sorted by priority then owner
-then id. It is the block's only writer; new backlog work is `work.py add --kind backlog`, never a hand
-edit of the block.
+byte-deterministic, no timestamp, so the daily pipeline and agents never churn it — listing every
+`kind: backlog` item whose status is not `done`/`dropped` (so a `blocked` item lists too, not only an
+`open` one) as `- **[owner or "unassigned"]** title (\`id\`)`, sorted by priority then owner then id.
+It is the block's only writer; new backlog work is `work.py add --kind backlog`, never a hand edit of
+the block. A repo with no `docs/STRATEGIC_BACKLOG.md` at all still gets `migrated_at` recorded by
+`migrate-backlog` — nothing to migrate, but the repo enters the migration window like any other — and
+`render` there is a no-op rather than a failure, the shape the fleet's unfilled template repos need.
 
 ## The native Task list
 
@@ -219,7 +248,11 @@ governance sync once `scripts/work.py` merges.
 A `work.py` failure never blocks a Stop — every hook-facing call fails open, like
 `thread_anchor.py`'s own calls. The one write that must not be lost, a DECISION block's item, gets the
 second chance above and a printed warning if that also fails. A corrupt item file is reported by
-`sync`/`status` and skipped by `ready`. A missing store reads as empty everywhere.
+`sync`/`status` and skipped by `ready`. A missing store reads as empty only through the hook-facing
+API (`has_store`, `on_harvest`, `ensure_decision_item[s]`, `has_msg_digest`, `prompt_block`) and
+through `sync` (one line, exit 0); every OTHER CLI verb — `add`, `assign`, `ready`, `next`, `claim`,
+`release`, `done`, `drop`, `answer`, `status`, `render`, `migrate-backlog` — exits 1 with the `init`
+refusal instead.
 
 <!-- BEGIN related-scripts: generated by scripts/render_doc_script_links.py — do not hand-edit -->
 ## Related scripts

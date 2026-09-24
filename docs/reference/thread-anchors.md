@@ -19,7 +19,7 @@ same `mail_notify.py` pattern that makes mail structurally unmissable.
 
 | Verb | Caller | Does |
 |---|---|---|
-| `harvest` | TWO passes. Stop hook (`final_gate_stop.py`, best-effort, 5s timeout, skips if unsynced): runs BEFORE the hook's `final_gate.py` eligibility return with a `__file__` fallback root, emitting an `anchor_harvest` kaizen event (`tp`, `chars`) per attempt. That telemetry measured the REAL root cause on its first day (2026-08-29): the harness can fire Stop before the final text entry is flushed, so Stop-time extraction reads the closing tool_use entry as empty (chars=0 vs 3749 ten minutes apart). Hence the second pass: `line --hook` (prompt-time) also harvests from the payload's transcript — race-free by construction, catching whatever Stop raced past one turn later. Both extractors skip textless assistant entries. | Extracts the last `NEXT:` footer of the final message (`_next_values`, `:78`) — plain, bold (`**NEXT:**`, `__NEXT:__`), bulleted or quoted, the shapes the Stop hook reads as the footer; a line inside a closed code fence or indented 4+ spaces is skipped, and a quoted `> NEXT:` counts only when no unquoted one exists. **Anchor shapes** — `N of M`, a `docs/development/{plans,epics,certifications}/` path, `phase X` — persist; keyed with digits masked, so "15 of 31" *updates* the "14 of 31" anchor rather than stacking. Plain successors just roll the latest-NEXT slot. |
+| `harvest` | TWO passes. Stop hook (`final_gate_stop.py`, best-effort, 5s timeout, skips if unsynced): runs BEFORE the hook's `final_gate.py` eligibility return with a `__file__` fallback root, emitting an `anchor_harvest` kaizen event (`tp`, `chars`) per attempt. That telemetry measured the REAL root cause on its first day (2026-08-29): the harness can fire Stop before the final text entry is flushed, so Stop-time extraction reads the closing tool_use entry as empty (chars=0 vs 3749 ten minutes apart). Hence the second pass: `line --hook` (prompt-time) also harvests from the payload's transcript — race-free by construction, catching whatever Stop raced past one turn later. Both extractors skip textless assistant entries. | Extracts the last `NEXT:` footer of the final message (`_next_values`, `:90`) — plain, bold (`**NEXT:**`, `__NEXT:__`), bulleted or quoted, the shapes the Stop hook reads as the footer; a line inside a closed code fence or indented 4+ spaces is skipped, and a quoted `> NEXT:` counts only when no unquoted one exists. **Anchor shapes** — `N of M`, a `docs/development/{plans,epics,certifications}/` path, `phase X` — persist; keyed with digits masked, so "15 of 31" *updates* the "14 of 31" anchor rather than stacking. Plain successors just roll the latest-NEXT slot. |
 | `line` | `SessionStart` + `UserPromptSubmit` (`--hook`: session id from stdin JSON) | Prints ≤4 open anchors (newest first, with age) + the latest NEXT if distinct. **Silent when empty** — an always-on block is wallpaper, and wallpaper is how CI died. |
 | `done --match <substr>` | The agent, when a thread genuinely ends | Closes matching anchors AND the latest-NEXT echo (found by the suite's own red: `done` removed the anchor and the stale echo resurrected it one line lower). |
 
@@ -27,7 +27,7 @@ Session-scoped (three concurrent sessions share this repo); state survives compa
 disk, not context. Every path fails open — this runs inside the Stop hook, where an exception blocks
 end-of-turn fleet-wide. Caps: 4 shown (young, < 72 h), 12 stored young + 50 folded.
 
-**The 72 h fold** (`_FOLD_AGE_S`, `scripts/thread_anchor.py:128`): an anchor younger than 72 h is
+**The 72 h fold** (`_FOLD_AGE_S`, `scripts/thread_anchor.py:140`): an anchor younger than 72 h is
 shown in full and counts against the 12-anchor cap; at or past 72 h it folds into one summary
 line ("N older thread(s), oldest …") and counts against a separate 50-anchor cap instead — an
 eviction under EITHER cap drops the OLDEST anchor of its own class and the drop is COUNTED, never
@@ -38,14 +38,17 @@ anchor, and the fold line says how many were dropped.
 
 On a `SessionStart` whose `source` is `compact`, `line --hook` prints `## ⏮ WHERE YOU ARE —
 rebuilt from records after the compaction` INSTEAD of the usual `## 🧵 OPEN THREADS` block
-(`cmd_where`, `scripts/thread_anchor.py:686`), built ONLY from records — never from an
+(`cmd_where`, `scripts/thread_anchor.py:865`), built ONLY from records — never from an
 agent-written summary, which the compaction just replaced with a model's paraphrase. Five items,
 each omitted on its own failure (one stderr line) rather than failing the whole block:
 
 1. The live command run (`_run_record`), when its state is `running`.
 2. The last `NEXT:` line, when it is not already shown as an anchor below.
 3. An open DECISION block (below), rendered verbatim, prefixed `- OPEN DECISION — awaiting the
-   operator's answer; never treat it as settled:` (`scripts/thread_anchor.py:721`).
+   operator's answer; never treat it as settled:` (`scripts/thread_anchor.py:901`) — left out only
+   when the repo's work store already holds an item for that message (`_in_store`,
+   `scripts/thread_anchor.py:924`, wrapping `has_msg_digest`; D-402): the unfolded work block above
+   already lists it there, so this item is not a second copy.
 4. This session's own unpushed commits and dirty files (`_session_git`) — scoped to files THIS
    session authored (`session_unpushed`, `_this_sessions_edits`, imported from the Stop hook by
    path), so a sibling's commit on the shared branch never appears here.
@@ -66,9 +69,9 @@ budget, and the costly items (the run record, the git/transcript scan) collapse 
 **The DECISION harvest and clear.** A DECISION block is stored ONLY when the Stop hook passes
 `harvest --decision-ok` — it does so ONLY when it accepted the block (`parse_decision_block`
 returned `True`) — so a refused or malformed block never resurfaces after a compaction as if it
-were open (`cmd_harvest`, `scripts/thread_anchor.py:469`). It is cleared by the very next
-`UserPromptSubmit` (`cmd_clear_decision`, `:516`) UNLESS that prompt's WHOLE first token,
-case-insensitively, is one of the 35 **built-in slash commands** (`_BUILTIN_SLASH`, `:133` —
+were open (`cmd_harvest`, `scripts/thread_anchor.py:535`). It is cleared by the very next
+`UserPromptSubmit` (`cmd_clear_decision`, `:689`) UNLESS that prompt's WHOLE first token,
+case-insensitively, is one of the 35 **built-in slash commands** (`_BUILTIN_SLASH`, `:145` —
 `/compact`, `/context`, `/cost`, `/model`, `/clear`, `/help`, `/resume`, `/rewind`, `/mcp`, …): a
 custom command (`/fabrik-deploy prod`) or a command merely SHARING a built-in's prefix
 (`/contextualize x`) both clear it, like plain text, because either is the operator acting on the
