@@ -177,6 +177,26 @@ When the vendor didn't answer, we determined this empirically:
     - Cost reconciliation (monthly close)
 -->
 
+### Task: Audit-log retention and chain verification (database projects)
+
+- **Cadence:** `RESILIENCE.md` §7 rows `audit_log_retention` and `audit_log_verify`. They run
+  from the saas worker's beat loop, or from the `<name>-audit-jobs` companion service
+  (`python -m <package>.audit_jobs`) for the other Python backends.
+- **Owner:** [name / role]
+- **Trigger:** an `audit_jobs: incident` log line (a chain break, `audit_log` not owned by the
+  owner role, or a role holding `UPDATE`/`DELETE`/`TRUNCATE` on it), or
+  `audit_jobs: not_configured` persisting after the first deploy.
+- **Steps:**
+  1. Run a job by hand: `python -m <package>.audit_jobs verify` (or `retention`), with
+     `DATABASE_URL_OWNER` set. `verify` exits non-zero when it finds an incident.
+  2. For a chain break, follow `core/app-audit-log.md` § Hash-Chain Verification: freeze
+     writes, list breaks via the `audit_log_chain_check` view over the post-retention
+     window, and treat the break as a security incident.
+  3. For a privilege finding, re-run `fabrik apply` for the project (the registrar re-applies
+     the revokes), then re-run `verify`.
+- **Verification:** `audit_jobs: verify_done incidents=0`, and `audit_jobs_state.verified_through`
+  advanced to the latest verified row.
+
 ### Task: [Task name]
 
 - **Cadence:** [link to RESILIENCE §7 row OR "manual: weekly / monthly / when balance < $X"]

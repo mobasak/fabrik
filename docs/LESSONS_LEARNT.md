@@ -1,6 +1,19 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A hub guard keyed on an env-configurable root is off whenever a worktree sets that root (2026-09-24)
+
+A T05 coder ran the scaffold suites with `FABRIK_ROOT=<worktree>` so the tests would see its template edits —
+the scaffolder resolves every template through `FABRIK_ROOT`. `tests/test_scaffold_fix.py::test_fix_project_refuses_hub`
+then ran `fix_project(/opt/fabrik)` for real, because `_assert_not_hub` compares against `FABRIK_ROOT`, which now
+named the worktree. It reverted 21 rule packs, deleted one and patched `.gitignore` in the SHARED checkout. The
+coder restored it; the orchestrator re-verified all 60 tracked packs and `.gitignore` byte-identical to master,
+found no commit in the window, and confirmed the fleet sync reads HEAD, not the working tree — so nothing
+reached another project. The rule: a guard that protects a fixed resource detects the resource itself (its
+marker files), never an env-derived path to it; and a test run that overrides a root runs only the suites that
+cannot reach the guarded action (`runtests_root.py` refuses any that name `fix_project`). After any run that
+failed a "refuses X" assertion, check X. Backlog: the `_assert_not_hub` hardening.
+
 ## 2026-09-20 — An exhaustive search of ONE config file is not an absence
 
 Reporting on Volkan's Mac, I walked `~/.claude.json` recursively — all 75 top-level keys, 79 KB —

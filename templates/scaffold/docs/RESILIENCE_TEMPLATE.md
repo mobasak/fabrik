@@ -468,6 +468,8 @@ The Beat / cron jobs that detect depletion BEFORE workers fail. **Every external
 | `cert_expiry_check`          | daily    | Alert if any TLS cert <14d to expiry _(Gatus handles this)_     |
 | `backrest_restore_drill`     | quarterly | Manual: restore latest snapshot to a staging volume, validate   |
 | `cold_data_offload`          | nightly  | `rclone sync --min-age 30d` to B2 (§6f)                         |
+| `audit_log_retention` _(database projects)_ | daily | `audit_jobs.run_retention()` — the vendored `libs/audit_log/data_retention.sql` as the owner (`DATABASE_URL_OWNER`) |
+| `audit_log_verify` _(database projects)_ | weekly | `audit_jobs.run_verify()` — `verify_chain(strict=True)` from the `audit_jobs_state` cursor + `audit_log` owner/privilege checks; any finding logs `audit_jobs: incident` |
 
 ---
 
@@ -496,6 +498,7 @@ Every TTL, floor, threshold, and interval in this file is a single env var. Ops 
 | `DISK_ALERT_PCT`                      | 95          | Disk-usage pct at which to page separately             |
 | `WORKER_MAX_TASKS_PER_CHILD`          | 100         | Bound OOM blast radius per worker child                |
 | `<LOOP>_STALL_ALARM_AFTER_S`          | 1800        | Zero-progress seconds before the provider-death alarm fires (§3b outcome 3) |
+| `AUDIT_JOBS_TICK_SEC`                 | 3600        | How often the audit-jobs scheduler checks which of the two audit jobs is due |
 
 ---
 

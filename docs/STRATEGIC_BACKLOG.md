@@ -4887,3 +4887,12 @@ build on the VPS; `tests/orchestrator/test_infrastructure.py` takes ~16 min of s
 plan audit-log-everywhere T04, filed as mail 01M39XVS. The fix is a default-deny conftest guard on `_run_sql`,
 the ssh driver and the watchdog remote build, with an explicit per-module opt-in; T04's own stub
 (`_no_live_app_role_step`) covers only the app-role step. Measure the red set under the guard first.
+
+## [fleet] `fix_project`'s hub guard keys on `FABRIK_ROOT`, so a worktree override turns it off (2026-09-24)
+
+`src/fabrik/scaffold.py::_assert_not_hub` compares the target against `FABRIK_ROOT`; with `FABRIK_ROOT` set to
+a worktree (which the scaffold tests need, since templates resolve through it), `fix_project(/opt/fabrik)` runs
+for real and rewrites the shared checkout — it did, during plan audit-log-everywhere T05 (restored, verified
+byte-identical to master, nothing distributed). Fix: refuse any directory that IS a hub checkout (detect its
+marker files, e.g. `scripts/fabrik_synced_manifest.py` + `src/fabrik/`), with a test that sets `FABRIK_ROOT`
+elsewhere and still gets the refusal. Owner: fleet (scaffolding). See docs/LESSONS_LEARNT.md (2026-09-24).

@@ -229,6 +229,25 @@ def test_grants_batch_public_create_audit_block_and_memberships() -> None:
     assert sorted(x.strip('"') for x in role_grants) == ["anon", "authenticated", "service_role"]
 
 
+def test_grants_batch_is_one_transaction_and_keeps_the_cursor_row_unwritable() -> None:
+    """T05 fixups r1 items 2 and 3: the blanket ALL-TABLES grant never commits alone (the
+    whole batch is one transaction after ``\\c``), and the audit-jobs cursor table loses
+    the writes that grant re-hands the app, the watchdog rw role and the group roles."""
+    _, calls = _capture(exists=True)
+    grants = calls[-1]
+    lines = grants.splitlines()
+    assert lines[:3] == ["\\set ON_ERROR_STOP on", f"\\c {DB}", "BEGIN;"]
+    assert grants.rstrip().endswith("COMMIT;")
+    assert grants.count("BEGIN;") == 1 and grants.count("COMMIT;") == 1
+    cursor = "REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.audit_jobs_state FROM %I"
+    assert "IF to_regclass('public.audit_jobs_state') IS NOT NULL THEN" in grants
+    assert cursor in grants
+    roles = f"ARRAY['{APP}', '{DB}_wd_rw', 'anon', 'authenticated', 'service_role']"
+    assert f"FOREACH r IN ARRAY {roles} LOOP" in grants
+    assert grants.index("ON ALL TABLES IN SCHEMA") < grants.index(cursor)
+    assert grants.index(cursor) < grants.index("COMMIT;")
+
+
 def test_dry_run_sends_no_sql() -> None:
     with patch.object(pg, "_run_sql") as run, patch.object(pg, "_db_owner") as owner:
         res = pg.ensure_app_role(DB, dry_run=True)
@@ -304,6 +323,21 @@ def test_probe_reports_each_violation_and_ignores_connection_line() -> None:
     body = "\n".join(ln for ln in calls[0].splitlines() if not ln.startswith("\\"))
     stmts = [s.strip() for s in body.split(";") if s.strip()]
     assert stmts and all(s.upper().startswith("SELECT") for s in stmts), stmts
+
+
+def test_probe_cursor_table_needs_select_only_and_reports_writes() -> None:
+    """T05 fixups r2: audit_jobs_state is written only by the owner, so the probe asks the
+    app for SELECT there (never INSERT) and REPORTS any write held on it."""
+    out = _row("cursor_priv", f"{DB}_wd_rw", "UPDATE") + _row("done").rstrip(RS)
+    failures, calls = _probe(out)
+    assert failures == [f"{DB}_wd_rw holds UPDATE on audit_jobs_state"]
+    sql = calls[0]
+    assert (
+        "AND NOT (t.schemaname = 'public' AND t.tablename = 'audit_jobs_state' "
+        "AND p.priv = 'INSERT')"
+    ) in sql
+    assert "to_regclass('public.audit_jobs_state')" in sql
+    assert "('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE')" in sql
 
 
 def test_probe_reports_attributes_memberships_and_owned_databases() -> None:

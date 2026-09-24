@@ -1080,9 +1080,15 @@ def _app_role_grants_sql(db_name: str, app: str, owner: str) -> str:
         "  END IF;"
         for g in _PATTERN_A_GROUP_ROLES
     )
+    rw = f"{db_name}{_WD_RW_SUFFIX}"
+    cursor_roles = ", ".join(f"'{r}'" for r in (app, rw, *_PATTERN_A_GROUP_ROLES))
     parts = [
         "\\set ON_ERROR_STOP on",
         f"\\c {db_name}",
+        # ONE transaction: the blanket ALL-TABLES grant below must never commit before the
+        # audit_log / audit_jobs_state revokes that follow it (a failure mid-batch exits
+        # psql under ON_ERROR_STOP, and the server rolls the whole batch back).
+        "BEGIN;",
         # Re-assert least-privilege attributes on every apply (a stale role keeps none).
         f'ALTER ROLE "{app}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS '
         "NOREPLICATION;",
@@ -1119,6 +1125,18 @@ def _app_role_grants_sql(db_name: str, app: str, owner: str) -> str:
         f"{audit_revokes}\n"
         f"    EXECUTE 'GRANT INSERT, SELECT ON public.audit_log TO \"{app}\"';\n"
         "  END IF;\nEND $$;",
+        # audit_jobs_state (the scheduled audit jobs' cursor row, written only by the owner):
+        # take back the writes the ALL-TABLES grant above just re-handed the app, and that
+        # the watchdog step re-hands <db>_wd_rw, exactly as the scaffolded schema revokes them.
+        "DO $$\nDECLARE r text;\nBEGIN\n"  # nosec B608 — identifiers _validate_identifier-gated
+        "  IF to_regclass('public.audit_jobs_state') IS NOT NULL THEN\n"
+        f"    FOREACH r IN ARRAY ARRAY[{cursor_roles}] LOOP\n"
+        "      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN\n"
+        "        EXECUTE format('REVOKE INSERT, UPDATE, DELETE, TRUNCATE "
+        "ON public.audit_jobs_state FROM %I', r);\n"
+        "      END IF;\n"
+        "    END LOOP;\n"
+        "  END IF;\nEND $$;",
         # Memberships converge to EXACTLY: each Pattern A role the owner is a member of,
         # granted by us, INHERIT FALSE, SET TRUE, no ADMIN. Every other pg_auth_members
         # row for the app is revoked under its own grantor, then the three are granted.
@@ -1136,6 +1154,7 @@ def _app_role_grants_sql(db_name: str, app: str, owner: str) -> str:
         "  END LOOP;\n"
         f"{memberships}\n"
         "END $$;",
+        "COMMIT;",
     ]
     return "\n".join(parts) + "\n"
 
@@ -1196,8 +1215,11 @@ def ensure_app_role(
     revoked from PUBLIC and the Pattern A group roles; ``audit_log`` re-owned to the
     owner, ``ALL`` revoked from PUBLIC and ``UPDATE, DELETE, TRUNCATE, TRIGGER,
     REFERENCES`` from the app, ``<db>_wd_rw`` and the group roles (``CASCADE``), then
-    ``INSERT, SELECT`` granted to the app; memberships converged to exactly the
-    Pattern A roles the owner holds, ``WITH INHERIT FALSE, SET TRUE``.
+    ``INSERT, SELECT`` granted to the app; ``INSERT, UPDATE, DELETE, TRUNCATE`` on the
+    audit jobs' ``audit_jobs_state`` cursor revoked from the app, ``<db>_wd_rw`` and the
+    group roles; memberships converged to exactly the Pattern A roles the owner holds,
+    ``WITH INHERIT FALSE, SET TRUE``. The whole batch is ONE transaction
+    (``BEGIN``/``COMMIT``), so the blanket grant never commits before its revokes.
 
     Returns ``{"user", "owner", "password", "status"}`` — ``password`` only on
     ``created`` / ``reset``. In ``dry_run`` no SQL runs at all and ``owner`` is
@@ -1336,11 +1358,14 @@ def _app_role_probe_sql(db_name: str, app: str, owner: str) -> str:
         f"SELECT {_probe_row('table_owner', qname.format(s='t.schemaname', t='t.tablename'), 't.tableowner')} "
         f"FROM pg_tables t WHERE t.schemaname IN ({schemas}) AND t.tableowner <> '{owner}' "
         "ORDER BY 1;\n"
-        # The app can SELECT and INSERT every table, and use every sequence.
+        # The app can SELECT and INSERT every table, and use every sequence — except the
+        # audit jobs' cursor table, which only the owner writes (SELECT is all it needs).
         f"SELECT {_probe_row('table_priv', 'p.priv', qname.format(s='t.schemaname', t='t.tablename'))} "
         f"FROM pg_tables t CROSS JOIN (SELECT oid FROM pg_roles WHERE rolname = '{app}') a "
         "CROSS JOIN (VALUES ('SELECT'), ('INSERT')) p(priv) "
-        f"WHERE t.schemaname IN ({schemas}) AND NOT has_table_privilege(a.oid, "
+        f"WHERE t.schemaname IN ({schemas}) "
+        "AND NOT (t.schemaname = 'public' AND t.tablename = 'audit_jobs_state' "
+        "AND p.priv = 'INSERT') AND NOT has_table_privilege(a.oid, "
         "quote_ident(t.schemaname) || '.' || quote_ident(t.tablename), p.priv) ORDER BY 1;\n"
         f"SELECT {_probe_row('seq_priv', qname.format(s='s.schemaname', t='s.sequencename'))} "
         f"FROM pg_sequences s CROSS JOIN (SELECT oid FROM pg_roles WHERE rolname = '{app}') a "
@@ -1355,6 +1380,16 @@ def _app_role_probe_sql(db_name: str, app: str, owner: str) -> str:
         f"SELECT {_probe_row('audit_priv', 'r.who', 'p.priv')} "
         "FROM (SELECT to_regclass('public.audit_log') AS t) x "
         "CROSS JOIN (VALUES ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('TRIGGER'), ('REFERENCES')) "
+        f"p(priv) CROSS JOIN ({actors} UNION SELECT g.rolname::text, g.oid FROM pg_roles g "
+        f"WHERE g.rolname = '{rw}') r "
+        "WHERE x.t IS NOT NULL AND CASE WHEN r.roid = 0 "
+        "THEN has_table_privilege('public', x.t, p.priv) "
+        "ELSE has_table_privilege(r.roid, x.t, p.priv) END ORDER BY 1;\n"
+        # The cursor row: no write for those same actors or the watchdog RW role (the
+        # forbidden set the schema and ensure_app_role revoke).
+        f"SELECT {_probe_row('cursor_priv', 'r.who', 'p.priv')} "
+        "FROM (SELECT to_regclass('public.audit_jobs_state') AS t) x "
+        "CROSS JOIN (VALUES ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE')) "
         f"p(priv) CROSS JOIN ({actors} UNION SELECT g.rolname::text, g.oid FROM pg_roles g "
         f"WHERE g.rolname = '{rw}') r "
         "WHERE x.t IS NOT NULL AND CASE WHEN r.roid = 0 "
@@ -1414,6 +1449,8 @@ def probe_app_role(db_name: str, container: str = POSTGRES_CONTAINER) -> list[st
                 failures.append(f"{who} holds CREATE on schema {schema}")
             case ["audit_priv", who, priv]:
                 failures.append(f"{who} holds {priv} on audit_log")
+            case ["cursor_priv", who, priv]:
+                failures.append(f"{who} holds {priv} on audit_jobs_state")
             case _:
                 failures.append(f"probe returned an unrecognised row: {row!r}")
     return failures
