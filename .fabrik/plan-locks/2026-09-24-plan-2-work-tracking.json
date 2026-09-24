@@ -88,6 +88,14 @@
       "base_commit": "597fdebc7",
       "tip": "b32719172",
       "review": "docs/development/reviews/2026-09-24-plan-2-work-tracking-T04-review.md"
+    },
+    "T05": {
+      "state": "merged",
+      "branch": "worktree-agent-ae9491f38f61f3aa5",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ae9491f38f61f3aa5",
+      "base_commit": "1aa53c2ab",
+      "tip": "830e8657c",
+      "review": "docs/development/reviews/2026-09-24-plan-2-work-tracking-T05-review.md"
     }
   }
 }

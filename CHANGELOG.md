@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — The Stop hook points both thread-anchor harvests at the session's repo (2026-09-24)
+- `.claude/hooks/final_gate_stop.py` passes `--repo <payload cwd>` to the plain harvest and to the DECISION store at every allowed exit, only when the payload's cwd is an absolute path and the synced `thread_anchor.py` knows the flag, so accepted DECISION blocks land in that repo's work store and every Stop — blocked or quiet — renews the session's claim lease. It never uses the hook's own working directory and fails open on every new path. Plan `docs/development/plans/2026-09-24-plan-2-work-tracking` T05 (spec V1); review converged in 2 passes (3 → 0).
+
 ### Fixed — App-role cutover seams: own database per scaffold, clean fresh-scaffold check, strict flag, fail-closed .env reads (2026-09-24)
 - Whole-plan validation (D7) of audit-log-everywhere, D-410. `generate_spec` pinned `depends.postgres: main` on every database project and the registrar reads that as the DATABASE NAME, so each new project would have shared database `main` and been refused the app-role cutover it asks for; a database spec now pins its own database (the registrar's derived name), gated on the resolved `shape.needs_database`.
 - `fabrik app-role-check` could never pass on a fresh scaffold: it no longer walks the Fabrik-synced `scripts/enforcement/` tree and treats whole-line comments as inert (markers per file kind; a marker inside a code line still never truncates it). The CLI reports a malformed spec YAML as a failure (exit 1) instead of crashing; a non-string `depends.postgres` is refused.
