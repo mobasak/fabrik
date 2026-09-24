@@ -14,12 +14,13 @@ aged ``ack: required`` obligations in three populations (digest()'s unacked legs
      ``ack: no`` digest would otherwise become a permanent obligation the moment an agent's
      ``mail.py ack`` of it is SIGKILLed mid-rename.
 
-and delivers on TWO INDEPENDENT LEGS, each at most once per LOCAL calendar day and each with its
+and delivers on THREE INDEPENDENT LEGS, each at most once per LOCAL calendar day and each with its
 OWN day-stamp written ONLY after ITS OWN successful send: the OPERATOR leg
-(``libs.alerting.send_alert`` — Apprise primary + diagnosis, Telegram in practice) and the AGENT
-leg (``_deliver_to_agent`` — into the hub mailbox addressed to ``infra``, which is the leg that
-produces action; see its docstring). One shared stamp let a success on one leg suppress the other
-for the whole day, which inverted the point of having two. The run holds its own ``flock`` so a
+(``libs.alerting.send_alert`` — Apprise primary + diagnosis, Telegram in practice; the FLEET list),
+the AGENT leg (``_deliver_to_agent`` — the HUB's own rows into the hub mailbox addressed to
+``infra``, D-388; see its docstring) and the OWNER leg (every other repo told its own rows in its
+own mailbox, D-310). The mailbox legs are what produce action. One shared stamp let a success on
+one leg suppress another for the whole day, which inverted the point of having independent legs. The run holds its own ``flock`` so a
 hand run cannot deliver a duplicate and stamp the day out from under the cron. Failure is fail-soft: exit 0, loud on OUR stdout
 (the library logger has no handler — never rely on it). The one accepted duplicate window:
 a stamp WRITE failure after a delivered send warns loudly and re-sends next run — a
@@ -73,6 +74,10 @@ DAY_STAMP = STATE_DIR / "day-stamp"
 DAY_STAMP_AGENT = STATE_DIR / "day-stamp-agent"
 # The hub's own mail.py — absolute, because this runs from cron with no cwd guarantee
 _MAIL_PY = _REPO_ROOT / "scripts" / "mail.py"
+# The hub's MAILBOX name — the address the agent leg sends to, and so the one name every "is this
+# the hub's own row" test compares against. Deriving it from the checkout's folder name made a run
+# from any other checkout (a worktree, a copy) see zero hub rows and silently tell infra nothing.
+_HUB_MAILBOX = "fabrik"
 MAX_ROWS = 20
 BODY_BUDGET = 3900  # under telegram.py's own 4096 title+body truncation
 _CTRL = _re.compile(r"[\x00-\x1f\x7f]")
@@ -155,7 +160,9 @@ def _scan_repo(repo_dir: Path, threshold: float) -> list[Obligation]:
         for f in sorted(archive.glob("*.md")):
             if f.name.startswith("."):
                 continue  # P13-6 proper: an archive dotfile would escalate FOREVER
-            ob = _from_file(f, repo, threshold, repo_key=repo_key, kind="strand", need_unresolved=True)
+            ob = _from_file(
+                f, repo, threshold, repo_key=repo_key, kind="strand", need_unresolved=True
+            )
             if ob:
                 out.append(ob)
         for w in sorted(archive.glob("*.md.resolving*")):
@@ -277,7 +284,9 @@ def _shape_line(items: list[Obligation]) -> str:
     return "; ".join(parts) if parts else "no rows"
 
 
-def _agent_body(title: str, rows: str, n: int, items: list[Obligation] | None = None) -> str:
+def _agent_body(
+    title: str, rows: str, n: int, items: list[Obligation] | None = None, fleet_total: int = 0
+) -> str:
     """The digest as a MESSAGE, not a bare column of ULIDs.
 
     ⚠️ The first cut handed `_deliver_to_agent` the rows alone. The delivered mail therefore had no
@@ -289,15 +298,19 @@ def _agent_body(title: str, rows: str, n: int, items: list[Obligation] | None = 
     """
     return (
         f"Subject: {title}\n\n"
-        "WHAT: the fabrik-mail obligations below are past the escalation threshold "
-        f"(`FABRIK_MAIL_ESCALATE_DAYS`, default 3). {n} row(s), oldest first.\n"
+        "WHAT: the HUB's own fabrik-mail obligations below are past the escalation threshold "
+        f"(`FABRIK_MAIL_ESCALATE_DAYS`, default 3). {n} row(s), oldest first."
+        + (
+            f" Fleet-wide there are {fleet_total}; every other repo is told its own rows "
+            "(D-310, D-388).\n"
+            if fleet_total
+            else "\n"
+        )
         + (f"SHAPE: {_shape_line(items)}.\n" if items else "")
-        +
-        "WHO: `scripts/sysadmin/mail_escalate.py` (hub cron, every 6h) -> infra.\n"
-        "WHERE: the rows are `id · repo · sender · age · agent (population)`. ⚠️ Column 2 is the "
-        "MAILBOX and most rows are NOT the hub's, so every command needs it: read one with "
-        "`python3 scripts/mail.py read <id> --repo <repo>` — without `--repo` mail.py defaults to "
-        "the cwd's repo and the read fails (and a bare `ack` leaves a stray archive dir behind).\n"
+        + "WHO: `scripts/sysadmin/mail_escalate.py` (hub cron, every 6h) -> infra.\n"
+        "WHERE: the rows are `id · repo · sender · age · agent (population)`; column 2 is the "
+        "MAILBOX. Read one with `python3 scripts/mail.py read <id> --repo <repo>` — the flag is "
+        "harmless from the hub and required from any other cwd.\n"
         "WHEN: generated this run; each row's age is measured from the message's own `ts` "
         "(a `window` row is aged by mtime, because a rename carries no ts).\n"
         "WHY: an obligation nobody acks is work nobody owns. This digest exists because the "
@@ -342,7 +355,7 @@ def _deliver_to_agent(body: str) -> bool:
                 str(_MAIL_PY),
                 "send",
                 "--to",
-                "fabrik",
+                _HUB_MAILBOX,
                 "--to-agent",
                 "infra",
                 "--kind",
@@ -390,7 +403,9 @@ def _deliver_to_agent(body: str) -> bool:
 # would feed itself in forty mailboxes at once and the number could never fall. (2) One message per
 # repo per DAY, stamped, because the cron runs every 6 h and four identical copies a day is how a
 # signal becomes noise. (3) The hub digest still reports the FLEET total, so a fleet that ignores
-# its escalations shows up as a count that does not fall — visible, not hidden by the fan-out.
+# its escalations shows up as a count that does not fall — visible, not hidden by the fan-out. Since
+# D-388 infra's body carries that total only on days the hub owns a row; the OPERATOR leg carries
+# it every day.
 _OWNER_MAX_ROWS = 30
 
 
@@ -405,7 +420,7 @@ def _owners_done(today: str) -> bool:
         items = collect_obligations(_mail._mail_root())
     except Exception:  # noqa: BLE001 — never crash the cron on a scan; assume work remains
         return False
-    repos = {o.repo for o in items if o.repo != _REPO_ROOT.name}
+    repos = {o.repo_key or o.repo for o in items if (o.repo_key or o.repo) != _HUB_MAILBOX}
     return all(_stamped(_owner_stamp(r), today) for r in repos)
 
 
@@ -455,13 +470,13 @@ def _owner_body(repo: str, obs: list[Obligation], fleet_total: int) -> str:
 def _deliver_to_owners(items: list[Obligation], today: str) -> tuple[int, int]:
     """Fan the rows out to the repos that own them. Returns ``(sent, failed)``.
 
-    Skips `fabrik`: infra's digest already carries every row including the hub's, so a per-repo
+    Skips `fabrik`: the agent leg delivers the hub's own rows to infra (D-388), so a per-repo
     delivery there would put the same obligations in the same mailbox twice.
     """
     by_repo: dict[str, list[Obligation]] = {}
     for ob in items:
         key = ob.repo_key or ob.repo  # `repo_key` is the real dir; `repo` is display-sanitised
-        if key == _REPO_ROOT.name:
+        if key == _HUB_MAILBOX:
             continue
         by_repo.setdefault(key, []).append(ob)
     sent = failed = 0
@@ -483,8 +498,17 @@ def _deliver_one_owner(repo: str, body: str) -> bool:
     others theirs, and never raises into the cron."""
     try:
         proc = _subprocess.run(
-            [sys.executable, str(_MAIL_PY), "send", "--to", repo, "--kind", "finding",
-             "--ack", "no"],
+            [
+                sys.executable,
+                str(_MAIL_PY),
+                "send",
+                "--to",
+                repo,
+                "--kind",
+                "finding",
+                "--ack",
+                "no",
+            ],
             input=body,
             text=True,
             capture_output=True,
@@ -574,9 +598,25 @@ def main() -> int:
     # of the operator leg — one transient local failure must not cost the agent the whole day.
     # It is also LOCAL (no ssh, no DNS) where the operator leg goes over the network: on
     # 2026-09-12 that leg failed TWICE before succeeding on the day's third run.
+    # The agent leg carries the HUB's OWN rows only (operator ruling 2026-09-24, D-388): every other
+    # repo is told its own by the owner leg below (D-310), so a fleet list here handed infra ~90
+    # rows a day it could not discharge. The fleet total rides as one line of the body on days the
+    # hub owns a row; the OPERATOR leg carries it every day, which is where D-310's cobra guard (a
+    # fleet ignoring its escalations is a count that never falls) now lives on the other days.
+    # A day the hub owns nothing is a COMPLETED leg — stamped, never retried every 6 h.
+    hub_items = [o for o in items if (o.repo_key or o.repo) == _HUB_MAILBOX]
     agent_ok = agent_done
+    agent_empty = not agent_done and not hub_items
     if not agent_done:
-        agent_ok = _deliver_to_agent(_agent_body(title, rows, len(items), items))
+        if hub_items:
+            hub_title = f"fabrik-mail: {len(hub_items)} of the hub's own obligation(s) aged past the threshold"
+            agent_ok = _deliver_to_agent(
+                _agent_body(
+                    hub_title, build_digest(hub_items), len(hub_items), hub_items, len(items)
+                )
+            )
+        else:
+            agent_ok = True
         if agent_ok:
             _stamp(DAY_STAMP_AGENT, today, "agent")
 
@@ -590,12 +630,14 @@ def main() -> int:
     # four daily runs printed `send=OK · agent=OK` having sent nothing — the same shape as the
     # failure this whole change exists to end ("logged send=OK while the inbox grew to 132"). The
     # log is the only evidence a cron leaves; it must distinguish delivered from suppressed.
-    def _verdict(done: bool, result: bool) -> str:
+    def _verdict(done: bool, result: bool, empty: bool = False) -> str:
+        if empty:
+            return "none-owned"  # stamped, but nothing was SENT — never print OK for it
         return "skipped" if done else ("OK" if result else "FAILED")
 
     print(
         f"mail-escalate: {len(items)} obligation(s) · "
-        f"send={_verdict(operator_done, ok)} · agent={_verdict(agent_done, agent_ok)} · "
+        f"send={_verdict(operator_done, ok)} · agent={_verdict(agent_done, agent_ok, agent_empty)} · "
         f"owners={owner_sent} sent/{owner_failed} failed ({today})"
     )
     return 0  # fail-soft: the no-stamp retry in <=6h is the recovery; stdout is the visibility

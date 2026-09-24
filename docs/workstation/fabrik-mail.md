@@ -123,15 +123,17 @@ auto-replies). Pre-check any message with `python scripts/mail.py should-reply <
 UNACKED, never unaddressed), archive strands (claimed, never resolved), and stranded
 `*.md.resolving*` windows (mtime-aged, and FILTERED on the window's own `ack:` — a window IS the
 message) — and delivers at most once per LEG per LOCAL calendar day, each leg stamping only after
-ITS OWN successful send (see the two-leg note below). Oldest ≤20
+ITS OWN successful send (see the three-leg note below). Oldest ≤20
 rows (`id · repo · sender · age · agent`), plain-text sanitized; the `+K more (total)` count
 line always survives. Failure is fail-soft: exit 0, loud in the log, retried ≤6 h later by the
 no-stamp rule.
 
-⚠️ **TWO delivery legs, and the second is the one that produces action.** The Telegram reaches the
-OPERATOR, whose standing directive is *"i dont read anything, you read"* — so from 2026-09-15 the
-same digest is ALSO delivered into the `fabrik` inbox addressed to `infra` (`--kind finding
---ack no`), where the handle-now law binds the session that opens it. This is the lesson
+⚠️ **THREE delivery legs, and the mailbox ones are what produce action.** The Telegram reaches the
+OPERATOR, whose standing directive is *"i dont read anything, you read"*, and carries the FLEET list.
+From 2026-09-15 a digest is ALSO delivered into the `fabrik` inbox addressed to `infra` (`--kind finding
+--ack no`), where the handle-now law binds the session that opens it — since D-388 it carries only
+the HUB's own rows plus one fleet-total line, and a day the hub owns nothing sends infra nothing.
+The OWNER leg (D-310) tells every other repo its own rows, `ack: no`, once a day, in its own mailbox. This is the lesson
 `feedback_relay.py` had already learned and this script had not: for three weeks the cron ran every
 6 h and logged `send=OK` while the hub inbox grew to 132 with a 10-day-old oldest obligation,
 because the only reader was one who does not read dashboards. `ack: no` is load-bearing — an

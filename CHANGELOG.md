@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The escalation digest tells infra only the hub's own overdue obligations; every other repo is told its own (D-388) (2026-09-24)
+
+- Operator ruling: unacked-obligation alarms go to the repos that own them. D-310's owner leg already told every repo its own rows (45 of 45 delivered on 2026-09-23 and 2026-09-24), but infra still received the whole fleet list, about 90 rows a day it could not discharge. `scripts/sysadmin/mail_escalate.py`'s agent leg now carries only rows in the hub's own mailbox, plus a fleet-total line; a day the hub owns nothing sends infra nothing and logs `agent=none-owned`. The operator's Telegram keeps the fleet list.
+- The hub is named by one constant, `_HUB_MAILBOX`, which is both the agent leg's address and every "is this the hub's row" test. Deriving it from the checkout's folder name made any other checkout see zero hub rows. `ruff format` also rewrapped 3 pre-existing lines in the file.
+
 ### Fixed — `command_run.py handoff` checks its `--resume` artifact instead of trusting the name (2026-09-24)
 
 - `handoff --resume <path>` closed a run at rc 0 when the path did not exist, while the flag's own help calls the successor artifact what makes this close "strictly harder to fake" (mail 01M2ZEX6ZJ7S92GK5HCP2E4ZNX). The close now requires a regular file carrying a `## RESUME` block, reads at most 1 MB of it, and refuses rc 1 before anything is saved. The review found two more ways the first cut failed: a FIFO blocked the close forever, and `/dev/zero` under a memory cap reached `main`'s rc-0 catch-all.

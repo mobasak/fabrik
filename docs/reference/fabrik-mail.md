@@ -343,10 +343,11 @@ most one delivery per leg per day) it scans EVERY mailbox for `ack: required` ob
 `FABRIK_MAIL_ESCALATE_DAYS` (default 3) in three populations: inbox mail regardless of `agent:`
 (the population is UNACKED, never unaddressed — an addressed-but-ignored obligation still
 escalates), archive strands (claimed, no `acked-by:` line), and stranded `*.md.resolving*`
-windows (mtime-aged). **Delivered on TWO legs:** `libs.alerting.send_alert` (Telegram, the
-operator) and — since 2026-09-15 — the `fabrik` inbox addressed to `infra` (`--kind finding
---ack no`), so an AGENT bound by the handle-now law reads it. The agent leg is what makes this a
-loop rather than a dashboard. **Each leg carries its OWN day-stamp and is retried independently** — a single shared stamp let a success on one leg suppress the other for the whole day, which inverted the point of having two. Plain-text sanitized rows,
+windows (mtime-aged). **Delivered on THREE legs:** `libs.alerting.send_alert` (Telegram, the
+operator — the fleet list); the `fabrik` inbox addressed to `infra` (`--kind finding --ack no`,
+since 2026-09-15) — only the HUB's own rows plus a fleet-total line (D-388); and each OTHER repo's
+own inbox with its own rows (D-310). The mailbox legs are what make this a loop rather than a
+dashboard: every obligation reaches the agent that can discharge it. **Each leg carries its OWN day-stamp and is retried independently** — a single shared stamp let a success on one leg suppress another for the whole day, which inverted the point of having independent legs. Plain-text sanitized rows,
 oldest ≤20 + an always-surviving total. Install + override mechanics (operator-owned):
 `docs/workstation/fabrik-mail.md` § Escalation digest.
 

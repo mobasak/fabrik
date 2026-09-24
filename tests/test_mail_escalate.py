@@ -715,3 +715,102 @@ def test_a_repo_whose_name_contains_an_underscore_is_actually_reachable(env):
     # the body still renders the display form, which is what made this look like evidence
     body = max(got, key=lambda p: p.stat().st_mtime).read_text(encoding="utf-8")
     assert "llm batch processor" in body, "display form in the prose is correct and stays"
+
+
+# ── the agent leg carries the HUB's own obligations only (operator ruling 2026-09-24, D-388) ──
+# D-310 gave every owning repo its own rows but kept infra's digest as the FLEET summary, so infra
+# still received ~90 rows a day it could not discharge (01M309X11…, 01M33GWWD…, 01M3639JX…).
+
+
+def test_a_foreign_repos_obligation_reaches_its_owner_and_never_the_agent_leg(
+    env, monkeypatch, capsys
+):
+    _msg(env, "fabrik", "01HUBHUBHUBHUBHUBHUBHUBHUB", ts=_old_ts(9))
+    _msg(env, "someproject", "01FOREIGNFOREIGNFOREIGNFOR", ts=_old_ts(9))
+    monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: True))
+    mailed: list = []
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: mailed.append(body) or True)
+    owners: list = []
+    monkeypatch.setattr(
+        me, "_deliver_one_owner", lambda repo, body: owners.append((repo, body)) or True
+    )
+    assert me.main() == 0
+    assert len(mailed) == 1 and "01HUBHUBHUBHUBHUBHUBHUBHUB" in mailed[0]
+    assert "01FOREIGNFOREIGNFOREIGNFOR" not in mailed[0], (
+        "a row infra cannot discharge reached infra"
+    )
+    assert "Fleet-wide there are 2" in mailed[0], "the fleet total stays visible as one line"
+    assert [r for r, _ in owners] == ["someproject"]
+
+
+def test_a_day_the_hub_owns_nothing_sends_infra_nothing_and_stamps_the_leg(
+    env, monkeypatch, capsys
+):
+    _msg(env, "someproject", "01FOREIGNFOREIGNFOREIGNFOR", ts=_old_ts(9))
+    monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: True))
+    mailed: list = []
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: mailed.append(body) or True)
+    monkeypatch.setattr(me, "_deliver_one_owner", lambda repo, body: True)
+    assert me.main() == 0
+    assert mailed == []
+    assert me.DAY_STAMP_AGENT.exists(), "nothing to send is a completed leg, not a retry every 6 h"
+
+
+def test_hub_ownership_holds_for_every_population_and_the_log_names_an_empty_day(
+    env, monkeypatch, capsys
+):
+    """A hub STRAND is the hub's own, a foreign repo with an underscore in its name is not, and a
+    day the hub DOES own a row logs `agent=OK` (the empty day is the next test) (review round 1)."""
+    _msg(env, "fabrik", "01HUBSTRANDHUBSTRANDHUBSTR", ts=_old_ts(9), sub="archive")
+    _msg(env, "some_proj", "01UNDERSCOREUNDERSCOREUND", ts=_old_ts(9))
+    monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: True))
+    mailed: list = []
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: mailed.append(body) or True)
+    owners: list = []
+    monkeypatch.setattr(me, "_deliver_one_owner", lambda repo, body: owners.append(repo) or True)
+    assert me.main() == 0
+    assert len(mailed) == 1 and "01HUBSTRANDHUBSTRANDHUBSTR" in mailed[0]
+    assert "01UNDERSCOREUNDERSCOREUND" not in mailed[0] and owners == ["some_proj"]
+    assert "agent=OK" in capsys.readouterr().out
+
+
+def test_an_empty_hub_day_logs_none_owned(env, monkeypatch, capsys):
+    _msg(env, "someproject", "01FOREIGNFOREIGNFOREIGNFOR", ts=_old_ts(9))
+    monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: True))
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: True)
+    monkeypatch.setattr(me, "_deliver_one_owner", lambda repo, body: True)
+    assert me.main() == 0
+    out = capsys.readouterr().out
+    assert "agent=none-owned" in out and "agent=OK" not in out
+
+
+def test_the_hub_is_its_mailbox_name_not_the_checkouts_folder_name(env, monkeypatch, capsys):
+    """Run from a checkout not named `fabrik` (a worktree, a copy), the hub's rows must still reach
+    infra and the hub must still be excluded from the owner roll-call — the folder name used to be
+    the identity, so every such run saw zero hub rows (review round 2)."""
+    monkeypatch.setattr(me, "_REPO_ROOT", me._REPO_ROOT.parent / "fabrik-wt")
+    _msg(env, "fabrik", "01HUBWORKTREEHUBWORKTREEHU", ts=_old_ts(9))
+    _msg(env, "someproject", "01FOREIGNFOREIGNFOREIGNFOR", ts=_old_ts(9))
+    monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: True))
+    mailed: list = []
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: mailed.append(body) or True)
+    owners: list = []
+    monkeypatch.setattr(me, "_deliver_one_owner", lambda repo, body: owners.append(repo) or True)
+    assert me.main() == 0
+    assert len(mailed) == 1 and "01HUBWORKTREEHUBWORKTREEHU" in mailed[0]
+    assert owners == ["someproject"], "the hub must never be told as an ordinary owner"
+    today = me._dt.date.today().isoformat()
+    assert me._owners_done(today), "the hub's own row must not keep the roll-call open"
+
+
+def test_a_repo_whose_display_name_reads_as_the_hub_keeps_the_roll_call_open(
+    env, monkeypatch, capsys
+):
+    """`fabrik_` renders as `fabrik`; keyed on the display name, `_owners_done` counted it as the hub
+    and suppressed the retry of its failed delivery for the rest of the day (review round 3)."""
+    _msg(env, "fabrik_", "01LOOKALIKELOOKALIKELOOKAL", ts=_old_ts(9))
+    monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: True))
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: True)
+    monkeypatch.setattr(me, "_deliver_one_owner", lambda repo, body: False)  # its delivery fails
+    assert me.main() == 0
+    assert not me._owners_done(me._dt.date.today().isoformat()), "an untold owner must be retried"
