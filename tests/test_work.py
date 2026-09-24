@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from types import ModuleType
@@ -762,3 +763,68 @@ def test_init_in_a_linked_worktree_is_refused_when_the_main_checkout_has_a_store
     assert r.returncode != 0
     assert str(repo) in r.stderr
     assert not (wt / ".fabrik").exists()
+
+
+# ── 7. review pass 2 ─────────────────────────────────────────────────────────────────────────
+
+
+def test_store_lock_excludes_another_thread_and_stays_reentrant_per_thread(tmp_path):
+    """A-N1/A-O14: re-entrancy is per thread; a second thread waits on the real flock."""
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env)
+    _init(repo, env)
+    _add(repo, env)  # creates the shared dir
+    work = _work_module()
+    held = threading.Event()
+    errors: list[BaseException] = []
+    marks: dict[str, float] = {}
+
+    def first() -> None:
+        try:
+            with work._store_lock(repo, 10, fail_open=False):
+                held.set()
+                t0 = time.monotonic()
+                with work._store_lock(repo, 0.5, fail_open=True) as inner:
+                    assert inner is True
+                marks["nest"] = time.monotonic() - t0
+                time.sleep(0.5)
+                marks["released"] = time.monotonic()
+        except BaseException as exc:  # surfaced below; a thread cannot fail the test itself
+            errors.append(exc)
+
+    def second() -> None:
+        try:
+            assert held.wait(5)
+            with work._store_lock(repo, 10, fail_open=False) as ok:
+                marks["second_in"] = time.monotonic()
+                assert ok is True
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=first), threading.Thread(target=second)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(30)
+    assert not errors, errors
+    assert marks["nest"] < 0.1
+    assert marks["second_in"] >= marks["released"]
+
+
+def test_init_is_refused_when_any_other_worktree_holds_a_store(tmp_path):
+    """A-O15: a store initialised in a linked worktree blocks init in the main checkout and in a
+    second linked worktree, naming the tree that holds it."""
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env)
+    wt = _linked_worktree(tmp_path, env, repo, "HEAD")
+    _init(wt, env)
+    r = run(["init", "--distributor", "fleet"], env, repo)
+    assert r.returncode != 0
+    assert str(wt) in r.stderr, r.stderr
+    assert not (repo / ".fabrik").exists()
+    wt2 = tmp_path / "wt2"
+    _git(repo, env, "worktree", "add", "-q", "-b", "side2", str(wt2), "HEAD")
+    r2 = run(["init", "--distributor", "fleet"], env, wt2)
+    assert r2.returncode != 0
+    assert str(wt) in r2.stderr, r2.stderr
+    assert not (wt2 / ".fabrik").exists()

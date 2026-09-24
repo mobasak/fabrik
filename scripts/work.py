@@ -40,6 +40,7 @@ import secrets
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -66,9 +67,11 @@ NAME_RULE = "[a-z0-9-]{1,32}"  # whoami_agent.py's agent-name rule: owners are a
 _NAME_RE = re.compile(NAME_RULE)
 _ID_RE = re.compile(r"W-[0-9a-f]{8}")  # always .fullmatch — `$` admits a trailing newline
 _GIT_TIMEOUT_S = 10.0
-# Re-entrancy: the depth of this process's hold per shared dir. flock is per open-file
-# description, so a nested acquisition through a fresh fd would wait on its own outer hold.
-_HELD: dict[str, int] = {}
+# Re-entrancy is per THREAD: the depth of each (shared dir, thread) hold. flock is per open-file
+# description, so a nested acquisition through a fresh fd would wait on its own outer hold; another
+# thread must NOT share the hold, so it opens its own fd and the flock excludes it.
+_HELD: dict[tuple[str, int], int] = {}
+_HELD_GUARD = threading.Lock()
 
 
 class WorkError(Exception):
@@ -137,34 +140,35 @@ def _has_store(repo: Path) -> bool:
     return _config_path(repo).is_file()
 
 
-def _main_checkout(repo: Path) -> Path | None:
-    """The main checkout of ``repo``'s repository (first entry of ``git worktree list``)."""
+def _worktrees(repo: Path) -> list[Path]:
+    """Every working tree of ``repo``'s repository, main checkout first (``git worktree list``)."""
     try:
         out = _git(repo, "worktree", "list", "--porcelain")
     except WorkError:
-        return None
-    first = out.splitlines()[0] if out else ""
-    if not first.startswith("worktree "):
-        return None
-    return Path(first[len("worktree ") :]).resolve()
+        return []
+    return [
+        Path(line[len("worktree ") :]).resolve()
+        for line in out.splitlines()
+        if line.startswith("worktree ")
+    ]
 
 
 def _store_elsewhere(repo: Path) -> Path | None:
-    """The main checkout, when ``repo`` is a linked worktree and only the main checkout has a
-    store: this branch was cut before ``init``, and a second ``init`` here would fork config."""
-    main = _main_checkout(repo)
-    if main is not None and main != repo and _has_store(main):
-        return main
+    """Another working tree of this repository that holds a store, or None. All of them share one
+    git common dir (lock, claims, readings), so a second ``init`` anywhere would fork config."""
+    for tree in _worktrees(repo):
+        if tree != repo and _has_store(tree):
+            return tree
     return None
 
 
 def _require_store(repo: Path) -> None:
     if _has_store(repo):
         return
-    main = _store_elsewhere(repo)
-    if main is not None:
+    other = _store_elsewhere(repo)
+    if other is not None:
         raise WorkError(
-            f"no work store in this worktree {repo}, but the main checkout {main} has one — "
+            f"no work store in this worktree {repo}, but the working tree {other} has one — "
             "merge or rebase onto its branch; do not run `work.py init` here"
         )
     raise WorkError(
@@ -385,13 +389,17 @@ def _store_lock(repo: Path, timeout: float, *, fail_open: bool, label: str = "")
             yield False
             return
         raise
-    key = str(shared)
-    if _HELD.get(key):
-        _HELD[key] += 1
+    key = (str(shared), threading.get_ident())
+    with _HELD_GUARD:
+        nested = key in _HELD
+        if nested:
+            _HELD[key] += 1
+    if nested:
         try:
             yield True
         finally:
-            _HELD[key] -= 1
+            with _HELD_GUARD:
+                _HELD[key] -= 1
         return
     try:
         shared.mkdir(parents=True, exist_ok=True)
@@ -435,11 +443,13 @@ def _store_lock(repo: Path, timeout: float, *, fail_open: bool, label: str = "")
                 f"the store lock ({shared / '.lock'}) was held for over {timeout:g} s — "
                 "nothing was written; retry"
             )
-        _HELD[key] = 1
+        with _HELD_GUARD:
+            _HELD[key] = 1
         try:
             yield True
         finally:
-            _HELD.pop(key, None)
+            with _HELD_GUARD:
+                _HELD.pop(key, None)
     finally:
         os.close(fd)
 
@@ -556,11 +566,11 @@ def cmd_init(repo: Path, args: argparse.Namespace) -> int:
     cfg = _config_path(repo)
     if cfg.exists():
         raise WorkError(f"{_rel(repo, cfg)} already exists — the store is initialised")
-    main = _store_elsewhere(repo)
-    if main is not None:
+    other = _store_elsewhere(repo)
+    if other is not None:
         raise WorkError(
-            f"the main checkout {main} already has a work store — this worktree shares it through "
-            "git; merge or rebase onto its branch instead of running init here"
+            f"the working tree {other} already has a work store — every worktree of this "
+            "repository shares it through git; merge or rebase onto its branch instead of init"
         )
     if args.distributor is None:
         distributor = _merge_owner(repo)
