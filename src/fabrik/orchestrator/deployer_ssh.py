@@ -753,6 +753,23 @@ def _is_placeholder(value: str) -> bool:
     return "placeholder" in value.lower()
 
 
+def _closing_quote(value: str) -> int:
+    """Index of the quote closing ``value[0]``, or -1 when unterminated.
+
+    Inside double quotes a backslash escapes the next character (the form
+    ``_format_env`` writes); single quotes have no escapes.
+    """
+    quote, i = value[0], 1
+    while i < len(value):
+        if quote == '"' and value[i] == "\\":
+            i += 2
+            continue
+        if value[i] == quote:
+            return i
+        i += 1
+    return -1
+
+
 def _parse_env(content: str) -> dict[str, str]:
     """Parse a .env file into a dict, ignoring comments and blank lines."""
     result: dict[str, str] = {}
@@ -773,6 +790,13 @@ def _parse_env(content: str) -> dict[str, str]:
         # write escapes `\"` -> read strips the wrapper but leaves the backslashes ->
         # the next write escapes them AGAIN, so a value grows a backslash per apply.
         value = value.strip()
+        # A value that OPENS with a quote and is followed by only `# comment`
+        # (`K="v" # note`) is the quoted content; an unterminated quote or any other
+        # tail keeps the rule below.
+        if value[:1] in ("'", '"'):
+            end = _closing_quote(value)
+            if end > 0 and value[end + 1 :].strip()[:1] in ("", "#"):
+                value = value[: end + 1]
         if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
             quote = value[0]
             value = value[1:-1]

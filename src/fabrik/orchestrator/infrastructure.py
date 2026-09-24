@@ -482,7 +482,13 @@ def _database_url_pin(spec: dict[str, Any], ctx: DeploymentContext) -> str | Non
     """
     env_block = spec.get("env")
     if isinstance(env_block, dict) and "DATABASE_URL" in env_block:
-        return "the spec's env: block"
+        from fabrik.orchestrator.deployer_ssh import _is_placeholder
+
+        # A placeholder stand-in never overwrites the injected value
+        # (`_build_env_content`), so it cannot rewrite DATABASE_URL: not a pin. The
+        # secrets layer has no such guard, so a secret is a pin whatever it holds.
+        if not _is_placeholder(str(env_block["DATABASE_URL"])):
+            return "the spec's env: block"
     if "DATABASE_URL" in (getattr(ctx, "secrets", None) or {}):
         deploy_cfg = spec.get("deploy") or {}
         seeded = isinstance(deploy_cfg, dict) and bool(deploy_cfg.get("db_before_boot"))

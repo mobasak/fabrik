@@ -252,8 +252,8 @@ against code execution inside the container, which can read `DATABASE_URL_OWNER`
 
 A `DATABASE_URL` pinned by the spec's `env:` block or the project secrets is rewritten on every
 apply and would re-cut-over and reset the `<db>_app` password each time, so the cutover refuses
-it: move the pinned value to `DATABASE_URL_OWNER` first (the `db_before_boot` first-apply seed is
-not a pin).
+it: move the pinned value to `DATABASE_URL_OWNER` first (the `db_before_boot` first-apply seed and an
+`env:` placeholder stand-in are not pins).
 
 ---
 

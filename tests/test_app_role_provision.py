@@ -497,3 +497,44 @@ def test_every_reachable_ssh_binding_fails_loud() -> None:
     for fn in (ssh_mod.ssh, pg.ssh, pg._run_sql):
         with pytest.raises(RuntimeError, match="test reached the live fleet"):
             fn("SELECT 1")
+
+
+# ── Fixups r2 ────────────────────────────────────────────────────────────────── #
+
+PLACEHOLDER = "postgresql://placeholder:placeholder@postgres-main:5432/shop"
+
+
+def test_placeholder_in_spec_env_is_not_a_pin(tmp_path: Path) -> None:
+    """O10: `_build_env_content` never lets a placeholder overwrite the injected value,
+    so it cannot re-write DATABASE_URL every apply — not a pin."""
+    _, ctx, events, _ = _run(
+        tmp_path,
+        flag=True,
+        env={"DATABASE_URL": OWNER_DSN},
+        spec_extra={"env": {"DATABASE_URL": PLACEHOLDER}},
+    )
+    assert ("ensure_app_role", True) in events
+    assert _status(ctx) == "cutover"
+    assert _app_role_failures(ctx) == []
+
+
+def test_real_dsn_in_spec_env_is_still_a_pin(tmp_path: Path) -> None:
+    _, ctx, events, _ = _run(
+        tmp_path,
+        flag=True,
+        env={"DATABASE_URL": OWNER_DSN},
+        spec_extra={"env": {"DATABASE_URL": OWNER_DSN}},
+    )
+    assert ("ensure_app_role", True) not in events
+    assert len(_app_role_failures(ctx)) == 1
+
+
+def test_rollback_over_a_quoted_commented_env_line(tmp_path: Path) -> None:
+    """O9 r2: `DATABASE_URL="…" # app role` parses to the bare DSN, so rollback fires
+    instead of a silent `unmanaged`."""
+    from fabrik.orchestrator.deployer_ssh import _parse_env
+
+    content = f'DATABASE_URL="{APP_DSN}" # app role\nDATABASE_URL_OWNER={OWNER_DSN}\n'
+    deployer, ctx, _, _ = _run(tmp_path, flag=False, env=_parse_env(content))
+    assert deployer.injects == [{"DATABASE_URL": OWNER_DSN}]
+    assert _status(ctx) == "rolled_back"

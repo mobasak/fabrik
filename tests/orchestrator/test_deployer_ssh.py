@@ -505,6 +505,29 @@ class TestSSHDeployerReadEnv:
             "DATABASE_URL": "postgresql://v:y@h:5432/d"
         }
 
+    def test_quoted_value_with_trailing_comment(self):
+        """`KEY="v" # note` is the bare value v — read_env and the merge (fixup r2 O9)."""
+        content = 'DATABASE_URL="postgresql://shop_app:pw@h:5432/shop" # app role\n'
+        with patch("fabrik.drivers.ssh.ssh", side_effect=["present", content]):
+            env = SSHDeployer().read_env(self._ctx())
+        assert env == {"DATABASE_URL": "postgresql://shop_app:pw@h:5432/shop"}
+        with (
+            patch("fabrik.drivers.ssh.ssh", side_effect=[content, ""]),
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
+        ):
+            SSHDeployer().inject_env(self._ctx(), {"OTHER": "1"})
+        assert _parse_env(mock_write.call_args[0][2]) == {
+            "DATABASE_URL": "postgresql://shop_app:pw@h:5432/shop",
+            "OTHER": "1",
+        }
+
+    def test_quote_edge_cases_keep_todays_behaviour(self):
+        # single quotes + comment; escaped quote inside; unterminated; non-comment tail
+        assert _parse_env("A='x y' # c") == {"A": "x y"}
+        assert _parse_env('B="say \\"hi\\"" # c') == {"B": 'say "hi"'}
+        assert _parse_env('C="unterminated # c') == {"C": '"unterminated # c'}
+        assert _parse_env('D="a" "b"') == {"D": 'a" "b'}
+
     def test_runs_inside_target_vps_env(self):
         import os
 
