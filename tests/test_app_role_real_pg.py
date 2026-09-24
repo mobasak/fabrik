@@ -579,6 +579,36 @@ def test_o15_separator_bytes_in_an_identifier_cannot_forge_probe_rows() -> None:
         )
 
 
+def test_o16_a_superuser_grantor_fails_fast_and_readably() -> None:
+    with scratch_pg() as s:
+        _legacy_database(s)
+        s.run_sql(
+            "\\set ON_ERROR_STOP on\n"
+            "CREATE ROLE h1 NOLOGIN;\n"
+            + _in_db(
+                f"SET ROLE {DB};\n"
+                "GRANT UPDATE ON audit_log TO h1 WITH GRANT OPTION;\n"
+                "RESET ROLE;\n"
+                "SET ROLE h1;\n"
+                "GRANT UPDATE ON audit_log TO authenticated;\n"
+                "RESET ROLE;\n"
+            )
+            + "ALTER ROLE h1 SUPERUSER;\n"
+        )
+        with s.as_driver():
+            started = time.monotonic()
+            with pytest.raises(RuntimeError) as exc:
+                pg.ensure_app_role(DB)
+            elapsed = time.monotonic() - started
+        msg = str(exc.value)
+        assert "did not converge" not in msg, msg
+        for part in ("UPDATE", "public.audit_log", "authenticated", "h1", "superuser", "by hand"):
+            assert part in msg, (part, msg)
+        assert elapsed < 30, elapsed
+        # The fresh role was dropped again (O8 behaviour kept).
+        assert s.run_sql(f"SELECT count(*) FROM pg_roles WHERE rolname = '{APP}';") == "0"
+
+
 # ── O11: the harness never skips silently ─────────────────────────────────
 
 

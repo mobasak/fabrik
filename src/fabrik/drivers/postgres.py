@@ -1001,7 +1001,10 @@ def _acl_revoke_loop(entry_sql: str, obj_fmt: str, obj_args: str, indent: str) -
     correctness must not rest on which entry an unordered ``LIMIT 1`` returns). The
     ACL is re-read after every revoke, so one apply converges whatever the chain; a
     revoke that removes nothing trips the iteration bound and raises instead of
-    spinning.
+    spinning. An entry whose grantor has since become a SUPERUSER cannot be removed
+    this way at all (``SET ROLE`` to a superuser acts as the owner again), so it fails
+    fast with a message naming the privilege, object, grantee and grantor, asking for
+    the grant to be removed by hand.
     """
     i = indent
     return (
@@ -1009,9 +1012,20 @@ def _acl_revoke_loop(entry_sql: str, obj_fmt: str, obj_args: str, indent: str) -
         f"{i}  {entry_sql} LIMIT 1;\n"
         f"{i}  EXIT WHEN NOT FOUND;\n"
         f"{i}  n := n + 1;\n"
+        f"{i}  IF e.grantor <> e.objowner\n"
+        f"{i}     AND (SELECT rolsuper FROM pg_roles WHERE oid = e.grantor) THEN\n"
+        f"{i}    RAISE EXCEPTION '% on % granted to % by %, which is now a superuser: a REVOKE "
+        "issued as a superuser acts as the object owner and cannot remove this grant; remove "
+        "it by hand (as that superuser, or by re-owning the grant chain)',\n"
+        f"{i}      e.privilege_type, format('{obj_fmt}'{obj_args}),\n"
+        f"{i}      CASE WHEN e.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(e.grantee) END,\n"
+        f"{i}      pg_get_userbyid(e.grantor);\n"
+        f"{i}  END IF;\n"
         f"{i}  IF n > 1000 THEN\n"
-        f"{i}    RAISE EXCEPTION 'ACL revoke did not converge: % % from % granted by %',\n"
-        f"{i}      e.privilege_type, format('{obj_fmt}'{obj_args}), e.grantee, e.grantor;\n"
+        f"{i}    RAISE EXCEPTION 'ACL revoke did not converge: % on % from % granted by %',\n"
+        f"{i}      e.privilege_type, format('{obj_fmt}'{obj_args}),\n"
+        f"{i}      CASE WHEN e.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(e.grantee) END,\n"
+        f"{i}      pg_get_userbyid(e.grantor);\n"
         f"{i}  END IF;\n"
         f"{i}  IF e.grantor <> e.objowner THEN\n"
         f"{i}    EXECUTE format('SET LOCAL ROLE %I', pg_get_userbyid(e.grantor));\n"
