@@ -29,9 +29,21 @@ CLAIMS AND CLOSING (T01b). ``claim``/``release`` hold a leased claim in ``fabrik
 ``docs/DECISIONS.md``. The hook-facing API (``on_harvest``, ``ensure_decision_item[s]``,
 ``has_msg_digest``, ``prompt_block``) is fail-open and creates nothing in a store-less repo.
 
+STATUS AND DRIFT (T02). ``status`` lists items, uncommitted item files (``git status
+--porcelain``, a listing not a drift class) and the eight drift classes of spec § Spec and plan
+state is derived, never copied. ``sync --check`` prints the same drift, appends one ``kind: sync``
+reading to ``readings.jsonl``, and exits non-zero on classes 2-6 only once the repo has migrated
+and ``readings.jsonl`` shows 7 consecutive clean calendar days after ``migrated_at`` — re-derived
+from the readings on every run, never a stored flag. Spec and plan Status values are read with
+``scripts/enforcement/check_convergence.py``'s ``_STATUS_LINE``, plan Ticket Boards with
+``check_plan_tickets.py``'s ``_board_states``, and a plan's designated spec citation with
+``check_stage_artifacts.py``'s ``_designated_spec_citations`` — imported by file path from the
+repo's own ``scripts/enforcement/``, falling back to an equivalent local regex (with one stderr
+line) when that import fails.
+
 This module is import-safe: nothing runs outside ``if __name__ == "__main__"``.
 Implemented: init, add, assign, ready [--mine], next (T01a); claim, release, done, drop, answer and
-the hook API (T01b). status/sync, render and migrate-backlog are later tickets.
+the hook API (T01b); status, sync --check (T02). render and migrate-backlog are later tickets.
 """
 
 from __future__ import annotations
@@ -50,7 +62,7 @@ import tempfile
 import threading
 import time
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 try:
@@ -79,6 +91,27 @@ _QUESTION_RE = re.compile(
 )
 _GROUND_RE = re.compile(r"\([ \t]*ground:[ \t]*`?([A-Za-z-]+)", re.I)
 READING_MIN_WAIT_S = 0.1
+# ── T02: status / sync drift ────────────────────────────────────────────────────────────────
+SPECS_DIR = Path("docs") / "superpowers" / "specs"
+PLANS_DIR = Path("docs") / "development" / "plans"
+_PLAN_DIR_NAME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+$")
+_PLAN_FILE_NAME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+\.md$")
+_BACKLOG_REL = "docs/STRATEGIC_BACKLOG.md"
+_BACKLOG_BLOCK_RE = re.compile(
+    r"<!--\s*AUTO-GENERATED:BACKLOG:START\s*-->(.*?)<!--\s*AUTO-GENERATED:BACKLOG:END\s*-->", re.S
+)
+BLOCKING_CLASSES = frozenset({2, 3, 4, 5, 6})  # classes 1, 7, 8 are always advisory
+RECENT_WINDOW_S = MARKER_MAX_AGE_S  # 14 days — shared by class 6's two predicates
+STALE_PLAN_DAYS = 7  # class 2's "more than 7 days" CONVERGED-with-nothing-carrying-it threshold
+SYNC_BLOCKING_DAYS = 7  # consecutive clean calendar days after migrated_at before sync blocks
+_PLAN_STATUS_ALIASES = {
+    "IN_PROGRESS": "IN-PROGRESS",
+    "COMPLETE": "EXECUTED",
+    "DONE": "EXECUTED",
+    "SHIPPED": "EXECUTED",
+    "PLANNED": "DRAFT",
+}
+_PLAN_STATUSES = frozenset({"DRAFT", "IN-PROGRESS", "CONVERGED", "EXECUTED", "BLOCKED"})
 DECISIONS_PY = Path("/opt/fabrik/scripts/decisions.py")  # hub-only, by absolute path
 WHOAMI_PY = Path(__file__).with_name("whoami_agent.py")
 NAME_RULE = "[a-z0-9-]{1,32}"  # whoami_agent.py's agent-name rule: owners are agent names only
@@ -805,6 +838,381 @@ def _line(item: dict) -> str:
     return f"{item['id']}  P{_priority(item)}  {owner}  {item.get('kind', '')}  {item.get('title', '')}"
 
 
+# ── T02: readers reused by import, with a local fallback ────────────────────────────────────
+#
+# check_convergence.py, check_plan_tickets.py and check_stage_artifacts.py are fleet-synced
+# under the CALLING repo's own `scripts/enforcement/` — imported by file path so this module
+# never depends on their package layout. A repo whose enforcement copy predates these readers
+# (or has none) falls back to an equivalent local regex, and says so once on stderr: the drift
+# report is never silently empty because a sibling script drifted.
+
+_FALLBACK_STATUS_LINE = re.compile(r"^\s*\**Status:\**\s*([A-Za-z][A-Za-z -]*)", re.M)
+_FALLBACK_BOARD_SECTION_RE = re.compile(
+    r"^##\s+Ticket Board\b(.*?)(?=^##\s|\Z)", re.I | re.M | re.S
+)
+_FALLBACK_BOARD_ROW_RE = re.compile(r"^\|\s*\**\s*(T\d{2}[a-z]?)\b", re.M)
+_FALLBACK_TICKET_ID_RE = re.compile(r"T\d{2}[a-z]?")
+_FALLBACK_SPEC_CITE = re.compile(r"docs/superpowers/specs/(?!archived/)[\w./-]+\.md")
+_FALLBACK_SPEC_FIELD_LINE = re.compile(
+    r"^\s*(?:[-*>]\s+)?\*{0,2}(?:Design spec|Spec)\*{0,2}[^\S\n]*:[^\S\n]*(?P<val>[^\n]*)$",
+    re.I | re.M,
+)
+
+
+def _import_enforcement(repo: Path, name: str) -> object | None:
+    """``scripts/enforcement/<name>.py`` of ``repo``, imported by path; None (with one stderr
+    line) when the file is absent or fails to import — never raises."""
+    path = repo / "scripts" / "enforcement" / f"{name}.py"
+    try:
+        spec = importlib.util.spec_from_file_location(f"_work_{name}", path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"no loader for {path}")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except Exception as exc:
+        _warn(f"{name} import failed ({exc}) — using the local regex fallback for its grammar")
+        return None
+
+
+def _status_line_re(repo: Path) -> re.Pattern:
+    mod = _import_enforcement(repo, "check_convergence")
+    pattern = getattr(mod, "_STATUS_LINE", None) if mod is not None else None
+    return pattern if pattern is not None else _FALLBACK_STATUS_LINE
+
+
+def _fallback_norm_cell(c: str) -> str:
+    return c.strip().strip("`").strip("*").strip()
+
+
+def _fallback_board_states(spine_text: str) -> dict[str, str]:
+    board = _FALLBACK_BOARD_SECTION_RE.search(spine_text)
+    if not board:
+        return {}
+    state_idx = 5
+    for line in board.group(1).splitlines():
+        if _FALLBACK_BOARD_ROW_RE.match(line):
+            break
+        if line.strip().startswith("|"):
+            cells = [_fallback_norm_cell(c) for c in line.split("|")]
+            content = [c for c in cells if c]
+            state_cols = [i for i, c in enumerate(cells) if c.lower() == "state"]
+            if (
+                state_cols
+                and len(content) >= 3
+                and not any(
+                    _FALLBACK_TICKET_ID_RE.search(c.replace("`", "").replace("*", ""))
+                    for c in content
+                )
+            ):
+                state_idx = state_cols[0]
+    states: dict[str, str] = {}
+    for m in _FALLBACK_BOARD_ROW_RE.finditer(board.group(1)):
+        cells = [_fallback_norm_cell(c) for c in m.string[m.start() :].split("\n", 1)[0].split("|")]
+        states[m.group(1).upper()] = (
+            (cells[state_idx] if len(cells) > state_idx else "").replace("️", "").strip()
+        )
+    return states
+
+
+def _board_states_fn(repo: Path):
+    mod = _import_enforcement(repo, "check_plan_tickets")
+    fn = getattr(mod, "_board_states", None) if mod is not None else None
+    return fn if fn is not None else _fallback_board_states
+
+
+def _fallback_designated_spec_citations(text: str) -> list[str]:
+    m = _FALLBACK_SPEC_FIELD_LINE.search(text)
+    if m:
+        return list(dict.fromkeys(_FALLBACK_SPEC_CITE.findall(m.group("val"))))
+    lines = text.splitlines()[:40]
+    head = "\n".join(ln for ln in lines if not ln.lstrip().startswith("|"))
+    return list(dict.fromkeys(_FALLBACK_SPEC_CITE.findall(head)))
+
+
+def _designated_spec_citations_fn(repo: Path):
+    mod = _import_enforcement(repo, "check_stage_artifacts")
+    fn = getattr(mod, "_designated_spec_citations", None) if mod is not None else None
+    return fn if fn is not None else _fallback_designated_spec_citations
+
+
+# ── T02: derived spec/plan discovery and drift ───────────────────────────────────────────────
+
+
+def _iter_specs(repo: Path) -> Iterator[Path]:
+    d = repo / SPECS_DIR
+    if d.is_dir():
+        yield from sorted(d.glob("*.md"))
+
+
+def _iter_plan_spines(repo: Path) -> Iterator[Path]:
+    """Every plan spine: a standalone dated file, or a same-stem file inside a dated plan-set
+    directory (archived and ticket files are excluded by construction — neither matches)."""
+    d = repo / PLANS_DIR
+    if not d.is_dir():
+        return
+    for p in sorted(d.glob("*.md")):
+        if _PLAN_FILE_NAME_RE.match(p.name):
+            yield p
+    for sub in sorted(d.iterdir()):
+        if sub.is_dir() and _PLAN_DIR_NAME_RE.match(sub.name):
+            spine = sub / f"{sub.name}.md"
+            if spine.is_file():
+                yield spine
+
+
+_STATUS_TOKEN_CONTINUATION_RE = re.compile(r"[A-Za-z0-9_-]*")
+
+
+def _status_value(repo: Path, text: str) -> str:
+    """``_STATUS_LINE``'s own character class excludes digits and ``_``, so it truncates a raw
+    ``IN_PROGRESS``-shaped value at the underscore (`IN`); extend the match with whatever
+    word/hyphen/underscore characters immediately follow, so the alias map sees the whole token
+    rather than reusing the reader's class as a normaliser it was never built to be."""
+    head = text[:4000]
+    m = _status_line_re(repo).search(head)
+    if not m:
+        return ""
+    cont = _STATUS_TOKEN_CONTINUATION_RE.match(head, m.end(1))
+    return (m.group(1) + (cont.group(0) if cont else "")).strip()
+
+
+def _normalize_plan_status(raw: str) -> str:
+    up = raw.strip().upper()
+    return _PLAN_STATUS_ALIASES.get(up, up)
+
+
+def _commit_epoch(repo: Path, relpath: str) -> float | None:
+    """The epoch of the last commit touching ``relpath`` at HEAD, or None with no history — never
+    the filesystem mtime, which a fresh checkout resets to the checkout instant."""
+    try:
+        out = _git(repo, "log", "-1", "--format=%ct", "HEAD", "--", relpath)
+    except WorkError:
+        return None
+    out = out.strip()
+    return float(out) if out else None
+
+
+def _age_seconds(repo: Path, relpath: str) -> float:
+    """Seconds since ``relpath``'s last commit; 0 with no history (as fresh as it gets)."""
+    epoch = _commit_epoch(repo, relpath)
+    return max(0.0, time.time() - epoch) if epoch is not None else 0.0
+
+
+def _active_plan_locks(repo: Path) -> dict[str, dict]:
+    """plan relpath -> lock record, for every ``.fabrik/plan-locks/*.json`` whose status is
+    literally ``active`` (``released``/``executed``/``complete`` do not count as a lock)."""
+    locks_dir = repo / ".fabrik" / "plan-locks"
+    out: dict[str, dict] = {}
+    if not locks_dir.is_dir():
+        return out
+    for p in sorted(locks_dir.glob("*.json")):
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict) and str(data.get("status") or "") == "active":
+            plan = str(data.get("plan") or "").strip()
+            if plan:
+                out[plan] = data
+    return out
+
+
+def _backlog_needs_render(repo: Path, items: list[dict]) -> bool:
+    """True when the open ``kind: backlog`` item ids differ from the ids the rendered
+    ``AUTO-GENERATED:BACKLOG`` block currently lists — the cheapest honest proxy for "render
+    would change it" without duplicating ``render`` itself (T03)."""
+    path = repo / _BACKLOG_REL
+    if not path.is_file():
+        return False
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    m = _BACKLOG_BLOCK_RE.search(text)
+    if not m:
+        return False
+    open_ids = {
+        str(it["id"])
+        for it in items
+        if it.get("kind") == "backlog" and it.get("status") not in RESOLVED
+    }
+    block_ids = set(_ID_RE.findall(m.group(1)))
+    return open_ids != block_ids
+
+
+def _drift_report(repo: Path) -> dict[int, list[str]]:
+    """The eight drift classes of spec § Spec and plan state is derived, never copied, each a
+    sorted list of the relpaths (item files for 5-6, the backlog doc for 7) that trip it."""
+    report: dict[int, list[str]] = {n: [] for n in range(1, 9)}
+    items = list(_iter_items(repo))
+    linked_specs = {str((it.get("links") or {}).get("spec") or "") for it in items}
+    linked_specs.discard("")
+    linked_plans: dict[str, list[dict]] = {}
+    for it in items:
+        plan = str((it.get("links") or {}).get("plan") or "")
+        if plan:
+            linked_plans.setdefault(plan, []).append(it)
+
+    cite_fn = _designated_spec_citations_fn(repo)
+    cited_specs: set[str] = set()
+    plan_texts: dict[str, str] = {}
+    for spine in _iter_plan_spines(repo):
+        rel = _rel(repo, spine)
+        try:
+            text = spine.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+        plan_texts[rel] = text
+        cited_specs.update(cite_fn(text))
+
+    for spec_path in _iter_specs(repo):
+        rel = _rel(repo, spec_path)
+        try:
+            text = spec_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if _status_value(repo, text).strip().upper() != "CONVERGED":
+            continue
+        if rel not in cited_specs and rel not in linked_specs:
+            report[1].append(rel)
+
+    active_locks = _active_plan_locks(repo)
+    for rel, text in plan_texts.items():
+        norm = _normalize_plan_status(_status_value(repo, text))
+        if norm not in _PLAN_STATUSES:
+            report[8].append(rel)
+        has_lock = rel in active_locks
+        if norm == "CONVERGED":
+            if (
+                not has_lock
+                and rel not in linked_plans
+                and _age_seconds(repo, rel) > STALE_PLAN_DAYS * 86400
+            ):
+                report[2].append(rel)
+        elif norm == "IN-PROGRESS":
+            if not has_lock:
+                report[3].append(rel)
+        elif norm == "EXECUTED":
+            if any(li.get("status") not in RESOLVED for li in linked_plans.get(rel, [])):
+                report[4].append(rel)
+
+    store = _store_dir(repo)
+    if store.is_dir():
+        for path in sorted(store.glob("W-*.json")):
+            if not _ID_RE.fullmatch(path.stem):
+                continue
+            rel = _rel(repo, path)
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                report[5].append(rel)
+                continue
+            if not isinstance(data, dict) or data.get("id") != path.stem:
+                report[5].append(rel)
+                continue
+            if data.get("status") not in STATUSES:
+                report[5].append(rel)
+                continue
+            if data.get("status") == "done" and not data.get("legacy"):
+                if _age_seconds(repo, rel) <= RECENT_WINDOW_S:
+                    ev = str(data.get("evidence") or "")
+                    if _evidence_commit(repo, path.stem, ev) is None:
+                        report[6].append(rel)
+
+    now = time.time()
+    for item_id, marker in _read_records(_closed_dir(repo)).items():
+        at = _num(marker.get("at"), _num(marker.get("_mtime")))
+        if now - at <= MARKER_MAX_AGE_S:
+            continue
+        try:
+            own = _read_item(repo, item_id)
+        except WorkError:
+            continue
+        if own.get("status") not in RESOLVED:
+            report[6].append(_rel(repo, _item_path(repo, item_id)))
+
+    if _backlog_needs_render(repo, items):
+        report[7].append(_BACKLOG_REL)
+
+    return {n: sorted(set(paths)) for n, paths in report.items()}
+
+
+def _sync_readings(repo: Path) -> list[dict]:
+    try:
+        lines = (_shared_dir(repo) / "readings.jsonl").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    out = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(row, dict) and row.get("kind") == "sync":
+            out.append(row)
+    return out
+
+
+def _parse_iso(raw: str) -> datetime | None:
+    try:
+        dt = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
+def _reading_clean(row: dict) -> bool:
+    counts = row.get("counts") or {}
+    return all(_num(counts.get(str(n)), 0) == 0 for n in range(2, 7))
+
+
+def _sync_blocking_active(repo: Path) -> bool:
+    """Re-derived from the readings on every call, never a stored flag: True once
+    ``readings.jsonl`` shows ``SYNC_BLOCKING_DAYS`` consecutive CLEAN calendar days (every
+    reading that day clean for classes 2-6) strictly after ``config.json``'s ``migrated_at``."""
+    try:
+        migrated_raw = str(_read_config(repo).get("migrated_at") or "").strip()
+    except WorkError:
+        return False
+    migrated_dt = _parse_iso(migrated_raw) if migrated_raw else None
+    if migrated_dt is None:
+        return False
+    by_day: dict[date, list[dict]] = {}
+    for row in _sync_readings(repo):
+        at_dt = _parse_iso(str(row.get("at") or ""))
+        if at_dt is None or at_dt <= migrated_dt:
+            continue
+        by_day.setdefault(at_dt.date(), []).append(row)
+    clean_days = {day for day, rows in by_day.items() if rows and all(map(_reading_clean, rows))}
+    for day in sorted(clean_days):
+        if all((day + timedelta(days=i)) in clean_days for i in range(SYNC_BLOCKING_DAYS)):
+            return True
+    return False
+
+
+def _uncommitted_items(repo: Path) -> list[str]:
+    """Item files ``git status --porcelain`` shows untracked or modified — a listing, never a
+    drift class (spec § Constraints — shared tree)."""
+    store_rel = STORE_REL.as_posix()
+    try:
+        out = _git(repo, "status", "--porcelain", "--untracked-files=all", "--", store_rel)
+    except WorkError:
+        return []
+    paths: set[str] = set()
+    for line in out.splitlines():
+        if len(line) < 4:
+            continue
+        rest = line[3:].strip()
+        dst = (rest.split(" -> ", 1)[1] if " -> " in rest else rest).strip().strip('"')
+        if dst.startswith(store_rel + "/") and _ID_RE.fullmatch(Path(dst).stem):
+            paths.add(dst)
+    return sorted(paths)
+
+
 # ── verbs ────────────────────────────────────────────────────────────────────────────────────
 
 
@@ -1017,6 +1425,23 @@ def _fence(repo: Path, item_id: str, session: str, verb: str) -> dict | None:
     return claim
 
 
+def _evidence_commit(repo: Path, item_id: str, sha: str) -> str | None:
+    """The resolved commit SHA if ``sha`` exists in ``repo`` and its message names ``item_id``,
+    else None — the read-only half of ``_verify_evidence``, reused by drift class 6 (T02)."""
+    if not sha or sha.startswith("-"):
+        return None
+    try:
+        _git(repo, "cat-file", "-e", f"{sha}^{{commit}}")
+        resolved = _git(repo, "rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}")
+    except WorkError:
+        return None
+    try:
+        message = _git(repo, "log", "-1", "--format=%B", resolved)
+    except WorkError:
+        return None
+    return resolved if item_id in _ITEM_REF_RE.findall(message) else None
+
+
 def _verify_evidence(repo: Path, item_id: str, evidence: str | None) -> str:
     """The full SHA of a commit that exists and whose message names ``item_id``."""
     ev = (evidence or "").strip()
@@ -1024,20 +1449,13 @@ def _verify_evidence(repo: Path, item_id: str, evidence: str | None) -> str:
         raise WorkError(
             f"done {item_id} needs --evidence <sha>: a commit whose message names {item_id}"
         )
-    if ev.startswith("-"):
-        raise WorkError(f"--evidence {ev!r} is not a commit")
-    try:
-        _git(repo, "cat-file", "-e", f"{ev}^{{commit}}")
-        sha = _git(repo, "rev-parse", "--verify", "--quiet", f"{ev}^{{commit}}")
-    except WorkError:
-        raise WorkError(f"--evidence {ev!r} does not resolve to a commit in {repo}") from None
-    message = _git(repo, "log", "-1", "--format=%B", sha)
-    if item_id not in _ITEM_REF_RE.findall(message):
+    resolved = _evidence_commit(repo, item_id, ev)
+    if resolved is None:
         raise WorkError(
-            f"--evidence {sha[:12]} does not name {item_id} in its commit message — "
+            f"--evidence {ev!r} does not resolve to a commit in {repo} naming {item_id} — "
             "the evidence is the commit that did the work, and it says so"
         )
-    return sha
+    return resolved
 
 
 def cmd_claim(repo: Path, args: argparse.Namespace) -> int:
@@ -1163,6 +1581,63 @@ def cmd_answer(repo: Path, args: argparse.Namespace) -> int:
         path = _close(repo, item, session=session, note=note, decision=decision)
         _after_write(repo, session)
     print(_rel(repo, path))
+    return 0
+
+
+def cmd_status(repo: Path, args: argparse.Namespace) -> int:
+    """Items by state, uncommitted item files (a listing, never a drift class), and the eight
+    derived spec/plan drift classes — read-only, no lock."""
+    _require_store(repo)
+    claims = _live_claims(repo)
+    for item in sorted(
+        _iter_items(repo), key=lambda it: (str(it.get("status")), _priority(it), str(it["id"]))
+    ):
+        tag = " (claimed)" if item["id"] in claims and item.get("status") not in RESOLVED else ""
+        print(f"{item.get('status', ''):<17}{_line(item)}{tag}")
+    for rel in _uncommitted_items(repo):
+        print(f"UNCOMMITTED      {rel}")
+    board_fn = _board_states_fn(repo)
+    for spine in _iter_plan_spines(repo):
+        try:
+            text = spine.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        states = board_fn(text)
+        if states:
+            done = sum(1 for v in states.values() if v.strip() == "✅")
+            print(f"PLAN             {_rel(repo, spine)}  tickets {done}/{len(states)} done")
+    report = _drift_report(repo)
+    for cls in range(1, 9):
+        label = "blocking" if cls in BLOCKING_CLASSES else "advisory"
+        for rel in report[cls]:
+            print(f"DRIFT {cls} ({label})  {rel}")
+    return 0
+
+
+def cmd_sync(repo: Path, args: argparse.Namespace) -> int:
+    """``sync --check``: print the drift, append one reading, and exit non-zero on classes 2-6
+    only once the repo is past its migration window — never in a repo without a store, which
+    prints one line, exits 0 and creates nothing."""
+    if not _has_store(repo):
+        print(f"no work store in {repo} — nothing to sync")
+        return 0
+    report = _drift_report(repo)
+    for cls in range(1, 9):
+        label = "blocking" if cls in BLOCKING_CLASSES else "advisory"
+        for rel in report[cls]:
+            print(f"DRIFT {cls} ({label})  {rel}")
+    blocking_active = _sync_blocking_active(repo)
+    _append_reading(
+        repo,
+        {
+            "at": _now_iso(),
+            "blocking_active": blocking_active,
+            "counts": {str(n): len(report[n]) for n in range(1, 9)},
+            "kind": "sync",
+        },
+    )
+    if blocking_active and any(report[cls] for cls in BLOCKING_CLASSES):
+        return 1
     return 0
 
 
@@ -1455,6 +1930,15 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--decision", help="the ledger row already minted (D-NNN)")
     s.add_argument("--session", help=session_help)
     s.set_defaults(fn=cmd_answer)
+
+    s = sub.add_parser("status", help="items, uncommitted item files, and spec/plan drift")
+    s.set_defaults(fn=cmd_status)
+
+    s = sub.add_parser("sync", help="drift check — the completion gate's row")
+    s.add_argument(
+        "--check", action="store_true", required=True, help="required: the only sync mode"
+    )
+    s.set_defaults(fn=cmd_sync)
     return p
 
 
