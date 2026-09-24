@@ -200,6 +200,9 @@ def test_grants_batch_public_create_audit_block_and_memberships() -> None:
     assert "CASE WHEN e.grantee = 0 THEN 'PUBLIC'" in grants
     assert "EXECUTE 'RESET ROLE';" in grants
     assert "IF n > 1000 THEN" in grants
+    # Non-owner-granted entries first: the revoke-as-grantor path runs on every chain.
+    assert "ORDER BY (a.grantor = ns.nspowner)" in grants
+    assert "ORDER BY (a.grantor = c.relowner)" in grants
     # The to_regclass-guarded audit_log block.
     assert "IF to_regclass('public.audit_log') IS NOT NULL THEN" in grants
     assert 'ALTER TABLE public.audit_log OWNER TO "ti_owner"' in grants

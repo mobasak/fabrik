@@ -995,9 +995,13 @@ def _acl_revoke_loop(entry_sql: str, obj_fmt: str, obj_args: str, indent: str) -
     PostgreSQL 16 a superuser's ``REVOKE … GRANTED BY <other>`` removes nothing
     (measured) — so an entry granted by anyone else is revoked AS its grantor
     (``SET LOCAL ROLE``, then ``RESET ROLE``), ``CASCADE`` taking the grantee's own
-    re-grants with it. The ACL is re-read after every revoke, so the shape of a
-    grant-option chain never matters and one apply converges; a revoke that removes
-    nothing trips the iteration bound and raises instead of spinning.
+    re-grants with it. ``entry_sql`` orders entries granted by NON-owners first, so a
+    chain is taken apart leaf-first through the revoke-as-grantor path on every run
+    (an owner-first order would also converge through ``CASCADE`` from the root, but
+    correctness must not rest on which entry an unordered ``LIMIT 1`` returns). The
+    ACL is re-read after every revoke, so one apply converges whatever the chain; a
+    revoke that removes nothing trips the iteration bound and raises instead of
+    spinning.
     """
     i = indent
     return (
@@ -1033,7 +1037,8 @@ def _app_role_grants_sql(db_name: str, app: str, owner: str) -> str:
     schema_create_revokes = _acl_revoke_loop(
         "SELECT a.grantor, a.grantee, a.privilege_type, ns.nspowner AS objowner INTO e "
         "FROM pg_namespace ns, aclexplode(ns.nspacl) a WHERE ns.nspname = s "
-        f"AND a.privilege_type = 'CREATE' AND a.grantee NOT IN (ns.nspowner, {owner_oid})",
+        f"AND a.privilege_type = 'CREATE' AND a.grantee NOT IN (ns.nspowner, {owner_oid}) "
+        "ORDER BY (a.grantor = ns.nspowner), a.grantee, a.grantor",
         "SCHEMA %I",
         ", s",
         "    ",
@@ -1042,7 +1047,8 @@ def _app_role_grants_sql(db_name: str, app: str, owner: str) -> str:
     audit_revokes = _acl_revoke_loop(
         "SELECT a.grantor, a.grantee, a.privilege_type, c.relowner AS objowner INTO e "
         "FROM pg_class c, aclexplode(c.relacl) a WHERE c.oid = 'public.audit_log'::regclass "
-        f"AND a.privilege_type IN ({forbidden}) AND a.grantee <> c.relowner",
+        f"AND a.privilege_type IN ({forbidden}) AND a.grantee <> c.relowner "
+        "ORDER BY (a.grantor = c.relowner), a.grantee, a.grantor, a.privilege_type",
         "public.audit_log",
         "",
         "    ",
