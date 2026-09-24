@@ -14,10 +14,21 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from types import ModuleType
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "work.py"
 _ID_RE = re.compile(r"^W-[0-9a-f]{8}$")
+
+
+def _work_module() -> ModuleType:
+    """scripts/work.py imported in-process (import-safe by contract)."""
+    sys.path.insert(0, str(SCRIPT.parent))
+    try:
+        import work
+    finally:
+        sys.path.remove(str(SCRIPT.parent))
+    return work
 
 
 def _env(tmp_path: Path, agent: str | None = None) -> dict[str, str]:
@@ -149,18 +160,47 @@ def test_init_creates_store_config_and_prints_its_path(tmp_path):
     assert cfg2["distributor"] == "intel"
 
 
-def test_init_without_distributor_leaves_it_empty_when_undeclared(tmp_path):
+_STUB = """import sys
+print({out!r})
+sys.exit({rc})
+"""
+
+
+def _merge_owner_init(tmp_path, monkeypatch, capsys, out: str, rc: int) -> tuple[int, str, str]:
+    """In-process `init` with DECISIONS_PY pointed at a stub — never the live decisions.py."""
     env = _env(tmp_path)
     repo = _repo(tmp_path, env)
-    (repo / "docs").mkdir()
-    (repo / "docs" / "DECISIONS.md").write_text(
-        "| ID | Date | Decision | Owner |\n|---|---|---|---|\n| D-001 | x | y | z |\n",
-        encoding="utf-8",
-    )
-    r = run(["init"], env, repo)
-    assert r.returncode == 0, r.stderr
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    for key in ("CLAUDE_AGENT", "CLAUDE_CODE_SESSION_ID"):
+        monkeypatch.delenv(key, raising=False)
+    stub = tmp_path / "decisions_stub.py"
+    stub.write_text(_STUB.format(out=out, rc=rc), encoding="utf-8")
+    work = _work_module()
+    monkeypatch.setattr(work, "DECISIONS_PY", stub)
+    code = work.main(["--repo", str(repo), "init"])
+    cap = capsys.readouterr()
     cfg = json.loads((repo / ".fabrik" / "work" / "config.json").read_text(encoding="utf-8"))
-    assert cfg["distributor"] == ""
+    return code, cfg["distributor"], cap.err
+
+
+def test_init_without_distributor_undeclared_leaves_it_empty(tmp_path, monkeypatch, capsys):
+    code, distributor, _ = _merge_owner_init(tmp_path, monkeypatch, capsys, "UNDECLARED", 3)
+    assert code == 0
+    assert distributor == ""
+
+
+def test_init_without_distributor_takes_a_declared_merge_owner(tmp_path, monkeypatch, capsys):
+    code, distributor, _ = _merge_owner_init(tmp_path, monkeypatch, capsys, "intel", 0)
+    assert code == 0
+    assert distributor == "intel"
+
+
+def test_init_without_distributor_ignores_an_invalid_merge_owner(tmp_path, monkeypatch, capsys):
+    code, distributor, err = _merge_owner_init(tmp_path, monkeypatch, capsys, "Intel.bot", 0)
+    assert code == 0
+    assert distributor == ""
+    assert "Intel.bot" in err and "[a-z0-9-]{1,32}" in err
 
 
 # ── 2. the durable item ──────────────────────────────────────────────────────────────────────
@@ -228,7 +268,7 @@ import fcntl, os, sys, time
 fd = os.open(sys.argv[1], os.O_RDWR | os.O_CREAT, 0o600)
 fcntl.flock(fd, fcntl.LOCK_EX)
 print("locked", flush=True)
-time.sleep(60)
+time.sleep(float(sys.argv[2]) if len(sys.argv) > 2 else 60)
 """
 
 
@@ -253,8 +293,9 @@ def test_cli_verb_waits_10s_on_a_held_lock_then_fails_loud_and_writes_nothing(tm
         holder.kill()
         holder.wait()
     assert r.returncode != 0
-    assert "lock" in r.stderr and "10" in r.stderr, r.stderr
-    assert elapsed >= 10.0
+    expected = f"work: the store lock ({lock}) was held for over 10 s — nothing was written; retry"
+    assert expected in r.stderr.splitlines(), r.stderr
+    assert 10.0 <= elapsed < 13.0
     assert set(_items(repo)) == before
     rows = [
         json.loads(line)
@@ -271,7 +312,9 @@ def test_store_lock_fail_open_yields_false_after_its_own_timeout(tmp_path):
     env = _env(tmp_path)
     repo = _repo(tmp_path, env)
     _init(repo, env)
+    _add(repo, env)  # init creates no shared dir; the first locked write does
     lock = _shared(repo) / ".lock"
+    assert lock.is_file()
     holder = subprocess.Popen(
         [sys.executable, "-c", _HOLDER, str(lock)], stdout=subprocess.PIPE, text=True, env=env
     )
@@ -297,7 +340,7 @@ def test_store_lock_fail_open_yields_false_after_its_own_timeout(tmp_path):
     assert r.returncode == 0, r.stderr
     ok, waited = r.stdout.split()
     assert ok == "False"
-    assert 0.5 <= float(waited) < 5
+    assert 0.5 <= float(waited) < 2
 
 
 def test_import_is_side_effect_free(tmp_path):
@@ -411,3 +454,311 @@ def test_assign_unknown_id_names_id_and_tree_and_changes_nothing(tmp_path):
     bad = run(["assign", "../config", "--owner", "fleet"], env, repo)
     assert bad.returncode != 0
     assert _snapshot(repo) == before
+
+
+# ── 6. review pass 1 ─────────────────────────────────────────────────────────────────────────
+
+
+def test_init_ignores_temp_files_in_the_store(tmp_path):
+    """A-S2 + A-O11: a temp orphaned by a killed writer is never committed by `git add`."""
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env)
+    _init(repo, env)
+    store = repo / ".fabrik" / "work"
+    assert (store / ".gitignore").read_text(encoding="utf-8") == "*.tmp\n"
+    (store / "W-0000000a.json.abc123.tmp").write_text("{}", encoding="utf-8")
+    _git(repo, env, "add", ".fabrik/work")
+    staged = _git(repo, env, "diff", "--cached", "--name-only").split()
+    assert ".fabrik/work/config.json" in staged
+    assert not [p for p in staged if p.endswith(".tmp")]
+
+
+def test_store_files_are_readable_by_the_group_and_others_per_umask(tmp_path):
+    """A-O9: mkstemp's 0600 must not survive into the store."""
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env)
+    _init(repo, env)
+    item_id = _add(repo, env)
+    mask = os.umask(0)
+    os.umask(mask)
+    want = 0o666 & ~mask
+    for name in ("config.json", f"{item_id}.json"):
+        assert (repo / ".fabrik" / "work" / name).stat().st_mode & 0o777 == want, name
+    env_intel = _env(tmp_path, agent="intel")
+    assert run(["assign", item_id, "--owner", "fleet"], env_intel, repo).returncode == 0
+    assert (repo / ".fabrik" / "work" / f"{item_id}.json").stat().st_mode & 0o777 == want
+
+
+def test_ids_are_fullmatched_so_a_trailing_newline_is_refused(tmp_path):
+    """A-O6."""
+    env = _env(tmp_path, agent="intel")
+    repo = _repo(tmp_path, env)
+    _init(repo, env)
+    good = _add(repo, env)
+    src = repo / ".fabrik" / "work" / f"{good}.json"
+    data = json.loads(src.read_text(encoding="utf-8"))
+    data["id"] = "W-0000000b\n"
+    (repo / ".fabrik" / "work" / "W-0000000b\n.json").write_text(
+        json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    r = run(["assign", "W-0000000b\n", "--owner", "fleet"], env, repo)
+    assert r.returncode != 0
+    assert "is not an item id" in r.stderr
+    ready = run(["ready"], env, repo)
+    assert ready.returncode == 0
+    assert _ids(ready.stdout) == [good]
+
+
+def test_assign_refuses_a_file_whose_id_field_differs(tmp_path):
+    """A-O1: a renamed/copied item file never redirects a write to another item."""
+    env = _env(tmp_path, agent="intel")
+    repo = _repo(tmp_path, env)
+    _init(repo, env)
+    real = _add(repo, env)
+    store = repo / ".fabrik" / "work"
+    (store / "W-11111111.json").write_bytes((store / f"{real}.json").read_bytes())
+    before = _snapshot(repo)
+    r = run(["assign", "W-11111111", "--owner", "fleet"], env, repo)
+    assert r.returncode != 0
+    assert "W-11111111" in r.stderr and real in r.stderr
+    assert _snapshot(repo) == before
+
+
+def test_owner_and_distributor_must_be_agent_names(tmp_path):
+    """A-O4 + A-O5: an owner or distributor no agent can resolve to is refused, naming the rule."""
+    env = _env(tmp_path, agent="intel")
+    repo = _repo(tmp_path, env)
+    bad = run(["init", "--distributor", "Intel"], env, repo)
+    assert bad.returncode != 0
+    assert "[a-z0-9-]{1,32}" in bad.stderr
+    assert not (repo / ".fabrik").exists()
+    _init(repo, env)
+    item_id = _add(repo, env)
+    before = _snapshot(repo)
+    r = run(["assign", item_id, "--owner", "Not An Agent"], env, repo)
+    assert r.returncode != 0
+    assert "[a-z0-9-]{1,32}" in r.stderr
+    assert _snapshot(repo) == before
+    unassign = run(["assign", item_id, "--owner", ""], env, repo)
+    assert unassign.returncode == 0, unassign.stderr
+
+
+def test_an_invalid_claude_agent_is_named_as_invalid_not_unset(tmp_path):
+    """A-S3 + A-O13."""
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env)
+    _init(repo, env, distributor="intel")
+    item_id = _add(repo, env)
+    r = run(["assign", item_id, "--owner", "fleet"], _env(tmp_path, agent="Intel"), repo)
+    assert r.returncode != 0
+    assert "CLAUDE_AGENT='Intel' is not a valid agent name" in r.stderr, r.stderr
+    unset = run(["assign", item_id, "--owner", "fleet"], env, repo)
+    assert "CLAUDE_AGENT unset" in unset.stderr
+
+
+def test_agent_name_fallback_validates_claude_agent(tmp_path, monkeypatch):
+    """A-S3: when whoami_agent.py cannot be imported, the fallback applies the same name rule."""
+    work = _work_module()
+    monkeypatch.setattr(work, "WHOAMI_PY", tmp_path / "missing.py")
+    monkeypatch.setenv("CLAUDE_AGENT", "intel \n rm -rf")
+    assert work._agent_name() == ""
+    monkeypatch.setenv("CLAUDE_AGENT", "intel")
+    assert work._agent_name() == "intel"
+
+
+def test_store_lock_and_readings_never_create_the_shared_dir_without_a_store(tmp_path):
+    """A-O7: the no-implicit-store rule holds inside the helpers, not only in the verbs."""
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env)
+    work = _work_module()
+    with work._store_lock(repo, 0.5, fail_open=True) as ok:
+        assert ok is False
+    raised = ""
+    try:
+        with work._store_lock(repo, 0.5, fail_open=False):
+            pass
+    except work.WorkError as exc:
+        raised = str(exc)
+    assert "init" in raised
+    work._append_reading(repo, {"kind": "probe"})
+    assert not _shared(repo).exists()
+    assert not (repo / ".fabrik").exists()
+
+
+_TRY_LOCK = """
+import fcntl, os, sys
+fd = os.open(sys.argv[1], os.O_RDWR)
+try:
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    print("free")
+except BlockingIOError:
+    print("held")
+"""
+
+
+def test_store_lock_is_reentrant_within_one_process(tmp_path):
+    """A-O8: a nested acquisition succeeds at once and the outer hold survives the inner exit."""
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env)
+    _init(repo, env)
+    _add(repo, env)
+    work = _work_module()
+    lock = _shared(repo) / ".lock"
+
+    def probe() -> str:
+        return subprocess.run(
+            [sys.executable, "-c", _TRY_LOCK, str(lock)],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        ).stdout.strip()
+
+    with work._store_lock(repo, 10, fail_open=False) as outer:
+        assert outer is True
+        t0 = time.monotonic()
+        with work._store_lock(repo, 0.5, fail_open=True) as inner:
+            assert inner is True
+        assert time.monotonic() - t0 < 0.1
+        assert probe() == "held"
+    assert probe() == "free"
+
+
+def test_assign_checks_the_distributor_under_the_lock(tmp_path):
+    """A-H1: a distributor named while `assign` waited on the lock still binds that assign."""
+    env_none = _env(tmp_path)
+    repo = _repo(tmp_path, env_none)
+    _init(repo, env_none, distributor="")
+    item_id = _add(repo, env_none)
+    lock = _shared(repo) / ".lock"
+    cfg = repo / ".fabrik" / "work" / "config.json"
+    holder = subprocess.Popen(
+        [sys.executable, "-c", _HOLDER, str(lock), "1.5"],
+        stdout=subprocess.PIPE,
+        text=True,
+        env=env_none,
+    )
+    try:
+        assert holder.stdout is not None
+        assert holder.stdout.readline().strip() == "locked"
+        proc = subprocess.Popen(
+            [sys.executable, str(SCRIPT), "assign", item_id, "--owner", "fleet"],
+            cwd=repo,
+            env=_env(tmp_path, agent="fleet"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        time.sleep(0.7)  # assign has passed its pre-lock checks and waits on the lock
+        cfg.write_text(json.dumps({"distributor": "intel"}, indent=2) + "\n", encoding="utf-8")
+        _out, err = proc.communicate(timeout=30)
+    finally:
+        holder.kill()
+        holder.wait()
+    assert proc.returncode != 0, err
+    assert "intel" in err
+    assert _items(repo)[item_id]["owner"] == ""
+
+
+def test_git_errors_carry_gits_own_reason(tmp_path):
+    """A-S4."""
+    env = _env(tmp_path)
+    missing = tmp_path / "does-not-exist"
+    r = run(["--repo", str(missing), "ready"], env, tmp_path)
+    assert r.returncode != 0
+    assert "is not inside a git work tree" not in r.stderr
+    assert "cannot change to" in r.stderr, r.stderr
+
+
+def test_os_errors_are_named_one_line_messages_never_tracebacks(tmp_path):
+    """A-O2."""
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env)
+    (repo / ".fabrik").write_text("not a dir\n", encoding="utf-8")
+    r = run(["init", "--distributor", "intel"], env, repo)
+    assert r.returncode != 0
+    assert "Traceback" not in r.stderr
+    assert "already exists — the store is initialised" not in r.stderr
+    assert r.stderr.startswith("work: cannot create .fabrik/work: "), r.stderr
+    (repo / ".fabrik").unlink()
+    (repo / ".fabrik").mkdir()
+    (repo / ".fabrik" / "work").write_text("a file\n", encoding="utf-8")
+    r2 = run(["init", "--distributor", "intel"], env, repo)
+    assert r2.returncode != 0
+    assert "Traceback" not in r2.stderr
+    assert "already exists — the store is initialised" not in r2.stderr
+    assert r2.stderr.startswith("work: cannot create .fabrik/work: "), r2.stderr
+
+
+def test_a_write_into_a_read_only_store_is_a_named_error_not_a_traceback(tmp_path):
+    """A-O2: main() turns any OSError into one named line (assign's temp create here)."""
+    env = _env(tmp_path, agent="intel")
+    repo = _repo(tmp_path, env)
+    _init(repo, env)
+    item_id = _add(repo, env)
+    store = repo / ".fabrik" / "work"
+    store.chmod(0o555)
+    try:
+        r = run(["assign", item_id, "--owner", "fleet"], env, repo)
+    finally:
+        store.chmod(0o755)
+    assert r.returncode != 0
+    assert "Traceback" not in r.stderr
+    assert r.stderr.startswith("work: assign failed — PermissionError"), r.stderr
+
+
+def _linked_worktree(tmp_path: Path, env: dict[str, str], repo: Path, base: str) -> Path:
+    wt = tmp_path / "wt"
+    _git(repo, env, "worktree", "add", "-q", "-b", "side", str(wt), base)
+    return wt.resolve()
+
+
+def test_a_linked_worktree_shares_the_main_checkouts_lock_and_readings(tmp_path):
+    """B-S1: lock and readings land in the one <git-common-dir>/fabrik-work/."""
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env)
+    _init(repo, env)
+    _git(repo, env, "add", ".fabrik/work")
+    _git(repo, env, "commit", "-q", "-m", "store")
+    wt = _linked_worktree(tmp_path, env, repo, "HEAD")
+    shared = _shared(repo)
+    if shared.exists():
+        for p in shared.iterdir():
+            p.unlink()
+        shared.rmdir()
+    _add(wt, env)
+    assert (shared / ".lock").is_file()
+    holder = subprocess.Popen(
+        [sys.executable, "-c", _HOLDER, str(shared / ".lock"), "0.6"],
+        stdout=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+    try:
+        assert holder.stdout is not None
+        assert holder.stdout.readline().strip() == "locked"
+        _add(wt, env, title="waited")
+    finally:
+        holder.kill()
+        holder.wait()
+    rows = (shared / "readings.jsonl").read_text(encoding="utf-8").splitlines()
+    assert any(json.loads(row)["kind"] == "lock-wait" for row in rows)
+    local_gitdir = Path(_git(wt, env, "rev-parse", "--absolute-git-dir").strip())
+    assert local_gitdir != (repo / ".git").resolve()
+    assert not (local_gitdir / "fabrik-work").exists()
+
+
+def test_init_in_a_linked_worktree_is_refused_when_the_main_checkout_has_a_store(tmp_path):
+    """A-O10: no second, divergent config.json on a branch cut before init."""
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env)
+    seed = _git(repo, env, "rev-parse", "HEAD").strip()
+    _init(repo, env)
+    wt = _linked_worktree(tmp_path, env, repo, seed)
+    ready = run(["ready"], env, wt)
+    assert ready.returncode != 0
+    assert str(repo) in ready.stderr
+    r = run(["init", "--distributor", "fleet"], env, wt)
+    assert r.returncode != 0
+    assert str(repo) in r.stderr
+    assert not (wt / ".fabrik").exists()
