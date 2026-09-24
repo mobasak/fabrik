@@ -179,6 +179,7 @@
 - [scripts/render_chat_history.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/chat-history-render.md | tests/test_render_chat_history.py
 - [scripts/render_doc_script_links.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_doc_script_links.py | docs/reference/doc-script-coupling.md | scripts/enforcement/check_script_headers.py
 - [scripts/retype_project.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_retype_project.py | docs/workstation/mcp-roster.md
+- [scripts/review_loop_ledger.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/reference/review-loop-workflow.md | tests/test_review_loop_ledger.py | commands/_sources/fabrik-review.md
 - [scripts/review_receipt.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_review_receipt.py, commands/_sources/fabrik-review.md, commands/_sources/fabrik-execute-plan.md, scripts/enforcement/check_review_coverag
 - [scripts/review_rubric.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/select_rules.py scripts/rules_match.py tests/test_review_rubric.py
 - [scripts/rivals_run.py](../INDEX.md) (owner: infra): AFTER-EDIT: commands/_sources/fabrik-rivals.md | docs/reference/rivals-command.md | INDEX.md
@@ -206,6 +207,7 @@
 - [scripts/sysadmin/mcp_health.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_mcp_health.py · docs/workstation/mcp-roster.md (§ fix-first) | none
 - [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/quota-dashboard.md, PORTS.md, docs/workstation/claude-account-rotation.md
 - [scripts/sysadmin/rules_render_versions.py](../INDEX.md) (owner: infra): AFTER-EDIT: .windsurf/rules/versions.yaml, scripts/sysadmin/rules_currency_watch.py, tests/sysadmin/test_rules_render_versions.py | none
+- [scripts/sysadmin/stop_mine.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/hooks-index.md, docs/reference/thread-anchors.md, docs/workstation/kaizen-event-stream.md
 - [scripts/thread_anchor.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_thread_anchor.py, docs/reference/thread-anchors.md, .claude/hooks/final_gate_stop.py, .claude/settings.json | none
 - [scripts/traycer_write_report.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/update_vps_docs.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
@@ -301,7 +303,7 @@
 - [static-site](workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
 
 ## rules-pack
-- [ai/00-ai-model-selection.md](../.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and OpenRouter are peers), honor Fabrik AI defaults (pgvector-only, Recraft images, Soniox TTS). Routes to per-category packs 10–90 in this folder.
+- [ai/00-ai-model-selection.md](../.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selection INDEX — Claude on the Max subscription (`claude -p`, selected by alias so it is always the latest model) first; specialized vendors for non-LLM categories; metered gateways only for what Claude cannot serve. Honors Fabrik AI defaults (pgvector-only, Recraft images, Soniox TTS). Routes to per-category packs 10–90 in this folder.
 - [ai/10-speech-audio.md](../.windsurf/rules/ai/10-speech-audio.md) (owner: infra): Speech & Audio AI (category 1) — transcription (Soniox/Whisper), TTS (Soniox default for multilingual/faithful, ElevenLabs for expressive), voice cloning, audio classification, music gen. Kilo audio coverage is thin (9 models).
 - [ai/20-vision.md](../.windsurf/rules/ai/20-vision.md) (owner: infra): Vision AI (category 2) — image gen (Recraft v4.1 for branded/recurring-style/vector, FLUX-schnell for bulk illustration, FLUX/BFL for photoreal, Replicate as host/fallback), video gen, object/scene recognition, OCR, face/pose. Kilo: 70 vision models.
 - [ai/25-3d-generation.md](../.windsurf/rules/ai/25-3d-generation.md) (owner: infra): 3D asset generation — automated zero-edit mesh/asset pipeline (GLB/FBX/OBJ/STL/USDZ). Provider routing by asset type (Meshy/Tripo/Rodin/TRELLIS 2), mandatory headless validation gate, re-roll caps, API-before-self-host discipline. NOT CAD. Backed by docs/reference/research/Zero-Edit 3D API Evaluation.md.
@@ -337,9 +339,9 @@
 - [core/75-workers-jobs.md](../.windsurf/rules/core/75-workers-jobs.md) (owner: infra): Workers & jobs discipline — PG queue, retry/backoff, dead-letter, idempotency, pause-state, orphan sweep, beat tasks
 - [core/76-gpu-workers.md](../.windsurf/rules/core/76-gpu-workers.md) (owner: infra): GPU worker discipline — decision framework for API vs self-host, provider/engine/quantization selection, two-faced architecture, lifecycle via `fabrik gpu`, fault tolerance
 - [core/85-payments-billing.md](../.windsurf/rules/core/85-payments-billing.md) (owner: infra): Payments & billing discipline — the vendored fabrik-lib `payments` module; Paddle Billing (MoR, international), iyzico (TRY subscriptions) and PayTR (TRY one-off) routed by billing model; no Non3D on any lane; webhook verification + idempotency; webhook-derived entitlements
-- [core/86-email-templates.md](../.windsurf/rules/core/86-email-templates.md) (owner: infra): Email & template creation — MJML+Jinja2 pipeline, Resend ESP, push/in-app, deliverability, cross-cutting across SaaS/mobile/WordPress
+- [core/86-email-templates.md](../.windsurf/rules/core/86-email-templates.md) (owner: infra): Email & template creation — MJML+Jinja2 pipeline, Resend/SES transport, push/in-app, deliverability, cross-cutting across SaaS/mobile/WordPress
 - [core/90-bootstrap-scripts.md](../.windsurf/rules/core/90-bootstrap-scripts.md) (owner: infra): Bootstrap script discipline — SSH user transition, fail2ban trap, idempotency, quote escaping
-- [core/app-audit-log.md](../.windsurf/rules/core/app-audit-log.md) (owner: infra): Tamper-evident audit log for sensitive operations — canonical action vocabulary, hash-chain verification, retention policy
+- [core/app-audit-log.md](../.windsurf/rules/core/app-audit-log.md) (owner: infra): Tamper-evident audit log, MANDATORY in every project (D-368) — vendoring, canonical actor/action vocabulary, the concurrency lock, hash-chain verification, retention by legal period
 - [core/cost-budget.md](../.windsurf/rules/core/cost-budget.md) (owner: infra): Per-project LLM cost caps + shared cost_ledger + fail-open WAL — required for any service calling paid AI APIs or the watchdog sidecar
 - [core/ocoron-design-system.md](../.windsurf/rules/core/ocoron-design-system.md) (owner: infra): Ocoron design system — the visual identity every Ocoron-branded GUI inherits: colour tokens, typography, motion, component patterns, states, accessibility. Read for ANY screen, component or design-token work on a saas-skeleton, static-site, docusaurus, chrome-extension or desktop-app surface; the design-system ladder in saas/60-saas-ui.md points here.
 - [core/self-healing.md](../.windsurf/rules/core/self-healing.md) (owner: infra): Self-healing escalation ladder — orchestrates the primitives in 58-resilience, 60-watchdog, 75-workers-jobs into one ordered response per failure class
