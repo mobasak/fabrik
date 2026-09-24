@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_thread_anchor.py, docs/reference/thread-anchors.md, .claude/hooks/final_gate_stop.py, .claude/settings.json | none
+# AFTER-EDIT: tests/test_thread_anchor.py, docs/reference/thread-anchors.md, .claude/hooks/final_gate_stop.py, .claude/settings.json, scripts/work.py | none
 """Thread anchors — the NEXT: line, made durable, multi-slot, and read-back.
 
 THE DEFECT (measured live, 2026-08-29, one session): 905 ``NEXT:`` lines emitted, ZERO ever read
@@ -32,6 +32,18 @@ fold into one line and are never expired. The WHERE render runs under a wall-clo
 
 Every load-modify-save runs under an exclusive per-session flock (``<sid>.lock``) and writes
 through a unique temp file — a concurrent harvest must never write back a cleared DECISION.
+
+THE WORK STORE (work tracking, spec 2026-09-24 § NEXT, DECISION blocks and the register). With a
+repo — ``--repo``, else the hook payload's ``cwd``, NEVER the process cwd — whose ``.fabrik/work/``
+exists, ``scripts/work.py`` (loaded by path, beside this script) is called in-process:
+  harvest   ONE ``on_harvest`` call after the session lock is released (never both locks at once):
+            the accepted DECISION block becomes an awaiting item, a NEXT naming ``W-…`` sets that
+            item's ``next``, and the session's live claims are renewed — a quiet turn included.
+            The stored slot carries the resolved ``repo``.
+  line      the second chance: every session's slot for this repo (≤ 7 days old) whose message
+            digest no item holds is created in ONE ``ensure_decision_items`` call; a failed write
+            prints one warning line. Then ``prompt_block`` prints first, never folded.
+A repo without a store, or a copy without ``work.py``, does none of this.
 
 State: one JSON per session under ``~/.claude/state/threads/`` (override: THREAD_ANCHOR_DIR).
 Session-scoped because three concurrent sessions share this repo. EVERY path fails open — this
@@ -178,6 +190,7 @@ _MAX_LINE = 300  # every WHERE YOU ARE line, cut with "…"
 # from this script's own state still print.
 _WHERE_BUDGET_S = 5.0
 _LOCK_TIMEOUT_S = 1.0  # a state write that cannot take the session lock in time is skipped
+_RESCUE_MAX_AGE_S = 7 * 86400  # a DECISION slot older than this is never rescued into the store
 
 
 def _warn(msg: str) -> None:
@@ -217,6 +230,53 @@ def _hook() -> ModuleType:
         raise ImportError(_HOOK_ERR) from None
     _HOOK = mod
     return mod
+
+
+_WORK: ModuleType | None = None
+_WORK_ERR: str | None = None
+
+
+def _work() -> ModuleType | None:
+    """``scripts/work.py`` beside this script, imported BY PATH once per process; None (cached)
+    when it is missing or fails to import — a repo the sync has not yet delivered it to fails
+    open, and the work store is simply not used. An import FAILURE says so in one stderr line."""
+    global _WORK, _WORK_ERR
+    if _WORK is not None or _WORK_ERR is not None:
+        return _WORK
+    path = Path(__file__).resolve().parent / "work.py"
+    try:
+        if not path.is_file():
+            _WORK_ERR = f"{path} does not exist"
+            return None
+        spec = importlib.util.spec_from_file_location("_thread_anchor_work", path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"no loader for {path}")
+        mod = importlib.util.module_from_spec(spec)
+        with contextlib.redirect_stdout(io.StringIO()):
+            spec.loader.exec_module(mod)
+    except KeyboardInterrupt:
+        raise
+    except BaseException as e:
+        _WORK_ERR = f"work store unavailable — {type(e).__name__}: {e}"
+        _warn(_WORK_ERR)
+        return None
+    _WORK = mod
+    return mod
+
+
+def _resolve_repo(raw: object) -> Path | None:
+    """The work tree's top level for ``raw`` (``--repo`` or the payload's ``cwd``) through
+    ``work.repo_root`` — None when nothing was given, work.py is unavailable, or it is no repo."""
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    w = _work()
+    if w is None:
+        return None
+    try:
+        root = w.repo_root(raw)
+    except Exception:
+        return None
+    return root if isinstance(root, Path) else None
 
 
 def _ts(a: dict[str, Any]) -> float | None:
@@ -466,7 +526,9 @@ def _digest(text: str) -> str:
     return hashlib.sha256(text.strip().encode("utf-8", "replace")).hexdigest()
 
 
-def cmd_harvest(session: str, text: str, decision_ok: bool = False) -> None:
+def cmd_harvest(
+    session: str, text: str, decision_ok: bool = False, repo: Path | None = None
+) -> None:
     """Store the message's last NEXT: (promoting long-running shapes to anchors) and, ONLY with
     ``decision_ok`` — the Stop hook passes it when it ACCEPTED the block and ALLOWED the Stop —
     its DECISION block.
@@ -478,7 +540,12 @@ def cmd_harvest(session: str, text: str, decision_ok: bool = False) -> None:
     operator answers, the SAME whole message can be harvested again: when the incoming text's
     digest equals ``cleared_msg`` the block is not re-stored. No clock is involved — the echo is
     refused however long the turn ran — and a word-for-word re-ask arrives in a NEW message, so it
-    is stored at once. Older state shapes (``cleared_decision``) suppress nothing."""
+    is stored at once. Older state shapes (``cleared_decision``) suppress nothing.
+
+    With ``repo`` (the Stop side only — the prompt-time re-harvest never passes it) the slot stores
+    it, and ONE ``work.on_harvest`` call follows on BOTH exits — after ``_update`` has released the
+    session lock, so the two locks are never held together (≤ 1 s + ≤ 2 s, inside the Stop hook's
+    5 s subprocess timeout)."""
     matches = _next_values(text)
     block = None
     if decision_ok and text:
@@ -487,6 +554,7 @@ def cmd_harvest(session: str, text: str, decision_ok: bool = False) -> None:
         except Exception as e:
             _warn(f"DECISION block not stored — {e}")
     if not matches and not block:
+        _store_harvest(repo, session, None, "", None)  # a quiet turn still renews its claims
         return
     now = time.time()
     msg = _digest(text)
@@ -494,6 +562,8 @@ def cmd_harvest(session: str, text: str, decision_ok: bool = False) -> None:
     def apply(state: dict) -> bool:
         if block and msg != state.get("cleared_msg"):
             state["decision"] = {"ts": now, "text": block, "msg": msg}
+            if repo is not None:
+                state["decision"]["repo"] = str(repo)
         if matches:
             nxt = matches[-1][:300]  # the LAST NEXT: in the message is the operative one
             state["last_next"] = {"ts": now, "text": nxt}
@@ -511,15 +581,87 @@ def cmd_harvest(session: str, text: str, decision_ok: bool = False) -> None:
         return True
 
     _update(session, apply)
+    _store_harvest(repo, session, block, msg, matches[-1] if matches else None)
 
 
-def cmd_clear_decision(session: str, prompt: object) -> None:
+def _store_harvest(
+    repo: Path | None, session: str, block: str | None, msg: str, next_text: str | None
+) -> None:
+    """The Stop harvest's ONE store call (``work.on_harvest``, fail-open inside). Never raises."""
+    if repo is None:
+        return
+    w = _work()
+    if w is None:
+        return
+    try:
+        w.on_harvest(repo, session=session, block=block, msg_digest=msg, next_text=next_text)
+    except Exception as e:
+        _warn(f"work store not updated — {type(e).__name__}: {e}")
+
+
+def _rescue_decisions(session: str, repo: Path) -> tuple[str | None, str]:
+    """The second chance, on a prompt-side ``line --hook``: every session's DECISION slot for
+    ``repo`` (≤ 7 days old) whose MESSAGE digest no item holds is created in ONE
+    ``ensure_decision_items`` call — one ≤ 2 s store wait however many slots. Matched by the
+    message digest, never the block's: a block answered, then re-asked word for word in a new
+    message whose Stop write failed, still gets its item. Other sessions' files are only read, and
+    no session lock is held across the store call.
+
+    Returns (the ``msg`` this session's slot carried when it was read — None when the rescue did
+    not cover it — and a warning line, "" unless the write failed). Never raises."""
+    seen: str | None = None
+    w = _work()
+    if w is None:
+        return seen, ""
+    try:
+        if not w.has_store(repo):
+            return seen, ""
+        own = _state_path(session)
+        cutoff = time.time() - _RESCUE_MAX_AGE_S
+        entries: list[tuple[str, str, str]] = []
+        for path in sorted(_state_dir().glob("*.json")):
+            try:
+                if path.stat().st_mtime < cutoff:  # every slot write rewrites its file
+                    continue
+                dec = json.loads(path.read_text(encoding="utf-8")).get("decision")
+            except Exception:
+                continue
+            if not isinstance(dec, dict) or dec.get("repo") != str(repo):
+                continue
+            msg, text, ts = dec.get("msg"), dec.get("text"), _ts(dec)
+            if not (isinstance(msg, str) and msg and isinstance(text, str) and text.strip()):
+                continue
+            if path == own:
+                seen = msg
+            if ts is None or ts < cutoff or w.has_msg_digest(repo, msg):
+                continue
+            entries.append((text, msg, session if path == own else path.stem))
+        if not entries:
+            return seen, ""
+        ids = w.ensure_decision_items(repo, entries)
+        failed = len(entries) - len(ids or [])
+    except Exception as e:
+        _warn(f"DECISION rescue skipped — {type(e).__name__}: {e}")
+        return seen, ""
+    if failed <= 0:
+        return seen, ""
+    return seen, _cap(
+        f"work: ⚠ {failed} DECISION block(s) not written to the work store of {repo} (store "
+        "busy or write failed) — those questions are NOT tracked as work items"
+    )
+
+
+def cmd_clear_decision(session: str, prompt: object, expect_msg: str | None = None) -> None:
     """UserPromptSubmit: the operator's next prompt answers an open DECISION block — unless its
     WHOLE first token is on the closed _BUILTIN_SLASH list, case-insensitively (`/compact` is not
     an answer; `/contextualize x` and `/fabrik-deploy prod` are). A payload with no string
     ``prompt`` is no evidence of an answer, so it clears nothing; a real one always carries it.
     The answered block's message digest moves to ``cleared_msg``, so the same whole message
-    harvested again is not re-stored (A-O7; see cmd_harvest)."""
+    harvested again is not re-stored (A-O7; see cmd_harvest).
+
+    ``expect_msg`` is the slot's ``msg`` as the second chance read it: the slot is cleared only
+    while it still carries that message — one a concurrent Stop harvest replaced in between is
+    left for its own next prompt. None (no rescue ran) clears exactly as before."""
     if not isinstance(prompt, str):
         return
     toks = prompt.split()
@@ -531,6 +673,8 @@ def cmd_clear_decision(session: str, prompt: object) -> None:
         if not dec:
             return False
         msg = dec.get("msg") if isinstance(dec, dict) else None
+        if expect_msg is not None and msg != expect_msg:
+            return False
         state["cleared_msg"] = msg if isinstance(msg, str) else None
         state["decision"] = None
         return True
@@ -683,12 +827,13 @@ def _session_git(session: str, cwd: Path, transcript_path: str, deadline: float)
     return lines
 
 
-def cmd_where(session: str, cwd: Path, transcript_path: str) -> str:
+def cmd_where(session: str, cwd: Path, transcript_path: str, repo: Path | None = None) -> str:
     """`## ⏮ WHERE YOU ARE` — printed after a compaction INSTEAD of the usual block, built only
     from records (spec § C3). Each item that fails is omitted with one stderr line; the rest print.
     The costly items run under one wall-clock budget (_WHERE_BUDGET_S); past it, what remains of
     them collapses into one `- (skipped: time budget)` line. Every line is cut at _MAX_LINE.
-    Silent when every item is empty."""
+    Silent when every item is empty. The OPEN DECISION slot is left out only when ``repo``'s work
+    store holds its message's item — the unfolded block above already lists it."""
     deadline = time.monotonic() + _WHERE_BUDGET_S
     state = _load(session)
     now = time.time()
@@ -717,7 +862,7 @@ def cmd_where(session: str, cwd: Path, transcript_path: str) -> str:
     if isinstance(last, dict) and last.get("text") and not _next_is_shown(last, anchors):
         items.append(f"- NEXT (before the compaction): {last['text']}")
     dec = state.get("decision")  # 3. an open DECISION block
-    if isinstance(dec, dict) and dec.get("text"):
+    if isinstance(dec, dict) and dec.get("text") and not _in_store(repo, dec.get("msg")):
         items.append("- OPEN DECISION — awaiting the operator's answer; never treat it as settled:")
         items += [f"    {ln}" for ln in str(dec["text"]).splitlines()]
     if transcript_path:  # 4. this session's unpushed commits and dirty files
@@ -739,6 +884,27 @@ def cmd_where(session: str, cwd: Path, transcript_path: str) -> str:
         return ""
     head = "## ⏮ WHERE YOU ARE — rebuilt from records after the compaction"
     return "\n".join(_cap(ln) for ln in [head, *items])
+
+
+def _in_store(repo: Path | None, msg: object) -> bool:
+    w = _work() if repo is not None else None
+    if w is None or not isinstance(msg, str) or not msg:
+        return False
+    try:
+        return bool(w.has_msg_digest(repo, msg))
+    except Exception:
+        return False
+
+
+def _prompt_block(repo: Path, session: str) -> str:
+    w = _work()
+    if w is None:
+        return ""
+    try:
+        return str(w.prompt_block(repo, session) or "")
+    except Exception as e:
+        _warn(f"work block skipped — {type(e).__name__}: {e}")
+        return ""
 
 
 def cmd_done(session: str, match: str) -> None:
@@ -795,6 +961,12 @@ def main(argv: list[str] | None = None) -> int:
             help="harvest only: the Stop hook ACCEPTED this message's DECISION block, so store "
             "it; without this flag no block is ever stored",
         )
+        ap.add_argument(
+            "--repo",
+            default="",
+            help="the repo whose work store (.fabrik/work/) the harvest writes; else the hook "
+            "payload's cwd; never the process cwd",
+        )
         args, _ = ap.parse_known_args(argv)
 
         # Read stdin ONLY where it is part of the contract (harvest text, --hook JSON).
@@ -828,12 +1000,16 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             session = "nosession"
 
+        # The work store's repo: --repo, else the payload's cwd — NEVER os.getcwd() (tests and
+        # hooks run from another tree and would read, and lock, ITS store).
+        repo = _resolve_repo(args.repo or payload.get("cwd")) if args.cmd != "done" else None
+
         if args.cmd == "harvest":
             # --hook with nothing piped: extract from the payload's transcript (the help
             # text promised this from day one; the code now delivers it).
             if not stdin_text and transcript_path:
                 stdin_text = _final_message_text(transcript_path)
-            cmd_harvest(session, stdin_text, decision_ok=args.decision_ok)
+            cmd_harvest(session, stdin_text, decision_ok=args.decision_ok, repo=repo)
         elif args.cmd == "line":
             # The race-free second harvest pass: at prompt time the PREVIOUS turn's final
             # message is always flushed, so this catches whatever the Stop-side harvest
@@ -842,13 +1018,23 @@ def main(argv: list[str] | None = None) -> int:
             # one (below) but never re-store it (C-O8).
             if transcript_path:
                 cmd_harvest(session, _final_message_text(transcript_path))
-            if payload.get("hook_event_name") == "UserPromptSubmit":
-                cmd_clear_decision(session, payload.get("prompt"))
+            event = payload.get("hook_event_name")
+            seen: str | None = None
+            head: list[str] = []
+            if repo is not None:
+                warning = ""
+                if event in ("UserPromptSubmit", "SessionStart"):
+                    seen, warning = _rescue_decisions(session, repo)
+                head = [ln for ln in (_prompt_block(repo, session), warning) if ln]
+            if event == "UserPromptSubmit":
+                cmd_clear_decision(session, payload.get("prompt"), expect_msg=seen)
             if payload.get("source") == "compact":
                 cwd = Path(str(payload.get("cwd") or os.getcwd())).resolve()
-                out = cmd_where(session, cwd, transcript_path)
+                out = cmd_where(session, cwd, transcript_path, repo=repo)
             else:
                 out = cmd_line(session)
+            # The work block first, never folded — above the usual block and WHERE YOU ARE.
+            out = "\n".join([*head, out] if out else head)
             if out:
                 # Flushed HERE: past the budget the abandoned import thread still holds sys.stdout
                 # redirected at exit, so nothing flushes this stream for us (0 bytes, measured).

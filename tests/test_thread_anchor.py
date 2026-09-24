@@ -231,7 +231,11 @@ def _env(tmp_path: Path) -> dict[str, str]:
 
 
 def run3(
-    args: list[str], env: dict[str, str], stdin: str = "", script: Path = SCRIPT
+    args: list[str],
+    env: dict[str, str],
+    stdin: str = "",
+    script: Path = SCRIPT,
+    cwd: Path | None = None,
 ) -> tuple[int, str, str]:
     proc = subprocess.run(
         [sys.executable, str(script), *args],
@@ -240,6 +244,7 @@ def run3(
         text=True,
         env=env,
         timeout=30,
+        cwd=cwd,
     )
     return proc.returncode, proc.stdout, proc.stderr
 
@@ -973,3 +978,300 @@ def test_a_next_that_only_shares_the_anchors_key_is_still_shown(tmp_path):
     assert run3(["line", "--session", "s-k"], env)[1].count("phase b — ship it") == 1
     out = _hook_line(env, {"session_id": "s-k", "source": "compact", "cwd": str(tmp_path)})[1]
     assert out.count("phase b — ship it") == 1, out
+
+
+# ── work tracking T04: DECISION blocks become items, the unfolded block, claim renewal ─────────
+# Every store here is a temp repo initialised by the worktree's own scripts/work.py; the hub's
+# `.fabrik/work/` is never read (the script resolves the repo from --repo or the payload's cwd only).
+
+WORK = REPO / "scripts" / "work.py"
+_OTHER_DECISION = _DECISION_TEXT.replace("Deploy the certified build", "Rotate the signing key")
+
+
+def _work(env: dict[str, str], repo: Path, *args: str) -> str:
+    proc = subprocess.run(
+        [sys.executable, str(WORK), "--repo", str(repo), *args],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return proc.stdout
+
+
+def _store_repo(tmp_path: Path, env: dict[str, str], init: bool = True) -> Path:
+    repo = tmp_path / "wrepo"
+    _git(tmp_path, env, "init", "-q", str(repo))
+    (repo / "README").write_text("seed\n", encoding="utf-8")
+    _git(repo, env, "add", "README")
+    _git(repo, env, "commit", "-q", "-m", "seed")
+    if init:
+        _work(env, repo, "init", "--distributor", "intel")
+    return repo.resolve()
+
+
+def _items(repo: Path) -> list[dict]:
+    store = repo / ".fabrik" / "work"
+    return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(store.glob("W-*.json"))]
+
+
+def _msg_digest(text: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(text.strip().encode("utf-8", "replace")).hexdigest()
+
+
+def _slot(repo: Path, text: str, ts: float | None = None) -> dict:
+    """A slot exactly as a Stop harvest stores it — here WITHOUT its store item, the failed write."""
+    block = text[text.index("DECISION NEEDED") : text.index("\n\nNEXT:")]
+    return {
+        "ts": time.time() if ts is None else ts,
+        "text": block,
+        "msg": _msg_digest(text),
+        "repo": str(repo),
+    }
+
+
+def _slot_state(repo: Path, text: str, ts: float | None = None) -> dict:
+    return {"anchors": [], "last_next": None, "decision": _slot(repo, text, ts)}
+
+
+def _prompt(sid: str, repo: Path, prompt: str = "carry on") -> dict:
+    return {
+        "session_id": sid,
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": prompt,
+        "cwd": str(repo),
+    }
+
+
+def _snapshot(root: Path) -> list[str]:
+    return sorted(str(p.relative_to(root)) for p in root.rglob("*"))
+
+
+def test_a_harvested_decision_block_becomes_an_awaiting_item(tmp_path):
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    rc, _, err = run3(
+        ["harvest", "--session", "s-i", "--decision-ok", "--repo", str(repo)],
+        env,
+        stdin=_DECISION_TEXT,
+    )
+    assert rc == 0, err
+    items = _items(repo)
+    assert len(items) == 1, items
+    assert items[0]["status"] == "awaiting-operator"
+    assert _msg_digest(_DECISION_TEXT) in items[0]["msg_digests"]
+    assert _state(env, "s-i")["decision"]["repo"] == str(repo)
+
+
+def test_a_second_different_block_makes_a_second_item_and_leaves_the_first(tmp_path):
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    args = ["harvest", "--session", "s-2", "--decision-ok", "--repo", str(repo)]
+    run3(args, env, stdin=_DECISION_TEXT)
+    (first,) = list((repo / ".fabrik" / "work").glob("W-*.json"))
+    before = first.read_bytes()
+    run3(args, env, stdin=_OTHER_DECISION)
+    items = _items(repo)
+    assert len(items) == 2, items
+    assert first.read_bytes() == before, "the first item changed"
+    assert {it["question"] for it in items} == {
+        "Deploy the certified build to production now?",
+        "Rotate the signing key to production now?",
+    }
+
+
+@pytest.mark.parametrize("who", ["same-session", "another-session"])
+def test_a_failed_stop_write_is_rescued_by_the_next_prompt(tmp_path, who):
+    """The second chance: the slot carries --repo; the next prompt — in that session, or in
+    another after the first one ended — creates the item the Stop harvest failed to write."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    _write_state(env, "s-dead", _slot_state(repo, _DECISION_TEXT))
+    sid = "s-dead" if who == "same-session" else "s-live"
+    rc, out, err = _hook_line(env, _prompt(sid, repo))
+    assert rc == 0, err
+    items = _items(repo)
+    assert len(items) == 1 and items[0]["status"] == "awaiting-operator", (items, err)
+    assert _msg_digest(_DECISION_TEXT) in items[0]["msg_digests"]
+    assert "Deploy the certified build to production now?" in out, out
+    # a second prompt finds the item by its message digest and creates nothing more
+    _hook_line(env, _prompt("s-other", repo))
+    assert len(_items(repo)) == 1
+
+
+def test_a_slot_older_than_seven_days_is_not_rescued(tmp_path):
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    _write_state(env, "s-old", _slot_state(repo, _DECISION_TEXT, ts=time.time() - 8 * 86400))
+    assert _hook_line(env, _prompt("s-live", repo))[0] == 0
+    assert _items(repo) == []
+
+
+def test_a_rescue_that_fails_warns_once_on_stdout(tmp_path):
+    import fcntl
+
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    _write_state(env, "s-f", _slot_state(repo, _DECISION_TEXT))
+    shared = repo / ".git" / "fabrik-work"
+    shared.mkdir(exist_ok=True)
+    fd = os.open(shared / ".lock", os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)  # the store is busy for the whole prompt
+        rc, out, err = _hook_line(env, _prompt("s-p", repo))
+    finally:
+        os.close(fd)
+    assert rc == 0, err
+    assert _items(repo) == []
+    warn = [ln for ln in out.splitlines() if "not written" in ln]
+    assert len(warn) == 1 and len(warn[0]) <= 300, out
+
+
+def test_a_repo_without_a_store_neither_rescues_nor_warns(tmp_path):
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env, init=False)
+    _write_state(env, "s-n", _slot_state(repo, _DECISION_TEXT))
+    before = _snapshot(repo)
+    rc, out, err = _hook_line(env, _prompt("s-q", repo))
+    assert rc == 0 and out == "", (out, err)
+    assert _snapshot(repo) == before, "a store-less repo was written"
+
+
+def test_a_reask_after_an_answer_whose_stop_write_failed_gets_a_new_item(tmp_path):
+    """The RECORDED residue: matched by the MESSAGE digest, never by block_digest — the answered
+    item has the same block, and must not swallow the re-ask."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    run3(
+        ["harvest", "--session", "s-r", "--decision-ok", "--repo", str(repo)],
+        env,
+        stdin=_DECISION_TEXT,
+    )
+    (item,) = _items(repo)
+    _work(env, repo, "answer", item["id"], "--note", "A, deploy it", "--session", "s-r")
+    reask = "The smoke pass found nothing new, so I am asking again.\n\n" + _DECISION_TEXT
+    _write_state(env, "s-r", _slot_state(repo, reask))
+    assert _hook_line(env, _prompt("s-r2", repo))[0] == 0
+    awaiting = [it for it in _items(repo) if it["status"] == "awaiting-operator"]
+    assert len(awaiting) == 1 and awaiting[0]["id"] != item["id"], _items(repo)
+    assert _msg_digest(reask) in awaiting[0]["msg_digests"]
+
+
+def test_the_clear_keeps_a_slot_replaced_after_the_rescue_read_it(tmp_path, monkeypatch):
+    """The prompting session's slot is cleared only when its `msg` is still the one the rescue
+    read; a slot a concurrent Stop harvest replaced in between is left for its own next prompt."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    _write_state(env, "s-x", _slot_state(repo, _DECISION_TEXT))
+    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "HOME", "TMPDIR"):
+        monkeypatch.setenv(k, env[k])
+    ta = _ta_module()
+    real = ta._rescue_decisions
+
+    def rescue_then_replace(session: str, repo_: Path) -> tuple[str | None, str]:
+        got = real(session, repo_)
+        _write_state(env, "s-x", _slot_state(repo, _OTHER_DECISION))  # a new Stop landed
+        return got
+
+    monkeypatch.setattr(ta, "_rescue_decisions", rescue_then_replace)
+    monkeypatch.setattr(sys, "stdin", __import__("io").StringIO(json.dumps(_prompt("s-x", repo))))
+    assert ta.main(["line", "--hook"]) == 0
+    assert "Rotate the signing key" in (_state(env, "s-x").get("decision") or {}).get("text", "")
+    # without a replacement, the same prompt clears the slot as before
+    _write_state(env, "s-y", _slot_state(repo, _DECISION_TEXT))
+    assert _hook_line(env, _prompt("s-y", repo))[0] == 0
+    assert not _state(env, "s-y").get("decision")
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"hook_event_name": "UserPromptSubmit", "prompt": "carry on"},
+        {"hook_event_name": "SessionStart", "source": "compact"},
+    ],
+    ids=["prompt", "compact"],
+)
+def test_awaiting_items_from_other_sessions_print_first_unfolded(tmp_path, payload):
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    for sid, text in (("s-a", _DECISION_TEXT), ("s-b", _OTHER_DECISION)):
+        run3(["harvest", "--session", sid, "--decision-ok", "--repo", str(repo)], env, stdin=text)
+    run3(["harvest", "--session", "s-c"], env, stdin="NEXT: resume phase C of the plan")
+    rc, out, err = _hook_line(env, {**payload, "session_id": "s-c", "cwd": str(repo)})
+    assert rc == 0, err
+    head = out.splitlines()[:2]
+    assert any("Deploy the certified build to production now?" in ln for ln in head), out
+    assert any("Rotate the signing key to production now?" in ln for ln in head), out
+    assert "resume phase C" in out, out
+    if payload.get("source") == "compact":
+        assert "WHERE YOU ARE" in out, out
+
+
+def test_where_block_omits_the_slot_only_when_the_store_holds_its_item(tmp_path, monkeypatch):
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    run3(
+        ["harvest", "--session", "s-w", "--decision-ok", "--repo", str(repo)],
+        env,
+        stdin=_DECISION_TEXT,
+    )
+    out = _hook_line(env, {"session_id": "s-w", "source": "compact", "cwd": str(repo)})[1]
+    assert "OPEN DECISION" not in out and out.count("Deploy the certified build") == 1, out
+    # the store lost the item (a failed write before the compaction): the slot line prints
+    for p in (repo / ".fabrik" / "work").glob("W-*.json"):
+        p.unlink()
+    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "HOME", "TMPDIR"):
+        monkeypatch.setenv(k, env[k])
+    out = _ta_module().cmd_where("s-w", repo, "", repo=repo)
+    assert "OPEN DECISION" in out, out
+
+
+def test_a_quiet_stop_harvest_renews_the_sessions_claim(tmp_path):
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    _work(env, repo, "add", "--kind", "task", "--title", "wire the harvest")
+    (item,) = _items(repo)
+    _work(env, repo, "claim", item["id"], "--session", "s-cl")
+    claim_path = repo / ".git" / "fabrik-work" / "claims" / f"{item['id']}.json"
+    claim = json.loads(claim_path.read_text(encoding="utf-8"))
+    claim["at"] = time.time() - 3600
+    claim_path.write_text(json.dumps(claim), encoding="utf-8")
+    rc, _, err = run3(
+        ["harvest", "--session", "s-cl", "--repo", str(repo)], env, stdin="no footer at all"
+    )
+    assert rc == 0, err
+    renewed = json.loads(claim_path.read_text(encoding="utf-8"))
+    assert renewed["at"] > time.time() - 60, (renewed, err)
+
+
+def test_no_repo_and_no_cwd_touch_no_store(tmp_path):
+    """Grounding risk 2: never os.getcwd() — run from INSIDE an initialised repo, nothing is read
+    (no prompt block) and nothing is written."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    _work(env, repo, "add", "--kind", "task", "--title", "ready work")
+    before = _snapshot(repo)
+    run3(["harvest", "--session", "s-g", "--decision-ok"], env, stdin=_DECISION_TEXT, cwd=repo)
+    rc, out, _ = run3(
+        ["line", "--hook"],
+        env,
+        stdin=json.dumps({"session_id": "s-g", "hook_event_name": "SessionStart"}),
+        cwd=repo,
+    )
+    assert rc == 0 and "work:" not in out, out
+    assert _snapshot(repo) == before, "a store was written without --repo or a payload cwd"
+
+
+def test_a_next_naming_an_item_sets_its_next_field(tmp_path):
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    _work(env, repo, "add", "--kind", "task", "--title", "wire the harvest")
+    (item,) = _items(repo)
+    nxt = f"finish {item['id']} — the claim renewal tests"
+    run3(
+        ["harvest", "--session", "s-nx", "--repo", str(repo)], env, stdin=f"done.\n\nNEXT: {nxt}\n"
+    )
+    assert _items(repo)[0].get("next") == nxt, _items(repo)
