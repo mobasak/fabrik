@@ -31,8 +31,8 @@ Fleet root override: `CLAUDE_FLEET_ROOT` (`_fleet_root`, `claude_rotate.py:1432`
 Two environment variables — both, or the binding is a no-op:
 
 - `CLAUDE_CONFIG_DIR` → `~/.claude-fleet/active` (the CLI's config dir: credentials and
-  `.claude.json` are per account; `agents/`, `commands/`, `skills/`, `projects/` and `sessions/`
-  are symlinks to the one shared `~/.claude/<name>` — `_SHARED_DIR_LINKS`. `sessions/` is in the set (D-287): it is the CLI's peer registry, read through the pointer as it stands now but written under the dir the pointer named at each session's start, so per-account it empties every window's `ListAgents` on every flip. A REAL `sessions/` dir is healed by hand once: check for a same-named `<pid>.json` across the REAL dirs AND the destination first
+  `.claude.json` are per account; `agents/`, `commands/`, `skills/`, `projects/`, `sessions/` and
+  `tasks/` are symlinks to the one shared `~/.claude/<name>` — `_SHARED_DIR_LINKS`. `sessions/` is in the set (D-287): it is the CLI's peer registry, read through the pointer as it stands now but written under the dir the pointer named at each session's start, so per-account it empties every window's `ListAgents` on every flip. `tasks/` (the CLI's native Task list) joined for the same reason (D-399); a REAL `tasks/` found in an account dir is reported by `--new-dir` and `--status`, never moved — merge it by hand the way `sessions/` is healed below. A REAL `sessions/` dir is healed by hand once: check for a same-named `<pid>.json` across the REAL dirs AND the destination first
   (`for d in ~/.claude-fleet/*/sessions ~/.claude/sessions; do [ -e "$d" ] && [ ! -L "$d" ] && ls
   "$d"; done | sort | uniq -d` — the unfiltered `ls` lists the shared dir once per link and reports every file as a collision), move its `sessions/*` into `~/.claude/sessions/`
   with `mv -n` (a same-named record in the destination must never be clobbered), `rmdir` the

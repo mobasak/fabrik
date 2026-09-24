@@ -97,7 +97,7 @@ def test_new_dir_seeds_the_full_contract(tmp_path, monkeypatch):
     assert seeded["mcpServers"] == {"serena": {"command": "serena"}}
     assert seeded["projects"] == {"/opt/seo": {"hasTrustDialogAccepted": True}}
 
-    for name in ("agents", "commands", "skills", "projects", "sessions"):
+    for name in ("agents", "commands", "skills", "projects", "sessions", "tasks"):
         link = d / name
         assert link.is_symlink(), f"{name}/ must be a symlink to the canonical dir"
         assert link.resolve() == (cdir / name).resolve()
