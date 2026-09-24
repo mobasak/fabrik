@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-08T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ab566484",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **Hub diff-scoped pytest leg** — the hub's gate pytest leg is OFF (5,913 tests), so a commit that reds a COMMITTED test still gates green: 741eebbf swept half of fleet's D-201 change and HEAD was red at `tests/test_quota_dashboard.py:709` for ~15 minutes with `status: success` in the commit body. Run only the test files the commit touches (<10 s here); measure the fire rate on the last 50 hub commits before it blocks. Round-13 Opus MACHINERY note, 2026-09-08.",
+  "note": "migrated-digest:fad095862f85",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Hub diff-scoped pytest leg** — the hub's gate pytest leg is OFF (5,913 tests), so a commit that reds a COMMITTED test still gates green: 741eebbf swept half of fleet's D-201 change and HEAD was r..."
+}

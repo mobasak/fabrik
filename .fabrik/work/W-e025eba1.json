@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e025eba1",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `check_convergence._STATUS_LINE` misses `Status: **EXECUTED**` (2026-09-24)\n\nFound while building T02: the enforcement reader's status regex needs a literal `Status:` followed by the value, so a bold-wrapped value (`Status: **EXECUTED**`) reads as empty; `work.py` carries its own fallback (`_STATUS_VALUE_RE`), the gate's check does not. Destination `scripts/enforcement/check_convergence.py` `_STATUS_LINE` (fleet-synced — full review). Owner: infra.",
+  "note": "migrated-digest:e145ee3942f2",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`check_convergence._STATUS_LINE` misses `Status: **EXECUTED**` (2026-09-24)"
+}

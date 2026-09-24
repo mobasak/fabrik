@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-18T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-416058b2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] The element-guard's `TypeError` message names neither the member nor its type (2026-09-18)** — `f\"declared.files is not a list of str: {type(_raw_files).__name__}\"` prints `… is not a list of str: list` for `[\"mas.txt\", 7]`, which reads as a contradiction. The string never reaches an operator (the close prints only `type(e).__name__`), so it is the sole record of the cause and it identifies nothing actionable. One-line fix: interpolate the member types. Low.",
+  "note": "migrated-digest:c1047a2c2a60",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**The element-guard's `TypeError` message names neither the member nor its type (2026-09-18)** — `f\"declared.files is not a list of str: {type(_raw_files).__name__}\"` prints `… is not a list of str..."
+}

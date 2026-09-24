@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-30T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c792a205",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] Every hub edit to a VPS-EXECUTED script has been inert since 2026-08-30 — the sync is manual and nobody is obliged to run it (2026-09-05, owner: fleet)\n\nFound by asking, during a combined review, whether a check I had just shipped actually RUNS where it must\nrun. It did not. `proactive-check.sh` executes on vps1 from `/opt/fabrik/scripts/sysadmin/` via\n`/etc/cron.d/vps-sysadmin` (`*/15`), and **that tree is not a git repo** — files arrive only through\n`scripts/sync-vps-sysadmin.sh`, run by hand. Measured 2026-09-05: the deployed `proactive-check.sh` was\ndated **2026-08-30** and contained none of the day's changes; across `scripts/sysadmin/` the newest mtime\nwas the same date, with several files back to July. So anything ANY agent changed in a VPS-executed script\nin the last six days has not been running — silently, because the hub copy looks correct and the gate is\ngreen against the hub copy.\n\n**Two live consequences already measured, both filed with this row rather than assumed:** a recurrence\ncheck shipped that night executed nowhere at all until deployed by hand, and `detect_reversals.py` failed\nevery five minutes for ~5.5 days (1,597 logged failures in the current rotation) — that second one is\nFIXED, its root being a non-executable file mode in the HUB copy that `rsync -a` faithfully reproduced.\n\n**Why the obvious fix was NOT taken:** running `sync-vps-sysadmin.sh` pushes `scripts/sysadmin/`,\n`scripts/audit/`, `docs/infrastructure/` and `specs/services/` wholesale, so invoking it while sibling\nsessions have in-flight hub state would deploy their unfinished work to production. A blanket sync is the\nwrong instrument on a shared tree with concurrent writers, which is exactly why it keeps not being run.\n\n**Candidates, none built:** (a) make the deploy per-file and idempotent so it is safe to run at any moment;\n(b) a staleness CHECK rather than a push — compare hub vs VPS md5 for the cron-invoked set and warn, which\nis cheap, read-only, safe under concurrency, and would have caught this on day one; (c) put `/opt/fabrik`\non the VPS under git and pull a tag. (b) is the smallest honest step and does not require deciding (a) or\n(c) first. Measure nothing before building (b) — a divergence check over 8 cron targets cannot be\nwallpaper. Blocked by: an operator call on whether the box should pull instead of being pushed to.",
+  "note": "migrated-digest:ce219b7ac280",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "Every hub edit to a VPS-EXECUTED script has been inert since 2026-08-30 — the sync is manual and nobody is obliged to run it (2026-09-05, owner: fleet)"
+}

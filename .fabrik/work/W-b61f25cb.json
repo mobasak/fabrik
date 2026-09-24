@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-19T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b61f25cb",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## `_MODEL_TOK` is a substring search, so a seat token nobody dispatched closes the round (routed 2026-09-19)\n\nTwo residuals from the `/fabrik-command-improve fabrik-review` run that wrote and then reverted a\nclosing-row sentence (D-304). Both belong to the grammar D-262's row above already sizes as\n`/fabrik-spec` work; recorded here so that change inherits them rather than re-deriving them.\n\n1. **The COBRA path on the finders-cell gate is unwritten.** `check_review_coverage.py:2049`'s\n   `_MODEL_TOK` is a case-insensitive substring search over the closing row's finders cell. Executed\n   on a pinned copy (`f131cee66019fcf1cff251a61c917312`): a cell reading `the orchestrator (opus×1)\n   re-read its own fix diff — no seat dispatched` is SILENT, and so is `same seats as pass 1:\n   opus×1 + sonnet×2, re-prompted`. Both are exactly the states the rule exists to forbid. Typing a\n   token is cheaper than dispatching a seat, and the only artifact that could falsify it is the\n   `command_run.py dispatch --seats` stamp, which the checker deliberately does not read (`:2044-2046`\n   — \"this gate has no run-record reader and adding one would be a new mechanism\"). D-253 asks for\n   the cheapest bypass to be written down in the mechanism's own docstring; it is not. Writing it\n   down is the minimum; a counter-measure is the design question for D-262's change.\n\n2. **The rule's one wording covers only the TABLE grammar.** `:763-776` has two arms: a table row is\n   graded on `cells[1]`, a prose row on the text BEFORE its counters, and `:755-761` records that the\n   prose ledger is a legal grammar which once made this check unsatisfiable. `review_receipt.py:171`\n   and the checker's refusal text both say \"Finders cell\", which names only the table arm. Measured\n   across 324 receipts under `docs/development/reviews/`: 114 carry a parsed closing row, 95\n   table-shaped and 19 prose-shaped, and of the 42 closing rows the gate actually grades (those\n   stating `confirmed:`) 42 are table and 0 prose. So the gap is PROSPECTIVE, with zero live\n   instances — which is why it is a precision note on D-262's change and not its own work.\n\n**Destination:** infra, inside the D-262 change.",
+  "note": "migrated-digest:5ff9c9435924",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "`_MODEL_TOK` is a substring search, so a seat token nobody dispatched closes the round (routed 2026-09-19)"
+}

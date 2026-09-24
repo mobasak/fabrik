@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-15T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fdb0bb7d",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `check_plan_lock_release.py` cannot see a cross-plan overlap — it judges staleness only from the plan's own `Status:` string (2026-09-15, plan-2 Finish review)\n\n`.fabrik/plan-locks/2026-09-09-plan-1-review-convergence-redesign.json` is `status: active` with 34\n`owned_paths` that cover essentially plan-2's entire File Scope (`commands/_sources/fabrik-review.md`,\n`fabrik-review-scoped.md`, `scripts/command_run.py`, `scripts/final_gate.py`,\n`docs/workflows/FINAL_GATE_WORKFLOW.md`, `CLAUDE.md`, `templates/governance/CLAUDE.md`, …). Plan-2 ran\n75 commits across those paths over three days and never referenced that lock\n(`command grep -c \"review-convergence-redesign\"` over the plan file → **0**), and no plan-lock JSON\nexists for plan-2 at all. No work was lost — both are this operator's own sequential sessions — but the\none check that exists to catch this is structurally blind to it.\n\n**Shape of the fix:** flag an `active` lock whose `owned_paths` have been edited by commits carrying a\nDIFFERENT plan's provenance (`Agent-Phase`/`Agent-Context`) since the lock's own creation. Staleness\nread from the plan's self-reported `Status:` cannot detect a lock the editing plan never knew about.",
+  "note": "migrated-digest:a999a80a566c",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`check_plan_lock_release.py` cannot see a cross-plan overlap — it judges staleness only from the plan's own `Status:` string (2026-09-15, plan-2 Finish review)"
+}

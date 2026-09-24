@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-23T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d83205e0",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "~~**Approval-window conflict (fleet mail 01M37F6Z1PC7Y5R92EA5CN3EPH)**~~ ✅ **RESOLVED 2026-09-23 (D-378)**: the hub default is 300 s again; the explicit spec values are the open item below. The original entry follows. The hub spec defaults `code_fix_window_sec` to 1800 and the driver passes it through, against fabrik-lib's operator ruling of 300 (fabrik-lib D-236); `calendar-orchestration-engine` runs Tier D at 1800 today. The hub-side decision is owed.",
+  "note": "migrated-digest:f3c5ca0ce576",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "title": "~~**Approval-window conflict (fleet mail 01M37F6Z1PC7Y5R92EA5CN3EPH)**~~ ✅ **RESOLVED 2026-09-23 (D-378)**: the hub default is 300 s again; the explicit spec values are the open item below. The ori..."
+}

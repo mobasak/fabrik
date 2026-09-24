@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.368142Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b3156cf1",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[fleet] subagents fleet re-vendor sweep** (01M1B35GKQ): NVIDIA_API_KEY dotenv fix + lane_chain\n  landed upstream; every vendored copy behind.",
+  "note": "migrated-digest:344c027788c1",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "**subagents fleet re-vendor sweep** (01M1B35GKQ): NVIDIA_API_KEY dotenv fix + lane_chain"
+}

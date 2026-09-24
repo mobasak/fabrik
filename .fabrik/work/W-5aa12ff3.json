@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-14T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5aa12ff3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `--command` is normalised for its leading slash but not its case, so `--command Fabrik-Review` silences the review-family branches (2026-09-14, D-252 review round 2)\n\n`start` stores `(args.command or \"\").lstrip(\"/\")` — no `.strip().lower()`. The stand-down predicates in `convergence_warning` and `scope_growth_warning` both apply `.strip().lower()` before their membership test, but the `in REVIEW_FAMILY` tests in the round handler and on the close path are case-SENSITIVE against the stored value. So a record started as `--command Fabrik-Review` silences the uncounted-round NOTE and takes the wrong close branch, while the two advisories still stand down correctly — the same record read two ways.\n\n**Shape of the fix:** normalise once at the start handler (`.strip().lower()` beside the existing `lstrip(\"/\")`), rather than at each reader. Pre-existing on the close path; the new NOTE inherits it. `scripts/command_run.py`.",
+  "note": "migrated-digest:d5c5b6878f08",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`--command` is normalised for its leading slash but not its case, so `--command Fabrik-Review` silences the review-family branches (2026-09-14, D-252 review round 2)"
+}

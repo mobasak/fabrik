@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.720524Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f92977b9",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## check_governance_tables.py is blind to two GFM-invisible table shapes (routed from T04a, D-297)\n\nFound by T04a's review (2026-09-18) and verified by reading the code plus rendering through\nmarkdown-it-py. `scripts/enforcement/check_governance_tables.py` is the fleet-facing guard that a\ngovernance rule living in a markdown table still RENDERS, and it misses two shapes that render\nnothing at all:\n\n- `:121` `indent = len(raw) - len(raw.lstrip(\" \"))` is space-only. A TAB-indented row scores\n  indent 0 and is checked as a normal row, but GFM expands a tab to the next 4-column stop, making\n  the whole table an indented code block — invisible to every rendered reader.\n- `:128` gates the header-vs-delimiter width comparison on `_DELIM.match(nxt)`. Delete the\n  delimiter row and the only check that would notice self-disables; GFM then renders a paragraph.\n\nA third, narrower gap: the width comparison only runs when a delimiter row is present AND both\nouter pipes are there, so a delimiter one cell short is caught but a pipe-less one is not examined\nat all (the same convention T04a's grader now names in its failure message).\n\nFix shape: `e = raw.expandtabs(4); indent = len(e) - len(e.lstrip(\" \"))` at both sites, and track\nwhether a delimiter row was seen per table rather than gating on finding one. T04a solved the same\nclass in its own grader by delegating validity to markdown-it-py instead of approximating GFM —\nthree rounds of approximation there produced defects in BOTH directions — so the leanest fix here\nmay be the same delegation rather than a fourth hand-rolled rule.\n\n⚠️ This is `scripts/enforcement/` — a governance-sync path distributing to ~46 repos — so by the\nlane table T04a adds, it is rule 1: right-now + a full `/fabrik-review`, never a rider on another\nticket. That is why it was routed rather than fixed in T04a (D-297).",
+  "note": "migrated-digest:10c058299127",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "check_governance_tables.py is blind to two GFM-invisible table shapes (routed from T04a, D-297)"
+}

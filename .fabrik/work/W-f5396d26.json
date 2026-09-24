@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.771116Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f5396d26",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] The fleet template ships 3 kB of hub plumbing and hub box facts to ~46 mostly single-agent repos\n\n`templates/governance/CLAUDE.md` § Shared repo grew 37.5% (7,958 → 10,944 chars) into a seven-step\n`GIT_INDEX_FILE`/`commit-tree`/CAS recipe, and now also carries \"18 of the 45 `.git` entries at\n`/opt/*` … two of those entries being linked worktrees of `fabrik-lib`\" — a measurement of the HUB's\nbox, shipped byte-identical to repos that are not part of that fleet and where the concurrent-writer\nhazard cannot occur. The one-line rule a project agent needs (stage explicit paths, verify what\nlanded) now sits ahead of material that never applies to them. **Do:** with the script row above, cut\nthe template to the rule plus the pointer, and keep the box facts hub-side.",
+  "note": "migrated-digest:1f5bd4fe22c3",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The fleet template ships 3 kB of hub plumbing and hub box facts to ~46 mostly single-agent repos"
+}

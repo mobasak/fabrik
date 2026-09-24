@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-23T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4bda2f6c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Doc↔script coupling reads `.py` headers only — a shell script's `# AFTER-EDIT:` is decorative (2026-09-23)\n\n`scripts/render_doc_script_links.py` (`_scripts()`) and `scripts/enforcement/check_script_headers.py` both select `.py` files only, so a shell script's `# AFTER-EDIT:` header is never rendered into the `docs/` page it names and never checked — e.g. `scripts/install_post_commit_hook.sh` → `docs/workstation/hooks-index.md`. (A header naming a file outside `docs/`, such as `governance_sync_postcommit.sh` → `CLAUDE.md`, is not rendered by design: `RENDER_ROOTS` is `docs/` only.) Found by the D-369 review's docs finder. Fix at the class: extend both to `scripts/**/*.sh`, measuring first how many shell scripts carry a header and how many docs then change. Owner: infra.",
+  "note": "migrated-digest:9347fcd83e05",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Doc↔script coupling reads `.py` headers only — a shell script's `# AFTER-EDIT:` is decorative (2026-09-23)"
+}

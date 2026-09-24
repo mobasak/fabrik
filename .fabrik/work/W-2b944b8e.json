@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-31T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2b944b8e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] No fixture test asserts the corpus's own quoted exit strings parse under the graders (found by the fresh corpus review's native finder, 2026-08-31)\n\nThe finding-2 class (a completion sentence naming a ledger shape `check_convergence.py`/\n`check_review_coverage.py` reject) was only findable by hand-running the graders on a constructed\nfixture — prose and grader can drift with zero mechanical signal. Candidate: a ~10-line test that\nextracts the exit-row examples quoted in `commands/_sources`/`_fragments` and asserts they parse\nunder `_pass_counters` + QUIET_PASS. Measure-first per the fix directive: one confirmed occurrence\nso far (the `found: 0 · new: 0` two-token QUIET sentence, fixed 2026-08-31); promote if the class\nrecurs. Trigger: the next prose-vs-grader mismatch found by any review.",
+  "note": "migrated-digest:8493e1196e35",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "No fixture test asserts the corpus's own quoted exit strings parse under the graders (found by the fresh corpus review's native finder, 2026-08-31)"
+}

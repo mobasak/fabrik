@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-15T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-26748a1b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] The phase-boundary review gate matches receipts by record ORDINAL while plans name them by LETTER, so a reviewed phase reads as unreviewed (2026-09-15, plan-2 Phase H step, found by a refused `command_run.py step`)\n\n`/fabrik-execute-plan`'s D4 gate refuses a step when \"phase N has no review artifact\", looking for a\nfilename containing `phase-<N>`. Plans A/B/C name their receipts by LETTER\n(`…-phase-C-review.md`), which is the convention those phases actually shipped with. Phase C of\nplan-2 HAS a committed receipt and still read as unreviewed, because it is record-phase 1 and its\nfilename says `phase-C`.\n\nThe escape hatch works and was used honestly (`--review-waived` with the reason recorded), but a\ngate whose normal outcome on a correctly-reviewed phase is a waiver trains agents to waive. Phases\nE/F/G of the same plan carry BOTH (`phase-3-E`, `phase-4-F`, `phase-5-G`) and are read correctly,\nwhich is the accidental workaround rather than a documented convention.\n\n**Shape of the fix:** accept either spelling — match `phase-<ordinal>` OR `phase-<letter>` where the\nletter is the plan's Nth `## Phase <X>` heading — or state the dual-token naming\n(`phase-<ordinal>-<letter>`) in the receipt convention so it stops being folklore. Do NOT just widen\nto a bare `phase-.` glob: that makes any phase's receipt satisfy every phase.",
+  "note": "migrated-digest:0e1bc038737c",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The phase-boundary review gate matches receipts by record ORDINAL while plans name them by LETTER, so a reviewed phase reads as unreviewed (2026-09-15, plan-2 Phase H step, found by a refused `comm..."
+}

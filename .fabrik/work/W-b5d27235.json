@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b5d27235",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra/fleet] The hub's orchestrator test suites reach production over ssh (2026-09-24)\n\nSuites that drive `_provision_postgres` or the watchdog registrar with only some drivers patched run real SQL on\npostgres-main (`ensure_shared_analytics_db`, `create_subagent_ins_role` on `fabrik_analytics`) and a real watchdog\nbuild on the VPS; `tests/orchestrator/test_infrastructure.py` takes ~16 min of ssh round-trips. Measured during\nplan audit-log-everywhere T04, filed as mail 01M39XVS. The fix is a default-deny conftest guard on `_run_sql`,\nthe ssh driver and the watchdog remote build, with an explicit per-module opt-in; T04's own stub\n(`_no_live_app_role_step`) covers only the app-role step. Measure the red set under the guard first.",
+  "note": "full-tag:[infra/fleet]; migrated-digest:2f19d98632e6",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The hub's orchestrator test suites reach production over ssh (2026-09-24)"
+}

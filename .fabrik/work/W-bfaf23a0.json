@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-23T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-bfaf23a0",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] The commit stage still runs under pre-commit's whole-tree stash for ~0.5 s (D-369, 2026-09-23)\n\nThe governance sync left pre-commit's post-commit stage, closing the ~60 s window in which a sibling's commit hid and destroyed other sessions' edits. The commit stage still runs under pre-commit's `staged_files_only` stash for ~0.5 s (measured on a four-file commit), with the same restore-and-rollback mechanism. Removing it means running those hooks without the stash, i.e. against the working tree instead of the index, which changes what they check — a trade-off to rule on, not a silent fix. Owner: infra.",
+  "note": "migrated-digest:f5a32dc5c878",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The commit stage still runs under pre-commit's whole-tree stash for ~0.5 s (D-369, 2026-09-23)"
+}

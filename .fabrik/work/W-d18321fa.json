@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-30T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d18321fa",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[fleet+infra]** **Universal governance docs publish to PUBLIC docusaurus sites — audit the class** (fleet's observation in `01M19JJNWKAKNEZBA65TVDT5A1`, 2026-08-30, raised while wiring the DECISIONS scaffold seed) — **RESOLVED at the generator 2026-08-30 (commit `62858b50`).** Measured (the \"measure first\" step): **0 live docusaurus projects fleet-wide** (39 `project.yaml` + `data/projects.yaml` registry), so there is no live site leaking today and no retro-fix. Fix chosen: a docusaurus content-docs `exclude` in the scaffold generator (`_DOCUSAURUS_UNPUBLISHED_DOCS` in `src/fabrik/scaffold.py`) covering the seeded governance docs (DECISIONS/LESSONS_LEARNT/STRATEGIC_BACKLOG) AND the pipeline-generated contracts a UI-bearing docusaurus project writes into the same `docs/` (flows/ui-design/design-system) — present-but-unpublished, rendered `**/<name>`. Reviewed via /fabrik-review (pool + native Opus; report `docs/development/reviews/2026-08-30-docusaurus-governance-doc-exclude-review.md`). Infra's build-time-exclude + enforcement-guard alternative is now moot for new scaffolds; the only residual is an OPTIONAL enforcement guard to catch a hand-authored docusaurus that removes the exclude — low value at 0 live sites (infra's call).",
+  "note": "full-tag:[fleet+infra]; migrated-digest:d8aeef75c081",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "**Universal governance docs publish to PUBLIC docusaurus sites — audit the class** (fleet's observation in `01M19JJNWKAKNEZBA65TVDT5A1`, 2026-08-30, raised while wiring the DECISIONS scaffold seed)..."
+}

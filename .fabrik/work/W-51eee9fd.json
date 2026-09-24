@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.703521Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-51eee9fd",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "### [infra] The `$HOME`-rooted `.claude*` read ban is keyed on the PATH; the hang is keyed on the TOOL\n\nEvery seat brief this session carried \"NEVER read any `$HOME`-rooted `.claude*` path — it stalls the seat\nindefinitely\" (memory `feedback_subagent_home_dir_reads_hang`), and two briefs in the `/fabrik-spec-review`\nof the `/fabrik-task` spec REQUIRED a read of `~/.claude/state/command-feedback.jsonl` for a measurement.\nMeasured by three seats 2026-09-17: `python3 open()` on that path returned in under 2 seconds every time;\nthe stall the memory records came from the Read/Grep tools on `~/.claude-fleet/…` transcript-sized files.\nSo a seat that obeys the memory refuses a read the brief requires, and a brief that carves out the ledger\ncontradicts the memory it also quotes. Fix: re-key the rule to the TOOL — Read/Grep never; `python3`\n`open()`/`sed -n` on a NAMED small file with a size check first — in both the memory and the standing\nbrief preamble. Found as MACHINERY by the pass-2 Opus B seat.",
+  "note": "migrated-digest:0dbbb923f757",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The `$HOME`-rooted `.claude*` read ban is keyed on the PATH; the hang is keyed on the TOOL"
+}

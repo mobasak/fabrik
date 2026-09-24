@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-15T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a1b7033e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `commands/_sources/fabrik-review.md:23`'s ROUTED-UP citations resolve to unrelated lines, and there is no route-up logic in `command_run.py` at all (2026-09-15, plan-2 Finish review, RECORDED — pre-existing)\n\nThe sentence cites `command_run.py:1863` → `:2702` as \"the ledger's only positive witness that\n`/fabrik-review-scoped`'s route-up fired\", and `:2585` for the reach-back. Executed:\n`command grep -n \"ROUTED-UP\\|route-up\\|route_up\" scripts/command_run.py` → **0 matches**; the three\ncited lines are `common.add_argument(`, `started_epoch = rec.get(...)` and a `_scratch_advisory`\ndocstring line. ROUTED-UP exists only as prose inside the command markdown — the run record witnesses\nit because the surface STRING is written by the caller, not because any code detects it.\n\nUnchanged by plan-2 (present at `36da6bb4`), so RECORDED rather than fixed in that run. **Shape of the\nfix:** cite the real closing-state check (`AGENT_CLOSED_STATES` at `:774`) or drop the false precision —\nthree exact line numbers that resolve to unrelated code read as verified and are not.",
+  "note": "migrated-digest:2544484e2770",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`commands/_sources/fabrik-review.md:23`'s ROUTED-UP citations resolve to unrelated lines, and there is no route-up logic in `command_run.py` at all (2026-09-15, plan-2 Finish review, RECORDED — pre..."
+}

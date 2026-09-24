@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-31T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a0c1281c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Two dead fragments: grounding-research + grounding-rules-cite (0 consumers, 0 renderer refs — found by the fresh corpus review round 5, 2026-08-31)\n\n`grep -l \"{{include:<name>}}\" commands/_sources/*.md` returns 0 for both, and `assemble_commands.py`\nnames neither (unlike `close-feedback`/`agent-feedback`, which are auto-appended). Either dead files\nto delete in a maintenance pass, or a second injection path nobody documented — decide, then either\ndelete or document. Pre-existing (not touched by the manifesto-pass diff).",
+  "note": "migrated-digest:6f1f6810b435",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Two dead fragments: grounding-research + grounding-rules-cite (0 consumers, 0 renderer refs — found by the fresh corpus review round 5, 2026-08-31)"
+}

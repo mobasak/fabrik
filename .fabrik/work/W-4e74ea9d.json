@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4e74ea9d",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] The owner DSN shares the project `.env` with the app DSN (2026-09-24)\n\nAppend-only on `audit_log` therefore holds against the app's code paths and SQL injection, not against code\nexecution inside the container, which can read `DATABASE_URL_OWNER` (docs/operations/fabrik-lifecycle.md § The\nlimit). Closing it means an env file mounted only into the migrate and jobs services. Owner: fleet.",
+  "note": "migrated-digest:7f611d5f1124",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "The owner DSN shares the project `.env` with the app DSN (2026-09-24)"
+}

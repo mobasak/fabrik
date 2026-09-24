@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.608226Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-eaa66f83",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Round zero legislates for consumers that may never reach it, and rule (5) speaks only to checkers and gates\n\n`commands/_fragments/term-coverage.md:16` frames the round-zero probe as \"the orchestrator's OWN\npre-pin probe … before any finder sees a delta\", and line 14 says a certification gauntlet \"runs a\nDELTA round only where its own text names one as such\" — so a gauntlet may never reach round zero\nat all, while line 14 also states that every obligation below \"binds all five consumers alike\".\nTwo of the five consumers (`/fabrik-user-test`, `/fabrik-service-test`) are gauntlets.\n\nRule (5)'s governing subject is \"a fix to a checker or a gate\". A gauntlet is neither, so the rule\nis silent for them by construction. That is a defensible reading, but it is nowhere stated, and a\nfirst draft of rule (5) tried to legislate a gauntlet's evidence mode and was wrong twice in two\nrounds: it named a rendered screen, which `/fabrik-service-test` (\"a system with no screen\",\n`commands/_sources/fabrik-service-test.md:9`) never produces; then it named screen-or-payload, which\na `file-worker` certification also never produces — its evidence is a job record\n(`fabrik-service-test.md:167`), and a rasterized PDF deliverable is a third shape again\n(`commands/_fragments/cert-visual-deliverable.md`).\n\nRESOLUTION, when someone takes this: decide whether round zero binds gauntlets at all, and say so\nin line 14's parenthetical — which currently enumerates \"(the exit row, the ledger grammar, the\nfinder-return rule, the gates)\" and never names round zero. Do NOT re-enumerate gauntlet evidence\nmodes inside rule (5); delegate to each gauntlet's own evidence rule or leave them out of scope\nexplicitly. Pre-existing — this was true before the rule (5) edit and is not a defect that edit\nintroduced. Owner: infra.\n\nAlso still open and deliberately unmarked in the `/fabrik-review` change queue: row `1788875064`,\nwhich asks that the CLOSING round build evidence outside the module's own suite, including that a\ngrader whose outcome depends on an environment privilege ASSERT that privilege first. Rule (5) does\nnot carry it — wrong round, wrong subject — and the row's near-synonymous wording (\"outside the\nmodule's own suite\" vs rule (5)'s \"never only from the test file that ships beside the module\")\nmakes it easy to mark answered by accident. It is not answered.",
+  "note": "migrated-digest:d57c40ea325b",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Round zero legislates for consumers that may never reach it, and rule (5) speaks only to checkers and gates"
+}

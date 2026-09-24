@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-18T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c9dc860f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] `check_plan_tickets.py::MAX_BEHAVIORS = 8` has no exit for a ticket that legitimately GAINS a graded behaviour after its breadth adjudication (2026-09-18)** — measured here: two tickets sat at the cap while a review round added five user-observable behaviours to their STEPS, and both sanctioned exits (split the ticket, the `Integration: true` hatch) were closed by a recorded keep-it adjudication. The cheapest way to satisfy the cap is to leave the behaviour out of the contract, which is the Cobra path and is written down nowhere in the checker. Either allow a documented over-cap with a cited adjudication, or say in the finding that folding into an existing row is the intended move. Medium.",
+  "note": "migrated-digest:a2ef099aed59",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`check_plan_tickets.py::MAX_BEHAVIORS = 8` has no exit for a ticket that legitimately GAINS a graded behaviour after its breadth adjudication (2026-09-18)** — measured here: two tickets sat at th..."
+}

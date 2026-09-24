@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-18T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e767a05e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] `oversized_mini`'s `paths=` sample is comma-joined with no escaping (2026-09-18)** — `scripts/command_run.py:3036` renders `\",\".join(paths[:3])`, so a path containing a comma is ambiguous to any reader splitting the field on one. The JSONL row itself is valid (`json.dumps` escapes it; 21 of 21 probe lines parsed), so this is a human-read and future-parser hazard rather than data loss — which is why T01b routed it rather than fixing it. Note the neighbouring PLAUSIBLE half, unreproduced: `_task_git` passes `text=True`, so universal-newline translation rewrites a bare `\\r` in a path to `\\n` before it is ever compared to `declared`. Low.",
+  "note": "migrated-digest:f71ccd8e62d4",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`oversized_mini`'s `paths=` sample is comma-joined with no escaping (2026-09-18)** — `scripts/command_run.py:3036` renders `\",\".join(paths[:3])`, so a path containing a comma is ambiguous to any ..."
+}

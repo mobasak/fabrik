@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-18T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-332cb69d",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] The `/fabrik-task` spec's `oversized_mini` field order loses the commit sha under truncation (2026-09-18)** — `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md` § Chosen approach, Phase 5 (vi) fixes the grammar as `<n> · paths=<first three> · commit=<sha>`. `_cap_field` (`scripts/command_run.py:1605-1606`) truncates the TAIL at 2,000 chars, so three deep paths (executed: 2,441 chars) destroy `commit=<sha>` entirely and the row loses its provenance. `/fabrik-plan-review` DIVERGED the plan set to `<n> · commit=<sha> · paths=<first three>` on that executed evidence (minted in D-294) rather than ship a grammar its own cap breaks. Amend the spec on its next non-delta pass so basis and build agree. Low.",
+  "note": "migrated-digest:9b7a03870861",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**The `/fabrik-task` spec's `oversized_mini` field order loses the commit sha under truncation (2026-09-18)** — `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md` § Chosen approach, Pha..."
+}

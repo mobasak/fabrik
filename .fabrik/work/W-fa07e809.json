@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-26T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fa07e809",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "| ~~**M**~~ | `[infra]` | ~~**fabrik-mail DISPATCHER — Layer-1.5 auto-processing**~~ ✅ **RESOLVED as ENFORCEMENT, not a dispatcher (2026-08-26)** — the operator broke the frame after five dispatcher reviews: the send path is hub-owned and fleet-synced, so unaddressed hub mail became IMPOSSIBLE at `mail.py send` (the addressing guard: `--to-agent infra\\|fleet\\|intel`, `--broadcast` for deliberate all-agents — refuses `ack:required` — or a `kind: reply` thread, which inherits the parent's owner). Every automated sender updated (both claude_rotate twins, kaizen = one addressed obligation per beat); the destination side kept ONLY the escalation digest (`scripts/sysadmin/mail_escalate.py`, cron ≤6h + local-date day-stamp = 1 Telegram/day max, three populations incl. archive strands). Rejected alternative E in the spec archives the whole dispatcher design (tier-0 regex 26% + Haiku probe 85.2% retained as measured fallback). Spec+plan: `docs/superpowers/specs/2026-08-25-fabrik-mail-dispatcher-design.md` (v3.1). | Delivery-to-owner enforced at the source; obligations that rot despite an owner escalate daily. | Operator installs the cron line + logrotate (docs/workstation/fabrik-mail.md § Escalation). |",
+  "note": "migrated-digest:eb65008b8455",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "~~**fabrik-mail DISPATCHER — Layer-1.5 auto-processing**~~ ✅ **RESOLVED as ENFORCEMENT, not a dispatcher (2026-08-26)** — the operator broke the frame after five dispatcher reviews: the send path i"
+}

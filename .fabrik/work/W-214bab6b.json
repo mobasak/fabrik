@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-30T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-214bab6b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] check_changelog verifies existence, not correspondence (found by /fabrik-review 2026-08-30)\n\n`scripts/enforcement/check_changelog.py` only requires that *some* `###` entry exist under\n`## [Unreleased]` when `CHANGELOG.md` is staged — it never checks the entry's content against the\nstaged file list, so two real code fixes (the Stop-hook regex, the decisions.py duplicate check)\ninitially landed with zero CHANGELOG mention while the gate read green (piggybacking on unrelated\ndoc entries in the same commit; caught by a review finder, fixed by hand). A correspondence check\n(staged code paths ↔ entry text) is buildable but is a new mechanism — per the rollout law, measure\nthe miss rate first: if reviews keep catching this class, promote; if this was a one-off, don't\nbuild wallpaper. Trigger: the next occurrence of a code change landing entry-less.",
+  "note": "migrated-digest:79f5355eee89",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "check_changelog verifies existence, not correspondence (found by /fabrik-review 2026-08-30)"
+}

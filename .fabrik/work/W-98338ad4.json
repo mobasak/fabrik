@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-11T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-98338ad4",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`check_convergence.py::_check_spine_set` — a parked (HTML-commented) Ticket Board row is still live while a parked ledger is a quote (2026-09-11, owner: infra)** — the closing-row rule blanks fences and comments (fences first, code spans masked, then comments — the receipt-side `_blank_quoted` policy) but the orphan-row loop and the ticket-Status ban read the fence-stripped text only; a superseded Board row parked in `<!-- … -->` reports an orphan (0 of 47 fleet spines carry one today). Blank comments for every check there and re-cut the orphan-row grader. Found by the Finish review of the review-family adoption plan (round 2, Opus). ALSO (Finish round 8, Opus-1 — eight pre-existing grader gaps of the closing-row regexes, each a surviving mutant with an executed non-equivalent input, 0 live instances in 47 spines / 9,783 receipts): `_CONFIRMED_TOKEN` without `re.I` and with `\\s+` after the colon both survive (fail-open on `Confirmed:` / `confirmed:3`); `_PASS_ROW`'s `\\|\\s*` → `\\|\\s+` survives (an unpadded GFM row goes ungraded — the likeliest to meet a real spine); the documented counterless-later-row rule, the blockquote exclusion, the leading pipe, the `\\b` after `Pass|Round` and `_is_spine`'s stem equality are each pinned by nothing. One fixture each; measure nothing — they are graders of documented behaviour.",
+  "note": "migrated-digest:c755527235a9",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`check_convergence.py::_check_spine_set` — a parked (HTML-commented) Ticket Board row is still live while a parked ledger is a quote (2026-09-11, owner: infra)** — the closing-row rule blanks fen..."
+}

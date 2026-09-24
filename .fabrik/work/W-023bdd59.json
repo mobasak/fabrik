@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-28T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-023bdd59",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[fleet]** **`generate` secrets lack a remote-`.env` preservation read — re-apply re-mints a stable-forever key** (found live authoring the Zitadel deploy plan, 2026-08-28, `docs/development/plans/archived/2026-08-28-plan-deploy-zitadel.md` finding F1). `orchestrator/__init__.py:301-303` resolves `secrets.generate` via `secrets_manager.load_all(generate)` — process-env + a **hub-local** dotenv only (`secrets.py:60,77-101`). Only `from_env` gets the remote-`.env` preservation read (`__init__.py:306-320`), and even that targets a hub-local `/opt/<id>/.env` that never exists for a remote-only third-party service. Consequence: a secret minted on FIRST `fabrik apply` into the **remote** `/opt/<id>/.env` is **re-minted** on any SECOND apply (the hub resolver never sees the remote value) and `inject_env`'s `merged.update()` (`deployer_ssh.py:235`) overlays the new value. For an ordinary generated password this is a silent auth break; for a **stable-forever encryption key** (Zitadel's `ZITADEL_MASTERKEY`, which decrypts stored data) it is **catastrophic data loss**. Candidate fix: give `generate` the same remote-`.env` preservation read `from_env` has — read the target VPS's `/opt/<id>/.env` over SSH before resolving, and never regenerate a key already present there (mint-once). The Zitadel deploy works around it with an apply-once + updates-via-`redeploy` runbook invariant, but every future generate-secret service inherits the trap. Blocked by: a focus window; the class is now measured + documented in the Zitadel plan's F1.",
+  "note": "migrated-digest:281b80e3acbe",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "**`generate` secrets lack a remote-`.env` preservation read — re-apply re-mints a stable-forever key** (found live authoring the Zitadel deploy plan, 2026-08-28, `docs/development/plans/archived/20..."
+}

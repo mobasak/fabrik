@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-18T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-438885f8",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] An EMPTY `declared.files` passes the element guard and publishes a confident count (2026-09-18)** — `all(...)` of an empty iterable is `True`, so `files: []` clears both halves of `scripts/command_run.py`'s guard and `declared` becomes the empty set: every path in the commit is then a non-member and is counted. The guard's own stated principle two lines above is \"a record this malformed is not measurable; say so rather than publish a count\". `start` cannot emit such a record (`--file` is required) but the guard exists precisely for records `start` can no longer produce. Deliberately NOT fixed in T01b: the fix widens `unmeasurable=no-git` again, which is the same grammar-pressure that made `bad-record` a frozen-ticket violation, so it belongs with that row and not in a review fix. Low.",
+  "note": "migrated-digest:90506a05f3c2",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**An EMPTY `declared.files` passes the element guard and publishes a confident count (2026-09-18)** — `all(...)` of an empty iterable is `True`, so `files: []` clears both halves of `scripts/comman..."
+}

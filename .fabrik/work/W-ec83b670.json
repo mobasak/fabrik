@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.819410Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ec83b670",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "| **M** | `[fleet]` | **Hub DR — measured recovery against a real billed test hub**. `fabrik vultr drill hub` is shipped but the hub bootstrap is ~90 min and the path is heavier than the spoke. End-to-end \"vps1 disk dies → fresh droplet → bootstrap-hub.sh → restore from B2 (postgres-dumps + docker-volumes + opt-configs + host-state) → 31 containers green → DNS cut over → Gatus green\" has never been measured. The plan target is ≤90 min for bootstrap alone; restore + container deploy is unmeasured. | Until this wall-clock exists, the \"DR-in-hours\" claim is paper-only. | ~3-hour focus window + ~$0.10 droplet cost + acceptance that the live mutation will be heavier than for the spoke case. |",
+  "note": "migrated-digest:4cadd784313c",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "**Hub DR — measured recovery against a real billed test hub**. `fabrik vultr drill hub` is shipped but the hub bootstrap is ~90 min and the path is heavier than the spoke. End-to-end \"vps1 disk die"
+}

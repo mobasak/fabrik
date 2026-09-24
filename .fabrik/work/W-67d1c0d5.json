@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-29T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-67d1c0d5",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] Zitadel /debug/metrics not enabled — Prometheus target DOWN (2026-08-29)\n\nZitadel v4.17.1 deployed at auth.ocoron.com does NOT serve `/debug/metrics` by default (404) — the\n`specs/services/zitadel.yaml` spec declares `exposes_metrics: true` + `monitoring.metrics_path: /debug/metrics`\nbut never sets the env that ENABLES Zitadel metrics, so the Prometheus scrape target is registered but\n`health=down` (404). `docs/reference/zitadel.md:52` wrongly claims metrics is \"enabled by default via\n`ZITADEL_METRICS_TYPE: otel`\". FIX: ground the correct Zitadel v4 metrics-enable env, add it to the spec,\nre-apply (`fabrik apply` re-syncs env), confirm `/debug/metrics`=200 + the Prometheus target flips to `up`;\ncorrect the reference doc's default claim. The IdP itself is fully live + functional — this is monitoring polish.",
+  "note": "migrated-digest:2456dfbb70f2",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "Zitadel /debug/metrics not enabled — Prometheus target DOWN (2026-08-29)"
+}

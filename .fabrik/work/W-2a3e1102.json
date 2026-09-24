@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.067456Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2a3e1102",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[fleet]** **Scaffold/validate warning for dependency-asserting compose healthchecks** (deploy-triad root-cause #1): a compose healthcheck pointing at a READINESS route (one that 503s on an unreachable dependency — tryton-crm's `/health` pings trytond as a login that doesn't exist pre-init) deadlocks `docker compose up --wait` on first deploy AND invites healer restart-storms on dependency blips. Docker healthchecks should be liveness. Candidate: a compose-lint in `fabrik validate`/`deployer_ssh._validate_compose` flagging healthcheck URLs that match the app's readiness route when a `/healthz` liveness route exists. Blocked by: a focus window; the class is now documented in the tryton plan + Lesson 110's neighborhood.",
+  "note": "migrated-digest:e636da715634",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "**Scaffold/validate warning for dependency-asserting compose healthchecks** (deploy-triad root-cause #1): a compose healthcheck pointing at a READINESS route (one that 503s on an unreachable depend..."
+}

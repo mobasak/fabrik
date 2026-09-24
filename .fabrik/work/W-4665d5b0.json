@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-25T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4665d5b0",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`/fabrik-deploy-plan` Output contract omits the gate-required `## Behavior Contract` section** (found live on the first run — the plans gate demands it on every new plan; the command's four gate-required sections don't name it, the executing agent discovers it at gate time). One-line corpus fix in `commands/_sources/fabrik-deploy-plan.md` + render. Blocked by: nothing; fold into the next corpus touch. ✅ **CLOSED 2026-08-25** — the Output contract now names FIVE gate-required sections incl. `## Behavior Contract`, with the shape to author and the reason it is easy to miss (the demanding gate is `check_test_proposal`, NOT `check_plan_quality`, whose Behavior-Contract pillar is spine-only). Proven: a deploy-shaped monolith went False→True against `evaluate_plan`.",
+  "note": "migrated-digest:6caddeeae771",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "**`/fabrik-deploy-plan` Output contract omits the gate-required `## Behavior Contract` section** (found live on the first run — the plans gate demands it on every new plan; the command's four gate-..."
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-da48cc32",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `docs/reference/work-tracking.md` equates an unnamed session with `CLAUDE_AGENT` unset (2026-09-24)\n\nRecorded by the T09 review's closing pass: work-tracking.md:55-56 says the agent name is `CLAUDE_AGENT`, \"unset in an unnamed session\", but `whoami_agent.resolve_agent_name` also resolves a name from the identity store keyed by `CLAUDE_CODE_SESSION_ID`, so a session with `CLAUDE_AGENT` unset that ran `whoami_agent.py --as <name>` is named. Reword to \"empty in an unnamed session (no `CLAUDE_AGENT` and no identity-store entry)\". Owner: infra.",
+  "note": "migrated-digest:3829b7a75fe5",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`docs/reference/work-tracking.md` equates an unnamed session with `CLAUDE_AGENT` unset (2026-09-24)"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-08T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e9c8a4df",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **A DECISIONS row minted with a DRAFT plan cites artifacts that do not exist yet, and `check_doc_links.py` reds every session's gate on it** (third distinct ledger-reds-the-gate shape in ~24 h — D-099's bare pipe, the D-180/D-181 pathspec absorptions, D-184 → the scratch-sweep script's planned path at a01de4a6; named by intel 2026-09-08 — and a FOURTH: this very row, as first written at bd301620, named that planned path in link position and reddened every session's gate for the hour it stood). Evidence that the convention, not the authors, is the defect: two careful sessions hit it within an hour, one while writing the fix — so prefer the check-side option (skip a path a same-commit DRAFT plan declares) over a convention. Close the class, not the instance: let the link check skip a path a same-commit DRAFT plan declares it will create, or put planned paths out of link position by convention (a fenced `planned:` form) — and say which in the decision-ledger contract.",
+  "note": "migrated-digest:2635b7c5948e",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**A DECISIONS row minted with a DRAFT plan cites artifacts that do not exist yet, and `check_doc_links.py` reds every session's gate on it** (third distinct ledger-reds-the-gate shape in ~24 h — D-..."
+}

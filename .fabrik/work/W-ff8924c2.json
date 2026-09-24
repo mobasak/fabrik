@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-11T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ff8924c2",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **Whole-tree docs_updater debt** (pre-existing, reported 2026-08-11 during the triad's docs sweep — NOT the triad's): docs/CAPABILITIES.md link rot (auto-generated — fix the generator's link targets), stale docs/QUICKSTART.md (111d) + docs/CONFIGURATION.md (107d), broken links in old plans/specs. Blocked by: a docs focus window or the next `/fabrik-docs-review` full run. **UPDATED 2026-08-25:** the CAPABILITIES.md half is CLOSED — its generator wrote repo-root doc_links (`AGENTS.md`) into a file that lives in `docs/`, so every one resolved to a non-existent copy one directory too deep. **273 of the repo's 386 broken links were that single bug (71%)**; fixed at the generator + regression-tested, total now **113**. What REMAINS is not the same class: 111 of the 113 are citations inside `docs/development/plans/**` and `docs/superpowers/specs/**` — historical artifacts that `check_doc_links` deliberately EXEMPTS as sources (plans cite files as they were; specs forward-reference). `docs_updater` scans them anyway, so the two link checkers disagree by design — reconcile the scopes before treating those 111 as debt. Genuinely open: stale `docs/QUICKSTART.md` (125d) + `docs/CONFIGURATION.md` (121d), which need a content pass, not a link fix. ✅ **CLOSED 2026-08-25 (second half).** Both stale docs verified against code, corrected, and their currency headers refreshed — stale count 2 → 0. QUICKSTART's executable surface was already accurate: all 10 documented `fabrik` subcommands exist and every documented flag (`--from-preplan`, `--github-create`, `--dry-run`, `--filter`, `--yes`, `--spec`, `-n`) resolves. CONFIGURATION carried the REAL rot — two live pointers to `/opt/wpf` (\"the real driver is /opt/wpf/src/wpf/drivers/wordpress.py\", and the WP credentials line), a path ARCHIVED on 2026-08-07 and gone from disk. Both rewritten as tombstones so nobody re-adds the variables thinking they were an oversight. Newest env vars (FABRIK_MAIL_*, FABRIK_OPT_ROOT) confirmed present in BOTH `.env.example` and this doc, per the Doc Sync Matrix. **Note on the metric:** staleness is measured from the `**Last Updated:**` header, not git mtime — CONFIGURATION had been edited 2 days before it was flagged. Bumping the header alone would have been a lie; content first, then the date.",
+  "note": "migrated-digest:84b03972266f",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "**Whole-tree docs_updater debt** (pre-existing, reported 2026-08-11 during the triad's docs sweep — NOT the triad's): docs/CAPABILITIES.md link rot (auto-generated — fix the generator's link target..."
+}

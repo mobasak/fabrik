@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-07T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-dd5ca91b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`tests/test_select_rules.py::test_desktop_active_on_electron_dir_not_generic_main` is RED on master** (found 2026-09-07 while running the enforcement slice for the D-181 corpus flip; reproduced on a clean HEAD worktree, so it predates that change): `sr.collect(tmp)[\"active\"]` returns no `desktop-app/72.md` for a fixture with `electron/main.js` although the pack's glob is `**/electron/**` — last touched by the inert-rule-packs plan (T04 shared path→pack matcher, `fec39417`/`b589a1b8`). Own it: fix the matcher or the test, red-first, in its own scoped run.",
+  "note": "migrated-digest:b064207445ef",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`tests/test_select_rules.py::test_desktop_active_on_electron_dir_not_generic_main` is RED on master** (found 2026-09-07 while running the enforcement slice for the D-181 corpus flip; reproduced o..."
+}

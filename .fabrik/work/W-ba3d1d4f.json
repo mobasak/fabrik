@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-14T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ba3d1d4f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] The `int()`-over-a-record-field class is closed for `findings` only — eight sibling call sites remain (2026-09-14, D-252 review round 3)\n\n`_int0` was introduced after a bare `int()` on `findings` raised inside `_round_report`, whose single return sits on the Stop hook's path, so the outer guard blanked the entire round report — TERMINAL verdict included — while the record kept accepting rounds. The sweep converted the three `findings` readers. The same bare-`int()`-over-a-record-value shape remains at `event_seq` (×2), `seats_skipped`, `seats` (×3) and `phase` (×2) in `scripts/command_run.py`. Executed: a hand-written round carrying `{\"phase\": \"x\"}` raises `ValueError` inside that same one-return path and blanks the same report.\n\n**Shape of the fix:** route the remaining eight through `_int0` (or a keyed sibling), or state per site why a raise there is acceptable. Measured, not vibed: only the `findings` path had a reproduced incident, which is why the first sweep stopped there.",
+  "note": "migrated-digest:bd4fb61a9b8f",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The `int()`-over-a-record-field class is closed for `findings` only — eight sibling call sites remain (2026-09-14, D-252 review round 3)"
+}

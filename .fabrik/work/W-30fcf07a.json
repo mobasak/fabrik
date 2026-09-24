@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-12T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-30fcf07a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`check_review_hygiene.py` residues from pass 3 (r12; 2026-09-12, owner: infra)** — a lone copy of the script (no `check_review_coverage.py` + `check_changelog.py` beside it) fails at import, so every seat brief has to say so; the `{{SLOT}}` quoted-slot false positive in the assembler sources; `--claim`'s listing is whitespace-tolerant and case-insensitive by design, and no grader proves a listing was READ before a pin — the `· mirrors: <n> read` suffix is prose the method-cell rule accepts with or without it (pass 3, Phase B: seven pins, every sweep run by hand).",
+  "note": "migrated-digest:530004b1c959",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`check_review_hygiene.py` residues from pass 3 (r12; 2026-09-12, owner: infra)** — a lone copy of the script (no `check_review_coverage.py` + `check_changelog.py` beside it) fails at import, so e..."
+}

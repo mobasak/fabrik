@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-11T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c256027a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] check_doc_index's basename matching is a measured fail-open — 140 of 213 hub docs pass on a bare filename, 4 live false negatives (2026-09-11, owner: infra)\n\nFound by an author-blind Opus seat closing the `/fabrik-review` on D-227, RECORDED rather than fixed\nbecause it is pre-existing, untouched by that change, and far larger than the one-file exemption the\nreview was about — folding it in would have been the scope creep that stops a loop converging.\n\n`scripts/enforcement/check_doc_index.py` direction (b) passes a doc when EITHER its full path OR its\nbare basename appears anywhere in INDEX.md. Measured on the hub tree with the check's own exclusion\nlogic: **213 docs examined, 73 matched by full path, 140 matched only by basename.** Five files are\nnamed `README.md`; exactly one of them is indexed by path, and the other four\n(`docs/infrastructure/audit-prompts/`, `docs/infrastructure/probe-reports/`, `docs/preplans/`,\n`docs/traycer/`) are in INDEX.md by neither path nor row — they ride the single string `README.md`\nand are green today while being genuinely unindexed.\n\nMinimum honest fix named by the seat: require the full path for any doc deeper than\n`docs/<name>.md`, or accept a basename only when it is unique among examined docs. Either changes\nfleet behaviour materially, which is why it wants its own measured change rather than a ride-along.\n\nTwo smaller members of the same file, same disposition:\n* a non-UTF-8 doc path crashes the check — `_ls` uses `text=True` with strict decoding while the\n  INDEX read two functions away uses `errors=\"replace\"`. The complete fix is `surrogateescape` PLUS\n  a surrogate-safe print (the seat verified that fixing only the decode moves the crash to the\n  plain-text branch). Pre-existing; this file already carries a documented non-ASCII-path incident.\n* `/opt/scratch_bhd` flips green -> red as an accepted consequence of the `_ls` fail-closed fix\n  landed under D-227: it holds 21 markdown files under `docs/` and an INDEX.md but is NOT a git\n  repo, so the check can no longer report OK over zero examined docs. Correct, and the only\n  directory of the 48 carrying the check that changes verdict.",
+  "note": "migrated-digest:fb65f222856a",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "check_doc_index's basename matching is a measured fail-open — 140 of 213 hub docs pass on a bare filename, 4 live false negatives (2026-09-11, owner: infra)"
+}

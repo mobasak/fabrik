@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.711838Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f4e75c29",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "### [infra] The /fabrik-task lane spec closed run 2 on the D-278 exit at DRAFT — the last apply has been read by no fresh seat\n\n`docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md` after `/fabrik-spec-review` run 2 (2026-09-18):\nthree rounds confirmed 53 / 47 / 25 defects with 37 / 45 / 25 inside text the review itself had just written;\n`command_run.py` printed `⚠️ SCOPE GROWTH` at round 3. Per the exit the last named set (25, incl. the\n`--no-merges` non-sequitur, the `1` branch's missing sync arm, the nested-heavy-review contradiction, the\n`handoff` line missing `--command`/`--feedback`, \"six of eight\" route-up classes) was FIXED and no further seat\nre-armed — so the 19-line r6 diff is unverified by a non-authoring reader. Destination: a THIRD run is the\noperator's call; if taken, it starts with ONE fresh Opus seat over `git diff a929b33f8..HEAD -- <the spec>`\nrestricted to § Chosen approach + § The decision rule, and the round-zero rule that every mechanism claim the\napply introduces is executed BEFORE the seats go out — the lesson of this run is that two applies of 34 and\n20 block edits each carried ~20 executable claims nobody ran. Also unresolved, for the operator at D-291: the\nU19 pointer's MIRROR (>5 → >3 files fleet-wide; synced and vendored surfaces change lane).",
+  "note": "migrated-digest:efe37c5cf4cb",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The /fabrik-task lane spec closed run 2 on the D-278 exit at DRAFT — the last apply has been read by no fresh seat"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-31T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d22c4ed4",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] check_command_corpus.py never grounds scaffold-type enumerations against SCAFFOLD_TYPES (found by the fresh corpus review round 12, 2026-08-31)\n\n`office-extension` (registry since D-039) was absent from all 57 corpus files while the checker\nprinted green — it validates chain targets/scripts/trailers but not type enumerations. Measured\nfire rate at promotion time: 7 files enumerated ≥3 registry types with ≥1 omitted (all fixed\nin-round; the checker would have been red on real drift, green after). Fix direction: import\nSCAFFOLD_TYPES, fail when a corpus file enumerates ≥3 registry types yet omits one. Promote on the\nnext registry-drift recurrence.",
+  "note": "migrated-digest:084d68d1335c",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "check_command_corpus.py never grounds scaffold-type enumerations against SCAFFOLD_TYPES (found by the fresh corpus review round 12, 2026-08-31)"
+}

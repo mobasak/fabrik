@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.219565Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-54ef44f8",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## Context\n\n- ⚠️ **Stale Prometheus scrape targets cause Telegram floods via the Phase 4 wire**. The netdata flood on 2026-06-06→07 ran for ~12 hours (24 messages every 30 min) because a `netdata:19999` scrape target was left in `prometheus.yml` after the container was retired 2026-05-30. Pattern: removing a service from compose MUST also remove its scrape job from `prometheus.yml`. Captured in commit `f5c6e48`. Should make this a registrar invariant check long-term.\n- 💡 **Cross-mesh container→host scrape pattern works** via docker MASQUERADE rewriting the source IP to vps1's wg0 IP (`10.99.0.1`), which the spokes' existing `from 10.99.0.0/24 to any port <port>` UFW rules permit. Documented in [`prometheus-app-metrics-setup.md`](infrastructure/prometheus-app-metrics-setup.md) § aro-wake SLI metrics. Reusable for any future host-service that needs Prometheus scrape coverage from spokes (no firewall changes needed beyond the existing mesh allow).\n- 💡 **Loop-guard counters are in-memory by design** — restart = reset = safe default. `rate()` / `increase()` in PromQL handle this via the `_created` timestamps that prometheus_client emits. Don't migrate to persistent counters; the reset semantics are correct.\n- 💡 **Operator-reversal detector deduplicates by `(ai_source, ai_ts, operator_ts)` tuple** in [`detect_reversals.py`](../scripts/sysadmin/detect_reversals.py). Re-running 2× after a match produces 0 new entries. If we ever extend the schema, preserve this idempotency property.\n- ⚠️ **sqlite3 `-csv` mode quotes timestamp fields with embedded space**, breaking `strptime` unless you strip quotes. The default `-list` (pipe-separator) mode works cleanly for our 3 simple columns. Documented in `detect_reversals.py` `collect_sidecar_actions()`.\n- 💡 **Trio loop guards (4 layers) are sufficient for `consult`-only protocol AND future `propose`/`ack` Phase 5 work**. Same handler, same guards. No protocol version bump needed when Phase 5 ships propose/ack. Documented in [`scripts/sysadmin/peer-protocol.md`](../scripts/sysadmin/peer-protocol.md) §3.2.1.\n- 💡 **Watchdog sidecar action log (`state.db`) is the canonical source for \"AI took an action\"** today — `sysadmin-actions.jsonl` is mostly diagnose-only wakes for now. When host-AI gains explicit action verbs (e.g., autonomous container restart from proactive-check), add the `action_name` + `target` fields to the jsonl entry so `detect_reversals.py::collect_host_sysadmin_actions()` starts firing.\n- ⚠️ **Gatus configs live ONLY on vps1** (not in this repo) — see \"Now\" row above. If you edit an existing endpoint and want it source-controlled, you need to also pull the file into the repo manually OR do the gatus-source-control work first.\n\n---",
+  "note": "migrated-digest:226027109fe8",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Context"
+}

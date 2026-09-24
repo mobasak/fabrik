@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-30T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2a96e585",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Canary-completeness debt: 10 registered checks lack CANARIES pairs (2026-08-30)\n\ntest_gate_check_canaries' two completeness tests are red (part of the accepted-queued suite reds):\n10 registered checks (check_certification_coverage, check_command_corpus, check_feedback_duty,\ncheck_frozen_chain, check_pack_reachability, check_plan_lock_release, check_rivals_dossier,\ncheck_spec_convergence, check_trigger_routing, check_vendored_drift) have neither a canary pair\nin liveness_audit.CANARIES nor a recorded UNREACHABLE/warn_only reason. Accumulated across\nsessions as checks landed without their canaries; none added today. Each needs a deliberately-bad\nfixture proven to trip its check — real authoring work per check, not a fixture tweak. Author in\nbatches at the next enforcement window; the two tests are the ledger of what remains.",
+  "note": "migrated-digest:c2b9bd7bac78",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Canary-completeness debt: 10 registered checks lack CANARIES pairs (2026-08-30)"
+}

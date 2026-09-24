@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-20T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1a3119be",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] The escalation digest routes obligations to a reader who structurally cannot discharge them (2026-09-20)\n\nMeasured while handling digest `01M2XQG8ANKS4AM4C3C69XWQD5`: of its 83 rows, **zero** were\nobligations on the hub. Every one sits in ANOTHER repo's inbox — 41 from a single fabrik-lib\nbroadcast, 39 the hub's own sends. The hub's own inbox held one obligation, half a day old.\n\n`mail_escalate.py::_deliver_to_agent` has exactly one destination: the hub mailbox addressed to\n`infra`. So the agent bound by the handle-now law is handed a list of other repos' work. The\ndigest anticipates this and offers `ack --disposition wontfix naming the owner` — but using it\nwould close 83 obligations the owning repos have never seen, which destroys the signal rather than\ndischarging it. Leaving them unacked is the honest choice and is why the number only grows.\n\nThe shape line shipped today makes the number readable; it does not fix the routing. **The fix is\nto escalate each overdue obligation into the OWNING repo's mailbox**, where an agent bound by the\nsame law can actually act — the hub keeping a summary. That is deliberately NOT done here: it\nwould inject ~83 new messages across ~40 mailboxes on its first run, which is an outward-facing\naction at fleet scale and wants the operator's word before it fires, plus a de-duplication rule so\na repo is not re-escalated every six hours.\n\nOwner: infra (fabrik-mail is its beat). Destination: a `/fabrik-task` or spec-chain change to\n`mail_escalate.py`, gated on the operator approving the fan-out.",
+  "note": "migrated-digest:200b9559fa19",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The escalation digest routes obligations to a reader who structurally cannot discharge them (2026-09-20)"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.675981Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d5deee13",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "### [infra] `premature_stop_rate` counts a turn that ends with its own seats in flight — SPEC candidate\n\n`scripts/sysadmin/kaizen_collect_v2.py:118` (`PREMATURE_CAUSES`), `:399` (the aggregation),\n`:1024-1033` (the series), `:1539` (the numerator). Raised by fleet as `01M2R0KJYX4NXKFGF5YYKG1V9Y`,\nvalidated and re-measured by infra 2026-09-17.\n\n**The defect.** The series counts every `stop_block` with cause `run-record` as a premature stop. Under\nthe convergence commands, a turn that ends while the agent's own dispatched seats are running is the\nSANCTIONED shape — a seat's report arrives as a task-notification, which requires the turn to end. So\nthe number tracks how many seats a run dispatches, not how often an agent stops early, and a kaizen\nchange queue acting on it would tighten the Stop hook against behaviour the review commands mandate\n(the Cobra reading, D-253).\n\n**Measured 2026-09-17** over all 38,457 files under `~/.claude/state/events` (100,275 lines, 0\nunparseable), events stamped that day: 520 `stop_block`, 188 `stop_pass`, rate 73.4%. Two facts the\noriginating finding did not carry: **100% of the day's blocks are cause `run-record` — `promise-stall`\ncontributes zero**, so half the cause set is inert; and three sessions produce all 520 (59.4% / 30.8%\n/ 9.8%), so the series is dominated by whichever session is running a multi-seat review.\n\n**Both collector-only remedies are REFUTED, with their measurements.** (a) Collapsing \"warn-through\nattempts\" to `attempt == 1` rests on a false premise: `attempt` RESETS PER RUN RECORD and INCREMENTS\nPER BLOCKED TURN, sticking at 3 after the warn-through. The blocks are distinct turns, each with a\ndifferent dispatch's seats live — not retries of one wait. It would read 41.2% instead of 73.4% by\ndiscarding real turn-ends. (b) \"A block preceded by a `dispatch` with no intervening `run_close`\"\nexcludes 132 of 132 episodes — it discriminates nothing.\n\n**Therefore the fix is the fleet-synced one and it is SPEC work.** `.claude/hooks/final_gate_stop.py`\nmust carry `background_tasks_live: <n>` in its stop event; the collector then keeps only no-live-task\nturns in `premature_stop_rate` and takes the rest into a `waiting_turn_rate`. The hook is a\ngovernance-sync trigger (~46 repos); `kaizen_collect_v2.py` is NOT fleet-synced (absent from\n`fabrik_synced_manifest.py`), so the collector half stays hub-local. A definition change also owes a\nversion bump — the series is v3 and the file's own law is that one `def_hash` must never span\ndifferently-populated points.\n\n**Interim, and deliberately NOT shipped as a standalone:** a magnitude-only fix would cut 73% to 41%\nwithout changing what is counted, removing the pressure for the real fix. The originating finding's own\nSYSTEMIC note is the right interim shape — COUNT THE INSTRUMENT GAP, never bucket it: until the hook\ncan tell, the collector should expose that its numerator is undifferentiated rather than call it\npremature.",
+  "note": "migrated-digest:e7be12a2df26",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`premature_stop_rate` counts a turn that ends with its own seats in flight — SPEC candidate"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-02T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e7143b22",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Stop-hook cause 6 re-arms on a CLOSED review's edits after resume (2026-09-02, owner: infra)\n\nIntel's corroboration 01M1G8R520ZCDDX2P3KZGQYPDV (second live instance, session 4e90716e): `final_gate_stop.py:582-584` allows on `has_any_record`, but a closed-and-aged review-family record stops counting while the session's `authored_map` still remembers the pre-review `.py` edits across a resume — a guaranteed block on every long-lived session that ever edited code, cleared only by a `/fabrik-review-scoped` over a provably empty surface. Candidate fix (theirs, to measure): clear `authored_map` entries covered by a CLOSED review-family record at close time, so only edits AFTER the close re-arm cause 6. Parked here by the fleet session draining infra's box 2026-09-03; the mail is acked, this row is the durable pointer.",
+  "note": "migrated-digest:87cce1226818",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Stop-hook cause 6 re-arms on a CLOSED review's edits after resume (2026-09-02, owner: infra)"
+}

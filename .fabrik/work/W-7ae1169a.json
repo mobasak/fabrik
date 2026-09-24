@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-11T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7ae1169a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] check_doc_index decodes `%20` on ONE side of its membership test — 52 docs fleet-wide are reachable (2026-09-11, owner: infra)\n\nFound by an author-blind Opus seat on the consolidation round of the D-227 review, RECORDED rather\nthan fixed for the same reason as the basename fail-open above: it is pre-existing, untouched by\nthat change, and fixing it inside a converging review is the scope creep that stops loops closing.\n\n`scripts/enforcement/check_doc_index.py` unescapes `%20` on the direction-(a) side (the INDEX link\ntarget) and compares raw paths on the direction-(b) side. So a doc whose name contains a SPACE, linked the\ncorrect markdown way with the space percent-escaped, passes (a) and FAILS (b) — the check reports\n`live doc not in INDEX.md: <the space form>` naming a doc that IS in INDEX.md. Reproduced in a fixture.\n\nDenominator: **52 non-archive `docs/**/*.md` paths containing a space, across the 45 git repos\nunder /opt (5,051 docs total)**; 11 of the 52 are in the hub's own `docs/reference/research/`.\n`/opt/job-agent/INDEX.md:295` already ships a `%20` link and is green only by accident — its link\nTEXT repeats the raw basename, which satisfies the basename branch. A human-written title there\nturns it red.\n\nFix named by the seat (2 lines at the membership test): compare the index text against `p`, `base`\nand their `%20` forms. ⚠️ Its MIRROR must be decided at the same time, not after: a doc named with\na LITERAL the percent-escaped form currently produces `INDEX.md names missing path: docs/a b.md` — a path\nthat neither exists nor appears in INDEX.md, with NO link spelling that can satisfy it, because\nthere is no escape for a literal `%`. Same shape for a literal `#` (the anchor strip). Both are\nthe no-reachable-remedy class this review already hit twice. Honest denominator for the mirror:\n**0 of 5,051** docs carry a literal `%20` or `#` today, so it is latent, not firing.",
+  "note": "migrated-digest:57ebfea08074",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "check_doc_index decodes `%20` on ONE side of its membership test — 52 docs fleet-wide are reachable (2026-09-11, owner: infra)"
+}

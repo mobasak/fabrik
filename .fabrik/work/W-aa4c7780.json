@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-18T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-aa4c7780",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] The `/fabrik-task` close event and its ledger row can disagree about the two lane fields (2026-09-18)** — `scripts/command_run.py:4409-4412` comments that the fields are \"mirrored from the row so the event stream carries what the ledger carries — a close the two disagree about is a disagreement nothing downstream can ever repair\". But the EVENT spread is unconditional while the ROW is gated on `_usage_is_required(rec)`: for a record whose `started_at` predates `_USAGE_REQUIRED_FROM`, the event carries `oversized_mini`/`upgrade` and no row exists at all. T01b's acceptance review could not REACH this (the feedback gate refuses first) and filed it as PLAUSIBLE — so the first task is to establish whether it is reachable at all before changing anything. Low.",
+  "note": "migrated-digest:030168db1a63",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**The `/fabrik-task` close event and its ledger row can disagree about the two lane fields (2026-09-18)** — `scripts/command_run.py:4409-4412` comments that the fields are \"mirrored from the row so..."
+}

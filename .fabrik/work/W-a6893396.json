@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.775294Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a6893396",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `check_review_hygiene.py` does not compare a disposition ledger's stated tally to its rows\n\nFive defects across two reviews in one day were a stated verdict triple contradicting its own table\n— the Phase C round-1 ledger, the Phase C round-2 ledger (written by the agent who had just fixed the\nfirst), the CHANGELOG's grader count, and two in Phase B. All five passed `check_review_hygiene\n--receipt` and `check_review_coverage --root .` green, because neither reads the tally. The class was\neventually closed by DELETING the restatement from all four ledgers, which works but is not\nenforceable. **Do:** a one-line check — count the leading verdict tokens of a ledger's rows, compare\nto any `N rows … A FIXED · B REFUTED · C RECORDED` line above it, advisory on mismatch.",
+  "note": "migrated-digest:04eaacfc61d2",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`check_review_hygiene.py` does not compare a disposition ledger's stated tally to its rows"
+}

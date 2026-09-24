@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-23T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1add63fd",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Long-running hub shell scripts execute whatever an in-place edit leaves at their byte offset (2026-09-23)\n\nbash reads a script incrementally, so a script still running when its file is rewritten in place resumes at its old byte offset in the NEW content. `scripts/sysadmin/selfwatch_arm.sh` (waits up to an hour, run by every session) is now one function called on its last line and cannot be hit (mail 01M36FPTT9YS7ADH3CYQ5MQ1P3). Still exposed, by runtime: `scripts/governance_sync_postcommit.sh` (~60 s per trigger commit; docs cite its line numbers, so a wrap must move those citations with it), `scripts/kilo-benchmarks/daily_refresh.sh` (cron), `scripts/wsl_startup_hook.sh`, and the box-local `~/.claude/bin/claude-selfwatch.sh` (hours; mesh, read-only without an operator go-ahead). Fix at the class: the same main-function shape, or atomic replacement for every writer. Owner: infra.",
+  "note": "migrated-digest:7482e3a9a6be",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Long-running hub shell scripts execute whatever an in-place edit leaves at their byte offset (2026-09-23)"
+}

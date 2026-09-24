@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-25T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e98a82f6",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **Spec-comment truth discipline** (deploy-triad root-cause #4, Lesson-105 class): three tryton spec comments were code-false (shared-token \"accepts TI's token too\" — dev-only in production; `expose.internal_only` — a DEAD field no orchestrator code reads; RPC_PASSWORD \"creates the login WITH it\" — the script generates its own). Candidate: extend the review commands' checklists (done for deploy plans — class 8 doc-truth) and/or a periodic spec-comment audit against the code. Blocked by: recurrence. **RECURRENCE CHECKED 2026-08-25 — it has NOT recurred, so this stays deferred on evidence rather than assumption.** The three original tryton comments were corrected in place with the finding recorded beside them (`tryton-crm.yaml:96` now reads \"create_rpc_service_user.py IGNORES it and GENERATES its own\"; `:85` records the A4 removal). Across the 75 specs on disk, 38 comment lines are assertion-shaped; three live ones were verified against code and all three are TRUE: `seo.yaml:55` (auto-generate) vs `orchestrator/secrets.py:77,100 generate_if_missing`; `spoke-canary.yaml:3` (docker source) vs `deployer_ssh.py:150 SourceType.DOCKER`; `site-provisioner.yaml:44` (registrar overwrite + restart) vs `inject_env`'s contract. **Do not build the periodic auditor until a real second instance appears** — enforcement for a non-recurring class is the churn this backlog exists to avoid. The deploy-plan review's class-8 doc-truth check already covers the path where it bit.",
+  "note": "migrated-digest:d9cf04e873af",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Spec-comment truth discipline** (deploy-triad root-cause #4, Lesson-105 class): three tryton spec comments were code-false (shared-token \"accepts TI's token too\" — dev-only in production; `expose..."
+}

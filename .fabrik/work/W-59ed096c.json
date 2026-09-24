@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-31T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-59ed096c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] tests/orchestrator/test_infrastructure.py's dispatch tests SSH to PROD (measured 2026-08-31)\n\n`TestProvisionDispatch` calls `provision()` with only the per-registrar drivers patched —\n`_provision_shared_analytics` and `_provision_watchdog` run REAL: observed live as pytest child\nprocesses `ssh vps sudo docker build -t fabrik/watchdog:my-project` and `ssh vps mkdir -p\n/tmp/fabrik-watchdog-build` during a plain local test run, and the box carries a\n`fabrik/watchdog:my-project` image built 5 HOURS EARLIER by a previous unnoticed run (leftover;\njunk image, removable). A unit suite that mutates the shared VPS on every run is both a prod\nhazard and why the suite takes minutes. Fix direction: an autouse fixture (or conftest guard)\nthat patches `fabrik.drivers.ssh.ssh`/`scp_to_vps` to raise in tests unless a marker opts in —\nwhich also converts the two unpatched provisioning paths into loud failures instead of silent\nprod writes. My new `test_registrar_failures_not_green.py` patches both explicitly.\nTrigger: next test-infra window; the guard is one conftest fixture.",
+  "note": "migrated-digest:71703ad0e281",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "tests/orchestrator/test_infrastructure.py's dispatch tests SSH to PROD (measured 2026-08-31)"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-11T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ba5d39c7",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[fleet]** **Fleet container-name/alias reconciliation check** (deploy-triad root-cause #1, 2026-08-11): nothing mechanically reconciles a project compose's `container_name`/service keys against LIVE fleet container names + fabrik-net aliases — the tryton-crm `gotenberg` collision (a standalone container squatting the name for 4 weeks, the compose's own \"no such service exists anywhere on the fleet\" comment false when written) reached a deploy plan before anything caught it. Candidate shapes: a `/fabrik-deploy-plan` Phase-2 mandatory probe (it now does this for tryton-crm ad hoc), a `fabrik validate` extension, or an enforcement check. Blocked by: next deploy plan for a multi-service stack, or a spare S-window.",
+  "note": "migrated-digest:03918597d05f",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "**Fleet container-name/alias reconciliation check** (deploy-triad root-cause #1, 2026-08-11): nothing mechanically reconciles a project compose's `container_name`/service keys against LIVE fleet co..."
+}

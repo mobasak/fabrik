@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.721385Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7b0a7ac4",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] THREE `tests/enforcement` tests pass in isolation and FAIL in the full-suite run — pre-existing pollution, attributed by execution\n\n⚠️ **Narrowed from four to three, 2026-09-15 (plan-2 Finish).** The fourth,\n`test_plan_tickets_epic_scope.py::test_frontmatter_parser_matches_epic_order_verbatim`, was NOT an\nordering defect and is now FIXED: it is a twin-parser drift guard, and `_find_fences` had genuinely\ndiverged between `scripts/enforcement/check_plan_tickets.py`'s ported block and its source\n`scripts/epic_order.py`. The port sits inside a `# fmt: off` block (`:1153`) whose own comment says\nit \"keeps the SOURCE MODULE's formatting\", so `ruff format` reformatted the SOURCE and left the\nfrozen copy behind — both files are individually ruff-stable, which is why no formatting gate saw\nit and only the verbatim-comparison test did. Re-synced the ported block; that file now reads\n84 passed. The drift was already present at this plan's base commit `36da6bb4`, so it was never\nthis plan's — but the plan touched `check_plan_tickets.py` eight times and a defect in committed\ncode is the repo's.\n\n`python3 -m pytest tests/enforcement -q` remains RED at HEAD for the other three, and was before\nPhase E. All three pass cleanly when their file runs alone (`test_pack_reachability.py` →\n16 passed, re-verified 2026-09-15), which makes this a test-ORDERING defect, not a defect in the\nchecks.\n\n**Attribution, executed rather than assumed** (2026-09-14, three independent probes):\n\n1. Reverting all six enforcement scripts Phase E touched to `84f88595` — the three still fail.\n2. Reverting ONLY `_doc_registry.py` (removing `office-extension`, the likeliest suspect since the\n   failures are about scaffold types) — the three still fail.\n3. Running `tests/enforcement` with all FOUR test files Phase E modified excluded via `--ignore` —\n   the three still fail.\n\nSo none of it is Phase E's. ⚠️ A fourth probe that does NOT work and is recorded so nobody repeats\nit: `git archive <sha> | tar -x` into a scratch tree fails **103** tests, because the archive omits\ngitignored files the suite needs. A clone-shaped baseline cannot attribute anything here.\n\n**The mechanism, diagnosed but not fixed:** the three failures are the \"scaffolder unavailable\" and\n\"masked scaffolder failure\" simulations — they assert the check does NOT condemn a pack it could not\nevaluate. In a full run the scaffolder IS importable, so the simulation never takes effect and the\ncheck evaluates the pack and condemns it. Something earlier in the run leaves `fabrik.scaffold` in\n`sys.modules` (or `src/` on `sys.path`), and monkeypatching the import path does not defeat an\nalready-imported module. `test_pack_layout_audit.py` imports the same module and is the first place\nto look.\n\nThe fourth failure is separate and also pre-existing:\n`test_plan_tickets_epic_scope.py::test_frontmatter_parser_matches_epic_order_verbatim` reports\n`['_find_fences']` — the two frontmatter parsers it holds to verbatim parity have drifted by one\nhelper.\n\n**Do:** make the unavailability simulation defeat an already-imported module (pop it from\n`sys.modules` in the fixture, or assert the precondition and skip loudly rather than silently\nevaluating), and re-derive the `_find_fences` parity. Both are small; neither belongs inside a phase\nwhose scope is 23 mail-triage rows.",
+  "note": "migrated-digest:c2269335fdb9",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "THREE `tests/enforcement` tests pass in isolation and FAIL in the full-suite run — pre-existing pollution, attributed by execution"
+}

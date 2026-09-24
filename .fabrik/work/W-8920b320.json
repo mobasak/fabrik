@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-20T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8920b320",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] doc↔script coupling is blind to every shell script (2026-09-20)\n\n`render_doc_script_links.py` globs `scripts/**/*.py` only (`:136`), so a `.sh` carrying a valid\n`# AFTER-EDIT:` header is silently ignored — its doc never gets a `## Related scripts` row and the\n`--check` gate cannot catch the pair drifting. Not hypothetical and not new: `weekly_catchup.sh`\nhas declared `docs/workstation/kaizen.md` for months and appears in no rendered block, and\n`agent_memory.sh` (D-316) declares `cleanup-automation.md` with the same result.\n\nMeasured today: the renderer reports \"45 coupled doc(s) current\" — a denominator that counts only\nPython, so the coverage ratchet reads clean while every shell surface on the box is unmeasured.\n\n⚠️ **It is TWO files, not one** (found by a review seat 2026-09-20 that checked the sibling gate\nrather than stopping at the one named): `scripts/enforcement/check_script_headers.py:329` filters\n`f.endswith(\".py\")` with the identical effect, so a shell script carrying NO `# AFTER-EDIT:` header\nat all is invisible to the WARN as well. The original row understated the scope.\n\nOwner: infra (`scripts/enforcement/` and the doc-coupling tooling are its beat). The fix is a\none-line glob widening in EACH of the two files plus a re-run of `--coverage` to re-seed the\nbaseline with the shell scripts included — which will make the headless count RISE once, and that\nis the ratchet working, not failing.",
+  "note": "migrated-digest:5ba64af8cd8f",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "doc↔script coupling is blind to every shell script (2026-09-20)"
+}

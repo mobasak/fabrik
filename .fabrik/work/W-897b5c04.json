@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-06-07T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-897b5c04",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[operator]** **Bot token rotation** for `SysAdminVPS2` (`8838110344:...`) + `SysAdminVPS3` (`8674270904:...`): Operator declared this private chat 2026-06-07 and declined rotation. Re-evaluate if the chat scope ever changes. Blocked by: operator decision.",
+  "note": "migrated-digest:27b0fecf7278",
+  "owner": "operator",
+  "priority": 2,
+  "status": "open",
+  "title": "**Bot token rotation** for `SysAdminVPS2` (`8838110344:...`) + `SysAdminVPS3` (`8674270904:...`): Operator declared this private chat 2026-06-07 and declined rotation. Re-evaluate if the chat scope..."
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.704007Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-80ffca68",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Eleven code spans in the rule packs carry `\\|`, which is a LITERAL pipe in every language they illustrate\n\nSwept after a Phase D fix escaped two pipes inside a Python regex in `core/45-testing-strategy.md`\nand shipped a destructive-test guard that rejected every legitimate name to 46 of 49 repos (fixed at\n`08c0d005` by rephrasing to `dbname.endswith((...))`, which carries no pipe at all).\n\n**Denominator:** 116 governance files scanned (both contracts, every `.windsurf/rules/**`, every\n`commands/_sources` and `_fragments`); **11** code spans contain a backslash-pipe. None is a\ncopy-and-run predicate — they are type and schema NOTATION in don't/do tables — which is why this is\na backlog row and not a fix-now: `core/10-python.md:310` (`str \\| None`), `core/12-node.md:295`\n(`process.env.X \\|\\| 'default'`), and nine schema illustrations in `core/app-audit-log.md`.\nSeverity is still real for the first two: both packs' headers say \"Follow verbatim\", and a RAW\nreader — which is how a pack reaches an agent — gets invalid Python and invalid JS.\n\n**Do:** rephrase each so the span carries no literal pipe (`Optional[str]` prose, a named constant,\na fenced block instead of a span), as `check_governance_tables.py`'s own finding message prescribes.\n**And extend that check:** its `_TARGETS` are the two CLAUDE.md files only, so the surface where this\nshipped — `.windsurf/rules/` — has no detector at all. A row-width sweep of all 58 governance files\nfound **0 of 1,659** rows off their header width today, so the table half is clean and only the\ncode-span half needs the new rule.",
+  "note": "migrated-digest:2e6f3da8942c",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Eleven code spans in the rule packs carry `\\|`, which is a LITERAL pipe in every language they illustrate"
+}

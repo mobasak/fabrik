@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-09T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-542bc438",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **The four-field close template is stated inline in three review command sites beside the auto-appended fragment** (2026-09-09, owner: infra) — no grader ties the three inline copies to `_parse_usage_feedback`'s grammar (T07 review round 3 executed them once); either drop the inline copies for the fragment or grade them in `test_assemble_dispatch_step.py`.",
+  "note": "migrated-digest:7325ad558ddf",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**The four-field close template is stated inline in three review command sites beside the auto-appended fragment** (2026-09-09, owner: infra) — no grader ties the three inline copies to `_parse_usa..."
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.759326Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-43cb57b9",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `bandit scripts/` ships at a HIGH floor; promoting it to MEDIUM is a per-repo ratchet with 36 findings named\n\nT12.5 landed bandit over `scripts/` — the root ruff already lints and bandit never saw — but at\n`-lll` (HIGH), not the `-ll` (MEDIUM) the `src/` leg uses. That asymmetry is deliberate and\nmeasured, and this row is the other half of the decision.\n\n**Re-derived 2026-09-15 on the hub.** ⚠️ REPRODUCE IT WITH THE GATE'S OWN EXCLUSION LIST, which\nis what every number below is measured under — copied from `final_gate.py`'s `bandit scripts/`\nleg, where it is **five** entries, not the three an earlier cut of this row named:\n\n```\nbandit -ll -x 'tests/,scripts/kilo-benchmarks/,scripts/.archive/,scripts/tests/,scripts/archived/' -r scripts/\n```\n\nA shorter list is a different question with a different answer, and that is the whole confusion an\nauthor-blind seat hit twice, and which this row itself then got wrong — re-derived 2026-09-15,\neach by its own bandit run: `-x tests/` alone gives **474** findings over **199** files; naming\n**three** of the five (dropping `scripts/tests/` AND `scripts/archived/`) gives **38**, the extra\none being the `B324` in `scripts/archived/kilo_code_review.py`; naming **four** (dropping only\n`scripts/tests/`) gives **37** with a by-rule tail of B608 × 8; the gate's own five give **36**.\nOf the unexcluded subtrees, **423 (89 %) are inside the vendored `scripts/kilo-benchmarks/`**, 13\nmore in `scripts/.archive/` and 1 in `scripts/archived/` (no dot). ⚠️ The totals MOVE with the\ntree — 480/204 on 2026-09-14, 474/199 a day later — so they are dated rather than quoted as\nstanding facts; the exclusion list and the by-rule tail are the stable part. Of the 36, the 7 HIGH\nwere all B324 (md5 for change detection) and are now closed properly — each\ncall declares `usedforsecurity=False`, which states the purpose to bandit, to the interpreter and\nto the next reader, where the `# noqa: S324` it replaced suppressed a ruff rule this repo does not\neven select (`select` in `pyproject.toml` carries no `S`). HIGH is therefore **0** today and the\nrow BLOCKS.\n\n**The 36 remaining MEDIUMs, by rule, so the triage has a subject** (re-derived 2026-09-15 under\nthe five-exclusion command above)**:** B310 urllib-open × 14 · B108 hardcoded `/tmp` × 12 ·\nB608 SQL built by string × 7 · B104 bind-all-interfaces × 2 · B302 marshal × 1. (Drop\n`scripts/tests/` from the exclusions and B608 reads 8 — the 37th is\n`scripts/tests/test_registry_sync.py:754`, a test fixture the gate never lints.) Most are likely legitimate for a box-local tool; that judgement is the work,\nand it is per-finding, not per-rule.\n\n**Do:** triage those 36 — annotate what is fine (`# nosec` with a reason, bandit's own verb),\nfix what is not — then move the floor to `-ll` here. Fleet-wide it is the lint ratchet's shape,\nnot a flag day: each repo clears its own `scripts/` and lowers its own floor. ⚠️ Do NOT lower the\nfloor before the triage: 43 findings would red every gate in the fleet on landing day, which is\nhow enforcement gets disabled rather than obeyed.",
+  "note": "migrated-digest:92c85f28b924",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`bandit scripts/` ships at a HIGH floor; promoting it to MEDIUM is a per-repo ratchet with 36 findings named"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-03T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1f6fac5a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] `fabrik apply` provisions a second flywheel database nothing reads (2026-09-03, owner: fleet)\n\nMail 01M1H2XGV09Y78W9TGVG3G92TH (intel), which also CORRECTS the open finding 01M1EWW9G8SSFZX08KFPRQEAM2:\nthe reported `missing-driver-psycopg` reason is not what stops the recording (psycopg 3.3.4 is installed).\n`infrastructure.py:748-755` unconditionally injects `SUBAGENT_RUNS_DSN` at `postgres-main:5432/fabrik_analytics`\nplus a per-project writer role, while the hub flywheel reads elsewhere — so a project can record faithfully\nfor weeks into a sink no consumer reads. The resolution step needs the fleet path to postgres-main\n(`SELECT count(*), min(ts), max(ts), count(DISTINCT project) FROM subagent_runs`) and then a decision: one\nanalytics DB with the hub reading it, or drop the injection. Note for whoever takes it: `libs/subagents/`\ncarried a sibling session's uncommitted WIP through 2026-09-03 — check `git status` before editing that surface.",
+  "note": "migrated-digest:5f122e4830f4",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "`fabrik apply` provisions a second flywheel database nothing reads (2026-09-03, owner: fleet)"
+}

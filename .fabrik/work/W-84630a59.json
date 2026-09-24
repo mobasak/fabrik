@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.560251Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-84630a59",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] A plan that indexes phases by LETTER cannot satisfy `step`'s review gate, whose matcher is ORDINAL — the only exit is a waiver that has to explain itself\n\n`command_run.py::step` refuses a phase advance unless a file under `docs/development/reviews/`\nmatches `(?:^|[^0-9a-z])p(?:hase)?[-_ ]?<N>(?:[^0-9]|$)` for the NUMERIC phase it is leaving, or\nthe DISPATCHER ticket form. Every `/fabrik-*` plan in this repo names its phases with LETTERS —\n`## Phase A`, `## Phase B`, … — because that is what the plan template writes and what the\nreceipts are then named after (`…-phase-C-review.md`). The two conventions never meet: a receipt\nnamed exactly as the plan's own heading dictates is invisible to the gate, and `--review-waived`\nis the only way forward.\n\n**Measured 2026-09-14, on this plan:** `step --phase 3` refused with \"phase 1 has no review\nartifact\", while `docs/development/reviews/2026-09-14-plan-2-mail-triage-phase-C-review.md` was\ncommitted at `c17750aa` — three rounds, a full Coverage Checklist, closed on the D-252 stop. The\nwaiver had to carry a paragraph saying it was not a skip, which is the shape of an escape hatch\nbeing used as a workaround. **Denominator, not yet measured:** how many of the 132 `*phase*-review.md`\nfiles under `/opt/*/docs/development/reviews` carry a LETTER rather than a digit — that count\ndecides whether this is one plan's habit or the fleet's convention.\n\n**Do:** accept a letter in the matcher and bind it to the plan's own phase headings (read the\nplan at the record's stem, map its Nth `## Phase <X>` heading to ordinal N, accept either key), or\nchange the plan template to number its phases. Do NOT just widen the regex to `[0-9a-z]` — that\nmakes a phase-A receipt satisfy phase 1 of a plan whose first phase is Phase 0, which is the\nprefix bug the existing comment at `:608` already paid for once.",
+  "note": "migrated-digest:86747b088bae",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "A plan that indexes phases by LETTER cannot satisfy `step`'s review gate, whose matcher is ORDINAL — the only exit is a waiver that has to explain itself"
+}

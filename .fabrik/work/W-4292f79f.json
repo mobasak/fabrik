@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-18T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4292f79f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] The ambient-`GIT_DIR` grader covers only the REFUSAL direction of the launder (2026-09-18)** — `tests/test_command_run_fabrik_task.py::test_an_ambient_git_dir_cannot_relocate_the_measurement` reds when the scrub is deleted, so it is a real grader, but it reds on `returncode == 0`: its decoy repo does not contain the measured sha, so unscrubbed the close takes the REFUSAL path. The commit subject names the other direction — a decoy that DOES resolve the sha, closing `oversized_mini: 0` on a real multi-file commit — and no grader observes it. Needs a decoy cloned after the commit (or an alternates entry) asserting the honest count rather than the decoy's zero. Low — the scrub is proven; it is the grader's coverage that is partial.",
+  "note": "migrated-digest:09c22fb6216e",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**The ambient-`GIT_DIR` grader covers only the REFUSAL direction of the launder (2026-09-18)** — `tests/test_command_run_fabrik_task.py::test_an_ambient_git_dir_cannot_relocate_the_measurement` red..."
+}

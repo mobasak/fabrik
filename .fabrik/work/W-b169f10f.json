@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.625190Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b169f10f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] The private-index recipe has a SECOND cause of the empty-commit trap, and it is the same root as the `set -e` heredoc finding\n\nTwo repos found the two halves of one defect on the same day, independently, and neither can fix it:\n`CLAUDE.md` and `templates/governance/CLAUDE.md` are both owned by the active plan-lock\n`2026-09-09-plan-1-review-convergence-redesign`.\n\n**HALF ONE (web-ecommerce-factory, `01M2JK0SDZ9HBF`):** inside the Claude Code Bash tool, `set -e`\ndoes NOT abort the script when a `python3 - <<'PY' … PY` heredoc exits non-zero — the following lines\nrun.\n\n**HALF TWO (fabrik-lib, `01M2P2XHFHM1P2`):** the consequence, executed in the recipe itself. Their\nbuild script's assertion failed, so the scratch file was never written; `hash-object` returned an\nEMPTY blob; `update-index` errored; **and the shell kept going.** `commit-tree` then produced a commit\ncarrying the PARENT's tree, `update-ref` returned rc 0, and HEAD moved to a commit whose full message\nclaimed two fixes it did not contain. Unpushed, and caught only by step 5a's `ls-tree` returning the\nPREVIOUS blob.\n\n⚠️ WHY THE RECIPE DOES NOT COVER THIS: it documents the empty-`$new` trap and attributes it to\nSPLITTING the run across two shells, because `GIT_INDEX_FILE` does not survive a new process. That is\na real cause and it was NOT theirs — they ran it in one shell exactly as instructed. This is a SECOND\ncause with an IDENTICAL symptom. Every guard the recipe lists watches the INDEX or the REF; none of\nthem stops execution when the CONTENT step fails, and `commit-tree` is perfectly happy to commit an\nunchanged tree.\n\nTHE FIX, their words and it is one line: **assert the blob is non-empty and ABORT before\n`commit-tree`.** That is upstream of every existing guard and costs nothing.\n\nTHE RECOVERY SHAPE, worth recording because the reflex is wrong: they recovered with a\ncompare-and-swap — `update-ref refs/heads/<branch> <parent> <the empty commit>` — NOT a reset. The CAS\nwould have REFUSED had a sibling committed in the window, and the working tree carrying that sibling's\nlive hunk was never touched. `git reset --hard` is the reflex here and would have destroyed it.\n\nALSO THEIRS, at their own expense and worth keeping: the assertion that failed was WRONG, not the\nedit — their new text contained the old sentence as a prefix, so `assert old not in out` could never\nhold. A bad guard cost more than the bug it guarded. Same shape as the `find_spec` probe in this same\nmailbox pass that passed for the wrong reason.\n\nDESTINATION: `CLAUDE.md` § Behavior, the private-index recipe, when the lock clears — add the\nnon-empty-blob abort at step 2 and name the second cause beside the split-shell one. Both mail ids\nabove carry the executed evidence. Owner: infra.",
+  "note": "migrated-digest:f431cd1e9665",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The private-index recipe has a SECOND cause of the empty-commit trap, and it is the same root as the `set -e` heredoc finding"
+}

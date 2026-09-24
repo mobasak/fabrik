@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:37:36.359783Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0ca15040",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-09-24-plan-2-work-tracking",
+    "spec": ""
+  },
+  "next": "On 2026-10-08 read readings.jsonl: open items by age, drift classes 2-6 trending down, awaiting items answered vs outstanding, and every store-lock wait over 0.1 s (growth trigger, spec § Lifecycle). Also run the linked-worktree reader from the plan's § Residual unknowns: git worktree list --porcelain, then work.py status in each linked tree plus a scan of its .fabrik/work/ for awaiting-operator items and of the anchor dir for slots keyed to that tree; if either finds one, re-key slots and prompt_block by the git common dir in a follow-up change.",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "title": "V6 reading of the work store, due 2026-10-08 (two weeks after hub adoption)"
+}

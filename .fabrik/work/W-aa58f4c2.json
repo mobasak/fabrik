@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-aa58f4c2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Three governance-sync filter names point at scripts that moved to scripts/archived/ (2026-09-24)\n\n`.pre-commit-config.yaml`'s grouped row `^scripts/(…|kilo_code_review|kilo_docs_enforcer|update_agents_toc|…)\\.py$` names three scripts that now live under `scripts/archived/`, so those three alternatives can never fire. Found by the /fabrik-review of the dead `kilo_47_agents_final.json` row (receipt docs/development/reviews/2026-09-24-dead-trigger-row-and-rag-pack-review.md). `tests/test_sync_trigger_coverage.py` now catches a gitignored path in any row. A path that simply does not exist is a separate shape it does not check. Fix at the class: drop the three names, and have the test also require every literal file row to exist in the hub. Measure first whether any other hub file rides a nonexistent row. Owner: infra.",
+  "note": "migrated-digest:d81bce34fdd1",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Three governance-sync filter names point at scripts that moved to scripts/archived/ (2026-09-24)"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.698018Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-42bc5450",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `docs/DECISIONS.md` is the one mandated markdown table with NO cell-count check, and 9 of 260 rows are off-width\n\nA literal `||` inside a D-row's `what` cell splits the row into 8 fields against a 6-column header:\nthe rendered table and `scripts/decisions.py` BOTH silently drop the `why` and `where` columns — on\na superseding row, that is its entire provenance. Found on `D-259` at mint time (repaired by\nrewording; `decisions.py:83` does a bare `line.strip(\"|\").split(\"|\")` and honours no `\\|` escape, so\nthe markdown escape fixes renderers and not the tool — the two consumers disagree about the same\nfile). A sweep of the pinned file found **9 of 260** `| D-` rows with a pipe count ≠ 7; 8 predate\nthis run. `check_governance_tables.py` exists and reports \"across 2 contract(s)\" — the two\n`CLAUDE.md` files — and is structurally blind to the ledger, which § Behavior mandates a row in on\nevery decision. A cell-count check over `docs/DECISIONS.md` would have caught this at commit time.",
+  "note": "migrated-digest:8d0fb4b6cc68",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`docs/DECISIONS.md` is the one mandated markdown table with NO cell-count check, and 9 of 260 rows are off-width"
+}

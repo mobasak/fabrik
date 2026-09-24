@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-03T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-38637b66",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `commands/_fragments/grounding-research.md` is included by NO command (2026-09-03, owner: infra)\n\nFound while draining infra's box: `grep -rl 'grounding-research' commands/` → only the fragment itself; no `{{include:grounding-research}}` in any of the 32 sources and no reference in `assemble_commands.py`. A fragment nothing renders is text that cannot bind anything — either wire it into the research commands (`fabrik-rivals`/`fabrik-spec` include `grounding-rules`/`subagents-core`, not this) or retire it. The 'a single-shot pool grounder MUST be told to fetch' rule from 01M1GSR9 went into `subagents-core.md` instead, which those commands DO include. Parked by the fleet session 2026-09-03.",
+  "note": "migrated-digest:272a5e94a589",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`commands/_fragments/grounding-research.md` is included by NO command (2026-09-03, owner: infra)"
+}

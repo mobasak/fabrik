@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.707631Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-47520e61",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "### [infra] `commands/_agents/fabrik-researcher.md:22` says firecrawl \"is not connected on this box\" — it is\n\nThe parenthetical reads *\"(firecrawl was named here once; it is not connected on this box — a routing arm\nthat does not exist is not redundancy. Verified gone 2026-08-30, wef 01M17XXF.)\"* — while\n`docs/workstation/mcp-roster.md:65` rules it **ON everywhere** (D-013; the crash was a corrupted npx cache\nentry) and `scripts/sysadmin/mcp_health.py` reported `firecrawl: CONNECTED` in this session three times. A\nresearcher seat reading its own agent definition is told a live arm is dead. One-line fix in the agent\nsource, rendered to `~/.claude/agents/` (not a governance-sync trigger); its own scoped review. Found as\nMACHINERY by a `fabrik-researcher` seat verifying the spec's citations.",
+  "note": "migrated-digest:eff66ce1bfd9",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`commands/_agents/fabrik-researcher.md:22` says firecrawl \"is not connected on this box\" — it is"
+}

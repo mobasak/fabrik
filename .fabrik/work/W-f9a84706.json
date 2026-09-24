@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.755471Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f9a84706",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] The added-code-path INDEX advisory ships ADVISORY; promoting it to blocking is a per-repo ratchet, and ~585 of ~866 files are the backlog\n\nT12.10 landed direction (c) of `check_doc_index.py` — an added file under `scripts/`, `tests/`,\n`.claude/hooks/` or `.fabrik/` owes an INDEX.md row naming its PATH — but it never changes the\nexit code. This row is the other half of that decision.\n\n**Measured 2026-09-14 on the hub, before arming** (tool: `git ls-files` for the population,\n`command grep -qF` per basename against INDEX.md; `git log --diff-filter=A` for the additions):\n\n- **Whole tree: 585 of 866** tracked files under those four roots carry no INDEX mention at\n  all (67 %), re-derived 2026-09-15. ⚠️ THE NUMBER MOVES, so it is written with a tilde in the\n  heading and dated here: 584/863 when the check landed, 584/865 three commits later, 585/866 the\n  next day — the extras are files these very phases added, which is precisely the drift the row is\n  about. A whole-tree check is ~585 findings on landing day — the definition of wallpaper.\n- **Staged-scope, added-only: 37 of 113** such files added since 2026-09-01 are still unindexed\n  (33 %). These are TRUE positives — the Doc Sync Matrix asks for the row — but a third of every\n  code-adding commit is too many to block on day one.\n\n**Do:** leave it advisory until a repo's own added-path rate is near zero, then flip it blocking\nthere — the lint ratchet's shape, per repo, never a flag day. The 584-file backlog is NOT a\nprerequisite: the advisory is added-only by design, so a repo can reach a clean added-path rate\nwithout backfilling a single historical row. Backfilling is a separate, optional bite.\n\n⚠️ **Its cobra path is already closed once and the residue is stated:** the cheapest way to satisfy\nthe check without the outcome was a bare basename pasted into INDEX.md, so the membership test\ndemands the PATH. That makes the cheap edit a real row — it does not make it a GOOD row, because\nnothing reads the description cell. Closing THAT would need a judgement no regex can make; the\nhonest counter is review, and a longer pattern would only move the cheapest path, not remove it.",
+  "note": "migrated-digest:1076cea92a3b",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The added-code-path INDEX advisory ships ADVISORY; promoting it to blocking is a per-repo ratchet, and ~585 of ~866 files are the backlog"
+}

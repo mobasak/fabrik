@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-29T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-057f0c7a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`final_gate` has NO TypeScript/JS checks — and CI was the only thing running them** (surfaced 2026-08-29 when CI checks were retired fleet-wide). `grep -n \"tsc\\|eslint\\|vitest\\|npm test\\|type-check\" scripts/final_gate.py` returns **nothing**. trade-intelligence's CI ran a whole job the gate cannot replace — `npm run type-check`, `npm run test:unit`, `npm run test:components` — and it was FAILING on all five of its last runs. Disabling CI moved the python half to a stricter place (the gate blocks the commit instead of emailing after the push) but moved the web half to **nowhere**: a green `final_gate` in a repo with a web surface now asserts nothing about its TypeScript. Affected: any repo with `package.json` + a web surface (trade-intelligence confirmed; the three RN repos carry `lint-ts`/`type-check`/`test` workflows but two of them have no git remote so those never ran anyway). Fix direction: a diff-scoped web tier in `final_gate` — run `type-check`/`lint`/`unit` **only when the diff touches web paths and the scripts exist in `package.json`**, `warn_only` on landing per this repo's own doctrine that a check firing fleet-wide on day one gets ignored. ⚠️ Measure the fire rate first: an unknown number of these suites are already red, which is exactly how CI ended up ignored. Blocked by: a focus window; nothing is waiting on a decision.",
+  "note": "migrated-digest:b9a48169c074",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`final_gate` has NO TypeScript/JS checks — and CI was the only thing running them** (surfaced 2026-08-29 when CI checks were retired fleet-wide). `grep -n \"tsc\\|eslint\\|vitest\\|npm test\\|type-che..."
+}

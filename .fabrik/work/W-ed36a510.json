@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.676184Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ed36a510",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `check_plan_tickets` cannot tell a session's OWN plan lock from a sibling's, so a clean tree silently demotes its own findings\n\n`own_dirs` is built from working-tree/staged plan-file edits alone, so committing plan work empties\nit and the session's own plan is demoted to `[sibling plan]` advisory WARNs — measured at\nweb-ecommerce-factory (`01M2HH0NVMMD`): 0 errors / 32 warns on the gate path vs 4 errors / 28 warns\nwith `--plan-dir` on the same plan. A dispatcher-mode run commits plan files constantly, so the set\nis unenforced exactly when you are about to report done. The SILENCE is fixed (the demotion now\nnames its count, its real selection reason and a working remedy, and reaches `--json`); ATTRIBUTION\nis not, because no plan lock records a session identity. Needs a decision on what identifies \"my\nplan\" — the active run record's `surface`, a lock owner field, or the working-tree/upstream split.",
+  "note": "migrated-digest:f6e4b50c6b9a",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`check_plan_tickets` cannot tell a session's OWN plan lock from a sibling's, so a clean tree silently demotes its own findings"
+}

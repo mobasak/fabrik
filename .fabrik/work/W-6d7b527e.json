@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6d7b527e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] `templates/governance/CLAUDE.md` cites hub decision ids bare in places (`:37`, `:70`, `:444`, `:471` at 537f359ab) with no written rule for the `hub D-NNN` prefix (2026-09-24)** — found by the T02b review of `docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction` (R1-T02b-note). D-054 resolves to a DIFFERENT decision in two project ledgers (youtube, web-ecommerce-factory), so a bare hub id in the fleet contract can send a project agent to the wrong row. Fix: state the rule once in the template (hub rows are written `hub D-NNN`), prefix the remaining bare ids, and add a grader that no bare `D-NNN` in the template resolves to a project-local row. Owner: infra.",
+  "note": "migrated-digest:b21db298d139",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`templates/governance/CLAUDE.md` cites hub decision ids bare in places (`:37`, `:70`, `:444`, `:471` at 537f359ab) with no written rule for the `hub D-NNN` prefix (2026-09-24)** — found by the T0..."
+}

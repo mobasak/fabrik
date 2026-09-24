@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.878296Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-42dbd4f1",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] CLAUDE.md's Subagent fan-out bullet reads its Sonnet + Haiku pair as covering the section loops\n\nThe bullet names `/fabrik-spec-review` and `/fabrik-plan-review` among \"the partitioned review loops\", gives them\n\"Opus on the rule/grammar sections, Sonnet on the rest, no Haiku seat\", then continues in the same sentence with\n\"two cheap finders per slice — one Sonnet and one Haiku … no Opus finder\" (D-344), which is scoped to the FILE\nloops only. A reader following the literal sentence could build a section slice with the wrong pair. Found by\nthe chunk-6 review (D-361, B-S3); older than that change and on a governance-sync path, so it waits for the\nnext deliberate contract edit: scope the pair clause to the file loops. Owner: infra.",
+  "note": "migrated-digest:6d54f955afa8",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "CLAUDE.md's Subagent fan-out bullet reads its Sonnet + Haiku pair as covering the section loops"
+}

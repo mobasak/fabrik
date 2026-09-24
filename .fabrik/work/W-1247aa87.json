@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-31T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1247aa87",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] assemble_commands.render() silently defaults agents_dest to the LIVE ~/.claude/agents (found by a review finder 2026-08-31)\n\n`render(dest)` with `agents_dest=None` resolves to the live installed agents dir\n(assemble_commands.py:31,~706) — only the CLI `--check` path passes a temp dir. A read-only review\nfinder doing `import assemble_commands; render(tmpdir)` for inspection silently OVERWROTE the 4 live\nagent files (benign that day — sources unchanged, post-hoc byte-match to a fresh render — but there\nwas no pre-call snapshot to prove it). Fix direction: `render()` requires an explicit `agents_dest`,\nor the agents writer (`_compose_agents` + `_write_agents` since 2026-09-10 — `_emit_agents` was split; composing before any write already refuses a defective source) refuses/warns when overwriting a file its own `agent_drift` check would call\nHAND-EDITED. Out of plan-1's File Scope (the renderer is not a source/fragment); parked per the\nrollout law — the trigger for promotion is a second live mutation.\n**PROMOTED + FIXED 2026-08-31:** the second live mutation was measured the same day (T02's verifier's\n`--dest` probe); `render()` now derives `agents_dest` from dest (live AGENTS only when dest == OUT,\nelse `dest/_agents`), red-first proven with 2 regression tests (tests/test_assemble_agents_dest.py).",
+  "note": "migrated-digest:94b4eb068c9f",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "assemble_commands.render() silently defaults agents_dest to the LIVE ~/.claude/agents (found by a review finder 2026-08-31)"
+}

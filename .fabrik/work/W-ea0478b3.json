@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.715659Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ea0478b3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `fabrik-lib/alerting/`'s `_last_sent` is unbounded and its only reset is a test reaching into the module\n\nSurfaced reviewing Phase D's correction of `core/58-resilience.md`. Beyond the four properties the\npack now names, two more the rule does not carry: `_last_sent` has no eviction, so a title carrying a\nvarying token (an id, a timestamp) both defeats dedup entirely AND grows the dict for the process's\nlifetime; and the module exposes no reset — its own tests clear it by touching\n`alerting._last_sent.clear()` directly (`test_alerting.py:73`), which is the tell that the public\nsurface is missing one. Cross-repo, so it is fabrik-lib's to fix.\n\n**Do:** mail fabrik-lib — a bounded store (or a documented `reset()`), and a note in the pack that a\ntitle must be a STABLE key, not a formatted string.",
+  "note": "migrated-digest:56859b0a6d88",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`fabrik-lib/alerting/`'s `_last_sent` is unbounded and its only reset is a test reaching into the module"
+}

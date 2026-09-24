@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-911cab3b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Seven commands still run exa FIRST while the contract puts exa and firecrawl in tier 2 (2026-09-24)\n\nD-338 kept a command's own research wiring inside its run and left infra to decide whether the commands follow the operator's tier order. Seven of the 38 sources open their chains with `mcp__exa__web_search_exa`: fabrik-spec (twice), fabrik-spec-review, fabrik-data-contract, fabrik-plan-after-chat, fabrik-ui-design, fabrik-vision and fabrik-docs-review. `docs/workstation/mcp-roster.md` calls exa \"grounding order #1\" (intel's D-337 review, mail 01M3452QMBRWG7WZT6YGNETB8T). The trade-off to settle first: exa's semantic search is the strongest single engine for design grounding, and it is metered, so exa-first spends on every fact rather than on a miss. Measure first: across the last N runs of those seven commands, how many exa calls answered a fact that WebSearch or brave also answered. Owner: infra; a change to the seven sources is a decision row plus one corpus render.",
+  "note": "migrated-digest:746945c4e7aa",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Seven commands still run exa FIRST while the contract puts exa and firecrawl in tier 2 (2026-09-24)"
+}

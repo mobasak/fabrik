@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.672160Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-945bf009",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] The fleet-quota hold refuses read-only `git -C`, a piped `mail.py send`, and a `cd`-prefixed close — and the obvious fix opens a force-push bypass\n\nReported by fabrik-32 (`01M2CX7RGK44`) and reproduced: `_ALLOWED_BASH` is START-anchored, so\n`git -C /opt/fabrik log -1` is refused while `git log -1` passes, and `printf … | mail.py send` is\nrefused although `mail.py`'s body IS stdin — so the hold's own mail exemption cannot be exercised at\nall. ⚠️ EXECUTED: the naive relaxation is WORSE than the bug. `_git_flags_forbidden` reads\n`verb = argv[1]`, so admitting `-C` past the regex makes\n`_git_flags_forbidden(\"git -C /opt/fabrik push --force origin master\")` return **False** — the\nforce-push veto bypassed, across ~46 repos. A correct fix threads a verb RESOLVER (strip `cd <dir>;`\nand `-C <dir>`) through `_ALLOWED_BASH`, `_git_flags_forbidden` AND `_positional_forbidden` together,\nwith a red-first grader per shape. Spec work, deliberately not an inline patch.",
+  "note": "migrated-digest:13988de6989f",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The fleet-quota hold refuses read-only `git -C`, a piped `mail.py send`, and a `cd`-prefixed close — and the obvious fix opens a force-push bypass"
+}

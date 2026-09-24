@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0dad91ed",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] ~40 `final_gate.py:N` line citations outside the CLAUDE.md GATE row have no grader (2026-09-24)\n\nD-382 remapped every live `final_gate.py:N` citation when its edit moved the file's lines, and graded only the CLAUDE.md GATE row's cites (`tests/test_governance_template_split.py`). The rest stay ungraded: three enforcement scripts (`check_plan_lock_release.py`, `check_stage_artifacts.py`, `check_certification_coverage.py`), four tests, `docs/workflows/FINAL_GATE_WORKFLOW.md`, `docs/reference/plan-lock-lifecycle.md`, `docs/reference/command-evaluation-checklist.md`, `docs/workstation/wsl-startup-inventory.md`, `INDEX.md`, and dated rows in this file. The remap kept each one pointing at the code it pointed at in HEAD; whether that code was the RIGHT code at HEAD was never checked. `scripts/enforcement/check_citations_resolve.py` scans only specs, plans, reviews and `docs/reference/`, and proves only that a target line is non-blank. Fix at the class: cite a symbol (`final_gate.py::run_cmd`) where the reader needs the construct, not the line, or extend the resolver to assert a named construct. Known wrong at HEAD already (the D-382 review found them and left their claims alone): `check_plan_lock_release.py` (:123, :245, :568, :620), `tests/enforcement/test_plan_lock_release.py` (:452, :732, :918) and `docs/reference/plan-lock-lifecycle.md:86` cite `final_gate.py:2133`/`:2111` as an `output[:500]` cut that no longer exists (`clip_output` replaced it, `final_gate.py:249`), so the claim is false, not only the line. `docs/LESSONS_LEARNT.md` and `CHANGELOG.md` cite `final_gate.py:1111` for the Kilo health check (it was never there), but those are dated rows. Measure how many of the rest were wrong before fixing the class. Owner: infra.",
+  "note": "migrated-digest:cb15f03b745b",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "~40 `final_gate.py:N` line citations outside the CLAUDE.md GATE row have no grader (2026-09-24)"
+}

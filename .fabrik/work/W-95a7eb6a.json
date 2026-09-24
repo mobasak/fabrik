@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-95a7eb6a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] 40 of 211 synced sources are not governance-sync triggers (2026-09-24)\n\nRecorded by the T07 review (A-O5): `iter_synced_pairs` distributes 211 source files, and 40 do not match the governance-sync filter (docs/reference/kilo 12, templates/scaffold/scripts 11, .windsurf/workflows 6, libs/health_probe 3, PORTS.md, docs/operations, …). Some are `DECLARED_NON_TRIGGERS`; the rest reach the fleet only on the next unrelated sync. Decide per group: trigger, or declared non-trigger. Owner: infra.",
+  "note": "migrated-digest:8b44c411ceeb",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "40 of 211 synced sources are not governance-sync triggers (2026-09-24)"
+}

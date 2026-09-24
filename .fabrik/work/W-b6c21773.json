@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-10T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b6c21773",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`command_run.py` closing-round gaps found by the review-family adoption plan's heavy review (2026-09-10, owner: infra)** — (1) `round` has no `--unexecuted` counter, so TERMINAL prints over a closing round that parked candidates unexecuted; (2) the TERMINAL verdict ignores `round --seats` (`terminal = quiet and len(rounds) >= 2`) — a closing round stamped `--seats 0` or without it reads TERMINAL, so the fresh-seat guard is prose-only; (3) `done` is unchecked against the record's own TERMINAL; (4) the two `round` banners state the fresh-seat rule absolutely with no solo self-convergence carve-out (`62` § Role separation names it). Root fix: TERMINAL requires the closing round's `--seats >= 1` and `--unexecuted 0` once the counter exists; `done` refuses a NOT-TERMINAL record. Executed by the Phase A heavy seats on scratch records.",
+  "note": "migrated-digest:aac59fc295f0",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`command_run.py` closing-round gaps found by the review-family adoption plan's heavy review (2026-09-10, owner: infra)** — (1) `round` has no `--unexecuted` counter, so TERMINAL prints over a clo..."
+}

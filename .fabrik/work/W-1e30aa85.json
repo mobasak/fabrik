@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.743789Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1e30aa85",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Four `claude -p` spawners have not adopted the FABRIK_HEADLESS contract\n\nT13.5 gave the two ADVISORY hooks a stand-down flag and wired it into the two spawn sites the\nphase touched. Round 3 of the Phase F review discovered the population is larger — a grader that\nDISCOVERS spawners rather than listing them now finds six, and four have not adopted it:\n\n- `scripts/sysadmin/claude_rotate.py` — the keepalive `[\"claude\", \"-p\", \"ping\"]` whose output is\n  captured and never read\n- `scripts/aro-wake/claude_rotate.py` — byte-identical twin of the above (md5 `f68c15a1…`), so\n  either both change or they drift\n- `scripts/sysadmin/bot.py`\n- `scripts/aro-wake/main.py`\n\nAll four are OUTSIDE Phase F's surface, so adopting the contract there is an extension rather than\na defect in this phase's change, and it is recorded rather than done. They are listed by name in\n`tests/test_hooks_headless_guard.py::_UNADOPTED_SPAWNERS`, which is what lets the discovery test\ndistinguish \"filed, not adopted yet\" from \"appeared and nobody noticed\" — a new spawner that is in\nneither set reds the suite with the instruction to pick one.\n\n**Why the discovery matters more than the list:** the grader hardcoded two files and asserted\n`checked == 2`. `claude_broker.py` was invisible to it because its argv is built in an assignment\n(`argv = [str(_ENTRYPOINT), \"-p\", …]`) and passed as a name, so an AST matcher keyed on a call's\nfirst argument could not see it — it survived two rounds of this review undeclared. The rule now\nwalks every list literal, which is what surfaced the other four as well.",
+  "note": "migrated-digest:9d2a2da48b2d",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Four `claude -p` spawners have not adopted the FABRIK_HEADLESS contract"
+}

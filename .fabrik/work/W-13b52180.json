@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-10T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-13b52180",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`dispatch_headroom.py`: the box floor fires under `--slices`, and a failed quota probe is held AT the floor (2026-09-10, owner: infra)** — `:578-583` says \"under `slices` BOTH floor sites stand down\" but the BOX floor at `:480-485` (`if cap < FLOOR <= phys: cap = FLOOR`) fires under `--slices` too (live: `--slices opus=1,sonnet=2` → \"floor granted: 3 seat(s) past what the box has left\", header `units=3` for a partition that named no units); a failed quota probe holds the budget at 3. Found by the Phase A heavy round-2 Opus seat; the previous plan's T05 surface. Also: the `--slices` COST story (`_mix_story`) assumes the FILE partition (\"at most one Haiku class seat; every file read once\") — a section partition gets the wrong story (Finish review round 1).",
+  "note": "migrated-digest:267501fda4ac",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`dispatch_headroom.py`: the box floor fires under `--slices`, and a failed quota probe is held AT the floor (2026-09-10, owner: infra)** — `:578-583` says \"under `slices` BOTH floor sites stand d..."
+}

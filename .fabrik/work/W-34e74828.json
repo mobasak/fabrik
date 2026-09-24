@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-10T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-34e74828",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`scripts/decisions.py --check`: a `supersedes D-NNN` that names ANOTHER repo's row reads as DANGLING** (2026-09-10, owner: infra). Measured while minting D-212: trade-intelligence's D-007 (2026-09-08) supersedes the hub's D-048 from their ledger — a legitimate cross-repo pointer the checker reports as `DANGLING: trade-intelligence D-007 supersedes D-048 which has no row in /opt/trade-intelligence/docs/DECISIONS.md`. Fix: resolve a pointer against the hub ledger when the row's text names the hub (or accept a `fabrik D-NNN` form); measure the fire rate over every /opt ledger first.",
+  "note": "migrated-digest:0ee695477b02",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`scripts/decisions.py --check`: a `supersedes D-NNN` that names ANOTHER repo's row reads as DANGLING** (2026-09-10, owner: infra). Measured while minting D-212: trade-intelligence's D-007 (2026-0..."
+}

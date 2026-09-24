@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-22T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-20416a35",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Deferred: the measured doc-converge queue — 6 tier-1 and 9 tier-2 docs describe machinery that no longer exists (2026-09-22)\n\nOperator 2026-09-22: \"defer all of these doc updates … i have more urgent things to do.\" Measured the same day\nover 62 docs (docs/, docs/workflows, docs/reference; ledgers excluded): repo-path references dead in both the hub\nand a real project, script names absent on disk, retired-subject mentions. Done before the stop:\n`docs/workflows/SCAFFOLD_STRUCTURE.md` (1fe9943ff) and `docs/workflows/DATA_SYNC_WORKFLOW.md` (21442fe88 + 6d20fc83f).\n\nTier 1 (converge needed): `docs/workflows/KILO_AGENT_MANAGEMENT.md` (23 absent scripts, 55 Kilo mentions) ·\n`docs/workflows/KILO_BENCHMARK_WORKFLOW.md` (22 absent) — the two describe one pipeline that now runs in\n`/opt/ai-model-catalog/engine` and may collapse into one pointer doc · `docs/FEATURES.md` (31 absent script names,\ntwo `scripts/` paths that live in `templates/i18n-kit/`, 10 wpf mentions) · `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md`\n(28 wpf, 8 Cascade, 6 dead paths, 61 KB) · `docs/CONFIGURATION.md` (8 absent scripts, 14 Kilo, 57 KB).\nTier 2: `docs/DEPLOYMENT_ARCHITECTURE.md`, `docs/CAPABILITIES.md`, `docs/reference/architecture.md`,\n`docs/workflows/development-and-deployment-workflow.md`, `docs/reference/LOCAL_LLM_INFRASTRUCTURE.md`,\n`docs/reference/external-services-registry.md`, `docs/reference/fabrik-cli-reference.md` (16 wpf), `docs/SERVICES.md`\nand `docs/workflows/SYNC_PROJECTS_WORKFLOW.md` (captcha, retired).\n\nOwner: infra (hub docs). Destination: `/fabrik-doc-converge <doc>` per doc, in the order above, AFTER the review-loop\nre-engineering lands — the two runs done took 7 and 6 rounds because the loop degenerates after round 1 into a\none-seat-per-cell hunt (memory: converge-fast-no-serial-delta-chain). Trigger: the operator's word, not a schedule.",
+  "note": "migrated-digest:968039131ad8",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Deferred: the measured doc-converge queue — 6 tier-1 and 9 tier-2 docs describe machinery that no longer exists (2026-09-22)"
+}

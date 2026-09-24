@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-08T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a36994ca",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`pyproject.toml` excludes `^scripts/` from mypy, so the Tier-2 gate's mypy leg asserts nothing about any `scripts/` file** — four real errors in `command_run.py` shipped green until a review seat ran mypy by hand (D-191 review F178/F202, 2026-09-08); `quota_dashboard.py` carries 9 and `command_feedback_report.py` 2 pre-existing errors at HEAD (F192). Measure the fire rate of lifting the exclusion before deciding. Owner: infra.",
+  "note": "migrated-digest:4549224f6231",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`pyproject.toml` excludes `^scripts/` from mypy, so the Tier-2 gate's mypy leg asserts nothing about any `scripts/` file** — four real errors in `command_run.py` shipped green until a review seat..."
+}

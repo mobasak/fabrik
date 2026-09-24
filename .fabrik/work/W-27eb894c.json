@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-06T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-27eb894c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`check_plan_quality.py` is a vacuous check** — it reads `PLAN_DIR = Path.cwd()/docs/development/plans` (`:44`), takes no `--plan-dir`, and printed nothing on a deliberately broken fixture ticket missing `Complexity:`/`Gate:`/`Docs:` (plan 2026-09-06-plan-2 review, 2026-09-06). Measure what it actually grades, then either wire field presence into `check_plan_tickets --plan-dir` or make this one print its denominator and findings.",
+  "note": "migrated-digest:ccfca0f4e151",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`check_plan_quality.py` is a vacuous check** — it reads `PLAN_DIR = Path.cwd()/docs/development/plans` (`:44`), takes no `--plan-dir`, and printed nothing on a deliberately broken fixture ticket ..."
+}

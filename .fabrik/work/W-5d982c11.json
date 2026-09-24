@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.747689Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5d982c11",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Phase F routed four items whose fix crosses a tree boundary — the class a triage pass cannot close by itself\n\nMeasured 2026-09-15 while executing T13 of the mail-triage plan. Each is real, each is verified\nread-only, and none is fixable from inside `/opt/fabrik` without crossing a boundary the contract\ndraws. Recorded here rather than left in a reply nobody greps.\n\n1. **The self-watch has no transcript-age ceiling** (T13.2, 01M1S6CWX). `MESH_CEILING`\n   (`~/.claude/bin/claude-selfwatch.sh:56`) keys on the DEATH RECORD's age, not the pane's, so a\n   pane that dies WITHOUT its lock file vanishing is covered by neither the ceiling nor the W11\n   orphan guard (`:43`) and polls indefinitely. ⚠️ The file is box-local, in no repo, production,\n   and the standing rule is to diagnose the sound/mesh scripts READ-ONLY — so this needs the\n   operator's word, not a patch from here.\n   *Refuted at HEAD while measuring, so the row is not overstated:* the mail's headline — \"11 of 15\n   sessions carry 2+ live watchers\" — is now **0 of 7** (a `/proc` walk over argv, excluding self;\n   `pgrep -af` self-matches and answered a garbage 15-over-16). And the \"no 'my pane is gone' exit\"\n   half has been closed since 2026-09-07 by W11.\n\n2. **`docs_updater.py --adopt` assigns ownership by ROUND-ROBIN** — `names[idx % len(names)]` at\n   `:1139`, `:1153`, `:1161` — so it cannot agree with a repo's documented lanes except by luck,\n   and web-ecommerce-factory measured two of its first three rows inverted. The `--dry-run`\n   MUTATION half was fixed 2026-09-14 (T12); this half was not. ⚠️ It propagates by INSTRUCTION:\n   the ORIENT block sends every multi-window project through `--adopt`, so each one inherits it.\n\n3. **`docs/reference/multi-agent-operating-model.md` has ADOPTION but no MIGRATION** (wef2's\n   systemic note, 01M1Z0YKQ). Adoption assumes a standing start; a live repo is several sessions\n   deep with open plans, uncommitted work and a shared index, and the ordering constraints —\n   quiesce every session, finish destructive in-flight work, then relaunch — had to be asked for\n   rather than read. Those three are the section.\n\n4. **CLOSED by fabrik-lib — and the row asserting otherwise was stale when it was committed.**\n   T13.8 (01M1V59MK) measured 2 of 4 and the reply asked them to add the two file artifacts or\n   declare the exclusion deliberate. They added both: `fabrik-lib 371059f3`, *\"add\n   .worktreeinclude and version the worktrees ignore rule — the two adoption artifacts the sync\n   cannot deliver here\"*, committed **2026-09-15T03:09:44** — **four minutes before** the fabrik\n   commit (`51e6cfa7`, 03:13:54) that recorded them as absent. Re-verified live: all four present\n   (`.worktreeinclude`, `.gitignore:82`, `rerere.enabled=true`, `push.autoSetupRemote=true`).\n   ⚠️ TWO lessons, and the second is the one worth keeping. (a) A fleet claim of the form \"N of N\n   verified\" is measured over the SYNCED population, and a sync-excluded repo sits outside that\n   denominator rather than inside it and passing. (b) **A cross-repo measurement is stale the\n   moment another repo acts on it** — and here the mail asking them to act is what caused the\n   action, so the claim was racing a change it had itself set in motion. A cross-repo number gets\n   re-checked at WRITE time, not carried from when it was measured.\n\n5. **`isolation: \"worktree\"` cuts from origin/main** (T13.6, 01M1S5DGF) — harness behaviour, not\n   ours to change; recorded so the next reader does not re-derive it.",
+  "note": "migrated-digest:3117472799f9",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Phase F routed four items whose fix crosses a tree boundary — the class a triage pass cannot close by itself"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.203427Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-611293bd",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **Plan lint: Scope-mentioned paths ⊆ Touches** (brand-identiy `01M15PMZ3` #1, proven live: a T07 Scope bound two files its Touches omitted; cards wiped at review-mount): candidate `check_plan_tickets.py` extension — flag a ticket whose Scope sentences name paths absent from Touches/Context Files. MEASURE fire rate on the plan archive first per doctrine.",
+  "note": "migrated-digest:206d094d578f",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Plan lint: Scope-mentioned paths ⊆ Touches** (brand-identiy `01M15PMZ3` #1, proven live: a T07 Scope bound two files its Touches omitted; cards wiped at review-mount): candidate `check_plan_ticke..."
+}

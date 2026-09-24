@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-06T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d0308e66",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`final_gate.py --check --json` cannot surface a PASSING advisory row's stdout** — `run_optional_check(..., advisory=True)` preserves the text, but the JSON's `advisory` key is `WARN_ONLY_CHECKS` only and `warnings` only rows starting `⚠` (`final_gate.py:2570-2597`), and the `Documentation Drift` call sits under `if tier == 3` (`:1783`), so the T03 ownership `ADVISORY:` line is visible on a direct `docs_updater.py --check` and in tier-3 text only (plan 2026-09-06-plan-2 T03 review r1, native finder, 2026-09-06). Emit passing advisory rows into the JSON (a small `final_gate.py` change, never-route).",
+  "note": "migrated-digest:873aeb793002",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`final_gate.py --check --json` cannot surface a PASSING advisory row's stdout** — `run_optional_check(..., advisory=True)` preserves the text, but the JSON's `advisory` key is `WARN_ONLY_CHECKS` ..."
+}

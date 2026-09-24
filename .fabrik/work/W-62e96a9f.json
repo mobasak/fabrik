@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.739749Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-62e96a9f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] The project-facing trailer table has drifted from the hub's — ~46 repos are told a stale, incomplete contract\n\nFound by Phase G's review while grading a NEW clause the two contracts now share byte-identically.\nThe clause is in sync; its enclosing `## Agent Provenance Trailers` section is not:\n\n- `CLAUDE.md:312` lists `Agent-Role` values `primary · orchestrator · subagent · review-fix · ci-fix`;\n  `templates/governance/CLAUDE.md:284` omits **`ci-fix`** entirely.\n- The hub carries an **`Agent-Name`** row (with the `CLAUDE_AGENT` env var and the charter-injection\n  mechanism); the template has **no `Agent-Name` row at all** — `command grep -c` gives 1 and 0.\n\nPre-existing: `git log -L` puts the divergence at `1abbc7dd`/`e8b24ea1`, well before this phase.\n\n⚠️ **NOT a copy-paste fix, which is why it is filed rather than done.** The hub's `Agent-Name` row\ndescribes a charter injected from `docs/reference/agents/<name>.md` by `.claude/hooks/agent_role.py`\n— hub-local machinery. Copying it verbatim would tell ~46 project repos to expect a mechanism they\ndo not have. The row needs a project-facing rewrite (what `CLAUDE_AGENT` means where the operator\nnames an agent, and what to do when they have not), and that is a fleet-wide governance change\ndeserving its own review rather than a fold-in at a phase close.\n\n**The general shape worth keeping:** a grader that asserts two files share a CLAUSE says nothing\nabout the section around it. `test_both_contracts_carry_the_third_trap_byte_identically` compares a\n986-character span and passes — correctly — while the table three lines above it disagrees. The\nnarrow assertion is right; the reader's inference from its NAME is what misleads.",
+  "note": "migrated-digest:4a338adff940",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The project-facing trailer table has drifted from the hub's — ~46 repos are told a stale, incomplete contract"
+}

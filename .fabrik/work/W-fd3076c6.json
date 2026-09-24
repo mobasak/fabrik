@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-29T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fd3076c6",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **Un-extracted duplication across command sources** (measured 2026-08-29 while fixing the `/fabrik-review` ↔ `/fabrik-generate-tests` copy). That fix single-sourced ONE pipeline into `commands/_fragments/test-generation-loop.md`; a sweep for the same class across all 31 sources found **4 more source pairs sharing 95 six-line windows**, dominated by ~~`fabrik-service-test.md` + `fabrik-user-test.md` at 65 windows~~ ✅ **EXTRACTED 2026-08-29 (cmd 15/31 audit):** the gauntlet pair now renders four shared fragments (`cert-board-contract` · `cert-execution` · `cert-handoff-grammar` · `cert-visual-deliverable`), rendered-parity md5-proven, residual shared windows **0** — and the extraction erased two REAL drifts the cmd-14 fixes had just created (the recorder naming and the grader-honesty split existed only in user-test). Remaining pairs: `fabrik-spec.md` + `fabrik-spec-review.md` (11), `fabrik-flows-review.md` + `fabrik-ui-design-review.md` (10), and `fabrik-data-contract.md` + `fabrik-flows.md` + `fabrik-ui-design.md` (9). Each is a contract maintained in two files where an editor of one cannot see the other. ⚠️ **The measure has a known blind spot and it is the important one:** it normalises whitespace and emphasis but not WORDING, so it scored the review/generate-tests pair at **0** — the copy that motivated all of this had been lightly reworded. A duplication gate built on this measure would therefore miss the exact defect class it is named for; the honest framing is that it finds *un-factored twins*, not *drifted copies*. Fix direction: extract per pair into `_fragments/`, largest first, and re-measure. Blocked by: the audits of the remaining pairs' commands (spec/spec-review at cmd 16+; the audit is at command 15 of 31 done).",
+  "note": "migrated-digest:7153f050fe11",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Un-extracted duplication across command sources** (measured 2026-08-29 while fixing the `/fabrik-review` ↔ `/fabrik-generate-tests` copy). That fix single-sourced ONE pipeline into `commands/_fra..."
+}

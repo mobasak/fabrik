@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.035535Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-af88413c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra/docs]** **README.md still carries 21 `traycer` + 48 `kilo` prose mentions and five fenced refs to absent Kilo scripts** (`:248,:254,:556,:583,:745`) outside T14d's `.traycer` gate — a Kilo/Windsurf-retirement sweep of README, no ticket owned it. (T14d, T16)",
+  "note": "full-tag:[infra/docs]; migrated-digest:d6eff357aef6",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**README.md still carries 21 `traycer` + 48 `kilo` prose mentions and five fenced refs to absent Kilo scripts** (`:248,:254,:556,:583,:745`) outside T14d's `.traycer` gate — a Kilo/Windsurf-retirem..."
+}

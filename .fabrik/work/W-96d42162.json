@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-08T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-96d42162",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **The /fabrik-review convergence bar reopens the loop on ANY receipt row — the D-191 review ran 12 rounds over 5.4 h of run-record wall-clock (10:38 → 16:00, still open at that reading) on a 91-file surface because RECORDED and REFUTED rows count as findings** (operator ask 2026-09-08: \"all my day is passing while waiting reviews\"). Proposed ruling for the operator: the closing round is one with zero CONFIRMED code/doc defects (RECORDED/REFUTED rows do not reopen it); every finder seat carries a hard time box (15 min — the Opus seat overran twice by 20–30 min); a review surface is capped near 25 files (a change that grows across nine fix commits is re-cut per range). Seat COUNT is not the lever — a round's wall-clock is the slowest seat + the adjudicate/fix/commit cycle, ~40 min whatever the count (D-194). Owner: infra; needs a D-row.",
+  "note": "migrated-digest:353774b05c32",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**The /fabrik-review convergence bar reopens the loop on ANY receipt row — the D-191 review ran 12 rounds over 5.4 h of run-record wall-clock (10:38 → 16:00, still open at that reading) on a 91-fil..."
+}

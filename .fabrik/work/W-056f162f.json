@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-03T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-056f162f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [intel] `flush_outbox` reports `all-rows-malformed` on an EMPTY outbox — a data-loss verdict for a benign state (2026-09-03, owner: intel = me)\n\nFound on the FIRST unattended run of the newly-wired flush step (2026-09-03 06:01, `cache/update.log`),\non the hub's own row — the line an operator is most likely to read:\n\n```\nfabrik   fabrik/.tmp/subagents   pending 0 · flushed 0 · left 0 · rounds 1 · reasons ['all-rows-malformed']\n```\n\n**No data was lost.** `libs/subagents/pg_ledger.py:1102-1104` returns `all-rows-malformed` whenever\n`good` is empty after parsing the `.flushing` file — which is also true when the file is EMPTY or\nwhitespace-only, the common residual case. The real discriminator is already in hand and thrown away:\n`bad` is non-empty only when rows were genuinely parsed and rejected. Verified: `find /opt -name\npg_outbox.corrupt.jsonl` returns **nothing**, so the `bad` bucket was empty on every walked dir — the\nhub simply had a leftover empty `.flushing`, which the same code path then unlinked.\n\n- `good` empty **and** `bad` empty ⇒ the outbox was empty. Benign. Should read `outbox-empty`.\n- `good` empty **and** `bad` non-empty ⇒ real quarantined data loss. `all-rows-malformed` is correct.\n\n**Why deferred rather than fixed in-run:** the fix is a one-line discriminator, but it lives in\ncanonical `/opt/fabrik-lib/subagents` and carries the vendored blast radius (48 sync-reachable copies,\n50 live — see D-093). A fleet-wide re-vendor is disproportionate for a log string on its own. **It\nshould ride the next `libs/subagents` change**, not trigger a sync of its own. Needs the operator's\nexplicit cross-repo word at that point, as every vendored edit does.\n\n**Cost of leaving it:** advisory noise only — but it is exactly the noise that makes a REAL\n`all-rows-malformed` unreadable when one eventually fires. Wallpaper is how enforcement dies.\n\n---",
+  "note": "migrated-digest:ad2b1f9022e5",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "`flush_outbox` reports `all-rows-malformed` on an EMPTY outbox — a data-loss verdict for a benign state (2026-09-03, owner: intel = me)"
+}

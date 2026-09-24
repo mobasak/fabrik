@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.671649Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-cbb9ecc9",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "### [infra] The mutation COPY and the pin dir are never linked, so a brief's room obligation is covered only by inference\n\n`commands/_sources/fabrik-review.md:165` now requires a brief to state, for a **pin dir**, its\nCONTENTS and the commit they were built from — the obligation feedback verdict ts 1789501504.70\nasked for. But the artifact that verdict was actually about is the MUTATION room, and the file names\nthat with two other phrases which are never tied to the pin dir: `:200` *\"a MUTATION-TESTING seat\nworks on a COPY of the surface, never the tree\"* and `:299` *\"a probe on a pinned copy\"*. A seat must\ndeduce that its COPY is made FROM the pin dir for the provenance obligation to reach the room where\nthe verdict's failures actually happened (\"every mutation-verification failure this run came from an\nincomplete or stale room\"). Pre-dates the 2026-09-17 edit and was RECORDED, not confirmed, against\nit. Destination: one clause in the `:196` lesson list — *\"…and a mutation seat's COPY is made FROM\nthe pin dir\"*. Found by the round-3 seat of `/fabrik-command-improve fabrik-review`.",
+  "note": "migrated-digest:33157d6fe961",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The mutation COPY and the pin dir are never linked, so a brief's room obligation is covered only by inference"
+}

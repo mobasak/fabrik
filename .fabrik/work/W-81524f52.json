@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-05T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-81524f52",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] An ABSENT `shape:` flag is byte-identical to a deliberate `false`, so \"code exposes X, spec never mentions X\" is silent by construction (2026-09-05, owner: fleet)\n\nRaised by site-provisioner (`01M1Q7RJ5ZWAP7BGFQE1EWJC6Z`) and validated here: their `/metrics` endpoint\nis live and deliberately auth- and rate-limit-exempt, but the spec had no `exposes_metrics` line, so\n`fabrik apply` skipped the Prometheus registrar and nothing scraped it. Confirmed live before fixing —\nPrometheus carried 18 active jobs, none of them site-provisioner. The one spec is FIXED (2026-09-05);\nthis row is the CLASS, which that fix does not close.\n\n**Why it is invisible:** every registrar gate reads `shape.get(\"<flag>\", False)`\n(`orchestrator/infrastructure.py:325` for prometheus, same shape for the others), so an omitted flag and\na considered `false` are the same bytes. Code and spec each look correct in isolation; only a\ncross-reading finds the contradiction, and nothing does that cross-reading today.\n\n**Measured, and stated as a population rather than a defect count:** of the **72** specs in\n`specs/services/`, **28** carry no `exposes_metrics` line at all. That is how many COULD be wrong, not\nhow many ARE — each needs its code checked for a live `/metrics` route before it counts. The same\nquestion applies independently to `needs_cache`, `has_search_feature`, `needs_database` and\n`is_admin_dashboard`, so the real population is larger than 28.\n\n**Candidate fix, deliberately NOT built yet:** a hub-side check that greps each project's routes for\nflag-bearing surfaces (`/metrics`, a Redis client, a Meilisearch index) and WARNS when the corresponding\nflag is absent. Before building it, measure the fire rate across those 28 — a detector that fires on\nlegitimate patterns is wallpaper, and wallpaper is how enforcement dies (FIX DIRECTIVE 5). Note the\ncheaper half first: the checker only has to distinguish *absent* from *false*, which is a one-line\nchange to how specs are loaded, and might be better solved by making the flag REQUIRED in new specs than\nby detecting its absence in old ones. Blocked by: the fire-rate measurement.",
+  "note": "migrated-digest:58dc28d54ac9",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "An ABSENT `shape:` flag is byte-identical to a deliberate `false`, so \"code exposes X, spec never mentions X\" is silent by construction (2026-09-05, owner: fleet)"
+}

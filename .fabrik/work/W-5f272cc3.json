@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-06-06T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5f272cc3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[fleet]** **Grafana `aro-wake` dashboard**: 8 SLI metrics + 2 alert rules live on full fleet since 2026-06-06. PromQL + Telegram alerts cover real operator needs today. Build a dashboard only when ad-hoc PromQL queries become tedious. Blocked by: operator running the same PromQL recipe 3+ times in a week.",
+  "note": "migrated-digest:b124bff5b3f4",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "**Grafana `aro-wake` dashboard**: 8 SLI metrics + 2 alert rules live on full fleet since 2026-06-06. PromQL + Telegram alerts cover real operator needs today. Build a dashboard only when ad-hoc Pro..."
+}

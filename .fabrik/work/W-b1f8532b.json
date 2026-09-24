@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b1f8532b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] Stop hook: three recorded residues of the T03 DEFERRAL review (2026-09-24)** — from `docs/development/reviews/2026-09-23-plan-1-stop-and-compaction-T03-review.md`, recorded under the scope-growth stop, not fixed: (1) `_decision_quote` still absorbs a later quote that opens after `(`/`,` or onto `...` (a genuine `asked:`/`scope:` so quoted is refused; the agent rewrites it, CAP-bounded); (2) a negated gate class on the Why line (`not a deploy`) still passes `ground: gate` — the V6 sampled audit is the counter-measure (D-371); (3) the pre-existing `_PROMISE_VERB_RE` lookahead `run(?!\\s+through)` fires on \"run it through X\". Also `scripts/enforcement/check_certification_coverage.py:24,258` still names `_midrun_marker` as a plan-lock reader, which T03 made dead code in the hook. Due with the V4 reading, 2026-09-30. Owner: infra.",
+  "note": "migrated-digest:0af2119018f8",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Stop hook: three recorded residues of the T03 DEFERRAL review (2026-09-24)** — from `docs/development/reviews/2026-09-23-plan-1-stop-and-compaction-T03-review.md`, recorded under the scope-growth..."
+}

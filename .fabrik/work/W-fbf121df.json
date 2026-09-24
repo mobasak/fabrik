@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-11T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fbf121df",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [operator] Claude Code deletes its own transcripts at 30 days, and session-recall is the only copy (2026-09-11, owner: operator + infra)\n\n`cleanupPeriodDays` is UNSET in both `~/.claude/settings.json` and `~/.claude.json`, so Claude Code's\ndefault transcript retention applies. Verified as a real setting in the running binary (2.1.263 —\n\"Transcript retention cleanup\"); corroborated on disk, where the oldest surviving\n`~/.claude/projects/*/*.jsonl` was dated exactly 30 days back. `scripts/dr_claude_backup.sh`\ndeliberately does NOT mirror `projects/` (\"regenerable or huge\"), and there is no pg_dump of the\nsession-recall database — so once a transcript ages out, the recall row is the last remaining record\nof that conversation.\n\nThat became concrete on 2026-09-11: a `python -m ingest.reindex --full` in `/opt/session-recall`,\nrun to apply the new worktree project labels, also ran `_reclaim_orphans` — which by design removes\nrows whose file is gone from disk — and reclaimed **5,791** files / 5,781 sessions, taking the DB\nfrom 11,107 to 5,326 sessions. Not a bug: `--full` is the only path that sweeps orphans, and the\ndocstring says so. The loss skewed SHORT (26,941 turns over 5,781 sessions, ~4.7 each, against ~46\nfor the survivors — mostly pings, one-shot subagent runs and headless calls), and it is not\nrecoverable.\n\nTWO decisions, both the operator's because both edit files outside any project tree — **(1) is now DONE, D-233: `cleanupPeriodDays: 3650` is set, DR-mirrored and verified. (2) remains OPEN.**\n(1) raise `cleanupPeriodDays` so transcripts stop aging out at all — the root cause, one settings\nkey; (2) whether `--full` should refuse to reclaim without an explicit `--reclaim-orphans` opt-in,\nor take a dump first. Until (1) lands, treat `--full` as a destructive operation and prefer the\nplain incremental reindex (what the SessionStart hook and the MCP self-heal already run).",
+  "note": "migrated-digest:78130f3185a6",
+  "owner": "operator",
+  "priority": 2,
+  "status": "open",
+  "title": "Claude Code deletes its own transcripts at 30 days, and session-recall is the only copy (2026-09-11, owner: operator + infra)"
+}

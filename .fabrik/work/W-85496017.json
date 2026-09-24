@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-11T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-85496017",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **Spec-ledger grader — after 20 spec reviews close under the adopted text (2026-09-11, owner: infra)** — the adoption plan's § Out of Scope names it: a `check_spec_convergence.py` rule that a CONVERGED spec's last Pass row reads `confirmed: 0` (the plan-set twin landed in `check_convergence.py::_check_spine_set`, Phase C). Measured 2026-09-10: 0 of 214 specs persist a `confirmed:` row, so the rule has no population to grade yet — arm it once 20 specs carry a ledger under `/fabrik-spec-review`'s D-203 text; measure its fire rate over those 20 first.",
+  "note": "migrated-digest:6bc40045b495",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Spec-ledger grader — after 20 spec reviews close under the adopted text (2026-09-11, owner: infra)** — the adoption plan's § Out of Scope names it: a `check_spec_convergence.py` rule that a CONVE..."
+}

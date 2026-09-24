@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-29T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-06c8a0b2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[intel]** **Wire `MISTRAL_MONTHLY_CAP_USD` to a real enforcer** (2026-08-29, found by the key-wiring self-review): the $10/month hard cap across ALL Mistral keys is provisioned in `.env` + documented in CONFIGURATION.md, but NO consumer reads it — an advisory cap on a paid API is the stored-and-never-read class. Mitigated today: all four Mistral keys 401 (monthly free credit EXHAUSTED — operator-confirmed; usable again at the credit reset, which makes the enforcer MORE urgent, not less: an unbudgeted consumer burns the whole month's credit in a day). Resolution: when the Mistral account activates and a first consumer appears (crowdlex haiku-replacement is the candidate), route its spend through the cost-budget seam reading this var — monthly + total across keys, never per-call (sysadmin-loop rule).",
+  "note": "migrated-digest:a7133ca7523d",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "**Wire `MISTRAL_MONTHLY_CAP_USD` to a real enforcer** (2026-08-29, found by the key-wiring self-review): the $10/month hard cap across ALL Mistral keys is provisioned in `.env` + documented in CONF..."
+}

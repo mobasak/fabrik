@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-15T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d1a094e0",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `final_gate.py --json` per-check dicts carry no `status` key — a consumer cannot tell green from red per check (2026-09-15, plan-2 Phase G review round 2, MACHINERY note)\n\nExecuted: `json.load(...)['checks']` over `final_gate.py --check --json` gives\n`Counter({None: 63})` for `d.get('status')` across every check dict. Pass/fail/skip counts exist only\nas the top-level `passed`/`failed`/`skipped`/`skipped_checks` keys. Any consumer following the\nobvious per-check shape reads N statusless entries and silently learns nothing — the same\nfail-silent-green class the enforcement corpus already tracks.\n\n**Shape of the fix:** emit a per-check `status` field, or document at the schema that the top-level\ncounters are the only verdict. Ungraded either way today.",
+  "note": "migrated-digest:06ae7bafa8b0",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`final_gate.py --json` per-check dicts carry no `status` key — a consumer cannot tell green from red per check (2026-09-15, plan-2 Phase G review round 2, MACHINERY note)"
+}

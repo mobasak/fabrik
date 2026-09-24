@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-12T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-649ca75c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`dispatch_headroom.py` / quota-dashboard wording after pass 3 (2026-09-12, owner: infra)** — `--units 1 --delta 21` prints \"never below the floor of 3\" (D-208 vs D-229: the floor binds round 1 only, the message does not say which round); `--delta 0` and the pad branch are unexercised; a `floor=FLOOR` JSON export would let callers grade the number; `scripts/sysadmin/quota_dashboard.py`'s caveat words and its golden test (`test_the_seat_rule_reads_the_real_corpus_correctly`, red at HEAD before pass 3 and after it — pre-existing, RECORDED in the plan's Phase A notes).",
+  "note": "migrated-digest:758598440cbd",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`dispatch_headroom.py` / quota-dashboard wording after pass 3 (2026-09-12, owner: infra)** — `--units 1 --delta 21` prints \"never below the floor of 3\" (D-208 vs D-229: the floor binds round 1 on..."
+}

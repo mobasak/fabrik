@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-29T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-639384f7",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] governance-sync as pre-commit is the widest concurrent-writer window (2026-08-29)\n\nTwo sessions hit \"files were modified by this hook\" aborts in one day (infra cmd-26 retries; intel\n01M178GME0 twice + a justified SKIP on daf984f5). Measured: the sync writes NOTHING inside\n/opt/fabrik (hub excluded from discovery, write-site audit clean) — the abort is pre-commit's\ntree-delta detection catching a CONCURRENT writer during the slowest hook's ~30s×47-repo window\n(evidence: .windsurf/rules/ai mtimes regenerating from a live session mid-window). Root\ncontributors: (1) the `.windsurf/rules/ai/**` renders lost their committer at the Phase-D cutover\n(autocommit_pipeline_outputs.sh removed them deliberately — the ai-model-catalog ENGINE owns\npublishing now, and its commit half is intel's to wire); (2) structurally, distribution does not\nneed to GATE the commit — a post-commit sync would eliminate the window class entirely. DECIDED +\nSHIPPED same day (operator sign-off 2026-08-29): governance-sync is now a POST-COMMIT hook —\n`scripts/governance_sync_postcommit.sh`, always_run + re-applying the config's own `files:` regex\nagainst HEAD (measured first: post-commit passes NO file list, so a naive stage move silently\ndisables the sync). It can no longer abort a commit and has no stash window; a sync failure prints\nloudly with the manual re-run command. Residual: the `.windsurf/rules/ai/**` renders' missing\ncommitter stays intel's engine-side item.",
+  "note": "migrated-digest:b363c8719d89",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "governance-sync as pre-commit is the widest concurrent-writer window (2026-08-29)"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.716451Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-19c7ee49",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "### [infra] The /fabrik-task lane spec after run 3: seven rounds, the residual is phase 5's re-measure, and the approval is the operator's\n\n`docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md` (2026-09-18): run 3 ran seven fresh-seat delta\nrounds (23 → 25 → 19 → 20 → 19 → 12 → 15 confirmed, all own-fix; SCOPE GROWTH printed from round 3). Since round\n3 every finding outside phase 5 has been word-level; phase 5's own-commit re-measure kept sprouting git edge cases\n(root commits, merges, rebases, quoting, the capture path, the exclusion set) that a paragraph cannot close and a\ngrader can. Recommendation: the operator flips the spec CONVERGED by ruling with phase 5's six invariants as the\nbuild's Phase A acceptance criteria (each with a red-first grader), and the build's full `/fabrik-review` on\n`command_run.py` is where the re-measure is settled. Not recommended: an eighth prose round.",
+  "note": "migrated-digest:0deb10b5bc58",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The /fabrik-task lane spec after run 3: seven rounds, the residual is phase 5's re-measure, and the approval is the operator's"
+}

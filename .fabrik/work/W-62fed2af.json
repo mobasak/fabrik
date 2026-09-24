@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.685771Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-62fed2af",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "### [infra] A harness worktree's synced copies are STALE, so every seat's `final_gate --check` reds at random\n\nRaised as finding 3 of the same mail: 7 of 7 fix seats in one web-ecommerce-factory run hit\n`Fabrik-Synced Files Unmodified` or `Doc Link Integrity` red, none naming a file they touched, and one\nseat saw a DIFFERENT red eight minutes later. Reproduced hub-side 2026-09-17: of 18 registered\nworktrees, the sampled `/opt/fabrik/.claude/worktrees/agent-a1465c43f1a445a7f` carries a\n`scripts/command_run.py` that DIFFERS from the main checkout.\n\n⚠️ The mechanism is NOT the same in the two places and a fix must handle both: in a PROJECT the synced\nset is gitignored, so a worktree receives nothing; in the HUB those paths are TRACKED\n(`git check-ignore --no-index` reports no rule), so a worktree receives them at whatever commit it was\ncreated from and drifts as master moves. Same red, two causes.\n\nThis collides with a rule the hub actively mandates: CLAUDE.md § Behavior routes every mutate-restore\ncycle to a throwaway `git worktree add`, and the seat brief template sanctions it. So the contract\nsends seats into an environment whose gate is unreliable. Disposition to rule on: re-sync the ignored\nset on worktree creation, or have the gate say \"worktree: synced-set drift is expected\" instead of\n`failure`. Related: the already-filed contradiction that read-only finder briefs forbid every writing\ngit verb while the shared-tree rule mandates a worktree (cost one seat 18 false FAILs).",
+  "note": "migrated-digest:3b0a7228e675",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "A harness worktree's synced copies are STALE, so every seat's `final_gate --check` reds at random"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-25T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a954438e",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **North-star \"deploy = manual `fabrik apply`\" lines** (`docs/orchestrator/00-autonomous-factory-north-star.md:143`, also :44/:200): predate the deploy triad; `/fabrik-deploy`'s Gate-2 tiebreak absorbs them (the operator's dispatch IS that manual act for plan-governed deploys). Cosmetic doc alignment when the north-star is next edited. ✅ **CLOSED 2026-08-25** — all three lines aligned to the deploy triad: Gate 2 is the operator's explicit go, after which `/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → `/fabrik-deploy` executes and calls `fabrik apply` underneath. Nobody types it by hand, so the old phrasing described a workflow that no longer exists. Verified: zero remaining \"manual `fabrik apply`\" occurrences in the file.",
+  "note": "migrated-digest:193afc5ea8f8",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "**North-star \"deploy = manual `fabrik apply`\" lines** (`docs/orchestrator/00-autonomous-factory-north-star.md:143`, also :44/:200): predate the deploy triad; `/fabrik-deploy`'s Gate-2 tiebreak abso..."
+}

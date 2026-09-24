@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-29T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2afbb274",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[intel]** **Flywheel `refuses-ungrounded` axis** — BUILT 2026-08-29 (plan `2026-08-28-plan-1-canary-grounding`, Phases A+B; the `select.py` multiplier rides the fabrik-lib filing). Original row (job-agent `01M13TM8FN`, 2026-08-28): \"does this model fabricate when its grounding input is absent\" is invisible in normal scoring — on a well-formed prompt both models look fine. Measured differential on an identical missing-input grounder: `gemini-3-flash-preview` refused to invent in its first sentence; `deepseek-v3.2-exp` produced a line-numbered analysis of a file it never saw, wrong in the direction that plans the wrong fix. Candidate shape: a per-model boolean/score column fed by deliberate missing-input probes (a tiny periodic canary batch), consumed by `pick_models` as a penalty for grounding-class task types. Needs a small spec (ledger schema + probe design + ranking integration) — deferred per the no-spec boundary of the sitting that filed this row. The 62-pack warning (same commit) covers the caller-side trap meanwhile.",
+  "note": "migrated-digest:bb803b5a6e9a",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "**Flywheel `refuses-ungrounded` axis** — BUILT 2026-08-29 (plan `2026-08-28-plan-1-canary-grounding`, Phases A+B; the `select.py` multiplier rides the fabrik-lib filing). Original row (job-agent `0..."
+}

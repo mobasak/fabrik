@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.681075Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-cf48c3e6",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "### [infra] `runtime.md` is MANDATED by /fabrik-user-test and REJECTED at three enforcement sites — SPEC candidate\n\nRaised by web-ecommerce-factory as `01M2R6FHVDKA8S0QMDJR1S5Y0Z` (finding 1, measured on\n`docs/development/certifications/2026-09-17-cert-bhdtrade/`), validated and ESCALATED by infra\n2026-09-17: they found one rejecting site, there are three.\n\n- **Mandates it:** `commands/_sources/fabrik-user-test.md:55` — *\"RECORD how you started it —\n  `<board>/runtime.md` — before any round runs.\"*\n- **Rejects it (a):** `scripts/enforcement/check_certification_coverage.py:331` exempts only the\n  spine and `ledger.md`, so `runtime.md` reports `BAD TICKET: runtime.md is not TC##[a-z]?-<slug>.md`.\n- **Rejects it (b):** `scripts/enforcement/check_doc_sprawl.py:44-47` — `CERT_BOARD_RE` permits\n  `<spine>.md|ledger.md|TC\\d{2}[a-z]?-<slug>.md` and nothing else.\n- **Forbids it (c):** `CLAUDE.md` § HARD STOPS, the new-`.md` allowlist row: cert boards are\n  \"same-stem spine + `ledger.md` + `TC##[a-z]?-<slug>.md` tickets ONLY\" — and its byte-identical twin\n  in `templates/governance/CLAUDE.md`, auto-loaded in ~46 repos.\n\nSo a project agent that follows the command exactly creates a file its own governance forbids and two\nof its own gates reject. Advisory today, which is the only reason nothing blocked.\n\n**Why this is SPEC work and not a one-line exemption:** the fix has to land at four sites at once\n(two enforcement scripts, both fleet-synced governance-sync triggers, plus BOTH CLAUDE.md copies),\nand it has to RULE first — either `runtime.md` joins the cert-board namespace everywhere, or the\ncommand names a different home. Patching only `check_certification_coverage.py`, which is the\nobvious reading of the incoming finding, leaves `check_doc_sprawl.py` and the contract still\nrejecting it, i.e. three of four sites wrong and the symptom hidden.",
+  "note": "migrated-digest:a5be27b40d57",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`runtime.md` is MANDATED by /fabrik-user-test and REJECTED at three enforcement sites — SPEC candidate"
+}

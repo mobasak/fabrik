@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.131588Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4282d2a3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[intel]** **Flywheel back-scoring debt — ~1093 unrecorded pool runs** (box-wide advisory printed on every `fanout`; predates this session): `audit_unrecorded('/opt/fabrik/.tmp/subagents/ledger.jsonl')` lists them; `pick_models` cannot learn from unrecorded runs. Blocked by: a focus window; decide score-vs-write-off per batch (Lesson-97 discipline: errored runs are non-results, never 0-scored).",
+  "note": "migrated-digest:90b3544a22b7",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "**Flywheel back-scoring debt — ~1093 unrecorded pool runs** (box-wide advisory printed on every `fanout`; predates this session): `audit_unrecorded('/opt/fabrik/.tmp/subagents/ledger.jsonl')` lists..."
+}

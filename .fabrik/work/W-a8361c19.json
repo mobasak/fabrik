@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-19T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a8361c19",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## The seat-brief clause: five residuals the scope-growth stop left (routed 2026-09-19)\n\n`/fabrik-command-improve fabrik-review-scoped` closed on the D-278 stop (confirmed/own-fix 10/0 →\n6/6 → 10/10): after round 1 the command's own surface was quiet and all sixteen later findings sat\nin this review's own prose. The correctness defects shipped — including the sharpest, that the\nedit's two spans CONTRADICTED each other (one forbade putting the expected answer in a brief while\nthe other required the author to supply the escape variants by name), demonstrated live by the\nbrief that dispatched the round which found it. What the stop left, with destinations:\n\n1. **Three escape variants of the new clause survive.** A brief can name STRAWMAN variants (nothing\n   requires the reader to test them); \"ships a GUARD, or states a RULE\" is self-assessed and\n   undefined, so \"it records a fact, it does not state a rule\" costs nothing; and the ask is owed\n   only at the CLOSING pass, so a variant found earlier by an unasked reader can be relabelled\n   own-fix later. **Destination:** infra — close EV3 by naming the test (any modal sentence: must /\n   never / owes), which is a one-clause edit the next run of this command can make.\n2. **The clause ships without its fire rate and its cobra counter**, both mandated (FIX DIRECTIVE 5,\n   the `cobra-effect` universal anchor). Measured for it during review, last 200 hub commits:\n   `guard=75 · rule=27 · either=84 of 200`, so the disjunction fires on 42% and is NOT the\n   unconditional error the previous cut was. The cheapest satisfaction is EV1 above. **Destination:**\n   infra — the cobra line belongs beside the clause, in the same command.\n3. **`commands/_sources/fabrik-review-scoped.md:65` is now the file's longest line at ~1.7 KB**\n   against a ~98-column median, so every reviewer of this clause needs the `fold -w 170` workaround\n   and every future edit to it is a whole-line diff. Three >800-char lines pre-exist. **Destination:**\n   infra — a re-wrap pass over the four long lines, mechanical and reviewable.\n4. **`assemble_commands.py --check` cannot be run by a seat under the standing brief rules.** It\n   diffs a temp render against the INSTALLED corpus under `$HOME/.claude`, and every finder brief\n   forbids reading any `$HOME`-rooted `.claude*` path. Three consecutive rounds worked around it\n   per-brief. **Destination:** infra — either a `--check --sources-only` mode or an explicit carve-out\n   in the brief boilerplate; a mandated check no seat may run is a check nobody runs.\n5. **`:106` says \"D-066 named only the heavy command\"; D-066's own row reads \"`/fabrik-review`\n   Phase 3 + the scoped twin\"** and lists both command sources. Pre-existing base text that now sits\n   inside an edited hunk. **Destination:** infra — a scoped fix, not this diff (D-230: one hop out).",
+  "note": "migrated-digest:0708fa4e3a09",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "The seat-brief clause: five residuals the scope-growth stop left (routed 2026-09-19)"
+}

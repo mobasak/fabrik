@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-93121c67",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] kaizen terminator_spam counts a final block emitted with no open run in its numerator (2026-09-24)\n\n`terminator_spam` (final_block_emitted per run-record closure) read 1.38 · 2.71 · 3.29 · 1.28 over 2026-09-19..22 (83 blocks against 45 closures). A conversational turn that emits the 7-line block while no run is open lands in the numerator and never in the denominator, so behaviour and instrument cannot be told apart from the series (fleet reply 01M37TRF5XNSA3M6NQ6AFS0WAE). Fix at the class: attribute each `final_block_emitted` event to its open run record, or count run-less blocks as their own metric, with a golden case for each. Measure first how many of the 83 had no open run. The daily mail now prints prior readings beside each metric (a94540db9), which makes the two-day spikes visible as small-n; it does not fix the instrument. Owner: infra.",
+  "note": "migrated-digest:4642beb9b6a8",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "kaizen terminator_spam counts a final block emitted with no open run in its numerator (2026-09-24)"
+}

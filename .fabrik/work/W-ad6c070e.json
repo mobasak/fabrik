@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-20T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ad6c070e",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[RESOLVED 2026-09-20 — D-311] [infra] 10 confirmed defects in the enforcement git-decoder spec, left unfixed by the D-278 stop (2026-09-20)** — all ten were fixed in the resumed run, which then continued to a fresh-seat `confirmed 0` over all 47 classes after 25 rounds. The operator refused the D-278 exit for this artifact (*\"you should not stop without reaching a no ops pass\"*), and the stop's own premise — that the artifact's surface was quiet — proved false: later rounds found genuine pre-existing defects the earlier ones had walked past while busy with fix residue.",
+  "note": "migrated-digest:73e743160c8b",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "**[RESOLVED 2026-09-20 — D-311] 10 confirmed defects in the enforcement git-decoder spec, left unfixed by the D-278 stop (2026-09-20)** — all ten were fixed in the resumed run, which then continued..."
+}

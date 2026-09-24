@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-30T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9ca203c5",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Audit the check set for staged-only scoping (transdoc 01M17VA9's meta-question, 2026-08-30)\n\ncheck_doc_index's tracked-only enumeration gave the run that CREATES a doc a false green (fixed:\nuntracked docs under the INDEX-governed tree now count as live). transdoc explicitly flagged the\nclass question — how many OTHER gate checks enumerate via `git ls-files`/staged-only scope and\ntherefore cannot fire on the run that owes the obligation — as a hub measurement. Sweep\nscripts/enforcement/ for `ls-files`/`diff --cached`-scoped denominators and judge each: some are\ndeliberate (sibling-WIP protection, the review-coverage '??' carve-out), some are this defect.\nNext window; measure before changing any.",
+  "note": "migrated-digest:c20f6bf5d206",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Audit the check set for staged-only scoping (transdoc 01M17VA9's meta-question, 2026-08-30)"
+}

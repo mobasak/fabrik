@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-06T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-55c801ad",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **The fleet sync's SAFETY FLOOR summary line names `.env` whatever pattern failed** — the per-project line was fixed under 01M1H1V2; the `SAFETY FLOOR FAILED in N project(s)` summary still hardcodes `.env` (seen live 2026-09-06 on proxy, where `.venv/` was the committed path). Fix: carry the failing pattern(s) per project into the summary + a grader. (plan 2026-09-03-plan-1-multi-agent-per-repo close, T16)",
+  "note": "migrated-digest:51d5175098d6",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**The fleet sync's SAFETY FLOOR summary line names `.env` whatever pattern failed** — the per-project line was fixed under 01M1H1V2; the `SAFETY FLOOR FAILED in N project(s)` summary still hardcode..."
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-03-02T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-aec7365b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] Promtail is END-OF-LIFE (2026-03-02) and the fleet still ships logs with it (2026-09-03, owner: fleet + operator window)\n\nMail 01M1EQ3NCA98EF178ZY366V47T. Grafana declared Promtail EOL on 2026-03-02 — no updates, no security\nfixes — and `configs/monitoring-compose.yaml:30` runs `grafana/promtail:3.4.2`. The successor is Grafana\nAlloy, and `alloy convert` takes the existing config, so the migration is mechanical; it is a live\nmonitoring-stack change on vps1, so it wants a window and a rollback (keep the promtail service defined\nand stopped until Alloy is proven shipping). Second item in the same mail, smaller and independent:\n`templates/node-api/defaults.yaml:14` sets `exposes_metrics: true` while no Node metrics module is\nscaffolded anywhere (`grep -rn \"prom-client\\|metrics.js\" src/fabrik/ templates/` → nothing), so every\nscaffolded node-api registers a Prometheus target that can never be scraped — flip the default to false\nor scaffold a metrics module; the flag is spec-canonical, so whichever is chosen must match the code.\n\nSYSTEMIC (sender's, adopted): nothing on the box watches upstream component lifecycles. The rules corpus\nhas `CLAIMS.yaml`; the running fleet needs the same shape — see the capability-claims row above.",
+  "note": "migrated-digest:d6eed776e846",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "Promtail is END-OF-LIFE (2026-03-02) and the fleet still ships logs with it (2026-09-03, owner: fleet + operator window)"
+}

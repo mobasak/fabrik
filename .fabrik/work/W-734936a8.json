@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-05T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-734936a8",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] `monitoring_grafana-data` carries no compose labels — it is the one monitoring volume Docker Compose did not create (2026-09-05, owner: fleet)\n\nSurfaced by `docker compose up -d --dry-run` during Part B: *\"volume monitoring_grafana-data already exists\nbut was not created by Docker Compose.\"* Confirmed by inspection — its four siblings\n(`alertmanager-data`, `loki-data`, `prometheus-data`, `promtail-positions`) each carry\n`com.docker.compose.project`/`.volume` labels; `grafana-data` has `map[]`. It holds 31 MB: the dashboards,\nusers and Grafana's SQLite DB. **No action was taken and none is urgent** — Compose reuses a same-named\nvolume and never deletes one on `up -d` (only `down -v` does, which is a standing HARD STOP), so the\nrecreate Part B enables is safe. It is filed because an unlabelled volume is invisible to any\nownership-based tooling we might later write, and because \"dangling ≠ disposable\" makes mislabelled data\nworth knowing about BEFORE someone runs a cleanup. Candidate: declare it `external: true`, or recreate the\nlabel — neither without an operator decision, since both touch a live data volume.",
+  "note": "migrated-digest:65d76679530e",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "`monitoring_grafana-data` carries no compose labels — it is the one monitoring volume Docker Compose did not create (2026-09-05, owner: fleet)"
+}

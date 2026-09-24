@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.039651Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ed75e99d",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **A linked worktree whose `.claude/hooks/*.py` are missing blocks EVERY prompt** (\"UserPromptSubmit operation blocked by hook: can't open file …\") — in a project the hooks are gitignored synced copies that only the `.worktreeinclude` carry puts into a worktree (proven the hard way by two invalid T16 probes: a clone without the copies, the hub main checkout without an include file). Worth a guard: a missing hook script should WARN, not block, or the carry should be verified at worktree creation. (T16)",
+  "note": "migrated-digest:7747a3720447",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**A linked worktree whose `.claude/hooks/*.py` are missing blocks EVERY prompt** (\"UserPromptSubmit operation blocked by hook: can't open file …\") — in a project the hooks are gitignored synced cop..."
+}

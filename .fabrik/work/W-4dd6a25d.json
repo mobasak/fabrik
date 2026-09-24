@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-19T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4dd6a25d",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## Two residuals from the wrapper/parity fix, left deliberately at the D-278 scope-growth exit (routed 2026-09-19)\n\nThe review of that change ran three rounds at 7/7, 11/11 and 10/9 confirmed/own-fix and\n`command_run.py` printed the D-278 stop. The named set was fixed; these two were not, and this row\nis the reason they are safe to leave.\n\n1. **`test_a_value_flag_with_no_value_prints_usage_instead_of_crashing` executes a real contract\n   row in-process, and that row mutates `sys.path` for the rest of the session.**\n   `_rows_for(...)` runs `l0_health_probe_vendored`, whose `_health_probe()`\n   (`templates/scaffold/scripts/verify_prod_parity.py:102-104`) inserts `templates/scaffold` at\n   `sys.path[0]` to import the vendored `libs.health_probe`. Under a randomised test order that\n   directory then sits ahead of `/opt/fabrik/scripts` as a namespace-package candidate, and\n   `tests/test_claude_fleet.py` imports `scripts.sysadmin.claude_rotate` at nine sites. Measured:\n   no breakage today — 45 passed in 83s under random order, 120 passed for the corpus file. The\n   row execution exists only to keep `assert rows` non-vacuous; a fixture that restores `sys.path`\n   would remove the hazard without weakening the grader. **Destination:** infra, low.\n\n2. **\"that command file\" has two antecedents in the wrapper paragraph.** The sentence follows\n   \"…is in `~/.claude/commands/<name>.md` (rendered from `commands/_sources/<name>.md`; edit the\n   source, never this wrapper)\", so both named paths are command files and the parenthetical's last\n   instruction points at the source. Measured: 37 of 38 sources carry `{{include:}}`, so a reader\n   binding to the source reads an unexpanded file. Not a live break for the one command whose\n   ordering the sentence exists to protect (`fabrik-review-scoped`'s source carries its\n   \"open NO record here\" rule literally), which is why it was not fixed at the exit — the word\n   \"rendered\" closes it whenever that paragraph is next touched. **Destination:** infra, low.",
+  "note": "migrated-digest:19568836aa0f",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Two residuals from the wrapper/parity fix, left deliberately at the D-278 scope-growth exit (routed 2026-09-19)"
+}

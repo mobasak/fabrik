@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-11T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-370f46de",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`docs/workflows/FINAL_GATE_WORKFLOW.md` § Enforcement Scripts — the residue the Finish docs review of the adoption plan RECORDED (2026-09-11, owner: infra)** — nine passes reconciled the gate's own description to the code (the gate-wired list is now GENERATED from an instrumented registry, 61 rows; the 13 not-gate-wired files carry their real reachability); what stayed pre-existing and unfixed, per the closing pass's RECORDED list in `scratchpad/docsrev/reports/pass9-opus.md` R2–R9: per-script `####` sections whose `Validates:`/`Why this matters:` bodies predate the registration audit and describe the check as written, not as dispatched; `final_gate.py`'s own `# UNWIRED` commentary drifted from the file it describes (`:1790` cross-references `check_watchdog above` which sits 155 lines below in another tier block; `:1858` cites a Cascade `post_write_code` path that does not exist) — a code comment fix with the doc re-transcribed; `check_review_hygiene.py`'s `template-residue` pass reads raw lines (no code-span masking), so the doc's own defining lines self-trigger 4 hits against the class's <5 % promotion bar; `tests/test_final_gate_advisory_display.py`'s skip-shape ratchet omits the two directly-appended `(check not present, skipping)` rows (Kilo, Fabrik Convention Validator), which reach neither `skipped_checks` nor `--json` warnings. The `check_env_example.py` section's own arithmetic (2,223 undeclared vars vs its 1,720 + 535 + 88 + 1 = 2,344 decomposition, three sites) is off by 121 — pre-existing, re-measure and restate. Also the process lesson: a docs review whose delta hop is not bounded re-derives one neighbouring section per pass — the BAR (a discrepancy is a wrong or stale claim inside the previous pass's hunks) belongs in `commands/_sources/fabrik-docs-review.md`.",
+  "note": "migrated-digest:7ff876d03903",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`docs/workflows/FINAL_GATE_WORKFLOW.md` § Enforcement Scripts — the residue the Finish docs review of the adoption plan RECORDED (2026-09-11, owner: infra)** — nine passes reconciled the gate's o..."
+}

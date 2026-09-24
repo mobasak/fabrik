@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-05T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d9ccd618",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] The VPS copy of `/opt/traefik/compose.yaml` is AHEAD of its hub repo-of-record — a hub-driven redeploy would drop the Cloudflare DNS-01 resolver (2026-09-05, owner: fleet)\n\nFound while executing Part B of the memory-ceilings spec (D-124), by diffing each stack's hub copy against\nthe live VPS file rather than assuming they matched — `redis` and `monitoring` were byte-identical, traefik\nwas not. The VPS file carries three lines the hub copy lacks: an `env_file: ./cf.env` (the scoped\n`CF_DNS_API_TOKEN`) and a `./acme-cloudflare.json:/acme-cloudflare.json` bind — the tenant-wildcard DNS-01\ncertresolver work. Part B deliberately did NOT reconcile it in either direction: the ceiling was inserted\ninto each copy independently so the drift survives untouched, because reconciling means choosing a\ndirection and one direction pulls a secrets-file reference into the hub. **The risk is concrete:** anyone\nredeploying traefik from `infra/vps1/traefik/compose.yaml` drops the Cloudflare resolver, and `*.tojlo.com`\ntenant certificates stop renewing. Decide the direction (hub adopts the VPS lines, with `cf.env` gitignored\nand documented; or the VPS lines move into a documented override), then re-verify with a diff. Blocked by:\nan operator ruling on where the Cloudflare credential reference should live.\n\n**The GENERAL gap behind this instance, stated so it is not mistaken for a one-off:** nothing guards\n`infra/vps1/**` against the live box. The Part-B grader reads the HUB copies only, and no enforcement check\nreferences `infra/vps` for drift (`scripts/enforcement/` grep: only `check_env_contract.py`, for a different\npurpose) — so the hub can be right and the box wrong, or drift again tomorrow, with a fully green suite.\nMeasured today: 1 of 3 stacks had drifted. That is a real rate, but a hub↔VPS compose differ is a NEW\nmechanism and this row is not the place to build one on a sample of three — measure the rate across all\n`infra/**` stacks first (there are ~14 on vps1 alone), then decide. Recorded rather than built.",
+  "note": "migrated-digest:28f2170b9d16",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "The VPS copy of `/opt/traefik/compose.yaml` is AHEAD of its hub repo-of-record — a hub-driven redeploy would drop the Cloudflare DNS-01 resolver (2026-09-05, owner: fleet)"
+}

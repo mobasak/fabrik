@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-18T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3a57ff7e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] The governance-sync `files:` regex differs from the hub's in 38 of 38 non-hub `/opt/*` repos (2026-09-18)** — measured by parsing the `- id: governance-sync` block in each of the 39 `/opt/*/.pre-commit-config.yaml` files; 0 of 38 equal the hub's 678-char scalar. `CLAUDE.md` § Sync-consciousness calls that regex canonical and single-sourced, so any project-side tool reading its OWN copy gets a different filter than the hub's. Not a defect in any one repo — a fleet-consistency question worth a look. Low.",
+  "note": "migrated-digest:43c0cd5f260e",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**The governance-sync `files:` regex differs from the hub's in 38 of 38 non-hub `/opt/*` repos (2026-09-18)** — measured by parsing the `- id: governance-sync` block in each of the 39 `/opt/*/.pre-..."
+}

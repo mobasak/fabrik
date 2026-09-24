@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-02T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-82c40b27",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] No executable check grades the parity contract's `FROZEN` header (2026-09-02, owner: infra)\n\nPlan `2026-09-01-plan-1-deployment-verification` (D-082) shipped `scripts/verify_prod_parity.py` with a\nmachine-readable `# Status: DRAFT | FROZEN · Version · Date · Mode` header. Two commands bind on it:\n`/fabrik-release`'s VPS path BLOCKS on `DRAFT` and `/fabrik-deploy-verify` caps its verdict at `UNVERIFIED`\nwithout `FROZEN`. **Both bind on honour** — `check_stage_artifacts.py` grades only the data-contract,\nui-design and flows `FROZEN` flips (three graded artifacts at `check_stage_artifacts.py:319-332`). The header grammar is settled (`parse_header()` in the seeded script is the parser),\nso the extension is mechanical: a `stage_artifacts` row that reads the project's `scripts/verify_prod_parity.py\n--header` and fails a release-shaped change (a `specs/services/*.yaml`, compose or migration edit) whose\ncontract is still `DRAFT` or whose `Version` predates the edit. Trigger to build it: the first project that\nfreezes a contract (`/fabrik-deploy-checklist` Mode B on tryton-crm is the planned first run). Deliberately\ndeferred, not forgotten — recorded in the plan's Phase B step 6 and in `docs/reference/deployment-verification.md`.",
+  "note": "migrated-digest:1644056e9226",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "No executable check grades the parity contract's `FROZEN` header (2026-09-02, owner: infra)"
+}

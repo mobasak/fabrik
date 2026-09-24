@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.612297Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c9b727ab",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] The restatement rule enforces a pointer's FORMAT but never its FIDELITY\n\n`commands/_fragments/term-coverage.md` rule (3) now says that when review residue is a sentence which\nrestates, counts or partitions what another artifact owns, the rewrite is a DELETION — \"the sentence\ngoes, replaced by at most a pointer to where the fact is re-derivable, never by a re-cut of the\nclaim\". A closing review seat CONFIRMED the gap that wording leaves: nothing requires the pointer to\nactually RESOLVE to the fact at the moment of the edit.\n\nThe cheapest bypass it opens: delete the restating sentence, drop in a plausible pointer\n(a bare `see <path>:<line>` at whatever looks plausible) aimed at a target that is stale, wrong, or itself another\nrestatement one hop away. The letter is satisfied — the sentence is gone, no citation was appended to\na surviving sentence — and the fact is still not re-derivable where the pointer says it is. Contrast\nrule (2), which for its own case mandates RUNNING `check_review_hygiene.py --surface <pin> --claim\n<term>` and reading each mirror before the pin; rule (3)'s pointer has no equivalent.\n\nRESOLUTION when someone takes this: the seat's own four-word candidate is \"…re-derivable AS OF THE\nPIN\", which at least dates the claim; a stronger form would require the pointer be opened and the\nfact seen there before the pin, the way rule (2) requires the sweep be run. Do NOT simply re-cut the\nexisting sentence a third time — this residue has already survived two consecutive delta rounds, and\nrule (3) itself says the next edit is a rewrite in one batch, not a third patch.\n\nNOT a defect this edit introduced in the sense of regressing anything: the clause is a net\nimprovement and the gap is narrower than what it closed. Routed under the D-252 scope-growth stop\n(rounds 2 and 3 both confirmed only own-fix defects: 2/2 then 1/1), which is why this is a backlog row\nrather than a fourth round. Owner: infra.",
+  "note": "migrated-digest:9fd567d8f3b3",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The restatement rule enforces a pointer's FORMAT but never its FIDELITY"
+}

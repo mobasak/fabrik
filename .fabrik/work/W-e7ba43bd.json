@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-02T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e7ba43bd",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] fabrik-mail relay has no liveness guarantee and no sender-visible failure signal (peer report from the seo session, 2026-09-02)\n\nReported session-to-session on purpose (a mailed finding would join the queue): the shared hub\n`fabrik` inbox stood at 81 unread (oldest 2026-09-01 00:40) and grew 73→81 in an hour while three hub\nsessions ran long reviews; an ack-required finding (`01M1GZ3MFPEXZCJE4BYRQMBJ35`, web-ecommerce-factory\n→ seo via the hub) was dropped in BOTH directions for ~6 h and the seo side only learned its own mail\nwas unread by stat-ing the hub's inbox directory. Two halves: (1) drain — the handle-now duty applies,\nand the review-bound sessions did not claim the box for a day; (2) design — a sender cannot tell\n\"queued\" from \"dropped\": the relay needs a liveness surface (inbox age/depth in `liveness_audit.py`)\nand a sender-visible signal (an `unread-for` line on `mail.py list`, or an auto-nack after N hours on\n`ack: required`). Beat: infra (fabrik-mail).",
+  "note": "migrated-digest:cc73a6f33271",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "fabrik-mail relay has no liveness guarantee and no sender-visible failure signal (peer report from the seo session, 2026-09-02)"
+}

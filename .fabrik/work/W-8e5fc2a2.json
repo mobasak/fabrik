@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-05T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8e5fc2a2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] `/fabrik-rivals` hub fallback shadows a partial local vendor** (native closing reader, 2026-09-05, pre-existing): `_resolve_engine` inserts `/opt/fabrik/libs` at `sys.path[0]` when `libs/competitor_intel` is absent, so a project that vendored `libs/deep_research` but NOT `libs/competitor_intel` silently runs the HUB's deep_research. Fix shape: resolve each of the three packages independently (local-first per package) or refuse the mixed layout at preflight. Measured 2026-09-05: 2 of 48 `/opt/*/libs` dirs — iterative_image_editor (carrying the hub's FORKED `libs.` self-imports; informed) and web-ecommerce-factory (canonical form); neither has run a rivals dossier yet.",
+  "note": "migrated-digest:b7213fafab42",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`/fabrik-rivals` hub fallback shadows a partial local vendor** (native closing reader, 2026-09-05, pre-existing): `_resolve_engine` inserts `/opt/fabrik/libs` at `sys.path[0]` when `libs/competit..."
+}

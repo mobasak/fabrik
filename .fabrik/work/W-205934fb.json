@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-09T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-205934fb",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **Hygiene script fire rate — advisory until <5 % over 20 receipts (DD6, V10)** (2026-09-09, owner: infra) — `check_review_hygiene.py` landed warn-only (T08): raw-pipe 35 hits / 21 receipts (re-pinned 2026-09-10 after `_blank_quoted` learned to read code spans — the first pin, 33 / 19, had lost every row after a quoted `<!-- POOL OFF` in 9 of 805 receipts) (0.558 % of 5,917 rows), dual-verdict 27 / 5 (1.641 % of 1,645) at 8092e8a8; the whole-plan seam round found the dual-verdict class grades 0 rows of template-generated receipts (no `Disposition` header) — the ungraded denominator is now counted; graduation to a blocking check waits on 20 receipts written under the new template with <5 % false hits.",
+  "note": "migrated-digest:d5df39435385",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Hygiene script fire rate — advisory until <5 % over 20 receipts (DD6, V10)** (2026-09-09, owner: infra) — `check_review_hygiene.py` landed warn-only (T08): raw-pipe 35 hits / 21 receipts (re-pinn..."
+}

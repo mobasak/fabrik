@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-01T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2013a22d",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] .fabrik/state/<id>.json has no durable record of registrar FAILURES (review finding 2026-09-01)\n\nThe 01M1CKEK fix makes `fabrik apply`/`redeploy --refresh-infra` exit 2 and print each failed\nregistrar — but that truth lives only in the one terminal's stdout+exit code. The persisted\nstate file's 8-field G-F3 schema records `registrars_applied` by omission only; `fabrik\naudit-registrars` and the state file both answer \"did our last apply finish clean?\" with\nsilence. Fix direction: a `registrar_failures: [...]` field (schema addition — G-F3 consumers:\n`state.py` docstring names them) written by `_persist_state`. Deliberately NOT folded into the\n01M1CKEK change: a schema change deserves its own consumer sweep. Trigger: the next state-file\nor audit-registrars window.",
+  "note": "migrated-digest:42a52c0ec2fd",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": ".fabrik/state/<id>.json has no durable record of registrar FAILURES (review finding 2026-09-01)"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-18T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4690287a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] `test_the_matrix_parser_reads_every_row_of_the_live_contract` asserts 22 rows / 25 tokens against the LIVE `CLAUDE.md` (2026-09-18)** — `tests/test_command_run_fabrik_task.py` reads the repo's own contract rather than a fixture, so any legitimate Doc Sync Matrix edit by any of the three concurrent hub sessions turns it red with no code change. Verified NON-vacuous by mutation, so it is genuinely testing the parser — the exposure is brittleness, not vacuity, and it is hub-only (test files are not in `CORE_SCRIPTS`, and the hub's completion gate does not run pytest). Not fixed in T01b because the ticket's own Behavior Contract row 8 MANDATES those exact numbers; changing the assertion's SHAPE — assert the invariant (tokens = concrete paths + the two `<name>` prefixes, every table row read) and keep the literals as a canary with a message naming the cause — is a ticket-scope decision. Low.",
+  "note": "migrated-digest:7fdc4f2db575",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`test_the_matrix_parser_reads_every_row_of_the_live_contract` asserts 22 rows / 25 tokens against the LIVE `CLAUDE.md` (2026-09-18)** — `tests/test_command_run_fabrik_task.py` reads the repo's ow..."
+}

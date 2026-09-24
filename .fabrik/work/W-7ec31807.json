@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7ec31807",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] A local-source deploy can rebuild `.env` without the registrar-injected keys (2026-09-24)\n\n`SSHDeployer.find_existing` decides \"existing\" by `/opt/<name>/compose.yaml`, but `_deploy_local` reads and\nwrites `.env` under `source.path`. When `source.path` is not `/opt/<name>`, the existing `.env` is never read and\nis rebuilt from spec env + secrets alone — dropping `DATABASE_URL_OWNER` after an app-role cutover, the case D-410\nclosed for the other deploy paths. Recorded by the D7 whole-plan validation of audit-log-everywhere from a\nreading of the code, not executed; verify first. Owner: fleet.",
+  "note": "migrated-digest:e1884635a4ed",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "A local-source deploy can rebuild `.env` without the registrar-injected keys (2026-09-24)"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.663536Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7f7848b2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "### [infra] A lesson RETIRED at its root keeps rendering from the corpus, and nothing links the two\n\n`scripts/sysadmin/dispatch_headroom.py:156-169` fixed the root cause of the `SEATS: 0` incident —\nthe budget no longer caps on commit headroom unless `overcommit_memory == 2` means the kernel would\nactually enforce it, and a zero-sum partition now prints its reason (`:749-753`). The feedback\nverdict born of that incident (ts 1789483273.93) nevertheless asks `/fabrik-review` to carry the\nlesson as prose, and `/fabrik-command-improve` duly landed it 2026-09-17. The general predicate is\nsound and was kept deliberately — a tool's zero or refusal is a CLAIM to attribute before it is a\nreason to stop, and that is true of every tool. But nothing in the loop notices when the SPECIFIC\nincident behind a corpus sentence has been fixed at its root, so a restated incident outlives its\ncause with no one watching it go stale.\n\nScope, measured 2026-09-17: this particular clause sits in `commands/_sources/fabrik-review.md` and\nso renders to **1 of 37** commands. The exposure is larger for the fragments — **21 of 37** commands\nrender `subagents-core`, so the same shape landing in `commands/_fragments/` would carry a retired\nlesson into 21 rendered commands at once.\n\nShape of a fix, unbuilt: `check_corpus_weight.py` already walks the six governance surfaces; a\nsibling check could compare a corpus sentence's cited `path:line` against the CURRENT text at that\npath and flag a citation whose surrounding code no longer says what the sentence claims. That is a\ndifferent check from `check_citations_resolve.py`, which only asks whether the line EXISTS.\n\nFound by the round-1 Opus seat of `/fabrik-command-improve fabrik-review`, filed as its MACHINERY\nnote (F9, RECORDED — deliberately not confirmed against the edit, whose general form is correct).",
+  "note": "migrated-digest:9f33ad2af3e7",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "A lesson RETIRED at its root keeps rendering from the corpus, and nothing links the two"
+}

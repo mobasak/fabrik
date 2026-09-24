@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.807102Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d536b913",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## Now — Ready for Focus Window\n\n| Effort | Owner | Item | Why Priority | Ready When |\n| :--- | :--- | :--- | :--- | :--- |",
+  "note": "migrated-digest:f75386cab558",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Now — Ready for Focus Window"
+}

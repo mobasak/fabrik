@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.183700Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c66fbe25",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[fleet]** **Reset `/opt/fabrik/` ownership on vps2 + vps3 from `root:root` to `ozgur:ozgur`** (cosmetic): Today's bootstrap-vps.sh change covers fresh installs going forward, but the live state on vps2/vps3 still has `/opt/fabrik` as `root:root`. Nothing is breaking — the venv was already created earlier — but the asymmetry would be discovered during the first real maintenance touch. Blocked by: nothing; one-liner SSH per spoke, but not worth interrupting steady state for.",
+  "note": "migrated-digest:ecc016010276",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "**Reset `/opt/fabrik/` ownership on vps2 + vps3 from `root:root` to `ozgur:ozgur`** (cosmetic): Today's bootstrap-vps.sh change covers fresh installs going forward, but the live state on vps2/vps3 ..."
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.835417Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8ca0d46e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## Later",
+  "note": "migrated-digest:2e68ae476f5e",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Later"
+}

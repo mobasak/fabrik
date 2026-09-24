@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-23T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-060554ba",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] Four own-fix defects the stop-and-compaction spec review RECORDED under its scope-growth stop — mandatory inputs for `/fabrik-plan-after-chat` of that spec (2026-09-23)** — `docs/superpowers/specs/2026-09-23-stop-and-compaction-enforcement-design.md` converged with them routed here, not fixed (D-278's own-fix exit). (A-O40) C1's D4 frame fires on factual prose: \"The fix takes effect in a new session\", \"Hooks load when you start a new session\", \"Verified in a fresh session\", \"The new session will inherit the synced hooks\" (executed on `d4_probe.py`'s regex: 5 of 5 fire); the plan narrows D4 to a subject that is the agent's own remaining work and adds these as green fixtures. (A-O41) the DECISION clear skips every `/`-prefixed prompt, so an operator who answers by running a command leaves the block open; the plan clears on a `/`-prefixed prompt that is not a built-in (`/compact`, `/context`, `/cost`, `/model`, `/autocompact`). (A-O42) V3's fixture must pin the slash-command clear rule. (A-O43) `asked:`'s 12-character substring check accepts an expanded command body; the plan requires the quote to come from an operator entry that is not a command expansion and to end in `?`. Also recorded: `draw.py`'s docstring says \"run mine.py first\", which re-mines rather than re-draws; and `scope:` quotes are not verified against the operator's request. Owner: infra.",
+  "note": "migrated-digest:1a05dc7971c2",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Four own-fix defects the stop-and-compaction spec review RECORDED under its scope-growth stop — mandatory inputs for `/fabrik-plan-after-chat` of that spec (2026-09-23)** — `docs/superpowers/spec..."
+}

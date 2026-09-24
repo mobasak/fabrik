@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-09T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fd01d13b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **The `/fabrik-review` skill description sits at 1000 of the assembler's hard 1024 chars** (2026-09-09, owner: infra) — 24 of headroom (T07 review round 3); the next edit that grows it fails the render with no earlier warning — an `assemble_commands.py --check`-time warning at ≥ 95 % is the fix.",
+  "note": "migrated-digest:cfcefe37def7",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**The `/fabrik-review` skill description sits at 1000 of the assembler's hard 1024 chars** (2026-09-09, owner: infra) — 24 of headroom (T07 review round 3); the next edit that grows it fails the re..."
+}

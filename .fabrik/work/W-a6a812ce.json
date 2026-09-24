@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-06-08T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a6a812ce",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "| ~~**M**~~ | `[fleet]` | ~~**Spoke DR — end-to-end measured recovery**~~ ✅ **DRILLED LIVE 2026-06-08** against vps4. Round-trip measured: provision → bootstrap → mesh+DNS fleet-add → destroy with `--reverse-fleet-add` = **~5–6 min wall-clock**, **~$0.06 cost** (vc2-2c-4gb in lax). Drove out **4 real bugs** (provision had no `-y` flag, dns.py defaulted to dead `coolify` network, no sshd-ready poll between Vultr-API-active and bootstrap, step_02 UFW-enable SSH-drop aborted bootstrap) — all fixed + unit-tested in commits [`f8a5359`](https://github.com/mobasak/fabrik/commit/f8a5359) → [`c48f3c0`](https://github.com/mobasak/fabrik/commit/c48f3c0) → [`cbbdb99`](https://github.com/mobasak/fabrik/commit/cbbdb99). Verified live: mesh ping vps1↔vps4 = 1.25ms, DNS apex + wildcard live via Cloudflare, Loki ingesting from vps4. Full breakdown in [`docs/reference/fabrik-vultr.md`](reference/fabrik-vultr.md) § \"Live-run measurements\". Two follow-ups recorded: step_04 `iptables-persistent` install removes ufw on Ubuntu 24.04 (affects step_15 aro-wake UFW rules); `provision` doesn't auto-register the new spoke in Prometheus/Gatus. Both are minor compared to what we proved works. | The OS+bootstrap recovery path is now proven end-to-end against a real billed instance, not just `--skip-mesh --skip-dns` hermetic drills. | n/a — drilled. |",
+  "note": "migrated-digest:3ee2a9e84caa",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "~~**Spoke DR — end-to-end measured recovery**~~ ✅ **DRILLED LIVE 2026-06-08** against vps4. Round-trip measured: provision → bootstrap → mesh+DNS fleet-add → destroy with `--reverse-fleet-add` = **"
+}

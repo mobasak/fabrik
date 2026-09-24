@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.735799Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3190e670",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] RETRACTED — the \"nine off-width DECISIONS rows\" were ONE, and my count was the defect\n\n**This row is a retraction of its own first cut, kept rather than deleted because the way it was\nwrong is the more useful artifact.**\n\nI filed that `tests/test_decisions_table_shape.py` was red over **9 of 255** rows and named nine line\nnumbers. An author-blind seat re-ran the actual grader: **1 of 256**, line 24 (`D-243`). My count\nused `line.count(\"|\")` — every pipe in the line. The grader uses its own `_bare_pipes()`, which\nstrips backtick-quoted content first, because a pipe inside `` `a|b|c` `` is CONTENT, not a column\nbreak. The other eight rows carry exactly 7 structural pipes and always did.\n\nThat is the denominator defect this session has filed against others four times over: a count taken\nfrom a pipeline whose method I assumed instead of the producing tool's own. The grader was right\nthere and I counted by hand beside it.\n\n⚠️ **The consequence I got wrong is worse than the number.** On the strength of nine rows I wrote\nthat the obvious repair \"DESTROYS four of them — 132/134/137/140 carry a § Binding field block whose\ninternal pipes are structure\". Those four were never violating: their pipes are inside backticks and\nthe grader never counted them. There was no destructive repair to warn about, and the warning would\nhave deterred the next person from a one-row fix that was safe all along.\n\n**DONE:** the single real row, `D-243`, carried a seventh cell against a six-column header (a\ntrailing `reversible — …` classification the header has no column for). Folded into `where` with\nevery word preserved — a SHAPE fix, not a content edit — and the grader is green at 256 of 256.\n\n**Kept as the lesson, not as work:** when a grader exists, run the grader. A hand count beside a\ngreen test is a second opinion nobody asked for, and it is the one that was wrong.",
+  "note": "migrated-digest:3c3b9c4bfa87",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "RETRACTED — the \"nine off-width DECISIONS rows\" were ONE, and my count was the defect"
+}

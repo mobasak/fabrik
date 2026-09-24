@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.667791Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fe915cda",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `libs/competitor_intel` has drifted from fabrik-lib canonical, and the VENDORED set has no drift signal at all\n\nMeasured 2026-09-15 on fabrik-lib's report (`01M2J82N9TF7`), verified at HEAD against\n`/opt/fabrik-lib/competitor-intel/competitor_intel/`: the degraded-taxonomy fix is absent from our\ncopy (`us_unmapped` canonical 5 / ours 0, `trust_us` 7/0, `_UNSTRIPPABLE` 9/0), so the us-column bug\nis LIVE for `/fabrik-rivals` here. ⚠️ A re-vendor is NOT a copy: ours is a different shape, not just\nolder — synth 590 lines vs canonical 1401, and **196 lines exist only on our side** across\nsynth/orchestrator/dossier/stages (43/52/87/14); `protocols.py` is byte-identical. A blind `cp`\ncloses their bug and reverts 196 lines with no git trace, which is the trap this repo paid for three\ntimes on 2026-09-05 in `libs/subagents`. The work is: adjudicate those 196 lines, then re-vendor.\n\nSYSTEMIC, and the larger half: the hub enforces `check_synced_unmodified.py` over the SYNCED set and\nhas NOTHING equivalent for the VENDORED set (`libs/*`). This drift was invisible until a peer\nmeasured it by hand. A periodic md5 sweep of `libs/*` against fabrik-lib canonical, reported the way\nthe sync check reports, would surface it the day it happens.",
+  "note": "migrated-digest:2c5f860a4ee8",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`libs/competitor_intel` has drifted from fabrik-lib canonical, and the VENDORED set has no drift signal at all"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-06T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-70a0901b",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **Traycer-chain command evaluation — run the orchestrator commands natively, retire the Traycer layer** (DONE 2026-09-06 — plan set 2026-09-03-plan-1-multi-agent-per-repo: T06a–c/T07a/T07b the corpus commands, T09 the layer retired, T10–T12b the chains tombstoned) (operator ruling 2026-08-30, ledger D-012: \"we rarely use traycer instead, i want to use their commands here\"). The chain already executes in Claude Code (Traycer is a layer; the _traycer-skills are thin wrappers over docs/orchestrator/ canonical docs), so the evaluation scopes: which of the ettw/mega commands become first-class rendered /commands, what the cockpit/card layer loses, and what dies with the Traycer dependency (server-side My Workflow already retired wiring). SEQUENCED by the operator: starts only after (1) the MCP evaluation (the per-type roster split decision + implementation) and (2) the rules evaluation are finished. Blocked by: those two, in order.",
+  "note": "migrated-digest:1503e3e379f4",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "**Traycer-chain command evaluation — run the orchestrator commands natively, retire the Traycer layer** (DONE 2026-09-06 — plan set 2026-09-03-plan-1-multi-agent-per-repo: T06a–c/T07a/T07b the corp..."
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-18T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c553a0c2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] The mandatory `--commit` on a `/fabrik-task` `done` has no rollout cutover (2026-09-18)** — every other close gate in `scripts/command_run.py` that could wedge an in-flight record carries one; `_AXIS_REQUIRED_FROM` (`:1288-1291`) was minted for exactly this class, with a comment saying a gate landing mid-run \"would wedge every in-flight session in ~46 repos at once\". `_task_close_fields` reads no such cutoff, so a `fabrik-task` record opened before T01b and closed after it cannot be `done`-closed. T01b routed it rather than fixing it because the window is provably closed — the lane is unreachable until T03 ships `commands/_sources/fabrik-task.md`, so no such record can exist, and a dated constant added now would be born dead. Revisit ONLY if a future change to this lane can strand a live record. Low.",
+  "note": "migrated-digest:5762007c3cf8",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**The mandatory `--commit` on a `/fabrik-task` `done` has no rollout cutover (2026-09-18)** — every other close gate in `scripts/command_run.py` that could wedge an in-flight record carries one; `_..."
+}

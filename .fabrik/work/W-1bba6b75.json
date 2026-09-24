@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-14T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1bba6b75",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `_trend_series` still filters non-dict rounds out of its series — the sibling half of a defect the scope-growth stop fixed (2026-09-14, D-252 review round 3)\n\n`scope_growth_warning` no longer filters: a row it cannot read BREAKS the run, because closing the window across a malformed round made rounds 1 and 5 read as adjacent. `_trend_series` (`scripts/command_run.py`) still carries `if isinstance(r, dict)`, so the same malformed row is silently dropped from the oscillation and FEEDBACK series and the two rounds either side read as consecutive there. Executed: `_trend_series([{f:1}, \"MALFORMED\", {f:5}])` → `[1, 5]` while `scope_growth_warning` on the same shape returns `\"\"`.\n\nAlso: the comment beside the removed filter claims \"`_trend_series` applies the same rule over the unfiltered list\" — it does not, so the claim is false as written.\n\n**Shape of the fix:** decide which reader is right (dropping vs breaking), make both do it, and correct the comment either way. Not done here because the choice changes the oscillation advisory's behaviour on live records and deserves its own judgement, not a hurried one inside a review that had already tripped its own scope-growth stop.",
+  "note": "migrated-digest:c7f9d95d97f6",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`_trend_series` still filters non-dict rounds out of its series — the sibling half of a defect the scope-growth stop fixed (2026-09-14, D-252 review round 3)"
+}

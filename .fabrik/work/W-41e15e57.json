@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.655492Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-41e15e57",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] The refuted-never-reopens protection is INACTIVE on half of all scoped review runs\n\nOperator question, 2026-09-17: *\"does refuted review findings cause a new review loop in our review\ncommands or not? they should not.\"* **They should not, and by design they do not** — the exit counter\nis `confirmed`, not raw findings (`scripts/command_run.py:515-520`; `check_review_coverage.py:717`\ngrades `_confirmed_quiet` on the receipt's last row), REFUTED and RECORDED are named non-counting\nbuckets, and a delta seat's brief carries the previous seat's REFUTED list verbatim so a fresh reader\ncannot re-raise one. One deliberate carve-out stands: a re-raise carrying evidence the refutation does\nnot cover COUNTS.\n\n**The gap is adoption, and it is measurable.** Adoption of the `confirmed` counter is STICKY — the\nlegacy `--findings 0` rule survives for any record whose rounds NEVER state `--confirmed`. Measured\nover `~/.claude/state/command-feedback.jsonl`, window 2026-09-07..2026-09-17: of 60\n`/fabrik-review-scoped` closes carrying a round series, **29 (48%) carry an explicit `confirmed`\nseries and 31 (51%) do not**. On those 31 the loop closes on RAW findings — where a refuted candidate\ndoes keep it open, and where \"quiet\" can be reached by relabelling rather than by converging.\n\nSo the rule is right, is enforced where the counter is stated, and is silently inert on about half the\nruns. **Two candidate closures, neither taken here:** make `--confirmed` required on a review-family\nround the same way D-281's D1 makes `--own-fix` required (same selector, same NOTE-then-refuse\nratchet, same file — so it is nearly free if done in that build); or have the close REFUSE a terminal\nverdict computed on the raw-findings fallback for a command whose contract names `confirmed` as its\nexit counter. The first is cheaper and is where it belongs. **Destination: D-281's build, as a\nsuccessor item — not folded into it without the operator's word, because it widens a refusal on a\nfile fleet-synced to 49 dirs.**",
+  "note": "migrated-digest:cbd0796d8513",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The refuted-never-reopens protection is INACTIVE on half of all scoped review runs"
+}

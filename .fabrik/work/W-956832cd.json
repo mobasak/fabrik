@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-956832cd",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `tests/test_sync_trigger_coverage.py` grades the LIVE hub, not the tree under test (2026-09-24)\n\nRecorded by the T07 review (A-O4): the test loads the manifest from its own tree but reads `.pre-commit-config.yaml` from a hardcoded `Path(\"/opt/fabrik\")` at every call site (:52, :58, :64 and more), so on a worktree or a pinned copy it grades a MIXED pair and cannot validate a filter change before merge (it failed `[scripts/work.py]` on T07's pin while the live hub lagged). Derive the root from `__file__`. Owner: infra.",
+  "note": "migrated-digest:10767a5a97c7",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`tests/test_sync_trigger_coverage.py` grades the LIVE hub, not the tree under test (2026-09-24)"
+}

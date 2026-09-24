@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-25T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2c85ac95",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **Three pre-existing adjacents from the triad's gate B** (recorded, non-behavioral): `skill_router.py:128` comment still says wordpress \"deploy-only\" (the retired phrasing); `scaffold.py:5768-5772` wordpress `NotImplementedError` still points at the archived `wpf` CLI; `templates/governance/CLAUDE.md:24`'s \"All projects … deploy via `fabrik apply`\" overstates for store surfaces. Fold into the next touch of each file. ✅ **CLOSED 2026-08-25** — all three corrected: `skill_router.py` no longer calls wordpress \"deploy-only\" (it is out of fabrik; `/opt/wpf` archived 2026-08-07), `scaffold.py`'s NotImplementedError no longer points callers at the deleted `wpf` CLI, and the governance line no longer claims ALL projects deploy via `fabrik apply` (store surfaces do not).",
+  "note": "migrated-digest:12428ac781cb",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "**Three pre-existing adjacents from the triad's gate B** (recorded, non-behavioral): `skill_router.py:128` comment still says wordpress \"deploy-only\" (the retired phrasing); `scaffold.py:5768-5772`..."
+}

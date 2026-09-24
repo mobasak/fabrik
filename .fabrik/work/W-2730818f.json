@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-13T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2730818f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] `_tick_telegram`'s torn-above and symlinked-artifact verdicts are asserted by wording only — an executed grader is owed (2026-09-13, owner: fleet)\n\nRecorded by the rotation refresh-chain review (round 13, test seat, receipt row **YY3** in `docs/development/reviews/2026-09-13-rotation-refresh-chain-review.md`). Round 12 established two facts about `_tick_telegram` in `scripts/sysadmin/claude_rotate.py` by ad-hoc execution against a stub notifier: with no prior artifact (`before == 0`) a torn non-empty write ADVANCES and confirms the push, and a SYMLINKED `.notified` reads as nothing forever (`_stamp_epoch` refuses symlinks; the notifier's `printf >` writes through the link). Both are pinned only as wording — the invariance grader `test_notify_failure_reason_names_every_cause_it_cannot_tell_apart` substring-asserts the returned line — while the one executed grader of `_tick_telegram` (`test_tick_telegram_reports_delivery_from_the_notifier_artifact`) covers absent / exit-0-without-artifact / advanced / stale only. One hop outside the round-12 fix hunks (D-230: the fix changed wording, not `_tick_telegram`), so RECORDED here. Remedy: two legs on the existing executed grader — a stub notifier writing `'175'` with no prior artifact → True, and a symlinked marker whose target advances → False. Fire rate: 0 observed; the class is a regression in `_stamp_epoch`'s policy going unnoticed. A second one-hop note from the same round (receipt row **XX7**, Opus seat): the notifier's window parse (`claude-sound.sh:263-265`) accepts any all-digits `last`, so a planted far-future `.notified` suppresses every send for that key indefinitely while `_stamp_epoch` clamps the same value to 0 — the sound system is production and infra's to edit; read-only here.",
+  "note": "migrated-digest:9c563d78d4bd",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "`_tick_telegram`'s torn-above and symlinked-artifact verdicts are asserted by wording only — an executed grader is owed (2026-09-13, owner: fleet)"
+}

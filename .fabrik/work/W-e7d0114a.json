@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-01T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e7d0114a",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "~~**Synced per-repo DECISIONS duplicate-id gate check**~~ ✅ **LANDED 2026-09-01** (01M1CBJWQS →\n  D-057 sequencing → wef repair 5a58c11 + reply 01M1CW4S = the trigger → `check_decisions_unique.py`,\n  WARN-tier, keyed on the row ID CELL per wef's repair-experience request, 0/49 fleet ledgers firing\n  at landing — verify: `for f in /opt/*/docs/DECISIONS.md; do grep -oE \"^\\| D-[0-9]+ \\|\" \"$f\" | sort | uniq -c | awk '$1>1'; done`). Remaining half deliberately unbuilt: the origin/HEAD stale-max WARN needs a fetch —\n  revisit only if collisions recur despite detection + pull-before-mint. wef's generalization\n  learning recorded in the check docstring: BOTH-CITED is the common case; first-committed carries\n  the tiebreak.\n- **mcp-config-changed hook precision** (01M1BXBRKM): name WHICH servers changed / suppress when\n  the repo-assigned set is unaffected (false-fired on wef3 AND on this session today). ALSO\n  (operator, 2026-09-01: \"i restarted all windows why does you and all agents keep saying\"): the\n  warning re-fires on EVERY prompt of a resumed conversation — a window restart cannot clear it\n  (resumed conversations keep the old tool universe by design; only a NEW conversation gets the\n  new roster). Add told-once suppression per session, and say \"start a NEW chat\" not \"reload\".\n- **tech-stack guide engine-neutral ecommerce row** (01M19G0HM0 + correction 01M19G66X8): replace\n  the Vendure default with the choice criterion (copyleft tolerance, payment-provider availability);\n  point iyzico-reaching projects at fabrik-lib payments/ first.\n- **release HANDOFF closed-by overlay** (01M1A00DS1): an appendable `closed-by <commit/test>` line\n  in the grammar so closure doesn't require editing a ratcheted report.\n- **waitForHydration adoption** (01M1B0BHZN): replace the hand-rolled networkidle+waitFor pattern\n  in the certification fragment with fabrik-lib's `@fabrik/ui-verify` primitive.\n- **deploy triad remainder from the consolidated v3** (01M1C95A2S): infra-wiring FLOOR (name the 10\n  registrars), supersede step-diff, rollback-on-failure semantics, cumulative window expiry, S0\n  credential write-time verification, citation-precision check. (F11 quoting + F12 redaction +\n  F14 amend-trailer + cold-start + capability-check are DONE.)",
+  "note": "migrated-digest:db8873f8d5e6",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "title": "~~**Synced per-repo DECISIONS duplicate-id gate check**~~ ✅ **LANDED 2026-09-01** (01M1CBJWQS →"
+}

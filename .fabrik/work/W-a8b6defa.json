@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.023805Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a8b6defa",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`generate_capability_index.py` classifies a script from its first 4000 chars and takes the `# AFTER-EDIT:` comment as its summary** — a script whose `if __name__` sits past the window silently becomes \"manual\" and drops out of docs/CAPABILITIES.md (check_traycer_chain.py crossed it at 4219 chars, T09 r1); every headered script's catalog summary is its AFTER-EDIT line (`_first_docline`, :114). Fix: classify on the whole file; skip the header comment in the summary; graders. (T16)",
+  "note": "migrated-digest:67c5ec0d799d",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`generate_capability_index.py` classifies a script from its first 4000 chars and takes the `# AFTER-EDIT:` comment as its summary** — a script whose `if __name__` sits past the window silently be..."
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4e0dd452",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `work.py migrate-backlog` resolved-rule edges seen only on synthetic titles (2026-09-24)\n\nRecorded by the T03 review's closing pass; no hub row shows either today, so neither was fixed. (1) A table cell that starts with a hyphenated status word (`| infra | DONE-ish follow-up | open |`) resolves the row, because `\\bDONE\\b` matches before the `-` and `_STATUS_AFTER_PIPE_RE` accepts it. (2) Only the FIRST stays-open phrase after a status marker is weighed, so `CLOSED 2026-09-20 … was still open and still open today` resolves because that first phrase is past tense. Fix when a real backlog row exhibits either; destination `scripts/work.py` `_row_is_resolved`. Owner: infra.",
+  "note": "migrated-digest:2d7737587646",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`work.py migrate-backlog` resolved-rule edges seen only on synthetic titles (2026-09-24)"
+}

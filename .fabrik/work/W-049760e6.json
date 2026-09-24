@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-02T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-049760e6",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] fabrik-review finder brief: pin the ledger high-water mark AND finder imports to a sha (found by the external-services review pass 9, 2026-09-02)\n\nThe pass-9 Opus finder, briefed on commit `fae20651` with reads pinned to `git show <sha>:<path>`,\nstill `sys.path.insert(0, \"/opt/fabrik/scripts\")`-imported the LIVE modules for its measurement\nscripts — and the live tree carried a sibling's uncommitted `is_credential` edit for ~20 min of the\nrun, so three measurements reported on the wrong code (caught by `inspect.getsource()` vs the diff).\nThe same brief named the standing-row scope as letters (\"P…AF, AG1\") while the worktree ledger\nalready held AH1/AH2, so a pass was spent re-deriving a fixed row. Two edits to the finder brief in\n`commands/_sources/fabrik-review.md` (+ the finder fragment): (1) \"measure by extracting the pinned\nsha to a sandbox and asserting the loaded module's provenance — never import from the live tree on a\nshared master\"; (2) \"state the ledger's high-water mark as the review file's sha/timestamp at\ndispatch\". Not applied mid-run: a corpus edit renders box-wide and needs its own scoped review.\nRelated: [[feedback_test_real_invariant_not_proxy]] (this session's own flip-set measurement was\nvacuous for the same reason — a temp-loaded module found no catalog — until the paths were pinned).\n\n---",
+  "note": "migrated-digest:fb772e17858d",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "fabrik-review finder brief: pin the ledger high-water mark AND finder imports to a sha (found by the external-services review pass 9, 2026-09-02)"
+}

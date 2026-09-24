@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.167052Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8f04619f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[fleet]** **Loki ruler with starting rule set** (trio plan Phase 5, deferred): Log-pattern alerts not generated at all today. Sidecars catch their own container's logs; cross-container log signals on vps1 aren't observed. Blocked by: first incident that log-pattern-rule would have caught earlier than container-state probe.",
+  "note": "migrated-digest:b4e5ccc7d494",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "**Loki ruler with starting rule set** (trio plan Phase 5, deferred): Log-pattern alerts not generated at all today. Sidecars catch their own container's logs; cross-container log signals on vps1 ar..."
+}

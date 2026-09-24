@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-14T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7a862171",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] A test leg attributes its silence to the wrong mechanism (2026-09-14, D-252 review round 3)\n\n`tests/test_command_run.py::test_a_review_round_that_confirms_without_counting_its_own_residue_is_noted` ends with a `fabrik-repo-review` leg commented \"a per-unit loop is not prompted\". The NOTE it checks is gated on `REVIEW_FAMILY`, which simply does not contain `fabrik-repo-review` — the assertion holds for ANY non-review command and would pass with `PER_UNIT_ROUND_COMMANDS` emptied. Proven: dropping `fabrik-repo-review` from that set reds two other tests and leaves this leg green.\n\n**Shape of the fix:** assert the mechanism the comment names (`assert \"fabrik-repo-review\" not in REVIEW_FAMILY`), or re-word the comment to say what is actually being graded.",
+  "note": "migrated-digest:996c3f8a3630",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "A test leg attributes its silence to the wrong mechanism (2026-09-14, D-252 review round 3)"
+}

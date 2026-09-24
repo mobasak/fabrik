@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ae691e8c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Adopt the markdown table-termination detector? The measured fire rate is in (2026-09-24)\n\niterative_image_editor ran its markdown-it table detector over the hub's 1,464 tracked `*.md` (mail 01M2Z7E6PXZ7ZFGJM4Y71VCZD7). It found 46 files and 491 orphan lines: 3.1% of files and 1.0% of pipe-leading lines. They verified 7 of the 46 against rendered HTML, with 0 false positives. The heaviest clusters are review receipts and ledgers, where a table cut short by a blank line renders the audit trail as prose. One proven hit, the README production-infrastructure table, is fixed; the review of that fix also found two false cells that had been hidden as prose. The decision still owed is whether to adopt it as a gate check, warn-only first, over `docs/development/reviews/**` and the ledgers. The remaining 39 files are candidates, not confirmed defects: render them before counting. Their report: iterative_image_editor `/opt/iterative_image_editor/docs/reference/2026-09-20-fabrik-table-detector-sweep.md` (f203d6b). Owner: infra.",
+  "note": "migrated-digest:e336ae88933b",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Adopt the markdown table-termination detector? The measured fire rate is in (2026-09-24)"
+}

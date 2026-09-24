@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-05T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ef6ecf90",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] `fabrik-zitadel`'s Prometheus target has been DOWN (404) — a registered scrape job that has never worked (2026-09-05, owner: fleet)\n\nFound while validating a different finding: `fabrik-zitadel` scrapes\n`https://auth.ocoron.com:443/debug/metrics` and reports `health=down`, `lastError: server returned HTTP\nstatus 404 Not Found`. It is one of only two `fabrik-*` jobs; the other (`fabrik-tryton-crm`, an INTERNAL\n`http://tryton-crm:8000/metrics` target) is up.\n\n**Why it matters beyond one dashboard:** `proactive-check.sh` alerts on `max_over_time(up[10m])==0`, so a\npermanently-down target is either firing `target_down` continuously or has already been tuned out — either\nway the signal is worthless, and a monitoring job that has never once succeeded is indistinguishable from\none that just broke. This is the concrete instance of \"a wrong scrape target is worse than no scrape\ntarget\", which is why the site-provisioner spec fixed the same day was given an internal target instead of\nthe default public one.\n\nLikely cause, NOT yet confirmed (stated as a hypothesis, not a finding): the path. Zitadel's metrics path\nis configurable and `/debug/metrics` may be wrong for the deployed version, or the endpoint may require\nauth that the public edge refuses. Next step is to probe the container directly on the fabrik network the\nway site-provisioner's was probed, then either correct `monitoring.metrics_path` or move it to an internal\ntarget. Blocked by: nothing — this is a small, self-contained fix, it simply was not mine to make inside\nanother finding's scope.",
+  "note": "migrated-digest:6ec222ed0047",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "`fabrik-zitadel`'s Prometheus target has been DOWN (404) — a registered scrape job that has never worked (2026-09-05, owner: fleet)"
+}

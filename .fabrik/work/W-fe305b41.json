@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.680579Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fe305b41",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Harness worktrees carry STALE synced copies, so every subagent's completion gate runs a different `final_gate.py` than master\n\nReported by wef3 (`01M2H05T88XM`): a harness worktree holds untracked copies of every\ngitignored-but-synced path, snapshotted at creation and never refreshed. Measured there:\n`check_synced_unmodified` says \"all 208 match\" in the main checkout and names TEN stale files inside\na worktree; four coder seats in one dispatcher run each separately diagnosed it and each concluded\n\"pre-existing, not mine\". The check's own remedy text (\"Revert it\") tells a seat to edit a synced\nfile, which is a HARD STOP. Directions: refresh the synced set at worktree creation; make the check\nworktree-aware via `git rev-parse --git-common-dir` with a distinct non-blocking staleness verdict.\n⚠️ ALSO sweep `scripts/enforcement/` for the sibling shape — any check matching an exclusion pattern\nagainst an ABSOLUTE path self-excludes inside `.claude/worktrees/`.",
+  "note": "migrated-digest:70b64825130a",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Harness worktrees carry STALE synced copies, so every subagent's completion gate runs a different `final_gate.py` than master"
+}

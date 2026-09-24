@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-15T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1d194ff6",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] A grader anchored to a live shared-tree governance clause by an emoji heading raises IndexError, not an assertion failure (2026-09-15, plan-2 Phase G review round 2, RECORDED one hop out)\n\n`tests/test_mail_structure.py` reads the trailer-trap clause with\n`Path(\"CLAUDE.md\").read_text().split(\"⚠️ **And a THIRD trap\")[1][:986]`. Three concurrent sessions\nshare that file. The moment any of them rewords that heading the grader raises `IndexError` — not a\nreadable assertion failure naming the drifted clause — and the fixed `[:986]` window silently\nshortens if the clause is edited without moving the heading, so the test can weaken without failing.\n\nPre-existing: the round-2 diff changed only the `verify` loop above it. **Shape of the fix:** anchor\non a stable sentinel comment in `CLAUDE.md` rather than on prose, and assert the split succeeded\nwith a message naming the expected anchor before indexing `[1]`.",
+  "note": "migrated-digest:5b4960f1e58f",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "A grader anchored to a live shared-tree governance clause by an emoji heading raises IndexError, not an assertion failure (2026-09-15, plan-2 Phase G review round 2, RECORDED one hop out)"
+}

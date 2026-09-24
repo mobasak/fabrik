@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-28T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3a4cac48",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[fleet]** **Deploy ordering breaks init-at-boot images (registrar injects `DATABASE_URL` AFTER first `up`)** (found live in the Zitadel deploy-plan review, 2026-08-28, plan finding D1). `deploy()` runs `deployer.deploy` (`docker compose up -d --wait`) at `orchestrator/__init__.py:163`, then the postgres registrar injects `DATABASE_URL` at `:173` — so the container's FIRST boot has no DSN. Services whose entrypoint connects lazily (evolution-api etc.) tolerate this; an image that runs migrations synchronously at boot and **exits with no retry** (Zitadel `start-from-init` — grounded via zitadel issues #5810/#11942 + troubleshooting docs) crashes, `up --wait` raises, and the deploy rolls back at `:207` **before** the registrar ever runs → the DB is never created → a repeated `fabrik apply` re-crashes identically. Such a service **cannot be stood up by a plain `fabrik apply`**. Candidate fixes: (a) a `shape`/spec flag that provisions the DB + injects `DATABASE_URL` BEFORE the app's first `up` for init-at-boot images; (b) a DB-reachability wait-wrapper the emitter injects; (c) a documented bootstrap runbook (pre-create DB+role, pre-seed the DSN into the remote `.env`, then `up`). Blocked by: a focus window; the class is measured + documented in the Zitadel plan's D1, and it currently blocks that deploy at Gate 2.",
+  "note": "migrated-digest:6f578783eb1c",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "**Deploy ordering breaks init-at-boot images (registrar injects `DATABASE_URL` AFTER first `up`)** (found live in the Zitadel deploy-plan review, 2026-08-28, plan finding D1). `deploy()` runs `depl..."
+}

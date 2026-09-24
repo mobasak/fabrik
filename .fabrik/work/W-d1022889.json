@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-10T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d1022889",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`check_review_hygiene.py` follow-ons from the adoption plan's Phase B review (2026-09-10, owner: infra)** — pre-existing, one hop from the Phase B diff: (a) the cursor walk in `_table_parity_hits` recovers a row's line by TEXT EQUALITY — a data row whose text equals an earlier skipped line is never reached (fixture-proven; 0 of 30,111 live rows mis-attributed); (b) `_blank_quoted` blanking a fence INSIDE a table orphans every later row from its header (now COUNTED as ungraded, never graded) and leaves a same-line `<!-- … -->` comment raw; (c) `TEMPLATE_RESIDUE` vs the assembler's own leftover grammar (`{{run-record}}`, `{{artifact}}`, `{{Extra}}`, `{{include:}}` invisible to the check; 0 of 43 live tokens in the gap); (d) `test_the_gate_registers_it_warn_only` raises FileNotFoundError outside a repo instead of skipping; (e) the one-cell caption idiom (`| **Heading** |` inside a 3-column table) is 34 of 77 `table-parity` fires over the hub's 1,186 docs — the first exemption candidate if the class ever graduates; (f) `Sweep.ungraded` sums two populations on a mixed `--surface … --receipt …` run — one summary number, unattributable; (g) `_expand`'s resolve-dedupe is a second silent vanish route — emit `N named paths resolved to M files` when M < N; (h) the two per-file sorts are deliberate (a global sort would break the file grouping) — one docstring sentence; (i) `_resolved`'s guard drops ValueError (embedded NUL) while `_display` catches it — unreachable through `scan()`, align the sets; (j) which spelling the dedupe keeps is unpinned (first-seen). Finish-review additions (rounds 2–6): (h) `Sweep.ungraded` sums two populations on a mixed `--surface … --receipt …` run — one unattributable number; (i) `_expand`'s resolve-dedupe is a silent vanish route — emit `N named paths resolved to M files` when M < N, and pin which spelling survives (first-seen, invisible under cwd via `_display`); (j) the two per-file sorts are deliberate — one docstring sentence in `_surface_hits`; (k) `_resolved` drops ValueError (embedded NUL) while `_display` catches it — align the guard sets; (l) `_fence_hits` reads raw lines and is comment-blind — a fence opener parked in an HTML comment earns a false fence-parity hit (0 of 3,611 live files), and `_fence_step`'s CommonMark 4.5 backtick-in-info-string guard is ungraded; (n) the summary arithmetic does not close — `5992 table data rows · 1663 disposition-bearing · 4296 ungraded` leaves 33 rows in neither bucket (the `raw-pipe`-hit rows `_table_parity_hits` reports and then `continue`s past without counting), so a reader summing the two published numbers gets a denominator 33 short (docs review of the adoption plan, 2026-09-11); (m) `check_convergence._mask_spans` and `check_review_hygiene._mask_code_spans` implement one rule with different line policies — inert today, a docstring note; a `\\r`-only document is graded by neither `_PASS_ROW` nor the receipt classes (no action).",
+  "note": "migrated-digest:2af1417d0df5",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`check_review_hygiene.py` follow-ons from the adoption plan's Phase B review (2026-09-10, owner: infra)** — pre-existing, one hop from the Phase B diff: (a) the cursor walk in `_table_parity_hits..."
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-14T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5967b485",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] The scope-growth stop can never fire for `/fabrik-repo-review` — one command set is serving two different questions (2026-09-14, D-252 review round 2)\n\n`scope_growth_warning` stands down for `PER_UNIT_ROUND_COMMANDS = {\"fabrik-execute-plan\", \"fabrik-repo-review\"}`, borrowing the set the OSCILLATION advisory uses. The borrowing is right for `fabrik-execute-plan` (dispatcher mode: round 4 is T11's review, round 5 is T08's — different surfaces, and the stop's exit sentence \"close on the ORIGINAL delta's state\" has no referent). It is questionable for `/fabrik-repo-review`, which under D-203 is a partitioned re-swept loop over ONE repo and can outgrow its artifact exactly as `/fabrik-review` can. Consequence, measured: the stop can never fire there, and the uncounted-round NOTE never prompts for the counter either, because that NOTE keys on `REVIEW_FAMILY` which excludes it.\n\n**Shape of the fix:** split the set — `PER_UNIT_FOR_OSCILLATION` vs `PER_UNIT_FOR_SCOPE_GROWTH` — or mint a D-row stating that one set answers both questions deliberately. Either way the two advisories should stop sharing a constant sized for the first of them. `scripts/command_run.py` (`PER_UNIT_ROUND_COMMANDS`, `scope_growth_warning`, the round handler's NOTE).",
+  "note": "migrated-digest:cccbd82d543f",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The scope-growth stop can never fire for `/fabrik-repo-review` — one command set is serving two different questions (2026-09-14, D-252 review round 2)"
+}

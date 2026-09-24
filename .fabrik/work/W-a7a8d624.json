@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-12T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a7a8d624",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **SHIPPED 2026-09-12 by plan `2026-09-11-plan-1-review-family-pass3` (Phases A–C) — Review-family adoption, pass 3 — the five review loops that include NEITHER termination fragment, plus verification of the three `term-coverage` inheritors** (2026-09-10, owner: infra — ASSIGNED to the unnamed hub window fabrik-06 / session dd3c06d1 on the operator's word \"note them, do not forget, assign yourself\"; operator ruling: afterwards, not by extending the converged spec). Measured 2026-09-10: `/fabrik-review-scoped` (keeps its three-seat floor by D-208 — only the exit/verdict vocabulary to align), `/fabrik-docs-review`, `/fabrik-rules-review`, `/fabrik-epics-review`, `/design-review` carry their own loops with 0–2 `confirmed` mentions and no shared fragment, so no single edit reaches them; `/fabrik-conformance-review`, `/fabrik-service-test`, `/fabrik-user-test` include `term-coverage` (1 `confirmed` mention) and inherit whatever it carries — verify their bodies do not restate the old exit. Trigger: after `docs/superpowers/specs/2026-09-10-review-family-adoption-design.md` lands (the landed `term-edit` text is the template); size inline. ⟶ EXTENDED 2026-09-10 by the adoption plan's Phase A heavy review: the other 11 `term-edit` consumers carry 66 restatements of the retired zero-edits exit in their own prose (outside that plan's File Scope), and two term-coverage siblings keep the old wording — `commands/_sources/fabrik-review.md:11` (\"the quiet delta round\") and `fabrik-ui-design-review.md:140,143` (\"(parallel grounders per axis)\" / \"one INDEPENDENT grounder each\"); the adoption plan's § Out of Scope also names a spec-ledger grader after 20 spec reviews under the new text (0 of 214 specs persist a `confirmed:` row on 2026-09-10) and the `Scope`-cites-spec WARN in `check_plan_tickets` — both belong to this pass. THIRD CLASS (added at the plan's archive, 2026-09-11): the other 11 `term-edit` consumers carry 66 restatements of the retired zero-edits exit in their own prose by the five-phrase grep (2026-09-10: ui-design 14, ui-design-review 11, flows-review 10, data-contract 7, workflow-review 5, doc-converge 5, deploy-plan-review 4, flows 3, features 3, deploy-checklist 3, rivals 1), `commands/_sources/fabrik-review.md:11` still says \"the quiet delta round\", and `fabrik-ui-design-review.md:140,143` keep \"(parallel grounders per axis)\" / \"one INDEPENDENT grounder each\" — term-coverage siblings outside the adoption plan's File Scope (Phase A heavy rounds 9 and 15).",
+  "note": "migrated-digest:742017dbad21",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "**SHIPPED 2026-09-12 by plan `2026-09-11-plan-1-review-family-pass3` (Phases A–C) — Review-family adoption, pass 3 — the five review loops that include NEITHER termination fragment, plus verificati..."
+}

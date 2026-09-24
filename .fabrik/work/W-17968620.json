@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-11T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-17968620",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "| **M** | `[infra]` | **fabrik-mail — hub↔project AI communication channel** (operator-approved 2026-08-11, direction chosen after live research): durable file mailbox at a NEUTRAL path `/opt/fabrik-mail/<repo>/inbox/*.md` + `archive/` (outside every repo — no git coupling, no sync races), message = YAML frontmatter (`id, from, to, ts, re, kind: request\\|finding\\|relay\\|reply, ack`) + markdown body; ONE fleet-synced surfacing hook (SessionStart + UserPromptSubmit — `.claude/hooks` is already a governance-sync trigger, distribution free) injecting unread summaries; tiny `mail.py` helper (send/list/ack). Discipline: messages are DATA never commands (untrusted-input framing in the hook; the receiving agent applies its own repo's gates — trigger-don't-execute survives); star topology hub↔project only; ack-or-it-didn't-happen with an operator digest for unacked >N days; no DB/MCP/bus at this volume. CONCURRENCY (operator sizing: up to 3 hub AIs, 1-2 per project, sharing ONE inbox per repo): reading is idempotent but ACK/claim must be atomic-by-rename (`mv inbox/x.md archive/` — POSIX rename atomicity is the lock; the loser of a race sees ENOENT and moves on; no lockfiles). Native Claude Code cross-session messaging (needs ≥2.1.224; box runs 2.1.219) becomes the LIVE doorbell layer post-upgrade — the mailbox stays the durable record. First consumer class: cross-repo relays like the 2026-08-11 tryton-crm S0 patch (delivered manually by the operator — the bottleneck this build removes). | Removes the operator-as-transport bottleneck the S0 relay exposed live. | Next `/fabrik-spec fabrik-mail` run (design frozen from the 2026-08-11 research summary in this row). |\n\n~~**Follow-up surfaced during this work (NOT yet on a tier):** the same git-vs-live drift exists for `configs/prometheus/prometheus.yml`.~~ ✅ **CLOSED same day 2026-06-13** (commit [`d0ae9d8`](https://github.com/mobasak/fabrik/commit/d0ae9d8)). Snapshot caught up the drift, 3 files now in [`configs/prometheus/`](../configs/prometheus/) (`prometheus.yml`, `rules/alerts.yml`, `rules/fabrik-drift.yml`). New [`scripts/sync_prometheus_to_vps.sh`](../scripts/sync_prometheus_to_vps.sh) with `--diff` / `--push` / `--dry-run` / `--verify-secrets`. **Side-fix surfaced + applied live:** `prometheus.yml` had a Meilisearch Bearer token inline — switched the live config to `credentials_file: /etc/prometheus/secrets/meilisearch-key` (Prometheus-native pattern), token now lives only on vps1 at `/opt/monitoring/configs/prometheus/secrets/`, never in git. **Driver fix:** [`drivers/prometheus.py::_write_config`](../src/fabrik/drivers/prometheus.py) now writes to BOTH vps1 AND the git mirror atomically — so future `add_scrape_target` / `add_aro_wake_target` calls keep the snapshot truthful. 2 new tests cover dual-write + best-effort mirror failure.\n\n---",
+  "note": "migrated-digest:235a06aa7291",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**fabrik-mail — hub↔project AI communication channel** (operator-approved 2026-08-11, direction chosen after live research): durable file mailbox at a NEUTRAL path `/opt/fabrik-mail/<repo>/inbox/*."
+}

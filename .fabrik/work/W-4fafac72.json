@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.731944Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4fafac72",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `git diff --cached` is the authorship signal, and on this hub the INDEX IS SHARED — three gate checks read a peer's staging as yours\n\nMeasured 2026-09-15, third instance of one class in one day. Two were fixed by scoping to\n`get_writable_files()`; **the third has no such fix and that is the finding.**\n\n| leg | read scope | what it reported | disposition |\n|---|---|---|---|\n| `ruff-format (--check)` | the change set | a sibling's unstaged `command_feedback_report.py` | FIXED — scoped to the writable set |\n| `ruff check` (static tier) | the change set | the same file | FIXED — same scoping, and it matches CI, which checks out HEAD |\n| `check_doc_sync.py` (Doc Sync Matrix) | `git diff --cached` | a sibling's FOUR staged files | ⚠️ NOT fixable by scoping |\n\nThe first two read unstaged modifications, which are provably not the caller's under the\nauthorship-is-staging rule. The third reads the **index**, which on this hub is one shared file\nthat all three sessions stage into. Executed just now: `git diff --cached --name-only` returns four\npaths, none of them mine — a plan-lock, `commands/_fragments/close-feedback.md`,\n`scripts/command_feedback_report.py`, `tests/test_command_feedback_report.py` — and the gate\ncorrectly demands a CHANGELOG entry and an INDEX row for work another session is mid-way through.\nMy own commits are clean: `check_doc_sync.py --range 84f88595..HEAD` over every commit of this\nphase returns **rc 0**.\n\n**So authorship-is-staging has a floor, and this is it.** Narrowing the scope cannot help: the\nindex has no per-session dimension to narrow along. The candidates are all real decisions, not\npatches:\n\n- **Attribute by trailer or by mtime** — neither exists for an index entry.\n- **Per-session index** (`GIT_INDEX_FILE` for every session, as the private-index commit recipe\n  already does for commits) — then `--cached` means \"mine\" again, and the shared index becomes a\n  thing nobody stages into. This is the direction I would take.\n- **Treat a red caused wholly by paths outside your own diff as a WARN** — cheap, but it weakens\n  a real check for everyone to work around one repo's topology.\n\n**Do:** decide the index question once, in a spec. Until then the honest operator move is the\ncontract's own ladder — a red the range-scoped run clears is a sibling's in-flight work: defer and\nreport, never stage or commit around it.",
+  "note": "migrated-digest:a37b54fd084a",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`git diff --cached` is the authorship signal, and on this hub the INDEX IS SHARED — three gate checks read a peer's staging as yours"
+}

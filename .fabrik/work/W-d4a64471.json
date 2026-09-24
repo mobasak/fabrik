@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-06-07T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d4a64471",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[fleet]** **\"Repeated-flag-no-action\" pattern detector** (complement to `detect_reversals.py`): The 2026-06-07 netdata flood was 24 benign \"anomaly detected\" wakes with no AI action taken — `detect_reversals.py` correctly doesn't fire (no AI action to reverse), but a different correlator could flag \"AI flagged X N times in a row, operator never acted → AI is wrong OR alert is misconfigured\". Same `lessons-pending.jsonl` output stream, different correlator. Blocked by: second occurrence of a similar pattern that's not the netdata case (which is now fixed).",
+  "note": "migrated-digest:0ddcee2f8b78",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "**\"Repeated-flag-no-action\" pattern detector** (complement to `detect_reversals.py`): The 2026-06-07 netdata flood was 24 benign \"anomaly detected\" wakes with no AI action taken — `detect_reversals..."
+}

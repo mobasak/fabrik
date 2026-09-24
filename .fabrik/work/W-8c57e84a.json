@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-19T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8c57e84a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## The gitignore block bypasses the T12.17 \"never ship the working tree\" guard — 46 repos patched from uncommitted bytes (found reviewing the serena ignore, routed 2026-09-19)\n\n`scripts/sync_enforcement_to_projects.py` built `_head_source`/`_shipped_hash` after T12.17, whose\nown warning text records the incident: *\"this script … copied the WORKING TREE: an uncommitted\nedit — mine, or a sibling's — shipped to every project. Measured … 48 copies carried one.\"* That\nprotection covers files the sync COPIES, because they are read out of HEAD.\n\nThe `.gitignore` block is not copied — it is COMPUTED. `:153` calls `gitignore_block_text()`, an\nin-process call into the currently-imported `scripts/fabrik_synced_manifest.py`, i.e. its\nWORKING-TREE bytes; `src/fabrik/scaffold.py:550` does the same dynamic import for new projects.\nNeither goes through `_head_source`, and `fabrik_synced_manifest.py` is never itself a synced file,\nso no HEAD-vs-tree check ever runs on it. Executed against the live tree with that file uncommitted:\nthe `--dry-run` drift list named `PORTS.md, docs/PROJECT_CATALOG.md,\ntemplates/governance/.worktreeinclude` and did NOT name `fabrik_synced_manifest.py` — 0 occurrences\nin the whole dry-run output — while every one of the 46 `Would patch <project>'s .gitignore` lines\nwas computed from it.\n\nFailure scenario, on a tree three sessions share: a sibling has a half-finished or wrong edit to\n`fabrik_synced_manifest.py` sitting uncommitted, anyone runs the sync for real, and all 46 repos'\n`.gitignore` are patched with that content, silently, with no drift line. This is the exact\nincident T12.17 was built to prevent, reopened through a second code path in the same tool.\n`.worktreeinclude` is correctly protected (it IS a tracked file read via `_head_source`), which is\nwhat makes the asymmetry confirmed rather than assumed. **Destination:** infra — the fix is to\ncompute the block from HEAD's manifest (or to refuse to patch while the manifest differs from\nHEAD), and it lands on a governance-sync trigger, so it takes its own full `/fabrik-review`.",
+  "note": "migrated-digest:c32efdfa7663",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "The gitignore block bypasses the T12.17 \"never ship the working tree\" guard — 46 repos patched from uncommitted bytes (found reviewing the serena ignore, routed 2026-09-19)"
+}

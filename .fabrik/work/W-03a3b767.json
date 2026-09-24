@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-15T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-03a3b767",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] 15 of this plan's 66 phase-named commits carry no `Agent-Phase` trailer, so phase attribution under-reports its own work (2026-09-15, plan-2 Finish, found while assembling the archive Status line)\n\nMeasured over `git log 36da6bb4..HEAD`, kaizen commits excluded, by reading\n`%(trailers:key=Agent-Phase,valueonly)` per commit: **66 commits name a phase in their SUBJECT and\n15 of them (23%) carry no trailer** — Phase B ×1, Phase C ×9, Phase D ×5. Phases C and D were\ntherefore committed almost entirely without it, and\n`git log --format='%h %(trailers:key=Agent-Phase)'` — the query the trailer table exists to serve —\nshows those phases as empty. Assembling this plan's own archive Status line is what surfaced it:\nthe per-phase closer had to be recovered by subject grep instead.\n\n⚠️ **Why no check caught it, and why the obvious fix would not have:** every one of those commits\nwas made with the private-index recipe (`commit-tree` + `update-ref`), and that path runs **no\ncommit hook at all** — not pre-commit, not commit-msg. A `commit-msg` guard would have fired on\nexactly the commits that do not use it. The contract already says the trailers are \"yours to run by\nhand\" there; the gap is that nothing then checks the hand-written result.\n\n**Shape of the fix:** a repo-health check (Tier-3, advisory) that reads back the last N commits and\nreports any whose subject names a phase, a ticket or a review round while the corresponding trailer\nis absent — a POST-hoc audit, since the pre-commit seam is structurally unavailable on the one path\nthis repo mandates for shared-append files. Note the cobra before arming it: the cheapest way to\nsatisfy such a check is to stop naming the phase in the subject, which is worse than the gap — so it\nmust key on the plan-lock or the run record, not on subject text alone.",
+  "note": "migrated-digest:99e569ab9765",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "15 of this plan's 66 phase-named commits carry no `Agent-Phase` trailer, so phase attribution under-reports its own work (2026-09-15, plan-2 Finish, found while assembling the archive Status line)"
+}

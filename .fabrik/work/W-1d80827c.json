@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-09T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1d80827c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`docs_updater.py --check` reds the hub on `docs/TROUBLESHOOTING.md`** (2026-09-09, owner: infra) — stale 99 days; no in-scope edit clears it and a touch would be gaming — the doc needs `/fabrik-doc-converge docs/TROUBLESHOOTING.md`.",
+  "note": "migrated-digest:0e2b620371ca",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`docs_updater.py --check` reds the hub on `docs/TROUBLESHOOTING.md`** (2026-09-09, owner: infra) — stale 99 days; no in-scope edit clears it and a touch would be gaming — the doc needs `/fabrik-d..."
+}

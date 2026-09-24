@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-18T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6dabe316",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] `--queue fabrik-task`'s `unmeasurable` and `upgrade` shares are diluted by rows that cannot contribute (2026-09-18)** — both read `total = len(for_it)`, which counts every `fabrik-task` row including any written by a `command_run.py` predating the close-time re-measure: such a row carries neither `oversized_mini` nor `upgrade`, sits in the denominator, and can never enter either numerator. `unmeasurable 0/2` then reads \"no close failed to measure\" when the truth is \"no close was ever measured\". The `oversized_mini` rate already gets an honest denominator of its own (`over_n`, with the `—/0` guard); these two do not. Deliberately NOT fixed with T02's other findings: the reachability turns on whether pre-lane `fabrik-task` rows exist at all, which needs a ledger probe rather than a guess, and the fix is a disclosure decision (derive over rows carrying the key, or append `(of N rows, M pre-lane)`) that belongs with whoever makes it. Low-medium.",
+  "note": "migrated-digest:2a4953dc242c",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`--queue fabrik-task`'s `unmeasurable` and `upgrade` shares are diluted by rows that cannot contribute (2026-09-18)** — both read `total = len(for_it)`, which counts every `fabrik-task` row inclu..."
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-03T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-85c33d8a",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] ✅ RESOLVED 2026-09-03 (D-108) — `fabrik apply` and `fabrik plan`/`destroy` disagreed on the watchdog default\n\nMail 01M1G851DWCX35T5NSQXADQW0H, validated at `path:line` this run. `resolve_applicability` reads RAW\nyaml on the apply path and falls back to `True` (`infrastructure.py`, the `watchdog_cfg.get(\"enabled\", True)` gate in `resolve_applicability` — line numbers in that file shifted when the corrective comment landed, so it is cited by SYMBOL), while `WatchdogConfig.enabled`\ndefaults to `False` (`spec_loader.py:428`) and `fabrik plan` (`cli.py:360`), `audit.py:87`, `dev_tools.py:121`\nand the DESTROYER (`destroyer.py:532`) all arrive through `model_dump()`. So a spec that omits the block gets\na sidecar provisioned and reported \"not applicable\" — and the teardown replay is on the not-applicable side,\nso apply can create a sidecar destroy will not remove. **Measured: 34 of 72 `specs/services/*.yaml` omit the\nblock**, and a test pins the model default (`test_spec_loader.py:454`). A third intent exists and is\nunimplemented: `spec_loader.py:414/:417` cite a `_register_watchdog` dispatcher computing True for\nservice|worker|wordpress and False for static — no such dispatcher exists.\n\nThe false comment that hid this (the watchdog gate's own comment, \"WatchdogConfig.enabled defaults to True\") is\nFIXED this run, along with the module docstring; it had already propagated into\n`docs/infrastructure/vps-ai-sysadmin.md`, which infra has since corrected.\n\nRESOLUTION: the operator chose (a) — the MODEL default is now True (`spec_loader.py`), matching the apply\npath. No provisioning changed, because apply already behaved this way; `fabrik plan`, `audit` and the\ndestroyer now report what was actually created, so the teardown gap is closed. Both pinned tests flipped\nwith the reason inline, and the P2 sub-plan's original `False` is explicitly superseded (nine of its ten\nwatchdog defaults still hold). Rejected at the same time: (b) apply → False, which would have taken the\nsidecar away from 34 projects on their next apply and orphaned the existing containers; (c) the documented\ndefault-by-kind dispatcher, which was never built — still open as a follow-up if the kind matrix is ever\nworth encoding, and it is the only remaining reason to touch this field again.",
+  "note": "migrated-digest:890adfbb98c5",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "✅ RESOLVED 2026-09-03 (D-108) — `fabrik apply` and `fabrik plan`/`destroy` disagreed on the watchdog default"
+}

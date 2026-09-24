@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-12T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b06a09c0",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **Corpus prose residues RECORDED by pass 3's reviews (2026-09-12, owner: infra)** — the assembler's POOL-OFF banner prints a round recipe without `--confirmed` (11 of 36 sources); the empty-slot render guard covers `term-edit`'s four slots, not the inline-vs-append slot class (14 empty PARAMS values, all append-position); `fabrik-epics-review.md`'s Phase 5 bullet names a two-counter exit row while Phase 4 mandates the trio; the four inline `## Subagents` commands lack the git-verb sentence; `term-coverage.md:12/:34` restate the round shape and `:19`'s antecedent; `fabrik-execute-plan.md:533-537` floor-per-round and its `:575` per-ticket round line without `--confirmed`; `fabrik-catchup.md:198` old wording; hub-relative `commands/_fragments/…` paths in `fabrik-generate-tests.md`/`fabrik-review.md`; the after-text vocabulary split (\"closing round\" vs \"quiet closing round\"); the ROUTED-UP surface string and the description↔body trigger list have no grader; `SURFACE_SUFFIXES`/`_REDERIVATION_ROW` forms; `design-review.md:3` keeps \"no-op\" as a routing word and the `review` floor kind's Haiku sentence vs its per-screen fan-out.",
+  "note": "migrated-digest:63d9ae94a8c5",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Corpus prose residues RECORDED by pass 3's reviews (2026-09-12, owner: infra)** — the assembler's POOL-OFF banner prints a round recipe without `--confirmed` (11 of 36 sources); the empty-slot re..."
+}

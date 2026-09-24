@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.690586Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-35396e05",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "### [infra] A background Bash task inside a subagent is killed at ~1h with no signal to the caller\n\nFinding 2 of the same mail, measured: a wave driver died silently at 47 of 99 pages at exactly 60\nminutes and was recovered with `setsid nohup … & disown`. NOT independently reproduced by infra (it\nwould cost an hour to observe). Destination: one line in `.windsurf/rules/core/62-using-subagents.md`\ntelling a long driver to launch detached from the start — a fleet-synced pack, so it rides whatever\nchange next touches that file rather than a commit of its own.",
+  "note": "migrated-digest:baa99820a211",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "A background Bash task inside a subagent is killed at ~1h with no signal to the caller"
+}

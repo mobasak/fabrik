@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.159290Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e67c52cd",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **A confidence gate between one model answer and the curated catalog** (external-services review pass 39, DI3): the classifier writes a paid pool model's single answer straight into `scripts/service_catalog.json` as `status: active` — the first production run filed `argusmedia` (a commodities price-reporting agency) under `media-stock` on the word \"media\", and `--only` cannot re-dispatch a curated name, so a misfile is permanent without a hand edit (1 of 4 identifications that run; all 10 units were code-only hosts — 6 came back `unidentified` and were tombstoned once, never re-billed, 4 became permanent entries; the queue composition is by design, and until pass 40 the units ran with NO web tools — provider names where tool names go — so every answer was model recall). Options measured before building: a second-model vote on `category` only, or a `status: proposed` state the dashboard shows and a human flips. Blocked by: measuring the misfile rate over the next ~30 runs (338 queued at 10/run).",
+  "note": "migrated-digest:0c2d02443c4d",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**A confidence gate between one model answer and the curated catalog** (external-services review pass 39, DI3): the classifier writes a paid pool model's single answer straight into `scripts/servic..."
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-12T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6f409148",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **The record protocol's spontaneous-edit coverage gap (pass 3 spec D6, 2026-09-12, owner: infra)** — a review-family `done` covers the code edited since the previous AGENT-closed record, so an edit made BETWEEN a `blocked`/`handoff` close and the next `start` is covered by nothing; the corpus now routes up before any record exists and escalates in one shell line (`docs/reference/command-run-protocol.md` § The covered window), but no gate proves the window is closed — measure how often a spontaneous edit falls into it before adding a check.",
+  "note": "migrated-digest:26ade5bddbc9",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**The record protocol's spontaneous-edit coverage gap (pass 3 spec D6, 2026-09-12, owner: infra)** — a review-family `done` covers the code edited since the previous AGENT-closed record, so an edit..."
+}

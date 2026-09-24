@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.031672Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-211a112a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra/T16 decision]** **Nothing runs `scripts/enforcement/check_traycer_chain.py`** — 0 of ~40 `run_optional_check` registrations in final_gate.py, not in pre-commit; fleet-synced to ~46 repos where nothing invokes it, cwd-relative and fail-open from a wrong cwd (T09 r1). Decide: register it hub-side as an optional check (a project prints `PASS - 0 files`) or record the hand-run decision as a D-row. (T16)",
+  "note": "full-tag:[infra/T16 decision]; migrated-digest:6c2e4b67e19c",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Nothing runs `scripts/enforcement/check_traycer_chain.py`** — 0 of ~40 `run_optional_check` registrations in final_gate.py, not in pre-commit; fleet-synced to ~46 repos where nothing invokes it, ..."
+}

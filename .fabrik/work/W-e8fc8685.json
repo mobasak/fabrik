@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-13T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e8fc8685",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] An undelivered chain push retries every tick with no backoff — a dead notifier costs a spawn per account per tick (2026-09-13, owner: fleet)\n\nRecorded by the rotation refresh-chain review (round 4, Opus seat, receipt row X7): when the notifier is permanently broken (bad Telegram keys), `_chain_expiry_push` re-attempts every 5-minute tick for every chain inside 3 d of expiry — one `bash claude-sound.sh mesh-notify` spawn per account per tick (each may block on `curl -m 15`), plus one \"NOT delivered — send FAILED\" line per account per tick in `rotate-tick.log`. Correct (the operator must be told, and the notifier's window bounds delivered sends) but unbounded in spawns. Lean close: skip the attempt while the account's last attempt is younger than the notifier's 30-minute window (an attempt epoch beside the stamp), or suppress the repeated line after N identical reasons. Fire rate: 0 observed (the notifier has keys); the class is a dead notifier for days.",
+  "note": "migrated-digest:4e267ec3c12a",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "An undelivered chain push retries every tick with no backoff — a dead notifier costs a spawn per account per tick (2026-09-13, owner: fleet)"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-23T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-58ad9b30",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] The Stop hook's run-record cause reads a legitimate WAIT on a dispatched background Workflow or Agent as abandonment (2026-09-23)** — while `/fabrik-spec-review` round 1 waited on its review-loop workflow, `final_gate_stop.py`'s fifth cause blocked the turn three times (\"COMMAND STILL RUNNING\"). The only in-turn wait that passed was a foreground `until` loop. The kaizen stream holds 1,379 `stop_block cause=run-record outcome=warned_through` events in its 35 days (snapshot `docs/reference/research/2026-09-23-stop-compaction/stop-events-2026-09-23.json`), and some unknown share of them is this. It is the mirror of the premature-stop problem: a false BLOCK, not a false stop. The fix belongs to the run-record cause: treat a same-session background task still running (the Stop input's `background_tasks[]`, E1 of the spec below) as a legitimate wait. Out of scope of `docs/superpowers/specs/2026-09-23-stop-and-compaction-enforcement-design.md` (its Intake I17). Owner: infra.",
+  "note": "migrated-digest:0f581099b705",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**The Stop hook's run-record cause reads a legitimate WAIT on a dispatched background Workflow or Agent as abandonment (2026-09-23)** — while `/fabrik-spec-review` round 1 waited on its review-loop..."
+}

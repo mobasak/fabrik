@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-29T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4f0ea9af",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "~~**[infra]** **CI-parity Phase 4 — backfill existing projects with `ci_local.sh`**~~ ✅ **MOOT 2026-08-29** — the operator retired CI checks in every existing and future repo, so there is no workflow left to mirror. Every repo's check workflows are `disabled_manually` (verified fleet-wide: zero active), the scaffold no longer emits `ci.yml`, and enforcement moved to `final_gate` plus the hub's pre-push gate. I flagged this as likely-moot in the 2026-08-25 thread; it is now decided. Original text follows for the record. ~~: deferred from the same plan. New python scaffolds now auto-emit `ci.yml` + `ci_local.sh`. **Scope re-measured 2026-08-25 — the earlier \"~39 projects\" estimate was wrong by an order of magnitude, and counting only `ci.yml` undercounts it (repos also carry `test.yml`, `type-check.yml`).** Counting ANY `.github/workflows/*.yml`: **15 repos have workflows, 7 lack a local replica** — `fabrik` (the hub itself, 2 workflows), `proxy`, `trade-intelligence`, `youtube`, plus `rnfinal` / `rn-kit-sandbox` / `supplement-tracker-advisor` (13 workflows each — RN-template output, likely out of scope; confirm before touching). The remaining ~33 repos have no workflow at all, so there is nothing to mirror. Deliberately NOT a blind overwrite: a project's hand-rolled workflow must not be clobbered, and a faithful `ci_local.sh` must mirror *that* project's actual workflow (the generator renders from `CiConfig`, not by parsing an existing one). Blocked by: a small \"generate `ci_local.sh` from an existing workflow\" tool, or a per-project decision to adopt the generated `ci.yml`. Real remaining scope is **4 repos**, not 39 — small enough to do by hand if the tool is not worth building.",
+  "note": "migrated-digest:d76e01924d1a",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "~~ **CI-parity Phase 4 — backfill existing projects with `ci_local.sh`**~~ ✅ **MOOT 2026-08-29** — the operator retired CI checks in every existing and future repo, so there is no workflow left to ..."
+}

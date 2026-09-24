@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-01T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c9515d21",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] The git-isolation scrub has no end-to-end regression test (2026-09-01, owner: infra = me)\n\n`tests/conftest.py`'s `pytest_configure` strips 14 `GIT_*` vars session-wide after incident\n`f7627885` (a red-on-revert experiment's `git add -A` committed a sibling's WIP to master).\n`tests/enforcement/test_git_env_isolation.py` asserts the scrub and the resulting behaviour — but\n**both of its tests are green with the scrub reverted** under normal invocation, because nothing in\na normal environment sets `GIT_DIR`; they only red when the harness itself is started with it, and\nno gate does that.\n\n**The attempt and why it failed:** spawn a victim repo, run a NESTED pytest with a hostile\n`GIT_DIR`, assert the victim's modified file is still UNSTAGED (` M`, not `M `). It red-failed\nagainst correct code — the nested test file was written under `tmp_path`, which is outside the\n`tests/` tree, so `tests/conftest.py` never loaded for it. It measured an unprotected process and\nblamed the scrub. Writing the nested file inside `tests/` would work but is a tree mutation this\nsuite should not make mid-run.\n\n**Current proof status:** the scrub is verified by a MEASUREMENT recorded in `d36239cc` (decoy repo,\npytest under a hostile GIT_DIR, victim HEAD and index confirmed unchanged) — not by a regression\ntest. So a future edit that deletes the scrub ships green.\n\n**Shape of the fix:** a session-scoped fixture that writes the nested test into a temp dir *inside*\n`tests/` and removes it afterwards, or a `pytest_configure` unit test that asserts the hook is\nregistered and pops the right keys from a synthetic environ. The second is weaker but has no tree\nmutation.\n\n**Trigger:** next time anything touches `tests/conftest.py`, or the next git-isolation incident.\n\n---",
+  "note": "migrated-digest:1a1d1add5034",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The git-isolation scrub has no end-to-end regression test (2026-09-01, owner: infra = me)"
+}

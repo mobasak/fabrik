@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-18T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f4cad1f2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] The Bash tool persists large output to a `$HOME`-rooted `.claude*` path and instructs the agent to read it — which every subagent brief on this box forbids (2026-09-18)** — hit by two review seats in one run (a 50.6 KB and a 36.3 KB command output). The prohibition exists because such a read stalls a seat indefinitely; the seats correctly declined and re-sliced with `sed`, at a real cost in turns. There is no way to tell the tool the destination is out of bounds. Worth raising with the harness, or documenting the `sed`-offset workaround in the subagent brief fragment. Medium.",
+  "note": "migrated-digest:78a609052980",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**The Bash tool persists large output to a `$HOME`-rooted `.claude*` path and instructs the agent to read it — which every subagent brief on this box forbids (2026-09-18)** — hit by two review seat..."
+}

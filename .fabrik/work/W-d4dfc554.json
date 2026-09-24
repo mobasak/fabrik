@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.147748Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d4dfc554",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[fleet]** **propose/ack peer-protocol verbs** (trio plan Phase 5, deferred): Today the cross-host destructive bridge is operator Telegram `reply \"go\"`. Build the `propose`/`ack` HTTP verbs in aro-wake only when a real incident proves the bridge is insufficient — don't speculate. The \"real cross-host destructive action\" use case hasn't shown up yet. Blocked by: first real incident where consult-only + operator-bridge is provably too slow.",
+  "note": "migrated-digest:3fe209aa2945",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "**propose/ack peer-protocol verbs** (trio plan Phase 5, deferred): Today the cross-host destructive bridge is operator Telegram `reply \"go\"`. Build the `propose`/`ack` HTTP verbs in aro-wake only w..."
+}

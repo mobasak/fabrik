@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-10T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d44d0d7e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`command_run.py` TERMINAL banner says \"swept every known class (a, b) clean\" when the closing round swept only one and the rest stood clean from an earlier round** (2026-09-10, owner: infra). Found by the review-family adoption spec's pass-4 seat by probe (`:407-409`): under D-207's one-seat delta close the banner hands the closer a sentence asserting a sweep that did not happen, and a receipt that copies it carries a false coverage claim. Fix: print swept-this-round and standing-clean separately; red-first test on a two-class record.",
+  "note": "migrated-digest:2382a9c1766e",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`command_run.py` TERMINAL banner says \"swept every known class (a, b) clean\" when the closing round swept only one and the rest stood clean from an earlier round** (2026-09-10, owner: infra). Fou..."
+}

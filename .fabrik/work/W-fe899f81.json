@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fe899f81",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] Stop hook: a `>`-quoted footer line inside a `BLOCKED:` escalation ends its field window early (2026-09-24)** — `.claude/hooks/final_gate_stop.py::_blocked_header` (D-391) ends the `searched:`/`missing:` window at the first footer line outside a quoting FENCE, but `_FOOTER_KEY_RE` also matches a `>`-quoted `> NEXT:`, so `BLOCKED: x —\\n> NEXT: example\\nsearched: a — missing: b` is refused although formatted (the D-391 review's pass 3, A-S3, recorded under the scope-growth stop). Measured: 0 of the 9 exempted corpus turns use a `>` line; a wrong refusal still releases after 3 attempts (CAP). Revisit at the V4 reading (2026-09-30): if `>`-styled escalations appear, treat `>` lines as the escalation's own for BOTH the header and the window end. Owner: infra.",
+  "note": "migrated-digest:8f13ca6f0003",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Stop hook: a `>`-quoted footer line inside a `BLOCKED:` escalation ends its field window early (2026-09-24)** — `.claude/hooks/final_gate_stop.py::_blocked_header` (D-391) ends the `searched:`/`m..."
+}

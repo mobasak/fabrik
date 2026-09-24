@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-05-25T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fd1c7f7a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[fleet]** **PostgreSQL 16 → 18 upgrade** (WSL dev + VPS hub): plan at [`archived/2026-05-25-postgresql-18-upgrade.md`](development/plans/archived/2026-05-25-postgresql-18-upgrade.md). Created 2026-05-25, never started. 14 dbs on `postgres-main` would need pg_dumpall → PG18 cluster bootstrap → restore + verify, plus matching upgrade on the WSL dev DB to keep \"same code in 3 envs\" valid. PG16 reaches EOL November 2028 so there's no urgency; the existing setup is healthy. Blocked by: (a) a focus window of 2–3 hours, OR (b) a real PG18-only feature need (none today). When ready, unarchive the plan and run.",
+  "note": "migrated-digest:1f6d760e62b0",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "**PostgreSQL 16 → 18 upgrade** (WSL dev + VPS hub): plan at [`archived/2026-05-25-postgresql-18-upgrade.md`](development/plans/archived/2026-05-25-postgresql-18-upgrade.md). Created 2026-05-25, nev..."
+}

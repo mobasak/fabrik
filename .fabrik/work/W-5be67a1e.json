@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-25T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5be67a1e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **Plan-stage pack-routing gaps** (transdoc `01M0WN9RXJJY9SDQTF8183GTYW` items 4a–4c, filed 2026-08-25 with the inert-glob findings; the glob class itself is fixed — 15/75 by the D7 plan, 86 this sitting — these three are the COMMAND-CORPUS half): (4a) plan-time pack routing is by ticket TOPIC, not the ticket's FILES — `review_rubric.py --changed` already maps paths→packs but runs only at review time; teach `select_rules.py` a `--changed`, or have `/fabrik-plan-after-chat` route packs per ticket via `review_rubric.py --changed` on the ticket's declared files, and `/fabrik-plan-review` diff glob-matched packs against each ticket's Context Files (non-empty difference = finding). (4b) a Constraints Digest may cite a pack and drop its HARD STOPs in summarisation — transdoc's spine cited 15-api-contracts and kept only the RFC 9457 clause, dropping the codegen ban that would have prevented 19 phantom frontend calls; require a cited pack's Banned Patterns verbatim in the Digest. (4c) `/fabrik-execute-plan` D7 is satisfiable by green suites alone — no step requires one live request against a running service; transdoc's whole finding list came from a one-minute read of `app.openapi()[\"paths\"]` that no gate ever forced. Blocked by: next command-corpus focus window.",
+  "note": "migrated-digest:31d1695e4c27",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Plan-stage pack-routing gaps** (transdoc `01M0WN9RXJJY9SDQTF8183GTYW` items 4a–4c, filed 2026-08-25 with the inert-glob findings; the glob class itself is fixed — 15/75 by the D7 plan, 86 this si..."
+}

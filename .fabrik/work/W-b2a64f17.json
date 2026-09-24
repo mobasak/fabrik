@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-12T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b2a64f17",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`command_run.py` gaps found by pass 3's Phase B heavy review (2026-09-12, owner: infra)** — `_parse_usage_feedback` accepts a verbatim unfilled `<…>` placeholder as a field value (3 of 4 printed-label `--feedback` templates always had this property; a one-line `re.fullmatch(r\"<.*>\", value)` → empty closes it, red on the fabrik-review.md:32 literal); `_USAGE_GRAMMAR` does not round-trip through its own parser (the optional `[· cost: …]` brackets land inside `filed`/`cost`); the seats advisory fires in a scratch env; `_trend_label` is unused by the FEEDBACK head; `:391` (the MIXED-record consequence) is not cited beside `:384`/`:398-404` in the scoped command; `--evidence` is free text (row above: no `--unexecuted`).",
+  "note": "migrated-digest:c6671cee1750",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`command_run.py` gaps found by pass 3's Phase B heavy review (2026-09-12, owner: infra)** — `_parse_usage_feedback` accepts a verbatim unfilled `<…>` placeholder as a field value (3 of 4 printed-..."
+}

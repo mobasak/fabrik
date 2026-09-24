@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-03T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d094ed8f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] Existing fleet projects have no `.dockerignore` — the scaffold fix only covers NEW ones (2026-09-03, owner: fleet)\n\nThe scaffolder now emits `.dockerignore` at the build context root for every Dockerfile-bearing project\n(`_ensure_dockerignore`, one place, graded). That fixes new scaffolds only. Every project scaffolded before\ntoday as `node-api`, `file-api`, `file-worker`, `desktop-app`, `docusaurus`, `python-api-gpu` or\n`office-extension` still has none, and their Dockerfiles do `COPY . .` while the VPS deploys by `git pull`\ninto a long-lived working tree — so a gitignored `.env`, `node_modules/` or `dist/` surviving a pull is\nbaked into the image. Backfill wants: an enumeration of affected repos (Dockerfile present, `.dockerignore`\nabsent), the file added per repo, and a decision on the delivery path — the governance sync does not carry\nproject-local build files today, so it is either a one-off scripted pass or a new synced-manifest entry.\nMail 01M1M9CYEHA55DQP03081X09HS (infra, pass 61).",
+  "note": "migrated-digest:1dec81d8ed5b",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "Existing fleet projects have no `.dockerignore` — the scaffold fix only covers NEW ones (2026-09-03, owner: fleet)"
+}

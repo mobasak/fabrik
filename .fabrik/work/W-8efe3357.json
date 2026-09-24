@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-09T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8efe3357",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **Reconciler seats cite doc lines by bare number and drift 1–2 lines from the working file** (2026-09-09, owner: infra) — every fix of the T10 docs review was re-anchored by content; the `/fabrik-docs-review` brief template should demand a quoted anchor beside every line number.",
+  "note": "migrated-digest:4641f90349b8",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Reconciler seats cite doc lines by bare number and drift 1–2 lines from the working file** (2026-09-09, owner: infra) — every fix of the T10 docs review was re-anchored by content; the `/fabrik-d..."
+}

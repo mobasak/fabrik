@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-02T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-292f047a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Hub `docs/FEATURES.md` documents 9 of the 33 rendered commands as features (2026-09-02, owner: infra)\n\nMeasured by the `/fabrik-features` REFRESH after plan 2026-09-01-plan-1: `grep -c \"/<command>\\b\" docs/FEATURES.md`\nover the 33 rendered `~/.claude/commands/*.md` → 7 covered before that run, 9 after it (the new Deployment Verification\nsection names `/fabrik-deploy-checklist` and `/fabrik-features`); 24 commands appear in no feature section (the\n`/fabrik-spec → … → /fabrik-service-test` pipeline, `/fabrik-execute-plan`, `/fabrik-rivals`, `/fabrik-docs-review`, …);\nthe covered set is the deploy family, `/fabrik-review`, `/fabrik-release`, `/fabrik-upstream` plus those two.\nThe file is shaped as narrative feature sections (Status/Audience/Since + Headline + What/How/Technical), not a\nper-command registry, and its \"9-Step Workflow\" section still describes the retired Traycer-era flow. Deferred, not\nabsent: a \"Command pipeline\" feature section grounded per command (the corpus is infra's beat; `capabilities.json`\nalready enumerates the surface — `docs/CAPABILITIES.md` is the machine index, `FEATURES.md` the customer-facing claim).\nTrigger: the next hub `/fabrik-features` REFRESH that is not scoped to a single plan.",
+  "note": "migrated-digest:10cad37e589d",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Hub `docs/FEATURES.md` documents 9 of the 33 rendered commands as features (2026-09-02, owner: infra)"
+}

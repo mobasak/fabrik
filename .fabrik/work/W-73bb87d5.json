@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-09T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-73bb87d5",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **Plan-review machinery findings from the review-convergence plan set (2026-09-09, owner: infra)** — four seat-reported frictions, none a plan defect: (1) `scripts/enforcement/check_review_coverage.py:1647` prints \"N staged review artifact(s)\" on the explicit-`paths` branch (`main()` `:1628`) that never consults the index — two pass-4 seats spent a probe checking whether it had graded a sibling's staged file; say \"explicitly-named\"; and `_is_separator` is nested inside `_table_rows` (`:141`), so a harness loading the gate by `spec_from_file_location` must retype the separator test the file's own round-69 doctrine (`:1005-1009`) forbids retyping — hoist it. (2) `commands/assemble_commands.py` has no importable package path (`ac.render` needs `sys.path.insert(0, '/opt/fabrik/commands')`, as `tests/test_assemble_dispatch_step.py:53` does) and `render()` prints the destination banner on a `tmp_path` render too, so a test render is indistinguishable in a log from the box-wide render CLAUDE.md § Merge-time render treats as destructive — a `quiet=` or dest-is-temp suppression. (3) `scripts/enforcement/check_plan_tickets.py --plan-dir <scratch copy>` discards `--project-root` under a plans-layout scratch path and prints no per-ticket read_bytes, so a reviewer pinning a set cannot see the READ sum the gate computed. (4) `commands/assemble_commands.py --check` diffs the current tree's `_sources/` against the box-wide `~/.claude/commands` from ANY worktree, so a branch check reports master's drift. Measure each fire rate before adding a mechanism; (1) and (3) are one-line wording/print changes.",
+  "note": "migrated-digest:d3d5bdc96775",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Plan-review machinery findings from the review-convergence plan set (2026-09-09, owner: infra)** — four seat-reported frictions, none a plan defect: (1) `scripts/enforcement/check_review_coverage..."
+}

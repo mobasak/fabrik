@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-25T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d906c76a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **Store-terminal adjudication** (deploy-triad recorded residual): the plan-frozen release NEXT routes STORE surfaces post-submit to `/fabrik-deploy-verify`, whose contract is spec-driven VPS-only — a store agent dead-ends cleanly at target resolution. Options: a store analogue inside deploy-verify, or reword the store terminal across all FOUR encoding surfaces (NEXT dict + release body line + § Pipeline parenthetical + 6-release stage row, the latter two in BOTH CLAUDE.md copies). Blocked by: first real store-surface release (mobile-app etc.). **PARTIALLY CLOSED 2026-08-25 — the live dead-end is fixed; the analogue stays blocked.** `/fabrik-deploy-verify` Phase 0 now opens with a SURFACE GUARD: a store-surface target stops with a clean hand-back naming what a store release actually needs verified (build provenance from a pushed SHA, vendor-console review/rollout state, first-ring crash/ANR) instead of failing at step 1 on a `specs/services/<id>.yaml` that store types never have — which read as a missing file rather than an inapplicable command. Same rule as the enforcement-battery audit: a command that cannot ask its question must SAY so. **Still open and still correctly blocked:** the store ANALOGUE itself, plus the four-surface reword — grounding what it should probe needs the first real store release, and the guard now makes the aspirational routing honest at the point of use meanwhile.",
+  "note": "migrated-digest:0ff9d25f6194",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Store-terminal adjudication** (deploy-triad recorded residual): the plan-frozen release NEXT routes STORE surfaces post-submit to `/fabrik-deploy-verify`, whose contract is spec-driven VPS-only —..."
+}

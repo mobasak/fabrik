@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-10T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-44f38118",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`check_review_coverage.py:19-20` docstring documents the retired command-name sniff (2026-09-10, owner: infra)** — it says a changed reviews/*.md naming `/fabrik-review` with NO Coverage Checklist fails; the sniff was retired at round 27 (`:487-494`) and `check_file()` returns `[]` for such a file (executed by the Phase A round-10 Opus seat). Fleet-synced; one docstring edit.",
+  "note": "migrated-digest:9c79d0ec8b36",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`check_review_coverage.py:19-20` docstring documents the retired command-name sniff (2026-09-10, owner: infra)** — it says a changed reviews/*.md naming `/fabrik-review` with NO Coverage Checklis..."
+}

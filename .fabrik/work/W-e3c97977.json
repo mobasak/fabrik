@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-03T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e3c97977",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] Scaffolded `pause_state.py` fails OPEN with no counter and no log line (2026-09-03, owner: fleet)\n\nMail 01M1GGBFSHSNBRDH961QYZ1XQK. `templates/scaffold/python/pause_state.py:50-60` returns None on any\nRedis exception and every caller swallows it (`:84`, `:105`, `:117`), so when redis-main is unreachable\nevery pause flag reads \"not paused\", the workers un-pause, and nothing records that it happened. Fail-open\nis the right POSTURE for a guard that optimises — the finding's own point is that the posture must be\nDECLARED and COUNTED, not silent (`58-resilience` now requires exactly that). Fix shape: one counter +\none WARN log at the degrade point, and the docstring naming the posture. Emitted into every python-api and\nfile-worker project, so it ships through the scaffolder with a regression test.",
+  "note": "migrated-digest:f5007f7fa362",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "Scaffolded `pause_state.py` fails OPEN with no counter and no log line (2026-09-03, owner: fleet)"
+}

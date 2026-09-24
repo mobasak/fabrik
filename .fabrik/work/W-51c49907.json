@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-19T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-51c49907",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## The ignore-only set is an opt-OUT, so a new gitignore group still defaults to \"distribute it\" (routed 2026-09-19)\n\n`IGNORE_ONLY_GITIGNORE_GROUPS` keeps a group out of `.worktreeinclude`, and the serena change added\na guard that refuses a state where a declared ignore-only group does not exist. That closes the\nORPHAN direction. It does not close the other one, and a review seat executed the gap: add a new\ngroup to `gitignore_dest_paths()`, leave it out of the set, then regenerate the tracked template\nwith the exact command the test's own failure message prints — the suite goes 28/28 green and the\nnew paths are shipped into `.worktreeinclude` for ~46 repos. The documented workflow IS the escape.\n\nThe mechanism's own comment already admits the default was never inverted (\"it moved the EDIT SITE,\nit did NOT invert the default\"), and admitting it is not the same as closing it in a mechanism whose\npurpose is to stop silent distribution. The smallest shape that closes it is an explicit\nclassification: a second constant naming the groups that ARE distributed, and a guard requiring\nevery group key to appear in exactly one of the two sets — so a new group is a loud refusal until a\nhuman picks a side. That is a change to a governance-sync path and takes its own full review; it was\ndeliberately not bundled into the serena change at its third round. **Destination:** infra.",
+  "note": "migrated-digest:9455c6cd8ceb",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "The ignore-only set is an opt-OUT, so a new gitignore group still defaults to \"distribute it\" (routed 2026-09-19)"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-11T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e003ff86",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`check_plan_tickets.py`: a WARN when a ticket's `Scope` re-narrates a spec section instead of citing it (2026-09-11, owner: infra)** — the adoption plan's § Out of Scope (D8, the `/fabrik-plan-after-chat` emit rule: tickets CITE spec sections, never re-narrate). No fire rate yet: measure over the next 5 spec-fed plans before arming; the rule is a WARN by construction (a cite-only Scope with the spec section's own words is legitimate).",
+  "note": "migrated-digest:2fb70a243b4d",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`check_plan_tickets.py`: a WARN when a ticket's `Scope` re-narrates a spec section instead of citing it (2026-09-11, owner: infra)** — the adoption plan's § Out of Scope (D8, the `/fabrik-plan-af..."
+}

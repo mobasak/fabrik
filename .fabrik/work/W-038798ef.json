@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-02T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-038798ef",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] check_subagent_flywheel: on shared master the cycle boundary is HEAD** (2026-09-02, /fabrik-review):\n  the check counts local-ledger pool rows newer than `merge-base HEAD <ref>`, which on a shared master\n  with no branch is HEAD itself — so a SIBLING's commit at 13:34 made this session's four pool review\n  rows from 13:19 \"not this cycle\" and the gate BLOCKED a run that had used the pool minutes earlier.\n  Measured once; the fix candidates (key the window on the staged files' oldest mtime, or on the last\n  commit AUTHORED by this session) need a fire-rate measurement before shipping (FIX verb 5). Until\n  then a later-pass pool dispatch re-satisfies it.",
+  "note": "migrated-digest:6aa243bad378",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**check_subagent_flywheel: on shared master the cycle boundary is HEAD** (2026-09-02, /fabrik-review):"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-09T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4884ee2c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`command_run.py`: adoption of `--confirmed` is a property of ONE record** (2026-09-09, owner: infra) — a `handoff`/`blocked`/`done` then a fresh `start` opens an un-adopted record whose bare `--findings 0` round closes under the old rule (T10 review round 2, executed; by design under D-203 R9 — the F343 class, rounds reset on a resume while the events log keeps the series). A resume inheriting the prior record's adoption from the events log is the fix if the escape is ever observed live; measure first.",
+  "note": "migrated-digest:296c69b069d1",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`command_run.py`: adoption of `--confirmed` is a property of ONE record** (2026-09-09, owner: infra) — a `handoff`/`blocked`/`done` then a fresh `start` opens an un-adopted record whose bare `--f..."
+}

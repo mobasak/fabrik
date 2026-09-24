@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-06-08T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-baca96e9",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "| ~~**L**~~ | `[fleet]` | ~~**`fabrik vultr` — on-demand VPS provisioning**~~ ✅ **SHIPPED 2026-06-08** (commits `93de0fc` → `963beb7`). All 6 phases live: VultrClient driver covering every product line (incl. Bare Metal), state store + `list/status/reconcile/cleanup`, disposable `drill bare/spoke/hub` (auto-destroy via try/finally), permanent `provision <name>` (interactive confirm), `destroy <name> --reverse-fleet-add` (full unwind), `cost` command + weekly maintenance cron. 36 unit tests; drill bare + drill spoke live-proven end-to-end. Quick reference at [`docs/reference/fabrik-vultr.md`](reference/fabrik-vultr.md). | Implementation done. What this **does NOT** close on its own: the two M-tier items above — those need an actual measured live run, not just shipped code. | Shipped — no further action on the implementation itself. |",
+  "note": "migrated-digest:5f8e5bb3b339",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "~~**`fabrik vultr` — on-demand VPS provisioning**~~ ✅ **SHIPPED 2026-06-08** (commits `93de0fc` → `963beb7`). All 6 phases live: VultrClient driver covering every product line (incl. Bare Metal), s"
+}

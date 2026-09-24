@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.767120Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-bdfbe63b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] The private-index commit recipe is a SCRIPT written as prose, and each review round finds more transcription defects in it\n\nRouted here by the D-252 scope-growth stop at the close of Phase C's review (receipt\n`docs/development/reviews/2026-09-14-plan-2-mail-triage-phase-C-review.md`). Three rounds found, in\nthe SAME seven prose steps: a compare-and-swap that can never fire (`update-ref … HEAD` resolves to\nthe branch being updated, so it destroys a sibling's in-window commit at rc 0); a realign that reset\nthe throwaway index because `GIT_INDEX_FILE` was still exported; a carry-back whose one-command\nreading (`cp`) wipes the sibling WIP the recipe exists to protect; a `printf` that puts the hunk in\nthe FORMAT position and eats any `%`; an APPEND that relocates a CHANGELOG entry below the released\nsections; a step that dies on a path new to HEAD; an assert against the wrong ref; and a `-F msg`\nnaming a file no step creates. Every one was found by EXECUTING the steps, and every fix was more\nprose. The class is transcription, and prose cannot be executed or tested.\n\n**Do:** make it a new script under `scripts/` — `shared_tree_commit.sh` or the `.py` equivalent — with graders — captured `$base`, private\nindex, mode fallback, CAS against `$base`, `env -u` realign, an insert-not-append carry — and leave\nONE sentence plus a pointer in `CLAUDE.md` § Shared repo and its `templates/governance/` twin.\n**Why it was not done in-run:** a new fleet-synced mechanism is SPEC/PLAN work per § Behavior's\nSIZING rule, not a round-3 in-run fix. **Bonus:** it also fixes the fleet-template bloat below.",
+  "note": "migrated-digest:5f18e946b1b2",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The private-index commit recipe is a SCRIPT written as prose, and each review round finds more transcription defects in it"
+}

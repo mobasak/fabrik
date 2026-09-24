@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-08T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e6df081b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **hub/template CLAUDE.md divergences outside the D-191 surface** — the doc-script-coupling bullet (hub current, template an older shorter wording) and the \"The flow:\" intro (template carries a rivals-resolution clause the hub lacks); found by the round-14 governance seat 2026-09-08 (F334). Decide per divergence: deliberate hub-vs-project difference (say so in the template) or drift (mirror it).",
+  "note": "migrated-digest:2fccb94fcbfc",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**hub/template CLAUDE.md divergences outside the D-191 surface** — the doc-script-coupling bullet (hub current, template an older shorter wording) and the \"The flow:\" intro (template carries a riva..."
+}

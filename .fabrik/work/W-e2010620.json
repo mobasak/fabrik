@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.727301Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e2010620",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] `# AFTER-EDIT:` needs a SYMMETRIC coupling it can opt into — blanket symmetry was measured and rejected\n\nwef2 reported (01M1V2P02) that the coupling is directional and points the wrong way for how the\nfiles actually change: a checker script is stable, the DATA it measures churns, so editing\n`packages/sections/registry.json` without the section-registry reference doc beside it (both\npaths are wef2's repo, not this one) satisfies every\ncheck while breaking exactly the coupling the header declares. Their diagnosis is correct and the\nlive instance was real — a doc went nine places stale with the coupling declared and silent.\n\n**The obvious remedy — inspect the header whenever ANY file it names is staged — was measured over\n1,037 commits since 2026-09-01 and REJECTED** (T12.14, 2026-09-14):\n\n| variant | fires on | share |\n|---|---|---|\n| every named file | 591 commits | 57 % |\n| minus the Doc-Sync sinks (CHANGELOG, INDEX, DECISIONS, …) | 383 commits | 37 % |\n| minus sinks and every `docs/` path | 276 commits | 27 % |\n\nThe top trigger is `CHANGELOG.md` — named by exactly ONE header (`ci_fix_dispatcher.py`) and\ntouched by almost every commit, which is also why a fan-in heuristic does not help (fan-in 1 still\nfires 52 %). At 27 % a WARN line is noise that teaches readers to skip the block, and that is how\nenforcement dies. Rejecting a mechanism after measuring is a valid outcome (FIX DIRECTIVE 5); the\nnumbers are recorded in `check_script_headers.py`'s own docstring so the next person does not\nre-derive them.\n\n**Do — spec-sized, not a patch:** let a header declare the symmetric half explicitly, e.g.\n`# AFTER-EDIT: <the doc> | SYMMETRIC: <the data file>`, so the author opts in\nexactly where the coupling really is bidirectional. False positives are then zero by construction\nand the fire rate is whatever authors declare. It needs a grammar decision, a parser change, a\nmigration story for the 150 headers that already carry couplings, and its own graders — which is\nwhy it is filed rather than half-built inside a WARN check.",
+  "note": "migrated-digest:4f84779502fe",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "`# AFTER-EDIT:` needs a SYMMETRIC coupling it can opt into — blanket symmetry was measured and rejected"
+}

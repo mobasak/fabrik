@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.372233Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e31f7f4a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[intel→fabrik-lib] fanout resilience** (01M1CGKVWC): pre-flight credits check, 402/404 unit\n  re-route to next ranked model, dead-unit count surfaced in the return. OPERATOR: OpenRouter\n  credits tail is SPENT — top-up needed.\n- **I1 watch item** (01M1CCNMGT): auto-mode permission-classifier outages (31× in one project) are\n  indistinguishable from agent stalls — harness-level; watch for recurrence post-CLI-updates —\n  and it fired AGAIN on this very session while this row was being written.",
+  "note": "full-tag:[intel→fabrik-lib]; migrated-digest:b4cb61c65d5b",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "**fanout resilience** (01M1CGKVWC): pre-flight credits check, 402/404 unit"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-04T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e07a234c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] 23 of 32 vps1 containers have NO CPU limit, and two bounded containers sit near their ceiling (2026-09-04, owner: fleet)\n\nMeasured live 2026-09-04 while specifying the memory-limit fix. `core/30-ops.md:186` mandates\n`deploy.resources.limits.memory` **and `cpus`** together; the checklist treats them as one row. The\nmemory half is being closed by\n`docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md`; the CPU half is not.\n`docker inspect -f '{{.HostConfig.NanoCpus}}'` returns 0 for **23 of 32** containers (re-derived live 2026-09-05; was 28 of 37 before the `ocoron-com` removal, D-121). Deliberately\nscoped OUT of that spec: an unbounded CPU degrades neighbours, while an unbounded memory ceiling\nlets one container trigger a host-level OOM kill that takes an arbitrary subset of all 37 down —\ndifferent severity, different urgency. Whoever picks this up should reuse that spec's Part C check,\nwhich already enumerates every defined container and would only need a second predicate.\n\n**Watch item from the same sweep (bounded, but close):** `trytond-worker` at 315.5 MiB of its 512 MiB\nlimit (61.6%) and `glitchtip-web` at 242.7 MiB of 512 MiB (47.4%). The netdata guidance treats\nsustained usage above 80% of the limit as the warning threshold, so neither is urgent — but these are\nthe two containers whose ceilings are most likely to be genuinely too LOW, which is the opposite\nfailure from the one the memory spec addresses and would show up as an OOM kill, not a host stall.",
+  "note": "migrated-digest:2f0fcb27a655",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "23 of 32 vps1 containers have NO CPU limit, and two bounded containers sit near their ceiling (2026-09-04, owner: fleet)"
+}

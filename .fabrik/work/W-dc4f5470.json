@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-28T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-dc4f5470",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[fleet]** **Scaffold a captured-event GlitchTip secret-leak test (+ vacuity guard)** (tryton-crm `01M145D3N`, passed back 2026-08-28 after fixing the emitter leak `f273064c`). The emitter now sets `include_local_variables=False` + `max_request_body_size=\"never\"` (Python) / `includeLocalVariables:false` (Node), and the hub test asserts the emitted INIT carries them — but no scaffolded project verifies its own RUNTIME behavior on the captured event. tryton-crm built exactly this (`tests/test_glitchtip_no_secret_leak.py`, verified d2ca9d9) and flagged two things the scaffold should emit for every DB/auth project: **(1) a kept VACUITY GUARD** — a second test that re-runs the same capture with `include_local_variables=True` and asserts the secret DOES appear, so a green leak-test can't certify nothing when the SDK's capture path changes (~10 lines); **(2) a Transport SUBCLASS, not a callable** — sentry-sdk 2.64 deprecated function transports, and a security test that silently stops capturing on an SDK bump is the worst failure mode. Candidate: emit `tests/test_glitchtip_no_secret_leak.py` from the fastapi-backend scaffolder (mirror the `_TEST_DB_GUARD_CONFTEST` emission pattern) + a hub test asserting the emission. Blocked by: a focus window; the emitter leak itself is already fixed fleet-forward, this is per-project self-verification.",
+  "note": "migrated-digest:8aacc56b882e",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "**Scaffold a captured-event GlitchTip secret-leak test (+ vacuity guard)** (tryton-crm `01M145D3N`, passed back 2026-08-28 after fixing the emitter leak `f273064c`). The emitter now sets `include_l..."
+}

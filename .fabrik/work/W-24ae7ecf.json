@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.779129Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-24ae7ecf",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] A review's `--surface` is fixed at `start`, so a long review outgrows its own exemption\n\nT5.2 (`_surface_reviewed`) exempts the files a RUNNING review-family record NAMES. The name list is\nwritten once by `start` and no verb updates it. DEMONSTRATED THREE TIMES IN ONE SESSION, 2026-09-14 — which is the whole argument for fixing it:\nonce in Phase C's review and TWICE in Phase D's, the second time\nwith 1 of 7 unnamed because a round-2 fix reached `commands/_sources/fabrik-review.md`, a file the\nsurface could not have named at `start` because the need for it did not exist yet. That is the\nshape: a review's own fixes REACH, and a name list written before the reaching cannot follow.\nPhase C's own review demonstrated it first on the\nsession running it: the surface was written at round 1 naming six files, rounds 1–3 pulled in three\nmore as the fix spread to the writer half, and the Stop hook's sixth cause fired mid-round-3 —\nand the receipt's own row (`C3-R5`) records \"exempts 4 of the 8 files this review edited and leaves 3 unnamed\". ⚠️ Those numbers do NOT reconcile and this row will not pretend they do: six named plus three pulled in is 9 files, the row says 8 edited, and 4 + 3 is 7. An earlier cut of this row \"fixed\" it by writing 4 + 4 = 8 — a number invented to make the arithmetic close, which is the very defect the row above names. The SHAPE is what is demonstrated and the shape is not in doubt; re-deriving the population at that moment is the first step of this row, and it cannot be done from the receipt alone. The longer and more thorough the review, the more of its\nown work reads as spontaneous. **Do:** let the exemption also cover paths the record's own\n`review-fix` commits touched, or add a verb to widen a running record's surface.\n\n⚠️ **And the same gap has a TIME axis, measured 2026-09-14 by reproducing the sixth cause in-process.** Of this session's 29 post-floor edits, exactly **one** file is uncovered: `scripts/final_gate.py`, edited 09-12 15:45:36. That edit was committed in Phase B's own `b3f96c8e`, reviewed by Phase B's 14-round `/fabrik-review`, fixed again by that review at `bb995e60`, and its receipt names the file **13** times — so it is reviewed in substance and uncovered in the ledger, because the review record's window opens AFTER the edit event it reviewed. The name axis (this row) and the time axis are one mechanism: coverage is computed from when the record ran, never from what the record read. A fix that only widens the surface leaves this half open.",
+  "note": "migrated-digest:82e760fbe410",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "A review's `--surface` is fixed at `start`, so a long review outgrows its own exemption"
+}

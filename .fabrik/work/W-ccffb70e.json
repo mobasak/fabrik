@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-19T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ccffb70e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## serena auto-creates a single-language project, and `.serena/` is missing from the fleet-synced gitignore block (wef3 01M2WR8Y0XBT6C0TASWHKYT8F9, routed 2026-09-19)\n\nweb-ecommerce-factory lost a `/fabrik-review` Phase-0 caller hop to this and fell back to grep.\nThree items, validated here, in lane order.\n\n1. **`.serena/` is not in the fleet-synced `.gitignore` block — rule 1, heavy.** The hub's own\n   `.gitignore:201` carries `.serena/`, hand-added, which is why no hub window has seen the\n   `?? .serena/` that every project agent does. `scripts/fabrik_synced_manifest.py` — which\n   generates the projects' \"Fabrik-synced\" block — contains ZERO serena references (`command grep\n   -n 'serena'`, rc 1). That file matches the `governance-sync` files-filter (verified against\n   `.pre-commit-config.yaml`), so the one-line addition is right-now + the FULL `/fabrik-review`\n   plus a forced `sync_enforcement_to_projects.py --force`. **Destination:** infra.\n\n2. **Nothing seeds `.serena/project.yml::language_servers`, so first activation mints one\n   language — spec chain.** `scripts/sysadmin/emit_mcp_project_config.py` mentions serena once and\n   seeds no serena project file; it is NOT a sync trigger (verified). Detecting a repo's languages\n   and seeding the list is a new mechanism (lane table test 2), so it opens at `/fabrik-spec`. The\n   spec must cover the repair case as well as the seeding case: every repo that has already\n   activated carries a minted single-language file, and seeding helps none of them. Reported\n   symptom: a `.ts` symbol request in a 770-tracked-`.py` monorepo errors as \"path is ignored\"\n   rather than \"unsupported language\", and a re-activation does not start the added server — the\n   running MCP process reads its language set at startup, so only a new window restores it.\n   **Destination:** infra.\n\n3. **The roster should name the diagnostic class — one doc edit.** `docs/workstation/mcp-roster.md`\n   gains a serena row saying: an auto-created project carries one language; a TS lookup reporting\n   \"path is ignored\" is the language set, not gitignore; fix the yml and open a NEW window. This\n   is the cheapest of the three and carries most of the value, because the reporter's time went to\n   diagnosis, not to the missing server. **Destination:** infra.\n\n**Why this matters beyond the three fixes:** the review corpus's one named use of serena (the\nPhase-0 caller hop) degrades silently to grep on exactly the multi-language repos where symbol\nnavigation pays most. D-021 adopted serena and named \"still unused after wiring\" as the retirement\nsignal — a tool that degrades silently will read as unused for a reason unrelated to its value.\nThat argument belongs in item 1's D-row. The reporter states plainly that they did not read\nserena's source, so the ignored-path-vs-unsupported-language mechanism is their inference; items 2\nand 3 would change shape if it is wrong, item 1 would not.",
+  "note": "migrated-digest:e42d52fbb635",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "serena auto-creates a single-language project, and `.serena/` is missing from the fleet-synced gitignore block (wef3 01M2WR8Y0XBT6C0TASWHKYT8F9, routed 2026-09-19)"
+}

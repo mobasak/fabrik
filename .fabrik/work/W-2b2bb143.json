@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.765674Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2b2bb143",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## `declared.sha` is written at `start` and never read — nothing binds `--commit` to the run's own work (whole-plan review, `command_run.py`)\n\n`_task_size_gate` records HEAD-at-start as `declared.sha` (`scripts/command_run.py:2943`); `_task_measure` diffs `<commit>~1..<commit>` (`:3253`) and never reads it. Executed: a run declares one file, the real work lands as a 5-undeclared-file commit `W`, a later ledger-only commit `D` is passed as `--commit` → `oversized_mini: 0`, rc 0, while `git diff --name-status <declared.sha> <D>` shows the honest five. On a three-session tree `D` need not even be yours. This cobra is cheaper than the `docs/reference/` parking the gate's docstring names, and is named nowhere.\n\nThe data to close it is on the record already. Two fixes, and choosing between them is a DESIGN ruling, which is exactly what the re-cut test 4 sends to a reviewer rather than an executor:\n- **(a) range diff** — base on `declared.sha` when it is an ancestor of `<commit>`, so a multi-commit run is measured whole. MIRROR: a sibling's commit landing between your start and your `--commit` is counted as YOUR undeclared files. On this tree that is the common case, so (a) needs a `rev-list --count > 1` NOTE naming the intervening commits or it manufactures false oversized scores.\n- **(b) refuse** — keep `<commit>~1` and REFUSE the close when `rev-list --count <declared.sha>..<commit> > 1`, telling the agent to pass the commit that is the next after their start. MIRROR: refuses honest runs whenever a sibling committed first, which on this tree is most runs.\nNeither is clean; (a) with the NOTE is the more honest measurement, (b) the safer gate. Its own `/fabrik-task`-sized run on `scripts/command_run.py` — a governance-sync path, so right-now + a full review — not a rider on this plan. Evidence: whole-plan review seat, 2026-09-18, `probe/r4`.",
+  "note": "migrated-digest:54980001eb4d",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "`declared.sha` is written at `start` and never read — nothing binds `--commit` to the run's own work (whole-plan review, `command_run.py`)"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-03T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-61360b89",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] `is_admin_dashboard` gates the whole DOMAIN, so a saas-skeleton cannot have both an admin surface and customers (2026-09-03, owner: fleet)\n\nMail 01M1HJ0S4FMJ1A9RT8N9E4Z7PT (youtube). `shape.is_admin_dashboard: true` attaches\n`authelia-forward@docker` to the Traefik ROUTER, gating every path on the domain, not `/admin`. The\nproject hit it because `project.yaml::type` was corrected (D-001) while `specs/services/<id>.yaml::shape`\nkept the old template's value — two independent statements of the same fact with no consistency check.\nThree fixes, ranked by the sender: (1) emit a PATH-SCOPED second router for the admin prefix; (2) refuse\nthe combination at `fabrik apply` for types that serve public routes; (3) cheapest and worth doing\nregardless — a check that `shape` agrees with `project.yaml::type` after a type change. (3) is a gate\naddition on my beat and the natural first step; (1) changes the Authelia registrar's emitted labels for\nevery affected project and wants a plan.",
+  "note": "migrated-digest:e8ecf12b4e08",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "`is_admin_dashboard` gates the whole DOMAIN, so a saas-skeleton cannot have both an admin surface and customers (2026-09-03, owner: fleet)"
+}

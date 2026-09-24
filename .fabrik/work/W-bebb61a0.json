@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.709996Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-bebb61a0",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] The rules packs cite hub-only docs 169 relative / 4 absolute, with no stated rule\n\nPhase D made two `ai/20-vision.md` cites absolute because the doc they name is hub-only and is NOT\nin `fabrik_synced_manifest.py` — sampled 3 project repos, 3 of 3 carry the pack and 0 of 3 have the\ndoc, so the relative form was a dead link in every one. That fix is right and it leaves the\nconvention incoherent: `command grep -roh '\\`docs/[a-zA-Z0-9_./-]*\\.md\\`' .windsurf/rules/` → **169**\nrelative, `command grep -roh '/opt/fabrik/docs/...'` → **4** absolute, two of them created by that\nchange. And both directions are wrong elsewhere: `docs/reference/gui-toolchain.md` and\n`docs/reference/research/chrome-ext-gui-research.md` are hub-only and cited relative (dead in every\nproject), while `/opt/fabrik/docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` IS synced and cited\nabsolute, which defeats the sync.\n\n**Do:** state the rule once — synced ⇒ relative, hub-only ⇒ `/opt/fabrik/…` — and sweep the three\ninconsistent sites. **Do not** bulk-rewrite the 169: most are correct.",
+  "note": "migrated-digest:feb438660bd3",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The rules packs cite hub-only docs 169 relative / 4 absolute, with no stated rule"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.155456Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6296eb95",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **Telegram legacy-Markdown parity at the alerting boundary** (external-services review pass 33, CW4): `libs/alerting/telegram.py` sends `*{title}*\\n{body}` with `parse_mode: Markdown` and escapes nothing, so any caller whose body carries an odd number of `_` (or a stray `*`/`` ` ``/`[`) gets HTTP 400 and — when the ssh-apprise leg, tried first and Markdown-free, has also failed — the alert is lost with only a warning logged — measured on the chain: 1 of 346 triage names (`bridge_internal`) can reach the classify INFO alert's provider list; the chain's step alert is parity-safe by construction on the production log path (graded); on the `/tmp/fabrik_daily_refresh_YYYYMMDD.log` FALLBACK path (3 `_`) every chain alert MESSAGE (`*title*\\n{body}` — the title carries `$label` too, so 5/5/7/5/5 and 3) goes odd (pass 36, DC5 — 0 of 1, the cache log is writable). The class fix is escaping at the boundary (all 7 direct `send_alert` call sites plus `mail_escalate.py`'s indirect one are exposed — and that digest is the likeliest odd-`_` body); mirror: a caller passing intentional Markdown loses its formatting. Blocked by: measuring which callers pass Markdown on purpose.",
+  "note": "migrated-digest:b5bf3e765bdb",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Telegram legacy-Markdown parity at the alerting boundary** (external-services review pass 33, CW4): `libs/alerting/telegram.py` sends `*{title}*\\n{body}` with `parse_mode: Markdown` and escapes n..."
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-03T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6ae262a2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] Fleet capability claims in `agents-fabrik.md` were written from intent, never probed — pgvector was false for months (2026-09-03, owner: operator decision + fleet)\n\nMail 01M1EHNXT4829615ZARZF9WJP7 (infra, rules pass), each item re-probed by fleet this run rather than\ntaken on report:\n\n- **pgvector — FIXED in the map this run.** `postgres-main` is `postgres:16-alpine` and\n  `pg_available_extensions` AND `pg_extension` both have **0** rows for `vector` — neither installed nor installable on this image, re-probed by fleet 2026-09-03. The map claimed `pgvector/pgvector:pg16`,\n  \"✅ fully self-hosted\". `fabrik-lib/rag` is real; the fleet DB cannot run it. **Operator decision owed:**\n  move postgres-main to the pgvector image (restarts the shared DB, so it wants a window) or record that\n  vector search is not a fleet capability today.\n- **redis-main is `redis:7-alpine`** (probed). Redis 7.x is security-only; 8.x is current. No urgency\n  claimed — a scheduled major upgrade of the shared cache, or a deliberate \"stay on 7 until X\" row.\n- **Scaffold Dockerfile literals** (`scaffold.py`, `python:3.12-slim-bookworm` ×4): bookworm regular\n  security ended 2026-07-12 and D-064 flipped the fleet to trixie. The rule packs are marker-spanned\n  against `versions.yaml`; the scaffold's literals are hardcoded and drift silently. Same class as the\n  docusaurus scaffold row below — both want the scaffold reading `versions.yaml`, not literals.\n\nSYSTEMIC (infra's framing, adopted): capability claims in infra docs rot exactly like version literals in\nrule packs. The rules corpus has `CLAIMS.yaml` (dated assertions, re-verified on a window); the RUNNING\nFLEET has no equivalent. A probe-backed claims register for fleet state is the class fix.",
+  "note": "migrated-digest:b20b4e365368",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "Fleet capability claims in `agents-fabrik.md` were written from intent, never probed — pgvector was false for months (2026-09-03, owner: operator decision + fleet)"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-20T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a399dab1",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [intel/infra] `rule_activation` reads ~2% on its two largest samples, and nobody can say whether that is behaviour or instrument (2026-09-20)\n\nFrom the 2026-09-18 kaizen collection, adjudicated against `~/.claude/state/kaizen/series/rule_activation@v3.jsonl`\nrather than the day's number alone. The series: `.50 (1/2) · .12 (3/25) · .25 (2/8) · .29 (2/7) ·\n.047 (2/43) · .024 (1/42)`. Every reading above 10% came from a denominator of 25 or fewer; the\ntwo LARGEST samples (n=43, n=42) give 4.7% and 2.4%. The metric did not fall — it finally has\nenough rows to be believed, and what it says is that almost no run-closing session emits a\n`rule_activation` event.\n\n⚠️ AMBIGUOUS BETWEEN TWO OPPOSITE FIXES, which is why this is routed rather than acted on: either\nsessions genuinely do not activate rules at invocation time (a behaviour gap, and the remedy is in\nthe corpus), or the event is not emitted where the metric looks for it (an instrument gap, and the\nremedy is in the emitter). Deciding needs the emitter driven, not the number read again.\n\nOwner: whoever owns the kaizen instrument (intel by the subagents/flywheel charter, infra by the\nhooks). Destination: drive the `rule_activation` emitter over a session known to activate a rule,\nand see whether the event lands.\n\nSECOND, cheaper item from the same read: the digest prints one day's value with no history, so an\nagent cannot distinguish a moved METRIC from a moved POPULATION — `rules_compliance` fell 98% → 82%\nacross a denominator collapse from 466 to 66, which is not a comparable decline, and\n`premature_stop_rate` at 61% reads as a rise while actually being the lowest of five readings.\nPrinting the previous two readings WITH their denominators beside each metric would fix it. Filed\nagainst `scripts/sysadmin/kaizen_digest.py` / the collection's mail body.",
+  "note": "full-tag:[intel/infra]; migrated-digest:14d276d8b473",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "`rule_activation` reads ~2% on its two largest samples, and nobody can say whether that is behaviour or instrument (2026-09-20)"
+}

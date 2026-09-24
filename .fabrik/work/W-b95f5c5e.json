@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-19T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b95f5c5e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## The step-6 validation-first clause: three residuals the scope-growth stop left (routed 2026-09-19)\n\n`/fabrik-command-improve fabrik-execute-plan` closed on the D-278 stop (confirmed/own-fix 8/0 →\n7/5 → 10/9): after round 1 the command's own surface was quiet and every later finding sat inside\nthe review's own prose. The correctness defect was fixed and shipped — an owned-paths test on the\nSPEC routed every refuting verdict to `BLOCKED`, because a plan is downstream of its spec and never\nowns it — and twelve mutants are now killed. What the stop left, with destinations:\n\n1. **`commands/_sources/fabrik-execute-plan.md:30` vs `:215`/`:239` spell the third BLOCKED cause\n   two ways** — `unresolvable spec contradiction` at the enumeration, `unresolvable spec/scope\n   contradiction` at both sites that use it. Fixed at `:30` in this change so the reason string the\n   new clause mandates is consistent; `scripts/command_run.py` takes `--reason` as free text with no\n   allowlist, so nothing detects which spelling an agent emits. **Destination:** an allowlist on\n   `blocked --reason`'s three causes is a MECHANISM — spec/plan work, not a command edit.\n2. **The phrase-substring pin style this grader family uses is polarity-blind by construction.**\n   `assert \"OWNED paths is authorised work you\" in block` matched both polarities; a one-word\n   inside↔outside swap inverted the ruling with all four tests green. The precedent\n   (`tests/test_execute_plan_d7.py`) solves it with an explicit INVERSION control, and that pattern\n   is not carried into new graders of the family. **Destination:** a shared helper (assert the\n   ordered PAIR plus a hedge-word denylist) for the command-pin graders — infra.\n3. **`check_corpus_weight.py` names an unsatisfiable remedy on a pure addition.** Its advisory says\n   *\"the review that accepts it cites the D-row naming what the growth retires\"* on ANY growth,\n   including an addition that retires nothing; a reader cannot satisfy it and learns to ignore the\n   line. **Destination:** infra — reword to \"names what the growth buys, or what it retires\".",
+  "note": "migrated-digest:d6006f16b06a",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "The step-6 validation-first clause: three residuals the scope-growth stop left (routed 2026-09-19)"
+}

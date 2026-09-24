@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.667591Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-04780107",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "### [infra] The finder-brief lesson list covers a truncated FILE and not a truncated LINE\n\n`commands/_sources/fabrik-review.md:196` tells every finder brief *\"the Read tool truncates a long\nfile on a token cap with NO marker — read in offset pages and confirm the last line\"*. It says\nnothing about the other shape: a single very long LINE. Measured 2026-09-17, `:165` of that same file\nis one line of **3,161 bytes**, and both review seats dispatched over it had to be told per-dispatch\nto use `sed -n '165p' | fold` or python slicing; one of them reported that the warning was the only\nreason it saw the end of the paragraph. A seat that reads that line with the Read tool and concludes\nfrom the visible half is making exactly the bounded-search error the same lesson list forbids, with\nno marker telling it the read was partial. One clause on the existing lesson would close it — the\nlist already owns the file case, so this is an edit INSIDE it, not a new home.",
+  "note": "migrated-digest:0702022e6240",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "The finder-brief lesson list covers a truncated FILE and not a truncated LINE"
+}

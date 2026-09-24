@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5a7334de",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] `scripts/thread_anchor.py`: three recorded residues of the T04 review (2026-09-24)** — from `docs/development/reviews/2026-09-23-plan-1-stop-and-compaction-T04-review.md`, recorded, not fixed: (1) the prompt-time re-harvest re-reads the previous final message on every prompt, so it re-adds an anchor `done` just closed and re-stamps its time, and an anchor echoed in every message never ages into the 72 h fold (pre-existing); (2) `_anchor_key` masks every digit, so `plan-1.md` and `plan-2.md` collapse to one anchor key (pre-existing); (3) a word-for-word identical WHOLE message re-emitted after the operator answered its DECISION block is refused as a stale echo (by design). Due with the V4 reading, 2026-09-30. Owner: infra.",
+  "note": "migrated-digest:bc696671eeab",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`scripts/thread_anchor.py`: three recorded residues of the T04 review (2026-09-24)** — from `docs/development/reviews/2026-09-23-plan-1-stop-and-compaction-T04-review.md`, recorded, not fixed: (1..."
+}

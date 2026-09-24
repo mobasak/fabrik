@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.791389Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3dc05964",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Two enforcement checks red-line every session's gate for another session's uncommitted work\n\n`check_review_coverage.py --root .` and `check_convergence.py` grade INTENT-TO-ADDED artifacts — by\ndesign, so an author can grade a receipt before committing it. The cost is that a peer's unfinished\nreceipt fails every sibling's completion gate, with a Stop-hook message reading \"This session\nintroduced gate failures\", and the reader cannot fix it without editing uncommitted WIP, which\n§ Shared repo forbids. Measured 2026-09-14: three such failures in one turn, all three from two other\nsessions' in-flight work; `git diff --cached` shows an `add -N` entry as nothing at all, so the owner\ncannot see it either. **Do:** name the owner and the intent-to-add state in the message, and/or add a\n`--mine`/`--since` scoping flag so a session can gate on its own artifacts.",
+  "note": "migrated-digest:679ba7bbf0ee",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Two enforcement checks red-line every session's gate for another session's uncommitted work"
+}

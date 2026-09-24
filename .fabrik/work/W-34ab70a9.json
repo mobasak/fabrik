@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-08-16T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-34ab70a9",
+  "kind": "backlog",
+  "legacy": true,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`fabrik-deploy-verify.md` cite range off-by-one-sentence** (Phase-D whole-pack review nit, pre-existing): its `:16,148` cite of `fabrik-catchup.md:68-75` anchors the right item but the bridge-namespace sentence itself sits at catchup `:76-78`. Fold into the next corpus touch of that file. ✅ **ALREADY CLOSED** (0883b987, 2026-08-16) — both cites were de-numbered to a section anchor (`§ the local-`fabrik`-bridge probe`), which cannot drift; the anchor resolves at `fabrik-catchup.md:77`. No action was needed; this row was stale.",
+  "note": "migrated-digest:230c9eec077d",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "**`fabrik-deploy-verify.md` cite range off-by-one-sentence** (Phase-D whole-pack review nit, pre-existing): its `:16,148` cite of `fabrik-catchup.md:68-75` anchors the right item but the bridge-nam..."
+}

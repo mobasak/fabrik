@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.725483Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-67cfdd24",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## Two test suites reach back into the live tree from a scratch probe (routed from T04a, D-297)\n\n`tests/test_command_run_fabrik_task.py:25` hard-pins `_HUB_CONFIG = Path(\"/opt/fabrik/.pre-commit-config.yaml\")`\nwhile resolving everything else via `Path(__file__).resolve().parents[1]`, and\n`tests/test_governance_template_split.py:230` hard-pins `THIRD_CONTRACT = Path(\"/opt/fabrik-lib/CLAUDE.md\")`.\nBoth make those suites ungradeable from an isolated worktree — the mixed resolution grades the live\nrepo while the probe believes it is isolated, which is the \"a grader copied into a worktree still\ngrades the live repo\" class the review constraints exist to prevent. Found by two independent T04a\nreview seats, each of which had to work around it.\n\n**Amended 2026-09-19 (the first `/fabrik-task` run, D-300):** the `_HUB_CONFIG` half is NOT a defect — `scripts/command_run.py:2694-2697` rules the hub path absolute because the equality test must grade the scalar `governance_sync_postcommit.sh:30` opens, and 18 of 23 registered worktrees carry a different governance-sync scalar; a repo-relative pin would grade the wrong file exactly where the split matters. What remains of this row is the PROBE-side discipline (a grader copied into a worktree still reads the live hub, so a mutation probe must baseline first) and `THIRD_CONTRACT` in `tests/test_governance_template_split.py`, which points at a different repo by design. Two siblings surfaced by the same review, not yet dispositioned: `tests/test_sync_trigger_coverage.py` pins `Path(\"/opt/fabrik\")` in 15 places and 48 such pins sit across 32 test files (`command grep -rn --include='*.py' 'Path(\"/opt/fabrik' tests/`, executed 2026-09-19; one of them is the `_HUB_CONFIG` pin this row rules on) — each is either the same ruling (grades the live hub on purpose) or a real portability defect, and nobody has classified them; and `scripts/governance_sync_postcommit.sh:26` exits silently from any worktree, so a synced-path commit made in a worktree distributes to zero projects with no warning — § Sync-consciousness does not name it.",
+  "note": "migrated-digest:9dc6e00ca5e2",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Two test suites reach back into the live tree from a scratch probe (routed from T04a, D-297)"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-03T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3f2d8e21",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] The docusaurus scaffold emits the runtime its own rule pack bans (2026-09-03, owner: fleet)\n\nMail 01M1G4PYGTQQGMXKK91VDKZGQJ. `templates/docusaurus/Dockerfile.j2` ends in `node:22-bookworm-slim`\nrunning `npm run serve`; `core/42-docusaurus.md` bans a Node runtime in production and prescribes a\ntwo-stage build ending in `nginx:mainline-<codename>` serving `build/`. Three divergences: the Node\nruntime (RAM on a shared VPS to serve static files), NO Pagefind anywhere (`grep -rn pagefind\ntemplates/docusaurus/ src/fabrik/scaffold.py` → nothing, so the pack's § Search is unreachable in every\nscaffolded site), and hardcoded `node:22` + `bookworm` against `versions.yaml`'s node_lts 24 / trixie\n(D-064). Sized as a scaffold change with a rendered-output grader, not a right-now edit: it rewrites the\nemitted image, adds a build step, and every existing docusaurus project's next redeploy inherits it.",
+  "note": "migrated-digest:eee2e77fa876",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "The docusaurus scaffold emits the runtime its own rule pack bans (2026-09-03, owner: fleet)"
+}

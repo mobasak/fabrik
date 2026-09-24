@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:47.663193Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a10d94d1",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] A plan authored and committed in one motion is a convergence subject at NO moment a gate runs\n\n`check_convergence.py:550` skips `??` paths — deliberately, so a sibling's mid-write scratch never\nreds this session's gate — and since 2026-09-12 it says so with a NOTE (\"checked at staging\"). But\nfabrik-lib-dev1's original finding (`01M1RFN3BT` defect 1) was never that the skip was SILENT; it is\nthat the skip has no downstream: the plan is `??` when the completion gate fires, and once committed\nit is gone from `git status` entirely. Verified 2026-09-15: `check_convergence` appears in no\n`.pre-commit-config.yaml` hook, so **nothing forces a gate run between staging and commit** — the\nstaged state is never re-gated and the subject is checked at no moment at all. The NOTE improved the\nvisibility and left the hole.\n\n⚠️ **fabrik-lib-dev1's stated preference is (c) — re-run the gate once after auto-staging** — for a\nshared-tree reason worth recording: (a) gating the staged set makes the check read a SHARED index\nthat carries siblings' staged paths, and (b) a pre-commit hook fires per-commit on a tree three\nsessions commit into. (c) keeps the subject the session's own post-stage state. Their preference,\nnot mine, and they found the hole.\n\nNot fixed as a drive-by on purpose: narrowing the `??` skip changes the FAIL DIRECTION of a\nfleet-synced check across ~46 repos, and the skip exists because the alternative reds every session\non a sibling's in-flight draft. The shapes worth weighing: gate the staged set explicitly (`git\ndiff --cached --name-only`) rather than the working tree; or register `check_convergence` as a\npre-commit hook so the staged state is the subject; or have the gate re-run itself once after\nauto-staging. Each is a contract change with its own mirror.",
+  "note": "migrated-digest:d880932c2c01",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "A plan authored and committed in one motion is a convergence subject at NO moment a gate runs"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-18T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d280bf2f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] `command_run.py`'s SHARED close path still makes two bare git calls with no scrubbed environment (2026-09-18)** — T01b closed the class inside the `/fabrik-task` lane (`_repo_root` and `_task_git` both take `_scrubbed_git_env()`), but `git status --porcelain` and `git log -m` on the general close path — the one EVERY command takes — remain bare `subprocess.run([\"git\", …])`. An inherited `GIT_DIR`/`GIT_WORK_TREE` points their advisory at a repository the close never named. NOT fixed in T01b on purpose: those calls are pre-existing and shared, and T01b's whole acceptance rests on byte-identity for every other command, so changing a shared-path subprocess is exactly what that invariant forbids doing casually. The fix is one argument each plus a byte-identity re-verification, and it belongs to whoever next owns that path. Medium — the same class as the T01b defect, at lower severity (an advisory, not a measurement).",
+  "note": "migrated-digest:5b5c6166c876",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`command_run.py`'s SHARED close path still makes two bare git calls with no scrubbed environment (2026-09-18)** — T01b closed the class inside the `/fabrik-task` lane (`_repo_root` and `_task_git..."
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-09T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-28e4e2d4",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`command_run.py line` says nothing when the last round LAPSED** (2026-09-09, owner: infra) — an adopted record's round omitting `--confirmed` prints its lapse only on that round's streams; the pinned `RUN:` line a resumed session re-reads carries no ` · lapsed` token (T10 review round 2, recorded as a design call).",
+  "note": "migrated-digest:58f6bc34132d",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`command_run.py line` says nothing when the last round LAPSED** (2026-09-09, owner: infra) — an adopted record's round omitting `--confirmed` prints its lapse only on that round's streams; the pi..."
+}

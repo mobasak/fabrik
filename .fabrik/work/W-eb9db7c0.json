@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-02T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-eb9db7c0",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] fabrik-researcher brief + grounding fragment drift** (2026-09-02, 10 dispatches, 10/10\n  reported it): the agent has NO shell, so a brief that says \"run `awk …`\" is unexecutable (each agent\n  substituted Grep+Read; the dispatch template should give a Read/Grep recipe); the fragment's claim that\n  non-HTML (JSON) content is unreachable via exa was refuted twice in one day (api.bls.gov and\n  api.cerebras.ai JSON fetched raw); WebFetch does not follow cross-host redirects (api.slack.com →\n  docs.slack.dev, cloud.google.com → docs.cloud.google.com cost a full extra round each) and truncates\n  long pages silently then asserts a NEGATIVE (\"no Outlook section\") — WebFetch output must be treated as\n  bounded-search evidence, never as a negative. Fix in `commands/_sources/_fragments/` at next touch.",
+  "note": "migrated-digest:16bb0bb9c49c",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**fabrik-researcher brief + grounding fragment drift** (2026-09-02, 10 dispatches, 10/10"
+}

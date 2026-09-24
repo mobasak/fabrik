@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-24T23:27:48.043583Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-036893af",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[intel]** **`libs/subagents` `fanout` docstring still advertises a default price cap** the pool no longer applies — routed to intel (D-135/D-137: the module is fabrik-lib's vendored copy; the hub does not edit it). (T16, mailed)",
+  "note": "migrated-digest:d8031e95787e",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "**`libs/subagents` `fanout` docstring still advertises a default price cap** the pool no longer applies — routed to intel (D-135/D-137: the module is fabrik-lib's vendored copy; the hub does not ed..."
+}

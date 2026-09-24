@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-18T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-65aa58b2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] The `/fabrik-task` close holds the record flock across up to five 10s git subprocesses (2026-09-18)** — `scripts/command_run.py`'s phase-5 re-measure runs `cat-file`, two `log`s, `rev-parse` and the `diff` via `_task_git` (`timeout=10` each), and `_task_close_fields` is called from `_close` inside `_mutate`, which the function's own docstring says \"Runs with the record's flock HELD\". Worst case ≈ 50 s of lock hold on a hung or NFS-backed git, on a close path that previously did no I/O at all — and the close is the one verb the Stop hook waits on. Raised by T01b's acceptance review as PLAUSIBLE (read, not reproduced: it needs a deliberately stalled git binary to measure). The fix, if the measurement justifies it, is to compute the re-measure BEFORE taking the lock, or to drop the per-call timeout for this leg. Low.",
+  "note": "migrated-digest:a2a5a311745b",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**The `/fabrik-task` close holds the record flock across up to five 10s git subprocesses (2026-09-18)** — `scripts/command_run.py`'s phase-5 re-measure runs `cat-file`, two `log`s, `rev-parse` and ..."
+}

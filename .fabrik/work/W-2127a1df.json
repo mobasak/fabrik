@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-23T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2127a1df",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] A review's fix diff can add new counts and citations with no grader — measure a WARN before building it (2026-09-23)\n\nAsk 4 of mail 01M2ZDAYX1EHVST1DWG8PV3Z57 (iterative_image_editor): WARN when a review's fix diff introduces a new number or citation that nothing executes, the own-fix growth that D-278's counter catches only after it has cost a round. Live instance, the D-370 review (docs/development/reviews/2026-09-23-mail-batch-arm-sweep-links-review.md): three of its seven rounds confirmed only numbers in ledger prose (a stale ref count, a fleet figure with no named population, a doc count a sibling moved). Before any detector: measure its fire rate over the committed receipts' fix commits (how many new numerals/`path:line` in ledger or doc hunks, and what share a later round confirmed wrong), and write down the cheapest way to silence it (spell the number out, move it to a fence) with the counter-measure. Asks 1 (hard round cap) is wontfix under D-330/D-339 (`--budget` is never a cap); asks 2-3 landed as D-335/D-339/D-341. Owner: infra.",
+  "note": "migrated-digest:c4135ab0251b",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "A review's fix diff can add new counts and citations with no grader — measure a WARN before building it (2026-09-23)"
+}

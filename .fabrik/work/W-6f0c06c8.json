@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6f0c06c8",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] Stop-and-compaction V4–V6 readings due 2026-09-30 and 2026-10-07 (2026-09-24)** — plan `docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction` shipped the Stop hook's DEFERRAL check, the DECISION block and WHERE YOU ARE fleet-wide on 2026-09-24. Spec `docs/superpowers/specs/2026-09-23-stop-and-compaction-enforcement-design.md` § Validation: **V4 (2026-09-30, 2026-10-07)** — re-judge a uniform random 80 of the turn ends that still end deferring (`python3 scripts/sysadmin/stop_mine.py --root ~/.claude-fleet/active/projects --since 2026-09-24 --backtest --out <scratch>/v4.json`, then draw 80 and judge with three native seats; target false stops 32.5% → ≤10%), and 25 compactions with no live command run (drift 9/25 → ≤3/25; read each WHERE YOU ARE block against the next turn). **V5** — whether an earlier auto-compact window pays, before any `autoCompactWindow` is set (D-376). **V6 (2026-10-07)** — a sampled audit of accepted DECISION blocks by native judge seats (`kaizen_collect_v2` `decision_block` events by ground; a fake `gate`/`owned` block is the cobra path). Also observed at the V3 probe on 2026-09-24: the WHERE block's `NEXT (before the compaction)` line carries no age, so a NEXT harvested hours earlier reads as current — decide at V4 whether to print its age. And the template carries § FINAL OUTPUT twice (`templates/governance/CLAUDE.md`, both copies graded byte-identical by `tests/test_governance_template_split.py`) — fold the duplicate into one. Owner: infra.",
+  "note": "migrated-digest:7f57712676c9",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Stop-and-compaction V4–V6 readings due 2026-09-30 and 2026-10-07 (2026-09-24)** — plan `docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction` shipped the Stop hook's DEFERRAL che..."
+}

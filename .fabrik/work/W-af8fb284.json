@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-13T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-af8fb284",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [fleet] `_file_refreshed_credentials` is a credential writer with no production caller — keep with a reason or delete with its tests (2026-09-13, owner: fleet)\n\nFound by the rotation refresh-chain review (round 2, Opus seat, receipt row P6 in `docs/development/reviews/2026-09-13-rotation-refresh-chain-review.md`): retiring `--touch` (D-247) removed the last production caller of `_file_refreshed_credentials` (`scripts/sysadmin/claude_rotate.py` — ROTATE_LOCK + `.prev` backup + `os.replace`; 42 lines from its `def` to the next top-level statement, blanks included — re-derived, the first cut of this row said 52); it is now exercised only by `tests/test_claude_rotate_v2.py` (4 call sites — lines 223, 233, 257, 270; two more mentions are docstring prose) and inventoried by name in `tests/test_claude_fleet.py`. One hop outside the review's fix hunks (D-230), so RECORDED here, not fixed there. Two shapes: keep it as the ONE sanctioned credential writer (then name the caller that will use it), or delete it with its tests. A second one-hop note from the same round: every `mesh-notify` message from the tick is rendered by `claude-sound.sh` as a session-death sentence (\"Session quota-ro in /opt/fabrik died on <the message> …\") — pre-existing for all 8 call sites of `_tick_telegram` (9 mentions minus the def), cosmetic, worth one line in the notifier's mesh-notify case when infra next touches it (the sound system is production: diagnose read-only, the edit is theirs).",
+  "note": "migrated-digest:7b5fe2012dc1",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "`_file_refreshed_credentials` is a credential writer with no production caller — keep with a reason or delete with its tests (2026-09-13, owner: fleet)"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-18T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-86f8dfe9",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra] The CONVERGED `/fabrik-task` spec miscounts the hub's `files:` scalars (2026-09-18)** — `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md` § Chosen approach, Phase 0 says `.pre-commit-config.yaml` \"carries five, lengths 84 / 30 / 74 / 33 / 678\"; re-derived at 06920e213 it carries **six** (84 / 20 / 30 / 74 / 33 / 678) — `decisions-ledger-check` at `:103` was missed. The MECHANISM the spec mandates is unaffected (the scalar is located by the `- id: governance-sync` id, never by position, and the governance-sync one is still last), and `/fabrik-plan-review` corrected the census in the build's plan set, so nothing is blocked. Found by executing the claim the plan inherited. Fix in the next spec-review round on that file, or let the build supersede it. Low.",
+  "note": "migrated-digest:cef258609824",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**The CONVERGED `/fabrik-task` spec miscounts the hub's `files:` scalars (2026-09-18)** — `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md` § Chosen approach, Phase 0 says `.pre-commit..."
+}

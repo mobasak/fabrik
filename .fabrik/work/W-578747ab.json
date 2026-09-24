@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-12T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-578747ab",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **Harness-side review-seat failures, recorded from the mail triage of 2026-09-12 (owner: infra; no corpus fix possible)** — (1) `fabrik-reviewer` seats die silently at ~250–350 KB of transcript and a queued resume is never taken, so a round can lose 2 of 2 finders with no signal (fabrik-lib `01M20B0CH1EYTAJT3XX0GNFADN`; two Opus deaths in pass 3's own runs); mitigation in the corpus: short briefs, one slice per seat, the orchestrator re-dispatches on a dead seat. (2) the `fabrik-reviewer` agent type was on disk but absent from one session's Agent roster, so `/fabrik-review`'s mandated finder was undispatchable there (`01M1VPA9CJZJ5HR6WKE5DA0JBG`; a reload restores it). (3) `check_hooks_index.py` derives its required set from the settings file it checks, so a deleted registration shrinks the requirement and the gate stays green (`01M1VQZJ88JB9PASVJVBXN9PFB` item 3, hooks beat) — a fixed required list is the fix, sized as mail-triage plan T4.11.",
+  "note": "migrated-digest:fa8ad91a0a4c",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**Harness-side review-seat failures, recorded from the mail triage of 2026-09-12 (owner: infra; no corpus fix possible)** — (1) `fabrik-reviewer` seats die silently at ~250–350 KB of transcript and..."
+}

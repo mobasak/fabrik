@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-03T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7a2e1768",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **13 registered gate checks have no canary** (12 found at external-services review pass 41; `check_citations_resolve` joined 2026-09-03 with a sibling's gate row — re-measured at pass 56: `tests/test_gate_check_canaries.py::test_every_registered_gate_check_is_accounted_for` names 13; the older 2026-08-30 row below listing 10 is superseded by this one): `tests/test_gate_check_canaries.py` fails at HEAD — `test_every_registered_gate_check_is_accounted_for` lists 13 checks with neither a `CANARIES` pair nor an `UNREACHABLE` reason (`check_certification_coverage`, `check_citations_resolve`, `check_command_corpus`, `check_decisions_unique`, `check_feedback_duty`, `check_frozen_chain`, `check_pack_reachability`, `check_plan_lock_release`, `check_rivals_dossier`, `check_rule_grounding`, `check_spec_convergence`, `check_trigger_routing`, `check_vendored_drift`), and its sibling lists 10 `warn_only` rows with no recorded WHY. Pre-existing (not the chain's surface; `check_command_corpus` carries its own self-test). Blocked by: authoring the 13 pairs — one sitting, the enforcement-inert class.",
+  "note": "migrated-digest:8a2c33e25d39",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**13 registered gate checks have no canary** (12 found at external-services review pass 41; `check_citations_resolve` joined 2026-09-03 with a sibling's gate row — re-measured at pass 56: `tests/te..."
+}

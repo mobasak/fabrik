@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-20T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6154115b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] agent_memory.sh — two latent fail-opens the D-278 stop routed rather than fixed (2026-09-20)\n\nRouted from the `/fabrik-review` over the workstation RAM policy, which exited on the scope-growth\nstop (`confirmed/own-fix: 9/5 → 15/11 → 3/3` — two of the last three rounds above the two-thirds\nline). Both were found by an authoritative seat, both are proven, and both are **unreachable on\nthis box today** — which is why fixing them inside that loop would have regenerated the surface it\nwas correcting rather than closing it.\n\n1. **`live` is the one numeric in `cmd_reclaim` not `_is_num`-validated** (`scripts/sysadmin/agent_memory.sh`,\n   the live-session guard). `live=$(printf '%s' \"$pids\" | grep -c . || true)` — if `grep` cannot\n   execute, `live=\"\"`, `[ \"\" -gt 0 ]` exits 2, `if` reads that as false, and **the swapoff proceeds\n   with agent sessions live**. Executed by the seat with `PATH=/nonexistent`: `GUARD BYPASSED`.\n   Same fail-open class the comment three lines above claims to have closed, and `total`/`free`/\n   `avail`/`back` all *are* guarded. Condition: `grep` absent or unexecutable. Not reachable here —\n   `/usr/bin/grep` exists and `reclaim` is operator-run.\n\n2. **Reverting the NUL-delimiting in `_swap_devices` to a newline split passes the whole suite** —\n   no grader uses a `\\012`-named device. Condition: a swap file whose name contains a newline.\n   Not reachable here: swap is the single partition `/dev/sdc`.\n\nOwner: whoever next touches `scripts/sysadmin/agent_memory.sh`. Destination: a `/fabrik-task` —\none `_is_num` guard on `live`, and one grader using a `\\012`-named device fixture. Both are small;\nthey are routed only because the loop that found them had stopped being able to judge its own work.",
+  "note": "migrated-digest:2523bc7b51f4",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "agent_memory.sh — two latent fail-opens the D-278 stop routed rather than fixed (2026-09-20)"
+}

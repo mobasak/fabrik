@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-09T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0755a9a6",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[infra]** **`tests/test_kaizen_collect_v2.py` carries 2 pre-existing red tests** (2026-09-09, owner: infra) — reproduced on the T10 base e007a3f2 before any plan edit (the T10 review round 1); unrelated to the plan; a collector fixture drift — fix with its own scoped review.",
+  "note": "migrated-digest:2ee398153dd9",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "**`tests/test_kaizen_collect_v2.py` carries 2 pre-existing red tests** (2026-09-09, owner: infra) — reproduced on the T10 base e007a3f2 before any plan edit (the T10 review round 1); unrelated to t..."
+}

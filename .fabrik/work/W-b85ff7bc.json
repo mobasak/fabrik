@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-19T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b85ff7bc",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## Nothing in `scripts/enforcement/` binds the distributed `.worktreeinclude` to its generator (routed 2026-09-19)\n\n`templates/governance/.worktreeinclude` is a GENERATED artifact that ships to ~46 repos by file copy\n(`sync_enforcement_to_projects.py:2028`) and into every new project (`scaffold.py:1288-1290`).\nNeither consumer calls `worktreeinclude_text()`, so no runtime guard in that function can protect\nthem. The only thing tying the tracked file to its generator is\n`tests/test_synced_manifest.py::test_worktreeinclude_template_matches_generated_text`, and the hub's\npytest leg is not armed (`/opt/fabrik/.fabrik/run-pytest` does not exist), so the completion gate\nnever runs it. Measured: `command grep -rn 'worktreeinclude' scripts/enforcement/` → rc 1, zero hits\nacross the whole enforcement directory.\n\nThis is why the template sat drifted for three days after `0a8d5fc7f` added `whoami_agent.py` to\n`CORE_SCRIPTS` without regenerating it — every new linked worktree in ~46 repos lacked that script\nand nothing said so. A one-check fix (compare the tracked template to the render, fail the gate on\ndrift) closes the class for every future generated-artifact drift, not just this one.\n**Destination:** infra — `scripts/enforcement/` is a governance-sync path, so it takes its own\nfull review.",
+  "note": "migrated-digest:ac90209829cb",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Nothing in `scripts/enforcement/` binds the distributed `.worktreeinclude` to its generator (routed 2026-09-19)"
+}

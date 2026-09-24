@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-11T00:00:00.000000Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ea2d8725",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "## [infra] Nine confirmed candidates in the kaizen spec's amendment — filed, NOT fixed, deliberately (2026-09-11, owner: infra)\n\n`docs/superpowers/specs/2026-09-10-kaizen-feedback-loop-design.md` at HEAD `e7d5f7f6` (committed\n`3639ba6e`). An amendment-only review of its last 97 lines confirmed **9 candidates, 3 blocking**, all\nin text the spec's own author wrote. Filed to infra as `01M28VKD807M6QZB31NJ5D9W1T` with each item's\nexecuted disproof.\n\n**They are unfixed on purpose, and the reason is the finding.** That spec's review ran fifteen rounds\nand closed BLOCKED on the stall circuit-breaker: rounds 10–15 each confirmed defects the PREVIOUS\nround's fixes introduced — a fresh finder every round, the **same fixer** every round. The sharpest of\nthe nine is that pattern in its purest form: a residue list naming three remaining items, **two of which\nthe same diff had already fixed**. A sixteenth pass by the same author is the mechanism, not the remedy.\nThe reviewing seat reached that disposition independently.\n\n**The three blocking ones, so nobody has to re-derive them:** the defect series prints 14 values and\ncalls itself fourteen rounds when fifteen ran (round 15's `confirmed = 7` is in the event stream and the\ndocument cites it ten lines later) · the residue list is stale and incomplete · the universal negative\n*\"not one was a defect in the DESIGN … not a citation, not a ledger figure\"* is false twice, once for a\nstruck claim about what `validate_registry` forbids and once for a corrected ledger figure.\n\n⚠️ **One refutation worth keeping, because it kills a recommendation I had already made to the\noperator:** the spec claimed handing residue to `/fabrik-plan-after-chat` *\"breaks the finder-is-fixer\nidentity by construction\"*. It does not — that command changes no author, and session `1970a0ff` ran it\nand committed the resulting plan (`8bf4787d`) six minutes before the amendment was pinned. **Only a\ndifferent SESSION supplies the break.** Any future \"hand it to the next pipeline stage\" reasoning must\nclear that bar.\n\n**The systemic gap this exposes, and the real backlog item:** when a review's foundation error IS the\nfixer's identity, the loop has no verb for it. `command_run.py` offers `done`, `blocked` and `handoff`;\nthe breaker text says name the foundation error as one operator question; neither expresses *\"same\nfindings, different author\"*. That is why this is a mail and a backlog row rather than a round 16. Worth\neither a `handoff --resume` shape that carries a findings brief, or a line in\n`commands/_fragments/term-edit.md`.\n\n**Nothing downstream is blocked:** the spec is `Status: DRAFT — BLOCKED`, and the tier-1 plan\n(`docs/development/plans/archived/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md` — superseding the 2026-09-11 plan-2 at 450e5c43, D-240; `8bf4787d`) depends on none of the\ncontested lines.",
+  "note": "migrated-digest:41c157648f88",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Nine confirmed candidates in the kaizen spec's amendment — filed, NOT fixed, deliberately (2026-09-11, owner: infra)"
+}
