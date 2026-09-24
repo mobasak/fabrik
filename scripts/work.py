@@ -61,7 +61,7 @@ import sys
 import tempfile
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
@@ -1128,7 +1128,16 @@ def _normalize_plan_status(raw: str) -> str:
 # capitalised word, optional bold, then a colon — case-fixed (no -i): a header always spells it
 # "Status", never "status"/"STATUS" by the repo's own convention, and prose mentioning the word
 # almost never happens to open its own line with this exact shape.
-_PLAN_STATUS_GIT_PATTERN = r"^[ \t]*([-*>][ \t]+)?\*{0,2}Status\*{0,2}[ \t]*:"
+#
+# A-O21 (T02 review pass 3): this pattern is a git -G ARGUMENT — POSIX extended regex, where a
+# bracket expression has no backslash-escape support at all, so `[ \t]` means "a space, OR a
+# literal backslash, OR the letter t" (three characters), never "space or tab". Executed proof: a
+# commit adding a TAB-indented "\tStatus: DRAFT" line was NOT found by `[ \t]*`, while a commit
+# adding the unrelated prose "t Status: prose" WAS (its leading "t " satisfies the mis-parsed
+# class). `[[:blank:]]` is the POSIX bracket-expression class for space-or-tab and needs no
+# escape. This is a git-side-only fix: `_QUESTION_RE`/`_GROUND_RE` (Python `re.compile`, where
+# `\t` IS a real escape) are untouched.
+_PLAN_STATUS_GIT_PATTERN = r"^[[:blank:]]*([-*>][[:blank:]]+)?\*{0,2}Status\*{0,2}[[:blank:]]*:"
 _ITEM_STATUS_GIT_PATTERN = '"status":'  # the JSON status field's own line; already case-fixed
 
 
@@ -1170,8 +1179,64 @@ def _dirty_paths(repo: Path) -> frozenset[str]:
     return frozenset(paths)
 
 
+def _head_blobs(repo: Path, relpaths: list[str]) -> dict[str, str | None]:
+    """The text content of each relpath's blob AT HEAD, decoded, in ONE ``cat-file --batch`` call
+    for every path (never one per file) — or None when the path is absent there (untracked or
+    newly added). Lets a caller tell a genuine status-line CHANGE apart from an unrelated dirty
+    edit (A-O20, T02 review pass 3)."""
+    if not relpaths:
+        return {}
+    req = "".join(f"HEAD:{p}\n" for p in relpaths)
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo), "cat-file", "--batch"],
+            input=req.encode(),
+            capture_output=True,
+            timeout=_git_timeout(),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return dict.fromkeys(relpaths)
+    if proc.returncode != 0:
+        return dict.fromkeys(relpaths)
+    out, pos = proc.stdout, 0
+    found: dict[str, str | None] = {}
+    try:
+        for relpath in relpaths:
+            nl = out.index(b"\n", pos)
+            head = out[pos:nl].split()
+            pos = nl + 1
+            if len(head) == 3 and head[1] == b"blob":
+                size = int(head[2])
+                body = out[pos : pos + size]
+                pos += size + 1
+                found[relpath] = body.decode("utf-8", "replace")
+            else:
+                found[relpath] = None
+    except ValueError:
+        return dict.fromkeys(relpaths)
+    return found
+
+
+_UNPARSEABLE = object()  # a shared sentinel: two unparseable reads compare equal (not "changed")
+
+
+def _item_status_field(text: str) -> object:
+    """The JSON ``"status"`` field's value, or the shared ``_UNPARSEABLE`` sentinel for text that
+    doesn't parse as a JSON object — comparison-only (A-O20, T02 review pass 3)."""
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return _UNPARSEABLE
+    return data.get("status") if isinstance(data, dict) else _UNPARSEABLE
+
+
 def _status_change_age_seconds(
-    repo: Path, relpath: str, pattern: str, dirty: frozenset[str]
+    repo: Path,
+    relpath: str,
+    pattern: str,
+    dirty: frozenset[str],
+    head_blobs: dict[str, str | None],
+    status_of: Callable[[str], object],
 ) -> float:
     """Seconds since the last commit whose diff added or removed a line matching ``pattern``
     (``git log -G``, a regex) in ``relpath`` at HEAD — never the file's last commit for ANY
@@ -1179,11 +1244,25 @@ def _status_change_age_seconds(
     1). A file's creation commit always counts (it "adds" the line), so a return of no match means
     the file has no commit history at all.
 
-    A path in ``dirty`` (its working copy differs from HEAD — A-O17, T02 review pass 2) skips the
-    commit search entirely and uses its own mtime: HEAD's committed content is stale for it — a
-    committed-open item flipped to done, with bad evidence, in the working tree must read as
-    fresh, not as whatever its last real commit was."""
-    if relpath not in dirty:
+    A path in ``dirty`` (working copy differs from HEAD, A-O17) uses its own mtime ONLY when its
+    STATUS reading (``status_of`` — the same concept the pickaxe pattern targets: the plan
+    header's primary word, or the item's ``"status"`` field) genuinely DIFFERS between the
+    working copy and HEAD, or when the path is absent from HEAD entirely (untracked or new) —
+    never for JUST ANY uncommitted change (A-O20, T02 review pass 3): a notes-only edit to an old
+    done item, or a body typo in an old CONVERGED plan, must still take the normal commit-history
+    age, not read as freshly changed."""
+    use_mtime = False
+    if relpath in dirty:
+        head_text = head_blobs.get(relpath)
+        if head_text is None:
+            use_mtime = True
+        else:
+            try:
+                working_text = (repo / relpath).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                working_text = ""
+            use_mtime = status_of(working_text) != status_of(head_text)
+    if not use_mtime:
         try:
             out = _git(repo, "log", "-1", "--format=%ct", "-G", pattern, "HEAD", "--", relpath)
         except WorkError:
@@ -1303,6 +1382,7 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
     sorted list of the relpaths (item files for 5-6, the backlog doc for 7) that trip it."""
     report: dict[int, list[str]] = {n: [] for n in range(1, 9)}
     dirty = _dirty_paths(repo)  # ONE git status call per run (A-O17), reused below
+    head_blobs = _head_blobs(repo, sorted(dirty))  # ONE cat-file batch per run (A-O20)
     items = list(_iter_items(repo))
     linked_specs = {
         _normalize_repo_path(repo, (it.get("links") or {}).get("spec") or "") for it in items
@@ -1349,7 +1429,14 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
             if (
                 not has_lock
                 and rel not in linked_plans
-                and _status_change_age_seconds(repo, rel, _PLAN_STATUS_GIT_PATTERN, dirty)
+                and _status_change_age_seconds(
+                    repo,
+                    rel,
+                    _PLAN_STATUS_GIT_PATTERN,
+                    dirty,
+                    head_blobs,
+                    lambda t: _status_value(repo, t),
+                )
                 > STALE_PLAN_DAYS * 86400
             ):
                 report[2].append(rel)
@@ -1379,7 +1466,14 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
                 continue
             if data.get("status") == "done" and not data.get("legacy"):
                 if (
-                    _status_change_age_seconds(repo, rel, _ITEM_STATUS_GIT_PATTERN, dirty)
+                    _status_change_age_seconds(
+                        repo,
+                        rel,
+                        _ITEM_STATUS_GIT_PATTERN,
+                        dirty,
+                        head_blobs,
+                        _item_status_field,
+                    )
                     <= RECENT_WINDOW_S
                 ):
                     ev = str(data.get("evidence") or "")

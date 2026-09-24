@@ -1139,3 +1139,66 @@ def test_import_enforcement_catches_systemexit_and_falls_back(tmp_path, monkeypa
 
     assert result is None
     assert any("check_x import failed" in m for m in calls)
+
+
+# ── review pass 3 (rev-T02/fixes-3.md) — 2 defects introduced by the pass-2 fixes ─────────────
+
+
+def test_class_6_dirty_notes_only_edit_does_not_take_mtime(tmp_path):
+    """A-O20: an item done 40 days ago (bad evidence), then given an UNCOMMITTED notes-only edit,
+    must still read its age from the commit history — its "status" field is UNCHANGED between the
+    working copy and HEAD, so this is "dirty" but not a genuine status flip."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item = _add(repo, env, title="done long ago, bad evidence")
+    it = _item(repo, item)
+    it.update(status="done", evidence="f" * 40)
+    _write_item(repo, item, it)
+    rel = f".fabrik/work/{item}.json"
+    old = datetime.now(UTC) - timedelta(days=40)
+    _commit_dated(repo, env, [rel], "close it", old)
+
+    it["note"] = "just a note, uncommitted"
+    _write_item(repo, item, it)  # dirty (git status shows it modified); "status" itself unchanged
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 6) == []
+
+
+def test_class_2_dirty_body_typo_still_drifts(tmp_path):
+    """A-O20: an old CONVERGED plan given an UNCOMMITTED body-only typo fix must still drift —
+    its Status: line is UNCHANGED between the working copy and HEAD, so the dirty flag alone must
+    not force a fresh (mtime) reading."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    old = datetime.now(UTC) - timedelta(days=10)
+    plan = _plan_dir(repo, "2026-09-24-plan-dirty-typo", "CONVERGED")
+    _commit_dated(repo, env, [plan], "converge it", old)
+
+    (repo / plan).write_text((repo / plan).read_text() + "\nTypo fixed.\n", encoding="utf-8")
+    # left UNCOMMITTED on purpose
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 2) == [f"DRIFT 2 (blocking)  {plan}"]
+
+
+def test_class_2_pickaxe_finds_tab_indented_header_and_ignores_t_prose(tmp_path):
+    """A-O21: git -G is POSIX ERE, where a bracket expression has no backslash-escape support —
+    `[ \\t]` means "space, OR a literal backslash, OR the letter t" (three characters), never
+    "space or tab". A TAB-indented header was therefore invisible to the pickaxe, while a line
+    merely starting "t Status: ..." was wrongly treated as one. `[[:blank:]]` (space-or-tab, no
+    escape needed) fixes both: the tab-indented commit's age is found, and a later t-prose commit
+    does not reset it."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    old = datetime.now(UTC) - timedelta(days=10)
+    plan = _plan_file_raw(repo, "2026-09-24-plan-tab-header", "\tStatus: CONVERGED")
+    _commit_dated(repo, env, [plan], "converge it (tab-indented header)", old)
+    (repo / plan).write_text(
+        (repo / plan).read_text() + "\nt Status: prose about something\n", encoding="utf-8"
+    )
+    _git(repo, env, "add", plan)
+    _git(repo, env, "commit", "-q", "-m", "unrelated t-status prose")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 2) == [f"DRIFT 2 (blocking)  {plan}"]
