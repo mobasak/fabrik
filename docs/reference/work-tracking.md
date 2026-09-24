@@ -53,9 +53,12 @@ plus a random nonce, exclusive-created so a collision just retries with a fresh 
 ## Identity, the lock, the lease
 
 - **Who is acting.** The agent name is `CLAUDE_AGENT` (validated against the same `[a-z0-9-]{1,32}`
-  rule, resolved by `whoami_agent.py` when present), unset in an unnamed session — such a session can
-  claim and finish unassigned items, but `assign` cannot target it. The session is
-  `CLAUDE_CODE_SESSION_ID`.
+  rule, resolved by `whoami_agent.py` when present), unset in an unnamed session — such a session
+  cannot be `assign`'s TARGET (owners are agent names only), but that is its only limit: `claim`,
+  `release`, `done` and `answer` fence on SESSION identity alone and never check `owner` (§ Ownership
+  is not identity-enforced, below), so an unnamed session can claim, release, finish or answer ANY
+  item — assigned to someone else or not (executed: an unnamed session claimed, then finished, an
+  item owned by `infra`; rc 0 both times, `owner` unchanged). The session is `CLAUDE_CODE_SESSION_ID`.
 - **One lock for every write.** An exclusive `fcntl` flock on `fabrik-work/.lock`, re-entrant within
   one thread, guards every write through a unique temp file plus `os.replace`. CLI verbs wait 10 s
   then **fail loud** (non-zero exit, a named message, e.g. `the store lock (…/.lock) was held for
@@ -108,12 +111,15 @@ unrecognized argument, exit 2). `done`/`drop`/`claim`/`release`/`answer` default
 `CLAUDE_CODE_SESSION_ID`.
 
 **Ownership is not identity-enforced for every verb.** `drop` checks `owner`/`distributor`, and
-`assign` checks `distributor` alone (when one is named); `claim`, `done`, `release` and `answer`
-check neither — they fence on SESSION identity alone (§ Identity, the lock, the lease, above), never
-on the item's `owner` field. So "the owner, the distributor, or anyone for an unassigned item"
-(`drop`'s row) and `assign`'s "distributor" are enforced rules, while "worker" (`claim`/`done`/
-`release`) and "the agent the operator answered" (`answer`'s row) above are conventions the CLI does
-not check — any named session can claim and finish any item regardless of who it is assigned to.
+`assign` checks `distributor` alone (when one is named) — an unnamed session cannot be `assign`'s
+TARGET, since owners are agent names only; `claim`, `done`, `release` and `answer` check neither —
+they fence on SESSION identity alone (§ Identity, the lock, the lease, above), never on the item's
+`owner` field. So "the owner, the distributor, or anyone for an unassigned item" (`drop`'s row) and
+`assign`'s "distributor" are enforced rules, while "worker" (`claim`/`done`/`release`) and "the agent
+the operator answered" (`answer`'s row) above are conventions the CLI does not check — ANY session,
+named or not, can claim, release, finish and answer ANY item, regardless of who it is assigned to
+(executed: an unnamed session claimed, then finished, an item owned by `infra`; rc 0 both times,
+`owner` unchanged).
 
 ## Ownership and the distributor
 
