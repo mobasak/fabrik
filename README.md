@@ -396,6 +396,7 @@ class ProvisionState(str, Enum):
 ## Production Infrastructure
 
 | Service | Location | Purpose |
+|---|---|---|
 | **VPS** | GreenCloud LA (172.93.160.197) | x86_64 hub running shared services; vps2/vps3 are Coventry UK spokes |
 | **Deploy mechanism** | SSH + Docker Compose via `fabrik apply` | Replaced Coolify 2026-05-30; deployer at [`src/fabrik/orchestrator/deployer_ssh.py`](src/fabrik/orchestrator/deployer_ssh.py) |
 | **Traefik** | VPS (ports 80/443) | Reverse proxy + automatic HTTPS |
@@ -404,7 +405,7 @@ class ProvisionState(str, Enum):
 | **Site Provisioner** | https://provision.vps1.ocoron.com | Domain provisioning, DNS, SSL, CDN, analytics |
 | **Gatus** | https://status.vps1.ocoron.com | Status monitoring |
 | **Grafana** | https://monitor.vps1.ocoron.com | Dashboards (Prometheus + Loki) |
-| **Prometheus + Alertmanager** | (internal :9090 / :9093) | Metrics, 9 alert rules → ARO Brain / Apprise |
+| **Prometheus + Alertmanager** | (internal :9090 / :9093) | Metrics, 13 alert rules (`configs/prometheus/rules/`) → Telegram, and ARO wake for routed alerts |
 | **Loki + Promtail** | (internal :3100) | Log aggregation from all containers |
 | **Backrest** | https://backup.vps1.ocoron.com | Restic-based backups to Backblaze B2 (replaced Duplicati 2026-04-17) |
 | **File API** | (retired) | File uploads (R2 storage) — retired; only live Fabrik microservice is Site Provisioner |
