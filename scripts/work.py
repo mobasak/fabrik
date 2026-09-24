@@ -43,7 +43,7 @@ line) when that import fails.
 
 This module is import-safe: nothing runs outside ``if __name__ == "__main__"``.
 Implemented: init, add, assign, ready [--mine], next (T01a); claim, release, done, drop, answer and
-the hook API (T01b); status, sync --check (T02). render and migrate-backlog are later tickets.
+the hook API (T01b); status, sync --check (T02); render, migrate-backlog (T03).
 """
 
 from __future__ import annotations
@@ -64,6 +64,7 @@ import time
 from collections.abc import Callable, Iterator
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 try:
     import fcntl
@@ -98,9 +99,55 @@ PLANS_DIR = Path("docs") / "development" / "plans"
 _PLAN_DIR_NAME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+$")
 _PLAN_FILE_NAME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+\.md$")
 _BACKLOG_REL = "docs/STRATEGIC_BACKLOG.md"
-_BACKLOG_BLOCK_RE = re.compile(
-    r"<!--\s*AUTO-GENERATED:BACKLOG:START\s*-->(.*?)<!--\s*AUTO-GENERATED:BACKLOG:END\s*-->", re.S
-)
+# T03 review pass 1, Decision B.2: match START/END as WHOLE LINES only — a line merely QUOTING the
+# marker in prose (A-O4) must never be read as the real block. Multiple STARTs or an orphan
+# START/END is a loud refusal (`_find_backlog_block`), never a silent first-match guess.
+# A-O24: `\r?` before `$` — a marker line is still matched when it is itself CRLF-terminated in a
+# file `render` is NOT blanket-normalizing (a non-uniform file; see `cmd_render`).
+_BACKLOG_START_RE = re.compile(r"^<!-- AUTO-GENERATED:BACKLOG:START -->\r?$", re.M)
+_BACKLOG_END_RE = re.compile(r"^<!-- AUTO-GENERATED:BACKLOG:END -->\r?$", re.M)
+# Decision B.6 (A-O13): class-7 reads only an id in a rendered line's TRAILING backtick-parens
+# position — never any W-xxxxxxxx-shaped substring anywhere in the block (which could appear
+# inside an item's own title).
+_BACKLOG_TRAILING_ID_RE = re.compile(r"\(`(W-[0-9a-f]{8})`\)[ \t]*$", re.M)
+
+
+def _find_backlog_block(text: str) -> tuple[int, int, int, int] | None:
+    """``(start_begin, start_end, end_begin, end_end)`` character offsets of the ONE whole-line
+    START/END marker pair in ``text``, or ``None`` when neither is present. Raises ``WorkError``
+    (a CLI verb fails loud, per spec § Lifecycle — Degradation is a hook-side rule only) on more
+    than one START line, an orphan START with no END, an orphan END with no START, more than one
+    END line, or an END that precedes its START — never silently picking the first match, which
+    is exactly how A-O4 corrupted hand-written text that merely quoted the marker."""
+    starts = list(_BACKLOG_START_RE.finditer(text))
+    ends = list(_BACKLOG_END_RE.finditer(text))
+    if not starts and not ends:
+        return None
+    if len(starts) > 1:
+        raise WorkError(
+            f"{_BACKLOG_REL} has {len(starts)} AUTO-GENERATED:BACKLOG:START lines — expected "
+            "exactly one; refusing to guess which is the real block"
+        )
+    if not starts:
+        raise WorkError(
+            f"{_BACKLOG_REL} has an AUTO-GENERATED:BACKLOG:END line with no matching START"
+        )
+    if not ends:
+        raise WorkError(
+            f"{_BACKLOG_REL} has an AUTO-GENERATED:BACKLOG:START line with no matching END — "
+            "refusing to write past an unterminated block"
+        )
+    if len(ends) > 1:
+        raise WorkError(
+            f"{_BACKLOG_REL} has {len(ends)} AUTO-GENERATED:BACKLOG:END lines — expected exactly "
+            "one; refusing to guess which is the real block"
+        )
+    s, e = starts[0], ends[0]
+    if e.start() < s.end():
+        raise WorkError(f"{_BACKLOG_REL}'s AUTO-GENERATED:BACKLOG END precedes its START")
+    return s.start(), s.end(), e.start(), e.end()
+
+
 BLOCKING_CLASSES = frozenset({2, 3, 4, 5, 6})  # classes 1, 7, 8 are always advisory
 RECENT_WINDOW_S = MARKER_MAX_AGE_S  # 14 days — shared by class 6's two predicates
 STALE_PLAN_DAYS = 7  # class 2's "more than 7 days" CONVERGED-with-nothing-carrying-it threshold
@@ -115,6 +162,7 @@ _PLAN_STATUS_ALIASES = {
 _PLAN_STATUSES = frozenset({"DRAFT", "IN-PROGRESS", "CONVERGED", "EXECUTED", "BLOCKED"})
 DECISIONS_PY = Path("/opt/fabrik/scripts/decisions.py")  # hub-only, by absolute path
 WHOAMI_PY = Path(__file__).with_name("whoami_agent.py")
+DOCS_UPDATER_PY = Path(__file__).with_name("docs_updater.py")  # T03: migrate-backlog / render
 NAME_RULE = "[a-z0-9-]{1,32}"  # whoami_agent.py's agent-name rule: owners are agent names only
 _NAME_RE = re.compile(NAME_RULE)
 _ID_RE = re.compile(r"W-[0-9a-f]{8}")  # always .fullmatch — `$` admits a trailing newline
@@ -982,6 +1030,33 @@ def _import_enforcement(repo: Path, name: str) -> object | None:
     return result
 
 
+_DOCS_UPDATER_CACHE: Any | None = None
+
+
+def _docs_updater() -> Any:
+    """``scripts/docs_updater.py``, imported by path (T03): ``migrate-backlog`` and ``render``
+    reuse its fence-aware backlog-row grammar and its ``AUTO-GENERATED`` block writer
+    (``replace_block``) rather than duplicating either. Unlike ``_import_enforcement``'s
+    best-effort fallback for an OPTIONAL per-repo reader, this raises loud: ``docs_updater.py``
+    ships beside ``work.py`` in every synced repo (both are ``CORE_SCRIPTS``), so a missing or
+    broken module here is a broken sync, and every CLI verb fails loud (spec § Lifecycle —
+    Degradation is a hook-side rule, not a CLI one). Cached per process — the module never changes
+    mid-process."""
+    global _DOCS_UPDATER_CACHE
+    if _DOCS_UPDATER_CACHE is not None:
+        return _DOCS_UPDATER_CACHE
+    spec = importlib.util.spec_from_file_location("_work_docs_updater", DOCS_UPDATER_PY)
+    if spec is None or spec.loader is None:
+        raise WorkError(f"cannot import {DOCS_UPDATER_PY} (needed by migrate-backlog/render)")
+    mod = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(mod)
+    except Exception as exc:
+        raise WorkError(f"cannot import {DOCS_UPDATER_PY}: {exc}") from exc
+    _DOCS_UPDATER_CACHE = mod
+    return mod
+
+
 def _status_line_re(repo: Path) -> re.Pattern:
     mod = _import_enforcement(repo, "check_convergence")
     pattern = getattr(mod, "_STATUS_LINE", None) if mod is not None else None
@@ -1332,8 +1407,12 @@ def _active_plan_locks(repo: Path) -> dict[str, dict]:
 
 def _backlog_needs_render(repo: Path, items: list[dict]) -> bool:
     """True when the open ``kind: backlog`` item ids differ from the ids the rendered
-    ``AUTO-GENERATED:BACKLOG`` block currently lists — the cheapest honest proxy for "render
-    would change it" without duplicating ``render`` itself (T03)."""
+    ``AUTO-GENERATED:BACKLOG`` block currently lists in each line's TRAILING backtick-parens
+    position — the cheapest honest proxy for "render would change it" without duplicating
+    ``render`` itself (T03; T03 review pass 1 Decision B.6/A-O13, A-S2). A MISSING block while
+    open backlog items exist is drift too — the un-rendered state is exactly the one class 7
+    exists to name; a malformed block (ambiguous START/END) reads as drift the same way rather
+    than raising here, since ``status``/``sync`` are read-only reporting paths."""
     path = repo / _BACKLOG_REL
     if not path.is_file():
         return False
@@ -1341,15 +1420,20 @@ def _backlog_needs_render(repo: Path, items: list[dict]) -> bool:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return False
-    m = _BACKLOG_BLOCK_RE.search(text)
-    if not m:
-        return False
     open_ids = {
         str(it["id"])
         for it in items
         if it.get("kind") == "backlog" and it.get("status") not in RESOLVED
     }
-    block_ids = set(_ID_RE.findall(m.group(1)))
+    try:
+        found = _find_backlog_block(text)
+    except WorkError:
+        return bool(open_ids)
+    if found is None:
+        return bool(open_ids)
+    _, s_end, e_begin, _ = found
+    inner = text[s_end:e_begin]
+    block_ids = set(_BACKLOG_TRAILING_ID_RE.findall(inner))
     return open_ids != block_ids
 
 
@@ -1602,6 +1686,663 @@ def _merge_owner(repo: Path) -> str:
         )
         return ""
     return name
+
+
+# ── T03: migrate-backlog, render (spec § The backlog becomes a view; T03 review pass 1) ─────────
+#
+# Decision R (review pass 1, D-row minted at merge): the ticket's literal body rule ("a body runs
+# to the next line starting `##`, `### `, `- ` or `|`") contradicted the ticket's own shape counts
+# (~287-293) and the spec's V2 (253 open, 36 resolved) — V2 measures rows as TAGGED ENTRIES, and
+# the literal rule inflated the hub count to 601 (pass-1.json A-S1/A-O1). Resolution: a ROW starts
+# ONLY at a column-0 line of one of six shapes — a `## ` heading (any); a `### ` heading that
+# carries a tag or a resolved marker; a bullet whose content begins with a bracket tag (bold or
+# not); a checkbox bullet `- [ ]`/`- [x]` (`* ` counts identically — A-O10); a bullet whose content
+# begins with `~~`; a table row under a header carrying a Tag/Owner cell. EVERYTHING ELSE —
+# untagged column-0 bullets, untagged `### ` narrative sub-headers, indented continuation, prose,
+# fenced blocks — is BODY of the row above, kept in its text; a body runs to the next ROW line,
+# never to the next `- `. A row-start line that fails to parse (an untagged `## `) still becomes an
+# item with an empty owner (contract row 2); non-row text before the first row, or belonging to no
+# row, is never an item.
+#
+# `docs_updater.classify_backlog_row` decides whether an UNTAGGED row NEEDS a tag (`--adopt`'s own
+# job): its "skip" verdict fires equally on an already-tagged, resolved, or non-row line — the
+# inverse of what migration needs — so this scanner classifies independently. It still reuses
+# docs_updater's lower-level grammar (`_BACKLOG_BULLET_RE`, the table-header/separator/legend
+# helpers, `_BACKLOG_TAG_AT_POS_RE`); `docs_updater.replace_block` is NOT reused by `render` (see
+# Decision B below — its always-stamp, first-match semantics don't fit the no-timestamp,
+# ambiguity-refusing contract review pass 1 requires).
+
+_HEADING2_RE = re.compile(r"^## (.*)$")
+_HEADING3_RE = re.compile(r"^### (.*)$")
+_FENCE_OPEN_RE = re.compile(r"^(`{3,}|~{3,})")
+_RESOLVED_STATUS_WORDS = ("RESOLVED", "CLOSED", "DONE", "LANDED", "MOOT", "DRILLED", "SHIPPED")
+# A-O17: \b word boundaries so RESOLVED never matches inside UNRESOLVED, DONE inside UNDONE, etc.
+# A-S3: ✅ joins the SAME status-position scan as the uppercase words, rather than an unconditional
+# "appears anywhere" test — a title merely discussing "the ✅ row" stays open.
+_STATUS_OR_CHECK_RE = re.compile(r"✅|\b(?:" + "|".join(_RESOLVED_STATUS_WORDS) + r")\b")
+_STATUS_AFTER_RE = re.compile(r"^[ \t:,\-—]{0,4}(?:\d{4}-\d{2}-\d{2}|in D-\d+)")
+_STATUS_BEFORE_DASH_RE = re.compile(r"—[ \t]*$")
+# A-O19/A-O27: a status word this close behind PARTIALLY/PARTLY/NOT never resolves the row on its
+# own — hyphen- and whitespace-tolerant ("PARTIALLY-CLOSED", "NOT DONE").
+_NEGATION_PREFIX_RE = re.compile(r"\b(?:PARTIALLY|PARTLY|NOT)[ \t-]*$", re.I)
+# A-O19/A-O26/A-O27: "stays/still/remains open" (hyphen- or whitespace-joined, "still-open") cancels
+# a status-position hit that it FOLLOWS — checked per-marker, in the text AFTER that marker, never
+# as a blanket whole-title pre-check (A-O26): a PAST-TENSE mention ("was/were still open") of a
+# historical state never cancels a dated resolution that precedes it.
+_STAYS_OPEN_RE = re.compile(r"\b(?:stays|still|remains)[ \t-]+open\b", re.I)
+_PAST_TENSE_BEFORE_RE = re.compile(r"\b(?:was|were)[ \t]*$", re.I)
+# A-O25: a match sitting as the first TOKEN of a TABLE CELL (right after a `|`, through up to 4
+# chars of bold/strike/backtick decoration) is a status position too — checked only when the row
+# IS a table (`is_table=True`), never for a heading/bullet that happens to contain a literal `|`.
+_STATUS_AFTER_PIPE_RE = re.compile(r"\|[ \t]*(?:[*_~`]{0,4})$")
+_MIGRATED_DIGEST_RE = re.compile(r"migrated-digest:([0-9a-f]{12})")
+_ROW_DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
+_BRACKET_RE = re.compile(r"\[([^\]\n]{1,80})\]")
+# A-O21/A-O22: work.py's OWN fallback for a cross-tag with spaces around its separator
+# (docs_updater's `_BACKLOG_TAG_AT_POS_RE` — never edited here — requires the separator flush
+# against the head). Carries the SAME two guards as that regex, restated for a spaced head: never
+# a bare checkbox mark (`[x + y]`) and never a bare date (`[2026-09-20 → 2026-09-22]`) — without
+# them the head group's `[a-z0-9-]` happily swallows a lone "x" or a full YYYY-MM-DD as the "owner".
+_CROSS_TAG_SPACED_RE = re.compile(
+    r"^(?!x[ \t]*[/+→])(?!\d{4}-\d{2}-\d{2}[ \t]*[/+→])"
+    r"[a-z0-9-]{1,32}[ \t]*[/+→][ \t]*[^\]\n]{0,60}$"
+)
+_LEGEND_HEADER = ("Tag", "Agent", "Beat")
+
+
+def _looks_bracket_led(content: str) -> bool:
+    """True when ``content`` begins with a bracket — ANY bracket, tag-valid or not — after
+    stripping up to three layers of leading decoration (``~~``, ``**``, one backtick). This is the
+    ROW-START trigger (Decision R.1's "content begins with a bracket tag (bold or not)"),
+    deliberately looser than tag VALIDATION: a malformed leading bracket (``[RESOLVED …]``) still
+    starts a row — finding the real tag past it is `_find_first_tag`'s job (A-O11)."""
+    s = content.lstrip()
+    for _ in range(3):
+        if s[:2] in ("~~", "**"):
+            s = s[2:]
+        elif s[:1] == "`":
+            s = s[1:]
+        else:
+            break
+    return s.startswith("[")
+
+
+def _find_first_tag(text: str, du: Any) -> tuple[str, str, tuple[int, int]] | None:
+    """The FIRST canonical bracket tag anywhere in ``text`` (Decision R.6, A-O11 — not only at
+    position 0: a leading ``[RESOLVED …]`` bracket is skipped in favor of a real ``[infra]`` one
+    bracket over). Returns ``(owner, "[<raw>]", (start, end))`` — the span covers the whole
+    ``[...]`` including brackets, for the render title-strip (A-O12) and the resolved "first word
+    after tag" check (Decision M); ``None`` when no bracket in ``text`` validates as a tag."""
+    for m in _BRACKET_RE.finditer(text):
+        inner = m.group(1)
+        if du._BACKLOG_TAG_AT_POS_RE.match(f"[{inner}]") or _CROSS_TAG_SPACED_RE.match(inner):
+            owner = re.split(r"[/+→]", inner, maxsplit=1)[0].strip().lower()
+            return owner, f"[{inner}]", m.span()
+    return None
+
+
+def _row_is_resolved(
+    title_line: str,
+    *,
+    checkbox: str = "",
+    strike_content: str = "",
+    tag_span: tuple[int, int] | None = None,
+    is_table: bool = False,
+) -> bool:
+    """Decision M (A-O7, A-S3, A-O17, A-O19, A-O25, A-O26, A-O27): a row is resolved when the
+    checkbox is ``[x]``, or ``strike_content`` (the row's own content after its marker) begins with
+    a strike. Otherwise ``✅`` and an uppercase WHOLE word (``\\b``-bounded, A-O17) from
+    RESOLVED/CLOSED/DONE/LANDED/MOOT/DRILLED/SHIPPED are scanned together for a STATUS POSITION —
+    followed (after optional spaces/punctuation) by a date or ``in D-<n>``, sitting AFTER the tag
+    span as its first word (never before it — A-O17), following an em dash, or — for a TABLE row
+    only (``is_table=True``, A-O25) — sitting as the first token of ANY cell (right after a ``|``).
+    A bare mid-sentence occurrence ("a CLOSED review's edits", "file 5, DONE", "the ✅ row") is NOT
+    resolved. Two negations, each checked PER MARKER rather than once for the whole title: a word
+    directly preceded by PARTIALLY/PARTLY/NOT, hyphen-tolerant (A-O27); or a "stays/still/remains
+    open" phrase (hyphen-tolerant) that FOLLOWS this marker (never one merely somewhere in the
+    title, and never a PAST-TENSE mention — "was/were still open" — of a historical state, which
+    must not cancel a dated resolution that precedes it — A-O26). A checkbox or a genuine leading
+    strike are unambiguous enough to skip both negations."""
+    if checkbox.lower() == "x":
+        return True
+    if strike_content.lstrip().startswith("~~"):
+        return True
+    for m in _STATUS_OR_CHECK_RE.finditer(title_line):
+        ws, we = m.span()
+        if _NEGATION_PREFIX_RE.search(title_line[:ws]):
+            continue
+        first_word_after_tag = (
+            tag_span is not None
+            and ws >= tag_span[1]
+            and bool(re.fullmatch(r"[\s*_~]*", title_line[tag_span[1] : ws]))
+        )
+        resolves = (
+            bool(_STATUS_AFTER_RE.match(title_line[we:]))
+            or (is_table and bool(_STATUS_AFTER_PIPE_RE.search(title_line[:ws])))
+            or first_word_after_tag
+            or bool(_STATUS_BEFORE_DASH_RE.search(title_line[:ws]))
+        )
+        if not resolves:
+            continue
+        after_text = title_line[we:]
+        stay_m = _STAYS_OPEN_RE.search(after_text)
+        if stay_m and not _PAST_TENSE_BEFORE_RE.search(after_text[: stay_m.start()]):
+            continue  # A-O26: negated by a FOLLOWING, non-past-tense stays-open phrase
+        return True
+    return False
+
+
+def _title_without_tag(text: str, tag_span: tuple[int, int] | None) -> str:
+    """Drop the tag bracket ``render`` re-prefixes as ``**[owner]**`` — every other markdown
+    character (``_``/``*``/backticks) stays intact; the store is never the field that mangles a
+    real identifier like ``the_thing_x`` (A-O12). A-O16: when the tag sits inside its OWN isolated
+    ``**[tag]**`` bold pair (as opposed to one bold span wrapping both the tag and the title), that
+    wrapper is removed WITH the tag — otherwise a bare bracket removal leaves an empty ``****`` on
+    124 of 325 real hub titles.
+
+    A-O23: every cleanup below touches ONLY the two ends of the SPLICE POINT (``before``/``after``
+    around the removed span) — never the whole string via a global regex, which would corrupt an
+    unrelated code span or prose elsewhere in the title (`x****y` -> `xy`, a genuine ``****b****``
+    emphasis run untouched: the plain-prose case, where ``before`` ends in ordinary text rather
+    than a bold-open, triggers NEITHER rule below). When the tag's OWN bold-open survives right
+    before the splice (``before`` ends with ``**`` — the merged ``**[tag] Title**`` span; an empty
+    ``before`` needs no rule at all, the function's own final ``.strip()`` already squeezes a
+    leading gap left by nothing preceding it): (a) ``after`` begins with an optional space then
+    ANOTHER ``**`` — an accidental empty/re-opened bold pair straddling the boundary — drop that
+    redundant ``**`` (and the space), keeping the ONE already in ``before``; otherwise (b) squeeze
+    just the stray leading space ``**[tag] Title**`` left in ``after`` -> ``**Title**``."""
+    if tag_span is None:
+        return text.strip()
+    start, end = tag_span
+    lead, trail = start, end
+    if text[max(0, start - 2) : start] == "**" and text[end : end + 2] == "**":
+        lead -= 2
+        trail += 2
+    before, after = text[:lead], text[trail:]
+    if before.endswith("**"):
+        m = re.match(r"^[ \t]?\*\*", after)
+        # (a) drop the redundant "**" (before keeps its own); else (b) squeeze the stray gap
+        after = after[m.end() :] if m else re.sub(r"^[ \t]+", "", after, count=1)
+    return (before + after).strip()
+
+
+def _row_title_text(content: str, tag_span: tuple[int, int] | None) -> str:
+    """A short, readable title for id-minting and ``render``'s display — tag stripped, every other
+    character of markdown kept (A-O12); never the field the store trusts for content (``next``
+    keeps the row's full, untruncated text)."""
+    first_line = content.splitlines()[0] if content else ""
+    cleaned = " ".join(_title_without_tag(first_line, tag_span).split())
+    if len(cleaned) > 197:
+        cleaned = cleaned[:197] + "..."
+    return cleaned or "(untitled backlog row)"
+
+
+def _row_created(text: str) -> str | None:
+    """The row's own creation date (spec: "creation date from the row's date") — the FIRST
+    ``YYYY-MM-DD`` in the row's title line, which every sampled row carries right after its
+    title; ``None`` when none is found, so the caller falls back to now."""
+    m = _ROW_DATE_RE.search(text)
+    if not m:
+        return None
+    try:
+        d = date.fromisoformat(m.group(1))
+    except ValueError:
+        return None
+    return d.isoformat() + "T00:00:00.000000Z"
+
+
+def _table_cell_owner(cell_text: str, du: Any) -> tuple[str, str]:
+    """Owner from a table's Tag/Owner cell — a bare word (``infra``) or a bracket, backtick-wrapped
+    or not (Decision R.5, A-O8): ``because X``/``when Y`` never enter the owner, only the cell's
+    own text does."""
+    s = cell_text.strip()
+    if s.startswith("`") and s.endswith("`") and len(s) >= 2:
+        s = s[1:-1].strip()
+    found = _find_first_tag(s, du)
+    if found:
+        return found[0], found[1]
+    if re.fullmatch(r"[a-z0-9-]{1,32}", s):
+        return s, ""
+    return "", ""
+
+
+def _scan_backlog_rows(text: str) -> list[dict]:
+    """Every ROW of a STRATEGIC_BACKLOG.md-shaped file, per Decision R above. Returns one dict per
+    row: ``shape`` (``heading2``/``heading3``/``bullet``/``table``), ``owner`` (lowercase, "" when
+    none), ``full_tag`` (the raw bracket text, for a cross-tag note), ``title`` (markdown-intact,
+    tag stripped), ``resolved`` (bool), ``title_line`` (the row's own first line, for date/resolved
+    grounding), ``text`` (the row's own line PLUS every absorbed body line, up to but excluding the
+    next row-start line — never truncated). Fences are tracked by their OPENING delimiter type
+    (``` vs ~~~) through row bodies too, so nothing inside a fence is ever read as a row (A-O9,
+    A-O15); the legend table is recognised by its EXACT ``Tag | Agent | Beat`` header, never by
+    "cell 0 == Tag" alone (B-S2)."""
+    du = _docs_updater()
+    lines = text.split("\n")
+    n = len(lines)
+    rows: list[dict] = []
+
+    current: dict | None = None
+    body: list[str] = []
+
+    def finish() -> None:
+        nonlocal current, body
+        if current is not None:
+            current["text"] = "\n".join(body).strip("\n")
+            rows.append(current)
+        current = None
+        body = []
+
+    def start(
+        shape: str, *, owner: str, full_tag: str, title: str, resolved: bool, title_line: str
+    ) -> None:
+        nonlocal current, body
+        finish()
+        current = {
+            "shape": shape,
+            "owner": owner,
+            "full_tag": full_tag,
+            "title": title,
+            "resolved": resolved,
+            "title_line": title_line,
+        }
+        body = [title_line]
+
+    def append_body(line: str) -> None:
+        if current is not None:
+            body.append(line)
+
+    in_fence = False
+    fence_char = ""
+    fence_len = 0
+    header_cells: list[str] | None = None
+    header_is_legend = False
+
+    i = 0
+    while i < n:
+        line = lines[i]
+        stripped = line.strip()
+
+        if in_fence:
+            close_re = re.compile(r"^" + re.escape(fence_char * fence_len) + r"+\s*$")
+            if close_re.match(stripped):
+                in_fence = False
+            append_body(line)
+            i += 1
+            continue
+
+        fm = _FENCE_OPEN_RE.match(stripped)
+        if fm:
+            in_fence = True
+            fence_char = fm.group(1)[0]
+            fence_len = len(fm.group(1))
+            append_body(line)
+            header_cells = None
+            i += 1
+            continue
+
+        if stripped.startswith("|"):
+            if i + 1 < n and du._BACKLOG_SEPARATOR_RE.match(lines[i + 1].strip()):
+                header_cells = du._backlog_row_cells(line)
+                header_is_legend = tuple(c.strip() for c in header_cells) == _LEGEND_HEADER
+                append_body(line)
+                i += 1
+                continue
+            if header_cells is not None and du._BACKLOG_SEPARATOR_RE.match(stripped):
+                append_body(line)
+                i += 1
+                continue
+            if header_cells is not None and not header_is_legend:
+                names = [c.strip() for c in header_cells]
+                tag_idx = du._backlog_tag_header_index(names)
+                if tag_idx is not None:
+                    cells = du._backlog_row_cells(line)
+                    if cells != names:  # the header row, re-offered — never a data row
+                        owner, full_tag = _table_cell_owner(
+                            cells[tag_idx] if tag_idx < len(cells) else "", du
+                        )
+                        item_idx = (
+                            names.index(du._BACKLOG_ITEM_HEADER)
+                            if du._BACKLOG_ITEM_HEADER in names
+                            else 1
+                        )
+                        title_src = cells[item_idx] if item_idx < len(cells) else line
+                        start(
+                            "table",
+                            owner=owner,
+                            full_tag=full_tag,
+                            title=" ".join(title_src.split())[:197] or "(untitled backlog row)",
+                            # A-O18: a table row runs through the SAME resolved rule as any other
+                            # row — the Item cell as strike_content, so `~~Old item~~` resolves.
+                            resolved=_row_is_resolved(
+                                line, strike_content=title_src, is_table=True
+                            ),
+                            title_line=line,
+                        )
+                        i += 1
+                        continue
+            append_body(line)
+            i += 1
+            continue
+        header_cells = None
+
+        m3 = _HEADING3_RE.match(line)
+        if m3:
+            content = m3.group(1)
+            tag = _find_first_tag(content, du)
+            span = tag[2] if tag else None
+            resolved = _row_is_resolved(content, strike_content=content, tag_span=span)
+            if tag is not None or resolved:
+                owner, full_tag = (tag[0], tag[1]) if tag else ("", "")
+                start(
+                    "heading3",
+                    owner=owner,
+                    full_tag=full_tag,
+                    title=_row_title_text(content, span),
+                    resolved=resolved,
+                    title_line=line,
+                )
+                i += 1
+                continue
+            append_body(line)
+            i += 1
+            continue
+
+        m2 = _HEADING2_RE.match(line)
+        if m2:
+            content = m2.group(1)
+            tag = _find_first_tag(content, du)
+            owner, full_tag, span = tag if tag else ("", "", None)
+            start(
+                "heading2",
+                owner=owner,
+                full_tag=full_tag,
+                title=_row_title_text(content, span),
+                resolved=_row_is_resolved(content, strike_content=content, tag_span=span),
+                title_line=line,
+            )
+            i += 1
+            continue
+
+        if line[:2] in ("- ", "* "):
+            bm = du._BACKLOG_BULLET_RE.match(line)
+            if bm:
+                marker, content = bm.group(1), bm.group(2)
+                checkbox_m = re.search(r"\[([ xX])\]", marker)
+                checkbox = checkbox_m.group(1) if checkbox_m else ""
+                struck = content.lstrip().startswith("~~")
+                if checkbox or struck or _looks_bracket_led(content):
+                    tag = _find_first_tag(content, du)
+                    owner, full_tag, span = tag if tag else ("", "", None)
+                    start(
+                        "bullet",
+                        owner=owner,
+                        full_tag=full_tag,
+                        title=_row_title_text(content, span),
+                        resolved=_row_is_resolved(
+                            content, checkbox=checkbox, strike_content=content, tag_span=span
+                        ),
+                        title_line=content,
+                    )
+                    i += 1
+                    continue
+
+        append_body(line)
+        i += 1
+
+    finish()
+    return rows
+
+
+def _row_digest(text: str, ordinal: int) -> str:
+    """Decision R.7 (A-O3): the digest covers the row's text PLUS its occurrence ordinal among
+    identical texts in this scan, so two genuinely duplicated source rows (the hub file carries one
+    byte-for-byte duplicated heading section) become two items, never a silent collapse. Dedupe is
+    against the STORE's existing digests only — the caller never adds a newly-created digest back
+    into that set, so two duplicates within one run are never compared against each other, only
+    against what already existed before this run."""
+    return hashlib.sha1(f"{text}\x00{ordinal}".encode()).hexdigest()[:12]
+
+
+def _existing_backlog_digests(repo: Path) -> set[str]:
+    out: set[str] = set()
+    for it in _iter_items(repo):
+        if it.get("kind") != "backlog":
+            continue
+        m = _MIGRATED_DIGEST_RE.search(str(it.get("note") or ""))
+        if m:
+            out.add(m.group(1))
+    return out
+
+
+def _row_note(row: dict, digest: str) -> str:
+    plain_tag = f"[{row['owner']}]" if row["owner"] else ""
+    if row["full_tag"] and row["full_tag"] != plain_tag:
+        return f"full-tag:{row['full_tag']}; migrated-digest:{digest}"
+    return f"migrated-digest:{digest}"
+
+
+def _strip_backlog_block(text: str) -> str:
+    """Remove the rendered AUTO-GENERATED:BACKLOG block, together with the EXACT whitespace
+    ``_insert_backlog_block`` added around it, before scanning — never re-scan ``render``'s own
+    output as fresh source rows (a migrate-backlog run after a render would otherwise treat every
+    rendered `` - **[owner]** title (`W-…`) `` line as a brand-new bullet row and recreate the
+    whole open set on every later run). Symmetric removal (Decision B.3, A-O5): stripping exactly
+    what was inserted means a row whose body happened to run up to the insertion point reads
+    byte-identically whether the block exists or not, so its digest never drifts across a
+    migrate → render → migrate cycle. Raises ``WorkError`` on an ambiguous block (Decision B.2)."""
+    found = _find_backlog_block(text)
+    if found is None:
+        return text
+    s_begin, s_end, e_begin, e_end = found
+    lead = s_begin
+    if text[max(0, s_begin - 2) : s_begin] == "\n\n":
+        lead = s_begin - 2
+    elif text[max(0, s_begin - 1) : s_begin] == "\n":
+        lead = s_begin - 1
+    trail = e_end
+    if text[e_end : e_end + 1] == "\n":
+        trail = e_end + 1
+    return text[:lead] + text[trail:]
+
+
+def cmd_migrate_backlog(repo: Path, args: argparse.Namespace) -> int:
+    """Turn every ROW of ``docs/STRATEGIC_BACKLOG.md`` into a ``kind: backlog`` item — idempotent
+    against the STORE's own existing digests, kept in ``note`` (spec § The backlog becomes a view;
+    Decision R.7). Never writes the backlog file itself; that is ``render``'s job alone."""
+    _require_store(repo)
+    path = repo / _BACKLOG_REL
+    if not path.is_file():
+        print(f"work: migrate-backlog — no {_rel(repo, path)}, nothing to migrate")
+        return 0
+    text = _strip_backlog_block(path.read_text(encoding="utf-8", errors="replace"))
+    rows = _scan_backlog_rows(text)
+    created = 0
+    unowned: list[str] = []
+    occurrence: dict[str, int] = {}
+    with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="migrate-backlog"):
+        existing = _existing_backlog_digests(repo)  # read ONCE; never mutated (Decision R.7)
+        for row in rows:
+            ordinal = occurrence.get(row["text"], 0)
+            occurrence[row["text"]] = ordinal + 1
+            digest = _row_digest(row["text"], ordinal)
+            if digest in existing:
+                continue
+            item = _new_item(
+                kind="backlog",
+                title=row["title"],
+                next_action=row["text"],
+                links={},
+                priority=DEFAULT_PRIORITY,
+            )
+            created_at = _row_created(row["title_line"])
+            if created_at:
+                item["created"] = created_at
+            item["owner"] = row["owner"]
+            item["note"] = _row_note(row, digest)
+            if row["resolved"]:
+                item["status"] = "done"
+                item["legacy"] = True
+            _create_item(repo, item)
+            created += 1
+            if not row["owner"]:
+                unowned.append(str(item["id"]))
+        if created:
+            _after_write(repo, _session())
+        cfg = _read_config(repo)
+        if not cfg.get("migrated_at"):
+            cfg["migrated_at"] = _now_iso()
+            _write_json(_config_path(repo), cfg)
+    print(
+        f"work: migrate-backlog — {created} item(s) created from {len(rows)} "
+        f"row(s) in {_rel(repo, path)}"
+    )
+    if unowned:
+        print("work: needs the distributor (no owner tag) — " + ", ".join(unowned))
+    return 0
+
+
+def _render_backlog_body(items: list[dict]) -> str:
+    """Deterministic BACKLOG block body — open ``kind: backlog`` items only, sorted by priority,
+    owner, then id; no timestamp, so two renders of the same store are byte-identical. Every open
+    item's id must appear here, in its line's TRAILING backtick-parens position, and no other id
+    may: ``_backlog_needs_render``'s class-7 reader trusts exactly that (Decision B.6, A-O13)."""
+    open_items = [
+        it for it in items if it.get("kind") == "backlog" and it.get("status") not in RESOLVED
+    ]
+    open_items.sort(key=lambda it: (_priority(it), str(it.get("owner") or ""), str(it["id"])))
+    if not open_items:
+        return (
+            '_No open backlog items. New backlog work: `work.py add --kind backlog --title "..."`._'
+        )
+    lines = []
+    for it in open_items:
+        owner = it.get("owner") or "unassigned"
+        title = " ".join(str(it.get("title") or "(untitled)").split())
+        lines.append(f"- **[{owner}]** {title} (`{it['id']}`)")
+    return "\n".join(lines)
+
+
+_BACKLOG_HR_RE = re.compile(r"^---[ \t]*$", re.M)
+_H1_RE = re.compile(r"^# ")
+
+
+def _insert_backlog_block(text: str, body: str) -> str:
+    """Insert a brand-new BACKLOG block below the first ``^---$`` rule AFTER the file's first
+    ``# `` (H1) heading, outside YAML front matter and outside fences (Decision B.4, A-O6); with no
+    such rule, after the H1 heading's own paragraph (or right after the heading when it has none).
+    No timestamp anywhere, including the version comment (Decision B.1, A-H1) — the output is
+    byte-deterministic from the store alone."""
+    block = (
+        "<!-- AUTO-GENERATED:BACKLOG:START -->\n"
+        "<!-- AUTO-GENERATED:BACKLOG v1 -->\n"
+        f"{body}\n"
+        "<!-- AUTO-GENERATED:BACKLOG:END -->"
+    )
+    lines = text.split("\n")
+    n = len(lines)
+    start_i = 0
+    if lines and lines[0].strip() == "---":  # YAML front matter — skip past its closing `---`
+        j = 1
+        while j < n and lines[j].strip() != "---":
+            j += 1
+        start_i = j + 1 if j < n else 0
+    h1_idx = None
+    for k in range(start_i, n):
+        if _H1_RE.match(lines[k]):
+            h1_idx = k
+            break
+    if h1_idx is None:
+        head, sep, rest = text.partition("\n")
+        return f"{head}\n\n{block}\n{sep}{rest}"
+    in_fence = False
+    fence_char = ""
+    fence_len = 0
+    hr_idx = None
+    for k in range(h1_idx + 1, n):
+        s = lines[k].strip()
+        if in_fence:
+            close_re = re.compile(r"^" + re.escape(fence_char * fence_len) + r"+\s*$")
+            if close_re.match(s):
+                in_fence = False
+            continue
+        fm = _FENCE_OPEN_RE.match(s)
+        if fm:
+            in_fence = True
+            fence_char = fm.group(1)[0]
+            fence_len = len(fm.group(1))
+            continue
+        if s == "---":
+            hr_idx = k
+            break
+    if hr_idx is not None:
+        before = "\n".join(lines[: hr_idx + 1])
+        after = "\n".join(lines[hr_idx + 1 :])
+        return f"{before}\n\n{block}\n\n{after}" if after.strip() else f"{before}\n\n{block}\n"
+    k = h1_idx + 1
+    while k < n and lines[k].strip() != "":
+        k += 1
+    before = "\n".join(lines[:k])
+    after = "\n".join(lines[k:])
+    return f"{before}\n\n{block}\n\n{after}" if after.strip() else f"{before}\n\n{block}\n"
+
+
+def cmd_render(repo: Path, args: argparse.Namespace) -> int:
+    """Regenerate the backlog's ``AUTO-GENERATED:BACKLOG`` block — the only writer of it. Never
+    calls ``docs_updater.replace_block``: that helper always stamps a changed block with the
+    current time and matches its markers by first-occurrence search, neither of which Decision B
+    permits here (no timestamp ever, ever; whole-line markers, refuse loud on ambiguity) — so this
+    verb splices the block directly at the offsets ``_find_backlog_block`` returns.
+
+    A-O20/A-O24: the file's own newline style is preserved, but ONLY when it is UNIFORM — every
+    newline in the file is part of a CRLF pair. In that case all internal logic — scanning,
+    diffing, splicing — runs on an LF-normalized copy, and CRLF is restored on the WHOLE string
+    right before the write (safe exactly because every line was CRLF to begin with, so blanket
+    restoration reproduces the original for every untouched line too). A file with even ONE bare
+    LF line is left ENTIRELY alone outside the block: no normalization, no restoration, so the
+    untouched prefix/suffix bytes pass through byte-for-byte and only the spliced block itself is
+    new content — a single stray CRLF line elsewhere must never become the whole file's style
+    (previously a lone CRLF line anywhere flipped every other line to CRLF too)."""
+    _require_store(repo)
+    path = repo / _BACKLOG_REL
+    if not path.is_file():
+        raise WorkError(f"no {_rel(repo, path)} to render into")
+    raw = path.read_bytes()
+    crlf_n = raw.count(b"\r\n")
+    lf_n = raw.count(b"\n")
+    uniform_crlf = crlf_n > 0 and crlf_n == lf_n
+    text = raw.decode("utf-8")
+    working = text.replace("\r\n", "\n") if uniform_crlf else text
+    body = _render_backlog_body(list(_iter_items(repo)))
+    found = _find_backlog_block(working)  # raises WorkError on an ambiguous/orphan marker
+    if found is None:
+        new_text = _insert_backlog_block(working, body)
+        changed = new_text != working
+    else:
+        s_begin, s_end, e_begin, e_end = found
+        current_inner = working[s_end:e_begin]
+        if _block_body_norm(current_inner) == _block_body_norm(body):
+            new_text, changed = working, False
+        else:
+            new_inner = f"\n<!-- AUTO-GENERATED:BACKLOG v1 -->\n{body}\n"
+            new_text = working[:s_end] + new_inner + working[e_begin:]
+            changed = True
+    if changed:
+        out_text = new_text.replace("\n", "\r\n") if uniform_crlf else new_text
+        _write_text(path, out_text)
+        print(f"work: render — updated {_rel(repo, path)}")
+    else:
+        print(f"work: render — {_rel(repo, path)} already current")
+    return 0
+
+
+def _block_body_norm(body: str) -> str:
+    """The comparable form of a BACKLOG block's inner text: strip any ``<!-- AUTO-GENERATED:``
+    machinery line (the version comment) before comparing, so that line alone never reads as a
+    content change — mirrors ``docs_updater._block_body_norm``'s convention without importing it
+    (this module never calls ``replace_block`` for the backlog block; see ``cmd_render``)."""
+    return "\n".join(
+        ln for ln in body.split("\n") if not ln.startswith("<!-- AUTO-GENERATED:")
+    ).strip()
 
 
 def cmd_init(repo: Path, args: argparse.Namespace) -> int:
@@ -2039,25 +2780,57 @@ def _block_digest(block: str) -> str:
     return hashlib.sha256(block.strip().encode("utf-8", "replace")).hexdigest()
 
 
-def _ensure_decision_locked(repo: Path, block: str, msg_digest: str, session: str) -> str:
-    """The three rules (caller holds the store lock): a known message digest → that item; an OPEN
-    awaiting item with this block digest → add the digest; else → a new awaiting decision item."""
-    items = list(_iter_items(repo))
-    for it in items:
-        if msg_digest in (it.get("msg_digests") or []):
-            return str(it["id"])
+def _decision_index(repo: Path) -> tuple[dict[str, dict], dict[str, list[dict]]]:
+    """One parse of every item file (P3, T04 review's confirmed defect): ``msg_digest`` ->
+    the item that already carries it, and ``block_digest`` -> every OPEN awaiting item carrying
+    it. Built ONCE per ``ensure_decision_items`` call (or ``on_harvest``'s single entry) and
+    updated IN MEMORY by ``_ensure_decision_locked`` after every write, so a later entry in the
+    same call sees what an earlier one just created or extended without a second disk read.
+    Re-parsing the whole store per entry cost slots x items under the store lock — measured at
+    6.1-6.8 s for 50 rescued slots over 5000 items (0.19 s baseline), blowing thread_anchor's 3 s
+    prompt deadline and silently dropping every awaiting line from the prompt."""
+    by_msg: dict[str, dict] = {}
+    by_block: dict[str, list[dict]] = {}
+    for it in _iter_items(repo):
+        for d in it.get("msg_digests") or []:
+            by_msg.setdefault(str(d), it)
+        if it.get("status") == "awaiting-operator":
+            bd = it.get("block_digest")
+            if bd:
+                by_block.setdefault(str(bd), []).append(it)
+    return by_msg, by_block
+
+
+def _ensure_decision_locked(
+    repo: Path,
+    block: str,
+    msg_digest: str,
+    session: str,
+    *,
+    by_msg: dict[str, dict],
+    by_block: dict[str, list[dict]],
+    closed: set[str] | None,
+) -> tuple[str, set[str] | None]:
+    """The three rules (caller holds the store lock), against the shared indexes
+    ``_decision_index`` built ONCE for the whole call (P3): a known message digest → that item; an
+    OPEN awaiting item with this block digest → add the digest; else → a new awaiting decision
+    item. ``by_msg``/``by_block`` are updated in place so a LATER entry of the same call sees this
+    one's write. ``closed`` is ``_closed_ids(repo)``, read at most once per call and only when
+    first needed — returned back so the caller passes the SAME set into the next entry."""
+    existing = by_msg.get(msg_digest)
+    if existing is not None:
+        return str(existing["id"]), closed
     bd = _block_digest(block)
-    same = [
-        it
-        for it in items
-        if it.get("status") == "awaiting-operator" and it.get("block_digest") == bd
-    ]
-    closed = _closed_ids(repo) if same else set()
-    for it in same:
-        if it["id"] not in closed:
-            it["msg_digests"] = [*(it.get("msg_digests") or []), msg_digest]
-            _write_item(repo, it)
-            return str(it["id"])
+    same = by_block.get(bd, [])
+    if same:
+        if closed is None:
+            closed = _closed_ids(repo)
+        for it in same:
+            if it["id"] not in closed:
+                it["msg_digests"] = [*(it.get("msg_digests") or []), msg_digest]
+                _write_item(repo, it)
+                by_msg[msg_digest] = it
+                return str(it["id"]), closed
     qm = _QUESTION_RE.search(block)
     question = " ".join((qm.group(1) if qm else "").strip(" *_").split())
     gm = _GROUND_RE.search(block)
@@ -2079,7 +2852,9 @@ def _ensure_decision_locked(repo: Path, block: str, msg_digest: str, session: st
         status="awaiting-operator",
     )
     _create_item(repo, item)
-    return str(item["id"])
+    by_msg[msg_digest] = item
+    by_block.setdefault(bd, []).append(item)
+    return str(item["id"]), closed
 
 
 def ensure_decision_item(
@@ -2110,7 +2885,11 @@ def ensure_decision_items(
     call is refreshing or creating an item for — T04's second chance can pass ANOTHER (possibly
     dead) session's id to rescue its slot, and renewing that session's claims here would extend a
     dead session's lease to a full ``DEFAULT_LEASE_S``, defeating read-time expiry. Only
-    ``on_harvest`` renews a claim, and only the harvester's own session. Markers still prune."""
+    ``on_harvest`` renews a claim, and only the harvester's own session. Markers still prune.
+
+    P3 (T04 review): the store is parsed ONCE for the whole call (``_decision_index``), never once
+    per entry — ``_ensure_decision_locked`` updates the shared indexes in memory after every write
+    so a later entry sees what an earlier one just created or extended."""
     with _hook_git_budget():
         try:
             root = _api_root(repo)
@@ -2119,10 +2898,15 @@ def ensure_decision_items(
             with _store_lock(root, lock_timeout, fail_open=True, label="decision") as held:
                 if not held:
                     return None
+                by_msg, by_block = _decision_index(root)
+                closed: set[str] | None = None
                 ids = []
                 for b, d, s in entries:
                     try:  # one bad entry never costs the others their item
-                        ids.append(_ensure_decision_locked(root, b, d, s))
+                        item_id, closed = _ensure_decision_locked(
+                            root, b, d, s, by_msg=by_msg, by_block=by_block, closed=closed
+                        )
+                        ids.append(item_id)
                     except Exception as exc:
                         _warn(f"decision item not written — {type(exc).__name__}: {exc}")
                 _after_write(root)  # no *sessions — never renew a passed session's claim
@@ -2170,7 +2954,16 @@ def on_harvest(
                 decision = None
                 if block and msg_digest:
                     try:  # a failure returns None (T04's second chance) but still renews claims
-                        decision = _ensure_decision_locked(root, block, msg_digest, session)
+                        by_msg, by_block = _decision_index(root)
+                        decision, _closed = _ensure_decision_locked(
+                            root,
+                            block,
+                            msg_digest,
+                            session,
+                            by_msg=by_msg,
+                            by_block=by_block,
+                            closed=None,
+                        )
                     except Exception as exc:
                         _warn(f"decision item not written — {type(exc).__name__}: {exc}")
                 if next_text:
@@ -2317,6 +3110,14 @@ def _parser() -> argparse.ArgumentParser:
         "--check", action="store_true", required=True, help="required: the only sync mode"
     )
     s.set_defaults(fn=cmd_sync)
+
+    s = sub.add_parser("render", help="regenerate the backlog's AUTO-GENERATED:BACKLOG block")
+    s.set_defaults(fn=cmd_render)
+
+    s = sub.add_parser(
+        "migrate-backlog", help="turn existing backlog rows into items (once per repo)"
+    )
+    s.set_defaults(fn=cmd_migrate_backlog)
     return p
 
 

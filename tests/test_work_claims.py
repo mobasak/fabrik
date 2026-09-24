@@ -795,16 +795,75 @@ def test_ensure_decision_items_skips_an_entry_that_raises_and_keeps_the_rest(
     repo = _store(tmp_path, env)
     real = work._ensure_decision_locked
 
-    def flaky(root, block, msg_digest, session):
+    def flaky(root, block, msg_digest, session, **kwargs):
         if block == BLOCK_2:
             raise OSError("disk full")
-        return real(root, block, msg_digest, session)
+        return real(root, block, msg_digest, session, **kwargs)
 
     monkeypatch.setattr(work, "_ensure_decision_locked", flaky)
     ids = work.ensure_decision_items(repo, [(BLOCK, "d1", "S1"), (BLOCK_2, "d2", "S1")])
     assert ids is not None and len(ids) == 1
     assert _item_file(repo, ids[0]).is_file()
     assert _item(repo, ids[0])["msg_digests"] == ["d1"]
+
+
+def test_ensure_decision_items_parses_the_store_once_per_call_not_per_entry(
+    tmp_path, api, monkeypatch
+):
+    """P3 (T04 review, confirmed by execution against master's :2042-2050): re-parsing every item
+    file per rescued slot cost slots x items under the store lock — 6.1-6.8 s for 50 rescued slots
+    over 5000 items (0.19 s baseline), blowing thread_anchor's 3 s prompt deadline and silently
+    dropping every awaiting line from the prompt. Never assert wall time here — only that one call
+    parses the store exactly once, however many entries it carries."""
+    work, env = api
+    repo = _store(tmp_path, env)
+    store = repo / ".fabrik" / "work"
+    for i in range(300):
+        item = {
+            "id": f"W-{i:08x}",
+            "blocked_by": [],
+            "created": "2026-01-01T00:00:00.000000Z",
+            "creator": "t",
+            "evidence": "",
+            "kind": "backlog",
+            "legacy": False,
+            "links": {"decision": "", "plan": "", "spec": ""},
+            "next": "",
+            "note": "",
+            "owner": "",
+            "priority": 2,
+            "status": "open",
+            "title": f"filler {i}",
+        }
+        (store / f"{item['id']}.json").write_text(
+            json.dumps(item, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    calls = []
+    real = work._iter_items
+
+    def counting(repo_):
+        calls.append(1)
+        return real(repo_)
+
+    monkeypatch.setattr(work, "_iter_items", counting)
+    entries = [(BLOCK.replace("now?", f"now? #{i}"), f"d{i}", "S1") for i in range(20)]
+    ids = work.ensure_decision_items(repo, entries)
+    assert ids is not None and len(ids) == 20 and len(set(ids)) == 20
+    assert len(calls) == 1, f"expected exactly one _iter_items call, got {len(calls)}"
+
+
+def test_ensure_decision_items_shares_one_item_for_the_same_block_in_one_call(tmp_path, api):
+    """Two entries of ONE call with the same block digest and different message digests share the
+    in-memory index `_ensure_decision_locked` updates after each write — never a second disk read
+    inside the call (P3 part (b))."""
+    work, env = api
+    repo = _store(tmp_path, env)
+    ids = work.ensure_decision_items(repo, [(BLOCK, "dA", "S1"), (BLOCK, "dB", "S2")])
+    assert ids is not None and len(ids) == 2
+    assert ids[0] == ids[1]
+    only = ids[0]
+    assert _item(repo, only)["msg_digests"] == ["dA", "dB"]
+    assert len(list((repo / ".fabrik" / "work").glob("W-*.json"))) == 1
 
 
 def _closing_setup(tmp_path: Path, env: dict[str, str]) -> tuple[Path, str, str]:

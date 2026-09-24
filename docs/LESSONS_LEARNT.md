@@ -1,6 +1,18 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## 2026-09-24 — A parser's spec can contradict itself; the corpus it measures decides
+
+T03's ticket said a backlog row's body "runs to the next line starting `- `", which makes every bullet a
+row, while the same ticket's own shape counts (~290) and the spec's V2 (253 open, 36 resolved) counted
+only TAGGED entries. The coder followed the rule and produced 601 rows with 306 ownerless items, and a V2
+test whose "independent reader" reused the migrator's own primitives agreed with it, so it proved nothing.
+The review settled it by what the numbers measure (tagged rows start a row, the rest is body: 325 rows) and
+by rewriting the reader from the ticket's text alone. The two later rounds then chased resolved-word
+heuristics on synthetic titles until the brief required every new candidate to be shown on the REAL
+corpus the parser reads; the next pass closed. For a parser, state in the review brief which corpus is the
+evidence, and let an independent reader built from the contract's words, not the code's helpers, be the V2.
+
 ## 2026-09-24 — A borrowed reader's character class is scoped to ITS caller's alphabet
 
 `check_convergence.py`'s `_STATUS_LINE` (`[A-Za-z -]` in its capture class) is right for spec Status
