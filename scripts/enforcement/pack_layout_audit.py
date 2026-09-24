@@ -225,8 +225,12 @@ _UNEVALUABLE_REASONS: dict[str, str] = {}
 @functools.cache
 def _emitted_paths_for_type(project_type: str) -> tuple[str, ...] | None:
     """Every relative file/dir path (posix) a FRESH `create_project(project_type=...)`
-    emits — the honest denominator (see module docstring: the scaffold path diverges
-    from the raw template directory). Throwaway `base=`, cleaned up immediately; cached
+    emits, MINUS the dirs `rules_match._EXCLUDE` prunes (`templates/`, `output/`, …) — the
+    honest denominator for everything else (see module docstring: the scaffold path diverges
+    from the raw template directory, and the pruned dirs are its UNDER-states case). The
+    `templates/` prune is deliberate: every scaffold copies `templates/saas-skeleton/` (.tsx,
+    tailwind) as reference, so counting it would falsely clear any TSX-globbing pack for every
+    type (review of mail 01M333F0C27K6N9XADKSVH4NAR). Throwaway `base=`, cleaned up immediately; cached
     per type since several packs can claim the same type in one `audit_layout` call.
     Extracted to its own function so tests can monkeypatch it and stay hermetic (no real
     scaffold invocation, no dependency on the live corpus or the scaffolder's runtime)."""

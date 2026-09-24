@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — A governance-sync trigger row that could never fire, a denominator that did not state its prune, and a stale rag-search cite (2026-09-24)
+
+- `.pre-commit-config.yaml`'s governance-sync filter named `scripts/kilo_47_agents_final.json`, which is gitignored and untracked, so no commit could ever carry it (mail 01M333F0C27K6N9XADKSVH4NAR). The row is gone, and `tests/test_sync_trigger_coverage.py` now fails on any filter row, flat or inside a one-level group, that names a gitignored path. It also fails loudly outside a git checkout instead of reading `git check-ignore`'s rc 128 as clean.
+- `pack_layout_audit.py::_emitted_paths_for_type` called itself "the honest denominator" without saying it drops the `rules_match._EXCLUDE` dirs. Its docstring now names the prune and why `templates/` stays pruned: every scaffold copies `templates/saas-skeleton/` as reference, so counting it would falsely clear any TSX-globbing pack. The review reverted a first cut that stopped pruning `templates/`.
+- `core/65-rag-search.md` no longer cites `apps/postgres-main/compose.yaml`, deleted by D-379 (mail 01M382JSY7HS68Z8ZB2HF046GW).
+
 ### Changed — A `BLOCKED:` line ends a turn only in its own format (2026-09-24)
 - `.claude/hooks/final_gate_stop.py` (fleet-synced), operator ruling D-391: a `BLOCKED:` header exempts a DEFERRAL stop only when its escalation carries `searched:` and `missing:` before the first footer line (`BLOCKED: <what> — searched: <sources> — missing: <need>`). Fields inside a quoting fence do not count, and a trailing fence is the agent's own closing block only when it holds two footer lines. The deferral reason now names the format. On 16,278 real turn ends, 21 deferrals were exempted by a header: 9 formatted ones still are, 12 are refused.
 - `/fabrik-review`: 3 passes, confirmed 3 → 2 → 0; receipt `docs/development/reviews/2026-09-24-blocked-format-exemption-review.md`. `tests/test_final_gate_stop_deferral.py` gains 10 cases, each new one seen red. `docs/workstation/hooks-index.md` states the rule. The backlog row for this gap is closed.

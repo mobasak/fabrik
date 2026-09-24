@@ -667,3 +667,31 @@ def test_a_hook_with_no_entry_is_an_unknown_without_pyyaml_too(monkeypatch, tmp_
     assert chk._governance_sync_entry(cfg) is None, "the fallback stole a LATER hook's entry"
     verdict = chk.sync_is_inert_here(cfg, tmp_path)
     assert verdict and "could not be determined" in verdict, verdict
+
+
+def test_no_literal_filter_row_names_a_gitignored_path():
+    """A trigger row for a gitignored path can never fire — no commit can carry the file — yet it
+    reads as a live trigger. `^scripts/kilo_47_agents_final\\.json$` sat in the filter for weeks
+    while `.gitignore:189` ignored it (mail 01M333F0C27K6N9XADKSVH4NAR). Covers flat rows AND
+    one-level groups (`^scripts/(a|b)\\.py$` names each member); `git check-ignore` must answer
+    (rc 0 or 1) — outside a git checkout it exits 128, which must fail, never read as clean."""
+    import subprocess
+
+    root = Path(__file__).resolve().parent.parent
+    pattern = chk.trigger_pattern(root / ".pre-commit-config.yaml")
+    lit = r"(?:[\w/-]|\\\.)"
+    paths = [m.replace("\\.", ".") for m in re.findall(rf"\^({lit}+)\$", pattern)]
+    for pre, alts, post in re.findall(rf"\^({lit}*)\(([\w|-]+)\)({lit}*)\$", pattern):
+        paths += [f"{pre}{a}{post}".replace("\\.", ".") for a in alts.split("|")]
+    assert len(paths) >= 20, f"the filter-row parse found too few paths: {paths}"
+    ignored = []
+    for p in paths:
+        rc = subprocess.run(
+            ["git", "-C", str(root), "check-ignore", "-q", "--no-index", p], check=False
+        ).returncode
+        assert rc in (0, 1), (
+            f"git check-ignore could not answer for {p} (rc {rc}) — not a git checkout?"
+        )
+        if rc == 0:
+            ignored.append(p)
+    assert not ignored, f"trigger rows that can never fire (gitignored): {ignored}"

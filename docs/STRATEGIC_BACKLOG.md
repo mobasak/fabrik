@@ -248,6 +248,10 @@ D-382 remapped every live `final_gate.py:N` citation when its edit moved the fil
 
 `terminator_spam` (final_block_emitted per run-record closure) read 1.38 · 2.71 · 3.29 · 1.28 over 2026-09-19..22 (83 blocks against 45 closures). A conversational turn that emits the 7-line block while no run is open lands in the numerator and never in the denominator, so behaviour and instrument cannot be told apart from the series (fleet reply 01M37TRF5XNSA3M6NQ6AFS0WAE). Fix at the class: attribute each `final_block_emitted` event to its open run record, or count run-less blocks as their own metric, with a golden case for each. Measure first how many of the 83 had no open run. The daily mail now prints prior readings beside each metric (a94540db9), which makes the two-day spikes visible as small-n; it does not fix the instrument. Owner: infra.
 
+## [infra] Three governance-sync filter names point at scripts that moved to scripts/archived/ (2026-09-24)
+
+`.pre-commit-config.yaml`'s grouped row `^scripts/(…|kilo_code_review|kilo_docs_enforcer|update_agents_toc|…)\.py$` names three scripts that now live under `scripts/archived/`, so those three alternatives can never fire. Found by the /fabrik-review of the dead `kilo_47_agents_final.json` row (receipt docs/development/reviews/2026-09-24-dead-trigger-row-and-rag-pack-review.md). `tests/test_sync_trigger_coverage.py` now catches a gitignored path in any row. A path that simply does not exist is a separate shape it does not check. Fix at the class: drop the three names, and have the test also require every literal file row to exist in the hub. Measure first whether any other hub file rides a nonexistent row. Owner: infra.
+
 ## [infra] A plan authored and committed in one motion is a convergence subject at NO moment a gate runs
 
 `check_convergence.py:550` skips `??` paths — deliberately, so a sibling's mid-write scratch never
