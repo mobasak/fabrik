@@ -4565,7 +4565,11 @@ def _fleet_readings(accounts: list[dict], picture: dict) -> dict:
     # the WALL each reading is measured against travels WITH it: the band is drawn from headroom,
     # and only the account that PROVIDED a window's reading knows its own cap (weekly); 5h and
     # Fable are uncapped and wall at 100
-    walls = {r.get("email"): r.get("weekly_cap") for r in (picture.get("accounts") or []) if isinstance(r, dict)}
+    walls = {
+        r.get("email"): r.get("weekly_cap")
+        for r in (picture.get("accounts") or [])
+        if isinstance(r, dict)
+    }
     by_slug = {}
     for row in accounts:
         if isinstance(row, dict):
