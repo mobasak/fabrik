@@ -1242,6 +1242,22 @@ def test_a_previous_turns_block_is_never_judged_for_this_turn(monkeypatch, tmp_p
     assert _stored_decision(tmp_path, "sidprev") is None
 
 
+def test_a_block_before_a_textless_final_entry_is_still_judged(monkeypatch, tmp_path: Path) -> None:
+    """A-O2's own-fix residue: the block sits in an EARLIER text entry of THIS turn and the turn
+    ends on a textless tool call — it is this turn's last text, so it is judged and stored."""
+    tr = tmp_path / "t.jsonl"
+    _turn(
+        tr,
+        _user("stage the handbook rebuild"),
+        _asst_text(_PUBLISH_BLOCK),
+        _asst_tool("Bash", command="true"),
+    )
+    out = _run_main(monkeypatch, tmp_path, {"session_id": "sidlate", "transcript_path": str(tr)})
+    assert out == ""
+    assert [e.get("ground") for e in _events(tmp_path, "decision_block")] == ["gate"]
+    assert isinstance(_stored_decision(tmp_path, "sidlate"), dict)
+
+
 def test_this_turns_block_is_still_judged_from_the_transcript(monkeypatch, tmp_path: Path) -> None:
     """A-O2's mirror: with no payload message, THIS turn's own final text still carries its block."""
     tr = tmp_path / "t.jsonl"

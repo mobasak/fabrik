@@ -1761,6 +1761,42 @@ def _final_message_text(transcript_path: str) -> str:
     return ""
 
 
+def _this_turn_text(transcript_path: str) -> str:
+    """The LAST text-bearing assistant entry of THIS turn, or "" — the DECISION block's reader.
+
+    Walks back from the end, skipping textless (tool_use / thinking-only) assistant entries, and
+    STOPS at the first real operator row (`_operator_text`): a block this turn wrote before a
+    closing tool call is judged, a block from the previous turn never is (A-O2). Unlike
+    `_final_message_text` it never crosses the operator's prompt; unlike `_final_turn`'s text it
+    does not go blank when the turn ends on a textless entry."""
+    for line in reversed(_tail_lines(transcript_path) or []):
+        if '"type"' not in line:
+            continue
+        try:
+            entry = json.loads(line)
+        except Exception:
+            continue
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("type") == "user":
+            if _operator_text(entry):
+                return ""
+            continue
+        if entry.get("type") != "assistant":
+            continue
+        content = (entry.get("message") or {}).get("content")
+        if not isinstance(content, list):
+            continue
+        text = "\n".join(
+            str(b.get("text") or "")
+            for b in content
+            if isinstance(b, dict) and b.get("type") == "text"
+        )
+        if text.strip():
+            return text
+    return ""
+
+
 def _final_turn(transcript_path: str) -> tuple[str, list[dict]] | None:
     """(final assistant text, tool_use list of the final turn) or None on any gap.
 
@@ -2704,9 +2740,10 @@ def main(argv: list[str]) -> int:
         lam = _lam_raw if isinstance(_lam_raw, str) and _lam_raw.strip() else None
         # (text, parse result) of the DECISION block, judged ONCE: the DEFERRAL check reuses the
         # verdict, and an ALLOWED Stop stores the block (`_store_decision`). Judged only from THIS
-        # turn's text — the payload's message, else the last assistant entry of the current turn
-        # (`_final_turn`), never `_final_message_text`, which walks back past the operator's prompt
-        # to the PREVIOUS turn's message and would judge a block this turn did not end on (A-O2).
+        # turn's text — the payload's message, else this turn's last text-bearing assistant entry
+        # (`_this_turn_text`), never `_final_message_text`, which walks back past the operator's
+        # prompt to the PREVIOUS turn's message and would judge a block this turn did not end on
+        # (A-O2).
         judged: tuple[str, tuple[bool, str]] | None = None
         _ta: Path | None = None
         try:
@@ -2715,7 +2752,7 @@ def main(argv: list[str]) -> int:
                 _ta = Path(__file__).resolve().parents[2] / "scripts" / "thread_anchor.py"
             _tp = data.get("transcript_path")
             _text = lam or (_final_message_text(str(_tp)) if _tp else "")
-            _turn_text = lam or (((_final_turn(str(_tp)) or ("", []))[0]) if _tp else "")
+            _turn_text = lam or (_this_turn_text(str(_tp)) if _tp else "")
             if _turn_text and extract_decision_block(_turn_text) is not None:
                 judged = (
                     _turn_text,
