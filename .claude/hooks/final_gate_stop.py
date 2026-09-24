@@ -2626,13 +2626,35 @@ def _deferral_stall(
     return f"deferral:{hit[0]}", hit[1]
 
 
-def _store_decision(ta: Path | None, sid: str, judged: tuple[str, tuple[bool, str]] | None) -> None:
+def _repo_argv(ta: Path | None, cwd: object) -> list[str]:
+    """``["--repo", <cwd>]`` for both harvests — the repo whose work store (``.fabrik/work/``)
+    they write — or ``[]``. Only when the payload CARRIES a cwd: ``root``'s ``os.getcwd()``
+    fallback is never a store locator (a test or a manual run from the hub would write the hub's
+    live store), and only when the resolved script KNOWS the flag (a fleet repo whose sync is
+    behind keeps its honest argv; its ``parse_known_args`` would ignore it anyway). Never raises."""
+    try:
+        if not (isinstance(cwd, str) and cwd.strip() and ta is not None and ta.exists()):
+            return []
+        if "--repo" not in ta.read_text(errors="replace"):
+            return []
+        return ["--repo", str(Path(cwd).resolve())]
+    except Exception:
+        return []
+
+
+def _store_decision(
+    ta: Path | None,
+    sid: str,
+    judged: tuple[str, tuple[bool, str]] | None,
+    repo_argv: list[str] | None = None,
+) -> None:
     """Store an ACCEPTED DECISION block — called ONLY at an exit that ALLOWS this Stop (the
     pass-through, the quota hold, a non-fabrik project). A blocked Stop keeps the agent working
     with no UserPromptSubmit to clear the block, so storing it there left a stale OPEN DECISION
     for WHERE YOU ARE after a compaction (A-O1). Re-runs `harvest` on the judged text with
-    `--decision-ok`; its NEXT: part is the same text the plain harvest already stored, so the
-    re-run only refreshes timestamps. Best-effort: a failure here never blocks the turn."""
+    `--decision-ok` (plus `repo_argv`, `_repo_argv`'s result, so the block becomes a work item);
+    its NEXT: part is the same text the plain harvest already stored, so the re-run only
+    refreshes timestamps. Best-effort: a failure here never blocks the turn."""
     if not (judged and judged[1][0] and ta is not None):
         return
     try:
@@ -2641,7 +2663,15 @@ def _store_decision(ta: Path | None, sid: str, judged: tuple[str, tuple[bool, st
         if not ta.exists() or "--decision-ok" not in ta.read_text(errors="replace"):
             return
         subprocess.run(
-            [sys.executable, str(ta), "harvest", "--session", sid, "--decision-ok"],
+            [
+                sys.executable,
+                str(ta),
+                "harvest",
+                "--session",
+                sid,
+                "--decision-ok",
+                *(repo_argv or []),
+            ],
             input=judged[0],
             text=True,
             capture_output=True,
@@ -2786,10 +2816,13 @@ def main(argv: list[str]) -> int:
         # (A-O2).
         judged: tuple[str, tuple[bool, str]] | None = None
         _ta: Path | None = None
+        _repo: list[str] = []
         try:
             _ta = root / "scripts" / "thread_anchor.py"
             if not _ta.exists():
                 _ta = Path(__file__).resolve().parents[2] / "scripts" / "thread_anchor.py"
+            # the work store's repo — the payload's cwd only (T05); [] leaves both argvs as before
+            _repo = _repo_argv(_ta, data.get("cwd"))
             _tp = data.get("transcript_path")
             _text = lam or (_final_message_text(str(_tp)) if _tp else "")
             _turn_text = lam or (_this_turn_text(str(_tp)) if _tp else "")
@@ -2805,9 +2838,10 @@ def main(argv: list[str]) -> int:
             if _ta.exists() and _text:
                 # The plain harvest (NEXT: and anchors) — never `--decision-ok` here: this Stop
                 # may still BLOCK, and a blocked turn gets no UserPromptSubmit to clear a stored
-                # block (A-O1). `_store_decision` runs at the allowed exits instead.
+                # block (A-O1). `_store_decision` runs at the allowed exits instead. It runs on
+                # EVERY Stop, blocked ones included, so with `--repo` it is the claim heartbeat.
                 subprocess.run(
-                    [sys.executable, str(_ta), "harvest", "--session", sid],
+                    [sys.executable, str(_ta), "harvest", "--session", sid, *_repo],
                     input=_text,
                     text=True,
                     capture_output=True,
@@ -2818,7 +2852,7 @@ def main(argv: list[str]) -> int:
             sys.stderr.write(f"[final_gate_stop] harvest/decision parse failed, skipped: {e}\n")
 
         if not (root / "scripts" / "final_gate.py").exists():
-            _store_decision(_ta, sid, judged)
+            _store_decision(_ta, sid, judged, _repo)
             return 0  # not a fabrik-style project → nothing to enforce
 
         # THE QUOTA HOLD OUTRANKS EVERY CAUSE BELOW. While `quota_stop.py`'s stamp stands the
@@ -2860,7 +2894,7 @@ def main(argv: list[str]) -> int:
                 and _hold_in_force(time.time() - _tick.stat().st_mtime, _stale)
             ):
                 _kaizen("stop_allowed_quota_hold", ev_sid)
-                _store_decision(_ta, sid, judged)
+                _store_decision(_ta, sid, judged, _repo)
                 return 0
         except Exception:
             pass
@@ -3085,7 +3119,7 @@ def main(argv: list[str]) -> int:
                     counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att}")
                 # The ONE pass-through: every enforcement cause declined to block, so
                 # this Stop really ends the turn.
-                _store_decision(_ta, sid, judged)
+                _store_decision(_ta, sid, judged, _repo)
                 _kaizen_pass(ev_sid, transcript_p, waived, warned, decision_ground)
                 return 0
             counter.write_text(f"{g},{c},{s_att},{p_att},{r_att if run_active else 0},{v_att}")
