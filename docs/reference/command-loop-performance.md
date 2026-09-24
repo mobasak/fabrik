@@ -1256,6 +1256,8 @@ that moves without the first one having moved is a symptom treated, not a cause.
 
 **First measured chain, stages 1–2 (2026-09-23, the stop-and-compaction spec, 51098f062):** `/fabrik-spec` 84 min (measurement, grounding, a three-judge panel) and `/fabrik-spec-review` 70 min over 5 passes, 38 → 12 → 6 → 0 → 0 confirmed, closed under the scope-growth stop in ONE run. The last three hub spec reviews took 12.55 h (5 runs, 29 rounds), 14.06 h (3 runs, 32 rounds) and 9.4 h (3 runs, 12 rounds) (`command_feedback_report.py --stages`). Lead turns are not counted by any report yet. Plan, plan review and execution follow on the operator's design approval.
 
+**Same chain, stages 3–5 (2026-09-23/24, plan `archived/2026-09-23-plan-1-stop-and-compaction`, EXECUTED 03a94e9a3, D-384):** `/fabrik-plan-after-chat` 51 min · `/fabrik-plan-review` 45 min over 4 passes (21 → 5 → 3 → 0) · `/fabrik-execute-plan` ~415 min wall for eight tickets, inside which eight nested review-family runs took 2–5 rounds each (9–48 min, every one closing at 0 confirmed) and `/fabrik-docs-review` took 83 min over 2 passes (10 → 0), including one round-1 dispatch lost to a transport failure. Spec start → EXECUTED: **~9.3 h** against the ≤ 2 h goal. No loop oscillated and none exceeded 5 passes, so this chain's cost sat in execution: eight serial ticket merges, each gated by its own review before a fleet-wide sync.
+
 The round-4+ row carries its own guard deliberately: *"with the total NOT falling"*. Driving
 late-round defects to zero by finding fewer defects overall is the failure mode, not the goal.
 
