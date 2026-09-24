@@ -463,6 +463,14 @@ def _scan_compose_structure(rel: Path, text: str) -> list[Finding]:
             if services_range is not None
             else None
         )
+        # Computed once, structurally, and shared by both checks below — PyYAML
+        # already resolves EVERY null spelling (`~`, `null`, `Null`, `NULL`, an
+        # empty scalar, any of those followed by a `# comment`) to Python `None`
+        # at parse time, so this is the authoritative answer to "is DATABASE_URL
+        # null/value-less here", never a spelling-by-spelling regex (acceptance
+        # review D7, O30 — the text-based key-stripper below only recognised a
+        # textually EMPTY value, not YAML's other null forms).
+        env_value = _database_url_env_value(service_cfg.get("environment"))
 
         if service_name == "migrate":
             if block is not None:
@@ -472,6 +480,11 @@ def _scan_compose_structure(rel: Path, text: str) -> list[Finding]:
                 # with the `DATABASE_URL:` env KEY itself excluded (O18) — only
                 # what it's set TO can disqualify a suppression.
                 disqualifier_block = "\n".join(_strip_env_key(ln) for ln in lines[s:e])
+                if env_value == "$DATABASE_URL":
+                    # Trust the structural parse over the regex (O30): whatever
+                    # spelling of null this service's DATABASE_URL used, it IS a
+                    # bare-token use and must disqualify an owner suppression.
+                    disqualifier_block += "\n$DATABASE_URL"
                 suppressed = _suppressed_by_owner(stripped_block, disqualifier_block)
                 line = s + 1
             else:
@@ -483,7 +496,6 @@ def _scan_compose_structure(rel: Path, text: str) -> list[Finding]:
                     Finding(path=posix, line=line, pattern="compose service named migrate")
                 )
 
-        env_value = _database_url_env_value(service_cfg.get("environment"))
         if env_value is not None and _classify_database_url_env(env_value) == "override":
             if block is not None:
                 s, e = block

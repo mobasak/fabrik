@@ -1004,3 +1004,48 @@ def test_migrate_list_form_value_less_database_url_still_counts_as_bare(tmp_path
     result = scan_repo(repo)
 
     assert any(f.pattern == "compose service named migrate" for f in result.findings)
+
+
+# ── Fixup D7 (whole-plan validation — the O30 residue) ─────────────────────── #
+
+
+@pytest.mark.parametrize(
+    "null_spelling",
+    ["~", "null", "Null", "NULL", "  # inherit"],
+)
+def test_migrate_yaml_null_database_url_still_counts_as_bare_whatever_the_spelling(
+    tmp_path, null_spelling
+):
+    """O30 (fail-open): YAML accepts several null spellings (`~`, `null`, `Null`,
+    `NULL`, an empty scalar — optionally followed by a `# comment`) and PyYAML
+    resolves every one of them to the SAME Python `None`. The r3 fix for O27 only
+    recognised a textually EMPTY value, so a `DATABASE_URL: ~` (etc.) sibling to
+    `DATABASE_URL_OWNER: ${DATABASE_URL_OWNER}` still falsely suppressed the
+    migrate finding while the container silently inherits the host DATABASE_URL."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n"
+        "  migrate:\n"
+        "    environment:\n"
+        f"      DATABASE_URL: {null_spelling}\n"
+        "      DATABASE_URL_OWNER: ${DATABASE_URL_OWNER}\n",
+    )
+
+    result = scan_repo(repo)
+
+    assert any(f.pattern == "compose service named migrate" for f in result.findings)
+
+
+def test_migrate_canonical_owner_handoff_stays_suppressed_after_d7(tmp_path):
+    """The D7 fix must not regress the r2 O18 canonical hand-off — a REAL owner
+    reference (not a null) still clears the migrate finding."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n  migrate:\n    environment:\n      DATABASE_URL: ${DATABASE_URL_OWNER}\n",
+    )
+
+    result = scan_repo(repo)
+
+    assert result.findings == []
