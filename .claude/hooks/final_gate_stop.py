@@ -1527,16 +1527,25 @@ _DEFER_RE = re.compile(
 _NEXT_LINE_RE = re.compile(r"^[ \t>*_-]*NEXT\**[ \t]*:\**", re.M)
 # D1's second form: the successor named IS the operator ("NEXT: operator — relay item 6 …").
 _NEXT_TO_OPERATOR_RE = re.compile(r"[ \t*_]*(?:the[ \t]+)?operator\b[ \t*_]*[—–:-]", re.I)
-# ...unless the operator clause ITSELF begins optional ("operator — optionally …") or asks for what
-# only the operator's harness can do — reload/restart/refresh, or open a window (CLAUDE.md: "a server
-# only a reload restores needs a NEW window — say so"). Anchored at the clause start, so "…; no
-# reload needed" or "…; optionally tidy X" later on the line never waives the ask before it.
-# The tool-reload class only: the verb's object must be a window, session, VS Code, the editor,
-# MCP or the roster — a service, worker, deploy or VPS is a real hand-off and is never waived.
+# ...unless the operator clause BEGINS with one phrase of a CLOSED list — only what the operator's
+# harness alone can do (CLAUDE.md: "a server only a reload restores needs a NEW window — say so"):
+#   optionally …
+#   (please) reload|refresh|reopen|restart (the|this|your) (VS Code|editor) window(s)|session(s)
+#   (please) reload|restart (the) MCP (server(s))
+#   (please) open a|the|<n> new|fresh (VS Code) window(s)
+# The object is the verb's DIRECT object — nothing but an article or an editor word between — and the
+# phrase is WHOLE (it ends the clause, or a connector/punctuation follows), so "restart the worker
+# session", "restart the ingest session broker" and "restart the vps2 editor-proxy service" are
+# hand-offs. Anchored at the clause start, so "…; no reload needed" later never waives the ask.
+_PHRASE_END = r"(?=[ \t]*(?:$|[.;,:!?()—–-]|(?:so|to|for|then|and|when|if|after|once)\b))"
 _OPERATOR_WAIVER_RE = re.compile(
-    r"[ \t*_]*(?:optional(?:ly)?\b|(?:please[ \t]+)?(?:reload|reopen|open|restart)\b[^.;\n]{0,40}?"
-    r"\b(?:windows?|sessions?|vs[ \t]?code|editor|mcp|roster)\b)",
-    re.I,
+    r"[ \t*_]*(?:optional(?:ly)?\b"
+    r"|(?:please[ \t]+)?(?:reload|refresh|reopen|restart)[ \t]+(?:(?:the|this|your)[ \t]+)?"
+    rf"(?:(?:vs[ \t]?code|editor)[ \t]+)?(?:window|session)s?{_PHRASE_END}"
+    rf"|(?:please[ \t]+)?(?:reload|restart)[ \t]+(?:the[ \t]+)?mcp(?:[ \t]+servers?)?{_PHRASE_END}"
+    r"|(?:please[ \t]+)?open[ \t]+(?:a|the|(?:the[ \t]+)?\d+)[ \t]+(?:new|fresh)[ \t]+"
+    rf"(?:vs[ \t]?code[ \t]+)?windows?{_PHRASE_END})",
+    re.I | re.M,
 )
 # ...or the line closes "otherwise nothing pending": the whole ask is marked optional.
 _OTHERWISE_NOTHING_RE = re.compile(
@@ -1550,10 +1559,11 @@ _NEXT_NONE_RE = re.compile(r"[ \t*_]*none\b", re.I)
 # CLAUDE.md formats it — never a mention mid-line ("closed the run `BLOCKED: NON-CONVERGENCE`"):
 # V1 found mentions like that silencing real `NEXT: operator decision` footers.
 # The shapes admitted: a bare `BLOCKED:`, behind markdown (`## `, `**`, `- `, `> `) or a TICKET id
-# (`T03 BLOCKED:`, `T1a-BLOCKED:`, `P21-A-BLOCKED:`, `A-L3-BLOCKED:` — any id token CONTAINING A
-# DIGIT) — never a pure word prefix, so `UN-BLOCKED:` / `NOT-BLOCKED:` are prose.
-# `_blocked_header` also refuses one inside a quoting (non-footer) fence.
-_DEFER_BLOCKED_RE = re.compile(r"^[ \t>*_#-]*(?:[\w.-]*\d[\w.-]*[- ])?\**BLOCKED:", re.M)
+# (`T03 BLOCKED:`, `T1a-BLOCKED:`, `P21-A-BLOCKED:`, `A-L3-BLOCKED:` — an id token that STARTS WITH
+# A LETTER and CONTAINS A DIGIT) — never a pure word prefix (`UN-BLOCKED:`, `NOT-BLOCKED:` are
+# prose) and never a count (`- 2 BLOCKED: T04, T05`). `_blocked_header` also refuses one inside a
+# quoting (non-footer) fence.
+_DEFER_BLOCKED_RE = re.compile(r"^[ \t>*_#-]*(?:[A-Za-z][\w.-]*\d[\w.-]*[- ])?\**BLOCKED:", re.M)
 # The same keys, captured, for telling a fenced FOOTER from a fenced example (`_own_footer_fence`).
 _FOOTER_KEY_RE = re.compile(
     r"^[ \t>*_-]*(GATE|DOCS UPDATED|CHANGELOG|LESSONS LEARNT|DONE|NEXT|FEEDBACK|STATE)[*_]*:", re.M
@@ -1932,16 +1942,32 @@ def _blocked_header(text: str) -> bool:
     )
 
 
+def _quote_spans(line: str) -> list[tuple[int, int]]:
+    """The PAIRED quote/code spans of one line, scanned left to right: `"…"`, `“…”`, `` `…` ``.
+
+    One span is open at a time and closes only on its own kind; an opener with no closer pairs with
+    nothing. A straight `"` opens only after a non-alphanumeric character and closes only before
+    one, so an inch mark (`12"`) is neither. Single quotes are never spans (apostrophes)."""
+    spans: list[tuple[int, int]] = []
+    closer = {'"': '"', "“": "”", "`": "`"}
+    open_at, want = -1, ""
+    for i, ch in enumerate(line):
+        prev = line[i - 1] if i else " "
+        nxt = line[i + 1] if i + 1 < len(line) else " "
+        if want:
+            if ch == want and not (ch == '"' and nxt.isalnum()):
+                spans.append((open_at, i))
+                open_at, want = -1, ""
+        elif ch in closer and not (ch == '"' and prev.isalnum()):
+            open_at, want = i, closer[ch]
+    return spans
+
+
 def _enclosed(line: str, start: int, end: int) -> bool:
-    """Is ``line[start:end]`` ENCLOSED in a paired `"…"`, `` `…` `` or `“…”` span on its own line?
-    Both delimiters must be on the line: a lone quote character or an apostrophe is never a span
-    (review A-O10, A-O16) — so `NEXT: 'your call' …` is the agent's words, and
-    `NEXT: … fix the "your call" phrasing` is quoted data."""
-    before, after = line[:start], line[end:]
-    for o, c in (('"', '"'), ("`", "`")):
-        if before.count(o) % 2 and c in after:
-            return True
-    return before.rfind("“") > before.rfind("”") and "”" in after
+    """Is ``line[start:end]`` inside ONE paired span of `_quote_spans`? A lone quote character or an
+    apostrophe never encloses (review A-O10, A-O16, A-O24) — so `NEXT: 'your call' …` is the agent's
+    words, `NEXT: … fix the "your call" phrasing` is quoted data, and `12"` quotes nothing."""
+    return any(lo < start and end <= hi for lo, hi in _quote_spans(line))
 
 
 def _last_lines_start(text: str, k: int) -> int:
@@ -2109,34 +2135,41 @@ def extract_decision_block(text: str) -> str | None:
 
 
 def _decision_quote(why: str, label: str) -> str | None:
-    """The quote after ``asked:``/``scope:`` on the Why line, in this order: a `"…"`, `“…”` or
-    `` `…` `` span; a single-quoted span whose closing quote is not followed by a letter (so a
-    mid-word apostrophe — "what's" — never closes it); else the unquoted text up to and including
-    its first `?`, or the rest of the line when it has none."""
-    m = re.search(rf"\b{label}:\s*(.+)$", why, re.I)
+    """The value after ``asked:``/``scope:`` on the Why line — tokenised, never regex-sliced:
+
+    1. the value STARTS with `"`, `“` or `` ` ``: up to its matching closer;
+    2. it starts with `'`/`‘`: up to the FIRST `'`/`’` that is not a possessive (not preceded by
+       `s`) and is followed by the value's end, whitespace, or one of `; — , ) ? .` — scanning left
+       to right, so later quoted text on the line is never absorbed ("the users' data" keeps its
+       possessive; "'ship it?' then I said 'ok?'" is "ship it?");
+    3. unquoted: asked: up to and including its first `?`; scope: up to the first ` — ` or `;`.
+
+    A delimiter is never kept in the value. None when the label is absent."""
+    m = re.search(rf"\b{label}:[ \t]*", why, re.I)
     if not m:
         return None
-    rest = m.group(1).strip()
-    dq = re.search(r'"([^"\n]+)"|“([^”\n]+)”|`([^`\n]+)`', rest)
-    if dq:
-        return next(g for g in dq.groups() if g is not None).strip()
-    if rest[:1] in ("'", "‘"):
-        # A plural possessive ("the users' window") is not the closing quote: an asked: value closes
-        # at the LAST quote directly after a `?`; a scope: value at the last quote before the end of
-        # its clause (`;`, `—` or the line end).
-        closers = ("'", "’")
-        if label == "asked":
-            ends = [i for i in range(1, len(rest)) if rest[i] in closers and rest[i - 1] == "?"]
-            if ends:
-                return rest[1 : ends[-1]].strip()
-            q = rest.find("?")
-            return rest[1 : q + 1].strip() if q != -1 else rest[1:].strip()
-        cut = min((i for i in (rest.find(";", 1), rest.find("—", 1)) if i != -1), default=len(rest))
-        seg = rest[:cut].rstrip()
-        ends = [i for i in range(1, len(seg)) if seg[i] in closers]
-        return (seg[1 : ends[-1]] if ends else seg[1:]).strip()
-    q = rest.find("?")
-    return rest[: q + 1].strip() if q != -1 else rest.rstrip(" .;,").strip()
+    rest = why[m.end() :].strip()
+    if not rest:
+        return ""
+    pairs = {'"': '"', "“": "”", "`": "`"}
+    if rest[0] in pairs:
+        close = rest.find(pairs[rest[0]], 1)
+        return (rest[1:close] if close != -1 else rest[1:]).strip()
+    if rest[0] in "'‘":
+        for i in range(1, len(rest)):
+            nxt = rest[i + 1 : i + 2]
+            if (
+                rest[i] in "'’"
+                and rest[i - 1] not in "sS"
+                and (not nxt or nxt.isspace() or nxt in ";—,)?.")
+            ):
+                return rest[1:i].strip()
+        return rest[1:].strip()
+    if label.lower() == "asked":
+        q = rest.find("?")
+        return rest[: q + 1].strip() if q != -1 else rest.rstrip(" .;,").strip()
+    cuts = [i for i in (rest.find(" — "), rest.find(";")) if i != -1]
+    return rest[: min(cuts)].strip() if cuts else rest.rstrip(" .;,").strip()
 
 
 def _norm_ws(s: str) -> str:

@@ -1012,3 +1012,89 @@ def test_a_quoted_phrase_on_a_next_line_is_data(text: str) -> None:
     """A-O16: a deferral phrase ENCLOSED in a paired quote or code span on a NEXT: line is quoted
     data; a lone quote character or an apostrophe still does not skip (A-O10)."""
     assert hook.deferral_shape(text) is None, hook._deferral_match(text)
+
+
+# --- /fabrik-review round 3 (T03): the rewritten helpers, one scenario per seat finding ------
+
+
+@pytest.mark.parametrize(
+    "clause",
+    [
+        "restart the worker session after the queue drains",
+        "restart the ingest session broker on vps1",
+        "restart the vps2 editor-proxy service",
+        "restart the session broker on vps1",
+    ],
+    ids=["worker-session", "session-broker", "editor-proxy-service", "direct-object-not-whole"],
+)
+def test_a_service_hand_off_is_never_waived(clause: str) -> None:
+    """A-O19/A-O20: the waiver's object is the verb's DIRECT object; anything else is a hand-off."""
+    text = f"Done.\n\nNEXT: operator — {clause}"
+    assert hook.deferral_shape(text) == "D1", hook._deferral_match(text)
+
+
+@pytest.mark.parametrize(
+    "clause",
+    [
+        "refresh the window",
+        "reload the window so the roster refreshes",
+        "reload MCP, then retry the search",
+        "open a fresh VS Code window for the new roster",
+    ],
+    ids=["refresh-window", "reload-window", "reload-mcp", "open-fresh-window"],
+)
+def test_a_tool_reload_phrase_is_waived(clause: str) -> None:
+    text = f"Done.\n\nNEXT: operator — {clause}"
+    assert hook.deferral_shape(text) is None, hook._deferral_match(text)
+
+
+@pytest.mark.parametrize(
+    ("label", "why", "want"),
+    [
+        (
+            "scope",
+            "owned — scope: 'the admins' pages — list only'",
+            "the admins' pages — list only",
+        ),
+        ("asked", "owned — asked: 'ship it?' then I said 'ok?'", "ship it?"),
+        ("scope", "owned — scope: 'the users' data'", "the users' data"),
+        (
+            "asked",
+            "owned — asked: 'do the users' logs need 90 days?'",
+            "do the users' logs need 90 days?",
+        ),
+        (
+            "scope",
+            "owned — scope: 'the admins' pages only'; nothing else",
+            "the admins' pages only",
+        ),
+        ("asked", "owned — asked: what's the plan here? (still open)", "what's the plan here?"),
+        ("scope", "owned — scope: only the parser — nothing else", "only the parser"),
+    ],
+    ids=[
+        "possessive-then-dash",
+        "first-quoted-span-wins",
+        "possessive-in-the-middle",
+        "asked-possessive",
+        "scope-possessive-then-semicolon",
+        "unquoted-asked",
+        "unquoted-scope",
+    ],
+)
+def test_the_quote_is_tokenised(label: str, why: str, want: str) -> None:
+    """A-O21/A-O22/A-O23: the value is the leading quoted span (a possessive `s'` never closes it,
+    the first closing quote wins), else the unquoted clause; never a delimiter."""
+    assert hook._decision_quote(why, label) == want
+
+
+def test_an_inch_mark_never_encloses() -> None:
+    """A-O24: a `"` glued to a digit is an inch mark, not an opener; the deferral outside the one
+    real `"…"` span still fires."""
+    text = 'Done.\n\nNEXT: /fabrik-x — the 12" panel; your call, then "y"'
+    assert hook.deferral_shape(text) == "D1", hook._deferral_match(text)
+
+
+def test_a_count_before_blocked_is_not_a_header() -> None:
+    """A-O25: the id before BLOCKED: starts with a letter; `- 2 BLOCKED: …` is a count."""
+    text = "- 2 BLOCKED: T04, T05\n\nNEXT: operator decision — which first"
+    assert hook.deferral_shape(text) == "D1", hook._deferral_match(text)
