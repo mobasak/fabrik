@@ -1,0 +1,127 @@
+# Whole-plan receipt — audit-log-everywhere (plan 1, 2026-09-24)
+
+**Plan:** `docs/development/plans/2026-09-24-plan-1-audit-log-everywhere/` (T01–T05) · **Spec:**
+`docs/superpowers/specs/2026-09-24-audit-log-everywhere-design.md` · **Decisions:** D-385, D-386, D-390
+**Range:** `a2d4cdf8e~1..191a72b17` (the plan entering execution through T05's code commit), run in
+the T05 worktree on 2026-09-24.
+
+This file is T05's integration receipt: the whole-plan doc checks, the gate, the cross-ticket seam
+tests, the companion memory measurement and the infra hand-off. The per-ticket code reviews are the
+orchestrator's; nothing here stands in for them.
+
+## Phase T01–T05 — per-ticket seam verdicts
+
+| Ticket | Contract (spine § Interfaces) | Seam test | Verdict |
+|---|---|---|---|
+| T01 | `generate_spec(..., use_database=True)` emits `shape.database_url_app_role: true` | `tests/test_scaffold_audit_log.py::test_python_api_spec_declares_audit_jobs_companion` (reads the spec the scaffold generated) | PASS |
+| T02 | `scratch_pg()` / `ensure_app_role` / `create_watchdog_roles` | `tests/test_scaffold_audit_log.py::test_no_window_app_role_refused_update_right_after_apply` and `::test_writer_concurrent_writes_keep_the_chain_strict` (import `scratch_pg`, mint roles through T02's driver) | PASS |
+| T03 | `run_check` → `probe_app_role`, failures verbatim | `tests/test_app_role_check.py` | PASS |
+| T04 | the app-role step; the two-DSN env contract | `tests/test_app_role_provision.py`; T05's `.env.example` assertion in `test_python_backend_gets_module_table_revokes_header_env` | PASS |
+| T05 | the scaffolder emits module, table, revokes, jobs, writer, companion | `tests/test_scaffold_audit_log.py` (18 rows), `tests/test_scaffold_saas_backend.py` | PASS |
+
+## Phase T05 — the cross-ticket seam-test run
+
+```text
+$ FABRIK_REQUIRE_REAL_PG=1 PYTHONPATH=<worktree>/src /opt/fabrik/.venv/bin/python -m pytest \
+    tests/test_app_role_check.py tests/test_app_role_provision.py tests/test_app_role_real_pg.py -q
+151 passed in 121.53s (0:02:01)
+
+$ FABRIK_REQUIRE_REAL_PG=1 FABRIK_ROOT=<worktree> PYTHONPATH=<worktree>/src /opt/fabrik/.venv/bin/python -m pytest \
+    tests/test_scaffold_audit_log.py tests/test_scaffold_saas_backend.py \
+    tests/test_scaffold_spec_generation.py tests/test_spec_generator.py -q
+108 passed in 34.52s
+```
+
+`FABRIK_REQUIRE_REAL_PG=1` makes a missing docker a failure, so the real-PostgreSQL rows above ran
+against a throwaway `postgres:16` container, not a skip.
+
+## Phase T05 — whole-plan doc checks
+
+```text
+$ /opt/fabrik/.venv/bin/python scripts/enforcement/check_doc_sync.py --range a2d4cdf8e~1..HEAD
+(no output)
+rc=0
+
+$ /opt/fabrik/.venv/bin/python scripts/enforcement/check_doc_stubs.py --range a2d4cdf8e~1..HEAD
+(no output)
+rc=0
+
+$ /opt/fabrik/.venv/bin/python scripts/enforcement/check_convergence.py   # this receipt staged
+⚠ check_convergence ADVISORY — committed plan(s) needing attention:   (9 rows, all pre-existing plans dated 2026-08-10 … 2026-09-03; none in this plan)
+rc=0
+
+$ /opt/fabrik/.venv/bin/python scripts/enforcement/check_review_coverage.py
+check_review_coverage: OK — 0 unproven coverage claims across 5 changed review artifact(s)
+rc=0
+```
+
+## Phase T05 — gate
+
+`python scripts/final_gate.py --check --json`, Tier 2, in the T05 worktree (excerpt of the JSON,
+verbatim keys and values):
+
+```json
+{
+  "status": "failure",
+  "tier": 2,
+  "passed": 65,
+  "failed": 1,
+  "skipped": 3,
+  "skipped_checks": [
+    "bandit scripts/",
+    "semgrep",
+    "pytest"
+  ],
+  "failures": [
+    {
+      "check": "Doc Link Integrity (live tree)",
+      "output": "ERROR: agents-fabrik.md: broken ref -> scripts/kilo_47_agents_final.json\nERROR: docs/STRATEGIC_BACKLOG.md: broken ref -> scripts/kilo_openrouter_routes_final.json\nERROR: docs/operations/wsl-environment.md: broken ref -> scripts/kilo-benchmarks/cache/daily_refresh_last_success.txt\nERROR: docs/reference/kilo/AI_VENDOR_ACCESS.md: broken ref -> scripts/kilo-benchmarks/cache/wavespeed_catalog.json\nERROR: docs/reference/kilo/AI_VENDOR_ACCESS.md: broken ref -> scripts/kilo-benchmarks/cache/wavespeed_models_flat.json\nERROR: docs/workflows/DATA_SYNC_WORKFLOW.md: broken ref -> scripts/kilo-benchmarks/cache/daily_refresh_last_success.txt\nERROR: docs/workflows/DATA_SYNC_WORKFLOW.md: broken ref -> scripts/kilo_47_agents_final.json\nERROR: docs/workflows/KILO_BENCHMARK_WORKFLOW.md: broken ref -> scripts/kilo_47_agents_final.json\nERROR: docs/workflows/SCAFFOLD_STRUCTURE.md: broken ref -> scripts/kilo_47_agents_final.json"
+    }
+  ]
+}
+```
+
+GATE-SCOPE: out-of-surface — Doc Link Integrity (live tree); findings naming this surface: 0 of 9; measured by: every finding targets a gitignored generated file (`scripts/kilo_*.json`, `scripts/kilo-benchmarks/cache/*`) present in the live `/opt/fabrik` tree and absent from a fresh worktree, and none of the nine referencing docs is in the plan's range
+
+The pytest leg is off in the hub by design (the advisory row says so); the suites the plan touched
+ran by hand above. bandit and ruff over T05's Python files are clean
+(`bandit -ll src/fabrik/scaffold.py src/fabrik/spec_generator.py tests/test_scaffold_audit_log.py
+tests/test_scaffold_saas_backend.py`: 0 medium/high).
+
+## Phase T05 — the companion memory measurement
+
+The `<name>-audit-jobs` companion's `memory` (`src/fabrik/spec_generator.py::AUDIT_JOBS_COMPANION_MEMORY`)
+is measured, not guessed: a `python-api --db` scaffold's emitted `audit_jobs.py`, run as
+`python -m mem_probe.audit_jobs verify|retention` under `/usr/bin/time -v` against a scratch
+PostgreSQL 16 holding a 10,000-row chain written through the module's `record_event` under the
+advisory lock:
+
+```text
+verify rc 0 ['\tMaximum resident set size (kbytes): 62012'] ['audit_jobs: verify_done incidents=0 since=None until=2026-09-24 16:20:49.723434+00:00']
+retention rc 0 ['\tMaximum resident set size (kbytes): 47588'] ['audit_jobs: retention_done deleted=0']
+```
+
+128M is about twice the verification peak. `verify_chain` holds its whole window in memory, so a
+project whose weekly window grows far past 10k rows raises the limit in its own spec.
+
+## Phase T05 — the infra hand-off (stale pack caveats)
+
+Mailed to infra as `01M3A5FPN507JHA80Q5ETWT0X0` (`/opt/fabrik-mail/fabrik/inbox/01M3A5FPN507JHA80Q5ETWT0X0.md`,
+kind `finding`): `.windsurf/rules/core/app-audit-log.md:26-36` (the "registrar makes the app's role
+the OWNER … tamper-EVIDENCE" caveat and the hand-run `<db>_wd_rw` revoke), `:40-41` (retention "as
+the owner role (the app's role today)"), plus the same parenthetical at `:178-179` and the "No
+scaffold type emits any of this yet" line at `:47-48`. The pack is infra's beat; the edit is theirs.
+
+## Open at the end of the plan
+
+- The spec companion is rendered only by the `python-api` and `node-api` compose templates
+  (`templates/_partials/_companion_service.yaml.j2`), and that partial carries no `env_file: .env`,
+  so on the template path the companion does not see `DATABASE_URL_OWNER`. A git-sourced deploy
+  (the scaffold default) runs the committed `compose.yaml`, which `companion_services` does not
+  drive at all. Until one of those changes, the non-saas jobs run where the operator runs
+  `python -m <package>.audit_jobs`; the saas family is unaffected (its worker's beat loop runs them,
+  with `env_file: .env`).
+- `ensure_app_role` re-grants DML on every table each apply, so the `audit_jobs_state` revoke in the
+  schema holds only until the next apply; the cursor row is then writable by the app role.
+- The Node writer (node-api, file-api) still waits on fabrik-lib's Node port
+  (`core/app-audit-log.md:50-52`); the scaffold emits their table and revokes only.
