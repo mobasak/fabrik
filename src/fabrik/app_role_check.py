@@ -8,7 +8,7 @@ running DDL, a migration tool, or a bare ``psql`` invocation — over ``DATABASE
 instead of ``DATABASE_URL_OWNER``. A cutover is safe only when both answers are clean.
 
 Scan patterns settled in D-390, widened by this plan's review and by acceptance-review
-passes 1 and 2 (spec § Derivations D1):
+passes 1, 2 and 3 (spec § Derivations D1):
 
 * ``*.sql`` files are never scanned for DDL text — they are schema data applied by
   someone (``db/schema.sql`` is owner-applied by design). The scan finds the
@@ -198,19 +198,31 @@ def _suppressed_by_owner(stripped_text: str, raw_text: str) -> bool:
     return bool(_OWNER_TOKEN_RE.search(stripped_text)) and not bool(_URL_TOKEN_RE.search(raw_text))
 
 
-_ENV_KEY_RE = re.compile(r'^\s*["\']?DATABASE_URL["\']?\s*:\s*(.*)$')
+_ENV_KEY_RE = re.compile(r'^\s*(-\s*)?["\']?DATABASE_URL["\']?\s*[:=]\s*(.*)$')
 
 
 def _strip_env_key(line: str) -> str:
-    """The ``DATABASE_URL:`` environment-mapping KEY is never itself a bare-token
-    use (acceptance review pass 2, O18) — only strip it when the line IS exactly
-    that key, returning the value that follows; any other line (a command
-    string, e.g.) is returned untouched. Without this, a canonical hand-off like
+    """The ``DATABASE_URL:`` (dict) or ``- DATABASE_URL=`` (list) environment key
+    is never itself a bare-token use (acceptance review pass 2, O18; the list form
+    added pass 3, O28) — only strip it when the line IS exactly that key, returning
+    the value that follows; any other line (a command string, e.g.) is returned
+    untouched. Without this, a canonical hand-off like
     ``DATABASE_URL: ${DATABASE_URL_OWNER}`` would disqualify its own suppression:
     the KEY text alone already contains a word-bounded bare ``DATABASE_URL``.
+
+    A value-less key (``DATABASE_URL:`` with nothing after the colon, or the
+    bare list form once matched) means "inherit the host value" — the SAME bare
+    ``DATABASE_URL`` use as an explicit ``${DATABASE_URL}``, so it is represented
+    as that token rather than an empty string (acceptance review pass 3, O27) —
+    an empty string would erase the bare-token signal entirely and let a sibling
+    ``DATABASE_URL_OWNER`` line falsely suppress a block that still reaches the
+    owner-bypassing bare variable.
     """
     m = _ENV_KEY_RE.match(line)
-    return m.group(1) if m else line
+    if not m:
+        return line
+    value = m.group(2).strip()
+    return value if value else "$DATABASE_URL"
 
 
 @dataclass
@@ -360,12 +372,12 @@ def _database_url_env_value(environment: object) -> str | None:
 # the bash "error if unset" modifier (`:?msg` or `?msg`, item O19) since that is
 # still the SAME value, just guarded — never `:-default`/`-default` (item O19),
 # which can silently substitute a different value and so stays an override.
-_PASSTHROUGH_FULLMATCH_RE = re.compile(
-    r"\$DATABASE_URL|\$\{DATABASE_URL(:?\?[^}]*)?\}", re.IGNORECASE
-)
-_OWNER_FULLMATCH_RE = re.compile(
-    r"\$DATABASE_URL_OWNER|\$\{DATABASE_URL_OWNER(:?\?[^}]*)?\}", re.IGNORECASE
-)
+# Case-SENSITIVE (acceptance review pass 3, O29) — shell/Compose variable names
+# are case-sensitive, so `${database_url}` is a DIFFERENT variable, not the same
+# pass-through, and `${database_url_owner}` is not the owner hand-off either; a
+# case-insensitive match here would silently clear a real override.
+_PASSTHROUGH_FULLMATCH_RE = re.compile(r"\$DATABASE_URL|\$\{DATABASE_URL(:?\?[^}]*)?\}")
+_OWNER_FULLMATCH_RE = re.compile(r"\$DATABASE_URL_OWNER|\$\{DATABASE_URL_OWNER(:?\?[^}]*)?\}")
 
 
 def _classify_database_url_env(value: str) -> str:

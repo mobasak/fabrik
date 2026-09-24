@@ -918,3 +918,89 @@ def test_run_check_probe_exception_with_empty_str_is_never_a_blank_failure(tmp_p
     assert result.ok is False
     assert all(f.strip() for f in result.failures)
     assert any("RuntimeError" in f for f in result.failures)
+
+
+# ── Fixups r3 (acceptance review pass 3 — last round; scope-growth stop fired) ── #
+
+
+def test_null_database_url_key_still_counts_as_a_bare_token_use(tmp_path):
+    """O27 (fail-open): `DATABASE_URL:` (null/value-less) means "inherit the host
+    value" — it IS a bare DATABASE_URL use and must not be erased from the
+    disqualifier text, or a sibling DATABASE_URL_OWNER line would falsely
+    suppress a migrate block that still reaches the bare variable."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n"
+        "  migrate:\n"
+        "    environment:\n"
+        "      DATABASE_URL:\n"
+        "      DATABASE_URL_OWNER: ${DATABASE_URL_OWNER}\n",
+    )
+
+    result = scan_repo(repo)
+
+    assert any(f.pattern == "compose service named migrate" for f in result.findings)
+
+
+def test_compose_variable_names_are_case_sensitive_for_passthrough(tmp_path):
+    """O29 (fail-open): `${database_url}` is a DIFFERENT variable from
+    `${DATABASE_URL}` (shell/Compose variable names are case-sensitive) — it must
+    stay an override, not read as a safe pass-through."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n  api:\n    environment:\n      DATABASE_URL: ${database_url}\n",
+    )
+
+    result = scan_repo(repo)
+
+    assert any(f.pattern == "compose environment sets DATABASE_URL" for f in result.findings)
+
+
+def test_compose_variable_names_are_case_sensitive_for_owner(tmp_path):
+    """O29 (fail-open): `${database_url_owner}` is not the same variable as
+    `${DATABASE_URL_OWNER}` — it must stay an override, not a suppressed hand-off."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n  api:\n    environment:\n      DATABASE_URL: ${database_url_owner}\n",
+    )
+
+    result = scan_repo(repo)
+
+    assert any(f.pattern == "compose environment sets DATABASE_URL" for f in result.findings)
+
+
+def test_migrate_list_form_owner_handoff_is_suppressed(tmp_path):
+    """O28 (fail-closed): `- DATABASE_URL=${DATABASE_URL_OWNER}` is the canonical
+    hand-off in COMPOSE'S LIST environment form — the `DATABASE_URL=` key text
+    must not itself count as a bare-token use, same as the dict-form key."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n  migrate:\n    environment:\n      - DATABASE_URL=${DATABASE_URL_OWNER}\n",
+    )
+
+    result = scan_repo(repo)
+
+    assert result.findings == []
+
+
+def test_migrate_list_form_value_less_database_url_still_counts_as_bare(tmp_path):
+    """O28: a value-less list entry (`- DATABASE_URL`, no `=`) means "inherit the
+    host value" — a genuine bare use — so a sibling owner hand-off elsewhere in
+    the SAME block must NOT suppress the migrate finding."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n"
+        "  migrate:\n"
+        "    environment:\n"
+        "      - DATABASE_URL\n"
+        "      - DATABASE_URL_OWNER=${DATABASE_URL_OWNER}\n",
+    )
+
+    result = scan_repo(repo)
+
+    assert any(f.pattern == "compose service named migrate" for f in result.findings)
