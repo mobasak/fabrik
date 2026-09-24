@@ -125,6 +125,12 @@ fabrik logs /opt/fabrik/specs/services/hello-api.yaml
 fabrik audit-registrars
 fabrik audit-registrars --spec /opt/fabrik/specs/services/hello-api.yaml --json
 
+# Pre-cutover check for the <db>_app DSN cutover (audit-log-everywhere T03): probes the
+# app role's privilege model and scans the project's own repo for anything still reaching
+# DATABASE_URL as an owner (raw DDL, a migration tool, a bare psql call). Prints one ✗ line
+# per failure and exits 1, or ✓ and exits 0 — run before flipping .env's DATABASE_URL.
+fabrik app-role-check --spec /opt/fabrik/specs/services/hello-api.yaml
+
 # Sweep the fleet — re-run InfrastructureProvisioner per spec (T2-02 G-F2).
 fabrik reconcile-all --filter hello-api          # dry-run, scoped
 fabrik reconcile-all --yes                       # apply across fleet

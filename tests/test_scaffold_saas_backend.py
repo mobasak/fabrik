@@ -74,6 +74,9 @@ def test_emits_server(project: Path) -> None:
 @requires_fabrik_env
 def test_rls_schema(project: Path) -> None:
     sql = (project / "server" / "db" / "schema.sql").read_text()
+    # Applied as the OWNER, the whole file in one transaction (D-390).
+    assert 'psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql' in sql
+    assert 'psql "$DATABASE_URL"' not in sql
     assert "current_tenant_id" in sql
     assert "FORCE  ROW LEVEL SECURITY" in sql or "FORCE ROW LEVEL SECURITY" in sql
     assert "tenant_isolation" in sql
@@ -119,6 +122,11 @@ def test_auth_and_headers(project: Path) -> None:
     assert "X-Frame-Options" in auth
     assert "Strict-Transport-Security" in auth
     assert "cors_origins" in auth
+    # The IdP's audit hook writes the hash-chained audit_log (D-390), not a stdout stub.
+    assert "_LogAuditLogger" not in auth
+    assert "audit=ChainAuditLogger(sessionmaker)" in auth
+    writer = (_pkg(project) / "audit.py").read_text()
+    assert "pg_advisory_xact_lock" in writer and "AUDIT_CHAIN_LOCK_KEY" in writer
 
 
 # Phase 5 — API contracts (RFC 9457, versioning, casing) --------------------
@@ -188,6 +196,10 @@ def test_worker_module_present(project: Path) -> None:
     assert "raise SystemExit" not in worker  # resilient boot — never crash on a missing DB
     assert "_await_pool" in worker  # waits/retries for the registrar-injected DB
     assert "_heartbeat_loop" in worker  # liveness heartbeat (procps-free healthcheck)
+    # The beat leader runs the audit-log jobs (retention daily, verification weekly).
+    assert "await asyncio.to_thread(audit_jobs.run_due)" in worker
+    assert (_pkg(project) / "audit_jobs.py").exists()
+    assert "psycopg[binary]" in (project / "server" / "requirements.txt").read_text()
 
 
 # Required-files contract ---------------------------------------------------

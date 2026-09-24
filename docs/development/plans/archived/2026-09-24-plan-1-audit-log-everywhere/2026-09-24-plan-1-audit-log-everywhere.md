@@ -1,6 +1,7 @@
 # The audit log in every Fabrik project — non-owner app role, DSN contract, pre-cutover check, scaffolder
 
-Status: CONVERGED (/fabrik-plan-review 2026-09-24 — 4 passes, confirmed 48 → 9 → 1 → 0; scope-growth stop at pass 3, remainder round quiet)
+Status: EXECUTED 2026-09-24 (/fabrik-execute-plan, worktree-audit-log-exec; all five tickets merged with their acceptance reviews clean; D7 whole-plan validation quiet at pass 3, confirmed 9 → 1 → 0)
+Whole-plan review: docs/development/reviews/2026-09-24-plan-1-audit-log-everywhere-review.md
 **Owner:** fleet
 Spec: docs/superpowers/specs/2026-09-24-audit-log-everywhere-design.md (CONVERGED 799b1434a, D-387; approved D-389; design D-385 as corrected by D-386; mandate D-368)
 
@@ -44,11 +45,11 @@ Intake: 13 items — 9 IN, 4 OUT-OF-SCOPE (I8, I9, I11, I13 — each named), 0 A
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01 | `shape.database_url_app_role` flag + generator default | — | ⚡ | ⬜ | |
-| T02 | `<db>_app` role driver: mint, grants, audit revokes, probe, drop | — | ⚡ | ⬜ | |
-| T03 | Pre-cutover check + `fabrik app-role-check` | T02 | ⛓️ | ⬜ | |
-| T04 | Registrar step: DSN injection, cutover, rollback, docs | T01, T02, T03 | ⛓️ | ⬜ | |
-| T05 | Integration: scaffolder emits module, table, revokes, jobs; receipt | T04 | ⛓️ | ⬜ | |
+| T01 | `shape.database_url_app_role` flag + generator default | — | ⚡ | ✅ | branch head 29d43e3c1; merged 2026-09-24 (review: 2 passes, T01 slice 6 → 0) |
+| T02 | `<db>_app` role driver: mint, grants, audit revokes, probe, drop | — | ⚡ | ✅ | branch head e6de98931; merged 2026-09-24 (review: 4 passes, confirmed 18 → 3 → 1 → 0) |
+| T03 | Pre-cutover check + `fabrik app-role-check` | T02 | ⛓️ | ✅ | branch head 112611630; merged 2026-09-24 (review: 4 passes, confirmed 21 → 10 → 3 → 0) |
+| T04 | Registrar step: DSN injection, cutover, rollback, docs | T01, T02, T03 | ⛓️ | ✅ | branch head 3304e6188; merged 2026-09-24 (review: 3 passes, confirmed 11 → 2 → 0) |
+| T05 | Integration: scaffolder emits module, table, revokes, jobs; receipt | T04 | ⛓️ | ✅ | branch head 473cda8bd; merged 2026-09-24 (review: 4 passes, confirmed 20 → 1 → 0 → 0) |
 
 ## Merge Order
 
@@ -71,7 +72,7 @@ Serialized: src/fabrik/spec_generator.py — T01, T05
   - Seam tests:
     - `tests/test_app_role_check.py` (T03, consumer): `run_check` calls `probe_app_role`, carries its failures verbatim and turns `AppRoleError` into a failure.
     - `tests/test_app_role_provision.py` (T04, consumer): the step calls `ensure_app_role` on every apply, with `reset_password=True` only at a cutover, after the watchdog and payments steps.
-- **T02 → T05 (test helper):** `tests/test_app_role_real_pg.py::scratch_pg()`, a context manager that starts a throwaway `postgres:16` container and yields `run_sql(sql: str) -> str` (superuser) plus `login_sql(role: str, password: str, sql: str) -> str` (a real LOGIN session). It skips with its reason when docker is unavailable. Seam test: T05's no-window row in `tests/test_scaffold_audit_log.py` imports it.
+- **T02 → T05 (test helper):** `tests/test_app_role_real_pg.py::scratch_pg()`, a context manager that starts a throwaway `postgres:16` container and yields a `ScratchPg` with `run_sql(sql: str) -> str` (superuser), `login_sql(role: str, password: str, sql: str, db: str = "postgres") -> str` (a real LOGIN session; pass `db=<db>` to reach the project database — the keyword was added at T02, since the three-argument form cannot choose one) and `as_driver()` (patches `_run_sql` onto the container). It pulls `postgres:16` on a miss, skips only when docker itself is unavailable, and FAILS instead of skipping when `FABRIK_REQUIRE_REAL_PG=1`. Seam test: T05's no-window row in `tests/test_scaffold_audit_log.py` imports it.
 - **T03 → T04 (`src/fabrik/app_role_check.py`):**
   - `run_check(db_name: str, repo_dir: Path, container: str = POSTGRES_CONTAINER) -> CheckResult`, where `CheckResult(ok: bool, failures: list[str])`.
   - `project_repo_dir(spec: dict) -> Path` returns `Path("/opt") / (spec.get("id") or spec.get("name"))` — the orchestrator's `_load_secrets` precedence. The CLI and the registrar step use this one helper.
@@ -231,6 +232,9 @@ Serialized: src/fabrik/spec_generator.py — T01, T05
 
 ## Evidence
 
+- **Execution (2026-09-24).** T01 60407e77c · T02 f4cc28eea · T03 a1cf6f111 (+ its O30 fix e8263fbb8) · T04 253e06eaf · T05 900c25c8c · D7 fixes 0fdbc9603 (folded into the Finish commit). Per-ticket receipts `docs/development/reviews/2026-09-24-plan-1-audit-log-everywhere-T0{1..5}-review.md`; whole-plan receipt `docs/development/reviews/2026-09-24-plan-1-audit-log-everywhere-review.md` (D7 pass ledger: found 22 → 3 → 0). Decisions D-408 (T04), D-409 (T05), D-410 (D7).
+- **Requirements coverage.** Non-owning `<db>_app` with USAGE-never-CREATE, audit revokes, Pattern A memberships INHERIT FALSE/SET TRUE → T02 (`src/fabrik/drivers/postgres.py` `ensure_app_role`, `_app_role_grants_sql`). `DATABASE_URL` = app / `DATABASE_URL_OWNER` = owner, both at creation, switch only by the flag, rollback the flag reversed → T01 (`Shape.database_url_app_role`), T04 (`_provision_app_role`). Measured check (ownership, privilege probe, repo scan) that refuses and names what failed → T03 (`fabrik app-role-check`, `run_check`). Third-party images refused structurally (no repo) → T03. The registrar step outside `create_database`, its failure a registrar failure → T04. The scaffolder's module, table, same-transaction revokes, writer and jobs → T05; a new project born on the app role → T05 + D-410 (own database, clean fresh-scaffold check). No gap.
+- **No HTTP surface shipped** (a CLI command and registrar/scaffolder code), so no live request is owed.
 - `src/fabrik/spec_loader.py:333-345` — `needs_payments_ingest: bool = Field(default=False, …)` and its `_payments_ingest_needs_database` validator (:380-389), the shape T01 copies. `src/fabrik/orchestrator/infrastructure.py:232` reads the RAW dict with `shape.get(...)`: `ctx.spec` never passes through `Shape`, so T04 reads the flag the same way.
 - `src/fabrik/drivers/postgres.py`:
   - `:340-342` — `create_database` returns before any role SQL once the database exists.
@@ -496,7 +500,7 @@ Rubric over the plan's File Scope (`python scripts/review_rubric.py --changed sr
 
 ## Residual unknowns
 
-- **Resolved (emit gate):** `python -m scripts.enforcement.check_plan_tickets --plan-dir docs/development/plans/2026-09-24-plan-1-audit-log-everywhere` — the summary line of the last run is quoted in § Review — Pass Ledger. The first draft had T04 at 276,215 B against 262,144, so `docs/CONFIGURATION.md` (57,582 B) moved to T05.
+- **Resolved (emit gate):** `python -m scripts.enforcement.check_plan_tickets --plan-dir docs/development/plans/archived/2026-09-24-plan-1-audit-log-everywhere` — the summary line of the last run is quoted in § Review — Pass Ledger. The first draft had T04 at 276,215 B against 262,144, so `docs/CONFIGURATION.md` (57,582 B) moved to T05.
 - **Resolved (review pass 1): the scratch PostgreSQL.** `postgres:16` is in the local image list (§ Evidence). The fixture still skips with its reason when docker is unavailable, and a skip never counts as the red-on-revert proof.
 - **Open (self-service, T05): the jobs companion's memory.** Measure the peak RSS of one retention and one verify pass over 10k rows in a scratch container. Set `memory` to 2× peak, floor 128M, and record the measurement in the receipt.
 - **Deferred, destination named — the Node writer.** `core/app-audit-log.md:50-52` says node-api and file-api owe a writer hashing byte-identically to `canonical_payload` until fabrik-lib's Node port lands. T05 emits the table and revokes only. The writer is the port's (fabrik-lib, already filed by infra) or the project agent's during its wave. A STRATEGIC_BACKLOG row carries it (T05 Deltas).

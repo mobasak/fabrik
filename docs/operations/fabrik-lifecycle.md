@@ -74,7 +74,7 @@ When `fabrik apply` targets a service that already exists (`/opt/<name>/compose.
 
 1. **Compose.yaml** — for template/docker source: regenerated and written to VPS via SCP (**overwritten**). For git source: updated by `git pull` from the repo (deployer does not write compose.yaml). For local source: untouched (already exists at `source.path`)
 2. **`.env`** is read-merged:
-   - Reads existing `/opt/<name>/.env` from VPS
+   - Reads existing `/opt/<name>/.env` from VPS. A failed read of an existing `.env` (ssh error, refused sudo) aborts the deploy with a `DeployError` before the `.env` is written or the containers are restarted (a git-sourced deploy has already pulled the repo by then), since rebuilding from spec + secrets alone would drop every registrar-injected var, `DATABASE_URL_OWNER` included. `inject_env()` follows the same rule. Only an absent `.env` builds from spec + secrets
    - Layers spec `env:` block values on top
    - Layers `ctx.secrets` on top (highest priority)
    - Writes merged result back
@@ -180,8 +180,8 @@ Understanding when `.env` is written helps predict whether your env vars will su
 | Event | .env touched? | Strategy | Registrar vars preserved? |
 |---|---|---|---|
 | `fabrik apply` (new) | Yes — written fresh | No existing file to read | N/A (first deploy) |
-| `fabrik apply` (existing) | Yes — read-merged | Read existing → layer spec → layer secrets | Yes |
-| `inject_env()` (redis/glitchtip registrar) | Yes — read-merged | Read existing → add new vars → write back + restart | Yes |
+| `fabrik apply` (existing) | Yes — read-merged | Read existing → layer spec → layer secrets; a failed read aborts, nothing written | Yes |
+| `inject_env()` (redis/glitchtip registrar) | Yes — read-merged | Read existing → add new vars → write back + restart; a failed read raises, nothing written | Yes |
 | `fabrik redeploy` | **No** | .env not touched | Yes (untouched) |
 | `fabrik redeploy --refresh-infra` | Maybe — only if registrar calls `inject_env()` | Read-merge | Yes |
 | `fabrik destroy` | N/A — file deleted with directory | — | — |
@@ -195,6 +195,69 @@ existing .env on VPS ← registrar-injected vars, previous deploy values
 ```
 
 If both the spec and the existing .env define `FOO=bar`, the spec's value wins. If only the existing .env has `SENTRY_DSN=...` (injected by glitchtip registrar), it's preserved.
+
+---
+
+## App-role cutover and rollback
+
+Every database project's `.env` carries two DSNs. `DATABASE_URL_OWNER` connects as the
+database owner and is what migrations, runtime DDL and the retention job use.
+`DATABASE_URL` is what the app uses. On a fresh create both are the owner DSN, injected in
+one call before any other step can fail, because the owner password exists only at that
+moment. The role model is in
+[`docs/reference/modules/drivers.md`](../reference/modules/drivers.md) § Postgres.
+
+On every `fabrik apply` the postgres registrar runs the app-role step after the watchdog and
+payments-ingest roles. It mints or re-asserts `<db>_app` and its grants, reads the live
+`.env` (on the spoke for a spoke target), and converges `DATABASE_URL` to what
+`shape.database_url_app_role` declares:
+
+| Flag | `DATABASE_URL` user | What the step does |
+|---|---|---|
+| `true` | owner | **Cutover:** refuse a shared database, run the pre-cutover check, reset the `<db>_app` password, then inject `DATABASE_URL` (the same DSN with only user and password swapped; scheme, host, port, database and query kept) and `DATABASE_URL_OWNER` (the old value) |
+| `false` | `<db>_app` | **Rollback:** `DATABASE_URL` = `DATABASE_URL_OWNER`; refused when that key is absent or does not name the owner |
+| `true` | `<db>_app` | Converged: nothing injected. A missing `DATABASE_URL_OWNER` is a failure, because no rollback DSN exists and the owner password cannot be recovered |
+| `false` | owner | Converged: nothing injected, or `DATABASE_URL_OWNER` backfilled from `DATABASE_URL` when absent |
+| `true` | absent, or any other user (a superuser, a legacy role, a DSN built from separate variables) | **Refused:** nothing injected, the user found is named in the failure |
+
+A refusal or error is an `app-role:` registrar failure, so `fabrik apply` exits 2 and the
+deploy is not reported green. The exception: with the flag `false`, a database owned by
+`postgres` (legacy, manual or seed-restored) is recorded as `skipped`, since it does not need
+the app role until it asks for the switch. `--dry-run` sends no ssh, SQL or check and records
+`app-role` as `dry_run`: the decision needs the live `.env`, so a dry run cannot preview it.
+Logs name roles, never a DSN or a password.
+
+**Runbook — cut over:**
+
+1. Set `shape.database_url_app_role: true` in `specs/services/<id>.yaml` (a YAML boolean; a
+   string or a number is refused, never read as a switch).
+2. Run `fabrik app-role-check --spec specs/services/<id>.yaml` and fix everything it reports (a
+   migration tool or DDL still reaching `DATABASE_URL`, a stale or missing clone at
+   `/opt/<id>`, a failing privilege probe).
+3. `fabrik apply specs/services/<id>.yaml`. The step runs the same check again and cuts over
+   only when it passes.
+
+**Runbook — roll back:** unset the flag (or set it `false`) and `fabrik apply`. `DATABASE_URL`
+returns to the owner DSN kept in `DATABASE_URL_OWNER`.
+
+**Shared databases are refused.** When another spec (`*.yaml` or `*.yml`) in `specs/services/` with
+`shape.needs_database` resolves to the same database, the cutover is refused and the failure
+lists those specs: one `<db>_app` password cannot be reset for one of them without breaking
+the others. An unreadable sibling spec, or one whose database cannot be resolved (including a
+non-string `depends.postgres`), refuses too. Only legacy specs share one: the four live
+database specs pinned to `depends.postgres: main` share database `main` and cannot cut over
+until each moves to its own database. A scaffolded spec never shares — `fabrik scaffold` pins
+`depends.postgres` to the project's own database (its id with hyphens as underscores, the name
+the registrar derives), so a new project is born on the app role.
+
+**The limit.** The owner DSN lives in the same project `.env` as the app DSN. Append-only on
+`audit_log` therefore holds against the app's own code paths and against SQL injection, not
+against code execution inside the container, which can read `DATABASE_URL_OWNER`.
+
+A `DATABASE_URL` pinned by the spec's `env:` block or the project secrets is rewritten on every
+apply and would re-cut-over and reset the `<db>_app` password each time, so the cutover refuses
+it: move the pinned value to `DATABASE_URL_OWNER` first (the `db_before_boot` first-apply seed and an
+`env:` placeholder stand-in are not pins).
 
 ---
 

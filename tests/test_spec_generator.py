@@ -391,11 +391,45 @@ class TestGenerateSpec:
         with pytest.raises(ValueError, match="Unsupported project type"):
             generate_spec("test", "wordpress", None)
 
-    def test_postgres_dependency_set_when_detected(self):
+    def test_detected_postgres_alone_pins_no_database(self):
+        """D7-scaffold-S2: ``depends.postgres`` follows the RESOLVED
+        ``shape.needs_database``, never the raw detected context — python-api
+        without ``--db`` resolves to no database, so nothing is pinned."""
         ctx = {"depends_postgres": True, "depends_redis": False}
         spec = generate_spec("my-api", "python-api", "my-api.vps1.ocoron.com", context=ctx)
-        assert spec.depends.postgres == "main"
+        assert spec.shape is not None and spec.shape.needs_database is False
+        assert spec.depends.postgres is None
         assert spec.depends.redis is None
+
+    def test_database_spec_pins_its_own_database_never_shared_main(self):
+        """D7-registrar-O1/O3: the registrar takes ``depends.postgres`` as the
+        DATABASE NAME, so ``main`` would put every new project in one shared
+        database, where the app-role cutover is refused forever. A database
+        spec pins the registrar's own derived name."""
+        spec = generate_spec("my-app", "python-api", "my-app.vps1.ocoron.com", use_database=True)
+        assert spec.depends.postgres == "my_app"
+        saas = generate_spec("my-saas", "saas-skeleton", "my-saas.vps1.ocoron.com")
+        assert saas.shape is not None and saas.shape.needs_database is True
+        assert saas.depends.postgres == "my_saas"
+
+    @pytest.mark.parametrize("project_type", sorted(SPEC_ENABLED_TYPES))
+    def test_database_name_agrees_with_the_registrar_and_the_check(self, project_type):
+        """The emitted pin equals the registrar's derived name
+        (``name.replace("-", "_")``) and what ``app-role-check`` resolves; a
+        spec with no database pins nothing."""
+        from fabrik.app_role_check import _db_name_for_spec
+        from fabrik.spec_generator import type_needs_database
+
+        name = f"x-{project_type}"
+        for use_db in (False, True):
+            spec = generate_spec(name, project_type, f"{name}.vps1.ocoron.com", use_database=use_db)
+            dumped = spec.model_dump(mode="json", exclude_none=True)
+            if use_db or type_needs_database(project_type):
+                assert spec.depends.postgres == name.replace("-", "_")
+                assert _db_name_for_spec(dumped) == name.replace("-", "_")
+            else:
+                assert spec.depends.postgres is None
+            assert spec.depends.redis in (None, "main")
 
     def test_redis_dependency_set_when_detected(self):
         ctx = {"depends_postgres": False, "depends_redis": True}
@@ -503,7 +537,111 @@ class TestGenerateSpec:
         assert spec_on.shape.needs_database is True
         # Also verify ``depends.postgres`` is wired so the rendered
         # compose / orchestrator dependency graph reflects the DB.
-        assert spec_on.depends.postgres == "main"
+        assert spec_on.depends.postgres == spec_on.id.replace("-", "_")
+
+    def test_use_database_propagates_database_url_app_role(self):
+        """D-390: every new database project is born on the app role —
+        ``database_url_app_role`` follows ``needs_database`` whether it
+        came from the type's own ``defaults.yaml`` (saas-skeleton) or the
+        ``--db`` overlay (python-api + ``use_database=True``). A spec with
+        no database carries ``false``."""
+        spec_off = generate_spec("db-off2", "python-api", "db-off2.vps1.ocoron.com")
+        assert spec_off.shape is not None
+        assert spec_off.shape.needs_database is False
+        assert spec_off.shape.database_url_app_role is False
+
+        spec_on = generate_spec(
+            "db-on2",
+            "python-api",
+            "db-on2.vps1.ocoron.com",
+            use_database=True,
+        )
+        assert spec_on.shape is not None
+        assert spec_on.shape.needs_database is True
+        assert spec_on.shape.database_url_app_role is True
+        # Also verify ``depends.postgres`` is wired, like the sibling
+        # ``test_use_database_propagates_to_shape`` test does.
+        assert spec_on.depends.postgres == spec_on.id.replace("-", "_")
+
+        spec_saas = generate_spec("db-saas", "saas-skeleton", "db-saas.vps1.ocoron.com")
+        assert spec_saas.shape is not None
+        assert spec_saas.shape.needs_database is True, (
+            "saas-skeleton/defaults.yaml sets needs_database: true by default"
+        )
+        assert spec_saas.shape.database_url_app_role is True
+
+    def test_every_enabled_type_emits_database_url_app_role_with_use_database(self):
+        """D-390 fail-loud guard: ``_build_shape_for_type`` can return
+        ``None`` when a type's ``templates/<type>/defaults.yaml`` has no
+        ``shape:`` block — yet ``use_database=True`` still sets
+        ``depends.postgres`` (line 409), which would silently ship an
+        owner DSN with no app-role cutover. Every enabled type must carry a
+        shape block so this can never happen."""
+        for project_type in sorted(SPEC_ENABLED_TYPES):
+            spec = generate_spec(
+                f"dbcheck-{project_type}",
+                project_type,
+                f"dbcheck-{project_type}.vps1.ocoron.com",
+                use_database=True,
+            )
+            assert spec.shape is not None, (
+                f"{project_type}: use_database=True produced shape=None — "
+                "templates/<type>/defaults.yaml is missing its `shape:` block"
+            )
+            assert spec.shape.database_url_app_role is True, (
+                f"{project_type}: use_database=True did not set database_url_app_role"
+            )
+
+    def test_generate_spec_raises_when_database_spec_has_no_shape(self, monkeypatch):
+        """Acceptance-review S1: if a future template regression makes
+        ``_build_shape_for_type`` return ``None`` for a type that is asked
+        for a database (``use_database=True``), ``generate_spec`` must
+        refuse rather than silently emit ``depends.postgres='main'`` with no
+        shape at all — an owner DSN with no ``database_url_app_role`` flag
+        and nothing to even carry it."""
+        import fabrik.spec_generator as sg
+
+        monkeypatch.setattr(sg, "_build_shape_for_type", lambda project_type: None)
+
+        with pytest.raises(ValueError, match="python-api"):
+            sg.generate_spec(
+                "db-noshape",
+                "python-api",
+                "db-noshape.vps1.ocoron.com",
+                use_database=True,
+            )
+
+    def test_generate_spec_raises_when_context_database_has_no_shape(self, monkeypatch):
+        """Same S1 guard on the OTHER trigger for a database spec:
+        ``ctx["depends_postgres"]`` (detected from an existing project's
+        compose env), not just the ``--db`` CLI overlay."""
+        import fabrik.spec_generator as sg
+
+        monkeypatch.setattr(sg, "_build_shape_for_type", lambda project_type: None)
+
+        with pytest.raises(ValueError, match="python-api"):
+            sg.generate_spec(
+                "db-noshape2",
+                "python-api",
+                "db-noshape2.vps1.ocoron.com",
+                context={"depends_postgres": True},
+            )
+
+    def test_shape_overlay_revalidates_and_refuses_invalid_combo(self):
+        """Acceptance-review S2: ``shape.model_copy(update=...)`` writes
+        fields directly and skips ``model_validator(mode="after")``, so an
+        overlay could silently produce ``database_url_app_role=True`` with
+        ``needs_database=False`` — a combo direct construction
+        (``Shape(database_url_app_role=True, needs_database=False)``)
+        already refuses. ``_validated_shape_overlay`` must refuse it too."""
+        import pydantic
+
+        from fabrik.spec_generator import _validated_shape_overlay
+        from fabrik.spec_loader import Shape
+
+        base = Shape(needs_database=False)
+        with pytest.raises(pydantic.ValidationError, match="needs_database"):
+            _validated_shape_overlay(base, database_url_app_role=True)
 
     # Removed test_emits_canonical_coolify_project (2026-06-18): Coolify was
     # decommissioned (2026-05-30) and the `Spec.coolify` block no longer exists

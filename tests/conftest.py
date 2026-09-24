@@ -224,6 +224,50 @@ def _isolated_command_run_dir(tmp_path, _private_monkeypatch):
 
 
 # ---------------------------------------------------------------------------------------------
+# The app-role registrar step never reaches the live fleet from a test (audit-log-everywhere T04).
+#
+# `_provision_postgres` now calls `_provision_app_role`, which runs `ensure_app_role` (CREATE ROLE,
+# GRANT/REVOKE on the named database) and `read_env` (ssh). A dozen existing suites drive
+# `_provision_postgres` with only `create_database` patched — unpatched, the new step would ssh to
+# the real postgres-main and could mint `<db>_app` on a real database (the db_name tests use
+# `depends.postgres: main`). The step is stubbed for every test; a module that exercises it sets
+# `LIVE_APP_ROLE_STEP = True` and patches the drivers itself (tests/test_app_role_provision.py) —
+# and there `_run_sql` and every reachable `ssh` binding fail loud by default, so forgetting a
+# patch raises instead of reaching postgres-main (the cheapest way to game the opt-in, closed).
+# ---------------------------------------------------------------------------------------------
+def _fail_loud(name):
+    def _refuse(*_a, **_k):
+        raise RuntimeError(f"test reached the live fleet: {name}")
+
+    return _refuse
+
+
+@pytest.fixture(autouse=True)
+def _no_live_app_role_step(request, _private_monkeypatch):
+    if getattr(request.module, "LIVE_APP_ROLE_STEP", False):
+        # An opted-in module still cannot reach the fleet by OMISSION: every binding the
+        # step can reach fails loud unless the test patches it (its patches win, being
+        # applied later). `fabrik.drivers.postgres` binds `ssh` at import; deployer_ssh
+        # and the other callers import `fabrik.drivers.ssh.ssh` lazily at call time.
+        import fabrik.drivers.postgres as _pg
+        import fabrik.drivers.ssh as _ssh_mod
+
+        _private_monkeypatch.setattr(_ssh_mod, "ssh", _fail_loud("fabrik.drivers.ssh.ssh"))
+        _private_monkeypatch.setattr(_pg, "ssh", _fail_loud("fabrik.drivers.postgres.ssh"))
+        _private_monkeypatch.setattr(
+            _pg, "_run_sql", _fail_loud("fabrik.drivers.postgres._run_sql")
+        )
+        return
+    try:
+        from fabrik.orchestrator.infrastructure import InfrastructureProvisioner
+    except ImportError:
+        return
+    _private_monkeypatch.setattr(
+        InfrastructureProvisioner, "_provision_app_role", lambda *a, **k: None, raising=False
+    )
+
+
+# ---------------------------------------------------------------------------------------------
 # Bare `tempfile.mkdtemp()` / `NamedTemporaryFile()` land under pytest's basetemp (2026-09-07).
 #
 # Four hub tests create scratch with `tempfile.mkdtemp()` and never remove it; the suites run by

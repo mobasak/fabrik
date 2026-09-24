@@ -13,6 +13,7 @@ import contextlib
 import logging
 import os
 import re
+import shlex
 import subprocess
 import tempfile
 import time
@@ -255,6 +256,26 @@ class SSHDeployer:
         logger.info("Deleted compose app %s", name)
         return True
 
+    def read_env(self, ctx: DeploymentContext) -> dict[str, str]:
+        """Return the app's parsed ``.env`` — it never swallows a read failure.
+
+        Runs inside :func:`_target_vps_env` (as :meth:`inject_env` does), so a
+        spoke's ``.env`` is read on the spoke. Returns ``{}`` ONLY when
+        ``test -f`` reports the file absent; any ssh/read failure or an
+        unrecognised probe answer raises :class:`DeployError`. Both the app-role
+        cutover (reading ``DATABASE_URL``'s user) and :meth:`inject_env`'s merge
+        read through here — a swallowed read in a merge writes a truncated .env.
+        """
+        from fabrik.drivers.ssh import ssh as _ssh
+
+        name = ctx.app_name
+        if not name:
+            raise DeployError("read_env called but ctx.app_name is not set")
+        _validate_name(name)
+
+        with _target_vps_env(ctx):
+            return _read_env_file(f"/opt/{name}", _ssh)
+
     def inject_env(self, ctx: DeploymentContext, env_vars: dict[str, str]) -> None:
         """Merge *env_vars* into the app's ``.env`` and restart.
 
@@ -278,17 +299,15 @@ class SSHDeployer:
             logger.info("[DRY RUN] Would inject %d env vars into %s", len(env_vars), name)
             return
 
-        with _target_vps_env(ctx):
-            # Read existing .env (may not exist yet)
-            try:
-                existing_content = _ssh(
-                    f"sudo cat /opt/{name}/.env 2>/dev/null || echo ''", timeout=10
-                )
-            except RuntimeError:
-                existing_content = ""
+        # D7-registrar-O7: read through read_env, which fails CLOSED — ``{}`` only for
+        # a truly absent file. The old swallowing read turned a failed ``sudo cat``
+        # into an empty base and then wrote a .env holding ONLY the injected keys,
+        # dropping every other secret. A read failure now raises DeployError before
+        # anything is written (every caller is inside a registrar's non-fatal block).
+        merged = self.read_env(ctx)
+        merged.update(env_vars)
 
-            merged = _parse_env(existing_content)
-            merged.update(env_vars)
+        with _target_vps_env(ctx):
             env_content = _format_env(merged)
 
             _write_file_to_vps(name, ".env", env_content)
@@ -625,13 +644,14 @@ class SSHDeployer:
         path = app_path or f"/opt/{name}"
         merged: dict[str, str] = {}
 
-        # Read existing .env if this is an update
+        # Read existing .env if this is an update. Fail CLOSED (D7 r1b, O7's class): a
+        # failed read of an EXISTING .env raises DeployError and the deploy aborts before
+        # anything is written — degrading to spec env + secrets rewrote .env without the
+        # registrar-injected keys, DATABASE_URL_OWNER (the only owner-password copy after
+        # an app-role cutover) included. An absent .env still builds from spec + secrets.
+        # An existing app is never a tracked resource, so the abort's rollback leaves it.
         if existing:
-            try:
-                existing_content = _ssh(f"sudo cat {path}/.env 2>/dev/null || echo ''", timeout=10)
-                merged = _parse_env(existing_content)
-            except RuntimeError:
-                pass
+            merged = _read_env_file(path, _ssh)
 
         # Layer spec env vars — but NEVER clobber a real, already-present value
         # with a spec PLACEHOLDER. Registrar-managed vars (DATABASE_URL,
@@ -717,6 +737,23 @@ def _is_placeholder(value: str) -> bool:
     return "placeholder" in value.lower()
 
 
+def _closing_quote(value: str) -> int:
+    """Index of the quote closing ``value[0]``, or -1 when unterminated.
+
+    Inside double quotes a backslash escapes the next character (the form
+    ``_format_env`` writes); single quotes have no escapes.
+    """
+    quote, i = value[0], 1
+    while i < len(value):
+        if quote == '"' and value[i] == "\\":
+            i += 2
+            continue
+        if value[i] == quote:
+            return i
+        i += 1
+    return -1
+
+
 def _parse_env(content: str) -> dict[str, str]:
     """Parse a .env file into a dict, ignoring comments and blank lines."""
     result: dict[str, str] = {}
@@ -728,11 +765,22 @@ def _parse_env(content: str) -> dict[str, str]:
             continue
         key, _, value = line.partition("=")
         key = key.strip()
+        # `export KEY=…` (a shell-sourceable .env) is the key KEY — for read_env's
+        # decision and inject_env's merge alike, or the merge writes a second key.
+        if key.startswith("export "):
+            key = key[len("export ") :].strip()
         # Strip surrounding quotes — and UNESCAPE a double-quoted value, mirroring
         # `_format_env`'s escaping. Without the unescape the round-trip corrupts:
         # write escapes `\"` -> read strips the wrapper but leaves the backslashes ->
         # the next write escapes them AGAIN, so a value grows a backslash per apply.
         value = value.strip()
+        # A value that OPENS with a quote and is followed by only `# comment`
+        # (`K="v" # note`) is the quoted content; an unterminated quote or any other
+        # tail keeps the rule below.
+        if value[:1] in ("'", '"'):
+            end = _closing_quote(value)
+            if end > 0 and value[end + 1 :].strip()[:1] in ("", "#"):
+                value = value[: end + 1]
         if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
             quote = value[0]
             value = value[1:-1]
@@ -766,6 +814,31 @@ def _format_env(env: dict[str, str]) -> str:
             value = '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
         lines.append(f"{key}={value}")
     return "\n".join(lines) + "\n" if lines else ""
+
+
+def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
+    """Parse ``{path}/.env`` on the current SSH target — ``{}`` ONLY when the file is
+    absent; any ssh/read failure or unrecognised probe answer raises :class:`DeployError`.
+
+    The one absent-vs-failed distinction shared by :meth:`SSHDeployer.read_env` (the
+    app-role decision and :meth:`~SSHDeployer.inject_env`'s merge) and
+    :meth:`SSHDeployer._build_env_content` (the deploy/redeploy merge).
+    """
+    env_path = f"{path}/.env"
+    try:
+        # The whole test runs INSIDE sudo: a refused sudo prints nothing (an
+        # unrecognised answer → raise) instead of the `|| echo absent` fallback
+        # that `sudo test -f X && … || echo absent` would print.
+        inner = f"[ -f {shlex.quote(env_path)} ] && echo present || echo absent"
+        probe = _ssh(f"sudo sh -c {shlex.quote(inner)}", timeout=10).strip()
+        if probe == "absent":
+            return {}
+        if probe != "present":
+            raise DeployError(f"cannot read {env_path}: unexpected probe answer {probe[:40]!r}")
+        content = _ssh(f"sudo cat {shlex.quote(env_path)}", timeout=10)
+    except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+        raise DeployError(f"cannot read {env_path}: {e}") from e
+    return _parse_env(content)
 
 
 def _write_file_to_vps(name: str, filename: str, content: str) -> None:

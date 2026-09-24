@@ -9,6 +9,7 @@ from pathlib import Path
 import yaml
 
 from fabrik.spec_loader import (
+    CompanionService,
     Expose,
     Health,
     Kind,
@@ -97,6 +98,56 @@ _TYPE_DEFAULTS: dict[str, dict] = {
     "chrome-extension": {"memory": "256M", "cpu": "0.5", "health_path": "/health"},
     "mobile-app": {"memory": "256M", "cpu": "0.5", "health_path": "/health"},
 }
+
+# The audit-log jobs module (retention + the weekly chain verification, D-390 / spec § 3)
+# of each Python backend that has no scheduler of its own, as the ``python -m`` module
+# its image resolves (python-api: PYTHONPATH=/app/src; file-worker: /app; the ``server/``
+# backends: /app/server/src). A database spec of one of these types declares the jobs as
+# a companion service (core/30-ops.md § Multi-Service Compose). The saas family is absent
+# on purpose: its worker's beat loop schedules the same jobs. ``{pkg}`` is the project's
+# package name. The scaffolder emits the module at the matching path.
+AUDIT_JOBS_MODULES: dict[str, str] = {
+    "python-api": "{pkg}.audit_jobs",
+    "python-api-gpu": "{pkg}.audit_jobs",
+    "chrome-extension": "{pkg}.audit_jobs",
+    "mobile-app": "app.audit_jobs",
+    "file-worker": "worker.audit_jobs",
+}
+
+# The companion's memory limit, MEASURED (2026-09-24, the T05 receipt records the run):
+# the emitted jobs module under ``/usr/bin/time -v`` against a scratch PostgreSQL 16
+# holding a 10,000-row chain peaked at 62,012 kB RSS for the verification pass and
+# 47,588 kB for retention. 128M is about twice the verification peak; ``verify_chain``
+# holds its whole window in memory, so a project whose weekly window grows far past
+# 10k rows raises this limit in its own spec.
+AUDIT_JOBS_COMPANION_MEMORY = "128M"
+
+
+def type_needs_database(project_type: str) -> bool:
+    """``shape.needs_database`` of ``templates/<type>/defaults.yaml`` (False without a shape)."""
+    shape = _build_shape_for_type(project_type)
+    return bool(shape is not None and shape.needs_database)
+
+
+def audit_jobs_companion(name: str, project_type: str) -> CompanionService | None:
+    """The ``<name>-audit-jobs`` companion for a database spec of ``project_type``.
+
+    ``None`` for a type whose backend schedules the jobs itself (the saas family) or has
+    no Python backend. No ``env_overrides``: the jobs read ``DATABASE_URL_OWNER``
+    themselves, from the project ``.env`` the companion loads through ``env_file`` — the
+    committed compose the scaffolder writes and the companion partial both carry it,
+    because ``DATABASE_URL_OWNER`` exists nowhere else (compose ``environment:`` never
+    holds it).
+    """
+    module = AUDIT_JOBS_MODULES.get(project_type)
+    if module is None:
+        return None
+    return CompanionService(
+        id=f"{name}-audit-jobs",
+        command=["python", "-m", module.format(pkg=name.replace("-", "_"))],
+        memory=AUDIT_JOBS_COMPANION_MEMORY,
+    )
+
 
 # ---------------------------------------------------------------------------
 # Private helpers
@@ -203,6 +254,21 @@ def _build_shape_for_type(project_type: str) -> Shape | None:
     if shape_raw is None:
         return None
     return Shape(**shape_raw)
+
+
+def _validated_shape_overlay(shape: Shape, **updates: object) -> Shape:
+    """Apply field overlays to *shape*, RE-RUNNING its ``model_validator``s.
+
+    ``shape.model_copy(update=...)`` writes fields directly and skips every
+    ``model_validator(mode="after")`` — an overlay built that way could
+    silently produce an invalid ``Shape`` (e.g. ``database_url_app_role=True``
+    with ``needs_database=False``) that direct construction (``Shape(...)``)
+    would refuse outright. Round-tripping through ``model_validate`` closes
+    that gap: an overlay that would violate a cross-field invariant raises
+    ``pydantic.ValidationError`` here instead of shipping a spec no directly
+    constructed ``Shape`` could have produced.
+    """
+    return Shape.model_validate({**shape.model_dump(), **updates})
 
 
 def _parse_env_example(env_example_path: Path) -> list[str]:
@@ -379,7 +445,32 @@ def generate_spec(
     # overlays on top so the CLI ``--db`` flag survives spec emission.
     shape = _build_shape_for_type(project_type)
     if shape is not None and use_database:
-        shape = shape.model_copy(update={"needs_database": True})
+        shape = _validated_shape_overlay(shape, needs_database=True)
+
+    # D-390: every new database project is born on the app role — the owner
+    # DSN (DATABASE_URL_OWNER) is provisioned alongside it, but DATABASE_URL
+    # itself is the non-owner <db>_app role from day one. Applies whenever the
+    # emitted shape ends up needs_database=True, whether that came from the
+    # type's own defaults.yaml or the ``--db`` overlay above.
+    if shape is not None and shape.needs_database:
+        shape = _validated_shape_overlay(shape, database_url_app_role=True)
+
+    # Acceptance-review S1: a database spec with NO shape at all would carry
+    # no database_url_app_role flag (and, since D7, no depends.postgres either —
+    # a database-backed project silently deployed without its database). Every enabled type carries a
+    # `shape:` block today (see the "every enabled type" test in
+    # test_spec_generator.py); fail loud rather than let a future template
+    # regression (a missing/deleted `shape:` block) ship that silently.
+    wants_database = bool(ctx.get("depends_postgres")) or use_database
+    if shape is None and wants_database:
+        raise ValueError(
+            f"{project_type!r} would emit a database-backed spec "
+            f"(use_database={use_database!r}, "
+            f"depends_postgres={ctx.get('depends_postgres')!r}) but "
+            f"templates/{project_type}/defaults.yaml has no `shape:` block — "
+            "refusing to emit depends.postgres with no database_url_app_role "
+            "flag. Add a `shape:` block to the template's defaults.yaml."
+        )
 
     # Top-level ``kind`` MUST match ``shape.kind`` so the spec is internally
     # consistent (validators and downstream tooling key off both). Pre-fix
@@ -405,8 +496,15 @@ def generate_spec(
 
     from fabrik.spec_loader import Depends
 
+    # D7-registrar-O1/O3: the registrar reads ``depends.postgres`` as the DATABASE
+    # NAME (infrastructure.py ``_provision_postgres``: ``configured or derived``), so
+    # the old ``"main"`` put every new project in one shared database — where the
+    # app-role cutover this spec asks for is refused forever. A database spec pins
+    # the project's OWN database, the exact name the registrar derives on its own;
+    # gated on the RESOLVED shape (defaults.yaml or the --db overlay), never the raw
+    # flag/context. Redis stays "main": it names a server, not a database.
     depends = Depends(
-        postgres="main" if (ctx.get("depends_postgres") or use_database) else None,
+        postgres=name.replace("-", "_") if (shape is not None and shape.needs_database) else None,
         redis="main" if ctx.get("depends_redis") else None,
     )
 
@@ -442,6 +540,14 @@ def generate_spec(
     extra: dict = {}
     if source is not None:
         extra["source"] = source
+    # The audit-log jobs companion (D-390): only for a database spec whose Python backend
+    # has no scheduler of its own; a spec without it keeps its companion_services empty.
+    # Gated on the RESOLVED shape the spec carries (defaults.yaml or the --db overlay),
+    # never the raw flag — the scaffolder emits the module under the same rule.
+    has_database = shape is not None and shape.needs_database
+    companion = audit_jobs_companion(name, project_type) if has_database else None
+    if companion is not None:
+        extra["companion_services"] = [companion]
 
     return create_spec(
         id=name,

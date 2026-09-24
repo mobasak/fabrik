@@ -62,6 +62,25 @@ class TestSsh:
             ssh("sleep 999", timeout=60)
 
     @patch("subprocess.run")
+    def test_timeout_never_carries_the_command(self, mock_run):
+        """A TimeoutExpired's str/repr hold its argv; `_run_sql` puts a base64 SQL batch
+        (``ALTER ROLE … PASSWORD``) there, and registrars log str(e) (T04 fixup O1)."""
+        import base64
+
+        payload = base64.b64encode(b"ALTER ROLE x_app PASSWORD 'hunter2secret';").decode()
+        cmd = f"echo {payload} | base64 -d | sudo docker exec -i pg psql PASSWORD=hunter2secret"
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd=["ssh", "vps", cmd], timeout=5)
+        with pytest.raises(subprocess.TimeoutExpired) as info:
+            ssh(cmd, timeout=5)
+        exc = info.value
+        surfaces = [str(exc), repr(exc), repr(exc.cmd), str(exc.__cause__), str(exc.__context__)]
+        for text in surfaces:
+            assert "hunter2secret" not in text
+            assert payload not in text
+        assert exc.__suppress_context__ is True
+        assert exc.timeout == 5
+
+    @patch("subprocess.run")
     def test_uses_ssh_host_env_var(self, mock_run, monkeypatch):
         monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "staging-vps")
         mock_run.return_value = MagicMock(returncode=0, stdout="ok\n", stderr="")
