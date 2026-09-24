@@ -362,12 +362,32 @@ def test_compose_flow_style_service_block_unlocatable_fails_closed(tmp_path):
 
 def test_compose_file_unparseable_is_a_finding_never_a_silent_empty_result(tmp_path):
     repo = tmp_path / "repo"
-    _write(repo / "compose.yaml", "services: !reset\n  migrate:\n")
+    # A genuinely malformed document (unclosed flow sequence) — `!reset`/`!override`
+    # are valid Compose tags now understood by the loader (fixup r2, item 5) and
+    # must NOT read as unparseable; only a real YAML syntax error should.
+    _write(repo / "compose.yaml", "services: [migrate\n")
 
     result = scan_repo(repo)
 
     assert len(result.findings) == 1
     assert result.findings[0].pattern == "compose file unparseable"
+
+
+@pytest.mark.parametrize("tag", ["!reset", "!override"])
+def test_compose_reset_and_override_tags_are_understood_not_unparseable(tmp_path, tag):
+    """Compose's own merge directives are valid YAML for Compose's purposes — a
+    loader that can't understand them must not report a real compose file as
+    broken (fixup r2, item 5)."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        f"services:\n  migrate:\n    environment: {tag} [DATABASE_URL]\n",
+    )
+
+    result = scan_repo(repo)
+
+    assert not any(f.pattern == "compose file unparseable" for f in result.findings)
+    assert any(f.pattern == "compose service named migrate" for f in result.findings)
 
 
 # ── Fixup item 5: alembic env.py wherever it lives, content-based ─────────── #
@@ -532,19 +552,20 @@ def test_stale_clone_failure_catches_fetch_timeout(tmp_path):
     ],
 )
 def test_run_check_turns_any_probe_exception_into_a_failure_and_still_scans(tmp_path, exc):
+    """Fixup r2, item 10 (O23): the old version of this test asserted a tautology
+    that passed even if run_check returned BEFORE scanning (a clean synced clone
+    has no scan findings either way, so "only one failure" proved nothing). This
+    plants a REAL finding and demands it be present — a run_check that skips the
+    scan after the probe raises goes red here."""
     clone = _synced_clone(tmp_path)
+    _write(clone / "entrypoint.sh", 'psql "$DATABASE_URL" -f db/schema.sql\n')
 
     with patch.object(arc, "probe_app_role", side_effect=exc):
         result = run_check("mydb", clone)
 
     assert result.ok is False
     assert any(str(exc) in f for f in result.failures)
-    # The repo scan still ran — a passing (empty) scan means no scan-side failures
-    # beyond the probe's own, proving the scan wasn't skipped due to the exception.
-    assert (
-        any("no repo at" not in f and "scanned 0 files" not in f for f in result.failures)
-        or len(result.failures) == 1
-    )
+    assert "entrypoint.sh:1 psql invocation reaches DATABASE_URL" in result.failures
 
 
 def test_run_check_carries_probe_failures_verbatim_on_a_clean_current_repo(tmp_path):
@@ -725,3 +746,175 @@ def test_finding_and_scan_result_are_plain_dataclasses():
     assert f.path == "a.py"
     assert f.line == 1
     assert f.pattern == "x"
+
+
+# ── Fixups r2 (acceptance review pass 2 — residue of the r1 hunks) ─────────── #
+
+
+def test_disqualifier_reads_the_raw_line_not_the_comment_stripped_one(tmp_path):
+    """O17: a `#` before a SECOND, real DATABASE_URL use must not strip it away
+    and make the line read as owner-only. Both invocations are `psql`, on one
+    line, joined by `;` — the fake `#` inside the quoted string sits BETWEEN
+    them."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "entrypoint.sh",
+        'psql "$DATABASE_URL_OWNER" -c "select 1"; x="a#b"; psql "$DATABASE_URL" -f schema.sql\n',
+    )
+
+    result = scan_repo(repo)
+
+    assert any(f.pattern == "psql invocation" for f in result.findings)
+
+
+def test_migrate_service_canonical_owner_handoff_is_suppressed(tmp_path):
+    """O18: `DATABASE_URL: ${DATABASE_URL_OWNER}` is the canonical, intended
+    hand-off — the `DATABASE_URL:` KEY text itself (a bare, word-bounded
+    "DATABASE_URL") must never be counted as the bare-token disqualifier, or
+    this exact canonical form would defeat its own suppression."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n  migrate:\n    environment:\n      DATABASE_URL: ${DATABASE_URL_OWNER}\n",
+    )
+
+    result = scan_repo(repo)
+
+    assert result.findings == []
+
+
+def test_owner_classification_requires_a_fullmatch_not_a_substring(tmp_path):
+    """O24: a value that merely CONTAINS the owner variable's name (e.g. as a
+    query-string parameter) is not the same as the value BEING that variable —
+    stays an override."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n"
+        "  api:\n"
+        "    environment:\n"
+        "      DATABASE_URL: postgresql://host/db?fallback=DATABASE_URL_OWNER\n",
+    )
+
+    result = scan_repo(repo)
+
+    assert any(f.pattern == "compose environment sets DATABASE_URL" for f in result.findings)
+
+
+@pytest.mark.parametrize(
+    "environment_yaml",
+    [
+        "      - DATABASE_URL\n",  # value-less list form
+        "      DATABASE_URL:\n",  # null dict value
+        "      DATABASE_URL: ${DATABASE_URL:?msg}\n",  # error-if-unset, colon form
+        "      DATABASE_URL: ${DATABASE_URL?msg}\n",  # error-if-unset, no colon
+    ],
+)
+def test_compose_environment_passthrough_forms_are_not_findings(tmp_path, environment_yaml):
+    """O19: each of these means "use the same `.env` value" (optionally guarded
+    against being unset) — none is an override."""
+    repo = tmp_path / "repo"
+    _write(repo / "compose.yaml", "services:\n  api:\n    environment:\n" + environment_yaml)
+
+    result = scan_repo(repo)
+
+    assert result.findings == []
+
+
+def test_compose_environment_default_fallback_form_stays_an_override(tmp_path):
+    """O19: `${DATABASE_URL:-default}` can silently substitute a DIFFERENT value
+    when unset — that is exactly the risk this check exists to catch, so it must
+    stay an override, unlike the `:?msg`/`?msg` guard forms."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n  api:\n    environment:\n      DATABASE_URL: ${DATABASE_URL:-postgresql://fallback/db}\n",
+    )
+
+    result = scan_repo(repo)
+
+    assert any(f.pattern == "compose environment sets DATABASE_URL" for f in result.findings)
+
+
+def test_services_block_end_scan_skips_a_column_zero_comment(tmp_path):
+    """O26: a comment starting at column 0 is still just a comment — it must not
+    read as ending the `services:` mapping (outer scan) or a service's own body
+    (inner scan). Both scans carry a column-0 comment in this fixture; a
+    hardcoded override past BOTH is located at its real line only when neither
+    scan was fooled."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n"
+        "# comment right after services: — must not end the outer block\n"
+        "  migrate:\n"
+        "    command: something\n"
+        "# comment inside migrate's own body — must not end the inner block\n"
+        "    environment:\n"
+        "      DATABASE_URL: postgresql://hardcoded/db\n",
+    )
+
+    result = scan_repo(repo)
+
+    env_findings = [
+        f for f in result.findings if f.pattern == "compose environment sets DATABASE_URL"
+    ]
+    assert len(env_findings) == 1
+    assert env_findings[0].line == 7
+
+
+@pytest.mark.parametrize("bad_spec_yaml", ["- postgres\n- other\n", "42\n", "just a string\n"])
+def test_db_name_and_repo_dir_raise_on_a_non_mapping_spec(bad_spec_yaml):
+    """O21: a spec whose top level is a list or scalar must not reach `.get()`
+    and raise a bare AttributeError."""
+    import yaml as _yaml
+
+    spec = _yaml.safe_load(bad_spec_yaml)
+    with pytest.raises(SpecResolutionError, match="mapping"):
+        _db_name_for_spec(spec)
+    with pytest.raises(SpecResolutionError, match="mapping"):
+        project_repo_dir(spec)
+
+
+def test_cli_app_role_check_non_mapping_spec_exits_1(tmp_path):
+    from click.testing import CliRunner
+
+    from fabrik.cli import cli
+
+    spec_path = tmp_path / "svc.yaml"
+    spec_path.write_text("- postgres\n- other\n")
+
+    result = CliRunner().invoke(cli, ["app-role-check", "--spec", str(spec_path)])
+
+    assert result.exit_code == 1
+    assert "✗" in result.output
+    assert "mapping" in result.output
+
+
+def test_alembic_submodule_import_is_recognized(tmp_path):
+    """O22: `from alembic.op import ...` / `from alembic.context import ...` are
+    as real an alembic env as a bare `from alembic import context`."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "migrations" / "env.py",
+        "from alembic.context import get_context\nurl = settings.database_url\n",
+    )
+
+    result = scan_repo(repo)
+
+    assert any(
+        f.pattern == "alembic env.py DATABASE_URL connection source" for f in result.findings
+    )
+
+
+def test_run_check_probe_exception_with_empty_str_is_never_a_blank_failure(tmp_path):
+    """O25: `raise RuntimeError()` (no message) has an empty `str()` — the
+    failure line must still name the exception TYPE, never read as blank."""
+    clone = _synced_clone(tmp_path)
+
+    with patch.object(arc, "probe_app_role", side_effect=RuntimeError()):
+        result = run_check("mydb", clone)
+
+    assert result.ok is False
+    assert all(f.strip() for f in result.failures)
+    assert any("RuntimeError" in f for f in result.failures)

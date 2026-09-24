@@ -8,7 +8,7 @@ running DDL, a migration tool, or a bare ``psql`` invocation — over ``DATABASE
 instead of ``DATABASE_URL_OWNER``. A cutover is safe only when both answers are clean.
 
 Scan patterns settled in D-390, widened by this plan's review and by acceptance-review
-pass 1 (spec § Derivations D1):
+passes 1 and 2 (spec § Derivations D1):
 
 * ``*.sql`` files are never scanned for DDL text — they are schema data applied by
   someone (``db/schema.sql`` is owner-applied by design). The scan finds the
@@ -32,26 +32,36 @@ pass 1 (spec § Derivations D1):
   suppression decision means an over-eager strip can only fail to suppress
   (fail closed), never fail to detect.
 * **Suppression follows the CONNECTION SOURCE, not mere token presence.** A line
-  is suppressed only when its comment-stripped text names ``DATABASE_URL_OWNER``
-  AND does not also name bare ``DATABASE_URL`` — ``os.getenv("DATABASE_URL_OWNER")
-  or os.environ["DATABASE_URL"]`` still reaches ``DATABASE_URL`` and stays a
-  finding. The compose "environment sets DATABASE_URL" site follows the same rule
-  but reads the VALUE assigned to ``DATABASE_URL``, not the whole line: a value of
-  exactly ``${DATABASE_URL}``/``$DATABASE_URL`` is a pass-through of the same
-  ``.env`` entry (not an override — no finding at all), a value naming
-  ``DATABASE_URL_OWNER`` is an intentional owner hand-off (suppressed), and
-  anything else — including a hardcoded owner DSN that merely LOOKS safe — stays
-  a finding. The cheapest way to defeat either rule is still a comment, and a
-  comment still never suppresses.
+  is suppressed only when its comment-STRIPPED text names ``DATABASE_URL_OWNER``
+  AND its RAW (un-stripped) text does not also name bare ``DATABASE_URL`` — the
+  disqualifier reads the raw line ON PURPOSE, because checking it against the
+  stripped text would let an earlier stray `#`/`--`/`//` hide a second, real
+  ``DATABASE_URL`` use later on the same line and cause a false suppression.
+  ``os.getenv("DATABASE_URL_OWNER") or os.environ["DATABASE_URL"]`` still reaches
+  ``DATABASE_URL`` and stays a finding. The compose "environment sets
+  DATABASE_URL" site follows an analogous but stricter rule, keyed on the VALUE
+  assigned, not the whole line or block: a value that FULLMATCHES a pass-through
+  form (``${DATABASE_URL}``/``$DATABASE_URL``, the value-less list/null-dict
+  form, or the ``:?msg``/``?msg`` "error if unset" guard) is not an override —
+  no finding at all; a value that fullmatches the owner variable reference
+  (``${DATABASE_URL_OWNER}``/``$DATABASE_URL_OWNER``, same guard forms allowed)
+  is an intentional hand-off (suppressed); anything else — a hardcoded DSN, a
+  ``:-default`` fallback that can silently substitute a different value, or a
+  value that merely CONTAINS the owner name as a substring — stays a finding.
+  The ``DATABASE_URL:`` environment-mapping KEY itself is never counted as a
+  bare-token use for the disqualifier — only what it is set TO matters. The
+  cheapest way to defeat any of these rules is still a comment, and a comment
+  still never suppresses.
 * **Compose services are located STRUCTURALLY**, as a direct child key of the
   top-level ``services:`` mapping — never the first indented ``<name>:`` found
   anywhere in the file, which a `depends_on:` block or an unrelated top-level
   `secrets:` section can also spell. When a service's block cannot be located
   (flow-style YAML, a one-line file) suppression for that service's structural
   findings is skipped entirely — fail closed, never a silent fall-back to
-  scanning the whole file as if it were one block. A compose file that fails to
-  parse at all is its own finding (``compose file unparseable``), never a quiet
-  empty result.
+  scanning the whole file as if it were one block. Compose's OWN YAML tags
+  (``!reset``, ``!override`` — valid merge directives, not malformed input) are
+  understood by a dedicated loader; a compose file that GENUINELY fails to parse
+  is its own finding (``compose file unparseable``), never a quiet empty result.
 * Fail closed, never pass on nothing: a missing repo, a repo with zero walkable
   files, a stale clone (HEAD behind its upstream after ``git fetch``), no
   upstream at all, a non-git repo, or ANY exception the privilege probe or a git
@@ -159,20 +169,48 @@ _COMMENT_RE = re.compile(r"(#|--|//).*$")
 # \b word run, so neither token ever matches inside the other's OWNER/bare form.
 _OWNER_TOKEN_RE = re.compile(r"\bDATABASE_URL_OWNER\b", re.IGNORECASE)
 _URL_TOKEN_RE = re.compile(r"\bDATABASE_URL\b", re.IGNORECASE)
-_ALEMBIC_IMPORT_RE = re.compile(r"^\s*(from\s+alembic\s+import\b|import\s+alembic\b)", re.MULTILINE)
+# `(\.\w+)*` covers a submodule import (`from alembic.op import ...`,
+# `from alembic.context import ...`) — acceptance review pass 2, O22.
+_ALEMBIC_IMPORT_RE = re.compile(
+    r"^\s*(from\s+alembic(\.\w+)*\s+import\b|import\s+alembic\b)", re.MULTILINE
+)
 
 
 def _strip_comment(line: str) -> str:
     return _COMMENT_RE.sub("", line, count=1)
 
 
-def _suppressed_by_owner(text: str) -> bool:
-    """True when ``text`` names the owner connection source AND not the bare one.
+def _suppressed_by_owner(stripped_text: str, raw_text: str) -> bool:
+    """True when the comment-STRIPPED text names the owner connection source AND
+    the RAW text does not also name a bare ``DATABASE_URL``.
 
-    ``os.getenv("DATABASE_URL_OWNER") or os.environ["DATABASE_URL"]`` still reaches
-    ``DATABASE_URL`` on the fallback branch, so it must NOT read as suppressed.
+    The disqualifier reads the RAW text on purpose (acceptance review pass 2,
+    O17): checking it against the stripped text would let a `#`/`--`/`//`
+    earlier on the same line hide a SECOND, real ``DATABASE_URL`` use and cause
+    a false suppression — e.g. ``psql "$DATABASE_URL_OWNER" -c "select 1";
+    x="a#b"; psql "$DATABASE_URL" -f schema.sql`` reads as owner-only once the
+    stray ``#`` strips away the second invocation, which must never happen.
+
+    ``os.getenv("DATABASE_URL_OWNER") or os.environ["DATABASE_URL"]`` still
+    reaches ``DATABASE_URL`` on the fallback branch, so it must NOT read as
+    suppressed either.
     """
-    return bool(_OWNER_TOKEN_RE.search(text)) and not bool(_URL_TOKEN_RE.search(text))
+    return bool(_OWNER_TOKEN_RE.search(stripped_text)) and not bool(_URL_TOKEN_RE.search(raw_text))
+
+
+_ENV_KEY_RE = re.compile(r'^\s*["\']?DATABASE_URL["\']?\s*:\s*(.*)$')
+
+
+def _strip_env_key(line: str) -> str:
+    """The ``DATABASE_URL:`` environment-mapping KEY is never itself a bare-token
+    use (acceptance review pass 2, O18) — only strip it when the line IS exactly
+    that key, returning the value that follows; any other line (a command
+    string, e.g.) is returned untouched. Without this, a canonical hand-off like
+    ``DATABASE_URL: ${DATABASE_URL_OWNER}`` would disqualify its own suppression:
+    the KEY text alone already contains a word-bounded bare ``DATABASE_URL``.
+    """
+    m = _ENV_KEY_RE.match(line)
+    return m.group(1) if m else line
 
 
 @dataclass
@@ -205,7 +243,7 @@ def _scan_lines(rel: Path, lines: list[str]) -> list[Finding]:
                 break
         if label is None:
             continue
-        if _suppressed_by_owner(_strip_comment(raw)):
+        if _suppressed_by_owner(_strip_comment(raw), raw):
             continue
         findings.append(Finding(path=posix, line=lineno, pattern=label))
     return findings
@@ -217,7 +255,7 @@ def _scan_alembic_env(rel: Path, lines: list[str]) -> list[Finding]:
     for lineno, raw in enumerate(lines, start=1):
         if not _URL_TOKEN_RE.search(raw):
             continue
-        if _suppressed_by_owner(_strip_comment(raw)):
+        if _suppressed_by_owner(_strip_comment(raw), raw):
             continue
         findings.append(
             Finding(
@@ -244,7 +282,8 @@ def _services_block_range(lines: list[str]) -> tuple[int, int] | None:
     end = len(lines)
     for j in range(start + 1, len(lines)):
         line = lines[j]
-        if not line.strip():
+        stripped_line = line.strip()
+        if not stripped_line or stripped_line.startswith("#"):
             continue
         if len(line) - len(line.lstrip(" ")) == 0:
             end = j
@@ -285,7 +324,8 @@ def _service_block_range(
     svc_end = end
     for j in range(svc_start + 1, end):
         line = lines[j]
-        if not line.strip():
+        stripped_line = line.strip()
+        if not stripped_line or stripped_line.startswith("#"):
             continue
         cur_indent = len(line) - len(line.lstrip(" "))
         if cur_indent <= child_indent:
@@ -295,27 +335,49 @@ def _service_block_range(
 
 
 def _database_url_env_value(environment: object) -> str | None:
-    """The raw value assigned to ``DATABASE_URL`` under ``environment:``, if any."""
+    """The raw value assigned to ``DATABASE_URL`` under ``environment:``, if any.
+
+    A value-LESS entry — the list form ``- DATABASE_URL`` (no ``=value``) or a
+    null dict value (``DATABASE_URL:`` with nothing after the colon) — means
+    "inherit from the host/parent environment", i.e. exactly the same pass-through
+    as ``${DATABASE_URL}`` (acceptance review pass 2, O19), so it is represented
+    as that token rather than an empty string (which would misclassify as an
+    override).
+    """
     if isinstance(environment, dict) and "DATABASE_URL" in environment:
         value = environment["DATABASE_URL"]
-        return "" if value is None else str(value)
+        return "$DATABASE_URL" if value is None else str(value)
     if isinstance(environment, list):
         for item in environment:
             if isinstance(item, str) and item.split("=", 1)[0].strip() == "DATABASE_URL":
-                return item.split("=", 1)[1] if "=" in item else ""
+                return item.split("=", 1)[1] if "=" in item else "$DATABASE_URL"
     return None
+
+
+# Full-match only (acceptance review pass 2, O24) — a query param or path segment
+# that merely CONTAINS "DATABASE_URL_OWNER" as a substring must stay an override;
+# only the value ACTUALLY BEING the owner variable reference is safe. Both accept
+# the bash "error if unset" modifier (`:?msg` or `?msg`, item O19) since that is
+# still the SAME value, just guarded — never `:-default`/`-default` (item O19),
+# which can silently substitute a different value and so stays an override.
+_PASSTHROUGH_FULLMATCH_RE = re.compile(
+    r"\$DATABASE_URL|\$\{DATABASE_URL(:?\?[^}]*)?\}", re.IGNORECASE
+)
+_OWNER_FULLMATCH_RE = re.compile(
+    r"\$DATABASE_URL_OWNER|\$\{DATABASE_URL_OWNER(:?\?[^}]*)?\}", re.IGNORECASE
+)
 
 
 def _classify_database_url_env(value: str) -> str:
     """One of ``passthrough`` (same ``.env`` value, not an override — no finding),
-    ``owner`` (names the owner DSN as its source — suppressed) or ``override``
-    (anything else, including a hardcoded owner DSN — still a finding: merely
-    passing the owner value through a different-looking expression is not the
-    same as naming ``DATABASE_URL_OWNER`` as the source)."""
+    ``owner`` (the value IS the owner variable reference — suppressed) or
+    ``override`` (anything else, including a hardcoded owner DSN, a `:-default`
+    fallback, or a value that merely CONTAINS the owner var's name as a
+    substring — still a finding)."""
     text = value.strip()
-    if text in ("${DATABASE_URL}", "$DATABASE_URL"):
+    if _PASSTHROUGH_FULLMATCH_RE.fullmatch(text):
         return "passthrough"
-    if _suppressed_by_owner(text):
+    if _OWNER_FULLMATCH_RE.fullmatch(text):
         return "owner"
     return "override"
 
@@ -328,6 +390,34 @@ def _locate_env_url_line(lines: list[str], start: int, end: int) -> int:
     return start + 1
 
 
+class _ComposeSafeLoader(yaml.SafeLoader):
+    """A ``SafeLoader`` that also understands Compose's OWN YAML tags.
+
+    ``!reset`` and ``!override`` are Compose-specific merge directives (used in
+    override files to reset or replace a value rather than merge it) — valid,
+    common Compose YAML, not malformed input. Plain ``yaml.safe_load`` has no
+    constructor for either and raises ``ConstructorError`` (a ``YAMLError``),
+    which used to read as an unparseable file (acceptance review pass 2, O20).
+    Registering a constructor that returns the tagged node's plain underlying
+    value lets these files parse normally so they still get scanned; a GENUINELY
+    malformed file still raises ``yaml.YAMLError`` and is reported as such.
+    """
+
+
+def _construct_compose_tag(loader: yaml.SafeLoader, node: yaml.Node) -> object:
+    if isinstance(node, yaml.ScalarNode):
+        return loader.construct_scalar(node)
+    if isinstance(node, yaml.SequenceNode):
+        return loader.construct_sequence(node)
+    if isinstance(node, yaml.MappingNode):
+        return loader.construct_mapping(node)
+    return None
+
+
+_ComposeSafeLoader.add_constructor("!reset", _construct_compose_tag)
+_ComposeSafeLoader.add_constructor("!override", _construct_compose_tag)
+
+
 def _scan_compose_structure(rel: Path, text: str) -> list[Finding]:
     """Service-shaped findings a line-by-line scan cannot see: a service NAMED
     ``migrate``, and a service that overrides ``DATABASE_URL`` under ``environment:``
@@ -335,7 +425,11 @@ def _scan_compose_structure(rel: Path, text: str) -> list[Finding]:
     container)."""
     posix = rel.as_posix()
     try:
-        doc = yaml.safe_load(text) or {}
+        # _ComposeSafeLoader is a yaml.SafeLoader subclass whose only two extra
+        # constructors return a plain scalar/sequence/mapping (never an arbitrary
+        # object) — bandit's static check does not recognise a SafeLoader
+        # subclass, only the literal `yaml.safe_load` call, hence the marker below.
+        doc = yaml.load(text, Loader=_ComposeSafeLoader) or {}  # nosec B506
     except yaml.YAMLError:
         return [Finding(path=posix, line=1, pattern="compose file unparseable")]
     if not isinstance(doc, dict):
@@ -362,7 +456,11 @@ def _scan_compose_structure(rel: Path, text: str) -> list[Finding]:
             if block is not None:
                 s, e = block
                 stripped_block = "\n".join(_strip_comment(ln) for ln in lines[s:e])
-                suppressed = _suppressed_by_owner(stripped_block)
+                # The disqualifier reads the RAW lines (not comment-stripped, O17)
+                # with the `DATABASE_URL:` env KEY itself excluded (O18) — only
+                # what it's set TO can disqualify a suppression.
+                disqualifier_block = "\n".join(_strip_env_key(ln) for ln in lines[s:e])
+                suppressed = _suppressed_by_owner(stripped_block, disqualifier_block)
                 line = s + 1
             else:
                 # Block unlocatable: fail closed — never suppress what we can't verify.
@@ -524,7 +622,10 @@ def run_check(db_name: str, repo_dir: Path, container: str = POSTGRES_CONTAINER)
     try:
         failures.extend(probe_app_role(db_name, container=container))
     except Exception as exc:  # noqa: BLE001 - deliberately blanket, see docstring
-        failures.append(str(exc))
+        # Named and typed (acceptance review pass 2, O25) — an exception with an
+        # empty `str()` (e.g. a bare `raise RuntimeError()`) must never become an
+        # uninformative blank failure line.
+        failures.append(f"privilege probe raised {type(exc).__name__}: {exc}")
 
     if not repo_dir.is_dir():
         failures.append(f"no repo at {repo_dir} — cannot scan")
@@ -548,11 +649,21 @@ class SpecResolutionError(ValueError):
     on ``/opt/None`` or an ``AttributeError`` from a malformed ``depends:``."""
 
 
+def _require_mapping(spec: object) -> dict:
+    """The spec itself must be a mapping — a YAML file whose top level is a list
+    or scalar (acceptance review pass 2, O21) would otherwise reach `spec.get(...)`
+    and raise a bare ``AttributeError`` instead of a resolvable failure string."""
+    if not isinstance(spec, dict):
+        raise SpecResolutionError(f"spec must be a mapping, got {type(spec).__name__}")
+    return spec
+
+
 def _db_name_for_spec(spec: dict) -> str:
     """The registrar's db_name rule (mirrors ``DeploymentOrchestrator._provision_postgres``,
     ``src/fabrik/orchestrator/infrastructure.py``): ``depends.postgres`` wins when set,
     else the spec's name (falling back to id), hyphens rewritten to underscores —
     PostgreSQL identifiers don't allow hyphens without quoting."""
+    spec = _require_mapping(spec)
     depends = spec.get("depends")
     if depends is not None and not isinstance(depends, dict):
         raise SpecResolutionError(f"spec 'depends' must be a mapping, got {type(depends).__name__}")
@@ -568,6 +679,7 @@ def _db_name_for_spec(spec: dict) -> str:
 def project_repo_dir(spec: dict) -> Path:
     """``/opt/<id>`` — the orchestrator's ``_load_secrets`` precedence (id before name,
     ``src/fabrik/orchestrator/__init__.py``). Shared by the CLI and T04's registrar step."""
+    spec = _require_mapping(spec)
     id_or_name = spec.get("id") or spec.get("name")
     if not id_or_name:
         raise SpecResolutionError("spec has neither 'id' nor 'name' — cannot derive repo_dir")
