@@ -236,6 +236,14 @@ Recorded by the T04 review (A-H1, A-H2): the pre-existing anchor lines `cmd_line
 
 Found while building T02: the enforcement reader's status regex needs a literal `Status:` followed by the value, so a bold-wrapped value (`Status: **EXECUTED**`) reads as empty; `work.py` carries its own fallback (`_STATUS_VALUE_RE`), the gate's check does not. Destination `scripts/enforcement/check_convergence.py` `_STATUS_LINE` (fleet-synced — full review). Owner: infra.
 
+## [infra] `tests/test_sync_trigger_coverage.py` grades the LIVE hub, not the tree under test (2026-09-24)
+
+Recorded by the T07 review (A-O4): the test loads the manifest from its own tree but reads `.pre-commit-config.yaml` from a hardcoded `Path("/opt/fabrik")` at every call site (:52, :58, :64 and more), so on a worktree or a pinned copy it grades a MIXED pair and cannot validate a filter change before merge (it failed `[scripts/work.py]` on T07's pin while the live hub lagged). Derive the root from `__file__`. Owner: infra.
+
+## [infra] 40 of 211 synced sources are not governance-sync triggers (2026-09-24)
+
+Recorded by the T07 review (A-O5): `iter_synced_pairs` distributes 211 source files, and 40 do not match the governance-sync filter (docs/reference/kilo 12, templates/scaffold/scripts 11, .windsurf/workflows 6, libs/health_probe 3, PORTS.md, docs/operations, …). Some are `DECLARED_NON_TRIGGERS`; the rest reach the fleet only on the next unrelated sync. Decide per group: trigger, or declared non-trigger. Owner: infra.
+
 ## [infra] The commit stage still runs under pre-commit's whole-tree stash for ~0.5 s (D-369, 2026-09-23)
 
 The governance sync left pre-commit's post-commit stage, closing the ~60 s window in which a sibling's commit hid and destroyed other sessions' edits. The commit stage still runs under pre-commit's `staged_files_only` stash for ~0.5 s (measured on a four-file commit), with the same restore-and-rollback mechanism. Removing it means running those hooks without the stash, i.e. against the working tree instead of the index, which changes what they check — a trade-off to rule on, not a silent fix. Owner: infra.

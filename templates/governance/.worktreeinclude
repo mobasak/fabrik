@@ -46,6 +46,7 @@ scripts/rivals_run.py
 scripts/whoami_agent.py
 scripts/command_run.py
 scripts/thread_anchor.py
+scripts/work.py
 scripts/enforcement/
 scripts/rund
 scripts/rundsh

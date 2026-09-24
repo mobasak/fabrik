@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Work tracking distribution: `work.py` ships fleet-wide and the native Task tools are on (2026-09-24)
+- `scripts/work.py` joins `CORE_SCRIPTS` (and the generated `.worktreeinclude`), and the governance-sync filter in `.pre-commit-config.yaml` gains exactly `scripts/work.py` (173 → 174 of 3,153 tracked paths match). The fleet-synced `.claude/settings.json` sets `CLAUDE_CODE_ENABLE_TASKS` and `CLAUDE_CODE_ENABLE_TODO_TOOLS` (D-397); open windows pick it up on reload. Plan `docs/development/plans/2026-09-24-plan-2-work-tracking` T07; review converged in 2 passes (1 → 0).
+
 ### Fixed — `work.py` migrate row digest declares `usedforsecurity=False` (2026-09-24)
 - The T03 merge reddened the completion gate on bandit B324 HIGH (`scripts/work.py` `_row_digest`, a SHA-1 idempotency key, not security). The call now passes `usedforsecurity=False`; the digest is byte-identical (pinned for an ASCII and a non-ASCII input), so stores already migrated keep their keys.
 
