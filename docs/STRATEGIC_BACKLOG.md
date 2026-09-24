@@ -4865,3 +4865,25 @@ The bullet names `/fabrik-spec-review` and `/fabrik-plan-review` among "the part
 loops only. A reader following the literal sentence could build a section slice with the wrong pair. Found by
 the chunk-6 review (D-361, B-S3); older than that change and on a governance-sync path, so it waits for the
 next deliberate contract edit: scope the pair clause to the file loops. Owner: infra.
+
+## [fleet] The app-role cutover is refused for the four specs sharing `depends.postgres: main` (2026-09-24)
+
+ai-model-catalog, compliance-ops, gmail-account-creator and exam-coach resolve to one database, so one `main_app`
+password cannot be reset for one of them without breaking the others; the registrar refuses (D-407). A cutover for
+them needs one coordinated apply that writes the same new app DSN into every sibling's `.env`, or per-spec app
+roles. Owner: fleet. Trigger: the first of the four that needs the append-only guarantee.
+
+## [fleet] The owner DSN shares the project `.env` with the app DSN (2026-09-24)
+
+Append-only on `audit_log` therefore holds against the app's code paths and SQL injection, not against code
+execution inside the container, which can read `DATABASE_URL_OWNER` (docs/operations/fabrik-lifecycle.md § The
+limit). Closing it means an env file mounted only into the migrate and jobs services. Owner: fleet.
+
+## [infra/fleet] The hub's orchestrator test suites reach production over ssh (2026-09-24)
+
+Suites that drive `_provision_postgres` or the watchdog registrar with only some drivers patched run real SQL on
+postgres-main (`ensure_shared_analytics_db`, `create_subagent_ins_role` on `fabrik_analytics`) and a real watchdog
+build on the VPS; `tests/orchestrator/test_infrastructure.py` takes ~16 min of ssh round-trips. Measured during
+plan audit-log-everywhere T04, filed as mail 01M39XVS. The fix is a default-deny conftest guard on `_run_sql`,
+the ssh driver and the watchdog remote build, with an explicit per-module opt-in; T04's own stub
+(`_no_live_app_role_step`) covers only the app-role step. Measure the red set under the guard first.

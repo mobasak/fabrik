@@ -47,7 +47,7 @@ Intake: 13 items — 9 IN, 4 OUT-OF-SCOPE (I8, I9, I11, I13 — each named), 0 A
 | T01 | `shape.database_url_app_role` flag + generator default | — | ⚡ | ✅ | branch head 29d43e3c1; merged 2026-09-24 (review: 2 passes, T01 slice 6 → 0) |
 | T02 | `<db>_app` role driver: mint, grants, audit revokes, probe, drop | — | ⚡ | ✅ | branch head e6de98931; merged 2026-09-24 (review: 4 passes, confirmed 18 → 3 → 1 → 0) |
 | T03 | Pre-cutover check + `fabrik app-role-check` | T02 | ⛓️ | ✅ | branch head 112611630; merged 2026-09-24 (review: 4 passes, confirmed 21 → 10 → 3 → 0) |
-| T04 | Registrar step: DSN injection, cutover, rollback, docs | T01, T02, T03 | ⛓️ | ⬜ | |
+| T04 | Registrar step: DSN injection, cutover, rollback, docs | T01, T02, T03 | ⛓️ | ✅ | branch head 3304e6188; merged 2026-09-24 (review: 3 passes, confirmed 11 → 2 → 0) |
 | T05 | Integration: scaffolder emits module, table, revokes, jobs; receipt | T04 | ⛓️ | ⬜ | |
 
 ## Merge Order

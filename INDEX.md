@@ -45,6 +45,7 @@
 | **tests/test_app_role_driver.py** | Fake-`_run_sql` tests of the `<db>_app` role driver in `src/fabrik/drivers/postgres.py` — ensure/probe/drop SQL shape and control flow (owner refusal, fresh-role drop on grants failure, probe parse). | The app-role driver changes | pytest |
 | **src/fabrik/app_role_check.py** | The pre-cutover check for the `<db>_app` switch: `scan_repo` (DDL and migration sites that still reach `DATABASE_URL`), `run_check` (scan + privilege probe, fail-closed), `project_repo_dir`; behind `fabrik app-role-check`. | The app-role cutover changes | `tests/test_app_role_check.py` |
 | **tests/test_app_role_check.py** | Behaviour tests for the pre-cutover scan and check (patterns, connection-source suppression, compose structure, fail-closed paths, the CLI). | The pre-cutover check changes | pytest |
+| **tests/test_app_role_provision.py** | Behaviour tests for the registrar's `<db>_app` step: owner-first injection, cutover, rollback, converged, pins, shared-database refusal, fail-closed paths, dry-run, the conftest opt-in. | The app-role registrar step changes | pytest |
 | **tests/test_app_role_real_pg.py** | Real PostgreSQL 16 tests of the `<db>_app` role from a real login session (append-only `audit_log`, grant-option chains, memberships, CREATE, legacy PUBLIC grants), each seeding the bad state; hosts the shared `scratch_pg()` helper T05 imports. | The app-role driver changes | pytest (docker) |
 
 ---

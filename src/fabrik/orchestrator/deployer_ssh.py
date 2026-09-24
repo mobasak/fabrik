@@ -13,6 +13,7 @@ import contextlib
 import logging
 import os
 import re
+import shlex
 import subprocess
 import tempfile
 import time
@@ -254,6 +255,41 @@ class SSHDeployer:
         _ssh("sudo docker image prune -f", timeout=30)
         logger.info("Deleted compose app %s", name)
         return True
+
+    def read_env(self, ctx: DeploymentContext) -> dict[str, str]:
+        """Return the app's parsed ``.env`` — for a DECISION, so it never swallows.
+
+        Runs inside :func:`_target_vps_env` (as :meth:`inject_env` does), so a
+        spoke's ``.env`` is read on the spoke. Returns ``{}`` ONLY when
+        ``test -f`` reports the file absent; any ssh/read failure or an
+        unrecognised probe answer raises :class:`DeployError`. :meth:`inject_env`
+        keeps its own swallowing read — right for a merge, never for a decision
+        (the app-role cutover reads ``DATABASE_URL``'s user from here).
+        """
+        from fabrik.drivers.ssh import ssh as _ssh
+
+        name = ctx.app_name
+        if not name:
+            raise DeployError("read_env called but ctx.app_name is not set")
+        _validate_name(name)
+
+        with _target_vps_env(ctx):
+            try:
+                # The whole test runs INSIDE sudo: a refused sudo prints nothing (an
+                # unrecognised answer → raise) instead of the `|| echo absent` fallback
+                # that `sudo test -f X && … || echo absent` would print.
+                inner = f"[ -f {shlex.quote(f'/opt/{name}/.env')} ] && echo present || echo absent"
+                probe = _ssh(f"sudo sh -c {shlex.quote(inner)}", timeout=10).strip()
+                if probe == "absent":
+                    return {}
+                if probe != "present":
+                    raise DeployError(
+                        f"cannot read /opt/{name}/.env: unexpected probe answer {probe[:40]!r}"
+                    )
+                content = _ssh(f"sudo cat /opt/{name}/.env", timeout=10)
+            except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+                raise DeployError(f"cannot read /opt/{name}/.env: {e}") from e
+        return _parse_env(content)
 
     def inject_env(self, ctx: DeploymentContext, env_vars: dict[str, str]) -> None:
         """Merge *env_vars* into the app's ``.env`` and restart.
@@ -717,6 +753,23 @@ def _is_placeholder(value: str) -> bool:
     return "placeholder" in value.lower()
 
 
+def _closing_quote(value: str) -> int:
+    """Index of the quote closing ``value[0]``, or -1 when unterminated.
+
+    Inside double quotes a backslash escapes the next character (the form
+    ``_format_env`` writes); single quotes have no escapes.
+    """
+    quote, i = value[0], 1
+    while i < len(value):
+        if quote == '"' and value[i] == "\\":
+            i += 2
+            continue
+        if value[i] == quote:
+            return i
+        i += 1
+    return -1
+
+
 def _parse_env(content: str) -> dict[str, str]:
     """Parse a .env file into a dict, ignoring comments and blank lines."""
     result: dict[str, str] = {}
@@ -728,11 +781,22 @@ def _parse_env(content: str) -> dict[str, str]:
             continue
         key, _, value = line.partition("=")
         key = key.strip()
+        # `export KEY=…` (a shell-sourceable .env) is the key KEY — for read_env's
+        # decision and inject_env's merge alike, or the merge writes a second key.
+        if key.startswith("export "):
+            key = key[len("export ") :].strip()
         # Strip surrounding quotes — and UNESCAPE a double-quoted value, mirroring
         # `_format_env`'s escaping. Without the unescape the round-trip corrupts:
         # write escapes `\"` -> read strips the wrapper but leaves the backslashes ->
         # the next write escapes them AGAIN, so a value grows a backslash per apply.
         value = value.strip()
+        # A value that OPENS with a quote and is followed by only `# comment`
+        # (`K="v" # note`) is the quoted content; an unterminated quote or any other
+        # tail keeps the rule below.
+        if value[:1] in ("'", '"'):
+            end = _closing_quote(value)
+            if end > 0 and value[end + 1 :].strip()[:1] in ("", "#"):
+                value = value[: end + 1]
         if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
             quote = value[0]
             value = value[1:-1]
