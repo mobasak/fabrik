@@ -1,0 +1,57 @@
+{
+  "plan": "docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction",
+  "owned_paths": [
+    "commands/_sources/fabrik-spec-review.md",
+    "commands/_sources/fabrik-flows-review.md",
+    "commands/_sources/fabrik-ui-design-review.md",
+    "commands/_sources/fabrik-deploy-plan-review.md",
+    "commands/_sources/fabrik-release.md",
+    "commands/_sources/fabrik-deploy.md",
+    "tests/test_gate_decision_blocks.py",
+    "CLAUDE.md",
+    "templates/governance/CLAUDE.md",
+    "tests/test_governance_template_split.py",
+    ".claude/hooks/final_gate_stop.py",
+    "scripts/sysadmin/kaizen_events.py",
+    "scripts/sysadmin/kaizen_collect_v2.py",
+    "tests/test_kaizen_deferral_vocabulary.py",
+    "tests/test_final_gate_stop_deferral.py",
+    "tests/test_stop_hook_deferral_exemption.py",
+    "tests/test_final_gate_stop_hook.py",
+    "tests/test_kaizen_hook_emitters.py",
+    "scripts/thread_anchor.py",
+    "tests/test_thread_anchor.py",
+    "scripts/sysadmin/stop_mine.py",
+    "tests/test_stop_mine.py",
+    "docs/workstation/hooks-index.md",
+    "docs/reference/thread-anchors.md",
+    "docs/workstation/kaizen-event-stream.md",
+    "docs/reference/research/2026-09-23-stop-compaction/draw.py",
+    "docs/development/reviews/2026-09-23-plan-1-stop-and-compaction-review.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-09-24T00:35:21",
+  "status": "released",
+  "baseline_commit": "94119920f7f7728948d5ca874781ace4c2db45e5",
+  "baseline_gate": {
+    "status": "success",
+    "tier": "lean --check",
+    "red": []
+  },
+  "merged": {
+    "T01a": "7c7079756",
+    "T01b": "61956b3d2",
+    "T02a": "fee9e8e91",
+    "T02b": "200d9335d",
+    "T03": "b807051c3"
+  },
+  "in_flight": {
+    "T04": "worktree-agent-aab3f49a017269ae2"
+  },
+  "fleet_sync": {
+    "T02b": "200d9335d 46/46",
+    "T03": "b807051c3"
+  },
+  "completed_at": "2026-09-24T04:27:15+00:00",
+  "final_commit": "03a94e9a3"
+}

@@ -1,6 +1,6 @@
 # Plan — work tracking: one open-work record per repo, shared by its three agents
 
-Status: CONVERGED
+Status: IN-PROGRESS
 **Owner:** infra (the unnamed hub window)
 Spec: docs/superpowers/specs/2026-09-24-work-tracking-design.md
 Date: 2026-09-24
@@ -48,7 +48,7 @@ it implements and restates nothing that section already settles.
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01a | Store core: init, items, lock, add/assign/ready/next | — | ⛓️ | ⬜ | |
+| T01a | Store core: init, items, lock, add/assign/ready/next | — | ⛓️ | 🔵 | |
 | T01b | Claims, leases, closing verbs, hook-facing API | T01a | ⛓️ | ⬜ | |
 | T02 | status, sync --check, readings, drift classes | T01b | ⛓️ | ⬜ | |
 | T03 | migrate-backlog and render | T02 | ⛓️ | ⬜ | |
