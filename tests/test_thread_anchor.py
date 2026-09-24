@@ -721,33 +721,55 @@ def test_dirty_files_with_arrows_and_escaped_names_are_found(tmp_path):
         assert n in out, (n, out)
 
 
-def test_an_answered_block_is_not_restored_within_the_window(tmp_path):
-    """A-O7: the Stop hook falls back to the previous turn's text when the new one is not flushed,
-    so an ACCEPTED harvest can carry a block the operator just answered."""
+def _answer(env: dict[str, str], sid: str) -> None:
+    _hook_line(env, {"session_id": sid, "hook_event_name": "UserPromptSubmit", "prompt": "A"})
+    assert not _state(env, sid).get("decision")
+
+
+def test_the_stale_echo_is_refused_whatever_the_elapsed_time(tmp_path):
+    """A-O7 / round 3 A-O6, A-O7: the Stop hook falls back to the previous turn's text when the new
+    one is not flushed, so an ACCEPTED harvest can carry the SAME whole message the operator just
+    answered. It is refused however long the tool-only turn ran — and no clock value in the state,
+    past or future, changes that or crashes the harvest."""
     env = _env(tmp_path)
     _open_decision(env, "s-a")
-    _hook_line(env, {"session_id": "s-a", "hook_event_name": "UserPromptSubmit", "prompt": "A"})
-    assert not _state(env, "s-a").get("decision")
-    run3(["harvest", "--session", "s-a", "--decision-ok"], env, stdin=_DECISION_TEXT)
-    assert not _state(env, "s-a").get("decision"), "an answered block came back"
+    _answer(env, "s-a")
+    for stale_ts in (time.time() - 900, 1e300):
+        st = _state(env, "s-a")
+        st["cleared_decision"] = {"digest": "legacy", "ts": stale_ts}  # an old shape: ignored
+        _write_state(env, "s-a", st)
+        rc, _, err = run3(
+            ["harvest", "--session", "s-a", "--decision-ok"], env, stdin=_DECISION_TEXT
+        )
+        assert rc == 0 and "Traceback" not in err, err
+        assert not _state(env, "s-a").get("decision"), f"the stale echo came back ({stale_ts})"
     other = _DECISION_TEXT.replace("Deploy the certified build", "Rotate the signing key")
     run3(["harvest", "--session", "s-a", "--decision-ok"], env, stdin=other)
     assert "Rotate the signing key" in _state(env, "s-a")["decision"]["text"]
 
 
-def test_a_word_for_word_reask_after_the_window_is_stored_again(tmp_path):
-    """Round 2 A-O3: the digest suppressed an identical block FOREVER, so a deliberate re-ask was
-    never stored. Suppression holds only within the window after the clear."""
+def test_a_word_for_word_reask_in_a_new_message_is_stored_immediately(tmp_path):
+    """Round 2 A-O3 / round 3: a deliberate re-ask arrives in a NEW message, so an identical block
+    inside different surrounding text is stored at once — no window to wait out."""
     env = _env(tmp_path)
     _open_decision(env, "s-w")
-    _hook_line(env, {"session_id": "s-w", "hook_event_name": "UserPromptSubmit", "prompt": "A"})
-    run3(["harvest", "--session", "s-w", "--decision-ok"], env, stdin=_DECISION_TEXT)
-    assert not _state(env, "s-w").get("decision"), "inside the window: the stale echo is refused"
-    st = _state(env, "s-w")
-    st["cleared_decision"]["ts"] -= 11 * 60  # the operator answered 11 minutes ago
-    _write_state(env, "s-w", st)
-    run3(["harvest", "--session", "s-w", "--decision-ok"], env, stdin=_DECISION_TEXT)
-    assert _state(env, "s-w").get("decision"), "a deliberate re-ask after the window was dropped"
+    _answer(env, "s-w")
+    reask = "The smoke pass found nothing new, so I am asking again.\n\n" + _DECISION_TEXT
+    run3(["harvest", "--session", "s-w", "--decision-ok"], env, stdin=reask)
+    assert "Deploy the certified build" in (_state(env, "s-w").get("decision") or {}).get(
+        "text", ""
+    ), "a word-for-word re-ask in a new message was dropped"
+
+
+def test_an_old_cleared_state_shape_suppresses_nothing(tmp_path):
+    """State written by an earlier build carries `cleared_decision` (a string or a dict) and no
+    `cleared_msg`; it must never refuse a block."""
+    env = _env(tmp_path)
+    for i, legacy in enumerate(("0" * 64, {"digest": "x", "ts": time.time()}, 7)):
+        sid = f"s-old{i}"
+        _write_state(env, sid, {"anchors": [], "last_next": None, "cleared_decision": legacy})
+        run3(["harvest", "--session", sid, "--decision-ok"], env, stdin=_DECISION_TEXT)
+        assert _state(env, sid).get("decision"), legacy
 
 
 def test_a_huge_integer_timestamp_is_an_unknown_age(tmp_path):

@@ -137,10 +137,6 @@ _MAX_LINE = 300  # every WHERE YOU ARE line, cut with "…"
 # from this script's own state still print.
 _WHERE_BUDGET_S = 5.0
 _LOCK_TIMEOUT_S = 1.0  # a state write that cannot take the session lock in time is skipped
-# After the operator answers a DECISION block, an IDENTICAL block harvested within this window is
-# the Stop hook's stale fallback to the previous turn's text and is not stored; after it, the same
-# words are a deliberate re-ask and are stored again.
-_REASK_WINDOW_S = 600.0
 
 
 def _warn(msg: str) -> None:
@@ -425,27 +421,22 @@ def _enforce_caps(state: dict, now: float) -> None:
         state["dropped"] = _dropped(state) + len(drop)
 
 
-def _digest(block: str) -> str:
-    return hashlib.sha256(block.strip().encode("utf-8", "replace")).hexdigest()
-
-
-def _just_answered(state: dict, block: str, now: float) -> bool:
-    """Is ``block`` the one the operator answered less than _REASK_WINDOW_S ago?"""
-    cleared = state.get("cleared_decision")
-    if not isinstance(cleared, dict) or cleared.get("digest") != _digest(block):
-        return False
-    ts = _ts(cleared)
-    return ts is not None and now - ts < _REASK_WINDOW_S
+def _digest(text: str) -> str:
+    return hashlib.sha256(text.strip().encode("utf-8", "replace")).hexdigest()
 
 
 def cmd_harvest(session: str, text: str, decision_ok: bool = False) -> None:
     """Store the message's last NEXT: (promoting long-running shapes to anchors) and, ONLY with
     ``decision_ok`` — the Stop hook passes it when it ACCEPTED the block — its DECISION block.
     Without the flag no block is ever stored: a refused or malformed block must not come back
-    after a compaction as if it were open (C-O8's twin, A-O30). A block identical to the last one
-    the operator ANSWERED is not stored within _REASK_WINDOW_S of that answer: the Stop hook falls
-    back to the previous turn's text when the new one is not flushed yet (A-O7); after the window
-    the same words are a deliberate re-ask."""
+    after a compaction as if it were open (C-O8's twin, A-O30).
+
+    A stored block carries the digest of the WHOLE message it came in (``msg``). The Stop hook
+    falls back to the previous turn's text when the new one is not flushed yet (A-O7), so after the
+    operator answers, the SAME whole message can be harvested again: when the incoming text's
+    digest equals ``cleared_msg`` the block is not re-stored. No clock is involved — the echo is
+    refused however long the turn ran — and a word-for-word re-ask arrives in a NEW message, so it
+    is stored at once. Older state shapes (``cleared_decision``) suppress nothing."""
     matches = _NEXT_RE.findall(text)
     block = None
     if decision_ok and text:
@@ -456,10 +447,11 @@ def cmd_harvest(session: str, text: str, decision_ok: bool = False) -> None:
     if not matches and not block:
         return
     now = time.time()
+    msg = _digest(text)
 
     def apply(state: dict) -> bool:
-        if block and not _just_answered(state, block, now):
-            state["decision"] = {"ts": now, "text": block}
+        if block and msg != state.get("cleared_msg"):
+            state["decision"] = {"ts": now, "text": block, "msg": msg}
         if matches:
             nxt = matches[-1][:300]  # the LAST NEXT: in the message is the operative one
             state["last_next"] = {"ts": now, "text": nxt}
@@ -484,8 +476,8 @@ def cmd_clear_decision(session: str, prompt: object) -> None:
     WHOLE first token is on the closed _BUILTIN_SLASH list, case-insensitively (`/compact` is not
     an answer; `/contextualize x` and `/fabrik-deploy prod` are). A payload with no string
     ``prompt`` is no evidence of an answer, so it clears nothing; a real one always carries it.
-    The cleared block's digest and clear time are kept: an identical block harvested within
-    _REASK_WINDOW_S is the stale echo of the answered one and is not stored (A-O7)."""
+    The answered block's message digest moves to ``cleared_msg``, so the same whole message
+    harvested again is not re-stored (A-O7; see cmd_harvest)."""
     if not isinstance(prompt, str):
         return
     toks = prompt.split()
@@ -496,8 +488,8 @@ def cmd_clear_decision(session: str, prompt: object) -> None:
         dec = state.get("decision")
         if not dec:
             return False
-        if isinstance(dec, dict) and dec.get("text"):
-            state["cleared_decision"] = {"digest": _digest(str(dec["text"])), "ts": time.time()}
+        msg = dec.get("msg") if isinstance(dec, dict) else None
+        state["cleared_msg"] = msg if isinstance(msg, str) else None
         state["decision"] = None
         return True
 
