@@ -252,6 +252,10 @@ D-382 remapped every live `final_gate.py:N` citation when its edit moved the fil
 
 `.pre-commit-config.yaml`'s grouped row `^scripts/(…|kilo_code_review|kilo_docs_enforcer|update_agents_toc|…)\.py$` names three scripts that now live under `scripts/archived/`, so those three alternatives can never fire. Found by the /fabrik-review of the dead `kilo_47_agents_final.json` row (receipt docs/development/reviews/2026-09-24-dead-trigger-row-and-rag-pack-review.md). `tests/test_sync_trigger_coverage.py` now catches a gitignored path in any row. A path that simply does not exist is a separate shape it does not check. Fix at the class: drop the three names, and have the test also require every literal file row to exist in the hub. Measure first whether any other hub file rides a nonexistent row. Owner: infra.
 
+## [infra] Seven commands still run exa FIRST while the contract puts exa and firecrawl in tier 2 (2026-09-24)
+
+D-338 kept a command's own research wiring inside its run and left infra to decide whether the commands follow the operator's tier order. Seven of the 38 sources open their chains with `mcp__exa__web_search_exa`: fabrik-spec (twice), fabrik-spec-review, fabrik-data-contract, fabrik-plan-after-chat, fabrik-ui-design, fabrik-vision and fabrik-docs-review. `docs/workstation/mcp-roster.md` calls exa "grounding order #1" (intel's D-337 review, mail 01M3452QMBRWG7WZT6YGNETB8T). The trade-off to settle first: exa's semantic search is the strongest single engine for design grounding, and it is metered, so exa-first spends on every fact rather than on a miss. Measure first: across the last N runs of those seven commands, how many exa calls answered a fact that WebSearch or brave also answered. Owner: infra; a change to the seven sources is a decision row plus one corpus render.
+
 ## [infra] A plan authored and committed in one motion is a convergence subject at NO moment a gate runs
 
 `check_convergence.py:550` skips `??` paths — deliberately, so a sibling's mid-write scratch never
