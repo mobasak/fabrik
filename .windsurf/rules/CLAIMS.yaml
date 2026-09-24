@@ -1924,3 +1924,43 @@ claims:
     verify: "https://vergipedia.com/degerlendirme/teknoloji-gelistirme-bolgelerindeki-teslim-ve-hizmetlerde-kdv-uygulamasi/ ; https://www.resmigazete.gov.tr/eskiler/2023/07/20230707-11.pdf ; 4691 Geçici 2 text (WebSearch + brave + exa + WebFetch, 2026-09-24; ledger kd-01..kd-08, op-12). Re-check before 31/12/2028 — the exemption's end date"
     window_days: 365
     last_verified: 2026-09-24
+
+  - id: claude-code-total-cost-is-an-estimate
+    pack: core/cost-budget.md
+    kind: standard
+    claim: "Claude Code's `--output-format json` result carries `total_cost_usd` and `usage`; the cost is a client-side estimate computed from a bundled price table, not billed spend — on a Pro/Max subscription it is not a billing figure, and Anthropic says not to trigger financial decisions from it (it still measures quota burn at API list prices)"
+    verify: "https://code.claude.com/docs/en/headless ; https://code.claude.com/docs/en/agent-sdk/cost-tracking ; https://code.claude.com/docs/en/costs (exa + WebSearch, 2026-09-24; ledger cc-01, cc-05..cc-07)"
+    window_days: 180
+    last_verified: 2026-09-24
+
+  - id: claude-code-print-mode-caps
+    pack: core/cost-budget.md
+    kind: practice
+    claim: "Claude Code print mode has `--max-budget-usd` (stop before spending more than N dollars on API calls, subagents included) and `--max-turns` (limit agentic turns, no limit by default)"
+    verify: "https://code.claude.com/docs/en/cli-reference (exa, 2026-09-24; ledger cc-08, cc-09)"
+    window_days: 180
+    last_verified: 2026-09-24
+
+  - id: openrouter-usage-and-key-limits
+    pack: core/cost-budget.md
+    kind: practice
+    claim: "OpenRouter returns token counts and cost on every response (the `usage: {include: true}` flag is deprecated and has no effect), and an API key can carry a credit limit (`limit`, `limit_remaining`, `limit_reset`) — an exhausted key gets 402 until the limit is raised or resets"
+    verify: "https://openrouter.ai/docs/cookbook/administration/usage-accounting ; https://openrouter.ai/docs/api_reference/limits (exa + WebFetch + WebSearch, 2026-09-24; ledger or-06, or-10, op-06)"
+    window_days: 180
+    last_verified: 2026-09-24
+
+  - id: llm-verbalized-confidence-overconfident
+    pack: core/cost-budget.md
+    kind: rationale
+    claim: "An LLM's verbalized (self-rated) confidence is overconfident in absolute terms — expected calibration error around 0.1 for 70B+ models — and depends on how it is elicited, even though it beats raw token probabilities; so a confidence threshold alone is not a safe escalation trigger"
+    verify: "https://arxiv.org/pdf/2306.13063 ; https://arxiv.org/pdf/2412.14737v1.pdf ; https://doi.org/10.18653/v1/2023.emnlp-main.330 (exa + brave, 2026-09-24; ledger or-07..or-09)"
+    window_days: 365
+    last_verified: 2026-09-24
+
+  - id: watchdog-default-fallback-model-retired
+    pack: core/cost-budget.md
+    kind: version
+    claim: "Claude Haiku 3.5 is retired on Anthropic's API (still on Bedrock and Google Cloud) and OpenRouter lists no endpoint for `anthropic/claude-3.5-haiku`, so the watchdog's default OpenRouter fallback model cannot serve; `anthropic/claude-haiku-4.5` is the current Haiku"
+    verify: "https://platform.claude.com/docs/en/about-claude/pricing (WebFetch, 2026-09-24) ; OpenRouter public model list + endpoints (second-opinion probe, 2026-09-24; ledger op-01, op-02)"
+    window_days: 90
+    last_verified: 2026-09-24

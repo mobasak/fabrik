@@ -1,170 +1,125 @@
 ---
 activation: glob
 globs: ["**/cost_budget*", "**/libs/cost_budget/**", "**/watchdog/**", "**/llm_client*", "**/openrouter*", "**/anthropic_client*", "**/llm/**"]
-description: Per-project LLM cost caps + shared cost_ledger + fail-open WAL — required for any service calling paid AI APIs or the watchdog sidecar
+description: Per-project cost caps on paid APIs — the fail-open accounting lane, the fail-closed reservation lane, the watchdog's caps, and what the ledger's dollar figures mean
 trigger: glob
+currency_pass: 2026-09-24
 ---
-<!-- CONSUMER: Coding agents (all) + Traycer (tech-plan step)
-     GOAL: No project bleeds money on a runaway LLM loop overnight. Per-project caps; subscription burn visible per project.
-     TRAYCER USAGE: For every Watchdog / LLM-Integration epic, include a cost-budget ticket with concrete daily caps from the Vision Summary.
-     AGENT USAGE: Vendor /opt/fabrik-lib/cost-budget/. Call check_caps() BEFORE every LLM call; record_cost() AFTER. Never bypass for "just this one prompt." -->
+<!-- CONSUMER: coding agents (all) + the planning commands (/fabrik-spec, /fabrik-plan-after-chat) when a feature calls paid APIs
+     GOAL: no project bleeds money on a runaway loop overnight; per-project caps; spend visible per project
+     AGENT USAGE: vendor /opt/fabrik-lib/cost-budget/; pick the lane below; check before every paid call, record after it; never bypass.
+     PLANNING: a feature or epic that calls paid APIs carries its caps (daily USD, invocations, per-task bound) into the plan as a concrete ticket. -->
 
 # Cost Budget Rules
 
-**Activation:** Glob — cost-budget code paths, watchdog sidecar, LLM clients (OpenRouter, Anthropic, Claude Code subprocess).
-**Purpose:** Hard caps on AI spend per project, with portfolio visibility and a fail-open buffer so cap enforcement survives postgres-main outages.
+**Activation:** Glob — cost-budget code paths, the watchdog sidecar, LLM clients.
+**Purpose:** hard ceilings on paid-API spend per project, with portfolio visibility, surviving a `postgres-main` outage.
+
+**Sources:** external facts re-grounded on 2026-09-24 (`docs/reference/research/2026-09-24-cost-budget-currency-ledger.md`); the load-bearing ones are in `.windsurf/rules/CLAIMS.yaml` (`pack: core/cost-budget.md`). Module behaviour is cited to `/opt/fabrik-lib/cost-budget/` and `/opt/fabrik-lib/watchdog/`. The cap values and the escalation thresholds below are house heuristics — tune them on a week of real ledger data.
 
 ---
 
-## When to Use
+## When to Use — and Which Lane
 
-Vendor `cost-budget` whenever a service calls **any** paid API where uncontrolled volume costs money:
+Vendor `cost-budget` (`cp -r /opt/fabrik-lib/cost-budget libs/cost_budget`) whenever a service calls a paid API where a bug or a runaway loop costs money: LLM APIs, translation, OCR/vision, any usage-billed API. It is a safety cap, not billing or rate limiting (`api-quota`, `concurrency-throttle` do those).
 
-- LLM APIs (Anthropic, OpenAI, OpenRouter, Gemini, Mistral, etc.).
-- Translation APIs (DeepL, Azure Translator).
-- OCR / vision APIs.
-- Any usage-based external API where a bug or a runaway loop costs more than you'd lose to a bad sleep.
+The module has two lanes. Pick by what an overshoot costs:
 
-**Mandatory for every project that runs the watchdog sidecar.** The watchdog reasons with an LLM; without a cap, a feedback loop (sidecar diagnoses sidecar diagnosing sidecar) could empty your budget overnight.
+| Lane | Module | Failure mode | Use it for |
+|---|---|---|---|
+| **Accounting** | `cost_budget.py` — `check_caps()` before, `record_cost()` after | **Fail-OPEN**: a `postgres-main` outage queues rows to a local SQLite WAL and never blocks work. The cap is SOFT: the check runs before the call, so the call that crosses the cap is spent in full, and N concurrent callers can each pass the check and overshoot by up to N calls | Internal LLM use where one extra call is acceptable: the watchdog, dev tooling, portfolio visibility |
+| **Reservation** | `cost_reservations.py` — `reserve()` in the caller's transaction, then `settle()` / `abandon()`, plus a scheduled `reclaim()` | **Fail-CLOSED**: `reserve()` raises `BudgetExceeded` / `DailyCapExceeded` when it cannot admit; no reservation, no paid call | Customer-facing or per-tenant paid work, or a shared metered pool, where an overshoot must be impossible (a monthly budget plus a per-tenant daily cap) |
 
-For Claude Code subscription calls (the watchdog's primary provider), the cap is **per-project invocation count**, not USD — the subscription is flat-cost but its quota is finite, and one project shouldn't burn the whole subscription on everyone else's behalf.
+Never "helpfully" make `reserve()` fall open — a silent overshoot is what it exists to stop. The reservation lane's policy is all call arguments (`estimate_usd`, `monthly_budget_usd`, `daily_cap`); the module does not convert credits to USD. Roll the caller's transaction back on ANY `LedgerRefusal` (`with pg_conn:` around the job insert and `reserve()`) — a committed `DailyCapExceeded` leaves the month total inflated. `settle` / `abandon` / `reclaim` need the tenant armed (pass `tenant_id=`) or, under FORCE RLS, they silently no-op; a cross-tenant `reclaim` needs a maintenance role outside RLS (module README § Gotchas).
 
-## Per-Project Budget Setting
+**Provisioning:** `fabrik apply` creates the shared `fabrik_analytics` database on `postgres-main` with the `cost_ledger` and reservation-table DDL; host projects never apply these schemas themselves, and a consumer outside the registrar calls `cost_reservations.init()` once. `cost_ledger` is meant to be append-only (`INSERT, SELECT`) and the reservation tables `INSERT, SELECT, UPDATE`, but no apply path runs those GRANTs today (`drivers/postgres.py` grants only when a caller passes `grant_to_role`, and none does — filed to fleet). The DSN is yours to set: `FABRIK_ANALYTICS_URL` in the project's environment (nothing injects it — the watchdog sidecar gets its own `WATCHDOG_PG_DSN`). Set it wherever the ledger exists: `check_caps()` reads it to tell "no connection" from "no ledger", and without it a failed connect reads as `stale=False`.
 
-Caps live in the spec:
+## The Watchdog's Caps
+
+The watchdog sidecar carries its own copy of the accounting lane — a project running the watchdog does not vendor it separately. Its caps live in the spec:
 
 ```yaml
 # specs/services/my-project.yaml
 watchdog:
   enabled: true
-  daily_budget_usd: 1.0          # OpenRouter (fallback) cost cap
-  daily_invocations_cap: 200     # Claude Code (primary) subscription cap
+  daily_budget_usd: 1.0          # USD cap — ALL providers, Claude Code included (see below)
+  daily_invocations_cap: 200     # call-count cap
 ```
 
-Recommended starting points (tune after a week of real data):
+Both default to these values and reset at midnight UTC; a watchdog enabled with both caps at 0 is refused by `fabrik apply` (`orchestrator/infrastructure.py`) and by the `WatchdogConfig` validator (`spec_loader.py`) that `plan` and `audit` use. ⚠️ A single cap of 0 does NOT disable that cap, whatever the spec description says: `check_caps()` tests `spent >= cap`, so a 0 cap is over from the first second and the watchdog runs rule-only every day — keep both caps above 0 (filed to fleet). **Sizing:** a Claude Code diagnosis counts at API list price (next section) and the default model is Opus, so a $1 day covers only a handful of diagnoses — size `daily_budget_usd` from a week of `SUM(cost_usd)` for the project, and keep `daily_invocations_cap` as the hard count ceiling.
 
-| Project kind | `daily_budget_usd` | `daily_invocations_cap` |
-| --- | --- | --- |
-| Small SaaS (low traffic) | 0.50 | 100 |
-| Mid SaaS / API | 1.00 | 200 |
-| High-volume worker / RAG | 2.50 | 500 |
-| Internal tool | 0.25 | 50 |
+**What the watchdog actually calls:** one diagnosis per incident — `claude -p --model opus --output-format json` by default (`WATCHDOG_CLAUDE_MODEL`; the `opus` alias is the recommended Opus for your provider, not necessarily the newest release), then the OpenRouter fallback (`WATCHDOG_CHEAP_MODEL`), then rule-only mode (`watchdog_sidecar/llm_client.py::diagnose`). There is no automatic Haiku→Sonnet escalation inside it. ⚠️ That describes the ops-only path. With `auto_code_fix` on (which requires `propose_fix_prs`), the coordinator diagnoses without a cap check, then runs up to two more Opus fix runs (and an advisor call when `verify_before_deploy` is on) — none of it recorded to the ledger, so the daily caps do not bound that path (filed to fabrik-lib). ⚠️ **Its default fallback model is dead:** `anthropic/claude-3.5-haiku` (the hub's `drivers/watchdog.py` default and the sidecar's) is retired on Anthropic's API and has no OpenRouter endpoint, so a Claude Code failure falls straight to rule-only. Set `watchdog.cheap_model: anthropic/claude-haiku-4.5` in the spec until the defaults move (filed to fleet and fabrik-lib). The sidecar's copy of the module and the library have drifted both ways (the sidecar lacks `invocations_provider`; the library lacks the sidecar's non-finite-total guard).
 
-**Per-task soft cap** (separate from daily cap): set a per-incident hard ceiling in code so one stuck reasoning loop can't burn the daily budget in one minute. A typical OOM diagnosis should be under 20 LLM calls — make 50 the per-incident cap.
+**There is no per-incident dollar cap, by operator ruling.** `WATCHDOG_PER_INCIDENT_BUDGET_USD` (deployed default 0.25) is accepted and ignored: the sidecar must not pass `--max-budget-usd` (`llm_client.py`: "no $ caps on sysadmin; session-init cache cost alone exceeds any sane per-call cap"). The daily caps are the only ceiling on one incident; `--max-turns` is the flag that bounds a call without that conflict. (The spec model still documents a 0.50 default passed to `--max-budget-usd` — filed to fleet.)
 
-## Tiered Model Selection Ladder
+## What the Ledger's Dollars Mean
 
-The watchdog (and any cost-conscious LLM caller) escalates models, not collapses to the most expensive one. Run the ladder top to bottom; STOP at the first tier that returns a usable answer:
-
-| Tier | Claude Code (primary) | OpenRouter (fallback) | When to use |
-| --- | --- | --- | --- |
-| **1 — cheap** | Haiku | Gemini Flash / Haiku via OpenRouter | First pass on every incident. Returns structured output with a self-rated confidence (0.0–1.0). |
-| **2 — expensive** | Sonnet | Sonnet via OpenRouter | Tier 1 confidence < 0.7 OR rule-based heuristic triggered (stack trace, cross-system failure). |
-| **3 — rule-only fallback** | — | — | All providers failed OR cap hit. Drop to deterministic rules per `core/self-healing.md`. |
-
-**Acknowledged limitation:** cheap-model self-rated confidence is unreliable. Always layer rule-based heuristics on top — if logs contain `Traceback`, `SIGSEGV`, `OOMKilled`, or `panic`, escalate regardless of confidence.
+- **Claude Code rows record `total_cost_usd` from the CLI's JSON envelope** (`llm_client` → `record_cost`), not 0. On a subscription that figure is a client-side estimate at API list prices, not money billed — Anthropic's docs say not to trigger financial decisions from it. It is still the right unit for a cap: it measures subscription quota burn in API-dollar terms, so `daily_budget_usd` binds Claude Code calls too (sizing: § The Watchdog's Caps).
+- **OpenRouter rows are real spend** — OpenRouter returns token usage and cost on every response. Give the fallback's key a per-key credit limit on OpenRouter as a second, provider-side ceiling: once the key's `limit_remaining` is exhausted, OpenRouter answers 402 until the limit is raised or resets.
+- **Invocation cap per provider:** the USD cap is all-provider; pass `invocations_provider` to `check_caps()` so a burst of fallback HTTP calls cannot exhaust the CLI's call budget — and match the provider string your rows carry: `claude-code` for the watchdog's rows, `claude-cli` for rows recorded through `llm-dispatch`'s hooks. A mismatch counts nothing and the cap never binds.
 
 ## Kill-Switch Semantics
 
-Cap reached → `check_caps()` returns `over_cap=True`. Caller MUST NOT issue an LLM call.
+- Cap reached → `check_caps().over_cap` is true → `drop_to_rule_only_mode()` returns true → the caller MUST NOT issue the paid call. The window reopens at midnight UTC.
+- The watchdog then escalates each incident to Apprise without diagnosis, titled `(BUDGET-CAP)`, and arms the deadman (`core/self-healing.md` — one `docker restart` after its timeout); no LLM-chosen Tier A/B action runs until midnight UTC (the deadman's own Tier-A `restart_container` still fires). Anomaly detection keeps running.
+- **`stale` is fail-DANGEROUS, not fail-safe.** When `postgres-main` is unreachable, `check_caps()` sets `stale=True` and totals from the WAL alone — but a successful `record_cost()` deletes its WAL row, so the WAL holds only unreplayed calls and the total reads near $0. `drop_to_rule_only_mode()` looks at `over_cap` only. **Treat `stale=True` as over cap** (`over_cap or stale`) for any spending decision; the watchdog does not yet (filed to fabrik-lib). The reservation lane has no such mode — it refuses instead.
+- The kill-switch is per project: one project's cap never touches another's.
+- Metrics: `prometheus_metrics()` renders `llm_cost_dollars_total`, `llm_cost_dollars_cap`, `llm_invocations_total`, `llm_invocations_cap`, `cost_budget_over_cap`, `cost_budget_stale` (labelled `project`). The watchdog sidecar does not export them today (filed to fabrik-lib); a project that wants the alert serves the string itself — and alerts on `cost_budget_stale == 1` as well as on the cap.
 
-**Drop to rule-only mode** means:
+## Model Selection for Your Own LLM Callers
 
-- No LLM reasoning until the daily window resets (midnight UTC).
-- Sidecar continues to observe and emits Prometheus metrics.
-- Sidecar continues to alert based on **hard rule thresholds** (e.g., `OOMKilled` event → restart + Apprise; queue backlog > N → pause worker + Apprise).
-- Sidecar does NOT escalate "budget reached" itself as urgent — it's a warning. Owner sees it in the daily metrics review or via the `cost_budget_over_cap{project=...} 1` metric.
+For an LLM caller you write, climb the model ladder in `ai/00-ai-model-selection.md` § the dispatch ladder (Haiku first, each rung only when the previous one measurably falls short); falling back to deterministic rules when every provider fails or the cap is hit is your code's job. Wire this module into fabrik-lib `llm-dispatch` through its `budget_check` / `budget_record` hooks rather than hand-rolling the calls. Bound each task in code too — a turn or attempt limit per task (`--max-turns` on a `claude -p` leg) — so one stuck loop cannot burn the day's cap in minutes.
 
-The kill-switch is **per-project**. One project burning its cap does not affect any other project's LLM access.
+**Do not trust self-rated confidence alone:** research finds verbalized LLM confidence overconfident in absolute terms (expected calibration error around 0.1 for 70B+ models) and sensitive to how it is asked, so always layer deterministic triggers on top — `Traceback`, `SIGSEGV`, `OOMKilled`, `panic` in the logs escalate regardless of confidence.
 
 ## Cost-Per-Success Metric
 
-Recommended metric to surface in Grafana:
-
-```
-cost_per_resolved_incident_usd =
-    SUM(cost_usd) / COUNT(DISTINCT incident_id WHERE resolution='auto')
-over a rolling 7-day window per project_id.
-```
-
-This is the most honest measure of whether the watchdog is earning its keep. If a project's `cost_per_resolved_incident_usd` is climbing without a matching drop in owner-pages, the watchdog is spending without resolving — investigate.
-
-Alert when:
-
-- `cost_per_resolved_incident_usd > $0.50` per project (tune per project; SaaS with $10/mo customers needs tighter than RAG with $1k/mo customers).
-- `cost_per_resolved_incident_usd` rises >50% week-over-week with no change in incident volume.
+The honest measure of whether an LLM loop earns its keep is spend per resolved incident over a rolling 7 days, per project, and whether it climbs without a matching drop in owner pages. ⚠️ The data is not joinable today: `cost_ledger` has an `incident_id` column but the watchdog records costs without it, and resolutions (`auto` / `manual` / `expired`) live in the sidecar's local SQLite state, not in `cost_ledger` (filed to fabrik-lib). Until then, divide the day's `SUM(cost_usd)` by the sidecar's auto-resolved count. Once it is joinable, alert when it exceeds a per-project target (start at $0.50; tighter for low-ARPU products) or rises more than 50% week over week with flat incident volume.
 
 ## Portfolio Analytics
 
-Direct SQL against `cost_ledger` (sample queries in `cost-budget/README.md` and `cost-budget/schema_pg.sql`). Common shapes:
+Query `cost_ledger` directly (samples in the module's `schema_pg.sql` and README): monthly spend per project, Claude Code calls per project (`provider = 'claude-code'`), spend by model, most expensive incident (empty for watchdog rows until they carry `incident_id` — § Cost-Per-Success). Wire one Grafana dashboard and review it weekly.
 
-- Monthly spend per project.
-- Claude Code subscription burn per project (provider='claude-code' count).
-- Most expensive incident in last week.
-- Spend by model (which tier are we actually escalating to?).
+## Anti-Patterns
 
-Wire one Grafana dashboard with these queries; review weekly.
+- **Reading `stale=True` as "safe to spend".** It means the total is missing today's recorded spend — see Kill-Switch.
+- **Treating Claude Code rows as free.** They carry an API-price estimate; the USD cap counts them.
+- **Mixing test and production rows.** Prefix synthetic `project_id`s with `test-`; filter `WHERE project_id NOT LIKE 'test-%'`.
+- **Swallowing an exception from `record_cost()`.** It never raises on a `postgres-main` failure (it queues to the WAL); an exception is a local fault (disk full, schema missing) — fix it. Under `llm-dispatch` the dispatcher swallows it with a `cost record failed` warning: alert on that warning.
+- **Bypassing the check "just this once".** Raise the spec cap instead.
+- **Sharing one `project_id` between the watchdog and a feature's own LLM calls.** Use distinct ids (`myproject`, `myproject-llm-feature`) so each keeps its own cap and ledger rows.
+- **Using the accounting lane where an overshoot is unacceptable.** That is the reservation lane's job.
+- **Gating one provider.** With `llm-dispatch`, a `budget_check` that refuses `claude-cli` sends the call down the METERED OpenRouter leg — it redirects the spend instead of stopping it. The hook must refuse EVERY provider when `over_cap or stale`, and it fails open on an exception, so it must never raise.
 
-## Anti-Patterns (what NOT to do)
-
-- **Calling the expensive tier unconditionally.** Tier 1 first, every time. Defeats the budget purpose if you skip it.
-- **Ignoring `state.stale=True`.** Means postgres-main was unreachable when caps were computed. Treat the WAL-only cap as authoritative (it has every uncommitted call); do NOT assume "well, the real cap is lower, let me spend." That's how you discover the daily cap was already breached when postgres returns.
-- **Mixing test invocations with production rows.** Use a `project_id` prefix of `test-` for synthetic events; filter portfolio queries with `WHERE project_id NOT LIKE 'test-%'`.
-- **Catching exceptions from `record_cost()` and skipping.** `record_cost()` is fail-open by design — it never raises on postgres-main failure (just queues to WAL). If you ARE getting an exception, it's a WAL-local failure (disk full, schema missing) — a real bug to fix, not to swallow.
-- **Bypassing `check_caps()` "just this one time" for an important incident.** Cap-bypass turns into the default real fast. If you genuinely need more budget for a project, raise the spec config — don't bypass the function.
-- **Mixing the watchdog's cost-budget with a host project's own LLM cost tracking.** They can both write to the same `cost_ledger`; use different `project_id` values (e.g., `myproject` and `myproject-llm-feature`) to keep them separable.
-
-## Worked Example — Tier Escalation
-
-Watchdog observes an OOM on `my-saas`:
+## Worked Example — `llm-dispatch` Hooks on the Accounting Lane
 
 ```python
-state = cb.check_caps(pg_conn=pg, wal_path=wal, project_id="my-saas",
-                     daily_usd_cap=1.0, daily_invocations_cap=200)
-if cb.drop_to_rule_only_mode(state):
-    return self_heal_via_rules(incident)  # restart and alert; no LLM
+from libs.cost_budget import cost_budget as cb
 
-# Tier 1: cheap model first.
-diag = call_claude_code_haiku(incident_context, output_format="structured")
-cb.record_cost(pg_conn=pg, wal_path=wal, event=CostEvent(
-    project_id="my-saas",
-    provider="claude-code",
-    model="claude-haiku-4-5",
-    in_tokens=diag.in_tokens,
-    out_tokens=diag.out_tokens,
-    cost_usd=0.0,  # subscription
-    incident_id=incident.id,
-))
+PROJECT = "my-saas-summarizer"
 
-# Heuristic escalation regardless of confidence.
-needs_escalation = (
-    diag.confidence < 0.7
-    or any(s in incident.logs for s in ("Traceback", "SIGSEGV", "OOMKilled"))
-)
-if not needs_escalation:
-    return execute_tier_a_action(diag.action)
+def budget_check(provider: str) -> bool:
+    # Called by llm-dispatch before EACH provider leg. Refuse all of them together,
+    # and never raise — an exception here fails OPEN.
+    try:
+        state = cb.check_caps(pg_conn=pg, wal_path=wal, project_id=PROJECT,
+                              daily_usd_cap=2.0, daily_invocations_cap=500,
+                              invocations_provider="claude-cli")
+        return not (cb.drop_to_rule_only_mode(state) or state.stale)
+    except Exception:
+        return False
 
-# Tier 2: expensive model.
-diag = call_claude_code_sonnet(incident_context, output_format="structured")
-cb.record_cost(pg_conn=pg, wal_path=wal, event=CostEvent(
-    project_id="my-saas",
-    provider="claude-code",
-    model="claude-sonnet-4-6",
-    in_tokens=diag.in_tokens,
-    out_tokens=diag.out_tokens,
-    cost_usd=0.0,
-    incident_id=incident.id,
-))
-
-if diag.action_tier in ("A",):
-    return execute_tier_a_action(diag.action)
-elif diag.action_tier in ("B",):
-    if owner_opted_in_tier_b(project_id="my-saas"):
-        return execute_tier_b_action(diag.action)
-    # Otherwise Tier B requires owner approval → escalate (no autonomous action).
-
-# Tier C or no autonomous action possible.
-return escalate_to_owner_via_apprise(diag.reason)
+def budget_record(provider: str, model: str, usage: dict, cost_usd: float) -> None:
+    # provider is "claude-cli" or "openrouter"; llm-dispatch calls this on SUCCESS only.
+    cb.record_cost(pg_conn=pg, wal_path=wal, event=cb.CostEvent(
+        project_id=PROJECT, provider=provider, model=model,
+        in_tokens=usage.get("input_tokens", usage.get("prompt_tokens", 0)),      # Claude / OpenRouter keys
+        out_tokens=usage.get("output_tokens", usage.get("completion_tokens", 0)),
+        cost_usd=cost_usd,                 # Claude Code's estimate — it counts toward the USD cap
+        incident_id=current_request_id.get(),   # a contextvar you set per request; the hook carries no id
+    ))
 ```
 
-This flow keeps the cheap tier as the default, escalates only when needed, and records every call so portfolio analytics know where the money (or subscription burn) went.
+In `budget_check`, pass `invocations_provider="claude-cli"` — the string these rows carry. `llm-dispatch` raises on a failed call before it records, so a failed call's spend (a `--max-turns` exit, say) never reaches the ledger: leave headroom in the cap (filed to fabrik-lib).
+
+Pass both as the dispatcher's `budget_check` / `budget_record` hooks, start the ladder at Haiku, and escalate only on a measured shortfall or a deterministic trigger.

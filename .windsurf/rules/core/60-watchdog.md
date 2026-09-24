@@ -13,7 +13,7 @@ currency_pass: 2026-09-02
 # Watchdog Contract
 
 **Activation:** Glob — watchdog spec field, sidecar source, emitter library, related state.db / emitter_inbox / cost_ledger files.
-**Purpose:** Per-project AI sysadmin sidecar that diagnoses anomalies via Claude Code (subprocess) and dispatches scoped remediations. Four tiers: A auto, B opt-in, C escalate, D code-remediation (opt-in, human-gated). Bounded by `WatchdogConfig` budget caps and a deadman timer.
+**Purpose:** Per-project AI sysadmin sidecar that diagnoses anomalies via Claude Code (subprocess) and dispatches scoped remediations. Four tiers: A auto, B opt-in, C escalate, D code-remediation (opt-in, human-gated). Bounded by `WatchdogConfig` budget caps on the ops-only path (Tier D is not — see Operating loop step 4) and a deadman timer.
 
 ---
 
@@ -64,14 +64,14 @@ Existing specs without a `watchdog:` block inherit the default and don't break.
   1. Snapshot main container (logs + inspect + restart count).
   2. Rule-pass for OOM/panic/traceback/5xx-spike.
   3. Drain `emitter_inbox` (events from main app via vendored emitter).
-  4. Per incident: cost-cap check → LLM diagnose (Claude Code primary, OpenRouter fallback) → action dispatch → **if code-class and Tier-D enabled: generate+test fix → Telegram-gate → apply via deploy adapter → verify/rollback → record**; else record → escalate if Tier C.
+  4. Per incident: cost-cap check (ops-only path — see the ⚠️ below) → LLM diagnose (Claude Code primary, OpenRouter fallback) → action dispatch → **if code-class and Tier-D enabled: generate+test fix → Telegram-gate → apply via deploy adapter → verify/rollback → record**; else record → escalate if Tier C. ⚠️ With `auto_code_fix` on, the coordinator diagnoses with no cap check and records neither the diagnosis nor its fix runs — the daily caps do not bound Tier D (`core/cost-budget.md` § The Watchdog's Caps; filed to fabrik-lib).
   5. Deadman: any unacked Tier C past `deadman_timeout_seconds` (default 300) → `docker restart <main>` + Apprise re-alert with `[DEADMAN-TIMEOUT]` prefix.
 
 ---
 
 ## Action allow-list (Tier A / B / C / D)
 
-**Tier A** — automatic, no opt-in needed. Bounded by `per_incident_budget_usd` (default 0.25) and `daily_invocations_cap`.
+**Tier A** — automatic, no opt-in needed. Bounded by the daily caps (`daily_budget_usd`, `daily_invocations_cap`) on the ops-only path; `per_incident_budget_usd` is accepted and ignored (§ Cost behavior).
 
 | Action | What | Guards |
 |---|---|---|
@@ -168,10 +168,10 @@ Every apply/rollback is written to the `deploys` table (and the approval to `app
 
 ## Cost behavior
 
-- **Claude Code returns `total_cost_usd` directly** in its `--output-format json` envelope; the sidecar records that value. Subscription-mode burn shows up as `cost_usd=0.0` but token counts still flow into `daily_invocations_cap`.
-- **OpenRouter** carries real per-token dollar cost; recorded verbatim via `usage.include=true` in the response envelope.
+- **Claude Code returns `total_cost_usd` directly** in its `--output-format json` envelope; the sidecar records that value — a list-price estimate on a subscription, not 0 — so it counts toward `daily_budget_usd`; `daily_invocations_cap` counts calls (`core/cost-budget.md` § What the Ledger's Dollars Mean).
+- **OpenRouter** carries real per-token dollar cost; OpenRouter returns usage and cost on every response (the old `usage.include` flag is deprecated and has no effect).
 - **Per-incident cost.** ⚠️ NOT enforced by a `--max-budget-usd` flag — that is explicitly banned (`llm_client.py`: *"no $ caps on sysadmin"*, per the operator directive that per-call caps break the diagnose loop), and `per_incident_cap_usd` is accepted for API compatibility but not enforced at the call site. Spend is OBSERVED (`total_cost_usd` from the Claude envelope) and bounded by the daily caps, not clipped mid-incident. OpenRouter fallback timeout is 60s.
-- **`daily_budget_usd`** + **`daily_invocations_cap`** enforced by `cost_budget.check_caps`; over-cap routes the incident to rule-only escalation (no LLM call) and tags the Apprise alert with `(BUDGET-CAP)`.
+- **`daily_budget_usd`** + **`daily_invocations_cap`** enforced by `cost_budget.check_caps` on the ops-only path; over-cap routes the incident to rule-only escalation (no LLM call) and tags the Apprise alert with `(BUDGET-CAP)`.
 
 ---
 
