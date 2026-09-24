@@ -55,17 +55,35 @@ def test_template_has_the_paragraph_in_both_final_output_copies() -> None:
         _work_paragraph(section)
 
 
-def test_three_copies_identical_except_hub_prefix_on_the_decision_id() -> None:
-    hub = _work_paragraph(_sections(HUB)[0])
-    copies = [_work_paragraph(s) for s in _sections(TEMPLATE)]
-    assert "(D-392)" in hub and "hub D-392" not in hub
-    for copy in copies:
-        assert "(hub D-392)" in copy
-        assert copy.replace("(hub D-392)", "(D-392)") == hub
+# The canonical text, pinned HERE so an identical drift in all three copies still reds. COBRA: the
+# cheapest green after a wording change is to paste the new wording below; that edit is a visible
+# change of meaning in review, which is the point of pinning it.
+_CANONICAL = (
+    "**Work items.** A repo with a `.fabrik/work/` store keeps its open work there "
+    "(`python3 scripts/work.py`; `docs/reference/work-tracking.md`): `NEXT:` names the item id "
+    "(`W-` and 8 lowercase hex) when one exists, a DECISION block the Stop hook accepts becomes an "
+    "`awaiting-operator` item on its own, and the agent the operator answers closes it with "
+    '`work.py answer <id> --note "<their words>"`. Item files are ordinary files: commit the ones '
+    "your verbs changed with your task; the item a `NEXT:` line names is updated at the Stop and "
+    "rides your next commit. `NEXT: none — terminal` stays legal and nothing counts, scores or "
+    "rewards items (D-392, D-394)."
+)
 
 
-def test_paragraph_names_the_answer_verb_and_keeps_next_none_legal() -> None:
-    hub = _work_paragraph(_sections(HUB)[0])
-    assert "work.py answer <id> --note" in hub
-    assert "`NEXT: none — terminal` stays legal" in hub
-    assert "`awaiting-operator`" in hub
+def _template_form(hub: str) -> str:
+    """The two sanctioned substitutions: the fleet sync never ships the hub doc, so projects get
+    its absolute hub path; and a hub decision id carries the `hub ` prefix in the fleet copy."""
+    return hub.replace(
+        "`docs/reference/work-tracking.md`", "`/opt/fabrik/docs/reference/work-tracking.md`"
+    ).replace("(D-392, D-394)", "(hub D-392, hub D-394)")
+
+
+def test_hub_copy_equals_the_pinned_canonical_text() -> None:
+    assert _work_paragraph(_sections(HUB)[0]) == _CANONICAL
+
+
+def test_each_template_copy_equals_canonical_after_the_two_sanctioned_substitutions() -> None:
+    expected = _template_form(_CANONICAL)
+    assert expected != _CANONICAL, "a substitution no longer applies to the canonical text"
+    for copy in (_work_paragraph(s) for s in _sections(TEMPLATE)):
+        assert copy == expected

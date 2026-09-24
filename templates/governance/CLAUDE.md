@@ -648,11 +648,12 @@ NEXT: <the successor: exact command · the operator decision awaited — see DEC
 The footer is the manner, not the machinery: it never substitutes for the 7-line block on a task-completing response, and a footer `NEXT:` naming undispatched own-session work is the same checkpoint-stall as a bare undispatched block `NEXT:` (same rule, same hook). **`DONE:`/`NEXT:` discipline:** `DONE:` states only what actually happened (commit hashes / files / verdicts — never "mostly done"); `NEXT:` names the successor precisely enough to run without re-derivation — the exact command + argument, the exact operator decision, or an explicit `none — terminal`. A vague `NEXT:` ("continue", "more testing") is a missing line. If `NEXT:` names work THIS agent owns in THIS session, it is dispatched, not narrated — the block is a TASK terminator, so emitting it while own-session work remains is itself the checkpoint-stall (the promise-guard catches the phrasing-level variants — "I'll run it", "the pass is owed" — but a bare undispatched `NEXT:` is caught by THIS rule, not by the hook).
 
 **Work items.** A repo with a `.fabrik/work/` store keeps its open work there (`python3 scripts/work.py`;
-`docs/reference/work-tracking.md`): `NEXT:` names the item id (`W-` and 8 hex) when one exists, a
+`/opt/fabrik/docs/reference/work-tracking.md`): `NEXT:` names the item id (`W-` and 8 lowercase hex) when one exists, a
 DECISION block the Stop hook accepts becomes an `awaiting-operator` item on its own, and the agent the
 operator answers closes it with `work.py answer <id> --note "<their words>"`. Item files are ordinary
-files: commit the ones your verbs or your `NEXT:` lines changed with your task. `NEXT: none — terminal` stays legal and
-nothing counts, scores or rewards items (hub D-392).
+files: commit the ones your verbs changed with your task; the item a `NEXT:` line names is updated at the
+Stop and rides your next commit. `NEXT: none — terminal` stays legal and nothing counts, scores or rewards
+items (hub D-392, hub D-394).
 
 **⚠️ `NEXT: operator decision` HAS A BAR — it was the contract's only UNGUARDED exit, which is exactly why it gets abused.** Compare the three sanctioned `NEXT:` values: `BLOCKED:` has three named causes and a required format; a named command obliges you to RUN it; `operator decision` is legitimate only behind a **DECISION block**, written unfenced — a fenced example, like the two below, never exempts a turn:
 
@@ -736,11 +737,12 @@ exact operator decision, or `none — terminal`. A vague `NEXT:` is a missing li
 owns in THIS session, it is dispatched, not narrated.
 
 **Work items.** A repo with a `.fabrik/work/` store keeps its open work there (`python3 scripts/work.py`;
-`docs/reference/work-tracking.md`): `NEXT:` names the item id (`W-` and 8 hex) when one exists, a
+`/opt/fabrik/docs/reference/work-tracking.md`): `NEXT:` names the item id (`W-` and 8 lowercase hex) when one exists, a
 DECISION block the Stop hook accepts becomes an `awaiting-operator` item on its own, and the agent the
 operator answers closes it with `work.py answer <id> --note "<their words>"`. Item files are ordinary
-files: commit the ones your verbs or your `NEXT:` lines changed with your task. `NEXT: none — terminal` stays legal and
-nothing counts, scores or rewards items (hub D-392).
+files: commit the ones your verbs changed with your task; the item a `NEXT:` line names is updated at the
+Stop and rides your next commit. `NEXT: none — terminal` stays legal and nothing counts, scores or rewards
+items (hub D-392, hub D-394).
 
 **⚠️ `NEXT: operator decision` HAS A BAR — it was the contract's only UNGUARDED exit, which is exactly why it gets abused.** Compare the three sanctioned `NEXT:` values: `BLOCKED:` has three named causes and a required format; a named command obliges you to RUN it; `operator decision` is legitimate only behind a **DECISION block**, written unfenced — a fenced example, like the two below, never exempts a turn:
 
