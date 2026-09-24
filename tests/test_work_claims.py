@@ -945,3 +945,22 @@ def test_an_item_id_is_named_only_between_non_word_characters(tmp_path):
     b = _add(repo, env, title="b")
     sha = _evidence(repo, env, f"feat: closes {b}.")
     _ok(["done", b, "--evidence", sha], env, repo)
+
+
+def test_a_marker_that_names_no_tree_is_never_crash_residue(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item = _add(repo, env)
+    for marker_tree in (None, "", "   "):
+        closed = _shared(repo) / "closed"
+        closed.mkdir(parents=True, exist_ok=True)
+        marker = closed / f"{item}.json"
+        data = {"at": time.time(), "id": item, "status": "done"}
+        if marker_tree is not None:
+            data["tree"] = marker_tree
+        marker.write_text(json.dumps(data), encoding="utf-8")
+        assert item not in _ready_ids(repo, env), marker_tree
+        _add(repo, env, title="a locked write, run from the repo root")
+        assert marker.exists(), marker_tree
+        r = run(["claim", item, "--session", "S"], env, repo)
+        assert r.returncode != 0 and "another working tree" in r.stderr, r.stderr

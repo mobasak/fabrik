@@ -730,8 +730,11 @@ def _base_statuses(repo: Path, ids: list[str]) -> dict[str, str]:
 def _is_residue(repo: Path, item_id: str, marker: dict) -> bool:
     """A marker THIS tree wrote over an item this tree still reads open: the writer died between
     the marker write and the item write (``_close`` writes the marker first). It closes nothing."""
+    tree = str(marker.get("tree") or "").strip()
+    if not tree:  # only a marker that NAMES this tree can be its residue — never Path("") = cwd
+        return False
     try:
-        if Path(str(marker.get("tree") or "")).resolve() != repo:
+        if Path(tree).resolve() != repo:
             return False
         own = json.loads(_item_path(repo, item_id).read_text(encoding="utf-8"))
     except (OSError, ValueError, WorkError):
