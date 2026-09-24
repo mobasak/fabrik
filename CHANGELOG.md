@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — spec: work tracking for every repo — one item store, a distributor, claims, awaiting decisions never folded (2026-09-24)
+- `docs/superpowers/specs/2026-09-24-work-tracking-design.md`, CONVERGED after `/fabrik-spec-review` (4 passes, confirmed 30 → 9 → 5 → 0), awaiting the operator's design approval. Specs and plans keep their own state; backlog rows, awaited operator decisions and agents' next actions become one JSON item per file under `.fabrik/work/`; live claims with a lease and a fencing token sit in the git common directory so worktree agents share them; `scripts/work.py` (to be built) gives the distributor `assign` and workers `ready`/`claim`/`done`; the backlog becomes a rendered block. Grounded in measured drift across 25 repos and live external practice.
+
 ### Fixed — A governance-sync trigger row that could never fire, a denominator that did not state its prune, and a stale rag-search cite (2026-09-24)
 
 - `.pre-commit-config.yaml`'s governance-sync filter named `scripts/kilo_47_agents_final.json`, which is gitignored and untracked, so no commit could ever carry it (mail 01M333F0C27K6N9XADKSVH4NAR). The row is gone, and `tests/test_sync_trigger_coverage.py` now fails on any filter row, flat or inside a one-level group, that names a gitignored path. It also fails loudly outside a git checkout instead of reading `git check-ignore`'s rc 128 as clean.
