@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_kaizen_collect_v2.py, tests/fixtures/kaizen-golden/ | none
+# AFTER-EDIT: tests/test_kaizen_collect_v2.py, tests/fixtures/kaizen-golden/, docs/workstation/kaizen.md
 """Kaizen M1 collector v2 — derived facts, versioned metrics, paired-counter registry.
 
 WHY THIS REPLACES kaizen_collect.py / kaizen_metrics.py
@@ -1553,7 +1553,9 @@ def compute_metrics(
         out["premature_stop_rate"] = MetricResult(
             id="premature_stop_rate",
             cell=_pct(premature, stops),
-            detail="stop_block cause in " + _PREMATURE_CAUSES_TEXT + " over all stop verdicts"
+            detail="stop_block cause in "
+            + _PREMATURE_CAUSES_TEXT
+            + " over all stop verdicts"
             + _gap_note("premature_stop_rate"),
             value=premature / stops,
             numerator=premature,
@@ -2580,11 +2582,53 @@ def send_mail(repo_root: Path, body: str) -> bool:
     return ok
 
 
-def _compose_mail(day: dt.date, metrics: dict[str, MetricResult], holes_note: str) -> str:
+def _prior_readings(mid: str, mdef: dict | None, day: str, state: Path, n: int = 2) -> str:
+    """Up to ``n`` PUBLISHED readings of the CURRENT series version before ``day``, newest
+    first, each with its own cell — a ratio cell carries its denominator, so a reader can tell
+    a moved metric from a moved population (a day reading alone was read as a trend four times,
+    fleet 01M37TRF…). A version bump starts a new file, so the history resets there.
+    TOTAL by contract: the mail is fail-soft (its row is already on disk), so any unreadable
+    series, row or registry entry yields a stated reason, never an exception or a guess."""
+    if not mdef:
+        return "no series registered"
+    try:
+        text = series_path(mid, int(mdef["version"]), state).read_text(
+            encoding="utf-8", errors="replace"
+        )
+    except OSError:
+        return "no prior reading"
+    except Exception as exc:  # a malformed registry entry — say so, never cost the mail
+        return f"unavailable ({type(exc).__name__})"
+    rows = []
+    for line in text.splitlines():
+        try:
+            row = json.loads(line)
+        except (ValueError, RecursionError):
+            continue
+        # the same shape guard as _series_days: an ISO day string, strictly before today
+        if not isinstance(row, dict) or not isinstance(row.get("cell"), str) or not row["cell"]:
+            continue
+        d = row.get("day")
+        if isinstance(d, str) and len(d) >= 10 and d < day:
+            rows.append((d, row["cell"]))
+    rows.sort()
+    return " · ".join(f"{d[5:10]} {c}" for d, c in rows[-n:][::-1]) or "no prior reading"
+
+
+def _compose_mail(
+    day: dt.date,
+    metrics: dict[str, MetricResult],
+    holes_note: str,
+    reg: dict[str, dict] | None = None,
+    state: Path | None = None,
+) -> str:
     lines = [f"# Kaizen daily collection — {day}", ""]
     for mid, m in metrics.items():
         mark = "" if m.measurable else "  [NOT MEASURED]"
         lines.append(f"- {mid}: {m.cell}{mark}")
+        if reg is not None:
+            prior = _prior_readings(mid, reg.get(mid), day.isoformat(), state or state_dir())
+            lines.append(f"  - previous: {prior}")
         if m.detail:
             lines.append(f"  - {m.detail}")
     if holes_note:
@@ -2863,7 +2907,7 @@ def daily(
     )
     if not no_mail:
         note = "" if holes is not None else f"hole_count {DASH} — {holes_reason}"
-        send_mail(root, _compose_mail(day, metrics_day, note))
+        send_mail(root, _compose_mail(day, metrics_day, note, full_reg, st))
     return 0
 
 

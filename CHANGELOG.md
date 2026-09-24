@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The daily kaizen mail shows each metric's two prior readings, so a day's number is never read as a trend on its own (2026-09-24)
+
+- `scripts/sysadmin/kaizen_collect_v2.py::_compose_mail` prints `previous: <MM-DD> <cell> · <MM-DD> <cell>` under each metric: up to two earlier readings of its current series version. A ratio cell carries its denominator, so a moved metric reads apart from a moved population. The four daily collections of 2026-09-19..22 were each read against a single day, and terminator_spam's 3.29 looked like a spike until the series showed it rode n=7 (fleet 01M37TRF5XNSA3M6NQ6AFS0WAE).
+- The reader is total: a malformed series row, an undecodable byte or a bad registry entry is skipped or named, and never costs the mail. Tests cover the composer, the malformed shapes and the `daily()` call site; each is red on its own mutant.
+
 ### Fixed — Stop-and-compaction docs match the merged hook: line cites, two event rows, the DECISION block's grammar (2026-09-24)
 - `/fabrik-docs-review` (T06 step 6 of plan `2026-09-23-plan-1-stop-and-compaction`), two partitioned passes, 27 → 0: `docs/workstation/hooks-index.md`'s Stop row cited four `final_gate_stop.py` defs 36 lines stale; `docs/reference/thread-anchors.md` cited three `thread_anchor.py` lines off by 1–3 and 42 tests for 43; `docs/workstation/kaizen-event-stream.md` gains the `anchor_harvest` and `stop_allowed_quota_hold` rows.
 - `CLAUDE.md` and both § FINAL OUTPUT copies of `templates/governance/CLAUDE.md`: the DECISION block names exactly ONE ground (the heading's `gate|underivable|owned` literal is refused), `underivable` states what changes before a `searched:` that cites a path, command, D-id or `/fabrik-*`, and an `asked:` quote ends in its `?` — each rule the hook already enforced, now stated; `tests/test_governance_template_split.py` pins all three (each seen red on deletion). Four hook-side enforcement gaps the review found are routed to `docs/STRATEGIC_BACKLOG.md`.

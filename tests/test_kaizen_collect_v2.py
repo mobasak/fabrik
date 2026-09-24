@@ -3747,3 +3747,77 @@ def test_a_handoff_close_is_a_sanctioned_verdict_not_an_unknown_one(tmp_path: Pa
     # NOT-QUIET is not a success: it must never inflate the `done` count.
     assert row["runs"]["done"] == 0, row["runs"]
     assert row["runs"]["handoff"] == 1, row["runs"]
+
+
+# ── the daily mail shows the prior readings WITH their denominators (fleet 01M37TRF5XNSA3M6NQ6AFS0WAE) ──
+# A day reading alone was read as a trend: terminator_spam 3.29 looked like a spike until the series
+# showed it rode n=7. Each metric now carries its two prior published cells, so a moved metric and a
+# moved population are told apart in one read.
+
+
+def test_the_daily_mail_carries_the_two_prior_readings_with_their_denominators(
+    tmp_path: Path,
+) -> None:
+    reg = {"terminator_spam": {"version": 3, "hash": "h"}}
+    path = kc.series_path("terminator_spam", 3, tmp_path)
+    path.parent.mkdir(parents=True)
+    rows = [
+        ("2026-09-19", "1.38 (18/13)"),
+        ("2026-09-21", "3.29 (23/7)"),
+        ("2026-09-20", "2.71 (19/7)"),
+        ("2026-09-22", "1.28 (23/18)"),  # today: already published before the mail composes
+    ]
+    path.write_text(
+        "".join(json.dumps({"day": d, "cell": c}) + "\n" for d, c in rows) + "not json\n"
+    )
+    metrics = {"terminator_spam": kc.MetricResult(id="terminator_spam", cell="1.28 (23/18)")}
+
+    body = kc._compose_mail(dt.date(2026, 9, 22), metrics, "", reg, tmp_path)
+
+    assert "  - previous: 09-21 3.29 (23/7) · 09-20 2.71 (19/7)\n" in body
+    assert "1.38 (18/13)" not in body, "only the TWO prior readings"
+
+
+def test_a_metric_with_no_prior_series_says_so_instead_of_inventing_one(tmp_path: Path) -> None:
+    metrics = {"hole_count": kc.MetricResult(id="hole_count", cell="48")}
+    body = kc._compose_mail(
+        dt.date(2026, 9, 22), metrics, "", {"hole_count": {"version": 3, "hash": "h"}}, tmp_path
+    )
+    assert "  - previous: no prior reading\n" in body
+    body = kc._compose_mail(dt.date(2026, 9, 22), metrics, "", {}, tmp_path)
+    assert "  - previous: no series registered\n" in body
+
+
+def test_malformed_series_rows_never_cost_the_mail(tmp_path: Path) -> None:
+    """The mail is fail-soft: rows with no day, a non-string day, an undecodable byte or a
+    pathologically nested line are skipped, and a malformed registry entry is named."""
+    path = kc.series_path("m", 1, tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_bytes(
+        b'{"cell": "x"}\n{"day": 1, "cell": "y"}\n{"day": "2", "cell": "z"}\n\xff\xfe\n'
+        + b"[" * 100000
+        + b'\n{"day": "2026-09-20", "cell": "1.0 (1/1)"}\n'
+    )
+    metrics = {"m": kc.MetricResult(id="m", cell="2.0 (2/1)")}
+    body = kc._compose_mail(dt.date(2026, 9, 22), metrics, "", {"m": {"version": 1, "hash": "h"}}, tmp_path)
+    assert "  - previous: 09-20 1.0 (1/1)\n" in body
+    body = kc._compose_mail(dt.date(2026, 9, 22), metrics, "", {"m": {"version": "x"}}, tmp_path)
+    assert "  - previous: unavailable (ValueError)\n" in body
+
+
+def test_the_daily_pass_mails_the_prior_readings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The call site, not just the composer: daily() hands the registry and state through."""
+    sent: list[str] = []
+    monkeypatch.setattr(kc, "send_mail", lambda root, body: sent.append(body) or True)
+    args = _daily_args(tmp_path)
+    args["no_mail"] = False
+    day = dt.date.today() - dt.timedelta(days=1)
+    prior = (day - dt.timedelta(days=1)).isoformat()
+    ver = kc.registry()["hole_count"]["version"]
+    path = kc.series_path("hole_count", int(ver), args["state"])
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"day": prior, "cell": "7"}) + "\n", encoding="utf-8")
+
+    assert kc.daily(day, **args) == 0
+    assert len(sent) == 1
+    assert f"  - previous: {prior[5:]} 7\n" in sent[0]

@@ -230,7 +230,9 @@ claimable at plan-execution end; the gate review is a named operator-triggered f
 ## How the analysis half is triggered
 
 Unchanged from v1 in shape: after the row is on disk — in that order; a mail failure must never
-cost the measurement — the collector mails the metrics with every `—` reason to the shared
+cost the measurement — the collector mails the metrics with every `—` reason, and beside each metric up to two prior
+readings of its current series version (`previous: 09-21 3.29 (23/7) · 09-20 2.71 (19/7)`; a ratio cell carries its
+denominator, so a moved metric reads apart from a moved population; a version bump restarts the history), to the shared
 `fabrik` mailbox — ONE ADDRESSED `ack:required` obligation per kaizen beat
 (`scripts/mail.py send --to fabrik --to-agent infra|fleet --kind request`, two sends; the
 addressing guard refuses ownerless obligations, and each beat's mail IS its pass trigger;
@@ -379,5 +381,6 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/sysadmin/archived/kaizen_metrics.py`
 - `scripts/sysadmin/feedback_relay.py`
 - `scripts/sysadmin/kaizen_collect.py`
+- `scripts/sysadmin/kaizen_collect_v2.py`
 - `scripts/sysadmin/kaizen_digest.py`
 <!-- END related-scripts -->
