@@ -1450,7 +1450,10 @@ def _work_sync_row() -> tuple[str, bool, str]:
     if not script.exists():
         return (WORK_SYNC_CHECK, True, f"⚠ check not present, skipping: {rel}")
     code, out = run_cmd([PYTHON, str(script), "sync", "--check"], timeout=TIMEOUTS["work_sync"])
-    if code == 1 and _BLOCKING_DRIFT.search(out):
+    # work.py labels classes 2-6 `(blocking)` even in the advisory window, so a crash AFTER such
+    # a line is a broken run, not the blocking verdict.
+    crashed = "Traceback (most recent call last):" in out
+    if code == 1 and _BLOCKING_DRIFT.search(out) and not crashed:
         return (WORK_SYNC_CHECK, False, out)
     if code == 0:
         drift = [ln for ln in out.splitlines() if ln.startswith("DRIFT ")]
@@ -1461,9 +1464,16 @@ def _work_sync_row() -> tuple[str, bool, str]:
                 "\n".join(["⚠ work-store drift (advisory until blocking):", *drift]),
             )
         return (WORK_SYNC_CHECK, True, out)
+    # A run that never delivered a verdict is a SKIP (` (NOT RUN` → `skipped_checks`, roster
+    # `skipped`), never a pass. The ⚠ names the LAST line that is not an import-fallback notice —
+    # the real error (or a traceback's exception line), not work.py's benign preamble.
     why = "timed out" if code == RC_TIMEOUT else f"exit {code}"
-    first = next((ln for ln in out.splitlines() if ln.strip()), "no output")
-    return (WORK_SYNC_CHECK, True, f"⚠ {WORK_SYNC_CHECK} could not run ({why}): {first}")
+    lines = [ln for ln in out.splitlines() if ln.strip()]
+    real = [ln for ln in lines if "local regex fallback" not in ln]
+    last = (real or lines or ["no output"])[-1].strip()
+    row = f"{WORK_SYNC_CHECK} (NOT RUN — {why})"
+    _CHECK_SCRIPTS[row] = rel
+    return (row, True, f"⚠ {WORK_SYNC_CHECK} could not run ({why}): {last}")
 
 
 def run_consistency_checks(

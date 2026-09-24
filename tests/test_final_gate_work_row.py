@@ -128,7 +128,7 @@ def _rows(mod: Any, tier: int = 2) -> list[tuple[str, bool, str]]:
 
 
 def _row(rows: list[tuple[str, bool, str]]) -> tuple[str, bool, str]:
-    found = [r for r in rows if r[0] == ROW]
+    found = [r for r in rows if r[0] == ROW or r[0].startswith(f"{ROW} (NOT RUN")]
     assert len(found) == 1, f"expected one {ROW!r} row, got {[r[0] for r in rows]}"
     return found[0]
 
@@ -190,9 +190,10 @@ def test_an_old_work_py_without_sync_passes_with_a_warning(tmp_path, env):
     _fake_work(repo, "sys.stderr.write(\"work.py: error: invalid choice: 'sync'\\n\"); sys.exit(2)")
     mod = _gate(repo)
 
-    _name, ok, out = _row(_rows(mod))
+    name, ok, out = _row(_rows(mod))
 
     assert ok, out
+    assert name == f"{ROW} (NOT RUN — exit 2)"
     assert out.startswith(f"⚠ {ROW} could not run (exit 2): ")
 
 
@@ -202,10 +203,15 @@ def test_a_work_py_that_outlives_its_timeout_passes_with_a_warning(tmp_path, env
     mod = _gate(repo)
     monkeypatch.setitem(mod.TIMEOUTS, "work_sync", 1)
 
-    _name, ok, out = _row(_rows(mod))
+    rows = _rows(mod)
+    name, ok, out = _row(rows)
 
     assert ok, out
     assert out.startswith(f"⚠ {ROW} could not run (timed out): ")
+    # a row that never ran is a SKIP, never a pass: roster and skipped_checks both say so
+    assert name == f"{ROW} (NOT RUN — timed out)"
+    assert {"name": name, "outcome": "skipped"} in mod._check_roster(rows)
+    assert ROW in mod._summarize_skipped(rows)["skipped_checks"]
 
 
 def test_a_work_py_error_without_blocking_drift_passes_with_a_warning(tmp_path, env):
@@ -213,10 +219,41 @@ def test_a_work_py_error_without_blocking_drift_passes_with_a_warning(tmp_path, 
     _fake_work(repo, 'sys.stderr.write("work.py: not a git repository\\n"); sys.exit(1)')
     mod = _gate(repo)
 
+    name, ok, out = _row(_rows(mod))
+
+    assert ok, out
+    assert name == f"{ROW} (NOT RUN — exit 1)"
+    assert out == f"⚠ {ROW} could not run (exit 1): work.py: not a git repository"
+
+
+def test_a_traceback_after_a_blocking_drift_line_passes_with_a_warning(tmp_path, env):
+    """work.py labels classes 2-6 `(blocking)` even in the advisory window, so a crash after
+    printing one must not read as the blocking verdict."""
+    repo = _repo(tmp_path, env)
+    _fake_work(repo, 'print("DRIFT 3 (blocking)  x.md", flush=True); raise RuntimeError("boom")')
+    mod = _gate(repo)
+
+    name, ok, out = _row(_rows(mod))
+
+    assert ok, out
+    assert out == f"⚠ {ROW} could not run (exit 1): RuntimeError: boom"
+
+
+def test_the_warning_names_the_real_error_not_an_import_fallback_line(tmp_path, env):
+    repo = _repo(tmp_path, env)
+    fallback = "work: {} import failed (x) — using the local regex fallback for its grammar"
+    _fake_work(
+        repo,
+        f'sys.stderr.write("{fallback.format("check_plans")}\\n")\n'
+        f'sys.stderr.write("{fallback.format("check_plan_tickets")}\\n")\n'
+        'sys.stderr.write("work: git rev-parse failed\\n"); sys.exit(1)',
+    )
+    mod = _gate(repo)
+
     _name, ok, out = _row(_rows(mod))
 
     assert ok, out
-    assert out == f"⚠ {ROW} could not run (exit 1): work.py: not a git repository"
+    assert out == f"⚠ {ROW} could not run (exit 1): work: git rev-parse failed"
 
 
 def test_a_repo_with_no_store_passes_with_the_one_line_message(tmp_path, env):
