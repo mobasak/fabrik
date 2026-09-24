@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — The native Task list is shared across fleet accounts (2026-09-25)
+- `scripts/sysadmin/claude_rotate.py` (and its twin `scripts/aro-wake/claude_rotate.py`) links `tasks/` across account config dirs like `sessions/`, creating the canonical dir when the CLI has not made it yet (D-399). A real `tasks/` already in an account dir is reported by `--new-dir` and `--status` and never moved; `docs/workstation/claude-account-rotation.md` names the sixth shared dir. Existing accounts pick up the link when the operator re-runs `--new-dir <slug> <email>`.
+
 ### Added — Both contracts carry the work-items rule; the GATE-row citations T06 shifted are re-anchored (2026-09-24)
 - `CLAUDE.md` and both `§ FINAL OUTPUT` copies of `templates/governance/CLAUDE.md` gain one paragraph after the `DONE:`/`NEXT:` discipline: a repo with a `.fabrik/work/` store keeps its open work there, `NEXT:` names the item id (`W-` and 8 lowercase hex), an accepted DECISION block becomes an `awaiting-operator` item, `work.py answer <id> --note` closes it, item files your verbs changed ride your task's commit (the one a `NEXT:` line names is updated at the Stop and rides the next), and nothing counts or scores items (D-392, D-394). The fleet copies cite the doc as `/opt/fabrik/docs/reference/work-tracking.md` (D-411). The GATE row's `final_gate.py:N` citations in both contracts and 23 in `docs/workflows/FINAL_GATE_WORKFLOW.md`, shifted by T06's merge, re-anchored. Plan T08; review converged in 2 passes (5 → 0).
 
