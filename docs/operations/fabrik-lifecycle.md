@@ -74,7 +74,7 @@ When `fabrik apply` targets a service that already exists (`/opt/<name>/compose.
 
 1. **Compose.yaml** — for template/docker source: regenerated and written to VPS via SCP (**overwritten**). For git source: updated by `git pull` from the repo (deployer does not write compose.yaml). For local source: untouched (already exists at `source.path`)
 2. **`.env`** is read-merged:
-   - Reads existing `/opt/<name>/.env` from VPS
+   - Reads existing `/opt/<name>/.env` from VPS. A failed read of an existing `.env` (ssh error, refused sudo) aborts the deploy with a `DeployError` before anything is written, since rebuilding from spec + secrets alone would drop every registrar-injected var, `DATABASE_URL_OWNER` included. `inject_env()` follows the same rule. Only an absent `.env` builds from spec + secrets
    - Layers spec `env:` block values on top
    - Layers `ctx.secrets` on top (highest priority)
    - Writes merged result back
@@ -180,8 +180,8 @@ Understanding when `.env` is written helps predict whether your env vars will su
 | Event | .env touched? | Strategy | Registrar vars preserved? |
 |---|---|---|---|
 | `fabrik apply` (new) | Yes — written fresh | No existing file to read | N/A (first deploy) |
-| `fabrik apply` (existing) | Yes — read-merged | Read existing → layer spec → layer secrets | Yes |
-| `inject_env()` (redis/glitchtip registrar) | Yes — read-merged | Read existing → add new vars → write back + restart | Yes |
+| `fabrik apply` (existing) | Yes — read-merged | Read existing → layer spec → layer secrets; a failed read aborts, nothing written | Yes |
+| `inject_env()` (redis/glitchtip registrar) | Yes — read-merged | Read existing → add new vars → write back + restart; a failed read raises, nothing written | Yes |
 | `fabrik redeploy` | **No** | .env not touched | Yes (untouched) |
 | `fabrik redeploy --refresh-infra` | Maybe — only if registrar calls `inject_env()` | Read-merge | Yes |
 | `fabrik destroy` | N/A — file deleted with directory | — | — |

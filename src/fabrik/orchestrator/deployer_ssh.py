@@ -274,22 +274,7 @@ class SSHDeployer:
         _validate_name(name)
 
         with _target_vps_env(ctx):
-            try:
-                # The whole test runs INSIDE sudo: a refused sudo prints nothing (an
-                # unrecognised answer → raise) instead of the `|| echo absent` fallback
-                # that `sudo test -f X && … || echo absent` would print.
-                inner = f"[ -f {shlex.quote(f'/opt/{name}/.env')} ] && echo present || echo absent"
-                probe = _ssh(f"sudo sh -c {shlex.quote(inner)}", timeout=10).strip()
-                if probe == "absent":
-                    return {}
-                if probe != "present":
-                    raise DeployError(
-                        f"cannot read /opt/{name}/.env: unexpected probe answer {probe[:40]!r}"
-                    )
-                content = _ssh(f"sudo cat /opt/{name}/.env", timeout=10)
-            except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
-                raise DeployError(f"cannot read /opt/{name}/.env: {e}") from e
-        return _parse_env(content)
+            return _read_env_file(f"/opt/{name}", _ssh)
 
     def inject_env(self, ctx: DeploymentContext, env_vars: dict[str, str]) -> None:
         """Merge *env_vars* into the app's ``.env`` and restart.
@@ -659,13 +644,14 @@ class SSHDeployer:
         path = app_path or f"/opt/{name}"
         merged: dict[str, str] = {}
 
-        # Read existing .env if this is an update
+        # Read existing .env if this is an update. Fail CLOSED (D7 r1b, O7's class): a
+        # failed read of an EXISTING .env raises DeployError and the deploy aborts before
+        # anything is written — degrading to spec env + secrets rewrote .env without the
+        # registrar-injected keys, DATABASE_URL_OWNER (the only owner-password copy after
+        # an app-role cutover) included. An absent .env still builds from spec + secrets.
+        # An existing app is never a tracked resource, so the abort's rollback leaves it.
         if existing:
-            try:
-                existing_content = _ssh(f"sudo cat {path}/.env 2>/dev/null || echo ''", timeout=10)
-                merged = _parse_env(existing_content)
-            except RuntimeError:
-                pass
+            merged = _read_env_file(path, _ssh)
 
         # Layer spec env vars — but NEVER clobber a real, already-present value
         # with a spec PLACEHOLDER. Registrar-managed vars (DATABASE_URL,
@@ -828,6 +814,31 @@ def _format_env(env: dict[str, str]) -> str:
             value = '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
         lines.append(f"{key}={value}")
     return "\n".join(lines) + "\n" if lines else ""
+
+
+def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
+    """Parse ``{path}/.env`` on the current SSH target — ``{}`` ONLY when the file is
+    absent; any ssh/read failure or unrecognised probe answer raises :class:`DeployError`.
+
+    The one absent-vs-failed distinction shared by :meth:`SSHDeployer.read_env` (the
+    app-role decision and :meth:`~SSHDeployer.inject_env`'s merge) and
+    :meth:`SSHDeployer._build_env_content` (the deploy/redeploy merge).
+    """
+    env_path = f"{path}/.env"
+    try:
+        # The whole test runs INSIDE sudo: a refused sudo prints nothing (an
+        # unrecognised answer → raise) instead of the `|| echo absent` fallback
+        # that `sudo test -f X && … || echo absent` would print.
+        inner = f"[ -f {shlex.quote(env_path)} ] && echo present || echo absent"
+        probe = _ssh(f"sudo sh -c {shlex.quote(inner)}", timeout=10).strip()
+        if probe == "absent":
+            return {}
+        if probe != "present":
+            raise DeployError(f"cannot read {env_path}: unexpected probe answer {probe[:40]!r}")
+        content = _ssh(f"sudo cat {shlex.quote(env_path)}", timeout=10)
+    except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+        raise DeployError(f"cannot read {env_path}: {e}") from e
+    return _parse_env(content)
 
 
 def _write_file_to_vps(name: str, filename: str, content: str) -> None:
