@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the stop-and-compaction seams the whole-plan review found (2026-09-24)
+
+- `.claude/hooks/final_gate_stop.py`: an accepted DECISION block is stored for WHERE YOU ARE only when the Stop is allowed (a block in a message the same Stop blocks is never left open), and it is judged only from this turn's own last text entry, never from the previous turn's message. `anchor_harvest` and `stop_allowed_quota_hold` are registered kaizen events, and a test holds every event the hook emits registered.
+- `scripts/sysadmin/stop_mine.py` applies the hook's DECISION-block exemption and counts accepted blocks by ground (`decision_blocks_accepted`), so the V4 reading does not count legitimate gates as deferrals; `scripts/thread_anchor.py` prints a NEXT that only shares the newest thread's key; `docs/workstation/hooks-index.md` names both exemptions (the DECISION block and a line-start `BLOCKED:` header). Integration receipt: `docs/development/reviews/2026-09-23-plan-1-stop-and-compaction-review.md`.
+
 ### Added — `scripts/sysadmin/stop_mine.py`: the DEFERRAL backtest, sharing the Stop hook's vocabulary (2026-09-24)
 
 - The research miner is promoted to a maintained script: it replays every interactive turn end under `--root` (`--since`/`--until` inclusive UTC dates) and classifies it with the Stop hook's own `deferral_shape` / `_DEFER_RE`, imported by path — one vocabulary for the hook and the measurement. Turn ends close only at a real operator entry and headless turn ends are excluded per turn, as the hook decides; one unreadable file never stops the run. On the box's transcripts since 2026-08-09: 11,401 interactive turn ends, 3,397 (29.8%) end on a deferral — D1 2,843 · D2 185 · D3 359 · D4 10.

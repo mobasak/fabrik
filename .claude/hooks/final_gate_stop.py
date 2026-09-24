@@ -1761,6 +1761,42 @@ def _final_message_text(transcript_path: str) -> str:
     return ""
 
 
+def _this_turn_text(transcript_path: str) -> str:
+    """The LAST text-bearing assistant entry of THIS turn, or "" — the DECISION block's reader.
+
+    Walks back from the end, skipping textless (tool_use / thinking-only) assistant entries, and
+    STOPS at the first real operator row (`_operator_text`): a block this turn wrote before a
+    closing tool call is judged, a block from the previous turn never is (A-O2). Unlike
+    `_final_message_text` it never crosses the operator's prompt; unlike `_final_turn`'s text it
+    does not go blank when the turn ends on a textless entry."""
+    for line in reversed(_tail_lines(transcript_path) or []):
+        if '"type"' not in line:
+            continue
+        try:
+            entry = json.loads(line)
+        except Exception:
+            continue
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("type") == "user":
+            if _operator_text(entry):
+                return ""
+            continue
+        if entry.get("type") != "assistant":
+            continue
+        content = (entry.get("message") or {}).get("content")
+        if not isinstance(content, list):
+            continue
+        text = "\n".join(
+            str(b.get("text") or "")
+            for b in content
+            if isinstance(b, dict) and b.get("type") == "text"
+        )
+        if text.strip():
+            return text
+    return ""
+
+
 def _final_turn(transcript_path: str) -> tuple[str, list[dict]] | None:
     """(final assistant text, tool_use list of the final turn) or None on any gap.
 
@@ -2552,6 +2588,31 @@ def _deferral_stall(
     return f"deferral:{hit[0]}", hit[1]
 
 
+def _store_decision(ta: Path | None, sid: str, judged: tuple[str, tuple[bool, str]] | None) -> None:
+    """Store an ACCEPTED DECISION block — called ONLY at an exit that ALLOWS this Stop (the
+    pass-through, the quota hold, a non-fabrik project). A blocked Stop keeps the agent working
+    with no UserPromptSubmit to clear the block, so storing it there left a stale OPEN DECISION
+    for WHERE YOU ARE after a compaction (A-O1). Re-runs `harvest` on the judged text with
+    `--decision-ok`; its NEXT: part is the same text the plain harvest already stored, so the
+    re-run only refreshes timestamps. Best-effort: a failure here never blocks the turn."""
+    if not (judged and judged[1][0] and ta is not None):
+        return
+    try:
+        # Only a script that KNOWS the flag gets it: an older synced copy's argparse refuses an
+        # unknown option (T03 ships first).
+        if not ta.exists() or "--decision-ok" not in ta.read_text(errors="replace"):
+            return
+        subprocess.run(
+            [sys.executable, str(ta), "harvest", "--session", sid, "--decision-ok"],
+            input=judged[0],
+            text=True,
+            capture_output=True,
+            timeout=5,
+        )
+    except Exception as e:
+        sys.stderr.write(f"[final_gate_stop] DECISION block not stored: {e}\n")
+
+
 def _kaizen_pass(
     sid: object,
     transcript_path: str,
@@ -2677,32 +2738,36 @@ def main(argv: list[str]) -> int:
         # transcript. Its presence is logged on every Stop (`lam`, spec U1).
         _lam_raw = data.get("last_assistant_message")
         lam = _lam_raw if isinstance(_lam_raw, str) and _lam_raw.strip() else None
-        # (text, parse result) of the DECISION block, judged ONCE: the harvest stores the block's
-        # NEXT: only when it passed, and the DEFERRAL check reuses the verdict.
+        # (text, parse result) of the DECISION block, judged ONCE: the DEFERRAL check reuses the
+        # verdict, and an ALLOWED Stop stores the block (`_store_decision`). Judged only from THIS
+        # turn's text — the payload's message, else this turn's last text-bearing assistant entry
+        # (`_this_turn_text`), never `_final_message_text`, which walks back past the operator's
+        # prompt to the PREVIOUS turn's message and would judge a block this turn did not end on
+        # (A-O2).
         judged: tuple[str, tuple[bool, str]] | None = None
+        _ta: Path | None = None
         try:
             _ta = root / "scripts" / "thread_anchor.py"
             if not _ta.exists():
                 _ta = Path(__file__).resolve().parents[2] / "scripts" / "thread_anchor.py"
             _tp = data.get("transcript_path")
             _text = lam or (_final_message_text(str(_tp)) if _tp else "")
-            if _text and extract_decision_block(_text) is not None:
+            _turn_text = lam or (_this_turn_text(str(_tp)) if _tp else "")
+            if _turn_text and extract_decision_block(_turn_text) is not None:
                 judged = (
-                    _text,
+                    _turn_text,
                     parse_decision_block(
-                        _text,
+                        _turn_text,
                         run_live=(_run_record(sid) or {}).get("state") == "running",
                         transcript_path=str(_tp or ""),
                     ),
                 )
             if _ta.exists() and _text:
-                _cmd = [sys.executable, str(_ta), "harvest", "--session", sid]
-                # Only a script that KNOWS the flag gets it: an older synced copy's argparse
-                # refuses an unknown option and would drop the whole harvest (T03 ships first).
-                if judged and judged[1][0] and "--decision-ok" in _ta.read_text(errors="replace"):
-                    _cmd.append("--decision-ok")
+                # The plain harvest (NEXT: and anchors) — never `--decision-ok` here: this Stop
+                # may still BLOCK, and a blocked turn gets no UserPromptSubmit to clear a stored
+                # block (A-O1). `_store_decision` runs at the allowed exits instead.
                 subprocess.run(
-                    _cmd,
+                    [sys.executable, str(_ta), "harvest", "--session", sid],
                     input=_text,
                     text=True,
                     capture_output=True,
@@ -2713,6 +2778,7 @@ def main(argv: list[str]) -> int:
             sys.stderr.write(f"[final_gate_stop] harvest/decision parse failed, skipped: {e}\n")
 
         if not (root / "scripts" / "final_gate.py").exists():
+            _store_decision(_ta, sid, judged)
             return 0  # not a fabrik-style project → nothing to enforce
 
         # THE QUOTA HOLD OUTRANKS EVERY CAUSE BELOW. While `quota_stop.py`'s stamp stands the
@@ -2754,6 +2820,7 @@ def main(argv: list[str]) -> int:
                 and _hold_in_force(time.time() - _tick.stat().st_mtime, _stale)
             ):
                 _kaizen("stop_allowed_quota_hold", ev_sid)
+                _store_decision(_ta, sid, judged)
                 return 0
         except Exception:
             pass
@@ -2978,6 +3045,7 @@ def main(argv: list[str]) -> int:
                     counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att}")
                 # The ONE pass-through: every enforcement cause declined to block, so
                 # this Stop really ends the turn.
+                _store_decision(_ta, sid, judged)
                 _kaizen_pass(ev_sid, transcript_p, waived, warned, decision_ground)
                 return 0
             counter.write_text(f"{g},{c},{s_att},{p_att},{r_att if run_active else 0},{v_att}")

@@ -28,6 +28,11 @@ to replay them over history, never to approximate them:**
   entry's own ISO timestamp on its UTC CALENDAR DATE — an ISO offset is converted to UTC first, so
   a ``+03:00`` stamp near midnight lands on the correct day, never a naive slice of the string.
 
+- The hook's DECISION-block exemption applies here too: a turn end ``deferral_shape`` fires on
+  whose block passes the hook's own ``parse_decision_block`` (``run_live=False`` — a mined turn's
+  run-record state is not on record) is NOT a fire; it is counted apart as
+  ``decision_blocks_accepted``, by ground.
+
 ``--backtest`` reports the fire rate, per shape and per repo (spec § Validation V1's first
 bullet). It counts; it never JUDGES — the judged-sample check against the committed
 ``docs/reference/research/2026-09-23-stop-compaction/verdict-*.json`` files already lives in
@@ -169,6 +174,7 @@ def mine(root: Path, *, since: str | None = None, until: str | None = None) -> d
     hook = _hook()
     all_paths = sorted(root.glob("*/*.jsonl"))
     by_shape: collections.Counter[str] = collections.Counter()
+    accepted: collections.Counter[str] = collections.Counter()  # DECISION blocks passed, by ground
     by_repo: dict[str, dict[str, Any]] = {}
     turn_ends = 0
     fires = 0
@@ -237,6 +243,16 @@ def mine(root: Path, *, since: str | None = None, until: str | None = None) -> d
             turn_ends += 1
             rec["turn_ends"] += 1
             shape = deferral_shape(text)
+            if shape and hook.extract_decision_block(text) is not None:
+                # The hook's own exemption (C-S1): a DECISION block that passes its checks ends
+                # the turn legitimately. Counted apart, by ground — never a fire. `run_live` is
+                # False: a mined session's run-record state at that turn is not on record.
+                ok, ground = hook.parse_decision_block(
+                    text, run_live=False, transcript_path=str(path)
+                )
+                if ok:
+                    accepted[ground] += 1
+                    continue
             if shape:
                 fires += 1
                 rec["fires"] += 1
@@ -263,6 +279,7 @@ def mine(root: Path, *, since: str | None = None, until: str | None = None) -> d
         "fires": fires,
         "fire_rate": round(fires / turn_ends, 4) if turn_ends else 0.0,
         "by_shape": dict(sorted(by_shape.items())),
+        "decision_blocks_accepted": dict(sorted(accepted.items())),
         "by_repo": by_repo_out,
     }
 
@@ -279,6 +296,8 @@ def _format_report(stats: dict[str, Any]) -> str:
         f"({stats['fire_rate'] * 100:.1f}%)",
         "  by shape: "
         + (" ".join(f"{k} {v}" for k, v in stats["by_shape"].items()) or "(none fired)"),
+        "  decision blocks accepted (not fires): "
+        + (" ".join(f"{k} {v}" for k, v in stats["decision_blocks_accepted"].items()) or "(none)"),
         "  by repo:",
     ]
     for repo, rec in stats["by_repo"].items():

@@ -16,6 +16,7 @@ unknown-event warning.
 from __future__ import annotations
 
 import io
+import re
 import sys
 from contextlib import redirect_stderr
 from pathlib import Path
@@ -107,3 +108,14 @@ def test_premature_stop_rate_counts_a_deferral_cause() -> None:
     result = kaizen_collect_v2.compute_metrics([row], holes=0)["premature_stop_rate"]
     assert result.numerator == 1
     assert result.denominator == 1
+
+
+def test_every_event_the_stop_hook_emits_is_registered() -> None:
+    """A-S1/A-S2 (whole-plan review, T06): an unregistered name warns "unknown event type" on
+    every emit, into a stderr the hook silences — so the only place the gap shows is here."""
+    hook_src = (
+        Path(__file__).resolve().parents[1] / ".claude" / "hooks" / "final_gate_stop.py"
+    ).read_text(encoding="utf-8")
+    names = set(re.findall(r'_kaizen\(\s*"([a-z_]+)"', hook_src))
+    assert {"stop_block", "anchor_harvest", "stop_allowed_quota_hold"} <= names, names
+    assert names - set(kaizen_events.EVENT_TYPES) == set()

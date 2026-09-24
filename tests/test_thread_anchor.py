@@ -875,3 +875,18 @@ def test_a_promptless_user_prompt_submit_keeps_the_block(tmp_path):
     _open_decision(env, "s-p")
     _hook_line(env, {"session_id": "s-p", "hook_event_name": "UserPromptSubmit"})
     assert _state(env, "s-p").get("decision")
+
+
+def test_a_next_that_only_shares_the_anchors_key_is_still_shown(tmp_path):
+    """B-S2 (whole-plan review, T06): the key lower-cases and masks digits, so a NEXT that was never
+    promoted (lower-case `phase b` is no anchor shape) can share the newest anchor's key. It was
+    suppressed as "already shown" — in the usual block and in WHERE YOU ARE — though its text
+    appears nowhere."""
+    env = _env(tmp_path)
+    run3(["harvest", "--session", "s-k"], env, stdin="NEXT: wire the parser — phase B — tests next")
+    run3(["harvest", "--session", "s-k"], env, stdin="NEXT: wire the parser — phase b — ship it")
+    st = _state(env, "s-k")
+    assert [a["text"] for a in st["anchors"]] == ["wire the parser — phase B — tests next"]
+    assert run3(["line", "--session", "s-k"], env)[1].count("phase b — ship it") == 1
+    out = _hook_line(env, {"session_id": "s-k", "source": "compact", "cwd": str(tmp_path)})[1]
+    assert out.count("phase b — ship it") == 1, out
