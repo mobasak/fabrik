@@ -56,7 +56,7 @@ class _Deployer:
 def _run(
     tmp_path: Path,
     *,
-    flag: bool | None = None,
+    flag: Any = None,
     env: dict[str, str] | None = None,
     created_password: str | None = None,
     ensure_error: Exception | None = None,
@@ -65,6 +65,8 @@ def _run(
     dry_run: bool = False,
     target_vps: str = "vps1",
     read_error: Exception | None = None,
+    spec_extra: dict[str, Any] | None = None,
+    secrets: dict[str, str] | None = None,
 ) -> tuple[_Deployer, DeploymentContext, list[tuple], dict[str, mock.MagicMock]]:
     events: list[tuple] = []
     specs = tmp_path / "specs" / "services"
@@ -72,7 +74,7 @@ def _run(
     shape: dict[str, Any] = {"needs_database": True}
     if flag is not None:
         shape["database_url_app_role"] = flag
-    spec = {"name": DB, "shape": shape}
+    spec = {"name": DB, "shape": shape, **(spec_extra or {})}
     spec_path = specs / f"{DB}.yaml"
     spec_path.write_text(f"name: {DB}\nshape:\n  needs_database: true\n")
     for fname, body in (siblings or {}).items():
@@ -86,6 +88,7 @@ def _run(
     ctx.spec = spec
     ctx.app_name = DB
     ctx.target_vps = target_vps
+    ctx.secrets = dict(secrets or {})
 
     def fake_create(db, **kw):
         return {"status": "created" if created_password else "exists", "password": created_password}
@@ -363,3 +366,134 @@ def test_dry_run_touches_nothing(tmp_path: Path) -> None:
     mocks["run_sql"].assert_not_called()
     mocks["ssh"].assert_not_called()
     assert _status(ctx) == "dry_run"
+
+
+# ── Fixups r1 ────────────────────────────────────────────────────────────────── #
+
+
+def test_rollback_with_unreadable_env_is_a_failure_not_unmanaged(tmp_path: Path) -> None:
+    """O2: a refused sudo makes read_env raise; the step must record a failure."""
+    from fabrik.orchestrator.exceptions import DeployError
+
+    deployer, ctx, _, _ = _run(tmp_path, flag=False, read_error=DeployError("no answer"))
+    assert deployer.injects == []
+    assert len(_app_role_failures(ctx)) == 1
+    assert _status(ctx) == "failed"
+
+
+@pytest.mark.parametrize("raw", ["false", "no", 0, 1, "true"])
+def test_non_bool_flag_never_cuts_over(tmp_path: Path, raw) -> None:
+    """O3: bool("false") is True; only a real `true` counts, any other value refuses."""
+    deployer, ctx, events, mocks = _run(tmp_path, flag=raw, env={"DATABASE_URL": OWNER_DSN})
+    assert deployer.injects == []
+    assert ("ensure_app_role", True) not in events
+    mocks["check"].assert_not_called()
+    failures = _app_role_failures(ctx)
+    assert len(failures) == 1
+    assert "database_url_app_role" in failures[0] and type(raw).__name__ in failures[0]
+
+
+@pytest.mark.parametrize(
+    "owner_value",
+    [
+        APP_DSN,
+        "not a dsn",
+        '"postgresql://shop:ownerpw@postgres-main:5432/shop" # the owner',
+    ],
+    ids=["app-user", "unparseable", "quoted-comment"],
+)
+def test_rollback_refuses_an_owner_key_not_naming_the_owner(tmp_path: Path, owner_value) -> None:
+    """O4: DATABASE_URL_OWNER is restored only when its user IS the owner."""
+    env = {"DATABASE_URL": APP_DSN, "DATABASE_URL_OWNER": owner_value}
+    deployer, ctx, _, _ = _run(tmp_path, flag=False, env=env)
+    assert deployer.injects == []
+    failures = _app_role_failures(ctx)
+    assert len(failures) == 1
+    assert "ownerpw" not in failures[0] and "apppw" not in failures[0]
+    assert "postgresql://" not in failures[0]
+
+
+@pytest.mark.parametrize(
+    ("extra", "secrets"),
+    [
+        ({"env": {"DATABASE_URL": OWNER_DSN}}, None),
+        ({"secrets": {"required": ["DATABASE_URL"]}}, {"DATABASE_URL": OWNER_DSN}),
+        ({"secrets": ["DATABASE_URL"]}, {"DATABASE_URL": OWNER_DSN}),
+    ],
+    ids=["spec-env", "secrets-required", "secrets-list"],
+)
+def test_cutover_refuses_a_pinned_database_url(tmp_path: Path, extra, secrets) -> None:
+    """O7: a pinned DATABASE_URL is rewritten to the owner DSN every apply, which would
+    re-cut-over and rotate the app password on EVERY apply."""
+    deployer, ctx, events, mocks = _run(
+        tmp_path, flag=True, env={"DATABASE_URL": OWNER_DSN}, spec_extra=extra, secrets=secrets
+    )
+    assert deployer.injects == []
+    assert ("ensure_app_role", True) not in events
+    mocks["check"].assert_not_called()
+    failures = _app_role_failures(ctx)
+    assert len(failures) == 1 and "DATABASE_URL_OWNER" in failures[0]
+
+
+def test_db_before_boot_seed_is_not_a_pin(tmp_path: Path) -> None:
+    """The first-apply seed of `_pre_provision_db_for_boot` lands in ctx.secrets but is
+    not re-written on later applies, so it must not block the cutover."""
+    deployer, ctx, events, _ = _run(
+        tmp_path,
+        flag=True,
+        env={"DATABASE_URL": OWNER_DSN},
+        spec_extra={"deploy": {"db_before_boot": True}},
+        secrets={"DATABASE_URL": OWNER_DSN},
+    )
+    assert ("ensure_app_role", True) in events
+    assert _status(ctx) == "cutover"
+    assert _app_role_failures(ctx) == []
+
+
+@pytest.mark.parametrize(
+    ("fname", "body"),
+    [
+        (
+            "other.yml",
+            {"name": "other", "shape": {"needs_database": True}, "depends": {"postgres": DB}},
+        ),
+        ("broken.yaml", {"name": "broken", "shape": {"needs_database": True}, "depends": ["x"]}),
+    ],
+    ids=["yml-sibling", "malformed-depends"],
+)
+def test_sibling_scan_fails_closed(tmp_path: Path, fname, body) -> None:
+    """S2/S3/O5: `.yml` siblings count, and an unresolvable sibling refuses."""
+    deployer, ctx, events, mocks = _run(
+        tmp_path, flag=True, env={"DATABASE_URL": OWNER_DSN}, siblings={fname: body}
+    )
+    assert deployer.injects == []
+    mocks["check"].assert_not_called()
+    failures = _app_role_failures(ctx)
+    assert len(failures) == 1 and fname in failures[0]
+
+
+def test_opted_in_module_cannot_reach_the_fleet_by_omission(tmp_path: Path) -> None:
+    """S1/O8: with LIVE_APP_ROLE_STEP set and nothing patched, the real step hits the
+    conftest's fail-loud `_run_sql`/ssh defaults — never a subprocess."""
+    from fabrik.orchestrator.deployer_ssh import SSHDeployer
+
+    spec_path = tmp_path / f"{DB}.yaml"
+    spec_path.write_text(f"name: {DB}\n")
+    ctx = DeploymentContext(spec_path=spec_path)
+    ctx.spec = {"name": DB, "shape": {"needs_database": True, "database_url_app_role": True}}
+    ctx.app_name = DB
+    prov = InfrastructureProvisioner(deployer=SSHDeployer())
+    with mock.patch("subprocess.run") as run:
+        prov._provision_app_role(DB, ctx.spec, ctx, dry_run=False)
+    run.assert_not_called()
+    failures = _app_role_failures(ctx)
+    assert len(failures) == 1 and "test reached the live fleet" in failures[0]
+
+
+def test_every_reachable_ssh_binding_fails_loud() -> None:
+    import fabrik.drivers.postgres as pg
+    import fabrik.drivers.ssh as ssh_mod
+
+    for fn in (ssh_mod.ssh, pg.ssh, pg._run_sql):
+        with pytest.raises(RuntimeError, match="test reached the live fleet"):
+            fn("SELECT 1")

@@ -215,7 +215,7 @@ payments-ingest roles. It mints or re-asserts `<db>_app` and its grants, reads t
 | Flag | `DATABASE_URL` user | What the step does |
 |---|---|---|
 | `true` | owner | **Cutover:** refuse a shared database, run the pre-cutover check, reset the `<db>_app` password, then inject `DATABASE_URL` (the same DSN with only user and password swapped; scheme, host, port, database and query kept) and `DATABASE_URL_OWNER` (the old value) |
-| `false` | `<db>_app` | **Rollback:** `DATABASE_URL` = `DATABASE_URL_OWNER`; refused when that key is absent |
+| `false` | `<db>_app` | **Rollback:** `DATABASE_URL` = `DATABASE_URL_OWNER`; refused when that key is absent or does not name the owner |
 | `true` | `<db>_app` | Converged: nothing injected. A missing `DATABASE_URL_OWNER` is a failure, because no rollback DSN exists and the owner password cannot be recovered |
 | `false` | owner | Converged: nothing injected, or `DATABASE_URL_OWNER` backfilled from `DATABASE_URL` when absent |
 | `true` | absent, or any other user (a superuser, a legacy role, a DSN built from separate variables) | **Refused:** nothing injected, the user found is named in the failure |
@@ -229,7 +229,8 @@ Logs name roles, never a DSN or a password.
 
 **Runbook — cut over:**
 
-1. Set `shape.database_url_app_role: true` in `specs/services/<id>.yaml`.
+1. Set `shape.database_url_app_role: true` in `specs/services/<id>.yaml` (a YAML boolean; a
+   string or a number is refused, never read as a switch).
 2. Run `fabrik app-role-check specs/services/<id>.yaml` and fix everything it reports (a
    migration tool or DDL still reaching `DATABASE_URL`, a stale or missing clone at
    `/opt/<id>`, a failing privilege probe).
@@ -239,19 +240,20 @@ Logs name roles, never a DSN or a password.
 **Runbook — roll back:** unset the flag (or set it `false`) and `fabrik apply`. `DATABASE_URL`
 returns to the owner DSN kept in `DATABASE_URL_OWNER`.
 
-**Shared databases are refused.** When another spec in `specs/services/` with
+**Shared databases are refused.** When another spec (`*.yaml` or `*.yml`) in `specs/services/` with
 `shape.needs_database` resolves to the same database (`depends.postgres: main` is shared by
 several specs), the cutover is refused and the failure lists those specs: one `<db>_app`
 password cannot be reset for one of them without breaking the others. An unreadable sibling
-spec refuses too.
+spec, or one whose database cannot be resolved, refuses too.
 
 **The limit.** The owner DSN lives in the same project `.env` as the app DSN. Append-only on
 `audit_log` therefore holds against the app's own code paths and against SQL injection, not
 against code execution inside the container, which can read `DATABASE_URL_OWNER`.
 
-A `DATABASE_URL` set in the spec's `env:` block or in the project secrets outranks the
-registrar's value in the merge above, so it is rewritten on every apply; with the flag `true`
-the step then sees that user and refuses unless it is the owner or `<db>_app`.
+A `DATABASE_URL` pinned by the spec's `env:` block or the project secrets is rewritten on every
+apply and would re-cut-over and reset the `<db>_app` password each time, so the cutover refuses
+it: move the pinned value to `DATABASE_URL_OWNER` first (the `db_before_boot` first-apply seed is
+not a pin).
 
 ---
 

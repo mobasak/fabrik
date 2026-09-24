@@ -450,7 +450,7 @@ class TestSSHDeployerReadEnv:
             mock_ssh.side_effect = ["present\n", "DATABASE_URL=postgresql://u:x@h:5432/d\nA=1\n"]
             env = SSHDeployer().read_env(self._ctx())
         assert env == {"DATABASE_URL": "postgresql://u:x@h:5432/d", "A": "1"}
-        assert "test -f /opt/my-app/.env" in mock_ssh.call_args_list[0].args[0]
+        assert "/opt/my-app/.env" in mock_ssh.call_args_list[0].args[0]
 
     def test_absent_file_is_empty(self):
         with patch("fabrik.drivers.ssh.ssh", return_value="absent\n") as mock_ssh:
@@ -477,6 +477,33 @@ class TestSSHDeployerReadEnv:
             pytest.raises(DeployError),
         ):
             SSHDeployer().read_env(self._ctx())
+
+    def test_refused_sudo_is_not_absent(self):
+        """A failing sudo must yield NO recognised answer: `sudo test -f … || echo absent`
+        printed `absent` when sudo itself failed, and absent reads as `{}` (fixup O2)."""
+        with (
+            patch("fabrik.drivers.ssh.ssh", return_value="") as mock_ssh,
+            pytest.raises(DeployError),
+        ):
+            SSHDeployer().read_env(self._ctx())
+        probe = mock_ssh.call_args_list[0].args[0]
+        assert probe.startswith("sudo sh -c ")
+        assert "sudo test -f" not in probe
+
+    def test_export_prefix_is_the_same_key(self):
+        """`export DATABASE_URL=…` is the key DATABASE_URL, for read_env AND the merge (O9)."""
+        content = "export DATABASE_URL=postgresql://u:x@h:5432/d\n"
+        with patch("fabrik.drivers.ssh.ssh", side_effect=["present", content]):
+            env = SSHDeployer().read_env(self._ctx())
+        assert env == {"DATABASE_URL": "postgresql://u:x@h:5432/d"}
+        with (
+            patch("fabrik.drivers.ssh.ssh", side_effect=[content, ""]),
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
+        ):
+            SSHDeployer().inject_env(self._ctx(), {"DATABASE_URL": "postgresql://v:y@h:5432/d"})
+        assert _parse_env(mock_write.call_args[0][2]) == {
+            "DATABASE_URL": "postgresql://v:y@h:5432/d"
+        }
 
     def test_runs_inside_target_vps_env(self):
         import os

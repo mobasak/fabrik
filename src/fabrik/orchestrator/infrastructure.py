@@ -437,13 +437,69 @@ def _swap_dsn_credentials(dsn: str, user: str, password: str) -> str:
     return urlunsplit(parts._replace(netloc=netloc))
 
 
+_APP_ROLE_FLAG = "database_url_app_role"
+
+
+def _app_role_flag(spec: dict[str, Any]) -> bool:
+    """``shape.database_url_app_role`` from the RAW spec dict — only a real ``true`` counts.
+
+    ``ctx.spec`` never passes through ``Shape``, so its default does not apply and
+    nothing coerces the type: ``bool("false")`` is ``True``. Absent / ``null`` is
+    ``False``; any other non-bool value (a string, a number) refuses — never a cutover.
+    """
+    shape = spec.get("shape") or {}
+    raw = shape.get(_APP_ROLE_FLAG) if isinstance(shape, dict) else None
+    if raw is None or isinstance(raw, bool):
+        return bool(raw)
+    raise AppRoleRefusalError(
+        f"shape.{_APP_ROLE_FLAG} must be true or false, got {type(raw).__name__} — "
+        "refusing to decide the cutover on it"
+    )
+
+
+def _declared_secret_names(spec: dict[str, Any]) -> set[str]:
+    """Every name the spec's ``secrets`` block declares (list form or policy dict)."""
+    cfg = spec.get("secrets")
+    if isinstance(cfg, list):
+        return {str(n) for n in cfg}
+    names: set[str] = set()
+    if isinstance(cfg, dict):
+        for value in cfg.values():
+            if isinstance(value, (list, dict)):
+                names.update(str(n) for n in value)
+    return names
+
+
+def _database_url_pin(spec: dict[str, Any], ctx: DeploymentContext) -> str | None:
+    """Where a pinned ``DATABASE_URL`` comes from, or ``None``.
+
+    The spec's ``env:`` block and the loaded project secrets outrank the registrar's
+    value in the ``.env`` merge, so a pinned owner DSN is rewritten on EVERY apply —
+    and the flag would re-cut-over and reset ``<db>_app``'s password on every apply.
+    The ``db_before_boot`` first-apply seed (``_pre_provision_db_for_boot``) also lands
+    in ``ctx.secrets`` but is written only on the create, so it is not a pin unless
+    the spec's ``secrets`` block also declares ``DATABASE_URL``.
+    """
+    env_block = spec.get("env")
+    if isinstance(env_block, dict) and "DATABASE_URL" in env_block:
+        return "the spec's env: block"
+    if "DATABASE_URL" in (getattr(ctx, "secrets", None) or {}):
+        deploy_cfg = spec.get("deploy") or {}
+        seeded = isinstance(deploy_cfg, dict) and bool(deploy_cfg.get("db_before_boot"))
+        if not seeded or "DATABASE_URL" in _declared_secret_names(spec):
+            return "the project secrets"
+    return None
+
+
 def _shared_db_siblings(db_name: str, spec_path: Path | None) -> list[str]:
     """Other database specs beside ``spec_path`` that resolve to the same ``db_name``.
 
     One ``<db>_app`` password cannot be reset for one sibling without breaking the
     others, so a non-empty answer refuses the cutover. Only specs with
     ``shape.needs_database`` count (the registrar provisions a DB for no other).
-    An unreadable sibling spec raises — the answer would otherwise be a guess.
+    ``*.yaml`` and ``*.yml`` both count. An unreadable sibling spec, or a database
+    spec whose db_name cannot be resolved, raises — the answer would otherwise be a
+    guess.
     """
     import yaml
 
@@ -455,7 +511,8 @@ def _shared_db_siblings(db_name: str, spec_path: Path | None) -> list[str]:
         )
     me = spec_path.resolve()
     siblings: list[str] = []
-    for path in sorted(spec_path.parent.glob("*.yaml")):
+    candidates = [*spec_path.parent.glob("*.yaml"), *spec_path.parent.glob("*.yml")]
+    for path in sorted(candidates):
         if path.resolve() == me:
             continue
         try:
@@ -472,8 +529,13 @@ def _shared_db_siblings(db_name: str, spec_path: Path | None) -> list[str]:
             continue
         try:
             other = _db_name_for_spec(data)
-        except SpecResolutionError:
-            continue
+        except SpecResolutionError as e:
+            # A database spec whose db_name cannot be resolved might be a sibling:
+            # refuse, the same posture as an unreadable one.
+            raise AppRoleRefusalError(
+                f"cannot resolve the database of sibling spec {path.name} to rule out a "
+                f"shared database: {e}"
+            ) from e
         if other == db_name:
             siblings.append(path.name)
     return siblings
@@ -918,19 +980,18 @@ class InfrastructureProvisioner:
         Dry-run sends no ssh, SQL or check: the decision needs the live ``.env``.
         Logs name roles only, never a DSN or a password.
         """
-        shape = spec.get("shape") or {}
-        flag = bool(shape.get("database_url_app_role", False)) if isinstance(shape, dict) else False
         if dry_run:
             logger.info(
                 "app-role: [DRY RUN] %s — the cutover decision needs the live .env; "
-                "no ssh, SQL or check sent (flag=%s)",
+                "no ssh, SQL or check sent",
                 db_name,
-                flag,
             )
             ctx.add_resource("app-role", db_name, status="dry_run")
             return
         try:
             from fabrik.drivers.postgres import AppRoleError, ensure_app_role
+
+            flag = _app_role_flag(spec)
 
             try:
                 role = ensure_app_role(db_name)
@@ -955,6 +1016,12 @@ class InfrastructureProvisioner:
                     raise AppRoleRefusalError(
                         f"rollback of {db_name}: DATABASE_URL names {app!r} but "
                         "DATABASE_URL_OWNER is absent — no owner DSN to restore"
+                    )
+                found = _dsn_user(owner_dsn)
+                if found != owner:
+                    raise AppRoleRefusalError(
+                        f"rollback of {db_name}: DATABASE_URL_OWNER names user {found!r}, "
+                        f"not the owner {owner!r} — refusing to restore it"
                     )
                 self.deployer.inject_env(ctx, {"DATABASE_URL": owner_dsn})
                 logger.info("app-role: %s rolled back — DATABASE_URL user %s", db_name, owner)
@@ -999,9 +1066,18 @@ class InfrastructureProvisioner:
         current: str,
         app: str,
     ) -> None:
-        """The cutover branch: shared-DB refusal → pre-cutover check → reset → inject."""
+        """The cutover branch: pin + shared-DB refusal → pre-cutover check → reset → inject."""
         from fabrik.app_role_check import project_repo_dir, run_check
         from fabrik.drivers.postgres import ensure_app_role
+
+        pin = _database_url_pin(spec, ctx)
+        if pin:
+            raise AppRoleRefusalError(
+                f"cutover of {db_name} refused: DATABASE_URL is pinned by {pin}, which "
+                "rewrites it to the owner DSN on every apply (re-cutting over and resetting "
+                f"{app}'s password each time) — move the pinned value to DATABASE_URL_OWNER "
+                "first"
+            )
 
         siblings = _shared_db_siblings(db_name, getattr(ctx, "spec_path", None))
         if siblings:

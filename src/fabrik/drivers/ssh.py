@@ -95,13 +95,22 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
 
     host = _ssh_host()
     logger.debug("SSH %s: %s", host, _redact(cmd))
-    result = subprocess.run(
-        ["ssh", host, cmd],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["ssh", host, cmd],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+        timed_out = False
+    except subprocess.TimeoutExpired:
+        timed_out = True
+    if timed_out:
+        # Re-raised OUTSIDE the except block: TimeoutExpired's str/repr carry the full
+        # argv, and `_run_sql`'s argv holds the base64 SQL batch (`ALTER ROLE … PASSWORD`),
+        # which registrars log via str(e). Raising here leaves no __context__ holding it.
+        raise subprocess.TimeoutExpired(["ssh", host, "<command redacted>"], timeout) from None
     if result.returncode != 0:
         # _redact the FAILURE surface too (F12, 01M1C95A2S: a failing .env-write heredoc
         # echoed a live CONSUMER_TOKENS bearer token verbatim into the apply log twice —

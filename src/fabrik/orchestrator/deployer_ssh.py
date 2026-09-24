@@ -13,6 +13,7 @@ import contextlib
 import logging
 import os
 import re
+import shlex
 import subprocess
 import tempfile
 import time
@@ -274,9 +275,11 @@ class SSHDeployer:
 
         with _target_vps_env(ctx):
             try:
-                probe = _ssh(
-                    f"sudo test -f /opt/{name}/.env && echo present || echo absent", timeout=10
-                ).strip()
+                # The whole test runs INSIDE sudo: a refused sudo prints nothing (an
+                # unrecognised answer → raise) instead of the `|| echo absent` fallback
+                # that `sudo test -f X && … || echo absent` would print.
+                inner = f"[ -f {shlex.quote(f'/opt/{name}/.env')} ] && echo present || echo absent"
+                probe = _ssh(f"sudo sh -c {shlex.quote(inner)}", timeout=10).strip()
                 if probe == "absent":
                     return {}
                 if probe != "present":
@@ -761,6 +764,10 @@ def _parse_env(content: str) -> dict[str, str]:
             continue
         key, _, value = line.partition("=")
         key = key.strip()
+        # `export KEY=…` (a shell-sourceable .env) is the key KEY — for read_env's
+        # decision and inject_env's merge alike, or the merge writes a second key.
+        if key.startswith("export "):
+            key = key[len("export ") :].strip()
         # Strip surrounding quotes — and UNESCAPE a double-quoted value, mirroring
         # `_format_env`'s escaping. Without the unescape the round-trip corrupts:
         # write escapes `\"` -> read strips the wrapper but leaves the backslashes ->
