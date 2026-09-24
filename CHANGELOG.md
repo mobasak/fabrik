@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `work.py`: a repo without a backlog completes its migration, and render is a no-op there (2026-09-24)
+- `migrate-backlog` in a repo with no `docs/STRATEGIC_BACKLOG.md` now records `migrated_at` (under the store lock, idempotent), so its `sync --check` row can become blocking after the 7-day window; `render` there exits 0 with one line and creates nothing. Found by T09's review (A-O5); the adoption recipe `init` → `migrate-backlog` → `render` now runs clean in the backlog-less template repos.
+
 ### Added — The completion gate carries an advisory `Work items (sync)` row (2026-09-24)
 - `scripts/final_gate.py` Tier 2 runs `scripts/work.py sync --check` (30 s timeout). It reds only on exit 1 with a `DRIFT <n> (blocking)` line and no traceback; advisory drift passes ⚠-prefixed so `--json` `warnings` carries it; a timeout, an old work.py, a work.py error or a crash is a named ` (NOT RUN — <why>)` skip; a repo without work.py gets the `⚠ check not present` row. GATE-COUNTS tier2 55 → 56; the FINAL_GATE_WORKFLOW Gate-wired list re-derived (64 rows). Plan `docs/development/plans/2026-09-24-plan-2-work-tracking` T06; review converged in 4 passes (12 → 4 → 2 → 0).
 

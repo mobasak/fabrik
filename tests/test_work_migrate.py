@@ -238,9 +238,16 @@ def test_migrate_backlog_records_migrated_at_once_and_only_once(tmp_path):
 def test_migrate_backlog_on_a_missing_file_creates_nothing(tmp_path):
     env = _env(tmp_path)
     repo = _store(tmp_path, env)
+    assert "migrated_at" not in _config(repo)
     out = _ok(["migrate-backlog"], env, repo)
     assert _items(repo) == []
     assert "no" in out.lower()
+    # T09 review A-O5: an empty migration (no backlog file at all) still COMPLETES — otherwise
+    # `sync --check` can never become blocking in a repo that never had a backlog to migrate
+    first = _config(repo)["migrated_at"]
+    assert first
+    _ok(["migrate-backlog"], env, repo)
+    assert _config(repo)["migrated_at"] == first
 
 
 def test_migrate_backlog_refuses_without_a_store(tmp_path):
@@ -399,12 +406,16 @@ def test_render_run_again_is_byte_identical_and_preserves_surrounding_text(tmp_p
     assert "already current" in out
 
 
-def test_render_refuses_a_missing_backlog_file(tmp_path):
+def test_render_with_no_backlog_file_is_a_noop(tmp_path):
+    """T09 review A-O5: T10's adoption runs `init` -> `migrate-backlog` -> `render` in every repo,
+    including backlog-less template repos that "migrate to an empty store" — render must exit
+    clean there, and it must never CREATE the backlog file (that is never render's job)."""
     env = _env(tmp_path)
     repo = _store(tmp_path, env)
-    r = run(["render"], env, repo)
-    assert r.returncode != 0
-    assert "STRATEGIC_BACKLOG.md" in r.stderr
+    out = _ok(["render"], env, repo)
+    assert "STRATEGIC_BACKLOG.md" in out
+    assert not (repo / "docs" / "STRATEGIC_BACKLOG.md").exists()
+    assert not (repo / "docs").exists()
 
 
 # ── T03 review pass 2: Decision M tightened (A-S3, A-O17, A-O18, A-O19) ──────────────────────────
@@ -691,6 +702,19 @@ def test_a_missing_block_with_open_items_is_class_7_drift(tmp_path):
     _ok(["add", "--kind", "backlog", "--title", "no block rendered yet"], env, repo)
     out = _ok(["sync", "--check"], env, repo)
     assert "DRIFT 7" in out
+
+
+def test_class_7_is_silent_in_a_repo_with_no_backlog_file_at_all(tmp_path):
+    """T09 review A-O5: distinct from the missing-BLOCK case above (a backlog file exists there,
+    just with no rendered block yet) — here there is no docs/STRATEGIC_BACKLOG.md at all. An open
+    backlog item with nothing to render into must never be flagged; `_backlog_needs_render`
+    returns False before it ever reads the file."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _ok(["add", "--kind", "backlog", "--title", "an open item, no backlog file exists"], env, repo)
+    assert not (repo / "docs" / "STRATEGIC_BACKLOG.md").exists()
+    out = _ok(["sync", "--check"], env, repo)
+    assert "DRIFT 7" not in out
 
 
 # ── Decision T: an INDEPENDENTLY-written V2 reader ──────────────────────────────────────────────
