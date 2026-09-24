@@ -1428,12 +1428,14 @@ _SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 # STARTED, while every `ListAgents` reads through the pointer as it stands NOW. Measured
 # 2026-09-17: 18 live sessions registered under ozgurbasak/, one under sarp/ after the 18:51 flip,
 # and every window on the box listed exactly one peer (D-287).
-_SHARED_DIR_LINKS: Final = ("agents", "commands", "skills", "projects", "sessions")
-# The CLI creates these two LAZILY on a box's first session, so on a fresh box the canonical dir
+# `tasks` is the CLI's native Task list — the same box-state class, fragmenting the same way on a
+# flip, so it rides the same link (D-399).
+_SHARED_DIR_LINKS: Final = ("agents", "commands", "skills", "projects", "sessions", "tasks")
+# The CLI creates these LAZILY on a box's first session, so on a fresh box the canonical dir
 # is absent when --new-dir runs; skipping the link there (the rule for the operator-content dirs
 # above) would let the CLI create a REAL per-account dir and bring D-287 back for that slug. The
 # scaffolder creates the canonical dir instead (scoped review of D-287, seat A F1).
-_SHARED_DIR_MKDIR: Final = ("projects", "sessions")
+_SHARED_DIR_MKDIR: Final = ("projects", "sessions", "tasks")
 # settings.json is COPIED, never symlinked. WRITE-THROUGH PROBE (2026-08-15): the CLI writes config
 # with tmp+rename, and POSIX rename(2) operates on the LINK rather than its target — os.replace onto
 # a FILE symlink REPLACES the link with a regular file. A symlinked settings.json would therefore

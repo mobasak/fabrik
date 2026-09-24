@@ -192,6 +192,45 @@ def test_a_real_dir_where_the_shared_link_belongs_is_named_on_resume_and_on_stat
     assert cr._shared_link_warnings() == []
 
 
+def test_a_scaffolded_fleet_dir_links_the_shared_tasks_dir(tmp_path, monkeypatch, capsys):
+    """The CLI's native Task list lives in `<config dir>/tasks/`; per-account it fragments on every
+    flip exactly as `sessions/` did (D-287), so it is linked, never copied (D-399). The CLI makes
+    `tasks/` lazily, so on a box that has none yet the scaffolder creates the canonical dir."""
+    fleet, cdir, _home = _canonical(tmp_path, monkeypatch)
+    assert not (cdir / "tasks").exists()
+    capsys.readouterr()
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    assert cr.main(["--new-dir", "intel", "ob@ocoron.com"]) == 0
+    out = capsys.readouterr().out
+    link = fleet / "seo" / "tasks"
+    assert link.is_symlink() and link.resolve() == (cdir / "tasks").resolve(), out
+    assert oct((cdir / "tasks").stat().st_mode & 0o777) == "0o700"
+    assert "skipped the tasks/" not in out
+    (link / "list.json").write_text("[]")
+    assert (fleet / "intel" / "tasks" / "list.json").read_text() == "[]"
+    assert cr._shared_link_warnings() == []
+
+
+def test_a_real_tasks_dir_where_the_link_belongs_is_reported_and_never_touched(
+    tmp_path, monkeypatch, capsys
+):
+    """A REAL `tasks/` already in a fleet dir (the CLI made it before the link existed) holds live
+    task lists: the resume names it, the drift check names it, and nothing moves or deletes it —
+    the merge is the operator's, by hand (D-399)."""
+    fleet, _cdir, _home = _canonical(tmp_path, monkeypatch)
+    real = fleet / "seo" / "tasks"
+    real.mkdir(parents=True)
+    (real / "list.json").write_text('["keep"]')
+    capsys.readouterr()
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    out = capsys.readouterr().out
+    assert "tasks/ is a REAL directory" in out, out
+    assert real.is_dir() and not real.is_symlink()
+    assert (real / "list.json").read_text() == '["keep"]'
+    warns = cr._shared_link_warnings()
+    assert len(warns) == 1 and "seo/tasks" in warns[0], warns
+
+
 def test_a_dangling_shared_link_is_named_until_a_resume_heals_it(tmp_path, monkeypatch, capsys):
     """Removing the canonical dir dangles every fleet dir's link at once; the CLI's mkdir through
     it raises FileExistsError, every registry write fails, and a resume skipped it as "already a
@@ -812,7 +851,8 @@ def test_writethrough_rename_replaces_a_file_symlink(tmp_path):
 
 def test_writethrough_survives_a_directory_symlink(tmp_path):
     """A rename INSIDE a symlinked dir resolves through the link and lands on the canonical
-    inode — which is why agents/, commands/, skills/, projects/ and sessions/ stay symlinks."""
+    inode — which is why agents/, commands/, skills/, projects/, sessions/ and tasks/ stay
+    symlinks."""
     canonical = tmp_path / "canonical" / "projects"
     canonical.mkdir(parents=True)
     d = tmp_path / "dir"
@@ -825,7 +865,14 @@ def test_writethrough_survives_a_directory_symlink(tmp_path):
 
     assert (d / "projects").is_symlink()
     assert (canonical / "session.jsonl").read_text() == "row"
-    assert set(cr._SHARED_DIR_LINKS) == {"agents", "commands", "skills", "projects", "sessions"}
+    assert set(cr._SHARED_DIR_LINKS) == {
+        "agents",
+        "commands",
+        "skills",
+        "projects",
+        "sessions",
+        "tasks",
+    }
 
 
 # ── B6: carrier-presence + occupancy WARNs on --status ────────────────────────────────────────
