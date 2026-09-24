@@ -369,6 +369,8 @@ def _create_item(repo: Path, item: dict, *, attempts: int = 8) -> Path:
             return _write_item(repo, item, create=True)
         except FileExistsError:
             continue
+        except OSError as exc:
+            raise WorkError(f"cannot write the new item {item['id']}: {exc}") from exc
     raise WorkError(f"could not mint a free item id after {attempts} attempts")
 
 
