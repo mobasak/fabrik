@@ -2628,16 +2628,18 @@ def _deferral_stall(
 
 def _repo_argv(ta: Path | None, cwd: object) -> list[str]:
     """``["--repo", <cwd>]`` for both harvests — the repo whose work store (``.fabrik/work/``)
-    they write — or ``[]``. Only when the payload CARRIES a cwd: ``root``'s ``os.getcwd()``
-    fallback is never a store locator (a test or a manual run from the hub would write the hub's
-    live store), and only when the resolved script KNOWS the flag (a fleet repo whose sync is
-    behind keeps its honest argv; its ``parse_known_args`` would ignore it anyway). Never raises."""
+    they write — or ``[]``. Only when the payload CARRIES a cwd that is an ABSOLUTE path, passed
+    exactly as given: ``root``'s ``os.getcwd()`` fallback is never a store locator (a test or a
+    manual run from the hub would write the hub's live store), and a relative (``.``, ``x``,
+    ``-foo``) or whitespace-padded cwd would resolve against that same process cwd, so it is
+    refused too. Only when the resolved script KNOWS the flag (a fleet repo whose sync is behind
+    keeps its honest argv; its ``parse_known_args`` would ignore it anyway). Never raises."""
     try:
-        if not (isinstance(cwd, str) and cwd.strip() and ta is not None and ta.exists()):
+        if not (isinstance(cwd, str) and os.path.isabs(cwd) and cwd == cwd.strip()):
             return []
-        if "--repo" not in ta.read_text(errors="replace"):
+        if ta is None or not ta.exists() or "--repo" not in ta.read_text(errors="replace"):
             return []
-        return ["--repo", str(Path(cwd).resolve())]
+        return ["--repo", cwd]
     except Exception:
         return []
 
@@ -2835,11 +2837,13 @@ def main(argv: list[str]) -> int:
                         transcript_path=str(_tp or ""),
                     ),
                 )
-            if _ta.exists() and _text:
+            if _ta.exists() and (_text or _repo):
                 # The plain harvest (NEXT: and anchors) — never `--decision-ok` here: this Stop
                 # may still BLOCK, and a blocked turn gets no UserPromptSubmit to clear a stored
                 # block (A-O1). `_store_decision` runs at the allowed exits instead. It runs on
-                # EVERY Stop, blocked ones included, so with `--repo` it is the claim heartbeat.
+                # EVERY Stop, blocked ones included, so with `--repo` it is the claim heartbeat —
+                # even when no text reached us (the flush race): an EMPTY harvest stores no NEXT
+                # and no anchor, it only renews this session's claims.
                 subprocess.run(
                     [sys.executable, str(_ta), "harvest", "--session", sid, *_repo],
                     input=_text,
