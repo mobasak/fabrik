@@ -1049,3 +1049,95 @@ def test_migrate_canonical_owner_handoff_stays_suppressed_after_d7(tmp_path):
     result = scan_repo(repo)
 
     assert result.findings == []
+
+
+# ── Fixup D7 (whole-plan validation — O2, S1, S2) ──────────────────────────── #
+
+
+@pytest.mark.parametrize(
+    ("rel", "comment"),
+    [
+        ("entrypoint.sh", '# psql "$DATABASE_URL" -f db/schema.sql'),
+        ("app/x.py", '    # psql "$DATABASE_URL" -f db/schema.sql'),
+        ("app/x.py", "-- CREATE TABLE t (id int);"),
+        ("web/x.ts", '  // psql "$DATABASE_URL" -f db/schema.sql'),
+        ("web/x.ts", "-- CREATE TABLE t (id int);"),
+    ],
+)
+def test_whole_line_comment_is_inert_but_the_same_code_line_is_found(tmp_path, rel, comment):
+    """O2: a line whose stripped text starts with its file's comment marker never runs,
+    so it is not scanned; the same text as code (marker removed) is still a finding."""
+    repo = tmp_path / "repo"
+    _write(repo / rel, comment + "\n")
+    assert scan_repo(repo).findings == []
+
+    code = comment.strip().removeprefix("#").removeprefix("//").removeprefix("--").strip()
+    _write(repo / rel, code + "\n")
+    assert len(scan_repo(repo).findings) == 1
+
+
+def test_leading_double_dash_in_a_shell_file_is_live_code(tmp_path):
+    """The mirror of O2: in a shell-family file a line starting ``--`` is a continued
+    command's argument, never a comment — it must still be scanned."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "entrypoint.sh",
+        'psql "$DATABASE_URL" \\\n  --command "CREATE TABLE t (id int)"\n',
+    )
+    assert [f.pattern for f in scan_repo(repo).findings] == ["psql invocation", "runtime DDL"]
+
+
+def test_alembic_env_comment_line_is_inert(tmp_path):
+    repo = tmp_path / "repo"
+    _write(
+        repo / "migrations" / "env.py",
+        "from alembic import context\n# url = os.environ['DATABASE_URL']\n",
+    )
+    assert scan_repo(repo).findings == []
+
+
+def test_synced_enforcement_tree_is_not_walked_but_a_same_named_dir_elsewhere_is(tmp_path):
+    repo = tmp_path / "repo"
+    _write(repo / "scripts" / "enforcement" / "check.py", 'sql = "CREATE TABLE t (id int)"\n')
+    _write(repo / "app" / "enforcement" / "x.py", 'sql = "CREATE TABLE t (id int)"\n')
+    result = scan_repo(repo)
+    assert [f.path for f in result.findings] == ["app/enforcement/x.py"]
+
+
+def test_skipped_enforcement_dir_matches_the_synced_manifest():
+    """The restated path must stay the manifest's ENFORCEMENT_DIR."""
+    import importlib.util
+
+    manifest_path = Path(__file__).resolve().parents[1] / "scripts" / "fabrik_synced_manifest.py"
+    spec = importlib.util.spec_from_file_location("_manifest_under_test", manifest_path)
+    assert spec is not None and spec.loader is not None
+    manifest = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(manifest)
+    assert {manifest.ENFORCEMENT_DIR} == arc._SKIP_REL_DIRS
+
+
+def test_cli_app_role_check_malformed_yaml_exits_1(tmp_path):
+    """S1: a YAML syntax error is a ✗ line and exit 1, never an uncaught exception."""
+    from click.testing import CliRunner
+
+    from fabrik.cli import cli
+
+    spec_path = tmp_path / "svc.yaml"
+    spec_path.write_text("id: [unclosed\n")
+
+    result = CliRunner().invoke(cli, ["app-role-check", "--spec", str(spec_path)])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit), result.exception
+    assert "✗ spec is not valid YAML: " in result.output
+
+
+@pytest.mark.parametrize("value", [True, 1, ["a"]])
+def test_db_name_refuses_a_non_string_depends_postgres(value):
+    """S2: YAML `true` must never become database "True"."""
+    with pytest.raises(SpecResolutionError, match="depends.postgres must be a string"):
+        _db_name_for_spec({"id": "x", "depends": {"postgres": value}})
+
+
+def test_db_name_string_depends_postgres_still_wins():
+    assert _db_name_for_spec({"id": "x", "depends": {"postgres": "x_db"}}) == "x_db"

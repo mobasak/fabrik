@@ -52,6 +52,12 @@ passes 1, 2 and 3 (spec § Derivations D1):
   bare-token use for the disqualifier — only what it is set TO matters. The
   cheapest way to defeat any of these rules is still a comment, and a comment
   still never suppresses.
+* **A WHOLE-LINE comment is inert and is not scanned** (D7-registrar-O2): a line
+  whose stripped text starts with its file kind's comment marker (``#``; ``//``
+  and ``--`` in JS/TS; ``#`` and ``--`` in Python) never executes. A marker
+  INSIDE a code line still never truncates it (the RAW-line rule above). The
+  Fabrik-synced ``scripts/enforcement/`` tree is not walked either — it is gate
+  tooling, never the app.
 * **Compose services are located STRUCTURALLY**, as a direct child key of the
   top-level ``services:`` mapping — never the first indented ``<name>:`` found
   anywhere in the file, which a `depends_on:` block or an unrelated top-level
@@ -99,6 +105,14 @@ _SKIP_DIRS = {
     ".claude",
     ".git",
 }
+
+# Repo-root-relative directories never walked. ``scripts/enforcement`` is the
+# Fabrik-synced enforcement tree the hub distributes into every project
+# (``scripts/fabrik_synced_manifest.py::ENFORCEMENT_DIR`` — restated here because
+# ``scripts/`` is not importable from the installed package; a test pins the two
+# equal). It is gate tooling run on the operator's box, never as the app, so its
+# DDL-shaped text (``check_schema_sync.py``) cannot reach DATABASE_URL (D7-registrar-O2).
+_SKIP_REL_DIRS = {"scripts/enforcement"}
 
 _CODE_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".mjs", ".cjs", ".sh"}
 _COMPOSE_GLOBS = (
@@ -180,6 +194,29 @@ def _strip_comment(line: str) -> str:
     return _COMMENT_RE.sub("", line, count=1)
 
 
+# Whole-line comment markers per file kind (D7-registrar-O2). A line whose STRIPPED
+# text starts with one of its file's markers never executes, so it is inert and not
+# scanned at all; every other line keeps the raw-line matching above (a `#` INSIDE a
+# code line never truncates it). `--` is a marker only where it can only be a SQL
+# comment inside an embedded query string (Python, JS/TS) — in a shell-family file a
+# line starting `--` is a continued command's argument (`  --command "CREATE ..."`),
+# i.e. live code. Cobra check: the cheapest way to clear a finding this way is to
+# comment the line out, which also removes the behaviour the scan is looking for.
+_JS_EXTENSIONS = {".ts", ".tsx", ".js", ".mjs", ".cjs"}
+
+
+def _comment_markers(rel: Path) -> tuple[str, ...]:
+    if rel.suffix in _JS_EXTENSIONS:
+        return ("//", "--")
+    if rel.suffix == ".py":
+        return ("#", "--")
+    return ("#",)
+
+
+def _is_comment_line(raw: str, markers: tuple[str, ...]) -> bool:
+    return raw.strip().startswith(markers)
+
+
 def _suppressed_by_owner(stripped_text: str, raw_text: str) -> bool:
     """True when the comment-STRIPPED text names the owner connection source AND
     the RAW text does not also name a bare ``DATABASE_URL``.
@@ -246,8 +283,11 @@ class CheckResult:
 
 def _scan_lines(rel: Path, lines: list[str]) -> list[Finding]:
     posix = rel.as_posix()
+    markers = _comment_markers(rel)
     findings: list[Finding] = []
     for lineno, raw in enumerate(lines, start=1):
+        if _is_comment_line(raw, markers):
+            continue
         label = None
         for pattern_label, regex in _LINE_PATTERNS:
             if regex.search(raw):
@@ -263,9 +303,10 @@ def _scan_lines(rel: Path, lines: list[str]) -> list[Finding]:
 
 def _scan_alembic_env(rel: Path, lines: list[str]) -> list[Finding]:
     posix = rel.as_posix()
+    markers = _comment_markers(rel)
     findings: list[Finding] = []
     for lineno, raw in enumerate(lines, start=1):
-        if not _URL_TOKEN_RE.search(raw):
+        if _is_comment_line(raw, markers) or not _URL_TOKEN_RE.search(raw):
             continue
         if _suppressed_by_owner(_strip_comment(raw), raw):
             continue
@@ -531,8 +572,13 @@ def scan_repo(repo_dir: Path) -> ScanResult:
     findings: list[Finding] = []
     files_scanned = 0
     for root, dirnames, filenames in os.walk(repo_dir):
-        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
         root_path = Path(root)
+        rel_root = root_path.relative_to(repo_dir)
+        dirnames[:] = [
+            d
+            for d in dirnames
+            if d not in _SKIP_DIRS and (rel_root / d).as_posix() not in _SKIP_REL_DIRS
+        ]
         for filename in filenames:
             file_path = root_path / filename
             rel = file_path.relative_to(repo_dir)
@@ -692,8 +738,15 @@ def _db_name_for_spec(spec: dict) -> str:
     if depends is not None and not isinstance(depends, dict):
         raise SpecResolutionError(f"spec 'depends' must be a mapping, got {type(depends).__name__}")
     configured = (depends or {}).get("postgres")
+    # D7-check-S2: never str() an arbitrary YAML value — `postgres: true` would
+    # otherwise name database "True". Any non-string (bool, number, list, mapping)
+    # is refused, falsy or not; an absent/null/empty value falls back as before.
+    if configured is not None and not isinstance(configured, str):
+        raise SpecResolutionError(
+            f"depends.postgres must be a string, got {type(configured).__name__}"
+        )
     if configured:
-        return str(configured)
+        return configured
     name_or_id = spec.get("name") or spec.get("id")
     if not name_or_id:
         raise SpecResolutionError("spec has neither 'name' nor 'id' — cannot derive db_name")

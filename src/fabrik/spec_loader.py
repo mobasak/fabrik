@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, StrictBool, field_validator, model_validator
 
 from fabrik.config import FABRIK_ROOT
 
@@ -343,14 +343,18 @@ class Shape(BaseModel):
             "See drivers/postgres.py::create_payments_ingest_role."
         ),
     )
-    database_url_app_role: bool = Field(
+    # StrictBool (D7-registrar-O6): the registrar's ``_app_role_flag`` refuses every
+    # non-bool, so validation must agree — a lax bool let ``"false"`` validate and
+    # then fail every apply, i.e. a rollback that never rolls back.
+    database_url_app_role: StrictBool = Field(
         default=False,
         description=(
             "True means the project's DATABASE_URL is the non-owner <db>_app role "
             "and the owner DSN is DATABASE_URL_OWNER; each `fabrik apply` converges "
             ".env to it. Setting it on an existing project is a cutover, guarded by "
             "the pre-cutover check; unsetting it is the rollback. Requires "
-            "needs_database. See drivers/postgres.py::ensure_app_role."
+            "needs_database and a YAML boolean (true/false, never a string or number). "
+            "See drivers/postgres.py::ensure_app_role."
         ),
     )
     exposes_metrics: bool = Field(

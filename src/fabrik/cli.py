@@ -1488,8 +1488,12 @@ def app_role_check_cmd(spec_path: str):
         run_check,
     )
 
-    with open(spec_path, encoding="utf-8") as f:
-        spec = yaml.safe_load(f) or {}
+    try:
+        with open(spec_path, encoding="utf-8") as f:
+            spec = yaml.safe_load(f) or {}
+    except yaml.YAMLError as exc:
+        click.echo(f"✗ spec is not valid YAML: {type(exc).__name__}", err=True)
+        raise SystemExit(1) from None
 
     try:
         db_name = _db_name_for_spec(spec)

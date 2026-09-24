@@ -257,14 +257,14 @@ class SSHDeployer:
         return True
 
     def read_env(self, ctx: DeploymentContext) -> dict[str, str]:
-        """Return the app's parsed ``.env`` — for a DECISION, so it never swallows.
+        """Return the app's parsed ``.env`` — it never swallows a read failure.
 
         Runs inside :func:`_target_vps_env` (as :meth:`inject_env` does), so a
         spoke's ``.env`` is read on the spoke. Returns ``{}`` ONLY when
         ``test -f`` reports the file absent; any ssh/read failure or an
-        unrecognised probe answer raises :class:`DeployError`. :meth:`inject_env`
-        keeps its own swallowing read — right for a merge, never for a decision
-        (the app-role cutover reads ``DATABASE_URL``'s user from here).
+        unrecognised probe answer raises :class:`DeployError`. Both the app-role
+        cutover (reading ``DATABASE_URL``'s user) and :meth:`inject_env`'s merge
+        read through here — a swallowed read in a merge writes a truncated .env.
         """
         from fabrik.drivers.ssh import ssh as _ssh
 
@@ -314,17 +314,15 @@ class SSHDeployer:
             logger.info("[DRY RUN] Would inject %d env vars into %s", len(env_vars), name)
             return
 
-        with _target_vps_env(ctx):
-            # Read existing .env (may not exist yet)
-            try:
-                existing_content = _ssh(
-                    f"sudo cat /opt/{name}/.env 2>/dev/null || echo ''", timeout=10
-                )
-            except RuntimeError:
-                existing_content = ""
+        # D7-registrar-O7: read through read_env, which fails CLOSED — ``{}`` only for
+        # a truly absent file. The old swallowing read turned a failed ``sudo cat``
+        # into an empty base and then wrote a .env holding ONLY the injected keys,
+        # dropping every other secret. A read failure now raises DeployError before
+        # anything is written (every caller is inside a registrar's non-fatal block).
+        merged = self.read_env(ctx)
+        merged.update(env_vars)
 
-            merged = _parse_env(existing_content)
-            merged.update(env_vars)
+        with _target_vps_env(ctx):
             env_content = _format_env(merged)
 
             _write_file_to_vps(name, ".env", env_content)
