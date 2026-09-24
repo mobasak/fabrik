@@ -49,10 +49,10 @@ it implements and restates nothing that section already settles.
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
 | T01a | Store core: init, items, lock, add/assign/ready/next | — | ⛓️ | ✅ | 8912d0a21 |
-| T01b | Claims, leases, closing verbs, hook-facing API | T01a | ⛓️ | 🔵 | |
-| T02 | status, sync --check, readings, drift classes | T01b | ⛓️ | ⬜ | |
+| T01b | Claims, leases, closing verbs, hook-facing API | T01a | ⛓️ | ✅ | 05b8f3e6e |
+| T02 | status, sync --check, readings, drift classes | T01b | ⛓️ | 🔵 | |
 | T03 | migrate-backlog and render | T02 | ⛓️ | ⬜ | |
-| T04 | thread_anchor.py: decision items, unfolded block, renewal | T01b | ⚡ | ⬜ | |
+| T04 | thread_anchor.py: decision items, unfolded block, renewal | T01b | ⚡ | 🔵 | |
 | T05 | Stop hook passes --repo; the V1 seam test | T04 | ⛓️ | ⬜ | |
 | T06 | Completion gate's advisory sync row | T02 | ⚡ | ⬜ | |
 | T07 | Distribution: manifest, sync filter, Task-tools env | T03 | ⛓️ | ⬜ | |
