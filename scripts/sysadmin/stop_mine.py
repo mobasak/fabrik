@@ -6,16 +6,27 @@ copy shares the Stop hook's own DEFERRAL vocabulary instead of a hand-rolled one
 deferral shows up as a FALLING FIRE RATE rather than a silent miss (the COBRA counter-measure the
 hook's own comment names, `.claude/hooks/final_gate_stop.py:1508-1512`).
 
-Population: every top-level ``<root>/<repo>/<session>.jsonl`` (a subagent's transcript lives
-deeper and never matches this one-level glob; an INLINE subagent sidechain row — ``isSidechain``
-truthy — is skipped too). A TURN END is the last non-empty assistant text entry before the next
-*real* user entry — never a tool result, an ``isMeta`` command expansion or a compaction summary,
-the same test the hook's own :func:`_is_operator_row` makes, reused here by reference. A whole
-session is excluded when any of its real user rows carries an ``sdk-*`` entrypoint (headless — no
-operator to defer to): that mirrors the TRANSCRIPT half of the hook's own
-:func:`_is_headless`, deliberately WITHOUT its ``CLAUDE_MESH_HEADLESS`` environment branch — that
-branch answers "is the process running ME right now headless", which says nothing about a mined
-session launched somewhere else, at some other time, under someone else's shell.
+**Parity with the hook is the contract — the hook's own rules are the truth, this miner's job is
+to replay them over history, never to approximate them:**
+
+- Population: every top-level ``<root>/<repo>/<session>.jsonl`` (a subagent's transcript lives
+  deeper and never matches this one-level glob; an INLINE subagent sidechain row —
+  ``isSidechain`` truthy — is skipped too). A non-regular path (a directory literally named
+  ``x.jsonl``, a FIFO, a socket) is skipped and reported, never opened.
+- A TURN END is the last non-empty assistant text entry before the next row that is real
+  OPERATOR TEXT by the hook's own :func:`_operator_text` — never a tool result, an ``isMeta``
+  expansion, a compaction summary, or a harness row (``<system-reminder>``, ``Stop hook
+  feedback:``, …) with nothing left after stripping.
+- HEADLESS is decided PER TURN END, exactly like the hook's own :func:`_is_headless`: the LAST
+  real operator row (:func:`_is_operator_row`, structural — independent of whether it carries
+  operator TEXT) at or before that turn end's opening prompt carries an ``sdk-*`` entrypoint. A
+  session that starts ``sdk-cli`` and later continues interactively excludes only its headless
+  turn ends, never the whole session — deliberately WITHOUT the hook's own
+  ``CLAUDE_MESH_HEADLESS`` environment branch, which answers "is the process running ME right now
+  headless", not "was the mined session headless at that turn".
+- The population window (``--since``/``--until``, both YYYY-MM-DD, both inclusive) compares the
+  entry's own ISO timestamp on its UTC CALENDAR DATE — an ISO offset is converted to UTC first, so
+  a ``+03:00`` stamp near midnight lands on the correct day, never a naive slice of the string.
 
 ``--backtest`` reports the fire rate, per shape and per repo (spec § Validation V1's first
 bullet). It counts; it never JUDGES — the judged-sample check against the committed
@@ -32,7 +43,9 @@ import argparse
 import collections
 import importlib.util
 import json
+import re
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -78,9 +91,13 @@ deferral_shape = _hook().deferral_shape
 
 def _assistant_text(entry: dict[str, Any]) -> str:
     """Every text block of one assistant transcript row, joined in order — empty when the row is
-    tool-use-only (no text block at all) or the row's shape is not what it claims to be."""
+    tool-use-only (no text block at all) or the row's shape is not what it claims to be. A bare
+    STRING `message.content` is text as-is (A-S4: the hook's own `_operator_text` treats a string
+    content the same way; assistant rows mirror that instead of silently reading "")."""
     msg = entry.get("message")
     content = msg.get("content") if isinstance(msg, dict) else None
+    if isinstance(content, str):
+        return content
     if not isinstance(content, list):
         return ""
     return "\n".join(
@@ -88,7 +105,7 @@ def _assistant_text(entry: dict[str, Any]) -> str:
     )
 
 
-def _session_headless(entry: dict[str, Any]) -> bool:
+def _row_is_headless(entry: dict[str, Any]) -> bool:
     """The TRANSCRIPT half of the hook's own `_is_headless` — an `sdk-*` entrypoint on a real
     user row — without its `CLAUDE_MESH_HEADLESS` environment check (that reads THIS process's
     env, not the mined session's own launch)."""
@@ -96,82 +113,127 @@ def _session_headless(entry: dict[str, Any]) -> bool:
     return isinstance(ep, str) and ep.startswith("sdk-")
 
 
-def _in_window(ts: str, since: str | None, until: str | None) -> bool:
-    """Date-only (`YYYY-MM-DD`) comparison on the entry's own ISO timestamp — both bounds
-    inclusive (A-O37: the research copy this promotes read only a lower bound). A timestamp-less
-    entry is kept only when there is no lower bound to honor."""
+def _utc_date(ts: str) -> str | None:
+    """The ISO timestamp's calendar date, converted to UTC first (A-O2/A-O3) — a `+03:00` stamp
+    near midnight must not land on the wrong day by a naive string slice. None when `ts` is
+    missing or unparsable."""
     if not ts:
-        return since is None
-    day = ts[:10]
+        return None
+    s = ts.strip()
+    if s[-1:] in ("Z", "z"):
+        s = s[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC).date().isoformat()
+
+
+def _in_window(ts: str, since: str | None, until: str | None) -> bool:
+    """Both bounds inclusive (A-O4/A-S3), compared on the timestamp's UTC calendar date. A
+    timestamp this cannot parse is kept only when NEITHER bound is set — an unverifiable date
+    must never silently pass a real window."""
+    if since is None and until is None:
+        return True
+    day = _utc_date(ts)
+    if day is None:
+        return False
     if since is not None and day < since:
         return False
     return not (until is not None and day > until)
 
 
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _date_arg(value: str) -> str:
+    """argparse `type=` for `--since`/`--until` (A-O2): strict `YYYY-MM-DD`, and a real calendar
+    date (`2026-13-40` is the right shape and still not a date)."""
+    if not _DATE_RE.match(value):
+        raise argparse.ArgumentTypeError(f"{value!r} is not YYYY-MM-DD")
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a valid calendar date: {e}") from e
+    return value
+
+
 def mine(root: Path, *, since: str | None = None, until: str | None = None) -> dict[str, Any]:
     """Replay every interactive turn end under `root` and classify it with the hook's own
     `deferral_shape` (spec § Validation V1's first bullet: the fire rate, per shape and per
-    repo). Each `<repo>/<session>.jsonl` is read line by line and fails OPEN per file — an
-    unreadable file or a malformed line is skipped, never a crash of the whole run."""
+    repo). Each `<repo>/<session>.jsonl` is opened and read line by line INSIDE one try — a
+    non-regular path, an unreadable file, a bad-encoding read, a malformed line or an
+    unexpectedly-shaped row is skipped (A-S2/A-O5/A-O8), never a crash of the whole run."""
     hook = _hook()
-    files = sorted(root.glob("*/*.jsonl"))
+    all_paths = sorted(root.glob("*/*.jsonl"))
     by_shape: collections.Counter[str] = collections.Counter()
     by_repo: dict[str, dict[str, Any]] = {}
     turn_ends = 0
     fires = 0
-    headless_sessions = 0
+    headless_turn_ends = 0
     sidechain_rows_skipped = 0
+    skipped_files = 0
+    mined_files = 0
 
-    for path in files:
+    for path in all_paths:
+        if not path.is_file():
+            skipped_files += 1
+            continue
         repo = path.parent.name
-        headless = False
-        last_text: str | None = None
-        pending: list[str] = []
+        last_operator_headless = False
+        last_turn: tuple[str, bool] | None = None  # (text, headless-at-open)
+        pending: list[tuple[str, bool]] = []
         try:
-            fh = path.open("rb")
-        except OSError:
+            with path.open("rb") as fh:
+                for raw in fh:
+                    if b'"type"' not in raw:
+                        continue
+                    try:
+                        entry = json.loads(raw)
+                        if not isinstance(entry, dict):
+                            continue
+                        if entry.get("isSidechain"):
+                            sidechain_rows_skipped += 1
+                            continue
+                        et = entry.get("type")
+                        if et == "user":
+                            if hook._is_operator_row(entry):
+                                last_operator_headless = _row_is_headless(entry)
+                            if hook._operator_text(entry):
+                                if last_turn is not None:
+                                    pending.append(last_turn)
+                                last_turn = None
+                            continue
+                        if et == "assistant":
+                            text = _assistant_text(entry)
+                            if text.strip():
+                                ts = str(entry.get("timestamp") or "")
+                                last_turn = (
+                                    (text, last_operator_headless)
+                                    if _in_window(ts, since, until)
+                                    else None
+                                )
+                    except Exception:
+                        # One malformed or unexpectedly-shaped row never disables the whole
+                        # file's mining (fail-open PER LINE, A-S2/A-O5).
+                        continue
+        except (OSError, ValueError):
+            skipped_files += 1
             continue
-        with fh:
-            for raw in fh:
-                if b'"type"' not in raw:
-                    continue
-                try:
-                    entry = json.loads(raw)
-                    if not isinstance(entry, dict):
-                        continue
-                    if entry.get("isSidechain"):
-                        sidechain_rows_skipped += 1
-                        continue
-                    et = entry.get("type")
-                    if et == "user":
-                        if hook._is_operator_row(entry):
-                            if not headless:
-                                headless = _session_headless(entry)
-                            if last_text is not None:
-                                pending.append(last_text)
-                            last_text = None
-                        continue
-                    if et == "assistant":
-                        text = _assistant_text(entry)
-                        if text.strip():
-                            ts = str(entry.get("timestamp") or "")
-                            last_text = text if _in_window(ts, since, until) else None
-                except Exception:
-                    # One malformed or unexpectedly-shaped row never disables the whole file's
-                    # mining (fail-open PER LINE, spec's own "the miner reads line by line,
-                    # fail-open per file" hardened one notch further).
-                    continue
-        if last_text is not None:
-            pending.append(last_text)
-        if headless:
-            headless_sessions += 1
-            continue
+        mined_files += 1
+        if last_turn is not None:
+            pending.append(last_turn)
         if not pending:
             continue
         rec = by_repo.setdefault(
             repo, {"turn_ends": 0, "fires": 0, "by_shape": collections.Counter()}
         )
-        for text in pending:
+        for text, headless in pending:
+            if headless:
+                headless_turn_ends += 1
+                continue
             turn_ends += 1
             rec["turn_ends"] += 1
             shape = deferral_shape(text)
@@ -193,8 +255,9 @@ def mine(root: Path, *, since: str | None = None, until: str | None = None) -> d
         "root": str(root),
         "since": since,
         "until": until,
-        "files": len(files),
-        "headless_sessions": headless_sessions,
+        "files": mined_files,
+        "skipped_files": skipped_files,
+        "headless_turn_ends": headless_turn_ends,
         "sidechain_rows_skipped": sidechain_rows_skipped,
         "turn_ends": turn_ends,
         "fires": fires,
@@ -210,7 +273,8 @@ def _format_report(stats: dict[str, Any]) -> str:
     lines = [
         "V1 backtest — fire rate per shape and per repo",
         f"  window: since={stats['since'] or '(none)'} until={stats['until'] or '(none)'} — "
-        f"{stats['files']} file(s), {stats['headless_sessions']} headless session(s) excluded",
+        f"{stats['files']} file(s) mined, {stats['skipped_files']} skipped, "
+        f"{stats['headless_turn_ends']} headless turn end(s) excluded",
         f"  overall: {stats['fires']}/{stats['turn_ends']} fired "
         f"({stats['fire_rate'] * 100:.1f}%)",
         "  by shape: "
@@ -231,11 +295,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--root", required=True, type=Path, help="the <repo>/<session>.jsonl population root"
     )
-    p.add_argument("--since", default=None, help="YYYY-MM-DD, inclusive lower bound")
-    p.add_argument("--until", default=None, help="YYYY-MM-DD, inclusive upper bound")
+    p.add_argument("--since", default=None, type=_date_arg, help="YYYY-MM-DD, inclusive lower bound")
+    p.add_argument("--until", default=None, type=_date_arg, help="YYYY-MM-DD, inclusive upper bound")
     p.add_argument("--backtest", action="store_true", help="print the V1 fire-rate report")
     p.add_argument("--out", default=None, type=Path, help="write the full stats JSON here")
     args = p.parse_args(argv)
+
+    if args.since is not None and args.until is not None and args.since > args.until:
+        print(f"stop_mine: --since {args.since} is after --until {args.until}", file=sys.stderr)
+        return 2
 
     root = args.root.expanduser().resolve()
     if not root.is_dir():
@@ -248,7 +316,17 @@ def main(argv: list[str] | None = None) -> int:
         args.out.write_text(json.dumps(stats, indent=1))
     summary = {
         k: stats[k]
-        for k in ("root", "since", "until", "files", "headless_sessions", "turn_ends", "fires", "fire_rate")
+        for k in (
+            "root",
+            "since",
+            "until",
+            "files",
+            "skipped_files",
+            "headless_turn_ends",
+            "turn_ends",
+            "fires",
+            "fire_rate",
+        )
     }
     print(json.dumps(summary))
     if args.backtest:

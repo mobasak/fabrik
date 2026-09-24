@@ -44,8 +44,8 @@ each omitted on its own failure (one stderr line) rather than failing the whole 
 
 1. The live command run (`_run_record`), when its state is `running`.
 2. The last `NEXT:` line, when it is not already shown as an anchor below.
-3. An open DECISION block (below), rendered verbatim, prefixed "awaiting the operator's answer —
-   never treat it as settled".
+3. An open DECISION block (below), rendered verbatim, prefixed `- OPEN DECISION — awaiting the
+   operator's answer; never treat it as settled:` (`scripts/thread_anchor.py:677`).
 4. This session's own unpushed commits and dirty files (`_session_git`) — scoped to files THIS
    session authored (`session_unpushed`, `_this_sessions_edits`, imported from the Stop hook by
    path), so a sibling's commit on the shared branch never appears here.
