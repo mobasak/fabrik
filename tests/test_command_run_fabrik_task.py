@@ -1191,6 +1191,14 @@ def _events(run_dir: Path) -> list[dict]:
     return out
 
 
+
+def _resume_artifact(repo: Path) -> str:
+    """A handoff's successor must exist and carry `## RESUME` (mail 01M2ZEX6ZJ7S92GK5HCP2E4ZNX)."""
+    art = repo / "docs" / "development" / "reviews" / "x.md"
+    art.parent.mkdir(parents=True, exist_ok=True)
+    art.write_text("# x\n\n## RESUME\n- one quiet round over the last fix diff\n", encoding="utf-8")
+    return "docs/development/reviews/x.md"
+
 def _close_run(
     run_dir: Path,
     repo: Path,
@@ -1583,7 +1591,7 @@ def test_upgrade_is_anchored_and_keyed(run_dir: Path, repo: Path, hub_sync: Path
         hub_sync,
         "handoff",
         "--resume",
-        "docs/development/reviews/x.md",
+        _resume_artifact(repo),
         "--reason",
         "UPGRADE: mechanism — the size gate wants a fourth test",
     )
@@ -1739,7 +1747,7 @@ def test_no_commit_wins_unconditionally_over_sync_unavailable(
         nowhere,
         "handoff",
         "--resume",
-        "docs/development/reviews/x.md",
+        _resume_artifact(repo),
         "--reason",
         "UPGRADE: mechanism — routed",
     )
@@ -2102,7 +2110,7 @@ def test_the_sync_refusal_names_the_flag_the_closing_verb_actually_takes(
         hub_sync,
         "handoff",
         "--resume",
-        "docs/development/reviews/x.md",
+        _resume_artifact(repo),
         "--commit",
         sha,
         "--reason",

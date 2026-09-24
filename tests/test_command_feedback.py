@@ -2031,3 +2031,63 @@ def test_giant_line_epoch_skips_a_nested_stamp_inside_the_window(tmp_path: Path)
     r = tmp_path / "agent-tail.jsonl"
     r.write_bytes(head + b"y" * (5 << 20) + b'","timestamp":"2020-06-15T00:00:00.000Z"}\n')
     assert mod._giant_line_epoch(r, r.stat().st_size) == 1592179200.0
+
+
+# ── handoff's successor artifact is CHECKED, not just named (mail 01M2ZEX6ZJ7S92GK5HCP2E4ZNX) ──
+# `--resume` is the whole case for handoff being "strictly harder to fake" than BLOCKED, yet a path
+# that did not exist closed the run at rc 0. The close now reads the file and needs its RESUME block.
+
+
+def _handoff(run_dir: Path, resume: str) -> subprocess.CompletedProcess[str]:
+    return _cr(
+        run_dir,
+        "handoff",
+        "--command",
+        "fabrik-probe",
+        "--resume",
+        resume,
+        "--reason",
+        "rows open",
+        "--feedback",
+        STRUCTURED,
+    )
+
+
+def test_a_handoff_whose_resume_file_does_not_exist_is_refused_and_stays_running(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "runs"
+    _start(run_dir)
+    r = _handoff(run_dir, str(tmp_path / "nope.md"))
+    assert r.returncode != 0
+    assert "--resume" in r.stdout + r.stderr
+    assert _cr(run_dir, "line").stdout.startswith("RUN:"), (
+        "a refused close leaves the record running"
+    )
+
+
+def test_a_handoff_whose_resume_file_has_no_resume_block_is_refused(tmp_path: Path) -> None:
+    run_dir = tmp_path / "runs"
+    _start(run_dir)
+    art = tmp_path / "report.md"
+    art.write_text("# report\n\nrows are open somewhere\n", encoding="utf-8")
+    assert _handoff(run_dir, str(art)).returncode != 0
+    art.write_text(
+        "# report\n\n## RESUME\n- one quiet round over the last fix diff\n", encoding="utf-8"
+    )
+    assert _handoff(run_dir, str(art)).returncode == 0
+
+
+def test_a_handoff_resume_that_is_a_device_or_fifo_refuses_fast_and_never_reads_rc0(
+    tmp_path: Path,
+) -> None:
+    """A FIFO with no writer blocked the close forever, and `/dev/zero` under a memory cap raised
+    MemoryError, which main()'s fail-soft catch-all turned into rc 0 (review round 1)."""
+    run_dir = tmp_path / "runs"
+    _start(run_dir)
+    fifo = tmp_path / "fifo"
+    os.mkfifo(fifo)
+    for target in (str(fifo), "/dev/zero"):
+        r = _handoff(run_dir, target)  # _cr's own 30 s timeout turns a hang into a test error
+        assert r.returncode == 1, (target, r.stdout, r.stderr)
+        assert "not a regular file" in r.stdout

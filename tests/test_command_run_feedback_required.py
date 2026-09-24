@@ -119,7 +119,7 @@ def test_handoff_owes_a_verdict_too(monkeypatch, tmp_path):
     rc = _run(
         monkeypatch,
         tmp_path,
-        ["handoff", "--command", "fabrik-probe", "--reason", "r", "--resume", "docs/x.md"],
+        ["handoff", "--command", "fabrik-probe", "--reason", "r", "--resume", _resume(tmp_path)],
     )
     assert rc == 1
     rec = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
@@ -142,7 +142,7 @@ def test_handoff_with_a_verdict_closes_and_releases_the_stop_hook(monkeypatch, t
             "--reason",
             "r",
             "--resume",
-            "docs/x.md",
+            _resume(tmp_path),
             "--feedback",
             "confusion: none · waste: none · change: none · filed: none — swept it",
         ],
@@ -153,6 +153,13 @@ def test_handoff_with_a_verdict_closes_and_releases_the_stop_hook(monkeypatch, t
 
 
 # ── end to end: the refusal itself, through main(), against an isolated state dir ────────────
+
+
+def _resume(tmp_path) -> str:
+    """handoff reads its successor and needs `## RESUME` (mail 01M2ZEX6ZJ7S92GK5HCP2E4ZNX)."""
+    art = tmp_path / "resume.md"
+    art.write_text("## RESUME\n- next act\n", encoding="utf-8")
+    return str(art)
 
 
 def _run(monkeypatch, tmp_path, argv: list[str], *, sid: str = "s1") -> int:

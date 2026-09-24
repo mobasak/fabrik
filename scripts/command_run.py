@@ -285,6 +285,10 @@ def pinned_line(rec: dict[str, Any]) -> str:
 # service-test, deploy-checklist) keeps D-206's `--findings 0` rule — its rounds are not the
 # review family's exit counter. `tests/test_command_run.py` derives the `-review` half from the
 # corpus, so a new review source that omits itself here is a red test, not a silent omission.
+# handoff reads at most this much of its --resume artifact: a successor's RESUME block sits in a
+# report, never past its first megabyte, and an unbounded read of a device never returns.
+_RESUME_READ_CAP = 1_000_000
+
 CONFIRMED_REQUIRED_COMMANDS = frozenset(
     {
         "fabrik-review",
@@ -4640,6 +4644,33 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         # were `done` (untrue - the contract is not met) and a stretched "unresolvable spec
         # contradiction". An agent ordered to produce a disposition it cannot record will either
         # lie or stall, and both are worse than a fourth word.
+        # The successor is CHECKED, not just named: a path that did not exist closed at rc 0, while
+        # `--resume`'s own help calls it what makes this close "strictly harder to fake" (mail
+        # 01M2ZEX6ZJ7S92GK5HCP2E4ZNX). Every corpus consumer mandates a `## RESUME` block. Nothing is
+        # on disk yet, so a refusal leaves the record `running`. ⚠️ COBRA: the cheapest pass is a
+        # file holding only the heading — the check proves a successor was WRITTEN, never that it
+        # names the open rows; the consumer's own report grammar owns that.
+        # A REGULAR file only, read BOUNDED, and ANY failure is the refusal: a FIFO with no writer
+        # blocked the close forever, and `/dev/zero` under a memory cap raised MemoryError, which
+        # `main`'s fail-soft catch-all turned into rc 0 — the very defect this check closes.
+        resume_path = Path(args.resume)
+        resume_text = ""
+        why = ""
+        try:
+            if not resume_path.is_file():
+                why = "is not a regular file"
+            else:
+                with resume_path.open(encoding="utf-8", errors="replace") as fh:
+                    resume_text = fh.read(_RESUME_READ_CAP)
+        except Exception as exc:  # noqa: BLE001 — every failure refuses; none may reach main's rc 0
+            why = f"cannot be read ({type(exc).__name__})"
+        if not why and not re.search(r"(?m)^##\s+RESUME\b", resume_text):
+            why = "has no `## RESUME` block naming the open rows and the next act"
+        if why:
+            msg = f"REFUSED — handoff --resume {args.resume} {why}; write the successor artifact first"
+            sys.stderr.write(f"[command_run] {msg}\n")
+            print(msg)
+            return 1
         rec["blocked_reason"] = args.reason
         rec["resume"] = args.resume
     else:

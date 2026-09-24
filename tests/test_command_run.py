@@ -2664,6 +2664,13 @@ def test_feedback_never_breaks_the_close(run_dir: Path) -> None:
 # artifact carrying the open rows, where "unresolvable spec contradiction" is free prose.
 
 
+def _resume_artifact(run_dir: Path) -> str:
+    """handoff reads its successor and needs `## RESUME` (mail 01M2ZEX6ZJ7S92GK5HCP2E4ZNX)."""
+    art = run_dir.parent / "ledger.md"
+    art.write_text("# ledger\n\n## RESUME\n- 3 DESIGN-GAP rows, routed\n", encoding="utf-8")
+    return str(art)
+
+
 def test_handoff_closes_a_not_quiet_run_with_its_resume_artifact(run_dir: Path) -> None:
     _start(run_dir)
     out = _cr(
@@ -2672,7 +2679,7 @@ def test_handoff_closes_a_not_quiet_run_with_its_resume_artifact(run_dir: Path) 
         "--command",
         "fabrik-probe",
         "--resume",
-        "docs/development/certifications/2026-08-27-cert-x/ledger.md",
+        _resume_artifact(run_dir),
         "--reason",
         "3 DESIGN-GAP rows the run may not decide",
     )
@@ -2683,10 +2690,24 @@ def test_handoff_closes_a_not_quiet_run_with_its_resume_artifact(run_dir: Path) 
 
 
 def test_handoff_refuses_without_the_resume_artifact(run_dir: Path) -> None:
-    """The whole point: it must be harder to fake than the BLOCKED cause it replaces."""
+    """The whole point: it must be harder to fake than the BLOCKED cause it replaces. Omitting the
+    flag is argparse's refusal (rc 2); NAMING an artifact that is not there must refuse at the close
+    too — that is the runtime check, and it leaves the run open."""
     _start(run_dir)
     out = _cr(run_dir, "handoff", "--command", "fabrik-probe", "--reason", "rows open")
-    assert out.returncode != 0, out.stdout + out.stderr
+    assert out.returncode == 2, out.stdout + out.stderr
+    out = _cr(
+        run_dir,
+        "handoff",
+        "--command",
+        "fabrik-probe",
+        "--reason",
+        "rows open",
+        "--resume",
+        str(run_dir.parent / "absent.md"),
+    )
+    assert out.returncode == 1, out.stdout + out.stderr
+    assert json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))["state"] == "running"
 
 
 def test_handoff_leaves_the_record_closed_so_the_stop_hook_releases(run_dir: Path) -> None:
@@ -2699,7 +2720,7 @@ def test_handoff_leaves_the_record_closed_so_the_stop_hook_releases(run_dir: Pat
         "--command",
         "fabrik-probe",
         "--resume",
-        "docs/x/ledger.md",
+        _resume_artifact(run_dir),
         "--reason",
         "rows open",
     )
@@ -2716,7 +2737,7 @@ def test_handoff_carries_the_feedback_verdict_like_the_other_closes(run_dir: Pat
         "--command",
         "fabrik-probe",
         "--resume",
-        "docs/x/ledger.md",
+        _resume_artifact(run_dir),
         "--reason",
         "rows open",
         "--feedback",

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `command_run.py handoff` checks its `--resume` artifact instead of trusting the name (2026-09-24)
+
+- `handoff --resume <path>` closed a run at rc 0 when the path did not exist, while the flag's own help calls the successor artifact what makes this close "strictly harder to fake" (mail 01M2ZEX6ZJ7S92GK5HCP2E4ZNX). The close now requires a regular file carrying a `## RESUME` block, reads at most 1 MB of it, and refuses rc 1 before anything is saved. The review found two more ways the first cut failed: a FIFO blocked the close forever, and `/dev/zero` under a memory cap reached `main`'s rc-0 catch-all.
+- The same mail's other three findings are refuted: the close's sweep table is silenced by the existing `FABRIK_SCRATCH_SWEEP=0` (since 2026-09-08); a review-family `round` without `--confirmed` has been refused since D-335; no corpus brief mandates `stdin=DEVNULL`.
+
 ### Fixed — WHERE YOU ARE shows the NEXT the agent actually wrote, bold or bulleted (2026-09-24)
 - `scripts/thread_anchor.py` (fleet-synced): the harvest read only a plain `^NEXT:` while the Stop hook treats `**NEXT:**`, `__NEXT:__`, `- NEXT:` and `> NEXT:` as the footer, so after a compaction WHERE YOU ARE could show an older NEXT. `_next_values` now reads those shapes and skips a NEXT inside a closed code fence or indented 4+ spaces. A quoted `> NEXT:` counts only when there is no unquoted one, and a fence left open at the end is not a fence. CRLF is normalised. A closing `**`/`__` is stripped only when it pairs with the opener before `NEXT`, and an empty value is not a NEXT.
 - `/fabrik-review` over the fix and over dac706d6e, which had had only the docs-review closing round: 4 passes, confirmed 5 → 4 → 1 → 0; receipt `docs/development/reviews/2026-09-24-thread-anchor-next-footer-review.md`. `tests/test_thread_anchor.py` gains 17 cases, each seen red on the draft it guards. `docs/reference/thread-anchors.md` and `docs/workstation/hooks-index.md` repoint their `thread_anchor.py` cites. `docs/STRATEGIC_BACKLOG.md`'s enforcement-gap row now holds the one real open item, the `BLOCKED:` exemption, with its measurement (115 of 16,278 turn ends, 34 formatted).
