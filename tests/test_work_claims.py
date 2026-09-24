@@ -184,13 +184,15 @@ def test_three_processes_claiming_at_once_have_exactly_one_winner(tmp_path):
     go = tmp_path / "go"
     starter = (
         "import os, runpy, sys, time\n"
+        "open(sys.argv[1], 'w').close()\n"
         f"while not os.path.exists({str(go)!r}): time.sleep(0.001)\n"
-        f"sys.argv = [{str(SCRIPT)!r}] + sys.argv[1:]\n"
+        f"sys.argv = [{str(SCRIPT)!r}] + sys.argv[2:]\n"
         f"runpy.run_path({str(SCRIPT)!r}, run_name='__main__')\n"
     )
+    ready = [tmp_path / f"ready-{i}" for i in range(3)]
     procs = [
         subprocess.Popen(
-            [sys.executable, "-c", starter, "claim", item, "--session", f"s{i}"],
+            [sys.executable, "-c", starter, str(ready[i]), "claim", item, "--session", f"s{i}"],
             cwd=repo,
             env=env,
             stdout=subprocess.PIPE,
@@ -199,7 +201,10 @@ def test_three_processes_claiming_at_once_have_exactly_one_winner(tmp_path):
         )
         for i in range(3)
     ]
-    time.sleep(0.5)
+    deadline = time.monotonic() + 30
+    while not all(r.exists() for r in ready):
+        assert time.monotonic() < deadline, "workers never signalled ready"
+        time.sleep(0.005)
     go.write_text("go", encoding="utf-8")
     results = []
     for p in procs:
@@ -312,6 +317,15 @@ def test_a_claim_from_a_linked_worktree_hides_the_item_from_ready_in_the_main_ch
     wt = _worktree(repo, env)
     assert item in _ready_ids(repo, env)
     _ok(["claim", item, "--session", "W"], env, wt)
+    common = {
+        _git(t, env, "rev-parse", "--path-format=absolute", "--git-common-dir").strip()
+        for t in (repo, wt)
+    }
+    assert len(common) == 1
+    shared_claim = Path(common.pop()) / "fabrik-work" / "claims" / f"{item}.json"
+    assert shared_claim.is_file()
+    assert json.loads(shared_claim.read_text(encoding="utf-8"))["session"] == "W"
+    assert not (wt / ".git").is_dir()
     assert item not in _ready_ids(repo, env)
     assert item not in _ready_ids(wt, env)
 
@@ -420,10 +434,6 @@ def test_an_awaiting_item_refuses_drop_done_claim_and_closes_only_by_answer(tmp_
     assert marker["note"] == "ship it" and marker["decision"] == "D-001"
     # the linked worktree's committed awaiting copy stops printing there at once
     assert _item(wt, item)["status"] == "awaiting-operator"
-    assert item not in work.prompt_block(wt, "S9")
-    # ... and keeps not printing once the answer is committed in the main checkout
-    _commit_store(repo, env, "answer")
-    _add(repo, env, title="prune")
     assert item not in work.prompt_block(wt, "S9")
     # answer on an item that is not awaiting is refused
     other = _add(repo, env, title="plain")
@@ -576,6 +586,19 @@ def test_on_harvest_writes_the_decision_then_the_items_next_under_one_lock(
             yield held
 
     monkeypatch.setattr(work, "_store_lock", counting)
+    writes = []
+    real_item, real_claim = work._write_item, work._write_claim
+
+    def item_write(repo_, it, **k):
+        writes.append(("item", str(it.get("id")), str(it.get("kind"))))
+        return real_item(repo_, it, **k)
+
+    def claim_write(repo_, item_id, claim):
+        writes.append(("claim", item_id, ""))
+        return real_claim(repo_, item_id, claim)
+
+    monkeypatch.setattr(work, "_write_item", item_write)
+    monkeypatch.setattr(work, "_write_claim", claim_write)
     got = work.on_harvest(
         repo,
         session="S1",
@@ -587,6 +610,11 @@ def test_on_harvest_writes_the_decision_then_the_items_next_under_one_lock(
     assert _item(repo, got)["kind"] == "decision"
     assert _item(repo, item)["next"] == f"{item}: write the migration test"
     assert calls == [True]
+    kinds = [(w[0], w[1] == got, w[1] == item) for w in writes]
+    decision_at = kinds.index(("item", True, False))
+    next_at = kinds.index(("item", False, True))
+    renew_at = kinds.index(("claim", False, True))
+    assert decision_at < next_at < renew_at, writes
 
 
 def test_on_harvest_fails_open_when_the_lock_is_held(tmp_path, api):
@@ -655,3 +683,178 @@ def test_hook_api_on_a_store_less_repo_returns_empty_and_creates_nothing(tmp_pat
     assert not (repo / ".fabrik").exists()
     assert not _shared(repo).exists()
     assert work.prompt_block(tmp_path / "home", "S") == ""
+
+
+# ── review pass 1 ────────────────────────────────────────────────────────────────────────────
+
+
+def test_a_linked_worktree_does_not_hide_or_refuse_an_item_on_the_main_head_alone(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item = _add(repo, env)
+    _commit_store(repo, env)
+    wt = _worktree(repo, env)
+    sha = _evidence(repo, env, f"close {item}")
+    _ok(["done", item, "--evidence", sha, "--session", "M"], env, repo)
+    _commit_store(repo, env, "close")
+    _add(repo, env, title="a locked write prunes the marker")
+    assert not (_shared(repo) / "closed" / f"{item}.json").exists()
+    assert _item(wt, item)["status"] == "open"
+    assert item in _ready_ids(wt, env)
+    _ok(["claim", item, "--session", "W"], env, wt)
+
+
+def test_init_records_the_base_branch_and_the_prune_reads_it_not_the_checked_out_branch(
+    tmp_path,
+):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    cfg = json.loads((repo / ".fabrik" / "work" / "config.json").read_text(encoding="utf-8"))
+    assert cfg["base_branch"] == "main"
+    item = _add(repo, env)
+    _commit_store(repo, env)
+    wt = _worktree(repo, env)
+    sha = _evidence(wt, env, f"close {item}")
+    _ok(["done", item, "--evidence", sha, "--session", "W"], env, wt)
+    _commit_store(wt, env, "close")
+    # the main checkout moves to a side branch on which the item reads done
+    _git(repo, env, "checkout", "-q", "-b", "side")
+    _git(repo, env, "merge", "-q", "--no-ff", "-m", "merge wt into side", "wt")
+    assert _item(repo, item)["status"] == "done"
+    _add(repo, env, title="a locked write")
+    assert (_shared(repo) / "closed" / f"{item}.json").exists()
+    # once the BASE branch reads done, the next locked write prunes it
+    _git(repo, env, "checkout", "-q", "main")
+    _git(repo, env, "merge", "-q", "--no-ff", "-m", "merge wt into main", "wt")
+    _add(repo, env, title="another locked write")
+    assert not (_shared(repo) / "closed" / f"{item}.json").exists()
+
+
+def test_drop_is_fenced_by_another_sessions_live_claim(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env, distributor="intel")
+    item = _add(repo, env)
+    _ok(["claim", item, "--session", "A"], env, repo)
+    before = _item_file(repo, item).read_bytes()
+    r = run(["drop", item, "--why", "x"], _as(env, agent="intel", session="B"), repo)
+    assert r.returncode != 0 and "token" in r.stderr and "A" in r.stderr, r.stderr
+    assert _item_file(repo, item).read_bytes() == before
+    _ok(["drop", item, "--why", "mine to drop"], _as(env, agent="intel", session="A"), repo)
+    assert _item(repo, item)["status"] == "dropped"
+    other = _add(repo, env, title="expired")
+    _ok(["claim", other, "--session", "A"], env, repo)
+    _set_claim(repo, other, at=time.time() - 7201)
+    _ok(["drop", other, "--why", "lapsed"], _as(env, agent="intel", session="B"), repo)
+
+
+def test_on_harvest_leaves_the_next_of_an_item_another_session_holds(tmp_path, api):
+    work, env = api
+    repo = _store(tmp_path, env)
+    item = _add(repo, env)
+    _ok(["claim", item, "--session", "A"], env, repo)
+    before = _item_file(repo, item).read_bytes()
+    got = work.on_harvest(
+        repo, session="B", block=BLOCK, msg_digest="m1", next_text=f"{item}: not yours"
+    )
+    assert got and _item(repo, got)["kind"] == "decision"
+    assert _item_file(repo, item).read_bytes() == before
+    work.on_harvest(repo, session="A", next_text=f"{item}: yours")
+    assert _item(repo, item)["next"] == f"{item}: yours"
+
+
+def _set_item(tree: Path, item_id: str, **fields: object) -> None:
+    p = _item_file(tree, item_id)
+    data = json.loads(p.read_text(encoding="utf-8"))
+    data.update(fields)
+    p.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def test_claim_is_refused_on_a_blocked_item(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    dep = _add(repo, env, title="dep")
+    item = _add(repo, env, title="waits")
+    _set_item(repo, item, blocked_by=[dep])
+    r = run(["claim", item, "--session", "A"], env, repo)
+    assert r.returncode != 0 and dep in r.stderr, r.stderr
+    third = _add(repo, env, title="status blocked")
+    _set_item(repo, third, status="blocked")
+    r = run(["claim", third, "--session", "A"], env, repo)
+    assert r.returncode != 0 and "blocked" in r.stderr, r.stderr
+    assert not (_shared(repo) / "claims" / f"{item}.json").exists()
+    assert not (_shared(repo) / "claims" / f"{third}.json").exists()
+    sha = _evidence(repo, env, f"did {dep}")
+    _ok(["done", dep, "--evidence", sha, "--session", "A"], env, repo)
+    _ok(["claim", item, "--session", "A"], env, repo)
+
+
+def test_ensure_decision_items_skips_an_entry_that_raises_and_keeps_the_rest(
+    tmp_path, api, monkeypatch
+):
+    work, env = api
+    repo = _store(tmp_path, env)
+    real = work._ensure_decision_locked
+
+    def flaky(root, block, msg_digest, session):
+        if block == BLOCK_2:
+            raise OSError("disk full")
+        return real(root, block, msg_digest, session)
+
+    monkeypatch.setattr(work, "_ensure_decision_locked", flaky)
+    ids = work.ensure_decision_items(repo, [(BLOCK, "d1", "S1"), (BLOCK_2, "d2", "S1")])
+    assert ids is not None and len(ids) == 1
+    assert _item_file(repo, ids[0]).is_file()
+    assert _item(repo, ids[0])["msg_digests"] == ["d1"]
+
+
+def _closing_setup(tmp_path: Path, env: dict[str, str]) -> tuple[Path, str, str]:
+    repo = _store(tmp_path, env)
+    item = _add(repo, env)
+    _ok(["claim", item, "--session", "A"], env, repo)
+    sha = _evidence(repo, env, f"did {item}")
+    return repo, item, sha
+
+
+def test_a_failed_marker_write_leaves_the_item_open_and_the_claim_live(tmp_path, api, monkeypatch):
+    work, env = api
+    repo, item, sha = _closing_setup(tmp_path, env)
+    before = _item_file(repo, item).read_bytes()
+
+    def boom(*a, **k):
+        raise OSError("marker write failed")
+
+    monkeypatch.setattr(work, "_write_marker", boom)
+    code = work.main(["--repo", str(repo), "done", item, "--evidence", sha, "--session", "A"])
+    assert code != 0
+    assert _item_file(repo, item).read_bytes() == before
+    assert _claim(repo, item)["lease_s"] > 0
+
+
+def test_a_failed_item_write_removes_the_marker_and_keeps_the_claim_live(
+    tmp_path, api, monkeypatch
+):
+    work, env = api
+    repo, item, sha = _closing_setup(tmp_path, env)
+    before = _item_file(repo, item).read_bytes()
+
+    def boom(*a, **k):
+        raise OSError("item write failed")
+
+    monkeypatch.setattr(work, "_write_item", boom)
+    code = work.main(["--repo", str(repo), "done", item, "--evidence", sha, "--session", "A"])
+    assert code != 0
+    assert _item_file(repo, item).read_bytes() == before
+    assert not (_shared(repo) / "closed" / f"{item}.json").exists()
+    assert _claim(repo, item)["lease_s"] > 0
+
+
+def test_evidence_must_name_the_id_as_a_whole_token(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item = _add(repo, env)
+    for msg in (f"feat: {item}5 is something else", f"feat: x{item} is not it"):
+        sha = _evidence(repo, env, msg)
+        r = run(["done", item, "--evidence", sha], env, repo)
+        assert r.returncode != 0, msg
+    sha = _evidence(repo, env, f"feat: closes {item}.")
+    _ok(["done", item, "--evidence", sha], env, repo)

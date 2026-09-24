@@ -71,7 +71,8 @@ DEFAULT_LEASE_S = 7200  # a claim's lease: 2 h, renewed by every write of its se
 MARKER_MAX_AGE_S = 14 * 86400  # a closed marker older than this stops hiding its item
 LINE_MAX = 300  # one prompt_block line
 _DECISION_ID_RE = re.compile(r"D-[0-9]+")
-_ITEM_REF_RE = re.compile(r"(?<![0-9A-Za-z])W-[0-9a-f]{8}(?![0-9a-f])")
+_ITEM_REF_RE = re.compile(r"(?<![0-9A-Za-z])W-[0-9a-f]{8}(?![0-9A-Za-z])")  # a whole token
+_BRANCH_RE = re.compile(r"[A-Za-z0-9._/-]+")
 _QUESTION_RE = re.compile(
     r"^[ \t]*(?:[-*\u2022][ \t]+)?[*_]{0,2}Question[*_]{0,2}[ \t]*:[*_]{0,2}[ \t]*(.*)$",
     re.I | re.M,
@@ -559,7 +560,7 @@ def _ready_items(repo: Path, *, mine: bool = False, agent: str = "") -> list[dic
     age; ``mine`` puts ``agent``'s own first, then the unassigned ones, and leaves out items owned
     by anyone else. "Claimed" is derived here, never stored on the item."""
     items = list(_iter_items(repo))
-    return _ready_from(items, _closed_ids(repo, items), _live_claims(repo), mine=mine, agent=agent)
+    return _ready_from(items, _closed_ids(repo), _live_claims(repo), mine=mine, agent=agent)
 
 
 # ── claims, leases, closed markers ───────────────────────────────────────────────────────────
@@ -575,9 +576,10 @@ def _ready_items(repo: Path, *, mine: bool = False, agent: str = "") -> list[dic
 #
 # A closed marker is ``fabrik-work/closed/<id>.json``, written by done/drop/answer, so every
 # other tree of the repo stops listing an item closed on an unmerged branch. A marker HIDES its
-# item until the MAIN checkout's HEAD reads it done/dropped (then every locked write prunes it,
-# always as that write's last step) or until it is 14 days old (a branch never merged). A linked
-# worktree also hides every item the main checkout's HEAD already reads resolved.
+# item until the store's BASE BRANCH (``base_branch`` in config.json, read as a ref) reads it
+# done/dropped — then every locked write prunes it, always as that write's last step — or until
+# it is 14 days old (a branch never merged). Closing writes the marker FIRST, then the item (a
+# failed item write removes the marker again), and ends the claim LAST.
 
 
 def _claims_dir(repo: Path) -> Path:
@@ -668,18 +670,39 @@ def _renew_claims(repo: Path, session: str) -> None:
             _write_claim(repo, item_id, claim)
 
 
-def _main_head_statuses(repo: Path, ids: list[str]) -> dict[str, str]:
-    """The status each id's item has in the MAIN checkout's committed HEAD (one ``cat-file
-    --batch`` call); an id missing there is absent from the result, and any git failure yields {}
-    — a marker then keeps hiding its item, the conservative reading."""
-    trees = _worktrees(repo)
-    if not ids or not trees or not trees[0].is_dir():
+def _branch_of(tree: Path) -> str:
+    """The branch checked out in ``tree`` ("" when detached or unreadable)."""
+    try:
+        return _git(tree, "symbolic-ref", "--short", "-q", "HEAD")
+    except WorkError:
+        return ""
+
+
+def _base_branch(repo: Path) -> str:
+    """The store's base branch: ``base_branch`` from config.json (recorded by ``init``), else the
+    branch the main checkout has checked out now; "" when neither is a usable branch name."""
+    try:
+        name = str(_read_config(repo).get("base_branch") or "").strip()
+    except WorkError:
+        name = ""
+    if not name:
+        trees = _worktrees(repo)
+        name = _branch_of(trees[0]) if trees and trees[0].is_dir() else ""
+    return name if _BRANCH_RE.fullmatch(name) and not name.startswith("-") else ""
+
+
+def _base_statuses(repo: Path, ids: list[str]) -> dict[str, str]:
+    """The status each id's item has on the store's BASE BRANCH, read as a ref (one ``cat-file
+    --batch`` call) — never whatever a checkout has checked out. An id missing there is absent
+    from the result, and any git failure yields {}: a marker then keeps hiding its item."""
+    branch = _base_branch(repo) if ids else ""
+    if not branch:
         return {}
-    req = "".join(f"HEAD:{STORE_REL.as_posix()}/{i}.json\n" for i in ids).encode()
+    req = "".join(f"refs/heads/{branch}:{STORE_REL.as_posix()}/{i}.json\n" for i in ids)
     try:
         proc = subprocess.run(
-            ["git", "-C", str(trees[0]), "cat-file", "--batch"],
-            input=req,
+            ["git", "-C", str(repo), "cat-file", "--batch"],
+            input=req.encode(),
             capture_output=True,
             timeout=_GIT_TIMEOUT_S,
         )
@@ -706,26 +729,18 @@ def _main_head_statuses(repo: Path, ids: list[str]) -> dict[str, str]:
     return found
 
 
-def _is_main_checkout(repo: Path) -> bool:
-    trees = _worktrees(repo)
-    return not trees or trees[0] == repo
-
-
-def _closed_ids(repo: Path, items: list[dict]) -> set[str]:
-    """Ids this tree must treat as closed although its own copy is not: an effective closed
-    marker, or — in a linked worktree — an item the main checkout's HEAD reads resolved."""
+def _closed_ids(repo: Path) -> set[str]:
+    """Ids hidden by an effective closed marker: one whose item the base branch does not yet read
+    done/dropped, and that is at most 14 days old. Nothing else hides an item — every verb acts on
+    the caller's own tree (D-403)."""
     markers = _read_records(_closed_dir(repo))
-    linked = not _is_main_checkout(repo)
-    mine = [str(it["id"]) for it in items if it.get("status") not in RESOLVED] if linked else []
-    ids = sorted(set(markers) | set(mine))
-    heads = _main_head_statuses(repo, ids)
+    heads = _base_statuses(repo, sorted(markers))
     now = time.time()
     closed = set()
     for item_id, marker in markers.items():
         at = _num(marker.get("at"), _num(marker.get("_mtime")))
         if heads.get(item_id) not in RESOLVED and now - at <= MARKER_MAX_AGE_S:
             closed.add(item_id)
-    closed.update(i for i in mine if heads.get(i) in RESOLVED)
     return closed
 
 
@@ -749,9 +764,9 @@ def _write_marker(
 
 
 def _prune_markers(repo: Path) -> None:
-    """Delete every marker whose item the main checkout's HEAD already reads resolved."""
+    """Delete every marker whose item the store's base branch already reads resolved."""
     markers = _read_records(_closed_dir(repo))
-    for item_id, status in _main_head_statuses(repo, sorted(markers)).items():
+    for item_id, status in _base_statuses(repo, sorted(markers)).items():
         if status in RESOLVED:
             with contextlib.suppress(FileNotFoundError):
                 (_closed_dir(repo) / f"{item_id}.json").unlink()
@@ -827,8 +842,10 @@ def cmd_init(repo: Path, args: argparse.Namespace) -> int:
     ignore = store / ".gitignore"
     if not ignore.exists():
         _write_text(ignore, "*.tmp\n")  # a writer killed mid-write leaves a temp nobody commits
+    trees = _worktrees(repo)
+    base_branch = _branch_of(trees[0] if trees else repo)
     try:
-        _write_json(cfg, {"distributor": distributor}, exclusive=True)
+        _write_json(cfg, {"base_branch": base_branch, "distributor": distributor}, exclusive=True)
     except FileExistsError:
         raise WorkError(f"{_rel(repo, cfg)} already exists — the store is initialised") from None
     print(_rel(repo, cfg))
@@ -927,12 +944,48 @@ def _refuse_closed(repo: Path, item: dict, verb: str) -> None:
         )
     if status in RESOLVED:
         raise WorkError(f"{verb} {item['id']} refused: it is already {status}")
-    if item["id"] in _closed_ids(repo, [item]):
+    if item["id"] in _closed_ids(repo):
         raise WorkError(
             f"{verb} {item['id']} refused: it was closed in another working tree "
-            f"(a closed marker in {_closed_dir(repo)}, or the main checkout's HEAD) — "
+            f"(a closed marker in {_closed_dir(repo)}) — "
             "merge that branch instead"
         )
+
+
+def _refuse_blocked(repo: Path, item: dict) -> None:
+    """``claim`` needs a claimable item — ``ready``'s rule: not ``blocked``, and every
+    ``blocked_by`` id done or dropped (here, or closed by a marker)."""
+    if item.get("status") == "blocked":
+        raise WorkError(f"claim {item['id']} refused: its status is blocked")
+    by_id = {str(it["id"]): it for it in _iter_items(repo)}
+    closed = _closed_ids(repo)
+    waiting = [
+        str(dep)
+        for dep in item.get("blocked_by") or []
+        if str(dep) not in closed and by_id.get(str(dep), {}).get("status") not in RESOLVED
+    ]
+    if waiting:
+        raise WorkError(
+            f"claim {item['id']} refused: it is blocked by {', '.join(waiting)} "
+            "(not yet done or dropped)"
+        )
+
+
+def _close(
+    repo: Path, item: dict, *, session: str, evidence: str = "", note: str = "", decision: str = ""
+) -> Path:
+    """Close ``item`` (already updated): the marker FIRST, then the item — a failed item write
+    removes the marker and re-raises — and the claim LAST, so a failure never leaves an item closed
+    here while every other tree still lists it, nor a closed marker for an open item."""
+    _write_marker(repo, item, session=session, evidence=evidence, note=note, decision=decision)
+    try:
+        path = _write_item(repo, item)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            (_closed_dir(repo) / f"{item['id']}.json").unlink()
+        raise
+    _end_claim(repo, str(item["id"]))
+    return path
 
 
 def _fence(repo: Path, item_id: str, session: str, verb: str) -> dict | None:
@@ -962,7 +1015,7 @@ def _verify_evidence(repo: Path, item_id: str, evidence: str | None) -> str:
     except WorkError:
         raise WorkError(f"--evidence {ev!r} does not resolve to a commit in {repo}") from None
     message = _git(repo, "log", "-1", "--format=%B", sha)
-    if item_id not in message:
+    if item_id not in _ITEM_REF_RE.findall(message):
         raise WorkError(
             f"--evidence {sha[:12]} does not name {item_id} in its commit message — "
             "the evidence is the commit that did the work, and it says so"
@@ -982,6 +1035,7 @@ def cmd_claim(repo: Path, args: argparse.Namespace) -> int:
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="claim"):
         item = _read_item(repo, args.id)
         _refuse_closed(repo, item, "claim")
+        _refuse_blocked(repo, item)
         claim = _claim_of(repo, args.id)
         now = time.time()
         if _is_live(claim, now) and claim is not None:
@@ -1030,9 +1084,7 @@ def cmd_done(repo: Path, args: argparse.Namespace) -> int:
         _refuse_closed(repo, item, "done")
         _fence(repo, args.id, session, "done")
         item.update(status="done", evidence=sha)
-        path = _write_item(repo, item)
-        _end_claim(repo, args.id)
-        _write_marker(repo, item, session=session, evidence=sha)
+        path = _close(repo, item, session=session, evidence=sha)
         _after_write(repo, session)
     print(_rel(repo, path))
     return 0
@@ -1044,6 +1096,7 @@ def cmd_drop(repo: Path, args: argparse.Namespace) -> int:
     why = " ".join((args.why or "").split())
     if not why:
         raise WorkError(f"drop {args.id} needs --why <reason>; the reason is kept in `note`")
+    session = _call_session(args)
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="drop"):
         item = _read_item(repo, args.id)
         _refuse_closed(repo, item, "drop")
@@ -1055,11 +1108,10 @@ def cmd_drop(repo: Path, args: argparse.Namespace) -> int:
                 f"drop {args.id} is the owner's ({owner}) or the distributor's "
                 f"({distributor or 'none named'}); this caller is {_actor_label()}"
             )
+        _fence(repo, args.id, session, "drop")
         item.update(status="dropped", note=why)
-        path = _write_item(repo, item)
-        _end_claim(repo, args.id)
-        _write_marker(repo, item, session=_session(), note=why)
-        _after_write(repo, _session())
+        path = _close(repo, item, session=session, note=why)
+        _after_write(repo, session)
     print(_rel(repo, path))
     return 0
 
@@ -1083,15 +1135,13 @@ def cmd_answer(repo: Path, args: argparse.Namespace) -> int:
                 f"answer closes only an awaiting-operator item; {args.id} is "
                 f"{item.get('status')} (use done or drop)"
             )
-        if args.id in _closed_ids(repo, [item]):
+        if args.id in _closed_ids(repo):
             raise WorkError(f"answer {args.id} refused: it was already closed in another tree")
         links = dict(item.get("links") or {})
         if decision:
             links["decision"] = decision
         item.update(status="done", note=note, links=links)
-        path = _write_item(repo, item)
-        _end_claim(repo, args.id)
-        _write_marker(repo, item, session=_session(), note=note, decision=decision)
+        path = _close(repo, item, session=_session(), note=note, decision=decision)
         _after_write(repo, _session())
     print(_rel(repo, path))
     return 0
@@ -1143,7 +1193,7 @@ def _ensure_decision_locked(repo: Path, block: str, msg_digest: str, session: st
         for it in items
         if it.get("status") == "awaiting-operator" and it.get("block_digest") == bd
     ]
-    closed = _closed_ids(repo, same) if same else set()
+    closed = _closed_ids(repo) if same else set()
     for it in same:
         if it["id"] not in closed:
             it["msg_digests"] = [*(it.get("msg_digests") or []), msg_digest]
@@ -1192,7 +1242,9 @@ def ensure_decision_items(
     *,
     lock_timeout: float = HOOK_LOCK_TIMEOUT_S,
 ) -> list[str] | None:
-    """``ensure_decision_item`` for every ``(block, msg_digest, session)`` under ONE lock."""
+    """``ensure_decision_item`` for every ``(block, msg_digest, session)`` under ONE lock: the ids
+    of the entries that succeeded (an entry that raises is skipped with one stderr line); None
+    only when the store is absent or the lock was not taken."""
     try:
         root = _api_root(repo)
         if root is None:
@@ -1200,7 +1252,12 @@ def ensure_decision_items(
         with _store_lock(root, lock_timeout, fail_open=True, label="decision") as held:
             if not held:
                 return None
-            ids = [_ensure_decision_locked(root, b, d, s) for b, d, s in entries]
+            ids = []
+            for b, d, s in entries:
+                try:  # one bad entry never costs the others their item
+                    ids.append(_ensure_decision_locked(root, b, d, s))
+                except Exception as exc:
+                    _warn(f"decision item not written — {type(exc).__name__}: {exc}")
             _after_write(root, *(s for _, _, s in entries))
             return ids
     except Exception as exc:
@@ -1208,9 +1265,13 @@ def ensure_decision_items(
         return None
 
 
-def _set_next(repo: Path, next_text: str) -> None:
+def _set_next(repo: Path, next_text: str, session: str) -> None:
+    """The named item's ``next`` — unless ANOTHER session holds a live claim on it."""
     m = _ITEM_REF_RE.search(next_text)
     if not m or not _item_path(repo, m.group(0)).is_file():
+        return
+    claim = _claim_of(repo, m.group(0))
+    if _is_live(claim) and claim is not None and claim.get("session") != session:
         return
     item = _read_item(repo, m.group(0))
     text = " ".join(next_text.split())[:LINE_MAX]
@@ -1246,7 +1307,7 @@ def on_harvest(
                     _warn(f"decision item not written — {type(exc).__name__}: {exc}")
             if next_text:
                 try:
-                    _set_next(root, next_text)
+                    _set_next(root, next_text, session)
                 except Exception as exc:
                     _warn(f"item next not written — {type(exc).__name__}: {exc}")
             _after_write(root, session)
@@ -1278,7 +1339,7 @@ def prompt_block(repo: Path | str, session: str) -> str:
         if root is None:
             return ""
         items = list(_iter_items(root))
-        closed = _closed_ids(root, items)
+        closed = _closed_ids(root)
         claims = _live_claims(root)
         by_id = {str(it["id"]): it for it in items}
         lines = []
@@ -1366,6 +1427,7 @@ def _parser() -> argparse.ArgumentParser:
     s = sub.add_parser("drop", help="end an item that won't be done (owner/distributor)")
     s.add_argument("id")
     s.add_argument("--why", required=True, help="the reason, kept in `note`")
+    s.add_argument("--session", help=session_help)
     s.set_defaults(fn=cmd_drop)
 
     s = sub.add_parser("answer", help="close an awaiting-operator item with the operator's words")
