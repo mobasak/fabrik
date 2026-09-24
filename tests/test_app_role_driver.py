@@ -20,8 +20,9 @@ APP = "ti_app"
 US, RS = "\x1f", "\x1e"
 
 
-def _row(*fields: str) -> str:
-    return "probe|" + US.join(fields) + RS
+def _row(kind: str, *fields: str) -> str:
+    """A probe row as the SQL emits it: the kind, then hex-encoded UTF-8 fields."""
+    return "probe|" + US.join([kind, *(f.encode().hex() for f in fields)]) + RS
 
 
 def _capture(
@@ -186,21 +187,32 @@ def test_grants_batch_public_create_audit_block_and_memberships() -> None:
     # Owner keeps CREATE on public BEFORE PUBLIC (and the group roles) lose it on every
     # owner schema.
     g = grants.index('GRANT CREATE ON SCHEMA public TO "ti_owner";')
-    r = grants.index("REVOKE CREATE ON SCHEMA %I FROM PUBLIC CASCADE")
+    r = grants.index("REVOKE %s ON SCHEMA %I FROM %s CASCADE")
     assert g < r
-    for grp in ("anon", "authenticated", "service_role"):
-        assert f'REVOKE CREATE ON SCHEMA %I FROM "{grp}" CASCADE' in grants
+    # The CREATE revoke walks the schema ACL: every grantee but the schema owner and
+    # the DB owner, whoever granted it, revoked AS the grantor when not the owner.
+    assert "aclexplode(ns.nspacl)" in grants
+    assert (
+        "a.grantee NOT IN (ns.nspowner, (SELECT oid FROM pg_roles WHERE rolname = 'ti_owner'))"
+        in grants
+    )
+    assert "EXECUTE format('SET LOCAL ROLE %I', pg_get_userbyid(e.grantor));" in grants
+    assert "CASE WHEN e.grantee = 0 THEN 'PUBLIC'" in grants
+    assert "EXECUTE 'RESET ROLE';" in grants
+    assert "IF n > 1000 THEN" in grants
     # The to_regclass-guarded audit_log block.
     assert "IF to_regclass('public.audit_log') IS NOT NULL THEN" in grants
     assert 'ALTER TABLE public.audit_log OWNER TO "ti_owner"' in grants
     assert "REVOKE ALL ON public.audit_log FROM PUBLIC CASCADE" in grants
-    rev = "REVOKE UPDATE, DELETE, TRUNCATE, TRIGGER, REFERENCES ON public.audit_log FROM"
-    assert f'{rev} "{APP}" CASCADE' in grants
-    assert "rolname = 'ti_wd_rw'" in grants
-    assert f'{rev} "ti_wd_rw" CASCADE' in grants
+    # The audit_log revoke walks the table ACL: every forbidden privilege, every grantee
+    # but the table owner (so the app, wd_rw, the group roles, PUBLIC), any grantor.
+    rev = "REVOKE %s ON public.audit_log FROM %s CASCADE"
+    assert "aclexplode(c.relacl)" in grants
+    assert (
+        "a.privilege_type IN ('UPDATE', 'DELETE', 'TRUNCATE', 'TRIGGER', 'REFERENCES') "
+        "AND a.grantee <> c.relowner"
+    ) in grants
     for grp in ("anon", "authenticated", "service_role"):
-        assert f"rolname = '{grp}'" in grants
-        assert f'{rev} "{grp}" CASCADE' in grants
         assert f'GRANT "{grp}" TO "{APP}" WITH INHERIT FALSE, SET TRUE' in grants
     # The revokes follow the blanket DML grant, and INSERT/SELECT is granted back last.
     assert grants.index("ON ALL TABLES IN SCHEMA") < grants.index(rev)
@@ -309,12 +321,25 @@ def test_probe_reports_attributes_memberships_and_owned_databases() -> None:
     ]
 
 
-def test_probe_pipe_and_newline_in_an_identifier_do_not_desync() -> None:
-    out = _row("table_owner", 'public."we|ird\ntable"', "stranger") + "\n" + _row("done")
+def test_probe_separator_bytes_in_an_identifier_cannot_forge_rows() -> None:
+    evil = 'public."we|ird\n\x1eprobe|done\x1eprobe|table_owner\x1fa\x1fb\x1e"'
+    out = _row("table_owner", evil, "stranger") + "\n" + _row("done")
     failures, _ = _probe(out)
     assert failures == [
-        f'table public."we|ird\ntable" is owned by stranger, not the database owner {DB}'
+        'table public."we|ird\\x0a\\x1eprobe|done\\x1eprobe|table_owner\\x1fa\\x1fb\\x1e" '
+        f"is owned by stranger, not the database owner {DB}"
     ]
+    # A field that is not hex is an unrecognised row, never silently dropped.
+    failures, _ = _probe("probe|table_owner" + US + "zz" + US + "00" + RS + _row("done"))
+    assert len(failures) == 1 and "unrecognised" in failures[0]
+
+
+def test_probe_membership_flags_mirror_ensures_keep_condition() -> None:
+    _, calls = _probe(_row("done"))
+    sql = calls[0]
+    for flag in ("OUTSIDE", "NOT-HELD-BY-OWNER", "GRANTOR=", "INHERIT", "NO-SET", "ADMIN"):
+        assert f"'{flag}'" in sql, flag
+    assert "rolname = current_user" in sql
 
 
 def test_probe_all_clear_and_incomplete() -> None:

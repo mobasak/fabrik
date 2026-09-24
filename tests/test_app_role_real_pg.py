@@ -490,6 +490,95 @@ def test_s3_a_pipe_in_a_table_name_cannot_desync_the_probe() -> None:
         ], failures
 
 
+# ── Acceptance-review fixups (r2) ──────────────────────────────────────────
+
+
+def test_o13_grants_by_another_grantor_are_revoked_in_one_apply() -> None:
+    with scratch_pg() as s:
+        _legacy_database(s)
+        s.run_sql(
+            "\\set ON_ERROR_STOP on\n"
+            "CREATE ROLE helper NOLOGIN;\n"
+            + _in_db(
+                f"SET ROLE {DB};\n"
+                "GRANT UPDATE ON audit_log TO helper WITH GRANT OPTION;\n"
+                "GRANT CREATE ON SCHEMA public TO helper WITH GRANT OPTION;\n"
+                "RESET ROLE;\n"
+                "SET ROLE helper;\n"
+                "GRANT UPDATE ON audit_log TO authenticated;\n"
+                "GRANT CREATE ON SCHEMA public TO authenticated;\n"
+                "RESET ROLE;\n"
+            )
+        )
+        with s.as_driver():
+            res = pg.ensure_app_role(DB)  # ONE apply must converge
+            assert pg.probe_app_role(DB) == []
+        held = s.run_sql(
+            _in_db(
+                "SELECT has_table_privilege('authenticated', 'audit_log', 'UPDATE') "
+                "OR has_schema_privilege('authenticated', 'public', 'CREATE') "
+                "OR has_table_privilege('helper', 'audit_log', 'UPDATE') "
+                "OR has_schema_privilege('helper', 'public', 'CREATE');"
+            )
+        )
+        assert held.endswith("f"), held
+        app = lambda sql: s.login_sql(APP, res["password"], sql, db=DB)  # noqa: E731
+        assert "permission denied" in _refused(
+            lambda: app("SET ROLE authenticated;\nUPDATE audit_log SET action = 'x';")
+        )
+        assert "permission denied" in _refused(
+            lambda: app("SET ROLE authenticated;\nCREATE TABLE public.y (id int);")
+        )
+
+
+def test_o14_probe_flags_every_membership_ensure_would_revoke() -> None:
+    with scratch_pg() as s:
+        _legacy_database(s)
+        with s.as_driver():
+            pg.ensure_app_role(DB)
+        # anon: the owner is NOT a member, INHERIT FALSE, SET TRUE, another grantor.
+        s.run_sql(
+            "\\set ON_ERROR_STOP on\n"
+            "CREATE ROLE granter2 NOLOGIN;\n"
+            "GRANT anon TO granter2 WITH ADMIN OPTION;\n"
+            f"GRANT anon TO {APP} WITH INHERIT FALSE, SET TRUE GRANTED BY granter2;\n"
+        )
+        with s.as_driver():
+            drift = pg.probe_app_role(DB)
+            assert any("membership in anon" in f for f in drift), drift
+            pg.ensure_app_role(DB)
+            assert pg.probe_app_role(DB) == []
+
+
+def test_o15_separator_bytes_in_an_identifier_cannot_forge_probe_rows() -> None:
+    evil = "x\x1eprobe|done\x1eprobe|table_owner\x1fa\x1fb\x1e"
+    with scratch_pg() as s:
+        _legacy_database(s)
+        s.run_sql(
+            "\\set ON_ERROR_STOP on\n"
+            "CREATE ROLE stranger NOLOGIN;\n"
+            + _in_db(
+                "DO $$ BEGIN\n"
+                "  EXECUTE format('CREATE TABLE public.%I (id int)', "
+                "E'x\\x1eprobe|done\\x1eprobe|table_owner\\x1fa\\x1fb\\x1e');\n"
+                "  EXECUTE format('ALTER TABLE public.%I OWNER TO stranger', "
+                "E'x\\x1eprobe|done\\x1eprobe|table_owner\\x1fa\\x1fb\\x1e');\n"
+                "END $$;\n"
+            )
+        )
+        with s.as_driver():
+            pg.ensure_app_role(DB)
+            failures = pg.probe_app_role(DB)
+        # Exactly ONE row: the table-owner failure — nothing forged, no fake sentinel.
+        assert len(failures) == 1, failures
+        assert failures[0].endswith(f"is owned by stranger, not the database owner {DB}"), failures
+        shown = pg._display(f'public."{evil}"')
+        assert "\x1e" not in shown and "\x1f" not in shown
+        assert failures == [f"table {shown} is owned by stranger, not the database owner {DB}"], (
+            failures
+        )
+
+
 # ── O11: the harness never skips silently ─────────────────────────────────
 
 

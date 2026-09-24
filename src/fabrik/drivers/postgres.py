@@ -985,29 +985,67 @@ def _owner_schemas_sql(owner: str) -> str:
     )
 
 
-def _if_role_exists(role: str, stmt: str, indent: str = "    ") -> str:
-    """A plpgsql ``IF EXISTS (role) THEN EXECUTE <stmt>`` fragment (``stmt`` is SQL text)."""
+def _acl_revoke_loop(entry_sql: str, obj_fmt: str, obj_args: str, indent: str) -> str:
+    """plpgsql that revokes every forbidden ACL entry, whoever granted it, until none remain.
+
+    ``entry_sql`` is a ``SELECT … INTO e`` of ONE forbidden entry as ``grantor, grantee,
+    privilege_type, objowner`` (from ``aclexplode``); ``obj_fmt`` / ``obj_args`` name
+    the object for ``format()`` (``'SCHEMA %I'`` / ``', s'``). A superuser's plain
+    ``REVOKE`` acts as the object's owner and removes only the OWNER's grants, and on
+    PostgreSQL 16 a superuser's ``REVOKE … GRANTED BY <other>`` removes nothing
+    (measured) — so an entry granted by anyone else is revoked AS its grantor
+    (``SET LOCAL ROLE``, then ``RESET ROLE``), ``CASCADE`` taking the grantee's own
+    re-grants with it. The ACL is re-read after every revoke, so the shape of a
+    grant-option chain never matters and one apply converges; a revoke that removes
+    nothing trips the iteration bound and raises instead of spinning.
+    """
+    i = indent
     return (
-        f"{indent}IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN\n"
-        f"{indent}  EXECUTE {stmt};\n"
-        f"{indent}END IF;"
+        f"{i}LOOP\n"
+        f"{i}  {entry_sql} LIMIT 1;\n"
+        f"{i}  EXIT WHEN NOT FOUND;\n"
+        f"{i}  n := n + 1;\n"
+        f"{i}  IF n > 1000 THEN\n"
+        f"{i}    RAISE EXCEPTION 'ACL revoke did not converge: % % from % granted by %',\n"
+        f"{i}      e.privilege_type, format('{obj_fmt}'{obj_args}), e.grantee, e.grantor;\n"
+        f"{i}  END IF;\n"
+        f"{i}  IF e.grantor <> e.objowner THEN\n"
+        f"{i}    EXECUTE format('SET LOCAL ROLE %I', pg_get_userbyid(e.grantor));\n"
+        f"{i}  END IF;\n"
+        f"{i}  EXECUTE format('REVOKE %s ON {obj_fmt} FROM %s CASCADE', e.privilege_type{obj_args},\n"
+        f"{i}    CASE WHEN e.grantee = 0 THEN 'PUBLIC'\n"
+        f"{i}         ELSE quote_ident(pg_get_userbyid(e.grantee)) END);\n"
+        f"{i}  EXECUTE 'RESET ROLE';\n"
+        f"{i}END LOOP;"
     )
+
+
+_AUDIT_FORBIDDEN = ("UPDATE", "DELETE", "TRUNCATE", "TRIGGER", "REFERENCES")
 
 
 def _app_role_grants_sql(db_name: str, app: str, owner: str) -> str:
     """The idempotent grants batch, re-applied on every call (see :func:`ensure_app_role`)."""
-    rw = f"{db_name}{_WD_RW_SUFFIX}"
     owner_oid = f"(SELECT oid FROM pg_roles WHERE rolname = '{owner}')"
     app_oid = f"(SELECT oid FROM pg_roles WHERE rolname = '{app}')"
     three = ", ".join(f"'{g}'" for g in _PATTERN_A_GROUP_ROLES)
-    schema_create_revokes = "\n".join(
-        _if_role_exists(g, f"format('REVOKE CREATE ON SCHEMA %I FROM \"{g}\" CASCADE', s)")
-        for g in _PATTERN_A_GROUP_ROLES
+    forbidden = ", ".join(f"'{p}'" for p in _AUDIT_FORBIDDEN)
+    # CREATE on the schema, held by anyone but the schema's owner and the DB owner.
+    schema_create_revokes = _acl_revoke_loop(
+        "SELECT a.grantor, a.grantee, a.privilege_type, ns.nspowner AS objowner INTO e "
+        "FROM pg_namespace ns, aclexplode(ns.nspacl) a WHERE ns.nspname = s "
+        f"AND a.privilege_type = 'CREATE' AND a.grantee NOT IN (ns.nspowner, {owner_oid})",
+        "SCHEMA %I",
+        ", s",
+        "    ",
     )
-    audit_revoke = "REVOKE UPDATE, DELETE, TRUNCATE, TRIGGER, REFERENCES ON public.audit_log FROM"
-    guarded_revokes = "\n".join(
-        _if_role_exists(r, f"'{audit_revoke} \"{r}\" CASCADE'")
-        for r in (rw, *_PATTERN_A_GROUP_ROLES)
+    # UPDATE/DELETE/TRUNCATE/TRIGGER/REFERENCES on audit_log, held by anyone but its owner.
+    audit_revokes = _acl_revoke_loop(
+        "SELECT a.grantor, a.grantee, a.privilege_type, c.relowner AS objowner INTO e "
+        "FROM pg_class c, aclexplode(c.relacl) a WHERE c.oid = 'public.audit_log'::regclass "
+        f"AND a.privilege_type IN ({forbidden}) AND a.grantee <> c.relowner",
+        "public.audit_log",
+        "",
+        "    ",
     )
     memberships = "\n".join(
         "  IF EXISTS (SELECT 1 FROM pg_auth_members m\n"
@@ -1028,9 +1066,10 @@ def _app_role_grants_sql(db_name: str, app: str, owner: str) -> str:
         # pre-15 or pre-15-restored database may not) before anyone else loses it.
         f'GRANT CREATE ON SCHEMA public TO "{owner}";',
         # Every owner schema: USAGE (never CREATE), DML, sequences, default privileges;
-        # CREATE revoked from PUBLIC and the Pattern A group roles the app can SET ROLE to.
-        # The whole ownership guarantee rests on the app never creating.
-        "DO $$\nDECLARE s text;\nBEGIN\n"
+        # CREATE revoked from everyone but the owner, whoever granted it (so from PUBLIC,
+        # the app and every role it can SET ROLE to). The whole ownership guarantee rests
+        # on the app never creating.
+        "DO $$\nDECLARE s text; e record; n int := 0;\nBEGIN\n"
         f"  FOR s IN {_owner_schemas_sql(owner)} ORDER BY 1 LOOP\n"
         f"    EXECUTE format('GRANT USAGE ON SCHEMA %I TO \"{app}\"', s);\n"
         "    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I "
@@ -1040,20 +1079,19 @@ def _app_role_grants_sql(db_name: str, app: str, owner: str) -> str:
         f'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "{app}"\', s);\n'
         f'    EXECUTE format(\'ALTER DEFAULT PRIVILEGES FOR ROLE "{owner}" IN SCHEMA %I '
         f'GRANT USAGE, SELECT ON SEQUENCES TO "{app}"\', s);\n'
-        "    EXECUTE format('REVOKE CREATE ON SCHEMA %I FROM PUBLIC CASCADE', s);\n"
         f"{schema_create_revokes}\n"
         "  END LOOP;\nEND $$;",
-        # audit_log: owner-owned, append-only for everyone the app can act as. CASCADE
-        # takes out grant-option chains (owner → X WITH GRANT OPTION → Y).
-        "DO $$\nBEGIN\n"
+        # audit_log: owner-owned, append-only for everyone the app can act as. The plain
+        # REVOKE ALL removes the owner's PUBLIC grants; the ACL loop then removes every
+        # forbidden entry by ANY grantor, revoking as that grantor (see _acl_revoke_loop).
+        "DO $$\nDECLARE e record; n int := 0;\nBEGIN\n"
         "  IF to_regclass('public.audit_log') IS NOT NULL THEN\n"
         "    IF (SELECT c.relowner FROM pg_class c WHERE c.oid = 'public.audit_log'::regclass)\n"
         f"       <> {owner_oid} THEN\n"
         f"      EXECUTE 'ALTER TABLE public.audit_log OWNER TO \"{owner}\"';\n"
         "    END IF;\n"
         "    EXECUTE 'REVOKE ALL ON public.audit_log FROM PUBLIC CASCADE';\n"
-        f"    EXECUTE '{audit_revoke} \"{app}\" CASCADE';\n"
-        f"{guarded_revokes}\n"
+        f"{audit_revokes}\n"
         f"    EXECUTE 'GRANT INSERT, SELECT ON public.audit_log TO \"{app}\"';\n"
         "  END IF;\nEND $$;",
         # Memberships converge to EXACTLY: each Pattern A role the owner is a member of,
@@ -1192,8 +1230,9 @@ def ensure_app_role(
 
 _PROBE_PREFIX = "probe|"
 _PROBE_US = "\x1f"
-"""Field separator inside a probe row (ASCII unit separator) — a ``|`` in an
-identifier can never desync the parse."""
+"""Field separator inside a probe row (ASCII unit separator). Every field after the
+kind is HEX-encoded UTF-8, so no identifier byte — ``|``, a newline, US or RS
+included — ever reaches the row grammar, and none can forge a row or the sentinel."""
 _PROBE_RS = "\x1e"
 """Row terminator (ASCII record separator) — a newline in an identifier cannot either.
 End-of-output also terminates a row: ``str.strip()`` (``ssh()`` strips stdout) treats
@@ -1201,9 +1240,28 @@ US/RS as whitespace, so the LAST row's RS never survives the transport."""
 _PROBE_ROW_RE = re.compile(re.escape(_PROBE_PREFIX) + "(.*?)(?:" + _PROBE_RS + r"|\Z)", re.DOTALL)
 
 
-def _probe_row(*fields: str) -> str:
-    """SQL expression for one probe row: ``probe|`` + fields joined by US + RS."""
-    return f"'{_PROBE_PREFIX}' || concat_ws(chr(31), {', '.join(fields)}) || chr(30)"
+def _probe_row(kind: str, *fields: str) -> str:
+    """SQL expression for one probe row: ``probe|<kind>`` + US-joined hex fields + RS.
+
+    ``kind`` is a literal from this module; every other field is hex-encoded UTF-8
+    (``encode(convert_to(…, 'UTF8'), 'hex')``), whatever it holds.
+    """
+    hexed = [f"encode(convert_to(({f})::text, 'UTF8'), 'hex')" for f in fields]
+    return f"'{_PROBE_PREFIX}' || concat_ws(chr(31), {', '.join([f"'{kind}'", *hexed])}) || chr(30)"
+
+
+def _display(value: str) -> str:
+    """Render an identifier for a failure line: non-printable characters escaped."""
+    return "".join(c if c.isprintable() else f"\\x{ord(c):02x}" for c in value)
+
+
+def _parse_probe_row(raw: str) -> list[str] | None:
+    """``kind␟hex␟hex…`` → ``[kind, decoded, …]``; ``None`` when a field is not hex."""
+    kind, *fields = raw.split(_PROBE_US)
+    try:
+        return [kind, *(_display(bytes.fromhex(f).decode("utf-8")) for f in fields)]
+    except ValueError:
+        return None
 
 
 def _app_role_probe_sql(db_name: str, app: str, owner: str) -> str:
@@ -1211,6 +1269,7 @@ def _app_role_probe_sql(db_name: str, app: str, owner: str) -> str:
     rw = f"{db_name}{_WD_RW_SUFFIX}"
     schemas = _owner_schemas_sql(owner)
     app_oid = f"(SELECT oid FROM pg_roles WHERE rolname = '{app}')"
+    owner_oid = f"(SELECT oid FROM pg_roles WHERE rolname = '{owner}')"
     three = ", ".join(f"'{g}'" for g in _PATTERN_A_GROUP_ROLES)
     qname = "quote_ident({s}) || '.' || quote_ident({t})"
     # PUBLIC, the app, and every role the app can SET ROLE to (never a SET ROLE chain:
@@ -1225,42 +1284,50 @@ def _app_role_probe_sql(db_name: str, app: str, owner: str) -> str:
         "\\set ON_ERROR_STOP on\n"
         f"\\c {db_name}\n"
         # The app role itself: present, least-privilege attributes, not a database owner.
-        f"SELECT {_probe_row("'role_missing'", f"'{app}'")} WHERE {app_oid} IS NULL;\n"
-        f"SELECT {_probe_row("'role_attr'", 'v.attr')} FROM pg_roles a, LATERAL (VALUES "
+        f"SELECT {_probe_row('role_missing', f"'{app}'")} WHERE {app_oid} IS NULL;\n"
+        f"SELECT {_probe_row('role_attr', 'v.attr')} FROM pg_roles a, LATERAL (VALUES "
         "('SUPERUSER', a.rolsuper), ('CREATEDB', a.rolcreatedb), "
         "('CREATEROLE', a.rolcreaterole), ('BYPASSRLS', a.rolbypassrls), "
         "('REPLICATION', a.rolreplication)) v(attr, held) "
         f"WHERE a.rolname = '{app}' AND v.held ORDER BY 1;\n"
-        f"SELECT {_probe_row("'owns_db'", 'quote_ident(d.datname)')} FROM pg_database d "
+        f"SELECT {_probe_row('owns_db', 'd.datname')} FROM pg_database d "
         f"WHERE d.datdba = {app_oid} ORDER BY 1;\n"
-        # Memberships: only the Pattern A three, never inherited, never with ADMIN.
-        f"SELECT {_probe_row("'membership'", 'quote_ident(g.rolname)', 'f.flags')} "
+        # Memberships: exactly the rows ensure_app_role would revoke — outside the
+        # Pattern A three, one the owner does not hold, granted by anyone but the
+        # applying superuser, inherited, not SET-able, or with ADMIN.
+        f"SELECT {_probe_row('membership', 'g.rolname', 'f.flags')} "
         "FROM pg_auth_members m JOIN pg_roles g ON g.oid = m.roleid, LATERAL (SELECT "
         "concat_ws(' ', CASE WHEN g.rolname NOT IN (" + three + ") THEN 'OUTSIDE' END, "
+        "CASE WHEN g.rolname IN (" + three + ") AND NOT EXISTS (SELECT 1 FROM "
+        f"pg_auth_members o WHERE o.roleid = m.roleid AND o.member = {owner_oid}) "
+        "THEN 'NOT-HELD-BY-OWNER' END, "
+        "CASE WHEN m.grantor <> (SELECT oid FROM pg_roles WHERE rolname = current_user) "
+        "THEN 'GRANTOR=' || pg_get_userbyid(m.grantor) END, "
         "CASE WHEN m.inherit_option THEN 'INHERIT' END, "
+        "CASE WHEN NOT m.set_option THEN 'NO-SET' END, "
         "CASE WHEN m.admin_option THEN 'ADMIN' END) AS flags) f "
         f"WHERE m.member = {app_oid} AND f.flags <> '' ORDER BY 1;\n"
         # Every table in an owner schema is owned by the owner.
-        f"SELECT {_probe_row("'table_owner'", qname.format(s='t.schemaname', t='t.tablename'), 'quote_ident(t.tableowner)')} "
+        f"SELECT {_probe_row('table_owner', qname.format(s='t.schemaname', t='t.tablename'), 't.tableowner')} "
         f"FROM pg_tables t WHERE t.schemaname IN ({schemas}) AND t.tableowner <> '{owner}' "
         "ORDER BY 1;\n"
         # The app can SELECT and INSERT every table, and use every sequence.
-        f"SELECT {_probe_row("'table_priv'", 'p.priv', qname.format(s='t.schemaname', t='t.tablename'))} "
+        f"SELECT {_probe_row('table_priv', 'p.priv', qname.format(s='t.schemaname', t='t.tablename'))} "
         f"FROM pg_tables t CROSS JOIN (SELECT oid FROM pg_roles WHERE rolname = '{app}') a "
         "CROSS JOIN (VALUES ('SELECT'), ('INSERT')) p(priv) "
         f"WHERE t.schemaname IN ({schemas}) AND NOT has_table_privilege(a.oid, "
         "quote_ident(t.schemaname) || '.' || quote_ident(t.tablename), p.priv) ORDER BY 1;\n"
-        f"SELECT {_probe_row("'seq_priv'", qname.format(s='s.schemaname', t='s.sequencename'))} "
+        f"SELECT {_probe_row('seq_priv', qname.format(s='s.schemaname', t='s.sequencename'))} "
         f"FROM pg_sequences s CROSS JOIN (SELECT oid FROM pg_roles WHERE rolname = '{app}') a "
         f"WHERE s.schemaname IN ({schemas}) AND NOT has_sequence_privilege(a.oid, "
         "quote_ident(s.schemaname) || '.' || quote_ident(s.sequencename), 'USAGE') ORDER BY 1;\n"
         # Nobody the app is, or can become, creates in any owner schema.
-        f"SELECT {_probe_row("'schema_create'", 'r.who', 'quote_ident(n.nspname)')} "
+        f"SELECT {_probe_row('schema_create', 'r.who', 'n.nspname')} "
         f"FROM ({schemas}) n CROSS JOIN ({actors}) r "
         "WHERE CASE WHEN r.roid = 0 THEN has_schema_privilege('public', n.nspname, 'CREATE') "
         "ELSE has_schema_privilege(r.roid, n.nspname, 'CREATE') END ORDER BY 1;\n"
         # audit_log is append-only for those same actors and the watchdog RW role.
-        f"SELECT {_probe_row("'audit_priv'", 'r.who', 'p.priv')} "
+        f"SELECT {_probe_row('audit_priv', 'r.who', 'p.priv')} "
         "FROM (SELECT to_regclass('public.audit_log') AS t) x "
         "CROSS JOIN (VALUES ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('TRIGGER'), ('REFERENCES')) "
         f"p(priv) CROSS JOIN ({actors} UNION SELECT g.rolname::text, g.oid FROM pg_roles g "
@@ -1268,7 +1335,7 @@ def _app_role_probe_sql(db_name: str, app: str, owner: str) -> str:
         "WHERE x.t IS NOT NULL AND CASE WHEN r.roid = 0 "
         "THEN has_table_privilege('public', x.t, p.priv) "
         "ELSE has_table_privilege(r.roid, x.t, p.priv) END ORDER BY 1;\n"
-        f"SELECT {_probe_row("'done'")};\n"
+        f"SELECT {_probe_row('done')};\n"
     )
 
 
@@ -1279,8 +1346,10 @@ def probe_app_role(db_name: str, container: str = POSTGRES_CONTAINER) -> list[st
     mid-batch, or a failed psql call — is a ``probe incomplete`` failure, never an
     empty pass. Privileges are read with ``has_*_privilege`` for each role the app
     can act as: a superuser ``SET ROLE`` chain is checked against the SESSION user
-    and proves nothing about the app's own membership. Rows are ``probe|`` + fields
-    separated by ASCII US and terminated by ASCII RS, so no identifier can desync them.
+    and proves nothing about the app's own membership. Rows are ``probe|<kind>`` +
+    HEX-encoded fields separated by ASCII US and terminated by ASCII RS: no identifier
+    byte reaches the row grammar, so none can desync a row or forge one (or the
+    sentinel). Identifiers in failure lines have non-printable characters escaped.
 
     Raises:
         AppRoleError: the database's owner is unknown, ``postgres`` or a superuser.
@@ -1291,7 +1360,7 @@ def probe_app_role(db_name: str, container: str = POSTGRES_CONTAINER) -> list[st
         out = _run_sql(_app_role_probe_sql(db_name, app, owner), container=container)
     except RuntimeError as exc:
         return [f"probe incomplete for {db_name}: {exc}"]
-    rows = [m.group(1).split(_PROBE_US) for m in _PROBE_ROW_RE.finditer(out or "")]
+    rows = [_parse_probe_row(m.group(1)) for m in _PROBE_ROW_RE.finditer(out or "")]
     if ["done"] not in rows:
         return [
             f"probe incomplete for {db_name}: no done sentinel in the output "
