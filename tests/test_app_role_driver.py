@@ -325,6 +325,21 @@ def test_probe_reports_each_violation_and_ignores_connection_line() -> None:
     assert stmts and all(s.upper().startswith("SELECT") for s in stmts), stmts
 
 
+def test_probe_cursor_table_needs_select_only_and_reports_writes() -> None:
+    """T05 fixups r2: audit_jobs_state is written only by the owner, so the probe asks the
+    app for SELECT there (never INSERT) and REPORTS any write held on it."""
+    out = _row("cursor_priv", f"{DB}_wd_rw", "UPDATE") + _row("done").rstrip(RS)
+    failures, calls = _probe(out)
+    assert failures == [f"{DB}_wd_rw holds UPDATE on audit_jobs_state"]
+    sql = calls[0]
+    assert (
+        "AND NOT (t.schemaname = 'public' AND t.tablename = 'audit_jobs_state' "
+        "AND p.priv = 'INSERT')"
+    ) in sql
+    assert "to_regclass('public.audit_jobs_state')" in sql
+    assert "('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE')" in sql
+
+
 def test_probe_reports_attributes_memberships_and_owned_databases() -> None:
     out = (
         _row("role_attr", "SUPERUSER")

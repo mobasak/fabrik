@@ -612,3 +612,23 @@ def test_run_due_against_the_emitted_schema_and_a_cursor_grant_is_an_incident(
         s.run_sql(f"\\c {db}\nGRANT UPDATE ON audit_jobs_state TO {db}_app;")
         incidents = jobs.run_verify()
         assert f"{db}_app holds UPDATE on audit_jobs_state" in incidents, incidents
+
+
+@requires_fabrik_env
+def test_probe_passes_on_the_audit_kit_and_reports_a_cursor_write(
+    projects: dict[str, Path],
+) -> None:
+    """r2: the pre-cutover probe passes on a database carrying the emitted schema (the
+    cursor table is SELECT-only for the app by design), and reports a write granted on it."""
+    schema = projects["saas-skeleton"] / "server" / "db" / "schema.sql"
+    with scratch_pg() as s:
+        db = "pr_saas"
+        owner_pw = _new_project_db(s, db)
+        _roles(s, db)
+        res = _apply_as_header_says(s, schema, db, owner_pw)
+        assert res.returncode == 0, res.stderr
+        with s.as_driver():
+            pg.ensure_app_role(db)
+            assert pg.probe_app_role(db) == []
+            s.run_sql(f"\\c {db}\nGRANT UPDATE ON audit_jobs_state TO {db}_app;")
+            assert pg.probe_app_role(db) == [f"{db}_app holds UPDATE on audit_jobs_state"]

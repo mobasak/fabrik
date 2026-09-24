@@ -216,7 +216,8 @@ The scheduled audit jobs' cursor table `audit_jobs_state` is written only by the
 `ensure_app_role` re-revokes `INSERT`, `UPDATE`, `DELETE` and `TRUNCATE` on it from the app,
 `<db>_wd_rw` and the group roles on every apply, right after its `GRANT … ON ALL TABLES`. The
 whole grants batch runs as ONE transaction, so that blanket grant never commits before the
-revokes that follow it.
+revokes that follow it. `probe_app_role` asks the app for `SELECT` only on that table (never
+`INSERT`) and reports any write on it held by the app, a role it can become, or `<db>_wd_rw`.
 
 `ensure_app_role(db_name, reset_password=False)` raises `AppRoleError` when the database is
 owned by `postgres` (legacy, manual or seed-restored) or a superuser. `probe_app_role` is the
