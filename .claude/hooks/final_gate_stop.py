@@ -1564,6 +1564,10 @@ _NEXT_NONE_RE = re.compile(r"[ \t*_]*none\b", re.I)
 # prose) and never a count (`- 2 BLOCKED: T04, T05`). `_blocked_header` also refuses one inside a
 # quoting (non-footer) fence.
 _DEFER_BLOCKED_RE = re.compile(r"^[ \t>*_#-]*(?:[A-Za-z][\w.-]*\d[\w.-]*[- ])?\**BLOCKED:", re.M)
+# The escalation's two required fields (`BLOCKED: <what> — searched: <sources> — missing: <need>`),
+# any case, between the header and the first footer line (`_blocked_header`).
+_BLOCKED_SEARCHED_RE = re.compile(r"\bsearched\s*:", re.I)
+_BLOCKED_MISSING_RE = re.compile(r"\bmissing\s*:", re.I)
 # The same keys, captured, for telling a fenced FOOTER from a fenced example (`_own_footer_fence`).
 _FOOTER_KEY_RE = re.compile(
     r"^[ \t>*_-]*(GATE|DOCS UPDATED|CHANGELOG|LESSONS LEARNT|DONE|NEXT|FEEDBACK|STATE)[*_]*:", re.M
@@ -1968,14 +1972,48 @@ def _own_footer_fence(text: str, spans: list[tuple[int, int]]) -> tuple[int, int
 
 
 def _blocked_header(text: str) -> bool:
-    """A real `BLOCKED:` escalation header (`_DEFER_BLOCKED_RE`) outside any QUOTING fence."""
+    """A real `BLOCKED:` escalation (`_DEFER_BLOCKED_RE`) outside any QUOTING fence, carrying the
+    contract's format: `searched:` and `missing:` between the header and the first footer line.
+
+    Operator ruling 2026-09-24 (D-391): an unformatted `BLOCKED:` no longer ends a turn. Measured
+    before building on 16,278 interactive turn ends: 21 deferrals were exempted by a header, 16 of
+    them unformatted (one an operator question relabelled `BLOCKED: operator decision — …`).
+    ⚠️ COBRA (D-253): the cheapest way past is `searched: nothing — missing: nothing`. An evidence
+    rule (the DECISION block's `_SEARCHED_EVIDENCE_RE`) was measured and REJECTED: it refused 15
+    of 42 honest escalations that name what they checked in prose ("DNS, Cloudflare headers").
+    The counter-measure is the sampled audit of exempted turns (`stop_mine.py`, spec V4/V6)."""
     spans = _fence_spans(text)
     footer = _own_footer_fence(text, spans)
+    # a trailing fence is the agent's own only when it holds a closing block — two distinct footer
+    # lines — so a format example quoted at the very end (even one with a `NEXT:` line) never
+    # supplies the fields (review r1 A-S1, r2 A-S-NEW1); measured: the one fenced escalation among
+    # the 9 exempted corpus turns carried GATE:, DOCS UPDATED: and the rest of its block
+    if (
+        footer
+        and len({k.group(1) for k in _FOOTER_KEY_RE.finditer(text, footer[0], footer[1])}) < 2
+    ):
+        footer = None
     quoting = [s for s in spans if s != footer]
-    return any(
-        not any(lo <= m.start() < hi for lo, hi in quoting)
-        for m in _DEFER_BLOCKED_RE.finditer(text)
-    )
+    for m in _DEFER_BLOCKED_RE.finditer(text):
+        if any(lo <= m.start() < hi for lo, hi in quoting):
+            continue
+        end = next(
+            (
+                k.start()
+                for k in _FOOTER_KEY_RE.finditer(text, m.end())
+                if not any(lo <= k.start() < hi for lo, hi in quoting)
+            ),
+            len(text),
+        )
+        # a field inside a quoting fence is an example, never the escalation's own
+        body = "".join(
+            ch
+            for i, ch in enumerate(text[m.end() : end], m.end())
+            if not any(lo <= i < hi for lo, hi in quoting)
+        )
+        if _BLOCKED_SEARCHED_RE.search(body) and _BLOCKED_MISSING_RE.search(body):
+            return True
+    return False
 
 
 def _quote_spans(line: str) -> list[tuple[int, int]]:
@@ -2707,7 +2745,9 @@ def _deferral_reason(kind: str, snippet: str, attempt: int) -> str:
         "The next step is yours if the plan, the rules, the ledger or the code decide it — do "
         "it now. If a human is genuinely needed, end with a DECISION block (CLAUDE.md § FINAL "
         "OUTPUT): `DECISION NEEDED (ground: gate|underivable|owned)` with its four lines — "
-        "Question · Why it is yours · Options · Recommendation — written unfenced."
+        "Question · Why it is yours · Options · Recommendation — written unfenced. A `BLOCKED:` "
+        "escalation exempts only in its format: `BLOCKED: <what> — searched: <sources> — "
+        "missing: <need>`."
     )
 
 

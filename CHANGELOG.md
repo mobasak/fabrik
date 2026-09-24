@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — A `BLOCKED:` line ends a turn only in its own format (2026-09-24)
+- `.claude/hooks/final_gate_stop.py` (fleet-synced), operator ruling D-391: a `BLOCKED:` header exempts a DEFERRAL stop only when its escalation carries `searched:` and `missing:` before the first footer line (`BLOCKED: <what> — searched: <sources> — missing: <need>`). Fields inside a quoting fence do not count, and a trailing fence is the agent's own closing block only when it holds two footer lines. The deferral reason now names the format. On 16,278 real turn ends, 21 deferrals were exempted by a header: 9 formatted ones still are, 12 are refused.
+- `/fabrik-review`: 3 passes, confirmed 3 → 2 → 0; receipt `docs/development/reviews/2026-09-24-blocked-format-exemption-review.md`. `tests/test_final_gate_stop_deferral.py` gains 10 cases, each new one seen red. `docs/workstation/hooks-index.md` states the rule. The backlog row for this gap is closed.
+
 ### Changed — The escalation digest tells infra only the hub's own overdue obligations; every other repo is told its own (D-388) (2026-09-24)
 
 - Operator ruling: unacked-obligation alarms go to the repos that own them. D-310's owner leg already told every repo its own rows (45 of 45 delivered on 2026-09-23 and 2026-09-24), but infra still received the whole fleet list, about 90 rows a day it could not discharge. `scripts/sysadmin/mail_escalate.py`'s agent leg now carries only rows in the hub's own mailbox, plus a fleet-total line; a day the hub owns nothing sends infra nothing and logs `agent=none-owned`. The operator's Telegram keeps the fleet list.

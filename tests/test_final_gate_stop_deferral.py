@@ -207,6 +207,64 @@ def test_blocked_exempts_a_deferral_globally(tmp_path: Path) -> None:
     assert hook.deferral_shape(text) is None
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        # the operator's ruling 2026-09-24: an unformatted BLOCKED: no longer ends a turn
+        "BLOCKED: no DSN\n\nNEXT: operator decision — x",
+        "**BLOCKED: operator decision — Vendure vs Medusa.** Pick one.\n\nNEXT: operator decision — x",
+        "BLOCKED: no DSN — searched: .env\n\nNEXT: operator decision — x",
+        # the fields must belong to the escalation, not to the closing block after it
+        "BLOCKED: no DSN\n\nGATE: n/a\nNEXT: operator decision — x\nFEEDBACK: searched: a — missing: b",
+        "BLOCKED: no DSN\n\n```\nsearched: a — missing: b\n```\n\nNEXT: operator decision — x",
+        # a format example quoted as the LAST content is not the agent's own footer fence
+        "BLOCKED: cannot find the config\n\nNEXT: operator decision — x\n\nNext time:\n```\nBLOCKED: <what> — searched: <sources> — missing: <need>\n```\n",
+        "BLOCKED: cannot find the config\n\nNEXT: operator decision — x\n\nNext time:\n```\nBLOCKED: <what> — searched: <sources> — missing: <need>\nNEXT: <next>\n```\n",
+    ],
+    ids=[
+        "bare",
+        "operator-question-as-block",
+        "no-missing",
+        "fields-in-the-footer",
+        "fields-in-a-fence",
+        "format-example-fenced-last",
+        "format-example-with-next-fenced-last",
+    ],
+)
+def test_an_unformatted_blocked_header_no_longer_exempts(text: str) -> None:
+    """A `BLOCKED:` header exempts a deferral only when its escalation carries the contract's
+    format — `searched:` and `missing:` — before the closing footer (D-391)."""
+    assert hook.deferral_shape(text) == "D1", text
+
+
+def test_a_formatted_escalation_in_the_agents_own_fenced_block_exempts() -> None:
+    """The one fenced escalation in the corpus: the agent fenced its whole closing block."""
+    text = (
+        "Stopped.\n\n```\nBLOCKED: a sibling stash was never restored — 15 files missing. "
+        "Searched: the pre-commit cache, git HEAD. Missing: your decision.\n"
+        "GATE: NOT RUN\nDOCS UPDATED: none\nNEXT: operator decision — restore\n```\n"
+    )
+    assert hook.deferral_shape(text) is None
+
+
+def test_a_footer_line_quoted_in_an_example_fence_does_not_cut_the_escalation() -> None:
+    """Review r2, B-S3: the window ends at the first footer line OUTSIDE a quoting fence."""
+    text = (
+        "BLOCKED: no DSN\n\nThe hook printed:\n```\nNEXT: example\n```\n"
+        "searched: .env, the vault — missing: the DSN\n\nNEXT: operator decision — x"
+    )
+    assert hook.deferral_shape(text) is None
+
+
+def test_a_formatted_blocked_escalation_spanning_paragraphs_exempts() -> None:
+    text = (
+        "## BLOCKED: NON-CONVERGENCE\n\nThe plan review ran ten passes.\n\n"
+        "Searched: the receipts, `git log -S`, D-330.\nMissing: a spec decision on the KEEP set.\n\n"
+        "NEXT: operator decision — x"
+    )
+    assert hook.deferral_shape(text) is None
+
+
 # --- the DECISION block --------------------------------------------------------------------
 
 _GATE_BLOCK = (
@@ -827,9 +885,9 @@ def test_only_a_real_blocked_header_exempts(text: str) -> None:
 @pytest.mark.parametrize(
     "text",
     [
-        "T03 BLOCKED: no DSN\n\nNEXT: operator decision — x",
-        "T1a-BLOCKED: no DSN\n\nNEXT: operator decision — x",
-        "## BLOCKED: no DSN\n\nNEXT: x — your call",
+        "T03 BLOCKED: no DSN — searched: .env — missing: the DSN\n\nNEXT: operator decision — x",
+        "T1a-BLOCKED: no DSN — searched: .env — missing: the DSN\n\nNEXT: operator decision — x",
+        "## BLOCKED: no DSN — searched: .env — missing: the DSN\n\nNEXT: x — your call",
     ],
     ids=["ticket-space", "ticket-hyphen", "heading"],
 )
@@ -918,6 +976,16 @@ def test_the_promise_reason_does_not_offer_the_decision_block(monkeypatch, tmp_p
     assert "DECISION" not in body["reason"], body["reason"]
 
 
+def test_the_deferral_reason_names_the_blocked_format(monkeypatch, tmp_path: Path) -> None:
+    """D-391: an agent whose unformatted `BLOCKED:` is refused must be told the format that exempts."""
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(), _asst_text("BLOCKED: no DSN\n\nNEXT: operator decision — pick one"))
+    out = _run_main(monkeypatch, tmp_path, {"session_id": "sidbf", "transcript_path": str(tr)})
+    reason = json.loads(out)["reason"]
+    assert "DEFERRAL DETECTED" in reason, reason
+    assert "searched: <sources>" in reason and "missing: <need>" in reason, reason
+
+
 def _words(s: str) -> list[str]:
     import re
 
@@ -990,8 +1058,8 @@ def test_a_plural_possessive_is_not_the_closing_quote(
 @pytest.mark.parametrize(
     "text",
     [
-        "P21-A-BLOCKED: no DSN in the env\n\nNEXT: operator decision — x",
-        "A-L3-BLOCKED: no DSN in the env\n\nNEXT: operator decision — x",
+        "P21-A-BLOCKED: no DSN in the env — searched: .env — missing: the DSN\n\nNEXT: operator decision — x",
+        "A-L3-BLOCKED: no DSN in the env — searched: .env — missing: the DSN\n\nNEXT: operator decision — x",
     ],
     ids=["plan-ticket-id", "lane-id"],
 )
