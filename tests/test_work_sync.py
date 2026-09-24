@@ -621,7 +621,8 @@ def test_board_states_fn_reuses_the_real_check_plan_tickets_module():
     work = _work_module()
     fn = work._board_states_fn(REPO)
     assert fn is not work._fallback_board_states
-    assert fn.__module__ == "_work_check_plan_tickets"
+    # the module name is now repo-hash-suffixed (A-O19, T02 review pass 2) — prefix, not equality
+    assert fn.__module__.startswith("_work_check_plan_tickets_")
 
 
 def test_enforcement_import_failure_warns_at_most_once_per_process(tmp_path, monkeypatch):
@@ -929,3 +930,212 @@ def test_a_decisions_row_naming_the_spec_does_not_exclude_it_from_class_1(tmp_pa
 
     out = _ok(["status"], env, repo)
     assert _drift_lines(out, 1) == [f"DRIFT 1 (advisory)  {spec}"]
+
+
+# ── review pass 2 (rev-T02/fixes-2.md) — 8 defects introduced or left open by pass 1 ──────────
+
+
+def test_status_grammar_accepts_bold_colon_after_a_bullet_or_a_quote(tmp_path):
+    """A-O3: the bold wraps the WHOLE `Status:` token (colon inside the bold), after a bullet or
+    a blockquote marker — `- **Status:** X`, `> **Status:** X` — with the closing `**` followed
+    by a space before the value."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    p1 = _plan_file_raw(repo, "2026-09-24-plan-bullet-bold-colon", "- **Status:** IN-PROGRESS")
+    p2 = _plan_file_raw(repo, "2026-09-24-plan-quote-bold-colon", "> **Status:** IN-PROGRESS")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 8) == []
+    assert set(_drift_lines(out, 3)) == {
+        f"DRIFT 3 (blocking)  {p1}",
+        f"DRIFT 3 (blocking)  {p2}",
+    }
+
+
+def test_status_line_raw_takes_the_earliest_match_by_position(tmp_path):
+    """A-O18: the reused/fallback regex can match a LATER body line (a plain `Status:` inside
+    `## Notes`) that the rich regex would never need, while ONLY the rich regex can parse the
+    REAL header a few lines above (bold closes BEFORE the colon — a shape the narrow regex,
+    which requires the literal contiguous run "Status:", cannot match at all). Trying the narrow
+    regex first and keeping ITS match unconditionally makes the later, irrelevant line win; the
+    earliest match by position must win instead."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    plan = _plan_file_raw(
+        repo,
+        "2026-09-24-plan-precedence",
+        "**Status**: IN_PROGRESS\n\n## Notes\nStatus: CONVERGED in the spec it implements",
+    )
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 8) == []
+    assert _drift_lines(out, 3) == [f"DRIFT 3 (blocking)  {plan}"]
+
+
+def test_class_2_pickaxe_pattern_ignores_prose_mentioning_status(tmp_path):
+    """A-O13: the pickaxe pattern must match the Status HEADER line, not any prose line that
+    happens to contain the word — a later commit adding "See the status page for details." must
+    not reset class 2's age clock."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    old = datetime.now(UTC) - timedelta(days=10)
+    plan = _plan_dir(repo, "2026-09-24-plan-prose-status", "CONVERGED")
+    _commit_dated(repo, env, [plan], "converge it", old)
+    (repo / plan).write_text(
+        (repo / plan).read_text() + "\nSee the status page for details.\n", encoding="utf-8"
+    )
+    _git(repo, env, "add", plan)
+    _git(repo, env, "commit", "-q", "-m", "note")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 2) == [f"DRIFT 2 (blocking)  {plan}"]
+
+
+def test_class_6_uncommitted_status_flip_uses_mtime_not_the_old_commit(tmp_path):
+    """A-O17: a committed `open` item, then flipped to `done` with bad evidence ONLY in the
+    working tree (never committed), must read as fresh (age ~0) — not as the age of the original
+    20-day-old commit that only ever recorded `open`."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item = _add(repo, env, title="open, then done uncommitted")
+    rel = f".fabrik/work/{item}.json"
+    old = datetime.now(UTC) - timedelta(days=20)
+    _commit_dated(repo, env, [".fabrik"], "seed", old)
+
+    it = _item(repo, item)
+    it.update(status="done", evidence="f" * 40)
+    _write_item(repo, item, it)  # uncommitted
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 6) == [f"DRIFT 6 (blocking)  {rel}"]
+
+
+def test_normalize_repo_path_strips_a_trailing_slash_before_directory_expansion(tmp_path):
+    """A-O14: a plan lock and an item link both naming `plan-dir/` (trailing slash) must resolve
+    to the same-stem spine — not `plan-dir//plan-dir.md`."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _plan_dir(repo, "2026-09-24-plan-trailing-slash", "IN-PROGRESS")
+    plan_dir_rel = "docs/development/plans/2026-09-24-plan-trailing-slash/"
+    _lock(repo, plan_dir_rel, "2026-09-24-plan-trailing-slash")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 3) == []
+
+
+def test_item_link_with_a_trailing_slash_also_resolves(tmp_path):
+    """A-O14, the item-link half: `plan-dir/` (trailing slash) must count as linking the plan."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    plan = _plan_dir(repo, "2026-09-24-plan-4-trailing-slash", "EXECUTED")
+    plan_dir_rel = "docs/development/plans/2026-09-24-plan-4-trailing-slash/"
+    _add(
+        repo,
+        env,
+        title="linked via a trailing-slash directory",
+        kind="task",
+        link=f"plan={plan_dir_rel}",
+    )
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 4) == [f"DRIFT 4 (blocking)  {plan}"]
+
+
+def test_implemented_superseded_exclusion_is_case_sensitive(tmp_path):
+    """A-O15: the exclusion words must match UPPERCASE only. "CONVERGED (not yet implemented)"
+    (lowercase, prose) stays in class 1; "CONVERGED, IMPLEMENTED in D-12" (the real annotation
+    shape, uppercase) stays excluded."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    prose = _spec_raw(
+        repo, "2026-09-24-not-yet-implemented-design", "Status: CONVERGED (not yet implemented)"
+    )
+    _spec_raw(
+        repo, "2026-09-24-really-implemented-design", "Status: CONVERGED, IMPLEMENTED in D-12"
+    )
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 1) == [f"DRIFT 1 (advisory)  {prose}"]
+
+
+def test_class_6_base_ref_renamed_falls_back_to_the_current_tree(tmp_path):
+    """A-O16: the recorded base branch ("main") renamed away ("trunk") must fall back to the
+    CURRENT TREE, exactly as when no base is recorded — never flag purely because the recorded
+    ref no longer resolves. Evidence is VALID (a real commit naming the item) so class 6a
+    (bad-evidence-within-14-days) cannot also explain a hit — only 6b (the stale-marker read) can
+    (mirrors the T02 pass-1 lesson: an item with no evidence lets 6a mask what 6b is doing)."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)  # base_branch recorded = "main"
+    item = _add(repo, env, title="done everywhere, only the ref name changed")
+    it = _item(repo, item)
+    it["status"] = "done"
+    _write_item(repo, item, it)
+    _git(repo, env, "add", ".fabrik")
+    _git(repo, env, "commit", "-q", "-m", f"done ({item})")
+    sha = _git(repo, env, "rev-parse", "HEAD").strip()
+    it["evidence"] = sha
+    _write_item(repo, item, it)
+    _git(repo, env, "add", ".fabrik")
+    _git(repo, env, "commit", "-q", "-m", "record evidence")
+    _git(repo, env, "branch", "-m", "main", "trunk")
+
+    _marker(repo, item, age_days=20)
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 6) == [], (
+        "the item is done on every branch; only the RECORDED ref name is gone — a renamed base "
+        "must fall back to the current tree, not flag on a read failure"
+    )
+
+
+def test_import_enforcement_repo_collision_never_overwrites_another_repos_module(
+    tmp_path, monkeypatch
+):
+    """A-O19 (part 1): sys.modules was keyed `_work_<name>`, shared across every repo. A FAILING
+    import from repo B popped repo A's already-registered module out of sys.modules, even though
+    repo A's import had already succeeded."""
+    env = _env(tmp_path)
+    work = _in_process(tmp_path, monkeypatch, env)
+    a = tmp_path / "a" / "scripts" / "enforcement"
+    a.mkdir(parents=True)
+    (a / "check_x.py").write_text("V = 1\n", encoding="utf-8")
+    b = tmp_path / "b" / "scripts" / "enforcement"
+    b.mkdir(parents=True)
+    (b / "check_x.py").write_text("raise RuntimeError('boom')\n", encoding="utf-8")
+
+    ma = work._import_enforcement(tmp_path / "a", "check_x")
+    assert ma is not None and ma.V == 1
+    before = [k for k, v in sys.modules.items() if v is ma]
+    assert before, "repo A's module must be registered in sys.modules"
+
+    mb = work._import_enforcement(tmp_path / "b", "check_x")
+    assert mb is None
+
+    after = [k for k, v in sys.modules.items() if v is ma]
+    assert after == before, "repo B's failed import must not de-register repo A's module"
+    assert work._import_enforcement(tmp_path / "a", "check_x") is ma
+
+
+def test_import_enforcement_catches_systemexit_and_falls_back(tmp_path, monkeypatch):
+    """A-O19 (part 2): a module that calls sys.exit() at import time raises SystemExit, which is
+    not an Exception subclass — the "never raises" contract must catch it too (never
+    KeyboardInterrupt) and fall back with one warning."""
+    env = _env(tmp_path)
+    work = _in_process(tmp_path, monkeypatch, env)
+    c = tmp_path / "c" / "scripts" / "enforcement"
+    c.mkdir(parents=True)
+    (c / "check_x.py").write_text("raise SystemExit(3)\n", encoding="utf-8")
+
+    calls: list[str] = []
+    orig_warn = work._warn
+
+    def counting_warn(msg: str) -> None:
+        calls.append(msg)
+        orig_warn(msg)
+
+    monkeypatch.setattr(work, "_warn", counting_warn)
+
+    result = work._import_enforcement(tmp_path / "c", "check_x")
+
+    assert result is None
+    assert any("check_x import failed" in m for m in calls)

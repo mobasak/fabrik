@@ -773,13 +773,24 @@ def _base_branch(repo: Path) -> str:
     return name if _BRANCH_RE.fullmatch(name) and not name.startswith("-") else ""
 
 
-def _base_statuses(repo: Path, ids: list[str]) -> dict[str, str]:
-    """The status each id's item has on the store's BASE BRANCH, read as a ref (one ``cat-file
-    --batch`` call) — never whatever a checkout has checked out. An id missing there is absent
-    from the result, and any git failure yields {}: a marker then keeps hiding its item."""
-    branch = _base_branch(repo) if ids else ""
-    if not branch:
-        return {}
+def _base_ref_resolves(repo: Path, branch: str) -> bool:
+    """Whether ``refs/heads/<branch>`` exists at all (A-O16, T02 review pass 2): a renamed or
+    deleted base branch must not be silently treated as "every item unresolved there" — a
+    ``cat-file --batch`` request against a missing ref returns rc 0 with every entry reported
+    "missing", indistinguishable from a resolving-but-empty result unless checked separately."""
+    try:
+        _git(repo, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}")
+        return True
+    except WorkError:
+        return False
+
+
+def _base_statuses_raw(repo: Path, branch: str, ids: list[str]) -> dict[str, str] | None:
+    """The one ``cat-file --batch`` read behind ``_base_statuses``, returning None (never ``{}``)
+    on a genuine git failure — subprocess error, non-zero exit, or a malformed batch response —
+    so a caller that must tell "the read failed" apart from "these ids are legitimately absent on
+    a resolving ref" can (A-O16, T02 review pass 2; ``_base_statuses`` itself still collapses both
+    to ``{}``, preserving its existing callers' contract unchanged)."""
     req = "".join(f"refs/heads/{branch}:{STORE_REL.as_posix()}/{i}.json\n" for i in ids)
     try:
         proc = subprocess.run(
@@ -789,9 +800,9 @@ def _base_statuses(repo: Path, ids: list[str]) -> dict[str, str]:
             timeout=_git_timeout(),
         )
     except (OSError, subprocess.TimeoutExpired):
-        return {}
+        return None
     if proc.returncode != 0:
-        return {}
+        return None
     out, pos, found = proc.stdout, 0, {}
     try:
         for item_id in ids:
@@ -807,8 +818,18 @@ def _base_statuses(repo: Path, ids: list[str]) -> dict[str, str]:
                     if isinstance(data, dict):
                         found[item_id] = str(data.get("status") or "")
     except ValueError:
-        return {}
+        return None
     return found
+
+
+def _base_statuses(repo: Path, ids: list[str]) -> dict[str, str]:
+    """The status each id's item has on the store's BASE BRANCH, read as a ref (one ``cat-file
+    --batch`` call) — never whatever a checkout has checked out. An id missing there is absent
+    from the result, and any git failure yields {}: a marker then keeps hiding its item."""
+    branch = _base_branch(repo) if ids else ""
+    if not branch:
+        return {}
+    return _base_statuses_raw(repo, branch, ids) or {}
 
 
 def _is_residue(repo: Path, item_id: str, marker: dict) -> bool:
@@ -927,12 +948,19 @@ def _import_enforcement(repo: Path, name: str) -> object | None:
     (removed again if it raises): a module defining a ``@dataclass`` (``check_plan_tickets.py``)
     looks up ``sys.modules[cls.__module__]`` while processing its class body, and an unregistered
     module makes that lookup return None — an import that would ALWAYS fail, silently turning
-    "reuse the real reader" into permanently dead code (A-S1)."""
+    "reuse the real reader" into permanently dead code (A-S1). That private name is keyed by a
+    short hash of the RESOLVED repo path as well as ``name`` (A-O19, T02 review pass 2): with only
+    ``_work_<name>``, two repos importing the same-named reader share one ``sys.modules`` slot, so
+    a FAILING import from repo B pops repo A's already-registered module out from under it, and
+    the second repo silently overwrites the first's entry. A module whose import raises
+    ``SystemExit`` (not an ``Exception`` subclass) is also caught here and falls back with one
+    warning — never ``KeyboardInterrupt``, which still propagates."""
     key = (str(Path(repo).resolve()), name)
     if key in _ENFORCEMENT_CACHE:
         return _ENFORCEMENT_CACHE[key]
     path = repo / "scripts" / "enforcement" / f"{name}.py"
-    mod_name = f"_work_{name}"
+    repo_hash = hashlib.sha256(key[0].encode("utf-8", "replace")).hexdigest()[:8]
+    mod_name = f"_work_{name}_{repo_hash}"
     result: object | None = None
     try:
         spec = importlib.util.spec_from_file_location(mod_name, path)
@@ -946,7 +974,7 @@ def _import_enforcement(repo: Path, name: str) -> object | None:
             sys.modules.pop(mod_name, None)
             raise
         result = mod
-    except Exception as exc:
+    except (Exception, SystemExit) as exc:
         if key not in _ENFORCEMENT_WARNED:
             _ENFORCEMENT_WARNED.add(key)
             _warn(f"{name} import failed ({exc}) — using the local regex fallback for its grammar")
@@ -1046,21 +1074,34 @@ def _iter_plan_spines(repo: Path) -> Iterator[Path]:
 # recognises as present (A-O3/A-O7, T02 review pass 1). This local, richer grammar recovers the
 # VALUE for those shapes; it is tried only when the reused/fallback regex does not match.
 _STATUS_VALUE_RE = re.compile(
-    r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}([A-Za-z][A-Za-z -]*)",
+    r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*([A-Za-z][A-Za-z -]*)",
     re.M,
 )
-_IMPLEMENTED_OR_SUPERSEDED_RE = re.compile(r"\b(?:IMPLEMENTED|SUPERSEDED)\b", re.I)
+# Case-SENSITIVE (A-O15, T02 review pass 2): status tokens are uppercase by the repo's own
+# convention, and a case-insensitive match wrongly excludes prose like "CONVERGED (not yet
+# implemented)" from class 1 — the word there is lowercase, unlike the real annotation shape
+# "CONVERGED, IMPLEMENTED in D-12".
+_IMPLEMENTED_OR_SUPERSEDED_RE = re.compile(r"\b(?:IMPLEMENTED|SUPERSEDED)\b")
 
 
 def _status_line_raw(repo: Path, text: str) -> str:
     """The whole remainder of the matched Status: line — never just the narrow first-word
     capture a value regex's character class allows — so a trailing annotation like ", IMPLEMENTED
     in D-12" is visible to a caller checking for it, even when the primary word is CONVERGED
-    (A-O3/A-O7, T02 review pass 1)."""
+    (A-O3/A-O7, T02 review pass 1).
+
+    Tries BOTH the reused/fallback regex and the richer local one, and takes the EARLIEST match
+    BY POSITION (A-O18, T02 review pass 2): trying the narrow regex first and returning its match
+    unconditionally meant a real HEADER only the rich regex can parse (a bullet or bold-word form)
+    lost to a LATER body line the narrow regex happens to match, e.g. a `## Notes` section quoting
+    `Status: CONVERGED in the spec it implements`."""
     head = text[:4000]
-    m = _status_line_re(repo).search(head) or _STATUS_VALUE_RE.search(head)
-    if not m:
+    candidates = [
+        m for m in (_status_line_re(repo).search(head), _STATUS_VALUE_RE.search(head)) if m
+    ]
+    if not candidates:
         return ""
+    m = min(candidates, key=lambda match: match.start())
     return head[m.start(1) :].splitlines()[0].strip()
 
 
@@ -1081,24 +1122,75 @@ def _normalize_plan_status(raw: str) -> str:
     return _PLAN_STATUS_ALIASES.get(up, up)
 
 
-_PLAN_STATUS_GIT_PATTERN = "Status"  # case-insensitive pickaxe: any line naming Status
-_ITEM_STATUS_GIT_PATTERN = '"status":'  # the JSON status field's own line (one field per line)
+# A-O13 (T02 review pass 2): "Status" with -i matched ANY prose line mentioning the word (e.g.
+# "See the status page for details."), silently resetting class 2's age clock. Anchored to the
+# STATUS HEADER LINE shape itself — an optional bullet/quote, optional bold, the literal
+# capitalised word, optional bold, then a colon — case-fixed (no -i): a header always spells it
+# "Status", never "status"/"STATUS" by the repo's own convention, and prose mentioning the word
+# almost never happens to open its own line with this exact shape.
+_PLAN_STATUS_GIT_PATTERN = r"^[ \t]*([-*>][ \t]+)?\*{0,2}Status\*{0,2}[ \t]*:"
+_ITEM_STATUS_GIT_PATTERN = '"status":'  # the JSON status field's own line; already case-fixed
 
 
-def _status_change_age_seconds(repo: Path, relpath: str, pattern: str) -> float:
-    """Seconds since the last commit whose diff added or removed a line matching ``pattern``
-    (``git log -G``, case-insensitive pickaxe) in ``relpath`` at HEAD — never the file's last
-    commit for ANY reason, so a typo fix or a note edit does not reset the age clock (A-S2/A-S3,
-    T02 review pass 1). A file's creation commit always counts (it "adds" the line), so a return
-    of no match means the file has no commit history at all — treated as uncommitted, using its
-    own mtime; 0 if even that is unavailable."""
+def _git_status_porcelain(repo: Path, *args: str) -> str:
+    """``git status --porcelain`` output, UNSTRIPPED. Found while building A-O17 (T02 review pass
+    2): routing this through ``_git()`` — whose ``return proc.stdout.strip()`` strips the WHOLE
+    blob, not per line — eats the leading space of a first-line `` M ``-shaped status code
+    (unmodified index, modified working tree), shifting the fixed-column parse (`line[3:]`) by one
+    character and silently dropping the path's leading directory segment. ``_uncommitted_items``
+    carried the identical bug (only ever exercised with a leading ``??`` untracked code, which has
+    no leading space to lose) and is fixed the same way."""
     try:
-        out = _git(repo, "log", "-1", "--format=%ct", "-i", "-G", pattern, "HEAD", "--", relpath)
-    except WorkError:
-        out = ""
-    out = out.strip()
-    if out:
-        return max(0.0, time.time() - float(out))
+        proc = subprocess.run(
+            ["git", "-C", str(repo), "status", "--porcelain", *args],
+            capture_output=True,
+            text=True,
+            timeout=_git_timeout(),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return proc.stdout if proc.returncode == 0 else ""
+
+
+def _dirty_paths(repo: Path) -> frozenset[str]:
+    """Every repo-relative path whose WORKING TREE differs from HEAD (modified, added, deleted or
+    renamed — anything ``git status`` reports), computed with ONE ``git status --porcelain`` call
+    and reused by every ``_status_change_age_seconds`` call in the run (A-O17, T02 review pass 2):
+    a path here took its most recent write in the WORKING TREE, so a commit-history pickaxe search
+    would read a stale, pre-flip status line and report a stale age."""
+    out = _git_status_porcelain(repo, "--untracked-files=all")
+    paths: set[str] = set()
+    for line in out.splitlines():
+        if len(line) < 4:
+            continue
+        rest = line[3:].strip()
+        dst = (rest.split(" -> ", 1)[1] if " -> " in rest else rest).strip().strip('"')
+        if dst:
+            paths.add(dst)
+    return frozenset(paths)
+
+
+def _status_change_age_seconds(
+    repo: Path, relpath: str, pattern: str, dirty: frozenset[str]
+) -> float:
+    """Seconds since the last commit whose diff added or removed a line matching ``pattern``
+    (``git log -G``, a regex) in ``relpath`` at HEAD — never the file's last commit for ANY
+    reason, so a typo fix or a note edit does not reset the age clock (A-S2/A-S3, T02 review pass
+    1). A file's creation commit always counts (it "adds" the line), so a return of no match means
+    the file has no commit history at all.
+
+    A path in ``dirty`` (its working copy differs from HEAD — A-O17, T02 review pass 2) skips the
+    commit search entirely and uses its own mtime: HEAD's committed content is stale for it — a
+    committed-open item flipped to done, with bad evidence, in the working tree must read as
+    fresh, not as whatever its last real commit was."""
+    if relpath not in dirty:
+        try:
+            out = _git(repo, "log", "-1", "--format=%ct", "-G", pattern, "HEAD", "--", relpath)
+        except WorkError:
+            out = ""
+        out = out.strip()
+        if out:
+            return max(0.0, time.time() - float(out))
     try:
         mtime = (repo / relpath).stat().st_mtime
     except OSError:
@@ -1107,10 +1199,12 @@ def _status_change_age_seconds(repo: Path, relpath: str, pattern: str) -> float:
 
 
 def _normalize_repo_path(repo: Path, raw: str) -> str:
-    """Strip a leading ``./``, and rewrite an absolute path under ``repo`` to repo-relative posix
-    (a path outside the repo, or one git cannot resolve, is returned as-is — it simply matches
-    nothing downstream). Shared by plan references and a plan's spec citation (A-O1/A-O2, T02
-    review pass 1): both may be written ``./docs/...`` or as an absolute path."""
+    """Strip a leading ``./`` and any trailing ``/`` (A-O14, T02 review pass 2: a trailing slash
+    survived into the directory-expansion join and produced ``dir//dir.md``), and rewrite an
+    absolute path under ``repo`` to repo-relative posix (a path outside the repo, or one git
+    cannot resolve, is returned as-is — it simply matches nothing downstream). Shared by plan
+    references and a plan's spec citation (A-O1/A-O2, T02 review pass 1): both may be written
+    ``./docs/...``, as an absolute path, or with a trailing ``/``."""
     value = (raw or "").strip()
     if not value:
         return ""
@@ -1122,7 +1216,7 @@ def _normalize_repo_path(repo: Path, raw: str) -> str:
             return value
     if value.startswith("./"):
         value = value[2:]
-    return value
+    return value.rstrip("/")
 
 
 def _normalize_plan_ref(repo: Path, raw: str) -> str:
@@ -1182,16 +1276,19 @@ def _backlog_needs_render(repo: Path, items: list[dict]) -> bool:
 
 def _stale_marker_statuses(repo: Path, ids: list[str]) -> dict[str, str]:
     """Each stale marker's item status, read from the store's RECORDED base branch when one is
-    configured (a missing id there reads as "", i.e. not resolved — the same convention
-    ``_closed_ids`` uses); with none recorded, from the current tree (A-O9, T02 review pass 1:
-    "still open in the main checkout" means the canonical base branch, not whichever tree a
-    worktree agent happens to be running the check from)."""
+    configured AND resolves (a missing id there reads as "", i.e. not resolved — the same
+    convention ``_closed_ids`` uses); with none recorded, OR the recorded ref no longer resolves
+    (renamed/deleted), OR the batch read itself fails, from the CURRENT TREE — exactly as when no
+    base is recorded, and never flagging purely because a read failed (A-O9, T02 review pass 1;
+    A-O16, T02 review pass 2). "still open in the main checkout" means the canonical base branch
+    when one genuinely exists, not a stale pointer to a branch nobody kept."""
     if not ids:
         return {}
     base_branch = _base_branch(repo)
-    if base_branch:
-        heads = _base_statuses(repo, ids)
-        return {i: heads.get(i, "") for i in ids}
+    if base_branch and _base_ref_resolves(repo, base_branch):
+        heads = _base_statuses_raw(repo, base_branch, ids)
+        if heads is not None:
+            return {i: heads.get(i, "") for i in ids}
     out: dict[str, str] = {}
     for i in ids:
         try:
@@ -1205,6 +1302,7 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
     """The eight drift classes of spec § Spec and plan state is derived, never copied, each a
     sorted list of the relpaths (item files for 5-6, the backlog doc for 7) that trip it."""
     report: dict[int, list[str]] = {n: [] for n in range(1, 9)}
+    dirty = _dirty_paths(repo)  # ONE git status call per run (A-O17), reused below
     items = list(_iter_items(repo))
     linked_specs = {
         _normalize_repo_path(repo, (it.get("links") or {}).get("spec") or "") for it in items
@@ -1251,7 +1349,7 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
             if (
                 not has_lock
                 and rel not in linked_plans
-                and _status_change_age_seconds(repo, rel, _PLAN_STATUS_GIT_PATTERN)
+                and _status_change_age_seconds(repo, rel, _PLAN_STATUS_GIT_PATTERN, dirty)
                 > STALE_PLAN_DAYS * 86400
             ):
                 report[2].append(rel)
@@ -1281,7 +1379,7 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
                 continue
             if data.get("status") == "done" and not data.get("legacy"):
                 if (
-                    _status_change_age_seconds(repo, rel, _ITEM_STATUS_GIT_PATTERN)
+                    _status_change_age_seconds(repo, rel, _ITEM_STATUS_GIT_PATTERN, dirty)
                     <= RECENT_WINDOW_S
                 ):
                     ev = str(data.get("evidence") or "")
@@ -1372,10 +1470,7 @@ def _uncommitted_items(repo: Path) -> list[str]:
     """Item files ``git status --porcelain`` shows untracked or modified — a listing, never a
     drift class (spec § Constraints — shared tree)."""
     store_rel = STORE_REL.as_posix()
-    try:
-        out = _git(repo, "status", "--porcelain", "--untracked-files=all", "--", store_rel)
-    except WorkError:
-        return []
+    out = _git_status_porcelain(repo, "--untracked-files=all", "--", store_rel)
     paths: set[str] = set()
     for line in out.splitlines():
         if len(line) < 4:
