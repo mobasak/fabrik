@@ -205,6 +205,21 @@ def _build_shape_for_type(project_type: str) -> Shape | None:
     return Shape(**shape_raw)
 
 
+def _validated_shape_overlay(shape: Shape, **updates: object) -> Shape:
+    """Apply field overlays to *shape*, RE-RUNNING its ``model_validator``s.
+
+    ``shape.model_copy(update=...)`` writes fields directly and skips every
+    ``model_validator(mode="after")`` — an overlay built that way could
+    silently produce an invalid ``Shape`` (e.g. ``database_url_app_role=True``
+    with ``needs_database=False``) that direct construction (``Shape(...)``)
+    would refuse outright. Round-tripping through ``model_validate`` closes
+    that gap: an overlay that would violate a cross-field invariant raises
+    ``pydantic.ValidationError`` here instead of shipping a spec no directly
+    constructed ``Shape`` could have produced.
+    """
+    return Shape.model_validate({**shape.model_dump(), **updates})
+
+
 def _parse_env_example(env_example_path: Path) -> list[str]:
     """Return secret key names found in ``.env.example``.
 
@@ -379,7 +394,7 @@ def generate_spec(
     # overlays on top so the CLI ``--db`` flag survives spec emission.
     shape = _build_shape_for_type(project_type)
     if shape is not None and use_database:
-        shape = shape.model_copy(update={"needs_database": True})
+        shape = _validated_shape_overlay(shape, needs_database=True)
 
     # D-390: every new database project is born on the app role — the owner
     # DSN (DATABASE_URL_OWNER) is provisioned alongside it, but DATABASE_URL
@@ -387,7 +402,24 @@ def generate_spec(
     # emitted shape ends up needs_database=True, whether that came from the
     # type's own defaults.yaml or the ``--db`` overlay above.
     if shape is not None and shape.needs_database:
-        shape = shape.model_copy(update={"database_url_app_role": True})
+        shape = _validated_shape_overlay(shape, database_url_app_role=True)
+
+    # Acceptance-review S1: a database spec with NO shape at all would still
+    # get depends.postgres="main" below, emitting an owner DSN with no
+    # database_url_app_role flag — silently. Every enabled type carries a
+    # `shape:` block today (see the "every enabled type" test in
+    # test_spec_generator.py); fail loud rather than let a future template
+    # regression (a missing/deleted `shape:` block) ship that silently.
+    wants_database = bool(ctx.get("depends_postgres")) or use_database
+    if shape is None and wants_database:
+        raise ValueError(
+            f"{project_type!r} would emit a database-backed spec "
+            f"(use_database={use_database!r}, "
+            f"depends_postgres={ctx.get('depends_postgres')!r}) but "
+            f"templates/{project_type}/defaults.yaml has no `shape:` block — "
+            "refusing to emit depends.postgres with no database_url_app_role "
+            "flag. Add a `shape:` block to the template's defaults.yaml."
+        )
 
     # Top-level ``kind`` MUST match ``shape.kind`` so the spec is internally
     # consistent (validators and downstream tooling key off both). Pre-fix
