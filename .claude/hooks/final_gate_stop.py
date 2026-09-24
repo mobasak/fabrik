@@ -2138,10 +2138,11 @@ def _decision_quote(why: str, label: str) -> str | None:
     """The value after ``asked:``/``scope:`` on the Why line — tokenised, never regex-sliced:
 
     1. the value STARTS with `"`, `“` or `` ` ``: up to its matching closer;
-    2. it starts with `'`/`‘`: up to the FIRST `'`/`’` that is not a possessive (not preceded by
-       `s`) and is followed by the value's end, whitespace, or one of `; — , ) ? .` — scanning left
-       to right, so later quoted text on the line is never absorbed ("the users' data" keeps its
-       possessive; "'ship it?' then I said 'ok?'" is "ship it?");
+    2. it starts with `'`/`‘`: up to the LAST closing `'`/`’` (followed by the value's end,
+       whitespace, or one of `; — , ) ? .`) that lies BEFORE the first later opening quote (a quote
+       after whitespace and before a letter or digit) — so "the users' data" keeps its possessive,
+       "'list the users' then I said 'all'" is "list the users" and "'ship it?' then I said 'ok?'"
+       is "ship it?";
     3. unquoted: asked: up to and including its first `?`; scope: up to the first ` — ` or `;`.
 
     A delimiter is never kept in the value. None when the label is absent."""
@@ -2156,15 +2157,25 @@ def _decision_quote(why: str, label: str) -> str | None:
         close = rest.find(pairs[rest[0]], 1)
         return (rest[1:close] if close != -1 else rest[1:]).strip()
     if rest[0] in "'‘":
-        for i in range(1, len(rest)):
-            nxt = rest[i + 1 : i + 2]
-            if (
-                rest[i] in "'’"
-                and rest[i - 1] not in "sS"
-                and (not nxt or nxt.isspace() or nxt in ";—,)?.")
-            ):
-                return rest[1:i].strip()
-        return rest[1:].strip()
+        # The bound is the FIRST later OPENING quote (after whitespace, before a letter or digit);
+        # the closer is the LAST valid closing quote before it — so "the users' data" keeps its
+        # possessive, "'list the users' then I said 'all'" closes at "users'", and later quoted
+        # text is never absorbed.
+        bound = next(
+            (
+                j
+                for j in range(1, len(rest) - 1)
+                if rest[j] in "'‘" and rest[j - 1].isspace() and rest[j + 1].isalnum()
+            ),
+            len(rest),
+        )
+        closes = [
+            i
+            for i in range(1, bound)
+            if rest[i] in "'’"
+            and (i + 1 >= len(rest) or rest[i + 1].isspace() or rest[i + 1] in ";—,)?.")
+        ]
+        return (rest[1 : closes[-1]] if closes else rest[1:bound]).strip()
     if label.lower() == "asked":
         q = rest.find("?")
         return rest[: q + 1].strip() if q != -1 else rest.rstrip(" .;,").strip()

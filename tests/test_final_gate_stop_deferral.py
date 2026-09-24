@@ -1098,3 +1098,18 @@ def test_a_count_before_blocked_is_not_a_header() -> None:
     """A-O25: the id before BLOCKED: starts with a letter; `- 2 BLOCKED: …` is a count."""
     text = "- 2 BLOCKED: T04, T05\n\nNEXT: operator decision — which first"
     assert hook.deferral_shape(text) == "D1", hook._deferral_match(text)
+
+
+@pytest.mark.parametrize(
+    ("label", "why", "want"),
+    [
+        ("scope", "owned — scope: 'list the users' then I said 'all'", "list the users"),
+        ("asked", "owned — asked: 'ship the fixes' then 'ok'", "ship the fixes"),
+        ("scope", "owned — scope: 'the admin pages' — then I said 'all'", "the admin pages"),
+    ],
+    ids=["s-quote-before-a-later-quote", "asked-s-quote", "s-quote-then-dash"],
+)
+def test_a_value_ending_in_s_closes_before_a_later_quote(label: str, why: str, want: str) -> None:
+    """A-O22 remainder: the closer is the LAST valid closing quote BEFORE the first later opening
+    quote, so a value ending in `s` closes and the later quoted text is never absorbed."""
+    assert hook._decision_quote(why, label) == want
