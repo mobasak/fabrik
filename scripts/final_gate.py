@@ -2188,6 +2188,20 @@ def run_consistency_checks(
                 warn_only=True,
             )
         )
+        # Work items — spec/plan state vs the work store (`work.py sync --check`, spec
+        # 2026-09-24 § Spec and plan state is derived). `advisory=True`, NOT `warn_only=True`:
+        # the verb exits 1 on drift classes 2-6 once the repo has 7 consecutive clean daily
+        # readings after `migrated_at`, so the row CAN fail; before that it exits 0 and
+        # advisory keeps the DRIFT lines on the green row. No `scripts/work.py` → the ⚠
+        # not-present row; no `.fabrik/work/` → the verb's one-line exit 0. Each run appends
+        # one reading to `<git common dir>/fabrik-work/readings.jsonl` — outside the tree.
+        # COBRA: the cheap way to stay green once blocking is to never `init` a store (or to
+        # never migrate, so `migrated_at` stays unset) — adoption is the distributor's beat.
+        results.append(
+            run_optional_check(
+                "scripts/work.py", "Work items (sync)", "sync", "--check", advisory=True
+            )
+        )
         # Epic-graph integrity — hub-conditional on BOTH the script and the epics dir; the
         # helper documents the two guards and the labelled-skip shape. Tier-2-ONLY: --lean's
         # count must not move (the Phase Tests regression class).
