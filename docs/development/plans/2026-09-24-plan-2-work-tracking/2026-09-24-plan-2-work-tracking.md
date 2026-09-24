@@ -48,8 +48,8 @@ it implements and restates nothing that section already settles.
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01a | Store core: init, items, lock, add/assign/ready/next | — | ⛓️ | 🔵 | |
-| T01b | Claims, leases, closing verbs, hook-facing API | T01a | ⛓️ | ⬜ | |
+| T01a | Store core: init, items, lock, add/assign/ready/next | — | ⛓️ | ✅ | 8912d0a21 |
+| T01b | Claims, leases, closing verbs, hook-facing API | T01a | ⛓️ | 🔵 | |
 | T02 | status, sync --check, readings, drift classes | T01b | ⛓️ | ⬜ | |
 | T03 | migrate-backlog and render | T02 | ⛓️ | ⬜ | |
 | T04 | thread_anchor.py: decision items, unfolded block, renewal | T01b | ⚡ | ⬜ | |

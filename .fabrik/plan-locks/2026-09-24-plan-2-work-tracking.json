@@ -40,5 +40,14 @@
     "tier": "lean",
     "red": []
   },
-  "tickets": {}
+  "tickets": {
+    "T01a": {
+      "state": "merged",
+      "branch": "worktree-agent-abb4274114bcb3c55",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-abb4274114bcb3c55",
+      "base_commit": "f9a009fa7",
+      "tip": "8912d0a21",
+      "review": "docs/development/reviews/2026-09-24-plan-2-work-tracking-T01a-review.md"
+    }
+  }
 }
