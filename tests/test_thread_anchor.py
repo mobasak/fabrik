@@ -404,7 +404,21 @@ def _open_decision(env: dict[str, str], sid: str) -> None:
     assert _state(env, sid).get("decision")
 
 
-@pytest.mark.parametrize("prompt", [*_BUILTINS, " /model", "/compact keep the plan state"])
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        *_BUILTINS,
+        " /model",
+        "/compact keep the plan state",
+        # A-O8: UI/local commands reach UserPromptSubmit too and are not an answer — matched
+        # case-insensitively on the whole first token.
+        "/status",
+        "/RESUME",
+        "/terminal-setup",
+        "/Vim",
+        "/permissions",
+    ],
+)
 def test_a_builtin_slash_command_does_not_clear_the_decision(tmp_path, prompt):
     env = _env(tmp_path)
     _open_decision(env, "s-b")
@@ -519,3 +533,245 @@ def test_a_missing_hook_omits_its_items_and_never_crashes(tmp_path):
     assert "fabrik-execute-plan" not in out
     lines = err.strip().splitlines()
     assert lines and all(ln.startswith("thread_anchor:") for ln in lines), err
+
+
+# ── T04 /fabrik-review round 1 ─────────────────────────────────────────────────────────────────
+
+
+def _ta_module():
+    """The script imported in-process (a fresh module per call), for the tests that must stub a
+    seam — the time budget, the lost-update window."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(f"thread_anchor_t04_{time.time_ns()}", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_where_block_prints_the_last_next_once(tmp_path):
+    """A-S1: the last NEXT is also the newest anchor — WHERE YOU ARE de-duplicates it exactly as
+    the usual block does, instead of printing it as item 2 AND item 5."""
+    env = _env(tmp_path)
+    run3(["harvest", "--session", "s-d"], env, stdin="NEXT: resume phase C of the plan")
+    out = _hook_line(env, {"session_id": "s-d", "source": "compact", "cwd": str(tmp_path)})[1]
+    assert out.count("resume phase C of the plan") == 1, out
+
+
+def test_a_concurrent_harvest_never_loses_a_clear(tmp_path, monkeypatch):
+    """A-S2: `_load`/`_save` was an unlocked read-modify-write. A Stop-side harvest that loaded the
+    state before the operator's answer cleared the DECISION wrote the stale block back: the
+    answered decision reopened. The clear runs in a second PROCESS inside the harvest's window."""
+    env = _env(tmp_path)
+    _open_decision(env, "s-lk")
+    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "HOME", "TMPDIR"):
+        monkeypatch.setenv(k, env[k])
+    ta = _ta_module()
+    real_load = ta._load
+    clearer: list[subprocess.Popen] = []
+
+    def racing_load(session: str) -> dict:
+        state = real_load(session)
+        if not clearer:  # the harvest has READ the open block; now the operator answers
+            clearer.append(
+                subprocess.Popen(
+                    [sys.executable, str(SCRIPT), "line", "--hook"],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                    env=env,
+                )
+            )
+            clearer[0].stdin.write(
+                json.dumps(
+                    {"session_id": "s-lk", "hook_event_name": "UserPromptSubmit", "prompt": "B"}
+                )
+            )
+            clearer[0].stdin.close()
+            time.sleep(0.5)  # the clear lands (unlocked) or waits on the lock (locked)
+        return state
+
+    monkeypatch.setattr(ta, "_load", racing_load)
+    ta.cmd_harvest("s-lk", "NEXT: keep going — item 2 of 9")
+    assert clearer and clearer[0].wait(timeout=10) == 0
+    st = _state(env, "s-lk")
+    assert not st.get("decision"), "the operator's answer was lost to a concurrent harvest"
+    assert st["last_next"]["text"].startswith("keep going"), "the harvest itself was lost"
+    assert not list(Path(env["THREAD_ANCHOR_DIR"]).glob("*.tmp")), "a temp file was left behind"
+
+
+def test_done_resets_the_dropped_count_and_no_open_anchor_hides_it(tmp_path):
+    """A-S3: `dropped` only grew, so one eviction printed a fold line on every prompt forever."""
+    env = _env(tmp_path)
+    anchors = [_anchor(f"tangent {i} — item {i} of 99", 50 - i) for i in range(12)]
+    _write_state(env, "s-dr", {"anchors": anchors, "last_next": None, "dropped": "garbage"})
+    rc = run3(["harvest", "--session", "s-dr"], env, stdin="NEXT: tangent new — item 1 of 5")[0]
+    texts = [a["text"] for a in _state(env, "s-dr")["anchors"]]
+    assert rc == 0 and "tangent new — item 1 of 5" in texts, "a garbage count broke the harvest"
+    assert len(texts) == 12, texts
+    assert "dropped over the cap" in run3(["line", "--session", "s-dr"], env)[1]
+    run3(["done", "--session", "s-dr", "--match", "tangent new"], env)
+    assert "dropped over the cap" not in run3(["line", "--session", "s-dr"], env)[1]
+    # a count with no open anchor at all prints nothing
+    _write_state(env, "s-dz", {"anchors": [], "last_next": None, "dropped": 4})
+    assert run3(["line", "--session", "s-dz"], env)[1] == ""
+
+
+def test_where_block_respects_its_time_budget(tmp_path, monkeypatch):
+    """A-S4: the SessionStart entry times out at 10 s and a 50 MB transcript already takes 4-11 s.
+    Past the budget the costly item is skipped with one line; the record items still print."""
+    import types
+
+    env = _env(tmp_path)
+    run3(["harvest", "--session", "s-t"], env, stdin="NEXT: resume the audit")
+    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "HOME", "TMPDIR"):
+        monkeypatch.setenv(k, env[k])
+    ta = _ta_module()
+
+    def slow_files(tp: str, root: Path) -> dict:
+        time.sleep(5)
+        return {}
+
+    ta._HOOK = types.SimpleNamespace(
+        _run_record=lambda sid: None,
+        _session_files=slow_files,
+        _this_sessions_edits=lambda a, f: a,
+        _baseline_floor=lambda sid: 0.0,
+        session_unpushed=lambda root, authored, **kw: [],
+    )
+    monkeypatch.setattr(ta, "_WHERE_BUDGET_S", 0.5)
+    t0 = time.monotonic()
+    out = ta.cmd_where("s-t", tmp_path, str(tmp_path / "t.jsonl"))
+    assert time.monotonic() - t0 < 2.0, "the render ran past its budget"
+    assert "(skipped: time budget)" in out and "resume the audit" in out, out
+
+
+def _lone_repo_with_hook(tmp_path: Path, hook_src: str) -> Path:
+    lone = tmp_path / "lone"
+    (lone / "scripts").mkdir(parents=True)
+    (lone / ".claude" / "hooks").mkdir(parents=True)
+    (lone / "scripts" / "thread_anchor.py").write_text(
+        SCRIPT.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (lone / ".claude" / "hooks" / "final_gate_stop.py").write_text(hook_src, encoding="utf-8")
+    return lone / "scripts" / "thread_anchor.py"
+
+
+@pytest.mark.parametrize(
+    "hook_src",
+    [
+        "print('NOISE-AT-IMPORT')\nimport sys\nsys.exit(3)\n",
+        "print('NOISE-AT-IMPORT')\ndef _run_record(sid):\n    return None\n",
+    ],
+    ids=["sys-exit-at-import", "prints-at-import"],
+)
+def test_a_hook_that_exits_or_prints_at_import_never_reaches_the_context(tmp_path, hook_src):
+    """A-O1: a SystemExit at hook import escaped `except Exception` and the SessionStart hook
+    printed nothing; anything the hook prints at import landed in the injected context."""
+    env = _env(tmp_path)
+    lone = _lone_repo_with_hook(tmp_path, hook_src)
+    run3(["harvest", "--session", "s-x"], env, stdin="NEXT: resume phase C", script=lone)
+    rc, out, err = _hook_line(
+        env, {"session_id": "s-x", "source": "compact", "cwd": str(tmp_path)}, script=lone
+    )
+    assert rc == 0 and "Traceback" not in err, err
+    assert "WHERE YOU ARE" in out and "resume phase C" in out, out
+    assert "NOISE-AT-IMPORT" not in out, out
+
+
+def test_a_hook_that_exits_at_import_never_breaks_the_stop_side_harvest(tmp_path):
+    """A-O1, the main-thread path: `harvest --decision-ok` imports the hook directly (the WHERE
+    render imports it inside its bounded thread). A SystemExit there must not escape — the NEXT:
+    line is still stored, no block is, and the exit code stays 0."""
+    env = _env(tmp_path)
+    lone = _lone_repo_with_hook(tmp_path, "import sys\nsys.exit(3)\n")
+    rc, _, err = run3(
+        ["harvest", "--session", "s-hx", "--decision-ok"], env, stdin=_DECISION_TEXT, script=lone
+    )
+    assert rc == 0 and "Traceback" not in err, err
+    st = _state(env, "s-hx")
+    assert st["last_next"]["text"].startswith("operator decision") and not st.get("decision")
+    assert err.strip().startswith("thread_anchor:"), err
+
+
+def test_dirty_files_with_arrows_and_escaped_names_are_found(tmp_path):
+    """A-O4: porcelain v1 TEXT splits `a -> b.py` as a rename and C-quotes a tab; -z does not."""
+    env = _env(tmp_path)
+    work = _repo_with_upstream(tmp_path, env)
+    names = ["a -> b.py", "tab\tname.py", "ünï.py"]
+    for n in names:
+        (work / n).write_text("wip\n", encoding="utf-8")
+    tp = _transcript(tmp_path, [work / n for n in names])
+    out = _hook_line(
+        env,
+        {"session_id": "s-z", "transcript_path": str(tp), "cwd": str(work), "source": "compact"},
+    )[1]
+    for n in names:
+        assert n in out, (n, out)
+
+
+def test_an_answered_block_is_never_restored(tmp_path):
+    """A-O7: the Stop hook falls back to the previous turn's text when the new one is not flushed,
+    so an ACCEPTED harvest can carry a block the operator already answered."""
+    env = _env(tmp_path)
+    _open_decision(env, "s-a")
+    _hook_line(env, {"session_id": "s-a", "hook_event_name": "UserPromptSubmit", "prompt": "A"})
+    assert not _state(env, "s-a").get("decision")
+    run3(["harvest", "--session", "s-a", "--decision-ok"], env, stdin=_DECISION_TEXT)
+    assert not _state(env, "s-a").get("decision"), "an answered block came back"
+    other = _DECISION_TEXT.replace("Deploy the certified build", "Rotate the signing key")
+    run3(["harvest", "--session", "s-a", "--decision-ok"], env, stdin=other)
+    assert "Rotate the signing key" in _state(env, "s-a")["decision"]["text"]
+
+
+def test_an_anchor_with_no_timestamp_is_young_and_never_evicted_first(tmp_path):
+    """A-O12: a missing or non-numeric ts read as 0 — folded as ~497,000 h old and evicted first."""
+    env = _env(tmp_path)
+    anchors = [
+        {"key": "no ts", "text": "no-ts thread — item 1 of 9"},
+        {"key": "bad ts", "text": "bad-ts thread — item 2 of 9", "ts": "garbage"},
+    ]
+    anchors += [_anchor(f"tangent {i} — item {i} of 99", 50 - i) for i in range(10)]
+    _write_state(env, "s-u", {"anchors": anchors, "last_next": None})
+    run3(["harvest", "--session", "s-u"], env, stdin="NEXT: tangent new — item 1 of 5")
+    texts = [a["text"] for a in _state(env, "s-u")["anchors"]]
+    assert "no-ts thread — item 1 of 9" in texts and "bad-ts thread — item 2 of 9" in texts, texts
+    out = run3(["line", "--session", "s-u"], env)[1]
+    assert "older thread(s)" not in out, f"an unknown age was folded: {out!r}"
+
+
+def test_where_block_stays_bounded(tmp_path):
+    """B-S3: >10 unpushed commits, >10 dirty files and an over-long DECISION line — every list is
+    cut at 10 and every line at 300 characters."""
+    env = _env(tmp_path)
+    work = _repo_with_upstream(tmp_path, env)
+    edited = []
+    for i in range(12):
+        (work / f"mine{i}.py").write_text("x\n", encoding="utf-8")
+        _git(work, env, "add", f"mine{i}.py")
+        _git(work, env, "commit", "-q", "-m", f"mine: commit {i} " + "y" * 400)
+        edited.append(work / f"mine{i}.py")
+        (work / f"mine{i}_dirty.py").write_text("wip\n", encoding="utf-8")
+        edited.append(work / f"mine{i}_dirty.py")
+    tp = _transcript(tmp_path, edited)
+    long = _DECISION_TEXT.replace("Deploy the certified", "Deploy " + "z" * 1000 + " the certified")
+    run3(["harvest", "--session", "s-bd", "--decision-ok"], env, stdin=long)
+    out = _hook_line(
+        env,
+        {"session_id": "s-bd", "transcript_path": str(tp), "cwd": str(work), "source": "compact"},
+    )[1]
+    lines = out.splitlines()
+    assert all(len(ln) <= 300 for ln in lines), max(len(ln) for ln in lines)
+    assert 1 <= sum("mine: commit" in ln for ln in lines) <= 10, out
+    assert 1 <= sum(ln.rstrip().endswith("_dirty.py") for ln in lines) <= 10, out
+    assert any(ln.endswith("…") for ln in lines), "no line was visibly cut"
+
+
+def test_a_promptless_user_prompt_submit_keeps_the_block(tmp_path):
+    """B-S2 (by design): a real UserPromptSubmit always carries `prompt`; a payload without one is
+    no evidence of an answer, and the next real prompt clears the block."""
+    env = _env(tmp_path)
+    _open_decision(env, "s-p")
+    _hook_line(env, {"session_id": "s-p", "hook_event_name": "UserPromptSubmit"})
+    assert _state(env, "s-p").get("decision")
