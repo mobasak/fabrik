@@ -117,6 +117,15 @@ _BUILTIN_SLASH = frozenset(
         "/statusline",
         "/terminal-setup",
         "/vim",
+        "/exit",
+        "/add-dir",
+        "/plugin",
+        "/bashes",
+        "/output-style",
+        "/release-notes",
+        "/theme",
+        "/privacy-settings",
+        "/upgrade",
     }
 )
 _GIT_TIMEOUT_S = 2.0
@@ -128,6 +137,10 @@ _MAX_LINE = 300  # every WHERE YOU ARE line, cut with "…"
 # from this script's own state still print.
 _WHERE_BUDGET_S = 5.0
 _LOCK_TIMEOUT_S = 1.0  # a state write that cannot take the session lock in time is skipped
+# After the operator answers a DECISION block, an IDENTICAL block harvested within this window is
+# the Stop hook's stale fallback to the previous turn's text and is not stored; after it, the same
+# words are a deliberate re-ask and are stored again.
+_REASK_WINDOW_S = 600.0
 
 
 def _warn(msg: str) -> None:
@@ -175,7 +188,10 @@ def _ts(a: dict[str, Any]) -> float | None:
     ts = a.get("ts")
     if isinstance(ts, bool) or not isinstance(ts, (int, float)):
         return None
-    return float(ts) if math.isfinite(ts) and ts > 0 else None
+    try:
+        return float(ts) if math.isfinite(ts) and ts > 0 else None
+    except OverflowError:  # a JSON int past float range (10**400) — unknown, never a wedge
+        return None
 
 
 def _is_old(a: dict[str, Any], now: float) -> bool:
@@ -413,13 +429,23 @@ def _digest(block: str) -> str:
     return hashlib.sha256(block.strip().encode("utf-8", "replace")).hexdigest()
 
 
+def _just_answered(state: dict, block: str, now: float) -> bool:
+    """Is ``block`` the one the operator answered less than _REASK_WINDOW_S ago?"""
+    cleared = state.get("cleared_decision")
+    if not isinstance(cleared, dict) or cleared.get("digest") != _digest(block):
+        return False
+    ts = _ts(cleared)
+    return ts is not None and now - ts < _REASK_WINDOW_S
+
+
 def cmd_harvest(session: str, text: str, decision_ok: bool = False) -> None:
     """Store the message's last NEXT: (promoting long-running shapes to anchors) and, ONLY with
     ``decision_ok`` — the Stop hook passes it when it ACCEPTED the block — its DECISION block.
     Without the flag no block is ever stored: a refused or malformed block must not come back
     after a compaction as if it were open (C-O8's twin, A-O30). A block identical to the last one
-    the operator ANSWERED is never stored again: the Stop hook falls back to the previous turn's
-    text when the new one is not flushed yet (A-O7)."""
+    the operator ANSWERED is not stored within _REASK_WINDOW_S of that answer: the Stop hook falls
+    back to the previous turn's text when the new one is not flushed yet (A-O7); after the window
+    the same words are a deliberate re-ask."""
     matches = _NEXT_RE.findall(text)
     block = None
     if decision_ok and text:
@@ -432,7 +458,7 @@ def cmd_harvest(session: str, text: str, decision_ok: bool = False) -> None:
     now = time.time()
 
     def apply(state: dict) -> bool:
-        if block and _digest(block) != state.get("cleared_decision"):
+        if block and not _just_answered(state, block, now):
             state["decision"] = {"ts": now, "text": block}
         if matches:
             nxt = matches[-1][:300]  # the LAST NEXT: in the message is the operative one
@@ -458,7 +484,8 @@ def cmd_clear_decision(session: str, prompt: object) -> None:
     WHOLE first token is on the closed _BUILTIN_SLASH list, case-insensitively (`/compact` is not
     an answer; `/contextualize x` and `/fabrik-deploy prod` are). A payload with no string
     ``prompt`` is no evidence of an answer, so it clears nothing; a real one always carries it.
-    The cleared block's digest is kept, so an identical block is never stored again (A-O7)."""
+    The cleared block's digest and clear time are kept: an identical block harvested within
+    _REASK_WINDOW_S is the stale echo of the answered one and is not stored (A-O7)."""
     if not isinstance(prompt, str):
         return
     toks = prompt.split()
@@ -470,7 +497,7 @@ def cmd_clear_decision(session: str, prompt: object) -> None:
         if not dec:
             return False
         if isinstance(dec, dict) and dec.get("text"):
-            state["cleared_decision"] = _digest(str(dec["text"]))
+            state["cleared_decision"] = {"digest": _digest(str(dec["text"])), "ts": time.time()}
         state["decision"] = None
         return True
 
@@ -682,7 +709,8 @@ def cmd_done(session: str, match: str) -> None:
     """Close every anchor whose text contains `match` — and SAY what happened. A close that prints
     nothing is byte-identical to a typo'd match (youtube + wef, 2026-09-03: two threads "closed",
     both re-printed by the next hook; the agent had told the operator they were closed). A `done`
-    also resets the "dropped over the cap" count: it is the acknowledgement that silences it."""
+    that closes at least one anchor also resets the "dropped over the cap" count: it is the
+    acknowledgement that silences it."""
     said: list[str] = []
 
     def apply(state: dict) -> bool:
@@ -700,7 +728,8 @@ def cmd_done(session: str, match: str) -> None:
         last = state.get("last_next")
         if isinstance(last, dict) and match.lower() in str(last.get("text", "")).lower():
             state["last_next"] = None
-        state["dropped"] = 0
+        if closed:
+            state["dropped"] = 0  # a typo'd match acknowledges nothing
         return True
 
     if not _update(session, apply):
@@ -785,7 +814,10 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 out = cmd_line(session)
             if out:
-                print(out, file=real_stdout)
+                # Flushed HERE: past the budget the abandoned import thread still holds sys.stdout
+                # redirected at exit, so nothing flushes this stream for us (0 bytes, measured).
+                real_stdout.write(out + "\n")
+                real_stdout.flush()
         elif args.cmd == "done":
             if args.match:
                 cmd_done(session, args.match)

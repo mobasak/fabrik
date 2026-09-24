@@ -417,6 +417,16 @@ def _open_decision(env: dict[str, str], sid: str) -> None:
         "/terminal-setup",
         "/Vim",
         "/permissions",
+        # round 2 (A-O5): the rest of the closed list
+        "/exit",
+        "/add-dir",
+        "/Plugin install x",
+        "/bashes",
+        "/output-style",
+        "/release-notes",
+        "/theme",
+        "/privacy-settings",
+        "/upgrade",
     ],
 )
 def test_a_builtin_slash_command_does_not_clear_the_decision(tmp_path, prompt):
@@ -711,9 +721,9 @@ def test_dirty_files_with_arrows_and_escaped_names_are_found(tmp_path):
         assert n in out, (n, out)
 
 
-def test_an_answered_block_is_never_restored(tmp_path):
+def test_an_answered_block_is_not_restored_within_the_window(tmp_path):
     """A-O7: the Stop hook falls back to the previous turn's text when the new one is not flushed,
-    so an ACCEPTED harvest can carry a block the operator already answered."""
+    so an ACCEPTED harvest can carry a block the operator just answered."""
     env = _env(tmp_path)
     _open_decision(env, "s-a")
     _hook_line(env, {"session_id": "s-a", "hook_event_name": "UserPromptSubmit", "prompt": "A"})
@@ -723,6 +733,74 @@ def test_an_answered_block_is_never_restored(tmp_path):
     other = _DECISION_TEXT.replace("Deploy the certified build", "Rotate the signing key")
     run3(["harvest", "--session", "s-a", "--decision-ok"], env, stdin=other)
     assert "Rotate the signing key" in _state(env, "s-a")["decision"]["text"]
+
+
+def test_a_word_for_word_reask_after_the_window_is_stored_again(tmp_path):
+    """Round 2 A-O3: the digest suppressed an identical block FOREVER, so a deliberate re-ask was
+    never stored. Suppression holds only within the window after the clear."""
+    env = _env(tmp_path)
+    _open_decision(env, "s-w")
+    _hook_line(env, {"session_id": "s-w", "hook_event_name": "UserPromptSubmit", "prompt": "A"})
+    run3(["harvest", "--session", "s-w", "--decision-ok"], env, stdin=_DECISION_TEXT)
+    assert not _state(env, "s-w").get("decision"), "inside the window: the stale echo is refused"
+    st = _state(env, "s-w")
+    st["cleared_decision"]["ts"] -= 11 * 60  # the operator answered 11 minutes ago
+    _write_state(env, "s-w", st)
+    run3(["harvest", "--session", "s-w", "--decision-ok"], env, stdin=_DECISION_TEXT)
+    assert _state(env, "s-w").get("decision"), "a deliberate re-ask after the window was dropped"
+
+
+def test_a_huge_integer_timestamp_is_an_unknown_age(tmp_path):
+    """Round 2 A-O2: math.isfinite(10**400) raises OverflowError; main swallowed it and every
+    later write to the session failed — the state was wedged."""
+    env = _env(tmp_path)
+    (Path(env["THREAD_ANCHOR_DIR"]) / "s-h.json").write_text(
+        '{"anchors": [{"key": "big", "text": "big-ts thread — item 1 of 9", "ts": 1'
+        + "0" * 400
+        + '}], "last_next": null}',
+        encoding="utf-8",
+    )
+    rc, out, err = run3(["line", "--session", "s-h"], env)
+    assert rc == 0 and "big-ts thread — item 1 of 9" in out, (out, err)
+    run3(["harvest", "--session", "s-h"], env, stdin="NEXT: next thing — item 2 of 9")
+    assert "next thing — item 2 of 9" in run3(["line", "--session", "s-h"], env)[1]
+
+
+def test_a_done_that_matches_nothing_keeps_the_dropped_count(tmp_path):
+    """Round 2 A-O4: `done` acknowledged the drops even when it closed nothing (a typo)."""
+    env = _env(tmp_path)
+    anchors = [_anchor("tangent — item 1 of 99", 5)]
+    _write_state(env, "s-nm", {"anchors": anchors, "last_next": None, "dropped": 3})
+    out = run3(["done", "--session", "s-nm", "--match", "zzz-typo"], env)[1]
+    assert "no anchor matched" in out
+    assert _state(env, "s-nm")["dropped"] == 3, "a no-match `done` reset the count"
+
+
+def test_the_where_block_survives_a_hook_import_abandoned_past_the_budget(tmp_path):
+    """Round 2 A-O1: the import thread outlives the budget inside redirect_stdout; the block went
+    to a pinned but never-flushed stdout and 0 bytes reached the hook. Run as its own process with
+    a short budget, so the exit path is the real one."""
+    env = _env(tmp_path)
+    lone = _lone_repo_with_hook(tmp_path, "import time\ntime.sleep(3)\n")
+    run3(["harvest", "--session", "s-ab"], env, stdin="NEXT: resume phase C", script=lone)
+    code = (
+        "import importlib.util, sys\n"
+        f"spec = importlib.util.spec_from_file_location('ta_ab', {str(lone)!r})\n"
+        "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+        "m._WHERE_BUDGET_S = 0.5\n"
+        "sys.exit(m.main(['line', '--hook']))\n"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", code],
+        input=json.dumps({"session_id": "s-ab", "source": "compact", "cwd": str(tmp_path)}),
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=30,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "WHERE YOU ARE" in proc.stdout and "resume phase C" in proc.stdout, proc.stdout
+    assert "(skipped: time budget)" in proc.stdout, proc.stdout
 
 
 def test_an_anchor_with_no_timestamp_is_young_and_never_evicted_first(tmp_path):
