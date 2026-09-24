@@ -1907,8 +1907,8 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
     with open(project_dir / ".env.example", "a") as f:
         f.write(f"\n# Service identity for structured logging\nSERVICE_NAME={name}\n")
 
-    # Database setup (only if --db flag passed)
-    use_database = kwargs.get("use_database", False)
+    # Database setup (--db, or a type whose defaults.yaml declares needs_database)
+    use_database = _db_enabled("python-api", kwargs)
     if use_database:
         # Create .env.local for WSL development
         db_base = name.replace("-", "_")
@@ -3577,17 +3577,21 @@ RETENTION_SQL = _VENDORED / "data_retention.sql"
 
 _CURSOR_SQL = "SELECT verified_through FROM audit_jobs_state"
 
-# Roles that must never hold UPDATE/DELETE/TRUNCATE on audit_log: the app, the watchdog's
-# rw role and the Pattern A group roles — each checked only where it exists.
+# Roles that must never write audit_log (UPDATE/DELETE/TRUNCATE) or the cursor row in
+# audit_jobs_state (INSERT/UPDATE/DELETE/TRUNCATE): the app, the watchdog's rw role and
+# the Pattern A group roles — each checked only where it exists.
 _FORBIDDEN_PRIVILEGES_SQL = """
-SELECT r.rolname, p.priv
+SELECT r.rolname, p.priv, p.tbl
 FROM pg_roles r
-CROSS JOIN unnest(ARRAY['UPDATE', 'DELETE', 'TRUNCATE']) AS p(priv)
+CROSS JOIN (VALUES
+        ('audit_log', 'UPDATE'), ('audit_log', 'DELETE'), ('audit_log', 'TRUNCATE'),
+        ('audit_jobs_state', 'INSERT'), ('audit_jobs_state', 'UPDATE'),
+        ('audit_jobs_state', 'DELETE'), ('audit_jobs_state', 'TRUNCATE')) AS p(tbl, priv)
 WHERE r.rolname = ANY (ARRAY[
         current_database() || '_app', current_database() || '_wd_rw',
         'anon', 'authenticated', 'service_role'])
-  AND has_table_privilege(r.oid, 'audit_log', p.priv)
-ORDER BY 1, 2
+  AND has_table_privilege(r.oid, p.tbl, p.priv)
+ORDER BY 1, 3, 2
 """
 
 
@@ -3676,10 +3680,9 @@ def run_verify() -> list[str]:
             ).fetchone()
             if not (owned and owned[0]):
                 incidents.append("audit_log is not owned by the owner role")
-            incidents += [
-                f"{role} holds {priv} on audit_log"
-                for role, priv in conn.execute(_FORBIDDEN_PRIVILEGES_SQL).fetchall()
-            ]
+            rows = conn.execute(_FORBIDDEN_PRIVILEGES_SQL).fetchall()
+            for role, priv, table in rows:
+                incidents.append(f"{role} holds {priv} on {table}")
             advance = tip if tip is not None and not breaks else cursor
             conn.execute(
                 "UPDATE audit_jobs_state SET verified_through = %s, last_verify_at = now()",
@@ -3893,6 +3896,63 @@ _AUDIT_PY_BACKENDS: dict[str, tuple[str, str]] = {
 }
 
 
+def _db_enabled(project_type: str, kwargs: dict[str, object]) -> bool:
+    """Does this scaffold have a database? ``--db`` (``use_database``), or the type's
+    ``defaults.yaml`` declaring ``needs_database`` — the same RESOLVED rule the spec
+    generator gates the audit-jobs companion on, so a companion never runs a module
+    the scaffold did not emit."""
+    from fabrik.spec_generator import type_needs_database
+
+    return bool(kwargs.get("use_database", False)) or type_needs_database(project_type)
+
+
+def _append_audit_jobs_service(project_dir: Path, name: str, project_type: str) -> None:
+    """Add the ``<name>-audit-jobs`` companion to the COMMITTED ``compose.yaml``.
+
+    A git-sourced deploy (the scaffold default) runs this file, which ``companion_services``
+    never drives, so the service the spec declares is written here too, from the same
+    :func:`~fabrik.spec_generator.audit_jobs_companion`. ``env_file: .env`` is what carries
+    ``DATABASE_URL_OWNER`` (compose ``environment:`` never holds it). The image's
+    HEALTHCHECK probes the APP (HTTP or its worker process), so the scheduler disables it
+    rather than report unhealthy and fail ``compose up --wait``.
+    """
+    from fabrik.spec_generator import audit_jobs_companion
+
+    companion = audit_jobs_companion(name, project_type)
+    if companion is None:
+        return
+    compose = project_dir / "compose.yaml"
+    text = compose.read_text()
+    anchor = re.search(r"^networks:\n", text, flags=re.MULTILINE)
+    if anchor is None:
+        raise ValueError(f"{compose}: no top-level networks: block; cannot add {companion.id}")
+    command = json.dumps(companion.command)
+    service = (
+        f"  {companion.id}:\n"
+        "    # Audit-log retention (daily) + chain verification (weekly) — D-390.\n"
+        "    build:\n"
+        "      context: .\n"
+        "      dockerfile: Dockerfile\n"
+        "    platform: linux/amd64\n"
+        f"    container_name: {companion.id}\n"
+        f"    command: {command}\n"
+        "    env_file:\n"
+        "      - .env\n"
+        "    healthcheck:\n"
+        "      disable: true\n"
+        "    restart: unless-stopped\n"
+        "    deploy:\n"
+        "      resources:\n"
+        "        limits:\n"
+        f"          memory: {companion.memory}\n"
+        "          cpus: '0.25'\n"
+        "    networks:\n"
+        "      - fabrik\n"
+        "\n"
+    )
+    compose.write_text(text[: anchor.start()] + service + text[anchor.start() :])
+
+
 def _write_audit_jobs(backend_dir: Path, rel_module_file: Path, name: str) -> None:
     """Write the jobs module at ``backend_dir / rel_module_file``; its ``libs/`` lookup
     climbs exactly as many levels as the file sits below the backend root."""
@@ -3913,6 +3973,7 @@ def _emit_python_audit_log(project_dir: Path, name: str, project_type: str) -> N
     module = AUDIT_JOBS_MODULES[project_type].format(pkg=_get_package_name(name))
     rel = Path(import_root, *module.split(".")).with_suffix(".py")
     _write_audit_jobs(backend_dir, rel, name)
+    _append_audit_jobs_service(project_dir, name, project_type)
     _name_dsns_in_env_example(project_dir / ".env.example")
     _add_audit_requirements(project_dir / "requirements.txt")
 
@@ -4308,8 +4369,8 @@ process.on('SIGTERM', () => {
         healthcheck_path="/api/health",
     )
 
-    # With a database (--db): the audit table and its revokes (no Node writer yet).
-    if kwargs.get("use_database", False):
+    # With a database: the audit table and its revokes (no Node writer yet).
+    if _db_enabled("node-api", kwargs):
         _emit_node_audit_log(project_dir)
 
 
@@ -4451,8 +4512,8 @@ SERVICE_NAME={name}
         healthcheck_path="/api/health",
     )
 
-    # With a database (--db): the audit table and its revokes (no Node writer yet).
-    if kwargs.get("use_database", False):
+    # With a database: the audit table and its revokes (no Node writer yet).
+    if _db_enabled("file-api", kwargs):
         _emit_node_audit_log(project_dir)
 
 
@@ -4590,8 +4651,8 @@ SERVICE_NAME={name}
         port=8000,  # unused but required by signature
     )
 
-    # h) With a database (--db): the audit-log kit (module, schema fold, jobs, DSNs).
-    if kwargs.get("use_database", False):
+    # h) With a database: the audit-log kit (module, schema fold, jobs, DSNs).
+    if _db_enabled("file-worker", kwargs):
         _emit_python_audit_log(project_dir, name, "file-worker")
 
 
@@ -5646,8 +5707,8 @@ SERVICE_NAME={name}
         ".cache/\n"
     )
 
-    # Database setup for backend (only if --db flag passed)
-    use_database = kwargs.get("use_database", False)
+    # Database setup for backend (--db, or needs_database in the type's defaults.yaml)
+    use_database = _db_enabled("chrome-extension", kwargs)
     if use_database:
         # Create .env.local for WSL development
         db_name_dev = name.replace("-", "_") + "_dev"
@@ -5900,8 +5961,8 @@ CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
         "*.log\n"
     )
 
-    # 9. With a database (--db), the server/ backend gets the audit-log kit (D-390).
-    if kwargs.get("use_database", False):
+    # 9. With a database, the server/ backend gets the audit-log kit (D-390).
+    if _db_enabled("mobile-app", kwargs):
         _emit_python_audit_log(project_dir, name, "mobile-app")
 
 

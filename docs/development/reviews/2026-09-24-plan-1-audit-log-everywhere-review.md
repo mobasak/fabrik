@@ -112,16 +112,35 @@ the OWNER … tamper-EVIDENCE" caveat and the hand-run `<db>_wd_rw` revoke), `:4
 the owner role (the app's role today)"), plus the same parenthetical at `:178-179` and the "No
 scaffold type emits any of this yet" line at `:47-48`. The pack is infra's beat; the edit is theirs.
 
+## Phase T05 — acceptance fixups r1
+
+The first acceptance pass confirmed six defects; all six are fixed in the r1 commit. The two items this
+receipt used to list as open are among them:
+
+- **The companion runs where the project deploys.** Every type that declares
+  `<name>-audit-jobs` (python-api, python-api-gpu, chrome-extension, mobile-app, file-worker) now
+  carries it in the COMMITTED `compose.yaml` the scaffold-default deploy runs, with
+  `env_file: [.env]` (where `DATABASE_URL_OWNER` lives), the jobs command, the measured 128M limit
+  and the image healthcheck disabled. The companion partial gained `env_file` and the same
+  healthcheck override, and the chrome-extension and file-worker `.j2` render it. mobile-app and
+  python-api-gpu have no `.j2`, so they deploy only from the committed compose. The companion now
+  follows the RESOLVED `shape.needs_database`, not the raw `--db` flag, and the scaffolder emits the
+  module under the same rule.
+- **The cursor stays unwritable after a re-apply.** `ensure_app_role` re-revokes
+  `INSERT, UPDATE, DELETE, TRUNCATE` on `audit_jobs_state` from the app, `<db>_wd_rw` and the group
+  roles on every apply. Its whole grants batch is one transaction, so the ALL-TABLES grant never
+  commits alone. The weekly verification now reports a write privilege on the cursor too.
+
+```text
+$ FABRIK_REQUIRE_REAL_PG=1 FABRIK_ROOT=<worktree> PYTHONPATH=<worktree>/src /opt/fabrik/.venv/bin/python -m pytest \
+    tests/test_scaffold_audit_log.py tests/test_scaffold_saas_backend.py tests/test_scaffold_spec_generation.py \
+    tests/test_spec_generator.py tests/test_app_role_driver.py tests/test_app_role_real_pg.py -q
+155 passed in 182.76s (0:03:02)
+```
+
 ## Open at the end of the plan
 
-- The spec companion is rendered only by the `python-api` and `node-api` compose templates
-  (`templates/_partials/_companion_service.yaml.j2`), and that partial carries no `env_file: .env`,
-  so on the template path the companion does not see `DATABASE_URL_OWNER`. A git-sourced deploy
-  (the scaffold default) runs the committed `compose.yaml`, which `companion_services` does not
-  drive at all. Until one of those changes, the non-saas jobs run where the operator runs
-  `python -m <package>.audit_jobs`; the saas family is unaffected (its worker's beat loop runs them,
-  with `env_file: .env`).
-- `ensure_app_role` re-grants DML on every table each apply, so the `audit_jobs_state` revoke in the
-  schema holds only until the next apply; the cursor row is then writable by the app role.
+- The app service in the committed canonical compose (`_write_canonical_compose`) carries no
+  `env_file`, which predates this plan; the audit-jobs companion does not depend on it.
 - The Node writer (node-api, file-api) still waits on fabrik-lib's Node port
   (`core/app-audit-log.md:50-52`); the scaffold emits their table and revokes only.

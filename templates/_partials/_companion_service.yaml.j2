@@ -1,8 +1,11 @@
 {# Companion service (deploy-readiness-gaps Phase 4). Included per item from a
    {% for c in companion_services %} loop in a parent compose.yaml.j2. Shares the
-   parent's build/image + env + DATABASE_URL/REDIS_URL; overrides command +
-   container_name + memory. No Traefik labels — companions are workers/schedulers,
-   not HTTP-routed. Memory limit is mandatory (fabrik per-service invariant). #}
+   parent's build/image + env + DATABASE_URL/REDIS_URL AND the project .env
+   (env_file — the only place registrar-injected keys such as DATABASE_URL_OWNER
+   live); overrides command + container_name + memory. No Traefik labels and no
+   image HEALTHCHECK — companions are workers/schedulers, not HTTP-routed, and the
+   image's probe checks the parent app. Memory limit is mandatory (fabrik
+   per-service invariant). #}
   {{ c.id }}:
     build:
       context: .
@@ -11,6 +14,10 @@
     container_name: {{ c.id }}
     restart: unless-stopped
     command: {{ c.command | tojson | safe }}
+    env_file:
+      - .env
+    healthcheck:
+      disable: true
     environment:
       {% for key, value in env.items() %}
       - {{ key }}={{ value | env_escape }}

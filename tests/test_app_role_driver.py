@@ -229,6 +229,25 @@ def test_grants_batch_public_create_audit_block_and_memberships() -> None:
     assert sorted(x.strip('"') for x in role_grants) == ["anon", "authenticated", "service_role"]
 
 
+def test_grants_batch_is_one_transaction_and_keeps_the_cursor_row_unwritable() -> None:
+    """T05 fixups r1 items 2 and 3: the blanket ALL-TABLES grant never commits alone (the
+    whole batch is one transaction after ``\\c``), and the audit-jobs cursor table loses
+    the writes that grant re-hands the app, the watchdog rw role and the group roles."""
+    _, calls = _capture(exists=True)
+    grants = calls[-1]
+    lines = grants.splitlines()
+    assert lines[:3] == ["\\set ON_ERROR_STOP on", f"\\c {DB}", "BEGIN;"]
+    assert grants.rstrip().endswith("COMMIT;")
+    assert grants.count("BEGIN;") == 1 and grants.count("COMMIT;") == 1
+    cursor = "REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.audit_jobs_state FROM %I"
+    assert "IF to_regclass('public.audit_jobs_state') IS NOT NULL THEN" in grants
+    assert cursor in grants
+    roles = f"ARRAY['{APP}', '{DB}_wd_rw', 'anon', 'authenticated', 'service_role']"
+    assert f"FOREACH r IN ARRAY {roles} LOOP" in grants
+    assert grants.index("ON ALL TABLES IN SCHEMA") < grants.index(cursor)
+    assert grants.index(cursor) < grants.index("COMMIT;")
+
+
 def test_dry_run_sends_no_sql() -> None:
     with patch.object(pg, "_run_sql") as run, patch.object(pg, "_db_owner") as owner:
         res = pg.ensure_app_role(DB, dry_run=True)

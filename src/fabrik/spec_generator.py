@@ -123,12 +123,21 @@ AUDIT_JOBS_MODULES: dict[str, str] = {
 AUDIT_JOBS_COMPANION_MEMORY = "128M"
 
 
+def type_needs_database(project_type: str) -> bool:
+    """``shape.needs_database`` of ``templates/<type>/defaults.yaml`` (False without a shape)."""
+    shape = _build_shape_for_type(project_type)
+    return bool(shape is not None and shape.needs_database)
+
+
 def audit_jobs_companion(name: str, project_type: str) -> CompanionService | None:
     """The ``<name>-audit-jobs`` companion for a database spec of ``project_type``.
 
     ``None`` for a type whose backend schedules the jobs itself (the saas family) or has
-    no Python backend. No ``env_overrides``: the companion inherits the app's env
-    unchanged and the jobs read ``DATABASE_URL_OWNER`` themselves.
+    no Python backend. No ``env_overrides``: the jobs read ``DATABASE_URL_OWNER``
+    themselves, from the project ``.env`` the companion loads through ``env_file`` — the
+    committed compose the scaffolder writes and the companion partial both carry it,
+    because ``DATABASE_URL_OWNER`` exists nowhere else (compose ``environment:`` never
+    holds it).
     """
     module = AUDIT_JOBS_MODULES.get(project_type)
     if module is None:
@@ -526,7 +535,10 @@ def generate_spec(
         extra["source"] = source
     # The audit-log jobs companion (D-390): only for a database spec whose Python backend
     # has no scheduler of its own; a spec without it keeps its companion_services empty.
-    companion = audit_jobs_companion(name, project_type) if use_database else None
+    # Gated on the RESOLVED shape the spec carries (defaults.yaml or the --db overlay),
+    # never the raw flag — the scaffolder emits the module under the same rule.
+    has_database = shape is not None and shape.needs_database
+    companion = audit_jobs_companion(name, project_type) if has_database else None
     if companion is not None:
         extra["companion_services"] = [companion]
 

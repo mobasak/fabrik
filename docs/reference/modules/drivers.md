@@ -212,6 +212,12 @@ re-asserts every role below on each `fabrik apply`; nothing here is hand-run.
 | watchdog rw (`<db>_wd_rw`) | `create_watchdog_roles` | `WATCHDOG_DB_URL_RW` | DML on other tables; `UPDATE`, `DELETE`, `TRUNCATE` on `audit_log` revoked after its `GRANT … ON ALL TABLES` |
 | group roles (`anon` / `authenticated` / `service_role`, Pattern A, where the project defines them) | the project's schema | never directly; the app reaches them by `SET ROLE` (membership `WITH INHERIT FALSE, SET TRUE`, mirroring the owner's) | the same revokes as the app, because after `SET ROLE` the session acts with that role's privileges |
 
+The scheduled audit jobs' cursor table `audit_jobs_state` is written only by the owner:
+`ensure_app_role` re-revokes `INSERT`, `UPDATE`, `DELETE` and `TRUNCATE` on it from the app,
+`<db>_wd_rw` and the group roles on every apply, right after its `GRANT … ON ALL TABLES`. The
+whole grants batch runs as ONE transaction, so that blanket grant never commits before the
+revokes that follow it.
+
 `ensure_app_role(db_name, reset_password=False)` raises `AppRoleError` when the database is
 owned by `postgres` (legacy, manual or seed-restored) or a superuser. `probe_app_role` is the
 read-only check of the table above, used by `fabrik app-role-check` before a cutover. The

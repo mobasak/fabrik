@@ -54,6 +54,10 @@ services:
     networks:
       - fabrik
 
+{% for c in companion_services %}
+{% include '_partials/_companion_service.yaml.j2' %}
+
+{% endfor %}
 {% if volumes %}
 volumes:
   {% for vol in volumes %}

@@ -241,7 +241,9 @@ def test_python_api_spec_declares_audit_jobs_companion(
     assert jobs["command"] == companion["command"]
     assert jobs["deploy"]["resources"]["limits"]["memory"] == companion["memory"]
     assert set(jobs["environment"]) <= set(app["environment"]), "companion env must not diverge"
-    assert not any(e.startswith("DATABASE_URL_OWNER") for e in jobs["environment"])
+    # The jobs read DATABASE_URL_OWNER, which only the project .env carries (r1 item 1a).
+    assert ".env" in jobs["env_file"]
+    assert jobs["healthcheck"] == {"disable": True}  # a scheduler serves no /health
 
 
 # ── Row 5: absent owner DSN → log and idle, never exit ──────────────────────
@@ -456,3 +458,157 @@ def test_writer_concurrent_writes_keep_the_chain_strict(
             ).fetchone()
             tip = conn.execute("SELECT max(ts) FROM audit_log").fetchone()[0]
         assert state[0] == tip and state[1] is not None and state[2] is not None
+
+
+# ── Fixups r1 ───────────────────────────────────────────────────────────────
+
+
+def _companion_types() -> list[str]:
+    from fabrik.spec_generator import AUDIT_JOBS_MODULES
+
+    return sorted(AUDIT_JOBS_MODULES)
+
+
+@requires_fabrik_env
+@pytest.mark.parametrize("kind", _companion_types())
+def test_committed_compose_carries_the_audit_jobs_companion(
+    projects: dict[str, Path], kind: str
+) -> None:
+    """r1 item 1b: a git-sourced deploy runs the COMMITTED compose, so the companion the
+    spec declares must be in it — with the project .env, the jobs command, a memory limit."""
+    from fabrik.orchestrator.deployer_ssh import _validate_compose
+    from fabrik.spec_generator import audit_jobs_companion
+
+    name = _name(kind)
+    raw = (projects[kind] / "compose.yaml").read_text()
+    services = yaml.safe_load(raw)["services"]
+    companion = audit_jobs_companion(name, kind)
+    assert companion is not None
+    svc = services[companion.id]
+    assert svc["command"] == companion.command
+    assert svc["env_file"] == [".env"]
+    assert svc["deploy"]["resources"]["limits"]["memory"] == companion.memory
+    assert svc["networks"] == ["fabrik"] and svc["restart"] == "unless-stopped"
+    assert svc["container_name"] == companion.id
+    assert "ports" not in svc and "labels" not in svc
+    assert svc["healthcheck"] == {"disable": True}  # the image's HTTP/process probe is the app's
+    assert _validate_compose(raw) == []
+
+
+@requires_fabrik_env
+@pytest.mark.parametrize("ptype", ["chrome-extension", "file-worker"])
+def test_rendered_template_carries_the_audit_jobs_companion(ptype: str, tmp_path: Path) -> None:
+    """r1 item 1b: every companion type that HAS a compose .j2 renders the companion."""
+    from fabrik.spec_generator import generate_spec
+    from fabrik.template_renderer import TemplateRenderer
+
+    name = f"rt-{ptype}"
+    spec = generate_spec(name, ptype, f"{name}.vps1.ocoron.com", use_database=True)
+    rendered = TemplateRenderer(output_dir=tmp_path).render(spec, dry_run=True)
+    svc = yaml.safe_load(rendered["compose.yaml"])["services"][f"{name}-audit-jobs"]
+    assert svc["command"] == spec.companion_services[0].command
+    assert ".env" in svc["env_file"]
+
+
+@requires_fabrik_env
+def test_companion_follows_the_resolved_shape_not_the_flag(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """r1 item 5: the companion (and the module it runs) follow the RESOLVED
+    shape.needs_database, not the raw --db flag."""
+    import fabrik.spec_generator as sg
+
+    real = sg._build_shape_for_type
+    assert sg.generate_spec("sh-fw", "file-worker", None).companion_services == []
+
+    def db_default(ptype: str):  # type: ignore[no-untyped-def]
+        return sg._validated_shape_overlay(real(ptype), needs_database=True)
+
+    monkeypatch.setattr(sg, "_build_shape_for_type", db_default)
+    spec = sg.generate_spec("sh-fw", "file-worker", None, use_database=False)
+    assert [c.id for c in spec.companion_services] == ["sh-fw-audit-jobs"]
+
+    monkeypatch.setattr(scaffold, "_post_scaffold_sync", lambda *_a, **_k: None)
+    monkeypatch.setattr(scaffold, "_emit_mcp_config", lambda *_a, **_k: None)
+    monkeypatch.setattr(scaffold, "_install_pre_commit", lambda *_a, **_k: True)
+    create_project(
+        name="sh-fw",
+        project_type="file-worker",
+        description="shape-resolved database",
+        base=tmp_path,
+        generate_spec=False,
+    )
+    project = tmp_path / "sh-fw"
+    assert (project / "worker" / "audit_jobs.py").is_file()
+    assert "sh-fw-audit-jobs" in yaml.safe_load((project / "compose.yaml").read_text())["services"]
+
+
+@requires_fabrik_env
+def test_reapply_keeps_the_cursor_row_unwritable(projects: dict[str, Path]) -> None:
+    """r1 item 2: a later apply (watchdog step, then the app-role step, T04's order) must
+    not hand the app or the watchdog rw role write access to audit_jobs_state again."""
+    schema = projects["saas-skeleton"] / "server" / "db" / "schema.sql"
+    with scratch_pg() as s:
+        db = "ra_saas"
+        owner_pw = _new_project_db(s, db)
+        app_pw, rw_pw = _roles(s, db)
+        res = _apply_as_header_says(s, schema, db, owner_pw)
+        assert res.returncode == 0, res.stderr
+        with s.as_driver():
+            pg.create_watchdog_roles(db)
+            assert pg.ensure_app_role(db)["status"] == "exists"
+        for role, pw in ((f"{db}_app", app_pw), (f"{db}_wd_rw", rw_pw)):
+            for stmt in (
+                "UPDATE audit_jobs_state SET verified_through = now();",
+                "DELETE FROM audit_jobs_state;",
+                "TRUNCATE audit_jobs_state;",
+            ):
+                refusal = _refused(lambda st=stmt, r=role, p=pw: s.login_sql(r, p, st, db=db))
+                assert "permission denied" in refusal, (role, stmt)
+
+
+@requires_fabrik_env
+def test_run_due_against_the_emitted_schema_and_a_cursor_grant_is_an_incident(
+    projects: dict[str, Path], monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """r1 items 6 and 4: the emitted jobs' run_due runs both jobs clean against a real
+    database carrying the emitted schema and advances the cursor; a write privilege on
+    the cursor table is then reported by the weekly verify."""
+    import logging
+
+    import psycopg
+
+    pkg_dir = projects["saas-skeleton"] / "server" / "src" / _pkg("saas-skeleton")
+    jobs = _load(pkg_dir / "audit_jobs.py", "saas_audit_jobs_due")
+    db = "rd_saas"
+    with scratch_pg() as s:
+        owner_pw = _new_project_db(s, db)
+        _roles(s, db)
+        schema = projects["saas-skeleton"] / "server" / "db" / "schema.sql"
+        res = _apply_as_header_says(s, schema, db, owner_pw)
+        assert res.returncode == 0, res.stderr
+        owner_dsn = f"postgresql://{db}:{owner_pw}@{_container_ip(s)}:5432/{db}"
+        with psycopg.connect(owner_dsn, autocommit=True) as conn:
+            for i in range(5):
+                with conn.transaction():
+                    conn.execute(
+                        "SELECT pg_advisory_xact_lock(%s)", (jobs.al.AUDIT_CHAIN_LOCK_KEY,)
+                    )
+                    jobs.al.record_event(
+                        conn, actor="system", action="admin.data_exported", target_id=i
+                    )
+        monkeypatch.setenv("DATABASE_URL_OWNER", owner_dsn)
+        caplog.set_level(logging.INFO, logger="audit_jobs")
+        assert jobs.run_due() == ["retention", "verify"]
+        assert "audit_jobs: verify_done incidents=0" in caplog.text
+        with psycopg.connect(owner_dsn) as conn:
+            cursor, verified_at, retained_at = conn.execute(
+                "SELECT verified_through, last_verify_at, last_retention_at FROM audit_jobs_state"
+            ).fetchone()
+            tip = conn.execute("SELECT max(ts) FROM audit_log").fetchone()[0]
+        assert cursor == tip and verified_at is not None and retained_at is not None
+        assert jobs.run_due() == []  # neither is due again right after
+
+        s.run_sql(f"\\c {db}\nGRANT UPDATE ON audit_jobs_state TO {db}_app;")
+        incidents = jobs.run_verify()
+        assert f"{db}_app holds UPDATE on audit_jobs_state" in incidents, incidents
