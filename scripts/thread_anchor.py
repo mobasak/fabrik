@@ -191,6 +191,12 @@ _MAX_LINE = 300  # every WHERE YOU ARE line, cut with "…"
 _WHERE_BUDGET_S = 5.0
 _LOCK_TIMEOUT_S = 1.0  # a state write that cannot take the session lock in time is skipped
 _RESCUE_MAX_AGE_S = 7 * 86400  # a DECISION slot older than this is never rescued into the store
+_RESCUE_MAX_FILES = 50  # the rescue reads only the most recently modified state files
+_RESCUE_MAX_BYTES = 256 * 1024  # a state file larger than this is never read by the rescue
+# The prompt path's store work (the rescue, then prompt_block) runs inside this many seconds from
+# main()'s start; a step that would start later is skipped (fail open). Leaves cmd_where its own
+# 5 s inside the 10 s SessionStart/UserPromptSubmit hook timeout.
+_PROMPT_STORE_BUDGET_S = 3.0
 
 
 def _warn(msg: str) -> None:
@@ -558,12 +564,14 @@ def cmd_harvest(
         return
     now = time.time()
     msg = _digest(text)
+    stored: list[bool] = []  # apply() stored the block in the slot this turn
 
     def apply(state: dict) -> bool:
         if block and msg != state.get("cleared_msg"):
             state["decision"] = {"ts": now, "text": block, "msg": msg}
             if repo is not None:
                 state["decision"]["repo"] = str(repo)
+            stored.append(True)
         if matches:
             nxt = matches[-1][:300]  # the LAST NEXT: in the message is the operative one
             state["last_next"] = {"ts": now, "text": nxt}
@@ -580,8 +588,15 @@ def cmd_harvest(
         _enforce_caps(state, now)
         return True
 
-    _update(session, apply)
-    _store_harvest(repo, session, block, msg, matches[-1] if matches else None)
+    if not _update(session, apply) and block:
+        # The session lock was busy, so apply() never ran: judge the echo from an unlocked read
+        # rather than lose the block in both places.
+        if msg != _load(session).get("cleared_msg"):
+            stored.append(True)
+    # The echo guard reaches the store too: an answered message harvested again (the Stop hook's
+    # retry re-reads the same text) never mints an item for a settled question (A-O3).
+    store_block = block if stored else None
+    _store_harvest(repo, session, store_block, msg, matches[-1] if matches else None)
 
 
 def _store_harvest(
@@ -599,19 +614,38 @@ def _store_harvest(
         _warn(f"work store not updated — {type(e).__name__}: {e}")
 
 
-def _rescue_decisions(session: str, repo: Path) -> tuple[str | None, str]:
+def _state_files(cutoff: float) -> list[Path]:
+    """The rescue's scan: the _RESCUE_MAX_FILES most recently modified ``*.json`` state files that
+    are newer than ``cutoff`` and at most _RESCUE_MAX_BYTES — stat only, nothing is read here."""
+    found: list[tuple[float, Path]] = []
+    for path in _state_dir().glob("*.json"):
+        try:
+            st = path.stat()
+        except OSError:
+            continue
+        if st.st_mtime >= cutoff and st.st_size <= _RESCUE_MAX_BYTES:
+            found.append((st.st_mtime, path))
+    found.sort(key=lambda t: t[0], reverse=True)
+    return [p for _, p in found[:_RESCUE_MAX_FILES]]
+
+
+def _rescue_decisions(
+    session: str, repo: Path, deadline: float = math.inf
+) -> tuple[str | None, str]:
     """The second chance, on a prompt-side ``line --hook``: every session's DECISION slot for
-    ``repo`` (≤ 7 days old) whose MESSAGE digest no item holds is created in ONE
-    ``ensure_decision_items`` call — one ≤ 2 s store wait however many slots. Matched by the
-    message digest, never the block's: a block answered, then re-asked word for word in a new
-    message whose Stop write failed, still gets its item. Other sessions' files are only read, and
-    no session lock is held across the store call.
+    ``repo`` (≤ 7 days old, in the 50 newest state files of at most 256 KiB) goes to ONE
+    ``ensure_decision_items`` call, whose first rule no-ops an entry whose MESSAGE digest an item
+    already holds — so there is no per-slot store read, and one ≤ 2 s store wait (capped by
+    ``deadline``) however many slots. Matched by the message digest, never the block's: a block
+    answered, then re-asked word for word in a new message whose Stop write failed, still gets
+    its item. Other sessions' files are only read, and no session lock is held across the store
+    call. A step that would start past ``deadline`` (monotonic) is skipped, silently.
 
     Returns (the ``msg`` this session's slot carried when it was read — None when the rescue did
     not cover it — and a warning line, "" unless the write failed). Never raises."""
     seen: str | None = None
     w = _work()
-    if w is None:
+    if w is None or time.monotonic() >= deadline:
         return seen, ""
     try:
         if not w.has_store(repo):
@@ -619,10 +653,8 @@ def _rescue_decisions(session: str, repo: Path) -> tuple[str | None, str]:
         own = _state_path(session)
         cutoff = time.time() - _RESCUE_MAX_AGE_S
         entries: list[tuple[str, str, str]] = []
-        for path in sorted(_state_dir().glob("*.json")):
+        for path in _state_files(cutoff):
             try:
-                if path.stat().st_mtime < cutoff:  # every slot write rewrites its file
-                    continue
                 dec = json.loads(path.read_text(encoding="utf-8")).get("decision")
             except Exception:
                 continue
@@ -633,12 +665,15 @@ def _rescue_decisions(session: str, repo: Path) -> tuple[str | None, str]:
                 continue
             if path == own:
                 seen = msg
-            if ts is None or ts < cutoff or w.has_msg_digest(repo, msg):
+            if ts is None or ts < cutoff:
                 continue
             entries.append((text, msg, session if path == own else path.stem))
-        if not entries:
+        left = deadline - time.monotonic()
+        if not entries or left <= 0:
             return seen, ""
-        ids = w.ensure_decision_items(repo, entries)
+        ids = w.ensure_decision_items(
+            repo, entries, lock_timeout=max(0.1, min(w.HOOK_LOCK_TIMEOUT_S, left))
+        )
         failed = len(entries) - len(ids or [])
     except Exception as e:
         _warn(f"DECISION rescue skipped — {type(e).__name__}: {e}")
@@ -944,6 +979,7 @@ def main(argv: list[str] | None = None) -> int:
     # The real stdout, pinned before any work: a hook import abandoned past the render budget can
     # still be inside its redirect_stdout when the block prints.
     real_stdout = sys.stdout
+    store_deadline = time.monotonic() + _PROMPT_STORE_BUDGET_S
     try:
         ap = argparse.ArgumentParser(description=__doc__)
         ap.add_argument("cmd", choices=("harvest", "line", "done"))
@@ -1024,8 +1060,9 @@ def main(argv: list[str] | None = None) -> int:
             if repo is not None:
                 warning = ""
                 if event in ("UserPromptSubmit", "SessionStart"):
-                    seen, warning = _rescue_decisions(session, repo)
-                head = [ln for ln in (_prompt_block(repo, session), warning) if ln]
+                    seen, warning = _rescue_decisions(session, repo, store_deadline)
+                block = _prompt_block(repo, session) if time.monotonic() < store_deadline else ""
+                head = [ln for ln in (block, warning) if ln]
             if event == "UserPromptSubmit":
                 cmd_clear_decision(session, payload.get("prompt"), expect_msg=seen)
             if payload.get("source") == "compact":

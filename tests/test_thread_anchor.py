@@ -1121,10 +1121,13 @@ def test_a_rescue_that_fails_warns_once_on_stdout(tmp_path):
     fd = os.open(shared / ".lock", os.O_RDWR | os.O_CREAT, 0o644)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)  # the store is busy for the whole prompt
+        t0 = time.monotonic()
         rc, out, err = _hook_line(env, _prompt("s-p", repo))
+        elapsed = time.monotonic() - t0
     finally:
         os.close(fd)
     assert rc == 0, err
+    assert elapsed < 4.0, f"a busy store held the prompt hook for {elapsed:.1f} s"
     assert _items(repo) == []
     warn = [ln for ln in out.splitlines() if "not written" in ln]
     assert len(warn) == 1 and len(warn[0]) <= 300, out
@@ -1171,8 +1174,8 @@ def test_the_clear_keeps_a_slot_replaced_after_the_rescue_read_it(tmp_path, monk
     ta = _ta_module()
     real = ta._rescue_decisions
 
-    def rescue_then_replace(session: str, repo_: Path) -> tuple[str | None, str]:
-        got = real(session, repo_)
+    def rescue_then_replace(session: str, repo_: Path, *rest: float) -> tuple[str | None, str]:
+        got = real(session, repo_, *rest)
         _write_state(env, "s-x", _slot_state(repo, _OTHER_DECISION))  # a new Stop landed
         return got
 
@@ -1202,9 +1205,13 @@ def test_awaiting_items_from_other_sessions_print_first_unfolded(tmp_path, paylo
     run3(["harvest", "--session", "s-c"], env, stdin="NEXT: resume phase C of the plan")
     rc, out, err = _hook_line(env, {**payload, "session_id": "s-c", "cwd": str(repo)})
     assert rc == 0, err
-    head = out.splitlines()[:2]
-    assert any("Deploy the certified build to production now?" in ln for ln in head), out
-    assert any("Rotate the signing key to production now?" in ln for ln in head), out
+    lines = out.splitlines()
+    # exactly the first two lines, in creation order, then the usual block — nothing before them
+    assert lines[0].startswith("work: awaiting operator — W-"), out
+    assert lines[0].endswith("Deploy the certified build to production now?"), out
+    assert lines[1].startswith("work: awaiting operator — W-"), out
+    assert lines[1].endswith("Rotate the signing key to production now?"), out
+    assert not lines[2].startswith("work:"), out
     assert "resume phase C" in out, out
     if payload.get("source") == "compact":
         assert "WHERE YOU ARE" in out, out
@@ -1275,3 +1282,173 @@ def test_a_next_naming_an_item_sets_its_next_field(tmp_path):
         ["harvest", "--session", "s-nx", "--repo", str(repo)], env, stdin=f"done.\n\nNEXT: {nxt}\n"
     )
     assert _items(repo)[0].get("next") == nxt, _items(repo)
+
+
+# ── T04 review pass 1: the echo guard, one rescue call, the prompt deadline, a bounded scan ────
+
+
+class _CountingWork:
+    """A stand-in for the loaded work.py that records every API call by name (and may veto one)."""
+
+    def __init__(self, real, calls: list[str], guard=None) -> None:
+        self._real, self._calls, self._guard = real, calls, guard
+
+    def __getattr__(self, name: str):
+        attr = getattr(self._real, name)
+        if not callable(attr):
+            return attr
+
+        def wrapped(*a, **kw):
+            self._calls.append(name)
+            if self._guard is not None:
+                self._guard(name)
+            return attr(*a, **kw)
+
+        return wrapped
+
+
+def _in_process(monkeypatch, env: dict[str, str]):
+    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "HOME", "TMPDIR"):
+        monkeypatch.setenv(k, env[k])
+    ta = _ta_module()
+    real = ta._work()
+    assert real is not None
+    return ta, real
+
+
+def _main_line(ta, monkeypatch, payload: dict) -> int:
+    import io
+
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+    return ta.main(["line", "--hook"])
+
+
+def _numbered(i: int) -> str:
+    """A DECISION message whose BLOCK differs per i — equal blocks would merge into one item."""
+    return _DECISION_TEXT.replace("Deploy the certified build", f"Deploy build {i}")
+
+
+def test_an_echo_of_an_answered_message_never_reaches_the_store(tmp_path):
+    """A-O3: the slot's echo guard refuses the same whole message after the operator answered it;
+    the store call must see the same refusal, or the echo mints an item for a settled question."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    run3(["harvest", "--session", "s-e", "--decision-ok"], env, stdin=_DECISION_TEXT)
+    _hook_line(env, {"session_id": "s-e", "hook_event_name": "UserPromptSubmit", "prompt": "A"})
+    assert not _state(env, "s-e").get("decision")
+    rc, _, err = run3(
+        ["harvest", "--session", "s-e", "--decision-ok", "--repo", str(repo)],
+        env,
+        stdin=_DECISION_TEXT,
+    )
+    assert rc == 0, err
+    assert _items(repo) == [], "the echo of an answered message created a store item"
+
+
+def test_the_rescue_makes_a_bounded_number_of_store_calls(tmp_path, monkeypatch, capsys):
+    """A-O2/A-S2: 50 rescuable slots cost ONE ensure_decision_items call, never one store read per
+    slot, and the prompt hook stays far inside its 10 s budget."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    for i in range(50):
+        _write_state(env, f"s-{i:02d}", _slot_state(repo, _numbered(i)))
+    ta, real = _in_process(monkeypatch, env)
+    calls: list[str] = []
+    ta._WORK = _CountingWork(real, calls)
+    t0 = time.monotonic()
+    assert _main_line(ta, monkeypatch, _prompt("s-live", repo)) == 0
+    assert time.monotonic() - t0 < 8.0
+    assert len(calls) <= 6 and calls.count("ensure_decision_items") == 1, calls
+    assert len(_items(repo)) == 50
+    assert capsys.readouterr().out.startswith("work: awaiting operator")
+
+
+def test_store_work_past_the_prompt_deadline_is_skipped(tmp_path, monkeypatch, capsys):
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    _write_state(env, "s-d", _slot_state(repo, _DECISION_TEXT))
+    ta, real = _in_process(monkeypatch, env)
+    calls: list[str] = []
+    ta._WORK = _CountingWork(real, calls)
+    monkeypatch.setattr(ta, "_PROMPT_STORE_BUDGET_S", 0.0)
+    assert _main_line(ta, monkeypatch, _prompt("s-live", repo)) == 0
+    assert calls == ["repo_root"], calls
+    assert _items(repo) == []
+    assert "work:" not in capsys.readouterr().out
+
+
+def test_an_oversized_state_file_is_never_parsed(tmp_path):
+    """A-S4/A-O6: the scan stats before it reads — a 300 KiB state file is skipped whole, and the
+    other slots are still rescued."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    big = _slot_state(repo, "huge\n\n" + _DECISION_TEXT)
+    big["pad"] = "x" * (300 * 1024)
+    _write_state(env, "s-big", big)
+    _write_state(env, "s-small", _slot_state(repo, _OTHER_DECISION))
+    assert _hook_line(env, _prompt("s-live", repo))[0] == 0
+    items = _items(repo)
+    assert [it["question"] for it in items] == ["Rotate the signing key to production now?"], items
+
+
+def test_the_scan_reads_only_the_fifty_newest_state_files(tmp_path):
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    oldest = "the oldest\n\n" + _DECISION_TEXT
+    _write_state(env, "s-old", _slot_state(repo, oldest))
+    hour_ago = time.time() - 3600
+    os.utime(Path(env["THREAD_ANCHOR_DIR"]) / "s-old.json", (hour_ago, hour_ago))
+    for i in range(50):
+        _write_state(env, f"s-{i:02d}", _slot_state(repo, _numbered(i)))
+    assert _hook_line(env, _prompt("s-live", repo))[0] == 0
+    items = _items(repo)
+    assert len(items) == 50, len(items)
+    assert all(_msg_digest(oldest) not in it["msg_digests"] for it in items)
+
+
+def test_no_store_call_runs_while_the_session_lock_is_held(tmp_path, monkeypatch):
+    """A-S3 / grounding risk 1: the per-session lock and the store lock are never held together."""
+    import contextlib
+
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    ta, real = _in_process(monkeypatch, env)
+    held: list[bool] = []
+    real_locked = ta._locked
+
+    @contextlib.contextmanager
+    def tracking(session: str):
+        with real_locked(session) as ok:
+            held.append(True)
+            try:
+                yield ok
+            finally:
+                held.pop()
+
+    monkeypatch.setattr(ta, "_locked", tracking)
+    calls: list[str] = []
+    overlaps: list[str] = []
+    ta._WORK = _CountingWork(real, calls, guard=lambda n: held and overlaps.append(n))
+    ta.cmd_harvest("s-lo", _DECISION_TEXT, decision_ok=True, repo=repo)
+    ta.cmd_harvest("s-lo", "no footer", repo=repo)
+    assert _main_line(ta, monkeypatch, _prompt("s-lo", repo, "A")) == 0
+    assert "on_harvest" in calls and "prompt_block" in calls, calls
+    assert overlaps == [], f"work.py called under the session lock: {overlaps}"
+
+
+def test_rescuing_another_sessions_slot_leaves_its_claims_alone(tmp_path):
+    """B-S5: the rescue writes on behalf of a session that may be dead; it must not extend that
+    session's leases. Needs the T02 producer fix (the ensure functions renew no claim) — this
+    test fails on a work.py without it."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    _work(env, repo, "add", "--kind", "task", "--title", "held by a dead session")
+    (item,) = _items(repo)
+    _work(env, repo, "claim", item["id"], "--session", "s-dead")
+    claim_path = repo / ".git" / "fabrik-work" / "claims" / f"{item['id']}.json"
+    before = claim_path.read_bytes()
+    time.sleep(0.05)
+    _write_state(env, "s-dead", _slot_state(repo, _DECISION_TEXT))
+    assert _hook_line(env, _prompt("s-live", repo))[0] == 0
+    assert any(it["status"] == "awaiting-operator" for it in _items(repo))
+    assert claim_path.read_bytes() == before, "the rescue renewed another session's claim"
