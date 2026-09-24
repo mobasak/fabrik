@@ -140,6 +140,7 @@ TIMEOUTS = {
     "ruff": 120,
     "semgrep": 300,
     "pytest": 900,
+    "work_sync": 30,  # `work.py sync --check` — a slow store must not stall every gate run
 }
 
 # Max fix iterations to prevent infinite loops
@@ -1430,6 +1431,41 @@ def _epic_order_row() -> tuple[str, bool, str] | None:
     return (EPIC_ORDER_CHECK, code == 0, out if code != 0 else "")
 
 
+WORK_SYNC_CHECK = "Work items (sync)"
+_BLOCKING_DRIFT = re.compile(r"^DRIFT \d+ \(blocking\)", re.MULTILINE)
+
+
+def _work_sync_row() -> tuple[str, bool, str]:
+    """The `scripts/work.py sync --check` row (Tier 2; spec 2026-09-24 § Spec and plan state is
+    derived). ONE red: exit 1 WITH a `DRIFT <n> (blocking)` line — the verb's blocking verdict,
+    live once a repo shows 7 consecutive clean daily readings after `migrated_at`. Advisory drift
+    passes ⚠-prefixed so `--json` `warnings` carries it. Everything else — no script, a timeout,
+    an old work.py without `sync`, a WorkError, a traceback — passes with a ⚠ line: a broken tool
+    never reds a fleet repo's gate. COBRA: the cheap green is never to `init` a store (or never
+    set `migrated_at`) — adoption is the distributor's beat, and the ⚠ lines keep a broken tool
+    visible rather than silently green."""
+    rel = "scripts/work.py"
+    _CHECK_SCRIPTS[WORK_SYNC_CHECK] = rel
+    script = PROJECT_ROOT / rel
+    if not script.exists():
+        return (WORK_SYNC_CHECK, True, f"⚠ check not present, skipping: {rel}")
+    code, out = run_cmd([PYTHON, str(script), "sync", "--check"], timeout=TIMEOUTS["work_sync"])
+    if code == 1 and _BLOCKING_DRIFT.search(out):
+        return (WORK_SYNC_CHECK, False, out)
+    if code == 0:
+        drift = [ln for ln in out.splitlines() if ln.startswith("DRIFT ")]
+        if drift:
+            return (
+                WORK_SYNC_CHECK,
+                True,
+                "\n".join(["⚠ work-store drift (advisory until blocking):", *drift]),
+            )
+        return (WORK_SYNC_CHECK, True, out)
+    why = "timed out" if code == RC_TIMEOUT else f"exit {code}"
+    first = next((ln for ln in out.splitlines() if ln.strip()), "no output")
+    return (WORK_SYNC_CHECK, True, f"⚠ {WORK_SYNC_CHECK} could not run ({why}): {first}")
+
+
 def run_consistency_checks(
     tier: int = 2, changed_files: set[str] | None = None, check_only: bool = False
 ) -> list[tuple[str, bool, str]]:
@@ -2188,20 +2224,8 @@ def run_consistency_checks(
                 warn_only=True,
             )
         )
-        # Work items — spec/plan state vs the work store (`work.py sync --check`, spec
-        # 2026-09-24 § Spec and plan state is derived). `advisory=True`, NOT `warn_only=True`:
-        # the verb exits 1 on drift classes 2-6 once the repo has 7 consecutive clean daily
-        # readings after `migrated_at`, so the row CAN fail; before that it exits 0 and
-        # advisory keeps the DRIFT lines on the green row. No `scripts/work.py` → the ⚠
-        # not-present row; no `.fabrik/work/` → the verb's one-line exit 0. Each run appends
-        # one reading to `<git common dir>/fabrik-work/readings.jsonl` — outside the tree.
-        # COBRA: the cheap way to stay green once blocking is to never `init` a store (or to
-        # never migrate, so `migrated_at` stays unset) — adoption is the distributor's beat.
-        results.append(
-            run_optional_check(
-                "scripts/work.py", "Work items (sync)", "sync", "--check", advisory=True
-            )
-        )
+        # Work items — spec/plan state vs the work store; the rule lives in the helper.
+        results.append(_work_sync_row())
         # Epic-graph integrity — hub-conditional on BOTH the script and the epics dir; the
         # helper documents the two guards and the labelled-skip shape. Tier-2-ONLY: --lean's
         # count must not move (the Phase Tests regression class).

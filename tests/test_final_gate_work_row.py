@@ -133,34 +133,90 @@ def _row(rows: list[tuple[str, bool, str]]) -> tuple[str, bool, str]:
     return found[0]
 
 
-def test_a_non_blocking_store_with_class_3_drift_passes_and_names_the_drift(tmp_path, env):
+def _json(mod: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> dict:
+    """The gate's REAL `main --check --json` envelope (status, warnings) over this tier's rows."""
+    monkeypatch.setattr(mod, "_toolchain_missing", lambda _python: "")
+    monkeypatch.setattr(mod, "kaizen_events", None)  # never emit into the box's event store
+    monkeypatch.setattr(mod, "run_iteration", lambda **_k: _rows(mod))
+    monkeypatch.setattr(sys, "argv", ["final_gate.py", "--check", "--json"])
+    capsys.readouterr()
+    mod.main()
+    return json.loads(capsys.readouterr().out)
+
+
+def _fake_work(repo: Path, body: str) -> None:
+    (repo / "scripts" / "work.py").write_text(f"import sys, time\n{body}\n", encoding="utf-8")
+
+
+def test_a_non_blocking_store_with_class_3_drift_passes_and_names_the_drift(
+    tmp_path, env, monkeypatch, capsys
+):
     repo = _repo(tmp_path, env)
     _init_store(repo, env)
     _class3_plan(repo)
     mod = _gate(repo)
 
-    rows = _rows(mod)
-    _name, ok, out = _row(rows)
+    _name, ok, out = _row(_rows(mod))
 
     assert ok, out
-    assert f"DRIFT 3 (blocking)  {PLAN_REL}" in out  # advisory=True kept stdout on exit 0
+    assert out.startswith("⚠")  # the --json `warnings` channel admits only ⚠-prefixed output
+    assert f"DRIFT 3 (blocking)  {PLAN_REL}" in out
     assert ROW not in mod.WARN_ONLY_CHECKS  # it CAN fail, so it is not declared warn_only
+    envelope = _json(mod, monkeypatch, capsys)
+    assert envelope["status"] == "success"
+    assert ROW in [w["check"] for w in envelope["warnings"]]
 
 
-def test_a_blocking_store_with_class_3_drift_fails_the_row_and_the_gate(tmp_path, env):
+def test_a_blocking_store_with_class_3_drift_fails_the_row_and_the_gate(
+    tmp_path, env, monkeypatch, capsys
+):
     repo = _repo(tmp_path, env)
     _init_store(repo, env)
     _class3_plan(repo)
     _past_migration_window(repo)
     mod = _gate(repo)
 
-    rows = _rows(mod)
-    _name, ok, out = _row(rows)
+    _name, ok, out = _row(_rows(mod))
 
     assert not ok
     assert f"DRIFT 3 (blocking)  {PLAN_REL}" in out
-    failed = [r for r in rows if not r[1]]  # the gate's own status rule: any red row → failure
-    assert [r[0] for r in failed] == [ROW]
+    envelope = _json(mod, monkeypatch, capsys)
+    assert envelope["status"] == "failure"
+    assert [f["check"] for f in envelope["failures"]] == [ROW]
+
+
+def test_an_old_work_py_without_sync_passes_with_a_warning(tmp_path, env):
+    repo = _repo(tmp_path, env)
+    _fake_work(repo, "sys.stderr.write(\"work.py: error: invalid choice: 'sync'\\n\"); sys.exit(2)")
+    mod = _gate(repo)
+
+    _name, ok, out = _row(_rows(mod))
+
+    assert ok, out
+    assert out.startswith(f"⚠ {ROW} could not run (exit 2): ")
+
+
+def test_a_work_py_that_outlives_its_timeout_passes_with_a_warning(tmp_path, env, monkeypatch):
+    repo = _repo(tmp_path, env)
+    _fake_work(repo, "time.sleep(20)")
+    mod = _gate(repo)
+    monkeypatch.setitem(mod.TIMEOUTS, "work_sync", 1)
+
+    _name, ok, out = _row(_rows(mod))
+
+    assert ok, out
+    assert out.startswith(f"⚠ {ROW} could not run (timed out): ")
+
+
+def test_a_work_py_error_without_blocking_drift_passes_with_a_warning(tmp_path, env):
+    repo = _repo(tmp_path, env)
+    _fake_work(repo, 'sys.stderr.write("work.py: not a git repository\\n"); sys.exit(1)')
+    mod = _gate(repo)
+
+    _name, ok, out = _row(_rows(mod))
+
+    assert ok, out
+    assert out == f"⚠ {ROW} could not run (exit 1): work.py: not a git repository"
 
 
 def test_a_repo_with_no_store_passes_with_the_one_line_message(tmp_path, env):
