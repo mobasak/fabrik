@@ -244,6 +244,10 @@ Recorded by the T07 review (A-O4): the test loads the manifest from its own tree
 
 Recorded by the T07 review (A-O5): `iter_synced_pairs` distributes 211 source files, and 40 do not match the governance-sync filter (docs/reference/kilo 12, templates/scaffold/scripts 11, .windsurf/workflows 6, libs/health_probe 3, PORTS.md, docs/operations, …). Some are `DECLARED_NON_TRIGGERS`; the rest reach the fleet only on the next unrelated sync. Decide per group: trigger, or declared non-trigger. Owner: infra.
 
+## [infra] `docs/reference/work-tracking.md` equates an unnamed session with `CLAUDE_AGENT` unset (2026-09-24)
+
+Recorded by the T09 review's closing pass: work-tracking.md:55-56 says the agent name is `CLAUDE_AGENT`, "unset in an unnamed session", but `whoami_agent.resolve_agent_name` also resolves a name from the identity store keyed by `CLAUDE_CODE_SESSION_ID`, so a session with `CLAUDE_AGENT` unset that ran `whoami_agent.py --as <name>` is named. Reword to "empty in an unnamed session (no `CLAUDE_AGENT` and no identity-store entry)". Owner: infra.
+
 ## [infra] The commit stage still runs under pre-commit's whole-tree stash for ~0.5 s (D-369, 2026-09-23)
 
 The governance sync left pre-commit's post-commit stage, closing the ~60 s window in which a sibling's commit hid and destroyed other sessions' edits. The commit stage still runs under pre-commit's `staged_files_only` stash for ~0.5 s (measured on a four-file commit), with the same restore-and-rollback mechanism. Removing it means running those hooks without the stash, i.e. against the working tree instead of the index, which changes what they check — a trade-off to rule on, not a silent fix. Owner: infra.

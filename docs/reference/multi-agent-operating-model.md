@@ -85,6 +85,15 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
   --merge-owner .` reads it; a changed owner is a NEW superseding row), and delegates the epic half to
   `epic_order.py --assign` where that hub-only script is present. The PLANS block's second header line
   then prints `<!-- Merge owner: <name> | source: D-NNN -->`.
+- **The distributor** (`docs/reference/work-tracking.md`) is a SECOND, separate role beside the merge
+  owner — merging integrates branches into the base branch, distributing sets who owns which work-item
+  (`work.py assign`). `work.py init --distributor <agent>` records it in the repo's own
+  `.fabrik/work/config.json`; without `--distributor`, `init` asks
+  `python3 scripts/decisions.py --merge-owner .` and defaults to that answer, so a repo that never
+  names the two separately gets one agent doing both. The two are independent fields and can diverge —
+  the hub records intel as its distributor (D-395) although it has no `MERGE OWNER:` ledger row at all
+  (`--merge-owner` reads `UNDECLARED` there; the hub's three sessions share one tree rather than
+  running the worktree-per-agent shape this page otherwise describes, § Hub vs project below).
 - **The two advisories** — `docs_updater.py --check`'s single `ADVISORY:` line (never a finding) and
   the SessionStart line from `session_orient.py` fire only at ≥2 live `claude` sessions sharing the
   checkout with incomplete ownership; both never fire in a single-session repo or in the hub. The
@@ -94,7 +103,9 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
 ## Merge protocol — the merge owner only (§ Merge)
 
 Agent-1 merges finished branches into the base branch **one at a time, in `epic_order` phase order**
-(`python3 scripts/epic_order.py` prints the phases), rebase-first, `--no-ff`:
+(`python3 scripts/epic_order.py` prints the phases), rebase-first, `--no-ff`. This is INTEGRATION, not
+DISTRIBUTION: the merge owner decides merge order, never which agent owns which work item — that is
+`work.py assign`, the distributor's verb (§ Ownership surfaces, above).
 
 ```bash
 # 1. the reporting agent, INSIDE its worktree (git refuses to rebase a branch checked out elsewhere):

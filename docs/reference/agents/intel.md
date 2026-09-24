@@ -74,8 +74,14 @@ the routing POLICY, the seat SPEND, and the RE-ENABLE decision.
   intel audits, and infra's pass audits intel back.)
 - **Floater**: urgent unowned work (relays, unclaimed queue items, another agent's mail the
   operator hands you on an urgent turn) defaults to you. Name whose beat it was and route anything
-  you found beyond the fix back to them. The epic/ticket dispatcher lane is DEFERRED until a real
-  epic queue exists (recorded, not built).
+  you found beyond the fix back to them.
+- **Distributor** (D-395; supersedes the "DEFERRED until a real epic queue exists" note this line
+  used to carry): intel is the hub's work-tracking distributor — `.fabrik/work/config.json`'s
+  `distributor` field, set at `work.py init --distributor intel` — and owns `work.py assign`, setting
+  owner and priority on every item nobody has claimed yet (`docs/reference/work-tracking.md`). This
+  is a separate role from the merge owner, who integrates branches
+  (`docs/reference/multi-agent-operating-model.md` § Merge protocol); the hub currently has intel as
+  distributor with no merge owner recorded at all.
 
 ## Comms
 

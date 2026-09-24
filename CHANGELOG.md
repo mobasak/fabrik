@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `docs/reference/work-tracking.md`, and the four docs the work store made stale (2026-09-24)
+- The work-tracking reference: the two homes (committed items; claims, markers and readings in the git common dir), the item schema, the 14 verbs with `--repo` before the verb, the store lock and 2 h lease with session-only fences and which verbs check ownership, the distributor, the eight drift classes and the 7-clean-day blocking rule, the backlog view (D-407's row shapes, the status-position resolved rule, render), the Task-tools env and adoption — every claim executed against the merged code. `hooks-index.md`, `thread-anchors.md` (the work-store path, the D-402 suppression, every `thread_anchor.py:N` cite re-anchored after T04), `multi-agent-operating-model.md` (the distributor beside the merge owner) and `agents/intel.md` (the built distributor lane, D-395) brought current; `tests/test_work_doc_verbs.py` keeps the verb table and `work.py --help` in step. Plan T09; review converged in 3 passes (27 → 1 → 0).
+
 ### Fixed — `work.py`: a repo without a backlog completes its migration, and render is a no-op there (2026-09-24)
 - `migrate-backlog` in a repo with no `docs/STRATEGIC_BACKLOG.md` now records `migrated_at` (under the store lock, idempotent), so its `sync --check` row can become blocking after the 7-day window; `render` there exits 0 with one line and creates nothing. Found by T09's review (A-O5); the adoption recipe `init` → `migrate-backlog` → `render` now runs clean in the backlog-less template repos.
 

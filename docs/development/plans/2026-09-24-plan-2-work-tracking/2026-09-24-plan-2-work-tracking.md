@@ -57,7 +57,7 @@ it implements and restates nothing that section already settles.
 | T06 | Completion gate's advisory sync row | T02 | ⚡ | ✅ | 71dfc20a3 |
 | T07 | Distribution: manifest, sync filter, Task-tools env | T03 | ⛓️ | ✅ | 2e3a275c8 |
 | T08 | Both contracts carry the work-items rule | T04, T05, T06 | ⚡ | 🔵 | |
-| T09 | Reference doc and the four stale docs | T03, T04, T05, T06 | ⚡ | 🔵 | |
+| T09 | Reference doc and the four stale docs | T03, T04, T05, T06 | ⚡ | ✅ | 04fb19360 |
 | T10 | Integration: tasks link, hub adoption, receipt | T07, T08, T09 | ⛓️ | ⬜ | |
 
 ## Merge Order
