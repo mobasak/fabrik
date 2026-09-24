@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `scripts/sysadmin/stop_mine.py`: the DEFERRAL backtest, sharing the Stop hook's vocabulary (2026-09-24)
+
+- The research miner is promoted to a maintained script: it replays every interactive turn end under `--root` (`--since`/`--until` inclusive UTC dates) and classifies it with the Stop hook's own `deferral_shape` / `_DEFER_RE`, imported by path — one vocabulary for the hook and the measurement. Turn ends close only at a real operator entry and headless turn ends are excluded per turn, as the hook decides; one unreadable file never stops the run. On the box's transcripts since 2026-08-09: 11,401 interactive turn ends, 3,397 (29.8%) end on a deferral — D1 2,843 · D2 185 · D3 359 · D4 10.
+- `docs/workstation/hooks-index.md`, `docs/reference/thread-anchors.md` and `docs/workstation/kaizen-event-stream.md` describe the DEFERRAL check, the DECISION block, WHERE YOU ARE, the 72 h fold and the `cause=deferral` / `decision_block` events (plan `docs/development/plans/2026-09-23-plan-1-stop-and-compaction`, T05).
+
 ### Changed — after a compaction, the session is told WHERE YOU ARE from records, not from memory (2026-09-24)
 
 - `scripts/thread_anchor.py` (fleet-wide): on SessionStart `source=compact`, `line --hook` prints `## ⏮ WHERE YOU ARE` in place of the open-threads block — the live command run (phase, round, terminal, surface), the last `NEXT:` (printed once), an open DECISION block, and this session's own unpushed commits and dirty files — rebuilt from the run record, the Stop hook's harvest and git, under a 5 s budget with every line capped at 300 characters; each item degrades alone and the hook never exits non-zero.

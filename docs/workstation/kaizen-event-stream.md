@@ -116,7 +116,8 @@ Every `scripts/command_run.py` row additionally carries `command` + `seq` + `per
 | `run_close` | `verdict` (`done`\|`blocked`\|`handoff`), `resume` (handoff only — the artifact carrying the open rows), `evidence_hash`, `closed_by`, `rounds`, `resumed`, `resumed_phase`, `resumed_rounds`, **`feedback`** (`filed`\|`none`\|`unstated`), **`feedback_to`** (subset of `infra`/`fleet`/`intel`), **`feedback_hash`** | `scripts/command_run.py done`/`blocked` |
 | `gate_run` | `tier`, `mode`, `status`, `checks: [{name, outcome}]` (every EXECUTED check, advisory rows labelled) | `scripts/final_gate.py` |
 | `rule_activation` | `kind` (`select_rules`\|`rubric_injection`), `label` (*invocation-time*), `packs` — `[{pack, globs_fired}]` from `select_rules.py`, `[{pack}]` plus `packs_missing` from `review_rubric.py` | `scripts/select_rules.py`, `scripts/review_rubric.py` (`rubric_injection`) |
-| `stop_block` | `cause` (`gate-red`\|`uncommitted`\|`unpushed`\|`promise-stall`\|`run-record`\|`unreviewed-spontaneous`), `outcome` (`blocked`\|`warned_through`) | `.claude/hooks/final_gate_stop.py` |
+| `stop_block` | `cause` (`gate-red`\|`uncommitted`\|`unpushed`\|`promise-stall`\|`deferral`\|`run-record`\|`unreviewed-spontaneous`), `outcome` (`blocked`\|`warned_through`); `deferral` additionally carries `shape` (`D1`-`D4`, or `block` for a DECISION block that failed its own checks) | `.claude/hooks/final_gate_stop.py` |
+| `decision_block` | `ground` (`gate`\|`underivable`\|`owned`) | `.claude/hooks/final_gate_stop.py` — the turn ended on a well-formed `DECISION NEEDED (ground: …)` block (spec 2026-09-23-stop-and-compaction-enforcement-design § C2); emitted from the same non-blocking exit as `final_block_emitted`, for the same retry reason |
 | `final_block_emitted` | — | `.claude/hooks/final_gate_stop.py` — emitted on the NON-BLOCKING exit only |
 | `death` | `class`, `key`, `died_at`, `reconstructed: true` | `scripts/sysadmin/kaizen_coroner.py` (post-hoc; hooks go silent exactly when things get interesting) |
 | `revival` | `class`, `revived_at`, `reconstructed: true` | `scripts/sysadmin/kaizen_coroner.py` |
@@ -384,4 +385,5 @@ means updating this page in the same change. This list is generated from those h
 
 - `scripts/sysadmin/kaizen_coroner.py`
 - `scripts/sysadmin/kaizen_events.py`
+- `scripts/sysadmin/stop_mine.py`
 <!-- END related-scripts -->

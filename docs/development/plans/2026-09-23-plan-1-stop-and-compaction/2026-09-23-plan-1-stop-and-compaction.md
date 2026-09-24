@@ -41,7 +41,7 @@ Intake: 7 items — 6 IN, 1 OUT-OF-SCOPE (named), 0 ASK.
 | T02b | `templates/governance/CLAUDE.md`: the same, in every § FINAL OUTPUT copy | T02a | ⛓️ | ✅ | f688d6e0f |
 | T03 | the Stop hook: DEFERRAL D1–D4, the DECISION parser, the reasons, the input, the V1 backtest | T01a, T01b, T02b | ⛓️ | ✅ | 9fe0343f7 |
 | T04 | `thread_anchor.py`: WHERE YOU ARE on compact, the DECISION harvest and clear, the 72 h fold | T03 | ⛓️ | ✅ | a91ab5186 |
-| T05 | `stop_mine.py` (the miner, sharing `_DEFER_RE`), the V1 backtest, the three docs | T04 | ⛓️ | ⬜ | |
+| T05 | `stop_mine.py` (the miner, sharing `_DEFER_RE`), the V1 backtest, the three docs | T04 | ⛓️ | ✅ | f4d54a36f |
 | T06 | Integration: receipt, whole-plan gate + review, docs-review, the sync, V2/V3, the mail, the V4–V6 row | T05 | ⛓️ | ⬜ | |
 
 **Breadth advisory, adjudicated (`check_ticket_breadth.py --plan-dir` 2026-09-23 flagged T03):** KEPT, not split. Its three behaviours are one detector: the four DEFERRAL shapes, the one exemption that clears them (the DECISION block) and D4's precision are read together by the same `_detect_stall` pass and share the stall counter, so splitting them puts halves of one decision rule in two serialized merges on the same fleet-synced file. `scripts/sysadmin/kaizen_events.py` is the one-line registration of the event T03 emits. The advisory's calibration (2 of 4 flags matched, ρ=0.45) is a prompt to look, and this line records the look.

@@ -1,4 +1,9 @@
-"""Draw the judged samples from the miner's reservoirs (seed 923): run mine.py first, then this beside its outputs.
+"""Draw the judged samples from the 2026-09-23 miner run's reservoirs (seed 923) — reproducible,
+byte-for-byte against samples.sha256 (spec 2026-09-23-stop-and-compaction-enforcement-design
+§ Derivations). The MINE itself is not re-runnable to the same bytes — it reads the live, growing
+transcript tree with no upper time bound — so this draws from THAT run's box-local reservoir files
+(samples2.json, compactions2.json), never from a fresh mine; a re-run from scratch is a new
+measurement (A-O37).
 
 Writes sample-opdec.json (80), sample-context.json (40) and sample-compact.json (40) into OUT_DIR. Those files hold raw
 transcript text and are never committed; samples.sha256 pins what the 2026-09-23 judges read.
