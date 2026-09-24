@@ -130,6 +130,8 @@ EVENT_TYPES = (
     "fleet_health",
     "instrument_alarm",
     "decision_block",  # carries `ground` — the plan's `NEXT: operator decision` moment (T01b)
+    "anchor_harvest",  # Stop hook, every Stop: carries `tp`, `chars`, `lam` — the harvest's trace
+    "stop_allowed_quota_hold",  # Stop hook: the fleet quota hold let the turn end, no cause read
 )
 
 _exposure_cache: dict | None = None

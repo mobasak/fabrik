@@ -26,7 +26,7 @@ COMPACTION SURVIVAL (spec § C3, 2026-09-23 stop-and-compaction design): on a Se
 block, built only from records — the live command run, the last NEXT:, an open DECISION block,
 this session's unpushed commits and dirty files, and the open threads, folded. The DECISION block
 is stored only by a Stop-side ``harvest --decision-ok`` (the hook passes the flag only when it
-accepted the block) and cleared by the next UserPromptSubmit whose first whole token is not on
+accepted the block AND allowed that Stop — a blocked Stop gets no prompt to clear it) and cleared by the next UserPromptSubmit whose first whole token is not on
 the closed _BUILTIN_SLASH list; an answered block is never stored again. Anchors older than 72 h
 fold into one line and are never expired. The WHERE render runs under a wall-clock budget.
 
@@ -427,7 +427,8 @@ def _digest(text: str) -> str:
 
 def cmd_harvest(session: str, text: str, decision_ok: bool = False) -> None:
     """Store the message's last NEXT: (promoting long-running shapes to anchors) and, ONLY with
-    ``decision_ok`` — the Stop hook passes it when it ACCEPTED the block — its DECISION block.
+    ``decision_ok`` — the Stop hook passes it when it ACCEPTED the block and ALLOWED the Stop —
+    its DECISION block.
     Without the flag no block is ever stored: a refused or malformed block must not come back
     after a compaction as if it were open (C-O8's twin, A-O30).
 
@@ -519,12 +520,14 @@ def _thread_lines(state: dict, session: str, now: float) -> tuple[list[dict], st
 
 
 def _next_is_shown(last: object, anchors: list[dict]) -> bool:
-    """The latest NEXT: is already on screen when it is the newest anchor shown (one rule, read by
-    the usual block and by WHERE YOU ARE)."""
+    """The latest NEXT: is already on screen when the newest anchor shown was MADE from it — its text
+    IS the anchor's text (one rule, read by the usual block and by WHERE YOU ARE). A key match is
+    not enough: the key lower-cases and masks digits, so a NEXT that was never promoted can share
+    the anchor's key while its own text appears nowhere (B-S2)."""
     return (
         isinstance(last, dict)
         and bool(anchors)
-        and _same_thread(_anchor_key(str(last.get("text") or "")), anchors[0]["key"])
+        and str(last.get("text") or "") == str(anchors[0].get("text") or "")
     )
 
 

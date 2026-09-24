@@ -408,3 +408,41 @@ def test_a_deeply_nested_malformed_line_never_aborts_the_file(tmp_path: Path) ->
     stats = sm.mine(root, since="2026-08-09", until="2026-09-23")
     assert stats["turn_ends"] == 1
     assert stats["fires"] == 1
+
+
+_ACCEPTED_BLOCK = (
+    "The export job is staged.\n\n"
+    "DECISION NEEDED (ground: gate)\n"
+    "- Question: Push the export to the public bucket now?\n"
+    "- Why it is yours: gate — publish, the bucket is world-readable.\n"
+    "- Options: A — push now · B — hold for the checksum pass\n"
+    "- Recommendation: A — the checksums already match.\n\n"
+    "NEXT: operator decision — see DECISION NEEDED above"
+)
+_REFUSED_BLOCK = _ACCEPTED_BLOCK.replace("gate — publish, the bucket", "gate — the bucket")
+
+
+def test_an_accepted_decision_block_is_not_a_fire(tmp_path: Path) -> None:
+    """C-S1 (whole-plan review, T06): the hook exempts a turn end whose DECISION block passes
+    `parse_decision_block`; the miner classified with `deferral_shape` alone, so every legitimate
+    gate stop counted as a deferral. An accepted block is counted apart, by ground; a refused one
+    still fires with the shape `deferral_shape` names."""
+    sm = _load_stop_mine()
+    root = tmp_path / "projects"
+    _write(
+        root / "repo-a" / "sess.jsonl",
+        _user("stage the export", "2026-08-12T00:00:00.000Z"),
+        _asst(_ACCEPTED_BLOCK, "2026-08-12T00:01:00.000Z"),
+        _user("yes, push it", "2026-08-12T00:02:00.000Z"),
+        _asst(_REFUSED_BLOCK, "2026-08-12T00:03:00.000Z"),
+        _user("hold on", "2026-08-12T00:04:00.000Z"),
+    )
+    hook = sm._hook()
+    assert hook.deferral_shape(_ACCEPTED_BLOCK) == "D1", "the fixture must carry a real deferral"
+    assert not hook.parse_decision_block(_REFUSED_BLOCK, run_live=False, transcript_path="")[0]
+    stats = sm.mine(root, since="2026-08-09", until="2026-09-23")
+    assert stats["turn_ends"] == 2
+    assert stats["fires"] == 1
+    assert stats["by_shape"] == {"D1": 1}
+    assert stats["decision_blocks_accepted"] == {"gate": 1}
+    assert "decision blocks accepted (not fires): gate 1" in sm._format_report(stats)

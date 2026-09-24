@@ -1113,3 +1113,140 @@ def test_a_value_ending_in_s_closes_before_a_later_quote(label: str, why: str, w
     """A-O22 remainder: the closer is the LAST valid closing quote BEFORE the first later opening
     quote, so a value ending in `s` closes and the later quoted text is never absorbed."""
     assert hook._decision_quote(why, label) == want
+
+
+# --- whole-plan review (T06): the DECISION block is stored and judged only where it belongs -----
+
+_PUBLISH_BLOCK = (
+    "The docs rebuild is staged.\n\n"
+    "DECISION NEEDED (ground: gate)\n"
+    "- Question: Publish the rebuilt handbook site today?\n"
+    "- Why it is yours: gate — publish, the public handbook changes for every reader.\n"
+    "- Options: A — publish at once · B — wait for the typo sweep first\n"
+    "- Recommendation: A — the sweep found nothing blocking.\n\n"
+    "NEXT: operator decision — see DECISION NEEDED above"
+)
+
+
+def _asst_edit(path: Path) -> str:
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
+    return json.dumps(
+        {
+            "type": "assistant",
+            "timestamp": stamp,
+            "message": {
+                "content": [
+                    {"type": "tool_use", "name": "Write", "input": {"file_path": str(path)}}
+                ]
+            },
+        }
+    )
+
+
+def _proj_with_upstream(tmp_path: Path, *, pushed: bool) -> Path:
+    """A fabrik-style repo with an upstream and one committed note this session wrote; `pushed`
+    decides whether that commit is still ahead of origin (the UNPUSHED cause blocks) or not."""
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "master", str(origin))
+    proj = tmp_path / "proj"
+    _git(tmp_path, "clone", "-q", str(origin), str(proj))
+    _git(proj, "config", "user.email", "t@example.com")
+    _git(proj, "config", "user.name", "t")
+    (proj / "scripts").mkdir()
+    (proj / "scripts" / "final_gate.py").write_text("", encoding="utf-8")
+    _git(proj, "add", "scripts/final_gate.py")
+    _git(proj, "commit", "-qm", "base")
+    _git(proj, "push", "-q", "-u", "origin", "master")
+    (proj / "notes.txt").write_text("a note", encoding="utf-8")
+    _git(proj, "add", "notes.txt")
+    _git(proj, "commit", "-qm", "docs: a note")
+    if pushed:
+        _git(proj, "push", "-q")
+    return proj
+
+
+def _drive(monkeypatch, tmp_path: Path, proj: Path, sid: str, tr: Path) -> str:
+    payload = {"cwd": str(proj), "session_id": sid, "transcript_path": str(tr)}
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+    out = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.setattr(hook.tempfile, "gettempdir", lambda: str(tmp_path))
+    assert hook.main([]) == 0
+    return out.getvalue().strip()
+
+
+def _stored_decision(tmp_path: Path, sid: str) -> object:
+    f = tmp_path / "threads" / f"{sid}.json"
+    return json.loads(f.read_text(encoding="utf-8")).get("decision") if f.exists() else None
+
+
+def _events(tmp_path: Path, name: str) -> list[dict]:
+    return [
+        e
+        for f in (tmp_path / "events").rglob("*.jsonl")
+        for e in (json.loads(ln) for ln in f.read_text(encoding="utf-8").splitlines())
+        if e.get("event") == name
+    ]
+
+
+@pytest.mark.parametrize("pushed", [False, True], ids=["blocked-unpushed", "allowed-clean"])
+def test_a_decision_block_is_stored_only_when_the_stop_is_allowed(
+    monkeypatch, tmp_path: Path, pushed: bool
+) -> None:
+    """A-O1: a Stop that BLOCKS keeps the agent working with no UserPromptSubmit to clear the
+    block, so storing it there leaves a stale OPEN DECISION for WHERE YOU ARE after a compaction."""
+    proj = _proj_with_upstream(tmp_path, pushed=pushed)
+    tr = tmp_path / "t.jsonl"
+    _turn(
+        tr,
+        _user("stage the handbook rebuild"),
+        _asst_edit(proj / "notes.txt"),
+        _asst_text(_PUBLISH_BLOCK),
+    )
+    out = _drive(monkeypatch, tmp_path, proj, "sidstore", tr)
+    if pushed:
+        assert out == ""
+        dec = _stored_decision(tmp_path, "sidstore")
+        assert isinstance(dec, dict) and "Publish the rebuilt handbook" in dec["text"]
+    else:
+        assert "UNPUSHED WORK" in json.loads(out)["reason"]
+        assert _stored_decision(tmp_path, "sidstore") is None
+
+
+def test_a_decision_block_is_not_stored_while_a_run_record_blocks(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """A-O1, the run-record cause: a `gate` block passes inside a live run, and the run blocks."""
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user("stage the handbook rebuild"), _asst_text(_PUBLISH_BLOCK))
+    _write_run(tmp_path, "sidlive", "running")
+    out = _run_main(monkeypatch, tmp_path, {"session_id": "sidlive", "transcript_path": str(tr)})
+    assert json.loads(out)["decision"] == "block"
+    assert _stored_decision(tmp_path, "sidlive") is None
+
+
+def test_a_previous_turns_block_is_never_judged_for_this_turn(monkeypatch, tmp_path: Path) -> None:
+    """A-O2: no `last_assistant_message` and this turn ends on a textless tool call — the block in
+    the PREVIOUS turn (before the operator's prompt) is neither an event nor stored."""
+    tr = tmp_path / "t.jsonl"
+    _turn(
+        tr,
+        _user("stage the handbook rebuild"),
+        _asst_text(_PUBLISH_BLOCK),
+        _user("go ahead and publish it"),
+        _asst_tool("Bash", command="true"),
+    )
+    out = _run_main(monkeypatch, tmp_path, {"session_id": "sidprev", "transcript_path": str(tr)})
+    assert out == ""
+    assert _events(tmp_path, "decision_block") == []
+    assert _stored_decision(tmp_path, "sidprev") is None
+
+
+def test_this_turns_block_is_still_judged_from_the_transcript(monkeypatch, tmp_path: Path) -> None:
+    """A-O2's mirror: with no payload message, THIS turn's own final text still carries its block."""
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user("stage the handbook rebuild"), _asst_text(_PUBLISH_BLOCK))
+    out = _run_main(monkeypatch, tmp_path, {"session_id": "sidthis", "transcript_path": str(tr)})
+    assert out == ""
+    assert [e.get("ground") for e in _events(tmp_path, "decision_block")] == ["gate"]
+    assert isinstance(_stored_decision(tmp_path, "sidthis"), dict)
