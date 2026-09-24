@@ -2152,7 +2152,19 @@ def cmd_migrate_backlog(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
     path = repo / _BACKLOG_REL
     if not path.is_file():
-        print(f"work: migrate-backlog — no {_rel(repo, path)}, nothing to migrate")
+        # T09 review A-O5: a repo with no backlog file still COMPLETES its migration (there is
+        # nothing to migrate, but the migration itself is done) — otherwise `migrated_at` is never
+        # recorded here and `sync --check` can never become blocking in this repo (class 7's own
+        # gate, ``_backlog_needs_render``, already reads "no file" as "no drift", never a flag).
+        with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="migrate-backlog"):
+            cfg = _read_config(repo)
+            if not cfg.get("migrated_at"):
+                cfg["migrated_at"] = _now_iso()
+                _write_json(_config_path(repo), cfg)
+        print(
+            f"work: migrate-backlog — no {_rel(repo, path)}, nothing to migrate — "
+            "migration recorded complete"
+        )
         return 0
     text = _strip_backlog_block(path.read_text(encoding="utf-8", errors="replace"))
     rows = _scan_backlog_rows(text)
@@ -2305,7 +2317,11 @@ def cmd_render(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
     path = repo / _BACKLOG_REL
     if not path.is_file():
-        raise WorkError(f"no {_rel(repo, path)} to render into")
+        # T09 review A-O5: a repo with no backlog file is a no-op, not an error — T10's adoption
+        # runs `init` -> `migrate-backlog` -> `render` in every repo, including backlog-less
+        # template repos that "migrate to an empty store"; render never CREATES the backlog file.
+        print(f"work: render — no {_rel(repo, path)} — nothing to render")
+        return 0
     raw = path.read_bytes()
     crlf_n = raw.count(b"\r\n")
     lf_n = raw.count(b"\n")
