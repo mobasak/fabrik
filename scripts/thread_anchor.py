@@ -64,7 +64,48 @@ try:
 except ImportError:  # not POSIX: no session lock, the pre-lock behaviour
     fcntl = None  # type: ignore[assignment]
 
-_NEXT_RE = re.compile(r"^NEXT:\s*(.+?)\s*$", re.M)
+# The footer shapes the Stop hook reads as `NEXT:` (`final_gate_stop._NEXT_LINE_RE`: bold, bulleted,
+# quoted) — a plain-only harvest showed WHERE YOU ARE an older NEXT than the one the agent last wrote.
+# At most 3 spaces of indent (4 is a markdown code block); `pre` keeps the markers so `_next_values`
+# can prefer an unquoted footer and strip a closing `**`/`__` only when the line opened bold.
+_NEXT_RE = re.compile(
+    r"^(?P<pre>[ ]{0,3}(?:[>*_-][ \t]*)*)NEXT[*_]*[ \t]*:(?P<close>[*_]*)[ \t]*(?P<v>.*?)[ \t]*$",
+    re.M,
+)
+_FENCE_LINE_RE = re.compile(r"^[ \t>]*(?:```|~~~)")
+
+
+def _next_values(text: str) -> list[str]:
+    """Every footer-shaped NEXT value outside a fenced block, the operative one LAST: a quoted
+    (`> NEXT:`) line is someone else's words, so it is operative only when no unquoted one exists.
+    A fence left open at the end is not a fence — its lines count, or a footer written after an
+    unclosed snippet would be lost."""
+    kept: list[str] = []
+    held: list[str] = []
+    fenced = False
+    for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        if _FENCE_LINE_RE.match(line):
+            if fenced:
+                held = []
+            fenced = not fenced
+        elif fenced:
+            held.append(line)
+        else:
+            kept.append(line)
+    kept += held
+    plain: list[str] = []
+    quoted: list[str] = []
+    for m in _NEXT_RE.finditer("\n".join(kept)):
+        v, pre = m.group("v"), m.group("pre")
+        for mark in ("**", "__"):
+            # the closer pairs with the opener before NEXT only when the value's own marks are odd
+            if mark in pre and not m.group("close") and v.endswith(mark) and v.count(mark) % 2:
+                v = v[: -len(mark)].rstrip()
+        if v:
+            (quoted if ">" in pre else plain).append(v)
+    return plain or quoted
+
+
 # Long-running shapes worth persisting past the turn that wrote them. Deliberately FEW: every
 # shape added here is a line the injector may print on every prompt of every session.
 _ANCHOR_RES = (
@@ -438,7 +479,7 @@ def cmd_harvest(session: str, text: str, decision_ok: bool = False) -> None:
     digest equals ``cleared_msg`` the block is not re-stored. No clock is involved — the echo is
     refused however long the turn ran — and a word-for-word re-ask arrives in a NEW message, so it
     is stored at once. Older state shapes (``cleared_decision``) suppress nothing."""
-    matches = _NEXT_RE.findall(text)
+    matches = _next_values(text)
     block = None
     if decision_ok and text:
         try:

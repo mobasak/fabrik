@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — WHERE YOU ARE shows the NEXT the agent actually wrote, bold or bulleted (2026-09-24)
+- `scripts/thread_anchor.py` (fleet-synced): the harvest read only a plain `^NEXT:` while the Stop hook treats `**NEXT:**`, `__NEXT:__`, `- NEXT:` and `> NEXT:` as the footer, so after a compaction WHERE YOU ARE could show an older NEXT. `_next_values` now reads those shapes and skips a NEXT inside a closed code fence or indented 4+ spaces. A quoted `> NEXT:` counts only when there is no unquoted one, and a fence left open at the end is not a fence. CRLF is normalised. A closing `**`/`__` is stripped only when it pairs with the opener before `NEXT`, and an empty value is not a NEXT.
+- `/fabrik-review` over the fix and over dac706d6e, which had had only the docs-review closing round: 4 passes, confirmed 5 → 4 → 1 → 0; receipt `docs/development/reviews/2026-09-24-thread-anchor-next-footer-review.md`. `tests/test_thread_anchor.py` gains 17 cases, each seen red on the draft it guards. `docs/reference/thread-anchors.md` and `docs/workstation/hooks-index.md` repoint their `thread_anchor.py` cites. `docs/STRATEGIC_BACKLOG.md`'s enforcement-gap row now holds the one real open item, the `BLOCKED:` exemption, with its measurement (115 of 16,278 turn ends, 34 formatted).
+
 ### Changed — Stop-and-compaction plan EXECUTED and archived (2026-09-24)
 - `docs/development/plans/2026-09-23-plan-1-stop-and-compaction/` moves whole to `docs/development/plans/archived/` with `Status: EXECUTED 2026-09-24` citing its whole-plan review; its referrers (the review receipts, `docs/DECISIONS.md`, `docs/STRATEGIC_BACKLOG.md`, this file, three test headers) repoint to the archived path. D-384 records the outcome.
 

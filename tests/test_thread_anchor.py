@@ -568,6 +568,89 @@ def test_where_block_prints_the_last_next_once(tmp_path):
     assert out.count("resume phase C of the plan") == 1, out
 
 
+@pytest.mark.parametrize(
+    "footer",
+    [
+        "**NEXT:** resume phase C of the plan",
+        "**NEXT**: resume phase C of the plan",
+        "- NEXT: resume phase C of the plan",
+        "> NEXT: resume phase C of the plan",
+    ],
+)
+def test_a_bold_or_bulleted_next_is_harvested_like_a_plain_one(tmp_path, footer):
+    """T06 docs review, C-O6: the Stop hook reads a bold, bulleted or quoted `NEXT:` as the footer
+    (`final_gate_stop._NEXT_LINE_RE`) but the harvest read only a plain `^NEXT:`, so after a
+    compaction WHERE YOU ARE showed an older NEXT than the one the agent last wrote."""
+    env = _env(tmp_path)
+    run3(["harvest", "--session", "s-b"], env, stdin="NEXT: an older step, already done")
+    run3(["harvest", "--session", "s-b"], env, stdin=f"work done\n\n{footer}\n")
+    out = _hook_line(env, {"session_id": "s-b", "source": "compact", "cwd": str(tmp_path)})[1]
+    assert "resume phase C of the plan" in out, out
+    assert "an older step" not in out, out
+    assert "**" not in out.split("resume phase C", 1)[1].split("\n", 1)[0], out
+
+
+@pytest.mark.parametrize(
+    ("message", "want", "not_want"),
+    [
+        # a quoted recap AFTER the real footer is someone else's words, never the operative NEXT
+        (
+            "done\n\nNEXT: resume phase C\n\n> NEXT: an older step, quoted\n",
+            "resume phase C",
+            "an older step",
+        ),
+        # a NEXT inside a fenced example is not a footer
+        (
+            "NEXT: resume phase C\n\n```\nNEXT: an example in a fence\n```\n",
+            "resume phase C",
+            "an example",
+        ),
+        # four spaces of indent is a markdown code block
+        (
+            "NEXT: resume phase C\n\n    NEXT: an indented example\n",
+            "resume phase C",
+            "an indented",
+        ),
+        # a value ending in `*` or `_` keeps it; only a closing bold marker is stripped
+        ("NEXT: grep docs/*\n", "grep docs/*", None),
+        ("NEXT: rename foo_\n", "rename foo_", None),
+        # closing pass 2 (A-NEW1..3, A-H4): an unclosed fence is not a fence; CRLF; `__` bold;
+        # an empty bold NEXT is no NEXT
+        ("done\n```\nsnippet never closed\nNEXT: resume phase C\n", "resume phase C", None),
+        ("NEXT: an older step\r\n\r\nNEXT: resume phase C\r\n", "resume phase C", "\r"),
+        ("__NEXT:__ resume phase C\n", "resume phase C", "__ resume"),
+        # pass 3 (A-S2 residue): an inner bold span keeps its own closer
+        ("**NEXT: keep **phase C** open\n", "keep **phase C** open", None),
+        ("**NEXT: resume **phase C**\n", "resume **phase C**", None),
+        (
+            "NEXT: resume phase C\n\n**NEXT:**\n",
+            "resume phase C",
+            "NEXT (before the compaction): *",
+        ),
+        ("**NEXT: resume phase C**\n", "resume phase C", "phase C**"),
+    ],
+)
+def test_the_widened_next_harvest_reads_only_the_footer(tmp_path, message, want, not_want):
+    """/fabrik-review round 1 of the bold-NEXT fix (A-S1, A-S2, A-S4, A-H3): widening the match to the
+    hook's footer shapes must not harvest a quoted, fenced or indented NEXT, nor eat a trailing
+    `*`/`_` that belongs to the value."""
+    env = _env(tmp_path)
+    run3(["harvest", "--session", "s-w"], env, stdin=message)
+    out = _hook_line(env, {"session_id": "s-w", "source": "compact", "cwd": str(tmp_path)})[1]
+    assert want in out, out
+    if not_want:
+        assert not_want not in out, out
+
+
+def test_a_crlf_next_is_stored_without_its_carriage_return():
+    """Closing pass 2 (A-NEW3): the old `\\s*$` dropped the `\\r` of a CRLF line; the widened
+    match must too — the WHERE render hides it, so the harvested VALUE is what is asserted."""
+    assert _ta_module()._next_values("NEXT: step one\r\n\r\nNEXT: resume phase C\r\n") == [
+        "step one",
+        "resume phase C",
+    ]
+
+
 def test_a_concurrent_harvest_never_loses_a_clear(tmp_path, monkeypatch):
     """A-S2: `_load`/`_save` was an unlocked read-modify-write. A Stop-side harvest that loaded the
     state before the operator's answer cleared the DECISION wrote the stale block back: the
