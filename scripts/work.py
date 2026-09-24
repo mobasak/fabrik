@@ -2100,7 +2100,7 @@ def _row_digest(text: str, ordinal: int) -> str:
     against the STORE's existing digests only — the caller never adds a newly-created digest back
     into that set, so two duplicates within one run are never compared against each other, only
     against what already existed before this run."""
-    return hashlib.sha1(f"{text}\x00{ordinal}".encode()).hexdigest()[:12]
+    return hashlib.sha1(f"{text}\x00{ordinal}".encode(), usedforsecurity=False).hexdigest()[:12]
 
 
 def _existing_backlog_digests(repo: Path) -> set[str]:

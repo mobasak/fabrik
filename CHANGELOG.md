@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `work.py` migrate row digest declares `usedforsecurity=False` (2026-09-24)
+- The T03 merge reddened the completion gate on bandit B324 HIGH (`scripts/work.py` `_row_digest`, a SHA-1 idempotency key, not security). The call now passes `usedforsecurity=False`; the digest is byte-identical (pinned for an ASCII and a non-ASCII input), so stores already migrated keep their keys.
+
 ### Added — Work tracking: `scripts/work.py migrate-backlog` and `render`, the backlog becomes a view (2026-09-24)
 - `migrate-backlog` turns each tagged row of `docs/STRATEGIC_BACKLOG.md` into one `kind: backlog` item (D-407): `##` headings, tagged `###` headings, tag- or checkbox- or strike-led bullets, and rows of a Tag/Owner table start a row; untagged bullets, narrative sub-headers, continuations, prose and fences are that row's body, kept whole. A row-start that fails to parse keeps an empty owner and is listed for the distributor; nothing is dropped. Resolved rows (a struck title, `[x]`, or a status word or ✅ in a status position — never a mid-sentence mention, never PARTIALLY or "stays open") become `done` with `legacy: true`. Idempotent by row digest plus occurrence ordinal; records `migrated_at`. On the hub backlog at 243d8b5df: 325 rows → 303 open / 22 done.
 - `render` rewrites only the whole-line `AUTO-GENERATED:BACKLOG` block, byte-deterministic with no timestamp, refusing a duplicate or unterminated marker, inserted once after the header's `---` (outside front matter and fences), keeping the file's newline style; class-7 drift reads the block's trailing ids and counts a missing block with open items.

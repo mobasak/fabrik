@@ -288,6 +288,23 @@ def test_two_source_rows_with_identical_text_become_two_items(tmp_path):
     assert len(_backlog_items(repo)) == before
 
 
+# ── bandit B324: the row digest declares usedforsecurity=False, output must be unchanged ─────────
+
+
+def test_row_digest_pins_its_output_for_a_fixed_input():
+    work = _work_module()
+    text = "a fixed known text for the digest pin"
+    assert work._row_digest(text, 0) == "a3b09371c1d1"
+    assert work._row_digest(text, 1) == "ae1a4ede95dd"
+    # usedforsecurity=False must never change which digest a given (text, ordinal) produces —
+    # it only silences the FIPS/security linter (bandit B324), never the hash algorithm or value
+    assert work._row_digest(text, 0) != work._row_digest(text, 1)
+    # real backlog rows are non-ASCII; the pin must cover the text ENCODING too, not just the
+    # hash function — a `.encode()` swapped to latin-1 (or any non-UTF-8) still passes the two
+    # ASCII assertions above but changes this one
+    assert work._row_digest("ümlaut ✓ 中文", 0) == "5f4b7c576389"
+
+
 # ── Decision B.3/A-O5: migrate strips render's own block with its exact whitespace ───────────────
 
 WHITESPACE_FIXTURE = """# Strategic Backlog
