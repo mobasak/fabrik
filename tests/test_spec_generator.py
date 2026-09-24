@@ -505,6 +505,55 @@ class TestGenerateSpec:
         # compose / orchestrator dependency graph reflects the DB.
         assert spec_on.depends.postgres == "main"
 
+    def test_use_database_propagates_database_url_app_role(self):
+        """D-390: every new database project is born on the app role —
+        ``database_url_app_role`` follows ``needs_database`` whether it
+        came from the type's own ``defaults.yaml`` (saas-skeleton) or the
+        ``--db`` overlay (python-api + ``use_database=True``). A spec with
+        no database carries ``false``."""
+        spec_off = generate_spec("db-off2", "python-api", "db-off2.vps1.ocoron.com")
+        assert spec_off.shape is not None
+        assert spec_off.shape.needs_database is False
+        assert spec_off.shape.database_url_app_role is False
+
+        spec_on = generate_spec(
+            "db-on2",
+            "python-api",
+            "db-on2.vps1.ocoron.com",
+            use_database=True,
+        )
+        assert spec_on.shape is not None
+        assert spec_on.shape.database_url_app_role is True
+
+        spec_saas = generate_spec("db-saas", "saas-skeleton", "db-saas.vps1.ocoron.com")
+        assert spec_saas.shape is not None
+        assert spec_saas.shape.needs_database is True, (
+            "saas-skeleton/defaults.yaml sets needs_database: true by default"
+        )
+        assert spec_saas.shape.database_url_app_role is True
+
+    def test_every_enabled_type_emits_database_url_app_role_with_use_database(self):
+        """D-390 fail-loud guard: ``_build_shape_for_type`` can return
+        ``None`` when a type's ``templates/<type>/defaults.yaml`` has no
+        ``shape:`` block — yet ``use_database=True`` still sets
+        ``depends.postgres`` (line 409), which would silently ship an
+        owner DSN with no app-role cutover. Every enabled type must carry a
+        shape block so this can never happen."""
+        for project_type in sorted(SPEC_ENABLED_TYPES):
+            spec = generate_spec(
+                f"dbcheck-{project_type}",
+                project_type,
+                f"dbcheck-{project_type}.vps1.ocoron.com",
+                use_database=True,
+            )
+            assert spec.shape is not None, (
+                f"{project_type}: use_database=True produced shape=None — "
+                "templates/<type>/defaults.yaml is missing its `shape:` block"
+            )
+            assert spec.shape.database_url_app_role is True, (
+                f"{project_type}: use_database=True did not set database_url_app_role"
+            )
+
     # Removed test_emits_canonical_coolify_project (2026-06-18): Coolify was
     # decommissioned (2026-05-30) and the `Spec.coolify` block no longer exists
     # — deploy is SSH + Docker Compose via deployer_ssh. The test asserted a

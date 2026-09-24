@@ -610,3 +610,25 @@ def test_needs_payments_ingest_requires_needs_database() -> None:
 
     with _pytest.raises(ValueError, match="needs_database"):
         Shape(needs_payments_ingest=True, needs_database=False)
+
+
+# ── database_url_app_role flag (D-390: postgres app-role cutover) ──
+def test_shape_accepts_database_url_app_role_default_false() -> None:
+    from fabrik.spec_loader import Shape
+
+    assert Shape().database_url_app_role is False, (
+        "default off — an existing spec is never switched by an upgrade"
+    )
+    s = Shape(database_url_app_role=True, needs_database=True)
+    assert s.database_url_app_role is True
+
+
+def test_database_url_app_role_requires_needs_database() -> None:
+    """The app-role cutover rewrites DATABASE_URL on the project's own DB — it
+    is meaningless (and mis-provisions) without needs_database."""
+    import pytest as _pytest
+
+    from fabrik.spec_loader import Shape
+
+    with _pytest.raises(ValueError, match="needs_database"):
+        Shape(database_url_app_role=True, needs_database=False)

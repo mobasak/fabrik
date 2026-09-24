@@ -343,6 +343,16 @@ class Shape(BaseModel):
             "See drivers/postgres.py::create_payments_ingest_role."
         ),
     )
+    database_url_app_role: bool = Field(
+        default=False,
+        description=(
+            "True means the project's DATABASE_URL is the non-owner <db>_app role "
+            "and the owner DSN is DATABASE_URL_OWNER; each `fabrik apply` converges "
+            ".env to it. Setting it on an existing project is a cutover, guarded by "
+            "the pre-cutover check; unsetting it is the rollback. Requires "
+            "needs_database. See drivers/postgres.py::ensure_app_role."
+        ),
+    )
     exposes_metrics: bool = Field(
         default=False,
         description=(
@@ -386,6 +396,18 @@ class Shape(BaseModel):
             raise ValueError(
                 "shape.needs_payments_ingest requires needs_database: true "
                 "(the ingest role + policies are provisioned on the project's DB)"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _database_url_app_role_needs_database(self) -> "Shape":
+        """The app-role cutover rewrites DATABASE_URL on the project's own DB, so
+        database_url_app_role is meaningless — and would mis-provision — without
+        needs_database. Fail loud rather than cut over against no DB."""
+        if self.database_url_app_role and not self.needs_database:
+            raise ValueError(
+                "shape.database_url_app_role requires needs_database: true "
+                "(the app-role cutover rewrites DATABASE_URL on the project's own DB)"
             )
         return self
 

@@ -381,6 +381,14 @@ def generate_spec(
     if shape is not None and use_database:
         shape = shape.model_copy(update={"needs_database": True})
 
+    # D-390: every new database project is born on the app role — the owner
+    # DSN (DATABASE_URL_OWNER) is provisioned alongside it, but DATABASE_URL
+    # itself is the non-owner <db>_app role from day one. Applies whenever the
+    # emitted shape ends up needs_database=True, whether that came from the
+    # type's own defaults.yaml or the ``--db`` overlay above.
+    if shape is not None and shape.needs_database:
+        shape = shape.model_copy(update={"database_url_app_role": True})
+
     # Top-level ``kind`` MUST match ``shape.kind`` so the spec is internally
     # consistent (validators and downstream tooling key off both). Pre-fix
     # (B4) static-site / docusaurus had top-level ``kind=service`` while
