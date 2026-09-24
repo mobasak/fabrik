@@ -1,6 +1,17 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## 2026-09-24 — A borrowed reader's character class is scoped to ITS caller's alphabet
+
+`check_convergence.py`'s `_STATUS_LINE` (`[A-Za-z -]` in its capture class) is right for spec Status
+values and silently truncates a plan's raw `Status: IN_PROGRESS` at the underscore (`IN`), which
+reads as an unrecognised status. When the value you read has a wider alphabet (digits, underscores),
+extend the match past `m.end(group)` with your own small continuation regex rather than assuming the
+borrowed pattern covers your case. The same review found the mirror twice more in T02: git `-G`
+compiles POSIX ERE, where `[ \t]` is a space, a backslash and the letter `t` (use `[[:blank:]]`), and
+importing a module by path without registering it in `sys.modules` makes every `@dataclass` in it
+raise, so the "reuse" path was dead code on the current, correct copy.
+
 ## 2026-09-20 — An exhaustive search of ONE config file is not an absence
 
 Reporting on Volkan's Mac, I walked `~/.claude.json` recursively — all 75 top-level keys, 79 KB —
