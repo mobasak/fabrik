@@ -13,7 +13,7 @@ without ``.fabrik/work/``, exits non-zero naming ``init`` and creates nothing �
 not in the git common directory.
 
 THE LOCK. Every item write takes one exclusive ``fcntl`` lock on ``fabrik-work/.lock`` (re-entrant
-within a process) and writes through a unique, fsynced ``*.tmp`` plus ``os.replace`` — the store's
+within one thread) and writes through a unique, fsynced ``*.tmp`` plus ``os.replace`` — the store's
 ``.gitignore`` keeps an orphaned temp out of commits. ``init`` alone takes no lock: config.json is
 an exclusive link (one winner), and the lock's directory must not exist before the store does.
 CLI verbs wait 10 s and then FAIL LOUD; the hook-facing callers (T01b) pass a 2 s timeout and
@@ -370,8 +370,9 @@ def _store_lock(repo: Path, timeout: float, *, fail_open: bool, label: str = "")
     Yields True once held. On timeout: ``fail_open`` yields False (the caller skips its write);
     otherwise it raises ``StoreBusyError``. A wait over 0.1 s is recorded in ``readings.jsonl``.
     In a repo without a store it creates nothing: ``fail_open`` yields False silently (such a
-    repo is untouched by every hook), otherwise the ``init`` refusal is raised. Re-entrant within
-    one process: a nested acquisition yields True at once and leaves the outer hold in place.
+    repo is untouched by every hook), otherwise the ``init`` refusal is raised. Re-entrant per
+    thread: a nested acquisition by the SAME thread yields True at once and leaves the outer hold
+    in place; another thread of the same process goes through the real ``flock`` and waits.
     """
     if not _has_store(repo):
         if fail_open:
