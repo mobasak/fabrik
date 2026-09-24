@@ -54,10 +54,10 @@ it implements and restates nothing that section already settles.
 | T03 | migrate-backlog and render | T02 | ⛓️ | ✅ | 9768f8ea6 |
 | T04 | thread_anchor.py: decision items, unfolded block, renewal | T01b | ⚡ | ✅ | b32719172 |
 | T05 | Stop hook passes --repo; the V1 seam test | T04 | ⛓️ | ✅ | 830e8657c |
-| T06 | Completion gate's advisory sync row | T02 | ⚡ | 🔵 | |
+| T06 | Completion gate's advisory sync row | T02 | ⚡ | ✅ | 71dfc20a3 |
 | T07 | Distribution: manifest, sync filter, Task-tools env | T03 | ⛓️ | ✅ | 2e3a275c8 |
-| T08 | Both contracts carry the work-items rule | T04, T05, T06 | ⚡ | ⬜ | |
-| T09 | Reference doc and the four stale docs | T03, T04, T05, T06 | ⚡ | ⬜ | |
+| T08 | Both contracts carry the work-items rule | T04, T05, T06 | ⚡ | 🔵 | |
+| T09 | Reference doc and the four stale docs | T03, T04, T05, T06 | ⚡ | 🔵 | |
 | T10 | Integration: tasks link, hub adoption, receipt | T07, T08, T09 | ⛓️ | ⬜ | |
 
 ## Merge Order

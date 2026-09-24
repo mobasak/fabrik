@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — The completion gate carries an advisory `Work items (sync)` row (2026-09-24)
+- `scripts/final_gate.py` Tier 2 runs `scripts/work.py sync --check` (30 s timeout). It reds only on exit 1 with a `DRIFT <n> (blocking)` line and no traceback; advisory drift passes ⚠-prefixed so `--json` `warnings` carries it; a timeout, an old work.py, a work.py error or a crash is a named ` (NOT RUN — <why>)` skip; a repo without work.py gets the `⚠ check not present` row. GATE-COUNTS tier2 55 → 56; the FINAL_GATE_WORKFLOW Gate-wired list re-derived (64 rows). Plan `docs/development/plans/2026-09-24-plan-2-work-tracking` T06; review converged in 4 passes (12 → 4 → 2 → 0).
+
 ### Added — The Stop hook points both thread-anchor harvests at the session's repo (2026-09-24)
 - `.claude/hooks/final_gate_stop.py` passes `--repo <payload cwd>` to the plain harvest and to the DECISION store at every allowed exit, only when the payload's cwd is an absolute path and the synced `thread_anchor.py` knows the flag, so accepted DECISION blocks land in that repo's work store and every Stop — blocked or quiet — renews the session's claim lease. It never uses the hook's own working directory and fails open on every new path. Plan `docs/development/plans/2026-09-24-plan-2-work-tracking` T05 (spec V1); review converged in 2 passes (3 → 0).
 
