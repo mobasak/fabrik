@@ -658,6 +658,13 @@ discipline:** `DONE:` states only what actually happened (commit hashes / files 
 exact operator decision, or `none — terminal`. A vague `NEXT:` is a missing line. If `NEXT:` names work THIS agent
 owns in THIS session, it is dispatched, not narrated.
 
+**Work items.** A repo with a `.fabrik/work/` store keeps its open work there (`python3 scripts/work.py`;
+`docs/reference/work-tracking.md`): `NEXT:` names the item id (`W-` and 8 hex) when one exists, a
+DECISION block the Stop hook accepts becomes an `awaiting-operator` item on its own, and the agent the
+operator answers closes it with `work.py answer <id> --note "<their words>"`. Item files are ordinary
+files: commit the ones your verbs or your `NEXT:` lines changed with your task. `NEXT: none — terminal` stays legal and
+nothing counts, scores or rewards items (D-392).
+
 **⚠️ `NEXT: operator decision` HAS A BAR — it was the contract's only UNGUARDED exit, which is exactly why it gets abused.** Compare the three sanctioned `NEXT:` values: `BLOCKED:` has three named causes and a required format; a named command obliges you to RUN it; `operator decision` is legitimate only behind a **DECISION block**, written unfenced — a fenced example, like the two below, never exempts a turn:
 
 ```
