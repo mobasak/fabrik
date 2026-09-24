@@ -610,3 +610,59 @@ def test_needs_payments_ingest_requires_needs_database() -> None:
 
     with _pytest.raises(ValueError, match="needs_database"):
         Shape(needs_payments_ingest=True, needs_database=False)
+
+
+# ── database_url_app_role flag (D-390: postgres app-role cutover) ──
+def test_shape_accepts_database_url_app_role_default_false() -> None:
+    from fabrik.spec_loader import Shape
+
+    assert Shape().database_url_app_role is False, (
+        "default off — an existing spec is never switched by an upgrade"
+    )
+    s = Shape(database_url_app_role=True, needs_database=True)
+    assert s.database_url_app_role is True
+
+
+def test_database_url_app_role_requires_needs_database() -> None:
+    """The app-role cutover rewrites DATABASE_URL on the project's own DB — it
+    is meaningless (and mis-provisions) without needs_database."""
+    import pytest as _pytest
+
+    from fabrik.spec_loader import Shape
+
+    with _pytest.raises(ValueError, match="needs_database"):
+        Shape(database_url_app_role=True, needs_database=False)
+
+
+def test_database_url_app_role_default_holds_even_with_a_database() -> None:
+    """Acceptance-review H1: needs_database=True alone must NOT imply the
+    app-role cutover — database_url_app_role stays False unless a caller
+    (or generate_spec's D-390 overlay) turns it on explicitly."""
+    from fabrik.spec_loader import Shape
+
+    assert Shape(needs_database=True).database_url_app_role is False
+
+
+def test_load_spec_database_url_app_role_default_survives_load(
+    tmp_fabrik_root: Path,
+) -> None:
+    """Acceptance-review H4 — Behavior Contract row 2 says 'When it is
+    **loaded**': a spec with shape.needs_database: true but no
+    database_url_app_role key, loaded through the real load_spec() entry
+    point, must resolve database_url_app_role to False — an existing spec's
+    upgrade never flips it on by itself."""
+    spec_path = _write_spec(
+        tmp_fabrik_root,
+        "existing-db-project",
+        "id: existing-db-project\n"
+        "kind: service\n"
+        "template: python-api\n"
+        "domain: existing-db-project.vps1.ocoron.com\n"
+        "shape:\n"
+        "  kind: service\n"
+        "  needs_database: true\n",
+    )
+    spec = load_spec(spec_path)
+    assert spec.shape is not None
+    assert spec.shape.needs_database is True
+    assert spec.shape.database_url_app_role is False

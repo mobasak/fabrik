@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `shape.database_url_app_role`: the postgres app-role cutover flag, on by default for every new database project (2026-09-24)
+- `src/fabrik/spec_loader.py`: a new `Shape.database_url_app_role` (default `false`) — true means `DATABASE_URL` is the non-owner `<db>_app` role and the owner DSN is `DATABASE_URL_OWNER`; a validator refuses it without `needs_database`. `src/fabrik/spec_generator.py`: every newly generated database spec carries it `true`; the overlays now re-validate through `Shape` (a `model_copy` update skipped the validators), and a database spec whose type has no `shape:` block raises instead of shipping an owner DSN. T01 of `docs/development/plans/2026-09-24-plan-1-audit-log-everywhere/` (D-390); no existing spec is switched.
+
 ### Added — spec: work tracking for every repo — one item store, a distributor, claims, awaiting decisions never folded (2026-09-24)
 - `docs/superpowers/specs/2026-09-24-work-tracking-design.md`, CONVERGED after `/fabrik-spec-review` (4 passes, confirmed 30 → 9 → 5 → 0), awaiting the operator's design approval. Specs and plans keep their own state; backlog rows, awaited operator decisions and agents' next actions become one JSON item per file under `.fabrik/work/`; live claims with a lease and a fencing token sit in the git common directory so worktree agents share them; `scripts/work.py` (to be built) gives the distributor `assign` and workers `ready`/`claim`/`done`; the backlog becomes a rendered block. Grounded in measured drift across 25 repos and live external practice.
 

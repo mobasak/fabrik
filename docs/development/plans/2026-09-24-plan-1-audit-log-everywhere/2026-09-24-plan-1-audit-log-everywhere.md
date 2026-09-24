@@ -44,7 +44,7 @@ Intake: 13 items — 9 IN, 4 OUT-OF-SCOPE (I8, I9, I11, I13 — each named), 0 A
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01 | `shape.database_url_app_role` flag + generator default | — | ⚡ | ⬜ | |
+| T01 | `shape.database_url_app_role` flag + generator default | — | ⚡ | ✅ | branch head 29d43e3c1; merged 2026-09-24 (review: 2 passes, T01 slice 6 → 0) |
 | T02 | `<db>_app` role driver: mint, grants, audit revokes, probe, drop | — | ⚡ | ⬜ | |
 | T03 | Pre-cutover check + `fabrik app-role-check` | T02 | ⛓️ | ⬜ | |
 | T04 | Registrar step: DSN injection, cutover, rollback, docs | T01, T02, T03 | ⛓️ | ⬜ | |
