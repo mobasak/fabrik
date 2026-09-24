@@ -13,8 +13,9 @@ The hub text, verbatim:
 > **Work items.** A repo with a `.fabrik/work/` store keeps its open work there (`python3 scripts/work.py`;
 > `docs/reference/work-tracking.md`): `NEXT:` names the item id (`W-` and 8 hex) when one exists, a
 > DECISION block the Stop hook accepts becomes an `awaiting-operator` item on its own, and the agent the
-> operator answers closes it with `work.py answer <id> --note "<their words>"`. `NEXT: none — terminal`
-> stays legal and nothing counts, scores or rewards items (D-392).
+> operator answers closes it with `work.py answer <id> --note "<their words>"`. Item files are ordinary
+> files: commit the ones your verbs or your `NEXT:` lines changed with your task. `NEXT: none — terminal` stays legal and
+> nothing counts, scores or rewards items (D-392).
 
 In the template the only change is `(hub D-392)` for `(D-392)`, the fleet copy's convention for a hub id.
 It adds no gate and no Stop-hook check: D-392 refuses a NEXT gate.

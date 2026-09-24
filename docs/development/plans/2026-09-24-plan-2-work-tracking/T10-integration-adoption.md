@@ -21,7 +21,8 @@ over-budget file.
    saying the block is rendered by `work.py render` (spec § Documentation landing sites). Both land in
    `docs/STRATEGIC_BACKLOG.md`, a governance file, so this ticket returns them as a Deltas patch and
    the orchestrator applies them.
-3. Two items created with `work.py add`: the V6 reading due 2026-10-08 (two weeks after adoption), and
+3. Two items created with `work.py add`: the V6 reading due 2026-10-08 (two weeks after adoption) —
+   its `next` names the spine's § Residual unknowns linked-worktree reader as part of the reading — and
    the fleet rollout request (step 4).
 4. One fabrik-mail broadcast to the fleet: `work.py` arrives by the governance sync; each repo's own
    agent runs `init --distributor <its distributor>` and `migrate-backlog` (spec § Lifecycle, step 2).
@@ -43,7 +44,7 @@ The orchestrator's closing response carries its DECISION block, so the hub's fir
 through the same Stop path every later one will (spec § Lifecycle).
 
 **Operator actions this plan names and does not perform** (outside the tree, or the operator's own):
-- name the three hub windows with `CLAUDE_AGENT` so owners resolve (spec § Identity, the lock, the lease);
+- name the three hub windows so owners resolve (spec § Identity, the lock, the lease): `CLAUDE_AGENT` at launch, or, with no relaunch, `python3 scripts/whoami_agent.py --as <name>` run inside each live window (D-271 — the resolver `work.py` uses);
 - per existing account, link `tasks/` by re-running `python3 scripts/sysadmin/claude_rotate.py --new-dir
   <slug> <account-email>` (resumable: it adds only what is missing), merging any real `tasks/` it
   reports by hand first;

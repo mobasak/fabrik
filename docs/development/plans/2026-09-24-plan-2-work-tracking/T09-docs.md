@@ -18,7 +18,7 @@ governance files (orchestrator):
   with `grep -c "^def test_" tests/test_thread_anchor.py`.
 - `docs/reference/multi-agent-operating-model.md`: the distributor beside the merge owner (§ Ownership
   surfaces, `docs/reference/multi-agent-operating-model.md:80-86`; § Merge protocol, `:94-96`).
-- `docs/reference/agents/intel.md:76-77`: "The epic/ticket dispatcher lane is DEFERRED until a real epic
+- `docs/reference/agents/intel.md:77-78`: "The epic/ticket dispatcher lane is DEFERRED until a real epic
   queue exists (recorded, not built)" becomes the built lane: intel is the hub's distributor (D-395)
   and owns `work.py assign`.
 
@@ -30,6 +30,7 @@ Depends: T03, T04, T05, T06
 Parallel: ⚡
 Complexity: simple
 Gate: python3 scripts/render_doc_script_links.py --check
+Gate: .venv/bin/python -m pytest tests/test_work_doc_verbs.py -q
 Docs: the five docs above
 
 ## Touches
@@ -38,6 +39,7 @@ Docs: the five docs above
 - docs/reference/thread-anchors.md
 - docs/reference/multi-agent-operating-model.md
 - docs/reference/agents/intel.md
+- tests/test_work_doc_verbs.py (new — row 2: the verbs `work.py --help` lists against the verbs the doc names)
 
 ## Behavior Contract
 - **Given** the merged code, **When** `python3 scripts/render_doc_script_links.py --check` runs, **Then** it exits 0 and `docs/reference/work-tracking.md`'s `## Related scripts` block names `scripts/work.py` (spec § Documentation landing sites)

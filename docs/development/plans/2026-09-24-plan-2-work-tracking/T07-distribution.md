@@ -11,7 +11,7 @@ settings half of spec § The native Task list (D-392 ruling 1).
    saying `thread_anchor.py` imports it by path. The generated projects' `.gitignore` "Fabrik-synced"
    block follows from the list.
 2. `.pre-commit-config.yaml`: add `work` to the `scripts/(…)\.py$` alternation of the
-   `governance-sync` files-filter (`.pre-commit-config.yaml:163`), which today matches
+   `governance-sync` files-filter (`.pre-commit-config.yaml:164`), which today matches
    `scripts/thread_anchor.py` and not `scripts/work.py` (grounded with Python `re`, 2026-09-24).
    ⚠️ Write the edited file into the tree ONLY in the staging step: an unstaged
    `.pre-commit-config.yaml` makes pre-commit refuse every session's commit.
@@ -31,7 +31,7 @@ DO-NOT: `scripts/work.py`; the per-account `tasks/` link (T10 — `scripts/sysad
 Depends: T03
 Parallel: ⛓️
 Complexity: simple
-Gate: .venv/bin/python -m pytest tests/test_synced_manifest.py -q
+Gate: .venv/bin/python -m pytest tests/test_synced_manifest.py tests/test_work_distribution.py -q
 Docs: none here — docs/reference/work-tracking.md (T09) names the distribution
 
 ## Touches
@@ -39,6 +39,7 @@ Docs: none here — docs/reference/work-tracking.md (T09) names the distribution
 - .pre-commit-config.yaml
 - .claude/settings.json
 - tests/test_synced_manifest.py
+- tests/test_work_distribution.py (new — all three rows: `CORE_SCRIPTS` and the generated gitignore block, the filter regex read back out of the YAML the way `scripts/governance_sync_postcommit.sh` reads it, and the settings `env`)
 
 ## Behavior Contract
 - **Given** the merged manifest, **When** `CORE_SCRIPTS` and the generated gitignore block are read, **Then** both name `work.py` and `thread_anchor.py` together (spec § The CLI)

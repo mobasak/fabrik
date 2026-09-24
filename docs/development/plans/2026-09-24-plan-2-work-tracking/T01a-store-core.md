@@ -15,8 +15,13 @@ and readings under `<git -C <repo> rev-parse --path-format=absolute --git-common
 `<repo>` is always resolved with `git -C <path> rev-parse --show-toplevel`, so a caller may pass a
 subdirectory. `init` without `--distributor` runs `python3 /opt/fabrik/scripts/decisions.py
 --merge-owner <repo>` (hub-only, by absolute path; exit 3 prints `UNDECLARED` — `scripts/decisions.py:556`)
-and leaves `distributor` empty on anything but a name. Actor identity: `CLAUDE_AGENT` (may be unset)
-and `CLAUDE_CODE_SESSION_ID`.
+and leaves `distributor` empty on anything but a name. Actor identity: the agent name from
+`resolve_agent_name()` in the fleet-synced `scripts/whoami_agent.py` (`:259` — `CLAUDE_AGENT`, else the
+live binding of `CLAUDE_CODE_SESSION_ID`, D-271), imported by path and falling back to
+`CLAUDE_AGENT` when the import fails; the session is `CLAUDE_CODE_SESSION_ID`. Every verb that writes an
+item file prints its repo-relative path, for the caller's own commit. A verb given an id whose item
+file is not in the caller's tree exits non-zero naming the id and the tree it looked in, and writes
+nothing.
 
 The `# AFTER-EDIT:` header (a real comment within the first ~25 lines) names `tests/test_work.py,
 tests/test_work_claims.py, tests/test_work_sync.py, tests/test_work_migrate.py,
@@ -43,10 +48,12 @@ Docs: none here — the reference doc is T09's; CHANGELOG via the orchestrator
 - **Given** items of priority 0 to 3 of different ages, some blocked by an open item, **When** `ready` runs, **Then** it lists only open unblocked items, ordered by priority then age (spec § The CLI)
 - **Given** an item owned by `infra` and an unassigned one, **When** `ready --mine` runs with `CLAUDE_AGENT=infra`, **Then** the owned item is listed first, then the unassigned one, and `next` prints the first of them (spec § The CLI)
 - **Given** a config naming distributor `intel`, **When** `assign <id> --owner fleet` runs with `CLAUDE_AGENT` unset or not `intel`, **Then** it is refused; with `CLAUDE_AGENT=intel` it sets the owner; with an empty `distributor` any agent may assign (spec § Ownership and the distributor)
+- **Given** an initialised repo with no item `W-00000000`, **When** `assign W-00000000 --owner fleet` runs, **Then** it exits non-zero naming the id and the tree it looked in, and no file changes in the tree or the git common directory (spec § The CLI)
 
 ## Context Files
 - docs/superpowers/specs/2026-09-24-work-tracking-design.md
 - .windsurf/rules/core/10-python.md
 - .windsurf/rules/core/45-testing-strategy.md
 - scripts/thread_anchor.py — the lock + temp-and-rename pattern to copy (`_locked` at scripts/thread_anchor.py:319, `_save` at :300), with the 10 s / 2 s policy instead of its 1 s skip (`_LOCK_TIMEOUT_S`, scripts/thread_anchor.py:180)
+- scripts/whoami_agent.py — `resolve_agent_name()` (scripts/whoami_agent.py:259)
 - scripts/decisions.py — `--merge-owner` output contract (`_merge_owner`, scripts/decisions.py:556)

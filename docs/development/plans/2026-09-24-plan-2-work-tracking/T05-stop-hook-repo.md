@@ -7,7 +7,10 @@ Implements the hook half of spec § NEXT, DECISION blocks and the register, item
 
 - the plain harvest (`.claude/hooks/final_gate_stop.py:2809`, argv `[sys.executable, str(_ta), "harvest",
   "--session", sid]`) and the decision harvest in `_store_decision` (:2644, the same argv plus
-  `--decision-ok`) both append `--repo <root>`, where `root` is the hook's resolved payload cwd (:2758).
+  `--decision-ok`) both append `--repo <cwd>` ONLY when the payload carries a `cwd`
+  (`data.get("cwd")`): `root` itself (:2758) falls back to `os.getcwd()`, which T04 forbids as a store
+  locator — a hook run with no payload cwd (a test, a manual run from `/opt/fabrik`) must never write
+  the hub's live store.
   The plain harvest runs on EVERY Stop, blocked ones included, so it is the claim heartbeat.
 - mirror the "only a script that KNOWS the flag gets it" guard at :2641: pass `--repo` only when the
   resolved `thread_anchor.py` source contains `"--repo"` (a fleet repo whose sync is behind keeps
@@ -38,7 +41,7 @@ Docs: docs/workstation/hooks-index.md is T09's
 - **Given** that item, **When** a second Stop from another session ends on a different valid DECISION block, **Then** the store holds two awaiting items (spec § Validation V1)
 - **Given** the two items, **When** a third session's `thread_anchor.py line --hook` runs on UserPromptSubmit and then on SessionStart `source=compact`, **Then** both questions print, unfolded, in both outputs, and they still print after that session's own state file is deleted (spec § Validation V1)
 - **Given** a claim held by a session, **When** the Stop hook runs for that session on a message with no DECISION block, **Then** the claim's lease is renewed (spec § Identity, the lock, the lease)
-- **Given** a repo whose `scripts/thread_anchor.py` does not know `--repo`, **When** the Stop hook runs, **Then** the harvest argv carries no `--repo` and the Stop is allowed as before (spec § Lifecycle — Degradation)
+- **Given** a repo whose `scripts/thread_anchor.py` does not know `--repo`, or a Stop payload with no `cwd`, **When** the Stop hook runs, **Then** the harvest argv carries no `--repo` and the Stop is allowed as before (spec § Lifecycle — Degradation)
 
 ## Context Files
 - .windsurf/rules/core/45-testing-strategy.md
