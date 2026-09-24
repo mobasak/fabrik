@@ -17,23 +17,40 @@ import fabrik.drivers.postgres as pg
 
 DB = "ti"
 APP = "ti_app"
+US, RS = "\x1f", "\x1e"
+
+
+def _row(*fields: str) -> str:
+    return "probe|" + US.join(fields) + RS
 
 
 def _capture(
-    *, owner: str | None = DB, exists: bool = False, reset: bool = False
-) -> tuple[dict, list[str]]:
+    *,
+    owner: str | None = DB,
+    exists: bool = False,
+    reset: bool = False,
+    collision: list[str] | None = None,
+    fail_grants: bool = False,
+) -> tuple[dict | Exception, list[str]]:
     calls: list[str] = []
 
     def fake_run_sql(sql: str, container: str = pg.POSTGRES_CONTAINER, dry_run: bool = False):
         calls.append(sql)
+        if fail_grants and "GRANT CONNECT ON DATABASE" in sql:
+            raise RuntimeError("SSH failed (rc=3): grant boom")
         return ""
 
     with (
         patch.object(pg, "_db_owner", return_value=owner),
+        patch.object(pg, "_role_is_superuser", return_value=False),
         patch.object(pg, "_role_exists", return_value=exists),
+        patch.object(pg, "_app_role_collision", return_value=collision or []),
         patch.object(pg, "_run_sql", side_effect=fake_run_sql),
     ):
-        res = pg.ensure_app_role(DB, reset_password=reset)
+        try:
+            res: dict | Exception = pg.ensure_app_role(DB, reset_password=reset)
+        except Exception as exc:  # noqa: BLE001 — returned for the caller to assert on
+            res = exc
     return res, calls
 
 
@@ -99,6 +116,15 @@ def test_existing_role_no_create_no_password_reset_alters_alone() -> None:
     assert res == {"user": APP, "owner": DB, "password": pw, "status": "reset"}
 
 
+def test_every_apply_reasserts_least_privilege_attributes() -> None:
+    for kw in ({}, {"exists": True}, {"exists": True, "reset": True}):
+        _, calls = _capture(**kw)
+        assert (
+            f'ALTER ROLE "{APP}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS '
+            "NOREPLICATION;"
+        ) in calls[-1]
+
+
 @pytest.mark.parametrize("owner", [None, "postgres"])
 def test_unusable_owner_raises_before_any_sql(owner) -> None:
     for fn in (pg.ensure_app_role, pg.probe_app_role):
@@ -115,28 +141,74 @@ def test_unusable_owner_raises_before_any_sql(owner) -> None:
     assert issubclass(pg.AppRoleError, RuntimeError)
 
 
+def test_superuser_owner_raises_before_any_write() -> None:
+    for fn in (pg.ensure_app_role, pg.probe_app_role):
+        with (
+            patch.object(pg, "_db_owner", return_value="boss"),
+            patch.object(pg, "_role_is_superuser", return_value=True),
+            patch.object(pg, "_role_exists", return_value=False) as exists,
+            patch.object(pg, "_run_sql") as run,
+        ):
+            with pytest.raises(pg.AppRoleError, match="superuser"):
+                fn(DB)
+        run.assert_not_called()
+        exists.assert_not_called()
+
+
+def test_role_is_superuser_fails_closed_on_an_unreadable_answer() -> None:
+    for out, want in (("f", False), ("t", True), ("", True)):
+        with patch.object(pg, "_run_sql", return_value=out):
+            assert pg._role_is_superuser("ti", pg.POSTGRES_CONTAINER) is want
+
+
+def test_colliding_existing_role_raises_before_any_write() -> None:
+    res, calls = _capture(exists=True, reset=True, collision=["owns database other"])
+    assert isinstance(res, pg.AppRoleError) and "owns database other" in str(res)
+    assert calls == []
+
+
+def test_grants_failure_after_create_drops_the_fresh_role() -> None:
+    res, calls = _capture(fail_grants=True)
+    assert isinstance(res, RuntimeError) and "grant boom" in str(res)
+    assert "CREATE ROLE" in calls[0]
+    cleanup = calls[-1]
+    assert f'DROP OWNED BY "{APP}";' in cleanup and f'DROP ROLE IF EXISTS "{APP}";' in cleanup
+    assert cleanup.startswith(f"\\c {DB}\n")
+    # An EXISTING role is never dropped on a grants failure.
+    res, calls = _capture(exists=True, fail_grants=True)
+    assert isinstance(res, RuntimeError)
+    assert not any("DROP" in c for c in calls)
+
+
 def test_grants_batch_public_create_audit_block_and_memberships() -> None:
     _, calls = _capture(owner="ti_owner")
     grants = calls[-1]
-    # Owner keeps CREATE on public BEFORE PUBLIC loses it.
+    # Owner keeps CREATE on public BEFORE PUBLIC (and the group roles) lose it on every
+    # owner schema.
     g = grants.index('GRANT CREATE ON SCHEMA public TO "ti_owner";')
-    r = grants.index("REVOKE CREATE ON SCHEMA public FROM PUBLIC;")
+    r = grants.index("REVOKE CREATE ON SCHEMA %I FROM PUBLIC CASCADE")
     assert g < r
+    for grp in ("anon", "authenticated", "service_role"):
+        assert f'REVOKE CREATE ON SCHEMA %I FROM "{grp}" CASCADE' in grants
     # The to_regclass-guarded audit_log block.
     assert "IF to_regclass('public.audit_log') IS NOT NULL THEN" in grants
     assert 'ALTER TABLE public.audit_log OWNER TO "ti_owner"' in grants
-    assert f'REVOKE UPDATE, DELETE, TRUNCATE ON public.audit_log FROM PUBLIC, "{APP}"' in grants
+    assert "REVOKE ALL ON public.audit_log FROM PUBLIC CASCADE" in grants
+    rev = "REVOKE UPDATE, DELETE, TRUNCATE, TRIGGER, REFERENCES ON public.audit_log FROM"
+    assert f'{rev} "{APP}" CASCADE' in grants
     assert "rolname = 'ti_wd_rw'" in grants
-    assert 'REVOKE UPDATE, DELETE, TRUNCATE ON public.audit_log FROM "ti_wd_rw"' in grants
+    assert f'{rev} "ti_wd_rw" CASCADE' in grants
     for grp in ("anon", "authenticated", "service_role"):
         assert f"rolname = '{grp}'" in grants
-        assert f'REVOKE UPDATE, DELETE, TRUNCATE ON public.audit_log FROM "{grp}"' in grants
+        assert f'{rev} "{grp}" CASCADE' in grants
         assert f'GRANT "{grp}" TO "{APP}" WITH INHERIT FALSE, SET TRUE' in grants
     # The revokes follow the blanket DML grant, and INSERT/SELECT is granted back last.
-    assert grants.index("ON ALL TABLES IN SCHEMA") < grants.index("REVOKE UPDATE, DELETE")
-    assert f'GRANT INSERT, SELECT ON public.audit_log TO "{APP}"' in grants
-    # Memberships only where the OWNER is a member.
+    assert grants.index("ON ALL TABLES IN SCHEMA") < grants.index(rev)
+    assert grants.index(rev) < grants.index(f'GRANT INSERT, SELECT ON public.audit_log TO "{APP}"')
+    # Memberships only where the OWNER is a member; every other row revoked by grantor.
     assert "m.member = (SELECT oid FROM pg_roles WHERE rolname = 'ti_owner')" in grants
+    assert f'REVOKE %I FROM "{APP}" GRANTED BY %I CASCADE' in grants
+    assert "NOT m.inherit_option AND m.set_option AND NOT m.admin_option" in grants
     # No other role is ever granted TO the app role (a role grant has no ON clause).
     role_grants = re.findall(rf'GRANT\s+("?\w+"?)\s+TO\s+"{APP}"', grants)
     assert sorted(x.strip('"') for x in role_grants) == ["anon", "authenticated", "service_role"]
@@ -188,6 +260,7 @@ def _probe(output: str) -> tuple[list[str], list[str]]:
 
     with (
         patch.object(pg, "_db_owner", return_value=DB),
+        patch.object(pg, "_role_is_superuser", return_value=False),
         patch.object(pg, "_run_sql", side_effect=fake_run_sql),
     ):
         return pg.probe_app_role(DB), calls
@@ -197,10 +270,11 @@ def test_probe_reports_each_violation_and_ignores_connection_line() -> None:
     out = "\n".join(
         [
             f'You are now connected to database "{DB}" as user "postgres".',
-            f"probe|table_owner|public.widgets|{APP}",
-            "probe|audit_priv|authenticated|UPDATE",
-            "probe|schema_create|PUBLIC",
-            "probe|done",
+            _row("table_owner", "public.widgets", APP),
+            _row("audit_priv", "authenticated", "UPDATE"),
+            _row("schema_create", "PUBLIC", "public"),
+            # the transport strips the final RS (str.strip treats it as whitespace)
+            _row("done").rstrip(RS),
         ]
     )
     failures, calls = _probe(out)
@@ -210,15 +284,41 @@ def test_probe_reports_each_violation_and_ignores_connection_line() -> None:
     assert any("PUBLIC" in f and "CREATE" in f for f in failures)
     lines = calls[0].splitlines()
     assert lines[0] == "\\set ON_ERROR_STOP on" and lines[1] == f"\\c {DB}"
-    assert calls[0].rstrip().endswith("SELECT 'probe|done';")
+    assert calls[0].rstrip().endswith("SELECT 'probe|' || concat_ws(chr(31), 'done') || chr(30);")
     # non-mutating: every statement in the batch (meta-commands aside) is a SELECT
     body = "\n".join(ln for ln in calls[0].splitlines() if not ln.startswith("\\"))
     stmts = [s.strip() for s in body.split(";") if s.strip()]
     assert stmts and all(s.upper().startswith("SELECT") for s in stmts), stmts
 
 
+def test_probe_reports_attributes_memberships_and_owned_databases() -> None:
+    out = (
+        _row("role_attr", "SUPERUSER")
+        + "\n"
+        + _row("owns_db", "other")
+        + "\n"
+        + _row("membership", DB, "OUTSIDE")
+        + "\n"
+        + _row("done")
+    )
+    failures, _ = _probe(out)
+    assert failures == [
+        f"{APP} has SUPERUSER",
+        f"{APP} owns database other",
+        f"{APP} has a disallowed membership in {DB} (OUTSIDE)",
+    ]
+
+
+def test_probe_pipe_and_newline_in_an_identifier_do_not_desync() -> None:
+    out = _row("table_owner", 'public."we|ird\ntable"', "stranger") + "\n" + _row("done")
+    failures, _ = _probe(out)
+    assert failures == [
+        f'table public."we|ird\ntable" is owned by stranger, not the database owner {DB}'
+    ]
+
+
 def test_probe_all_clear_and_incomplete() -> None:
-    failures, _ = _probe(f'You are now connected to database "{DB}".\nprobe|done')
+    failures, _ = _probe(f'You are now connected to database "{DB}".\n' + _row("done"))
     assert failures == []
     failures, _ = _probe(f'You are now connected to database "{DB}".\n')
     assert len(failures) == 1 and failures[0].startswith("probe incomplete")
@@ -229,6 +329,7 @@ def test_probe_all_clear_and_incomplete() -> None:
 def test_probe_run_sql_error_is_incomplete_not_raise() -> None:
     with (
         patch.object(pg, "_db_owner", return_value=DB),
+        patch.object(pg, "_role_is_superuser", return_value=False),
         patch.object(pg, "_run_sql", side_effect=RuntimeError("SSH failed (rc=3): boom")),
     ):
         failures = pg.probe_app_role(DB)
