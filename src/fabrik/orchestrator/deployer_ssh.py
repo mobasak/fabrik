@@ -255,6 +255,39 @@ class SSHDeployer:
         logger.info("Deleted compose app %s", name)
         return True
 
+    def read_env(self, ctx: DeploymentContext) -> dict[str, str]:
+        """Return the app's parsed ``.env`` — for a DECISION, so it never swallows.
+
+        Runs inside :func:`_target_vps_env` (as :meth:`inject_env` does), so a
+        spoke's ``.env`` is read on the spoke. Returns ``{}`` ONLY when
+        ``test -f`` reports the file absent; any ssh/read failure or an
+        unrecognised probe answer raises :class:`DeployError`. :meth:`inject_env`
+        keeps its own swallowing read — right for a merge, never for a decision
+        (the app-role cutover reads ``DATABASE_URL``'s user from here).
+        """
+        from fabrik.drivers.ssh import ssh as _ssh
+
+        name = ctx.app_name
+        if not name:
+            raise DeployError("read_env called but ctx.app_name is not set")
+        _validate_name(name)
+
+        with _target_vps_env(ctx):
+            try:
+                probe = _ssh(
+                    f"sudo test -f /opt/{name}/.env && echo present || echo absent", timeout=10
+                ).strip()
+                if probe == "absent":
+                    return {}
+                if probe != "present":
+                    raise DeployError(
+                        f"cannot read /opt/{name}/.env: unexpected probe answer {probe[:40]!r}"
+                    )
+                content = _ssh(f"sudo cat /opt/{name}/.env", timeout=10)
+            except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+                raise DeployError(f"cannot read /opt/{name}/.env: {e}") from e
+        return _parse_env(content)
+
     def inject_env(self, ctx: DeploymentContext, env_vars: dict[str, str]) -> None:
         """Merge *env_vars* into the app's ``.env`` and restart.
 

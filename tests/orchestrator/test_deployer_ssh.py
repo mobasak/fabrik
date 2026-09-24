@@ -435,6 +435,74 @@ class TestSSHDeployerInjectEnv:
             deployer.inject_env(ctx, {"KEY": "val"})
 
 
+class TestSSHDeployerReadEnv:
+    """``read_env`` feeds a DECISION (the app-role cutover), so unlike ``inject_env``'s
+    merge read it never swallows a failure: absent file → ``{}``, anything else → raise."""
+
+    def _ctx(self, target_vps: str | None = None) -> DeploymentContext:
+        ctx = _ctx({"name": "my-app"})
+        ctx.app_name = "my-app"
+        ctx.target_vps = target_vps
+        return ctx
+
+    def test_present_file_is_parsed(self):
+        with patch("fabrik.drivers.ssh.ssh") as mock_ssh:
+            mock_ssh.side_effect = ["present\n", "DATABASE_URL=postgresql://u:x@h:5432/d\nA=1\n"]
+            env = SSHDeployer().read_env(self._ctx())
+        assert env == {"DATABASE_URL": "postgresql://u:x@h:5432/d", "A": "1"}
+        assert "test -f /opt/my-app/.env" in mock_ssh.call_args_list[0].args[0]
+
+    def test_absent_file_is_empty(self):
+        with patch("fabrik.drivers.ssh.ssh", return_value="absent\n") as mock_ssh:
+            assert SSHDeployer().read_env(self._ctx()) == {}
+        assert mock_ssh.call_count == 1  # no cat when test -f says absent
+
+    def test_ssh_failure_raises(self):
+        with (
+            patch("fabrik.drivers.ssh.ssh", side_effect=RuntimeError("ssh down")),
+            pytest.raises(DeployError, match="cannot read"),
+        ):
+            SSHDeployer().read_env(self._ctx())
+
+    def test_cat_failure_raises(self):
+        with (
+            patch("fabrik.drivers.ssh.ssh", side_effect=["present", RuntimeError("perm")]),
+            pytest.raises(DeployError, match="cannot read"),
+        ):
+            SSHDeployer().read_env(self._ctx())
+
+    def test_unexpected_probe_output_raises(self):
+        with (
+            patch("fabrik.drivers.ssh.ssh", return_value="garbage"),
+            pytest.raises(DeployError),
+        ):
+            SSHDeployer().read_env(self._ctx())
+
+    def test_runs_inside_target_vps_env(self):
+        import os
+
+        os.environ.pop("FABRIK_VPS_SSH_HOST", None)
+        seen: list[str | None] = []
+
+        def fake_ssh(cmd, timeout=10):
+            seen.append(os.environ.get("FABRIK_VPS_SSH_HOST"))
+            return "absent"
+
+        with patch("fabrik.drivers.ssh.ssh", side_effect=fake_ssh):
+            SSHDeployer().read_env(self._ctx(target_vps="vps2"))
+        assert seen == ["vps2"]
+        assert os.environ.get("FABRIK_VPS_SSH_HOST") is None
+
+    def test_inject_env_still_swallows_its_merge_read(self):
+        """``inject_env`` keeps its own read and merge: a failed read merges onto empty."""
+        with (
+            patch("fabrik.drivers.ssh.ssh", side_effect=[RuntimeError("read"), ""]),
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
+        ):
+            SSHDeployer().inject_env(self._ctx(), {"K": "v"})
+        assert _parse_env(mock_write.call_args[0][2]) == {"K": "v"}
+
+
 class TestSSHDeployerRedeploy:
     def test_redeploy_template(self):
         with patch("fabrik.drivers.ssh.ssh") as mock_ssh:

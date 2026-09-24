@@ -198,6 +198,63 @@ If both the spec and the existing .env define `FOO=bar`, the spec's value wins. 
 
 ---
 
+## App-role cutover and rollback
+
+Every database project's `.env` carries two DSNs. `DATABASE_URL_OWNER` connects as the
+database owner and is what migrations, runtime DDL and the retention job use.
+`DATABASE_URL` is what the app uses. On a fresh create both are the owner DSN, injected in
+one call before any other step can fail, because the owner password exists only at that
+moment. The role model is in
+[`docs/reference/modules/drivers.md`](../reference/modules/drivers.md) § Postgres.
+
+On every `fabrik apply` the postgres registrar runs the app-role step after the watchdog and
+payments-ingest roles. It mints or re-asserts `<db>_app` and its grants, reads the live
+`.env` (on the spoke for a spoke target), and converges `DATABASE_URL` to what
+`shape.database_url_app_role` declares:
+
+| Flag | `DATABASE_URL` user | What the step does |
+|---|---|---|
+| `true` | owner | **Cutover:** refuse a shared database, run the pre-cutover check, reset the `<db>_app` password, then inject `DATABASE_URL` (the same DSN with only user and password swapped; scheme, host, port, database and query kept) and `DATABASE_URL_OWNER` (the old value) |
+| `false` | `<db>_app` | **Rollback:** `DATABASE_URL` = `DATABASE_URL_OWNER`; refused when that key is absent |
+| `true` | `<db>_app` | Converged: nothing injected. A missing `DATABASE_URL_OWNER` is a failure, because no rollback DSN exists and the owner password cannot be recovered |
+| `false` | owner | Converged: nothing injected, or `DATABASE_URL_OWNER` backfilled from `DATABASE_URL` when absent |
+| `true` | absent, or any other user (a superuser, a legacy role, a DSN built from separate variables) | **Refused:** nothing injected, the user found is named in the failure |
+
+A refusal or error is an `app-role:` registrar failure, so `fabrik apply` exits 2 and the
+deploy is not reported green. The exception: with the flag `false`, a database owned by
+`postgres` (legacy, manual or seed-restored) is recorded as `skipped`, since it does not need
+the app role until it asks for the switch. `--dry-run` sends no ssh, SQL or check and records
+`app-role` as `dry_run`: the decision needs the live `.env`, so a dry run cannot preview it.
+Logs name roles, never a DSN or a password.
+
+**Runbook — cut over:**
+
+1. Set `shape.database_url_app_role: true` in `specs/services/<id>.yaml`.
+2. Run `fabrik app-role-check specs/services/<id>.yaml` and fix everything it reports (a
+   migration tool or DDL still reaching `DATABASE_URL`, a stale or missing clone at
+   `/opt/<id>`, a failing privilege probe).
+3. `fabrik apply specs/services/<id>.yaml`. The step runs the same check again and cuts over
+   only when it passes.
+
+**Runbook — roll back:** unset the flag (or set it `false`) and `fabrik apply`. `DATABASE_URL`
+returns to the owner DSN kept in `DATABASE_URL_OWNER`.
+
+**Shared databases are refused.** When another spec in `specs/services/` with
+`shape.needs_database` resolves to the same database (`depends.postgres: main` is shared by
+several specs), the cutover is refused and the failure lists those specs: one `<db>_app`
+password cannot be reset for one of them without breaking the others. An unreadable sibling
+spec refuses too.
+
+**The limit.** The owner DSN lives in the same project `.env` as the app DSN. Append-only on
+`audit_log` therefore holds against the app's own code paths and against SQL injection, not
+against code execution inside the container, which can read `DATABASE_URL_OWNER`.
+
+A `DATABASE_URL` set in the spec's `env:` block or in the project secrets outranks the
+registrar's value in the merge above, so it is rewritten on every apply; with the flag `true`
+the step then sees that user and refuses unless it is the owner or `<db>_app`.
+
+---
+
 ## Failed Deploys and Recovery
 
 ### Container crashes after redeploy

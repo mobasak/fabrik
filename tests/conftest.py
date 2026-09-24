@@ -224,6 +224,29 @@ def _isolated_command_run_dir(tmp_path, _private_monkeypatch):
 
 
 # ---------------------------------------------------------------------------------------------
+# The app-role registrar step never reaches the live fleet from a test (audit-log-everywhere T04).
+#
+# `_provision_postgres` now calls `_provision_app_role`, which runs `ensure_app_role` (CREATE ROLE,
+# GRANT/REVOKE on the named database) and `read_env` (ssh). A dozen existing suites drive
+# `_provision_postgres` with only `create_database` patched — unpatched, the new step would ssh to
+# the real postgres-main and could mint `<db>_app` on a real database (the db_name tests use
+# `depends.postgres: main`). The step is stubbed for every test; a module that exercises it sets
+# `LIVE_APP_ROLE_STEP = True` and patches the drivers itself (tests/test_app_role_provision.py).
+# ---------------------------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def _no_live_app_role_step(request, _private_monkeypatch):
+    if getattr(request.module, "LIVE_APP_ROLE_STEP", False):
+        return
+    try:
+        from fabrik.orchestrator.infrastructure import InfrastructureProvisioner
+    except ImportError:
+        return
+    _private_monkeypatch.setattr(
+        InfrastructureProvisioner, "_provision_app_role", lambda *a, **k: None, raising=False
+    )
+
+
+# ---------------------------------------------------------------------------------------------
 # Bare `tempfile.mkdtemp()` / `NamedTemporaryFile()` land under pytest's basetemp (2026-09-07).
 #
 # Four hub tests create scratch with `tempfile.mkdtemp()` and never remove it; the suites run by
