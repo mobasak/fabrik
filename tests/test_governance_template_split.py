@@ -142,11 +142,11 @@ T6_CLAIMS = (
     # claimed this grader proved the two copies identical when it asserted nothing about the
     # sentence (scoped review seat C) — now it does, on a span no other clause repeats.
     "cited because the paraphrase drifted once (",
-    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:2914-2920`)",
-    "the rows that can never fail — `WARN_ONLY_CHECKS`, `:335-348` — carrying each one's own text",
+    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:2962-2968`)",
+    "the rows that can never fail — `WARN_ONLY_CHECKS`, `:336-349` — carrying each one's own text",
     "only a leg that ran to completion is the bare `pytest`",
     "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
-    "a `status: \"setup-error\"` envelope (`:2896-2912` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys",
+    "a `status: \"setup-error\"` envelope (`:2944-2960` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys",
     "FROM THE REPO ROOT",
     # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
     # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
@@ -788,15 +788,15 @@ def test_the_templates_outcome_ii_points_at_the_lane_table_and_keeps_all_three()
 # such an edit is visible in review as a change of MEANING.
 _GATE_CITES = {
     ":70": "PROJECT_ROOT = Path.cwd()",
-    ":335-348": "WARN_ONLY_CHECKS: set[str] = {",
-    ":1009": "if tier == 3:",
-    ":1026": "return results",
-    ":1125": "return results",
-    "final_gate.py:1280-1290": "if (",
-    ":1299": "elif code == 5:",
-    ":1339": "if code != 0 and _PYTEST_EARLY_STOP in out:",
-    ":2896-2912": "missing = _toolchain_missing(PYTHON)",
-    ":2914-2920": "# Determine tier",
+    ":336-349": "WARN_ONLY_CHECKS: set[str] = {",
+    ":1010": "if tier == 3:",
+    ":1027": "return results",
+    ":1126": "return results",
+    "final_gate.py:1281-1291": "if (",
+    ":1300": "elif code == 5:",
+    ":1340": "if code != 0 and _PYTEST_EARLY_STOP in out:",
+    ":2944-2960": "missing = _toolchain_missing(PYTHON)",
+    ":2962-2968": "# Determine tier",
 }
 
 
