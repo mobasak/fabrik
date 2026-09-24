@@ -9,6 +9,7 @@ from pathlib import Path
 import yaml
 
 from fabrik.spec_loader import (
+    CompanionService,
     Expose,
     Health,
     Kind,
@@ -97,6 +98,47 @@ _TYPE_DEFAULTS: dict[str, dict] = {
     "chrome-extension": {"memory": "256M", "cpu": "0.5", "health_path": "/health"},
     "mobile-app": {"memory": "256M", "cpu": "0.5", "health_path": "/health"},
 }
+
+# The audit-log jobs module (retention + the weekly chain verification, D-390 / spec § 3)
+# of each Python backend that has no scheduler of its own, as the ``python -m`` module
+# its image resolves (python-api: PYTHONPATH=/app/src; file-worker: /app; the ``server/``
+# backends: /app/server/src). A database spec of one of these types declares the jobs as
+# a companion service (core/30-ops.md § Multi-Service Compose). The saas family is absent
+# on purpose: its worker's beat loop schedules the same jobs. ``{pkg}`` is the project's
+# package name. The scaffolder emits the module at the matching path.
+AUDIT_JOBS_MODULES: dict[str, str] = {
+    "python-api": "{pkg}.audit_jobs",
+    "python-api-gpu": "{pkg}.audit_jobs",
+    "chrome-extension": "{pkg}.audit_jobs",
+    "mobile-app": "app.audit_jobs",
+    "file-worker": "worker.audit_jobs",
+}
+
+# The companion's memory limit, MEASURED (2026-09-24, the T05 receipt records the run):
+# the emitted jobs module under ``/usr/bin/time -v`` against a scratch PostgreSQL 16
+# holding a 10,000-row chain peaked at 62,012 kB RSS for the verification pass and
+# 47,588 kB for retention. 128M is about twice the verification peak; ``verify_chain``
+# holds its whole window in memory, so a project whose weekly window grows far past
+# 10k rows raises this limit in its own spec.
+AUDIT_JOBS_COMPANION_MEMORY = "128M"
+
+
+def audit_jobs_companion(name: str, project_type: str) -> CompanionService | None:
+    """The ``<name>-audit-jobs`` companion for a database spec of ``project_type``.
+
+    ``None`` for a type whose backend schedules the jobs itself (the saas family) or has
+    no Python backend. No ``env_overrides``: the companion inherits the app's env
+    unchanged and the jobs read ``DATABASE_URL_OWNER`` themselves.
+    """
+    module = AUDIT_JOBS_MODULES.get(project_type)
+    if module is None:
+        return None
+    return CompanionService(
+        id=f"{name}-audit-jobs",
+        command=["python", "-m", module.format(pkg=name.replace("-", "_"))],
+        memory=AUDIT_JOBS_COMPANION_MEMORY,
+    )
+
 
 # ---------------------------------------------------------------------------
 # Private helpers
@@ -482,6 +524,11 @@ def generate_spec(
     extra: dict = {}
     if source is not None:
         extra["source"] = source
+    # The audit-log jobs companion (D-390): only for a database spec whose Python backend
+    # has no scheduler of its own; a spec without it keeps its companion_services empty.
+    companion = audit_jobs_companion(name, project_type) if use_database else None
+    if companion is not None:
+        extra["companion_services"] = [companion]
 
     return create_spec(
         id=name,

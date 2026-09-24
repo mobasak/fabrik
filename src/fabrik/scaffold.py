@@ -1918,8 +1918,9 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
             f"# {name} Local Development (WSL)\n"
             f"LOG_LEVEL=DEBUG\n"
             f"SERVICE_NAME={name}\n\n"
-            f"# Native PostgreSQL on WSL\n"
-            f"DATABASE_URL=postgresql://postgres@localhost:5432/{db_name_dev}\n\n"
+            f"# Native PostgreSQL on WSL (one local role serves both DSNs in dev)\n"
+            f"DATABASE_URL=postgresql://postgres@localhost:5432/{db_name_dev}\n"
+            f"DATABASE_URL_OWNER=postgresql://postgres@localhost:5432/{db_name_dev}\n\n"
             f"# Test DB for `pytest` — a THROWAWAY database (name must end in _test/throwaway/scratch,\n"
             f"# or tests/conftest.py::require_throwaway() refuses it). DB-backed tests skipif this is unset,\n"
             f"# so without it the suite reports all-SKIP (a green line that proves nothing). Create it once:\n"
@@ -1968,14 +1969,12 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
             click.echo("⚠️  Database auto-creation failed. Create manually:")
             click.echo(f"    sudo -u postgres psql -c 'CREATE DATABASE {db_name_dev};'")
 
-        # Update .env.example to uncomment DATABASE_URL
+        # .env.example names both DSNs with no value (the registrar injects them); the
+        # audit-log kit (module, schema fold, jobs, requirements) rides the same flag.
+        # python-api-gpu reaches here through this function and shares the layout.
+        _emit_python_audit_log(project_dir, name, "python-api")
         env_example_path = project_dir / ".env.example"
         env_content = env_example_path.read_text()
-        # Replace commented DB line with VPS version
-        env_content = env_content.replace(
-            f"# Optional - uncomment if using database\n# DATABASE_URL=postgresql://user:pass@localhost:5432/{name}_dev\n",
-            f"# Database (managed by Fabrik orchestrator on VPS via postgres registrar)\n# Set via project .env (managed by `fabrik apply`): POSTGRES_PASSWORD\nDATABASE_URL=postgresql://postgres:${{POSTGRES_PASSWORD}}@postgres-main:5432/{name.replace('-', '_')}\n",
-        )
         # TEST_DATABASE_URL — NOT optional for `pytest`: DB-backed tests skipif it is unset, so without
         # it the suite reports an all-SKIP "green" that proves nothing (and conftest's ${TEST_DATABASE_URL:?}
         # guard blocks that). Point it at a THROWAWAY db whose name ends in _test/throwaway/scratch (the
@@ -2106,18 +2105,24 @@ _SAAS_SERVER_REQUIREMENTS = (
     "pydantic-settings>=2.2\n"  # module Settings (BaseSettings)
     "uuid-utils>=0.10\n"  # UUIDv7 PKs (core/25)
     "redis>=5.0\n"  # jti denylist / instant revocation
+    # --- vendored app-audit-log (libs/audit_log) — the scheduled jobs' sync connection ---
+    "psycopg[binary]>=3.1\n"
 )
 
 _SAAS_SCHEMA_SQL = """-- schema.sql — multi-tenant schema for __NAME__ (PostgreSQL, RLS fail-closed).
 -- Per .windsurf/rules/saas/95-multi-tenant-saas.md (RLS) + core/75-workers-jobs.md (queue).
--- Apply once after the DB is provisioned:  psql "$DATABASE_URL" -f db/schema.sql
--- (Fabrik runs NO automatic migrations — you apply this yourself.)
+-- Apply once after the DB is provisioned, as the database OWNER (the WHOLE file is one
+-- transaction; any error aborts it):
+--   psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql
+-- (Fabrik runs NO automatic migrations — you apply this yourself.) Keep BEGIN/COMMIT
+-- out of this file: an inner COMMIT would end psql -1's transaction early.
 --
 -- IMPORTANT — Row-Level Security only applies to a NON-superuser role. Fabrik's
--- postgres registrar provisions a dedicated, non-superuser role that OWNS this
--- database and injects its DATABASE_URL, so the app (api + worker) connects as
--- that role and apply this schema as that role (it owns the tables → FORCE RLS
--- bites). Do NOT connect as the postgres superuser — it bypasses RLS entirely.
+-- postgres registrar provisions two non-superuser roles and injects both DSNs:
+-- DATABASE_URL_OWNER (owns this database and every table — schema and migrations
+-- only) and DATABASE_URL, the app's runtime role <db>_app (api + worker), which owns
+-- nothing — so RLS binds it, and audit_log below is append-only against it (D-390).
+-- Do NOT connect as the postgres superuser — it bypasses RLS entirely.
 -- ``gen_random_uuid()`` is built into PostgreSQL 13+. ``citext`` is a TRUSTED
 -- extension (PG13+), so the DB-owning role can CREATE it without superuser — no
 -- registrar step needed. It backs the case-insensitive ``users.email`` UNIQUE.
@@ -2215,8 +2220,8 @@ CREATE POLICY tenant_isolation ON widgets
 
 -- Background-jobs queue: PostgreSQL IS the broker (no Celery/Rabbit/Redis) ---
 -- Claimed with FOR UPDATE SKIP LOCKED; NOTIFY wakes idle workers instantly.
--- NOT RLS-protected: the worker (the DB-owning role) drains across tenants; the
--- API filters by tenant_id explicitly when it enqueues/reads its own jobs.
+-- NOT RLS-protected: the worker drains across tenants; the API filters by
+-- tenant_id explicitly when it enqueues/reads its own jobs.
 CREATE TABLE IF NOT EXISTS jobs (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id   UUID REFERENCES tenants(id) ON DELETE CASCADE,
@@ -2233,9 +2238,9 @@ CREATE TABLE IF NOT EXISTS jobs (
 -- Mandatory partial index — without it, claim queries full-scan (75 §Schema).
 CREATE INDEX IF NOT EXISTS idx_jobs_pending ON jobs (run_at) WHERE status = 'pending';
 
--- No GRANTs needed: the API and worker both connect as the DB-owning role, which
--- already owns ``jobs``. The API filters by tenant_id explicitly when it
--- enqueues/reads; the worker drains across tenants (jobs is not RLS-protected).
+-- No GRANTs here: the registrar grants the app role (<db>_app) DML on every table
+-- the owner creates, by default privileges. The API filters by tenant_id explicitly
+-- when it enqueues/reads; the worker drains across tenants (jobs is not RLS-protected).
 
 -- Instant wake-up: NOTIFY on insert; the worker LISTENs (75 §Worker Wake-Up).
 CREATE OR REPLACE FUNCTION notify_job_inserted() RETURNS TRIGGER AS $$
@@ -2425,6 +2430,8 @@ from fastapi_user_auth import (
 )
 from fastapi_user_auth.tokens import NullDenylist, RedisDenylist, decode_access_token
 
+from __PKG__.audit import ChainAuditLogger
+
 
 @lru_cache
 def get_settings() -> Settings:
@@ -2473,29 +2480,16 @@ class _LogEmailSender:
         print(f"[email:stub] to={to_email} subject={subject!r} — wire email-transport")
 
 
-class _LogAuditLogger:
-    """Scaffold-default AuditLogger — structured stdout. Swap to fabrik-lib/app-audit-log."""
-
-    async def log(
-        self,
-        *,
-        actor: str,
-        action: str,
-        target_type: str | None = None,
-        target_id: str | None = None,
-        details: dict[str, Any] | None = None,
-    ) -> None:
-        print(f"[audit] actor={actor} action={action} target={target_type}:{target_id} {details or {}}")
-
-
 def build_saas_auth_router() -> APIRouter:
     """The vendored Pattern-A /auth router (login/signup/refresh/logout/reset),
-    mounted by main.py. Shares the app engine + denylist singletons."""
+    mounted by main.py. Shares the app engine + denylist singletons; its audit events
+    land in the hash-chained audit_log (``__PKG__.audit``)."""
+    sessionmaker = make_sessionmaker(_engine())
     return build_auth_router(
         settings=get_settings(),
-        sessionmaker=make_sessionmaker(_engine()),
+        sessionmaker=sessionmaker,
         email=_LogEmailSender(),
-        audit=_LogAuditLogger(),
+        audit=ChainAuditLogger(sessionmaker),
         denylist=_denylist(),
     )
 
@@ -2613,6 +2607,7 @@ from typing import Any
 
 import asyncpg
 
+from __PKG__ import audit_jobs
 from __PKG__.glitchtip_init import init_glitchtip
 from __PKG__.logger import get_logger
 
@@ -2793,9 +2788,14 @@ async def _beat_loop(pool: asyncpg.Pool) -> None:
                             """,
                             ORPHAN_TIMEOUT,
                         )
+                        # Audit-log jobs (core/app-audit-log.md items 4-5): retention daily,
+                        # the chain verification weekly. run_due() reads when each last ran
+                        # from audit_jobs_state and connects as the OWNER (DATABASE_URL_OWNER);
+                        # unset, it logs audit_jobs: not_configured and returns.
+                        ran = await asyncio.to_thread(audit_jobs.run_due)
                         # Add cron/periodic tasks here by INSERTing into ``jobs`` — they are
                         # dispatched onto the queue, not run inline by the scheduler (75 §Beat).
-                        log.info("beat_tick")
+                        log.info("beat_tick", audit_jobs=ran)
                     finally:
                         await conn.fetchval("SELECT pg_advisory_unlock($1)", BEAT_LOCK_KEY)
         except Exception as exc:  # noqa: BLE001 — e.g. the schema/jobs table isn't applied
@@ -3268,12 +3268,19 @@ def _scaffold_saas_backend(project_dir: Path, name: str, package_name: str) -> N
         (server_dir / "Dockerfile").write_text(df)
 
     (server_dir / "db").mkdir(parents=True, exist_ok=True)
-    (server_dir / "db" / "schema.sql").write_text(_sub(_SAAS_SCHEMA_SQL))
+    (server_dir / "db" / "schema.sql").write_text(
+        _sub(_SAAS_SCHEMA_SQL) + _audit_log_schema_block()
+    )
+    # The audit log (D-390): the vendored module beside src/, the async chain writer the
+    # IdP hook uses, and the jobs the worker's beat loop schedules.
+    _vendor_app_audit_log(server_dir)
 
     pkg_dir = server_dir / "src" / package_name
     (pkg_dir / "tenant.py").write_text(_sub(_SAAS_TENANT_PY))
     (pkg_dir / "auth.py").write_text(_sub(_SAAS_AUTH_PY))
     (pkg_dir / "worker.py").write_text(_sub(_SAAS_WORKER_PY))
+    (pkg_dir / "audit.py").write_text(_sub(_SAAS_AUDIT_PY))
+    _write_audit_jobs(server_dir, Path("src", package_name, "audit_jobs.py"), name)
     # Overwrite the base main.py with the saas (multi-tenant) variant.
     (pkg_dir / "main.py").write_text(_sub(_SAAS_MAIN_PY))
 
@@ -3316,6 +3323,605 @@ def _vendor_fastapi_user_auth(dest_src: Path) -> None:
             "__pycache__", "*.pyc", "reference_adapter.py", "conftest.py", "pytest.ini"
         ),
     )
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# app-audit-log — emitted into every backend WITH a database (D-368, D-390; spec
+# docs/superpowers/specs/2026-09-24-audit-log-everywhere-design.md § 3).
+#
+# A Python backend (the saas family, python-api, python-api-gpu, file-worker, and the
+# ``server/`` of chrome-extension and mobile-app) gets the vendored module, the table
+# folded into its schema file, the jobs module and both DSNs in ``.env.example``;
+# node-api / file-api get the table only (the Node writer waits on fabrik-lib's port,
+# core/app-audit-log.md:50-52). Which type has a database is the scaffolder's own
+# rule: the saas family always (its worker and schema need it), every other type only
+# with ``use_database`` (the ``--db`` flag).
+# ───────────────────────────────────────────────────────────────────────────
+
+APP_AUDIT_LOG_DIR = FABRIK_LIB_DIR / "app-audit-log"
+
+# The one header every emitted schema file carries. ``-1`` makes the WHOLE file one
+# transaction, so the audit table and its revokes commit together or not at all;
+# ``psql -f`` otherwise autocommits per statement. The file therefore carries no
+# top-level BEGIN/COMMIT: an inner COMMIT would end ``-1``'s transaction early.
+_SCHEMA_APPLY_HEADER = (
+    "-- Apply as the database OWNER (the WHOLE file is one transaction; any error aborts it):\n"
+    '--   psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql\n'
+    "-- Never through DATABASE_URL: that is the app's non-owner role, which cannot CREATE.\n"
+    "-- Keep BEGIN/COMMIT out of this file — an inner COMMIT would end psql -1's transaction.\n"
+)
+
+# Folded after the module's schema.sql. The registrar's default privileges hand
+# ``<db>_app`` (and the watchdog's ``<db>_wd_rw``) UPDATE/DELETE on every table the owner
+# creates — audit_log included, the moment it exists — so the revokes run in the SAME
+# transaction as the CREATE (psql -1): no session ever sees the table writable. The role
+# names come from ``current_database()``, which IS the registrar's database name by
+# construction (``depends.postgres`` override included); a name baked at scaffold time
+# would miss that override. The registrar re-applies the same revokes on every apply
+# and the weekly job checks them; this block is the first guard, not the only one.
+_AUDIT_SCHEMA_TAIL_SQL = """
+-- ---------------------------------------------------------------------------
+-- 3) audit_jobs_state — the one row the scheduled audit jobs keep (audit_jobs.py):
+--    the weekly verification's cursor (the ts of the last row it verified) and when
+--    each job last ran. Written only by the jobs, as the owner.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS audit_jobs_state (
+    id                 BOOLEAN      PRIMARY KEY DEFAULT TRUE CHECK (id),
+    verified_through   TIMESTAMPTZ,
+    last_retention_at  TIMESTAMPTZ,
+    last_verify_at     TIMESTAMPTZ
+);
+INSERT INTO audit_jobs_state (id) VALUES (TRUE) ON CONFLICT (id) DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- 4) Append-only from the first instant: revoke what the registrar's default
+--    privileges just granted on the new tables, from the app role, the watchdog's
+--    rw role and each Pattern A group role — each only where the role exists.
+-- ---------------------------------------------------------------------------
+DO $audit_revoke$
+DECLARE
+    r text;
+BEGIN
+    FOREACH r IN ARRAY ARRAY[
+        current_database() || '_app',
+        current_database() || '_wd_rw',
+        'anon',
+        'authenticated',
+        'service_role'
+    ] LOOP
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
+            EXECUTE format(
+                'REVOKE UPDATE, DELETE, TRUNCATE, TRIGGER, REFERENCES ON audit_log FROM %I', r
+            );
+            EXECUTE format(
+                'REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON audit_jobs_state FROM %I', r
+            );
+        END IF;
+    END LOOP;
+END
+$audit_revoke$;
+"""
+
+
+def _audit_log_schema_block() -> str:
+    """The module's ``schema.sql`` (table, indexes, chain-check view) plus the jobs'
+    state row and the no-window revokes, ready to fold into a backend's schema file.
+
+    Read from ``/opt/fabrik-lib`` at scaffold time, so the fold always carries the
+    module version being vendored beside it. Its own apply hint names the pre-D-390
+    ``DATABASE_URL``; the fold points it at this file's header instead.
+    """
+    module_schema = APP_AUDIT_LOG_DIR / "schema.sql"
+    if not module_schema.is_file():
+        raise FileNotFoundError(
+            f"Cannot fold the audit log: fabrik-lib/app-audit-log was not found at "
+            f"{APP_AUDIT_LOG_DIR}. Ensure /opt/fabrik-lib is present next to /opt/fabrik."
+        )
+    schema = module_schema.read_text().replace(
+        'psql "$DATABASE_URL" -f libs/audit_log/schema.sql',
+        "folded into db/schema.sql — applied by its header, as the owner",
+    )
+    return (
+        "\n-- ===========================================================================\n"
+        "-- AUDIT LOG — vendored from libs/audit_log/schema.sql (core/app-audit-log.md).\n"
+        "-- Append-only against the app: it connects as the non-owner <db>_app role.\n"
+        "-- ===========================================================================\n"
+        + schema.rstrip("\n")
+        + "\n"
+        + _AUDIT_SCHEMA_TAIL_SQL
+    )
+
+
+def _fold_audit_log_into_schema(schema_path: Path) -> None:
+    """Fold the audit block into the placeholder ``db/schema.sql`` ``_scaffold_shared``
+    wrote: the apply header under the title lines, the block closing the TABLES section.
+    Fails loud if the placeholder's anchors moved, never silently skips the fold."""
+    text = schema_path.read_text()
+    header_anchor = "-- This file tracks all database schema changes.\n"
+    tables_end = (
+        "-- =============================================================================\n"
+        "-- INDEXES\n"
+    )
+    if header_anchor not in text or tables_end not in text:
+        raise ValueError(f"{schema_path}: placeholder anchors not found; cannot fold audit_log")
+    text = text.replace(header_anchor, _SCHEMA_APPLY_HEADER + "--\n" + header_anchor, 1)
+    text = text.replace(tables_end, _audit_log_schema_block() + "\n" + tables_end, 1)
+    schema_path.write_text(text)
+
+
+def _vendor_app_audit_log(backend_dir: Path) -> None:
+    """Copy ``/opt/fabrik-lib/app-audit-log`` into ``<backend>/libs/audit_log/``.
+
+    Shaped like :func:`_vendor_fastapi_user_auth`: a backend whose schema, writer and
+    jobs import the module cannot run without it, so its absence FAILS the scaffold.
+    Only the module's own dev artefacts stay behind — its caches, ``test_audit_log.py``
+    and ``UPSTREAM_FEEDBACK.md``.
+    """
+    if not (APP_AUDIT_LOG_DIR / "audit_log.py").is_file():
+        raise FileNotFoundError(
+            f"Cannot vendor the audit log: fabrik-lib/app-audit-log was not found at "
+            f"{APP_AUDIT_LOG_DIR}. Ensure /opt/fabrik-lib is present next to /opt/fabrik."
+        )
+    dest = backend_dir / "libs" / "audit_log"
+    if dest.exists():
+        shutil.rmtree(dest)
+    shutil.copytree(
+        APP_AUDIT_LOG_DIR,
+        dest,
+        ignore=shutil.ignore_patterns(
+            "__pycache__",
+            "*.pyc",
+            ".mypy_cache",
+            ".pytest_cache",
+            ".ruff_cache",
+            "test_*.py",
+            "UPSTREAM_FEEDBACK.md",
+        ),
+    )
+
+
+# Both DSNs, named with NO value: the postgres registrar injects them into .env
+# (`fabrik apply`), and a missing value fails loudly rather than falling back
+# (core/35-security-auth.md: DSNs get no default).
+_ENV_EXAMPLE_DSN_BLOCK = (
+    "# Database — both DSNs are injected into .env by the postgres registrar (`fabrik apply`).\n"
+    "# Neither has a default; a missing value fails loudly (core/35-security-auth.md).\n"
+    "#   DATABASE_URL        the app's runtime role (<db>_app, not the owner — D-390)\n"
+    "#   DATABASE_URL_OWNER  the database OWNER: db/schema.sql, migrations and the\n"
+    "#                       audit-log retention/verification jobs — nothing else\n"
+    "DATABASE_URL=\n"
+    "DATABASE_URL_OWNER=\n"
+)
+_ENV_DSN_LINE = re.compile(r"^#?[ \t]*DATABASE_URL(_OWNER)?=.*$\n?", re.MULTILINE)
+
+
+def _name_dsns_in_env_example(env_example: Path) -> None:
+    """Make ``.env.example`` name ``DATABASE_URL`` and ``DATABASE_URL_OWNER`` (no values).
+
+    A file that already names both uncommented is left as it is; a template that
+    carries both as empty commented lines (mobile-app) has them uncommented in place;
+    otherwise every earlier (commented or baked) assignment of either is dropped and the
+    block is appended, so the file never carries two answers for one variable."""
+    text = env_example.read_text() if env_example.exists() else ""
+    names = set(re.findall(r"^(DATABASE_URL(?:_OWNER)?)=", text, flags=re.MULTILINE))
+    if names == {"DATABASE_URL", "DATABASE_URL_OWNER"}:
+        return
+    empty_commented = re.compile(r"^#[ \t]*(DATABASE_URL(?:_OWNER)?)=[ \t]*$", re.MULTILINE)
+    if not names and len(set(empty_commented.findall(text))) == 2:
+        env_example.write_text(empty_commented.sub(r"\1=", text))
+        return
+    text = _ENV_DSN_LINE.sub("", text).rstrip("\n")
+    env_example.write_text((text + "\n\n" if text else "") + _ENV_EXAMPLE_DSN_BLOCK)
+
+
+# The audit module's runtime deps: psycopg for the jobs (verify_chain and the retention
+# SQL take a sync DB-API connection), pydantic-settings for the DATABASE_URL_OWNER field,
+# uuid-utils for the module's time-sortable ids (it falls back to uuid4 without it).
+_AUDIT_REQUIREMENTS = ("psycopg[binary]>=3.1", "pydantic-settings>=2.2", "uuid-utils>=0.10")
+
+
+def _add_audit_requirements(requirements: Path) -> None:
+    text = requirements.read_text() if requirements.exists() else ""
+    present = {re.split(r"[<>=\[ ]", ln.strip(), maxsplit=1)[0] for ln in text.splitlines()}
+    missing = [req for req in _AUDIT_REQUIREMENTS if re.split(r"[<>=\[]", req)[0] not in present]
+    if missing:
+        body = text if text.endswith("\n") or not text else text + "\n"
+        requirements.write_text(body + "\n".join(missing) + "\n")
+
+
+_AUDIT_JOBS_PY = '''"""Scheduled audit-log jobs for __NAME__ — retention and the weekly chain verification.
+
+core/app-audit-log.md items 4 and 5, as two entry points:
+  * ``run_retention()`` — the vendored ``libs/audit_log/data_retention.sql``, daily.
+  * ``run_verify()``    — ``verify_chain(strict=True)`` from the cursor persisted in
+    ``audit_jobs_state``, plus the ownership and privilege checks (``has_table_privilege``),
+    weekly. A break or a privilege is logged as ``audit_jobs: incident`` — never
+    ``strict=False``, which would silence a real fork.
+``run_due()`` runs whichever is due; ``python -m <this module>`` loops over it (the
+scheduled companion service), ``python -m <this module> retention|verify`` runs one now.
+
+Both connect as the database OWNER through ``DATABASE_URL_OWNER`` (a Settings field
+with no default, core/25-data-postgres.md). Absent — first boot, before the registrar
+injects it — every entry point logs ``audit_jobs: not_configured`` and returns, and the
+loop idles instead of crashing. This module never applies schema (12-factor XII):
+``audit_jobs_state`` comes from db/schema.sql.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import sys
+import time
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+import psycopg
+from pydantic import Field, ValidationError
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# The vendored module (libs/audit_log/audit_log.py, vendor-don't-import) is imported by
+# its own directory, so no other ``libs`` package on the path can shadow it.
+_BACKEND_ROOT = Path(__file__).resolve().parents[__DEPTH__]
+_VENDORED = _BACKEND_ROOT / "libs" / "audit_log"
+if str(_VENDORED) not in sys.path:
+    sys.path.insert(0, str(_VENDORED))
+import audit_log as al  # noqa: E402
+
+log = logging.getLogger("audit_jobs")
+
+RETENTION_EVERY = timedelta(days=1)
+VERIFY_EVERY = timedelta(days=7)
+TICK_SEC = int(os.getenv("AUDIT_JOBS_TICK_SEC", "3600"))
+RETENTION_SQL = _VENDORED / "data_retention.sql"
+
+_CURSOR_SQL = "SELECT verified_through FROM audit_jobs_state"
+
+# Roles that must never hold UPDATE/DELETE/TRUNCATE on audit_log: the app, the watchdog's
+# rw role and the Pattern A group roles — each checked only where it exists.
+_FORBIDDEN_PRIVILEGES_SQL = """
+SELECT r.rolname, p.priv
+FROM pg_roles r
+CROSS JOIN unnest(ARRAY['UPDATE', 'DELETE', 'TRUNCATE']) AS p(priv)
+WHERE r.rolname = ANY (ARRAY[
+        current_database() || '_app', current_database() || '_wd_rw',
+        'anon', 'authenticated', 'service_role'])
+  AND has_table_privilege(r.oid, 'audit_log', p.priv)
+ORDER BY 1, 2
+"""
+
+
+class AuditJobsSettings(BaseSettings):
+    """The owner DSN, read from ``DATABASE_URL_OWNER`` — no default, by rule."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    database_url_owner: str = Field(min_length=1)
+
+
+def _owner_dsn() -> str | None:
+    try:
+        return AuditJobsSettings().database_url_owner  # type: ignore[call-arg]
+    except ValidationError:
+        log.warning("audit_jobs: not_configured (DATABASE_URL_OWNER is not set)")
+        return None
+
+
+def _state_ready(conn: psycopg.Connection) -> bool:
+    row = conn.execute("SELECT to_regclass('audit_jobs_state') IS NOT NULL").fetchone()
+    if not (row and row[0]):
+        log.warning("audit_jobs: schema_not_applied (apply db/schema.sql as the owner)")
+        return False
+    return True
+
+
+def due_jobs(
+    last_retention: datetime | None, last_verify: datetime | None, now: datetime
+) -> list[str]:
+    """Which jobs are due at ``now``, given when each last ran (None = never)."""
+    due = []
+    if last_retention is None or now - last_retention >= RETENTION_EVERY:
+        due.append("retention")
+    if last_verify is None or now - last_verify >= VERIFY_EVERY:
+        due.append("verify")
+    return due
+
+
+def run_retention() -> bool:
+    """Delete expired rows (the vendored retention SQL). False when not configured."""
+    dsn = _owner_dsn()
+    if dsn is None:
+        return False
+    with psycopg.connect(dsn) as conn:
+        if not _state_ready(conn):
+            return False
+        with conn.transaction():
+            cur = conn.execute(RETENTION_SQL.read_text())
+            conn.execute("UPDATE audit_jobs_state SET last_retention_at = now()")
+        log.info("audit_jobs: retention_done deleted=%s", max(cur.rowcount, 0))
+    return True
+
+
+def run_verify() -> list[str]:
+    """Verify the chain since the cursor and the table's owner and privileges.
+
+    Returns the incidents (empty = clean). The cursor advances to the verified tip only
+    when the chain is clean, so a break is re-reported until it is resolved."""
+    dsn = _owner_dsn()
+    if dsn is None:
+        return []
+    started = time.monotonic()
+    incidents: list[str] = []
+    with psycopg.connect(dsn) as conn:
+        if not _state_ready(conn):
+            return []
+        with conn.transaction():
+            since = conn.execute(_CURSOR_SQL).fetchone()
+            cursor = since[0] if since else None
+            tip_row = conn.execute("SELECT max(ts) FROM audit_log").fetchone()
+            tip = tip_row[0] if tip_row else None
+            breaks = []
+            if tip is not None:
+                breaks = al.verify_chain(
+                    conn,
+                    since=cursor,
+                    until=tip,
+                    strict=True,
+                )
+            for b in breaks:
+                incidents.append(f"chain_break {b.reason} row={b.row_id} ts={b.ts}")
+            owned = conn.execute(
+                "SELECT pg_get_userbyid(relowner) = current_user FROM pg_class "
+                "WHERE oid = to_regclass('audit_log')"
+            ).fetchone()
+            if not (owned and owned[0]):
+                incidents.append("audit_log is not owned by the owner role")
+            incidents += [
+                f"{role} holds {priv} on audit_log"
+                for role, priv in conn.execute(_FORBIDDEN_PRIVILEGES_SQL).fetchall()
+            ]
+            advance = tip if tip is not None and not breaks else cursor
+            conn.execute(
+                "UPDATE audit_jobs_state SET verified_through = %s, last_verify_at = now()",
+                (advance,),
+            )
+    for incident in incidents:
+        log.error("audit_jobs: incident %s", incident)
+    elapsed = time.monotonic() - started
+    if elapsed > VERIFY_EVERY.total_seconds():
+        log.error("audit_jobs: incident verify ran %.0fs, past its interval", elapsed)
+    log.info(
+        "audit_jobs: verify_done incidents=%d since=%s until=%s",
+        len(incidents),
+        cursor,
+        tip,
+    )
+    return incidents
+
+
+def run_due(now: datetime | None = None) -> list[str]:
+    """Run every job that is due; return the ones that ran."""
+    dsn = _owner_dsn()
+    if dsn is None:
+        return []
+    with psycopg.connect(dsn) as conn:
+        if not _state_ready(conn):
+            return []
+        row = conn.execute(
+            "SELECT last_retention_at, last_verify_at FROM audit_jobs_state"
+        ).fetchone()
+    last_retention, last_verify = row if row else (None, None)
+    due = due_jobs(last_retention, last_verify, now or datetime.now(UTC))
+    if "retention" in due:
+        run_retention()
+    if "verify" in due:
+        run_verify()
+    return due
+
+
+def main(argv: list[str] | None = None) -> int:
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO, format="%(message)s")
+    args = sys.argv[1:] if argv is None else argv
+    if args == ["retention"]:
+        run_retention()
+        return 0
+    if args == ["verify"]:
+        return 1 if run_verify() else 0
+    while True:  # the scheduled companion: idle-safe, never exits on a job error
+        try:
+            run_due()
+        except Exception as exc:  # noqa: BLE001 — a DB blip must not kill the scheduler
+            log.error("audit_jobs: run_failed %s", exc)
+        time.sleep(TICK_SEC)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+'''
+
+
+_SAAS_AUDIT_PY = '''"""The hash-chained audit-log writer for __NAME__ (async — core/app-audit-log.md).
+
+``record_event`` of the vendored module takes a SYNC connection; this app is async, so
+it writes through the module's public transport helpers exactly as the pack's async
+recipe says (§ Concurrency): in ONE transaction — ``pg_advisory_xact_lock`` on the
+module's ``AUDIT_CHAIN_LOCK_KEY``, the tip read as ``_select_tip`` does, the ``ts``
+clamp strictly past the tip, ``str()`` of ``target_*``, ``canonical_payload`` +
+``sha256_hex``, then the INSERT — then commit. The app role holds INSERT + SELECT on
+``audit_log`` only; the advisory lock needs no table privilege.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import sys
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+# The vendored module (libs/audit_log/audit_log.py, vendor-don't-import) is imported by
+# its own directory, so no other ``libs`` package on the path can shadow it.
+_VENDORED = Path(__file__).resolve().parents[2] / "libs" / "audit_log"
+if str(_VENDORED) not in sys.path:
+    sys.path.insert(0, str(_VENDORED))
+import audit_log as al  # noqa: E402
+
+log = logging.getLogger("__NAME__.audit")
+
+# The chain tip, exactly as the module's ``_select_tip`` reads it.
+_TIP = "SELECT current_hash, ts FROM audit_log ORDER BY ts DESC, id DESC LIMIT 1"
+_TIP_SQL = text(_TIP)
+
+
+async def record_event(
+    sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    actor: str,
+    action: str,
+    target_type: str | None = None,
+    target_id: object | None = None,
+    details: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Append one event to the chain in its own committed transaction; return the row.
+
+    Raises on any failure (fail loud — core/app-audit-log.md § Anti-Patterns)."""
+    al.validate_actor(actor)
+    al.validate_action(action)
+    details = dict(details) if details else {}
+    # TEXT columns: hash exactly what verify_chain reads back.
+    target_type = None if target_type is None else str(target_type)
+    target_id = None if target_id is None else str(target_id)
+
+    async with sessionmaker() as session, session.begin():
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(:key)"), {"key": al.AUDIT_CHAIN_LOCK_KEY}
+        )
+        tip = (await session.execute(_TIP_SQL)).first()
+        prev_hash, tip_ts = (tip[0], tip[1]) if tip else (None, None)
+        event_id = al.uuid7()  # the module's own time-sortable id (uuid4 fallback)
+        ts = datetime.now(UTC)
+        if tip_ts is not None and ts <= tip_ts:
+            ts = tip_ts + timedelta(microseconds=1)  # TIMESTAMPTZ resolution
+        current_hash = al.sha256_hex(
+            al.canonical_payload(
+                id_=str(event_id),
+                ts=ts,
+                actor=actor,
+                action=action,
+                target_type=target_type,
+                target_id=target_id,
+                details=details,
+                prev_hash=prev_hash,
+            )
+        )
+        await session.execute(
+            text(
+                "INSERT INTO audit_log (id, ts, actor, action, target_type, target_id, "
+                "details, prev_hash, current_hash) VALUES (:id, :ts, :actor, :action, "
+                ":target_type, :target_id, CAST(:details AS jsonb), :prev_hash, :current_hash)"
+            ),
+            {
+                "id": event_id,
+                "ts": ts,
+                "actor": actor,
+                "action": action,
+                "target_type": target_type,
+                "target_id": target_id,
+                "details": json.dumps(details, sort_keys=True, separators=(",", ":")),
+                "prev_hash": prev_hash,
+                "current_hash": current_hash,
+            },
+        )
+    return {
+        "id": str(event_id),
+        "ts": ts,
+        "actor": actor,
+        "action": action,
+        "target_type": target_type,
+        "target_id": target_id,
+        "details": details,
+        "prev_hash": prev_hash,
+        "current_hash": current_hash,
+    }
+
+
+class ChainAuditLogger:
+    """The ``fastapi_user_auth`` ``AuditLogger`` for this app: every IdP event lands in
+    the chain. The IdP swallows a failing hook, so a failure is logged loudly here
+    before it is re-raised — a dropped audit row is never silent."""
+
+    def __init__(self, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
+        self._sessionmaker = sessionmaker
+
+    async def log(
+        self,
+        *,
+        actor: str,
+        action: str,
+        target_type: str | None = None,
+        target_id: object | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        try:
+            await record_event(
+                self._sessionmaker,
+                actor=actor,
+                action=action,
+                target_type=target_type,
+                target_id=target_id,
+                details=details,
+            )
+        except Exception:
+            log.exception("audit_write_failed action=%s actor=%s", action, actor)
+            raise
+'''
+
+
+# Where each Python backend's pieces land: (backend dir, the import root inside it).
+# The jobs module path is AUDIT_JOBS_MODULES[type] resolved under the import root, so
+# the file the scaffolder writes is the module the spec's companion command runs.
+_AUDIT_PY_BACKENDS: dict[str, tuple[str, str]] = {
+    "python-api": ("", "src"),
+    "python-api-gpu": ("", "src"),
+    "file-worker": ("", ""),
+    "chrome-extension": ("server", "src"),
+    "mobile-app": ("server", "src"),
+}
+
+
+def _write_audit_jobs(backend_dir: Path, rel_module_file: Path, name: str) -> None:
+    """Write the jobs module at ``backend_dir / rel_module_file``; its ``libs/`` lookup
+    climbs exactly as many levels as the file sits below the backend root."""
+    dest = backend_dir / rel_module_file
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    depth = len(rel_module_file.parts) - 1
+    dest.write_text(_AUDIT_JOBS_PY.replace("__NAME__", name).replace("__DEPTH__", str(depth)))
+
+
+def _emit_python_audit_log(project_dir: Path, name: str, project_type: str) -> None:
+    """The whole audit-log kit for a non-saas Python backend WITH a database."""
+    from fabrik.spec_generator import AUDIT_JOBS_MODULES
+
+    backend_rel, import_root = _AUDIT_PY_BACKENDS[project_type]
+    backend_dir = project_dir / backend_rel if backend_rel else project_dir
+    _vendor_app_audit_log(backend_dir)
+    _fold_audit_log_into_schema(project_dir / "db" / "schema.sql")
+    module = AUDIT_JOBS_MODULES[project_type].format(pkg=_get_package_name(name))
+    rel = Path(import_root, *module.split(".")).with_suffix(".py")
+    _write_audit_jobs(backend_dir, rel, name)
+    _name_dsns_in_env_example(project_dir / ".env.example")
+    _add_audit_requirements(project_dir / "requirements.txt")
+
+
+def _emit_node_audit_log(project_dir: Path) -> None:
+    """node-api / file-api WITH a database: the table and revokes only (no Python
+    module; the Node writer waits on fabrik-lib's port — core/app-audit-log.md:50-52)."""
+    _fold_audit_log_into_schema(project_dir / "db" / "schema.sql")
+    _name_dsns_in_env_example(project_dir / ".env.example")
 
 
 def _scaffold_saas_skeleton(
@@ -3702,6 +4308,10 @@ process.on('SIGTERM', () => {
         healthcheck_path="/api/health",
     )
 
+    # With a database (--db): the audit table and its revokes (no Node writer yet).
+    if kwargs.get("use_database", False):
+        _emit_node_audit_log(project_dir)
+
 
 def _scaffold_file_api(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
     """Create File API-specific project structure."""
@@ -3841,6 +4451,10 @@ SERVICE_NAME={name}
         healthcheck_path="/api/health",
     )
 
+    # With a database (--db): the audit table and its revokes (no Node writer yet).
+    if kwargs.get("use_database", False):
+        _emit_node_audit_log(project_dir)
+
 
 def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
     """Create File Worker-specific project structure."""
@@ -3975,6 +4589,10 @@ SERVICE_NAME={name}
         process_pattern="python worker/main.py",
         port=8000,  # unused but required by signature
     )
+
+    # h) With a database (--db): the audit-log kit (module, schema fold, jobs, DSNs).
+    if kwargs.get("use_database", False):
+        _emit_python_audit_log(project_dir, name, "file-worker")
 
 
 def _write_placeholder_png(
@@ -5039,8 +5657,9 @@ SERVICE_NAME={name}
             f"SERVICE_NAME={name}\n"
             f"PORT=8000\n"
             f"NODE_ENV=development\n\n"
-            f"# Native PostgreSQL on WSL\n"
+            f"# Native PostgreSQL on WSL (one local role serves both DSNs in dev)\n"
             f"DATABASE_URL=postgresql://postgres@localhost:5432/{db_name_dev}\n"
+            f"DATABASE_URL_OWNER=postgresql://postgres@localhost:5432/{db_name_dev}\n"
         )
 
         # Auto-create development database
@@ -5082,14 +5701,9 @@ SERVICE_NAME={name}
             click.echo("⚠️  Database auto-creation failed. Create manually:")
             click.echo(f"    sudo -u postgres psql -c 'CREATE DATABASE {db_name_dev};'")
 
-        # Update .env.example to add DATABASE_URL
-        env_example_path = project_dir / ".env.example"
-        with open(env_example_path, "a") as f:
-            f.write(
-                f"\n# Database (managed by Fabrik orchestrator on VPS via postgres registrar)\n"
-                f"# Set via project .env (managed by `fabrik apply`): POSTGRES_PASSWORD\n"
-                f"DATABASE_URL=postgresql://postgres:${{POSTGRES_PASSWORD}}@postgres-main:5432/{name.replace('-', '_')}\n"
-            )
+        # .env.example names both DSNs (no value — the registrar injects them), and the
+        # server/ backend gets the audit-log kit (module, schema fold, jobs, requirements).
+        _emit_python_audit_log(project_dir, name, "chrome-extension")
 
     # 7. Create Python virtual environment and install dependencies
     venv_path = project_dir / ".venv"
@@ -5285,6 +5899,10 @@ CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
         "/assets/\n"
         "*.log\n"
     )
+
+    # 9. With a database (--db), the server/ backend gets the audit-log kit (D-390).
+    if kwargs.get("use_database", False):
+        _emit_python_audit_log(project_dir, name, "mobile-app")
 
 
 def _scaffold_desktop_app(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
