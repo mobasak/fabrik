@@ -62,7 +62,7 @@ Before generating any plan, Traycer runs **6 mandatory pre-flight checks** ([AGE
 2. **BUSINESS_MODEL.md** — duplicate / similar project check. State the finding.
 3. **Fabrik Microservices table** — use existing internal APIs before planning new logic.
 4. **Hardware audit** — confirm all Docker images support `linux/amd64`.
-5. **Design System** — for any UI surface, read `.windsurf/rules/core/ocoron-design-system.md` before generating any spec or copy.
+5. **Design System** — for any UI surface, read `.windsurf/rules/core/design-system-template.md` and the project's `docs/design-system.md` before generating any spec or copy (`ocoron-design-system.md` only when the project declares the Ocoron house identity).
 6. **External Knowledge Verification** — for 3rd-party APIs (Paddle, Traefik, Authelia, Supabase, Cloudflare, n8n — Stripe NOT available to TR entities), verify the current contract against live docs before writing the ticket; cite the URL in the ticket's `References:` field. After 3 search misses → mark ticket `BLOCKED: external-research-needed`.
 
 Then Traycer applies the **12 planning constraints**: solo dev, x86_64 only, budget-conscious, reuse existing microservices, prebuilt containers, port conflicts, `fabrik apply` deploy model (SSH + Docker Compose), no Alpine, complete dependent modules first, DNS via site-provisioner, scaffold immutability (no reorganization), surface state conflicts explicitly.

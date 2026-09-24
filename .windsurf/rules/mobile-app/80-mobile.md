@@ -380,7 +380,8 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 - `45-testing-strategy.md` — Maestro E2E, `@testing-library/react-native` + Jest
 - `55-observability.md` — backend structlog + GlitchTip; client Sentry RN SDK
 - `58-resilience.md` — backend external call resilience (timeout/retry/CB)
-- `ocoron-design-system.md` — visual tokens, motion, accessibility, states
+- `design-system-template.md` — token slots, motion, accessibility, states
+- `ocoron-design-system.md` — the house brand's token values, for a project that declares it
 - `00-domain-mobile-app.md` — planning-level decisions (17 dimensions, attribution stack, distribution)
 
 ---
@@ -427,4 +428,4 @@ change** (debounce ≤1s + flush on blur/hide/background) to MMKV/AsyncStorage (
 silent** on every return path (refresh, Back, reopened tab/app, crash, days-old session) — the
 user continues down to the last letter typed. The draft clears on exactly ONE event: successful
 creation/submission of the entity (or explicit user discard). Canonical detail:
-`core/ocoron-design-system.md` § Save Behavior.
+`core/design-system-template.md` § Save Behavior.

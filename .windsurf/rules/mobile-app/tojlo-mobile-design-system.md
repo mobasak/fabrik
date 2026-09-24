@@ -415,4 +415,4 @@ change** (debounce ≤1s + flush on blur/hide/background) to MMKV/AsyncStorage (
 silent** on every return path (refresh, Back, reopened tab/app, crash, days-old session) — the
 user continues down to the last letter typed. The draft clears on exactly ONE event: successful
 creation/submission of the entity (or explicit user discard). Canonical detail:
-`core/ocoron-design-system.md` § Save Behavior.
+`core/design-system-template.md` § Save Behavior.

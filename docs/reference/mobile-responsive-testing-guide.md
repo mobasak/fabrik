@@ -4,13 +4,13 @@
 
 **Minimum viewport:** 375px (iPhone SE in Chrome DevTools)
 
-**Canonical source:** All responsive rules (RWD1–RWD10), breakpoints, component behavior tables, fix patterns, testing procedures, and the agent directive live here. Rule packs (`ocoron-design-system.md`, `60-saas-ui.md`, `tojlo-design-system.md`) reference this document for responsive testing — do not duplicate testing procedures in those files.
+**Canonical source:** All responsive rules (RWD1–RWD10), breakpoints, component behavior tables, fix patterns, testing procedures, and the agent directive live here. Rule packs (`design-system-template.md`, `60-saas-ui.md`, `tojlo-design-system.md`) reference this document for responsive testing — do not duplicate testing procedures in those files.
 
 ---
 
 ## Responsive Rules (RWD1–RWD10)
 
-Canonical rules from `ocoron-design-system.md` § Responsive Layout. Reproduced here so this doc is self-contained.
+Canonical rules from `design-system-template.md` § Responsive Layout. Reproduced here so this doc is self-contained.
 
 | Rule | Requirement |
 |---|---|
@@ -69,7 +69,7 @@ Never guess what's broken. Take automated screenshots at every target viewport, 
 | **1024px** | iPad landscape / small laptop | — (set manually) | Full sidebar threshold |
 | **1440px** | Standard desktop | — (set manually) | Default desktop |
 
-These match `ocoron-design-system.md` § Responsive Testing Checklist.
+These match `design-system-template.md` § Responsive Layout → Responsive Testing.
 
 ---
 

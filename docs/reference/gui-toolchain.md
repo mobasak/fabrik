@@ -4,7 +4,7 @@
 
 The question this answers: *what MCP / skill / tool / library can we integrate into Claude Code so an agent reliably ships professional GUIs?* The answer is not one tool — it is a **four-layer stack**, almost entirely free and self-hostable. The single highest-leverage piece is the **visual feedback loop**: an agent that opens its own running UI, screenshots it, reads the accessibility tree, and self-verifies. Without it an agent builds blind; with it, GUI quality becomes *checkable* instead of hopeful.
 
-This composes with — it does not replace — our existing design systems (`ocoron-design-system.md` / `tojlo-design-system.md`), `saas/60-saas-ui.md`, and the `/fabrik-ui-design` + `/fabrik-data-contract` contracts.
+This composes with — it does not replace — our existing design systems (`design-system-template.md` for the structure; `ocoron-design-system.md` / `tojlo-design-system.md` as declared house brands), `saas/60-saas-ui.md`, and the `/fabrik-ui-design` + `/fabrik-data-contract` contracts.
 
 ---
 

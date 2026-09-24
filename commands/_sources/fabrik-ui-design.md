@@ -57,15 +57,17 @@ one of two ways and **state which**:
 - **ADOPT (ONLY on an explicit house-identity declaration — an Ocoron / Tojlo-family product, stated
   in the `docs/design-system.md` header as "House identity: <x> — chosen, not defaulted").** The project uses an existing fabrik design
   system — `.windsurf/rules/core/ocoron-design-system.md` (parent) or `.windsurf/rules/core/tojlo-design-system.md`,
-  plus the mobile variants for RN. **Reference it as the source of truth; do NOT recreate it.** Record: which
+  plus the mobile variants for RN; the structure is `.windsurf/rules/core/design-system-template.md` either way. **Reference them as the source of truth; do NOT recreate them.** Record: which
   system, any project-specific token overrides (accent, logo), and — when the project uses decorative/ambient
-  motion — which copy-and-own sources it draws on (e.g. reactbits.dev), per `ocoron-design-system.md`
+  motion — which copy-and-own sources it draws on (e.g. reactbits.dev), per `design-system-template.md`
   § Motion Language → "Decorative motion (carve-out)" (do not restate the rule here). Nothing more.
 - **CREATE (a new brand / no fitting system).** First route the BRAND itself through
   brand-identiy-creator (the ladder's step 2 — its kit ships dual-mode tokens.css/tokens.json,
-  logos, typography, voice); what you author here is the SaaS-APP EXTENSION on top of those brand
-  tokens. Author it **lean** — enough to design and
-  build against, NOT a 1,850-line clone. **Size ceiling: 25,000 tokens (about 1,100 lines) per contract file — the Read tool's page cap; above it every reader sees a PARTIAL view. Split history (retired screens, superseded versions) into `docs/ui-design-history.md` and keep the live contract under the ceiling (01M25G1BN, 01M2803TM).** Ground its *structure* in `ocoron-design-system.md` (the STRUCTURAL template only — spacing/density/motion patterns; the brand tokens come from BIC),
+  logos, typography, voice). **When the kit carries `For-Your-Developer/design-system.md`, copy it and CHECK it
+  against `design-system-template.md` § The design-system.md contract** — every section present, every colour
+  slot valued in both modes, the § Contrast table recomputed with the WCAG formula (never trusted as stated);
+  author only what it lacks, on top of those brand tokens. Author it **lean** — enough to design and
+  build against, NOT a 1,850-line clone. **Size ceiling: 25,000 tokens (about 1,100 lines) per contract file — the Read tool's page cap; above it every reader sees a PARTIAL view. Split history (retired screens, superseded versions) into `docs/ui-design-history.md` and keep the live contract under the ceiling (01M25G1BN, 01M2803TM).** Its shape is `design-system-template.md` § The design-system.md contract, and the structure is inherited from that template by reference, never copied (the brand tokens come from BIC),
   but keep it minimal: **color/surface/text tokens · typography (heading/body/mono) · spacing scale · motion
   tokens · the core component list (Button, Input, Card, Table, Modal, Toast, …) · the enriched states every
   component handles (loading/empty/error/permission-denied/success/partial/disabled) · WCAG 2.2 AA baseline ·

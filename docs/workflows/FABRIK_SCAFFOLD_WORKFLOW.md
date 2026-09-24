@@ -468,7 +468,8 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `.windsurf/rules/core/85-payments-billing.md` | Copied from Fabrik | Payments & billing patterns |
 | `.windsurf/rules/saas/87-abuse-detection.md` | Copied from Fabrik | SaaS anti-fraud playbook |
 | `.windsurf/rules/saas/95-multi-tenant-saas.md` | Copied from Fabrik | Multi-tenant SaaS patterns |
-| `.windsurf/rules/core/ocoron-design-system.md` | Copied from Fabrik | Ocoron Design System v2 (visual + verbal identity) |
+| `.windsurf/rules/core/design-system-template.md` | Copied from Fabrik | Design-system structure + token slots every UI project inherits |
+| `.windsurf/rules/core/ocoron-design-system.md` | Copied from Fabrik | The Ocoron house brand (visual + verbal) — used only when a project declares it |
 | **Templates** | | |
 | `templates/docs/*.md` | Copied from Fabrik | Documentation templates (5 files) |
 | `templates/saas-skeleton/` | Copied from Fabrik | Full Next.js SaaS starter |

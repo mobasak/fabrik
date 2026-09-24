@@ -64,8 +64,8 @@ Operate on the **current project** (cwd) — `$ARGUMENTS`, if given, is the spec
   `project.yaml::type` · the scaffold's UI/surface pack when UI-bearing (`saas/60-saas-ui.md` ·
   `chrome-ext/70-chrome-ext.md` · `mobile-app/80-mobile.md` · `desktop-app/72-desktop.md`) · any domain pack
   the work touches (auth/signup → `core/35-security-auth.md`; payments → `core/85-payments-billing.md`;
-  multi-tenant → `saas/95-multi-tenant-saas.md`) · `ocoron-design-system.md` § Verbal Identity + § States
-  (UI types). State which packs were read.
+  multi-tenant → `saas/95-multi-tenant-saas.md`) · `design-system-template.md` § States (Enriched) + the resolved brand's voice (`docs/design-system.md` § Voice;
+  ocoron: `ocoron-design-system.md` § Verbal Identity) (UI types). State which packs were read.
 - **Mode:** **new** (spec-driven) · **backfill** (walk the SHIPPED product's real journeys into the
   contract, grandfathering gaps with a `⚠` note) · **fresh** (no spec yet → minimal stub, say so).
   Absence of a flows contract in an already-shipped project is **not a defect** — this stage binds work

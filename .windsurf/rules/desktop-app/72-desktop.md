@@ -13,7 +13,7 @@ trigger: glob
 
 **Activation:** Glob `**/electron/**`, `**/main/**`, `**/renderer/**`, `**/preload*`, `**/electron-builder*`, `**/forge.config*`, `main.{js,ts}`, `preload.{js,ts}`
 **Purpose:** Production patterns for Electron 30+ desktop applications, both standalone and as frontend to a Fabrik-deployed backend.
-**Scope:** `desktop-app` scaffold. Composes with `12-node.md` (main-process runtime), `20-typescript.md` (renderer TS), `35-security-auth.md` (OAuth/M2M tokens), `55-observability.md` (Sentry/GlitchTip in main + renderer), `ocoron-design-system.md`.
+**Scope:** `desktop-app` scaffold. Composes with `12-node.md` (main-process runtime), `20-typescript.md` (renderer TS), `35-security-auth.md` (OAuth/M2M tokens), `55-observability.md` (Sentry/GlitchTip in main + renderer), `design-system-template.md`.
 **Research basis:** [`docs/reference/research/Electron Desktop App Best Practices.md`](../../../docs/reference/research/Electron%20Desktop%20App%20Best%20Practices.md)
 
 ---
@@ -556,7 +556,8 @@ Testing Trophy + Behavior Contract (per `45-testing-strategy.md`) — one integr
 - `core/55-observability.md` — `@sentry/electron` for both processes; GlitchTip DSN
 - `core/58-resilience.md` — sync queue retry + circuit breaker patterns
 - `core/45-testing-strategy.md` — Testing Trophy + Behavior Contract (integration/E2E primary per behavior; unit via vitest only for pure algorithms)
-- `core/ocoron-design-system.md` — color tokens, typography, spacing for the React UI
+- `core/design-system-template.md` — token slots, spacing, components and states for the React UI
+- `core/ocoron-design-system.md` — color and typography values, when the project declares the house identity
 - `core/cost-budget.md` — local LLM via Ollama as alternative to OpenRouter API spend
 - Epic decomposition + the standalone-vs-connected mode fork: **§ Epic Decomposition** below (promoted into this pack 2026-07-13; `domain-modules/` is deleted).
 
@@ -615,4 +616,4 @@ change** (debounce ≤1s + flush on blur/hide/background) to the local SQLite st
 silent** on every return path (refresh, Back, reopened tab/app, crash, days-old session) — the
 user continues down to the last letter typed. The draft clears on exactly ONE event: successful
 creation/submission of the entity (or explicit user discard). Canonical detail:
-`core/ocoron-design-system.md` § Save Behavior.
+`core/design-system-template.md` § Save Behavior.

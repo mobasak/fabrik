@@ -258,7 +258,7 @@ Extension surfaces (popup / options / side-panel / content-script overlay) are *
 
 ## Ocoron Design System (Compact)
 
-Chrome extension UI follows `ocoron-design-system.md` with compact adaptations:
+Chrome extension UI follows `design-system-template.md` (brand values from the project's `docs/design-system.md`) with compact adaptations:
 
 - Tighter spacing: `--space-md: 12px`, `--space-sm: 6px`.
 - Font size floor: 11px. No text smaller than this on any surface.
@@ -315,7 +315,8 @@ Chrome extension UI follows `ocoron-design-system.md` with compact adaptations:
 - `35-security-auth.md` — auth patterns (Pattern A/B), CORS for `chrome-extension://` origins
 - `55-observability.md` — backend logging + extension telemetry (Sentry, buffer-flush)
 - `58-resilience.md` — backend external call resilience
-- `ocoron-design-system.md` — visual tokens, component patterns, motion, accessibility
+- `design-system-template.md` — token slots, component patterns, motion, accessibility
+- `ocoron-design-system.md` — the house brand's values, for a project that declares it
 
 ---
 
@@ -356,4 +357,4 @@ change** (debounce ≤1s + flush on blur/hide/background) to `chrome.storage.loc
 silent** on every return path (refresh, Back, reopened tab/app, crash, days-old session) — the
 user continues down to the last letter typed. The draft clears on exactly ONE event: successful
 creation/submission of the entity (or explicit user discard). Canonical detail:
-`core/ocoron-design-system.md` § Save Behavior.
+`core/design-system-template.md` § Save Behavior.

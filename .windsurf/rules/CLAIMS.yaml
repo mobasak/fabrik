@@ -2004,3 +2004,67 @@ claims:
     verify: "https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html (WebFetch + WebSearch, 2026-09-24; ledger pr-13, op-01)"
     window_days: 365
     last_verified: 2026-09-24
+
+  - id: wcag22-current-and-contrast
+    pack: core/design-system-template.md
+    kind: standard
+    claim: "WCAG 2.2 is the current W3C Recommendation (WCAG 3 is a Working Draft; APCA is not normative); AA contrast is 4.5:1 for text (3:1 for text at least 18pt or 14pt bold) and 3:1 for UI components and graphical objects (SC 1.4.3, 1.4.11)"
+    verify: "https://www.w3.org/TR/WCAG22/ ; https://www.w3.org/TR/wcag-3.0/ (WebFetch + exa + brave, 2026-09-24; ledger wc-01, wc-03..wc-05, wc-07, wc-08)"
+    window_days: 365
+    last_verified: 2026-09-24
+
+  - id: wcag-relative-luminance-threshold
+    pack: core/design-system-template.md
+    kind: standard
+    claim: "The WCAG relative-luminance formula linearises sRGB with threshold 0.04045 (corrected from 0.03928 in May 2021; the change has no practical effect)"
+    verify: "https://www.w3.org/TR/WCAG21/relative-luminance.html ; https://www.w3.org/WAI/GL/wiki/Relative_luminance (exa + brave, 2026-09-24; ledger wc-09, wc-10)"
+    window_days: 365
+    last_verified: 2026-09-24
+
+  - id: wcag22-target-size-and-focus
+    pack: core/design-system-template.md
+    kind: standard
+    claim: "WCAG 2.2 target size is 24x24 CSS px at AA (SC 2.5.8) and 44x44 at AAA (SC 2.5.5); SC 2.4.11 (AA) forbids a focused component being entirely hidden by author content"
+    verify: "https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html ; https://www.w3.org/WAI/WCAG22/Understanding/focus-not-obscured-minimum.html (exa + WebFetch, 2026-09-24; ledger wc-11..wc-13)"
+    window_days: 365
+    last_verified: 2026-09-24
+
+  - id: google-mobile-friendly-test-retired
+    pack: core/design-system-template.md
+    kind: deprecation
+    claim: "Google retired the Mobile-Friendly Test and its API in December 2023; Lighthouse / PageSpeed Insights is the mobile audit"
+    verify: "https://developers.google.com/search/blog/2017/01/introducing-mobile-friendly-test-api (brave + WebSearch, 2026-09-24; ledger wc-17, wc-18)"
+    window_days: 365
+    last_verified: 2026-09-24
+
+  - id: cldr-locale-formats
+    pack: core/design-system-template.md
+    kind: standard
+    claim: "CLDR (as Intl renders it): tr puts the lira symbol first (₺1.234,50) and the percent sign first (%42,7); fa defaults to Persian digits and the Solar Hijri calendar; plain ar and ar-AE default to Latin digits while ar-EG and ar-SA use Arabic-Indic digits; ar uses a 12-hour clock; ru groups thousands with U+00A0"
+    verify: "https://raw.githubusercontent.com/unicode-org/cldr-json/main/cldr-json/cldr-numbers-full/main/<locale>/numbers.json (firecrawl + exa + WebFetch) and Node Intl on ICU with CLDR 48, 2026-09-24; ledger lf-01..lf-12, ic-01..ic-06"
+    window_days: 180
+    last_verified: 2026-09-24
+
+  - id: lucide-stroke-and-shadcn-icons
+    pack: core/design-system-template.md
+    kind: practice
+    claim: "Lucide's default strokeWidth is 2 and scales with size unless absoluteStrokeWidth is set; Lucide is shadcn/ui's default icon set, and shadcn's CLI also installs tabler, hugeicons, phosphor and remixicon; shadcn charts are built on Recharts"
+    verify: "https://lucide.dev/guide/lucide/basics/stroke-width ; https://ui.shadcn.com/docs/cli ; https://ui.shadcn.com/docs/components/chart (WebSearch + exa + WebFetch, 2026-09-24; ledger ut-01..ut-04, ut-06)"
+    window_days: 180
+    last_verified: 2026-09-24
+
+  - id: dtcg-format-stable
+    pack: core/design-system-template.md
+    kind: standard
+    claim: "The W3C Design Tokens Community Group format reached a stable Final Community Group Report in October 2025: tokens carry $value/$type/$description, media type application/design-tokens+json, extension .tokens or .tokens.json"
+    verify: "https://w3c.github.io/cg-reports/design-tokens/CG-FINAL-format-20251028/ (WebFetch + WebSearch, 2026-09-24; ledger ut-08..ut-10)"
+    window_days: 365
+    last_verified: 2026-09-24
+
+  - id: ocoron-fonts-ofl
+    pack: core/ocoron-design-system.md
+    kind: practice
+    claim: "Space Grotesk (300-700), Inter (variable 100-900) and JetBrains Mono (incl. 300) are on Google Fonts under the SIL Open Font License 1.1"
+    verify: "https://fonts.google.com/specimen/Space+Grotesk ; https://fonts.google.com/specimen/JetBrains+Mono ; https://www.jetbrains.com/lp/mono/ (exa + WebSearch, 2026-09-24; ledger ut-15..ut-18)"
+    window_days: 365
+    last_verified: 2026-09-24

@@ -11,9 +11,9 @@ trigger: glob
 
 # Ocoron Mobile Design System
 
-> Mobile-specific component patterns and interaction specs. Extends `ocoron-design-system.md` — all tokens (colors, typography, spacing, motion) are inherited from there. This file defines **how** those tokens manifest on mobile surfaces.
+> Mobile-specific component patterns and interaction specs. Extends `ocoron-design-system.md` (the brand tokens — colors, typography) and `design-system-template.md` (the structural ones — spacing, motion). This file defines **how** those tokens manifest on mobile surfaces.
 
-**Applies to:** React Native projects using `react-native-unistyles` for theming. Both dark and light mode are mandatory (see `80-mobile.md` § Styling for detection + toggle + persistence mechanism). See `80-mobile.md` for architecture rules and `ocoron-design-system.md` for the full token system.
+**Applies to:** React Native projects using `react-native-unistyles` for theming. Both dark and light mode are mandatory (see `80-mobile.md` § Styling for detection + toggle + persistence mechanism). See `80-mobile.md` for architecture rules, `design-system-template.md` for the token slots, and `ocoron-design-system.md` for the Ocoron values.
 
 ---
 
@@ -285,7 +285,7 @@ First-run experience for new users before signup. Replaces the web stepper wizar
 
 ## 7. Mobile Form Inputs
 
-Adapts `ocoron-design-system.md` § Forms for touch interaction. Only **deltas from web** are specified here — all other form rules (labels above, validation on blur, error messages below, dirty state) apply unchanged.
+Adapts `design-system-template.md` § Forms and Inline Editing for touch interaction. Only **deltas from web** are specified here — all other form rules (labels above, validation on blur, error messages below, dirty state) apply unchanged.
 
 ### Input Sizing
 
@@ -330,7 +330,7 @@ Adapts `ocoron-design-system.md` § Forms for touch interaction. Only **deltas f
 
 ## Scaffold Adaptation Note
 
-This file replaces the brief `mobile-app` section in `ocoron-design-system.md` § Scaffold Adaptation Matrix. That section remains for token mapping reference; this file is the full mobile component spec.
+This file replaces the brief `mobile-app` row in `design-system-template.md` § Scaffold Adaptation Matrix. That section remains for token mapping reference; this file is the full mobile component spec.
 
 ---
 
@@ -383,4 +383,4 @@ change** (debounce ≤1s + flush on blur/hide/background) to MMKV/AsyncStorage (
 silent** on every return path (refresh, Back, reopened tab/app, crash, days-old session) — the
 user continues down to the last letter typed. The draft clears on exactly ONE event: successful
 creation/submission of the entity (or explicit user discard). Canonical detail:
-`core/ocoron-design-system.md` § Save Behavior.
+`core/design-system-template.md` § Save Behavior.

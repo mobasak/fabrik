@@ -68,7 +68,7 @@ When a ticket changes code, check which triggers fire and inject the correspondi
 | New environment variable added | `docs/CONFIGURATION.md` + `.env.example` updated |
 | User-facing feature added | `docs/FEATURES.md` updated |
 | API endpoint added or changed | `docs/QUICKSTART.md` updated; OpenAPI synced (the live `/docs` endpoint is the detailed reference) |
-| User-facing copy added | Verbal Identity applied (see `ocoron-design-system.md`) |
+| User-facing copy added | The resolved brand's voice applied (`docs/design-system.md` § Voice; Ocoron-declared: `ocoron-design-system.md` § Verbal Identity) |
 | `compose.yaml` modified | Docker: amd64, no Alpine, HEALTHCHECK, resource limits, `fabrik` network |
 | Compose service added/removed | `docs/SERVICES.md` + `docs/OPERATIONS.md` updated (fleet-AI-consumable per D-065) |
 | Deploy config changed (deployed types) | `docs/DEPLOYMENT.md` updated (fleet-AI-consumable per D-065) |
@@ -201,7 +201,7 @@ Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + 
 
 ## Writing Style
 
-- User-facing documentation (README feature descriptions, API docs, product landing copy) follows the Ocoron Verbal Identity in `ocoron-design-system.md`.
+- User-facing documentation (README feature descriptions, API docs, product landing copy) follows the resolved brand's voice — the project's `docs/design-system.md` § Voice, or for an Ocoron-declared project `ocoron-design-system.md` § Verbal Identity.
 - Lead with outcomes. Use specifics over adjectives. No forbidden language (see design system Forbidden Language table).
 - Internal plans, changelogs, and developer notes are exempt from brand voice — clarity and speed matter more than tone.
 

@@ -11,7 +11,7 @@ description: Tojlo design system — the Tojlo-branded overrides on top of ocoro
 > ⚠️ **A HOUSE identity (mobile), chosen — never defaulted** (operator ruling 2026-08-29): applies only when the project's `docs/design-system.md` declares it; other mobile projects get their identity from brand-identiy-creator per the ladder in `saas/60-saas-ui.md`.
 
 > Single source of truth for the Tojlo brand and all Tojlo product surfaces.
-> **Tojlo inherits every engineering and voice foundation from `ocoron-design-system.md`.** This document specifies only overrides, additions, and Tojlo-specific patterns.
+> **Tojlo inherits the Ocoron brand foundation and voice from `ocoron-design-system.md`, and the structure (components, states, motion, density, accessibility) from `design-system-template.md`.** This document specifies only overrides, additions, and Tojlo-specific patterns.
 
 ---
 
@@ -79,7 +79,7 @@ Tojlo uses Ocoron's design system as its foundation. The following are **inherit
 - **Motion language:** duration scale, easing curves, canonical patterns, M1-M8 forbidden rules, reduced motion — identical.
 - **Surface hierarchy:** `--surface-0` through `--surface-3` and `--border` — identical, both dark (default) and light variants.
 - **Text hierarchy:** `--text-primary`, `--text-body`, `--text-muted` — identical.
-- **Secondary semantic colors:** `--color-secondary`, `--color-danger`, `--color-success`, `--color-info`, `--color-purple` — identical.
+- **Secondary semantic colors:** `--color-secondary`, `--color-danger`, `--color-success`, `--color-info`, `--color-purple` — Ocoron's values (`ocoron-design-system.md` § Colour tokens, where `secondary` is `warning` and `purple` is `ai`) win wherever this file's tables differ.
 - **Component patterns:** cards, tags, pills, buttons (primary/secondary/danger), tab bar, progress bars, collapsible blocks, data hierarchy, KPI card, activity feed — identical.
 - **Iconography:** Lucide library, sizing, rules I1-I8 — identical.
 - **Density modes:** Comfortable/Compact/Spacious, rules D1-D5 — identical.
@@ -2204,4 +2204,4 @@ change** (debounce ≤1s + flush on blur/hide/background) to durable browser sto
 silent** on every return path (refresh, Back, reopened tab/app, crash, days-old session) — the
 user continues down to the last letter typed. The draft clears on exactly ONE event: successful
 creation/submission of the entity (or explicit user discard). Canonical detail:
-`core/ocoron-design-system.md` § Save Behavior.
+`core/design-system-template.md` § Save Behavior.

@@ -39,7 +39,7 @@ checked against its four binding sources, all read THIS session:
 - the **`/fabrik-spec` design doc** (the product's goal + core workflow — the tasks the UI must serve),
 - **`docs/data-contract.md`** (the FROZEN field dictionary — screens may render only these),
 - the **established design system** (`.windsurf/rules/core/ocoron-design-system.md` / `.windsurf/rules/core/tojlo-design-system.md` — for a mobile surface their RN variants `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md` / `tojlo-mobile-design-system.md`) / (CREATE, any surface) the project's own
-  `docs/design-system.md` — the only components/tokens/states a screen may use),
+  `docs/design-system.md`, and in every case `.windsurf/rules/core/design-system-template.md` for the structure — the only components/tokens/states a screen may use),
 - the **surface pack** for the contract's `Surface:` — `saas/60-saas-ui.md` (web page inventory) ·
   `mobile-app/80-mobile.md` (RN screen inventory + a11y) · `chrome-ext/70-chrome-ext.md` (MV3 surfaces) ·
   `desktop-app/72-desktop.md`. Read the pack(s) that match. **Size ceiling: 25,000 tokens (about 1,100 lines) — the Read tool's page cap; a contract above it is read PARTIALLY by every seat, so the review's first finding is the split: history to `docs/ui-design-history.md`, the live contract under the ceiling (01M25G1BN).**

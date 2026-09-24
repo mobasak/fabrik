@@ -4,8 +4,9 @@
 
 /*
  * Ocoron Design System tokens — Tailwind v4 @theme (Uniwind build-time compiler).
- * Source of truth: .windsurf/rules/core/ocoron-design-system.md (§ Color System,
- * § Typography, § Component Patterns, § Density Modes) +
+ * Source of truth: .windsurf/rules/core/ocoron-design-system.md (§ Colour tokens,
+ * § Typography) + .windsurf/rules/core/design-system-template.md (§ Component Patterns,
+ * § Density Modes) +
  * .windsurf/rules/mobile-app/ocoron-mobile-design-system.md (mobile deltas).
  * Dark is the default (dark-first); light is the mandatory override below.
  * Never invent colors/fonts/radii/spacing outside these tokens.

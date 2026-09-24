@@ -200,7 +200,8 @@ to forget precisely because it feels like "just docs".
 
 - `30-ops.md` — compose.yaml, Traefik labels, resource limits, `fabrik apply` deploy
 - `40-documentation.md` — AI-friendly markdown, writing style
-- `ocoron-design-system.md` — Infima token overrides, fonts, dark mode default
+- `design-system-template.md` — the slots Infima's `--ifm-*` variables map from
+- `ocoron-design-system.md` — fonts and the dark default, for a project that declares the house identity
 
 ---
 

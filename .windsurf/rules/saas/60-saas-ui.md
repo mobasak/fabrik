@@ -35,16 +35,18 @@ that looks like the house because nobody chose otherwise). Resolve, in order:
 
 1. **The project's own `docs/design-system.md`, sourced from a brand-identiy-creator full identity**
    — the mandate for every UI-bearing project. The kit's `For-Your-Developer/Design-Tokens/`
-   (tokens.css + tokens.json, dual-mode) seeds it; the SaaS-app extension set (semantic/state
-   colors, component patterns, contrast table, density, data-viz) comes from BIC as it ships or is
-   authored in the project's `design-system.md` against the BIC brand tokens.
+   (tokens.css + tokens.json, dual-mode) seeds it. The file has the shape
+   `core/design-system-template.md` § The design-system.md contract defines; BIC is to emit it
+   ready-made as `For-Your-Developer/design-system.md`, and until its kit carries every slot the
+   missing ones are authored in the project's `design-system.md` against the BIC brand tokens.
 2. **Missing → a NAMED BLOCKING step at 2-contract**: "generate the identity via
    brand-identiy-creator" — the pipeline stops there by name; never fall through silently.
 3. **`ocoron-design-system.md` (web) / `tojlo-design-system.md` (mobile) are HOUSE identities a
    project EXPLICITLY declares** — one header line in its `docs/design-system.md` ("House identity:
-   ocoron — chosen, not defaulted"). Interim hybrid while BIC's app-extension set matures: BIC
-   brand tokens + ocoron's STRUCTURAL scale (spacing/density/motion patterns as framework), declared
-   as interim — brand from BIC, skeleton from the house, never the house BRAND by accident.
+   ocoron — chosen, not defaulted"). A house identity supplies brand VALUES only. The structure —
+   components, states, tables, forms, motion, density, accessibility, responsive layout — is
+   `core/design-system-template.md` for every project whatever its brand, so a BIC brand never
+   needs the house pack, and never gets the house BRAND by accident.
 
 **Component toolchain (the skin/structure split):** **shadcn** (via the wired MCP) is STRUCTURE and
 behavior — install real components, never hand-write markup; the project's design system is the
@@ -59,11 +61,11 @@ Key points for agents (token discipline — binding whichever system resolves):
 - **Design tokens:** the resolved system's tokens (`tokens.css`) are mapped INTO the scaffold's shadcn semantic variables (`--background`, `--foreground`, `--primary`, `--muted`, `--border`, …) in `app/globals.css` — brand tokens feed shadcn's names; never rename shadcn's variables (every installed component reads them). The scaffold stores them as HSL channel triplets (`221 83% 53%`) read through `hsl(var(--x))`, so convert a brand hex to channels (or switch the Tailwind mapping to `var(--x)` with full colours) — a hex assigned to an `hsl()`-wrapped variable silently renders nothing. Tailwind theme values live in `tailwind.config.*` on the JS-config majors (what the scaffold emits — read `package.json` first) and in `@theme` CSS variables on the CSS-first major, which auto-detects no JS config. Never raw hex values, arbitrary colors, or hardcoded font names in components.
 - **Typography, default mode, elevation and voice come from the RESOLVED design system** — never from this pack. Judging a BIC-branded product against the house identity is itself a finding (D-051).
 - **Both dark and light mode are mandatory.** Resolve the mode as `localStorage`, else the resolved system's first-visit rule (ocoron: OS `prefers-color-scheme`, dark when the OS states none), with a manual toggle in Settings. Switch with ONE hook on `<html>` — the scaffold's Tailwind `darkMode: ["class"]` + `.dark`, or `data-theme="dark|light"` with `darkMode: ['selector', '[data-theme="dark"]']` (an ocoron project uses `data-theme`, which its CSS keys on) — set BEFORE first paint by an inline pre-hydration script (or `next-themes`), with `<html suppressHydrationWarning>`; a `localStorage` read after hydration flashes the wrong theme.
-- **When the resolved system is the house web identity (ocoron):** Space Grotesk (headings), Inter (body/UI), JetBrains Mono (code/data) with no substitutions; dark is the default; no box-shadows in dark mode — a 1px border instead (`border border-border` on the scaffold's shadcn mapping) — except the modal overlay shadow `ocoron-design-system.md` itself specifies.
+- **When the resolved system is the house web identity (ocoron):** Space Grotesk (headings), Inter (body/UI), JetBrains Mono (code/data) with no substitutions; dark is the default; no box-shadows in dark mode — a 1px border instead (`border border-border` on the scaffold's shadcn mapping) — except the modal-overlay shadow `design-system-template.md` § Search and Command Palette specifies.
 - **Component patterns** (cards, tags, pills, buttons, tabs, progress bars, KPI cards, data tables, forms) follow the canonical specs. Do not reinvent.
-- **Motion, spacing and density** follow the resolved system's scales — the names below are ocoron's, for a project that declares ocoron or the interim hybrid. Motion follows the duration scale (`--motion-fast` through `--motion-deliberate`) and easing tokens; no bounce, no spring physics outside celebrations (ocoron § Motion Language).
-- **Spacing** uses the token scale (ocoron: `xs/sm/md/lg/xl/2xl`). No arbitrary pixel values.
-- **Density modes** (ocoron: Comfortable/Compact/Spacious) apply to data-heavy views (ocoron § Density Modes).
+- **Motion, spacing and density** follow `design-system-template.md`'s scales — the defaults every project inherits; a brand changes one only in its `docs/design-system.md` § Structural overrides. Motion follows the duration scale (`--motion-fast` through `--motion-deliberate`) and easing tokens; no bounce, no spring physics outside celebrations (template § Motion Language).
+- **Spacing** uses the token scale (`xs/sm/md/lg/xl/2xl`). No arbitrary pixel values.
+- **Density modes** (Comfortable/Compact/Spacious) apply to data-heavy views (template § Density Modes).
 - **States** — every interactive component handles all enriched states (loading, empty, error, permission denied, success, partial success, disabled). See design system § States.
 - **Microcopy** follows the resolved system's verbal identity (ocoron: its Verbal Identity and Voice Across Surfaces table).
 
@@ -283,7 +285,7 @@ For SaaS products with tenant isolation (reference `95-multi-tenant-saas.md`):
 
 ## Responsive Design (Mandatory)
 
-**Every SaaS page must be responsive from 375px to 2560px. No exceptions.** For the full breakpoint system, grid, and component behavior rules, see `ocoron-design-system.md` § Responsive Layout (RWD1–RWD10). Key points for SaaS:
+**Every SaaS page must be responsive from 375px to 2560px. No exceptions.** For the full breakpoint system, grid, and component behavior rules, see `design-system-template.md` § Responsive Layout (RWD1–RWD10). Key points for SaaS:
 
 - **Mobile-first CSS.** Base styles target smallest viewport; `sm:`, `md:`, `lg:` layer up. Never write `max-width` queries (`max-*` variants included) as the base layout.
 - **Sidebar:** full (240px) at `lg:` (1024px+), icon rail (56px) at `md:` (768px), hidden + hamburger below `md:`. The scaffold's `components/shell/AppShell.tsx` is a placeholder (a persistent 240px column from `md:`, no hamburger) — replace it in the first UI ticket.
@@ -305,7 +307,7 @@ For SaaS products with tenant isolation (reference `95-multi-tenant-saas.md`):
 
 ## Accessibility
 
-Target WCAG 2.2 AA as the baseline — non-negotiable. For detailed rules see `ocoron-design-system.md` § Accessibility (ACC1-ACC8). Key points for SaaS UI:
+Target WCAG 2.2 AA as the baseline — non-negotiable. For detailed rules see `design-system-template.md` § Accessibility (ACC1-ACC8). Key points for SaaS UI:
 
 - Every form control must have a programmatic `<label>` association.
 - Keyboard focus must remain visible and not be obscured by sticky headers/sidebars/modals (WCAG 2.4.11).
@@ -343,7 +345,7 @@ All user-facing text follows the resolved system's verbal identity (for ocoron, 
   - `python scripts/validate_i18n.py --validate <lang>` — Level 2 + 3 (back-translation, native-speaker critique) shell out to the Kilo CLI and a `kilo/…` model, a toolchain the fleet has retired (D-364) — never make them a gate; Level 1 is the gate. Review a new locale by hand (or with `claude -p`) until the validator is ported.
   - Full i18n kit (validate script, `_context.json`, snippets, JS loader): `templates/i18n-kit/` (hub — the copy `scaffold.py` seeds; `templates/scaffold/i18n-kit/` is an older, divergent copy).
 - Locale-aware formatting: use `formatDate()`, `formatNumber()`, `formatCurrency()` from `useI18n()` — never hardcode date/number formats.
-- For RTL support, multilingual rules, and formatting rules see `ocoron-design-system.md` § Multilingual and RTL + § Date/Time/Currency Formatting.
+- For RTL support, multilingual rules, and formatting rules see `design-system-template.md` § Multilingual and RTL + § Date, Time, Currency, and Number Formatting.
 - See `templates/i18n-kit/docs/multilingual-plan.md` (hub — the copy `scaffold.py` actually seeds; landed in projects as `docs/reference/multilingual-plan.md`) for the full architecture, key naming convention, and anti-patterns.
 
 ---
@@ -376,7 +378,8 @@ All user-facing text follows the resolved system's verbal identity (for ocoron, 
 
 ## Related Rule Packs
 
-- `ocoron-design-system.md` — the house web identity (brand, voice, fonts) for a project that DECLARES it (D-051), and the structural reference every project may use for components, motion, density, tables, forms, charts, states, notifications, AI patterns, accessibility, **responsive layout RWD1-RWD10**, multilingual, formatting and print/export
+- `design-system-template.md` — the structure every project inherits whatever its brand: the token slots and computed-contrast contract, components, motion, density, tables, forms, charts, states, notifications, AI patterns, accessibility, **responsive layout RWD1-RWD10**, multilingual, formatting and print/export
+- `ocoron-design-system.md` — the house web identity (brand values, voice, fonts) for a project that DECLARES it (D-051)
 - `35-security-auth.md` — auth patterns (Pattern A / B), CSP, CORS, token storage
 - `55-observability.md` — no `console.log`, structured logging, health endpoints
 - `86-email-templates.md` — email/notification template patterns (MJML+Jinja2)
@@ -423,5 +426,5 @@ user continues down to the last letter typed. The draft clears on exactly ONE ev
 creation/submission of the entity (or explicit user discard). Key every draft by user, tenant and entity
 (`<userId>:<tenantId>:<entity>:<id|new>`), purge a user's drafts on logout and org switch, and never persist
 secrets or card fields — a shared browser must never restore someone else's draft. Canonical detail:
-`core/ocoron-design-system.md` § Save Behavior — except the key and the purge above, which win until that
+`core/design-system-template.md` § Save Behavior — except the key and the purge above, which win until that
 section is corrected (backlog FILE 26).

@@ -36,8 +36,8 @@ binding sources, all read THIS session:
   BOTH client and backend journeys),
 - the **surface pack** for UI-bearing types and any **domain pack** the flows touch (auth · payments ·
   multi-tenant) — a pack rule a flow violates: the pack wins,
-- `ocoron-design-system.md` § Verbal Identity + § States (UI types — hot-spots and state flags speak its
-  language).
+- `design-system-template.md` § States (Enriched) + the resolved brand's voice (`docs/design-system.md` § Voice;
+  ocoron: `ocoron-design-system.md` § Verbal Identity) (UI types — hot-spots and state flags speak its language).
 
 ## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)
 

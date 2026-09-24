@@ -30,7 +30,7 @@ The goal is alignment, not artifacts. Specs are records of decisions made togeth
 
 Once the user names a sub-target, treat that path as the new effective project root and continue at Step 2. If the user's request is genuinely platform-wide (e.g. "refactor all microservice Dockerfiles"), classify the route as **"Feature for existing project"** and apply the rubric in Step 6 against the platform monorepo.
 
-**UI design-system read (conditional):** Defer this read until Step 2 has classified the scaffold. If the scaffold is one of `saas-skeleton`, `static-site`, `chrome-extension`, `mobile-app`, `desktop-app`, `wordpress`, `docusaurus`, then read `.windsurf/rules/core/ocoron-design-system.md` and internalize color tokens, typography, component patterns, scaffold adaptations, and verbal identity before generating any planning output.
+**UI design-system read (conditional):** Defer this read until Step 2 has classified the scaffold. If the scaffold is one of `saas-skeleton`, `static-site`, `docusaurus`, `chrome-extension`, `office-extension`, `mobile-app`, `desktop-app`, then read `.windsurf/rules/core/design-system-template.md` (component patterns, states, scaffold adaptations, the token slots) and the project's `docs/design-system.md` (its brand and voice) before generating any planning output; read `.windsurf/rules/core/ocoron-design-system.md` only when that file declares the Ocoron house identity (D-051).
 
 ### **Step 2: Scaffold Detection**
 
@@ -147,7 +147,7 @@ The base set is `AGENTS.md` § Planning Constraints (currently 10 items). The wo
 **Workflow overlays:**
 
 11. **Duplicate project** — similar project already in `docs/BUSINESS_MODEL.md`? State explicitly.
-12. **Design System** — for UI scaffolds, confirm `.windsurf/rules/core/ocoron-design-system.md` was read. State `Design system read.` or `No UI surface.`
+12. **Design System** — for UI scaffolds, confirm `.windsurf/rules/core/design-system-template.md` and the project's `docs/design-system.md` were read. State `Design system read.` or `No UI surface.`
 13. **Deploy infrastructure health (operational readiness)** — Check Gatus dashboard (`status.vps1.ocoron.com`) for VPS service health. State `Infra: healthy / degraded / unknown` in INFRA-CHECK based on the current Gatus status. *Architectural compatibility is constraint #7.*
 14. **Platform debt** — aggregate open items from `PORTS.md` `### ⚠️ Port Conflicts Detected`. **Always informational — never blocks the workflow.** Surface count + one-line summaries below INFRA-CHECK; the user decides whether to address or proceed.
 
@@ -216,7 +216,7 @@ Immediately below the header, list the platform-debt items (one line each) when 
 - **Internal APIs:** Comma-separated list of existing Fabrik microservices the new project plans to **consume** (e.g. `site-provisioner`). Use `none` if the project consumes no internal services. Purely about **consumption**; exposure is captured by `User Guide`.
 - **User Guide:** `true` if the project ships a user-facing guide (UI scaffolds + external APIs); `false` for internal-only APIs and back-end workers. Set per the routing table / overlay #15. Propagated downstream as `HAS_USER_GUIDE` per the existing `epic-brief` Metadata contract.
 - **Infra:** Operational-health value from constraint #13. Possible values: `healthy`, `degraded`, `unknown`. Derived from the current Gatus dashboard at `status.vps1.ocoron.com`.
-- **Design System:** `read` if `.windsurf/rules/core/ocoron-design-system.md` was read for a UI scaffold; `N-A` for non-UI scaffolds.
+- **Design System:** `read` if `.windsurf/rules/core/design-system-template.md` and the project's `docs/design-system.md` were read for a UI scaffold; `N-A` for non-UI scaffolds.
 - **Platform Debt:** Integer count from constraint #14. **Informational only — never blocks.**
 
 **Field propagation policy:**

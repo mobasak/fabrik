@@ -76,8 +76,9 @@ report it, don't quietly absorb the cost of a silent extra read).
   root) — PLUS the packs named by path that it will NEVER mark ACTIVE, which you must therefore open
   deliberately or silently miss: `select_rules.py` selects on frontmatter `globs:` ALONE, so a pack with no
   `globs:` key is AVAILABLE forever whatever its `activation:` says. Those are: `core/ocoron-design-system.md`
-  (frontmatter with no `globs:` key — named in `agents-fabrik.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT,
-  which Phase 0 orders you to run); `core/50-code-review.md` (`activation: model_decision`, no globs —
+  (frontmatter with no `globs:` key — named, for a project that declares the house identity, in `agents-fabrik.md`
+  § MANDATORY ORCHESTRATOR PRE-FLIGHT, which Phase 0 orders you to run; the same step names `core/design-system-template.md`,
+  which IS glob-activated but matches nothing in a repo with no UI files yet); `core/50-code-review.md` (`activation: model_decision`, no globs —
   named in the Rule pack index Phase 2 consults); and the per-capability domain packs
   `saas|mobile-app|desktop-app|chrome-ext/00-domain-*.md` (`activation: manual`, no globs). Two packs this
   command names are NOT in that class — both ARE glob-activated, so `select_rules.py` surfaces them on a
