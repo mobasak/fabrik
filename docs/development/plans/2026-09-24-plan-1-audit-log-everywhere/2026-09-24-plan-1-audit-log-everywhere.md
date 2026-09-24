@@ -45,7 +45,7 @@ Intake: 13 items — 9 IN, 4 OUT-OF-SCOPE (I8, I9, I11, I13 — each named), 0 A
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
 | T01 | `shape.database_url_app_role` flag + generator default | — | ⚡ | ✅ | branch head 29d43e3c1; merged 2026-09-24 (review: 2 passes, T01 slice 6 → 0) |
-| T02 | `<db>_app` role driver: mint, grants, audit revokes, probe, drop | — | ⚡ | ⬜ | |
+| T02 | `<db>_app` role driver: mint, grants, audit revokes, probe, drop | — | ⚡ | ✅ | branch head e6de98931; merged 2026-09-24 (review: 4 passes, confirmed 18 → 3 → 1 → 0) |
 | T03 | Pre-cutover check + `fabrik app-role-check` | T02 | ⛓️ | ⬜ | |
 | T04 | Registrar step: DSN injection, cutover, rollback, docs | T01, T02, T03 | ⛓️ | ⬜ | |
 | T05 | Integration: scaffolder emits module, table, revokes, jobs; receipt | T04 | ⛓️ | ⬜ | |
@@ -71,7 +71,7 @@ Serialized: src/fabrik/spec_generator.py — T01, T05
   - Seam tests:
     - `tests/test_app_role_check.py` (T03, consumer): `run_check` calls `probe_app_role`, carries its failures verbatim and turns `AppRoleError` into a failure.
     - `tests/test_app_role_provision.py` (T04, consumer): the step calls `ensure_app_role` on every apply, with `reset_password=True` only at a cutover, after the watchdog and payments steps.
-- **T02 → T05 (test helper):** `tests/test_app_role_real_pg.py::scratch_pg()`, a context manager that starts a throwaway `postgres:16` container and yields `run_sql(sql: str) -> str` (superuser) plus `login_sql(role: str, password: str, sql: str) -> str` (a real LOGIN session). It skips with its reason when docker is unavailable. Seam test: T05's no-window row in `tests/test_scaffold_audit_log.py` imports it.
+- **T02 → T05 (test helper):** `tests/test_app_role_real_pg.py::scratch_pg()`, a context manager that starts a throwaway `postgres:16` container and yields a `ScratchPg` with `run_sql(sql: str) -> str` (superuser), `login_sql(role: str, password: str, sql: str, db: str = "postgres") -> str` (a real LOGIN session; pass `db=<db>` to reach the project database — the keyword was added at T02, since the three-argument form cannot choose one) and `as_driver()` (patches `_run_sql` onto the container). It pulls `postgres:16` on a miss, skips only when docker itself is unavailable, and FAILS instead of skipping when `FABRIK_REQUIRE_REAL_PG=1`. Seam test: T05's no-window row in `tests/test_scaffold_audit_log.py` imports it.
 - **T03 → T04 (`src/fabrik/app_role_check.py`):**
   - `run_check(db_name: str, repo_dir: Path, container: str = POSTGRES_CONTAINER) -> CheckResult`, where `CheckResult(ok: bool, failures: list[str])`.
   - `project_repo_dir(spec: dict) -> Path` returns `Path("/opt") / (spec.get("id") or spec.get("name"))` — the orchestrator's `_load_secrets` precedence. The CLI and the registrar step use this one helper.

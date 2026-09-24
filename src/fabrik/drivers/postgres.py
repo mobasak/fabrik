@@ -864,7 +864,9 @@ def create_payments_ingest_role(
     ]
     for t in _PAYMENTS_INGEST_READ_TABLES:
         grant_parts.append(_payments_ingest_policy_block(t, role, write=False))
-    grant_parts.append(_payments_ingest_policy_block(_PAYMENTS_INGEST_WRITE_TABLE, role, write=True))
+    grant_parts.append(
+        _payments_ingest_policy_block(_PAYMENTS_INGEST_WRITE_TABLE, role, write=True)
+    )
     # nosec B608 — db_name/role are _validate_identifier-gated; table names are constants.
     _run_sql("\n".join(grant_parts) + "\n", container=container)  # nosec B608
     logger.info(
@@ -876,6 +878,545 @@ def create_payments_ingest_role(
         _PAYMENTS_INGEST_WRITE_TABLE,
     )
     return {"user": role, "password": pw, "status": "created" if not exists else "exists"}
+
+
+# ── The app's non-owner runtime role: ``<db>_app`` ────────────────────────── #
+#
+# The registrar makes the app's role the database OWNER, and an owner can always
+# re-grant itself DELETE — so an append-only ``audit_log`` cannot bind it
+# (core/app-audit-log.md). ``<db>_app`` is the runtime role the app connects as:
+# DML on the owner's tables, ``USAGE`` (never ``CREATE``) on its schemas so every
+# table stays owner-owned, and ``INSERT, SELECT`` only on ``audit_log``. Spec
+# docs/superpowers/specs/2026-09-24-audit-log-everywhere-design.md § 1, as
+# corrected by D-386. Password lifecycle mirrors create_payments_ingest_role:
+# CSPRNG on create (or an explicit reset), ``None`` on re-apply.
+# ---------------------------------------------------------------------------
+
+_APP_ROLE_SUFFIX = "_app"
+_PATTERN_A_GROUP_ROLES = ("anon", "authenticated", "service_role")
+"""The Pattern A-compat group roles (core/35-security-auth.md) — the ONLY roles the
+app role is ever made a member of, and only where the database owner already is."""
+
+
+class AppRoleError(RuntimeError):
+    """The app role cannot be provisioned or probed for this database.
+
+    Raised before any SQL when the database's real owner (:func:`_db_owner`) is
+    unknown or ``postgres`` — a legacy, manual or seed-restored database the app
+    role must not be minted against.
+    """
+
+
+def app_role_name(db_name: str) -> str:
+    """Return ``{db_name}_app``; raise if it exceeds Postgres' 63-char identifier limit."""
+    _validate_identifier(db_name, "database")
+    role = f"{db_name}{_APP_ROLE_SUFFIX}"
+    if len(role) > 63:
+        raise ValueError(
+            f"app role name {role!r} exceeds Postgres' 63-char identifier "
+            f"limit — shorten depends.postgres for {db_name!r}"
+        )
+    return role
+
+
+def _app_drop_role_sql(db_name: str) -> str:
+    """``DROP ROLE IF EXISTS`` for the app role; empty when the name could never exist."""
+    try:
+        role = app_role_name(db_name)
+    except ValueError:
+        return ""
+    return f'DROP ROLE IF EXISTS "{role}";\n'
+
+
+def _role_is_superuser(role: str, container: str) -> bool:
+    """True unless ``pg_roles.rolsuper`` reads exactly ``f`` (an unreadable answer fails closed)."""
+    out = _run_sql(
+        f"SELECT rolsuper FROM pg_roles WHERE rolname = '{role}';",  # nosec B608 — validated identifier
+        container=container,
+    ).strip()
+    return out != "f"
+
+
+def _app_role_owner(db_name: str, container: str) -> str:
+    """Resolve the database's REAL owner; refuse ``None``, ``postgres`` or any superuser."""
+    owner = _db_owner(db_name, container)
+    if owner is None or owner == "postgres":
+        raise AppRoleError(
+            f"database {db_name!r} has owner {owner!r}: the app role is minted only against "
+            "a database owned by its own non-superuser role (legacy, manual or seed-restored "
+            "database — re-own it first)"
+        )
+    if _role_is_superuser(owner, container):
+        raise AppRoleError(
+            f"database {db_name!r} has owner {owner!r}, a superuser (or its rolsuper could not "
+            "be read): the app role is minted only against a non-superuser owner"
+        )
+    return owner
+
+
+def _app_role_collision(app: str, owner: str, container: str) -> list[str]:
+    """Why an EXISTING ``app`` role is not our app role: it owns a database, or it is a
+    (direct or transitive) member of the owner role. Empty means no collision."""
+    # app/owner are _validate_identifier-gated (app_role_name, _db_owner).
+    app_oid = f"(SELECT oid FROM pg_roles WHERE rolname = '{app}')"  # nosec B608
+    out = _run_sql(
+        f"WITH RECURSIVE up(oid) AS (SELECT {app_oid} UNION "  # nosec B608
+        "SELECT m.roleid FROM pg_auth_members m JOIN up ON m.member = up.oid) "
+        f"SELECT 'owns database ' || d.datname FROM pg_database d WHERE d.datdba = {app_oid} "
+        f"UNION ALL SELECT 'is a member of the owner role {owner}' "
+        f"WHERE (SELECT oid FROM pg_roles WHERE rolname = '{owner}') IN (SELECT oid FROM up);",
+        container=container,
+    )
+    return [ln.strip() for ln in out.splitlines() if ln.strip()]
+
+
+def _owner_schemas_sql(owner: str) -> str:
+    """SELECT of the schemas the app role is granted on: ``public`` plus every
+    non-system schema ``owner`` owns (e.g. a Pattern A-compat ``auth``).
+
+    ``public`` is named explicitly because on PostgreSQL 15+ it is owned by
+    ``pg_database_owner``, not by the owner role itself.
+    """
+    return (
+        "SELECT n.nspname FROM pg_namespace n "
+        "WHERE n.nspname = 'public' "
+        f"OR (n.nspowner = (SELECT oid FROM pg_roles WHERE rolname = '{owner}') "  # nosec B608
+        "AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema')"
+    )
+
+
+def _acl_revoke_loop(entry_sql: str, obj_fmt: str, obj_args: str, indent: str) -> str:
+    """plpgsql that revokes every forbidden ACL entry, whoever granted it, until none remain.
+
+    ``entry_sql`` is a ``SELECT … INTO e`` of ONE forbidden entry as ``grantor, grantee,
+    privilege_type, objowner`` (from ``aclexplode``); ``obj_fmt`` / ``obj_args`` name
+    the object for ``format()`` (``'SCHEMA %I'`` / ``', s'``). A superuser's plain
+    ``REVOKE`` acts as the object's owner and removes only the OWNER's grants, and on
+    PostgreSQL 16 a superuser's ``REVOKE … GRANTED BY <other>`` removes nothing
+    (measured) — so an entry granted by anyone else is revoked AS its grantor
+    (``SET LOCAL ROLE``, then ``RESET ROLE``), ``CASCADE`` taking the grantee's own
+    re-grants with it. ``entry_sql`` orders entries granted by NON-owners first, so a
+    chain is taken apart leaf-first through the revoke-as-grantor path on every run
+    (an owner-first order would also converge through ``CASCADE`` from the root, but
+    correctness must not rest on which entry an unordered ``LIMIT 1`` returns). The
+    ACL is re-read after every revoke, so one apply converges whatever the chain; a
+    revoke that removes nothing trips the iteration bound and raises instead of
+    spinning. An entry whose grantor has since become a SUPERUSER cannot be removed
+    this way at all (``SET ROLE`` to a superuser acts as the owner again), so it fails
+    fast with a message naming the privilege, object, grantee and grantor. The remedy it
+    names is the one measured to work on PG16: ``ALTER ROLE <grantor> NOSUPERUSER``, then
+    re-apply. A REVOKE issued as that superuser, or the owner's ``REVOKE ... FROM
+    <grantor> CASCADE``, leaves the downstream grant in place.
+    """
+    i = indent
+    # entry_sql is built by _app_role_grants_sql from constants plus the owner name, which is
+    # _validate_identifier-gated (_db_owner); obj_fmt / obj_args / indent are literals.
+    return (
+        f"{i}LOOP\n"  # nosec B608
+        f"{i}  {entry_sql} LIMIT 1;\n"
+        f"{i}  EXIT WHEN NOT FOUND;\n"
+        f"{i}  n := n + 1;\n"
+        f"{i}  IF e.grantor <> e.objowner\n"
+        f"{i}     AND (SELECT rolsuper FROM pg_roles WHERE oid = e.grantor) THEN\n"
+        f"{i}    RAISE EXCEPTION '% on % granted to % by %, which is now a superuser: a REVOKE "
+        "issued as a superuser acts as the object owner and cannot remove this grant; fix it by "
+        "hand with ALTER ROLE <that grantor> NOSUPERUSER, then re-apply (the next apply revokes "
+        "it as the grantor)',\n"
+        f"{i}      e.privilege_type, format('{obj_fmt}'{obj_args}),\n"
+        f"{i}      CASE WHEN e.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(e.grantee) END,\n"
+        f"{i}      pg_get_userbyid(e.grantor);\n"
+        f"{i}  END IF;\n"
+        f"{i}  IF n > 1000 THEN\n"
+        f"{i}    RAISE EXCEPTION 'ACL revoke did not converge: % on % from % granted by %',\n"
+        f"{i}      e.privilege_type, format('{obj_fmt}'{obj_args}),\n"
+        f"{i}      CASE WHEN e.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(e.grantee) END,\n"
+        f"{i}      pg_get_userbyid(e.grantor);\n"
+        f"{i}  END IF;\n"
+        f"{i}  IF e.grantor <> e.objowner THEN\n"
+        f"{i}    EXECUTE format('SET LOCAL ROLE %I', pg_get_userbyid(e.grantor));\n"
+        f"{i}  END IF;\n"
+        f"{i}  EXECUTE format('REVOKE %s ON {obj_fmt} FROM %s CASCADE', e.privilege_type{obj_args},\n"
+        f"{i}    CASE WHEN e.grantee = 0 THEN 'PUBLIC'\n"
+        f"{i}         ELSE quote_ident(pg_get_userbyid(e.grantee)) END);\n"
+        f"{i}  EXECUTE 'RESET ROLE';\n"
+        f"{i}END LOOP;"
+    )
+
+
+_AUDIT_FORBIDDEN = ("UPDATE", "DELETE", "TRUNCATE", "TRIGGER", "REFERENCES")
+
+
+def _app_role_grants_sql(db_name: str, app: str, owner: str) -> str:
+    """The idempotent grants batch, re-applied on every call (see :func:`ensure_app_role`)."""
+    owner_oid = f"(SELECT oid FROM pg_roles WHERE rolname = '{owner}')"  # nosec B608 — identifiers _validate_identifier-gated
+    app_oid = f"(SELECT oid FROM pg_roles WHERE rolname = '{app}')"  # nosec B608 — identifiers _validate_identifier-gated
+    three = ", ".join(f"'{g}'" for g in _PATTERN_A_GROUP_ROLES)
+    forbidden = ", ".join(f"'{p}'" for p in _AUDIT_FORBIDDEN)
+    # CREATE on the schema, held by anyone but the schema's owner and the DB owner.
+    schema_create_revokes = _acl_revoke_loop(
+        "SELECT a.grantor, a.grantee, a.privilege_type, ns.nspowner AS objowner INTO e "  # nosec B608 — identifiers _validate_identifier-gated
+        "FROM pg_namespace ns, aclexplode(ns.nspacl) a WHERE ns.nspname = s "
+        f"AND a.privilege_type = 'CREATE' AND a.grantee NOT IN (ns.nspowner, {owner_oid}) "
+        "ORDER BY (a.grantor = ns.nspowner), a.grantee, a.grantor",
+        "SCHEMA %I",
+        ", s",
+        "    ",
+    )
+    # UPDATE/DELETE/TRUNCATE/TRIGGER/REFERENCES on audit_log, held by anyone but its owner.
+    audit_revokes = _acl_revoke_loop(
+        "SELECT a.grantor, a.grantee, a.privilege_type, c.relowner AS objowner INTO e "  # nosec B608 — identifiers _validate_identifier-gated
+        "FROM pg_class c, aclexplode(c.relacl) a WHERE c.oid = 'public.audit_log'::regclass "
+        f"AND a.privilege_type IN ({forbidden}) AND a.grantee <> c.relowner "
+        "ORDER BY (a.grantor = c.relowner), a.grantee, a.grantor, a.privilege_type",
+        "public.audit_log",
+        "",
+        "    ",
+    )
+    memberships = "\n".join(
+        "  IF EXISTS (SELECT 1 FROM pg_auth_members m\n"  # nosec B608 — identifiers _validate_identifier-gated
+        f"             WHERE m.roleid = (SELECT oid FROM pg_roles WHERE rolname = '{g}')\n"
+        f"               AND m.member = {owner_oid}) THEN\n"
+        f'    EXECUTE \'GRANT "{g}" TO "{app}" WITH INHERIT FALSE, SET TRUE\';\n'
+        "  END IF;"
+        for g in _PATTERN_A_GROUP_ROLES
+    )
+    parts = [
+        "\\set ON_ERROR_STOP on",
+        f"\\c {db_name}",
+        # Re-assert least-privilege attributes on every apply (a stale role keeps none).
+        f'ALTER ROLE "{app}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS '
+        "NOREPLICATION;",
+        f'GRANT CONNECT ON DATABASE "{db_name}" TO "{app}";',
+        # The owner keeps CREATE on `public` (PG15+ grants it via pg_database_owner; a
+        # pre-15 or pre-15-restored database may not) before anyone else loses it.
+        f'GRANT CREATE ON SCHEMA public TO "{owner}";',
+        # Every owner schema: USAGE (never CREATE), DML, sequences, default privileges;
+        # CREATE revoked from everyone but the owner, whoever granted it (so from PUBLIC,
+        # the app and every role it can SET ROLE to). The whole ownership guarantee rests
+        # on the app never creating.
+        "DO $$\nDECLARE s text; e record; n int := 0;\nBEGIN\n"
+        f"  FOR s IN {_owner_schemas_sql(owner)} ORDER BY 1 LOOP\n"
+        f"    EXECUTE format('GRANT USAGE ON SCHEMA %I TO \"{app}\"', s);\n"
+        "    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I "
+        f'TO "{app}"\', s);\n'
+        f"    EXECUTE format('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA %I TO \"{app}\"', s);\n"
+        f'    EXECUTE format(\'ALTER DEFAULT PRIVILEGES FOR ROLE "{owner}" IN SCHEMA %I '
+        f'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "{app}"\', s);\n'
+        f'    EXECUTE format(\'ALTER DEFAULT PRIVILEGES FOR ROLE "{owner}" IN SCHEMA %I '
+        f'GRANT USAGE, SELECT ON SEQUENCES TO "{app}"\', s);\n'
+        f"{schema_create_revokes}\n"
+        "  END LOOP;\nEND $$;",
+        # audit_log: owner-owned, append-only for everyone the app can act as. The plain
+        # REVOKE ALL removes the owner's PUBLIC grants; the ACL loop then removes every
+        # forbidden entry by ANY grantor, revoking as that grantor (see _acl_revoke_loop).
+        "DO $$\nDECLARE e record; n int := 0;\nBEGIN\n"  # nosec B608 — identifiers _validate_identifier-gated
+        "  IF to_regclass('public.audit_log') IS NOT NULL THEN\n"
+        "    IF (SELECT c.relowner FROM pg_class c WHERE c.oid = 'public.audit_log'::regclass)\n"
+        f"       <> {owner_oid} THEN\n"
+        f"      EXECUTE 'ALTER TABLE public.audit_log OWNER TO \"{owner}\"';\n"
+        "    END IF;\n"
+        "    EXECUTE 'REVOKE ALL ON public.audit_log FROM PUBLIC CASCADE';\n"
+        f"{audit_revokes}\n"
+        f"    EXECUTE 'GRANT INSERT, SELECT ON public.audit_log TO \"{app}\"';\n"
+        "  END IF;\nEND $$;",
+        # Memberships converge to EXACTLY: each Pattern A role the owner is a member of,
+        # granted by us, INHERIT FALSE, SET TRUE, no ADMIN. Every other pg_auth_members
+        # row for the app is revoked under its own grantor, then the three are granted.
+        "DO $$\nDECLARE r record;\nBEGIN\n"  # nosec B608 — identifiers _validate_identifier-gated
+        "  FOR r IN SELECT g.rolname AS grp, gr.rolname AS grantor FROM pg_auth_members m\n"
+        "      JOIN pg_roles g ON g.oid = m.roleid JOIN pg_roles gr ON gr.oid = m.grantor\n"
+        f"      WHERE m.member = {app_oid}\n"
+        f"        AND NOT (g.rolname IN ({three})\n"
+        "                 AND m.grantor = (SELECT oid FROM pg_roles WHERE rolname = current_user)\n"
+        "                 AND NOT m.inherit_option AND m.set_option AND NOT m.admin_option\n"
+        "                 AND EXISTS (SELECT 1 FROM pg_auth_members o\n"
+        f"                             WHERE o.roleid = m.roleid AND o.member = {owner_oid}))\n"
+        "  LOOP\n"
+        f"    EXECUTE format('REVOKE %I FROM \"{app}\" GRANTED BY %I CASCADE', r.grp, r.grantor);\n"
+        "  END LOOP;\n"
+        f"{memberships}\n"
+        "END $$;",
+    ]
+    return "\n".join(parts) + "\n"
+
+
+def _drop_fresh_app_role(db_name: str, app: str, container: str) -> None:
+    """Best-effort removal of a role THIS call created, after its grants batch failed.
+
+    ``DROP OWNED`` (inside the app DB) clears the privileges and default-privilege
+    entries the half-applied batch left, which would otherwise block ``DROP ROLE``.
+    No ``ON_ERROR_STOP``: a failed ``\\c`` (the batch may have failed there) leaves the
+    session in ``postgres``, where the role holds nothing but shared privileges.
+    The outcome is verified, never assumed.
+    """
+    try:
+        _run_sql(
+            f'\\c {db_name}\nDROP OWNED BY "{app}";\nDROP ROLE IF EXISTS "{app}";\n',
+            container=container,
+        )
+        still = _role_exists(app, container)
+    except RuntimeError as exc:
+        still, why = True, str(exc)
+    else:
+        why = "the role still exists after DROP OWNED + DROP ROLE"
+    if still:
+        logger.error(
+            "app role %s on %s: grants failed after CREATE and the cleanup failed (%s) — "
+            "drop the role by hand so the next apply mints a fresh password",
+            app,
+            db_name,
+            why,
+        )
+
+
+def ensure_app_role(
+    db_name: str,
+    container: str = POSTGRES_CONTAINER,
+    dry_run: bool = False,
+    reset_password: bool = False,
+) -> dict:
+    """Mint (or re-assert) the non-owner runtime role ``<db>_app`` on ``db_name``.
+
+    The owner is resolved with :func:`_db_owner`, never assumed; ``None``,
+    ``postgres`` or a superuser raises :class:`AppRoleError` before anything is
+    written. An EXISTING ``<db>_app`` that owns a database or is a member of the
+    owner role is not our app role and raises :class:`AppRoleError` too.
+
+    ``CREATE ROLE`` (only when missing) and ``ALTER ROLE … PASSWORD``
+    (``reset_password=True`` on an existing role) each run in their OWN ``_run_sql``
+    call. If the grants batch then fails after a CREATE made by this call, the fresh
+    role is dropped again (``DROP OWNED`` + ``DROP ROLE``) before the error is
+    re-raised, so its password is never orphaned: the next apply creates the role
+    anew and returns a fresh password.
+
+    The grants batch, inside the app DB and re-applied on every call:
+    least-privilege attributes re-asserted (``NOSUPERUSER … NOREPLICATION``);
+    ``CONNECT``; the owner's ``CREATE`` on ``public``; per owner schema ``USAGE`` +
+    DML + sequence ``USAGE, SELECT`` + default privileges for both, with ``CREATE``
+    revoked from PUBLIC and the Pattern A group roles; ``audit_log`` re-owned to the
+    owner, ``ALL`` revoked from PUBLIC and ``UPDATE, DELETE, TRUNCATE, TRIGGER,
+    REFERENCES`` from the app, ``<db>_wd_rw`` and the group roles (``CASCADE``), then
+    ``INSERT, SELECT`` granted to the app; memberships converged to exactly the
+    Pattern A roles the owner holds, ``WITH INHERIT FALSE, SET TRUE``.
+
+    Returns ``{"user", "owner", "password", "status"}`` — ``password`` only on
+    ``created`` / ``reset``. In ``dry_run`` no SQL runs at all and ``owner`` is
+    ``""`` (unresolved: the database may not exist yet).
+
+    Raises:
+        AppRoleError: the owner is unknown, ``postgres`` or a superuser, or an
+            existing ``<db>_app`` collides.
+        ValueError: the role name is invalid or exceeds 63 characters.
+        RuntimeError: a psql batch failed (``ssh`` raises on non-zero exit).
+    """
+    app = app_role_name(db_name)
+    if dry_run:
+        logger.info("[DRY RUN] Would ensure app role %s on %s", app, db_name)
+        return {"user": app, "owner": "", "password": None, "status": "dry_run"}
+
+    owner = _app_role_owner(db_name, container)
+    exists = _role_exists(app, container)
+    if exists:
+        collision = _app_role_collision(app, owner, container)
+        if collision:
+            raise AppRoleError(
+                f"role {app!r} already exists and is not an app role for {db_name!r}: "
+                + "; ".join(f"it {c}" for c in collision)
+            )
+    password: str | None = None
+    if not exists:
+        password = _generate_password()
+        status = "created"
+        _run_sql(
+            "\\set ON_ERROR_STOP on\n"
+            f'CREATE ROLE "{app}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '  # nosec B608
+            f"NOBYPASSRLS PASSWORD '{password}';",  # nosec B608 — CSPRNG alnum, quote-safe
+            container=container,
+        )
+    elif reset_password:
+        password = _generate_password()
+        status = "reset"
+        _run_sql(
+            f"\\set ON_ERROR_STOP on\nALTER ROLE \"{app}\" WITH PASSWORD '{password}';",  # nosec B608
+            container=container,
+        )
+    else:
+        status = "exists"
+    try:
+        # nosec B608 — db_name/app/owner are _validate_identifier-gated; role lists constant.
+        _run_sql(_app_role_grants_sql(db_name, app, owner), container=container)  # nosec B608
+    except Exception:
+        if status == "created":
+            _drop_fresh_app_role(db_name, app, container)
+        raise
+    logger.info("app role on %s (owner=%s): %s (%s)", db_name, owner, app, status)
+    return {"user": app, "owner": owner, "password": password, "status": status}
+
+
+_PROBE_PREFIX = "probe|"
+_PROBE_US = "\x1f"
+"""Field separator inside a probe row (ASCII unit separator). Every field after the
+kind is HEX-encoded UTF-8, so no identifier byte — ``|``, a newline, US or RS
+included — ever reaches the row grammar, and none can forge a row or the sentinel."""
+_PROBE_RS = "\x1e"
+"""Row terminator (ASCII record separator) — a newline in an identifier cannot either.
+End-of-output also terminates a row: ``str.strip()`` (``ssh()`` strips stdout) treats
+US/RS as whitespace, so the LAST row's RS never survives the transport."""
+_PROBE_ROW_RE = re.compile(re.escape(_PROBE_PREFIX) + "(.*?)(?:" + _PROBE_RS + r"|\Z)", re.DOTALL)
+
+
+def _probe_row(kind: str, *fields: str) -> str:
+    """SQL expression for one probe row: ``probe|<kind>`` + US-joined hex fields + RS.
+
+    ``kind`` is a literal from this module; every other field is hex-encoded UTF-8
+    (``encode(convert_to(…, 'UTF8'), 'hex')``), whatever it holds.
+    """
+    hexed = [f"encode(convert_to(({f})::text, 'UTF8'), 'hex')" for f in fields]
+    return f"'{_PROBE_PREFIX}' || concat_ws(chr(31), {', '.join([f"'{kind}'", *hexed])}) || chr(30)"
+
+
+def _display(value: str) -> str:
+    """Render an identifier for a failure line: non-printable characters escaped."""
+    return "".join(c if c.isprintable() else f"\\x{ord(c):02x}" for c in value)
+
+
+def _parse_probe_row(raw: str) -> list[str] | None:
+    """``kind␟hex␟hex…`` → ``[kind, decoded, …]``; ``None`` when a field is not hex."""
+    kind, *fields = raw.split(_PROBE_US)
+    try:
+        return [kind, *(_display(bytes.fromhex(f).decode("utf-8")) for f in fields)]
+    except ValueError:
+        return None
+
+
+def _app_role_probe_sql(db_name: str, app: str, owner: str) -> str:
+    """Non-mutating probe batch; every result row is ``probe|<kind>␟<field>…␞``."""
+    rw = f"{db_name}{_WD_RW_SUFFIX}"
+    schemas = _owner_schemas_sql(owner)
+    app_oid = f"(SELECT oid FROM pg_roles WHERE rolname = '{app}')"  # nosec B608 — identifiers _validate_identifier-gated
+    owner_oid = f"(SELECT oid FROM pg_roles WHERE rolname = '{owner}')"  # nosec B608 — identifiers _validate_identifier-gated
+    three = ", ".join(f"'{g}'" for g in _PATTERN_A_GROUP_ROLES)
+    qname = "quote_ident({s}) || '.' || quote_ident({t})"
+    # PUBLIC, the app, and every role the app can SET ROLE to (never a SET ROLE chain:
+    # has_*_privilege per role, because a superuser session proves nothing).
+    actors = (
+        "SELECT 'PUBLIC'::text AS who, 0::oid AS roid "  # nosec B608 — identifiers _validate_identifier-gated
+        "UNION ALL SELECT g.rolname::text, g.oid FROM pg_roles g "
+        f"WHERE g.rolname = '{app}' OR (g.rolname <> '{app}' "
+        f"AND pg_has_role({app_oid}, g.oid, 'MEMBER'))"
+    )
+    return (
+        "\\set ON_ERROR_STOP on\n"  # nosec B608 — identifiers _validate_identifier-gated
+        f"\\c {db_name}\n"
+        # The app role itself: present, least-privilege attributes, not a database owner.
+        f"SELECT {_probe_row('role_missing', f"'{app}'")} WHERE {app_oid} IS NULL;\n"
+        f"SELECT {_probe_row('role_attr', 'v.attr')} FROM pg_roles a, LATERAL (VALUES "
+        "('SUPERUSER', a.rolsuper), ('CREATEDB', a.rolcreatedb), "
+        "('CREATEROLE', a.rolcreaterole), ('BYPASSRLS', a.rolbypassrls), "
+        "('REPLICATION', a.rolreplication)) v(attr, held) "
+        f"WHERE a.rolname = '{app}' AND v.held ORDER BY 1;\n"
+        f"SELECT {_probe_row('owns_db', 'd.datname')} FROM pg_database d "
+        f"WHERE d.datdba = {app_oid} ORDER BY 1;\n"
+        # Memberships: exactly the rows ensure_app_role would revoke — outside the
+        # Pattern A three, one the owner does not hold, granted by anyone but the
+        # applying superuser, inherited, not SET-able, or with ADMIN.
+        f"SELECT {_probe_row('membership', 'g.rolname', 'f.flags')} "
+        "FROM pg_auth_members m JOIN pg_roles g ON g.oid = m.roleid, LATERAL (SELECT "
+        "concat_ws(' ', CASE WHEN g.rolname NOT IN (" + three + ") THEN 'OUTSIDE' END, "
+        "CASE WHEN g.rolname IN (" + three + ") AND NOT EXISTS (SELECT 1 FROM "  # nosec B608 — identifiers _validate_identifier-gated
+        f"pg_auth_members o WHERE o.roleid = m.roleid AND o.member = {owner_oid}) "
+        "THEN 'NOT-HELD-BY-OWNER' END, "
+        "CASE WHEN m.grantor <> (SELECT oid FROM pg_roles WHERE rolname = current_user) "
+        "THEN 'GRANTOR=' || pg_get_userbyid(m.grantor) END, "
+        "CASE WHEN m.inherit_option THEN 'INHERIT' END, "
+        "CASE WHEN NOT m.set_option THEN 'NO-SET' END, "
+        "CASE WHEN m.admin_option THEN 'ADMIN' END) AS flags) f "
+        f"WHERE m.member = {app_oid} AND f.flags <> '' ORDER BY 1;\n"
+        # Every table in an owner schema is owned by the owner.
+        f"SELECT {_probe_row('table_owner', qname.format(s='t.schemaname', t='t.tablename'), 't.tableowner')} "
+        f"FROM pg_tables t WHERE t.schemaname IN ({schemas}) AND t.tableowner <> '{owner}' "
+        "ORDER BY 1;\n"
+        # The app can SELECT and INSERT every table, and use every sequence.
+        f"SELECT {_probe_row('table_priv', 'p.priv', qname.format(s='t.schemaname', t='t.tablename'))} "
+        f"FROM pg_tables t CROSS JOIN (SELECT oid FROM pg_roles WHERE rolname = '{app}') a "
+        "CROSS JOIN (VALUES ('SELECT'), ('INSERT')) p(priv) "
+        f"WHERE t.schemaname IN ({schemas}) AND NOT has_table_privilege(a.oid, "
+        "quote_ident(t.schemaname) || '.' || quote_ident(t.tablename), p.priv) ORDER BY 1;\n"
+        f"SELECT {_probe_row('seq_priv', qname.format(s='s.schemaname', t='s.sequencename'))} "
+        f"FROM pg_sequences s CROSS JOIN (SELECT oid FROM pg_roles WHERE rolname = '{app}') a "
+        f"WHERE s.schemaname IN ({schemas}) AND NOT has_sequence_privilege(a.oid, "
+        "quote_ident(s.schemaname) || '.' || quote_ident(s.sequencename), 'USAGE') ORDER BY 1;\n"
+        # Nobody the app is, or can become, creates in any owner schema.
+        f"SELECT {_probe_row('schema_create', 'r.who', 'n.nspname')} "
+        f"FROM ({schemas}) n CROSS JOIN ({actors}) r "
+        "WHERE CASE WHEN r.roid = 0 THEN has_schema_privilege('public', n.nspname, 'CREATE') "
+        "ELSE has_schema_privilege(r.roid, n.nspname, 'CREATE') END ORDER BY 1;\n"
+        # audit_log is append-only for those same actors and the watchdog RW role.
+        f"SELECT {_probe_row('audit_priv', 'r.who', 'p.priv')} "
+        "FROM (SELECT to_regclass('public.audit_log') AS t) x "
+        "CROSS JOIN (VALUES ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('TRIGGER'), ('REFERENCES')) "
+        f"p(priv) CROSS JOIN ({actors} UNION SELECT g.rolname::text, g.oid FROM pg_roles g "
+        f"WHERE g.rolname = '{rw}') r "
+        "WHERE x.t IS NOT NULL AND CASE WHEN r.roid = 0 "
+        "THEN has_table_privilege('public', x.t, p.priv) "
+        "ELSE has_table_privilege(r.roid, x.t, p.priv) END ORDER BY 1;\n"
+        f"SELECT {_probe_row('done')};\n"
+    )
+
+
+def probe_app_role(db_name: str, container: str = POSTGRES_CONTAINER) -> list[str]:
+    """Read-only check of the app role's privilege model; one failure string per violation.
+
+    Empty means pass. Output without the ``done`` sentinel row — a query error
+    mid-batch, or a failed psql call — is a ``probe incomplete`` failure, never an
+    empty pass. Privileges are read with ``has_*_privilege`` for each role the app
+    can act as: a superuser ``SET ROLE`` chain is checked against the SESSION user
+    and proves nothing about the app's own membership. Rows are ``probe|<kind>`` +
+    HEX-encoded fields separated by ASCII US and terminated by ASCII RS: no identifier
+    byte reaches the row grammar, so none can desync a row or forge one (or the
+    sentinel). Identifiers in failure lines have non-printable characters escaped.
+
+    Raises:
+        AppRoleError: the database's owner is unknown, ``postgres`` or a superuser.
+    """
+    app = app_role_name(db_name)
+    owner = _app_role_owner(db_name, container)
+    try:
+        out = _run_sql(_app_role_probe_sql(db_name, app, owner), container=container)
+    except RuntimeError as exc:
+        return [f"probe incomplete for {db_name}: {exc}"]
+    rows = [_parse_probe_row(m.group(1)) for m in _PROBE_ROW_RE.finditer(out or "")]
+    if ["done"] not in rows:
+        return [
+            f"probe incomplete for {db_name}: no done sentinel in the output "
+            "(a query failed mid-batch)"
+        ]
+    failures: list[str] = []
+    for row in rows:
+        match row:
+            case ["done"]:
+                continue
+            case ["role_missing", who]:
+                failures.append(f"app role {who} does not exist")
+            case ["role_attr", attr]:
+                failures.append(f"{app} has {attr}")
+            case ["owns_db", datname]:
+                failures.append(f"{app} owns database {datname}")
+            case ["membership", grp, flags]:
+                failures.append(f"{app} has a disallowed membership in {grp} ({flags})")
+            case ["table_owner", table, who]:
+                failures.append(f"table {table} is owned by {who}, not the database owner {owner}")
+            case ["table_priv", priv, table]:
+                failures.append(f"{app} lacks {priv} on table {table}")
+            case ["seq_priv", seq]:
+                failures.append(f"{app} lacks USAGE on sequence {seq}")
+            case ["schema_create", who, schema]:
+                failures.append(f"{who} holds CREATE on schema {schema}")
+            case ["audit_priv", who, priv]:
+                failures.append(f"{who} holds {priv} on audit_log")
+            case _:
+                failures.append(f"probe returned an unrecognised row: {row!r}")
+    return failures
 
 
 # ── Subagent-runs telemetry: per-project INSERT-only role ─────────────────── #
@@ -1081,6 +1622,7 @@ def drop_database(
             _wd_drop_role_sql(db_name)
             + _subagent_drop_role_sql(db_name)
             + _payments_ingest_drop_role_sql(db_name)
+            + _app_drop_role_sql(db_name)
         )
         if orphan_sql:
             _run_sql(orphan_sql, container=container)
@@ -1103,6 +1645,7 @@ def drop_database(
     sql += _wd_drop_role_sql(db_name)
     sql += _subagent_drop_role_sql(db_name)
     sql += _payments_ingest_drop_role_sql(db_name)
+    sql += _app_drop_role_sql(db_name)
     _run_sql(sql, container=container)
     logger.info("Dropped PostgreSQL database: %s", db_name)
 

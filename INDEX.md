@@ -42,6 +42,8 @@
 | **.claude/workflows/fabrik-review-loop.js** | The D-335 review loop as a Claude Code workflow — two cheap finders per slice with `files_read`, a verify seat per candidate, one ledger back; launched by `/fabrik-review` and `/fabrik-repo-review` once per pass (chunk 5, D-347/D-348). | Command-loop program | Manual |
 | **libs/deep_research/packs/loop-research.yaml** | Engineering-evidence pack for fabrik-lib's `deep-research` engine — quoted, dated primary sources with a cobra note per card (D-348). | Research packs | Manual |
 | **tests/test_review_loop_workflow.py** | Pins on the workflow script: literal `meta`, `files_read` required, `fabrik-reviewer` seats on cheap models, no resume, the sources and brief name it. | Command-loop program | Manual |
+| **tests/test_app_role_driver.py** | Fake-`_run_sql` tests of the `<db>_app` role driver in `src/fabrik/drivers/postgres.py` — ensure/probe/drop SQL shape and control flow (owner refusal, fresh-role drop on grants failure, probe parse). | The app-role driver changes | pytest |
+| **tests/test_app_role_real_pg.py** | Real PostgreSQL 16 tests of the `<db>_app` role from a real login session (append-only `audit_log`, grant-option chains, memberships, CREATE, legacy PUBLIC grants), each seeding the bad state; hosts the shared `scratch_pg()` helper T05 imports. | The app-role driver changes | pytest (docker) |
 
 ---
 
