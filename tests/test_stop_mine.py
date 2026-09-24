@@ -17,6 +17,8 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 from types import ModuleType
 
@@ -327,3 +329,82 @@ def test_cli_refuses_since_after_until(tmp_path: Path) -> None:
     root = tmp_path / "projects"
     root.mkdir(parents=True)
     assert sm.main(["--root", str(root), "--since", "2026-09-23", "--until", "2026-08-09"]) == 2
+
+
+def test_a_fifo_named_jsonl_is_skipped_never_opened(tmp_path: Path) -> None:
+    """A-S2/A-O8: the `Path.is_file()` guard runs BEFORE `open()` — a FIFO named `x.jsonl` is a
+    non-regular path that a bare `open("rb")` would BLOCK on forever (no writer ever connects).
+    Run as a real subprocess under a hard `timeout`: if the guard is ever lost the process hangs
+    and the timeout itself fails this test, which a same-process call could not prove."""
+    root = tmp_path / "projects"
+    (root / "repo-a").mkdir(parents=True)
+    os.mkfifo(root / "repo-a" / "x.jsonl")
+    good = root / "repo-a" / "sess-good.jsonl"
+    _write(
+        good,
+        _asst("NEXT: operator decision — reachable", "2026-08-12T00:00:00.000Z"),
+        _user("ok", "2026-08-12T00:01:00.000Z"),
+    )
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPT), "--root", str(root), "--since", "2026-08-09", "--until", "2026-09-23"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert proc.returncode == 0, proc.stderr
+    summary = json.loads(proc.stdout.strip().splitlines()[0])
+    assert summary["files"] == 1
+    assert summary["skipped_files"] == 1
+    assert summary["turn_ends"] == 1
+
+
+def test_a_tool_result_row_with_an_entrypoint_never_taints_headless(tmp_path: Path) -> None:
+    """A-O1: headless tracking must read ONLY a real operator row's entrypoint
+    (`hook._is_operator_row`) — a `tool_result`-shaped user row that happens to ALSO carry
+    `entrypoint: sdk-cli` is not a real operator row and must not flip the turn's headless state,
+    even though it sits between the opening interactive prompt and the assistant's response."""
+    sm = _load_stop_mine()
+    root = tmp_path / "projects"
+    _write(
+        root / "repo-a" / "sess.jsonl",
+        _user("start the task", "2026-08-12T00:00:00.000Z"),  # interactive, opens the turn
+        {
+            "type": "user",
+            "timestamp": "2026-08-12T00:00:30.000Z",
+            "message": {"content": [{"type": "tool_result", "content": "ok"}]},
+            "entrypoint": "sdk-cli",
+        },
+        _asst("NEXT: operator decision — must still count", "2026-08-12T00:01:00.000Z"),
+        _user("ok, approved", "2026-08-12T00:02:00.000Z"),
+    )
+    stats = sm.mine(root, since="2026-08-09", until="2026-09-23")
+    assert stats["headless_turn_ends"] == 0
+    assert stats["turn_ends"] == 1
+    assert stats["fires"] == 1
+    assert stats["by_shape"] == {"D1": 1}
+
+
+def test_a_deeply_nested_malformed_line_never_aborts_the_file(tmp_path: Path) -> None:
+    """A-S2/A-O5: `json.loads` raises `RecursionError` (a `RuntimeError`, NOT a `ValueError`) on a
+    line nested past the interpreter's recursion limit — proof that the per-line guard must stay
+    `except Exception`, since a narrower `except ValueError` would let this line's exception abort
+    the whole file's mining instead of skipping just this one row."""
+    sm = _load_stop_mine()
+    root = tmp_path / "projects"
+    # Carries the `"type"` substring the pre-filter requires, deep enough to blow the recursion
+    # limit (1000 by default) well before the string is exhausted.
+    deeply_nested = ("[" * 10_000) + '"type"' + ("]" * 10_000)
+    sess = root / "repo-a" / "sess.jsonl"
+    sess.parent.mkdir(parents=True, exist_ok=True)
+    sess.write_text(
+        deeply_nested
+        + "\n"
+        + json.dumps(_asst("NEXT: operator decision — survives the crash line", "2026-08-12T00:00:00.000Z"))
+        + "\n"
+        + json.dumps(_user("ok", "2026-08-12T00:01:00.000Z"))
+        + "\n",
+        encoding="utf-8",
+    )
+    stats = sm.mine(root, since="2026-08-09", until="2026-09-23")
+    assert stats["turn_ends"] == 1
+    assert stats["fires"] == 1
