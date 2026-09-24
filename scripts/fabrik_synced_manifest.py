@@ -60,7 +60,7 @@ CORE_SCRIPTS = [
     "whoami_agent.py",  # SELF-NAMING IDENTITY: a LIVE session binds itself to an agent name with no relaunch, and command_run.py imports its resolver — so it MUST travel on the same sync as command_run.py or the guarded import degrades to the env var (D-267/D-268)
     "command_run.py",  # COMMAND RUN-RECORD: the pinned `RUN:` line + class ledger; the Stop hook's 5th cause reads its state
     "thread_anchor.py",  # THREAD ANCHORS: durable NEXT:-line memory — the Stop hook harvests, SessionStart/UserPromptSubmit re-inject (settings.json references it, so it must travel with settings.json)
-    "work.py",  # WORK TRACKING: the open-work store (ready/next/claim/done/answer/assign/status/sync/render) — thread_anchor.py imports it by path
+    "work.py",  # WORK TRACKING: the open-work store (ready/next/claim/done/answer/assign/status/sync/render) — travels with thread_anchor.py, whose DECISION harvest and prompt block call it by path (plan 2026-09-24 T04)
 ]
 
 # Scripts RETIRED from CORE_SCRIPTS — the sync DELETES these from every project copy.
