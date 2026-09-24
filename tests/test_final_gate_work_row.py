@@ -256,6 +256,24 @@ def test_the_warning_names_the_real_error_not_an_import_fallback_line(tmp_path, 
     assert out == f"⚠ {ROW} could not run (exit 1): work: git rev-parse failed"
 
 
+def test_a_fallback_notice_on_stderr_after_the_stdout_error_is_skipped(tmp_path, env):
+    """`run_cmd` joins stdout THEN stderr, so a fallback notice `_warn` wrote to stderr lands
+    AFTER an error printed on stdout — plain last-line selection would name the notice."""
+    repo = _repo(tmp_path, env)
+    notice = "work: check_plans import failed (x) — using the local regex fallback for its grammar"
+    _fake_work(
+        repo,
+        'print("work: git rev-parse failed", flush=True)\n'
+        f'sys.stderr.write("{notice}\\n"); sys.exit(1)',
+    )
+    mod = _gate(repo)
+
+    _name, ok, out = _row(_rows(mod))
+
+    assert ok, out
+    assert out == f"⚠ {ROW} could not run (exit 1): work: git rev-parse failed"
+
+
 def test_a_repo_with_no_store_passes_with_the_one_line_message(tmp_path, env):
     repo = _repo(tmp_path, env)
     mod = _gate(repo)
