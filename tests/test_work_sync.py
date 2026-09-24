@@ -932,6 +932,58 @@ def test_a_decisions_row_naming_the_spec_does_not_exclude_it_from_class_1(tmp_pa
     assert _drift_lines(out, 1) == [f"DRIFT 1 (advisory)  {spec}"]
 
 
+def _archived_plan_dir(repo: Path, name: str, status: str, extra: str = "") -> str:
+    """A plan set moved to ``docs/development/plans/archived/`` at its close."""
+    d = repo / "docs" / "development" / "plans" / "archived" / name
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / f"{name}.md"
+    p.write_text(f"# {name}\n\nStatus: {status}\n{extra}\nOwner: infra\n", encoding="utf-8")
+    return f"docs/development/plans/archived/{name}/{name}.md"
+
+
+def test_a_spec_named_by_an_archived_plan_is_carried_forward(tmp_path):
+    """Class 1 is "no plan names it": a plan archived at its close still names its spec, so the
+    spec is not drift. Measured at the hub's adoption: 24 of 28 class-1 lines were specs whose
+    plan had been archived."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    carried = _spec(repo, "2026-09-24-shipped-design", "CONVERGED")
+    orphan = _spec(repo, "2026-09-24-orphan-design", "CONVERGED")
+    _archived_plan_dir(repo, "2026-09-24-plan-1-shipped", "EXECUTED", extra=f"Spec: {carried}\n")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 1) == [f"DRIFT 1 (advisory)  {orphan}"]
+
+
+def test_an_archived_executed_plan_with_an_open_linked_item_is_class_4(tmp_path):
+    """Class 4 names an EXECUTED plan with an item still open against it; a plan is archived at
+    EXECUTED, so the archived set is exactly where that item hides."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    plan = _archived_plan_dir(repo, "2026-09-24-plan-1-archived", "EXECUTED")
+    _add(repo, env, title="still open", kind="task", link=f"plan={plan}")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 4) == [f"DRIFT 4 (blocking)  {plan}"]
+
+
+def test_an_archived_plan_is_never_a_subject_of_classes_2_3_or_8(tmp_path):
+    """Archived plans are settled: a stale CONVERGED, a lock-less IN-PROGRESS or an odd Status
+    value there is history, not drift."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    old = datetime.now(UTC) - timedelta(days=30)
+    a = _archived_plan_dir(repo, "2026-08-01-plan-1-old-converged", "CONVERGED")
+    b = _archived_plan_dir(repo, "2026-08-01-plan-2-old-in-progress", "IN-PROGRESS")
+    c = _archived_plan_dir(repo, "2026-08-01-plan-3-odd", "ABANDONED")
+    _commit_dated(repo, env, [a, b, c], "age them", old)
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 2) == []
+    assert _drift_lines(out, 3) == []
+    assert _drift_lines(out, 8) == []
+
+
 # ── review pass 2 (rev-T02/fixes-2.md) — 8 defects introduced or left open by pass 1 ──────────
 
 

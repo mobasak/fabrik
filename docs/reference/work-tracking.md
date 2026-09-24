@@ -182,14 +182,16 @@ Eight drift classes (`status`/`sync` print `DRIFT <n> (blocking|advisory)  <path
 
 | # | Class | Always |
 |---|---|---|
-| 1 | A CONVERGED spec no plan names and no item links (SUPERSEDED/IMPLEMENTED excluded) | advisory |
+| 1 | A CONVERGED spec no plan names and no item links (SUPERSEDED/IMPLEMENTED excluded; a plan under `plans/archived/` still names its spec) | advisory |
 | 2 | A plan CONVERGED more than 7 days with no plan lock and no item linking it | blocking\* |
 | 3 | A plan IN-PROGRESS with no plan lock | blocking\* |
-| 4 | A plan EXECUTED while an item linking it is still open | blocking\* |
+| 4 | A plan EXECUTED while an item linking it is still open (archived plans included — a plan is archived at EXECUTED) | blocking\* |
 | 5 | An item file that doesn't parse, or a status outside the vocabulary | blocking\* |
 | 6 | A `done` item within the last 14 days whose evidence SHA doesn't exist or doesn't name it; or a closed marker over 14 days old whose item is still open in the base branch (never merged) | blocking\* |
 | 7 | The backlog block is stale (`render` would change it) | advisory |
 | 8 | A plan `Status:` value outside the normalised set | advisory |
+
+Classes 2, 3 and 8 read the live plans only: a plan under `plans/archived/` is settled history.
 
 \* Classes 2–6 only turn `sync --check`'s exit code non-zero once the repo is **past its migration
 window**: `config.json`'s `migrated_at` is set (by `migrate-backlog`, once) and `readings.jsonl` shows

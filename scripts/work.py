@@ -1127,10 +1127,12 @@ def _iter_specs(repo: Path) -> Iterator[Path]:
         yield from sorted(d.glob("*.md"))
 
 
-def _iter_plan_spines(repo: Path) -> Iterator[Path]:
+def _iter_plan_spines(repo: Path, *, archived: bool = False) -> Iterator[Path]:
     """Every plan spine: a standalone dated file, or a same-stem file inside a dated plan-set
-    directory (archived and ticket files are excluded by construction — neither matches)."""
-    d = repo / PLANS_DIR
+    directory (ticket files are excluded by construction — neither matches). ``archived=False``
+    reads the live plans; ``archived=True`` reads ``plans/archived/`` instead, the settled plans
+    that still CARRY their spec (class 1) and still name their items (class 4)."""
+    d = repo / PLANS_DIR / "archived" if archived else repo / PLANS_DIR
     if not d.is_dir():
         return
     for p in sorted(d.glob("*.md")):
@@ -1489,6 +1491,18 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
             text = ""
         plan_texts[rel] = text
         cited_specs.update(_normalize_repo_path(repo, c) for c in cite_fn(text))
+    # An ARCHIVED plan is settled: it is never a subject of classes 2, 3 or 8, but it still names
+    # its spec (class 1 — "no plan names it") and it is EXECUTED, so an item still open against it
+    # is class 4. Reading only the live plans reported every spec whose plan had been archived as
+    # carried by nothing (24 of the hub's 28 class-1 lines at adoption, 2026-09-25).
+    archived_texts: dict[str, str] = {}
+    for spine in _iter_plan_spines(repo, archived=True):
+        try:
+            text = spine.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+        archived_texts[_rel(repo, spine)] = text
+        cited_specs.update(_normalize_repo_path(repo, c) for c in cite_fn(text))
 
     for spec_path in _iter_specs(repo):
         rel = _rel(repo, spec_path)
@@ -1530,6 +1544,11 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
         elif norm == "EXECUTED":
             if any(li.get("status") not in RESOLVED for li in linked_plans.get(rel, [])):
                 report[4].append(rel)
+    for rel, text in archived_texts.items():
+        if _normalize_plan_status(_status_value(repo, text)) == "EXECUTED" and any(
+            li.get("status") not in RESOLVED for li in linked_plans.get(rel, [])
+        ):
+            report[4].append(rel)
 
     store = _store_dir(repo)
     if store.is_dir():
