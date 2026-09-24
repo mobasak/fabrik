@@ -993,7 +993,9 @@ def test_the_bar_paragraph_keeps_every_restored_and_new_rule() -> None:
       - delete "an `(a)/(b)` options menu is never legitimate"
       - delete "**Everything else is DISPATCHED, not offered**"
       - delete "refused while a command run record is `running`"
-      - delete "with `searched:` naming what came back silent"
+      - delete "then `searched:` citing the path, backticked command, D-id or `/fabrik-*` command"
+    - docs review (T06): delete "ending in its `?`" · delete "Name exactly ONE ground in the heading" —
+      the hook refuses an asked: quote without `?` and a heading ground of `gate|underivable|owned`
     """
     hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
     para = _has_a_bar_paragraph(hub)
@@ -1020,8 +1022,12 @@ def test_the_bar_paragraph_keeps_every_restored_and_new_rule() -> None:
     assert "refused while a command run record is `running`" in para, (
         "O2 (round 2): the scope:-refused-while-live rule is missing"
     )
-    assert "with `searched:` naming what came back silent" in para, (
-        "O2 (round 2): the underivable ground's searched: requirement is missing"
+    assert (
+        "then `searched:` citing the path, backticked command, D-id or `/fabrik-*` command" in para
+    ), "O2 (round 2): the underivable ground's searched: requirement is missing"
+    assert "ending in its `?`" in para, "docs review: the asked: quote's `?` rule is missing"
+    assert "Name exactly ONE ground in the heading" in para, (
+        "docs review: the one-ground rule is missing (the pipe heading is refused)"
     )
 
     bullets = [ln for ln in hub.split("\n") if ln.lstrip().startswith("- `operator-decision-bar`")]

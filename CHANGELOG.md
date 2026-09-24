@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Stop-and-compaction docs match the merged hook: line cites, two event rows, the DECISION block's grammar (2026-09-24)
+- `/fabrik-docs-review` (T06 step 6 of plan `2026-09-23-plan-1-stop-and-compaction`), two partitioned passes, 27 → 0: `docs/workstation/hooks-index.md`'s Stop row cited four `final_gate_stop.py` defs 36 lines stale; `docs/reference/thread-anchors.md` cited three `thread_anchor.py` lines off by 1–3 and 42 tests for 43; `docs/workstation/kaizen-event-stream.md` gains the `anchor_harvest` and `stop_allowed_quota_hold` rows.
+- `CLAUDE.md` and both § FINAL OUTPUT copies of `templates/governance/CLAUDE.md`: the DECISION block names exactly ONE ground (the heading's `gate|underivable|owned` literal is refused), `underivable` states what changes before a `searched:` that cites a path, command, D-id or `/fabrik-*`, and an `asked:` quote ends in its `?` — each rule the hook already enforced, now stated; `tests/test_governance_template_split.py` pins all three (each seen red on deletion). Four hook-side enforcement gaps the review found are routed to `docs/STRATEGIC_BACKLOG.md`.
+
 ### Fixed — the stop-and-compaction seams the whole-plan review found (2026-09-24)
 
 - `.claude/hooks/final_gate_stop.py`: an accepted DECISION block is stored for WHERE YOU ARE only when the Stop is allowed (a block in a message the same Stop blocks is never left open), and it is judged only from this turn's own last text entry, never from the previous turn's message. `anchor_harvest` and `stop_allowed_quota_hold` are registered kaizen events, and a test holds every event the hook emits registered.
