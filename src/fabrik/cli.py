@@ -1481,13 +1481,23 @@ def app_role_check_cmd(spec_path: str):
     """
     import yaml
 
-    from fabrik.app_role_check import _db_name_for_spec, project_repo_dir, run_check
+    from fabrik.app_role_check import (
+        SpecResolutionError,
+        _db_name_for_spec,
+        project_repo_dir,
+        run_check,
+    )
 
     with open(spec_path, encoding="utf-8") as f:
         spec = yaml.safe_load(f) or {}
 
-    db_name = _db_name_for_spec(spec)
-    repo_dir = project_repo_dir(spec)
+    try:
+        db_name = _db_name_for_spec(spec)
+        repo_dir = project_repo_dir(spec)
+    except SpecResolutionError as exc:
+        click.echo(f"✗ {exc}", err=True)
+        raise SystemExit(1) from None
+
     result = run_check(db_name, repo_dir)
 
     if result.ok:
