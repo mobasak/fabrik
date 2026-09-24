@@ -643,6 +643,30 @@ def test_database_url_app_role_default_holds_even_with_a_database() -> None:
     assert Shape(needs_database=True).database_url_app_role is False
 
 
+@pytest.mark.parametrize("value", ["false", "true", "yes", 0, 1])
+def test_database_url_app_role_refuses_every_non_bool(value: object) -> None:
+    """D7-registrar-O6: the registrar's ``_app_role_flag`` refuses every non-bool,
+    so validation must too — a rollback written as ``"false"`` that validates but
+    never rolls back is the failure this pins."""
+    from pydantic import ValidationError
+
+    from fabrik.spec_loader import Shape
+
+    with pytest.raises(ValidationError, match="database_url_app_role"):
+        Shape(needs_database=True, database_url_app_role=value)
+
+
+def test_database_url_app_role_real_bools_and_generated_specs_still_validate() -> None:
+    from fabrik.spec_generator import SPEC_ENABLED_TYPES, generate_spec
+    from fabrik.spec_loader import Shape, Spec
+
+    assert Shape(needs_database=True, database_url_app_role=True).database_url_app_role is True
+    assert Shape(needs_database=True, database_url_app_role=False).database_url_app_role is False
+    for ptype in sorted(SPEC_ENABLED_TYPES):
+        spec = generate_spec(f"v-{ptype}", ptype, f"v-{ptype}.vps1.ocoron.com", use_database=True)
+        Spec.model_validate(spec.model_dump(mode="json", exclude_none=True))
+
+
 def test_load_spec_database_url_app_role_default_survives_load(
     tmp_fabrik_root: Path,
 ) -> None:

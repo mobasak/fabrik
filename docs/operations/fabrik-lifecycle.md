@@ -74,7 +74,7 @@ When `fabrik apply` targets a service that already exists (`/opt/<name>/compose.
 
 1. **Compose.yaml** — for template/docker source: regenerated and written to VPS via SCP (**overwritten**). For git source: updated by `git pull` from the repo (deployer does not write compose.yaml). For local source: untouched (already exists at `source.path`)
 2. **`.env`** is read-merged:
-   - Reads existing `/opt/<name>/.env` from VPS
+   - Reads existing `/opt/<name>/.env` from VPS. A failed read of an existing `.env` (ssh error, refused sudo) aborts the deploy with a `DeployError` before the `.env` is written or the containers are restarted (a git-sourced deploy has already pulled the repo by then), since rebuilding from spec + secrets alone would drop every registrar-injected var, `DATABASE_URL_OWNER` included. `inject_env()` follows the same rule. Only an absent `.env` builds from spec + secrets
    - Layers spec `env:` block values on top
    - Layers `ctx.secrets` on top (highest priority)
    - Writes merged result back
@@ -180,8 +180,8 @@ Understanding when `.env` is written helps predict whether your env vars will su
 | Event | .env touched? | Strategy | Registrar vars preserved? |
 |---|---|---|---|
 | `fabrik apply` (new) | Yes — written fresh | No existing file to read | N/A (first deploy) |
-| `fabrik apply` (existing) | Yes — read-merged | Read existing → layer spec → layer secrets | Yes |
-| `inject_env()` (redis/glitchtip registrar) | Yes — read-merged | Read existing → add new vars → write back + restart | Yes |
+| `fabrik apply` (existing) | Yes — read-merged | Read existing → layer spec → layer secrets; a failed read aborts, nothing written | Yes |
+| `inject_env()` (redis/glitchtip registrar) | Yes — read-merged | Read existing → add new vars → write back + restart; a failed read raises, nothing written | Yes |
 | `fabrik redeploy` | **No** | .env not touched | Yes (untouched) |
 | `fabrik redeploy --refresh-infra` | Maybe — only if registrar calls `inject_env()` | Read-merge | Yes |
 | `fabrik destroy` | N/A — file deleted with directory | — | — |
@@ -231,7 +231,7 @@ Logs name roles, never a DSN or a password.
 
 1. Set `shape.database_url_app_role: true` in `specs/services/<id>.yaml` (a YAML boolean; a
    string or a number is refused, never read as a switch).
-2. Run `fabrik app-role-check specs/services/<id>.yaml` and fix everything it reports (a
+2. Run `fabrik app-role-check --spec specs/services/<id>.yaml` and fix everything it reports (a
    migration tool or DDL still reaching `DATABASE_URL`, a stale or missing clone at
    `/opt/<id>`, a failing privilege probe).
 3. `fabrik apply specs/services/<id>.yaml`. The step runs the same check again and cuts over
@@ -241,10 +241,14 @@ Logs name roles, never a DSN or a password.
 returns to the owner DSN kept in `DATABASE_URL_OWNER`.
 
 **Shared databases are refused.** When another spec (`*.yaml` or `*.yml`) in `specs/services/` with
-`shape.needs_database` resolves to the same database (`depends.postgres: main` is shared by
-several specs), the cutover is refused and the failure lists those specs: one `<db>_app`
-password cannot be reset for one of them without breaking the others. An unreadable sibling
-spec, or one whose database cannot be resolved, refuses too.
+`shape.needs_database` resolves to the same database, the cutover is refused and the failure
+lists those specs: one `<db>_app` password cannot be reset for one of them without breaking
+the others. An unreadable sibling spec, or one whose database cannot be resolved (including a
+non-string `depends.postgres`), refuses too. Only legacy specs share one: the four live
+database specs pinned to `depends.postgres: main` share database `main` and cannot cut over
+until each moves to its own database. A scaffolded spec never shares — `fabrik scaffold` pins
+`depends.postgres` to the project's own database (its id with hyphens as underscores, the name
+the registrar derives), so a new project is born on the app role.
 
 **The limit.** The owner DSN lives in the same project `.env` as the app DSN. Append-only on
 `audit_log` therefore holds against the app's own code paths and against SQL injection, not

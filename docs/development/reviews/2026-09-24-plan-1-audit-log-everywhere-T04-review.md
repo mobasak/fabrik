@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = a1cf6f1117ff7953d4917209d0ebe07ec31d2b44; range tip 3304e61883db652e40d0b471d41f607c730e57cf; `git diff a1cf6f111..3304e6188 -- src/fabrik/orchestrator/infrastructure.py src/fabrik/orchestrator/deployer_ssh.py src/fabrik/drivers/ssh.py tests/conftest.py tests/test_app_role_provision.py tests/orchestrator/test_deployer_ssh.py tests/drivers/test_ssh.py docs/operations/fabrik-lifecycle.md docs/reference/modules/drivers.md` md5 3155068ef97f164a1d17ad07aa171e1f (66353 bytes)
 **Command:** /fabrik-review · **Changed:** `src/fabrik/orchestrator/infrastructure.py`, `src/fabrik/orchestrator/deployer_ssh.py`, `src/fabrik/drivers/ssh.py`, `tests/conftest.py`, `tests/test_app_role_provision.py`, `tests/orchestrator/test_deployer_ssh.py`, `tests/drivers/test_ssh.py`, `docs/operations/fabrik-lifecycle.md`, `docs/reference/modules/drivers.md`
-**Plan:** `docs/development/plans/2026-09-24-plan-1-audit-log-everywhere/T04-registrar-wiring.md`
+**Plan:** `docs/development/plans/archived/2026-09-24-plan-1-audit-log-everywhere/T04-registrar-wiring.md`
 
 ## Coverage Checklist
 

@@ -455,9 +455,9 @@ def generate_spec(
     if shape is not None and shape.needs_database:
         shape = _validated_shape_overlay(shape, database_url_app_role=True)
 
-    # Acceptance-review S1: a database spec with NO shape at all would still
-    # get depends.postgres="main" below, emitting an owner DSN with no
-    # database_url_app_role flag — silently. Every enabled type carries a
+    # Acceptance-review S1: a database spec with NO shape at all would carry
+    # no database_url_app_role flag (and, since D7, no depends.postgres either —
+    # a database-backed project silently deployed without its database). Every enabled type carries a
     # `shape:` block today (see the "every enabled type" test in
     # test_spec_generator.py); fail loud rather than let a future template
     # regression (a missing/deleted `shape:` block) ship that silently.
@@ -496,8 +496,15 @@ def generate_spec(
 
     from fabrik.spec_loader import Depends
 
+    # D7-registrar-O1/O3: the registrar reads ``depends.postgres`` as the DATABASE
+    # NAME (infrastructure.py ``_provision_postgres``: ``configured or derived``), so
+    # the old ``"main"`` put every new project in one shared database — where the
+    # app-role cutover this spec asks for is refused forever. A database spec pins
+    # the project's OWN database, the exact name the registrar derives on its own;
+    # gated on the RESOLVED shape (defaults.yaml or the --db overlay), never the raw
+    # flag/context. Redis stays "main": it names a server, not a database.
     depends = Depends(
-        postgres="main" if (ctx.get("depends_postgres") or use_database) else None,
+        postgres=name.replace("-", "_") if (shape is not None and shape.needs_database) else None,
         redis="main" if ctx.get("depends_redis") else None,
     )
 

@@ -632,3 +632,19 @@ def test_probe_passes_on_the_audit_kit_and_reports_a_cursor_write(
             assert pg.probe_app_role(db) == []
             s.run_sql(f"\\c {db}\nGRANT UPDATE ON audit_jobs_state TO {db}_app;")
             assert pg.probe_app_role(db) == [f"{db}_app holds UPDATE on audit_jobs_state"]
+
+
+# ── D7-registrar-O2: the pre-cutover scan passes on the scaffolder's own output ──
+
+
+@requires_fabrik_env
+@pytest.mark.parametrize("kind", [*_PY_BACKENDS, *_NODE_DB])
+def test_fresh_database_scaffold_scans_clean(projects: dict[str, Path], kind: str) -> None:
+    """A freshly scaffolded database project must be able to pass ``run_check``'s repo
+    scan: the Fabrik-synced enforcement tree never runs as the app, and a comment line
+    is inert. Pre-fix python-api/saas-skeleton gave 4 findings, file-worker 1."""
+    from fabrik.app_role_check import scan_repo
+
+    result = scan_repo(projects[kind])
+    assert result.files_scanned > 0
+    assert result.findings == [], result.findings

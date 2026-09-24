@@ -391,11 +391,45 @@ class TestGenerateSpec:
         with pytest.raises(ValueError, match="Unsupported project type"):
             generate_spec("test", "wordpress", None)
 
-    def test_postgres_dependency_set_when_detected(self):
+    def test_detected_postgres_alone_pins_no_database(self):
+        """D7-scaffold-S2: ``depends.postgres`` follows the RESOLVED
+        ``shape.needs_database``, never the raw detected context — python-api
+        without ``--db`` resolves to no database, so nothing is pinned."""
         ctx = {"depends_postgres": True, "depends_redis": False}
         spec = generate_spec("my-api", "python-api", "my-api.vps1.ocoron.com", context=ctx)
-        assert spec.depends.postgres == "main"
+        assert spec.shape is not None and spec.shape.needs_database is False
+        assert spec.depends.postgres is None
         assert spec.depends.redis is None
+
+    def test_database_spec_pins_its_own_database_never_shared_main(self):
+        """D7-registrar-O1/O3: the registrar takes ``depends.postgres`` as the
+        DATABASE NAME, so ``main`` would put every new project in one shared
+        database, where the app-role cutover is refused forever. A database
+        spec pins the registrar's own derived name."""
+        spec = generate_spec("my-app", "python-api", "my-app.vps1.ocoron.com", use_database=True)
+        assert spec.depends.postgres == "my_app"
+        saas = generate_spec("my-saas", "saas-skeleton", "my-saas.vps1.ocoron.com")
+        assert saas.shape is not None and saas.shape.needs_database is True
+        assert saas.depends.postgres == "my_saas"
+
+    @pytest.mark.parametrize("project_type", sorted(SPEC_ENABLED_TYPES))
+    def test_database_name_agrees_with_the_registrar_and_the_check(self, project_type):
+        """The emitted pin equals the registrar's derived name
+        (``name.replace("-", "_")``) and what ``app-role-check`` resolves; a
+        spec with no database pins nothing."""
+        from fabrik.app_role_check import _db_name_for_spec
+        from fabrik.spec_generator import type_needs_database
+
+        name = f"x-{project_type}"
+        for use_db in (False, True):
+            spec = generate_spec(name, project_type, f"{name}.vps1.ocoron.com", use_database=use_db)
+            dumped = spec.model_dump(mode="json", exclude_none=True)
+            if use_db or type_needs_database(project_type):
+                assert spec.depends.postgres == name.replace("-", "_")
+                assert _db_name_for_spec(dumped) == name.replace("-", "_")
+            else:
+                assert spec.depends.postgres is None
+            assert spec.depends.redis in (None, "main")
 
     def test_redis_dependency_set_when_detected(self):
         ctx = {"depends_postgres": False, "depends_redis": True}
@@ -503,7 +537,7 @@ class TestGenerateSpec:
         assert spec_on.shape.needs_database is True
         # Also verify ``depends.postgres`` is wired so the rendered
         # compose / orchestrator dependency graph reflects the DB.
-        assert spec_on.depends.postgres == "main"
+        assert spec_on.depends.postgres == spec_on.id.replace("-", "_")
 
     def test_use_database_propagates_database_url_app_role(self):
         """D-390: every new database project is born on the app role —
@@ -527,7 +561,7 @@ class TestGenerateSpec:
         assert spec_on.shape.database_url_app_role is True
         # Also verify ``depends.postgres`` is wired, like the sibling
         # ``test_use_database_propagates_to_shape`` test does.
-        assert spec_on.depends.postgres == "main"
+        assert spec_on.depends.postgres == spec_on.id.replace("-", "_")
 
         spec_saas = generate_spec("db-saas", "saas-skeleton", "db-saas.vps1.ocoron.com")
         assert spec_saas.shape is not None

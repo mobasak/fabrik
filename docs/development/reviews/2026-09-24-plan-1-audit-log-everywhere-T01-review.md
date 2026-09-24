@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = a2d4cdf8e8ecdda6ce6d0494e408b668e818b9f3; range tip 5ce16815caaaac7e4f4e392bb6c31e9f81a3322c; `git diff a2d4cdf8e..worktree-agent-a03eba365c660214d -- src/fabrik/spec_loader.py src/fabrik/spec_generator.py tests/test_spec_loader.py tests/test_spec_generator.py` md5 fa57b69d537a0848036b43726a4a0d7c (7039 bytes)
 **Command:** /fabrik-review · **Changed:** `src/fabrik/spec_loader.py`, `src/fabrik/spec_generator.py`, `tests/test_spec_loader.py`, `tests/test_spec_generator.py`
-**Plan:** `docs/development/plans/2026-09-24-plan-1-audit-log-everywhere/T01-app-role-shape-flag.md`
+**Plan:** `docs/development/plans/archived/2026-09-24-plan-1-audit-log-everywhere/T01-app-role-shape-flag.md`
 
 ## Coverage Checklist
 

@@ -1,6 +1,7 @@
 # The audit log in every Fabrik project — non-owner app role, DSN contract, pre-cutover check, scaffolder
 
-Status: IN-PROGRESS (/fabrik-execute-plan 2026-09-24, worktree-audit-log-exec; converged earlier by /fabrik-plan-review 2026-09-24 — 4 passes, confirmed 48 → 9 → 1 → 0; scope-growth stop at pass 3, remainder round quiet)
+Status: EXECUTED 2026-09-24 (/fabrik-execute-plan, worktree-audit-log-exec; all five tickets merged with their acceptance reviews clean; D7 whole-plan validation quiet at pass 3, confirmed 9 → 1 → 0)
+Whole-plan review: docs/development/reviews/2026-09-24-plan-1-audit-log-everywhere-review.md
 **Owner:** fleet
 Spec: docs/superpowers/specs/2026-09-24-audit-log-everywhere-design.md (CONVERGED 799b1434a, D-387; approved D-389; design D-385 as corrected by D-386; mandate D-368)
 
@@ -231,6 +232,9 @@ Serialized: src/fabrik/spec_generator.py — T01, T05
 
 ## Evidence
 
+- **Execution (2026-09-24).** T01 60407e77c · T02 f4cc28eea · T03 a1cf6f111 (+ its O30 fix e8263fbb8) · T04 253e06eaf · T05 900c25c8c · D7 fixes 0fdbc9603 (folded into the Finish commit). Per-ticket receipts `docs/development/reviews/2026-09-24-plan-1-audit-log-everywhere-T0{1..5}-review.md`; whole-plan receipt `docs/development/reviews/2026-09-24-plan-1-audit-log-everywhere-review.md` (D7 pass ledger: found 22 → 3 → 0). Decisions D-407 (T04), D-408 (T05), D-409 (D7).
+- **Requirements coverage.** Non-owning `<db>_app` with USAGE-never-CREATE, audit revokes, Pattern A memberships INHERIT FALSE/SET TRUE → T02 (`src/fabrik/drivers/postgres.py` `ensure_app_role`, `_app_role_grants_sql`). `DATABASE_URL` = app / `DATABASE_URL_OWNER` = owner, both at creation, switch only by the flag, rollback the flag reversed → T01 (`Shape.database_url_app_role`), T04 (`_provision_app_role`). Measured check (ownership, privilege probe, repo scan) that refuses and names what failed → T03 (`fabrik app-role-check`, `run_check`). Third-party images refused structurally (no repo) → T03. The registrar step outside `create_database`, its failure a registrar failure → T04. The scaffolder's module, table, same-transaction revokes, writer and jobs → T05; a new project born on the app role → T05 + D-409 (own database, clean fresh-scaffold check). No gap.
+- **No HTTP surface shipped** (a CLI command and registrar/scaffolder code), so no live request is owed.
 - `src/fabrik/spec_loader.py:333-345` — `needs_payments_ingest: bool = Field(default=False, …)` and its `_payments_ingest_needs_database` validator (:380-389), the shape T01 copies. `src/fabrik/orchestrator/infrastructure.py:232` reads the RAW dict with `shape.get(...)`: `ctx.spec` never passes through `Shape`, so T04 reads the flag the same way.
 - `src/fabrik/drivers/postgres.py`:
   - `:340-342` — `create_database` returns before any role SQL once the database exists.
@@ -496,7 +500,7 @@ Rubric over the plan's File Scope (`python scripts/review_rubric.py --changed sr
 
 ## Residual unknowns
 
-- **Resolved (emit gate):** `python -m scripts.enforcement.check_plan_tickets --plan-dir docs/development/plans/2026-09-24-plan-1-audit-log-everywhere` — the summary line of the last run is quoted in § Review — Pass Ledger. The first draft had T04 at 276,215 B against 262,144, so `docs/CONFIGURATION.md` (57,582 B) moved to T05.
+- **Resolved (emit gate):** `python -m scripts.enforcement.check_plan_tickets --plan-dir docs/development/plans/archived/2026-09-24-plan-1-audit-log-everywhere` — the summary line of the last run is quoted in § Review — Pass Ledger. The first draft had T04 at 276,215 B against 262,144, so `docs/CONFIGURATION.md` (57,582 B) moved to T05.
 - **Resolved (review pass 1): the scratch PostgreSQL.** `postgres:16` is in the local image list (§ Evidence). The fixture still skips with its reason when docker is unavailable, and a skip never counts as the red-on-revert proof.
 - **Open (self-service, T05): the jobs companion's memory.** Measure the peak RSS of one retention and one verify pass over 10k rows in a scratch container. Set `memory` to 2× peak, floor 128M, and record the measurement in the receipt.
 - **Deferred, destination named — the Node writer.** `core/app-audit-log.md:50-52` says node-api and file-api owe a writer hashing byte-identically to `canonical_payload` until fabrik-lib's Node port lands. T05 emits the table and revokes only. The writer is the port's (fabrik-lib, already filed by infra) or the project agent's during its wave. A STRATEGIC_BACKLOG row carries it (T05 Deltas).

@@ -4896,3 +4896,11 @@ for real and rewrites the shared checkout — it did, during plan audit-log-ever
 byte-identical to master, nothing distributed). Fix: refuse any directory that IS a hub checkout (detect its
 marker files, e.g. `scripts/fabrik_synced_manifest.py` + `src/fabrik/`), with a test that sets `FABRIK_ROOT`
 elsewhere and still gets the refusal. Owner: fleet (scaffolding). See docs/LESSONS_LEARNT.md (2026-09-24).
+
+## [fleet] A local-source deploy can rebuild `.env` without the registrar-injected keys (2026-09-24)
+
+`SSHDeployer.find_existing` decides "existing" by `/opt/<name>/compose.yaml`, but `_deploy_local` reads and
+writes `.env` under `source.path`. When `source.path` is not `/opt/<name>`, the existing `.env` is never read and
+is rebuilt from spec env + secrets alone — dropping `DATABASE_URL_OWNER` after an app-role cutover, the case D-409
+closed for the other deploy paths. Recorded by the D7 whole-plan validation of audit-log-everywhere from a
+reading of the code, not executed; verify first. Owner: fleet.

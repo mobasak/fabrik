@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = f4cc28eea002da5293bcc5136a18952d9aaccc34; range tip 66295a1ac2e6d00d3e56546f0f40fb84eccabd10; `git diff f4cc28eea..worktree-agent-a184fb950973634bc -- src/fabrik/app_role_check.py src/fabrik/cli.py tests/test_app_role_check.py docs/QUICKSTART.md` md5 edd465e045f360bb4e5d518dde6ecdf2 (33526 bytes)
 **Command:** /fabrik-review · **Changed:** `src/fabrik/app_role_check.py`, `src/fabrik/cli.py`, `tests/test_app_role_check.py`, `docs/QUICKSTART.md`
-**Plan:** `docs/development/plans/2026-09-24-plan-1-audit-log-everywhere/T03-app-role-check.md`
+**Plan:** `docs/development/plans/archived/2026-09-24-plan-1-audit-log-everywhere/T03-app-role-check.md`
 
 ## Coverage Checklist
 

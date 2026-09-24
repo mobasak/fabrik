@@ -1,7 +1,7 @@
 # Whole-plan receipt — audit-log-everywhere (plan 1, 2026-09-24)
 
-**Plan:** `docs/development/plans/2026-09-24-plan-1-audit-log-everywhere/` (T01–T05) · **Spec:**
-`docs/superpowers/specs/2026-09-24-audit-log-everywhere-design.md` · **Decisions:** D-385, D-386, D-390
+**Plan:** `docs/development/plans/archived/2026-09-24-plan-1-audit-log-everywhere/` (T01–T05) · **Spec:**
+`docs/superpowers/specs/2026-09-24-audit-log-everywhere-design.md` · **Decisions:** D-385, D-386, D-390, D-407, D-408, D-409
 **Range:** `a2d4cdf8e~1..191a72b17` (the plan entering execution through T05's code commit), run in
 the T05 worktree on 2026-09-24.
 
@@ -144,3 +144,33 @@ $ FABRIK_REQUIRE_REAL_PG=1 FABRIK_ROOT=<worktree> PYTHONPATH=<worktree>/src /opt
   `env_file`, which predates this plan; the audit-jobs companion does not depend on it.
 - The Node writer (node-api, file-api) still waits on fabrik-lib's Node port
   (`core/app-audit-log.md:50-52`); the scaffold emits their table and revokes only.
+
+## D7 — whole-plan validation (the orchestrator's adversarial layer)
+
+Surface: the integrated cumulative diff `105e2d630..HEAD` on `worktree-audit-log-exec` (33 files across
+T01–T05), then the D7 fix commits `900c25c8c..0fdbc9603` and one orchestrator doc edit. Four file slices —
+driver, check, registrar, scaffold — each a native sonnet + haiku finder, the authoritative seat (opus; the
+review workflow cannot dispatch fable) on the registrar slice, one sonnet refuter per slice. Hunted the SEAMS
+the per-ticket reviews could not see; re-raises of adjudicated per-ticket rows were cited, never counted.
+No HTTP surface shipped (a CLI command and registrar code only), so no live request is owed.
+
+| Pass | Finders | Counters | Method |
+|---|---|---|---|
+| Pass 1 | native sonnet×4 + haiku×4 + opus×1 (4 slices), sonnet×4 refuters | found: 22, new: 22, confirmed: 9, fixed: 9, unexecuted: 0 | method: citation — full partitioned pass over the whole-plan diff + one hop; 3 cited as standing rows, 3 recorded by design, 7 refuted |
+| Pass 2 | native sonnet×4 + haiku×4 + opus×1 (the round-1 owners of all 4 slices) | found: 3, new: 3, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation — 9 ledger claims re-executed on the fix branch (all fixed); O8 new inside the r1b doc text (own-fix: round 1); O6's apply-time validator gap recorded (D-407); scaffold-S2 refuted |
+| Pass 3 | native sonnet×1 + haiku×1 + opus×1 (the round-1 registrar owners) | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — O8 re-executed against every deploy path's call order; the other three slices' files were unchanged since their pass-2 verification |
+
+Fixed in D7 (D-409): scaffolded specs pin their OWN database instead of the shared `main`; the pre-cutover
+scan passes on a fresh scaffold of all 10 database types (skips the synced `scripts/enforcement/` tree and
+whole-line comments); the CLI reports a malformed spec; a non-string `depends.postgres` is refused;
+`shape.database_url_app_role` is StrictBool; `inject_env` and the redeploy `.env` rebuild fail closed on a
+failed read. Tests: 517 passed on the fix branch, all eleven plan suites with real PostgreSQL required.
+
+Standing and recorded rows (cited, not counted): the default-privilege window on an owner-run DROP/CREATE
+outside `fabrik apply` (T02 O9/S1, D-386); siblings in another spec directory (T04 O5-crossdir, D-407); a
+non-boolean flag refusing at the app-role step rather than at apply-time validation (D-407); the hardened table
+name `audit_log` (the module's table, by design); `project_repo_dir` id-first vs the db name's name-first (both
+fixed by the spine's Interfaces); Node types carrying the table only (D-408). Recorded for the backlog: a
+local-source deploy whose `source.path` is not `/opt/<name>` skips the `.env` read and rebuilds it from spec +
+secrets (reading of deployer_ssh.py `find_existing` vs `_deploy_local`, not executed).
+

@@ -257,14 +257,14 @@ class SSHDeployer:
         return True
 
     def read_env(self, ctx: DeploymentContext) -> dict[str, str]:
-        """Return the app's parsed ``.env`` — for a DECISION, so it never swallows.
+        """Return the app's parsed ``.env`` — it never swallows a read failure.
 
         Runs inside :func:`_target_vps_env` (as :meth:`inject_env` does), so a
         spoke's ``.env`` is read on the spoke. Returns ``{}`` ONLY when
         ``test -f`` reports the file absent; any ssh/read failure or an
-        unrecognised probe answer raises :class:`DeployError`. :meth:`inject_env`
-        keeps its own swallowing read — right for a merge, never for a decision
-        (the app-role cutover reads ``DATABASE_URL``'s user from here).
+        unrecognised probe answer raises :class:`DeployError`. Both the app-role
+        cutover (reading ``DATABASE_URL``'s user) and :meth:`inject_env`'s merge
+        read through here — a swallowed read in a merge writes a truncated .env.
         """
         from fabrik.drivers.ssh import ssh as _ssh
 
@@ -274,22 +274,7 @@ class SSHDeployer:
         _validate_name(name)
 
         with _target_vps_env(ctx):
-            try:
-                # The whole test runs INSIDE sudo: a refused sudo prints nothing (an
-                # unrecognised answer → raise) instead of the `|| echo absent` fallback
-                # that `sudo test -f X && … || echo absent` would print.
-                inner = f"[ -f {shlex.quote(f'/opt/{name}/.env')} ] && echo present || echo absent"
-                probe = _ssh(f"sudo sh -c {shlex.quote(inner)}", timeout=10).strip()
-                if probe == "absent":
-                    return {}
-                if probe != "present":
-                    raise DeployError(
-                        f"cannot read /opt/{name}/.env: unexpected probe answer {probe[:40]!r}"
-                    )
-                content = _ssh(f"sudo cat /opt/{name}/.env", timeout=10)
-            except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
-                raise DeployError(f"cannot read /opt/{name}/.env: {e}") from e
-        return _parse_env(content)
+            return _read_env_file(f"/opt/{name}", _ssh)
 
     def inject_env(self, ctx: DeploymentContext, env_vars: dict[str, str]) -> None:
         """Merge *env_vars* into the app's ``.env`` and restart.
@@ -314,17 +299,15 @@ class SSHDeployer:
             logger.info("[DRY RUN] Would inject %d env vars into %s", len(env_vars), name)
             return
 
-        with _target_vps_env(ctx):
-            # Read existing .env (may not exist yet)
-            try:
-                existing_content = _ssh(
-                    f"sudo cat /opt/{name}/.env 2>/dev/null || echo ''", timeout=10
-                )
-            except RuntimeError:
-                existing_content = ""
+        # D7-registrar-O7: read through read_env, which fails CLOSED — ``{}`` only for
+        # a truly absent file. The old swallowing read turned a failed ``sudo cat``
+        # into an empty base and then wrote a .env holding ONLY the injected keys,
+        # dropping every other secret. A read failure now raises DeployError before
+        # anything is written (every caller is inside a registrar's non-fatal block).
+        merged = self.read_env(ctx)
+        merged.update(env_vars)
 
-            merged = _parse_env(existing_content)
-            merged.update(env_vars)
+        with _target_vps_env(ctx):
             env_content = _format_env(merged)
 
             _write_file_to_vps(name, ".env", env_content)
@@ -661,13 +644,14 @@ class SSHDeployer:
         path = app_path or f"/opt/{name}"
         merged: dict[str, str] = {}
 
-        # Read existing .env if this is an update
+        # Read existing .env if this is an update. Fail CLOSED (D7 r1b, O7's class): a
+        # failed read of an EXISTING .env raises DeployError and the deploy aborts before
+        # anything is written — degrading to spec env + secrets rewrote .env without the
+        # registrar-injected keys, DATABASE_URL_OWNER (the only owner-password copy after
+        # an app-role cutover) included. An absent .env still builds from spec + secrets.
+        # An existing app is never a tracked resource, so the abort's rollback leaves it.
         if existing:
-            try:
-                existing_content = _ssh(f"sudo cat {path}/.env 2>/dev/null || echo ''", timeout=10)
-                merged = _parse_env(existing_content)
-            except RuntimeError:
-                pass
+            merged = _read_env_file(path, _ssh)
 
         # Layer spec env vars — but NEVER clobber a real, already-present value
         # with a spec PLACEHOLDER. Registrar-managed vars (DATABASE_URL,
@@ -830,6 +814,31 @@ def _format_env(env: dict[str, str]) -> str:
             value = '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
         lines.append(f"{key}={value}")
     return "\n".join(lines) + "\n" if lines else ""
+
+
+def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
+    """Parse ``{path}/.env`` on the current SSH target — ``{}`` ONLY when the file is
+    absent; any ssh/read failure or unrecognised probe answer raises :class:`DeployError`.
+
+    The one absent-vs-failed distinction shared by :meth:`SSHDeployer.read_env` (the
+    app-role decision and :meth:`~SSHDeployer.inject_env`'s merge) and
+    :meth:`SSHDeployer._build_env_content` (the deploy/redeploy merge).
+    """
+    env_path = f"{path}/.env"
+    try:
+        # The whole test runs INSIDE sudo: a refused sudo prints nothing (an
+        # unrecognised answer → raise) instead of the `|| echo absent` fallback
+        # that `sudo test -f X && … || echo absent` would print.
+        inner = f"[ -f {shlex.quote(env_path)} ] && echo present || echo absent"
+        probe = _ssh(f"sudo sh -c {shlex.quote(inner)}", timeout=10).strip()
+        if probe == "absent":
+            return {}
+        if probe != "present":
+            raise DeployError(f"cannot read {env_path}: unexpected probe answer {probe[:40]!r}")
+        content = _ssh(f"sudo cat {shlex.quote(env_path)}", timeout=10)
+    except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+        raise DeployError(f"cannot read {env_path}: {e}") from e
+    return _parse_env(content)
 
 
 def _write_file_to_vps(name: str, filename: str, content: str) -> None:

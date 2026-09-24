@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = a2d4cdf8e8ecdda6ce6d0494e408b668e818b9f3; range tip 4781b476242359628b8ec6aa1a7d0006c7636cd1; `git diff a2d4cdf8e..worktree-agent-a77e2bebdc6efc67e -- src/fabrik/drivers/postgres.py tests/test_app_role_driver.py tests/test_app_role_real_pg.py` md5 669196acdbe65ce9120d3f27c96c1f62 (36876 bytes)
 **Command:** /fabrik-review · **Changed:** `src/fabrik/drivers/postgres.py`, `tests/test_app_role_driver.py`, `tests/test_app_role_real_pg.py`
-**Plan:** `docs/development/plans/2026-09-24-plan-1-audit-log-everywhere/T02-app-role-driver.md`
+**Plan:** `docs/development/plans/archived/2026-09-24-plan-1-audit-log-everywhere/T02-app-role-driver.md`
 
 ## Coverage Checklist
 

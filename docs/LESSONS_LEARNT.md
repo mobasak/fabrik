@@ -1,6 +1,22 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## Five green per-ticket reviews, and the plan still could not do what it promised (2026-09-24)
+
+Every ticket of audit-log-everywhere passed its own acceptance review, and the whole-plan validation (D7) then
+found that no newly scaffolded project could ever reach the state the plan exists to create: the spec generator
+pinned `depends.postgres: main` (an April-era literal the registrar reads as the DATABASE name, so every new
+project would share database `main` and be refused the cutover as a shared database), and the pre-cutover scan
+flagged the scaffolder's own output. Each half lived in a different ticket's file; each ticket's review read its
+own slice and was right about it. The class: a promise that spans tickets ("a new project is born on the app
+role") has no owner until something executes it end to end. The rule: a plan whose goal is a state a user reaches
+through several tickets names ONE executable end-to-end check of that state in its Integration ticket — here,
+scaffold every database type, generate its spec, run the check and the registrar's decision on it — and the
+whole-plan validation runs it before counting anything else. A test that calls a deploy method with the
+transport unpatched is a live-fleet call that happens to fail quietly (`test_inject_env_swaps_for_spoke` ran a
+real `sudo cat` toward vps2 while the read swallowed errors): when a read changes from swallowing to raising,
+grep every test of that method for an unpatched transport first.
+
 ## A hub guard keyed on an env-configurable root is off whenever a worktree sets that root (2026-09-24)
 
 A T05 coder ran the scaffold suites with `FABRIK_ROOT=<worktree>` so the tests would see its template edits —
