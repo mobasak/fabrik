@@ -389,9 +389,13 @@ def _with_upstream(tmp_path: Path, proj: Path) -> None:
 
 
 def test_stop_block_cause_unpushed(tmp_path: Path) -> None:
+    """The unpushed commit must be THIS session's (the push law is session-scoped since T13.4):
+    the transcript's Edit of `committed.txt` is what attributes it; without it the cause is silent."""
     proj = _project(tmp_path)
+    tp = _transcript(proj, edited=["committed.txt"])
     _with_upstream(tmp_path, proj)
-    proc = _run_stop(proj, tmp_path, "sidpush")
+    proc = _run_stop(proj, tmp_path, "sidpush", transcript=tp)
+    assert proc.stdout.strip(), "no block: the unpushed commit was not attributed to this session"
     assert json.loads(proc.stdout)["decision"] == "block"
     blocks = _of_type(_events(tmp_path, "sidpush"), "stop_block")
     assert [(b["cause"], b["outcome"]) for b in blocks] == [("unpushed", "blocked")]
@@ -435,12 +439,18 @@ def test_warn_through_is_recorded_as_its_own_outcome(tmp_path: Path) -> None:
     # After CAP blocked stops the hook gives up and lets the turn end. That give-up was
     # invisible: it looked identical to a clean pass, so "enforcement worked" counted a
     # cause the agent simply outlasted.
+    """The unpushed commit must be THIS session's (the push law is session-scoped since T13.4):
+    the transcript's Edit of `committed.txt` is what attributes it; without it the cause is silent."""
     proj = _project(tmp_path)
+    tp = _transcript(proj, edited=["committed.txt"])
     _with_upstream(tmp_path, proj)
     for _ in range(3):
-        proc = _run_stop(proj, tmp_path, "sidwarn", reset=False)
+        proc = _run_stop(proj, tmp_path, "sidwarn", transcript=tp, reset=False)
+        assert proc.stdout.strip(), (
+            "no block: the unpushed commit was not attributed to this session"
+        )
         assert json.loads(proc.stdout)["decision"] == "block"
-    proc = _run_stop(proj, tmp_path, "sidwarn", reset=False)  # 4th: over the cap
+    proc = _run_stop(proj, tmp_path, "sidwarn", transcript=tp, reset=False)  # 4th: over the cap
     assert proc.stdout.strip() == ""  # allowed through
     evs = _events(tmp_path, "sidwarn")
     warned = [b for b in _of_type(evs, "stop_block") if b["outcome"] == "warned_through"]
@@ -529,11 +539,16 @@ def test_a_blocked_turn_emits_no_final_block(tmp_path: Path) -> None:
     # THE RETRY MULTIPLICATION: a turn that gets blocked N times used to emit
     # final_block_emitted on every retry, so one task terminator counted N times.
     # Message-shaped events belong to the exit that actually ENDS the turn.
+    """The unpushed commit must be THIS session's (the push law is session-scoped since T13.4):
+    the transcript's Edit of `committed.txt` is what attributes it; without it the cause is silent."""
     proj = _project(tmp_path)
+    tp = _transcript(proj, text="Done.\n\n" + _SIX_LINE_BLOCK, edited=["committed.txt"])
     _with_upstream(tmp_path, proj)
-    tp = _transcript(proj, text="Done.\n\n" + _SIX_LINE_BLOCK)
     for _ in range(3):
         proc = _run_stop(proj, tmp_path, "sidretry", transcript=tp, reset=False)
+        assert proc.stdout.strip(), (
+            "no block: the unpushed commit was not attributed to this session"
+        )
         assert json.loads(proc.stdout)["decision"] == "block"
     assert _of_type(_events(tmp_path, "sidretry"), "final_block_emitted") == []
     _run_stop(proj, tmp_path, "sidretry", transcript=tp, reset=False)  # cap → allowed
@@ -572,6 +587,9 @@ def test_operator_override_when_a_blocked_escalation_waives_a_real_stall(tmp_pat
 def test_no_override_without_an_enforcement_cause_to_waive(tmp_path: Path) -> None:
     """The four reproduced false positives: sanctioned-skip VOCABULARY with no stall.
 
+    Inverted by T03: spec 2026-09-23-stop-and-compaction § C1/§ C2: the gated footer is now written as the `ground: gate` DECISION block — a bare
+    `NEXT: operator decision` is a D1 deferral, and the block is the legitimate gated stop.
+
     An override is 'a cause fired and a marker waved it through'. Matching the marker
     alone made every routine operator-gated task end an 'override', which is the single
     most common way a fabrik turn legitimately finishes — the metric would have been
@@ -579,8 +597,16 @@ def test_no_override_without_an_enforcement_cause_to_waive(tmp_path: Path) -> No
     """
     proj = _project(tmp_path)
     cases = {
-        # 1. the mandated FINAL OUTPUT footer of any operator-gated task
-        "fp_footer": "Readiness verified.\n\nNEXT: operator decision: approve the deploy (Gate 2).\n",
+        # 1. the mandated FINAL OUTPUT footer of any operator-gated task, behind its block
+        "fp_footer": (
+            "Readiness verified.\n\n"
+            "DECISION NEEDED (ground: gate)\n"
+            "- Question: Deploy the verified build now?\n"
+            "- Why it is yours: gate — Gate 2, the deploy needs authorisation.\n"
+            "- Options: A — deploy now · B — hold a day\n"
+            "- Recommendation: A — readiness is verified.\n\n"
+            "NEXT: operator decision — see DECISION NEEDED above\n"
+        ),
         # 2. a BLOCKED escalation that names no un-run own work
         "fp_blocked": "BLOCKED: vault sealed — searched: docs/, .env — missing: unseal key\n",
         # 3. a message DISCUSSING the vocabulary

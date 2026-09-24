@@ -13,6 +13,7 @@ this file is the permanent grader the FIX DIRECTIVE requires.
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
 import sys
 from pathlib import Path
@@ -63,6 +64,29 @@ def test_a_classless_deferral_no_longer_disarms_the_stall_guard(line):
 def test_a_genuine_human_gate_still_exempts(line):
     """The false-positive half — over-blocking real gates is how THIS fix would die."""
     assert exempt(line), f"a genuine human gate was blocked: {line!r}"
+
+
+def test_the_per_line_exemption_does_not_clear_a_deferral(tmp_path, monkeypatch):
+    """Spec 2026-09-23-stop-and-compaction § C1: the class exemption above still waives the five
+    pattern shapes, but a DEFERRAL is cleared only by a DECISION block or `BLOCKED:`."""
+    monkeypatch.delenv("CLAUDE_MESH_HEADLESS", raising=False)  # the check is interactive-only
+    line = "NEXT: operator decision [cross-repo] — write the marker into 39 repos I was not launched in"
+    assert exempt(line), "precondition: the pattern shapes' per-line exemption still applies"
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(
+        json.dumps({"type": "user", "message": {"content": [{"type": "text", "text": "go"}]}})
+        + "\n"
+        + json.dumps(
+            {
+                "type": "assistant",
+                "message": {"content": [{"type": "text", "text": "Done.\n\n" + line}]},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    kind = fgs._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "deferral:D1", kind
 
 
 def test_rule_conflict_without_a_citation_does_not_exempt():

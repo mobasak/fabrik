@@ -37,6 +37,9 @@ def _isolate_kaizen_events(tmp_path_factory, monkeypatch) -> None:
     any added later.
     """
     monkeypatch.setenv("KAIZEN_EVENTS_DIR", str(tmp_path_factory.mktemp("kaizen-events")))
+    # The DEFERRAL shape is interactive-only (spec 2026-09-23 § C1): a headless test runner's
+    # CLAUDE_MESH_HEADLESS=1 would silence every deferral grader below.
+    monkeypatch.delenv("CLAUDE_MESH_HEADLESS", raising=False)
 
 
 # --- pure decide() loop-guard -------------------------------------------------
@@ -951,6 +954,8 @@ def test_next_round_footer_alone_is_a_stall(tmp_path: Path) -> None:
 
 
 def test_next_round_footer_operator_gated_is_exempt(tmp_path: Path) -> None:
+    """Inverted by T03: spec 2026-09-23-stop-and-compaction § C1 — the gate-named line still waives the ROUND promise, and D1 now fires on its
+    "operator decision" (named-gate wording no longer exempts a deferral)."""
     # 2026-08-29 hardening: a bare deferral phrase no longer disarms by itself —
     # the line must also name a HARD-STOP class (gate 1/2, deploy, cross-repo,
     # spend, destructive, policy). Both directions asserted.
@@ -962,7 +967,8 @@ def test_next_round_footer_operator_gated_is_exempt(tmp_path: Path) -> None:
             "Round 6 committed.\n\nNEXT: round 7 — operator decision: Gate 2 approval of the deploy."
         ),
     )
-    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "deferral:D1"
     tr2 = tmp_path / "t2.jsonl"
     _turn(
         tr2,
@@ -1070,6 +1076,7 @@ def test_due_to_causal_is_allowed(tmp_path: Path) -> None:
 
 
 def test_permission_question_with_session_owned_lock_is_a_stall(tmp_path: Path) -> None:
+    """Inverted by T03: spec 2026-09-23-stop-and-compaction § C1 — D3 replaces the mid-run-only permission loop, so the lock no longer matters."""
     locks = tmp_path / ".fabrik" / "plan-locks"
     locks.mkdir(parents=True)
     (locks / "x.json").write_text('{"status": "active"}')
@@ -1081,16 +1088,18 @@ def test_permission_question_with_session_owned_lock_is_a_stall(tmp_path: Path) 
     )
     # session-scoped: the lock counts only when THIS session authored it
     kind = hook._detect_stall(str(tr), tmp_path, {".fabrik/plan-locks/x.json"})
-    assert kind and kind[0] == "permission"
-    # an unrelated sibling's active lock (not session-authored) must NOT fire
-    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+    assert kind and kind[0] == "deferral:D3"
+    # no session-owned lock at all: the offer is a deferral all the same
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "deferral:D3"
 
 
 def test_permission_question_without_midrun_marker_is_allowed(tmp_path: Path) -> None:
-    # A follow-up OFFER after completed work (no active plan/review) is legitimate.
+    """Inverted by T03: spec 2026-09-23-stop-and-compaction § C1 — a follow-up OFFER outside a run is now a D3 deferral."""
     tr = tmp_path / "t.jsonl"
     _turn(tr, _user(), _asst_text("All done and committed. Want me to also fold these in?"))
-    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "deferral:D3"
 
 
 def test_human_gate_wording_is_never_a_stall(tmp_path: Path) -> None:
@@ -1106,6 +1115,7 @@ def test_human_gate_wording_is_never_a_stall(tmp_path: Path) -> None:
 
 
 def test_unchecked_review_is_a_midrun_marker(tmp_path: Path) -> None:
+    """Inverted by T03: spec 2026-09-23-stop-and-compaction § C1 — the offer is D3 whether or not a review arms the marker."""
     rev = tmp_path / "docs/development/reviews"
     rev.mkdir(parents=True)
     (rev / "2026-01-01-x-review.md").write_text("| class | UNCHECKED | |\n")
@@ -1116,7 +1126,7 @@ def test_unchecked_review_is_a_midrun_marker(tmp_path: Path) -> None:
     kind = hook._detect_stall(
         str(tr), tmp_path, {"docs/development/reviews/2026-01-01-x-review.md"}
     )
-    assert kind and kind[0] == "permission"
+    assert kind and kind[0] == "deferral:D3"
 
 
 def test_garbage_transcript_fails_open(tmp_path: Path) -> None:
@@ -1152,6 +1162,7 @@ def test_quoted_stall_phrases_are_exempt(tmp_path: Path) -> None:
 
 
 def test_unquoted_stall_still_fires_alongside_quotes(tmp_path: Path) -> None:
+    """Inverted by T03: spec 2026-09-23-stop-and-compaction § C1 — the unquoted offer is D3; the quoted one is still skipped."""
     locks = tmp_path / ".fabrik" / "plan-locks"
     locks.mkdir(parents=True)
     (locks / "x.json").write_text('{"status": "active"}')
@@ -1163,7 +1174,7 @@ def test_unquoted_stall_still_fires_alongside_quotes(tmp_path: Path) -> None:
         _asst_text("The old stall was 'I did nothing'. Anyway: want me to run the next pass now?"),
     )
     kind = hook._detect_stall(str(tr), tmp_path, owned)
-    assert kind and kind[0] == "permission"
+    assert kind and kind[0] == "deferral:D3"
 
 
 def test_next_operator_decision_line_does_not_blind_the_guard(tmp_path: Path) -> None:
@@ -1184,6 +1195,8 @@ def test_next_operator_decision_line_does_not_blind_the_guard(tmp_path: Path) ->
 
 
 def test_conditional_offer_is_an_operator_gate_not_a_stall(tmp_path: Path) -> None:
+    """Inverted by T03: spec 2026-09-23-stop-and-compaction § C1 — the class on the line still waives the PROMISE, but "say the word … I'll" is
+    now a D3 deferral that no per-line class exempts."""
     # 2026-08-29 hardening: the offer exempts only when its line names a
     # HARD-STOP class; a bare "say the word" offer is the stall it always was.
     tr = tmp_path / "t.jsonl"
@@ -1195,7 +1208,8 @@ def test_conditional_offer_is_an_operator_gate_not_a_stall(tmp_path: Path) -> No
             "I'll run it through the pipeline."
         ),
     )
-    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "deferral:D3"
     tr2 = tmp_path / "t2.jsonl"
     _turn(
         tr2,
@@ -1239,14 +1253,14 @@ def test_blocked_header_exempts_despite_long_detail(tmp_path: Path) -> None:
 
 
 def test_prose_unchecked_mention_does_not_arm_marker(tmp_path: Path) -> None:
-    """Mutation-killer for the live-row form: a CLOSED review's prose mention of
-    UNCHECKED must not arm the permission marker."""
+    """Inverted by T03: spec 2026-09-23-stop-and-compaction § C1 — the marker no longer gates the offer: "Shall I run…?" is D3 either way."""
     rev = tmp_path / "docs/development/reviews"
     rev.mkdir(parents=True)
     (rev / "r.md").write_text("fixed classes return to UNCHECKED until re-adjudicated\n")
     tr = tmp_path / "t.jsonl"
     _turn(tr, _user(), _asst_text("Shall I run the next pass now?"))
-    assert hook._detect_stall(str(tr), tmp_path, {"docs/development/reviews/r.md"}) is None
+    kind = hook._detect_stall(str(tr), tmp_path, {"docs/development/reviews/r.md"})
+    assert kind and kind[0] == "deferral:D3"
 
 
 def test_quoted_promise_does_not_mask_a_later_real_one(tmp_path: Path) -> None:

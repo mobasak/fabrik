@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the Stop hook refuses a turn that ends deferring to the operator without a DECISION block (2026-09-24)
+
+- `.claude/hooks/final_gate_stop.py` (fleet-wide) gains a DEFERRAL stall shape: D1 a `NEXT:` line in the closed `_DEFER_RE` vocabulary (or one naming the operator as the successor), D2 a menu handed to the operator, D3 an offer to act (replacing the mid-run-only permission check), D4 the agent's own work handed to a later session. It shares the stall counter, CAP=3 and warn-through. Only a line-start `BLOCKED:` header or a well-formed `DECISION NEEDED (ground: gate|underivable|owned)` block clears it: a gate class from the closed list, `searched:` naming evidence, `asked:`/`scope:` quotes found verbatim in the operator's own messages, `scope:` refused inside a live run. Interactive sessions only (any `sdk-` entrypoint or `CLAUDE_MESH_HEADLESS=1` is skipped); the final message is read from `last_assistant_message`; a trailing fenced footer is the agent's own words. Events: `stop_block cause=deferral shape=…`, `decision_block ground=…`. `deferral_shape` and `session_unpushed` are exposed for the miner and the thread anchors (plan `docs/development/plans/2026-09-23-plan-1-stop-and-compaction`, T03).
+- V1, backtested over 16,278 real interactive turn ends since 2026-08-09: 19/19 judged premature stops caught, 7/8 context excuses as D4, 0/9 false D4 matches; 23.9–24.3% of turn ends fire, and three independent judges ruled 57 of a random 60 fires genuine deferrals.
+- Three `tests/test_kaizen_hook_emitters.py` tests that failed on master (no transcript, so the session-scoped push law attributed nothing) now build the transcript that makes their commit this session's.
+
 ### Fixed — two kaizen upsert tests failed on master: they listed `tmp_path` whole (2026-09-24)
 
 - `tests/test_kaizen_collect_v2.py::test_upsert_leaves_no_tmp_residue` and `::test_upsert_replace_failure_leaves_the_log_untouched` listed every entry of `tmp_path` against a hand-kept exclusion list, and `tests/conftest.py`'s autouse isolation (2026-09-16 on) now plants its own dirs there, so both failed on every run. Each test now works in its own `tmp_path / "upsert"` directory and allows only the log in it; the stale `*.lock` exclusion is gone, since the log lock lives in `KAIZEN_LOCK_DIR`. Proven red by three mutants (a tmp left by a copy instead of a replace, a tmp leaked on a failed write, a stray `.lock` beside the log).
