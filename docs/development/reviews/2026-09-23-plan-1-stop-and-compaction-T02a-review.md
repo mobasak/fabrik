@@ -3,7 +3,7 @@
 **Status:** CONVERGED — pass 3 (the round-1 seats over their own slice ledger) confirmed 0; 11 defects FIXED across 1ffbcd310 → 43bf9d0ea → a769949fd
 **Surface:** `git rev-parse HEAD` = 5c31f796c287174e4b22cc4808a6ec2a282975c2; coder commit 1ffbcd310 vs its parent 5c31f796c; combined T01a+T01b+T02a surface diff md5 ccc94d2198e3ddc3611e1e9302c15610
 **Command:** /fabrik-review · **Changed:** CLAUDE.md tests/test_governance_template_split.py
-**Plan:** `docs/development/plans/2026-09-23-plan-1-stop-and-compaction`
+**Plan:** `docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction`
 
 Anchor: no prior review for this ticket scope exists; full wide pass 1.
 

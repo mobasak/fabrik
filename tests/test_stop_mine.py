@@ -1,6 +1,6 @@
 """stop_mine.py — the promoted research miner, sharing the Stop hook's own DEFERRAL vocabulary.
 
-Ticket: docs/development/plans/2026-09-23-plan-1-stop-and-compaction/T05-stop-mine-and-docs.md.
+Ticket: docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction/T05-stop-mine-and-docs.md.
 Interface (T03 -> T05, spine `## Interfaces`): `.claude/hooks/final_gate_stop.py`'s `_DEFER_RE`
 and `deferral_shape(text: str) -> str | None` are the ONE vocabulary the hook's DEFERRAL check
 and this miner both count with — the COBRA counter-measure at hook `:1508-1512`: a reworded

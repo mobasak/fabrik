@@ -3,7 +3,7 @@
 **Status:** CONVERGED — closed on the D-278 scope-growth stop (rounds 2 and 3 confirmed only defects inside this review's own fix hunks: 4/4, 1/1); the named set was fixed and pass 4 re-verified it at confirmed 0
 **Surface:** `git rev-parse HEAD` = 5c31f796c287174e4b22cc4808a6ec2a282975c2; coder commit 38eb34b7c vs base feb11733c; combined T01a+T01b surface diff md5 522b2217fb9cc1946c268afb23856b74
 **Command:** /fabrik-review · **Changed:** commands/_sources/fabrik-deploy-plan-review.md commands/_sources/fabrik-deploy.md commands/_sources/fabrik-flows-review.md commands/_sources/fabrik-release.md commands/_sources/fabrik-spec-review.md commands/_sources/fabrik-ui-design-review.md tests/test_gate_decision_blocks.py 
-**Plan:** `docs/development/plans/2026-09-23-plan-1-stop-and-compaction`
+**Plan:** `docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction`
 
 Anchor: no prior review for this ticket scope exists; full wide pass 1.
 

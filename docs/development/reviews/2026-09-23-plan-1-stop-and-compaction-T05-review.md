@@ -3,7 +3,7 @@
 **Status:** CONVERGED — pass 3 confirmed 0: the last open claim (surviving mutants) closed by three tests, each proven by its mutant; one equivalent mutant refuted
 **Surface:** `git rev-parse HEAD` = bd775d0bc3583b76d75dee82cb346b89b5ddf826; coder commit de67f5f40 vs bd775d0bc; diff md5 35a0de419569b0ce0baae50dda92eba1
 **Command:** /fabrik-review · **Changed:** scripts/sysadmin/stop_mine.py tests/test_stop_mine.py docs/workstation/hooks-index.md docs/reference/thread-anchors.md docs/workstation/kaizen-event-stream.md docs/reference/research/2026-09-23-stop-compaction/draw.py
-**Plan:** `docs/development/plans/2026-09-23-plan-1-stop-and-compaction`
+**Plan:** `docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction`
 
 Anchor: no prior review for this ticket scope exists; full wide pass 1.
 

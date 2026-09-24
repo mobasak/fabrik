@@ -3,7 +3,7 @@
 **Status:** CONVERGED — closed on the D-278 scope-growth stop (rounds 2 and 3 confirmed only defects inside this review's own fix hunks: 4/4, 7/7); the named set was fixed and re-verified by the owning Opus seat (passes 4 and 5); residual own-fix shapes RECORDED to docs/STRATEGIC_BACKLOG.md
 **Surface:** `git rev-parse HEAD` = 288e2c7d4a8ac76f00af5871659c0b4d09f16099; coder commits b2691b6fa, 9e1049176, 9e43a0d33 vs 200d9335d; diff md5 ff4ac6179a5e65ee8b70c39de96313db
 **Command:** /fabrik-review · **Changed:** .claude/hooks/final_gate_stop.py tests/test_final_gate_stop_deferral.py tests/test_final_gate_stop_hook.py tests/test_kaizen_hook_emitters.py tests/test_stop_hook_deferral_exemption.py
-**Plan:** `docs/development/plans/2026-09-23-plan-1-stop-and-compaction`
+**Plan:** `docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction`
 
 Anchor: no prior review for this ticket scope exists; full wide pass 1.
 

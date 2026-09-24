@@ -1,6 +1,6 @@
 # Plan 1 (2026-09-23) — premature stops and compaction survival: the DEFERRAL shape, the DECISION block, WHERE YOU ARE
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-09-24 — 8/8 Board rows terminal; whole-plan /fabrik-review CONVERGED; /fabrik-docs-review closed 27 → 0 (dac706d6e); final_gate --check success. Whole-plan review: docs/development/reviews/2026-09-23-plan-1-stop-and-compaction-review.md
 Profile: standard
 **Owner:** infra (the unnamed hub window)
 **Spec:** `docs/superpowers/specs/2026-09-23-stop-and-compaction-enforcement-design.md` — CONVERGED (D-371), design APPROVED by the operator 2026-09-23 (D-377).
@@ -42,7 +42,7 @@ Intake: 7 items — 6 IN, 1 OUT-OF-SCOPE (named), 0 ASK.
 | T03 | the Stop hook: DEFERRAL D1–D4, the DECISION parser, the reasons, the input, the V1 backtest | T01a, T01b, T02b | ⛓️ | ✅ | 9fe0343f7 |
 | T04 | `thread_anchor.py`: WHERE YOU ARE on compact, the DECISION harvest and clear, the 72 h fold | T03 | ⛓️ | ✅ | a91ab5186 |
 | T05 | `stop_mine.py` (the miner, sharing `_DEFER_RE`), the V1 backtest, the three docs | T04 | ⛓️ | ✅ | f4d54a36f |
-| T06 | Integration: receipt, whole-plan gate + review, docs-review, the sync, V2/V3, the mail, the V4–V6 row | T05 | ⛓️ | ⬜ | |
+| T06 | Integration: receipt, whole-plan gate + review, docs-review, the sync, V2/V3, the mail, the V4–V6 row | T05 | ⛓️ | ✅ | dac706d6e |
 
 **Breadth advisory, adjudicated (`check_ticket_breadth.py --plan-dir` 2026-09-23 flagged T03):** KEPT, not split. Its three behaviours are one detector: the four DEFERRAL shapes, the one exemption that clears them (the DECISION block) and D4's precision are read together by the same `_detect_stall` pass and share the stall counter, so splitting them puts halves of one decision rule in two serialized merges on the same fleet-synced file. `scripts/sysadmin/kaizen_events.py` is the one-line registration of the event T03 emits. The advisory's calibration (2 of 4 flags matched, ρ=0.45) is a prompt to look, and this line records the look.
 
@@ -298,4 +298,4 @@ Every row is adjudicated at the flip with ONE of the verdicts `check_review_cove
 
 - U1 (spec): whether this box's Claude Code sends `last_assistant_message`. T03 logs its presence on the first 20 live Stops, and the transcript read stays as the fallback. Self-service.
 - U2 (spec): where compact-time SessionStart output sits relative to the summary. T06's V3 dogfood reads the post-compact transcript. Self-service.
-- **Sizing evidence (the emit gate at the flip):** `✓ [plan_tickets] /opt/fabrik/docs/development/plans/2026-09-23-plan-1-stop-and-compaction: graded 8 ticket(s), 28 Touches path(s), 33 Context-Files entry(ies); READ budget measured against /opt/fabrik; 0 finding(s)`.
+- **Sizing evidence (the emit gate at the flip):** `✓ [plan_tickets] /opt/fabrik/docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction: graded 8 ticket(s), 28 Touches path(s), 33 Context-Files entry(ies); READ budget measured against /opt/fabrik; 0 finding(s)`.

@@ -3,7 +3,7 @@
 **Status:** CONVERGED — pass 3 (the round-1 Opus owner over the one open claim) confirmed 0; 8 seam defects FIXED in 47746bc08 and 03069dad9
 **Surface:** `git rev-parse HEAD` = 072f83794614696a930dd63e77484ee34ddb399a; the merged diff feb11733c..072f83794 over the plan's File Scope; diff md5 d8a1a7cc499dab686ad10b58d25b941a
 **Command:** /fabrik-review (whole-plan, T06 step 2) · **Changed:** the plan's File Scope
-**Plan:** `docs/development/plans/2026-09-23-plan-1-stop-and-compaction`
+**Plan:** `docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction`
 
 Anchor: the per-ticket receipts (T01a, T01b, T02a, T02b, T03, T04, T05) each converged; this whole-plan pass hunts the seams between tickets. No prior whole-plan receipt exists; full wide pass 1.
 

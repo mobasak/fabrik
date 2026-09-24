@@ -3,7 +3,7 @@
 **Status:** CONVERGED — pass 3 (the round-1 Opus seat over its own slice ledger) confirmed 0; 5 defects FIXED across 43a53e99e → 537f359ab → f688d6e0f
 **Surface:** `git rev-parse HEAD` = fee9e8e91c3af32fc73a18c9103f780ba288557a; coder commit 43a53e99e vs its parent fee9e8e91; diff md5 8a8884ec2449f2353e095147f3529adc
 **Command:** /fabrik-review · **Changed:** templates/governance/CLAUDE.md tests/test_governance_template_split.py
-**Plan:** `docs/development/plans/2026-09-23-plan-1-stop-and-compaction`
+**Plan:** `docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction`
 
 Anchor: no prior review for this ticket scope exists; full wide pass 1.
 

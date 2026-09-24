@@ -824,7 +824,7 @@ def test_the_gate_rows_line_citations_land_on_what_they_name() -> None:
         )
 
 # ── T02a: the DECISION block lives in § FINAL OUTPUT, plus # Compact instructions ────────────
-# docs/development/plans/2026-09-23-plan-1-stop-and-compaction/T02a-hub-claude-md.md, implementing
+# docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction/T02a-hub-claude-md.md, implementing
 # docs/superpowers/specs/2026-09-23-stop-and-compaction-enforcement-design.md § C2 (the DECISION
 # block) and § C4 (the summarizer's instructions). Hub-only; T02b mirrors it into
 # templates/governance/CLAUDE.md, serialized after this ticket per the plan's Merge Order.
@@ -1102,7 +1102,7 @@ def test_compact_instructions_heading_exists_with_its_five_lines() -> None:
 
 
 # ── T02b: the DECISION block MIRRORED into templates/governance/CLAUDE.md ──────────────────────
-# docs/development/plans/2026-09-23-plan-1-stop-and-compaction/T02b-template-claude-md.md. The
+# docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction/T02b-template-claude-md.md. The
 # template carries § FINAL OUTPUT TWICE (:629, :672 pre-edit) — the duplication itself is routed to
 # docs/STRATEGIC_BACKLOG.md by T06, never fixed here — so every grader below checks BOTH copies.
 # Nothing binds the template to the hub's T02a text but a grader like this one: the hub agent who

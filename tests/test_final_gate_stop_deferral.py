@@ -2,7 +2,7 @@
 
 Spec: docs/superpowers/specs/2026-09-23-stop-and-compaction-enforcement-design.md § C1 (the four
 shapes, their scope and inputs) and § C2 (the block's parse and checks); ticket
-docs/development/plans/2026-09-23-plan-1-stop-and-compaction/T03-stop-hook-deferral.md.
+docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction/T03-stop-hook-deferral.md.
 
 The red fixtures are drawn from the judged sample the spec measured
 (docs/reference/research/2026-09-23-stop-compaction/verdict-*.json, loaded at runtime), the green

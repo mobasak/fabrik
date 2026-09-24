@@ -3,7 +3,7 @@
 **Status:** CONVERGED — closed on the D-278 scope-growth stop (rounds 2 and 3 confirmed only defects inside this review's own fix hunks: 5/5, 2/2); the re-ask time window was replaced by a whole-message digest and pass 4 re-verified the named set at confirmed 0
 **Surface:** `git rev-parse HEAD` = b807051c3e79495f81e44b851272274c71f861d1; coder commit 6c3ab1538 vs b807051c3; diff md5 d1d4c0b97527c70771ee207d3192d282
 **Command:** /fabrik-review · **Changed:** scripts/thread_anchor.py tests/test_thread_anchor.py
-**Plan:** `docs/development/plans/2026-09-23-plan-1-stop-and-compaction`
+**Plan:** `docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction`
 
 Anchor: no prior review for this ticket scope exists; full wide pass 1.
 

@@ -3,7 +3,7 @@
 **Status:** CONVERGED — pass 2 (the closing pass, the round-1 seats over their own slice ledger) confirmed 0; both round-1 defects FIXED in a99e54f66
 **Surface:** `git rev-parse HEAD` = 5c31f796c287174e4b22cc4808a6ec2a282975c2; coder commit f0ce1ed01 vs base feb11733c; combined T01a+T01b surface diff md5 522b2217fb9cc1946c268afb23856b74
 **Command:** /fabrik-review · **Changed:** scripts/sysadmin/kaizen_collect_v2.py scripts/sysadmin/kaizen_events.py tests/test_kaizen_deferral_vocabulary.py 
-**Plan:** `docs/development/plans/2026-09-23-plan-1-stop-and-compaction`
+**Plan:** `docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction`
 
 Anchor: no prior review for this ticket scope exists; full wide pass 1.
 
