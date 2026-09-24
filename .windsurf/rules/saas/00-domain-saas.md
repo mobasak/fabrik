@@ -63,7 +63,7 @@ A dimension belongs at intake **only if** getting it wrong is **irreversible** o
 |---|---|---|
 | **Tenancy** — shared-DB + `tenant_id` + RLS, or DB-per-tenant? | shared `postgres-main` + RLS. DB-per-tenant **only** if contractually required. | `saas/95-multi-tenant-saas.md` |
 | **Identity/org** — auth pattern + org/role/invite model | **Pattern A** (app issues its own JWTs). Authelia is back-office only. | `core/35-security-auth.md` |
-| **Billing + gating** — which provider(s)? does a plan→feature matrix exist *before* features? | Picked **by target market**. Stripe is unavailable to a Turkey-resident entity — do NOT plan around it. | providers → `core/85-payments-billing.md` · **card routing → `saas/88-saas-launch-checklist.md` § Payment Routing** (⚠️ routing is in **88**, not 85) |
+| **Billing + gating** — which provider(s)? does a plan→feature matrix exist *before* features? | Picked **by target market**. Stripe is unavailable to a Turkey-resident entity — do NOT plan around it. | providers + routing → `core/85-payments-billing.md` § Payment Providers · the launch gate → `saas/88-saas-launch-checklist.md` § Payment Routing |
 | **Metering** — what counts as billing-grade truth? | Redis counters **reconciled to Postgres**. Never bill off Redis alone. | `saas/95-multi-tenant-saas.md` |
 | **Isolation + audit** — one enforcement point; audit log, soft-delete, per-tenant export | enforced in exactly one place | `saas/95-multi-tenant-saas.md` |
 | **Activation event** — the one action that means "got value" | instrumented from commit #1 | *intake-owned; no pack* |
@@ -125,7 +125,7 @@ A dimension belongs at intake **only if** getting it wrong is **irreversible** o
 
 ### 13. Legal, Compliance & Trust
 
-> The pages themselves — ToS, privacy, KVKK/GDPR, DPA, their routes and required content — are **fully owned by `saas/88-saas-launch-checklist.md` § Legal Pages**. Ship them from there; do not re-derive.
+> The pages themselves — ToS, privacy, KVKK/GDPR, DPA, their routes and required content — are **fully owned by `saas/88-saas-launch-checklist.md` § Legal Pages and § Data Protection**. Ship them from there; do not re-derive.
 
 **Force (the part 88 does NOT decide):** data residency · subprocessor list · security posture you will publicly claim · affiliate-program terms + payout tax handling + self-referral policy (if a program is planned).
 **Why now:** missing trust artifacts block enterprise deals and create legal exposure.

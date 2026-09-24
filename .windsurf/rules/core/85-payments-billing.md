@@ -36,7 +36,7 @@ Routing splits by **billing model**, not by precedence (fabrik-lib D-084, operat
 
 | Lane | Provider | What it is |
 |---|---|---|
-| International (any currency but TRY) | **Paddle Billing** | Merchant of Record: Paddle calculates, collects and remits VAT/GST and invoices the buyer. The Turkish LLC receives one B2B service-export payout. |
+| International (any currency but TRY) | **Paddle Billing** | Merchant of Record: Paddle calculates, collects and remits VAT/GST and invoices the buyer. The Turkish LLC receives one B2B payout — a service export only when KDV Kanunu md. 12/2 is met (§ Tax Documentation). |
 | Turkish domestic, **subscription** (TRY) | **iyzico** | iyzico's subscription engine (products, pricing plans, its own scheduler, signed renewal webhooks). |
 | Turkish domestic, **one-off** (TRY) | **PayTR** | 3-D Secure iFrame; no subscription object. |
 
@@ -198,10 +198,10 @@ logger.info("subscription_created",
 
 <!-- Verify with your mali müşavir before treating as binding rules. -->
 
-- **Paddle payouts:** Paddle is the Merchant of Record, so the buyer-facing tax is Paddle's. For the Teknokent _döviz beyanı_, export Paddle's monthly **reverse invoices** and **transactions reports** — they evidence the inflow as a software service export.
+- **Paddle payouts:** Paddle is the Merchant of Record, so the buyer-facing tax is Paddle's. For the Teknokent _döviz beyanı_, export Paddle's monthly **reverse invoices** and **transactions reports** — they evidence the inflow (as a software service export only when md. 12/2 is met; keep that evidence too).
 - **Service-export exemption** (KDV Kanunu md. 11/1-a) applies to services performed for a customer abroad AND used abroad (md. 12/2) — the second condition must be evidenced, not assumed (claim `kdv-rate-and-export-exemption`).
-- **iyzico and PayTR payouts:** neither is a Merchant of Record — you are the merchant. Issue e-Arşiv invoices to each Turkish customer; domestic sales carry **20% KDV**.
-- **Gross invoicing and platform commissions:** see `81-mobile-billing.md` § Teknokent Tax Treatment (KVK exemption, KDV 0%/20% split, KDV2 reverse charge, W-8BEN-E); the treatment is the same for SaaS payouts.
+- **iyzico and PayTR payouts:** neither is a Merchant of Record — you are the merchant. Issue an e-Fatura to e-Fatura-registered buyers and an e-Arşiv Fatura to everyone else (VUK Genel Tebliği 509); domestic sales carry **20% KDV** unless KDV Geçici 20/1 exempts Teknokent-produced software (`saas/88-saas-launch-checklist.md` § Teknokent Tax Compliance).
+- **Gross invoicing and platform commissions:** see `81-mobile-billing.md` § Teknokent Tax Treatment (KVK exemption, KDV 0%/20% split, KDV2 reverse charge, W-8BEN-E); for Teknokent-produced SaaS software the KDV rules are `saas/88-saas-launch-checklist.md` § Teknokent Tax Compliance.
 
 ---
 
@@ -268,4 +268,4 @@ logger.info("subscription_created",
 - [ ] Sandbox lifecycle tested (checkout, cancel, upgrade, downgrade, refund) on every enabled provider; once the PayTR blocker clears, its first live transaction treated as the real test.
 - [ ] Every enabled provider has a row in `docs/RESILIENCE.md` §2a.
 - [ ] Billing events logged as structured records with provider, event_type, subscription_id, amount, currency.
-- [ ] Teknokent tax documentation: Paddle reverse invoices exported; iyzico/PayTR sales invoiced directly with KDV; export-exemption evidence kept.
+- [ ] Teknokent tax documentation: Paddle reverse invoices exported; iyzico/PayTR sales invoiced directly (with KDV, or the Geçici 20/1 annotation); export-exemption evidence kept.

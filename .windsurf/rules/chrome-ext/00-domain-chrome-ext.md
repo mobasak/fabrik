@@ -24,7 +24,7 @@ A dimension belongs at intake **only if** getting it wrong is **irreversible** o
 
 **1. Monetization is the INVERSE of mobile — there is no store billing at all, and no platform tax.**
 Google **shut down Chrome Web Store Payments on 1 Feb 2021**; paid extensions, in-store IAP and CWS free trials no longer exist. An extension therefore **cannot** bill through its store — external billing is not a choice, it is the only path. The upside is large and easy to miss: **the store takes 0%.** You keep 100% of revenue minus your payment processor's fee — where a mobile app would surrender a double-digit cut off the top. **Do not plan an extension's economics off mobile's assumptions, and never wait for a store-billing feature that is not coming back.**
-→ Provider choice is owned by `core/85-payments-billing.md`; card routing by `saas/88-saas-launch-checklist.md` § Payment Routing.
+→ Provider choice and routing are owned by `core/85-payments-billing.md` § Payment Providers; the launch gate by `saas/88-saas-launch-checklist.md` § Payment Routing.
 → **The paywall lives in the BACKEND, never in the client.** A client-side entitlement check in an extension is trivially bypassed — the browser hands the user your source. Gate on the server, per `core/35-security-auth.md`.
 
 **2. The distribution channel sets a PERMISSION CEILING, and that ceiling constrains the PRODUCT.**

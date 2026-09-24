@@ -1876,3 +1876,51 @@ claims:
     verify: "https://www.postgresql.org/docs/current/ddl-priv.html (WebFetch, 2026-09-23; ledger op-01) + /opt/fabrik/src/fabrik/drivers/postgres.py (the ALTER DATABASE … OWNER TO line)"
     window_days: 365
     last_verified: 2026-09-23
+
+  - id: paddle-seller-refund-requirements
+    pack: saas/88-saas-launch-checklist.md
+    kind: practice
+    claim: "Paddle requires sellers to show terms, refund policy and buyer-support contact on their website and to have the buyer accept terms and refund policy before purchase, and the Terms to carry the seller's legal name and the 'online reseller Paddle.com … Merchant of Record' text; account verification requires a pricing page, ToS, Privacy Policy and Refund Policy; Paddle's own buyer refund policy gives a 14-day window (statutory in EU/EEA, UK, Turkey and others; 7 days in some markets; the 5-day unconditional right is Singapore-only) — there is no universal Paddle '5-day unconditional refund' rule"
+    verify: "https://www.paddle.com/seller-guides/seller-handbook ; https://www.paddle.com/legal/refund-policy ; https://www.paddle.com/paddle-101 (exa + WebFetch + brave, 2026-09-24; ledger pd-01..pd-09, op-01)"
+    window_days: 180
+    last_verified: 2026-09-24
+
+  - id: paddle-dispute-rate-and-fee
+    pack: saas/88-saas-launch-checklist.md
+    kind: practice
+    claim: "Under Paddle as merchant of record the seller bears the chargeback amount plus a fee of 20 USD/GBP/EUR or 40 CAD/AUD that Paddle keeps even when the dispute is won (help centre and handbook; MSA 10.4 caps it at 'up to' that); the help centre sets the acceptable rate below 0.65% of monthly transaction value with won disputes counted (the handbook: 0.1-0.3% average, above 0.75% unacceptable), and Paddle may act at its discretion on an excessive rate (MSA 10.3)"
+    verify: "https://www.paddle.com/legal/terms ; https://www.paddle.com/seller-guides/seller-handbook ; https://www.paddle.com/help/manage/risk-prevention/understanding-chargebacks-with-paddle (exa + WebFetch, 2026-09-24; ledger pd-12..pd-14, op-03, op-05)"
+    window_days: 180
+    last_verified: 2026-09-24
+
+  - id: ccpa-thresholds-and-optout-link
+    pack: saas/88-saas-launch-checklist.md
+    kind: standard
+    claim: "CCPA applies to a business with revenue over $25M CPI-adjusted ($26,625,000 from 2025), OR that buys/sells/shares personal information of 100,000+ consumers or households, OR that earns 50%+ of revenue from selling/sharing it (Civ. Code 1798.140(d)); the 'Do Not Sell or Share' link is owed only by a business that sells or shares, one that does not says so in its privacy policy (11 CCR 7013(g)); a 'Your Privacy Choices' link or frictionless opt-out-signal processing may replace it (7013(d), 7015, 7025)"
+    verify: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=1798.140 ; https://cppa.ca.gov/regulations/cpi_adjustment.html ; https://www.law.cornell.edu/regulations/california/11-CCR-7013 (exa, 2026-09-24; ledger cc-01..cc-09). Next CPI adjustment due 2027"
+    window_days: 365
+    last_verified: 2026-09-24
+
+  - id: eu-consent-cookies-and-fingerprinting
+    pack: saas/88-saas-launch-checklist.md
+    kind: standard
+    claim: "Non-essential cookies and similar storage need prior opt-in consent and a pre-ticked box is not consent (CJEU C-673/17 Planet49); strictly necessary storage is exempt (ePrivacy Art. 5(3)); device fingerprinting falls within Art. 5(3) (EDPB Guidelines 2/2023, which leave the exemptions to member states); the open-source FingerprintJS library is MIT again since v5 (Oct 2025), after BSL in v4"
+    verify: "https://www.edpb.europa.eu/system/files/2024-10/edpb_guidelines_202302_technical_scope_art_53_eprivacydirective_v2_en_0.pdf ; https://github.com/fingerprintjs/fingerprintjs/blob/master/LICENSE ; Planet49 C-673/17 (exa + WebSearch, 2026-09-24; ledger cc-10..cc-18)"
+    window_days: 365
+    last_verified: 2026-09-24
+
+  - id: kvkk-verbis-exemption
+    pack: saas/88-saas-launch-checklist.md
+    kind: standard
+    claim: "A Turkey-resident data controller is exempt from VERBIS registration with fewer than 50 employees AND an annual balance sheet under 100M TRY, if its main activity is not special-category processing (Board decisions 2018/87, 2023/1154, 2025/1572; non-balance-sheet bookkeepers on employee count alone, 2025/2393); controllers resident abroad register regardless of size; a controller that becomes obliged registers within 30 days"
+    verify: "https://www.kvkk.gov.tr/Icerik/8577 ; https://www.kvkk.gov.tr/Icerik/7646 ; https://verbis.kvkk.gov.tr/sharedFolder/sorularla-verbis.pdf (exa + WebSearch + brave, 2026-09-24; ledger kv-01..kv-08)"
+    window_days: 365
+    last_verified: 2026-09-24
+
+  - id: tr-kdv-teknokent-software
+    pack: saas/88-saas-launch-checklist.md
+    kind: standard
+    claim: "KDV Kanunu Geçici 20/1 exempts deliveries and services of listed application software produced exclusively in a Teknoloji Geliştirme Bölgesi, to any buyer (domestic included), while the income/corporate-tax exemption runs (4691 Geçici 2: until 31/12/2028); hosted access counts when the IP stays with the TGB firm ('sanal ortamda paylaşım'), while maintenance/support other than updates is excluded (KDV Genel Uygulama Tebliği II/G-2); it is not an export regime (export is md. 11/1-a + 12/2); outside both, the standard rate is 20% (Decree 7346)"
+    verify: "https://vergipedia.com/degerlendirme/teknoloji-gelistirme-bolgelerindeki-teslim-ve-hizmetlerde-kdv-uygulamasi/ ; https://www.resmigazete.gov.tr/eskiler/2023/07/20230707-11.pdf ; 4691 Geçici 2 text (WebSearch + brave + exa + WebFetch, 2026-09-24; ledger kd-01..kd-08, op-12). Re-check before 31/12/2028 — the exemption's end date"
+    window_days: 365
+    last_verified: 2026-09-24

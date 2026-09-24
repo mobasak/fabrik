@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The SaaS launch checklist states what Paddle, CCPA, KVKK and Turkish VAT actually require, and names the modules that implement each item (2026-09-24)
+- `.windsurf/rules/saas/88-saas-launch-checklist.md` (file 28 of the rules currency pass): the refuted universal "Paddle 5-day unconditional refund" became Paddle's real seller requirements (terms, refund policy, support email and phone, the Merchant-of-Record clause, legal name) and its buyer refund windows; BIN card routing became `core/85`'s currency + billing-model routing, with both TRY lanes' live blockers; the CCPA link rule, cookie consent (Planet49), fingerprinting under ePrivacy Art. 5(3), the KVKK VERBIS exemption ladder, and the Teknokent section (KDV Geçici 20/1 is a production exemption covering domestic buyers and hosted access; the invented "Yazılım İhracatı" invoice phrase removed) are re-grounded; every item names its fabrik-lib module; TRY-lane legal pages added. `saas/00-domain-saas.md` and `chrome-ext/00-domain-chrome-ext.md` now point routing at `core/85`, and `core/85` qualifies its 20% domestic KDV, export and e-Arşiv lines for Teknokent software (D-400).
+- Research ledger `docs/reference/research/2026-09-24-saas-launch-checklist-currency-ledger.md` (101 rows) and six `CLAIMS.yaml` rows.
+
 ### Added — spec: work tracking for every repo — one item store, a distributor, claims, awaiting decisions never folded (2026-09-24)
 - `docs/superpowers/specs/2026-09-24-work-tracking-design.md`, CONVERGED after `/fabrik-spec-review` (4 passes, confirmed 30 → 9 → 5 → 0), awaiting the operator's design approval. Specs and plans keep their own state; backlog rows, awaited operator decisions and agents' next actions become one JSON item per file under `.fabrik/work/`; live claims with a lease and a fencing token sit in the git common directory so worktree agents share them; `scripts/work.py` (to be built) gives the distributor `assign` and workers `ready`/`claim`/`done`; the backlog becomes a rendered block. Grounded in measured drift across 25 repos and live external practice.
 
