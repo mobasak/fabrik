@@ -79,6 +79,7 @@ LINK_KEYS = ("spec", "plan", "decision")
 DEFAULT_PRIORITY = 2
 CLI_LOCK_TIMEOUT_S = 10.0
 HOOK_LOCK_TIMEOUT_S = 2.0
+HOOK_GIT_TIMEOUT_S = 1.0  # every git call a hook-facing function makes (P2, T04 review)
 DEFAULT_LEASE_S = 7200  # a claim's lease: 2 h, renewed by every write of its session
 MARKER_MAX_AGE_S = 14 * 86400  # a closed marker older than this stops hiding its item
 LINE_MAX = 300  # one prompt_block line
@@ -135,6 +136,43 @@ class StoreBusyError(WorkError):
 
 # ── paths ────────────────────────────────────────────────────────────────────────────────────
 
+# P2 (T04 review): a hook-facing call re-ran `git rev-parse` several times per hook against a 5 s
+# Stop subprocess / 10 s prompt hook, each at the CLI's 10 s timeout. `_GIT_TIMEOUT_OVERRIDE` is a
+# per-thread budget every `_git()` call (and `_base_statuses`' own raw `subprocess.run`) reads;
+# `_hook_git_budget()` narrows it to `HOOK_GIT_TIMEOUT_S` for the duration of one hook-facing call,
+# so a slow git fails FAST inside it — the existing fail-open `except Exception` in each of those
+# six functions already turns that into the function's ordinary empty value, no new handling
+# needed. CLI verbs never enter this context, so they keep the full `_GIT_TIMEOUT_S`.
+_GIT_TIMEOUT_OVERRIDE = threading.local()
+# Per-process caches for `_repo_root`/`_common_dir`, keyed by the RESOLVED input path (never the
+# raw string a caller passed — "." resolves against the CURRENT cwd each time, so a mid-process
+# chdir misses the cache instead of reading a stale one). A repo's top level and common dir don't
+# change for a given resolved path within one process, and a hook that calls several hook-facing
+# functions in sequence previously paid for both `git rev-parse` calls every single time.
+_REPO_ROOT_CACHE: dict[str, Path] = {}
+_COMMON_DIR_CACHE: dict[str, Path] = {}
+
+
+def _git_timeout() -> float:
+    return getattr(_GIT_TIMEOUT_OVERRIDE, "value", _GIT_TIMEOUT_S)
+
+
+@contextlib.contextmanager
+def _hook_git_budget() -> Iterator[None]:
+    """Caps every git call made anywhere inside this block — any call depth — to
+    ``HOOK_GIT_TIMEOUT_S``. Wraps each of the six hook-facing entry points (``repo_root``,
+    ``has_store``, ``on_harvest``, ``ensure_decision_item``/``ensure_decision_items``,
+    ``has_msg_digest``, ``prompt_block``)."""
+    prev = getattr(_GIT_TIMEOUT_OVERRIDE, "value", None)
+    _GIT_TIMEOUT_OVERRIDE.value = HOOK_GIT_TIMEOUT_S
+    try:
+        yield
+    finally:
+        if prev is None:
+            del _GIT_TIMEOUT_OVERRIDE.value
+        else:
+            _GIT_TIMEOUT_OVERRIDE.value = prev
+
 
 def _git(path: Path | str, *args: str) -> str:
     try:
@@ -142,7 +180,7 @@ def _git(path: Path | str, *args: str) -> str:
             ["git", "-C", str(path), *args],
             capture_output=True,
             text=True,
-            timeout=_GIT_TIMEOUT_S,
+            timeout=_git_timeout(),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise WorkError(f"git {' '.join(args)} failed in {path}: {exc}") from exc
@@ -154,8 +192,14 @@ def _git(path: Path | str, *args: str) -> str:
 
 
 def _repo_root(path: Path | str = ".") -> Path:
-    """The work tree's top level, so a caller may pass any subdirectory."""
-    return Path(_git(path, "rev-parse", "--show-toplevel")).resolve()
+    """The work tree's top level, so a caller may pass any subdirectory. Cached per process."""
+    key = str(Path(path).resolve())
+    cached = _REPO_ROOT_CACHE.get(key)
+    if cached is not None:
+        return cached
+    root = Path(_git(path, "rev-parse", "--show-toplevel")).resolve()
+    _REPO_ROOT_CACHE[key] = root
+    return root
 
 
 def _store_dir(repo: Path) -> Path:
@@ -168,8 +212,15 @@ def _config_path(repo: Path) -> Path:
 
 
 def _common_dir(repo: Path) -> Path:
-    """The git common directory: shared by the main checkout and every worktree."""
-    return Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir")).resolve()
+    """The git common directory: shared by the main checkout and every worktree. Cached per
+    process."""
+    key = str(Path(repo).resolve())
+    cached = _COMMON_DIR_CACHE.get(key)
+    if cached is not None:
+        return cached
+    common = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir")).resolve()
+    _COMMON_DIR_CACHE[key] = common
+    return common
 
 
 def _shared_dir(repo: Path) -> Path:
@@ -735,7 +786,7 @@ def _base_statuses(repo: Path, ids: list[str]) -> dict[str, str]:
             ["git", "-C", str(repo), "cat-file", "--batch"],
             input=req.encode(),
             capture_output=True,
-            timeout=_GIT_TIMEOUT_S,
+            timeout=_git_timeout(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return {}
@@ -1651,18 +1702,20 @@ def cmd_sync(repo: Path, args: argparse.Namespace) -> int:
 
 def repo_root(path: Path | str) -> Path | None:
     """``git rev-parse --show-toplevel`` of ``path``, resolved; None outside a git repo."""
-    try:
-        return _repo_root(path)
-    except Exception:
-        return None
+    with _hook_git_budget():
+        try:
+            return _repo_root(path)
+        except Exception:
+            return None
 
 
 def has_store(repo: Path | str) -> bool:
-    try:
-        root = repo_root(repo)
-        return root is not None and _has_store(root)
-    except Exception:
-        return False
+    with _hook_git_budget():
+        try:
+            root = repo_root(repo)
+            return root is not None and _has_store(root)
+        except Exception:
+            return False
 
 
 def _api_root(repo: Path | str) -> Path | None:
@@ -1726,8 +1779,9 @@ def ensure_decision_item(
     lock_timeout: float = HOOK_LOCK_TIMEOUT_S,
 ) -> str | None:
     """The DECISION block's item id (found, refreshed or created), or None."""
-    got = ensure_decision_items(repo, [(block, msg_digest, session)], lock_timeout=lock_timeout)
-    return got[0] if got else None
+    with _hook_git_budget():
+        got = ensure_decision_items(repo, [(block, msg_digest, session)], lock_timeout=lock_timeout)
+        return got[0] if got else None
 
 
 def ensure_decision_items(
@@ -1738,25 +1792,32 @@ def ensure_decision_items(
 ) -> list[str] | None:
     """``ensure_decision_item`` for every ``(block, msg_digest, session)`` under ONE lock: the ids
     of the entries that succeeded (an entry that raises is skipped with one stderr line); None
-    only when the store is absent or the lock was not taken."""
-    try:
-        root = _api_root(repo)
-        if root is None:
-            return None
-        with _store_lock(root, lock_timeout, fail_open=True, label="decision") as held:
-            if not held:
+    only when the store is absent or the lock was not taken.
+
+    P1 (T04 review): renews NO claims. An entry's ``session`` is whoever's DECISION slot this
+    call is refreshing or creating an item for — T04's second chance can pass ANOTHER (possibly
+    dead) session's id to rescue its slot, and renewing that session's claims here would extend a
+    dead session's lease to a full ``DEFAULT_LEASE_S``, defeating read-time expiry. Only
+    ``on_harvest`` renews a claim, and only the harvester's own session. Markers still prune."""
+    with _hook_git_budget():
+        try:
+            root = _api_root(repo)
+            if root is None:
                 return None
-            ids = []
-            for b, d, s in entries:
-                try:  # one bad entry never costs the others their item
-                    ids.append(_ensure_decision_locked(root, b, d, s))
-                except Exception as exc:
-                    _warn(f"decision item not written — {type(exc).__name__}: {exc}")
-            _after_write(root, *(s for _, _, s in entries))
-            return ids
-    except Exception as exc:
-        _warn(f"decision item not written — {type(exc).__name__}: {exc}")
-        return None
+            with _store_lock(root, lock_timeout, fail_open=True, label="decision") as held:
+                if not held:
+                    return None
+                ids = []
+                for b, d, s in entries:
+                    try:  # one bad entry never costs the others their item
+                        ids.append(_ensure_decision_locked(root, b, d, s))
+                    except Exception as exc:
+                        _warn(f"decision item not written — {type(exc).__name__}: {exc}")
+                _after_write(root)  # no *sessions — never renew a passed session's claim
+                return ids
+        except Exception as exc:
+            _warn(f"decision item not written — {type(exc).__name__}: {exc}")
+            return None
 
 
 def _set_next(repo: Path, next_text: str, session: str) -> None:
@@ -1786,39 +1847,41 @@ def on_harvest(
     """The Stop harvest's ONE store call, under ONE lock: (1) the decision item, first — the write
     that must not be lost; (2) the ``next`` of an item a NEXT line names; (3) renew ``session``'s
     live claims; the marker prune runs last. Returns the decision item's id, else None."""
-    try:
-        root = _api_root(repo)
-        if root is None:
-            return None
-        with _store_lock(root, lock_timeout, fail_open=True, label="harvest") as held:
-            if not held:
+    with _hook_git_budget():
+        try:
+            root = _api_root(repo)
+            if root is None:
                 return None
-            decision = None
-            if block and msg_digest:
-                try:  # a failure returns None (T04's second chance) but still renews claims
-                    decision = _ensure_decision_locked(root, block, msg_digest, session)
-                except Exception as exc:
-                    _warn(f"decision item not written — {type(exc).__name__}: {exc}")
-            if next_text:
-                try:
-                    _set_next(root, next_text, session)
-                except Exception as exc:
-                    _warn(f"item next not written — {type(exc).__name__}: {exc}")
-            _after_write(root, session)
-            return decision
-    except Exception as exc:
-        _warn(f"harvest not written — {type(exc).__name__}: {exc}")
-        return None
+            with _store_lock(root, lock_timeout, fail_open=True, label="harvest") as held:
+                if not held:
+                    return None
+                decision = None
+                if block and msg_digest:
+                    try:  # a failure returns None (T04's second chance) but still renews claims
+                        decision = _ensure_decision_locked(root, block, msg_digest, session)
+                    except Exception as exc:
+                        _warn(f"decision item not written — {type(exc).__name__}: {exc}")
+                if next_text:
+                    try:
+                        _set_next(root, next_text, session)
+                    except Exception as exc:
+                        _warn(f"item next not written — {type(exc).__name__}: {exc}")
+                _after_write(root, session)  # only the harvester's OWN session ever renews here
+                return decision
+        except Exception as exc:
+            _warn(f"harvest not written — {type(exc).__name__}: {exc}")
+            return None
 
 
 def has_msg_digest(repo: Path | str, msg_digest: str) -> bool:
-    try:
-        root = _api_root(repo)
-        if root is None:
+    with _hook_git_budget():
+        try:
+            root = _api_root(repo)
+            if root is None:
+                return False
+            return any(msg_digest in (it.get("msg_digests") or []) for it in _iter_items(root))
+        except Exception:
             return False
-        return any(msg_digest in (it.get("msg_digests") or []) for it in _iter_items(root))
-    except Exception:
-        return False
 
 
 def _clip(line: str) -> str:
@@ -1828,37 +1891,40 @@ def _clip(line: str) -> str:
 def prompt_block(repo: Path | str, session: str) -> str:
     """Read-only, no lock, the caller's own tree: every awaiting-operator item with its question,
     ``session``'s live claims, and the ready count — or "" when all three are empty."""
-    try:
-        root = _api_root(repo)
-        if root is None:
+    with _hook_git_budget():
+        try:
+            root = _api_root(repo)
+            if root is None:
+                return ""
+            items = list(_iter_items(root))
+            closed = _closed_ids(root)
+            claims = _live_claims(root)
+            by_id = {str(it["id"]): it for it in items}
+            lines = []
+            awaiting = [
+                it
+                for it in items
+                if it.get("status") == "awaiting-operator" and it["id"] not in closed
+            ]
+            awaiting.sort(key=lambda it: (str(it.get("created", "")), str(it["id"])))
+            for it in awaiting:
+                question = it.get("question") or it.get("title") or ""
+                ground = f" ({it['ground']})" if it.get("ground") else ""
+                lines.append(f"work: awaiting operator — {it['id']}{ground}: {question}")
+            for item_id, claim in sorted(claims.items()):
+                if session and claim.get("session") == session:
+                    title = by_id.get(item_id, {}).get("title") or "(not in this tree)"
+                    lines.append(
+                        f"work: your claim — {item_id}: {title} "
+                        f"(token {claim.get('token')}, lease until {_iso(_claim_end(claim))})"
+                    )
+            ready = len(_ready_from(items, closed, claims))
+            if ready:
+                lines.append(f"work: {ready} ready — `work.py next`")
+            return "\n".join(_clip(" ".join(line.split())) for line in lines)
+        except Exception as exc:
+            _warn(f"prompt block skipped — {type(exc).__name__}: {exc}")
             return ""
-        items = list(_iter_items(root))
-        closed = _closed_ids(root)
-        claims = _live_claims(root)
-        by_id = {str(it["id"]): it for it in items}
-        lines = []
-        awaiting = [
-            it for it in items if it.get("status") == "awaiting-operator" and it["id"] not in closed
-        ]
-        awaiting.sort(key=lambda it: (str(it.get("created", "")), str(it["id"])))
-        for it in awaiting:
-            question = it.get("question") or it.get("title") or ""
-            ground = f" ({it['ground']})" if it.get("ground") else ""
-            lines.append(f"work: awaiting operator — {it['id']}{ground}: {question}")
-        for item_id, claim in sorted(claims.items()):
-            if session and claim.get("session") == session:
-                title = by_id.get(item_id, {}).get("title") or "(not in this tree)"
-                lines.append(
-                    f"work: your claim — {item_id}: {title} "
-                    f"(token {claim.get('token')}, lease until {_iso(_claim_end(claim))})"
-                )
-        ready = len(_ready_from(items, closed, claims))
-        if ready:
-            lines.append(f"work: {ready} ready — `work.py next`")
-        return "\n".join(_clip(" ".join(line.split())) for line in lines)
-    except Exception as exc:
-        _warn(f"prompt block skipped — {type(exc).__name__}: {exc}")
-        return ""
 
 
 def _priority_arg(raw: str) -> int:

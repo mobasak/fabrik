@@ -20,6 +20,14 @@ from types import ModuleType
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "work.py"
 
+_BLOCK = (
+    "DECISION NEEDED (ground: gate)\n"
+    "- Question: Deploy the certified build to production now?\n"
+    "- Why it is yours: gate — Gate 2, a destructive/irreversible action needing authorisation.\n"
+    "- Options: A — deploy now · B — hold for one more smoke pass\n"
+    "- Recommendation: A — the certification gauntlet already passed."
+)
+
 
 def _work_module() -> ModuleType:
     sys.path.insert(0, str(SCRIPT.parent))
@@ -447,3 +455,121 @@ def test_drift_report_is_re_derived_not_cached(tmp_path, monkeypatch):
     _lock(repo, plan, "2026-09-24-plan-in-progress")
     report_after = work._drift_report(repo)
     assert report_after[3] == []
+
+
+# ── producer fixes from T04's review (P1: foreign claim renewal; P2: hook git budgets) ────────
+
+
+def _in_process(tmp_path, monkeypatch, env):
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.delenv("CLAUDE_AGENT", raising=False)
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
+    return _work_module()
+
+
+def test_ensure_decision_items_never_renews_a_passed_sessions_claim(tmp_path, monkeypatch):
+    """P1: T04's second chance can pass ANOTHER (possibly dead) session's id to rescue its
+    DECISION slot. `ensure_decision_items` must not renew that session's claim — a dead
+    session's lease would otherwise be extended to a full 2h, defeating read-time expiry."""
+    env = _env(tmp_path)
+    work = _in_process(tmp_path, monkeypatch, env)
+    repo = _store(tmp_path, env)
+    item = _add(repo, env, title="claimed by a session that then died")
+    _ok(["claim", item, "--session", "dead-session"], env, repo)
+    claim_path = _shared(repo) / "claims" / f"{item}.json"
+    before = claim_path.read_bytes()
+
+    ids = work.ensure_decision_items(repo, [(_BLOCK, "digest-1", "dead-session")])
+
+    assert ids and len(ids) == 1  # the decision item was still created/found
+    after = claim_path.read_bytes()
+    assert after == before, (
+        "ensure_decision_items renewed 'dead-session's claim — it must renew no passed "
+        "session's claim; only on_harvest renews, and only its own session"
+    )
+
+
+def test_ensure_decision_item_singular_also_never_renews_a_passed_sessions_claim(
+    tmp_path, monkeypatch
+):
+    env = _env(tmp_path)
+    work = _in_process(tmp_path, monkeypatch, env)
+    repo = _store(tmp_path, env)
+    item = _add(repo, env, title="claimed by a session that then died")
+    _ok(["claim", item, "--session", "dead-session"], env, repo)
+    claim_path = _shared(repo) / "claims" / f"{item}.json"
+    before = claim_path.read_bytes()
+
+    got = work.ensure_decision_item(
+        repo, block=_BLOCK, msg_digest="digest-2", session="dead-session"
+    )
+
+    assert got is not None
+    assert claim_path.read_bytes() == before
+
+
+def test_on_harvest_still_renews_only_its_own_session(tmp_path, monkeypatch):
+    """The mirror of the P1 fix: on_harvest's own contract is unchanged — it renews the
+    HARVESTER's claim (the session actually calling it), never a foreign one."""
+    env = _env(tmp_path)
+    work = _in_process(tmp_path, monkeypatch, env)
+    repo = _store(tmp_path, env)
+    item = _add(repo, env, title="claimed by the harvesting session")
+    _ok(["claim", item, "--session", "live-session"], env, repo)
+    claim_path = _shared(repo) / "claims" / f"{item}.json"
+    before = claim_path.read_bytes()
+
+    work.on_harvest(repo, session="live-session")
+
+    assert claim_path.read_bytes() != before, "on_harvest must renew its OWN session's claim"
+
+
+def test_has_store_caches_repo_root_so_two_calls_run_git_once(tmp_path, monkeypatch):
+    """P2a: repo_root/the common dir are cached per process, keyed by the resolved input path —
+    a hook calling a hook-facing function twice must not pay for `git rev-parse` twice."""
+    env = _env(tmp_path)
+    work = _in_process(tmp_path, monkeypatch, env)
+    repo = _store(tmp_path, env)
+
+    calls = []
+    real_run = subprocess.run
+
+    def counting_run(cmd, *a, **kw):
+        if isinstance(cmd, list) and cmd[:1] == ["git"]:
+            calls.append(cmd)
+        return real_run(cmd, *a, **kw)
+
+    monkeypatch.setattr(subprocess, "run", counting_run)
+
+    assert work.has_store(repo) is True
+    assert work.has_store(repo) is True
+
+    git_calls = [c for c in calls if "rev-parse" in c and "--show-toplevel" in c]
+    assert len(git_calls) == 1, f"expected one cached rev-parse, got {len(git_calls)}: {calls}"
+
+
+def test_hook_facing_calls_fail_open_fast_when_git_is_slow(tmp_path, monkeypatch):
+    """P2b: every hook-facing function runs its git calls with HOOK_GIT_TIMEOUT_S (1.0 s), never
+    the CLI's 10 s — against a 5 s Stop subprocess / 10 s prompt hook a slow git must fail open
+    well under 2 s, not burn the full CLI budget."""
+    env = _env(tmp_path)
+    work = _in_process(tmp_path, monkeypatch, env)
+    repo = _store(tmp_path, env)
+
+    shim_dir = tmp_path / "slow-git-bin"
+    shim_dir.mkdir()
+    shim = shim_dir / "git"
+    shim.write_text("#!/bin/sh\nsleep 3\nexit 1\n", encoding="utf-8")
+    shim.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{shim_dir}:{env['PATH']}")
+    # a fresh, never-before-resolved path so the P2a cache cannot short-circuit this probe
+    unresolved_repo = repo / "sub" / "dir"
+    unresolved_repo.mkdir(parents=True)
+
+    start = time.monotonic()
+    result = work.has_store(unresolved_repo)
+    elapsed = time.monotonic() - start
+
+    assert result is False, "a timed-out git must fail OPEN to has_store's empty value"
+    assert elapsed < 2.0, f"took {elapsed:.2f}s — HOOK_GIT_TIMEOUT_S was not applied"
