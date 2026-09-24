@@ -1964,3 +1964,43 @@ claims:
     verify: "https://platform.claude.com/docs/en/about-claude/pricing (WebFetch, 2026-09-24) ; OpenRouter public model list + endpoints (second-opinion probe, 2026-09-24; ledger op-01, op-02)"
     window_days: 90
     last_verified: 2026-09-24
+
+  - id: pg-rls-bypass-and-force
+    pack: saas/95-multi-tenant-saas.md
+    kind: standard
+    claim: "Superusers and BYPASSRLS roles always bypass PostgreSQL row security; a table owner bypasses it too unless the table has FORCE ROW LEVEL SECURITY, which binds only the owner"
+    verify: "https://www.postgresql.org/docs/current/ddl-rowsecurity.html (WebFetch + exa, 2026-09-24; ledger pg-01)"
+    window_days: 365
+    last_verified: 2026-09-24
+
+  - id: pg-rls-gaps
+    pack: saas/95-multi-tenant-saas.md
+    kind: standard
+    claim: "RLS does not cover TRUNCATE or REFERENCES; unique, primary-key and foreign-key checks bypass it (covert channels); a view applies its owner's policies unless created with security_invoker = true"
+    verify: "https://www.postgresql.org/docs/current/ddl-rowsecurity.html ; https://www.postgresql.org/docs/current/sql-createview.html (WebFetch + exa + brave, 2026-09-24; ledger pg-03..pg-06)"
+    window_days: 365
+    last_verified: 2026-09-24
+
+  - id: set-local-no-bind-use-set-config
+    pack: saas/95-multi-tenant-saas.md
+    kind: standard
+    claim: "SET / SET LOCAL cannot take a bind parameter (a PostgreSQL protocol limit — parameters only in SELECT/INSERT/UPDATE/DELETE), so drivers use SELECT set_config(name, $1, true), whose is_local=true scopes the value to the current transaction like SET LOCAL"
+    verify: "https://www.psycopg.org/psycopg3/docs/basic/from_pg2.html ; https://www.postgresql.org/docs/current/functions-admin.html (WebSearch + exa + WebFetch, 2026-09-24; ledger pr-01..pr-04, pg-11)"
+    window_days: 365
+    last_verified: 2026-09-24
+
+  - id: rls-policy-performance
+    pack: saas/95-multi-tenant-saas.md
+    kind: practice
+    claim: "Wrapping a row-independent function in a policy as (SELECT fn()) makes the planner evaluate it once (initPlan) instead of per row, and policy columns need an index — Supabase measured 179 ms → 9 ms and >100x respectively"
+    verify: "https://supabase.com/docs/guides/troubleshooting/rls-performance-and-best-practices-Z5Jjwv (exa, 2026-09-24; ledger pr-06, pr-07)"
+    window_days: 365
+    last_verified: 2026-09-24
+
+  - id: owasp-tenant-selector-and-rls
+    pack: saas/95-multi-tenant-saas.md
+    kind: practice
+    claim: "OWASP's Multi-Tenant Security Cheat Sheet: treat a client-supplied tenant id as a selector and verify the principal's membership; connect the request path as a role that is neither superuser nor BYPASSRLS, never serve tenant requests through a privileged connection, and re-establish the tenant context for every transaction"
+    verify: "https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html (WebFetch + WebSearch, 2026-09-24; ledger pr-13, op-01)"
+    window_days: 365
+    last_verified: 2026-09-24

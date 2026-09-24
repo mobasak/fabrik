@@ -87,18 +87,18 @@ An approval link opened somewhere the user did not start must never mint a sessi
 Use when a project is **migrating off Supabase Auth** but wants to retain its existing `auth.uid()`-based RLS policies, `auth.users` FKs/triggers, and `authenticated`/`service_role` grants **unchanged** — a verified zero-rewrite, zero-loss migration. This is a third, legitimate position ("Pattern A, Supabase-schema-compatible"), **not** a fork of Pattern A's token rules: FastAPI becomes the sole IdP and the token lifecycle is **exactly Pattern A** (Argon2 / 15-min HS256 access / 7-day opaque PG refresh / Redis denylist). The database keeps Supabase's **PostgreSQL contract**, now owned natively:
 
 - **`auth` schema + `auth.users`** table — own it natively (`encrypted_password` holds the Argon2 hash). Existing FKs to `auth.users(id)` and triggers keep working with zero edits.
-- **`auth.uid()` / `auth.jwt()` / `auth.role()`** SQL helpers, reimplemented over the `request.jwt.claims` GUC with Supabase-faithful semantics (definitions in `95-multi-tenant-saas.md` § compat mode).
+- **`auth.uid()` / `auth.jwt()` / `auth.role()`** SQL helpers, reimplemented over the `request.jwt.claims` GUC with Supabase-faithful semantics (definitions in `saas/95-multi-tenant-saas.md` § Dual-Mode RLS).
 - **`anon` / `authenticated` / `service_role`** roles — `NOLOGIN NOINHERIT`; `service_role` carries `BYPASSRLS`, mirroring Supabase's privileged key for M2M.
 - **The GUC contract** — the app sets, per transaction, exactly what Supabase's PostgREST set from the JWT:
   ```sql
-  SET LOCAL role = 'authenticated';   -- or 'service_role' for M2M
-  SET LOCAL request.jwt.claims = '{"sub":"<user-uuid>","role":"authenticated"}';
+  SELECT set_config('role', 'authenticated', true);   -- never service_role on the request path (saas/95)
+  SELECT set_config('request.jwt.claims', $1, true);  -- '{"sub":"<user-uuid>","role":"authenticated"}', bound — SET LOCAL takes no parameter
   ```
   With these set, `auth.uid()` resolves to `<user-uuid>` and every existing policy enforces as before. Unset/invalid → `auth.uid()` returns `NULL` → deny (the invariant below).
 
 Tenant isolation, the dual-mode RLS contract, the `auth.*` helper definitions, `fabrik_admin`, and the cross-tenant probe live in `95-multi-tenant-saas.md`. The canonical reference build is trade-intelligence's `000_native_auth.sql` (auth schema + helpers) + `053_force_rls_and_admin.sql` (FORCE RLS + `fabrik_admin`).
 
-> **Fail-closed invariant (hard, every mode).** `auth.uid()` and `current_tenant_id()` MUST return `NULL` (→ the policy denies) on unset, empty, or malformed claims — wrap the body in `EXCEPTION WHEN OTHERS THEN RETURN NULL`. **Never** raise and never default to a value: an error-open helper turns one bad/empty JWT into a full cross-tenant read. This is the single most security-critical line in the build — verify it explicitly with a no-context probe (`SELECT auth.uid()` → `NULL`).
+> **Fail-closed invariant (hard, every mode).** `auth.uid()` and `current_tenant_id()` MUST return `NULL` (→ the policy denies) on unset, empty, or malformed claims — wrap the body in `EXCEPTION WHEN OTHERS THEN RETURN NULL`. **Never** raise and never default to a value: a default turns one bad/empty JWT into a cross-tenant read, and a raise turns a deny into a 500. This is the single most security-critical line in the build — verify it explicitly with a no-context probe (`SELECT auth.uid()` → `NULL`).
 
 ### Pattern B — Supabase Auth + FastAPI backend (legacy / migration-only)
 

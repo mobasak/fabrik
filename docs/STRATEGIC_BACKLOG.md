@@ -1218,6 +1218,11 @@ rather than smuggled into a command-corpus commit. Disposition: ROUTED, not defe
 
 ## [infra] Rules currency pass (operator-dispatched 2026-09-01, file-by-file) — cross-pack class findings
 
+**FILE 30 — `saas/95-multi-tenant-saas.md` (2026-09-24): the pack maps the modules' three tenancy contracts, says what RLS does not cover, and warns where the request path can reach a bypass role (D-405).**
+- **fabrik-lib (mailed 01M39F0TBSRMSSVV3J4B973YX0):** `payments` reads `app.current_org` while seven modules read `app.tenant_id`; `tenancy`/`payments` use `org_id`, the IdP and scaffold `tenant_id`; `tenancy`'s policy scopes to every org the user belongs to; `tenancy` requires the request login role to be a member of `service_role`; the IdP's example policy calls the helper unwrapped.
+- **Fleet (mailed 01M39F0TE64137P9F5KK1R2ZR8):** the saas-skeleton defines `current_tenant_id()` twice (schema.sql without the EXCEPTION clause, the IdP's native.sql with it); its `tenants` table has no RLS while every tenant table cascades from it.
+- **Cross-pack, for their own turns:** `core/75-workers-jobs.md` carries no tenant rule for jobs (this pack's § Background Jobs does); `core/85` and this pack both describe the ingest role — keep one canonical.
+
 **FILE 29 — `core/cost-budget.md` (2026-09-24): the pack describes both module lanes, what the watchdog really spends, and where its caps do not bind (D-404).**
 - **fabrik-lib (mailed 01M39CVD8EB2AJRTKS8M6VBWPQ):** the watchdog treats `stale` as within cap (a pg outage reads ~$0), records no `incident_id`, never exports the cost metrics, runs the code-fix path with no cap check or ledger rows, and defaults its fallback to the retired `claude-3.5-haiku`; its vendored `cost_budget.py` has drifted 545 lines from the library; `llm-dispatch` records only successful calls; the cost-budget README says `FABRIK_ANALYTICS_URL` is injected and cites a stale hub line.
 - **Fleet (mailed 01M39CVDAFQ1QW0WGBH4Z99CWG):** `drivers/watchdog.py` defaults `cheap_model` to the retired Haiku 3.5; `spec_loader` documents `per_incident_budget_usd` as passed to `--max-budget-usd` (0.50) and a 0 cap as "disables"; no apply path runs the `cost_ledger` GRANTs; nothing injects `FABRIK_ANALYTICS_URL`.
