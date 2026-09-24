@@ -13,9 +13,13 @@ provably gets mail read. Every test here is a behavior an agent actually needs, 
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+import time
 from pathlib import Path
+
+import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "thread_anchor.py"
@@ -192,3 +196,682 @@ def test_done_reports_what_it_closed_and_refuses_an_empty_session(tmp_path):
 def test_hook_line_prints_the_session_in_the_close_command(tmp_path):
     harvest("NEXT: command 7 of 31 — something open", tmp_path, session="s9")
     assert "done --session s9 --match" in run(["line", "--session", "s9"], env_dir=tmp_path)[1]
+
+
+# ── T04 (spec § C3): WHERE YOU ARE on compact, the DECISION harvest and clear, the 72 h fold ──
+
+_DECISION_TEXT = (
+    "Certified build is ready.\n\n"
+    "DECISION NEEDED (ground: gate)\n"
+    "- Question: Deploy the certified build to production now?\n"
+    "- Why it is yours: gate — Gate 2, a destructive/irreversible action needing authorisation.\n"
+    "- Options: A — deploy now · B — hold for one more smoke pass\n"
+    "- Recommendation: A — the certification gauntlet already passed.\n\n"
+    "NEXT: operator decision — see DECISION NEEDED above"
+)
+_BUILTINS = ("/compact", "/context", "/cost", "/model", "/autocompact", "/clear", "/help")
+
+
+def _env(tmp_path: Path) -> dict[str, str]:
+    """Hermetic: state, run records, HOME and TMPDIR under tmp_path; git reads no user config."""
+    for sub in ("home", "runs", "threads", "tmp"):
+        (tmp_path / sub).mkdir(exist_ok=True)
+    return {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "HOME": str(tmp_path / "home"),
+        "TMPDIR": str(tmp_path / "tmp"),
+        "THREAD_ANCHOR_DIR": str(tmp_path / "threads"),
+        "COMMAND_RUN_DIR": str(tmp_path / "runs"),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.invalid",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.invalid",
+    }
+
+
+def run3(
+    args: list[str], env: dict[str, str], stdin: str = "", script: Path = SCRIPT
+) -> tuple[int, str, str]:
+    proc = subprocess.run(
+        [sys.executable, str(script), *args],
+        input=stdin,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=30,
+    )
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def _hook_line(env: dict[str, str], payload: dict, script: Path = SCRIPT) -> tuple[int, str, str]:
+    return run3(["line", "--hook"], env, stdin=json.dumps(payload), script=script)
+
+
+def _state(env: dict[str, str], sid: str) -> dict:
+    return json.loads((Path(env["THREAD_ANCHOR_DIR"]) / f"{sid}.json").read_text(encoding="utf-8"))
+
+
+def _write_state(env: dict[str, str], sid: str, state: dict) -> None:
+    (Path(env["THREAD_ANCHOR_DIR"]) / f"{sid}.json").write_text(json.dumps(state), encoding="utf-8")
+
+
+def _anchor(text: str, hours: float) -> dict:
+    return {"key": text.lower(), "text": text, "ts": time.time() - hours * 3600}
+
+
+def _git(cwd: Path, env: dict[str, str], *args: str) -> str:
+    return subprocess.run(
+        ["git", *args], cwd=cwd, env=env, capture_output=True, text=True, check=True
+    ).stdout
+
+
+def _repo_with_upstream(tmp_path: Path, env: dict[str, str]) -> Path:
+    up = tmp_path / "up.git"
+    _git(tmp_path, env, "init", "-q", "--bare", str(up))
+    work = tmp_path / "work"
+    _git(tmp_path, env, "init", "-q", str(work))
+    (work / "README").write_text("seed\n", encoding="utf-8")
+    _git(work, env, "add", "README")
+    _git(work, env, "commit", "-q", "-m", "seed")
+    _git(work, env, "remote", "add", "origin", str(up))
+    _git(work, env, "push", "-q", "-u", "origin", "HEAD")
+    return work.resolve()
+
+
+def _transcript(tmp_path: Path, edited: list[Path], final_text: str = "") -> Path:
+    """A session transcript whose Edit tool_uses name `edited`, stamped now."""
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    entries: list[dict] = [
+        {
+            "type": "assistant",
+            "timestamp": stamp,
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": f"t{i}",
+                        "name": "Edit",
+                        "input": {"file_path": str(p)},
+                    }
+                ]
+            },
+        }
+        for i, p in enumerate(edited)
+    ]
+    if final_text:
+        entries.append(
+            {"type": "assistant", "message": {"content": [{"type": "text", "text": final_text}]}}
+        )
+    tp = tmp_path / "transcript.jsonl"
+    tp.write_text("\n".join(json.dumps(e) for e in entries) + "\n", encoding="utf-8")
+    return tp
+
+
+def _running_record(env: dict[str, str], sid: str, state: str = "running") -> None:
+    """The fields `scripts/command_run.py` writes at `start`/`step`/`round`."""
+    rec = {
+        "session_id": sid,
+        "command": "fabrik-execute-plan",
+        "phases": 5,
+        "phase": 3,
+        "phase_title": "wire the harvest",
+        "terminal": "every ticket merged and reviewed",
+        "surface": "scripts/thread_anchor.py",
+        "state": state,
+        "rounds": [{"n": 1}, {"n": 2}],
+        "updated_ts": time.time(),
+    }
+    (Path(env["COMMAND_RUN_DIR"]) / f"{sid}.json").write_text(json.dumps(rec), encoding="utf-8")
+
+
+def test_where_block_lists_only_this_sessions_commits(tmp_path):
+    """The T03 → T04 seam: `session_unpushed` scoped to THIS transcript's edits — a sibling's
+    unpushed commit on the same branch is never listed as this session's (spec § C3 item 4)."""
+    env = _env(tmp_path)
+    work = _repo_with_upstream(tmp_path, env)
+    for name, msg in (("mine.py", "mine: the harvest"), ("sib.py", "sib: their fold")):
+        (work / name).write_text("x\n", encoding="utf-8")
+        _git(work, env, "add", name)
+        _git(work, env, "commit", "-q", "-m", msg)
+    (work / "mine_dirty.py").write_text("wip\n", encoding="utf-8")
+    (work / "sib_dirty.py").write_text("wip\n", encoding="utf-8")
+    tp = _transcript(tmp_path, [work / "mine.py", work / "mine_dirty.py"])
+    sid = "sess-where"
+    _running_record(env, sid)
+    assert run3(["harvest", "--session", sid, "--decision-ok"], env, stdin=_DECISION_TEXT)[0] == 0
+    run3(["harvest", "--session", sid], env, stdin="NEXT: resume phase C of the plan")
+
+    rc, out, err = _hook_line(
+        env,
+        {
+            "session_id": sid,
+            "transcript_path": str(tp),
+            "cwd": str(work),
+            "source": "compact",
+            "hook_event_name": "SessionStart",
+        },
+    )
+    assert rc == 0, err
+    assert "WHERE YOU ARE" in out, out
+    assert "## 🧵 OPEN THREADS" not in out, f"the usual block printed beside WHERE YOU ARE: {out!r}"
+    assert "mine: the harvest" in out, out
+    assert "sib: their fold" not in out, f"a sibling's commit listed as this session's: {out!r}"
+    assert "mine_dirty.py" in out and "sib_dirty.py" not in out, out
+    assert "fabrik-execute-plan" in out and "resume phase C" in out, out
+    assert "Deploy the certified build" in out, out
+
+
+def test_a_refused_block_is_never_stored(tmp_path):
+    """The T03 → T04 seam: the hook passes --decision-ok only on an accepted block; without it
+    the harvest stores NO block (C-O8's twin, A-O30) — while the NEXT: line still harvests."""
+    env = _env(tmp_path)
+    assert run3(["harvest", "--session", "s-ref"], env, stdin=_DECISION_TEXT)[0] == 0
+    st = _state(env, "s-ref")
+    assert not st.get("decision"), f"a refused block was stored: {st!r}"
+    assert st["last_next"]["text"].startswith("operator decision")
+    rc = run3(["harvest", "--session", "s-ok", "--decision-ok"], env, stdin=_DECISION_TEXT)[0]
+    assert rc == 0
+    assert "Deploy the certified build" in _state(env, "s-ok")["decision"]["text"]
+
+
+def test_where_block_shows_a_live_run_and_not_a_stopped_one(tmp_path):
+    env = _env(tmp_path)
+    run3(["harvest", "--session", "s-run"], env, stdin="NEXT: keep going")
+    _running_record(env, "s-run")
+    payload = {
+        "session_id": "s-run",
+        "source": "compact",
+        "hook_event_name": "SessionStart",
+        "cwd": str(tmp_path),
+    }
+    out = _hook_line(env, payload)[1]
+    for want in (
+        "/fabrik-execute-plan",
+        "phase 3/5 (wire the harvest)",
+        "round 2",
+        "every ticket merged and reviewed",
+        "scripts/thread_anchor.py",
+    ):
+        assert want in out, (want, out)
+    _running_record(env, "s-run", state="done")
+    out = _hook_line(env, payload)[1]
+    assert "WHERE YOU ARE" in out and "fabrik-execute-plan" not in out, out
+
+
+def _open_decision(env: dict[str, str], sid: str) -> None:
+    assert run3(["harvest", "--session", sid, "--decision-ok"], env, stdin=_DECISION_TEXT)[0] == 0
+    assert _state(env, sid).get("decision")
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        *_BUILTINS,
+        " /model",
+        "/compact keep the plan state",
+        # A-O8: UI/local commands reach UserPromptSubmit too and are not an answer — matched
+        # case-insensitively on the whole first token.
+        "/status",
+        "/RESUME",
+        "/terminal-setup",
+        "/Vim",
+        "/permissions",
+        # round 2 (A-O5): the rest of the closed list
+        "/exit",
+        "/add-dir",
+        "/Plugin install x",
+        "/bashes",
+        "/output-style",
+        "/release-notes",
+        "/theme",
+        "/privacy-settings",
+        "/upgrade",
+    ],
+)
+def test_a_builtin_slash_command_does_not_clear_the_decision(tmp_path, prompt):
+    env = _env(tmp_path)
+    _open_decision(env, "s-b")
+    payload = {"session_id": "s-b", "hook_event_name": "UserPromptSubmit", "prompt": prompt}
+    rc, _, _ = _hook_line(env, payload)
+    assert rc == 0 and _state(env, "s-b").get("decision"), f"{prompt!r} cleared the block"
+
+
+@pytest.mark.parametrize(
+    "prompt", ["A, deploy it", "/fabrik-deploy prod", "/contextualize x", "/helpme", ""]
+)
+def test_a_plain_answer_or_a_custom_command_clears_the_decision(tmp_path, prompt):
+    """A-O41/A-O42: the WHOLE first token is matched — `/contextualize` shares `/context`'s
+    prefix and is a custom command, so it clears."""
+    env = _env(tmp_path)
+    _open_decision(env, "s-c")
+    payload = {"session_id": "s-c", "hook_event_name": "UserPromptSubmit", "prompt": prompt}
+    rc, _, _ = _hook_line(env, payload)
+    assert rc == 0 and not _state(env, "s-c").get("decision"), f"{prompt!r} left the block open"
+
+
+def test_the_prompt_time_reharvest_never_restores_a_cleared_block(tmp_path):
+    env = _env(tmp_path)
+    _open_decision(env, "s-r")
+    tp = _transcript(tmp_path, [], final_text=_DECISION_TEXT)  # the previous turn: the block
+    rc, _, _ = _hook_line(
+        env,
+        {
+            "session_id": "s-r",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "B, hold",
+            "transcript_path": str(tp),
+        },
+    )
+    assert rc == 0 and not _state(env, "s-r").get("decision")
+    # and a later SessionStart pass over the same transcript does not resurrect it either
+    _hook_line(
+        env,
+        {
+            "session_id": "s-r",
+            "hook_event_name": "SessionStart",
+            "source": "resume",
+            "transcript_path": str(tp),
+        },
+    )
+    assert not _state(env, "s-r").get("decision")
+
+
+def test_anchors_older_than_72h_fold_into_one_line_and_are_kept(tmp_path):
+    env = _env(tmp_path)
+    anchors = [_anchor("young thread — item 1 of 9", 71), _anchor("old thread — item 2 of 9", 73)]
+    _write_state(env, "s-f", {"anchors": anchors, "last_next": None})
+    rc, out, _ = run3(["line", "--session", "s-f"], env)
+    assert rc == 0 and "young thread — item 1 of 9" in out, out
+    assert "old thread" not in out, f"a 73 h anchor printed in full: {out!r}"
+    assert "1 older thread(s), oldest 73h" in out, out
+    assert len(_state(env, "s-f")["anchors"]) == 2, "the fold deleted an anchor"
+
+
+def test_the_fold_line_close_command_carries_the_session(tmp_path):
+    env = _env(tmp_path)
+    _write_state(
+        env, "s-cl", {"anchors": [_anchor("old thread — item 2 of 9", 90)], "last_next": None}
+    )
+    out = run3(["line", "--session", "s-cl"], env)[1]
+    want = "close with python3 scripts/thread_anchor.py done --session s-cl --match <substr>"
+    assert want in out, out
+
+
+def test_the_young_cap_evicts_the_oldest_young_anchor_not_a_standing_one(tmp_path):
+    """The founding case: a standing thread paused behind days of tangents (A-O13). The old cap
+    dropped by LIST POSITION, so the oldest — the standing one — died first, silently."""
+    env = _env(tmp_path)
+    anchors = [_anchor("standing audit — command 14 of 31", 100)]
+    anchors += [_anchor(f"tangent {i} — item {i} of 99", 50 - i) for i in range(12)]
+    _write_state(env, "s-y", {"anchors": anchors, "last_next": None})
+    run3(["harvest", "--session", "s-y"], env, stdin="NEXT: tangent new — item 1 of 5")
+    texts = [a["text"] for a in _state(env, "s-y")["anchors"]]
+    assert "standing audit — command 14 of 31" in texts, texts
+    assert "tangent 0 — item 0 of 99" not in texts, "the oldest young anchor was not evicted"
+    assert "tangent new — item 1 of 5" in texts
+    out = run3(["line", "--session", "s-y"], env)[1]
+    assert "1 older thread(s)" in out and "… 1 dropped over the cap" in out, out
+
+
+def test_a_young_cap_eviction_shows_with_no_folded_anchor(tmp_path):
+    """A-O19: the Stop-side harvest's stderr is seen by nobody, so the fold line is the only
+    place an eviction surfaces — it must print even when no anchor is older than 72 h."""
+    env = _env(tmp_path)
+    anchors = [_anchor(f"tangent {i} — item {i} of 99", 50 - i) for i in range(12)]
+    _write_state(env, "s-n", {"anchors": anchors, "last_next": None})
+    run3(["harvest", "--session", "s-n"], env, stdin="NEXT: tangent new — item 1 of 5")
+    out = run3(["line", "--session", "s-n"], env)[1]
+    assert "… 1 dropped over the cap" in out, out
+    assert "older thread(s)" not in out, out
+
+
+def test_a_missing_hook_omits_its_items_and_never_crashes(tmp_path):
+    """The script runs on every SessionStart in ~46 repos: a failed hook import omits the items
+    that need it, says so in ONE stderr line each, never a traceback, never a non-zero exit."""
+    env = _env(tmp_path)
+    lone = tmp_path / "lone" / "scripts" / "thread_anchor.py"
+    lone.parent.mkdir(parents=True)
+    lone.write_text(SCRIPT.read_text(encoding="utf-8"), encoding="utf-8")
+    run3(["harvest", "--session", "s-m"], env, stdin="NEXT: resume phase C", script=lone)
+    _running_record(env, "s-m")
+    rc, out, err = _hook_line(
+        env, {"session_id": "s-m", "source": "compact", "cwd": str(tmp_path)}, script=lone
+    )
+    assert rc == 0 and "Traceback" not in err, err
+    assert "WHERE YOU ARE" in out and "resume phase C" in out, out
+    assert "fabrik-execute-plan" not in out
+    lines = err.strip().splitlines()
+    assert lines and all(ln.startswith("thread_anchor:") for ln in lines), err
+
+
+# ── T04 /fabrik-review round 1 ─────────────────────────────────────────────────────────────────
+
+
+def _ta_module():
+    """The script imported in-process (a fresh module per call), for the tests that must stub a
+    seam — the time budget, the lost-update window."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(f"thread_anchor_t04_{time.time_ns()}", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_where_block_prints_the_last_next_once(tmp_path):
+    """A-S1: the last NEXT is also the newest anchor — WHERE YOU ARE de-duplicates it exactly as
+    the usual block does, instead of printing it as item 2 AND item 5."""
+    env = _env(tmp_path)
+    run3(["harvest", "--session", "s-d"], env, stdin="NEXT: resume phase C of the plan")
+    out = _hook_line(env, {"session_id": "s-d", "source": "compact", "cwd": str(tmp_path)})[1]
+    assert out.count("resume phase C of the plan") == 1, out
+
+
+def test_a_concurrent_harvest_never_loses_a_clear(tmp_path, monkeypatch):
+    """A-S2: `_load`/`_save` was an unlocked read-modify-write. A Stop-side harvest that loaded the
+    state before the operator's answer cleared the DECISION wrote the stale block back: the
+    answered decision reopened. The clear runs in a second PROCESS inside the harvest's window."""
+    env = _env(tmp_path)
+    _open_decision(env, "s-lk")
+    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "HOME", "TMPDIR"):
+        monkeypatch.setenv(k, env[k])
+    ta = _ta_module()
+    real_load = ta._load
+    clearer: list[subprocess.Popen] = []
+
+    def racing_load(session: str) -> dict:
+        state = real_load(session)
+        if not clearer:  # the harvest has READ the open block; now the operator answers
+            clearer.append(
+                subprocess.Popen(
+                    [sys.executable, str(SCRIPT), "line", "--hook"],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                    env=env,
+                )
+            )
+            clearer[0].stdin.write(
+                json.dumps(
+                    {"session_id": "s-lk", "hook_event_name": "UserPromptSubmit", "prompt": "B"}
+                )
+            )
+            clearer[0].stdin.close()
+            time.sleep(0.5)  # the clear lands (unlocked) or waits on the lock (locked)
+        return state
+
+    monkeypatch.setattr(ta, "_load", racing_load)
+    ta.cmd_harvest("s-lk", "NEXT: keep going — item 2 of 9")
+    assert clearer and clearer[0].wait(timeout=10) == 0
+    st = _state(env, "s-lk")
+    assert not st.get("decision"), "the operator's answer was lost to a concurrent harvest"
+    assert st["last_next"]["text"].startswith("keep going"), "the harvest itself was lost"
+    assert not list(Path(env["THREAD_ANCHOR_DIR"]).glob("*.tmp")), "a temp file was left behind"
+
+
+def test_done_resets_the_dropped_count_and_no_open_anchor_hides_it(tmp_path):
+    """A-S3: `dropped` only grew, so one eviction printed a fold line on every prompt forever."""
+    env = _env(tmp_path)
+    anchors = [_anchor(f"tangent {i} — item {i} of 99", 50 - i) for i in range(12)]
+    _write_state(env, "s-dr", {"anchors": anchors, "last_next": None, "dropped": "garbage"})
+    rc = run3(["harvest", "--session", "s-dr"], env, stdin="NEXT: tangent new — item 1 of 5")[0]
+    texts = [a["text"] for a in _state(env, "s-dr")["anchors"]]
+    assert rc == 0 and "tangent new — item 1 of 5" in texts, "a garbage count broke the harvest"
+    assert len(texts) == 12, texts
+    assert "dropped over the cap" in run3(["line", "--session", "s-dr"], env)[1]
+    run3(["done", "--session", "s-dr", "--match", "tangent new"], env)
+    assert "dropped over the cap" not in run3(["line", "--session", "s-dr"], env)[1]
+    # a count with no open anchor at all prints nothing
+    _write_state(env, "s-dz", {"anchors": [], "last_next": None, "dropped": 4})
+    assert run3(["line", "--session", "s-dz"], env)[1] == ""
+
+
+def test_where_block_respects_its_time_budget(tmp_path, monkeypatch):
+    """A-S4: the SessionStart entry times out at 10 s and a 50 MB transcript already takes 4-11 s.
+    Past the budget the costly item is skipped with one line; the record items still print."""
+    import types
+
+    env = _env(tmp_path)
+    run3(["harvest", "--session", "s-t"], env, stdin="NEXT: resume the audit")
+    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "HOME", "TMPDIR"):
+        monkeypatch.setenv(k, env[k])
+    ta = _ta_module()
+
+    def slow_files(tp: str, root: Path) -> dict:
+        time.sleep(5)
+        return {}
+
+    ta._HOOK = types.SimpleNamespace(
+        _run_record=lambda sid: None,
+        _session_files=slow_files,
+        _this_sessions_edits=lambda a, f: a,
+        _baseline_floor=lambda sid: 0.0,
+        session_unpushed=lambda root, authored, **kw: [],
+    )
+    monkeypatch.setattr(ta, "_WHERE_BUDGET_S", 0.5)
+    t0 = time.monotonic()
+    out = ta.cmd_where("s-t", tmp_path, str(tmp_path / "t.jsonl"))
+    assert time.monotonic() - t0 < 2.0, "the render ran past its budget"
+    assert "(skipped: time budget)" in out and "resume the audit" in out, out
+
+
+def _lone_repo_with_hook(tmp_path: Path, hook_src: str) -> Path:
+    lone = tmp_path / "lone"
+    (lone / "scripts").mkdir(parents=True)
+    (lone / ".claude" / "hooks").mkdir(parents=True)
+    (lone / "scripts" / "thread_anchor.py").write_text(
+        SCRIPT.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (lone / ".claude" / "hooks" / "final_gate_stop.py").write_text(hook_src, encoding="utf-8")
+    return lone / "scripts" / "thread_anchor.py"
+
+
+@pytest.mark.parametrize(
+    "hook_src",
+    [
+        "print('NOISE-AT-IMPORT')\nimport sys\nsys.exit(3)\n",
+        "print('NOISE-AT-IMPORT')\ndef _run_record(sid):\n    return None\n",
+    ],
+    ids=["sys-exit-at-import", "prints-at-import"],
+)
+def test_a_hook_that_exits_or_prints_at_import_never_reaches_the_context(tmp_path, hook_src):
+    """A-O1: a SystemExit at hook import escaped `except Exception` and the SessionStart hook
+    printed nothing; anything the hook prints at import landed in the injected context."""
+    env = _env(tmp_path)
+    lone = _lone_repo_with_hook(tmp_path, hook_src)
+    run3(["harvest", "--session", "s-x"], env, stdin="NEXT: resume phase C", script=lone)
+    rc, out, err = _hook_line(
+        env, {"session_id": "s-x", "source": "compact", "cwd": str(tmp_path)}, script=lone
+    )
+    assert rc == 0 and "Traceback" not in err, err
+    assert "WHERE YOU ARE" in out and "resume phase C" in out, out
+    assert "NOISE-AT-IMPORT" not in out, out
+
+
+def test_a_hook_that_exits_at_import_never_breaks_the_stop_side_harvest(tmp_path):
+    """A-O1, the main-thread path: `harvest --decision-ok` imports the hook directly (the WHERE
+    render imports it inside its bounded thread). A SystemExit there must not escape — the NEXT:
+    line is still stored, no block is, and the exit code stays 0."""
+    env = _env(tmp_path)
+    lone = _lone_repo_with_hook(tmp_path, "import sys\nsys.exit(3)\n")
+    rc, _, err = run3(
+        ["harvest", "--session", "s-hx", "--decision-ok"], env, stdin=_DECISION_TEXT, script=lone
+    )
+    assert rc == 0 and "Traceback" not in err, err
+    st = _state(env, "s-hx")
+    assert st["last_next"]["text"].startswith("operator decision") and not st.get("decision")
+    assert err.strip().startswith("thread_anchor:"), err
+
+
+def test_dirty_files_with_arrows_and_escaped_names_are_found(tmp_path):
+    """A-O4: porcelain v1 TEXT splits `a -> b.py` as a rename and C-quotes a tab; -z does not."""
+    env = _env(tmp_path)
+    work = _repo_with_upstream(tmp_path, env)
+    names = ["a -> b.py", "tab\tname.py", "ünï.py"]
+    for n in names:
+        (work / n).write_text("wip\n", encoding="utf-8")
+    tp = _transcript(tmp_path, [work / n for n in names])
+    out = _hook_line(
+        env,
+        {"session_id": "s-z", "transcript_path": str(tp), "cwd": str(work), "source": "compact"},
+    )[1]
+    for n in names:
+        assert n in out, (n, out)
+
+
+def _answer(env: dict[str, str], sid: str) -> None:
+    _hook_line(env, {"session_id": sid, "hook_event_name": "UserPromptSubmit", "prompt": "A"})
+    assert not _state(env, sid).get("decision")
+
+
+def test_the_stale_echo_is_refused_whatever_the_elapsed_time(tmp_path):
+    """A-O7 / round 3 A-O6, A-O7: the Stop hook falls back to the previous turn's text when the new
+    one is not flushed, so an ACCEPTED harvest can carry the SAME whole message the operator just
+    answered. It is refused however long the tool-only turn ran — and no clock value in the state,
+    past or future, changes that or crashes the harvest."""
+    env = _env(tmp_path)
+    _open_decision(env, "s-a")
+    _answer(env, "s-a")
+    for stale_ts in (time.time() - 900, 1e300):
+        st = _state(env, "s-a")
+        st["cleared_decision"] = {"digest": "legacy", "ts": stale_ts}  # an old shape: ignored
+        _write_state(env, "s-a", st)
+        rc, _, err = run3(
+            ["harvest", "--session", "s-a", "--decision-ok"], env, stdin=_DECISION_TEXT
+        )
+        assert rc == 0 and "Traceback" not in err, err
+        assert not _state(env, "s-a").get("decision"), f"the stale echo came back ({stale_ts})"
+    other = _DECISION_TEXT.replace("Deploy the certified build", "Rotate the signing key")
+    run3(["harvest", "--session", "s-a", "--decision-ok"], env, stdin=other)
+    assert "Rotate the signing key" in _state(env, "s-a")["decision"]["text"]
+
+
+def test_a_word_for_word_reask_in_a_new_message_is_stored_immediately(tmp_path):
+    """Round 2 A-O3 / round 3: a deliberate re-ask arrives in a NEW message, so an identical block
+    inside different surrounding text is stored at once — no window to wait out."""
+    env = _env(tmp_path)
+    _open_decision(env, "s-w")
+    _answer(env, "s-w")
+    reask = "The smoke pass found nothing new, so I am asking again.\n\n" + _DECISION_TEXT
+    run3(["harvest", "--session", "s-w", "--decision-ok"], env, stdin=reask)
+    assert "Deploy the certified build" in (_state(env, "s-w").get("decision") or {}).get(
+        "text", ""
+    ), "a word-for-word re-ask in a new message was dropped"
+
+
+def test_an_old_cleared_state_shape_suppresses_nothing(tmp_path):
+    """State written by an earlier build carries `cleared_decision` (a string or a dict) and no
+    `cleared_msg`; it must never refuse a block."""
+    env = _env(tmp_path)
+    for i, legacy in enumerate(("0" * 64, {"digest": "x", "ts": time.time()}, 7)):
+        sid = f"s-old{i}"
+        _write_state(env, sid, {"anchors": [], "last_next": None, "cleared_decision": legacy})
+        run3(["harvest", "--session", sid, "--decision-ok"], env, stdin=_DECISION_TEXT)
+        assert _state(env, sid).get("decision"), legacy
+
+
+def test_a_huge_integer_timestamp_is_an_unknown_age(tmp_path):
+    """Round 2 A-O2: math.isfinite(10**400) raises OverflowError; main swallowed it and every
+    later write to the session failed — the state was wedged."""
+    env = _env(tmp_path)
+    (Path(env["THREAD_ANCHOR_DIR"]) / "s-h.json").write_text(
+        '{"anchors": [{"key": "big", "text": "big-ts thread — item 1 of 9", "ts": 1'
+        + "0" * 400
+        + '}], "last_next": null}',
+        encoding="utf-8",
+    )
+    rc, out, err = run3(["line", "--session", "s-h"], env)
+    assert rc == 0 and "big-ts thread — item 1 of 9" in out, (out, err)
+    run3(["harvest", "--session", "s-h"], env, stdin="NEXT: next thing — item 2 of 9")
+    assert "next thing — item 2 of 9" in run3(["line", "--session", "s-h"], env)[1]
+
+
+def test_a_done_that_matches_nothing_keeps_the_dropped_count(tmp_path):
+    """Round 2 A-O4: `done` acknowledged the drops even when it closed nothing (a typo)."""
+    env = _env(tmp_path)
+    anchors = [_anchor("tangent — item 1 of 99", 5)]
+    _write_state(env, "s-nm", {"anchors": anchors, "last_next": None, "dropped": 3})
+    out = run3(["done", "--session", "s-nm", "--match", "zzz-typo"], env)[1]
+    assert "no anchor matched" in out
+    assert _state(env, "s-nm")["dropped"] == 3, "a no-match `done` reset the count"
+
+
+def test_the_where_block_survives_a_hook_import_abandoned_past_the_budget(tmp_path):
+    """Round 2 A-O1: the import thread outlives the budget inside redirect_stdout; the block went
+    to a pinned but never-flushed stdout and 0 bytes reached the hook. Run as its own process with
+    a short budget, so the exit path is the real one."""
+    env = _env(tmp_path)
+    lone = _lone_repo_with_hook(tmp_path, "import time\ntime.sleep(3)\n")
+    run3(["harvest", "--session", "s-ab"], env, stdin="NEXT: resume phase C", script=lone)
+    code = (
+        "import importlib.util, sys\n"
+        f"spec = importlib.util.spec_from_file_location('ta_ab', {str(lone)!r})\n"
+        "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+        "m._WHERE_BUDGET_S = 0.5\n"
+        "sys.exit(m.main(['line', '--hook']))\n"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", code],
+        input=json.dumps({"session_id": "s-ab", "source": "compact", "cwd": str(tmp_path)}),
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=30,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "WHERE YOU ARE" in proc.stdout and "resume phase C" in proc.stdout, proc.stdout
+    assert "(skipped: time budget)" in proc.stdout, proc.stdout
+
+
+def test_an_anchor_with_no_timestamp_is_young_and_never_evicted_first(tmp_path):
+    """A-O12: a missing or non-numeric ts read as 0 — folded as ~497,000 h old and evicted first."""
+    env = _env(tmp_path)
+    anchors = [
+        {"key": "no ts", "text": "no-ts thread — item 1 of 9"},
+        {"key": "bad ts", "text": "bad-ts thread — item 2 of 9", "ts": "garbage"},
+    ]
+    anchors += [_anchor(f"tangent {i} — item {i} of 99", 50 - i) for i in range(10)]
+    _write_state(env, "s-u", {"anchors": anchors, "last_next": None})
+    run3(["harvest", "--session", "s-u"], env, stdin="NEXT: tangent new — item 1 of 5")
+    texts = [a["text"] for a in _state(env, "s-u")["anchors"]]
+    assert "no-ts thread — item 1 of 9" in texts and "bad-ts thread — item 2 of 9" in texts, texts
+    out = run3(["line", "--session", "s-u"], env)[1]
+    assert "older thread(s)" not in out, f"an unknown age was folded: {out!r}"
+
+
+def test_where_block_stays_bounded(tmp_path):
+    """B-S3: >10 unpushed commits, >10 dirty files and an over-long DECISION line — every list is
+    cut at 10 and every line at 300 characters."""
+    env = _env(tmp_path)
+    work = _repo_with_upstream(tmp_path, env)
+    edited = []
+    for i in range(12):
+        (work / f"mine{i}.py").write_text("x\n", encoding="utf-8")
+        _git(work, env, "add", f"mine{i}.py")
+        _git(work, env, "commit", "-q", "-m", f"mine: commit {i} " + "y" * 400)
+        edited.append(work / f"mine{i}.py")
+        (work / f"mine{i}_dirty.py").write_text("wip\n", encoding="utf-8")
+        edited.append(work / f"mine{i}_dirty.py")
+    tp = _transcript(tmp_path, edited)
+    long = _DECISION_TEXT.replace("Deploy the certified", "Deploy " + "z" * 1000 + " the certified")
+    run3(["harvest", "--session", "s-bd", "--decision-ok"], env, stdin=long)
+    out = _hook_line(
+        env,
+        {"session_id": "s-bd", "transcript_path": str(tp), "cwd": str(work), "source": "compact"},
+    )[1]
+    lines = out.splitlines()
+    assert all(len(ln) <= 300 for ln in lines), max(len(ln) for ln in lines)
+    assert 1 <= sum("mine: commit" in ln for ln in lines) <= 10, out
+    assert 1 <= sum(ln.rstrip().endswith("_dirty.py") for ln in lines) <= 10, out
+    assert any(ln.endswith("…") for ln in lines), "no line was visibly cut"
+
+
+def test_a_promptless_user_prompt_submit_keeps_the_block(tmp_path):
+    """B-S2 (by design): a real UserPromptSubmit always carries `prompt`; a payload without one is
+    no evidence of an answer, and the next real prompt clears the block."""
+    env = _env(tmp_path)
+    _open_decision(env, "s-p")
+    _hook_line(env, {"session_id": "s-p", "hook_event_name": "UserPromptSubmit"})
+    assert _state(env, "s-p").get("decision")
