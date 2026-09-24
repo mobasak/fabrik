@@ -910,20 +910,48 @@ _FALLBACK_SPEC_FIELD_LINE = re.compile(
 )
 
 
+_ENFORCEMENT_CACHE: dict[tuple[str, str], object | None] = {}
+_ENFORCEMENT_WARNED: set[tuple[str, str]] = set()
+
+
 def _import_enforcement(repo: Path, name: str) -> object | None:
     """``scripts/enforcement/<name>.py`` of ``repo``, imported by path; None (with one stderr
-    line) when the file is absent or fails to import — never raises."""
+    line, at most once per process) when the file is absent or fails to import — never raises.
+
+    Cached per (repo, name): a repo's copy of a reader doesn't change mid-process, and
+    ``_drift_report`` previously re-executed this import for EVERY spec and plan it read (once
+    per file, not once per process) — a real cost for a real-sized repo, and a warning printed
+    once per file instead of once per process (A-O5, T02 review pass 1).
+
+    The module is registered in ``sys.modules`` under a private name BEFORE ``exec_module``
+    (removed again if it raises): a module defining a ``@dataclass`` (``check_plan_tickets.py``)
+    looks up ``sys.modules[cls.__module__]`` while processing its class body, and an unregistered
+    module makes that lookup return None — an import that would ALWAYS fail, silently turning
+    "reuse the real reader" into permanently dead code (A-S1)."""
+    key = (str(Path(repo).resolve()), name)
+    if key in _ENFORCEMENT_CACHE:
+        return _ENFORCEMENT_CACHE[key]
     path = repo / "scripts" / "enforcement" / f"{name}.py"
+    mod_name = f"_work_{name}"
+    result: object | None = None
     try:
-        spec = importlib.util.spec_from_file_location(f"_work_{name}", path)
+        spec = importlib.util.spec_from_file_location(mod_name, path)
         if spec is None or spec.loader is None:
             raise ImportError(f"no loader for {path}")
         mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod
+        sys.modules[mod_name] = mod
+        try:
+            spec.loader.exec_module(mod)
+        except BaseException:
+            sys.modules.pop(mod_name, None)
+            raise
+        result = mod
     except Exception as exc:
-        _warn(f"{name} import failed ({exc}) — using the local regex fallback for its grammar")
-        return None
+        if key not in _ENFORCEMENT_WARNED:
+            _ENFORCEMENT_WARNED.add(key)
+            _warn(f"{name} import failed ({exc}) — using the local regex fallback for its grammar")
+    _ENFORCEMENT_CACHE[key] = result
+    return result
 
 
 def _status_line_re(repo: Path) -> re.Pattern:
@@ -1012,20 +1040,40 @@ def _iter_plan_spines(repo: Path) -> Iterator[Path]:
                 yield spine
 
 
-_STATUS_TOKEN_CONTINUATION_RE = re.compile(r"[A-Za-z0-9_-]*")
+# The reused/fallback _STATUS_LINE requires the literal run "Status:" with only leading bold
+# markers — it misses a bullet/blockquote-prefixed line and a line where the bold wraps just the
+# word ("- Status:", "**Status**:"), both of which check_convergence's OWN ANY_STATUS_LINE
+# recognises as present (A-O3/A-O7, T02 review pass 1). This local, richer grammar recovers the
+# VALUE for those shapes; it is tried only when the reused/fallback regex does not match.
+_STATUS_VALUE_RE = re.compile(
+    r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}([A-Za-z][A-Za-z -]*)",
+    re.M,
+)
+_IMPLEMENTED_OR_SUPERSEDED_RE = re.compile(r"\b(?:IMPLEMENTED|SUPERSEDED)\b", re.I)
+
+
+def _status_line_raw(repo: Path, text: str) -> str:
+    """The whole remainder of the matched Status: line — never just the narrow first-word
+    capture a value regex's character class allows — so a trailing annotation like ", IMPLEMENTED
+    in D-12" is visible to a caller checking for it, even when the primary word is CONVERGED
+    (A-O3/A-O7, T02 review pass 1)."""
+    head = text[:4000]
+    m = _status_line_re(repo).search(head) or _STATUS_VALUE_RE.search(head)
+    if not m:
+        return ""
+    return head[m.start(1) :].splitlines()[0].strip()
 
 
 def _status_value(repo: Path, text: str) -> str:
-    """``_STATUS_LINE``'s own character class excludes digits and ``_``, so it truncates a raw
-    ``IN_PROGRESS``-shaped value at the underscore (`IN`); extend the match with whatever
-    word/hyphen/underscore characters immediately follow, so the alias map sees the whole token
-    rather than reusing the reader's class as a normaliser it was never built to be."""
-    head = text[:4000]
-    m = _status_line_re(repo).search(head)
-    if not m:
+    """The normalised FIRST WORD of the Status: line's value (e.g. ``IN_PROGRESS``,
+    ``CONVERGED``, ``WEIRD``). The reused/fallback regex's own capture class excludes digits and
+    ``_``, truncating a raw ``IN_PROGRESS``-shaped value at the underscore (`IN`); matching
+    against the whole raw line (never the narrow capture) recovers the full token."""
+    raw = _status_line_raw(repo, text)
+    if not raw:
         return ""
-    cont = _STATUS_TOKEN_CONTINUATION_RE.match(head, m.end(1))
-    return (m.group(1) + (cont.group(0) if cont else "")).strip()
+    m = re.match(r"[A-Za-z][A-Za-z0-9_-]*", raw)
+    return m.group(0) if m else ""
 
 
 def _normalize_plan_status(raw: str) -> str:
@@ -1033,26 +1081,66 @@ def _normalize_plan_status(raw: str) -> str:
     return _PLAN_STATUS_ALIASES.get(up, up)
 
 
-def _commit_epoch(repo: Path, relpath: str) -> float | None:
-    """The epoch of the last commit touching ``relpath`` at HEAD, or None with no history — never
-    the filesystem mtime, which a fresh checkout resets to the checkout instant."""
+_PLAN_STATUS_GIT_PATTERN = "Status"  # case-insensitive pickaxe: any line naming Status
+_ITEM_STATUS_GIT_PATTERN = '"status":'  # the JSON status field's own line (one field per line)
+
+
+def _status_change_age_seconds(repo: Path, relpath: str, pattern: str) -> float:
+    """Seconds since the last commit whose diff added or removed a line matching ``pattern``
+    (``git log -G``, case-insensitive pickaxe) in ``relpath`` at HEAD — never the file's last
+    commit for ANY reason, so a typo fix or a note edit does not reset the age clock (A-S2/A-S3,
+    T02 review pass 1). A file's creation commit always counts (it "adds" the line), so a return
+    of no match means the file has no commit history at all — treated as uncommitted, using its
+    own mtime; 0 if even that is unavailable."""
     try:
-        out = _git(repo, "log", "-1", "--format=%ct", "HEAD", "--", relpath)
+        out = _git(repo, "log", "-1", "--format=%ct", "-i", "-G", pattern, "HEAD", "--", relpath)
     except WorkError:
-        return None
+        out = ""
     out = out.strip()
-    return float(out) if out else None
+    if out:
+        return max(0.0, time.time() - float(out))
+    try:
+        mtime = (repo / relpath).stat().st_mtime
+    except OSError:
+        return 0.0
+    return max(0.0, time.time() - mtime)
 
 
-def _age_seconds(repo: Path, relpath: str) -> float:
-    """Seconds since ``relpath``'s last commit; 0 with no history (as fresh as it gets)."""
-    epoch = _commit_epoch(repo, relpath)
-    return max(0.0, time.time() - epoch) if epoch is not None else 0.0
+def _normalize_repo_path(repo: Path, raw: str) -> str:
+    """Strip a leading ``./``, and rewrite an absolute path under ``repo`` to repo-relative posix
+    (a path outside the repo, or one git cannot resolve, is returned as-is — it simply matches
+    nothing downstream). Shared by plan references and a plan's spec citation (A-O1/A-O2, T02
+    review pass 1): both may be written ``./docs/...`` or as an absolute path."""
+    value = (raw or "").strip()
+    if not value:
+        return ""
+    p = Path(value)
+    if p.is_absolute():
+        try:
+            return p.resolve().relative_to(repo.resolve()).as_posix()
+        except (OSError, ValueError):
+            return value
+    if value.startswith("./"):
+        value = value[2:]
+    return value
+
+
+def _normalize_plan_ref(repo: Path, raw: str) -> str:
+    """A plan lock's ``plan`` field or an item's ``links.plan``, normalised to the repo-relative
+    SPINE path: after ``_normalize_repo_path``, a reference naming the plan-set DIRECTORY (no
+    ``.md``, and genuinely a directory on disk) expands to its same-stem spine — the same shape
+    ``_iter_plan_spines`` discovers (A-O1/A-O2, T02 review pass 1)."""
+    rel = _normalize_repo_path(repo, raw)
+    if not rel or rel.endswith(".md"):
+        return rel
+    if (repo / rel).is_dir():
+        return f"{rel}/{Path(rel).name}.md"
+    return rel
 
 
 def _active_plan_locks(repo: Path) -> dict[str, dict]:
-    """plan relpath -> lock record, for every ``.fabrik/plan-locks/*.json`` whose status is
-    literally ``active`` (``released``/``executed``/``complete`` do not count as a lock)."""
+    """plan relpath (normalised) -> lock record, for every ``.fabrik/plan-locks/*.json`` whose
+    status is literally ``active`` (``released``/``executed``/``complete`` do not count)."""
     locks_dir = repo / ".fabrik" / "plan-locks"
     out: dict[str, dict] = {}
     if not locks_dir.is_dir():
@@ -1063,7 +1151,7 @@ def _active_plan_locks(repo: Path) -> dict[str, dict]:
         except (OSError, ValueError):
             continue
         if isinstance(data, dict) and str(data.get("status") or "") == "active":
-            plan = str(data.get("plan") or "").strip()
+            plan = _normalize_plan_ref(repo, str(data.get("plan") or ""))
             if plan:
                 out[plan] = data
     return out
@@ -1092,16 +1180,39 @@ def _backlog_needs_render(repo: Path, items: list[dict]) -> bool:
     return open_ids != block_ids
 
 
+def _stale_marker_statuses(repo: Path, ids: list[str]) -> dict[str, str]:
+    """Each stale marker's item status, read from the store's RECORDED base branch when one is
+    configured (a missing id there reads as "", i.e. not resolved — the same convention
+    ``_closed_ids`` uses); with none recorded, from the current tree (A-O9, T02 review pass 1:
+    "still open in the main checkout" means the canonical base branch, not whichever tree a
+    worktree agent happens to be running the check from)."""
+    if not ids:
+        return {}
+    base_branch = _base_branch(repo)
+    if base_branch:
+        heads = _base_statuses(repo, ids)
+        return {i: heads.get(i, "") for i in ids}
+    out: dict[str, str] = {}
+    for i in ids:
+        try:
+            out[i] = str(_read_item(repo, i).get("status") or "")
+        except WorkError:
+            out[i] = ""
+    return out
+
+
 def _drift_report(repo: Path) -> dict[int, list[str]]:
     """The eight drift classes of spec § Spec and plan state is derived, never copied, each a
     sorted list of the relpaths (item files for 5-6, the backlog doc for 7) that trip it."""
     report: dict[int, list[str]] = {n: [] for n in range(1, 9)}
     items = list(_iter_items(repo))
-    linked_specs = {str((it.get("links") or {}).get("spec") or "") for it in items}
+    linked_specs = {
+        _normalize_repo_path(repo, (it.get("links") or {}).get("spec") or "") for it in items
+    }
     linked_specs.discard("")
     linked_plans: dict[str, list[dict]] = {}
     for it in items:
-        plan = str((it.get("links") or {}).get("plan") or "")
+        plan = _normalize_plan_ref(repo, (it.get("links") or {}).get("plan") or "")
         if plan:
             linked_plans.setdefault(plan, []).append(it)
 
@@ -1115,7 +1226,7 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
         except OSError:
             text = ""
         plan_texts[rel] = text
-        cited_specs.update(cite_fn(text))
+        cited_specs.update(_normalize_repo_path(repo, c) for c in cite_fn(text))
 
     for spec_path in _iter_specs(repo):
         rel = _rel(repo, spec_path)
@@ -1125,6 +1236,8 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
             continue
         if _status_value(repo, text).strip().upper() != "CONVERGED":
             continue
+        if _IMPLEMENTED_OR_SUPERSEDED_RE.search(_status_line_raw(repo, text)):
+            continue  # e.g. "CONVERGED, IMPLEMENTED in D-12" — already carried forward
         if rel not in cited_specs and rel not in linked_specs:
             report[1].append(rel)
 
@@ -1138,7 +1251,8 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
             if (
                 not has_lock
                 and rel not in linked_plans
-                and _age_seconds(repo, rel) > STALE_PLAN_DAYS * 86400
+                and _status_change_age_seconds(repo, rel, _PLAN_STATUS_GIT_PATTERN)
+                > STALE_PLAN_DAYS * 86400
             ):
                 report[2].append(rel)
         elif norm == "IN-PROGRESS":
@@ -1166,21 +1280,24 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
                 report[5].append(rel)
                 continue
             if data.get("status") == "done" and not data.get("legacy"):
-                if _age_seconds(repo, rel) <= RECENT_WINDOW_S:
+                if (
+                    _status_change_age_seconds(repo, rel, _ITEM_STATUS_GIT_PATTERN)
+                    <= RECENT_WINDOW_S
+                ):
                     ev = str(data.get("evidence") or "")
                     if _evidence_commit(repo, path.stem, ev) is None:
                         report[6].append(rel)
 
     now = time.time()
-    for item_id, marker in _read_records(_closed_dir(repo)).items():
-        at = _num(marker.get("at"), _num(marker.get("_mtime")))
-        if now - at <= MARKER_MAX_AGE_S:
-            continue
-        try:
-            own = _read_item(repo, item_id)
-        except WorkError:
-            continue
-        if own.get("status") not in RESOLVED:
+    markers = _read_records(_closed_dir(repo))
+    stale_ids = [
+        item_id
+        for item_id, marker in markers.items()
+        if now - _num(marker.get("at"), _num(marker.get("_mtime"))) > MARKER_MAX_AGE_S
+    ]
+    stale_statuses = _stale_marker_statuses(repo, stale_ids)
+    for item_id in stale_ids:
+        if stale_statuses.get(item_id, "") not in RESOLVED:
             report[6].append(_rel(repo, _item_path(repo, item_id)))
 
     if _backlog_needs_render(repo, items):
@@ -1217,7 +1334,13 @@ def _parse_iso(raw: str) -> datetime | None:
 
 
 def _reading_clean(row: dict) -> bool:
-    counts = row.get("counts") or {}
+    """False (never clean) for a malformed reading — e.g. a ``counts`` that isn't a dict at all
+    — rather than raising: a corrupt row must never look clean, and it must never crash
+    ``sync --check`` either (A-O4, T02 review pass 1). ``_num`` already tolerates a non-numeric
+    individual value; the only crash risk was ``counts`` lacking ``.get`` entirely."""
+    counts = row.get("counts")
+    if not isinstance(counts, dict):
+        return False
     return all(_num(counts.get(str(n)), 0) == 0 for n in range(2, 7))
 
 

@@ -110,7 +110,11 @@ def _item(tree: Path, item_id: str) -> dict:
 
 
 def _write_item(tree: Path, item_id: str, data: dict) -> None:
-    _item_file(tree, item_id).write_text(json.dumps(data), encoding="utf-8")
+    """Pretty-printed, sorted-key, one-field-per-line — matching the store's own ``_dump`` — so a
+    git diff of just one field (e.g. ``note``) never touches the ``"status"`` line's own text."""
+    _item_file(tree, item_id).write_text(
+        json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def _shared(repo: Path) -> Path:
@@ -144,12 +148,31 @@ def _spec(repo: Path, name: str, status: str) -> str:
     return f"docs/superpowers/specs/{name}.md"
 
 
+def _spec_raw(repo: Path, name: str, status_line: str) -> str:
+    """A spec whose header carries the LITERAL ``status_line`` text — for grammar-form and
+    trailing-annotation probes ``_spec`` can't express."""
+    d = repo / "docs" / "superpowers" / "specs"
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / f"{name}.md"
+    p.write_text(f"# {name}\n\n{status_line}\nOwner: infra\n", encoding="utf-8")
+    return f"docs/superpowers/specs/{name}.md"
+
+
 def _plan_file(repo: Path, name: str, status: str, extra: str = "") -> str:
     """A standalone dated plan file; returns its repo-relative posix path."""
     d = repo / "docs" / "development" / "plans"
     d.mkdir(parents=True, exist_ok=True)
     p = d / f"{name}.md"
     p.write_text(f"# {name}\n\nStatus: {status}\n{extra}\nOwner: infra\n", encoding="utf-8")
+    return f"docs/development/plans/{name}.md"
+
+
+def _plan_file_raw(repo: Path, name: str, status_line: str) -> str:
+    """A standalone dated plan file whose header carries the LITERAL ``status_line`` text."""
+    d = repo / "docs" / "development" / "plans"
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / f"{name}.md"
+    p.write_text(f"# {name}\n\n{status_line}\nOwner: infra\n", encoding="utf-8")
     return f"docs/development/plans/{name}.md"
 
 
@@ -186,6 +209,17 @@ def _marker(repo: Path, item_id: str, *, age_days: float, tree: str = "") -> Non
         ),
         encoding="utf-8",
     )
+
+
+def _worktree(repo: Path, env: dict[str, str], name: str = "wt") -> Path:
+    wt = repo.parent / name
+    _git(repo, env, "worktree", "add", "-q", "-b", name, str(wt))
+    return wt.resolve()
+
+
+def _decisions_md(repo: Path, text: str) -> None:
+    (repo / "docs").mkdir(parents=True, exist_ok=True)
+    (repo / "docs" / "DECISIONS.md").write_text(text, encoding="utf-8")
 
 
 def _drift_lines(stdout: str, cls: int) -> list[str]:
@@ -573,3 +607,325 @@ def test_hook_facing_calls_fail_open_fast_when_git_is_slow(tmp_path, monkeypatch
 
     assert result is False, "a timed-out git must fail OPEN to has_store's empty value"
     assert elapsed < 2.0, f"took {elapsed:.2f}s — HOOK_GIT_TIMEOUT_S was not applied"
+
+
+# ── review pass 1 (rev-T02/fixes-1.md) — reader reuse, path normalisation, status grammar, ────
+# ── age source, readings robustness, base-branch reads, and the closed missing-test gap ───────
+
+
+def test_board_states_fn_reuses_the_real_check_plan_tickets_module():
+    """A-S1: check_plan_tickets.py's @dataclass looks up sys.modules[cls.__module__] while
+    processing its class body; importing it by path WITHOUT registering it in sys.modules first
+    always failed, so "reuse the real reader" was permanently dead code. Probed read-only against
+    THIS worktree's own scripts/enforcement/ (never a fixture copy, and nothing is written)."""
+    work = _work_module()
+    fn = work._board_states_fn(REPO)
+    assert fn is not work._fallback_board_states
+    assert fn.__module__ == "_work_check_plan_tickets"
+
+
+def test_enforcement_import_failure_warns_at_most_once_per_process(tmp_path, monkeypatch):
+    """A-O5: check_convergence was re-imported (and, on failure, re-warned) for every spec/plan
+    _drift_report read — once per FILE, not once per process."""
+    env = _env(tmp_path)
+    work = _in_process(tmp_path, monkeypatch, env)
+    repo = _store(tmp_path, env)  # no scripts/enforcement/ here -> the import always fails
+    for i in range(3):
+        _spec(repo, f"2026-09-24-spec-{i}-design", "CONVERGED")
+
+    calls: list[str] = []
+    orig_warn = work._warn
+
+    def counting_warn(msg: str) -> None:
+        calls.append(msg)
+        orig_warn(msg)
+
+    monkeypatch.setattr(work, "_warn", counting_warn)
+    work._drift_report(repo)
+
+    hits = [m for m in calls if "check_convergence import failed" in m]
+    assert len(hits) == 1, f"expected exactly one warning, got {len(hits)}: {hits}"
+
+
+def test_active_lock_naming_the_plan_directory_clears_class_3(tmp_path):
+    """A-O1/A-O2: a plan-locks entry may name the plan-SET DIRECTORY (no .md), not the spine."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _plan_dir(repo, "2026-09-24-plan-in-progress", "IN-PROGRESS")
+    plan_dir_rel = "docs/development/plans/2026-09-24-plan-in-progress"
+    _lock(repo, plan_dir_rel, "2026-09-24-plan-in-progress")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 3) == []
+
+
+def test_item_link_naming_the_plan_directory_counts_for_class_2(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    old = datetime.now(UTC) - timedelta(days=10)
+    plan = _plan_dir(repo, "2026-09-24-plan-2-stale", "CONVERGED")
+    plan_dir_rel = "docs/development/plans/2026-09-24-plan-2-stale"
+    _add(repo, env, title="linked via the directory", kind="task", link=f"plan={plan_dir_rel}")
+    _commit_store(repo, env, "seed")
+    _commit_dated(repo, env, [plan], "age it", old)
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 2) == []
+
+
+def test_item_link_naming_the_plan_directory_counts_for_class_4(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    plan = _plan_dir(repo, "2026-09-24-plan-4-executed", "EXECUTED")
+    plan_dir_rel = "docs/development/plans/2026-09-24-plan-4-executed"
+    _add(
+        repo,
+        env,
+        title="linked via the directory, still open",
+        kind="task",
+        link=f"plan={plan_dir_rel}",
+    )
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 4) == [f"DRIFT 4 (blocking)  {plan}"]
+
+
+def test_status_grammar_accepts_a_bold_wrapped_status_word(tmp_path):
+    """A-O3/A-O7: "**Status**:" (bold wraps only the word, colon plain) is a shape the reused
+    _STATUS_LINE misses entirely but check_convergence's own ANY_STATUS_LINE recognises."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    plan = _plan_file_raw(repo, "2026-09-24-plan-bold-word", "**Status**: IN-PROGRESS")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 8) == []
+    assert _drift_lines(out, 3) == [f"DRIFT 3 (blocking)  {plan}"]
+
+
+def test_status_grammar_accepts_a_bulleted_status_line(tmp_path):
+    """A-O3/A-O7: "- Status:" (a bullet-prefixed line)."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    plan = _plan_file_raw(repo, "2026-09-24-plan-bulleted", "- Status: IN-PROGRESS")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 8) == []
+    assert _drift_lines(out, 3) == [f"DRIFT 3 (blocking)  {plan}"]
+
+
+def test_spec_status_value_naming_implemented_is_excluded_from_class_1(tmp_path):
+    """A-O3/A-O7: "CONVERGED, IMPLEMENTED in D-12" is excluded from class 1 — the value NAMES
+    IMPLEMENTED even though the primary word is CONVERGED."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _spec_raw(repo, "2026-09-24-carried-forward-design", "Status: CONVERGED, IMPLEMENTED in D-12")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 1) == []
+
+
+def test_spec_status_value_naming_superseded_is_excluded_from_class_1(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _spec_raw(repo, "2026-09-24-carried-forward-design", "Status: CONVERGED, SUPERSEDED by D-9")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 1) == []
+
+
+def test_class_2_age_uses_the_last_status_changing_commit_not_the_last_touch(tmp_path):
+    """A-S2: a plan CONVERGED 10 days ago, then re-committed TODAY for an unrelated typo fix,
+    still drifts — the file's last-commit time must not reset the clock."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    old = datetime.now(UTC) - timedelta(days=10)
+    plan = _plan_dir(repo, "2026-09-24-plan-2-typo", "CONVERGED")
+    _commit_dated(repo, env, [plan], "converge it", old)
+    (repo / plan).write_text((repo / plan).read_text() + "\nTypo fixed.\n", encoding="utf-8")
+    _git(repo, env, "add", plan)
+    _git(repo, env, "commit", "-q", "-m", "fix a typo")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 2) == [f"DRIFT 2 (blocking)  {plan}"]
+
+
+def test_class_6_age_uses_the_last_status_changing_commit_an_old_note_edit_stays_exempt(
+    tmp_path,
+):
+    """A-S3: an old done item, re-touched TODAY for a note edit, stays exempt — the item's
+    last-commit time must not reset the 14-day clock either."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item = _add(repo, env, title="done long ago")
+    it = _item(repo, item)
+    it.update(status="done", evidence="f" * 40)  # bad evidence
+    _write_item(repo, item, it)
+    old = datetime.now(UTC) - timedelta(days=20)
+    rel = f".fabrik/work/{item}.json"
+    _commit_dated(repo, env, [rel], "close it", old)
+    it["note"] = "just a note, today"
+    _write_item(repo, item, it)
+    _git(repo, env, "add", rel)
+    _git(repo, env, "commit", "-q", "-m", "add a note")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 6) == []
+
+
+def test_sync_check_tolerates_a_non_dict_counts_reading_and_stays_advisory(tmp_path):
+    """A-O4: a sync row whose counts is a LIST (not a dict) must never crash sync --check, and
+    must be treated as NOT clean (conservatively dirty)."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _plan_dir(repo, "2026-09-24-plan-in-progress", "IN-PROGRESS")
+    migrated_at = datetime.now(UTC) - timedelta(days=10)
+    _seed_migration(repo, env, migrated_at)
+    for i in range(1, 8):
+        _append_clean_reading(repo, migrated_at + timedelta(days=i, hours=1))
+    path = _shared(repo) / "readings.jsonl"
+    with path.open("a", encoding="utf-8") as f:
+        row = {
+            "at": (migrated_at + timedelta(days=4, hours=2)).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "kind": "sync",
+            "counts": [1, 2, 3],
+            "blocking_active": False,
+        }
+        f.write(json.dumps(row) + "\n")
+
+    r = run(["sync", "--check"], env, repo)
+    assert r.returncode == 0, (r.stdout, r.stderr)
+    assert "Traceback" not in r.stderr
+
+
+def test_class_6_stale_marker_reads_status_from_the_recorded_base_branch(tmp_path):
+    """A-O9: "still open in the main checkout" means the store's RECORDED base branch — a stale
+    marker's item read from a worktree where it locally shows done, but the base branch still
+    shows open (unmerged), must still be flagged. The item carries VALID evidence, so class 6a
+    (bad-evidence-within-14-days) cannot also explain a DRIFT 6 hit — only 6b (the stale marker)
+    can."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)  # base_branch recorded = "main" (init's own branch)
+    item = _add(repo, env, title="reads open on main, done only in a worktree")
+    _commit_store(repo, env, "seed store")
+    wt = _worktree(repo, env)
+
+    it = _item(wt, item)
+    it["status"] = "done"
+    _write_item(wt, item, it)
+    _git(wt, env, "add", ".fabrik")
+    _git(wt, env, "commit", "-q", "-m", f"done locally, never merged to main ({item})")
+    sha = _git(wt, env, "rev-parse", "HEAD").strip()
+    it["evidence"] = sha
+    _write_item(wt, item, it)
+    _git(wt, env, "add", ".fabrik")
+    _git(wt, env, "commit", "-q", "-m", "record evidence")
+
+    _marker(repo, item, age_days=20, tree=str(wt))
+
+    out = _ok(["status"], env, wt)
+    lines = "\n".join(_drift_lines(out, 6))
+    assert f".fabrik/work/{item}.json" in lines, (
+        "the item reads open on the recorded base branch (main) — a stale marker must flag it "
+        "even though the worktree's own local copy reads done"
+    )
+
+
+def test_a_dirty_reading_inside_the_window_keeps_sync_advisory(tmp_path):
+    """A-O6: one dirty reading inside the 7-day window breaks the consecutive-clean-days streak,
+    even with real class-3 drift live in the tree."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _plan_dir(repo, "2026-09-24-plan-in-progress", "IN-PROGRESS")
+    migrated_at = datetime.now(UTC) - timedelta(days=10)
+    _seed_migration(repo, env, migrated_at)
+    for i in range(1, 8):
+        _append_clean_reading(repo, migrated_at + timedelta(days=i, hours=1))
+    path = _shared(repo) / "readings.jsonl"
+    with path.open("a", encoding="utf-8") as f:
+        row = {
+            "at": (migrated_at + timedelta(days=4, hours=2)).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "kind": "sync",
+            "counts": {"3": 1},
+            "blocking_active": False,
+        }
+        f.write(json.dumps(row) + "\n")
+
+    r = run(["sync", "--check"], env, repo)
+    assert r.returncode == 0, r.stdout
+
+
+def test_a_reading_at_migrated_at_itself_does_not_count_toward_the_window(tmp_path):
+    """B-H1: "at or before migrated_at does not count" — a reading exactly AT migrated_at, plus
+    only 6 real days after it, must stay advisory (not silently treated as a 7th day)."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _plan_dir(repo, "2026-09-24-plan-in-progress", "IN-PROGRESS")
+    migrated_at = datetime.now(UTC) - timedelta(days=10)
+    _seed_migration(repo, env, migrated_at)
+    _append_clean_reading(repo, migrated_at)
+    for i in range(1, 7):
+        _append_clean_reading(repo, migrated_at + timedelta(days=i, hours=1))
+
+    r = run(["sync", "--check"], env, repo)
+    assert r.returncode == 0, r.stdout
+
+
+def test_7_clean_readings_on_non_consecutive_days_stay_advisory(tmp_path):
+    """B-S1: 7 clean readings that skip a day are not 7 CONSECUTIVE clean calendar days."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _plan_dir(repo, "2026-09-24-plan-in-progress", "IN-PROGRESS")
+    migrated_at = datetime.now(UTC) - timedelta(days=20)
+    _seed_migration(repo, env, migrated_at)
+    for i in (1, 2, 3, 4, 5, 6, 8):
+        _append_clean_reading(repo, migrated_at + timedelta(days=i, hours=1))
+
+    r = run(["sync", "--check"], env, repo)
+    assert r.returncode == 0, r.stdout
+
+
+def test_a_fresh_closed_marker_is_not_class_6(tmp_path):
+    """B-S2: a marker well under 14 days old never trips class 6, regardless of the item's own
+    status."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item = _add(repo, env, title="closed just now, still open here")
+    _marker(repo, item, age_days=1)
+
+    out = _ok(["status"], env, repo)
+    assert f".fabrik/work/{item}.json" not in "\n".join(_drift_lines(out, 6))
+
+
+def test_class_1_excluded_by_an_item_link(tmp_path):
+    """B-S3 (part 1): an item's links.spec naming a CONVERGED spec excludes it from class 1."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    spec = _spec(repo, "2026-09-24-linked-spec-design", "CONVERGED")
+    _add(repo, env, title="tracks the spec", kind="task", link=f"spec={spec}")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 1) == []
+
+
+def test_a_superseded_and_an_implemented_spec_are_excluded_from_class_1(tmp_path):
+    """B-S3 (part 2): SUPERSEDED and IMPLEMENTED as the PRIMARY status word — the ordinary case
+    the `primary != "CONVERGED"` gate already covers, pinned as a regression guard."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _spec(repo, "2026-09-24-superseded-spec-design", "SUPERSEDED")
+    _spec(repo, "2026-09-24-implemented-spec-design", "IMPLEMENTED")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 1) == []
+
+
+def test_a_decisions_row_naming_the_spec_does_not_exclude_it_from_class_1(tmp_path):
+    """Spec § Drift class 1: "A DECISIONS row naming the spec does not exclude it" — only a
+    plan citation or an item link excludes a spec from class 1, never a DECISIONS.md mention."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    spec = _spec(repo, "2026-09-24-orphan-with-decision-design", "CONVERGED")
+    _decisions_md(repo, f"# Decisions\n\n- D-311 — approved {spec} — 2026-09-24\n")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 1) == [f"DRIFT 1 (advisory)  {spec}"]
