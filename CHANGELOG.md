@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Thread anchors write DECISION blocks into the work store and show open work at each prompt (2026-09-24)
+- `scripts/thread_anchor.py`: a DECISION block the Stop hook accepts becomes an `awaiting-operator` work item (`on_harvest`, one store lock, the item first); an echo of an answered message never reaches the store; the prompt path rescues other sessions' stranded DECISION slots with ONE `ensure_decision_items` call over at most the 50 newest state files (256 KiB, 7 days), under a 3.0 s deadline, and prints the unfolded work block (awaiting items first). Each Stop renews only its own session's claim lease. Everything fails open in a repo without a store. Plan `docs/development/plans/2026-09-24-plan-2-work-tracking` T04; review converged in 3 passes (7 → 1 → 0).
+
 ### Added — Work tracking distribution: `work.py` ships fleet-wide and the native Task tools are on (2026-09-24)
 - `scripts/work.py` joins `CORE_SCRIPTS` (and the generated `.worktreeinclude`), and the governance-sync filter in `.pre-commit-config.yaml` gains exactly `scripts/work.py` (173 → 174 of 3,153 tracked paths match). The fleet-synced `.claude/settings.json` sets `CLAUDE_CODE_ENABLE_TASKS` and `CLAUDE_CODE_ENABLE_TODO_TOOLS` (D-397); open windows pick it up on reload. Plan `docs/development/plans/2026-09-24-plan-2-work-tracking` T07; review converged in 2 passes (1 → 0).
 

@@ -52,8 +52,8 @@ it implements and restates nothing that section already settles.
 | T01b | Claims, leases, closing verbs, hook-facing API | T01a | ⛓️ | ✅ | 05b8f3e6e |
 | T02 | status, sync --check, readings, drift classes | T01b | ⛓️ | ✅ | ec5c428ed |
 | T03 | migrate-backlog and render | T02 | ⛓️ | ✅ | 9768f8ea6 |
-| T04 | thread_anchor.py: decision items, unfolded block, renewal | T01b | ⚡ | 🔵 | |
-| T05 | Stop hook passes --repo; the V1 seam test | T04 | ⛓️ | ⬜ | |
+| T04 | thread_anchor.py: decision items, unfolded block, renewal | T01b | ⚡ | ✅ | b32719172 |
+| T05 | Stop hook passes --repo; the V1 seam test | T04 | ⛓️ | 🔵 | |
 | T06 | Completion gate's advisory sync row | T02 | ⚡ | 🔵 | |
 | T07 | Distribution: manifest, sync filter, Task-tools env | T03 | ⛓️ | ✅ | 2e3a275c8 |
 | T08 | Both contracts carry the work-items rule | T04, T05, T06 | ⚡ | ⬜ | |
