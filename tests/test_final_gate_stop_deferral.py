@@ -942,3 +942,73 @@ def test_no_fixture_copies_a_committed_quote() -> None:
             if shared:
                 hits.append((node.lineno, " ".join(sorted(shared)[0])))
     assert not hits, hits
+
+
+# --- /fabrik-review round 2 (T03): the four residues of round 1, red first ------------------
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Done.\n\nNEXT: operator — restart the payment worker on vps2 after you approve the migration",
+        "Done.\n\nNEXT: operator — reload the ingest service config, then re-run the import",
+        "Done.\n\nNEXT: operator — open the deploy for vps3 and watch the rollout",
+    ],
+    ids=["restart-a-worker", "reload-a-service", "open-a-deploy"],
+)
+def test_the_waiver_is_only_the_tool_reload_class(text: str) -> None:
+    """A-O15: a reload/restart/open verb is waived only when its object is a window, session, VS
+    Code, the editor, MCP or the roster — never a service, worker, deploy or VPS."""
+    assert hook.deferral_shape(text) == "D1", hook._deferral_match(text)
+
+
+@pytest.mark.parametrize(
+    ("label", "value", "said"),
+    [
+        (
+            "asked",
+            "'do the users' retention windows need 90 days?'",
+            "do the users' retention windows need 90 days?",
+        ),
+        ("scope", "'the admins' pages only'; nothing else", "the admins' pages only"),
+    ],
+    ids=["asked-plural-possessive", "scope-plural-possessive"],
+)
+def test_a_plural_possessive_is_not_the_closing_quote(
+    tmp_path: Path, label: str, value: str, said: str
+) -> None:
+    """A-O18: `users' ` is a possessive, not the close of a single-quoted value."""
+    tr = tmp_path / "t.jsonl"
+    _turn(tr, _user(f"Check the purge job. {said}"), _asst_text("x"))
+    block = _block("owned", f"owned — {label}: {value}")
+    assert hook.parse_decision_block(block, run_live=False, transcript_path=str(tr)) == (
+        True,
+        "owned",
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "P21-A-BLOCKED: no DSN in the env\n\nNEXT: operator decision — x",
+        "A-L3-BLOCKED: no DSN in the env\n\nNEXT: operator decision — x",
+    ],
+    ids=["plan-ticket-id", "lane-id"],
+)
+def test_an_id_with_a_digit_before_blocked_exempts(text: str) -> None:
+    """A-O17: any id token containing a digit before `-BLOCKED:` is a header; a word is not."""
+    assert hook.deferral_shape(text) is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        'Done.\n\nNEXT: /fabrik-review — then fix the "your call" phrasing in the docs',
+        "Done.\n\nNEXT: /fabrik-docs-review — reword the `awaiting your go` example",
+    ],
+    ids=["double-quoted-data", "backticked-data"],
+)
+def test_a_quoted_phrase_on_a_next_line_is_data(text: str) -> None:
+    """A-O16: a deferral phrase ENCLOSED in a paired quote or code span on a NEXT: line is quoted
+    data; a lone quote character or an apostrophe still does not skip (A-O10)."""
+    assert hook.deferral_shape(text) is None, hook._deferral_match(text)

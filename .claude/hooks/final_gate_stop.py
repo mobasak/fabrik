@@ -1531,9 +1531,11 @@ _NEXT_TO_OPERATOR_RE = re.compile(r"[ \t*_]*(?:the[ \t]+)?operator\b[ \t*_]*[—
 # only the operator's harness can do — reload/restart/refresh, or open a window (CLAUDE.md: "a server
 # only a reload restores needs a NEW window — say so"). Anchored at the clause start, so "…; no
 # reload needed" or "…; optionally tidy X" later on the line never waives the ask before it.
+# The tool-reload class only: the verb's object must be a window, session, VS Code, the editor,
+# MCP or the roster — a service, worker, deploy or VPS is a real hand-off and is never waived.
 _OPERATOR_WAIVER_RE = re.compile(
-    r"[ \t*_]*(?:optional(?:ly)?\b|(?:please[ \t]+)?(?:reload|restart|refresh|reopen)\b"
-    r"|(?:please[ \t]+)?open\b[^.;\n]{0,30}?\bwindows?\b)",
+    r"[ \t*_]*(?:optional(?:ly)?\b|(?:please[ \t]+)?(?:reload|reopen|open|restart)\b[^.;\n]{0,40}?"
+    r"\b(?:windows?|sessions?|vs[ \t]?code|editor|mcp|roster)\b)",
     re.I,
 )
 # ...or the line closes "otherwise nothing pending": the whole ask is marked optional.
@@ -1548,9 +1550,10 @@ _NEXT_NONE_RE = re.compile(r"[ \t*_]*none\b", re.I)
 # CLAUDE.md formats it — never a mention mid-line ("closed the run `BLOCKED: NON-CONVERGENCE`"):
 # V1 found mentions like that silencing real `NEXT: operator decision` footers.
 # The shapes admitted: a bare `BLOCKED:`, behind markdown (`## `, `**`, `- `, `> `) or a TICKET id
-# (`T03 BLOCKED:`, `T1a-BLOCKED:`) — never a word prefix, so `UN-BLOCKED:` / `NOT-BLOCKED:` are
-# prose. `_blocked_header` also refuses one inside a quoting (non-footer) fence.
-_DEFER_BLOCKED_RE = re.compile(r"^[ \t>*_#-]*(?:T\d{1,3}[a-z]?[- ])?\**BLOCKED:", re.M)
+# (`T03 BLOCKED:`, `T1a-BLOCKED:`, `P21-A-BLOCKED:`, `A-L3-BLOCKED:` — any id token CONTAINING A
+# DIGIT) — never a pure word prefix, so `UN-BLOCKED:` / `NOT-BLOCKED:` are prose.
+# `_blocked_header` also refuses one inside a quoting (non-footer) fence.
+_DEFER_BLOCKED_RE = re.compile(r"^[ \t>*_#-]*(?:[\w.-]*\d[\w.-]*[- ])?\**BLOCKED:", re.M)
 # The same keys, captured, for telling a fenced FOOTER from a fenced example (`_own_footer_fence`).
 _FOOTER_KEY_RE = re.compile(
     r"^[ \t>*_-]*(GATE|DOCS UPDATED|CHANGELOG|LESSONS LEARNT|DONE|NEXT|FEEDBACK|STATE)[*_]*:", re.M
@@ -1929,6 +1932,18 @@ def _blocked_header(text: str) -> bool:
     )
 
 
+def _enclosed(line: str, start: int, end: int) -> bool:
+    """Is ``line[start:end]`` ENCLOSED in a paired `"…"`, `` `…` `` or `“…”` span on its own line?
+    Both delimiters must be on the line: a lone quote character or an apostrophe is never a span
+    (review A-O10, A-O16) — so `NEXT: 'your call' …` is the agent's words, and
+    `NEXT: … fix the "your call" phrasing` is quoted data."""
+    before, after = line[:start], line[end:]
+    for o, c in (('"', '"'), ("`", "`")):
+        if before.count(o) % 2 and c in after:
+            return True
+    return before.rfind("“") > before.rfind("”") and "”" in after
+
+
 def _last_lines_start(text: str, k: int) -> int:
     """Offset where the last ``k`` non-trailing lines of ``text`` begin."""
     idx = len(text.rstrip())
@@ -1984,8 +1999,10 @@ def _deferral_match(text: str) -> tuple[str, str] | None:
             and not _OTHERWISE_NOTHING_RE.search(text[op.end() : le])
         ):
             return "D1", line
-        if _DEFER_RE.search(text, m.end(), le):
-            return "D1", line
+        ls = m.start()
+        for d in _DEFER_RE.finditer(text, m.end(), le):
+            if not _enclosed(text[ls:le], d.start() - ls, d.end() - ls):
+                return "D1", line
     for m in _MENU_RE.finditer(text, tail):
         if _defer_skip(text, m.start(), fences):
             continue
@@ -2104,13 +2121,20 @@ def _decision_quote(why: str, label: str) -> str | None:
     if dq:
         return next(g for g in dq.groups() if g is not None).strip()
     if rest[:1] in ("'", "‘"):
+        # A plural possessive ("the users' window") is not the closing quote: an asked: value closes
+        # at the LAST quote directly after a `?`; a scope: value at the last quote before the end of
+        # its clause (`;`, `—` or the line end).
         closers = ("'", "’")
-        i = 1
-        while i < len(rest):
-            if rest[i] in closers and not rest[i + 1 : i + 2].isalpha():
-                return rest[1:i].strip()
-            i += 1
-        return rest[1:].strip()
+        if label == "asked":
+            ends = [i for i in range(1, len(rest)) if rest[i] in closers and rest[i - 1] == "?"]
+            if ends:
+                return rest[1 : ends[-1]].strip()
+            q = rest.find("?")
+            return rest[1 : q + 1].strip() if q != -1 else rest[1:].strip()
+        cut = min((i for i in (rest.find(";", 1), rest.find("—", 1)) if i != -1), default=len(rest))
+        seg = rest[:cut].rstrip()
+        ends = [i for i in range(1, len(seg)) if seg[i] in closers]
+        return (seg[1 : ends[-1]] if ends else seg[1:]).strip()
     q = rest.find("?")
     return rest[: q + 1].strip() if q != -1 else rest.rstrip(" .;,").strip()
 
