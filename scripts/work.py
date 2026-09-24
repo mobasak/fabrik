@@ -71,7 +71,7 @@ DEFAULT_LEASE_S = 7200  # a claim's lease: 2 h, renewed by every write of its se
 MARKER_MAX_AGE_S = 14 * 86400  # a closed marker older than this stops hiding its item
 LINE_MAX = 300  # one prompt_block line
 _DECISION_ID_RE = re.compile(r"D-[0-9]+")
-_ITEM_REF_RE = re.compile(r"(?<![0-9A-Za-z])W-[0-9a-f]{8}(?![0-9A-Za-z])")  # a whole token
+_ITEM_REF_RE = re.compile(r"(?<![0-9A-Za-z_])W-[0-9a-f]{8}(?![0-9A-Za-z_])")  # a whole word
 _BRANCH_RE = re.compile(r"[A-Za-z0-9._/-]+")
 _QUESTION_RE = re.compile(
     r"^[ \t]*(?:[-*\u2022][ \t]+)?[*_]{0,2}Question[*_]{0,2}[ \t]*:[*_]{0,2}[ \t]*(.*)$",
@@ -679,15 +679,13 @@ def _branch_of(tree: Path) -> str:
 
 
 def _base_branch(repo: Path) -> str:
-    """The store's base branch: ``base_branch`` from config.json (recorded by ``init``), else the
-    branch the main checkout has checked out now; "" when neither is a usable branch name."""
+    """The store's base branch: ``base_branch`` from config.json, as ``init`` recorded it — never
+    whatever a checkout has checked out now. "" (no recorded key, a detached main at init, or not
+    a usable branch name) means no branch is ever read: markers then expire by age alone."""
     try:
         name = str(_read_config(repo).get("base_branch") or "").strip()
     except WorkError:
         name = ""
-    if not name:
-        trees = _worktrees(repo)
-        name = _branch_of(trees[0]) if trees and trees[0].is_dir() else ""
     return name if _BRANCH_RE.fullmatch(name) and not name.startswith("-") else ""
 
 
@@ -729,17 +727,31 @@ def _base_statuses(repo: Path, ids: list[str]) -> dict[str, str]:
     return found
 
 
+def _is_residue(repo: Path, item_id: str, marker: dict) -> bool:
+    """A marker THIS tree wrote over an item this tree still reads open: the writer died between
+    the marker write and the item write (``_close`` writes the marker first). It closes nothing."""
+    try:
+        if Path(str(marker.get("tree") or "")).resolve() != repo:
+            return False
+        own = json.loads(_item_path(repo, item_id).read_text(encoding="utf-8"))
+    except (OSError, ValueError, WorkError):
+        return False
+    return isinstance(own, dict) and own.get("status") not in RESOLVED
+
+
 def _closed_ids(repo: Path) -> set[str]:
     """Ids hidden by an effective closed marker: one whose item the base branch does not yet read
-    done/dropped, and that is at most 14 days old. Nothing else hides an item — every verb acts on
-    the caller's own tree (D-403)."""
+    done/dropped, that is at most 14 days old, and that is not this tree's own crash residue.
+    Nothing else hides an item — every verb acts on the caller's own tree (D-403)."""
     markers = _read_records(_closed_dir(repo))
     heads = _base_statuses(repo, sorted(markers))
     now = time.time()
     closed = set()
     for item_id, marker in markers.items():
         at = _num(marker.get("at"), _num(marker.get("_mtime")))
-        if heads.get(item_id) not in RESOLVED and now - at <= MARKER_MAX_AGE_S:
+        if heads.get(item_id) in RESOLVED or now - at > MARKER_MAX_AGE_S:
+            continue
+        if not _is_residue(repo, item_id, marker):
             closed.add(item_id)
     return closed
 
@@ -764,10 +776,12 @@ def _write_marker(
 
 
 def _prune_markers(repo: Path) -> None:
-    """Delete every marker whose item the store's base branch already reads resolved."""
+    """Delete every marker whose item the store's base branch already reads resolved, and this
+    tree's own crash residue (a marker it wrote over an item it still reads open)."""
     markers = _read_records(_closed_dir(repo))
-    for item_id, status in _base_statuses(repo, sorted(markers)).items():
-        if status in RESOLVED:
+    heads = _base_statuses(repo, sorted(markers))
+    for item_id, marker in markers.items():
+        if heads.get(item_id) in RESOLVED or _is_residue(repo, item_id, marker):
             with contextlib.suppress(FileNotFoundError):
                 (_closed_dir(repo) / f"{item_id}.json").unlink()
 
@@ -1128,6 +1142,7 @@ def cmd_answer(repo: Path, args: argparse.Namespace) -> int:
             f"--decision {decision!r} is not a ledger id (D-NNN); mint the row first — "
             "work.py never writes docs/DECISIONS.md"
         )
+    session = _call_session(args)
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="answer"):
         item = _read_item(repo, args.id)
         if item.get("status") != "awaiting-operator":
@@ -1137,12 +1152,13 @@ def cmd_answer(repo: Path, args: argparse.Namespace) -> int:
             )
         if args.id in _closed_ids(repo):
             raise WorkError(f"answer {args.id} refused: it was already closed in another tree")
+        _fence(repo, args.id, session, "answer")
         links = dict(item.get("links") or {})
         if decision:
             links["decision"] = decision
         item.update(status="done", note=note, links=links)
-        path = _close(repo, item, session=_session(), note=note, decision=decision)
-        _after_write(repo, _session())
+        path = _close(repo, item, session=session, note=note, decision=decision)
+        _after_write(repo, session)
     print(_rel(repo, path))
     return 0
 
@@ -1434,6 +1450,7 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("id")
     s.add_argument("--note", required=True, help="the operator's words")
     s.add_argument("--decision", help="the ledger row already minted (D-NNN)")
+    s.add_argument("--session", help=session_help)
     s.set_defaults(fn=cmd_answer)
     return p
 

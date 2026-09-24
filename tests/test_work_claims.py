@@ -858,3 +858,90 @@ def test_evidence_must_name_the_id_as_a_whole_token(tmp_path):
         assert r.returncode != 0, msg
     sha = _evidence(repo, env, f"feat: closes {item}.")
     _ok(["done", item, "--evidence", sha], env, repo)
+
+
+# ── review pass 2 ────────────────────────────────────────────────────────────────────────────
+
+
+def test_answer_is_fenced_by_another_sessions_live_claim(tmp_path, api):
+    work, env = api
+    repo = _store(tmp_path, env)
+    item = work.ensure_decision_item(repo, block=BLOCK, msg_digest="m1", session="s1")
+    claims = _shared(repo) / "claims"
+    claims.mkdir(parents=True, exist_ok=True)
+    claim = {"agent": "", "at": time.time(), "lease_s": 7200, "session": "s1", "token": 1}
+    (claims / f"{item}.json").write_text(json.dumps(claim), encoding="utf-8")
+    before = _item_file(repo, item).read_bytes()
+    r = run(["answer", item, "--note", "yes"], _as(env, session="s2"), repo)
+    assert r.returncode != 0 and "token" in r.stderr and "s1" in r.stderr, r.stderr
+    assert _item_file(repo, item).read_bytes() == before
+    assert _claim(repo, item) == claim
+    assert not (_shared(repo) / "closed" / f"{item}.json").exists()
+    _ok(["answer", item, "--note", "yes"], _as(env, session="s1"), repo)
+    assert _item(repo, item)["status"] == "done"
+
+
+def _residue_marker(repo: Path, item: str, tree: Path) -> Path:
+    closed = _shared(repo) / "closed"
+    closed.mkdir(parents=True, exist_ok=True)
+    marker = closed / f"{item}.json"
+    marker.write_text(
+        json.dumps({"at": time.time(), "id": item, "status": "done", "tree": str(tree)}),
+        encoding="utf-8",
+    )
+    return marker
+
+
+def test_a_marker_from_this_tree_over_an_open_item_is_crash_residue(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    a = _add(repo, env, title="a")
+    b = _add(repo, env, title="b")
+    marker = _residue_marker(repo, a, repo)
+    assert a in _ready_ids(repo, env)
+    _ok(["claim", a, "--session", "S"], env, repo)
+    assert not marker.exists()
+    marker = _residue_marker(repo, b, repo)
+    sha = _evidence(repo, env, f"did {b}")
+    _ok(["done", b, "--evidence", sha, "--session", "S"], env, repo)
+    assert _item(repo, b)["status"] == "done"
+    # a marker another tree wrote still means closed elsewhere
+    c = _add(repo, env, title="c")
+    _residue_marker(repo, c, tmp_path / "elsewhere")
+    r = run(["claim", c, "--session", "S"], env, repo)
+    assert r.returncode != 0 and "another working tree" in r.stderr
+
+
+def test_without_a_recorded_base_branch_no_marker_is_ever_pruned(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item = _add(repo, env)
+    _commit_store(repo, env)
+    wt = _worktree(repo, env)
+    sha = _evidence(wt, env, f"close {item}")
+    _ok(["done", item, "--evidence", sha, "--session", "W"], env, wt)
+    _commit_store(wt, env, "close")
+    cfg_path = repo / ".fabrik" / "work" / "config.json"
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    del cfg["base_branch"]
+    cfg_path.write_text(json.dumps(cfg, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _git(repo, env, "checkout", "-q", "-b", "side")
+    _git(repo, env, "merge", "-q", "--no-ff", "-m", "merge wt into side", "wt")
+    assert _item(repo, item)["status"] == "done"
+    _add(repo, env, title="a locked write")
+    assert (_shared(repo) / "closed" / f"{item}.json").exists()
+
+
+def test_an_item_id_is_named_only_between_non_word_characters(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    a = _add(repo, env, title="a")
+    sha = _evidence(repo, env, f"feat: {a}_x is another token")
+    assert run(["done", a, "--evidence", sha], env, repo).returncode != 0
+    sha = _evidence(repo, env, f"feat: x_{a} is another token")
+    assert run(["done", a, "--evidence", sha], env, repo).returncode != 0
+    sha = _evidence(repo, env, f"feat: closes ({a})")
+    _ok(["done", a, "--evidence", sha], env, repo)
+    b = _add(repo, env, title="b")
+    sha = _evidence(repo, env, f"feat: closes {b}.")
+    _ok(["done", b, "--evidence", sha], env, repo)
