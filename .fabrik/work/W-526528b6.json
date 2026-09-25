@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-22T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "c9936a1b5bb2d521bca28083b7e9b19b683535ea",
   "id": "W-526528b6",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:887d4b4bc837",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`fabrik fix` seeds every project from the python-api template map unless `--type` is passed (2026-09-22)"
 }

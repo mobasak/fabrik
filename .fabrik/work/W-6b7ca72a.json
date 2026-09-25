@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-25T22:33:14.420454Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-6b7ca72a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Decide whether fix_project should call the per-type scaffold generator for a single missing file (design: which generators are idempotent per file), or keep reporting",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "fabrik fix cannot re-seed a non-python-api type's own files (saas server/, node-api package.json, …): they come from scaffold generators, not a template map, so fix_project reports them [unsupported-fix] — follow-up to W-526528b6 / mail 01M335ES"
+}
