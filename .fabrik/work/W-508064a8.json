@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "ffdd8efbd66982f482213358b50e1894dc228a84",
   "id": "W-508064a8",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:19551d4256ea",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`fix_project`'s hub guard keys on `FABRIK_ROOT`, so a worktree override turns it off (2026-09-24)"
 }
