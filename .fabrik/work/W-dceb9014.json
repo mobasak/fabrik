@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-25T08:54:43.192182Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "1275e5522f5bb28d27aadb48050d007ae6c74256",
   "id": "W-dceb9014",
   "kind": "task",
   "legacy": false,
@@ -11,10 +11,10 @@
     "plan": "",
     "spec": ""
   },
-  "next": "W-dceb9014 — measure the rivals `claude -p` leg's prompt size against its wall time on the three failing briefs, then pick the bounded-dispatch or batch-split fix",
+  "next": "W-dceb9014",
   "note": "",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "rivals_run.py's claude -p leg exceeds 900 s on deep-research shortlist/extract, so briefs ship zero cards while the engine reports complete (mail 01M35Q2ZZDYMW323WNJTA3CETX)"
 }
