@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — work store: mail and feedback items, linked-item API, duplicate-question retirement (2026-09-25)
+- `scripts/work.py` gains the `mail` and `feedback` kinds; `add` refuses them and `next` (they come only from taking an obligation, and a `next` item only from the Stop harvest). Two hook-facing functions, `open_linked` and `close_linked`, take and close an obligation under one store lock and fail open; `close_linked` closes every open item of the link. A hand `done` is refused on mail and feedback items, and drift class 6's evidence arm no longer checks them.
+- `drop <id> --duplicate-of <keep>` retires a duplicate awaiting question — the distributor's verb, or the creator of both items; the kept item absorbs the dropped one's wordings, id and message digests, so a re-ask refreshes it, and its prompt line shows `(also asked as <id>)`. A failed close restores the kept item.
+- `_close` now raises only when nothing was committed: ending the claim after the item is written is best-effort (one warning, the lease expires on its own), so `done`, `drop`, `answer` and `close_linked` never report a committed close as failed. Tests: `tests/test_work_linked.py` (plan 2026-09-25-plan-1, T01).
+
 ### Fixed — rivals briefs no longer ship zero cards: the `claude -p` leg runs without tools (2026-09-25)
 - `rivals_run.py` spawns `claude -p` with `--tools "" --strict-mcp-config` and `CLAUDE_MESH_HEADLESS=1`. Extract and shortlist calls had been arming the session self-watch `Monitor` and re-arming it until the 900 s kill, long after writing their answer; the replayed 80k-character prompt now returns in 15 s (W-dceb9014).
 

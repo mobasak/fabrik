@@ -1,6 +1,6 @@
 # Plan — the work store as the one place every open obligation shows up
 
-Status: CONVERGED (2026-09-25, /fabrik-plan-review — 3 passes, confirmed 24 → 4 → 0; see § Pass Ledger)
+Status: IN-PROGRESS (2026-09-25, /fabrik-execute-plan — converged 2026-09-25 by /fabrik-plan-review, 3 passes, confirmed 24 → 4 → 0; see § Pass Ledger)
 **Owner:** infra (the unnamed hub window)
 Spec: docs/superpowers/specs/2026-09-25-work-store-single-tracker-design.md
 Date: 2026-09-25
@@ -49,7 +49,7 @@ section it implements and restates nothing that section already settles.
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01 | Store: mail and feedback kinds, linked items, duplicate drop | — | ⛓️ | ⬜ | |
+| T01 | Store: mail and feedback kinds, linked items, duplicate drop | — | ⛓️ | ✅ | 1a754bc96 |
 | T04 | Feedback queues: depth and the taken item | T01 | ⚡ | ⬜ | |
 | T02a | The view: obligations, crisp ready, status lines | T01, T04 | ⛓️ | ⬜ | |
 | T02b | The prompt block: obligations, others' claims, unnamed line | T02a | ⛓️ | ⬜ | |
