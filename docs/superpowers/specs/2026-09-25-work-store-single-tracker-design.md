@@ -1,6 +1,6 @@
 # Design — the work store as the one place every open obligation shows up
 
-Status: DRAFT
+Status: CONVERGED (2026-09-25, /fabrik-spec-review — 5 passes, confirmed 27 → 7 → 5 → 2 → 0; see § Review — Pass Ledger)
 Profile: delta — every Intake item maps to code that exists today (`scripts/work.py`, `scripts/thread_anchor.py`, `scripts/mail.py`, `scripts/command_feedback_report.py`, `.claude/hooks/final_gate_stop.py`); this spec changes how they meet, and adds one measurement script.
 Owner: infra
 Parent: `docs/superpowers/specs/2026-09-24-work-tracking-design.md` (CONVERGED, D-394; built by plan `archived/2026-09-24-plan-2-work-tracking`, EXECUTED 02744deea)
@@ -208,3 +208,18 @@ Every script but the census is on a governance-sync path, so each ticket gets th
 - The register stays as it is (D-392); the store never mirrors it.
 - `ack: no` mail is information, never counted or itemised.
 - `mail` and `feedback` items come only from taking an obligation, never from `add`.
+
+## Review — Pass Ledger
+
+| Pass | seats · axes re-checked | counters | method | spec md5 (start → end) |
+|---|---|---|---|---|
+| Pass 1 | opus×1 (A: the rules) + sonnet×1 (B: the rest) + sonnet×1 researcher (C: external quotes) + refuters · all axes | found: 27, new: 27, confirmed: 27, fixed: 27, unexecuted: 0, edits: 27 | method: citation — full pass (workflow wf_389a7379-e4b); every `path:line` opened, each quote fetched raw; the orchestrator re-ran the transcript counts and the URL status probes | 747465c3 → d4923c86 |
+| Pass 2 | opus×1 + sonnet×2 (the round-1 slice owners) + refuters · their ledgers over the whole rewrite | found: 7, new: 7, confirmed: 7, fixed: 7, unexecuted: 0, edits: 7 | method: re-derivation — 27 of 27 NOW_FALSE; 7 new inside the rewrite, 4 from mirroring register anchors (rule replaced, not patched) | d4923c86 → 29020e10 |
+| Pass 3 | opus×1 (the owner of A) + refuter · the seven pass-2 claims plus the fix hunks | found: 5, new: 5, confirmed: 5, fixed: 5, unexecuted: 0, edits: 5 | method: re-derivation — 7 of 7 NOW_FALSE; 5 new inside the fix hunks; the next-item site restated as one rule | 29020e10 → 506df3ea |
+| Pass 4 | opus×1 + refuter · the five pass-3 claims only (scope-growth stop) | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0, edits: 2 | method: re-derivation — 5 of 5 NOW_FALSE; 2 new inside the pass-3 wording | 506df3ea → 07d9f22f |
+| Pass 5 | opus×1 (the owner of A) · the two pass-4 claims only | found: 0, new: 0, **confirmed: 0**, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — 2 of 2 NOW_FALSE; nothing new | 07d9f22f → 07d9f22f ✓ → **CONVERGED** |
+
+RECORDED, not counted (outside the fix hunks), destination the plan: `scripts/sysadmin/next_census.py` does not exist yet — V5 and the growth trigger read it, and § Cost lists it as new.
+
+Standing clean since their last pass: slice B (Personas through Cost) and slice C (external quotes) closed at pass 2; the later fixes touched only slice A's rules.
+
