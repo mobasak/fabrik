@@ -2781,9 +2781,12 @@ def _drop_duplicate(repo: Path, args: argparse.Namespace, keep_id: str, why: str
         try:
             path = _close(repo, item, session=session, note=note)
         except BaseException:
-            # all or nothing: keep must not claim a duplicate that is still awaiting
+            # all or nothing: keep must not claim a duplicate that is still awaiting — but once
+            # _close has written the duplicate `dropped` (a later step failed), keep's record of
+            # it is the truth and stays
             with contextlib.suppress(Exception):
-                _write_item(repo, pre_image)
+                if _read_item(repo, item_id).get("status") != "dropped":
+                    _write_item(repo, pre_image)
             raise
         _after_write(repo, session)
     print(_rel(repo, path))
@@ -3260,11 +3263,16 @@ def close_linked(
                 if not found:
                     return None
                 text = " ".join(str(note).split())
-                for item in found:  # every open item of the link, not only the first
-                    item.update(status=status, note=text)
-                    _close(root, item, session="", note=text)
+                done: list[str] = []
+                for item in found:  # every open item of the link; one failure skips only itself
+                    try:
+                        item.update(status=status, note=text)
+                        _close(root, item, session="", note=text)
+                        done.append(str(item["id"]))
+                    except Exception as exc:
+                        _warn(f"{kind} item {item['id']} not closed — {type(exc).__name__}: {exc}")
                 _after_write(root)
-                return str(found[0]["id"])
+                return done[0] if done else None
         except Exception as exc:
             _warn(f"{kind} item not closed — {type(exc).__name__}: {exc}")
             return None

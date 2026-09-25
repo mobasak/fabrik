@@ -343,17 +343,65 @@ def test_a_failed_duplicate_close_restores_the_kept_item(tmp_path, api, monkeypa
     repo = _store(tmp_path, env)
     a, b = _two_awaiting(work, repo, monkeypatch)
     pre = _item_file(repo, b).read_bytes()
+    real_write = work._write_item
 
-    def boom(*_args, **_kwargs):
-        raise OSError("disk full")
+    def fail_the_duplicate(repo_arg, item, *args, **kwargs):
+        if item.get("id") == a:  # only the write inside _close; keep's own write succeeds
+            raise OSError("disk full")
+        return real_write(repo_arg, item, *args, **kwargs)
 
-    monkeypatch.setattr(work, "_close", boom)
+    monkeypatch.setattr(work, "_write_item", fail_the_duplicate)
     monkeypatch.setenv("CLAUDE_AGENT", "infra")
     assert work.main(["--repo", str(repo), "drop", a, "--duplicate-of", b]) == 1
     monkeypatch.delenv("CLAUDE_AGENT")
     assert _item(repo, a)["status"] == "awaiting-operator"
     assert _item_file(repo, b).read_bytes() == pre
     assert work.prompt_block(repo, "S9").count(a) == 1
+
+
+def test_a_duplicate_already_closed_keeps_the_kept_items_record(tmp_path, api, monkeypatch):
+    work, env = api
+    repo = _store(tmp_path, env)
+    a, b = _two_awaiting(work, repo, monkeypatch)
+    a_digest = _item(repo, a)["block_digest"]
+
+    def boom(*_args, **_kwargs):
+        raise OSError("claims dir gone")
+
+    monkeypatch.setattr(work, "_end_claim", boom)  # _close's LAST step, after A is written
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")
+    assert work.main(["--repo", str(repo), "drop", a, "--duplicate-of", b]) == 1
+    monkeypatch.delenv("CLAUDE_AGENT")
+    assert _item(repo, a)["status"] == "dropped"
+    kept = _item(repo, b)
+    assert a_digest in kept["alt_block_digests"]
+    assert a in kept["alt_ids"] and "m1" in kept["msg_digests"]
+    assert work.ensure_decision_item(repo, block=BLOCK, msg_digest="m9", session="S1") == b
+
+
+def test_close_linked_keeps_going_past_a_failed_item(tmp_path, api, monkeypatch, capsys):
+    work, env = api
+    repo = _store(tmp_path, env)
+    first = work.open_linked(repo, kind="mail", link=MAIL, title="subject", session="S1")
+    twin_id = "W-fffffff2"
+    assert twin_id > first
+    twin = dict(_item(repo, first), id=twin_id)
+    _item_file(repo, twin_id).write_text(json.dumps(twin), encoding="utf-8")
+    real_write = work._write_item
+
+    def fail_the_twin(repo_arg, item, *args, **kwargs):
+        if item.get("id") == twin_id:
+            raise OSError("disk full")
+        return real_write(repo_arg, item, *args, **kwargs)
+
+    monkeypatch.setattr(work, "_write_item", fail_the_twin)
+    capsys.readouterr()
+    got = work.close_linked(repo, kind="mail", link=MAIL, status="done", note="acked")
+    err = capsys.readouterr().err
+    assert got == first
+    assert _item(repo, first)["status"] == "done"
+    assert _item(repo, twin_id)["status"] == "open"
+    assert [ln for ln in err.splitlines() if twin_id in ln] and err.count(twin_id) == 1, err
 
 
 def test_a_reharvest_of_the_dropped_items_own_message_resolves_to_the_kept_item(
