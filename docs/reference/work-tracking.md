@@ -272,5 +272,6 @@ means updating this page in the same change. This list is generated from those h
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
 - `scripts/command_feedback_report.py`
+- `scripts/mail.py`
 - `scripts/work.py`
 <!-- END related-scripts -->

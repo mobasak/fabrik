@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — mail.py claim, ack and requeue open and close the mail's work item (2026-09-25)
+- `mail.py claim` opens (or renews this session's claim on) a `kind: mail` work item linked to the message, titled from its first body line (`Subject:` stripped); `ack` closes it `done` and `requeue` closes it `dropped`. The store is the main checkout's, and only when the mailbox acted on is that repo's own; a cross-repo `--repo` creates nothing. A store failure never changes the command's printed path, rc or stdout (one stderr line). `tests/test_mail.py` no longer writes real items into the checkout's store. Tests: `tests/test_mail_items.py` (plan 2026-09-25-plan-1, T03; review 4 passes, confirmed 20 → 3 → 2 → 0).
+
 ### Fixed — the ranker no longer scores runs from the 2026-08-28 transdoc re-score batch (2026-09-25)
 - `rank_task_subagents.py` excludes the 238 `status='scored'` rows a transdoc session wrote over its whole ledger history on 2026-08-28, which shadowed 226 other sessions' runs under latest-wins; transdoc's own runs keep their scores. No production row is written (D-421, W-40a0370e).
 

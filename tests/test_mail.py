@@ -58,6 +58,13 @@ def env(tmp_path, monkeypatch):
     # operator alerts off synthetic fixtures. Stub it for EVERY test, in the
     # fixture, so the claim is true by construction rather than by hope.
     monkeypatch.setattr(mail, "_is_hub_repo", lambda: False)
+    # T03 review (M-S1/M-O1/T-S1): this suite runs `mail.main(["claim"/"ack"/"requeue", …,
+    # "--repo", "fabrik"])` from the REAL hub checkout (or one of its worktrees), so
+    # `--repo fabrik` equals `_current_repo()` there — T03's store-linking code path fires
+    # for real and writes genuine `kind: mail` W-*.json items into that checkout's live
+    # `.fabrik/work/`. This suite is about mail.py's own CLI contract, never the work
+    # store, so the store hook is stubbed out here for every test.
+    monkeypatch.setattr(mail, "_mail_store", lambda *a, **k: None)
     return {"mail_root": mail_root, "opt_root": opt_root}
 
 
