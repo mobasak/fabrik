@@ -73,10 +73,12 @@ except ImportError:  # pragma: no cover — non-POSIX; the store is POSIX-only
 
 STORE_REL = Path(".fabrik") / "work"
 SHARED_NAME = "fabrik-work"
-KINDS = ("backlog", "decision", "next", "task")
+KINDS = ("backlog", "decision", "feedback", "mail", "next", "task")
+LINKED_KINDS = ("mail", "feedback")  # made and closed only by open_linked/close_linked
 STATUSES = ("open", "blocked", "awaiting-operator", "done", "dropped")
 RESOLVED = ("done", "dropped")
-LINK_KEYS = ("spec", "plan", "decision")
+LINK_KEYS = ("spec", "plan", "decision")  # written on EVERY item
+EXTRA_LINK_KEYS = ("mail", "command", "session")  # written only when non-empty
 DEFAULT_PRIORITY = 2
 CLI_LOCK_TIMEOUT_S = 10.0
 HOOK_LOCK_TIMEOUT_S = 2.0
@@ -208,9 +210,9 @@ def _git_timeout() -> float:
 @contextlib.contextmanager
 def _hook_git_budget() -> Iterator[None]:
     """Caps every git call made anywhere inside this block — any call depth — to
-    ``HOOK_GIT_TIMEOUT_S``. Wraps each of the six hook-facing entry points (``repo_root``,
+    ``HOOK_GIT_TIMEOUT_S``. Wraps each of the hook-facing entry points (``repo_root``,
     ``has_store``, ``on_harvest``, ``ensure_decision_item``/``ensure_decision_items``,
-    ``has_msg_digest``, ``prompt_block``)."""
+    ``open_linked``/``close_linked``, ``has_msg_digest``, ``prompt_block``)."""
     prev = getattr(_GIT_TIMEOUT_OVERRIDE, "value", None)
     _GIT_TIMEOUT_OVERRIDE.value = HOOK_GIT_TIMEOUT_S
     try:
@@ -626,7 +628,10 @@ def _new_item(
         "id": "",
         "kind": kind,
         "legacy": False,
-        "links": {key: links.get(key, "") for key in LINK_KEYS},
+        "links": {
+            **{key: links.get(key, "") for key in LINK_KEYS},
+            **{key: links[key] for key in EXTRA_LINK_KEYS if links.get(key)},
+        },
         "next": next_action,
         "note": "",
         "owner": "",
@@ -1578,7 +1583,11 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
             if data.get("status") not in STATUSES:
                 report[5].append(rel)
                 continue
-            if data.get("status") == "done" and not data.get("legacy"):
+            if (
+                data.get("status") == "done"
+                and not data.get("legacy")
+                and data.get("kind") not in LINKED_KINDS
+            ):
                 if (
                     _status_change_age_seconds(
                         repo,
@@ -2458,6 +2467,16 @@ def cmd_add(repo: Path, args: argparse.Namespace) -> int:
             "--kind decision is refused: decision items come only from DECISION blocks "
             "(the Stop-hook harvest), never from `add`"
         )
+    if args.kind in LINKED_KINDS:
+        raise WorkError(
+            f"--kind {args.kind} is refused: {args.kind} items come only from taking the "
+            "obligation (a mail claim, a feedback queue), never from `add`"
+        )
+    if args.kind == "next":
+        raise WorkError(
+            "--kind next is refused: a next item comes only from the Stop harvest of a "
+            "session's NEXT line, never from `add`"
+        )
     title = " ".join(args.title.split())
     if not title:
         raise WorkError("--title is empty")
@@ -2620,6 +2639,24 @@ def _verify_evidence(repo: Path, item_id: str, evidence: str | None) -> str:
     return resolved
 
 
+def _claim_record(claim: dict | None, session: str, now: float) -> tuple[dict, str] | None:
+    """``claim`` taken or renewed for ``session``: the renewed record and ``"renewed"`` when
+    ``session`` holds it live, a new record with the old token + 1 and ``"claimed"`` when nobody
+    does, None when ANOTHER session holds it live (the caller decides whether that refuses)."""
+    if _is_live(claim, now) and claim is not None:
+        if claim.get("session") != session:
+            return None
+        return {**claim, "at": now}, "renewed"  # the live holder's claim renews it
+    fresh = {
+        "agent": _agent_name(),
+        "at": now,
+        "lease_s": DEFAULT_LEASE_S,
+        "session": session,
+        "token": int(_num((claim or {}).get("token"))) + 1,
+    }
+    return fresh, "claimed"
+
+
 def cmd_claim(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
     _read_item(repo, args.id)  # a missing id is named before anything else
@@ -2633,23 +2670,11 @@ def cmd_claim(repo: Path, args: argparse.Namespace) -> int:
         item = _read_item(repo, args.id)
         _refuse_closed(repo, item, "claim")
         _refuse_blocked(repo, item)
-        claim = _claim_of(repo, args.id)
-        now = time.time()
-        if _is_live(claim, now) and claim is not None:
-            if claim.get("session") != session:
-                raise WorkError(f"claim {args.id} refused: it is held by {_holder(claim)}")
-            claim["at"] = now  # the live holder's claim renews it
-            verb = "renewed"
-        else:
-            token = int(_num((claim or {}).get("token"))) + 1
-            claim = {
-                "agent": _agent_name(),
-                "at": now,
-                "lease_s": DEFAULT_LEASE_S,
-                "session": session,
-                "token": token,
-            }
-            verb = "claimed"
+        held = _claim_of(repo, args.id)
+        taken = _claim_record(held, session, time.time())
+        if taken is None:  # only a live claim held by ANOTHER session refuses
+            raise WorkError(f"claim {args.id} refused: it is held by {_holder(held or {})}")
+        claim, verb = taken
         _write_claim(repo, args.id, claim)
         _after_write(repo, session)
     print(f"{verb} {args.id} — token {claim['token']}, lease until {_iso(_claim_end(claim))}")
@@ -2671,9 +2696,18 @@ def cmd_release(repo: Path, args: argparse.Namespace) -> int:
     return 0
 
 
+_LINKED_CLOSE = {"mail": "mail is acked", "feedback": "queue is marked answered"}
+
+
 def cmd_done(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
-    _refuse_closed(repo, _read_item(repo, args.id), "done")
+    first = _read_item(repo, args.id)
+    kind = str(first.get("kind") or "")
+    if kind in LINKED_KINDS:
+        raise WorkError(
+            f"done {args.id} refused: a {kind} item closes when its {_LINKED_CLOSE[kind]}"
+        )
+    _refuse_closed(repo, first, "done")
     session = _call_session(args)
     sha = _verify_evidence(repo, args.id, args.evidence)
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="done"):
@@ -2687,10 +2721,69 @@ def cmd_done(repo: Path, args: argparse.Namespace) -> int:
     return 0
 
 
+def _drop_duplicate(repo: Path, args: argparse.Namespace, keep_id: str, why: str) -> int:
+    """D5: retire the awaiting ``args.id`` into the open awaiting ``keep_id`` — the distributor's
+    verb, or a caller whose NON-EMPTY agent name or session id is the ``creator`` of BOTH items
+    (the owner rule of a plain drop does not apply)."""
+    item_id = args.id
+    verb = f"drop {item_id} --duplicate-of {keep_id}"
+    if keep_id == item_id:
+        raise WorkError(f"{verb} refused: an item cannot be a duplicate of itself")
+    _read_item(repo, keep_id)
+    session = _call_session(args)
+    with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="drop"):
+        item = _read_item(repo, item_id)
+        keep = _read_item(repo, keep_id)
+        closed = _closed_ids(repo)
+        for it in (item, keep):
+            if it.get("status") != "awaiting-operator":
+                raise WorkError(
+                    f"{verb} refused: {it['id']} is {it.get('status')}, "
+                    "not an open awaiting-operator item"
+                )
+            if it["id"] in closed:
+                raise WorkError(
+                    f"{verb} refused: {it['id']} was closed in another working tree "
+                    f"(a closed marker in {_closed_dir(repo)})"
+                )
+        distributor = str(_read_config(repo).get("distributor") or "").strip()
+        agent = _agent_name()
+        me = {agent, _session()} - {""}  # an empty identity never matches an empty creator
+        creators = [str(it.get("creator") or "") for it in (item, keep)]
+        if not ((distributor and agent == distributor) or all(c in me for c in creators)):
+            raise WorkError(
+                f"{verb} is the distributor's ({distributor or 'none named'}) or the creator's "
+                f"of both items ({creators[0] or 'none'}, {creators[1] or 'none'}); this caller "
+                f"is {_actor_label()}, session {_session() or '(none)'}"
+            )
+        _fence(repo, item_id, session, "drop")
+        own = str(keep.get("block_digest") or "")
+        digests = [
+            *(keep.get("alt_block_digests") or []),
+            item.get("block_digest"),
+            *(item.get("alt_block_digests") or []),
+        ]
+        keep["alt_block_digests"] = list(
+            dict.fromkeys(str(d) for d in digests if d and str(d) != own)
+        )
+        ids = [*(keep.get("alt_ids") or []), item_id, *(item.get("alt_ids") or [])]
+        keep["alt_ids"] = list(dict.fromkeys(str(i) for i in ids if i and str(i) != keep_id))
+        _write_item(repo, keep)  # FIRST: a failed close then loses no wording, only a retirement
+        note = f"duplicate of {keep_id}" + (f" — {why}" if why else "")
+        item.update(status="dropped", note=note)
+        path = _close(repo, item, session=session, note=note)
+        _after_write(repo, session)
+    print(_rel(repo, path))
+    return 0
+
+
 def cmd_drop(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
     _read_item(repo, args.id)
     why = " ".join((args.why or "").split())
+    keep_id = (args.duplicate_of or "").strip()
+    if keep_id:
+        return _drop_duplicate(repo, args, keep_id, why)
     if not why:
         raise WorkError(f"drop {args.id} needs --why <reason>; the reason is kept in `note`")
     session = _call_session(args)
@@ -2852,10 +2945,10 @@ def _decision_index(repo: Path) -> tuple[dict[str, dict], dict[str, list[dict]]]
     for it in _iter_items(repo):
         for d in it.get("msg_digests") or []:
             by_msg.setdefault(str(d), it)
-        if it.get("status") == "awaiting-operator":
-            bd = it.get("block_digest")
-            if bd:
-                by_block.setdefault(str(bd), []).append(it)
+        if it.get("status") == "awaiting-operator":  # its own wording and every retired one
+            wordings = [it.get("block_digest"), *(it.get("alt_block_digests") or [])]
+            for bd in dict.fromkeys(str(d) for d in wordings if d):
+                by_block.setdefault(bd, []).append(it)
     return by_msg, by_block
 
 
@@ -3049,6 +3142,113 @@ def on_harvest(
             return None
 
 
+def _check_linked(kind: str, link: tuple[str, str]) -> tuple[str, str]:
+    """A programming error in a linked-item call is RAISED, before the lock — never failed open."""
+    if kind not in LINKED_KINDS:
+        raise ValueError(f"kind {kind!r}: a linked item is one of {'|'.join(LINKED_KINDS)}")
+    key, value = link
+    value = str(value).strip()
+    if key not in EXTRA_LINK_KEYS or not value:
+        raise ValueError(f"link {link!r}: expected ({'|'.join(EXTRA_LINK_KEYS)}, <value>)")
+    return key, value
+
+
+def _linked_item(repo: Path, kind: str, key: str, value: str) -> dict | None:
+    """The OPEN item of ``kind`` whose ``links[key]`` is ``value``, not closed in another tree."""
+    closed: set[str] | None = None
+    for it in _iter_items(repo):
+        if it.get("kind") != kind or it.get("status") in RESOLVED:
+            continue
+        if (it.get("links") or {}).get(key) != value:
+            continue
+        if closed is None:
+            closed = _closed_ids(repo)
+        if it["id"] not in closed:
+            return it
+    return None
+
+
+def open_linked(
+    repo: Path | str,
+    *,
+    kind: str,
+    link: tuple[str, str],
+    title: str,
+    session: str,
+    lock_timeout: float = HOOK_LOCK_TIMEOUT_S,
+) -> str | None:
+    """Taking an obligation (spec D2), under ONE lock: the open ``kind`` item linked by ``link``
+    (found, else created — owned by this agent's name, or unassigned), then, when ``session`` is
+    given, ``claim``'s rule for it: a live claim of ANOTHER session is left alone, the caller's
+    own is renewed, otherwise a new claim with the old token + 1. The item id, or None."""
+    key, value = _check_linked(kind, link)
+    with _hook_git_budget():
+        try:
+            root = _api_root(repo)
+            if root is None:
+                return None
+            with _store_lock(root, lock_timeout, fail_open=True, label="linked") as held:
+                if not held:
+                    return None
+                item = _linked_item(root, kind, key, value)
+                if item is None:
+                    item = _new_item(
+                        kind=kind,
+                        title=" ".join(str(title).split()) or f"{kind} {value}",
+                        next_action="",
+                        links={key: value},
+                        priority=DEFAULT_PRIORITY,
+                    )
+                    item["owner"] = _agent_name()
+                    _create_item(root, item)
+                item_id = str(item["id"])
+                if session:
+                    taken = _claim_record(_claim_of(root, item_id), session, time.time())
+                    if taken is not None:
+                        _write_claim(root, item_id, taken[0])
+                _after_write(root, session)
+                return item_id
+        except Exception as exc:
+            _warn(f"{kind} item not written — {type(exc).__name__}: {exc}")
+            return None
+
+
+def close_linked(
+    repo: Path | str,
+    *,
+    kind: str,
+    link: tuple[str, str],
+    status: str,
+    note: str,
+    lock_timeout: float = HOOK_LOCK_TIMEOUT_S,
+) -> str | None:
+    """Closing an obligation (spec D2), under ONE lock: the open ``kind`` item linked by ``link``
+    closes ``status`` (done | dropped) with ``note`` — the marker, the item, then its claim ended.
+    No such item: None and nothing written (an ack with no prior claim creates nothing)."""
+    key, value = _check_linked(kind, link)
+    if status not in RESOLVED:
+        raise ValueError(f"status {status!r}: a linked close is one of {'|'.join(RESOLVED)}")
+    with _hook_git_budget():
+        try:
+            root = _api_root(repo)
+            if root is None:
+                return None
+            with _store_lock(root, lock_timeout, fail_open=True, label="linked") as held:
+                if not held:
+                    return None
+                item = _linked_item(root, kind, key, value)
+                if item is None:
+                    return None
+                text = " ".join(str(note).split())
+                item.update(status=status, note=text)
+                _close(root, item, session="", note=text)
+                _after_write(root)
+                return str(item["id"])
+        except Exception as exc:
+            _warn(f"{kind} item not closed — {type(exc).__name__}: {exc}")
+            return None
+
+
 def has_msg_digest(repo: Path | str, msg_digest: str) -> bool:
     with _hook_git_budget():
         try:
@@ -3086,7 +3286,9 @@ def prompt_block(repo: Path | str, session: str) -> str:
             for it in awaiting:
                 question = it.get("question") or it.get("title") or ""
                 ground = f" ({it['ground']})" if it.get("ground") else ""
-                lines.append(f"work: awaiting operator — {it['id']}{ground}: {question}")
+                also = ", ".join(str(i) for i in it.get("alt_ids") or [] if i)
+                also = f" (also asked as {also})" if also else ""
+                lines.append(f"work: awaiting operator — {it['id']}{ground}: {question}{also}")
             for item_id, claim in sorted(claims.items()):
                 if session and claim.get("session") == session:
                     title = by_id.get(item_id, {}).get("title") or "(not in this tree)"
@@ -3162,7 +3364,12 @@ def _parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("drop", help="end an item that won't be done (owner/distributor)")
     s.add_argument("id")
-    s.add_argument("--why", required=True, help="the reason, kept in `note`")
+    s.add_argument("--why", help="the reason, kept in `note` (required unless --duplicate-of)")
+    s.add_argument(
+        "--duplicate-of",
+        metavar="KEEP",
+        help="retire an awaiting item into the open awaiting item KEEP (distributor/creator)",
+    )
     s.add_argument("--session", help=session_help)
     s.set_defaults(fn=cmd_drop)
 
