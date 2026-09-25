@@ -13,6 +13,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from types import ModuleType
 
@@ -317,3 +318,125 @@ def test_drop_duplicate_of_refuses_the_unauthorised_and_the_degenerate(tmp_path,
     # the distributor may retire it
     _ok(["drop", a, "--duplicate-of", b], _as(env, agent="intel"), repo)
     assert _item(repo, a)["status"] == "dropped"
+
+
+# ── review pass 1 ─────────────────────────────────────────────────────────────────────────────
+
+
+def _awaiting_by(work: ModuleType, repo: Path, monkeypatch, block: str, digest: str, agent: str):
+    monkeypatch.setenv("CLAUDE_AGENT", agent)
+    got = work.ensure_decision_item(repo, block=block, msg_digest=digest, session="S1")
+    monkeypatch.delenv("CLAUDE_AGENT")
+    assert got
+    return got
+
+
+def _marker(repo: Path, item_id: str, tree: Path) -> None:
+    closed = _shared(repo) / "closed"
+    closed.mkdir(parents=True, exist_ok=True)
+    marker = {"at": time.time(), "id": item_id, "status": "done", "tree": str(tree)}
+    (closed / f"{item_id}.json").write_text(json.dumps(marker), encoding="utf-8")
+
+
+def test_a_failed_duplicate_close_restores_the_kept_item(tmp_path, api, monkeypatch):
+    work, env = api
+    repo = _store(tmp_path, env)
+    a, b = _two_awaiting(work, repo, monkeypatch)
+    pre = _item_file(repo, b).read_bytes()
+
+    def boom(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(work, "_close", boom)
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")
+    assert work.main(["--repo", str(repo), "drop", a, "--duplicate-of", b]) == 1
+    monkeypatch.delenv("CLAUDE_AGENT")
+    assert _item(repo, a)["status"] == "awaiting-operator"
+    assert _item_file(repo, b).read_bytes() == pre
+    assert work.prompt_block(repo, "S9").count(a) == 1
+
+
+def test_a_reharvest_of_the_dropped_items_own_message_resolves_to_the_kept_item(
+    tmp_path, api, monkeypatch
+):
+    work, env = api
+    repo = _store(tmp_path, env)
+    a, b = _two_awaiting(work, repo, monkeypatch)
+    _ok(["drop", a, "--duplicate-of", b], _as(env, agent="infra"), repo)
+    assert "m1" in _item(repo, b)["msg_digests"]
+    assert work.ensure_decision_item(repo, block=BLOCK, msg_digest="m1", session="S1") == b
+    # whatever the id order: a dropped holder of a digest yields to the live item carrying it
+    live = _item(repo, b)
+    for item_id, fields in (
+        ("W-00000001", {"status": "dropped", "msg_digests": ["mx"]}),
+        ("W-fffffff1", {"status": "awaiting-operator", "msg_digests": ["mx"]}),
+    ):
+        data = dict(live, id=item_id, alt_ids=[], alt_block_digests=[], **fields)
+        _item_file(repo, item_id).write_text(json.dumps(data), encoding="utf-8")
+    got = work.ensure_decision_item(repo, block=BLOCK_2, msg_digest="mx", session="S1")
+    assert got == "W-fffffff1"
+
+
+def test_close_linked_closes_every_open_item_of_the_link(tmp_path, api):
+    work, env = api
+    repo = _store(tmp_path, env)
+    first = work.open_linked(repo, kind="mail", link=MAIL, title="subject", session="S1")
+    twin = dict(_item(repo, first), id="W-0000abcd")
+    _item_file(repo, "W-0000abcd").write_text(json.dumps(twin), encoding="utf-8")
+    got = work.close_linked(repo, kind="mail", link=MAIL, status="done", note="acked")
+    assert got in (first, "W-0000abcd")
+    assert _item(repo, first)["status"] == "done"
+    assert _item(repo, "W-0000abcd")["status"] == "done"
+
+
+def test_drop_duplicate_of_needs_the_creator_of_both_not_either(tmp_path, api, monkeypatch):
+    work, env = api
+    repo = _store(tmp_path, env, distributor="intel")
+    a = _awaiting_by(work, repo, monkeypatch, BLOCK, "m1", "infra")
+    b = _awaiting_by(work, repo, monkeypatch, BLOCK_2, "m2", "fleet")
+    before = _snapshot(repo)
+    r = run(["drop", a, "--duplicate-of", b], _as(env, agent="infra"), repo)
+    assert r.returncode == 1 and "creator" in r.stderr, r.stderr
+    assert _snapshot(repo) == before
+
+
+def test_drop_duplicate_of_is_fenced_and_refuses_a_keep_closed_elsewhere(
+    tmp_path, api, monkeypatch
+):
+    work, env = api
+    repo = _store(tmp_path, env)
+    a, b = _two_awaiting(work, repo, monkeypatch)
+    claims = _shared(repo) / "claims"
+    claims.mkdir(parents=True, exist_ok=True)
+    held = {"agent": "", "at": time.time(), "lease_s": 7200, "session": "S9", "token": 1}
+    (claims / f"{a}.json").write_text(json.dumps(held), encoding="utf-8")
+    before = _snapshot(repo)
+    r = run(["drop", a, "--duplicate-of", b], _as(env, agent="infra", session="S1"), repo)
+    assert r.returncode == 1 and "token mismatch" in r.stderr, r.stderr
+    assert _snapshot(repo) == before
+    (claims / f"{a}.json").unlink()
+    elsewhere = tmp_path / "elsewhere"
+    _marker(repo, b, elsewhere)
+    before = _snapshot(repo)
+    r = run(["drop", a, "--duplicate-of", b], _as(env, agent="infra", session="S1"), repo)
+    assert r.returncode == 1 and str(elsewhere) in r.stderr, r.stderr
+    assert _snapshot(repo) == before
+
+
+def test_open_linked_reuses_only_an_open_item_and_takes_the_next_token(tmp_path, api):
+    work, env = api
+    repo = _store(tmp_path, env)
+    first = work.open_linked(repo, kind="mail", link=MAIL, title="s", session="S1")
+    work.close_linked(repo, kind="mail", link=MAIL, status="done", note="acked")
+    (_shared(repo) / "closed" / f"{first}.json").unlink()  # the item's own status must decide
+    second = work.open_linked(repo, kind="mail", link=MAIL, title="s", session="S1")
+    assert second and second != first
+    _marker(repo, second, tmp_path / "elsewhere")
+    third = work.open_linked(repo, kind="mail", link=MAIL, title="s", session="S1")
+    assert third and third not in (first, second)
+    token = _claim(repo, third)["token"]
+    ended = dict(_claim(repo, third), lease_s=0)
+    (_shared(repo) / "claims" / f"{third}.json").write_text(json.dumps(ended), encoding="utf-8")
+    assert work.open_linked(repo, kind="mail", link=MAIL, title="s", session="S2") == third
+    got = _claim(repo, third)
+    assert got["session"] == "S2" and got["token"] == token + 1

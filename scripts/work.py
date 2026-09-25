@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import copy
 import hashlib
 import importlib.util
 import json
@@ -2742,8 +2743,10 @@ def _drop_duplicate(repo: Path, args: argparse.Namespace, keep_id: str, why: str
                     "not an open awaiting-operator item"
                 )
             if it["id"] in closed:
+                marker = _read_records(_closed_dir(repo)).get(str(it["id"])) or {}
+                tree = str(marker.get("tree") or "") or "an unnamed tree"
                 raise WorkError(
-                    f"{verb} refused: {it['id']} was closed in another working tree "
+                    f"{verb} refused: {it['id']} was closed in another working tree, {tree} "
                     f"(a closed marker in {_closed_dir(repo)})"
                 )
         distributor = str(_read_config(repo).get("distributor") or "").strip()
@@ -2757,6 +2760,7 @@ def _drop_duplicate(repo: Path, args: argparse.Namespace, keep_id: str, why: str
                 f"is {_actor_label()}, session {_session() or '(none)'}"
             )
         _fence(repo, item_id, session, "drop")
+        pre_image = copy.deepcopy(keep)  # restored if the duplicate's close fails
         own = str(keep.get("block_digest") or "")
         digests = [
             *(keep.get("alt_block_digests") or []),
@@ -2768,10 +2772,19 @@ def _drop_duplicate(repo: Path, args: argparse.Namespace, keep_id: str, why: str
         )
         ids = [*(keep.get("alt_ids") or []), item_id, *(item.get("alt_ids") or [])]
         keep["alt_ids"] = list(dict.fromkeys(str(i) for i in ids if i and str(i) != keep_id))
-        _write_item(repo, keep)  # FIRST: a failed close then loses no wording, only a retirement
+        # the duplicate's messages too: a re-harvest of one must resolve to keep, not the dropped
+        msgs = [*(keep.get("msg_digests") or []), *(item.get("msg_digests") or [])]
+        keep["msg_digests"] = list(dict.fromkeys(str(d) for d in msgs if d))
+        _write_item(repo, keep)
         note = f"duplicate of {keep_id}" + (f" — {why}" if why else "")
         item.update(status="dropped", note=note)
-        path = _close(repo, item, session=session, note=note)
+        try:
+            path = _close(repo, item, session=session, note=note)
+        except BaseException:
+            # all or nothing: keep must not claim a duplicate that is still awaiting
+            with contextlib.suppress(Exception):
+                _write_item(repo, pre_image)
+            raise
         _after_write(repo, session)
     print(_rel(repo, path))
     return 0
@@ -2944,7 +2957,11 @@ def _decision_index(repo: Path) -> tuple[dict[str, dict], dict[str, list[dict]]]
     by_block: dict[str, list[dict]] = {}
     for it in _iter_items(repo):
         for d in it.get("msg_digests") or []:
-            by_msg.setdefault(str(d), it)
+            held = by_msg.get(str(d))
+            # first holder wins (an answered item still guards its echo), except that a
+            # `dropped` holder yields to a live one — the item a duplicate was retired into
+            if held is None or (held.get("status") == "dropped" and it.get("status") != "dropped"):
+                by_msg[str(d)] = it
         if it.get("status") == "awaiting-operator":  # its own wording and every retired one
             wordings = [it.get("block_digest"), *(it.get("alt_block_digests") or [])]
             for bd in dict.fromkeys(str(d) for d in wordings if d):
@@ -3153,19 +3170,20 @@ def _check_linked(kind: str, link: tuple[str, str]) -> tuple[str, str]:
     return key, value
 
 
-def _linked_item(repo: Path, kind: str, key: str, value: str) -> dict | None:
-    """The OPEN item of ``kind`` whose ``links[key]`` is ``value``, not closed in another tree."""
-    closed: set[str] | None = None
-    for it in _iter_items(repo):
-        if it.get("kind") != kind or it.get("status") in RESOLVED:
-            continue
-        if (it.get("links") or {}).get(key) != value:
-            continue
-        if closed is None:
-            closed = _closed_ids(repo)
-        if it["id"] not in closed:
-            return it
-    return None
+def _linked_items(repo: Path, kind: str, key: str, value: str) -> list[dict]:
+    """Every OPEN item of ``kind`` whose ``links[key]`` is ``value``, not closed in another tree,
+    in id order (``_iter_items``'s)."""
+    found = [
+        it
+        for it in _iter_items(repo)
+        if it.get("kind") == kind
+        and it.get("status") not in RESOLVED
+        and (it.get("links") or {}).get(key) == value
+    ]
+    if not found:
+        return []
+    closed = _closed_ids(repo)
+    return [it for it in found if it["id"] not in closed]
 
 
 def open_linked(
@@ -3190,7 +3208,8 @@ def open_linked(
             with _store_lock(root, lock_timeout, fail_open=True, label="linked") as held:
                 if not held:
                     return None
-                item = _linked_item(root, kind, key, value)
+                found = _linked_items(root, kind, key, value)
+                item = found[0] if found else None
                 if item is None:
                     item = _new_item(
                         kind=kind,
@@ -3222,9 +3241,10 @@ def close_linked(
     note: str,
     lock_timeout: float = HOOK_LOCK_TIMEOUT_S,
 ) -> str | None:
-    """Closing an obligation (spec D2), under ONE lock: the open ``kind`` item linked by ``link``
-    closes ``status`` (done | dropped) with ``note`` — the marker, the item, then its claim ended.
-    No such item: None and nothing written (an ack with no prior claim creates nothing)."""
+    """Closing an obligation (spec D2), under ONE lock: EVERY open ``kind`` item linked by
+    ``link`` closes ``status`` (done | dropped) with ``note`` — for each, the marker, the item,
+    then its claim ended — and the first one's id is returned. No such item: None and nothing
+    written (an ack with no prior claim creates nothing)."""
     key, value = _check_linked(kind, link)
     if status not in RESOLVED:
         raise ValueError(f"status {status!r}: a linked close is one of {'|'.join(RESOLVED)}")
@@ -3236,14 +3256,15 @@ def close_linked(
             with _store_lock(root, lock_timeout, fail_open=True, label="linked") as held:
                 if not held:
                     return None
-                item = _linked_item(root, kind, key, value)
-                if item is None:
+                found = _linked_items(root, kind, key, value)
+                if not found:
                     return None
                 text = " ".join(str(note).split())
-                item.update(status=status, note=text)
-                _close(root, item, session="", note=text)
+                for item in found:  # every open item of the link, not only the first
+                    item.update(status=status, note=text)
+                    _close(root, item, session="", note=text)
                 _after_write(root)
-                return str(item["id"])
+                return str(found[0]["id"])
         except Exception as exc:
             _warn(f"{kind} item not closed — {type(exc).__name__}: {exc}")
             return None
