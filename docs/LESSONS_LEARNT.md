@@ -1,6 +1,22 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## Adopting a tool turns its source file into its output, and every reader of the old file breaks (2026-09-25)
+
+The work-tracking plan's own tests passed on every ticket, then the hub adoption moved the backlog from 4,952
+hand-written lines to a rendered view, and three things that read the live file broke at once: the V2 round-trip
+test (4 rows where it expected 318), a sibling titles test that went vacuous without failing, and a second
+`migrate-backlog` run, which read the kept context sections as fresh rows. The migration itself also never
+said what happens to the rows it migrated. The spec did ("the item list IS the block; hand-written context
+stays"), but no ticket owned deleting the rows, so the first adoption doubled every item. The class: a tool
+whose first run rewrites its own input changes the meaning of every fixture and reader pinned to that input. The
+rule: before the adoption commit, list every reader of the file the tool will rewrite (tests, other scripts,
+the tool itself on a second run). Pin the tests to the pre-adoption blob by commit, and make a one-shot verb
+refuse its second run. Separately, the independent V5 reader found 24 of 28 drift lines were specs whose plan
+had been archived, a predicate that read live plans only. An independent reader is worth its cost exactly when
+it is written from the spec alone, and every disagreement is adjudicated by execution on both sides (it was
+wrong about three other things).
+
 ## Five green per-ticket reviews, and the plan still could not do what it promised (2026-09-24)
 
 Every ticket of audit-log-everywhere passed its own acceptance review, and the whole-plan validation (D7) then
