@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-25T10:09:25.793487Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-992909ca",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/reference/command-loop-performance.md"
+  },
+  "next": "Both measured chains (stop-and-compaction ~9.3 h, work-tracking ~18.8 h, goal 2 h) spent their time in execution's review stages (16 in execution for work-tracking). Read confirmed defects per stage from their receipts (docs/development/reviews/2026-09-23-plan-1-* and 2026-09-24-plan-2-*), put the table in docs/reference/command-loop-performance.md § 6 (the § 4.9 finding 35 (b) lever), and propose which stages to merge or drop.",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "title": "Loop program: measure review-stage yield per change across the two measured chains"
+}

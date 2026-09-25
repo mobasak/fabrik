@@ -1,0 +1,26 @@
+{
+  "block_digest": "c16002d8ff7b47a5e5a456da0bb58e6a7791f242977dad4188694fa533de9f33",
+  "blocked_by": [],
+  "created": "2026-09-25T09:44:28.711330Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-e0e161b4",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "b7d7c64f0ab35adde75dd5a6f32f776f76135d8ae026a4d23679b28fd4df17f3"
+  ],
+  "next": "",
+  "note": "NOT an operator answer: a duplicate of W-f9e2e6ec, created when the agent re-asked the same question in different words (2026-09-25). The operator's answer belongs on W-f9e2e6ec.",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve the design of the git-decoder spec, a single shared fix for the 85 places where the fleet-wide checks can still crash on non-UTF-8 git output, so it can be planned and built?",
+  "status": "done",
+  "title": "Do you approve the design of the git-decoder spec, a single shared fix for the 85 places where the fleet-wide checks can still crash on non-UTF-8 git output, so it can be planned and built?"
+}

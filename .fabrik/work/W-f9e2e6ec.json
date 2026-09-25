@@ -1,0 +1,26 @@
+{
+  "block_digest": "0418041b17043a78e030bf1893dfc3ef1b65309b13a62240a30b18a0b540f1be",
+  "blocked_by": [],
+  "created": "2026-09-25T02:04:25.166112Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-f9e2e6ec",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "933bd3e91bb39f6ce4d0ba151e7f200a422b7a879737e45bb50de309db99817c"
+  ],
+  "next": "operator decision on the decoder spec's design (W-f9e2e6ec); approving it sends it to planning",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve the design of the enforcement git-decoder spec (`docs/superpowers/specs/2026-09-19-enforcement-git-decoder-design.md`) so it can go to planning?",
+  "status": "awaiting-operator",
+  "title": "Do you approve the design of the enforcement git-decoder spec (`docs/superpowers/specs/2026-09-19-enforcement-git-decoder-design.md`) so it can go to planning?"
+}

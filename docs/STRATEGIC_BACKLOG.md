@@ -10,6 +10,7 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 
 <!-- AUTO-GENERATED:BACKLOG:START -->
 <!-- AUTO-GENERATED:BACKLOG v1 -->
+- **[unassigned]** work.py has no verb to retire a duplicate awaiting-operator question (`W-4025bfea`)
 - **[fleet]** **`generate` secrets lack a remote-`.env` preservation read — re-apply re-mints a stable-forever key** (found live authoring the Zitadel deploy plan, 2026-08-28, `docs/development/plans/archived/20... (`W-023bdd59`)
 - **[fleet]** `fabrik apply` provisions a second flywheel database nothing reads (2026-09-03, owner: fleet) (`W-1f6fac5a`)
 - **[fleet]** .fabrik/state/<id>.json has no durable record of registrar FAILURES (review finding 2026-09-01) (`W-2013a22d`)

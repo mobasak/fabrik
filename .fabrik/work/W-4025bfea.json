@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-25T10:09:25.857023Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4025bfea",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-09-24-work-tracking-design.md"
+  },
+  "next": "drop, done and claim all refuse an awaiting-operator item, so a question re-asked in new words (W-e0e161b4 duplicated W-f9e2e6ec, 2026-09-25) can only be closed with answer, whose note is meant to hold the operator's words. Add a duplicate path, e.g. drop --duplicate-of <id> allowed on awaiting items, merging msg_digests into the kept item.",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "work.py has no verb to retire a duplicate awaiting-operator question"
+}
