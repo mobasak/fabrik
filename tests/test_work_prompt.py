@@ -172,16 +172,75 @@ def test_another_sessions_claim_is_on_its_on_it_line_never_a_your_claim_line(
     assert work.prompt_block(repo, "S1").splitlines()[0].startswith(f"work: your claim — {a}: ")
 
 
-def test_an_on_it_line_over_line_max_is_clipped(tmp_path, env, monkeypatch):
+def test_an_on_it_line_over_line_max_shows_whole_ids_and_says_how_many_more(
+    tmp_path, env, monkeypatch
+):
     monkeypatch.setenv("CLAUDE_AGENT", "infra")
     repo = _repo(tmp_path, env)
     work = _work_module()
-    ids = [_make(work, repo, f"t{i}") for i in range(40)]
+    ids = sorted(_make(work, repo, f"t{i}") for i in range(40))
     for item_id in ids:
         _claim(work, repo, item_id, "sess-many", agent="fleet")
     (line,) = work.prompt_block(repo, "me").splitlines()
-    assert len(line) == work.LINE_MAX and line.endswith("…"), line
-    assert line.startswith(f"work: on it: sess-man (fleet) — {sorted(ids)[0]}, "), line
+    assert len(line) <= work.LINE_MAX, line
+    head = "work: on it: sess-man (fleet) — "
+    assert line.startswith(head), line
+    listed, _, more = line[len(head) :].rpartition(" … and ")
+    shown = listed.split(", ")
+    assert shown == ids[: len(shown)], line  # every shown id whole, in order
+    assert more.endswith(" more") and len(shown) + int(more.removesuffix(" more")) == 40, line
+
+
+def test_an_on_it_line_that_fits_is_unchanged_by_the_fitting(tmp_path, env, monkeypatch):
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")
+    repo = _repo(tmp_path, env)
+    work = _work_module()
+    ids = sorted(_make(work, repo, f"t{i}") for i in range(3))
+    for item_id in ids:
+        _claim(work, repo, item_id, "sess-few", agent="fleet")
+    assert work.prompt_block(repo, "me") == f"work: on it: sess-few (fleet) — {', '.join(ids)}"
+
+
+# ── a live claim on a closed or resolved item prints nowhere (ready's ``(yours)`` rule) ─────
+
+
+def test_a_live_claim_on_a_resolved_or_closed_item_prints_no_claim_line(tmp_path, env, monkeypatch):
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")
+    repo = _repo(tmp_path, env)
+    work = _work_module()
+    done = _make(work, repo, "done one", status="done")
+    marked = _make(work, repo, "marked closed")
+    mine, theirs = _make(work, repo, "mine"), _make(work, repo, "theirs")
+    for item_id in (done, mine):  # done: this session's lease its close failed to end
+        _claim(work, repo, item_id, "S1", agent="infra")
+    _claim(work, repo, theirs, "S2", agent="fleet")
+    _claim(work, repo, marked, "S2", agent="fleet")  # marked: another session's stale lease
+    real_closed = work._closed_ids
+    monkeypatch.setattr(work, "_closed_ids", lambda r: real_closed(r) | {marked})
+    block = work.prompt_block(repo, "S1")
+    assert done not in block and marked not in block, block
+    mine_claim = work._claim_of(repo, mine)
+    # the open items' lines are byte-identical to the unfiltered block's
+    assert block.splitlines() == [
+        f"work: your claim — {mine}: mine (token 1, lease until "
+        f"{work._iso(work._claim_end(mine_claim))})",
+        f"work: on it: S2 (fleet) — {theirs}",
+    ], block
+
+
+# ── a non-string session is compared as a string in both loops ──────────────────────────────
+
+
+def test_a_non_string_claim_session_prints_on_exactly_one_line(tmp_path, env, monkeypatch):
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")
+    repo = _repo(tmp_path, env)
+    work = _work_module()
+    a = _make(work, repo, "alpha")
+    claim = {"agent": "fleet", "session": 42, "at": time.time(), "lease_s": 7200, "token": 1}
+    work._write_claim(repo, a, claim)
+    mine = work.prompt_block(repo, "42").splitlines()
+    assert len(mine) == 1 and mine[0].startswith(f"work: your claim — {a}: alpha "), mine
+    assert work.prompt_block(repo, "S2").splitlines() == [f"work: on it: 42 (fleet) — {a}"]
 
 
 # ── the unchanged inputs ────────────────────────────────────────────────────────────────────
@@ -235,6 +294,35 @@ def test_an_unnamed_window_is_told_so_first_and_a_named_one_on_an_empty_store_ge
         json.dumps({"session_id": "sess-bound", "name": "fleet"}) + "\n", encoding="utf-8"
     )
     assert work.prompt_block(repo, "sess-bound") == ""
+
+
+def test_a_window_bound_to_the_passed_session_is_named_when_the_hook_has_no_session_env(
+    tmp_path, env, monkeypatch
+):
+    """The hook hands prompt_block the payload's session; its process may carry no
+    CLAUDE_CODE_SESSION_ID, so the binding is read for the passed session."""
+    repo = _repo(tmp_path, env)
+    work = _work_module()
+    rows = [
+        {"session_id": "sess-bound", "name": "intel"},
+        {"session_id": "sess-other", "name": "fleet"},
+        {"session_id": "sess-bound", "name": "infra"},  # the LAST row for the session wins
+        {"session_id": "sess-bad", "name": "Not A Name"},
+    ]
+    Path(env["AGENT_IDENTITY_FILE"]).write_text(
+        "".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8"
+    )
+    assert work.prompt_block(repo, "sess-bound") == ""
+    assert work._agent_name(session="sess-bound") == "infra"
+    # unchanged: a caller passing no session, an unbound or badly named one, stays unnamed
+    assert work._agent_name() == ""
+    assert work.prompt_block(repo, "sess-none") == UNNAMED
+    assert work.prompt_block(repo, "sess-bad") == UNNAMED
+    # unchanged: CLAUDE_CODE_SESSION_ID, when set, wins over the passed session
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sess-unbound")
+    assert work.prompt_block(repo, "sess-bound") == UNNAMED
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sess-other")
+    assert work._agent_name(session="sess-bound") == "fleet"
 
 
 def test_a_store_less_repo_stays_empty_even_in_an_unnamed_window(tmp_path, env):
