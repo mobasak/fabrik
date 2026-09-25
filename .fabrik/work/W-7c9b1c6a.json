@@ -1,0 +1,26 @@
+{
+  "block_digest": "b8b320ef4f162d4f632ec417bc594563ee4778b6a0a01c501fb0ba834b0290ef",
+  "blocked_by": [],
+  "created": "2026-09-25T12:31:20.650341Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-7c9b1c6a",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "3042a05f7c618f88b88df9e802814ed9ed0f4acc3dd0ca920a0969d1440ac578"
+  ],
+  "next": "",
+  "note": "if you are 100% sure proceed",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve this design for the single tracker so it can go to planning?",
+  "status": "done",
+  "title": "Do you approve this design for the single tracker so it can go to planning?"
+}
