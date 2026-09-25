@@ -359,24 +359,71 @@ def test_a_failed_duplicate_close_restores_the_kept_item(tmp_path, api, monkeypa
     assert work.prompt_block(repo, "S9").count(a) == 1
 
 
-def test_a_duplicate_already_closed_keeps_the_kept_items_record(tmp_path, api, monkeypatch):
+def _claim_end_fails(work: ModuleType, monkeypatch) -> None:
+    def boom(*_args, **_kwargs):
+        raise OSError("claims dir gone")
+
+    monkeypatch.setattr(work, "_end_claim", boom)  # _close's LAST step, after the item is written
+
+
+def test_a_duplicate_already_closed_keeps_the_kept_items_record(tmp_path, api, monkeypatch, capsys):
     work, env = api
     repo = _store(tmp_path, env)
     a, b = _two_awaiting(work, repo, monkeypatch)
     a_digest = _item(repo, a)["block_digest"]
-
-    def boom(*_args, **_kwargs):
-        raise OSError("claims dir gone")
-
-    monkeypatch.setattr(work, "_end_claim", boom)  # _close's LAST step, after A is written
+    _claim_end_fails(work, monkeypatch)
+    tails: list[tuple] = []
+    real_after = work._after_write
+    monkeypatch.setattr(work, "_after_write", lambda *a_: (tails.append(a_), real_after(*a_)))
     monkeypatch.setenv("CLAUDE_AGENT", "infra")
-    assert work.main(["--repo", str(repo), "drop", a, "--duplicate-of", b]) == 1
+    capsys.readouterr()
+    assert work.main(["--repo", str(repo), "drop", a, "--duplicate-of", b]) == 0
     monkeypatch.delenv("CLAUDE_AGENT")
+    out, err = capsys.readouterr()
+    assert f".fabrik/work/{a}.json" in out
+    assert "claim was not ended" in err and a in err
+    assert tails, "_after_write did not run"
     assert _item(repo, a)["status"] == "dropped"
     kept = _item(repo, b)
     assert a_digest in kept["alt_block_digests"]
     assert a in kept["alt_ids"] and "m1" in kept["msg_digests"]
     assert work.ensure_decision_item(repo, block=BLOCK, msg_digest="m9", session="S1") == b
+
+
+def test_close_linked_reports_a_committed_close_whose_claim_end_failed(
+    tmp_path, api, monkeypatch, capsys
+):
+    work, env = api
+    repo = _store(tmp_path, env)
+    item_id = work.open_linked(repo, kind="mail", link=MAIL, title="subject", session="S1")
+    _claim_end_fails(work, monkeypatch)
+    capsys.readouterr()
+    got = work.close_linked(repo, kind="mail", link=MAIL, status="done", note="acked")
+    err = capsys.readouterr().err
+    assert got == item_id
+    assert _item(repo, item_id)["status"] == "done"
+    warnings = [ln for ln in err.splitlines() if ln.strip()]
+    assert len(warnings) == 1 and "claim was not ended" in warnings[0], err
+    assert item_id in warnings[0] and "not closed" not in err
+
+
+def test_done_succeeds_when_only_the_claim_end_fails(tmp_path, api, monkeypatch, capsys):
+    work, env = api
+    repo = _store(tmp_path, env)
+    item_id = Path(_ok(["add", "--kind", "task", "--title", "t"], env, repo).split()[-1]).stem
+    _ok(["claim", item_id, "--session", "S1"], env, repo)
+    (repo / "w.txt").write_text("w\n", encoding="utf-8")
+    _git(repo, env, "add", "w.txt")
+    _git(repo, env, "commit", "-q", "-m", f"work for {item_id}")
+    sha = _git(repo, env, "rev-parse", "HEAD").strip()
+    _claim_end_fails(work, monkeypatch)
+    capsys.readouterr()
+    rc = work.main(["--repo", str(repo), "done", item_id, "--evidence", sha, "--session", "S1"])
+    out, err = capsys.readouterr()
+    assert rc == 0, err
+    assert f".fabrik/work/{item_id}.json" in out
+    assert _item(repo, item_id)["status"] == "done"
+    assert "claim was not ended" in err and item_id in err
 
 
 def test_close_linked_keeps_going_past_a_failed_item(tmp_path, api, monkeypatch, capsys):

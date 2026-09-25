@@ -2581,9 +2581,12 @@ def _refuse_blocked(repo: Path, item: dict) -> None:
 def _close(
     repo: Path, item: dict, *, session: str, evidence: str = "", note: str = "", decision: str = ""
 ) -> Path:
-    """Close ``item`` (already updated): the marker FIRST, then the item — a failed item write
-    removes the marker and re-raises — and the claim LAST, so a failure never leaves an item closed
-    here while every other tree still lists it, nor a closed marker for an open item."""
+    """Close ``item`` (already updated). The commit is the marker FIRST, then the item — a failed
+    item write removes the marker and re-raises — so a failure never leaves an item closed here
+    while every other tree still lists it, nor a closed marker for an open item. Ending the claim
+    comes AFTER the commit and is best-effort: a failure there is one stderr line and a normal
+    return (the lease expires on its own). So ``_close`` raises ONLY when nothing was committed —
+    every caller may read an exception as "not closed"."""
     _write_marker(repo, item, session=session, evidence=evidence, note=note, decision=decision)
     try:
         path = _write_item(repo, item)
@@ -2591,7 +2594,13 @@ def _close(
         with contextlib.suppress(OSError):
             (_closed_dir(repo) / f"{item['id']}.json").unlink()
         raise
-    _end_claim(repo, str(item["id"]))
+    try:
+        _end_claim(repo, str(item["id"]))
+    except Exception as exc:
+        _warn(
+            f"{item['id']} closed; its claim was not ended — {type(exc).__name__}: {exc}; "
+            "the lease expires on its own"
+        )
     return path
 
 
@@ -2781,9 +2790,9 @@ def _drop_duplicate(repo: Path, args: argparse.Namespace, keep_id: str, why: str
         try:
             path = _close(repo, item, session=session, note=note)
         except BaseException:
-            # all or nothing: keep must not claim a duplicate that is still awaiting — but once
-            # _close has written the duplicate `dropped` (a later step failed), keep's record of
-            # it is the truth and stays
+            # all or nothing: _close raises only when nothing was committed, so the duplicate is
+            # still awaiting and keep must not claim it. The status re-read is a guard: should the
+            # duplicate read `dropped` after all, keep's record of it is the truth and stays
             with contextlib.suppress(Exception):
                 if _read_item(repo, item_id).get("status") != "dropped":
                     _write_item(repo, pre_image)
