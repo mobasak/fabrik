@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — /fabrik-command-improve takes and closes a feedback work item per command queue (2026-09-25)
+- `scripts/command_feedback_report.py` gains `queue_depths()` — every command's unanswered depth from one ledger read and one answered-index read, equal to what `--queue <command>` prints — and `--take <command>`, which opens and claims the command's one `kind: feedback` work item (it says who holds it when another session does, and takes nothing for an empty queue or when the store is unavailable). A successful `--mark-answered` closes the item; the close never changes the mark's result. `/fabrik-command-improve` PHASE 1 runs `--take` and lists every line it prints. Tests: `tests/test_command_feedback_report.py` (plan 2026-09-25-plan-1, T04).
+
 ### Added — work store: mail and feedback items, linked-item API, duplicate-question retirement (2026-09-25)
 - `scripts/work.py` gains the `mail` and `feedback` kinds; `add` refuses them and `next` (they come only from taking an obligation, and a `next` item only from the Stop harvest). Two hook-facing functions, `open_linked` and `close_linked`, take and close an obligation under one store lock and fail open; `close_linked` closes every open item of the link. A hand `done` is refused on mail and feedback items, and drift class 6's evidence arm no longer checks them.
 - `drop <id> --duplicate-of <keep>` retires a duplicate awaiting question — the distributor's verb, or the creator of both items; the kept item absorbs the dropped one's wordings, id and message digests, so a re-ask refreshes it, and its prompt line shows `(also asked as <id>)`. A failed close restores the kept item.

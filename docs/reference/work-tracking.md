@@ -271,5 +271,6 @@ Scripts that declare this document in their `# AFTER-EDIT:` header — editing o
 means updating this page in the same change. This list is generated from those headers
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
+- `scripts/command_feedback_report.py`
 - `scripts/work.py`
 <!-- END related-scripts -->

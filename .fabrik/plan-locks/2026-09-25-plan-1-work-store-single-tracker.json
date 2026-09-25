@@ -43,6 +43,19 @@
       "base_commit": "777c827083878713e16e65e5c89c04b5bff03e30",
       "started_at": "2026-09-25T16:55:00",
       "review": "docs/development/reviews/2026-09-25-plan-1-work-store-single-tracker-T01-review.md"
+    },
+    "T04": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a6ea5628b55c1fed9",
+      "branch": "worktree-agent-a6ea5628b55c1fed9",
+      "base_commit": "73adc7bd5",
+      "review": "docs/development/reviews/2026-09-25-plan-1-work-store-single-tracker-T04-review.md"
+    },
+    "T03": {
+      "state": "in review",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ad783a19129deaad9",
+      "branch": "worktree-agent-ad783a19129deaad9",
+      "base_commit": "73adc7bd5"
     }
   }
 }
