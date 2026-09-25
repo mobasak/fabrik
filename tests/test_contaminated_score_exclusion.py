@@ -40,7 +40,10 @@ INSERT INTO subagent_runs (ts, project, agent_id, task_type, model, status, cost
  -- D: foreign, re-scored 1.0 AFTER the batch -> 1.0 either way
  ('2026-08-22 12:00+00','p','D','review','m/x','done',0.01,NULL),
  ('2026-08-28 21:32:22+00','transdoc','D','review','m/x','scored',NULL,4.0),
- ('2026-09-01 10:00+00','p','D','review','m/x','scored',NULL,1.0);
+ ('2026-09-01 10:00+00','p','D','review','m/x','scored',NULL,1.0),
+ -- E: transdoc's run from an EARLIER session (before 21:15) -> foreign to the batch, unscored
+ ('2026-08-25 10:00+00','transdoc','E','review','m/x','done',0.01,NULL),
+ ('2026-08-28 21:32:23+00','transdoc','E','review','m/x','scored',NULL,4.0);
 """
 
 
@@ -89,7 +92,8 @@ def test_the_contamination_batch_is_excluded_from_the_quality_reconcile():
     rows = _run_ranker_query(rank.QUERY)
     assert len(rows) == 1, rows
     task_type, model, n, _cost, avg_quality, _success = rows[0]
-    assert (task_type, model, int(n)) == ("review", "m/x", 4)
-    # A 2.0 (its own earlier verdict) · B unscored · C 4.0 (transdoc's own) · D 1.0 -> 7/3.
-    # With the batch counted it is A 4, B 4, C 4, D 1 -> 3.25.
+    assert (task_type, model, int(n)) == ("review", "m/x", 5)
+    # A 2.0 (its own earlier verdict) · B unscored · C 4.0 (transdoc's own) · D 1.0 · E unscored
+    # -> 7/3. With the batch counted: A 4, B 4, C 4, D 1, E 4 -> 3.4; with the carve-out's 21:15
+    # bound dropped, E keeps 4.0 -> 11/4 (42 real runs are E-shaped).
     assert float(avg_quality) == pytest.approx(7 / 3, abs=1e-6), avg_quality
