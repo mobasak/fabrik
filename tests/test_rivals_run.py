@@ -1665,10 +1665,14 @@ def test_a_tilde_override_expands_against_home(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("SUBAGENTS_ENV_FILE", "~/keys.env")
     monkeypatch.delenv("EXA_API_KEY", raising=False)
-    assert rr._shared_env_path() == home / "keys.env"
-    rr.load_env(str(tmp_path / "repo"))
-    assert os.environ["EXA_API_KEY"] == "from-tilde"
-    os.environ.pop("EXA_API_KEY", None)
+    # try/finally, not a trailing pop: delenv records nothing when the key is absent, so a failed
+    # assert would leave load_env's write set for the rest of the session (the env_tree class).
+    try:
+        assert rr._shared_env_path() == home / "keys.env"
+        rr.load_env(str(tmp_path / "repo"))
+        assert os.environ["EXA_API_KEY"] == "from-tilde"
+    finally:
+        os.environ.pop("EXA_API_KEY", None)
 
 
 def test_main_loads_env_from_the_calling_repo_never_the_cwd(tmp_path, monkeypatch, capsys):
