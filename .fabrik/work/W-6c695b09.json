@@ -1,0 +1,26 @@
+{
+  "block_digest": "9d9c9a7d9765cc7d3e2b88e337e42d16762cb891152a46485df1d382b453c507",
+  "blocked_by": [],
+  "created": "2026-09-25T11:05:08.200720Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-6c695b09",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "19cfd4b5dc5a37f235a400fff95039d14d709c8954ef39a0f19eae9b13d1ef06"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "Should I start the loop program's next step now: measuring how many real defects each review stage caught across the two measured chains, and proposing which stages to merge or drop (W-992909ca)?",
+  "status": "awaiting-operator",
+  "title": "Should I start the loop program's next step now: measuring how many real defects each review stage caught across the two measured chains, and proposing which stages to merge or drop (W-992909ca)?"
+}

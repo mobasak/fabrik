@@ -1,0 +1,26 @@
+{
+  "block_digest": "0881e5e435644fd8e14bd948e169d2f4612273252b63467697aa74f82538f87b",
+  "blocked_by": [],
+  "created": "2026-09-25T11:07:20.502165Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "underivable",
+  "id": "W-f8a26582",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "ee4d1c8631f6dd5d6b993506709fc1b27b91b8792f28575c3343f5d0ffc7dd11"
+  ],
+  "next": "",
+  "note": "yes it must of course",
+  "owner": "",
+  "priority": 2,
+  "question": "Should the work store become the one place every open obligation shows up (mail, command feedback queues, every NEXT line, and who is working on what), built as a spec → plan → execution chain?",
+  "status": "done",
+  "title": "Should the work store become the one place every open obligation shows up (mail, command feedback queues, every NEXT line, and who is working on what), built as a spec → plan → execution chain?"
+}
