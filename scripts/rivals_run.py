@@ -518,15 +518,22 @@ def _make_llm(model: str):
                     model,
                     "--output-format",
                     "json",
+                    # No tools: every prompt here is text-in/JSON-out. With tools on, the model
+                    # acted on the session-start self-watch order, armed a persistent `Monitor`
+                    # and re-armed it every 5 min until the timeout killed the call — 10+ min for
+                    # an answer written in the first minute (W-dceb9014, mail 01M35Q2ZZ).
+                    "--tools",
+                    "",
+                    "--strict-mcp-config",
                     cwd=str(neutral),
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     # T13.5: a full-turn `claude -p` whose output is parsed as JSON — any hook
                     # banner on that stream is both unread and a parse hazard. The two advisory
-                    # hooks stand down on this. (The LARGER fix the mail names — routing this
-                    # spawn through llm-dispatch with its bounded flags — is intel's rivals beat
-                    # and is filed there, not done here.)
-                    env={**os.environ, "FABRIK_HEADLESS": "1"},
+                    # hooks stand down on FABRIK_HEADLESS; the mesh's self-watch arm order stands
+                    # down only on CLAUDE_MESH_HEADLESS, and without it the order leaks into the
+                    # answer text even with tools off.
+                    env={**os.environ, "FABRIK_HEADLESS": "1", "CLAUDE_MESH_HEADLESS": "1"},
                 )
                 try:
                     out, err = await asyncio.wait_for(proc.communicate(), timeout=_LLM_TIMEOUT_S)

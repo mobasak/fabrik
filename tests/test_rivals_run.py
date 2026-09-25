@@ -344,6 +344,33 @@ def test_the_llm_actually_invokes_claude_p_with_the_expected_argv(monkeypatch):
     assert seen["cwd"] and "_neutral_cwd" in str(seen["cwd"]), "must not run in the repo tree"
 
 
+def test_the_claude_p_leg_runs_tool_less_and_mesh_headless(monkeypatch):
+    """W-dceb9014: with tools on, extract/shortlist calls armed a persistent `Monitor` (the
+    session-start self-watch order) and re-armed it until the 900 s kill, long after the JSON
+    answer was written, so briefs shipped zero cards. The spawn must offer no tools and must
+    carry the mesh's own headless signal, which is what keeps that order out of the prompt."""
+    seen: dict = {}
+    real_exec = asyncio.create_subprocess_exec
+
+    async def _capture(*argv, **kw):
+        seen["argv"], seen["env"] = list(argv), kw.get("env") or {}
+        return await real_exec(
+            sys.executable,
+            "-c",
+            'print(\'{"is_error": false, "result": "OK"}\')',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+    monkeypatch.setattr(rr.asyncio, "create_subprocess_exec", _capture)
+    assert asyncio.run(rr._make_llm("sonnet")("prompt")) == "OK"
+    argv, env = seen["argv"], seen["env"]
+    assert "--tools" in argv and argv[argv.index("--tools") + 1] == "", argv
+    assert "--strict-mcp-config" in argv, argv
+    assert env.get("CLAUDE_MESH_HEADLESS") == "1", "the self-watch arm order would reach the model"
+    assert env.get("FABRIK_HEADLESS") == "1"
+
+
 def test_claude_p_runs_from_a_neutral_cwd():
     """`claude -p` loads the CLAUDE.md of whatever tree it runs in — 33,953 cache-creation tokens
     from /opt/fabrik vs 11,611 from an empty dir, and an agent contract is not context for

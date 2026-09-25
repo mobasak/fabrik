@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — rivals briefs no longer ship zero cards: the `claude -p` leg runs without tools (2026-09-25)
+- `rivals_run.py` spawns `claude -p` with `--tools "" --strict-mcp-config` and `CLAUDE_MESH_HEADLESS=1`. Extract and shortlist calls had been arming the session self-watch `Monitor` and re-arming it until the 900 s kill, long after writing their answer; the replayed 80k-character prompt now returns in 15 s (W-dceb9014).
+
 ### Fixed — the cost sidecar is fsynced before it replaces the old one (2026-09-25)
 - `claude_p_cost.py --refresh` now flushes and fsyncs its temp file before `os.replace`, as the usage-store write beside it already did — a power loss could otherwise leave a zero-length `claude_p_cost.json` (W-bed507e3).
 
