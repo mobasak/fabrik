@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `fabrik fix` and `fabrik validate` use the project's own declared type, not python-api (2026-09-26)
+- Both commands now take the type from the project's `project.yaml` when `--type` is absent and refuse (exit 1, naming `--type`) when there is none; before, both defaulted to `python-api`, so every other type was checked and repaired against the python-api file list (`src/fabrik/scaffold.py::_declared_project_type`, `fix_project`; `src/fabrik/cli.py`). `python-api-gpu` is repaired from the python-api templates; a missing type-specific file with no template is reported for every type, in the dry run too, never stubbed, and `fabrik fix` exits 1 while one remains. `validate_project` holds a type with no required-file list (wordpress) to the shared files instead of python-api's, and `deploy_router.get_project_type` refuses a non-string type instead of raising `TypeError`. Mail 01M335ES, W-526528b6.
+
 ### Fixed — The scaffold hub guard can no longer be switched off by pointing FABRIK_ROOT at a worktree (2026-09-26)
 - `src/fabrik/scaffold.py::_assert_not_hub` now also refuses any target that is, or sits inside, a directory carrying `src/fabrik/scaffold.py` — a hub checkout, clone or worktree at any revision — instead of trusting the env-configurable `FABRIK_ROOT` alone. On 2026-09-24 that override let `fix_project(/opt/fabrik)` rewrite the shared checkout during a test run. W-508064a8.
 

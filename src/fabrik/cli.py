@@ -1970,16 +1970,22 @@ def validate_deploy_cmd(project_path: str, project_type: str):
     "--type",
     "project_type",
     type=click.Choice(sorted(SCAFFOLD_TYPES)),
-    default="python-api",
-    show_default=True,
-    help="Project type to validate against",
+    default=None,
+    help="Project type to validate against (default: the type in the project's project.yaml)",
 )
-def validate(project_path: str, project_type: str):
+def validate(project_path: str, project_type: str | None):
     """Validate project structure against standards."""
-    from fabrik.scaffold import validate_project
+    from fabrik.scaffold import _declared_project_type, validate_project
 
     path = Path(project_path).resolve()
     click.echo(f"Validating: {path.name}")
+    type_flag = f" --type {project_type}" if project_type else ""
+    if project_type is None:
+        try:
+            project_type = _declared_project_type(path, "validate")
+        except ValueError as exc:
+            click.echo(f"  ❌ {exc}", err=True)
+            raise SystemExit(1) from exc
 
     present, missing = validate_project(path, project_type)
 
@@ -1990,7 +1996,7 @@ def validate(project_path: str, project_type: str):
 
     if missing:
         click.echo(
-            f"\n{len(missing)} files missing for type '{project_type}'. Run: fabrik fix {project_path} --type {project_type}"
+            f"\n{len(missing)} files missing for type '{project_type}'. Run: fabrik fix {project_path}{type_flag}"
         )
         raise SystemExit(1)
     else:
@@ -2004,11 +2010,10 @@ def validate(project_path: str, project_type: str):
     "--type",
     "project_type",
     type=click.Choice(sorted(SCAFFOLD_TYPES)),
-    default="python-api",
-    show_default=True,
-    help="Project type to fix against",
+    default=None,
+    help="Project type to fix against (default: the type in the project's project.yaml)",
 )
-def fix(project_path: str, dry_run: bool, project_type: str):
+def fix(project_path: str, dry_run: bool, project_type: str | None):
     """Add missing required files to a project.
 
     Example:
@@ -2024,9 +2029,15 @@ def fix(project_path: str, dry_run: bool, project_type: str):
     else:
         click.echo(f"Fixing: {path.name}")
 
-    added = fix_project(path, dry_run=dry_run, project_type=project_type)
+    try:
+        added = fix_project(path, dry_run=dry_run, project_type=project_type)
+    except ValueError as exc:
+        click.echo(f"  ❌ {exc}", err=True)
+        raise SystemExit(1) from exc
 
-    if not added:
+    unsupported = [f for f in added if f.startswith("[unsupported-fix] ")]
+    added = [f for f in added if f not in unsupported]
+    if not added and not unsupported:
         click.echo("  ✅ No missing files - project structure is complete!")
         return
 
@@ -2035,11 +2046,18 @@ def fix(project_path: str, dry_run: bool, project_type: str):
             click.echo(f"  📄 {f}")
         else:
             click.echo(f"  ✅ Added: {f}")
+    for f in unsupported:
+        path_str = f.removeprefix("[unsupported-fix] ")
+        click.echo(f"  ⚠️  Missing, not repairable by fix (re-run the scaffolder): {path_str}")
 
-    if dry_run:
+    if added and dry_run:
         click.echo(f"\nRun without --dry-run to add {len(added)} files")
-    else:
+    elif added:
         click.echo(f"\n✅ Added {len(added)} files")
+    if unsupported:
+        # The project is still incomplete after the repair: exit 1, as `fabrik validate` does.
+        click.echo(f"❌ {len(unsupported)} required file(s) stay missing", err=True)
+        raise SystemExit(1)
 
 
 @cli.command()

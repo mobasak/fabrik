@@ -79,7 +79,7 @@ def get_project_type(project_dir: Path) -> str:
     project_type = meta.get("type")
     if not project_type:
         raise RuntimeError(f"project.yaml in {project_dir} is missing a 'type' field.")
-    if project_type not in SCAFFOLD_TYPES:
+    if not isinstance(project_type, str) or project_type not in SCAFFOLD_TYPES:
         raise RuntimeError(
             f"Unknown project type '{project_type}' in {project_dir}/project.yaml. "
             f"Valid types: {', '.join(sorted(SCAFFOLD_TYPES))}"

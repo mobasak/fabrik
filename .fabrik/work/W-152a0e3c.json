@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-25T22:08:22.651793Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-152a0e3c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Pick one tense for dry-run previews in scaffold.fix_project and align the backfill test",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "fix_project dry-run entries mix tenses with the live run ('opencode.json (refresh from master)', 'project.yaml (backfill has_user_guide: …)') and tests/test_backfill_has_user_guide.py:123 pins the dry-run wording — found by the W-526528b6 review (A-core-H1..H3)"
+}

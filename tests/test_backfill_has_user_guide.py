@@ -10,6 +10,7 @@ Covers:
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 from fabrik.scaffold import GUIDE_ENABLED_TYPES, fix_project
@@ -49,15 +50,30 @@ class TestBackfillMissingKey:
         assert data["has_user_guide"] is False
         assert any("backfilled has_user_guide: false" in item for item in added)
 
-    def test_missing_type_defaults_to_python_api(self, tmp_path):
-        """Projects without a type field default to python-api (non-guide)."""
+    def test_missing_type_takes_the_explicit_type(self, tmp_path):
+        """A project.yaml without a type is fixed only with an explicit type, which the backfill uses.
+
+        Without one, fix_project refuses rather than assume python-api (W-526528b6).
+        """
         project_dir = tmp_path / "no-type"
         _make_project_yaml(project_dir, {"name": "no-type"})
 
-        fix_project(project_dir, dry_run=False)
+        with pytest.raises(ValueError, match="--type"):
+            fix_project(project_dir, dry_run=False)
+        fix_project(project_dir, dry_run=False, project_type="static-site")
 
         data = yaml.safe_load((project_dir / "project.yaml").read_text())
-        assert data["has_user_guide"] is False
+        assert data["has_user_guide"] is True
+
+    def test_explicit_type_wins_over_the_declared_one(self, tmp_path):
+        """The backfill follows the type the run repaired against, not a disagreeing project.yaml."""
+        project_dir = tmp_path / "retyped"
+        _make_project_yaml(project_dir, {"name": "retyped", "type": "python-api"})
+
+        fix_project(project_dir, dry_run=False, project_type="chrome-extension")
+
+        data = yaml.safe_load((project_dir / "project.yaml").read_text())
+        assert data["has_user_guide"] is True
 
 
 class TestPreserveExistingKey:

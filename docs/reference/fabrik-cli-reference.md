@@ -78,19 +78,21 @@ fabrik validate-deploy /opt/my-api --type python-api
 
 ### `fabrik validate` — standards compliance
 
-**Purpose:** Verify an existing project conforms to current Fabrik scaffold standards (required files, structure, conventions).
+**Purpose:** Verify an existing project conforms to current Fabrik scaffold standards (required files, structure, conventions). It checks against the `type` in the project's `project.yaml`; `--type <type>` overrides it, and with neither (no `project.yaml`, or a missing or unknown type) it refuses with exit 1. Exits 1 when a required file is missing.
 
 ```bash
-fabrik validate /opt/my-api --type python-api
+fabrik validate /opt/my-api
+fabrik validate /opt/legacy-repo --type node-api
 ```
 
 ### `fabrik fix` — add missing required files
 
-**Purpose:** Complementary to `validate`. Adds the missing required files (governance, `.gitignore` entries, etc.) without touching content. Always preview with `--dry-run` first.
+**Purpose:** Complementary to `validate`. Adds the missing required files (governance, `.gitignore` entries, etc.) without touching content. Always preview with `--dry-run` first. It repairs against the same type `validate` resolves (the `project.yaml` `type`, or `--type <type>`, which also decides the `has_user_guide` backfill), and refuses with exit 1 when there is none rather than assume `python-api`. A missing type-specific file it has no template for (a `Dockerfile`, a `package.json`, a `server/` file) is never stubbed: it is printed as `Missing, not repairable by fix (re-run the scaffolder)`, and the run — the `--dry-run` preview too — exits 1 because the project stays incomplete.
 
 ```bash
 fabrik fix /opt/my-api --dry-run
 fabrik fix /opt/my-api
+fabrik fix /opt/legacy-repo --type node-api   # no project.yaml type
 ```
 
 ---

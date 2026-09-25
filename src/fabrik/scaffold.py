@@ -163,19 +163,6 @@ SCAFFOLD_TYPES = frozenset(
 # Scaffold types that produce user-facing documentation (activates user-guide gate)
 GUIDE_ENABLED_TYPES = frozenset({"chrome-extension", "static-site"})
 
-# Types whose type-specific missing files cannot be safely reconstructed
-# by fix_project (they require the full scaffolder to be run correctly).
-UNSUPPORTED_FIX_TYPES = frozenset(
-    {
-        "file-api",
-        "file-worker",
-        "wordpress",
-        "docusaurus",
-        "chrome-extension",
-        "mobile-app",
-        "desktop-app",
-    }
-)
 
 # Fail-closed DB guard emitted into every scaffolded tests/conftest.py. Destructive
 # tests (DROP SCHEMA/TABLE, TRUNCATE, migration re-apply) MUST call require_throwaway()
@@ -404,6 +391,9 @@ _PYTHON_API_TEMPLATE_MAP = {
     "python/pyproject.toml.template": "pyproject.toml",
 }
 
+# Types that share the python-api file layout, so fix_project repairs them from its template map.
+_PYTHON_API_LAYOUT_TYPES = frozenset({"python-api", "python-api-gpu"})
+
 _SHARED_REQUIRED_FILES = [
     "INDEX.md",
     "README.md",
@@ -416,6 +406,7 @@ _SHARED_REQUIRED_FILES = [
 
 TYPE_REQUIRED_FILES: dict[str, list[str]] = {
     "python-api": _SHARED_REQUIRED_FILES + ["Dockerfile", "compose.yaml"],
+    "python-api-gpu": _SHARED_REQUIRED_FILES + ["Dockerfile", "compose.yaml"],
     "saas-skeleton": _SHARED_REQUIRED_FILES
     + ["compose.yaml", "server/requirements.txt", "server/Dockerfile", "server/db/schema.sql"],
     "static-site": _SHARED_REQUIRED_FILES + ["compose.yaml"],
@@ -6929,7 +6920,9 @@ def validate_project(
         valid = ", ".join(sorted(SCAFFOLD_TYPES))
         raise ValueError(f"Invalid project type: '{project_type}'. Valid types: {valid}")
 
-    required = TYPE_REQUIRED_FILES.get(project_type, TYPE_REQUIRED_FILES["python-api"])
+    # A type with no entry (wordpress — refused by the scaffolder) is held to the shared files only:
+    # borrowing python-api's list would demand files that type never has.
+    required = TYPE_REQUIRED_FILES.get(project_type, _SHARED_REQUIRED_FILES)
     present, missing = [], []
     for f in required:
         if (project_path / f).exists():
@@ -6979,16 +6972,40 @@ def _patch_droid_block(content: str, canonical: str) -> str:
     )
 
 
+def _declared_project_type(project_path: Path, verb: str) -> str:
+    """The type in the project's project.yaml; a ValueError naming ``--type`` when it has none."""
+    from fabrik.deploy_router import get_project_type
+
+    if not (project_path / "project.yaml").is_file():
+        raise ValueError(
+            f"No project.yaml in {project_path}, so its type is unknown. "
+            f"Pass it explicitly: fabrik {verb} {project_path} --type <type>."
+        )
+    try:
+        return get_project_type(project_path)
+    except RuntimeError as exc:
+        raise ValueError(
+            f"{exc} Pass the type explicitly: fabrik {verb} {project_path} --type <type>."
+        ) from exc
+
+
 def fix_project(
     project_path: Path,
     dry_run: bool = False,
-    project_type: str = "python-api",
+    project_type: str | None = None,
 ) -> list[str]:
-    """Add missing required files to a project. Returns list of files added."""
+    """Add missing required files to a project. Returns list of files added.
+
+    ``project_type`` defaults to the type the project declares in its ``project.yaml``; with neither
+    that nor an explicit type it refuses. A default of ``python-api`` used to seed every other type's
+    repair from the python-api map (W-526528b6, mail 01M335ES).
+    """
     from datetime import date
 
     project_path = Path(project_path)
     _assert_not_hub(project_path)
+    if project_type is None:
+        project_type = _declared_project_type(project_path, "fix")
     name = project_path.name
     today = date.today().isoformat()
     added: list[str] = []
@@ -6996,7 +7013,7 @@ def fix_project(
     _, missing = validate_project(project_path, project_type=project_type)
 
     # Build the combined template map for this project type
-    type_template_map = _PYTHON_API_TEMPLATE_MAP if project_type == "python-api" else {}
+    type_template_map = _PYTHON_API_TEMPLATE_MAP if project_type in _PYTHON_API_LAYOUT_TYPES else {}
     combined_template_map = {**SHARED_TEMPLATE_MAP, **type_template_map}
 
     # Shared required file set for fast membership test
@@ -7006,6 +7023,25 @@ def fix_project(
     for f in missing:
         dest_path = project_path / f
 
+        # Check if we have a template
+        template_name = None
+        for src, dest in combined_template_map.items():
+            if dest == f:
+                template_name = src
+                break
+        template_path = TEMPLATE_DIR / template_name if template_name else None
+        if template_path is not None and not template_path.exists():
+            template_path = None
+
+        if template_path is None and f not in shared_required_set:
+            # A type-specific artifact with no template for this type (a Dockerfile, a
+            # package.json, a server/ file): fix_project cannot reconstruct it. Report it
+            # as missing but never write a placeholder that would silently mask a broken
+            # scaffold — a markdown stub in a code file is the same mis-seeding as the wrong
+            # type's template.
+            added.append(f"[unsupported-fix] {f}")
+            continue
+
         if dry_run:
             added.append(f)
             continue
@@ -7013,15 +7049,8 @@ def fix_project(
         # Create parent directories
         dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Check if we have a template
-        template_name = None
-        for src, dest in combined_template_map.items():
-            if dest == f:
-                template_name = src
-                break
-
-        if template_name and (TEMPLATE_DIR / template_name).exists():
-            content = (TEMPLATE_DIR / template_name).read_text()
+        if template_path is not None:
+            content = template_path.read_text()
             for old, new in [
                 ("[Project Name]", name),
                 ("<project>", name),
@@ -7032,12 +7061,6 @@ def fix_project(
             ]:
                 content = content.replace(old, new)
             dest_path.write_text(content)
-        elif project_type in UNSUPPORTED_FIX_TYPES and f not in shared_required_set:
-            # Type-specific artifact that fix_project cannot safely reconstruct.
-            # Report as missing (return value) but do NOT write a placeholder that
-            # would silently mask a broken scaffold.
-            added.append(f"[unsupported-fix] {f}")
-            continue
         else:
             # Create minimal placeholder for shared docs
             dest_path.write_text(f"# {f}\n\n**Last Updated:** {today}\n\nTODO: Add content\n")
@@ -7262,9 +7285,9 @@ def fix_project(
     project_yaml_path = project_path / "project.yaml"
     if project_yaml_path.exists():
         project_data = yaml.safe_load(project_yaml_path.read_text()) or {}
-        if "has_user_guide" not in project_data:
-            proj_type = project_data.get("type", "python-api")
-            derived_value = proj_type in GUIDE_ENABLED_TYPES
+        if isinstance(project_data, dict) and "has_user_guide" not in project_data:
+            # The type this run repaired against — an explicit --type wins over project.yaml.
+            derived_value = project_type in GUIDE_ENABLED_TYPES
             if dry_run:
                 added.append(
                     f"project.yaml (backfill has_user_guide: {str(derived_value).lower()})"

@@ -193,7 +193,7 @@ class TestFixProjectDroidStructure:
         (project_dir / ".git").mkdir()  # Make it look like a git repo
 
         # Run fix_project
-        _ = fix_project(project_dir, dry_run=False)
+        _ = fix_project(project_dir, project_type="python-api", dry_run=False)
 
         # Verify .droid/ structure
         assert (project_dir / ".droid" / ".gitignore").exists()
@@ -218,7 +218,7 @@ class TestFixProjectDroidStructure:
         # Write old content
         (droid_dir / ".gitignore").write_text("# Old content\n*\n")
 
-        _ = fix_project(project_dir, dry_run=False)
+        _ = fix_project(project_dir, project_type="python-api", dry_run=False)
 
         # Verify content was updated
         droid_gitignore = (droid_dir / ".gitignore").read_text()
@@ -232,7 +232,7 @@ class TestFixProjectDroidStructure:
         project_dir.mkdir()
         (project_dir / ".git").mkdir()
 
-        added = fix_project(project_dir, dry_run=True)
+        added = fix_project(project_dir, project_type="python-api", dry_run=True)
 
         assert any(".droid/.gitignore" in item for item in added)
         assert any("review-context/.gitkeep" in item for item in added)
@@ -256,7 +256,7 @@ class TestFixProjectRootGitignorePatch:
             ".env\n.droid/kilo_usage.jsonl\n.droid/reviews/\n*.log\n"
         )
 
-        added = fix_project(project_dir, dry_run=False)
+        added = fix_project(project_dir, project_type="python-api", dry_run=False)
 
         assert ".gitignore (.droid/ block updated)" in added
         content = (project_dir / ".gitignore").read_text()
@@ -273,7 +273,7 @@ class TestFixProjectRootGitignorePatch:
         # Write .gitignore with no .droid/ entries
         (project_dir / ".gitignore").write_text(".env\nnode_modules/\n*.log\n")
 
-        added = fix_project(project_dir, dry_run=False)
+        added = fix_project(project_dir, project_type="python-api", dry_run=False)
 
         assert ".gitignore (.droid/ block updated)" in added
         content = (project_dir / ".gitignore").read_text()
@@ -288,7 +288,7 @@ class TestFixProjectRootGitignorePatch:
         # Write .gitignore with current block
         (project_dir / ".gitignore").write_text(".env\n" + _DROID_GITIGNORE_BLOCK + "*.log\n")
 
-        added = fix_project(project_dir, dry_run=False)
+        added = fix_project(project_dir, project_type="python-api", dry_run=False)
 
         assert ".gitignore (.droid/ block updated)" not in added
 
@@ -301,7 +301,7 @@ class TestFixProjectRootGitignorePatch:
         original_content = ".env\n.droid/old_entry\n*.log\n"
         (project_dir / ".gitignore").write_text(original_content)
 
-        added = fix_project(project_dir, dry_run=True)
+        added = fix_project(project_dir, project_type="python-api", dry_run=True)
 
         assert ".gitignore (.droid/ block updated)" in added
         # Verify file wasn't actually modified
@@ -1098,7 +1098,7 @@ class TestWorkflowsPropagation:
         project_dir.mkdir()
         (project_dir / ".git").mkdir()
 
-        _ = fix_project(project_dir, dry_run=False)
+        _ = fix_project(project_dir, project_type="python-api", dry_run=False)
 
         workflows_dir = project_dir / ".windsurf" / "workflows"
         assert workflows_dir.exists(), "fix_project() did not create .windsurf/workflows/"
