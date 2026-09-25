@@ -23,7 +23,7 @@ Surface: `scripts/work.py`, `scripts/thread_anchor.py`, `scripts/mail.py`, `scri
 - Operator: open any session → the prompt shows every awaiting question, the mail and feedback-queue lines, and every live claim in the repo with its session and agent (1).
 - Worker, on store work: the prompt shows its own claims (1) → work, ending the turn with `NEXT: <item id>`, which claims it (2) → `done --evidence <sha>` (3).
 - Worker, on mail: `mail.py claim <id>` — the mail item is created and claimed (1) → work → `mail.py ack <id>` — the item closes (2).
-- Distributor: `work.py status` shows unowned items, live claims per session, and `next` items unchanged for 7 days (1) → `assign` (2).
+- Distributor: `work.py status` shows unowned items, live claims per session, and `next` items about to be closed as idle (1) → `assign` (2).
 
 Every item of § The delta traces to one of these; none is untraceable.
 
@@ -95,9 +95,11 @@ The reader fails open (any error → no line) and is shown at the head of `ready
 
 At the Stop harvest (`thread_anchor.py harvest`, then `work.on_harvest` under the store lock), the turn's last `NEXT:` line is read in this order, and the first rule that matches decides:
 1. **`none — terminal`, an operator decision, or `BLOCKED:`** → no claim and no thread item, whatever the line names (D-392: nothing forced).
-2. **It names an item id** → `_set_next` as today, and the session claims the first id in the line that names an open, unblocked item no other live session holds (a new claim, or a renewal of its own). An item that is awaiting, closed, blocked or held by another live session is left alone; if no id qualifies, nothing is claimed. A claim that fails for any reason fails open, like the rest of `on_harvest`.
-3. **Free text the register accepts** (`_is_anchor`) → the store holds ONE open `kind: next` item per session, `links.session` the session id: created on the session's first such NEXT, its `next` replaced by each later one. Its `creator` is the session; its owner is the session's agent name, or empty (unassigned) when the window is unnamed — owners are always agent names. It closes as `done` when the same session's NEXT falls under rules 1 or 2, and as `dropped` with the note `no NEXT from its session in 7 days` when any Stop harvest in the repo finds it unchanged for 7 days. The register is not touched by any of this (D-392).
+2. **It names an item id** → the first id in the line that names an open, unblocked item no other live session holds is the target: its `next` is updated and the session claims it (a new claim, or a renewal of its own). No other item changes — this replaces today's `_set_next`, which updates the first id named whatever its state. If no id qualifies, nothing changes. A claim that fails for any reason fails open, like the rest of `on_harvest`.
+3. **Free text the register accepts** (`_is_anchor`) → the session's `next` item carries it (below).
 4. **Anything else** → nothing.
+
+**The session's `next` item, as one rule.** While a session's last NEXT is free text the register accepts, the session has exactly one open `kind: next` item (`links.session` the session id) whose `next` and `next_at` are that text and the time it was set. When the session's NEXT falls under rules 1 or 2, the item closes as `dropped` with the note `superseded`; a later rule-3 NEXT opens a new one. Any Stop harvest in the repo closes as `dropped`, with the note `idle 7 days`, every `next` item whose `next_at` is more than 7 days old. Its `creator` is the session; its owner is the session's agent name, or empty (unassigned) when the window is unnamed — owners are always agent names. `dropped` is never read by drift class 6, which checks only `done` items. The register is not touched by any of this (D-392).
 
 Measured volume (`next_census.py`, 2026-09-25, last 7 days): **17 sessions fleet-wide, 3 on the hub,** ended at least one turn on a free-text NEXT the register accepts — so at most that many open `next` items a week, before the 7-day close.
 
@@ -105,11 +107,11 @@ Measured volume (`next_census.py`, 2026-09-25, last 7 days): **17 sessions fleet
 
 - The prompt block adds every live claim in the repo, one line per claiming session: `on it: <session short id> (<agent or "unnamed">) — W-xxxx, W-yyyy`.
 - `work.py ready` defaults to: the D1 lines; this session's claims; items owned by this agent; awaiting items; then the top 10 others by priority. `ready --all` prints every open item, as today. `next` is unchanged. The field's lesson, quoted: *"The goal is keeping bd ready crisp and actionable."* (Ian Bull on Beads, fetched 2026-09-25).
-- `work.py status` adds three lines for the distributor: unowned open items (count); live claims per session, flagging any session holding more than 5; `next` items unchanged for 7 days (the ones the next Stop will close).
+- `work.py status` adds three lines for the distributor: unowned open items (count); live claims per session, flagging any session holding more than 5; `next` items whose `next_at` is more than 6 days old (the ones the next Stop harvest will close within a day).
 
 ### D5. A duplicate question can be retired
 
-`work.py drop <id> --duplicate-of <keep>` is allowed on an `awaiting-operator` `<id>` when `<keep>` is an open awaiting item, and only to the distributor or to a caller whose agent name (or, unnamed, session id) equals the `creator` field of both items — in an unnamed window that is the session that asked both. `<keep>` records `<id>`'s `block_digest` in a new list `alt_block_digests`, and the harvest's open-item match reads that list too — so a later message that re-asks either wording refreshes `<keep>` instead of creating a third item. `<id>` closes as `dropped` with the note `duplicate of <keep>`, and `<keep>`'s question line in the prompt adds `(also asked as <id>)`.
+`work.py drop <id> --duplicate-of <keep>` is allowed on an `awaiting-operator` `<id>` when `<keep>` is an open awaiting item, and only to the distributor or to a caller whose agent name or session id equals the `creator` field of each item (a rescued item's creator is its session id, so a named asker matches it from the asking session). `<keep>` records `<id>`'s `block_digest` in a new list `alt_block_digests`, and the harvest's open-item match reads that list too — so a later message that re-asks either wording refreshes `<keep>` instead of creating a third item. `<id>` closes as `dropped` with the note `duplicate of <keep>`, and `<keep>`'s question line in the prompt adds `(also asked as <id>)`.
 
 ### D6. An unnamed window is told so
 
@@ -121,7 +123,7 @@ Every copy of the work-items paragraph — one in `CLAUDE.md`, two in `templates
 
 ## Contract deltas
 
-None to `docs/data-contract.md` or `docs/ui-design.md` (the hub has neither). Item schema: two new `kind` values (`mail`, `feedback`), three new link keys (`links.mail`, `links.command`, `links.session`), and `alt_block_digests` on awaiting items. Drift class 6 exempts the two new kinds. CLI: `drop --duplicate-of`, `ready --all` (the old default).
+None to `docs/data-contract.md` or `docs/ui-design.md` (the hub has neither). Item schema: two new `kind` values (`mail`, `feedback`), three new link keys (`links.mail`, `links.command`, `links.session`), a `next_at` time on `next` items, and `alt_block_digests` on awaiting items. Rule 2 changes what a NEXT naming an item updates (the qualifying item only). Drift class 6 exempts the two new kinds. CLI: `drop --duplicate-of`, `ready --all` (the old default).
 
 ## Rejected alternatives
 
@@ -136,7 +138,7 @@ None to `docs/data-contract.md` or `docs/ui-design.md` (the hub has neither). It
 ## Lifecycle
 
 - **Adoption.** Ships through the governance sync with the next `work.py`, `thread_anchor.py` and `mail.py`. Hub first; then the fleet on the existing rollout item (W-59c5ab33). The adoption ends with one fleet mail and a message to every live session stating the new rules — NEXT names the item you are on, claiming a mail creates its item — because the operator asked for every repo's agents to be told of each change to the way of working (I16).
-- **Growth.** Triggers, each read from the store or `next_census.py`: more than 20 open `next` items in one repo (the 7-day close is too slow for the repo's session count); the prompt block over 1 s; more than 50 open `mail` items older than 14 days in one repo (claims taken and not acked — the distributor's queue).
+- **Growth.** Triggers, each read from the store or `next_census.py`: more open `next` items in one repo than sessions that ended a turn there in 7 days (the one-per-session rule is broken); the prompt block over 1 s; more than 50 open `mail` items older than 14 days in one repo (claims taken and not acked — the distributor's queue).
 - **Degradation.** Every new reader fails open to "no line"; every new write happens where a write happens today (the Stop harvest, `mail.py claim/ack/requeue`, `--mark-answered`) under the parent's lock and budget rules. A repo without a store behaves exactly as today.
 - **Retirement.** Items are files; removing the reader and the D2/D3 writes leaves them readable; the register was never changed.
 
@@ -168,11 +170,11 @@ Digest (MUST-READ set computed 2026-09-25 by `review_rubric.py --changed` over t
 
 ## Validation
 
-- **V1 — one session, one item; a NEXT claims.** Three Stops of one session with different free-text NEXT lines leave one open `next` item holding the last text; a later NEXT naming an open item claims it and closes the `next` item; a NEXT naming an item another live session holds, or an awaiting or closed one, claims nothing; an operator-decision NEXT naming an id changes nothing; a `next` item unchanged for 7 days is closed by another session's Stop. (Seam test through the real hook.)
+- **V1 — one open `next` item per session; a NEXT claims.** Three Stops of one session with different free-text NEXT lines leave one open `next` item holding the last text and time; a following `NEXT: <open item id>` updates and claims that item and closes the `next` item as `dropped` `superseded`; a NEXT whose first id is awaiting and whose second is open updates and claims only the second; a NEXT naming only items another live session holds, or awaiting or closed ones, changes nothing; an operator-decision NEXT naming an id changes nothing; a `next` item whose `next_at` is 8 days old is closed by another session's Stop; drift class 6 lists none of these. (Seam test through the real hook.)
 - **V2 — mail round trip.** `mail.py claim` creates a claimed `mail` item in the claiming repo's store; `ack` closes it `done`, `requeue` closes it `dropped`; an `ack` without a claim creates nothing; in a store-less repo all three behave exactly as today; `work.py add --kind mail` is refused.
 - **V3 — the view.** On the hub, the prompt block lists every live claim with its session; default `ready` prints the D1 lines, this session's claims, owned items, awaiting items and at most 10 others; `ready --all` prints every open item.
 - **V4 — budgets hold.** With the hub's inbox and the full feedback ledger, `work.py prompt_block` returns in under 0.5 s (timed in the test); the mail read measured 0.7 ms today.
-- **V5 — volume matches the measurement.** `python3 scripts/sysadmin/next_census.py --since 7` — the three measurements of § Why this exists as one script — run two weeks after hub adoption: the hub's `next` items created that week are within 2× of the measured 3 sessions (at most 6), and the hub shows more than 0 live claims.
+- **V5 — volume matches the measurement.** `python3 scripts/sysadmin/next_census.py --since 7` — the three measurements of § Why this exists as one script — run two weeks after hub adoption: at every reading, the hub's open `next` items number no more than the hub sessions that ended a turn in the last 7 days (measured 3 with a qualifying NEXT), and the hub shows more than 0 live claims.
 - **V6 — duplicates.** After `drop A --duplicate-of B`, a new message re-asking A's wording refreshes B and creates no item; `drop` by an agent that is neither the distributor nor the creator of both is refused.
 
 ## Cobra (D-253)
