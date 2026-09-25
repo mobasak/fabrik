@@ -304,8 +304,13 @@ def _opt_root() -> Path:
     return Path(os.environ.get("FABRIK_OPT_ROOT", "/opt"))
 
 
-def _current_repo() -> str:
-    """This repo's identity = the git main-checkout basename (worktrees lie)."""
+def _main_checkout() -> Path:
+    """The MAIN checkout's absolute path — the first ``worktree`` entry of ``git worktree
+    list --porcelain`` (git lists the main checkout first, every linked worktree after).
+    ``_current_repo`` derives its NAME from this path; T03's ``_mail_store`` derives its
+    STORE ROOT from this SAME path, never from ``Path.cwd()`` — a linked worktree's own
+    toplevel is a different directory on disk (M-S2/M-O2). One git call, shared by both
+    — call it once per verb, never twice."""
     try:
         out = subprocess.run(
             ["git", "worktree", "list", "--porcelain"],
@@ -316,10 +321,15 @@ def _current_repo() -> str:
         ).stdout
         for line in out.splitlines():
             if line.startswith("worktree "):
-                return Path(line[len("worktree ") :].strip()).name
+                return Path(line[len("worktree ") :].strip())
     except (OSError, subprocess.SubprocessError):
         pass
-    return Path.cwd().name
+    return Path.cwd()
+
+
+def _current_repo() -> str:
+    """This repo's identity = the git main-checkout basename (worktrees lie)."""
+    return _main_checkout().name
 
 
 # --- ULID --------------------------------------------------------------------
@@ -1054,49 +1064,77 @@ def _work() -> ModuleType | None:
     return mod
 
 
+_SUBJECT_RE = _re.compile(r"^\**\s*subject\s*:\**\s*", _re.IGNORECASE)
+
+
 def _mail_item_title(text: str) -> str:
-    """The linked item's title: the message's first non-empty BODY line, a leading
-    ``Subject:`` stripped, clipped to 300 — the frontmatter has no subject key
-    (:440-466), so this walks past the closing ``---`` fence the same way ``_parse``
-    locates it."""
+    """The linked item's title: the message's first non-empty BODY line, clipped to 300.
+    CRLF is normalised to LF first. The frontmatter has no subject key (:440-466), so this
+    walks past the closing ``---`` fence the same way ``_parse`` locates it — an
+    UNTERMINATED fence (no closing marker at all) returns '' so the caller's ``mail <id>``
+    fallback title applies, rather than treating the raw frontmatter block as body text. A
+    leading markdown ``---`` horizontal-rule line in the body is skipped once. A
+    ``Subject:``/``**Subject:**`` prefix is stripped case-insensitively; when its OWN value
+    is blank, the next non-empty line is taken instead of an empty title."""
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     body = text
     if text.startswith("---\n"):
         end = text.find("\n---", 4)
-        if end != -1:
-            body = text[end + 5 :]  # past the closing "---\n" fence line
+        if end == -1:
+            return ""  # unterminated fence: no readable body at all
+        body = text[end + 5 :]  # past the closing "---\n" fence line
+    skipped_rule = False
     for line in body.splitlines():
         line = line.strip()
         if not line:
             continue
-        if line.startswith("Subject:"):
-            line = line[len("Subject:") :].strip()
+        if not skipped_rule and line == "---":
+            skipped_rule = True
+            continue
+        m = _SUBJECT_RE.match(line)
+        if m:
+            value = line[m.end() :].strip()
+            if value:
+                return value[:300]
+            continue  # a blank Subject: value falls through to the next non-empty line
         return line[:300]
     return ""
 
 
 def _mail_store(repo: str) -> tuple[ModuleType, Path] | None:
-    """(work module, store root) for a claim/ack/requeue acting on ``repo`` — None
-    unless ``repo`` (the mailbox the verb acted on: ``args.repo or _current_repo()``)
-    IS this session's own repo (``_current_repo()`` again, on the cwd), work.py
-    imports, and this repo carries a store. A cross-repo ``--repo`` target creates
-    nothing in EITHER store — mail.py never resolves an agent name or picks a mailbox
-    for the store (D-271: that once emptied a bound window's mailbox); the store the
-    item lands in is always the calling session's own."""
-    if repo != _current_repo():
+    """(work module, store root) for a claim/ack/requeue acting on ``repo`` — None unless
+    ``repo`` (the mailbox the verb acted on: ``args.repo or _current_repo()``) IS this
+    session's own repo, work.py imports, and a store exists there. A cross-repo ``--repo``
+    target creates nothing in EITHER store — mail.py never resolves an agent name or picks
+    a mailbox for the store (D-271: that once emptied a bound window's mailbox); the store
+    the item lands in is always the calling session's own. The store ROOT is resolved from
+    the MAIN CHECKOUT (``_main_checkout()``, one git call shared with the identity check
+    above — never run twice), never from ``Path.cwd()``: a linked worktree's own toplevel
+    is a different directory on disk, so a claim issued from a worktree used to open its
+    item there while an ack from the main checkout could never find it (M-S2/M-O2).
+    ``work.open_linked``/``close_linked`` already no-op silently on a store-less repo via
+    their own ``_api_root``/``has_store`` check (verified by execution — T-S2), so this
+    does not repeat that check itself."""
+    main = _main_checkout()
+    if repo != main.name:
         return None
     w = _work()
     if w is None:
         return None
-    root = w.repo_root(Path.cwd())
-    if root is None or not w.has_store(root):
+    root = w.repo_root(main)
+    if root is None:
         return None
     return w, root
 
 
 def _note_mail_claim(msg_id: str, repo: str, dst: Path) -> None:
-    """After a CLI ``claim`` succeeds: open (or renew this session's claim on) the
-    linked ``kind: mail`` item. Never changes the claim's printed path, rc, or
-    exception ladder — fails open, one stderr line on any error."""
+    """After a CLI ``claim`` succeeds: open (or renew this session's claim on) the linked
+    ``kind: mail`` item. Never changes the claim's printed path, rc, or exception ladder —
+    fails open on ANY exception the store call raises (``BaseException``, so a store-side
+    ``SystemExit`` can never exit this process; ``KeyboardInterrupt`` alone re-raises, so
+    Ctrl-C is never swallowed here), one stderr line. The store call itself runs with
+    stdout redirected to stderr, so a stray ``print`` inside work.py can never land on the
+    CLI's own stdout — the path-only contract callers parse (M-O3/M-S3)."""
     try:
         found = _mail_store(repo)
         if found is None:
@@ -1106,52 +1144,63 @@ def _note_mail_claim(msg_id: str, repo: str, dst: Path) -> None:
             text = dst.read_text(encoding="utf-8", errors="replace")
         except OSError:
             text = ""
-        w.open_linked(
-            root,
-            kind="mail",
-            link=("mail", msg_id),
-            title=_mail_item_title(text),
-            session=os.environ.get("CLAUDE_CODE_SESSION_ID", ""),
-        )
-    except Exception as exc:
+        with contextlib.redirect_stdout(sys.stderr):
+            w.open_linked(
+                root,
+                kind="mail",
+                link=("mail", msg_id),
+                title=_mail_item_title(text),
+                session=os.environ.get("CLAUDE_CODE_SESSION_ID", ""),
+            )
+    except KeyboardInterrupt:
+        raise
+    except BaseException as exc:
         _warn(f"mail item not opened for {msg_id} — {type(exc).__name__}: {exc}")
 
 
 def _note_mail_ack(msg_id: str, repo: str, disposition: str) -> None:
     """After a CLI ``ack`` succeeds: close the linked ``kind: mail`` item ``done``. An
-    ack with no prior (CLI) claim creates nothing — there was no taking to record."""
+    ack with no prior (CLI) claim creates nothing — there was no taking to record. Same
+    fail-open contract as ``_note_mail_claim`` (M-O3/M-S3)."""
     try:
         found = _mail_store(repo)
         if found is None:
             return
         w, root = found
-        w.close_linked(
-            root,
-            kind="mail",
-            link=("mail", msg_id),
-            status="done",
-            note=f"mail ack: {disposition}",
-        )
-    except Exception as exc:
+        with contextlib.redirect_stdout(sys.stderr):
+            w.close_linked(
+                root,
+                kind="mail",
+                link=("mail", msg_id),
+                status="done",
+                note=f"mail ack: {disposition}",
+            )
+    except KeyboardInterrupt:
+        raise
+    except BaseException as exc:
         _warn(f"mail item not closed for {msg_id} — {type(exc).__name__}: {exc}")
 
 
 def _note_mail_requeue(msg_id: str, repo: str) -> None:
-    """After a CLI ``requeue`` succeeds: close the linked ``kind: mail`` item
-    ``dropped`` — the mail itself is back in the inbox count, not lost."""
+    """After a CLI ``requeue`` succeeds: close the linked ``kind: mail`` item ``dropped``
+    — the mail itself is back in the inbox count, not lost. Same fail-open contract as
+    ``_note_mail_claim`` (M-O3/M-S3)."""
     try:
         found = _mail_store(repo)
         if found is None:
             return
         w, root = found
-        w.close_linked(
-            root,
-            kind="mail",
-            link=("mail", msg_id),
-            status="dropped",
-            note="requeued",
-        )
-    except Exception as exc:
+        with contextlib.redirect_stdout(sys.stderr):
+            w.close_linked(
+                root,
+                kind="mail",
+                link=("mail", msg_id),
+                status="dropped",
+                note="requeued",
+            )
+    except KeyboardInterrupt:
+        raise
+    except BaseException as exc:
         _warn(f"mail item not closed for {msg_id} — {type(exc).__name__}: {exc}")
 
 

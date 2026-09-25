@@ -63,6 +63,16 @@ def _git(cwd: Path, env: dict[str, str], *args: str) -> None:
     )
 
 
+def _add_worktree(main_repo: Path, base: Path, name: str, env: dict[str, str]) -> Path:
+    """A LINKED worktree of ``main_repo`` at ``base/<name>``, on its own new branch — shares
+    ``main_repo``'s git-common-dir (claims live there for either), but has its OWN toplevel
+    on disk (T03 review M-S2/M-O2: the store ROOT must resolve to ``main_repo``, never to
+    this path, or an item opened here could never be closed from the main checkout)."""
+    wt = base / name
+    _git(main_repo, env, "worktree", "add", "-q", "-b", f"wt-{name}", str(wt), "main")
+    return wt
+
+
 def _init_repo(base: Path, name: str, env: dict[str, str], *, with_store: bool = True) -> Path:
     """A throwaway git repo at ``base/<name>`` — its basename IS the mailbox name
     (``mail.py``'s ``_current_repo`` reads the main-checkout basename), one seed commit,
@@ -292,3 +302,186 @@ def test_claim_ack_requeue_create_nothing_when_store_absent_or_work_unavailable(
     assert rc == 0
     assert (mail_root / "delta" / "inbox" / f"{mid_c}.md").is_file()
     assert _mail_items(stored) == []
+
+
+# --- T03 review round 1: store resolution across worktrees (M-S2/M-O2) --------------------
+
+
+def test_claim_from_a_linked_worktree_is_closed_by_ack_from_the_main_checkout(
+    alpha, tmp_path, monkeypatch
+):
+    """The store ROOT is resolved from the MAIN checkout, never from ``Path.cwd()``: a
+    claim issued while cwd is a LINKED worktree must open its item in the main checkout's
+    own ``.fabrik/work/`` (never the worktree's own toplevel), so an ack issued later from
+    the main checkout finds and closes the SAME item."""
+    repo, mail_root = alpha  # the main checkout "alpha"; cwd is here to start
+    env = _git_env(tmp_path)
+    worktree = _add_worktree(repo, tmp_path, "alpha-wt", env)
+
+    mid = mail._ulid()
+    _plant(mail_root, "alpha", mid, "cross-worktree claim\n")
+
+    monkeypatch.chdir(worktree)
+    rc = mail.main(["claim", mid])  # no --repo: _current_repo() still reads "alpha"
+    assert rc == 0
+
+    items = _mail_items(repo)
+    assert len(items) == 1, items
+    item = items[0]
+    assert item["links"]["mail"] == mid
+    assert item["status"] == "open"
+    assert _mail_items(worktree) == [], "never written into the linked worktree's own toplevel"
+
+    monkeypatch.chdir(repo)
+    rc = mail.main(["ack", mid, "--disposition", "done"])
+    assert rc == 0
+
+    closed = _mail_items(repo)
+    assert len(closed) == 1 and closed[0]["id"] == item["id"], closed
+    assert closed[0]["status"] == "done"
+    assert closed[0]["note"] == "mail ack: done"
+
+
+# --- T03 review round 1: fail-open under a raising / printing+exiting store (M-O3/M-S3) ---
+
+
+def test_note_mail_claim_survives_a_raising_store(alpha, monkeypatch, capsys):
+    """A plain exception from ``work.open_linked`` must never touch the claim's rc or its
+    printed path, and must surface as exactly one stderr line."""
+    repo, mail_root = alpha
+    mid = mail._ulid()
+    _plant(mail_root, "alpha", mid, "boom test\n")
+
+    w = mail._work()
+    assert w is not None
+
+    def _raiser(*_a, **_k):
+        raise RuntimeError("store exploded")
+
+    monkeypatch.setattr(w, "open_linked", _raiser)
+
+    rc = mail.main(["claim", mid, "--repo", "alpha"])
+
+    assert rc == 0
+    out = capsys.readouterr()
+    expected_path = mail_root / "alpha" / "archive" / f"{mid}.md"
+    assert out.out == f"{expected_path}\n"
+    assert out.err.count("\n") == 1, out.err
+    assert "mail item not opened" in out.err
+    assert _mail_items(repo) == []
+
+
+def test_note_mail_claim_survives_a_printing_systemexit_store(alpha, monkeypatch, capsys):
+    """A store that PRINTS then raises ``SystemExit(7)`` must never leak that print onto
+    the CLI's real stdout (``contextlib.redirect_stdout(sys.stderr)`` around the store
+    call routes it to stderr instead) and must never change the claim's rc — a store-side
+    ``sys.exit`` must not exit this process."""
+    repo, mail_root = alpha
+    mid = mail._ulid()
+    _plant(mail_root, "alpha", mid, "boom test 2\n")
+
+    w = mail._work()
+    assert w is not None
+
+    def _printer_then_exit(*_a, **_k):
+        print("should never reach real stdout")
+        raise SystemExit(7)
+
+    monkeypatch.setattr(w, "open_linked", _printer_then_exit)
+
+    rc = mail.main(["claim", mid, "--repo", "alpha"])
+
+    assert rc == 0
+    out = capsys.readouterr()
+    expected_path = mail_root / "alpha" / "archive" / f"{mid}.md"
+    assert out.out == f"{expected_path}\n", "a store-side print must never reach real stdout"
+    assert "should never reach real stdout" not in out.out
+    # redirected here (never swallowed) by contextlib.redirect_stdout(sys.stderr), plus the
+    # warn() line raised by catching the SystemExit as a BaseException
+    assert "should never reach real stdout" in out.err
+    assert "mail item not opened" in out.err
+    assert _mail_items(repo) == []
+
+
+def test_work_import_failure_emits_the_warning_once(monkeypatch, capsys):
+    """``_work()``'s real import-failure branch (not the row-5 cached-error shortcut) must
+    say so in exactly one stderr line."""
+    monkeypatch.setattr(mail, "_WORK", None)
+    monkeypatch.setattr(mail, "_WORK_ERR", None)
+    monkeypatch.setattr(mail.importlib.util, "spec_from_file_location", lambda *a, **k: None)
+
+    result = mail._work()
+
+    assert result is None
+    err = capsys.readouterr().err
+    assert err.count("\n") == 1, err
+    assert "work store unavailable" in err
+
+
+def test_claim_prints_the_path_before_the_store_note_runs(alpha, monkeypatch, capsys):
+    """The claim's path must already be on stdout before ``_note_mail_claim`` runs — proven
+    by making the note call raise unconditionally (bypassing its own internal fail-open)
+    and asserting the path was printed anyway, before the propagated exception. Watched
+    red: temporarily moving the ``_note_mail_claim(...)`` call above ``print(dst)`` in
+    ``main()`` and re-running this test leaves stdout empty and this assertion fails."""
+    repo, mail_root = alpha
+    mid = mail._ulid()
+    _plant(mail_root, "alpha", mid, "order check\n")
+
+    def _boom(*_a, **_k):
+        raise RuntimeError("note call ran")
+
+    monkeypatch.setattr(mail, "_note_mail_claim", _boom)
+
+    with pytest.raises(RuntimeError, match="note call ran"):
+        mail.main(["claim", mid, "--repo", "alpha"])
+
+    out = capsys.readouterr().out
+    expected_path = mail_root / "alpha" / "archive" / f"{mid}.md"
+    assert out == f"{expected_path}\n", "the path must be printed before the store note runs"
+
+
+# --- T03 review round 1: title-parse edge cases (M-H5/M-H6/M-O5/T-H2/T-H3/T-H4) ------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        pytest.param("---\nid: X\nkind: request\n---\n", "", id="empty-body"),
+        pytest.param(
+            "---\r\nid: X\r\nkind: request\r\n---\r\nSubject: fix it\r\nmore\r\n",
+            "fix it",
+            id="crlf",
+        ),
+        pytest.param(
+            "---\nid: X\nkind: request\nno closing fence at all\n", "", id="unterminated-fence"
+        ),
+        pytest.param(
+            "---\nid: X\nkind: request\n---\n---\nreal title here\n",
+            "real title here",
+            id="leading-markdown-rule",
+        ),
+        pytest.param(
+            "---\nid: X\nkind: request\n---\nSubject:\nthe actual subject\n",
+            "the actual subject",
+            id="blank-subject-falls-through",
+        ),
+        pytest.param(
+            "---\nid: X\nkind: request\n---\nsubject: lowercase works\n",
+            "lowercase works",
+            id="lowercase-subject",
+        ),
+        pytest.param(
+            "---\nid: X\nkind: request\n---\n**Subject:** bold works\n",
+            "bold works",
+            id="bold-subject",
+        ),
+        pytest.param(
+            "---\nid: X\nkind: request\n---\n" + ("x" * 400) + "\n",
+            "x" * 300,
+            id="clipped-to-300",
+        ),
+    ],
+)
+def test_mail_item_title_parses_body_edge_cases(raw, expected):
+    assert mail._mail_item_title(raw) == expected
