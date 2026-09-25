@@ -379,10 +379,11 @@ def _close_feedback_work_item(repo: Path, command: str, sha: str) -> None:
     """Close the queue's linked `kind: feedback` item — guarded (T04 review C-O3): a missing or
     broken `work.py`, or `close_linked` itself raising (a `ValueError` from `_check_linked`, an
     `AttributeError` against an old `work.py` without it), is one stderr line, never a change to
-    `mark_answered`'s return value or rc. Called on every ANSWERING path, including the
-    already-marked no-op (C-S3/C-O9) — `close_linked` is idempotent (no open item → `None`), so a
-    repeat call here is never a double-close, and it is the only way an item whose first close
-    failed ever gets a second try."""
+    `mark_answered`'s return value or rc. Called from the fresh-write path unconditionally, and
+    from the already-marked no-op (C-S3/C-O9) ONLY when the queue is now empty (T04 review pass 2
+    C-O12) — `close_linked` is idempotent (no open item → `None`), so a repeat call here is never
+    a double-close, and it is the only way an item whose first close failed ever gets a second
+    try, without also closing an item a DIFFERENT, still-unanswered row just opened."""
     w = _work()
     if w is None:
         return
@@ -462,7 +463,13 @@ def mark_answered(
         # failed (C-O3) can never close: every later mark of the SAME rows takes this branch and
         # used to skip the close entirely. `close_linked` is idempotent (no open item → None), so
         # repeating it here is never a double-close.
-        _close_feedback_work_item(repo, command, sha)
+        # ⚠️ T04 review pass 2 C-O12: closing here is conditioned on the QUEUE being empty, never
+        # unconditional — a stale rerun naming an OLD, already-answered handle used to close
+        # whatever item `--take` had JUST opened for a DIFFERENT, still-unanswered row of the same
+        # command. This retry exists for an item whose first close failed AFTER the queue was
+        # fully answered, not for a queue that still has open rows.
+        if queue_depths(ledger, answered_path=path).get(command, 0) == 0:
+            _close_feedback_work_item(repo, command, sha)
         return 0, f"nothing to do — all {len(wanted)} row(s) were already marked for /{command}."
     now = time.time()
     written, err = _append_answered(
@@ -1386,7 +1393,9 @@ def queue(rows: list[dict], command: str, ledger: Path | None = None) -> str:
     return "\n".join(out)
 
 
-def queue_depths(ledger: Path | None = None) -> dict[str, int]:
+def queue_depths(
+    ledger: Path | None = None, answered_path: Path | None = None
+) -> dict[str, int]:
     """Every command's unanswered depth, from ONE read of the ledger — exactly `queue()`'s rule:
     the rows FOR that command, minus a none-verdict `change` (`_change_is_none`), minus a `ts`
     already in the answered index. No time window: this is what `--queue <command>` alone reads,
@@ -1397,6 +1406,13 @@ def queue_depths(ledger: Path | None = None) -> dict[str, int]:
     `ledger=None` resolves the same default `--queue`/`_known_handles` use (T04 review C-O1) — the
     prior form passed `None` straight to `_rows`, which reads it as "no ledger" and always
     returned `{}`, silently, for every caller of the documented default.
+
+    `answered_path=None` (the default) computes `_answered_path(ledger)` itself, exactly as
+    before. A caller that is ALREADY working against a specific answered-index file — `--path`
+    override and all — passes it explicitly (`mark_answered`'s already-marked no-op path, T04
+    review pass 2 C-O12, does this): recomputing `_answered_path(ledger)` internally instead would
+    silently read a DIFFERENT file than the one the caller's own read/write already used, and the
+    two disagreeing is exactly the shape of bug this parameter exists to close.
 
     The answered index is read ONCE for the whole call (T04 review C-S1), not once per command —
     `_answered_ts` re-reads the file per command, which is fine for `--queue`'s single command and
@@ -1415,8 +1431,10 @@ def queue_depths(ledger: Path | None = None) -> dict[str, int]:
         cmd = str(r.get("command") or "")
         if cmd:
             by_command[cmd].append(r)
+    if answered_path is None:
+        answered_path = _answered_path(ledger)
     try:
-        answered_by_command = _answered_index(_answered_path(ledger))
+        answered_by_command = _answered_index(answered_path)
     except Exception:
         answered_by_command = {}
     out: dict[str, int] = {}
@@ -1451,6 +1469,12 @@ def take(command: str, repo: Path, session: str, ledger: Path | None = None) -> 
     fail-open contract (or a stand-in module a test hands in) must never crash `--take` — one
     stderr line, and the same truthful "item not written" line a `None` from `open_linked` already
     prints.
+
+    T04 review pass 2 C-O13: that ONE try used to span the read-back AFTER `open_linked` already
+    succeeded too, so a raise from the private `_claim_of`/`_is_live` reported "item not written"
+    for an item that plainly WAS written (and claimed, by this call) — the wrong truth. Once an
+    `item_id` exists, a read-back failure is its OWN, narrower try: the item is real, only its
+    claim state is unknown, and the `took` line says so rather than denying the item exists.
     """
     command = command.strip().lstrip("/").strip()
     depth = queue_depths(ledger).get(command, 0)
@@ -1474,11 +1498,6 @@ def take(command: str, repo: Path, session: str, ledger: Path | None = None) -> 
         )
         if item_id is None:
             raise RuntimeError("open_linked returned no item id")
-        claim = w._claim_of(root, item_id)
-        if claim is not None and w._is_live(claim) and str(claim.get("session") or "") != session:
-            who = str(claim.get("agent") or "").strip() or f"session {claim.get('session')}"
-            return f"{item_id} — /{command} is held by {who} — nothing taken"
-        return f"took {item_id} — /{command}, {depth} unanswered"
     except Exception as exc:
         print(
             f"command_feedback_report: feedback item not written for /{command} — "
@@ -1486,6 +1505,22 @@ def take(command: str, repo: Path, session: str, ledger: Path | None = None) -> 
             file=sys.stderr,
         )
         return f"feedback item not written for /{command} in {repo} — nothing taken"
+    try:
+        claim = w._claim_of(root, item_id)
+        if claim is not None and w._is_live(claim) and str(claim.get("session") or "") != session:
+            who = str(claim.get("agent") or "").strip() or f"session {claim.get('session')}"
+            return f"{item_id} — /{command} is held by {who} — nothing taken"
+    except Exception as exc:
+        print(
+            f"command_feedback_report: claim not re-read for {item_id} — "
+            f"{type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        return (
+            f"took {item_id} — /{command}, {depth} unanswered "
+            f"(claim not re-read: {type(exc).__name__})"
+        )
+    return f"took {item_id} — /{command}, {depth} unanswered"
 
 
 OBSERVER_SEATS = 4  # how many commands are expensive enough to pay for a writer seat

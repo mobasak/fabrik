@@ -3115,7 +3115,12 @@ def test_take_survives_claim_of_raising_no_traceback_rc0(
     """T04 review C-O4: every store interaction in `take()` (`repo_root`/`has_store`/
     `open_linked`/the private `_claim_of`/`_is_live`) must be wrapped — a stand-in (or a future
     `work.py`) whose `_claim_of` raises must never crash `--take`. In-process via `main()` so
-    stderr/stdout and rc are all observable in one call."""
+    stderr/stdout and rc are all observable in one call.
+
+    T04 review pass 2 C-O13 changed the EXPECTED message for this exact scenario: `open_linked`
+    already succeeded (a real id came back), so a `_claim_of` failure is never "nothing taken" —
+    the item plainly exists — it is `took … (claim not re-read: …)`. The no-crash/rc-0 guard this
+    test exists for is unchanged; only the string it asserts moved."""
     m = _cfr()
     env = _work_env(tmp_path)
     for k, v in env.items():
@@ -3148,7 +3153,43 @@ def test_take_survives_claim_of_raising_no_traceback_rc0(
     out, err = captured.out, captured.err
     assert rc == 0, (out, err)
     assert "Traceback" not in err, err
-    assert "nothing taken" in out, out
+    assert out.startswith("took W-deadbeef"), out
+    assert "claim not re-read: RuntimeError" in out, out
+
+
+def test_take_reports_claim_not_re_read_when_the_item_was_actually_written(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """T04 review pass 2 C-O13: against a REAL work store (not a stand-in), a `_claim_of` failure
+    AFTER a genuine `open_linked` success must still report `took … (claim not re-read: …)` and
+    leave the real item file on disk — proving the earlier "item not written" line was actively
+    WRONG for this case, not merely differently worded."""
+    env = _work_env(tmp_path)
+    repo = _init_work_store(tmp_path, env)
+    m = _cfr()
+    ledger = tmp_path / "ledger.jsonl"
+    _write(ledger, [_row("fabrik-review", 10, 1, "lean: a")])
+    real = m._work()
+
+    class RealExceptClaim:
+        """Delegates everything to the real `work.py` EXCEPT `_claim_of`, which raises — so
+        `repo_root`/`has_store`/`open_linked` genuinely write the item, and only the read-back
+        that would confirm the claim fails."""
+
+        def __getattr__(self, name):
+            return getattr(real, name)
+
+        def _claim_of(self, root, item_id):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(m, "_work", lambda: RealExceptClaim())
+    out = m.take("fabrik-review", repo, "S1", ledger)
+    assert out.startswith("took W-"), out
+    assert "claim not re-read: RuntimeError" in out, out
+    item_id = out.split()[1]
+    item_path = repo / ".fabrik" / "work" / f"{item_id}.json"
+    assert item_path.exists(), out
+    assert json.loads(item_path.read_text(encoding="utf-8"))["links"]["command"] == "fabrik-review"
 
 
 def test_take_on_an_empty_queue_creates_nothing(tmp_path: Path) -> None:
@@ -3398,6 +3439,95 @@ def test_a_failed_first_close_retries_on_the_already_marked_rerun(
     )
     assert written2 == 0 and "already marked" in msg2, msg2
     assert json.loads(item_path.read_text(encoding="utf-8"))["status"] == "done"
+
+
+def test_the_already_marked_noop_closes_only_once_the_queue_is_empty(tmp_path: Path) -> None:
+    """T04 review pass 2 C-O12: the already-marked no-op used to close the item UNCONDITIONALLY —
+    so a STALE rerun naming an old, already-answered handle (row 1.0) closed a fresh item `--take`
+    had JUST opened for a DIFFERENT, still-unanswered row (row 2.0) of the same command. The retry
+    (C-S3/C-O9) exists for an item whose first close failed AFTER the queue was fully answered,
+    never for a queue that still has open rows."""
+    env = _work_env(tmp_path)
+    repo = _init_work_store(tmp_path, env)
+    m = _cfr()
+    ledger = tmp_path / "ledger.jsonl"
+    rows = [
+        _row("a", 10, 2, "lean: x"),  # row 1 — answered up front, below
+        _row("a", 10, 2, "lean: y"),  # row 2 — stays unanswered until later
+    ]
+    _write(ledger, rows)
+    handle1 = m._ts_key(rows[0]["ts"])
+    handle2 = m._ts_key(rows[1]["ts"])
+    answered_path = m._answered_path(ledger)
+    answered_path.write_text(
+        json.dumps({"ts": handle1, "command": "a", "commit": "deadbeef", "at": 0}) + "\n",
+        encoding="utf-8",
+    )
+    assert m.queue_depths(ledger).get("a", 0) == 1, "row 2 must still be open"
+
+    # --take opens the item while the queue still has row 2 open
+    env_s = {**env, "CLAUDE_CODE_SESSION_ID": "S1"}
+    taken = _take_proc(repo, "a", env_s, ledger)
+    assert taken.returncode == 0, (taken.stdout, taken.stderr)
+    item_id = taken.stdout.split()[1]
+    item_path = repo / ".fabrik" / "work" / f"{item_id}.json"
+
+    (repo / "commands" / "_sources").mkdir(parents=True)
+    (repo / "commands" / "_sources" / "fabrik-review.md").write_text("edited\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], env=env, check=True, timeout=30)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "corpus edit"],
+        env=env,
+        check=True,
+        timeout=30,
+    )
+    sha = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    ).stdout.strip()
+
+    def _mark(handle: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "--mark-answered",
+                "a",
+                "--rows",
+                handle,
+                "--commit",
+                sha,
+                "--repo",
+                str(repo),
+                "--ledger",
+                str(ledger),
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+    # a STALE no-op re-run naming row 1 (already answered) — the queue still has row 2 open
+    noop1 = _mark(handle1)
+    assert noop1.returncode == 0 and "nothing to do" in noop1.stdout, noop1.stdout
+    assert json.loads(item_path.read_text(encoding="utf-8"))["status"] not in ("done", "dropped")
+
+    # answer row 2 OUT OF BAND (never through mark_answered, so its own fresh-write close never
+    # fires here) — the queue is now empty
+    with answered_path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"ts": handle2, "command": "a", "commit": sha, "at": 0}) + "\n")
+    assert m.queue_depths(ledger).get("a", 0) == 0
+
+    # the SAME stale no-op re-run, now that the queue is empty — closes it
+    noop2 = _mark(handle1)
+    assert noop2.returncode == 0 and "nothing to do" in noop2.stdout, noop2.stdout
+    item = json.loads(item_path.read_text(encoding="utf-8"))
+    assert item["status"] == "done", item
 
 
 def test_take_with_no_store_prints_no_store_line_exits_0_and_creates_nothing(

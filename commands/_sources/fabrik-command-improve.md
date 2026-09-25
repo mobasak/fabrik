@@ -97,6 +97,9 @@ python3 /opt/fabrik/scripts/command_feedback_report.py --take <command>
 
 Prints exactly one of, and each names what you do next:
 - `took W-xxxxxxxx — /<command>, N unanswered` — proceed; PHASE 5 closes `W-xxxxxxxx`.
+- `took W-xxxxxxxx — /<command>, N unanswered (claim not re-read: <ExceptionType>)` — the item
+  WAS created and claimed by this call; only the read-back that confirms it failed (see stderr).
+  Proceed exactly like the plain `took` line — PHASE 5 still closes `W-xxxxxxxx`.
 - `W-xxxxxxxx — /<command> is held by <agent-or-session> — nothing taken` — another session is
   already on this queue; work a different command's instead.
 - `/<command> has no unanswered verdicts — nothing taken` — the queue is empty (a typo, or
