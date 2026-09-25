@@ -785,6 +785,16 @@ def verify() -> int:
             # observation degrades to <UNAVAILABLE> and the oracle stays quiet instead of
             # emitting 15 spurious QUERY CHANGED/GONE lines.
             drift.append(f"QUERY CHANGED: {key}")
+    # The loop above reads FROZEN keys only, so a consumer query added since the snapshot was
+    # compared by nothing and announced by nothing (W-0858e5c2). Same notice as the artifact
+    # and marker families below: an addition, not drift — but never silent.
+    for key, gq in got["db_queries"].items():
+        if key not in want.get("db_queries", {}) and "UNAVAILABLE" not in str(gq):
+            print(
+                f"[capture_golden] NEW query NOT YET FROZEN (unprotected): {key} "
+                "— freeze it to bring it under the contract",
+                file=sys.stderr,
+            )
 
     for key, want_m in want.get("markers", {}).items():
         got_m = got["markers"].get(key, "absent")

@@ -347,6 +347,31 @@ def test_a_changed_db_query_is_drift(monkeypatch):
     assert cg.verify() == 1, "a rewritten consumer query must RED the oracle"
 
 
+def test_an_unfrozen_db_query_is_announced(monkeypatch, capsys):
+    """W-0858e5c2: verify() looped over FROZEN keys only, so a consumer query added without
+    re-snapshotting was compared by nothing and said nothing — the artifact/marker symmetry
+    below never covered queries."""
+    real = cg.observe
+
+    def added():
+        o = real()
+        o["db_queries"]["some_module.brand_new_query"] = "SELECT 1"
+        return o
+
+    monkeypatch.setattr(cg, "observe", added)
+    cg.verify()
+    err = capsys.readouterr().err
+    assert "NEW query NOT YET FROZEN" in err and "some_module.brand_new_query" in err, err
+
+
+def test_every_live_consumer_query_is_frozen():
+    """The guard the notice is not: a query the hub issues today but the golden never froze can
+    change silently. Reads the live extractor, not a hand-kept list."""
+    live = {k for k, v in cg._db_queries().items() if "UNAVAILABLE" not in str(v)}
+    frozen = set(json.loads(cg.DB_QUERIES.read_text(encoding="utf-8")))
+    assert live - frozen == set(), f"consumer queries never frozen: {sorted(live - frozen)}"
+
+
 def test_gitignored_artifact_loss_is_drift_on_the_pipeline_host(monkeypatch):
     """The PAIRED loss assertion the fresh-clone tolerance was missing.
 
