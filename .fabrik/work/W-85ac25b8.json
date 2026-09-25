@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-25T20:18:17.279450Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-85ac25b8",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-09-25-plan-1-work-store-single-tracker",
+    "spec": ""
+  },
+  "next": "decide in the spec whether a NEXT naming a new item releases the session's previous rule-2 claim (D3 is silent); measure the claims-per-session distribution after T08's adoption readings first",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "work.py rule 2 never releases a session's earlier NEXT-claimed item: a session naming a different item each turn holds live claims on all of them until its lease runs out"
+}

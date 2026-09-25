@@ -54,7 +54,7 @@ section it implements and restates nothing that section already settles.
 | T02a | The view: obligations, crisp ready, status lines | T01, T04 | ⛓️ | ✅ | 249a8801a |
 | T02b | The prompt block: obligations, others' claims, unnamed line | T02a | ⛓️ | ✅ | 3a72696e7 |
 | T03 | mail.py claim/ack/requeue create and close the mail item | T01 | ⚡ | ✅ | bc90eca8a |
-| T05a | The harvest's NEXT rules in on_harvest | T02b | ⛓️ | ⬜ | |
+| T05a | The harvest's NEXT rules in on_harvest | T02b | ⛓️ | ✅ | ff8a46543 |
 | T05b | The harvest passes next_anchored; the V1 seam test | T05a | ⛓️ | ⬜ | |
 | T06 | next_census.py: the NEXT measurement | T05a | ⚡ | ⬜ | |
 | T07a | The contract sentence in all three copies | T05b | ⚡ | ⬜ | |
