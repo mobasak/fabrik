@@ -22,6 +22,7 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 - **[unassigned]** `check_synced_unmodified.py` swallows a missing manifest symbol and degrades 46 gates silently (routed 2026-09-19) (`W-5feb6e9c`)
 - **[unassigned]** Three claims about the close-time exclusion that the code refutes, in artifacts a fix may not edit (routed from the /fabrik-task docs review, 2026-09-19) (`W-6152978b`)
 - **[unassigned]** Two test suites reach back into the live tree from a scratch probe (routed from T04a, D-297) (`W-67cfdd24`)
+- **[unassigned]** Triage the 8 CONVERGED plans older than 7 days with no plan lock (drift class 2) so the hub's sync can reach 7 clean days (`W-67f668f1`)
 - **[unassigned]** Two latent residuals in the ignore-only guard (routed 2026-09-19) (`W-80fc742e`)
 - **[unassigned]** The parity contract: a scaffold template and two command sources written apart and never executed together (wef3 01M2SJT2ZVYP1SM573GDEJYG5Z / 01M2SJVGJQQ65YYBMFW0Q0CSCV / 01M2ST86PY4RZW89TG7NFC0D10... (`W-82cff1ac`)
 - **[unassigned]** The lane table's hub-only references, as seen from a project repo (routed from T04b) (`W-85e4e5e4`)
