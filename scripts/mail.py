@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_mail.py, docs/reference/fabrik-mail.md, docs/workstation/fabrik-mail.md, .env.example, docs/CONFIGURATION.md
+# AFTER-EDIT: tests/test_mail.py, docs/reference/fabrik-mail.md, docs/workstation/fabrik-mail.md, .env.example, docs/CONFIGURATION.md, docs/reference/work-tracking.md
 """fabrik-mail — durable hub↔project AI message store + protocol (stdlib-only).
 
 One neutral-path file mailbox per repo at ``$FABRIK_MAIL_ROOT/<repo>/{inbox,archive}``
@@ -32,6 +32,9 @@ Protocol invariants (the conventions doc, docs/reference/fabrik-mail.md, is cano
 from __future__ import annotations
 
 import argparse
+import contextlib
+import importlib.util
+import io
 import os
 import re as _re
 import subprocess
@@ -39,6 +42,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from types import ModuleType
 
 # --- constants ---------------------------------------------------------------
 # Crockford base32, ASCII-ascending so lexical order == numeric value order.
@@ -1002,6 +1006,155 @@ def send(
     return _publish(_mail_root() / to / "inbox", mid, content)
 
 
+# --- work-item linking (T03, spec § D2) ---------------------------------------
+# CLI-dispatch-only: no in-repo code calls claim()/ack()/requeue() directly, so the
+# library functions above stay untouched by the store — every claim/ack/requeue on the
+# box goes through main() below, which is the one place this section is wired in.
+
+_WORK: ModuleType | None = None
+_WORK_ERR: str | None = None
+
+
+def _warn(msg: str) -> None:
+    """One stderr line — never a traceback; a store call must never surface as one."""
+    try:
+        sys.stderr.write("mail.py: " + " ".join(str(msg).split()) + "\n")
+    except Exception:
+        pass
+
+
+def _work() -> ModuleType | None:
+    """``scripts/work.py`` beside this script, imported BY PATH once per process; None
+    (cached) when it is missing or fails to import — a repo the sync has not yet
+    delivered it to fails open, and the work store is simply not used. An import
+    FAILURE says so in one stderr line; a missing file stays silent (a normal, expected
+    state on a repo mid-rollout). Copied from ``scripts/thread_anchor.py``'s loader of
+    the same shape (:245-270)."""
+    global _WORK, _WORK_ERR
+    if _WORK is not None or _WORK_ERR is not None:
+        return _WORK
+    path = Path(__file__).resolve().parent / "work.py"
+    try:
+        if not path.is_file():
+            _WORK_ERR = f"{path} does not exist"
+            return None
+        spec = importlib.util.spec_from_file_location("_mail_work", path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"no loader for {path}")
+        mod = importlib.util.module_from_spec(spec)
+        with contextlib.redirect_stdout(io.StringIO()):
+            spec.loader.exec_module(mod)
+    except KeyboardInterrupt:
+        raise
+    except BaseException as e:
+        _WORK_ERR = f"work store unavailable — {type(e).__name__}: {e}"
+        _warn(_WORK_ERR)
+        return None
+    _WORK = mod
+    return mod
+
+
+def _mail_item_title(text: str) -> str:
+    """The linked item's title: the message's first non-empty BODY line, a leading
+    ``Subject:`` stripped, clipped to 300 — the frontmatter has no subject key
+    (:440-466), so this walks past the closing ``---`` fence the same way ``_parse``
+    locates it."""
+    body = text
+    if text.startswith("---\n"):
+        end = text.find("\n---", 4)
+        if end != -1:
+            body = text[end + 5 :]  # past the closing "---\n" fence line
+    for line in body.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("Subject:"):
+            line = line[len("Subject:") :].strip()
+        return line[:300]
+    return ""
+
+
+def _mail_store(repo: str) -> tuple[ModuleType, Path] | None:
+    """(work module, store root) for a claim/ack/requeue acting on ``repo`` — None
+    unless ``repo`` (the mailbox the verb acted on: ``args.repo or _current_repo()``)
+    IS this session's own repo (``_current_repo()`` again, on the cwd), work.py
+    imports, and this repo carries a store. A cross-repo ``--repo`` target creates
+    nothing in EITHER store — mail.py never resolves an agent name or picks a mailbox
+    for the store (D-271: that once emptied a bound window's mailbox); the store the
+    item lands in is always the calling session's own."""
+    if repo != _current_repo():
+        return None
+    w = _work()
+    if w is None:
+        return None
+    root = w.repo_root(Path.cwd())
+    if root is None or not w.has_store(root):
+        return None
+    return w, root
+
+
+def _note_mail_claim(msg_id: str, repo: str, dst: Path) -> None:
+    """After a CLI ``claim`` succeeds: open (or renew this session's claim on) the
+    linked ``kind: mail`` item. Never changes the claim's printed path, rc, or
+    exception ladder — fails open, one stderr line on any error."""
+    try:
+        found = _mail_store(repo)
+        if found is None:
+            return
+        w, root = found
+        try:
+            text = dst.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+        w.open_linked(
+            root,
+            kind="mail",
+            link=("mail", msg_id),
+            title=_mail_item_title(text),
+            session=os.environ.get("CLAUDE_CODE_SESSION_ID", ""),
+        )
+    except Exception as exc:
+        _warn(f"mail item not opened for {msg_id} — {type(exc).__name__}: {exc}")
+
+
+def _note_mail_ack(msg_id: str, repo: str, disposition: str) -> None:
+    """After a CLI ``ack`` succeeds: close the linked ``kind: mail`` item ``done``. An
+    ack with no prior (CLI) claim creates nothing — there was no taking to record."""
+    try:
+        found = _mail_store(repo)
+        if found is None:
+            return
+        w, root = found
+        w.close_linked(
+            root,
+            kind="mail",
+            link=("mail", msg_id),
+            status="done",
+            note=f"mail ack: {disposition}",
+        )
+    except Exception as exc:
+        _warn(f"mail item not closed for {msg_id} — {type(exc).__name__}: {exc}")
+
+
+def _note_mail_requeue(msg_id: str, repo: str) -> None:
+    """After a CLI ``requeue`` succeeds: close the linked ``kind: mail`` item
+    ``dropped`` — the mail itself is back in the inbox count, not lost."""
+    try:
+        found = _mail_store(repo)
+        if found is None:
+            return
+        w, root = found
+        w.close_linked(
+            root,
+            kind="mail",
+            link=("mail", msg_id),
+            status="dropped",
+            note="requeued",
+        )
+    except Exception as exc:
+        _warn(f"mail item not closed for {msg_id} — {type(exc).__name__}: {exc}")
+
+
 # --- claim / ack / requeue ----------------------------------------------------
 def claim(msg_id: str, repo: str) -> Path:
     """Claim WITHOUT resolving: the rename lock alone, no acked-by line.
@@ -1817,14 +1970,23 @@ def main(argv: list[str] | None = None) -> int:
         elif args.cmd == "read":
             print(read_msg(args.id, args.repo or _current_repo()))
         elif args.cmd == "claim":
-            print(claim(args.id, args.repo or _current_repo()))
+            repo = args.repo or _current_repo()
+            dst = claim(args.id, repo)
+            print(dst)
+            _note_mail_claim(args.id, repo, dst)
         elif args.cmd == "ack":
-            print(ack(args.id, args.repo or _current_repo(), disposition=args.disposition))
+            repo = args.repo or _current_repo()
+            dst = ack(args.id, repo, disposition=args.disposition)
+            print(dst)
+            _note_mail_ack(args.id, repo, args.disposition)
         elif args.cmd == "route":
             path = route(args.id, args.to_agent, repo=args.repo)
             print(f"{path} · @{args.to_agent}" if args.to_agent else f"{path} · addressee cleared")
         elif args.cmd == "requeue":
-            print(requeue(args.id, args.repo or _current_repo()))
+            repo = args.repo or _current_repo()
+            dst = requeue(args.id, repo)
+            print(dst)
+            _note_mail_requeue(args.id, repo)
         elif args.cmd == "digest":
             _deliver_digest(digest(days=args.days))
         elif args.cmd == "should-reply":
