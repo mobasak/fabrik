@@ -3385,19 +3385,131 @@ def ensure_decision_items(
             return None
 
 
-def _set_next(repo: Path, next_text: str, session: str) -> None:
-    """The named item's ``next`` — unless ANOTHER session holds a live claim on it."""
-    m = _ITEM_REF_RE.search(next_text)
-    if not m or not _item_path(repo, m.group(0)).is_file():
+NEXT_IDLE_S = 7 * 86400  # the Stop harvest closes a ``next`` item this long after its next_at
+HOOK_NO_SESSION = "nosession"  # the Stop hook's id for a payload without one: never a claimant
+_HOLD_LEAD_RE = re.compile(r"(?:none|BLOCKED)(?![0-9A-Za-z_])", re.I)
+_HOLD_ANY_RE = re.compile(r"(?<![0-9A-Za-z_])operator\s+decision(?![0-9A-Za-z_])", re.I)
+
+
+def classify_next(v: str) -> str:
+    """One NEXT value's class, shared by the harvest and the census (T06 loads it by path):
+    ``"hold"`` when it STARTS with the word ``none`` or ``BLOCKED`` or carries ``operator
+    decision`` ANYWHERE (whole words, any case) — a hold whatever else the line names;
+    ``"names-item"`` when it names a ``W-`` id; else ``"free-text"``. Pure."""
+    text = " ".join(v.split())
+    if _HOLD_LEAD_RE.match(text) or _HOLD_ANY_RE.search(text):
+        return "hold"
+    if _ITEM_REF_RE.search(text):
+        return "names-item"
+    return "free-text"
+
+
+def _session_next_items(repo: Path, session: str) -> list[dict]:
+    """The session's open ``kind: next`` items — one by construction; a hand-made twin is listed."""
+    return [
+        it
+        for it in _iter_items(repo)
+        if it.get("kind") == "next"
+        and it.get("status") == "open"
+        and _links(it).get("session") == session
+    ]
+
+
+def _close_next(repo: Path, item: dict, session: str, note: str) -> None:
+    item.update(status="dropped", note=note)
+    _close(repo, item, session=session, note=note)
+
+
+def _supersede_next(repo: Path, session: str) -> None:
+    """Rules 1 and 2's tail: the session's open ``next`` item closes ``dropped`` ``superseded``."""
+    for item in _session_next_items(repo, session):
+        try:
+            _close_next(repo, item, session, "superseded")
+        except Exception as exc:
+            _warn(f"next item {item.get('id')} not closed — {type(exc).__name__}: {exc}")
+
+
+def _claim_named(repo: Path, v: str, session: str) -> None:
+    """Rule 2: the FIRST named id that is open, ready, not a ``next`` item and not held live by
+    another session gets ``next = v`` (only when different) and ``claim``'s own write
+    (``_claim_record``); no other named item is touched, and when none qualifies nothing is."""
+    by_id = {str(it["id"]): it for it in _iter_items(repo)}
+    closed = _closed_ids(repo)
+    now = time.time()
+    for ref in _ITEM_REF_RE.findall(v):
+        item = by_id.get(ref)
+        if item is None or item.get("kind") == "next" or not _is_ready(item, by_id, closed):
+            continue
+        taken = _claim_record(_claim_of(repo, ref), session, now)
+        if taken is None:  # another session's live claim: its item stays byte-identical
+            continue
+        text = v[:LINE_MAX]
+        if item.get("next") != text:
+            item["next"] = text
+            _write_item(repo, item)
+        _write_claim(repo, ref, taken[0])
         return
-    claim = _claim_of(repo, m.group(0))
-    if _is_live(claim) and claim is not None and claim.get("session") != session:
+
+
+def _keep_next(repo: Path, v: str, session: str) -> None:
+    """Rule 3: the session's one open ``next`` item carries ``v`` — rewritten only when the text
+    differs (a repeated harvest writes nothing), created when the session has none."""
+    text = v[:LINE_MAX]
+    mine = _session_next_items(repo, session)
+    if mine:
+        item = mine[0]
+        if item.get("next") != text:
+            item.update(next=text, next_at=_now_iso())
+            _write_item(repo, item)
         return
-    item = _read_item(repo, m.group(0))
-    text = " ".join(next_text.split())[:LINE_MAX]
-    if item.get("status") not in RESOLVED and item.get("next") != text:
-        item["next"] = text
-        _write_item(repo, item)
+    item = _new_item(
+        kind="next",
+        title=text,
+        next_action=text,
+        links={"session": session},
+        priority=DEFAULT_PRIORITY,
+    )
+    item.update(creator=session, owner=_agent_name(session=session), next_at=item["created"])
+    _create_item(repo, item)
+
+
+def _apply_next_rules(repo: Path, next_text: str, session: str, anchored: bool) -> None:
+    """Spec D3, the first match decides: a hold (1) closes the session's ``next`` item; a line
+    naming an item (2) claims the first qualifying id, then closes it too; free text the register
+    accepted (3) becomes the session's ``next`` item; anything else (4) is nothing. A session
+    that cannot hold a claim ("" or ``nosession``) is never acted for."""
+    v = " ".join(next_text.split())
+    if not v or not session or session == HOOK_NO_SESSION:
+        return
+    cls = classify_next(v)
+    if cls == "hold":
+        _supersede_next(repo, session)
+    elif cls == "names-item":
+        _claim_named(repo, v, session)
+        _supersede_next(repo, session)
+    elif anchored:
+        _keep_next(repo, v, session)
+
+
+def _close_idle_next(repo: Path, session: str) -> None:
+    """Every open ``next`` item whose ``next_at`` (else ``created``) is over 7 days old closes
+    ``dropped`` ``idle 7 days``, whichever session harvests. Each item is judged alone: one that
+    cannot be judged or closed is one stderr line, never a stop for the rest."""
+    now = time.time()
+    for item in _iter_items(repo):
+        try:
+            if item.get("kind") != "next" or item.get("status") != "open":
+                continue
+            at = _parse_iso(str(item.get("next_at") or "")) or _parse_iso(
+                str(item.get("created") or "")
+            )
+            if at is None:
+                _warn(f"next item {item.get('id')} skipped — no readable next_at or created")
+                continue
+            if now - at.timestamp() > NEXT_IDLE_S:
+                _close_next(repo, item, session, "idle 7 days")
+        except Exception as exc:
+            _warn(f"next item {item.get('id')} not judged — {type(exc).__name__}: {exc}")
 
 
 def on_harvest(
@@ -3407,11 +3519,16 @@ def on_harvest(
     block: str | None = None,
     msg_digest: str | None = None,
     next_text: str | None = None,
+    next_anchored: bool = False,
     lock_timeout: float = HOOK_LOCK_TIMEOUT_S,
 ) -> str | None:
     """The Stop harvest's ONE store call, under ONE lock: (1) the decision item, first — the write
-    that must not be lost; (2) the ``next`` of an item a NEXT line names; (3) renew ``session``'s
-    live claims; the marker prune runs last. Returns the decision item's id, else None."""
+    that must not be lost; (2) the NEXT rules (spec D3, ``_apply_next_rules``) — ``next_anchored``
+    says the register accepted the NEXT, and only then does free text become the session's
+    ``next`` item; a caller that omits it still gets rules 1 and 2, so a NEXT naming an open
+    unclaimed item CLAIMS it; (3) the 7-day close of idle ``next`` items; (4) renew ``session``'s
+    live claims, the marker prune last. Steps 2 and 3 each fail open with one stderr line.
+    Returns the decision item's id, else None."""
     with _hook_git_budget():
         try:
             root = _api_root(repo)
@@ -3437,9 +3554,13 @@ def on_harvest(
                         _warn(f"decision item not written — {type(exc).__name__}: {exc}")
                 if next_text:
                     try:
-                        _set_next(root, next_text, session)
+                        _apply_next_rules(root, next_text, session, next_anchored)
                     except Exception as exc:
-                        _warn(f"item next not written — {type(exc).__name__}: {exc}")
+                        _warn(f"NEXT rules not applied — {type(exc).__name__}: {exc}")
+                try:
+                    _close_idle_next(root, session)
+                except Exception as exc:
+                    _warn(f"idle next items not closed — {type(exc).__name__}: {exc}")
                 _after_write(root, session)  # only the harvester's OWN session ever renews here
                 return decision
         except Exception as exc:

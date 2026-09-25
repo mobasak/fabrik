@@ -577,8 +577,7 @@ def test_on_harvest_writes_the_decision_then_the_items_next_under_one_lock(
 ):
     work, env = api
     repo = _store(tmp_path, env)
-    item = _add(repo, env)
-    _ok(["claim", item, "--session", "S1"], env, repo)
+    item = _add(repo, env)  # open and unclaimed: rule 2 takes the claim itself
     calls = []
     real = work._store_lock
 
@@ -613,11 +612,13 @@ def test_on_harvest_writes_the_decision_then_the_items_next_under_one_lock(
     assert _item(repo, got)["kind"] == "decision"
     assert _item(repo, item)["next"] == f"{item}: write the migration test"
     assert calls == [True]
+    claim = _claim(repo, item)
+    assert claim["session"] == "S1" and claim["token"] == 1 and claim["lease_s"] == 7200
     kinds = [(w[0], w[1] == got, w[1] == item) for w in writes]
     decision_at = kinds.index(("item", True, False))
     next_at = kinds.index(("item", False, True))
-    renew_at = kinds.index(("claim", False, True))
-    assert decision_at < next_at < renew_at, writes
+    claim_at = kinds.index(("claim", False, True))
+    assert decision_at < next_at < claim_at, writes
 
 
 def test_on_harvest_fails_open_when_the_lock_is_held(tmp_path, api):
@@ -762,13 +763,17 @@ def test_on_harvest_leaves_the_next_of_an_item_another_session_holds(tmp_path, a
     item = _add(repo, env)
     _ok(["claim", item, "--session", "A"], env, repo)
     before = _item_file(repo, item).read_bytes()
+    held = _claim(repo, item)
     got = work.on_harvest(
         repo, session="B", block=BLOCK, msg_digest="m1", next_text=f"{item}: not yours"
     )
     assert got and _item(repo, got)["kind"] == "decision"
     assert _item_file(repo, item).read_bytes() == before
+    assert _claim(repo, item) == held  # B neither took nor renewed A's claim
     work.on_harvest(repo, session="A", next_text=f"{item}: yours")
     assert _item(repo, item)["next"] == f"{item}: yours"
+    mine = _claim(repo, item)
+    assert mine["session"] == "A" and mine["token"] == held["token"]  # A's own claim, renewed
 
 
 def _set_item(tree: Path, item_id: str, **fields: object) -> None:
