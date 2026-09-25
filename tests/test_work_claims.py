@@ -618,7 +618,8 @@ def test_on_harvest_writes_the_decision_then_the_items_next_under_one_lock(
     decision_at = kinds.index(("item", True, False))
     next_at = kinds.index(("item", False, True))
     claim_at = kinds.index(("claim", False, True))
-    assert decision_at < next_at < claim_at, writes
+    # the claim precedes the item's next, so a failed claim never leaves a rewritten next
+    assert decision_at < claim_at < next_at, writes
 
 
 def test_on_harvest_fails_open_when_the_lock_is_held(tmp_path, api):

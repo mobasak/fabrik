@@ -161,13 +161,32 @@ def _iso_days_ago(days: float) -> str:
         ("awaiting operator decision — start W-992909ca now", "hold"),
         ("operator decision: start W-992909ca now", "hold"),
         ("Operator  Decision: start W-992909ca", "hold"),
+        ("**none** — terminal", "hold"),
+        ("_none_", "hold"),
+        ("`none`", "hold"),
+        ("(none)", "hold"),
+        ("- none — terminal", "hold"),
+        ("**BLOCKED**: missing infra", "hold"),
+        ("the operator decisions log", "hold"),
+        ("operator-decision: start W-992909ca", "hold"),
         ("W-992909ca continue", "names-item"),
         ("continue W-992909ca then W-0858e5c2", "names-item"),
+        ("W-abcdef12 — continue", "names-item"),
+        ("continue W-abcdef12.", "names-item"),
+        ("(W-abcdef12)", "names-item"),
+        ("W-abcdef12, W-12345678", "names-item"),
+        ("read https://x/notes/W-abcdef12/details", "free-text"),
+        ("open /repo/W-abcdef12/notes.md", "free-text"),
+        ("edit W-abcdef12.json", "free-text"),
+        ("see .W-abcdef12 backup", "free-text"),
+        ("W-ABCDEF12 continue", "free-text"),
         ("fix the flake", "free-text"),
         ("Nonexistent thing", "free-text"),
+        ("nonetheless ship it", "free-text"),
         ("BLOCKEDx is a word", "free-text"),
-        ("the operator decisions log", "free-text"),
+        ("the build is blocked on CI", "free-text"),
         ("run the none-safe path", "free-text"),
+        ("the operators decision log", "free-text"),
     ],
 )
 def test_classify_next_sorts_every_line_by_the_ticket_precedence(store, line, want):
@@ -188,7 +207,7 @@ def test_three_free_text_stops_leave_one_next_item_with_the_last_text_and_a_repe
     mine = _open_next(repo, "S1")
     assert len(mine) == 1 and len(_next_items(repo)) == 1
     item = mine[0]
-    assert item["next"] == "ship the census" and item["title"] == "fix the flake"
+    assert item["next"] == "ship the census" and item["title"] == "ship the census"
     assert item["creator"] == "S1" and item["owner"] == "" and item["priority"] == 2
     assert item["next_at"] > item["created"]
     before, mtime = _file(repo, item["id"]).read_bytes(), _file(repo, item["id"]).stat().st_mtime_ns
@@ -345,3 +364,126 @@ def test_the_decision_item_survives_when_the_rules_and_the_idle_close_raise(stor
     )
     assert got and _item(repo, got)["kind"] == "decision"
     assert _item(repo, got)["status"] == "awaiting-operator"
+
+
+# ── review round 1 ───────────────────────────────────────────────────────────────────────────
+
+
+def _bind(env: dict[str, str], session: str, name: str) -> None:
+    path = Path(env["AGENT_IDENTITY_FILE"])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"session_id": session, "name": name}) + "\n", encoding="utf-8")
+
+
+def test_an_id_inside_a_path_or_url_names_no_item_and_supersedes_nothing(store):
+    work, repo, env = store
+    x = _add(repo, env, "X")
+    work.on_harvest(repo, session="S1", next_text="fix the flake", next_anchored=True)
+    (nxt,) = _open_next(repo, "S1")
+    before = _file(repo, x).read_bytes()
+    for line in (f"read https://x/notes/{x}/details", f"open /repo/{x}/notes.md", f"{x}.json"):
+        work.on_harvest(repo, session="S1", next_text=line)  # not anchored: rule 4
+    assert _file(repo, x).read_bytes() == before and _claim(repo, x) is None
+    assert _item(repo, nxt["id"])["status"] == "open"
+    # a bare id makes the line rule 2; the path-shaped one is still never a target
+    work.on_harvest(repo, session="S1", next_text=f"open /repo/{x}/notes.md for W-00000000")
+    assert _file(repo, x).read_bytes() == before and _claim(repo, x) is None
+    # unchanged: a sentence-final id still names (and claims) it
+    work.on_harvest(repo, session="S1", next_text=f"continue {x}.")
+    assert _live_session(repo, x) == "S1"
+
+
+def test_rule_two_records_the_sessions_bound_agent_and_the_cli_record_is_unchanged(store):
+    work, repo, env = store
+    _bind(env, "S1", "fleet")
+    x = _add(repo, env, "X")
+    work.on_harvest(repo, session="S1", next_text=f"{x} continue")
+    claim = _claim(repo, x)
+    assert claim is not None and claim["agent"] == "fleet"
+    # unchanged: the CLI's record resolves the agent with no session, as before
+    rec = work._claim_record(None, "S1", 1.0)
+    assert rec is not None and rec[0]["agent"] == work._agent_name() == ""
+
+
+def test_rule_three_creates_the_item_with_its_owner_and_next_at(store):
+    work, repo, env = store
+    _bind(env, "S1", "intel")
+    work.on_harvest(repo, session="S1", next_text="fix the flake", next_anchored=True)
+    (item,) = _open_next(repo, "S1")
+    assert item["owner"] == "intel" and item["next_at"] == item["created"]
+
+
+def test_rule_two_never_claims_a_next_item_by_id(store):
+    work, repo, _env_ = store
+    work.on_harvest(repo, session="S2", next_text="their thread", next_anchored=True)
+    work.on_harvest(repo, session="S1", next_text="my thread", next_anchored=True)
+    (theirs,), (mine,) = _open_next(repo, "S2"), _open_next(repo, "S1")
+    before = _file(repo, theirs["id"]).read_bytes()
+    work.on_harvest(repo, session="S1", next_text=f"{theirs['id']} then {mine['id']}")
+    assert _file(repo, theirs["id"]).read_bytes() == before
+    assert _claim(repo, theirs["id"]) is None and _claim(repo, mine["id"]) is None
+    assert _item(repo, mine["id"])["note"] == "superseded"  # its own: closed, never claimed
+
+
+def test_a_failed_claim_write_leaves_the_items_next_alone_and_still_supersedes(store, monkeypatch):
+    work, repo, env = store
+    x = _add(repo, env, "X")
+    work.on_harvest(repo, session="S1", next_text="fix the flake", next_anchored=True)
+    (nxt,) = _open_next(repo, "S1")
+    before = _file(repo, x).read_bytes()
+
+    def refuse(*_a, **_k):
+        raise OSError("claims dir is read-only")
+
+    monkeypatch.setattr(work, "_write_claim", refuse)
+    work.on_harvest(repo, session="S1", next_text=f"{x} continue")
+    assert _file(repo, x).read_bytes() == before
+    assert _item(repo, nxt["id"])["note"] == "superseded"
+
+
+def test_a_next_item_closed_in_another_tree_is_never_closed_again(store):
+    work, repo, _env_ = store
+    work.on_harvest(repo, session="S2", next_text="old thread", next_anchored=True)
+    work.on_harvest(repo, session="S3", next_text="plain thread", next_anchored=True)
+    (a,), (b,) = _open_next(repo, "S2"), _open_next(repo, "S3")
+    for it in (a, b):
+        _set(repo, it["id"], next_at=_iso_days_ago(8))
+    marker = repo / ".git" / "fabrik-work" / "closed" / f"{a['id']}.json"
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    fields = {
+        "agent": "",
+        "at": time.time(),
+        "decision": "",
+        "evidence": "",
+        "id": a["id"],
+        "note": "elsewhere",
+        "session": "OTHER",
+        "status": "dropped",
+        "tree": "/elsewhere/wt",
+    }
+    marker.write_text(json.dumps(fields), encoding="utf-8")
+    held, item_before = marker.read_bytes(), _file(repo, a["id"]).read_bytes()
+    work.on_harvest(repo, session="S2", next_text="none — terminal")
+    assert marker.read_bytes() == held
+    assert _file(repo, a["id"]).read_bytes() == item_before
+    # unchanged: the markerless idle item still closes at 7 days
+    got = _item(repo, b["id"])
+    assert (got["status"], got["note"]) == ("dropped", "idle 7 days")
+
+
+def test_the_seven_day_boundary_is_strictly_greater(store, monkeypatch):
+    work, repo, _env_ = store
+    for s in ("S2", "S3"):
+        work.on_harvest(repo, session=s, next_text=f"thread {s}", next_anchored=True)
+    (exact,), (over,) = _open_next(repo, "S2"), _open_next(repo, "S3")
+    now = float(int(time.time()))  # whole seconds: the ISO round trip is exact
+
+    def iso(t: float) -> str:
+        return datetime.fromtimestamp(t, UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    _set(repo, exact["id"], next_at=iso(now - 7 * 86400))
+    _set(repo, over["id"], next_at=iso(now - 7 * 86400 - 1))
+    monkeypatch.setattr(time, "time", lambda: now)
+    work.on_harvest(repo, session="S9")
+    assert _item(repo, exact["id"])["status"] == "open"
+    assert _item(repo, over["id"])["status"] == "dropped"
