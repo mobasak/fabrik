@@ -337,11 +337,15 @@ def _valid_name(value: str) -> bool:
     return bool(_NAME_RE.fullmatch(value))
 
 
-def _agent_name() -> str:
+def _agent_name(*, session: str = "") -> str:
     """The resolver's name (``whoami_agent.resolve_agent_name()``, imported by path) when it gives
-    one, else ``CLAUDE_AGENT`` when it matches NAME_RULE, else ""; never raises. Both paths apply
-    the same name rule, so a failed import never loosens identity."""
+    one, else ``CLAUDE_AGENT`` when it matches NAME_RULE, else — only when ``session`` is given and
+    ``CLAUDE_CODE_SESSION_ID`` is empty (a hook process handed its session in the payload) — the
+    whoami binding for ``session`` (last row wins, whoami's own name rule), else ""; never raises.
+    Both paths apply the same name rule, so a failed import never loosens identity; the env
+    session id, when set, always wins over the passed one."""
     name = ""
+    mod: Any = None
     try:
         spec = importlib.util.spec_from_file_location("_work_whoami", WHOAMI_PY)
         if spec is not None and spec.loader is not None:
@@ -353,7 +357,19 @@ def _agent_name() -> str:
     if _valid_name(name):
         return name
     env = (os.environ.get("CLAUDE_AGENT") or "").strip()
-    return env if _valid_name(env) else ""
+    if _valid_name(env):
+        return env
+    if not session or mod is None or (os.environ.get("CLAUDE_CODE_SESSION_ID") or "").strip():
+        return ""
+    bound = ""
+    try:
+        for row in mod._rows(mod.store_path()):  # LAST row wins, exactly as whoami resolves
+            value = str(row.get("name") or "")
+            if row.get("session_id") == session and mod._NAME_RE.fullmatch(value):
+                bound = value
+    except Exception:
+        bound = ""
+    return bound if _valid_name(bound) else ""
 
 
 def _actor_label() -> str:
@@ -3562,9 +3578,54 @@ def _clip(line: str) -> str:
     return line if len(line) <= LINE_MAX else line[: LINE_MAX - 1] + "…"
 
 
+UNNAMED_WINDOW_LINE = (
+    "work: this window has no agent name — owned items cannot reach it; "
+    "run python3 scripts/whoami_agent.py --as <name>"
+)
+
+
+def _claim_session(claim: dict) -> str:
+    return str(claim.get("session") or "")
+
+
+def _fit_ids(head: str, ids: list[str]) -> str:
+    """``head`` + the ids; when they overflow LINE_MAX, as many WHOLE ids as fit and ``… and <n>
+    more`` — an id is never cut and the missing count is said. Only a head that alone overflows
+    LINE_MAX (one session's claims under dozens of agent names) loses both: ``_clip`` cuts it."""
+    line = head + ", ".join(ids)
+    if len(line) <= LINE_MAX:
+        return line
+    for shown in range(len(ids) - 1, -1, -1):
+        line = f"{head}{', '.join(ids[:shown])} … and {len(ids) - shown} more"
+        if len(line) <= LINE_MAX:
+            return line
+    return line  # a head alone over LINE_MAX: _clip cuts it, as any other line
+
+
+def _on_it_lines(claims: dict[str, dict], session: str) -> list[str]:
+    """One ``on it:`` line per OTHER session holding live claims (spec D4), so every live claim
+    the ``your claim`` lines leave out appears here once. A live claim always has a session
+    (``_is_live``), so the line is keyed by it alone."""
+    groups: dict[str, list[tuple[str, dict]]] = {}
+    for item_id, claim in claims.items():
+        claim_session = _claim_session(claim)
+        if session and claim_session == session:
+            continue  # the caller's own: its ``your claim`` line
+        groups.setdefault(claim_session, []).append((item_id, claim))
+    lines = []
+    for claim_session, held in sorted(groups.items()):
+        agents = sorted({str(c.get("agent") or "") for _i, c in held} - {""})
+        who = ",".join(agents) or "unnamed"
+        head = f"work: on it: {claim_session[:8]} ({who}) — "
+        lines.append(_fit_ids(head, sorted(i for i, _c in held)))
+    return lines
+
+
 def prompt_block(repo: Path | str, session: str) -> str:
-    """Read-only, no lock, the caller's own tree: every awaiting-operator item with its question,
-    ``session``'s live claims, and the ready count — or "" when all three are empty."""
+    """Read-only, no lock, the caller's own tree, in order: the unnamed-window line (spec D6), the
+    obligation lines (D1), every awaiting-operator item with its question, ``session``'s live
+    claims, one ``on it:`` line per other session's live claims (D4), and the ready count — or ""
+    when all of them are empty. A store-less repo is "" whatever the window's name."""
     with _hook_git_budget():
         try:
             root = _api_root(repo)
@@ -3574,7 +3635,15 @@ def prompt_block(repo: Path | str, session: str) -> str:
             closed = _closed_ids(root)
             claims = _live_claims(root)
             by_id = {str(it["id"]): it for it in items}
-            lines = []
+            lines = [] if _agent_name(session=session) else [UNNAMED_WINDOW_LINE]
+            lines.extend(f"work: {line}" for line in obligations(root))
+            # ready's ``(yours)`` rule: a claim whose close failed to end it stays live, but its
+            # item is closed or resolved and prints nowhere (the ready count keeps every claim)
+            shown = {
+                i: c
+                for i, c in claims.items()
+                if i not in closed and by_id.get(i, {}).get("status") not in RESOLVED
+            }
             awaiting = [
                 it
                 for it in items
@@ -3587,13 +3656,14 @@ def prompt_block(repo: Path | str, session: str) -> str:
                 also = ", ".join(str(i) for i in it.get("alt_ids") or [] if i)
                 also = f" (also asked as {also})" if also else ""
                 lines.append(f"work: awaiting operator — {it['id']}{ground}: {question}{also}")
-            for item_id, claim in sorted(claims.items()):
-                if session and claim.get("session") == session:
+            for item_id, claim in sorted(shown.items()):
+                if session and _claim_session(claim) == session:
                     title = by_id.get(item_id, {}).get("title") or "(not in this tree)"
                     lines.append(
                         f"work: your claim — {item_id}: {title} "
                         f"(token {claim.get('token')}, lease until {_iso(_claim_end(claim))})"
                     )
+            lines.extend(_on_it_lines(shown, session))
             ready = len(_ready_from(items, closed, claims))
             if ready:
                 lines.append(f"work: {ready} ready — `work.py next`")
