@@ -574,12 +574,34 @@ def _assert_not_hub(target: Path) -> None:
     (they would then only be tracked via ``git add -f``). Scaffold and fix
     operate on projects under /opt/<id>, never the hub or any path within it. ``sync_enforcement_to_projects.py``
     already excludes the hub from its project list; this closes the manual path.
+
+    A hub CHECKOUT is recognised by its own files as well as by ``FABRIK_ROOT``: that root is
+    env-configurable, and the scaffold tests point it at a worktree so templates resolve there —
+    which, keyed on the root alone, made the real /opt/fabrik "not the hub" (2026-09-24, the shared
+    checkout was rewritten; W-508064a8). The marker is the scaffolder itself, which every hub revision
+    carries and no project does (measured: 59 dirs under /opt, only the hub); a fork or clone of the
+    hub is refused on purpose, since scaffolding into it would clobber its sources the same way. Its
+    presence is enough — a directory or a dangling link at that path still marks a hub checkout.
     """
-    if target.resolve().is_relative_to(FABRIK_ROOT.resolve()):
+    resolved = target.resolve()
+    hub_checkout = next(
+        (
+            p
+            for p in (resolved, *resolved.parents)
+            if any(os.path.lexists(p / marker) for marker in _HUB_MARKERS)
+        ),
+        None,
+    )
+    if resolved.is_relative_to(FABRIK_ROOT.resolve()) or hub_checkout is not None:
         raise ValueError(
-            f"refusing to scaffold/fix the Fabrik hub or any path inside it ({FABRIK_ROOT}); "
-            "scaffold operates on projects under /opt/<id>, never the hub or its subdirs"
+            f"refusing to scaffold/fix the Fabrik hub or any path inside it "
+            f"({hub_checkout or FABRIK_ROOT}); scaffold operates on projects under /opt/<id>, "
+            "never the hub or its subdirs"
         )
+
+
+# The path only a Fabrik hub checkout carries — the scaffolder itself (_assert_not_hub).
+_HUB_MARKERS = ("src/fabrik/scaffold.py",)
 
 
 _COMMON_GITIGNORE_PATTERNS = (

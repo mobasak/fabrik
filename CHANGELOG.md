@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The scaffold hub guard can no longer be switched off by pointing FABRIK_ROOT at a worktree (2026-09-26)
+- `src/fabrik/scaffold.py::_assert_not_hub` now also refuses any target that is, or sits inside, a directory carrying `src/fabrik/scaffold.py` — a hub checkout, clone or worktree at any revision — instead of trusting the env-configurable `FABRIK_ROOT` alone. On 2026-09-24 that override let `fix_project(/opt/fabrik)` rewrite the shared checkout during a test run. W-508064a8.
+
 ### Changed — the work prompt block shows obligations, every other session's claims, and an unnamed window (2026-09-25)
 - `scripts/work.py` `prompt_block` now prints, in order: a "this window has no agent name" line when no agent name resolves (the hook's own session binding counts, D6), the live mail and feedback-queue obligation lines (D1), the awaiting and `your claim` lines as before, one `on it: <session> (<agent>) — W-…` line per other session holding live claims (whole ids, `… and <n> more` past the line limit; D4), then the ready count. Every live claim on an open item appears once; a claim left live on a closed item prints nowhere. Still read-only with no lock, 17 ms on a hub-sized inbox and ledger (V4). Tests: `tests/test_work_prompt.py` (plan 2026-09-25-plan-1, T02b; review 3 passes, confirmed 7 → 1 → 0).
 

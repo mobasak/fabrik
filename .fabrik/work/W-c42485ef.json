@@ -1,0 +1,26 @@
+{
+  "block_digest": "13e1f96b658a8310af02b056cb636807dd4d55a4815950173d987dc32c0bff4a",
+  "blocked_by": [],
+  "created": "2026-09-25T11:30:49.755676Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "underivable",
+  "id": "W-c42485ef",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "bc092febf6a32e8d4545635e19ac01c2f5a4ec2264deea0236ab73fae95a14ce"
+  ],
+  "next": "W-c42485ef — your answer on whether to start fleet's queue with W-508064a8, the `fix_project` hub-guard bug",
+  "note": "start",
+  "owner": "",
+  "priority": 2,
+  "question": "Should I start working fleet's queue now, beginning with the `fix_project` hub-guard bug, and continue item by item after that?",
+  "status": "done",
+  "title": "Should I start working fleet's queue now, beginning with the `fix_project` hub-guard bug, and continue item by item after that?"
+}

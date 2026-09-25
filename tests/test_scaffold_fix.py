@@ -56,6 +56,53 @@ class TestScaffoldHubGuard:
         with pytest.raises(ValueError, match="hub"):
             _assert_not_hub(link)
 
+    @requires_fabrik_env
+    def test_hub_is_refused_when_fabrik_root_points_elsewhere(self, tmp_path, monkeypatch):
+        """W-508064a8: with FABRIK_ROOT pointed at a worktree, the real hub was 'not the hub'.
+
+        That override is what the scaffold tests need (templates resolve through it), and on
+        2026-09-24 it let test_fix_project_refuses_hub rewrite the shared checkout.
+        """
+        import fabrik.scaffold as scaffold
+
+        monkeypatch.setattr(scaffold, "FABRIK_ROOT", tmp_path / "some-worktree")
+        with pytest.raises(ValueError, match="hub"):
+            scaffold._assert_not_hub(FABRIK_ROOT)
+        with pytest.raises(ValueError, match="hub"):
+            scaffold._assert_not_hub(FABRIK_ROOT / "templates" / "x")
+
+    def test_any_hub_checkout_is_refused_by_its_markers(self, tmp_path, monkeypatch):
+        """A hub checkout (a worktree or clone) is recognised by its own files, not its path."""
+        import fabrik.scaffold as scaffold
+
+        monkeypatch.setattr(scaffold, "FABRIK_ROOT", tmp_path / "elsewhere")
+        # An old-revision clone (no synced manifest yet) is still a hub: the scaffolder is the marker.
+        hub = tmp_path / "hub-clone"
+        (hub / "src" / "fabrik").mkdir(parents=True)
+        (hub / "src" / "fabrik" / "scaffold.py").write_text("")
+        # A partial checkout where the marker path is a directory, or a dangling link, still counts.
+        odd_dir = tmp_path / "partial-checkout"
+        (odd_dir / "src" / "fabrik" / "scaffold.py").mkdir(parents=True)
+        dangling = tmp_path / "dangling-checkout"
+        (dangling / "src" / "fabrik").mkdir(parents=True)
+        (dangling / "src" / "fabrik" / "scaffold.py").symlink_to(tmp_path / "gone")
+        for target in (hub, hub / "docs" / "deep", odd_dir, dangling / "new-project"):
+            with pytest.raises(ValueError, match="hub"):
+                scaffold._assert_not_hub(target)
+
+    def test_synced_project_files_do_not_make_a_hub(self, tmp_path, monkeypatch):
+        """Over-block guard: a project carrying the hub's synced files is still scaffoldable."""
+        import fabrik.scaffold as scaffold
+
+        monkeypatch.setattr(scaffold, "FABRIK_ROOT", tmp_path / "elsewhere")
+        project = tmp_path / "project"
+        (project / "scripts" / "enforcement").mkdir(parents=True)
+        (project / "scripts" / "fabrik_synced_manifest.py").write_text("")
+        (project / "src" / "project").mkdir(parents=True)
+        (project / "src" / "project" / "scaffold.py").write_text("")
+        scaffold._assert_not_hub(project)
+        scaffold._assert_not_hub(project / "not-yet-created")
+
 
 @requires_fabrik_env
 class TestFixProjectAFCLPreservation:

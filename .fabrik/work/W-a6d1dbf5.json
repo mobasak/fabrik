@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-25T21:07:24.849569Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-a6d1dbf5",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decorate both with requires_fabrik_env, or build the hub in tmp_path now that _HUB_MARKERS is the scaffolder alone",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "tests/test_scaffold_fix.py: test_fix_project_refuses_hub and test_assert_not_hub_refuses_hub_and_dotpath assume a real /opt/fabrik with no requires_fabrik_env skip (2026-09-26, owner: fleet)"
+}
