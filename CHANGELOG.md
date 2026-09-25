@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added — The hub adopts the work store; archived plans carry their spec in the drift report (2026-09-25)
 - The hub ran `work.py init --distributor intel`, `migrate-backlog` (336 items: 314 open, 22 done, matching an independent reader owner by state) and `render`. `docs/STRATEGIC_BACKLOG.md` is now its hand-written context plus the rendered block (D-413), and two items track the V6 reading due 2026-10-08 and the fleet rollout.
 - `scripts/work.py`: drift class 1 counts a spec named by an ARCHIVED plan as carried forward, and class 4 checks archived EXECUTED plans for open linked items (D-412). The hub's class-1 list went from 28 to 4.
+- `scripts/work.py`: `migrate-backlog` runs once per repo; after `migrated_at` is set it creates nothing (D-414). The two hub-backlog tests read the backlog as it stood before the hub's adoption.
 
 ### Added — The native Task list is shared across fleet accounts (2026-09-25)
 - `scripts/sysadmin/claude_rotate.py` (and its twin `scripts/aro-wake/claude_rotate.py`) links `tasks/` across account config dirs like `sessions/`, creating the canonical dir when the CLI has not made it yet (D-399). A real `tasks/` already in an account dir is reported by `--new-dir` and `--status` and never moved; `docs/workstation/claude-account-rotation.md` names the sixth shared dir. Existing accounts pick up the link when the operator re-runs `--new-dir <slug> <email>`.
