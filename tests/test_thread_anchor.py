@@ -222,6 +222,8 @@ def _env(tmp_path: Path) -> dict[str, str]:
         "TMPDIR": str(tmp_path / "tmp"),
         "THREAD_ANCHOR_DIR": str(tmp_path / "threads"),
         "COMMAND_RUN_DIR": str(tmp_path / "runs"),
+        # hermetic: the prompt block's obligation lines never read the real mailbox
+        "FABRIK_MAIL_ROOT": str(tmp_path / "tmp" / "mail"),
         "GIT_CONFIG_NOSYSTEM": "1",
         "GIT_AUTHOR_NAME": "t",
         "GIT_AUTHOR_EMAIL": "t@example.invalid",
@@ -662,7 +664,7 @@ def test_a_concurrent_harvest_never_loses_a_clear(tmp_path, monkeypatch):
     answered decision reopened. The clear runs in a second PROCESS inside the harvest's window."""
     env = _env(tmp_path)
     _open_decision(env, "s-lk")
-    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "HOME", "TMPDIR"):
+    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "FABRIK_MAIL_ROOT", "HOME", "TMPDIR"):
         monkeypatch.setenv(k, env[k])
     ta = _ta_module()
     real_load = ta._load
@@ -723,7 +725,7 @@ def test_where_block_respects_its_time_budget(tmp_path, monkeypatch):
 
     env = _env(tmp_path)
     run3(["harvest", "--session", "s-t"], env, stdin="NEXT: resume the audit")
-    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "HOME", "TMPDIR"):
+    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "FABRIK_MAIL_ROOT", "HOME", "TMPDIR"):
         monkeypatch.setenv(k, env[k])
     ta = _ta_module()
 
@@ -1171,7 +1173,7 @@ def test_the_clear_keeps_a_slot_replaced_after_the_rescue_read_it(tmp_path, monk
     env = _env(tmp_path)
     repo = _store_repo(tmp_path, env)
     _write_state(env, "s-x", _slot_state(repo, _DECISION_TEXT))
-    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "HOME", "TMPDIR"):
+    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "FABRIK_MAIL_ROOT", "HOME", "TMPDIR"):
         monkeypatch.setenv(k, env[k])
     ta = _ta_module()
     real = ta._rescue_decisions
@@ -1205,7 +1207,8 @@ def test_awaiting_items_from_other_sessions_print_first_unfolded(tmp_path, paylo
     for sid, text in (("s-a", _DECISION_TEXT), ("s-b", _OTHER_DECISION)):
         run3(["harvest", "--session", sid, "--decision-ok", "--repo", str(repo)], env, stdin=text)
     run3(["harvest", "--session", "s-c"], env, stdin="NEXT: resume phase C of the plan")
-    rc, out, err = _hook_line(env, {**payload, "session_id": "s-c", "cwd": str(repo)})
+    named = dict(env, CLAUDE_AGENT="infra")  # a named window: no unnamed-window line first
+    rc, out, err = _hook_line(named, {**payload, "session_id": "s-c", "cwd": str(repo)})
     assert rc == 0, err
     lines = out.splitlines()
     # exactly the first two lines, in creation order, then the usual block — nothing before them
@@ -1232,7 +1235,7 @@ def test_where_block_omits_the_slot_only_when_the_store_holds_its_item(tmp_path,
     # the store lost the item (a failed write before the compaction): the slot line prints
     for p in (repo / ".fabrik" / "work").glob("W-*.json"):
         p.unlink()
-    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "HOME", "TMPDIR"):
+    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "FABRIK_MAIL_ROOT", "HOME", "TMPDIR"):
         monkeypatch.setenv(k, env[k])
     out = _ta_module().cmd_where("s-w", repo, "", repo=repo)
     assert "OPEN DECISION" in out, out
@@ -1352,7 +1355,7 @@ class _CountingWork:
 
 
 def _in_process(monkeypatch, env: dict[str, str]):
-    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "HOME", "TMPDIR"):
+    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "FABRIK_MAIL_ROOT", "HOME", "TMPDIR"):
         monkeypatch.setenv(k, env[k])
     ta = _ta_module()
     real = ta._work()
@@ -1397,6 +1400,7 @@ def test_the_rescue_makes_a_bounded_number_of_store_calls(tmp_path, monkeypatch,
     for i in range(50):
         _write_state(env, f"s-{i:02d}", _slot_state(repo, _numbered(i)))
     ta, real = _in_process(monkeypatch, env)
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")  # a named window: no unnamed-window line first
     calls: list[str] = []
     ta._WORK = _CountingWork(real, calls)
     t0 = time.monotonic()

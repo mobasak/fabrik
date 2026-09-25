@@ -650,8 +650,11 @@ def test_on_harvest_fails_open_when_the_lock_is_held(tmp_path, api):
     assert not work.has_msg_digest(repo, "m1")
 
 
-def test_prompt_block_lists_awaiting_items_this_sessions_claims_and_the_ready_count(tmp_path, api):
+def test_prompt_block_lists_awaiting_items_this_sessions_claims_and_the_ready_count(
+    tmp_path, api, monkeypatch
+):
     work, env = api
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")  # a named window: no unnamed-window line (D6)
     repo = _store(tmp_path, env)
     assert work.prompt_block(repo, "S1") == ""
     a = _add(repo, env, title="alpha")
@@ -664,7 +667,10 @@ def test_prompt_block_lists_awaiting_items_this_sessions_claims_and_the_ready_co
     assert "1 ready" in block
     assert all(len(line) <= 300 for line in block.splitlines())
     other = work.prompt_block(repo, "S2")
-    assert dec in other and a not in other
+    assert dec in other
+    # S1's claim reaches S2 only on S1's `on it:` line (D4), never as a `your claim` line
+    assert [ln for ln in other.splitlines() if a in ln] == [f"work: on it: S1 (unnamed) — {a}"]
+    assert "your claim" not in other
 
 
 def test_hook_api_on_a_store_less_repo_returns_empty_and_creates_nothing(tmp_path, api):

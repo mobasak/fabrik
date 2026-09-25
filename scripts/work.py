@@ -3562,9 +3562,37 @@ def _clip(line: str) -> str:
     return line if len(line) <= LINE_MAX else line[: LINE_MAX - 1] + "…"
 
 
+UNNAMED_WINDOW_LINE = (
+    "work: this window has no agent name — owned items cannot reach it; "
+    "run python3 scripts/whoami_agent.py --as <name>"
+)
+
+
+def _on_it_lines(claims: dict[str, dict], session: str) -> list[str]:
+    """One ``on it:`` line per OTHER session holding live claims (spec D4), grouped as
+    ``status``'s CLAIMS lines are — a claim with no session by its agent, labelled ``(no
+    session)`` — so every live claim the ``your claim`` lines leave out appears here once."""
+    groups: dict[tuple[str, str], list[tuple[str, dict]]] = {}
+    for item_id, claim in claims.items():
+        claim_session = str(claim.get("session") or "")
+        if session and claim_session == session:
+            continue  # the caller's own: its ``your claim`` line
+        agent_key = "" if claim_session else str(claim.get("agent") or "")
+        groups.setdefault((claim_session, agent_key), []).append((item_id, claim))
+    lines = []
+    for (claim_session, _agent), held in sorted(groups.items()):
+        agents = sorted({str(c.get("agent") or "") for _i, c in held} - {""})
+        ids = ", ".join(sorted(i for i, _c in held))
+        who = ",".join(agents) or "unnamed"
+        lines.append(f"work: on it: {_session_label(claim_session)} ({who}) — {ids}")
+    return lines
+
+
 def prompt_block(repo: Path | str, session: str) -> str:
-    """Read-only, no lock, the caller's own tree: every awaiting-operator item with its question,
-    ``session``'s live claims, and the ready count — or "" when all three are empty."""
+    """Read-only, no lock, the caller's own tree, in order: the unnamed-window line (spec D6), the
+    obligation lines (D1), every awaiting-operator item with its question, ``session``'s live
+    claims, one ``on it:`` line per other session's live claims (D4), and the ready count — or ""
+    when all of them are empty. A store-less repo is "" whatever the window's name."""
     with _hook_git_budget():
         try:
             root = _api_root(repo)
@@ -3574,7 +3602,8 @@ def prompt_block(repo: Path | str, session: str) -> str:
             closed = _closed_ids(root)
             claims = _live_claims(root)
             by_id = {str(it["id"]): it for it in items}
-            lines = []
+            lines = [] if _agent_name() else [UNNAMED_WINDOW_LINE]
+            lines.extend(f"work: {line}" for line in obligations(root))
             awaiting = [
                 it
                 for it in items
@@ -3594,6 +3623,7 @@ def prompt_block(repo: Path | str, session: str) -> str:
                         f"work: your claim — {item_id}: {title} "
                         f"(token {claim.get('token')}, lease until {_iso(_claim_end(claim))})"
                     )
+            lines.extend(_on_it_lines(claims, session))
             ready = len(_ready_from(items, closed, claims))
             if ready:
                 lines.append(f"work: {ready} ready — `work.py next`")
