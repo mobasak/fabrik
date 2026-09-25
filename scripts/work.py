@@ -3397,11 +3397,12 @@ _HOLD_ANY_RE = re.compile(r"(?<![0-9A-Za-z_])operator[\s-]+decisions?(?![0-9A-Za
 # an id a NEXT names is judged by its whitespace TOKEN: `_next_refs`. `_ITEM_REF_RE` stays the
 # evidence reader's.
 _NEXT_TOKEN_ID_RE = re.compile(r"W-[0-9a-f]{8}(?![0-9A-Za-z_])(?!\.[0-9A-Za-z])")
+_NEXT_OPENERS = "*`([{<\"'_—–"  # decoration before an id; never `#`, `=`, `?` (a URL's)
 
 
 def _next_refs(text: str) -> list[str]:
     """The ids a NEXT names, in order: a token counts only when it holds no ``/`` (a path or URL)
-    and — once its leading ``*`(`` decoration is stripped — STARTS with the id, not followed by
+    and — once its leading decoration (``_NEXT_OPENERS``) is stripped — STARTS with the id, not followed by
     ``.`` plus an alphanumeric (a file extension). Trailing decoration (``**``, ``)``, ``,``,
     ``:``, ``;``, ``.``, ``!``, ``?``) needs no strip: the match is anchored at the id and its
     lookaheads read only the next characters. So ``?item=W-…``, ``#W-…``, ``x/W-…`` and
@@ -3410,7 +3411,7 @@ def _next_refs(text: str) -> list[str]:
     for token in text.split():
         if "/" in token:
             continue
-        m = _NEXT_TOKEN_ID_RE.match(token.lstrip("*`("))
+        m = _NEXT_TOKEN_ID_RE.match(token.lstrip(_NEXT_OPENERS))
         if m:
             refs.append(m.group(0))
     return refs
