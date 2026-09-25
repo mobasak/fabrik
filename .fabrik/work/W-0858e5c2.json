@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-25T17:50:54.035284Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-0858e5c2",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "capture_golden.verify() never reports a consumer query that was never frozen (it loops only over frozen keys, capture_golden.py:760) — rank_task_subagents.q_evidence_query and q_stall_query are unfrozen, so both can change silently; add a NEW-query-NOT-YET-FROZEN line, then freeze the two keys"
+}
