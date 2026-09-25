@@ -4,6 +4,7 @@
 
 ## cli
 - [fabrik ai usage](../AGENTS.md) (owner: fleet): Show AI usage and cost summary.
+- [fabrik app-role-check](../AGENTS.md) (owner: fleet): Pre-cutover check for the ``<db>_app`` DSN cutover: ownership + privilege probe + repo scan.
 - [fabrik apply](../AGENTS.md) (owner: fleet): Deploy a service from spec.
 - [fabrik audit-registrars](../AGENTS.md) (owner: fleet): Compare each spec's shape-resolved registrars to live VPS state (T2-02 G-G2).
 - [fabrik content](../AGENTS.md) (owner: fleet): Content publishing commands.
@@ -199,7 +200,7 @@
 - [scripts/sysadmin/install_user_hooks.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_install_user_hooks.py | docs/workstation/hooks-index.md | scripts/sysadmin/user_hook_gate.py | scripts/sysadmin/selfwatch_check.py
 - [scripts/sysadmin/kaizen_backfill.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_backfill.py | none
 - [scripts/sysadmin/kaizen_collect.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/kaizen.md, scripts/sysadmin/archived/kaizen_metrics.py | none
-- [scripts/sysadmin/kaizen_collect_v2.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_collect_v2.py, tests/fixtures/kaizen-golden/ | none
+- [scripts/sysadmin/kaizen_collect_v2.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_collect_v2.py, tests/fixtures/kaizen-golden/, docs/workstation/kaizen.md
 - [scripts/sysadmin/kaizen_events.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_events.py, docs/workstation/kaizen-event-stream.md | none
 - [scripts/sysadmin/kaizen_outcomes.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_outcomes.py | none
 - [scripts/sysadmin/kaizen_shrink_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_shrink_audit.py, docs/workstation/kaizen-shrink-audit.md | none
@@ -208,13 +209,14 @@
 - [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/quota-dashboard.md, PORTS.md, docs/workstation/claude-account-rotation.md
 - [scripts/sysadmin/rules_render_versions.py](../INDEX.md) (owner: infra): AFTER-EDIT: .windsurf/rules/versions.yaml, scripts/sysadmin/rules_currency_watch.py, tests/sysadmin/test_rules_render_versions.py | none
 - [scripts/sysadmin/stop_mine.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/hooks-index.md, docs/reference/thread-anchors.md, docs/workstation/kaizen-event-stream.md
-- [scripts/thread_anchor.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_thread_anchor.py, docs/reference/thread-anchors.md, .claude/hooks/final_gate_stop.py, .claude/settings.json | none
+- [scripts/thread_anchor.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_thread_anchor.py, docs/reference/thread-anchors.md, .claude/hooks/final_gate_stop.py, .claude/settings.json, scripts/work.py | none
 - [scripts/traycer_write_report.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/update_vps_docs.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/verify_prod_parity.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/DEPLOYMENT.md, docs/OPERATIONS.md | none
 - [scripts/vps_apply_limits.sh](../INDEX.md) (owner: fleet): AFTER-EDIT: docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md | docs/STRATEGIC_BACKLOG.md
 - [scripts/vps_sync.py](../INDEX.md) (owner: fleet): AFTER-EDIT: none
 - [scripts/whoami_agent.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_whoami_agent.py, docs/workstation/agent-identity.md
+- [scripts/work.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_work.py, tests/test_work_claims.py, tests/test_work_sync.py, tests/test_work_migrate.py, docs/reference/work-tracking.md
 
 ## lib-module
 - [abuse-prevention](/opt/fabrik-lib/abuse-prevention/README.md) (owner: external:fabrik-lib): abuse-prevention
@@ -342,8 +344,9 @@
 - [core/86-email-templates.md](../.windsurf/rules/core/86-email-templates.md) (owner: infra): Email & template creation — MJML+Jinja2 pipeline, Resend/SES transport, push/in-app, deliverability, cross-cutting across SaaS/mobile/WordPress
 - [core/90-bootstrap-scripts.md](../.windsurf/rules/core/90-bootstrap-scripts.md) (owner: infra): Bootstrap script discipline — SSH user transition, fail2ban trap, idempotency, quote escaping
 - [core/app-audit-log.md](../.windsurf/rules/core/app-audit-log.md) (owner: infra): Tamper-evident audit log, MANDATORY in every project (D-368) — vendoring, canonical actor/action vocabulary, the concurrency lock, hash-chain verification, retention by legal period
-- [core/cost-budget.md](../.windsurf/rules/core/cost-budget.md) (owner: infra): Per-project LLM cost caps + shared cost_ledger + fail-open WAL — required for any service calling paid AI APIs or the watchdog sidecar
-- [core/ocoron-design-system.md](../.windsurf/rules/core/ocoron-design-system.md) (owner: infra): Ocoron design system — the visual identity every Ocoron-branded GUI inherits: colour tokens, typography, motion, component patterns, states, accessibility. Read for ANY screen, component or design-token work on a saas-skeleton, static-site, docusaurus, chrome-extension or desktop-app surface; the design-system ladder in saas/60-saas-ui.md points here.
+- [core/cost-budget.md](../.windsurf/rules/core/cost-budget.md) (owner: infra): Per-project cost caps on paid APIs — the fail-open accounting lane, the fail-closed reservation lane, the watchdog's caps, and what the ledger's dollar figures mean
+- [core/design-system-template.md](../.windsurf/rules/core/design-system-template.md) (owner: infra): The brand-neutral design-system TEMPLATE every Fabrik GUI inherits — the token slots a brand must fill (both modes), the computed-contrast contract, and the structure (components, states, tables, forms, motion, density, accessibility, responsive layout). A project's docs/design-system.md fills the slots; brand-identiy-creator emits that file in this shape…
+- [core/ocoron-design-system.md](../.windsurf/rules/core/ocoron-design-system.md) (owner: infra): Ocoron house identity — the Ocoron BRAND that fills core/design-system-template.md's slots: brand story, verbal identity, logo, colour tokens for both modes with a computed contrast table, typography, radius, icons, sound. Applies ONLY to a project whose docs/design-system.md declares "House identity: ocoron — chosen, not defaulted" (D-051)…
 - [core/self-healing.md](../.windsurf/rules/core/self-healing.md) (owner: infra): Self-healing escalation ladder — orchestrates the primitives in 58-resilience, 60-watchdog, 75-workers-jobs into one ordered response per failure class
 - [core/tojlo-design-system.md](../.windsurf/rules/core/tojlo-design-system.md) (owner: infra): Tojlo design system — the Tojlo-branded overrides on top of ocoron-design-system.md: brand story, module naming, module-specific components, accent colour. Read for ANY GUI work in a Tojlo project (tojlo.com tenants); inherits everything else from the Ocoron pack.
 - [desktop-app/00-domain-desktop-app.md](../.windsurf/rules/desktop-app/00-domain-desktop-app.md) (owner: infra): Desktop-app domain — PLANNING layer. Vision-intake dimensions (ICP, the standalone-vs-connected fork that decides whether revenue can be gated at all, zero-intermediary economics vs the OS gatekeeper, unit economics, risk, kill criteria) + epic-decomposition directives. Business formation, not code discipline — 72-desktop.md owns every code-time fact.
@@ -357,8 +360,8 @@
 - [saas/00-domain-saas.md](../.windsurf/rules/saas/00-domain-saas.md) (owner: infra): SaaS domain — PLANNING layer. Vision-intake dimensions (ICP, moat, pricing axis, GTM, COGS-per-tenant vs the single-VPS ceiling, risk register, dated kill criteria) + epic-decomposition directives. Business formation, not code discipline — 60/85/87/88/95 own every code-time fact.
 - [saas/60-saas-ui.md](../.windsurf/rules/saas/60-saas-ui.md) (owner: infra): SaaS UI patterns — navigation, components, dashboards, performance, billing UI, tenant UI, i18n
 - [saas/87-abuse-detection.md](../.windsurf/rules/saas/87-abuse-detection.md) (owner: infra): Abuse detection discipline — registration gating, progressive unlock, fingerprinting, disposable email blocking for SaaS free tiers
-- [saas/88-saas-launch-checklist.md](../.windsurf/rules/saas/88-saas-launch-checklist.md) (owner: infra): SaaS product completeness — launch-blocking checklist, legal compliance, payment routing, KVKK/GDPR, abuse prevention, onboarding, tenant settings
-- [saas/95-multi-tenant-saas.md](../.windsurf/rules/saas/95-multi-tenant-saas.md) (owner: infra): Multi-tenant SaaS discipline — tenant isolation, PostgreSQL RLS, context propagation, cross-tenant prevention
+- [saas/88-saas-launch-checklist.md](../.windsurf/rules/saas/88-saas-launch-checklist.md) (owner: infra): SaaS product completeness — launch-blocking checklist, legal pages, payment routing, KVKK/GDPR, abuse prevention, onboarding, tenant settings, Teknokent tax
+- [saas/95-multi-tenant-saas.md](../.windsurf/rules/saas/95-multi-tenant-saas.md) (owner: infra): Multi-tenant SaaS discipline — tenant isolation, PostgreSQL RLS, context propagation, what RLS does not cover, the fabrik-lib modules' tenancy contracts
 
 ## command
 - [design-review](../CLAUDE.md) (owner: infra): Complete a design review of the pending changes on the current branch — rendered UI visual, accessibility, and front-end implementation quality against Stripe/Airbnb/Linear-grade standards. TRIGGER — EN: "review this UI", "check the design and accessibility of this screen"; TR: "bu arayüzü incele", "tasarımı ve erişilebilirliği kontrol et"…
