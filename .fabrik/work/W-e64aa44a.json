@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-25T01:22:16.061437Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e64aa44a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-09-24-plan-2-work-tracking",
+    "spec": ""
+  },
+  "next": "thread_anchor.cmd_harvest fails open on a >1 s session lock, then work.on_harvest fails open on a >2 s store lock; both warnings go to the harvest subprocess's stderr, which the Stop hook discards, and with no slot written the prompt-time rescue has nothing to rescue. Reproduced in the D7 review (docs/development/reviews/2026-09-24-plan-2-work-tracking-review.md, W4-O3). Candidate fix: a lock-free <sid>.pending.json the rescue also scans, or surface the loss as a kaizen event. Needs both locks contended at once, so measure how often before building.",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "An accepted DECISION is lost when the session lock and the store lock are both busy at the Stop harvest (D7 W4-O3)"
+}

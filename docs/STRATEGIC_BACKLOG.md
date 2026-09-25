@@ -43,6 +43,7 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 - **[unassigned]** Now — Ready for Focus Window (`W-d536b913`)
 - **[unassigned]** Upstream the subagents routing denies to fabrik-lib (intel, opened 2026-09-05) (`W-d897e5fe`)
 - **[unassigned]** The synced block's header is false for a third of its groups, and it CANNOT be corrected in one edit (routed 2026-09-19) (`W-e214a022`)
+- **[unassigned]** An accepted DECISION is lost when the session lock and the store lock are both busy at the Stop harvest (D7 W4-O3) (`W-e64aa44a`)
 - **[unassigned]** Ownership — every item carries an owner (`W-e67c08dc`)
 - **[unassigned]** check_governance_tables.py is blind to two GFM-invisible table shapes (routed from T04a, D-297) (`W-f92977b9`)
 - **[fleet]** **`generate` secrets lack a remote-`.env` preservation read — re-apply re-mints a stable-forever key** (found live authoring the Zitadel deploy plan, 2026-08-28, `docs/development/plans/archived/20... (`W-023bdd59`)
