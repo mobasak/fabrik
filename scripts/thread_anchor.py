@@ -641,8 +641,8 @@ def _rescue_decisions(
     its item. Other sessions' files are only read, and no session lock is held across the store
     call. A step that would start past ``deadline`` (monotonic) is skipped, silently.
 
-    Returns (the ``msg`` this session's slot carried when it was read — None when the rescue did
-    not cover it — and a warning line, "" unless the write failed). Never raises."""
+    Returns (``msg`` from this session's slot for ``repo`` if the rescue read a usable one, else
+    None; and a warning line, "" unless the write failed or the store was busy). Never raises."""
     seen: str | None = None
     w = _work()
     if w is None or time.monotonic() >= deadline:
@@ -672,9 +672,17 @@ def _rescue_decisions(
         if not entries or left <= 0:
             return seen, ""
         ids = w.ensure_decision_items(
-            repo, entries, lock_timeout=max(0.1, min(w.HOOK_LOCK_TIMEOUT_S, left))
+            repo,
+            entries,
+            lock_timeout=max(0.1, min(w.HOOK_LOCK_TIMEOUT_S, left)),
+            own_session=session,
         )
-        failed = len(entries) - len(ids or [])
+        if ids is None:  # the lock was not taken: nothing was checked, so nothing is known lost
+            return seen, _cap(
+                f"work: store busy — {len(entries)} DECISION slot(s) not re-checked against the "
+                f"work store of {repo} this prompt; the next prompt re-checks them"
+            )
+        failed = len(entries) - len(ids)
     except Exception as e:
         _warn(f"DECISION rescue skipped — {type(e).__name__}: {e}")
         return seen, ""
@@ -1067,7 +1075,10 @@ def main(argv: list[str] | None = None) -> int:
                 cmd_clear_decision(session, payload.get("prompt"), expect_msg=seen)
             if payload.get("source") == "compact":
                 cwd = Path(str(payload.get("cwd") or os.getcwd())).resolve()
-                out = cmd_where(session, cwd, transcript_path, repo=repo)
+                # the OPEN DECISION leaves WHERE YOU ARE only when the work block above was
+                # actually printed; a block skipped past its budget must not hide it (D7 W4-O2)
+                shown = repo if repo is not None and block else None
+                out = cmd_where(session, cwd, transcript_path, repo=shown)
             else:
                 out = cmd_line(session)
             # The work block first, never folded — above the usual block and WHERE YOU ARE.

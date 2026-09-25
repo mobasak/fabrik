@@ -2784,6 +2784,12 @@ def _deferral_reason(kind: str, snippet: str, attempt: int) -> str:
 
 
 def main(argv: list[str]) -> int:
+    # Bound before the try so the fail-open exit below can still store a DECISION block this
+    # Stop already judged and accepted (D7 W4-O4: a later exception lost it in both places).
+    sid = "nosession"
+    judged: tuple[str, tuple[bool, str]] | None = None
+    _ta: Path | None = None
+    _repo: list[str] = []
     try:
         raw = sys.stdin.read()
         data = json.loads(raw) if raw.strip() else {}
@@ -2816,9 +2822,6 @@ def main(argv: list[str]) -> int:
         # (`_this_turn_text`), never `_final_message_text`, which walks back past the operator's
         # prompt to the PREVIOUS turn's message and would judge a block this turn did not end on
         # (A-O2).
-        judged: tuple[str, tuple[bool, str]] | None = None
-        _ta: Path | None = None
-        _repo: list[str] = []
         try:
             _ta = root / "scripts" / "thread_anchor.py"
             if not _ta.exists():
@@ -3348,6 +3351,7 @@ def main(argv: list[str]) -> int:
         return 0
     except Exception as e:  # fail-open — never trap the session on a hook bug
         sys.stderr.write(f"[final_gate_stop hook] error, allowing stop: {e}\n")
+        _store_decision(_ta, sid, judged, _repo)  # this Stop is allowed; never raises
         return 0
 
 

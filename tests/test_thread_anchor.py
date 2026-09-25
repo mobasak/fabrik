@@ -1129,8 +1129,10 @@ def test_a_rescue_that_fails_warns_once_on_stdout(tmp_path):
     assert rc == 0, err
     assert elapsed < 4.0, f"a busy store held the prompt hook for {elapsed:.1f} s"
     assert _items(repo) == []
-    warn = [ln for ln in out.splitlines() if "not written" in ln]
+    warn = [ln for ln in out.splitlines() if "store busy" in ln]
     assert len(warn) == 1 and len(warn[0]) <= 300, out
+    # D7 W4-O1: a lock not taken checked nothing, so the prompt never claims a question is lost
+    assert "NOT tracked" not in out and "not written" not in out, out
 
 
 def test_a_repo_without_a_store_neither_rescues_nor_warns(tmp_path):
@@ -1234,6 +1236,48 @@ def test_where_block_omits_the_slot_only_when_the_store_holds_its_item(tmp_path,
         monkeypatch.setenv(k, env[k])
     out = _ta_module().cmd_where("s-w", repo, "", repo=repo)
     assert "OPEN DECISION" in out, out
+
+
+def test_a_compaction_past_the_store_budget_keeps_the_open_decision(tmp_path, monkeypatch):
+    """D7 W4-O2: the OPEN DECISION leaves WHERE YOU ARE only when the work block above it was
+    printed; past the store budget that block is skipped, so the slot line must stay."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    run3(
+        ["harvest", "--session", "s-cb", "--decision-ok", "--repo", str(repo)],
+        env,
+        stdin=_DECISION_TEXT,
+    )
+    assert len(_items(repo)) == 1
+    ta, _real = _in_process(monkeypatch, env)
+    monkeypatch.setattr(ta, "_PROMPT_STORE_BUDGET_S", 0.0)
+    captured = []
+    monkeypatch.setattr(
+        sys, "stdout", type("W", (), {"write": captured.append, "flush": lambda s: None})()
+    )
+    assert (
+        _main_line(ta, monkeypatch, {"session_id": "s-cb", "source": "compact", "cwd": str(repo)})
+        == 0
+    )
+    out = "".join(captured)
+    assert "OPEN DECISION" in out and "Deploy the certified build" in out, out
+
+
+def test_a_rescued_slot_keeps_its_own_session_as_creator(tmp_path):
+    """D7 W4-O6: a slot rescued for ANOTHER session is that session's decision, never the
+    rescuing agent's; the rescuer's own slot still carries the rescuer's agent name."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    _write_state(env, "s-owner", _slot_state(repo, _DECISION_TEXT))
+    _write_state(env, "s-rescuer", _slot_state(repo, _numbered(2)))
+    named = dict(env, CLAUDE_AGENT="agent-a")
+    assert _hook_line(named, _prompt("s-rescuer", repo))[0] == 0
+    creators = {it["title"]: it["creator"] for it in _items(repo)}
+    assert len(creators) == 2, creators
+    theirs = next(c for t, c in creators.items() if "Deploy build 2" not in t)
+    mine = next(c for t, c in creators.items() if "Deploy build 2" in t)
+    assert theirs == "s-owner", creators
+    assert mine == "agent-a", creators
 
 
 def test_a_quiet_stop_harvest_renews_the_sessions_claim(tmp_path):

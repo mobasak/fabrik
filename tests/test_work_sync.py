@@ -967,6 +967,19 @@ def test_an_archived_executed_plan_with_an_open_linked_item_is_class_4(tmp_path)
     assert _drift_lines(out, 4) == [f"DRIFT 4 (blocking)  {plan}"]
 
 
+def test_a_link_written_before_the_plan_was_archived_still_counts_for_class_4(tmp_path):
+    """D7 W2-S1: an item linked while its plan was live keeps the live path after the plan moves
+    to archived/; that link means the archived plan, so the open item is class 4."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    plan = _archived_plan_dir(repo, "2026-09-24-plan-1-moved", "EXECUTED")
+    live_link = "docs/development/plans/2026-09-24-plan-1-moved/2026-09-24-plan-1-moved.md"
+    _add(repo, env, title="linked before the move", kind="task", link=f"plan={live_link}")
+
+    out = _ok(["status"], env, repo)
+    assert _drift_lines(out, 4) == [f"DRIFT 4 (blocking)  {plan}"]
+
+
 def test_an_archived_plan_is_never_a_subject_of_classes_2_3_or_8(tmp_path):
     """Archived plans are settled: a stale CONVERGED, a lock-less IN-PROGRESS or an odd Status
     value there is history, not drift."""

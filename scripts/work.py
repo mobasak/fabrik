@@ -1381,6 +1381,17 @@ def _normalize_plan_ref(repo: Path, raw: str) -> str:
     ``.md``, and genuinely a directory on disk) expands to its same-stem spine — the same shape
     ``_iter_plan_spines`` discovers (A-O1/A-O2, T02 review pass 1)."""
     rel = _normalize_repo_path(repo, raw)
+    # A link written before its plan was archived still names the live path; when that path is
+    # gone and the archived copy exists, the link means the archived plan (class 4, D-412).
+    live = PLANS_DIR.as_posix() + "/"
+    if (
+        rel.startswith(live)
+        and not rel.startswith(live + "archived/")
+        and not (repo / rel).exists()
+    ):
+        moved = f"{live}archived/{rel[len(live) :]}"
+        if (repo / moved).exists():
+            rel = moved
     if not rel or rel.endswith(".md"):
         return rel
     if (repo / rel).is_dir():
@@ -2857,6 +2868,7 @@ def _ensure_decision_locked(
     by_msg: dict[str, dict],
     by_block: dict[str, list[dict]],
     closed: set[str] | None,
+    own: bool = True,
 ) -> tuple[str, set[str] | None]:
     """The three rules (caller holds the store lock), against the shared indexes
     ``_decision_index`` built ONCE for the whole call (P3): a known message digest → that item; an
@@ -2892,7 +2904,9 @@ def _ensure_decision_locked(
     )
     item.update(
         block_digest=bd,
-        creator=_agent_name() or session,
+        # a slot rescued for ANOTHER session keeps that session as its creator, never the
+        # rescuing process's agent name (D7 W4-O6)
+        creator=(_agent_name() or session) if own else session,
         ground=gm.group(1).lower() if gm else "",
         msg_digests=[msg_digest],
         question=question,
@@ -2923,10 +2937,13 @@ def ensure_decision_items(
     entries: list[tuple[str, str, str]],
     *,
     lock_timeout: float = HOOK_LOCK_TIMEOUT_S,
+    own_session: str | None = None,
 ) -> list[str] | None:
     """``ensure_decision_item`` for every ``(block, msg_digest, session)`` under ONE lock: the ids
     of the entries that succeeded (an entry that raises is skipped with one stderr line); None
     only when the store is absent or the lock was not taken.
+    ``own_session`` names the caller's own session: an entry for any OTHER session keeps that
+    session as the new item's creator (None: every entry is the caller's own, as before).
 
     P1 (T04 review): renews NO claims. An entry's ``session`` is whoever's DECISION slot this
     call is refreshing or creating an item for — T04's second chance can pass ANOTHER (possibly
@@ -2951,7 +2968,14 @@ def ensure_decision_items(
                 for b, d, s in entries:
                     try:  # one bad entry never costs the others their item
                         item_id, closed = _ensure_decision_locked(
-                            root, b, d, s, by_msg=by_msg, by_block=by_block, closed=closed
+                            root,
+                            b,
+                            d,
+                            s,
+                            by_msg=by_msg,
+                            by_block=by_block,
+                            closed=closed,
+                            own=own_session is None or s == own_session,
                         )
                         ids.append(item_id)
                     except Exception as exc:

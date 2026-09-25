@@ -233,6 +233,32 @@ def test_the_quota_hold_exit_stores_the_decision_item(tmp_path):
     assert len(_awaiting(repo)) == 1, _items(repo)
 
 
+def test_a_hook_error_after_the_judgement_still_stores_the_decision(tmp_path, monkeypatch):
+    """D7 W4-O4: the fail-open catch-all ALLOWS the Stop, so an accepted DECISION block judged
+    before the error is stored there too — never lost in both the slot and the store."""
+    import io
+
+    env = _env(tmp_path)
+    repo = _fabrik_repo(tmp_path, env)
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    hook = _hook_module()
+
+    def boom(*a, **kw):
+        raise RuntimeError("injected after the judgement")
+
+    monkeypatch.setattr(hook, "_read_counters", boom)
+    payload = {
+        "session_id": "s-err",
+        "hook_event_name": "Stop",
+        "last_assistant_message": _DECISION,
+        "cwd": str(repo),
+    }
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+    assert hook.main([]) == 0
+    assert len(_awaiting(repo)) == 1, _items(repo)
+
+
 def test_a_blocked_stop_still_renews_the_claim(tmp_path):
     """The plain harvest runs on EVERY Stop, so a blocked turn is a heartbeat too."""
     env = {**_env(tmp_path), "FAKE_FAILS": "A,B"}
