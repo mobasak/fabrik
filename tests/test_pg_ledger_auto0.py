@@ -1,7 +1,7 @@
-"""Behavior-Contract tests — flywheel auto-0 for mechanically-failed pool runs.
+"""Behavior-Contract tests — the flywheel records NO auto-0: a failed or empty pool run stays NULL.
 
 Plan C4, GROUNDED NARROWER at execution: record_run ALREADY nulls error/capped scores by
-design ("an infra/provider failure can't teach pick_models a false 0" — pg_ledger.py:167-171)
+design ("an infra/provider failure can't teach pick_models a false 0" — `record_run`)
 and the ranker's success_rate term already punishes those statuses. The one failure that slips
 BOTH nets is status=="done" with EMPTY output — the model "succeeded" and returned nothing
 gradeable (the class behind today's four misread dispatches). That auto-0 was REVERSED
@@ -96,40 +96,42 @@ def _recorded_quality(result, sink):
     )
     assert ok, "the fake-connection insert must be treated as confirmed"
     assert sink, "no INSERT captured"
-    _sql, params = sink[-1]
-    return list(params or [])
+    sql, params = sink[-1]
+    # The recorded SCORE itself, by its column: a whole-row "no 0.0" check also passed a 5.0.
+    cols = [c.strip() for c in sql.split("(", 1)[1].split(")", 1)[0].split(",")]
+    return list(params)[cols.index("quality_score")]
 
 
 def test_errored_run_stays_null_module_invariant(tmp_path):
     """error → NULL (record_run's own coercion: infra failure must not teach a false 0)."""
     sink = []
-    params = _recorded_quality(_Result(status="error", error="boom", text=""), sink)
-    assert 0.0 not in params, params
+    score = _recorded_quality(_Result(status="error", error="boom", text=""), sink)
+    assert score is None, score
 
 
 def test_capped_run_stays_null_module_invariant(tmp_path):
     sink = []
-    params = _recorded_quality(_Result(status="capped", text="partial"), sink)
-    assert 0.0 not in params, params
+    score = _recorded_quality(_Result(status="capped", text="partial"), sink)
+    assert score is None, score
 
 
 def test_done_but_empty_output_stays_unscored(tmp_path):
     """status=done + blank text stays NULL — the auto-0 was reversed upstream (97d2cf72): a 0
     would permanently tank a good model for the caller's too-small output budget."""
     sink = []
-    params = _recorded_quality(_Result(status="done", text="   \n"), sink)
-    assert 0.0 not in params, params
+    score = _recorded_quality(_Result(status="done", text="   \n"), sink)
+    assert score is None, score
 
 
 def test_healthy_unscored_stays_null(tmp_path):
     sink = []
-    params = _recorded_quality(_Result(status="done", text="a real finding"), sink)
-    assert 0.0 not in params, ("healthy unscored must stay NULL — unscored != bad", params)
+    score = _recorded_quality(_Result(status="done", text="a real finding"), sink)
+    assert score is None, ("healthy unscored must stay NULL — unscored != bad", score)
 
 
 def test_write_unit_with_diff_but_empty_text_stays_null(tmp_path):
     """A mode='write' coder's value IS its diff — empty text with a real diff is HEALTHY,
     never auto-0 (self-caught during the Phase C review round)."""
     sink = []
-    params = _recorded_quality(_Result(status="done", text="", diff="+ real change\n"), sink)
-    assert 0.0 not in params, params
+    score = _recorded_quality(_Result(status="done", text="", diff="+ real change\n"), sink)
+    assert score is None, score
