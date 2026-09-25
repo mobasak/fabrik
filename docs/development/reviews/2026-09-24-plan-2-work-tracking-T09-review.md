@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 9503a934508c91e369180cc8f2374fefecd94442; range tip a23118b22916515bfe493328ef5db7c909d222df; `git diff 9503a9345..a23118b22 -- docs/reference/work-tracking.md docs/workstation/hooks-index.md docs/reference/thread-anchors.md docs/reference/multi-agent-operating-model.md docs/reference/agents/intel.md tests/test_work_doc_verbs.py` md5 71230b77cb52e2df6275dddd108fa506 (34078 bytes)
 **Command:** /fabrik-review · **Changed:** `docs/reference/work-tracking.md`, `docs/workstation/hooks-index.md`, `docs/reference/thread-anchors.md`, `docs/reference/multi-agent-operating-model.md`, `docs/reference/agents/intel.md`, `tests/test_work_doc_verbs.py`
-**Plan:** `docs/development/plans/2026-09-24-plan-2-work-tracking/2026-09-24-plan-2-work-tracking.md`
+**Plan:** `docs/development/plans/archived/2026-09-24-plan-2-work-tracking/2026-09-24-plan-2-work-tracking.md`
 
 ## Coverage Checklist
 

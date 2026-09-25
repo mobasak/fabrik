@@ -8,8 +8,8 @@
   "legacy": false,
   "links": {
     "decision": "",
-    "plan": "docs/development/plans/2026-09-24-plan-2-work-tracking",
-    "spec": ""
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-09-24-work-tracking-design.md"
   },
   "next": "Track the fleet broadcast sent at hub adoption: each repo's own agent runs work.py init --distributor <its distributor>, migrate-backlog, render, then trims the migrated rows from its backlog keeping hand-written context; close when readings.jsonl exists in every synced repo (the 9 unfilled template repos migrate to an empty store).",
   "note": "",

@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 597fdebc7abdc48e9c77fed03474600e1409195c; range tip 0a14ffb3497f93bd65e0985d8fff02fb85d64573; `git diff eb2527c0c..0a14ffb34 -- scripts/fabrik_synced_manifest.py .pre-commit-config.yaml .claude/settings.json templates/governance/.worktreeinclude tests/test_work_distribution.py` md5 ded3483a59f39952cb55aaf11a7cabdb (9377 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/fabrik_synced_manifest.py`, `.pre-commit-config.yaml`, `.claude/settings.json`, `templates/governance/.worktreeinclude`, `tests/test_work_distribution.py`
-**Plan:** `docs/development/plans/2026-09-24-plan-2-work-tracking/2026-09-24-plan-2-work-tracking.md`
+**Plan:** `docs/development/plans/archived/2026-09-24-plan-2-work-tracking/2026-09-24-plan-2-work-tracking.md`
 
 ## Coverage Checklist
 

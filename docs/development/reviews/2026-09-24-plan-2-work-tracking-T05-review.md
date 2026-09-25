@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 1aa53c2abe2b5388081270385f02d0ffb67a3034; range tip a2cc5de27c3671f8882981d86fd3b828c6850355; `git diff 1aa53c2ab..a2cc5de27 -- .claude/hooks/final_gate_stop.py tests/test_work_hook_seam.py` md5 ea1adcfc10c6642d5b38ea97fdf58dc0 (15576 bytes)
 **Command:** /fabrik-review · **Changed:** `.claude/hooks/final_gate_stop.py`, `tests/test_work_hook_seam.py`
-**Plan:** `docs/development/plans/2026-09-24-plan-2-work-tracking/2026-09-24-plan-2-work-tracking.md`
+**Plan:** `docs/development/plans/archived/2026-09-24-plan-2-work-tracking/2026-09-24-plan-2-work-tracking.md`
 
 ## Coverage Checklist
 

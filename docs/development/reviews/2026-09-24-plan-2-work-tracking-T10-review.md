@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 4c078ba4df0f70a78b1c23ba01280faf503eca62; range tip 3e587664790594d7a3bb13304be164d2aafa64fd; `git diff 9503a9345..3e5876647 -- scripts/sysadmin/claude_rotate.py scripts/aro-wake/claude_rotate.py tests/test_claude_fleet.py` md5 c558e6c16e744ff6feda68e53501d684 (7325 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/sysadmin/claude_rotate.py`, `scripts/aro-wake/claude_rotate.py`, `tests/test_claude_fleet.py`
-**Plan:** `docs/development/plans/2026-09-24-plan-2-work-tracking`
+**Plan:** `docs/development/plans/archived/2026-09-24-plan-2-work-tracking`
 
 ## Coverage Checklist
 

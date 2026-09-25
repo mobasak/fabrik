@@ -3,7 +3,7 @@
 **Status:** CONVERGED — 4 passes, confirmed 12 → 4 → 1 → 0; rounds 2 and 3 confirmed mostly defects inside this review's own fixes (3/4, 1/1), each fixed and re-verified by the owning seats; closing pass 4 quiet with every slice verified; accepted limits: a store with no recorded base_branch never prunes markers (they expire by age), and the D-403 linked-worktree limit
 **Surface:** `git rev-parse HEAD` = 66b59716f2ad15a02e61d030e1cafa57c1879a13; range tip 114ed27738ef9bc95bf97a8da7ff7e5ea445648d; `git diff 66b59716f..114ed2773 -- scripts/work.py tests/test_work_claims.py` md5 be868f374abd8f4c4c81fb96c2592187 (58776 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/work.py`, `tests/test_work_claims.py`
-**Plan:** `docs/development/plans/2026-09-24-plan-2-work-tracking/2026-09-24-plan-2-work-tracking.md`
+**Plan:** `docs/development/plans/archived/2026-09-24-plan-2-work-tracking/2026-09-24-plan-2-work-tracking.md`
 
 ## Coverage Checklist
 

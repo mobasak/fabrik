@@ -3,7 +3,7 @@
 **Status:** CONVERGED — 4 passes, confirmed 21 → 2 → 1 → 0; rounds 2 and 3 confirmed only defects inside this review's own fixes (2/2, 1/1), each fixed and re-verified by the owning seats; closing pass 4 quiet with every slice verified
 **Surface:** `git rev-parse HEAD` = f9a009fa767a7809c2fa69a6a0094be9236e1c3d; range tip e27d1bda1051b398cec1a5f494b966a61525737d; `git diff f9a009fa7..e27d1bda1 -- scripts/work.py tests/test_work.py` md5 fa8f4a0f435da76d8e27b044c24c256f (38818 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/work.py`, `tests/test_work.py`
-**Plan:** `docs/development/plans/2026-09-24-plan-2-work-tracking/2026-09-24-plan-2-work-tracking.md`
+**Plan:** `docs/development/plans/archived/2026-09-24-plan-2-work-tracking/2026-09-24-plan-2-work-tracking.md`
 
 ## Coverage Checklist
 

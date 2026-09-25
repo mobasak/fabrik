@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 4d9095a86b08c848dd55d767f1a53c212c5a32b3; range tip 7a008bced7d7b8ddda79cb74df00230deb399857; `git diff 4d9095a86..7a008bced -- scripts/work.py tests/test_work_migrate.py docs/reference/work-tracking.md` md5 830b03074ebc93053068ceae1eca1eb6 (7199 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/work.py`, `tests/test_work_migrate.py`, `docs/reference/work-tracking.md`
-**Plan:** `docs/development/plans/2026-09-24-plan-2-work-tracking`
+**Plan:** `docs/development/plans/archived/2026-09-24-plan-2-work-tracking`
 
 ## Coverage Checklist
 

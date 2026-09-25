@@ -1,6 +1,7 @@
 # Plan — work tracking: one open-work record per repo, shared by its three agents
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-09-25 — all 11 tickets merged, each with its /fabrik-review clean; D7 whole-plan validation converged 7 → 1 → 1 → 0 (fixes 41f65b01e); the hub adopted the store (14589aeaa)
+Whole-plan review: docs/development/reviews/2026-09-24-plan-2-work-tracking-review.md
 **Owner:** infra (the unnamed hub window)
 Spec: docs/superpowers/specs/2026-09-24-work-tracking-design.md
 Date: 2026-09-24
@@ -58,7 +59,7 @@ it implements and restates nothing that section already settles.
 | T07 | Distribution: manifest, sync filter, Task-tools env | T03 | ⛓️ | ✅ | 2e3a275c8 |
 | T08 | Both contracts carry the work-items rule | T04, T05, T06 | ⚡ | ✅ | bd40160b9 |
 | T09 | Reference doc and the four stale docs | T03, T04, T05, T06 | ⚡ | ✅ | 04fb19360 |
-| T10 | Integration: tasks link, hub adoption, receipt | T07, T08, T09 | ⛓️ | 🔵 | |
+| T10 | Integration: tasks link, hub adoption, receipt | T07, T08, T09 | ⛓️ | ✅ | c6fbcba08, 14589aeaa |
 
 ## Merge Order
 

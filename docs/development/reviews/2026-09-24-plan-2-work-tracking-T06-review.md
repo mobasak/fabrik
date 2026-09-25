@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = c38f6fe1d89e22d1455464bb911c49ccc4ceaef3; range tip d02298bb135bb1aad4a2736723df773629fec608; `git diff c38f6fe1d..d02298bb1 -- scripts/final_gate.py docs/workflows/FINAL_GATE_WORKFLOW.md tests/test_final_gate_work_row.py` md5 d97f4cd3fda3b280ba9b975a1d442f33 (20162 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/final_gate.py`, `docs/workflows/FINAL_GATE_WORKFLOW.md`, `tests/test_final_gate_work_row.py`
-**Plan:** `docs/development/plans/2026-09-24-plan-2-work-tracking/2026-09-24-plan-2-work-tracking.md`
+**Plan:** `docs/development/plans/archived/2026-09-24-plan-2-work-tracking/2026-09-24-plan-2-work-tracking.md`
 
 ## Coverage Checklist
 

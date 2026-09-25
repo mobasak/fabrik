@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 243d8b5df3f95fe927d415839baf0979013a5252; range tip 976a759b82a37b6f81ebd1ca39d02a8e92b77928; `git diff 90bdd4382..976a759b8 -- scripts/thread_anchor.py tests/test_thread_anchor.py` md5 7a5cb6608ca20c9642b6a9cc3234f800 (31773 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/thread_anchor.py`, `tests/test_thread_anchor.py`
-**Plan:** `docs/development/plans/2026-09-24-plan-2-work-tracking/2026-09-24-plan-2-work-tracking.md`
+**Plan:** `docs/development/plans/archived/2026-09-24-plan-2-work-tracking/2026-09-24-plan-2-work-tracking.md`
 
 ## Coverage Checklist
 

@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 9503a934508c91e369180cc8f2374fefecd94442; range tip f1b5c56dc22ed366833fdc8304544f3829135c98; `git diff 9503a9345..f1b5c56dc -- CLAUDE.md templates/governance/CLAUDE.md tests/test_work_contract_rule.py tests/test_governance_template_split.py` md5 e32a0df564e6c0f8425f99373089ee2a (28737 bytes)
 **Command:** /fabrik-review · **Changed:** `CLAUDE.md`, `templates/governance/CLAUDE.md`, `tests/test_work_contract_rule.py`, `tests/test_governance_template_split.py`
-**Plan:** `docs/development/plans/2026-09-24-plan-2-work-tracking/2026-09-24-plan-2-work-tracking.md`
+**Plan:** `docs/development/plans/archived/2026-09-24-plan-2-work-tracking/2026-09-24-plan-2-work-tracking.md`
 
 ## Coverage Checklist
 
