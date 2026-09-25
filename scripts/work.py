@@ -3590,7 +3590,8 @@ def _claim_session(claim: dict) -> str:
 
 def _fit_ids(head: str, ids: list[str]) -> str:
     """``head`` + the ids; when they overflow LINE_MAX, as many WHOLE ids as fit and ``… and <n>
-    more`` — an id is never cut and the missing count is always said."""
+    more`` — an id is never cut and the missing count is said. Only a head that alone overflows
+    LINE_MAX (one session's claims under dozens of agent names) loses both: ``_clip`` cuts it."""
     line = head + ", ".join(ids)
     if len(line) <= LINE_MAX:
         return line
