@@ -1632,3 +1632,60 @@ def test_the_note_still_names_the_cause(monkeypatch, capsys):
     exception's own text (not just its class) so the reader is not sent to read the traceback."""
     out = _run_main_capturing_the_note(monkeypatch, capsys, keys_present=False)
     assert "OSError" in out and "could not read the file" in out, out
+
+
+# ── W-062639c2: the four guard gaps the 2026-09-14 mutant battery left open ─────────────────────
+
+
+def test_an_unreadable_project_dotenv_fails_open_to_the_fleet_file(env_tree, monkeypatch):
+    """`load_env` "never raises": a `.env` the process cannot read (mode 000) is skipped whole and
+    the fleet file still serves — it must not raise PermissionError or block the run."""
+    import os
+
+    project_env = env_tree / "repo" / ".env"
+    project_env.chmod(0)
+    try:
+        if os.access(project_env, os.R_OK):
+            pytest.skip("running as a user that ignores file modes (root)")
+        rr.load_env(str(env_tree / "repo"))
+        assert os.environ["EXA_API_KEY"] == "from-fleet"
+    finally:
+        project_env.chmod(0o644)
+
+
+def test_a_tilde_override_expands_against_home(tmp_path, monkeypatch):
+    """`$SUBAGENTS_ENV_FILE=~/…` must resolve under $HOME — the expansion 21 canonical loaders now
+    share (01M2J5XX7SVR). Without it the path is a literal `~` relative to the CWD and misses."""
+    import os
+
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "keys.env").write_text("EXA_API_KEY=from-tilde\n")
+    (tmp_path / "repo").mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("SUBAGENTS_ENV_FILE", "~/keys.env")
+    monkeypatch.delenv("EXA_API_KEY", raising=False)
+    assert rr._shared_env_path() == home / "keys.env"
+    rr.load_env(str(tmp_path / "repo"))
+    assert os.environ["EXA_API_KEY"] == "from-tilde"
+    os.environ.pop("EXA_API_KEY", None)
+
+
+def test_main_loads_env_from_the_calling_repo_never_the_cwd(tmp_path, monkeypatch, capsys):
+    """The historical wrong-repo bug: the retired module autoloaded `load_env(os.getcwd())`, so a
+    hub-driven run for project P read the HUB's keys while preflight said present. `main` must pass
+    REPO, and a CWD elsewhere must not change what it passes."""
+    seen: list = []
+    monkeypatch.setattr(rr, "load_env", lambda repo: seen.append(repo) or [])
+    monkeypatch.chdir(tmp_path)
+    rr.main(["--market", "x", "--greenfield", "--preflight-only"])
+    assert seen == [str(rr.REPO)], seen
+
+
+def test_a_bad_repo_says_so_on_stdout(tmp_path, monkeypatch, capsys):
+    """The `note:` line is the contract the docs promise — a skipped project `.env` is SAID, never
+    silent, so an operator can tell "no keys" from "wrong keys"."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "none"))
+    monkeypatch.delenv("SUBAGENTS_ENV_FILE", raising=False)
+    rr.load_env("")
+    assert "note: no project .env read" in capsys.readouterr().out
