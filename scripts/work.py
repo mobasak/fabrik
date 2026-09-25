@@ -2167,8 +2167,20 @@ def _strip_backlog_block(text: str) -> str:
 def cmd_migrate_backlog(repo: Path, args: argparse.Namespace) -> int:
     """Turn every ROW of ``docs/STRATEGIC_BACKLOG.md`` into a ``kind: backlog`` item — idempotent
     against the STORE's own existing digests, kept in ``note`` (spec § The backlog becomes a view;
-    Decision R.7). Never writes the backlog file itself; that is ``render``'s job alone."""
+    Decision R.7). Never writes the backlog file itself; that is ``render``'s job alone.
+
+    Once per repo (spec § Lifecycle): after ``migrated_at`` is set the verb creates nothing. The
+    adopting agent then trims the migrated rows and keeps the hand-written context (D-413), and a
+    second scan would read that context's ``## `` sections as fresh rows (D-407) and turn them
+    into ownerless items; new backlog work is ``work.py add --kind backlog``."""
     _require_store(repo)
+    done_at = _read_config(repo).get("migrated_at")
+    if done_at:
+        print(
+            f"work: migrate-backlog — already migrated at {done_at}; 0 item(s) created "
+            "(new backlog work is `work.py add --kind backlog`)"
+        )
+        return 0
     path = repo / _BACKLOG_REL
     if not path.is_file():
         # T09 review A-O5: a repo with no backlog file still COMPLETES its migration (there is

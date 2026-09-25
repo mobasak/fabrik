@@ -103,7 +103,7 @@ verbs:
 | `status` | anyone | items by state, uncommitted item files, plan-board ticket counts, and the eight drift classes below (read-only, no lock) |
 | `sync --check` | gate, pipeline | the same drift report, plus one `readings.jsonl` line; exits non-zero only when a listed class is both `(blocking)` in its output **and** the repo has passed its blocking window (below) |
 | `render` | pipeline, agents | regenerate the backlog's `AUTO-GENERATED:BACKLOG` block — its only writer |
-| `migrate-backlog` | once per repo | turn existing `docs/STRATEGIC_BACKLOG.md` rows into items, idempotently (re-running adds nothing already migrated) |
+| `migrate-backlog` | once per repo | turn existing `docs/STRATEGIC_BACKLOG.md` rows into items; once `migrated_at` is set, a run creates nothing |
 
 `--repo <path>` (any path inside the repo, default cwd) is a TOP-LEVEL option and must come BEFORE the
 verb — `work.py --repo <path> ready`, never `work.py ready --repo <path>` (after the verb it is an
@@ -211,8 +211,9 @@ green.
 ## The backlog becomes a view
 
 `migrate-backlog` reads `docs/STRATEGIC_BACKLOG.md` and turns every ROW into a `kind: backlog` item,
-idempotently (a digest of each row's text plus its occurrence number, kept in the item's `note`, so
-re-running adds nothing already migrated). A row starts only at a tagged entry shape (D-407): any
+once per repo: after `migrated_at` is set a run creates nothing, since the adopted file's kept context
+would otherwise read as fresh rows (a digest of each row's text plus its occurrence number is kept in
+the item's `note`). A row starts only at a tagged entry shape (D-407): any
 `## ` heading; a `### ` heading carrying a bracket tag or a resolved marker; a bullet led by a bracket
 tag, a checkbox, or a strikethrough; or a row of a table with a Tag/Owner column. Every other line —
 an untagged bullet, a narrative sub-header, prose, a fenced block — is body text of the row above it,
@@ -230,7 +231,8 @@ byte-deterministic, no timestamp, so the daily pipeline and agents never churn i
 `kind: backlog` item whose status is not `done`/`dropped` (so a `blocked` item lists too, not only an
 `open` one) as `- **[owner or "unassigned"]** title (\`id\`)`, sorted by priority then owner then id.
 It is the block's only writer; new backlog work is `work.py add --kind backlog`, never a hand edit of
-the block. A repo with no `docs/STRATEGIC_BACKLOG.md` at all still gets `migrated_at` recorded by
+the block. The adopting agent then deletes the migrated rows from the file and keeps its hand-written
+context, since each row lives in full in its item (D-413). A repo with no `docs/STRATEGIC_BACKLOG.md` at all still gets `migrated_at` recorded by
 `migrate-backlog` — nothing to migrate, but the repo enters the migration window like any other — and
 `render` there is a no-op rather than a failure, the shape the fleet's unfilled template repos need.
 

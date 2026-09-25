@@ -4,9 +4,9 @@ a view, § Validation V2; T03 review pass 1 (Decisions R, M, B, T).
 `migrate-backlog` turns every ROW of `docs/STRATEGIC_BACKLOG.md` into a `kind: backlog` item;
 `render` regenerates the file's `AUTO-GENERATED:BACKLOG` block from the store. Every test runs
 against a throwaway git repo under `tmp_path` with an explicit `env=` — never the hub's own
-`.fabrik/work/`. The V2 test reads a COPY of this worktree's own `docs/STRATEGIC_BACKLOG.md` (the
-same content as the hub file, since both check out the same git history) into its tmp dir; it is
-never written.
+`.fabrik/work/`. The two hub-backlog tests read the hub's `docs/STRATEGIC_BACKLOG.md` as it stood
+before the hub's adoption commit (`git show`, skipped when that commit is absent), since the live
+file is the rendered view from then on; it is never written.
 
 Decision R (review pass 1): a ROW starts only at a column-0 line of one of six shapes — a `## `
 heading (any); a `### ` heading that carries a tag or a resolved marker; a bullet whose content
@@ -25,9 +25,27 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+import pytest
+
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "work.py"
-HUB_BACKLOG = REPO / "docs" / "STRATEGIC_BACKLOG.md"
+# V2 is the migration round-trip AT ADOPTION: the hub's backlog as it stood before its adoption
+# commit (14589aeaa, whose parent is below). The live file is the rendered view since then.
+HUB_PRE_ADOPTION = "24fbac770621f43caeda33c1dee3fe766d8beae2"
+
+
+def _hub_pre_adoption_backlog() -> str:
+    r = subprocess.run(
+        ["git", "-C", str(REPO), "show", f"{HUB_PRE_ADOPTION}:docs/STRATEGIC_BACKLOG.md"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if r.returncode != 0:
+        pytest.skip(
+            f"the pre-adoption hub backlog is not in this clone's history: {r.stderr[:200]}"
+        )
+    return r.stdout
 
 
 def _work_module() -> ModuleType:
@@ -233,6 +251,20 @@ def test_migrate_backlog_records_migrated_at_once_and_only_once(tmp_path):
     assert first
     _ok(["migrate-backlog"], env, repo)
     assert _config(repo)["migrated_at"] == first
+
+
+def test_migrate_backlog_after_the_migration_creates_nothing_from_the_kept_context(tmp_path):
+    """Once per repo: after adoption the backlog keeps its hand-written `## ` context sections
+    (D-413), which a second scan would read as fresh rows (D-407) and turn into ownerless items."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _backlog(repo, FIXTURE)
+    _ok(["migrate-backlog"], env, repo)
+    before = {it["id"] for it in _items(repo)}
+    _backlog(repo, "# Strategic Backlog\n\n---\n\n## Ownership\n\nThree agents share this repo.\n")
+    out = _ok(["migrate-backlog"], env, repo)
+    assert {it["id"] for it in _items(repo)} == before
+    assert "already migrated" in out
 
 
 def test_migrate_backlog_on_a_missing_file_creates_nothing(tmp_path):
@@ -493,7 +525,7 @@ def test_hub_copy_titles_never_start_with_an_empty_or_gapped_bold_marker(tmp_pat
     """A-O16 hub-copy assertion: none of the 325 real titles starts with `****` or `** `."""
     env = _env(tmp_path)
     repo = _store(tmp_path, env)
-    _backlog(repo, HUB_BACKLOG.read_text(encoding="utf-8"))
+    _backlog(repo, _hub_pre_adoption_backlog())
     _ok(["migrate-backlog"], env, repo)
     items = _backlog_items(repo)
     bad = [it["title"] for it in items if it["title"].startswith(("****", "** "))]
@@ -962,7 +994,7 @@ def test_independent_scan_agrees_with_the_scanner_on_the_fixture(tmp_path):
 def test_migrate_backlog_then_render_matches_an_independent_reader_on_the_hub_backlog(tmp_path):
     env = _env(tmp_path)
     repo = _store(tmp_path, env)
-    hub_text = HUB_BACKLOG.read_text(encoding="utf-8")
+    hub_text = _hub_pre_adoption_backlog()
     _backlog(repo, hub_text)
     out = _ok(["migrate-backlog"], env, repo)
     _ok(["render"], env, repo)
