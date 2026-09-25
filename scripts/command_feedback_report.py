@@ -1393,9 +1393,7 @@ def queue(rows: list[dict], command: str, ledger: Path | None = None) -> str:
     return "\n".join(out)
 
 
-def queue_depths(
-    ledger: Path | None = None, answered_path: Path | None = None
-) -> dict[str, int]:
+def queue_depths(ledger: Path | None = None, answered_path: Path | None = None) -> dict[str, int]:
     """Every command's unanswered depth, from ONE read of the ledger — exactly `queue()`'s rule:
     the rows FOR that command, minus a none-verdict `change` (`_change_is_none`), minus a `ts`
     already in the answered index. No time window: this is what `--queue <command>` alone reads,
@@ -1607,7 +1605,9 @@ def stages(rows: list[dict]) -> dict:
             continue
         key = m.group(1) if m.re is not _DROW_KEY else m.group(0)
         if m.re is _PLAN_KEY:
-            key = key.removesuffix("-review")  # a receipt is named `<plan>-review.md` — the same change
+            key = key.removesuffix(
+                "-review"
+            )  # a receipt is named `<plan>-review.md` — the same change
         c = changes.setdefault(
             (str(r.get("repo") or ""), key),
             {
@@ -1626,12 +1626,16 @@ def stages(rows: list[dict]) -> dict:
         # a figure counts only when it is a finite NON-NEGATIVE number, the rule every other rollup in this file
         # keeps — one corrupt row must not bend a change negative (review of D-358, A-S1)
         c["rounds"] += int(_pos(r.get("rounds")))
-        conf = r.get("confirmed")  # the ledger's per-round list (command_run.py writes it); a scalar is tolerated
+        conf = r.get(
+            "confirmed"
+        )  # the ledger's per-round list (command_run.py writes it); a scalar is tolerated
         c["confirmed"] += int(sum(_pos(x) for x in conf) if isinstance(conf, list) else _pos(conf))
         c["seconds"] += _pos(r.get("wall_s"))  # summed raw, rounded once below (B-S1)
     for c in changes.values():
         c["hours"] = round(c.pop("seconds") / 3600, 2)
-    ordered = sorted(changes.values(), key=lambda c: (-c["stages"], -c["hours"], c["repo"], c["key"]))
+    ordered = sorted(
+        changes.values(), key=lambda c: (-c["stages"], -c["hours"], c["repo"], c["key"])
+    )
     return {
         "coverage": {
             "review_rows": len(review),
