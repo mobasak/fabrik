@@ -2964,18 +2964,123 @@ def test_queue_depths_matches_the_queue_head_line_and_omits_zero(tmp_path: Path)
     assert depths2["fabrik-review"] == 1, depths2
 
 
-def test_queue_depths_on_an_unreadable_ledger_is_empty_never_raises(tmp_path: Path) -> None:
+def test_queue_depths_with_no_argument_resolves_the_default_ledger(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """T04 review C-O1: `queue_depths(ledger=None)` used to pass `None` straight to `_rows`,
+    which reads a `None` path as "no ledger" and always returns `[]` — so the documented default
+    ALWAYS returned `{}`, for every caller. Fixed to resolve the SAME default `--queue` and
+    `_known_handles` use (`COMMAND_RUN_DIR`'s parent, or `~/.claude/state`)."""
     m = _cfr()
-    missing = tmp_path / "does-not-exist" / "ledger.jsonl"
-    assert m.queue_depths(missing) == {}
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(state_dir / "command-runs"))
+    ledger = state_dir / "command-feedback.jsonl"
+    rows = [_row("fabrik-review", 10, 2, "lean: a")]
+    _write(ledger, rows)
+    depths = m.queue_depths()
+    assert depths.get("fabrik-review") == 1, depths
+    head = m.queue(rows, "fabrik-review").splitlines()[0]
+    assert f"{depths['fabrik-review']} unanswered" in head, head
+
+
+def test_queue_depths_reads_the_answered_index_once_for_many_commands(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """T04 review C-S1: `queue_depths` used to re-read the answered index once PER COMMAND
+    (`_answered_ts` re-parses the whole file every call) — wasteful with many commands in one
+    ledger. Fixed to parse the index ONCE (`_answered_index`) and look each command up in that."""
+    m = _cfr()
+    ledger = tmp_path / "ledger.jsonl"
+    rows = [
+        _row("a", 10, 1, "lean: x"),
+        _row("b", 10, 1, "lean: y"),
+        _row("c", 10, 1, "lean: z"),
+    ]
+    _write(ledger, rows)
+    calls: list[Path | None] = []
+    real = m._answered_index
+
+    def spy(path):
+        calls.append(path)
+        return real(path)
+
+    monkeypatch.setattr(m, "_answered_index", spy)
+    depths = m.queue_depths(ledger)
+    assert len(calls) == 1, calls
+    assert depths == {"a": 1, "b": 1, "c": 1}, depths
+
+
+def test_queue_depths_survives_rows_raising(tmp_path: Path, monkeypatch) -> None:
+    """T-S1: the original unreadable-ledger test never reached `queue_depths`'s OWN guard — the
+    missing path was already swallowed inside `_rows` before `queue_depths` did anything. This
+    proves the guard AROUND `_rows(ledger)` itself: force `_rows` to raise and confirm `{}`, not a
+    crash. Watched red by removing that guard on a copy of the file (the `try/except` around the
+    `_rows(ledger)` call at the top of `queue_depths`) and re-running — this exact test failed with
+    the injected `RuntimeError`."""
+    m = _cfr()
+
+    def boom(path):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(m, "_rows", boom)
+    assert m.queue_depths(tmp_path / "ledger.jsonl") == {}
+
+
+def test_queue_depths_survives_the_answered_index_raising(tmp_path: Path, monkeypatch) -> None:
+    """T-S2: the SECOND, independent guard in `queue_depths` — around the answered-index read.
+    Force `_answered_index` to raise with real ledger rows present: never a crash, and the SAFE
+    direction on failure is "nothing answered" (the row still counts as unanswered), the same
+    over-report-rather-than-hide rule `_answered_ts` already followed — not a silent `{}` that
+    would read as "no work here" when there plainly is. Watched red by removing the guard on a
+    copy (the `try/except` around `_answered_index(_answered_path(ledger))`) and re-running — the
+    injected `RuntimeError` then propagated out of `queue_depths` itself, proving the two guards
+    are independent, not one shared by luck."""
+    m = _cfr()
+    ledger = tmp_path / "ledger.jsonl"
+    _write(ledger, [_row("fabrik-review", 10, 1, "lean: a")])
+
+    def boom(path):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(m, "_answered_index", boom)
+    assert m.queue_depths(ledger) == {"fabrik-review": 1}
+
+
+def test_take_reads_the_ledger_exactly_once(tmp_path: Path, monkeypatch) -> None:
+    """T04 review C-H1/C-O2: `main()` used to unconditionally read `rows = _rows(ledger)` BEFORE
+    dispatching to `--take`, which itself reads the ledger again (inside `queue_depths`) — two
+    reads of the same file for one `--take` call. Fixed by dispatching `--take` before that read.
+    In-process (not a subprocess) so the spy on `_rows` can see every call `main()` makes."""
+    m = _cfr()
+    env = _work_env(tmp_path)
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "S1")
+    repo = _init_work_store(tmp_path, env)
+    ledger = tmp_path / "ledger.jsonl"
+    _write(ledger, [_row("fabrik-review", 10, 1, "lean: a")])
+    calls: list[Path | None] = []
+    real = m._rows
+
+    def spy(path):
+        calls.append(path)
+        return real(path)
+
+    monkeypatch.setattr(m, "_rows", spy)
+    rc = m.main(["--take", "fabrik-review", "--repo", str(repo), "--ledger", str(ledger)])
+    assert rc == 0, calls
+    assert len(calls) == 1, calls
 
 
 def test_take_opens_one_item_and_a_second_session_finds_it_held(tmp_path: Path) -> None:
     env = _work_env(tmp_path)
     repo = _init_work_store(tmp_path, env)
+    ledger = tmp_path / "ledger.jsonl"
+    _write(ledger, [_row("fabrik-review", 10, 1, "lean: a")])
     session_a = "SESSION-A"
     env_a = {**env, "CLAUDE_CODE_SESSION_ID": session_a}
-    r1 = _take_proc(repo, "fabrik-review", env_a)
+    r1 = _take_proc(repo, "fabrik-review", env_a, ledger)
     assert r1.returncode == 0, (r1.stdout, r1.stderr)
     assert r1.stdout.startswith("took W-"), r1.stdout
     item_id = r1.stdout.split()[1]
@@ -2987,7 +3092,7 @@ def test_take_opens_one_item_and_a_second_session_finds_it_held(tmp_path: Path) 
     ]
     assert [p.stem for p in linked] == [item_id], linked
     # the SAME session again: still one item, still `took`
-    r2 = _take_proc(repo, "fabrik-review", env_a)
+    r2 = _take_proc(repo, "fabrik-review", env_a, ledger)
     assert r2.returncode == 0, (r2.stdout, r2.stderr)
     assert item_id in r2.stdout, r2.stdout
     assert len(list(items_dir.glob("W-*.json"))) == 1
@@ -2997,27 +3102,132 @@ def test_take_opens_one_item_and_a_second_session_finds_it_held(tmp_path: Path) 
     assert claim["session"] == session_a, claim
     # a SECOND session finds it held — nothing new taken, nothing new created
     env_b = {**env, "CLAUDE_CODE_SESSION_ID": "SESSION-B"}
-    r3 = _take_proc(repo, "fabrik-review", env_b)
+    r3 = _take_proc(repo, "fabrik-review", env_b, ledger)
     assert r3.returncode == 0, (r3.stdout, r3.stderr)
     assert item_id in r3.stdout and "is held by" in r3.stdout, r3.stdout
     assert "nothing taken" in r3.stdout, r3.stdout
     assert len(list(items_dir.glob("W-*.json"))) == 1
 
 
+def test_take_survives_claim_of_raising_no_traceback_rc0(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """T04 review C-O4: every store interaction in `take()` (`repo_root`/`has_store`/
+    `open_linked`/the private `_claim_of`/`_is_live`) must be wrapped — a stand-in (or a future
+    `work.py`) whose `_claim_of` raises must never crash `--take`. In-process via `main()` so
+    stderr/stdout and rc are all observable in one call."""
+    m = _cfr()
+    env = _work_env(tmp_path)
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "S1")
+    ledger = tmp_path / "ledger.jsonl"
+    _write(ledger, [_row("fabrik-review", 10, 1, "lean: a")])
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    class FakeWork:
+        def repo_root(self, repo):
+            return repo
+
+        def has_store(self, root):
+            return True
+
+        def open_linked(self, *a, **k):
+            return "W-deadbeef"
+
+        def _claim_of(self, root, item_id):
+            raise RuntimeError("boom")
+
+        def _is_live(self, claim):
+            return False
+
+    monkeypatch.setattr(m, "_work", lambda: FakeWork())
+    rc = m.main(["--take", "fabrik-review", "--repo", str(repo), "--ledger", str(ledger)])
+    captured = capsys.readouterr()
+    out, err = captured.out, captured.err
+    assert rc == 0, (out, err)
+    assert "Traceback" not in err, err
+    assert "nothing taken" in out, out
+
+
+def test_take_on_an_empty_queue_creates_nothing(tmp_path: Path) -> None:
+    """T04 review C-O7: a typo'd or already-fully-answered command must never create an orphan
+    `kind: feedback` item — `mark_answered` can never close an item for verdicts that don't
+    exist."""
+    env = _work_env(tmp_path)
+    repo = _init_work_store(tmp_path, env)
+    ledger = tmp_path / "ledger.jsonl"
+    _write(ledger, [_row("fabrik-review", 10, 1, "lean: a")])  # "zzz" has nothing
+    env_s = {**env, "CLAUDE_CODE_SESSION_ID": "S1"}
+    r = _take_proc(repo, "zzz", env_s, ledger)
+    assert r.returncode == 0, (r.stdout, r.stderr)
+    assert "has no unanswered verdicts" in r.stdout and "nothing taken" in r.stdout, r.stdout
+    assert list((repo / ".fabrik" / "work").glob("W-*.json")) == []
+
+
+def test_take_refuses_rows_and_commit(tmp_path: Path) -> None:
+    """T04 review C-O8: `--take a --rows 1.0 --commit HEAD` used to silently drop `--rows`/
+    `--commit` (they were absent from `--take`'s exclusivity list) — refused now, like every other
+    report flag piggy-backed on a claim.
+
+    A session IS set and `--repo` is a real (storeless) directory, so nothing ELSE can produce a
+    non-zero rc or a `REFUSED` line here — without this, `tmp_path` having no git repo at all
+    would make even the OLD code print `no work store in … — nothing taken` at rc 0, and a test
+    without the session/repo control passed on the pre-fix code for the WRONG reason (a missing
+    session refusal, never the rows/commit one) the first time this was written."""
+    env = {**os.environ, "CLAUDE_CODE_SESSION_ID": "S1"}
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--take",
+            "a",
+            "--rows",
+            "1.0",
+            "--commit",
+            "HEAD",
+            "--repo",
+            str(tmp_path),
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert r.returncode != 0, (r.stdout, r.stderr)
+    assert "REFUSED" in r.stdout, r.stdout
+    assert "--rows" in r.stdout and "--commit" in r.stdout, r.stdout
+
+
+def test_take_reports_work_store_unavailable_when_the_loader_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """T04 review C-O11: a missing/broken `work.py` (the loader itself failing) must read
+    differently from a repo that genuinely has no store — `work store unavailable`, never `no
+    work store in <repo>`, so a reader does not misdiagnose a real repo as store-less."""
+    m = _cfr()
+    ledger = tmp_path / "ledger.jsonl"
+    _write(ledger, [_row("fabrik-review", 10, 1, "lean: a")])
+    monkeypatch.setattr(m, "_work", lambda: None)
+    out = m.take("fabrik-review", tmp_path, "S1", ledger)
+    assert out == "work store unavailable — nothing taken", out
+
+
 def test_mark_answered_closes_the_taken_item_and_a_refusal_leaves_it_open(tmp_path: Path) -> None:
     env = _work_env(tmp_path)
     repo = _init_work_store(tmp_path, env)
-    env_s = {**env, "CLAUDE_CODE_SESSION_ID": "S1"}
-    taken = _take_proc(repo, "fabrik-review", env_s)
-    assert taken.returncode == 0, (taken.stdout, taken.stderr)
-    item_id = taken.stdout.split()[1]
-    item_path = repo / ".fabrik" / "work" / f"{item_id}.json"
-
     m = _cfr()
     ledger = tmp_path / "ledger.jsonl"
     rows = [_row("fabrik-review", 10, 2, "lean: a")]
     _write(ledger, rows)
     handle = m._ts_key(rows[0]["ts"])
+
+    env_s = {**env, "CLAUDE_CODE_SESSION_ID": "S1"}
+    taken = _take_proc(repo, "fabrik-review", env_s, ledger)
+    assert taken.returncode == 0, (taken.stdout, taken.stderr)
+    item_id = taken.stdout.split()[1]
+    item_path = repo / ".fabrik" / "work" / f"{item_id}.json"
 
     seed_sha = subprocess.run(
         ["git", "-C", str(repo), "rev-parse", "HEAD"],
@@ -3093,6 +3303,103 @@ def test_mark_answered_closes_the_taken_item_and_a_refusal_leaves_it_open(tmp_pa
     assert good_sha[:8] in item.get("note", ""), item
 
 
+def test_mark_answered_survives_a_close_linked_that_raises(tmp_path: Path, monkeypatch) -> None:
+    """T04 review C-O3: `close_linked` used to be called UNGUARDED in `mark_answered` — a
+    `ValueError` from `_check_linked`, or an `AttributeError` against an old `work.py` without
+    `close_linked`, would escape AFTER the answered-index rows were already written, corrupting
+    `mark_answered`'s own return value/rc for a caller who has no reason to expect it."""
+    m = _cfr()
+
+    class FakeWork:
+        def close_linked(self, *a, **k):
+            raise AttributeError("no close_linked on this work.py")
+
+    monkeypatch.setattr(m, "_work", lambda: FakeWork())
+    repo = tmp_path / "repo"
+    (repo / "commands" / "_sources").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True, timeout=30)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, check=True, timeout=30)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True, timeout=30)
+    (repo / "commands" / "_sources" / "fabrik-review.md").write_text("edited\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, timeout=30)
+    subprocess.run(["git", "commit", "-qm", "corpus edit"], cwd=repo, check=True, timeout=30)
+    ledger = tmp_path / "ledger.jsonl"
+    rows = [_row("fabrik-review", 10, 2, "lean: a")]
+    _write(ledger, rows)
+    index = tmp_path / "answered.jsonl"
+    handle = str(m._num(rows[0]["ts"]))
+    written, msg = m.mark_answered("fabrik-review", [handle], "HEAD", repo, index, ledger=ledger)
+    assert written == 1 and "marked 1 row" in msg, msg
+
+
+def test_a_failed_first_close_retries_on_the_already_marked_rerun(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """T04 review C-S3/C-O9: the close used to run ONLY on the fresh-write path — a rerun that
+    hits "nothing to do — all … already marked" never retried it, so an item whose first close
+    failed could NEVER close. `close_linked` is idempotent (no open item → `None`), so retrying it
+    on every answering call, including the no-op rerun, is safe."""
+    env = _work_env(tmp_path)
+    repo = _init_work_store(tmp_path, env)
+    env_s = {**env, "CLAUDE_CODE_SESSION_ID": "S1"}
+    ledger = tmp_path / "ledger.jsonl"
+    rows = [_row("fabrik-review", 10, 2, "lean: a")]
+    _write(ledger, rows)
+    taken = _take_proc(repo, "fabrik-review", env_s, ledger)
+    assert taken.returncode == 0, (taken.stdout, taken.stderr)
+    item_id = taken.stdout.split()[1]
+    item_path = repo / ".fabrik" / "work" / f"{item_id}.json"
+
+    (repo / "commands" / "_sources").mkdir(parents=True)
+    (repo / "commands" / "_sources" / "fabrik-review.md").write_text("edited\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], env=env, check=True, timeout=30)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "corpus edit"],
+        env=env,
+        check=True,
+        timeout=30,
+    )
+    sha = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    ).stdout.strip()
+
+    m = _cfr()
+    handle = m._ts_key(rows[0]["ts"])
+    index = tmp_path / "answered.jsonl"
+
+    class BoomOnce:
+        def __init__(self, real):
+            self._real = real
+            self.calls = 0
+
+        def close_linked(self, *a, **k):
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("boom")
+            return self._real.close_linked(*a, **k)
+
+    real_work = m._work()
+    fake = BoomOnce(real_work)
+    monkeypatch.setattr(m, "_work", lambda: fake)
+
+    written1, msg1 = m.mark_answered(
+        "fabrik-review", [handle], sha, repo, path=index, ledger=ledger
+    )
+    assert written1 == 1, msg1
+    assert json.loads(item_path.read_text(encoding="utf-8"))["status"] not in ("done", "dropped")
+
+    written2, msg2 = m.mark_answered(
+        "fabrik-review", [handle], sha, repo, path=index, ledger=ledger
+    )
+    assert written2 == 0 and "already marked" in msg2, msg2
+    assert json.loads(item_path.read_text(encoding="utf-8"))["status"] == "done"
+
+
 def test_take_with_no_store_prints_no_store_line_exits_0_and_creates_nothing(
     tmp_path: Path,
 ) -> None:
@@ -3104,8 +3411,10 @@ def test_take_with_no_store_prints_no_store_line_exits_0_and_creates_nothing(
     subprocess.run(
         ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], env=env, check=True, timeout=30
     )
+    ledger = tmp_path / "ledger.jsonl"
+    _write(ledger, [_row("fabrik-review", 10, 1, "lean: a")])
     env_s = {**env, "CLAUDE_CODE_SESSION_ID": "S1"}
-    r = _take_proc(repo, "fabrik-review", env_s)
+    r = _take_proc(repo, "fabrik-review", env_s, ledger)
     assert r.returncode == 0, (r.stdout, r.stderr)
     assert "no work store" in r.stdout and "nothing taken" in r.stdout, r.stdout
     assert not (repo / ".fabrik").exists()

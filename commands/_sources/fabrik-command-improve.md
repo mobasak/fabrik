@@ -85,6 +85,9 @@ five runs, each of which a reader can judge on its own.
 python3 /opt/fabrik/scripts/command_feedback_report.py --queue <command>   # no leading slash
 ```
 
+TAB-separated, newest first: `<ts>` · `<bucket>` · `<the verdict>`. The `ts` is the row's only
+handle — the ledger has no id and `sid` is per session — and it is what your commit will name.
+
 Then TAKE the queue's own work item, so the depth is tracked in the store and PHASE 5's
 `--mark-answered` has an item to close:
 
@@ -92,11 +95,18 @@ Then TAKE the queue's own work item, so the depth is tracked in the store and PH
 python3 /opt/fabrik/scripts/command_feedback_report.py --take <command>
 ```
 
-Prints `took W-xxxxxxxx — /<command>, N unanswered`, that another session holds it (nothing taken
-— work something else), or that `--repo` has no work store (nothing to take, proceed as before).
-
-TAB-separated, newest first: `<ts>` · `<bucket>` · `<the verdict>`. The `ts` is the row's only
-handle — the ledger has no id and `sid` is per session — and it is what your commit will name.
+Prints exactly one of, and each names what you do next:
+- `took W-xxxxxxxx — /<command>, N unanswered` — proceed; PHASE 5 closes `W-xxxxxxxx`.
+- `W-xxxxxxxx — /<command> is held by <agent-or-session> — nothing taken` — another session is
+  already on this queue; work a different command's instead.
+- `/<command> has no unanswered verdicts — nothing taken` — the queue is empty (a typo, or
+  already fully answered); nothing here to act on.
+- `no work store in <repo> — nothing taken` — this repo has no `.fabrik/work/`; proceed exactly
+  as if `--take` did not exist.
+- `work store unavailable — nothing taken` — `scripts/work.py` itself is missing or broken;
+  proceed as above.
+- `feedback item not written for /<command> in <repo> — nothing taken` — an unexpected failure
+  (see stderr); proceed as above, the queue above is still the authoritative read.
 
 The bucket is piece 1's axis read: one of the seven axes (`lean` · `fast` · `accurate` · `waste` ·
 `infra` · `rules` · `manifesto`), or one of three instrument readings — `unkeyed` (written before

@@ -281,18 +281,20 @@ def _answered_path(ledger: Path | None = None) -> Path | None:
     return None if base is None else base.parent / "command-feedback-answered.jsonl"
 
 
-def _answered_ts(command: str, path: Path | None = None) -> set[str]:
-    """The `ts` set already answered for one command. An absent or unreadable index means nothing
-    is answered — the queue then shows every row, which is the safe direction: it over-reports work
-    rather than hiding a verdict nobody acted on."""
-    path = path if path is not None else _answered_path()
+def _answered_index(path: Path | None) -> dict[str, set[str]]:
+    """Every command's answered `ts` set, from ONE read of the answered index. `_answered_ts`
+    below reads this same file per COMMAND — fine for `--queue`'s single command, but
+    `queue_depths` (T04 review C-S1) needs every command's set from one call, not one file read
+    per command it reports on. An absent or unreadable index is `{}` — the safe direction: a
+    caller then treats every row as unanswered, which over-reports work rather than hiding a
+    verdict nobody acted on."""
     if path is None:
-        return set()
+        return {}
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
-        return set()
-    out: set[str] = set()
+        return {}
+    out: dict[str, set[str]] = {}
     for ln in text.splitlines():
         ln = ln.strip()
         if not ln:
@@ -301,9 +303,19 @@ def _answered_ts(command: str, path: Path | None = None) -> set[str]:
             row = json.loads(ln)
         except ValueError:
             continue
-        if isinstance(row, dict) and str(row.get("command") or "") == command:
-            out.add(_ts_key(row.get("ts")))
+        if isinstance(row, dict):
+            cmd = str(row.get("command") or "")
+            if cmd:
+                out.setdefault(cmd, set()).add(_ts_key(row.get("ts")))
     return out
+
+
+def _answered_ts(command: str, path: Path | None = None) -> set[str]:
+    """The `ts` set already answered for one command. An absent or unreadable index means nothing
+    is answered — the queue then shows every row, which is the safe direction: it over-reports work
+    rather than hiding a verdict nobody acted on."""
+    path = path if path is not None else _answered_path()
+    return _answered_index(path).get(command, set())
 
 
 def _known_handles(command: str, ledger: Path | None = None) -> dict[str, int]:
@@ -363,6 +375,32 @@ def _append_answered(path: Path, rows: list[dict]) -> tuple[int, str]:
     return written, ""
 
 
+def _close_feedback_work_item(repo: Path, command: str, sha: str) -> None:
+    """Close the queue's linked `kind: feedback` item — guarded (T04 review C-O3): a missing or
+    broken `work.py`, or `close_linked` itself raising (a `ValueError` from `_check_linked`, an
+    `AttributeError` against an old `work.py` without it), is one stderr line, never a change to
+    `mark_answered`'s return value or rc. Called on every ANSWERING path, including the
+    already-marked no-op (C-S3/C-O9) — `close_linked` is idempotent (no open item → `None`), so a
+    repeat call here is never a double-close, and it is the only way an item whose first close
+    failed ever gets a second try."""
+    w = _work()
+    if w is None:
+        return
+    try:
+        w.close_linked(
+            repo,
+            kind="feedback",
+            link=("command", command),
+            status="done",
+            note=f"answered by {sha[:8]}",
+        )
+    except Exception as exc:
+        print(
+            f"command_feedback_report: feedback item not closed — {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+
+
 def mark_answered(
     command: str,
     ts_rows: list[str],
@@ -419,6 +457,12 @@ def mark_answered(
     already = _answered_ts(command, path)
     fresh = [t for t in wanted if t not in already]
     if not fresh:
+        # T04 review C-S3/C-O9: a rerun that lands here still ANSWERS the queue (the rows are all
+        # already marked) — so it still owes the close. Without this, an item whose first close
+        # failed (C-O3) can never close: every later mark of the SAME rows takes this branch and
+        # used to skip the close entirely. `close_linked` is idempotent (no open item → None), so
+        # repeating it here is never a double-close.
+        _close_feedback_work_item(repo, command, sha)
         return 0, f"nothing to do — all {len(wanted)} row(s) were already marked for /{command}."
     now = time.time()
     written, err = _append_answered(
@@ -439,19 +483,8 @@ def mark_answered(
             f"every row sharing them: {', '.join(f'{t}x{n}' for t, n in list(shared.items())[:5])}"
         )
     # T04 — a real edit landed (the checks above already confirmed it), so the queue's own linked
-    # work item closes here too: `--take` opened it, this is its answer. `close_linked` is
-    # fail-open on its own (one stderr line via `work.py`'s `_warn`) and a missing/broken
-    # `work.py`, or a repo with no store, means only that nothing was ever open to close — never a
-    # reason to change what THIS function reports or returns.
-    w = _work()
-    if w is not None:
-        w.close_linked(
-            repo,
-            kind="feedback",
-            link=("command", command),
-            status="done",
-            note=f"answered by {sha[:8]}",
-        )
+    # work item closes here too: `--take` opened it, this is its answer.
+    _close_feedback_work_item(repo, command, sha)
     return written, (
         f"marked {written} row(s) answered for /{command} by {sha[:8]}{tail} — {detail}"
     )
@@ -1356,14 +1389,23 @@ def queue(rows: list[dict], command: str, ledger: Path | None = None) -> str:
 def queue_depths(ledger: Path | None = None) -> dict[str, int]:
     """Every command's unanswered depth, from ONE read of the ledger — exactly `queue()`'s rule:
     the rows FOR that command, minus a none-verdict `change` (`_change_is_none`), minus a `ts`
-    already in the answered index (`_answered_ts`). No time window: this is what `--queue
-    <command>` alone reads, with no `--since` cutoff, because `--take` needs the SAME number
-    `--queue` would print for the command it just claimed. Commands left at depth 0 are omitted —
-    a caller wants the queues that still have work, not a zero-padded roster.
+    already in the answered index. No time window: this is what `--queue <command>` alone reads,
+    with no `--since` cutoff, because `--take` needs the SAME number `--queue` would print for the
+    command it just claimed. Commands left at depth 0 are omitted — a caller wants the queues that
+    still have work, not a zero-padded roster.
+
+    `ledger=None` resolves the same default `--queue`/`_known_handles` use (T04 review C-O1) — the
+    prior form passed `None` straight to `_rows`, which reads it as "no ledger" and always
+    returned `{}`, silently, for every caller of the documented default.
+
+    The answered index is read ONCE for the whole call (T04 review C-S1), not once per command —
+    `_answered_ts` re-reads the file per command, which is fine for `--queue`'s single command and
+    wasteful here when there are many.
 
     Never raises: an unreadable ledger or answered index is the same fail-open empty mapping
-    `_rows`/`_answered_ts` already give their callers, never a crash into `--take`'s caller.
+    `_rows`/`_answered_index` already give their callers, never a crash into `--take`'s caller.
     """
+    ledger = ledger if ledger is not None else _default_ledger()
     try:
         rows = _rows(ledger)
     except Exception:
@@ -1373,12 +1415,15 @@ def queue_depths(ledger: Path | None = None) -> dict[str, int]:
         cmd = str(r.get("command") or "")
         if cmd:
             by_command[cmd].append(r)
-    answered_path = _answered_path(ledger)
+    try:
+        answered_by_command = _answered_index(_answered_path(ledger))
+    except Exception:
+        answered_by_command = {}
     out: dict[str, int] = {}
     for cmd, cmd_rows in by_command.items():
         try:
             mine = [r for r in cmd_rows if not _change_is_none(str(r.get("change") or ""))]
-            answered = _answered_ts(cmd, answered_path)
+            answered = answered_by_command.get(cmd, set())
             depth = sum(1 for r in mine if _ts_key(r.get("ts")) not in answered)
         except Exception:
             continue
@@ -1389,40 +1434,58 @@ def queue_depths(ledger: Path | None = None) -> dict[str, int]:
 
 def take(command: str, repo: Path, session: str, ledger: Path | None = None) -> str:
     """`--take`'s body: claim (creating it if none exists yet) the one open `kind: feedback` work
-    item for `command`'s queue, in `repo`'s work store — T01's `work.open_linked`. A repo with no
-    store prints the no-store line and creates nothing (`work.py`'s own contract: only `init`
-    creates a store, never an implicit one here).
+    item for `command`'s queue, in `repo`'s work store — T01's `work.open_linked`.
+
+    The queue depth is read FIRST (T04 review C-O7/C-H1/C-O2): an empty queue (a typo, or a
+    command already fully answered) creates NOTHING — `mark_answered` can never close an item for
+    verdicts that don't exist, so an orphan item would sit open forever — and this is also the
+    ONE read of the ledger `--take` needs: the depth computed here is reused for the final `took`
+    message rather than re-reading it.
 
     ADDED BY THE T01 REVIEW: `open_linked` returns the item id even when ANOTHER live session
     already holds its claim (it leaves that claim with its holder, never overwrites it) — so the
     claim is read back here, and a held item is reported as held rather than reported as taken.
+
+    Every store interaction (`repo_root`/`has_store`/`open_linked`/the private `_claim_of`/
+    `_is_live`) is wrapped (T04 review C-O4): a `work.py` internal raising outside its own
+    fail-open contract (or a stand-in module a test hands in) must never crash `--take` — one
+    stderr line, and the same truthful "item not written" line a `None` from `open_linked` already
+    prints.
     """
     command = command.strip().lstrip("/").strip()
-    no_store = f"no work store in {repo} — nothing taken"
+    depth = queue_depths(ledger).get(command, 0)
+    if depth == 0:
+        return f"/{command} has no unanswered verdicts — nothing taken"
     w = _work()
     if w is None:
-        return no_store
-    root = w.repo_root(repo)
-    if root is None or not w.has_store(root):
-        return no_store
-    item_id = w.open_linked(
-        root,
-        kind="feedback",
-        link=("command", command),
-        title=f"feedback queue /{command}",
-        session=session,
-    )
-    if item_id is None:
-        # `open_linked` is itself fail-open (a lock timeout or exception prints its own stderr
-        # line and returns None) — `has_store` just confirmed a store exists, so this is that rare
-        # write failure, never the ordinary no-store case above.
+        # distinct from "no work store in <repo>" below (T04 review C-O11) — this is `work.py`
+        # itself missing or failing to import, never mistaken for a repo that genuinely has none
+        return "work store unavailable — nothing taken"
+    try:
+        root = w.repo_root(repo)
+        if root is None or not w.has_store(root):
+            return f"no work store in {repo} — nothing taken"
+        item_id = w.open_linked(
+            root,
+            kind="feedback",
+            link=("command", command),
+            title=f"feedback queue /{command}",
+            session=session,
+        )
+        if item_id is None:
+            raise RuntimeError("open_linked returned no item id")
+        claim = w._claim_of(root, item_id)
+        if claim is not None and w._is_live(claim) and str(claim.get("session") or "") != session:
+            who = str(claim.get("agent") or "").strip() or f"session {claim.get('session')}"
+            return f"{item_id} — /{command} is held by {who} — nothing taken"
+        return f"took {item_id} — /{command}, {depth} unanswered"
+    except Exception as exc:
+        print(
+            f"command_feedback_report: feedback item not written for /{command} — "
+            f"{type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
         return f"feedback item not written for /{command} in {repo} — nothing taken"
-    claim = w._claim_of(root, item_id)
-    if claim is not None and w._is_live(claim) and str(claim.get("session") or "") != session:
-        who = str(claim.get("agent") or "").strip() or f"session {claim.get('session')}"
-        return f"{item_id} — /{command} is held by {who} — nothing taken"
-    depth = queue_depths(ledger).get(command, 0)
-    return f"took {item_id} — /{command}, {depth} unanswered"
 
 
 OBSERVER_SEATS = 4  # how many commands are expensive enough to pay for a writer seat
@@ -1630,6 +1693,50 @@ def main(argv: list[str] | None = None) -> int:
         # ledger are indistinguishable in stdout, so the difference goes to stderr where a human
         # sees it and a parsing caller does not.
         print(f"ledger: {a.ledger} is not a readable file — reporting zero rows", file=sys.stderr)
+    if a.take is not None:
+        # T04 review C-H1/C-O2: dispatched HERE, before `rows = _rows(ledger)` below — `--take`
+        # never uses `rows` (it reads the ledger itself, exactly once, inside `queue_depths`), so
+        # reaching this branch after that unconditional read was a second, wasted pass over the
+        # same file. Exclusive with every other mode, exactly like --mark-answered — a report flag
+        # piggy-backed on a claim would be silently dropped, same failure class.
+        _report_flags = [
+            n
+            for n, v in (
+                ("--queue", a.queue is not None),
+                ("--observer-rank", a.observer_rank),
+                ("--mark-answered", a.mark_answered is not None),
+                ("--rows", bool(a.rows)),
+                ("--commit", bool(a.commit)),
+                ("--json", a.json),
+                ("--command", a.command is not None),
+                ("--since", a.since is not None),
+                ("--agent", a.agent is not None),
+            )
+            if v
+        ]
+        if _report_flags:
+            print(
+                "REFUSED — --take claims a work item and takes no report flags "
+                f"({', '.join(_report_flags)}); run it alone."
+            )
+            return 2
+        command = a.take.strip().lstrip("/").strip()
+        if not command:
+            print("REFUSED — --take needs a command name.")
+            return 2
+        import os
+
+        session = (os.environ.get("CLAUDE_CODE_SESSION_ID") or "").strip()
+        if not session:
+            # the same loud refusal `work.py claim` gives a session-less caller — cron and plain
+            # shells cannot hold a lease, so this is a caller bug, not a quiet no-op
+            print(
+                "REFUSED — --take needs a session: CLAUDE_CODE_SESSION_ID is unset (cron and "
+                "plain shells cannot hold a lease)."
+            )
+            return 1
+        print(take(command, a.repo, session, ledger))
+        return 0
     rows = _rows(ledger)
     if a.queue is not None and a.command is not None:
         # TWO distinct mistakes, two messages. The pre-existing one stands: naming two different
@@ -1675,55 +1782,19 @@ def main(argv: list[str] | None = None) -> int:
             and (a.command is None or r.get("command") == a.command)
             and (a.agent is None or str(r.get("agent") or "") == a.agent)
         ]
-    if a.take is not None:
-        # exclusive with every other mode, exactly like --mark-answered below (T04) — a report
-        # flag piggy-backed on a claim would be silently dropped, same failure class
-        _report_flags = [
-            n
-            for n, v in (
-                ("--queue", a.queue is not None),
-                ("--observer-rank", a.observer_rank),
-                ("--mark-answered", a.mark_answered is not None),
-                ("--json", a.json),
-                ("--command", a.command is not None),
-                ("--since", a.since is not None),
-                ("--agent", a.agent is not None),
-            )
-            if v
-        ]
-        if _report_flags:
-            print(
-                "REFUSED — --take claims a work item and takes no report flags "
-                f"({', '.join(_report_flags)}); run it alone."
-            )
-            return 2
-        command = a.take.strip().lstrip("/").strip()
-        if not command:
-            print("REFUSED — --take needs a command name.")
-            return 2
-        import os
-
-        session = (os.environ.get("CLAUDE_CODE_SESSION_ID") or "").strip()
-        if not session:
-            # the same loud refusal `work.py claim` gives a session-less caller — cron and plain
-            # shells cannot hold a lease, so this is a caller bug, not a quiet no-op
-            print(
-                "REFUSED — --take needs a session: CLAUDE_CODE_SESSION_ID is unset (cron and "
-                "plain shells cannot hold a lease)."
-            )
-            return 1
-        print(take(command, a.repo, session, ledger))
-        return 0
     if a.mark_answered is not None:
         # the same mode-exclusivity the `--queue`/`--observer-rank` pair already has: combining
         # them silently ran ONE, and this command's own PHASE 5 tells the agent to verify with
         # `--queue` in the same breath (review round 1)
+        # ⚠️ `--take` is NOT in this list (T04 review C-O8): `a.take is not None` is dispatched
+        # and returns before `rows = _rows(ledger)` above, so this branch is unreachable whenever
+        # `--take` is also set — an entry for it here would be dead code checking a condition that
+        # can never be true at this point.
         _report_flags = [
             n
             for n, v in (
                 ("--queue", a.queue is not None),
                 ("--observer-rank", a.observer_rank),
-                ("--take", a.take is not None),
                 ("--json", a.json),
                 ("--command", a.command is not None),
                 ("--since", a.since is not None),
