@@ -3394,9 +3394,26 @@ HOOK_NO_SESSION = "nosession"  # the Stop hook's id for a payload without one: n
 # own none-matcher accepts a leading `[ \t*_]` run the same way
 _HOLD_LEAD_RE = re.compile(r"[\s*_`(\-]*(?:none|BLOCKED)(?![0-9A-Za-z])", re.I)  # `_none_`
 _HOLD_ANY_RE = re.compile(r"(?<![0-9A-Za-z_])operator[\s-]+decisions?(?![0-9A-Za-z_])", re.I)
-# an id a NEXT names: never one inside a path, URL or file name (`/W-…/`, `.W-…`, `W-….json`);
-# a sentence-final `W-….` still names it. `_ITEM_REF_RE` stays the evidence reader's.
-_NEXT_REF_RE = re.compile(r"(?<![0-9A-Za-z_/.])W-[0-9a-f]{8}(?![0-9A-Za-z_/])(?!\.[0-9A-Za-z])")
+# an id a NEXT names is judged by its whitespace TOKEN: `_next_refs`. `_ITEM_REF_RE` stays the
+# evidence reader's.
+_NEXT_TOKEN_ID_RE = re.compile(r"W-[0-9a-f]{8}(?![0-9A-Za-z_])(?!\.[0-9A-Za-z])")
+
+
+def _next_refs(text: str) -> list[str]:
+    """The ids a NEXT names, in order: a token counts only when it holds no ``/`` (a path or URL)
+    and — once its leading ``*`(`` decoration is stripped — STARTS with the id, not followed by
+    ``.`` plus an alphanumeric (a file extension). Trailing decoration (``**``, ``)``, ``,``,
+    ``:``, ``;``, ``.``, ``!``, ``?``) needs no strip: the match is anchored at the id and its
+    lookaheads read only the next characters. So ``?item=W-…``, ``#W-…``, ``x/W-…`` and
+    ``W-….json`` name nothing; ``**W-…**``, ``W-…:`` and ``W-….`` do."""
+    refs = []
+    for token in text.split():
+        if "/" in token:
+            continue
+        m = _NEXT_TOKEN_ID_RE.match(token.lstrip("*`("))
+        if m:
+            refs.append(m.group(0))
+    return refs
 
 
 def classify_next(v: str) -> str:
@@ -3408,7 +3425,7 @@ def classify_next(v: str) -> str:
     text = " ".join(v.split())
     if _HOLD_LEAD_RE.match(text) or _HOLD_ANY_RE.search(text):
         return "hold"
-    if _NEXT_REF_RE.search(text):
+    if _next_refs(text):
         return "names-item"
     return "free-text"
 
@@ -3447,7 +3464,7 @@ def _claim_named(repo: Path, v: str, session: str, closed: set[str]) -> None:
     rewritten ``next`` behind. No other named item is touched; when none qualifies nothing is."""
     by_id = {str(it["id"]): it for it in _iter_items(repo)}
     now = time.time()
-    for ref in _NEXT_REF_RE.findall(v):
+    for ref in _next_refs(v):
         item = by_id.get(ref)
         if item is None or item.get("kind") == "next" or not _is_ready(item, by_id, closed):
             continue
@@ -3460,7 +3477,12 @@ def _claim_named(repo: Path, v: str, session: str, closed: set[str]) -> None:
         text = v[:LINE_MAX]
         if item.get("next") != text:
             item["next"] = text
-            _write_item(repo, item)
+            try:  # the claim stands: say so, never "not claimed"
+                _write_item(repo, item)
+            except Exception as exc:
+                _warn(
+                    f"named item {ref} claimed, its next not written — {type(exc).__name__}: {exc}"
+                )
         return
 
 

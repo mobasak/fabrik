@@ -179,6 +179,17 @@ def _iso_days_ago(days: float) -> str:
         ("open /repo/W-abcdef12/notes.md", "free-text"),
         ("edit W-abcdef12.json", "free-text"),
         ("see .W-abcdef12 backup", "free-text"),
+        ("open https://x/y?item=W-abcdef12 now", "free-text"),
+        ("see ?item=W-abcdef12", "free-text"),
+        ("jump to #W-abcdef12", "free-text"),
+        ("set key=W-abcdef12", "free-text"),
+        ("under x/W-abcdef12", "free-text"),
+        ("W-abcdef12.json", "free-text"),
+        ("read W-abcdef12/notes.md", "free-text"),
+        ("**W-abcdef12** next", "names-item"),
+        ("`W-abcdef12`", "names-item"),
+        ("W-abcdef12: write it", "names-item"),
+        ("W-abcdef12; then docs", "names-item"),
         ("W-ABCDEF12 continue", "free-text"),
         ("fix the flake", "free-text"),
         ("Nonexistent thing", "free-text"),
@@ -425,20 +436,58 @@ def test_rule_two_never_claims_a_next_item_by_id(store):
     assert _item(repo, mine["id"])["note"] == "superseded"  # its own: closed, never claimed
 
 
-def test_a_failed_claim_write_leaves_the_items_next_alone_and_still_supersedes(store, monkeypatch):
+def test_a_failed_claim_write_leaves_the_items_next_alone_and_still_supersedes(
+    store, monkeypatch, capsys
+):
     work, repo, env = store
     x = _add(repo, env, "X")
     work.on_harvest(repo, session="S1", next_text="fix the flake", next_anchored=True)
     (nxt,) = _open_next(repo, "S1")
     before = _file(repo, x).read_bytes()
+    capsys.readouterr()
 
     def refuse(*_a, **_k):
         raise OSError("claims dir is read-only")
 
     monkeypatch.setattr(work, "_write_claim", refuse)
     work.on_harvest(repo, session="S1", next_text=f"{x} continue")
+    err = capsys.readouterr().err
+    assert "named item not claimed — OSError" in err and "its next not written" not in err
     assert _file(repo, x).read_bytes() == before
     assert _item(repo, nxt["id"])["note"] == "superseded"
+
+
+def test_a_failed_next_write_after_the_claim_says_the_claim_stands(store, monkeypatch, capsys):
+    work, repo, env = store
+    x = _add(repo, env, "X")
+    work.on_harvest(repo, session="S1", next_text="fix the flake", next_anchored=True)
+    (nxt,) = _open_next(repo, "S1")
+    before = _file(repo, x).read_bytes()
+    real = work._write_item
+
+    def refuse_x(repo_, item, **k):
+        if item.get("id") == x:
+            raise OSError("item file is read-only")
+        return real(repo_, item, **k)
+
+    monkeypatch.setattr(work, "_write_item", refuse_x)
+    capsys.readouterr()
+    work.on_harvest(repo, session="S1", next_text=f"{x} continue")
+    err = capsys.readouterr().err
+    assert f"named item {x} claimed, its next not written — OSError" in err
+    assert "not claimed" not in err
+    assert _live_session(repo, x) == "S1"
+    assert _file(repo, x).read_bytes() == before
+    assert _item(repo, nxt["id"])["note"] == "superseded"
+
+
+def test_a_successful_rule_two_harvest_prints_nothing(store, capsys):
+    work, repo, env = store
+    x = _add(repo, env, "X")
+    capsys.readouterr()
+    work.on_harvest(repo, session="S1", next_text=f"{x} continue")
+    assert capsys.readouterr().err == ""
+    assert _live_session(repo, x) == "S1"
 
 
 def test_a_next_item_closed_in_another_tree_is_never_closed_again(store):
