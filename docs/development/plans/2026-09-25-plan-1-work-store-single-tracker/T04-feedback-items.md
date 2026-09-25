@@ -12,9 +12,9 @@ drives it.
    exactly `queue()`'s rule (`:1248-1300`): the rows for that command, minus those whose `change` is a
    none-verdict (`_change_is_none`, `:491-514`), minus those whose `_ts_key(ts)` (`:215-231`) is in
    `_answered_ts(command, _answered_path(ledger))`; no time window (with `--queue` alone, `main()` applies
-   no cutoff, `:1509-1519`). Commands with depth 0 are omitted. Never raises: an unreadable ledger or
+   no cutoff — the window block at `:1524-1529` sets `cutoff = None` when `--since` is absent). Commands with depth 0 are omitted. Never raises: an unreadable ledger or
    answered index returns `{}`. The number for a command equals the `N unanswered` in `--queue <command>`'s
-   head line (`:1281-1288`) — that equality is the seam test T02 consumes.
+   head line (`:1281-1288`) — that equality is the seam test T02a consumes.
 2. **`--take <command>`** — creates, or finds, the one open `kind: feedback` item for `<command>` in
    the store of the repo `--repo` names (default `/opt/fabrik`; the corpus repo) through
    `work.open_linked(repo, kind="feedback", link=("command", <command>), title=f"feedback queue /{<command>}", session=<CLAUDE_CODE_SESSION_ID>)`
@@ -23,7 +23,7 @@ drives it.
 3. **The close.** `mark_answered` (`:327-404`), on its success return (`:402-404`, after
    `_append_answered` reported no error), calls `work.close_linked(repo, kind="feedback", link=("command", command), status="done", note=f"answered by {sha[:8]}")`; a failure there prints one stderr line and never changes `mark_answered`'s return value or rc.
 4. **`commands/_sources/fabrik-command-improve.md`** — PHASE 1 (`:82-107`) gains one step after the
-   `--queue` read (`:85`): `python3 /opt/fabrik/scripts/command_feedback_report.py --take <command>`; PHASE 5's `--mark-answered` paragraph (`:245-248`) gains one sentence: the call also closes the queue's work item. Every `AXES` name stays literal in the source (`tests/test_command_feedback_report.py:1604-1614`). The orchestrator renders the corpus from the main checkout at merge (render → `--check` → commit).
+   `--queue` read (`:85`): `python3 /opt/fabrik/scripts/command_feedback_report.py --take <command>`; PHASE 5's `--mark-answered` paragraph gains one sentence at its END — after "`already answered and excluded`" (`:248`) and before the blank line that opens "Doc Sync:" — saying the call also closes the queue's work item. Every `AXES` name stays literal in the source (`tests/test_command_feedback_report.py:1604-1614`). The orchestrator renders the corpus from the main checkout at merge (render → `--check` → commit).
 5. The `# AFTER-EDIT:` header (`:2`) gains `docs/reference/work-tracking.md`.
 
 DO-NOT: `scripts/work.py` (T01 owns `open_linked`/`close_linked`; a defect there is a BLOCKED report to the orchestrator); the close-feedback fragment or `command_run.py`.

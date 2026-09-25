@@ -26,13 +26,14 @@ T01–T06 (each claim executed, never recalled):
    obligation lines, every other session's claims and the unnamed-window line.
 5. `docs/reference/command-run-protocol.md` — the improve-loop close-out (`:314-330`) and the CLI line
    (`:408-409`): `--take <command>` and the item `--mark-answered` closes.
+6. The D3 section states the classifier (`classify_next`, T05a) once — hold / names-item / free-text — and that the census uses the same function.
 
 DO-NOT: `CLAUDE.md`, `templates/governance/CLAUDE.md` (T07a); the `## Related scripts` blocks (rendered from `# AFTER-EDIT:` headers by `scripts/render_doc_script_links.py` — never hand-edited).
 
-Depends: T02, T03, T04, T05b, T06
+Depends: T02b, T03, T04, T05b, T06
 Parallel: ⚡
 Complexity: simple
-Gate: .venv/bin/python -m pytest tests/test_work_doc_verbs.py -q
+Gate: .venv/bin/python -m pytest tests/test_work_doc_verbs.py -q && python3 scripts/enforcement/check_citations_resolve.py --changed
 Docs: the five docs above; `INDEX.md` (the census row) and `docs/README.md` need no change beyond T06's Deltas row
 
 ## Touches
@@ -44,7 +45,7 @@ Docs: the five docs above; `INDEX.md` (the census row) and `docs/README.md` need
 
 ## Behavior Contract
 - **Given** the merged CLI, **When** `tests/test_work_doc_verbs.py` runs, **Then** the reference doc's verb table equals the parser's verbs, `--duplicate-of` and `--all` included (spec § Documentation landing sites)
-- **Given** each doc sentence this ticket writes, **When** the claim→proof table in the ticket's receipt is built, **Then** every sentence cites the `path:line` of the merged code it describes (spec § Documentation landing sites)
+- **Given** the five edited docs, **When** `python3 scripts/enforcement/check_citations_resolve.py --changed` runs, **Then** it reports every `path:line` citation in the changed `docs/reference/` files as landing, with the examined count stated (spec § Documentation landing sites)
 
 ## Context Files
 - .windsurf/rules/core/40-documentation.md

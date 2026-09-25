@@ -6,9 +6,10 @@ Implements spec § The delta D7: every copy of the `**Work items.**` paragraph g
 end a turn on work with `NEXT: <item id>`, which claims it; claiming a mail creates its item. The
 copies are `CLAUDE.md:661` (one, in its § FINAL OUTPUT) and `templates/governance/CLAUDE.md:650` and
 `:739` (two, one per § FINAL OUTPUT). The hub copy is pinned byte for byte by `_CANONICAL` at
-`tests/test_work_contract_rule.py:59-68`, and both template copies must equal it after exactly the two
-sanctioned substitutions `_template_form` encodes (`tests/test_work_contract_rule.py:71-75`: the doc
-path gains `/opt/fabrik/`, `D-` becomes `hub D-`). So:
+`tests/test_work_contract_rule.py:61-70`, and both template copies must equal it after exactly the two
+sanctioned substitutions `_template_form` encodes (`tests/test_work_contract_rule.py:73-78`: two
+literal `str.replace` calls — `` `docs/reference/work-tracking.md` `` → `` `/opt/fabrik/docs/reference/work-tracking.md` ``,
+and `(D-392, D-394)` → `(hub D-392, hub D-394)` — never a general `D-` rewrite). So:
 
 1. Insert the sentence, word for word, after "…and rides your next commit." and before
    "`NEXT: none — terminal` stays legal…", in the hub copy:
@@ -16,7 +17,7 @@ path gains `/opt/fabrik/`, `D-` becomes `hub D-`). So:
 2. Insert the identical sentence at the same place in both template copies (it carries no doc path
    and no D-id, so the two substitutions leave it unchanged).
 3. Update `_CANONICAL` to the new wording in the same commit — the pin's own COBRA note
-   (`tests/test_work_contract_rule.py:56-58`) names that edit as the visible change of meaning.
+   (`tests/test_work_contract_rule.py:58-60`) names that edit as the visible change of meaning.
 4. `scripts/enforcement/check_corpus_weight.py` is an advisory ratchet on both files (never
    `--strict` in the gate); the growth is one sentence per copy, and the D-row the orchestrator mints
    for this plan's merge records it.

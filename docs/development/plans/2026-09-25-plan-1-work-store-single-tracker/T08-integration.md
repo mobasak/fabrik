@@ -5,7 +5,7 @@
 The set's one Integration ticket (the orchestrator's receipt surface). After T07a and T07b merge:
 
 1. **Whole-plan validation (the D7 floor).** `/fabrik-review` over the plan's cumulative diff, then the
-   cross-ticket seam tests together: `tests/test_work_linked.py`, `tests/test_work_view.py`,
+   cross-ticket seam tests together: `tests/test_work_linked.py`, `tests/test_work_view.py`, `tests/test_work_prompt.py`,
    `tests/test_work_harvest_rules.py`, `tests/test_mail_items.py`, `tests/test_command_feedback_report.py`,
    `tests/test_next_census.py`, `tests/test_work_hook_seam.py`, `tests/test_thread_anchor.py`,
    `tests/test_work_contract_rule.py`, `tests/test_work_doc_verbs.py`, plus the parent's suites
@@ -22,8 +22,9 @@ The set's one Integration ticket (the orchestrator's receipt surface). After T07
    the hub), and the first V5 reading — `python3 scripts/sysadmin/next_census.py --since 7 --repo /opt/fabrik`.
    The two-week V5 reading is a work item the orchestrator creates, owned by intel, due 2026-10-09.
 4. **The announcement** (spec § Lifecycle — Adoption, I16): one fleet mail (`mail.py send --broadcast
-   --kind finding --ack no`) and a `SendMessage` to every live session stating the two new rules — end
-   a turn on work with `NEXT: <item id>`, which claims it; claiming a mail creates its item.
+   --kind finding --ack no`) and a `SendMessage` to every live session quoting the contract sentence
+   exactly as T07a merged it (read it from `CLAUDE.md`, never retyped), so the announcement and the
+   contract cannot differ.
 
 DO-NOT: any code file (a defect found here routes back to the owning ticket's surface through the orchestrator's review-fix loop).
 
