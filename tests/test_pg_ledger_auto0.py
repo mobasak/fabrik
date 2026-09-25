@@ -83,11 +83,11 @@ class _Conn:
         pass
 
 
-def _recorded_quality(result, sink):
+def _recorded_quality(result, sink, quality_score=None):
     ok = record_agent_run(
         _Spec(),
         result,
-        quality_score=None,
+        quality_score=quality_score,
         project="auto0-test",
         dsn="postgresql://fake",
         connect=lambda dsn: _Conn(sink),
@@ -103,15 +103,19 @@ def _recorded_quality(result, sink):
 
 
 def test_errored_run_stays_null_module_invariant(tmp_path):
-    """error → NULL (record_run's own coercion: infra failure must not teach a false 0)."""
+    """error → NULL even when a score IS offered: record_run's own coercion (an infra failure must
+    not teach pick_models a verdict). Offering None here would pass with the coercion deleted."""
     sink = []
-    score = _recorded_quality(_Result(status="error", error="boom", text=""), sink)
+    score = _recorded_quality(
+        _Result(status="error", error="boom", text=""), sink, quality_score=4.0
+    )
     assert score is None, score
 
 
 def test_capped_run_stays_null_module_invariant(tmp_path):
+    """capped → NULL even when a score IS offered (the same record_run coercion)."""
     sink = []
-    score = _recorded_quality(_Result(status="capped", text="partial"), sink)
+    score = _recorded_quality(_Result(status="capped", text="partial"), sink, quality_score=4.0)
     assert score is None, score
 
 
