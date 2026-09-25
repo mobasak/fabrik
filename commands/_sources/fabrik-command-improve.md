@@ -85,6 +85,16 @@ five runs, each of which a reader can judge on its own.
 python3 /opt/fabrik/scripts/command_feedback_report.py --queue <command>   # no leading slash
 ```
 
+Then TAKE the queue's own work item, so the depth is tracked in the store and PHASE 5's
+`--mark-answered` has an item to close:
+
+```bash
+python3 /opt/fabrik/scripts/command_feedback_report.py --take <command>
+```
+
+Prints `took W-xxxxxxxx — /<command>, N unanswered`, that another session holds it (nothing taken
+— work something else), or that `--repo` has no work store (nothing to take, proceed as before).
+
 TAB-separated, newest first: `<ts>` · `<bucket>` · `<the verdict>`. The `ts` is the row's only
 handle — the ledger has no id and `sid` is per session — and it is what your commit will name.
 
@@ -245,7 +255,8 @@ and marking is the one act in this loop that removes a row from view. Re-running
 already-marked rows is a no-op that says so (rc 0). ⚠️ Run it ALONE: combining it with `--queue`
 in one invocation is refused, because the verification below must read the state the mark left.
 Verify with `--queue <command>`: the header must now show your rows under
-"already answered and excluded".
+"already answered and excluded". The same call also closes PHASE 1's linked feedback work item —
+`--take`'s item goes `done`, with a note naming this commit.
 
 Doc Sync: a command source added or removed → `INDEX.md`. A change to what a command DOES →
 `CHANGELOG.md`. Both are orchestrator-applied shared-append surfaces: commit them with the

@@ -2866,3 +2866,246 @@ def test_queue_fabrik_task_refuses_a_since_or_agent_window(tmp_path: Path) -> No
             r = _run(ledger, "--queue", spelling, *flag)
             assert r.returncode == 2, (spelling, flag, r.stdout, r.stderr)
             assert "one denominator" in r.stderr, (spelling, flag, r.stderr)
+
+
+# ---------------------------------------------------------------------------
+# T04 — queue_depths() and --take, the feedback item a command-improve run opens/closes
+# (plan 2026-09-25-plan-1-work-store-single-tracker, spec § The delta D1/D2).
+#
+# `--take`/work-store tests run the real `work.py init` against a throwaway git repo — never the
+# hub's own `.fabrik/work/` — with an explicit, hermetic `env=` (own HOME, own git identity).
+# ---------------------------------------------------------------------------
+
+WORK_SCRIPT = ROOT / "scripts" / "work.py"
+
+
+def _work_env(tmp_path: Path) -> dict[str, str]:
+    home = tmp_path / "home"
+    home.mkdir(exist_ok=True)
+    return {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "HOME": str(home),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.invalid",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.invalid",
+    }
+
+
+def _init_work_store(tmp_path: Path, env: dict[str, str]) -> Path:
+    """A throwaway git repo, seeded and committed, with `.fabrik/work/` initialised."""
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], env=env, check=True, timeout=30)
+    (repo / "README").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "README"], env=env, check=True, timeout=30)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], env=env, check=True, timeout=30
+    )
+    r = subprocess.run(
+        [sys.executable, str(WORK_SCRIPT), "--repo", str(repo), "init", "--distributor", "infra"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert r.returncode == 0, (r.stdout, r.stderr)
+    return repo
+
+
+def _take_proc(
+    repo: Path, command: str, env: dict[str, str], ledger: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    args = [sys.executable, str(SCRIPT), "--take", command, "--repo", str(repo)]
+    if ledger is not None:
+        args += ["--ledger", str(ledger)]
+    return subprocess.run(args, env=env, capture_output=True, text=True, timeout=30)
+
+
+def test_queue_depths_matches_the_queue_head_line_and_omits_zero(tmp_path: Path) -> None:
+    """Given a temp ledger with verdict rows, a none-verdict row and an answered row across two
+    commands, `queue_depths` must equal the `N unanswered` each command's `--queue` head prints,
+    and a command fully answered/none-only must be absent from the mapping."""
+    m = _cfr()
+    ledger = tmp_path / "ledger.jsonl"
+    rows = [
+        _row("fabrik-review", 10, 2, "lean: a"),
+        _row("fabrik-review", 10, 2, "fast: b"),
+        _row("fabrik-review", 10, 2, "none"),
+        _row("fabrik-task", 5, 1, "accurate: c"),
+    ]
+    _write(ledger, rows)
+    answered = m._answered_path(ledger)
+    answered.write_text(
+        json.dumps(
+            {"ts": m._ts_key(rows[1]["ts"]), "command": "fabrik-review", "commit": "deadbeef"}
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    depths = m.queue_depths(ledger)
+    review_head = m.queue(rows, "fabrik-review", ledger).splitlines()[0]
+    task_head = m.queue(rows, "fabrik-task", ledger).splitlines()[0]
+    assert f"{depths['fabrik-review']} unanswered" in review_head, review_head
+    assert f"{depths['fabrik-task']} unanswered" in task_head, task_head
+    # "lean: a" only survives — "fast: b" is answered, "none" is excluded
+    assert depths["fabrik-review"] == 1, depths
+    assert depths["fabrik-task"] == 1, depths
+    # fully answer fabrik-task too — it must then vanish from the mapping, not read 0
+    with answered.open("a", encoding="utf-8") as fh:
+        fh.write(
+            json.dumps(
+                {"ts": m._ts_key(rows[3]["ts"]), "command": "fabrik-task", "commit": "deadbeef"}
+            )
+            + "\n"
+        )
+    depths2 = m.queue_depths(ledger)
+    assert "fabrik-task" not in depths2, depths2
+    assert depths2["fabrik-review"] == 1, depths2
+
+
+def test_queue_depths_on_an_unreadable_ledger_is_empty_never_raises(tmp_path: Path) -> None:
+    m = _cfr()
+    missing = tmp_path / "does-not-exist" / "ledger.jsonl"
+    assert m.queue_depths(missing) == {}
+
+
+def test_take_opens_one_item_and_a_second_session_finds_it_held(tmp_path: Path) -> None:
+    env = _work_env(tmp_path)
+    repo = _init_work_store(tmp_path, env)
+    session_a = "SESSION-A"
+    env_a = {**env, "CLAUDE_CODE_SESSION_ID": session_a}
+    r1 = _take_proc(repo, "fabrik-review", env_a)
+    assert r1.returncode == 0, (r1.stdout, r1.stderr)
+    assert r1.stdout.startswith("took W-"), r1.stdout
+    item_id = r1.stdout.split()[1]
+    items_dir = repo / ".fabrik" / "work"
+    linked = [
+        p
+        for p in items_dir.glob("W-*.json")
+        if json.loads(p.read_text(encoding="utf-8"))["links"].get("command") == "fabrik-review"
+    ]
+    assert [p.stem for p in linked] == [item_id], linked
+    # the SAME session again: still one item, still `took`
+    r2 = _take_proc(repo, "fabrik-review", env_a)
+    assert r2.returncode == 0, (r2.stdout, r2.stderr)
+    assert item_id in r2.stdout, r2.stdout
+    assert len(list(items_dir.glob("W-*.json"))) == 1
+    claim = json.loads(
+        (repo / ".git" / "fabrik-work" / "claims" / f"{item_id}.json").read_text(encoding="utf-8")
+    )
+    assert claim["session"] == session_a, claim
+    # a SECOND session finds it held — nothing new taken, nothing new created
+    env_b = {**env, "CLAUDE_CODE_SESSION_ID": "SESSION-B"}
+    r3 = _take_proc(repo, "fabrik-review", env_b)
+    assert r3.returncode == 0, (r3.stdout, r3.stderr)
+    assert item_id in r3.stdout and "is held by" in r3.stdout, r3.stdout
+    assert "nothing taken" in r3.stdout, r3.stdout
+    assert len(list(items_dir.glob("W-*.json"))) == 1
+
+
+def test_mark_answered_closes_the_taken_item_and_a_refusal_leaves_it_open(tmp_path: Path) -> None:
+    env = _work_env(tmp_path)
+    repo = _init_work_store(tmp_path, env)
+    env_s = {**env, "CLAUDE_CODE_SESSION_ID": "S1"}
+    taken = _take_proc(repo, "fabrik-review", env_s)
+    assert taken.returncode == 0, (taken.stdout, taken.stderr)
+    item_id = taken.stdout.split()[1]
+    item_path = repo / ".fabrik" / "work" / f"{item_id}.json"
+
+    m = _cfr()
+    ledger = tmp_path / "ledger.jsonl"
+    rows = [_row("fabrik-review", 10, 2, "lean: a")]
+    _write(ledger, rows)
+    handle = m._ts_key(rows[0]["ts"])
+
+    seed_sha = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    ).stdout.strip()
+    refused = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--mark-answered",
+            "fabrik-review",
+            "--rows",
+            handle,
+            "--commit",
+            seed_sha,
+            "--repo",
+            str(repo),
+            "--ledger",
+            str(ledger),
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert refused.returncode == 1 and "REFUSED" in refused.stdout, refused.stdout
+    assert json.loads(item_path.read_text(encoding="utf-8"))["status"] not in ("done", "dropped")
+
+    (repo / "commands" / "_sources").mkdir(parents=True)
+    (repo / "commands" / "_sources" / "fabrik-review.md").write_text("edited\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], env=env, check=True, timeout=30)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "corpus edit"],
+        env=env,
+        check=True,
+        timeout=30,
+    )
+    good_sha = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    ).stdout.strip()
+    ok = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--mark-answered",
+            "fabrik-review",
+            "--rows",
+            handle,
+            "--commit",
+            good_sha,
+            "--repo",
+            str(repo),
+            "--ledger",
+            str(ledger),
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert ok.returncode == 0, (ok.stdout, ok.stderr)
+    item = json.loads(item_path.read_text(encoding="utf-8"))
+    assert item["status"] == "done", item
+    assert good_sha[:8] in item.get("note", ""), item
+
+
+def test_take_with_no_store_prints_no_store_line_exits_0_and_creates_nothing(
+    tmp_path: Path,
+) -> None:
+    env = _work_env(tmp_path)
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], env=env, check=True, timeout=30)
+    (repo / "README").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "README"], env=env, check=True, timeout=30)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], env=env, check=True, timeout=30
+    )
+    env_s = {**env, "CLAUDE_CODE_SESSION_ID": "S1"}
+    r = _take_proc(repo, "fabrik-review", env_s)
+    assert r.returncode == 0, (r.stdout, r.stderr)
+    assert "no work store" in r.stdout and "nothing taken" in r.stdout, r.stdout
+    assert not (repo / ".fabrik").exists()
