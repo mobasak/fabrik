@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/kilo-benchmarks/tests/test_rank_task_subagents.py
+# AFTER-EDIT: scripts/kilo-benchmarks/tests/golden/db_queries.json, scripts/kilo-benchmarks/tests/golden/structure.json, tests/test_contaminated_score_exclusion.py
 """Rank models per task_type from the shared subagent_runs table, emit a synced doc.
 
 Consumers: `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` (regenerated daily by
