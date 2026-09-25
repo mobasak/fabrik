@@ -684,7 +684,13 @@ def _ready_from(
     agent: str = "",
 ) -> list[dict]:
     by_id = {str(it["id"]): it for it in items}
-    ready = [it for it in items if _is_ready(it, by_id, closed) and it["id"] not in claims]
+    ready = [
+        it
+        for it in items
+        if it.get("kind") != "next"  # a session's own NEXT, never distributable work
+        and _is_ready(it, by_id, closed)
+        and it["id"] not in claims
+    ]
     ready.sort(key=lambda it: (_priority(it), str(it.get("created", "")), str(it["id"])))
     if not mine:
         return ready
@@ -694,11 +700,125 @@ def _ready_from(
 
 
 def _ready_items(repo: Path, *, mine: bool = False, agent: str = "") -> list[dict]:
-    """Open, unblocked items with no live claim and no effective closed marker, by priority then
-    age; ``mine`` puts ``agent``'s own first, then the unassigned ones, and leaves out items owned
+    """Open, unblocked items with no live claim and no effective closed marker, never a ``kind:
+    next`` item (its session's), by priority then age; ``mine`` puts ``agent``'s own first, then the unassigned ones, and leaves out items owned
     by anyone else. "Claimed" is derived here, never stored on the item."""
     items = list(_iter_items(repo))
     return _ready_from(items, _closed_ids(repo), _live_claims(repo), mine=mine, agent=agent)
+
+
+# ── the view: obligations read live (spec D1) ───────────────────────────────────────────
+#
+# Mail and the command-feedback queues stay the truth: they are READ here, never copied into the
+# store, and nothing is moved (``mail.py``'s ``list_msgs`` quarantines a malformed file, so it is
+# never called — its header parser ``_parse`` is). Both sources are imported by path from beside
+# this file, once per process, fail-open: every error drops that one line with one stderr line.
+# COBRA (D-253): the cheapest way to empty these lines without answering anything is to ack mail
+# unread or mark feedback rows answered with no edit — both leave their own audit trail (the
+# ``acked-by:`` disposition, the answered row's commit), which the line does not try to police.
+
+MAIL_ROOT_DEFAULT = "/opt/fabrik-mail"
+FEEDBACK_QUEUES_SHOWN = 3
+_SIBLING_CACHE: dict[str, Any] = {}
+
+
+def _sibling(name: str) -> Any:
+    """``scripts/<name>.py`` beside this file, imported by path and cached (a failure too — None,
+    with one stderr line per process). Registered in ``sys.modules`` under a private name while it
+    executes, as ``_import_enforcement`` does, so a module defining a dataclass imports cleanly."""
+    if name in _SIBLING_CACHE:
+        return _SIBLING_CACHE[name]
+    path = Path(__file__).resolve().with_name(f"{name}.py")
+    mod_name = f"_work_sibling_{name}"
+    result: Any = None
+    try:
+        spec = importlib.util.spec_from_file_location(mod_name, path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"no loader for {path}")
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[mod_name] = mod
+        try:
+            with contextlib.redirect_stdout(sys.stderr):
+                spec.loader.exec_module(mod)
+        except BaseException:
+            sys.modules.pop(mod_name, None)
+            raise
+        result = mod
+    except KeyboardInterrupt:
+        raise
+    except BaseException as exc:
+        _warn(f"{name}.py unavailable — {type(exc).__name__}: {exc}")
+    _SIBLING_CACHE[name] = result
+    return result
+
+
+def _age_label(seconds: float) -> str:
+    seconds = max(seconds, 0.0)
+    return f"{int(seconds // 86400)} d" if seconds >= 86400 else f"{int(seconds // 3600)} h"
+
+
+def _mail_line(repo: Path) -> str | None:
+    trees = _worktrees(repo)
+    if not trees:
+        raise WorkError("no main checkout to name the mailbox by")
+    root = Path(os.environ.get("FABRIK_MAIL_ROOT") or MAIL_ROOT_DEFAULT)
+    inbox = root / trees[0].name / "inbox"
+    if not inbox.is_dir():
+        return None
+    mail = _sibling("mail")
+    if mail is None:
+        return None
+    count = 0
+    oldest: float | None = None
+    for path in sorted(inbox.glob("*.md")):
+        if path.name.startswith("."):
+            continue
+        try:
+            fm = mail._parse(path.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            continue
+        if not fm or fm.get("ack") != "required":
+            continue
+        count += 1
+        ts = mail._ts_epoch(fm.get("ts", ""))
+        if ts is not None and (oldest is None or ts < oldest):
+            oldest = ts
+    if not count:
+        return None
+    age = f" (oldest {_age_label(time.time() - oldest)})" if oldest is not None else ""
+    return f"mail: {count} need an answer{age} — python3 scripts/mail.py list"
+
+
+def _feedback_line(repo: Path) -> str | None:
+    if not (repo / "commands" / "_sources").is_dir():
+        return None
+    report = _sibling("command_feedback_report")
+    depths_fn = getattr(report, "queue_depths", None) if report is not None else None
+    if depths_fn is None:
+        return None
+    depths = depths_fn()
+    if not isinstance(depths, dict) or not depths:
+        return None
+    top = sorted(depths.items(), key=lambda kv: (-int(kv[1]), str(kv[0])))[:FEEDBACK_QUEUES_SHOWN]
+    shown = " · ".join(f"{cmd} {n}" for cmd, n in top)
+    return f"feedback queues: {shown} — /fabrik-command-improve <command>"
+
+
+def obligations(repo: Path) -> list[str]:
+    """At most two lines, read live (spec D1): the ``ack: required`` mail in this repo's inbox
+    with the oldest one's age, and — only in the repo holding ``commands/_sources/`` — the three
+    deepest command-feedback queues. Read-only, no lock; any error drops that line with one
+    stderr line and never raises."""
+    lines = []
+    for label, fn in (("mail", _mail_line), ("feedback queues", _feedback_line)):
+        try:
+            line = fn(repo)
+        except Exception as exc:
+            _warn(f"{label} line skipped — {type(exc).__name__}: {exc}")
+            continue
+        if line:
+            lines.append(line)
+    return lines
 
 
 # ── claims, leases, closed markers ───────────────────────────────────────────────────────────
@@ -2520,10 +2640,66 @@ def cmd_assign(repo: Path, args: argparse.Namespace) -> int:
     return 0
 
 
+READY_OTHERS_SHOWN = 10
+
+
 def cmd_ready(repo: Path, args: argparse.Namespace) -> int:
+    """``--all``: every ready item (the old default). Default (spec D4 — crisp): the obligation
+    lines; this session's claims; open items owned by this agent; awaiting items; then the top 10
+    remaining ready items and how many more ``--all`` would show. No item prints twice.
+    COBRA (D-253): the cheapest crisp ``ready`` is one where nothing is ever assigned (so nothing
+    is "owned") — ``status`` prints the unowned count to the distributor for exactly that."""
     _require_store(repo)
-    for item in _ready_items(repo, mine=args.mine, agent=_agent_name() if args.mine else ""):
+    agent = _agent_name()
+    if args.all:
+        for item in _ready_items(repo, mine=args.mine, agent=agent if args.mine else ""):
+            print(_line(item))
+        return 0
+    for line in obligations(repo):
+        print(line)
+    items = list(_iter_items(repo))
+    closed = _closed_ids(repo)
+    claims = _live_claims(repo)
+    by_id = {str(it["id"]): it for it in items}
+    shown: set[str] = set()
+    session = _session()
+    for item_id, claim in sorted(claims.items()):
+        mine = by_id.get(item_id)
+        if session and claim.get("session") == session and mine is not None:
+            if mine.get("status") not in RESOLVED and item_id not in closed:
+                print(_line(mine) + " (yours)")
+                shown.add(item_id)
+
+    def order(it: dict) -> tuple:
+        return (_priority(it), str(it.get("created", "")), str(it["id"]))
+
+    owned = [
+        it
+        for it in items
+        if agent
+        and it.get("owner") == agent
+        and it.get("status") == "open"
+        and it.get("kind") != "next"
+        and it["id"] not in closed
+        and it["id"] not in claims
+    ]
+    awaiting = [
+        it for it in items if it.get("status") == "awaiting-operator" and it["id"] not in closed
+    ]
+    awaiting.sort(key=lambda it: (str(it.get("created", "")), str(it["id"])))
+    for item in [*sorted(owned, key=order), *awaiting]:
+        if item["id"] not in shown:
+            print(_line(item))
+            shown.add(item["id"])
+    rest = [
+        it
+        for it in _ready_from(items, closed, claims, mine=args.mine, agent=agent)
+        if it["id"] not in shown
+    ]
+    for item in rest[:READY_OTHERS_SHOWN]:
         print(_line(item))
+    if len(rest) > READY_OTHERS_SHOWN:
+        print(f"… and {len(rest) - READY_OTHERS_SHOWN} more — work.py ready --all")
     return 0
 
 
@@ -2864,14 +3040,69 @@ def cmd_answer(repo: Path, args: argparse.Namespace) -> int:
     return 0
 
 
+CLAIMS_FLAG_OVER = 5  # a session holding more live claims than this is flagged
+STALE_NEXT_DAYS = 6  # the Stop harvest closes a next item at 7 days; status warns a day before
+AGED_MAIL_DAYS = 14
+AGED_MAIL_FLAG_OVER = 50
+
+
+def _distributor_lines(items: list[dict], closed: set[str], claims: dict[str, dict]) -> list[str]:
+    """``status``'s lines for the distributor (spec D4): unowned open items, live claims per
+    session, stale ``next`` items, aged open mail items. COBRA (D-253): the claims flag is
+    dodged by spreading claims across sessions, and the unowned count by assigning everything
+    to one name — both show up here as the lines they create, never as a hidden score."""
+    now = time.time()
+    open_items = [it for it in items if it.get("status") == "open" and it["id"] not in closed]
+    unowned = sum(1 for it in open_items if not it.get("owner") and it.get("kind") != "next")
+    lines = [f"{'UNOWNED':<17}{unowned} open item(s) with no owner"]
+    per_session: dict[str, list[dict]] = {}
+    for claim in claims.values():
+        per_session.setdefault(str(claim.get("session") or ""), []).append(claim)
+    for session, held in sorted(per_session.items()):
+        agents = sorted({str(c.get("agent") or "") for c in held} - {""})
+        flag = f" — over {CLAIMS_FLAG_OVER}" if len(held) > CLAIMS_FLAG_OVER else ""
+        who = ",".join(agents) or "unnamed"
+        lines.append(f"{'CLAIMS':<17}{session[:8]} ({who}) {len(held)}{flag}")
+    for it in sorted(open_items, key=lambda it: str(it["id"])):
+        if it.get("kind") != "next":
+            continue
+        set_at = _parse_iso(str(it.get("next_at") or ""))
+        if set_at is None:
+            continue
+        age = now - set_at.timestamp()
+        if age > STALE_NEXT_DAYS * 86400:
+            session = str((it.get("links") or {}).get("session") or "")
+            lines.append(
+                f"{'STALE NEXT':<17}{it['id']} {session[:8]} set {int(age // 86400)} d ago"
+            )
+    aged = 0
+    for it in items:
+        if it.get("kind") != "mail" or it.get("status") in RESOLVED or it["id"] in closed:
+            continue
+        created = _parse_iso(str(it.get("created") or ""))
+        if created is not None and now - created.timestamp() > AGED_MAIL_DAYS * 86400:
+            aged += 1
+    if aged:
+        flag = f" — over {AGED_MAIL_FLAG_OVER}" if aged > AGED_MAIL_FLAG_OVER else ""
+        lines.append(
+            f"{'AGED MAIL':<17}{aged} open mail item(s) created more than "
+            f"{AGED_MAIL_DAYS} days ago{flag}"
+        )
+    return lines
+
+
 def cmd_status(repo: Path, args: argparse.Namespace) -> int:
-    """Items by state, uncommitted item files (a listing, never a drift class), and the eight
-    derived spec/plan drift classes — read-only, no lock."""
+    """The obligation lines and the distributor's lines (spec D1, D4), items by state,
+    uncommitted item files (a listing, never a drift class), and the eight derived spec/plan
+    drift classes — read-only, no lock."""
     _require_store(repo)
     claims = _live_claims(repo)
-    for item in sorted(
-        _iter_items(repo), key=lambda it: (str(it.get("status")), _priority(it), str(it["id"]))
-    ):
+    items = list(_iter_items(repo))
+    for line in obligations(repo):
+        print(line)
+    for line in _distributor_lines(items, _closed_ids(repo), claims):
+        print(line)
+    for item in sorted(items, key=lambda it: (str(it.get("status")), _priority(it), str(it["id"]))):
         tag = " (claimed)" if item["id"] in claims and item.get("status") not in RESOLVED else ""
         print(f"{item.get('status', ''):<17}{_line(item)}{tag}")
     for rel in _uncommitted_items(repo):
@@ -3376,8 +3607,13 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--priority", type=_priority_arg)
     s.set_defaults(fn=cmd_assign)
 
-    s = sub.add_parser("ready", help="open, unblocked items by priority then age")
+    s = sub.add_parser(
+        "ready", help="obligations, your claims, owned, awaiting, then the top 10 ready items"
+    )
     s.add_argument("--mine", action="store_true", help="own items first, then unassigned")
+    s.add_argument(
+        "--all", action="store_true", help="every open, unblocked item by priority then age"
+    )
     s.set_defaults(fn=cmd_ready)
 
     s = sub.add_parser("next", help="the first item `ready --mine` would list")
