@@ -18,6 +18,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from libs.subagents.pg_ledger import record_agent_run  # noqa: E402
@@ -83,9 +85,16 @@ class _Conn:
         pass
 
 
+@pytest.fixture(autouse=True)
+def _isolated_cwd(tmp_path, monkeypatch):
+    """The module's fallback paths are CWD-relative; from the repo root that is the REAL receipts
+    ledger. Every test runs in its own empty dir, so no argument can reach the repo (W-b951a71d)."""
+    monkeypatch.chdir(tmp_path)
+
+
 def _recorded_quality(result, sink, receipt_dir, quality_score=None):
-    if receipt_dir is None:  # str(None) is "None": it would write ./None/receipts.jsonl instead
-        raise TypeError("receipt_dir is required — None writes receipts under the CWD")
+    if not receipt_dir:  # None, "": the module falls back to .tmp/subagents under the CWD
+        raise TypeError("receipt_dir is required — a falsy value writes receipts under the CWD")
     ok = record_agent_run(
         _Spec(),
         result,
