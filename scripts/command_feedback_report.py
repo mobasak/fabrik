@@ -1472,9 +1472,16 @@ def take(command: str, repo: Path, session: str, ledger: Path | None = None) -> 
 
     T04 review pass 2 C-O13: that ONE try used to span the read-back AFTER `open_linked` already
     succeeded too, so a raise from the private `_claim_of`/`_is_live` reported "item not written"
-    for an item that plainly WAS written (and claimed, by this call) — the wrong truth. Once an
-    `item_id` exists, a read-back failure is its OWN, narrower try: the item is real, only its
-    claim state is unknown, and the `took` line says so rather than denying the item exists.
+    for an item that plainly WAS written — the wrong truth. Once an `item_id` exists, a read-back
+    failure is its OWN, narrower try: the item is real, only its claim state is unknown.
+
+    T04 review pass 3 C-O14: that read-back failure is NEVER reported as `took`, even though the
+    item was just written — `open_linked` returns the SAME id whether this call's own session got
+    the claim OR another live session already held it (T01's own contract: it leaves another
+    session's claim in place, never overwrites it), and the read-back that would tell the two
+    apart is exactly what just failed. Calling it `took` here would let TWO sessions believe they
+    each hold one queue. The line instead names the item and tells the agent to check
+    `work.py status` before treating it as taken.
     """
     command = command.strip().lstrip("/").strip()
     depth = queue_depths(ledger).get(command, 0)
@@ -1516,9 +1523,14 @@ def take(command: str, repo: Path, session: str, ledger: Path | None = None) -> 
             f"{type(exc).__name__}: {exc}",
             file=sys.stderr,
         )
+        # T04 review pass 3 C-O14: NEVER "took" here — `open_linked` returns this SAME id whether
+        # this call's own session got the claim or another live session already held it, and the
+        # read-back that would tell them apart is exactly what just failed. Calling it `took`
+        # would let a caller who is NOT the claim holder believe it is, and two sessions work one
+        # queue.
         return (
-            f"took {item_id} — /{command}, {depth} unanswered "
-            f"(claim not re-read: {type(exc).__name__})"
+            f"{item_id} — /{command} — claim not re-read ({type(exc).__name__}); "
+            f"run python3 scripts/work.py status before working it"
         )
     return f"took {item_id} — /{command}, {depth} unanswered"
 

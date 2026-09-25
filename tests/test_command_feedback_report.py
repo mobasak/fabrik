@@ -3119,8 +3119,13 @@ def test_take_survives_claim_of_raising_no_traceback_rc0(
 
     T04 review pass 2 C-O13 changed the EXPECTED message for this exact scenario: `open_linked`
     already succeeded (a real id came back), so a `_claim_of` failure is never "nothing taken" —
-    the item plainly exists — it is `took … (claim not re-read: …)`. The no-crash/rc-0 guard this
-    test exists for is unchanged; only the string it asserts moved."""
+    the item plainly exists.
+
+    T04 review pass 3 C-O14 changed it AGAIN: never `took` either — `open_linked` returns the
+    SAME id whether this call's own session got the claim or another live session already held
+    it, and the read-back that would tell them apart is exactly what just failed, so calling it
+    `took` would let a non-holder believe it holds the queue. The no-crash/rc-0 guard this test
+    exists for is unchanged; only the string it asserts moved, twice now."""
     m = _cfr()
     env = _work_env(tmp_path)
     for k, v in env.items():
@@ -3153,17 +3158,24 @@ def test_take_survives_claim_of_raising_no_traceback_rc0(
     out, err = captured.out, captured.err
     assert rc == 0, (out, err)
     assert "Traceback" not in err, err
-    assert out.startswith("took W-deadbeef"), out
-    assert "claim not re-read: RuntimeError" in out, out
+    assert not out.startswith("took"), out
+    assert out.startswith("W-deadbeef —"), out
+    assert "claim not re-read (RuntimeError)" in out, out
+    assert "work.py status" in out, out
 
 
 def test_take_reports_claim_not_re_read_when_the_item_was_actually_written(
     tmp_path: Path, monkeypatch
 ) -> None:
     """T04 review pass 2 C-O13: against a REAL work store (not a stand-in), a `_claim_of` failure
-    AFTER a genuine `open_linked` success must still report `took … (claim not re-read: …)` and
-    leave the real item file on disk — proving the earlier "item not written" line was actively
-    WRONG for this case, not merely differently worded."""
+    AFTER a genuine `open_linked` success must still report the item's id and leave it on disk —
+    proving the earlier "item not written" line was actively WRONG for this case, not merely
+    differently worded.
+
+    T04 review pass 3 C-O14: the line must NEVER say `took` — `open_linked` returns the SAME id
+    whether THIS call's session got the claim or another live session already held it, and the
+    read-back that distinguishes them is exactly what just failed, so `took` here would be an
+    unverified claim of ownership."""
     env = _work_env(tmp_path)
     repo = _init_work_store(tmp_path, env)
     m = _cfr()
@@ -3184,12 +3196,61 @@ def test_take_reports_claim_not_re_read_when_the_item_was_actually_written(
 
     monkeypatch.setattr(m, "_work", lambda: RealExceptClaim())
     out = m.take("fabrik-review", repo, "S1", ledger)
-    assert out.startswith("took W-"), out
-    assert "claim not re-read: RuntimeError" in out, out
-    item_id = out.split()[1]
+    assert not out.startswith("took"), out
+    assert out.startswith("W-"), out
+    assert "claim not re-read (RuntimeError)" in out, out
+    assert "work.py status" in out, out
+    item_id = out.split()[0]
     item_path = repo / ".fabrik" / "work" / f"{item_id}.json"
     assert item_path.exists(), out
     assert json.loads(item_path.read_text(encoding="utf-8"))["links"]["command"] == "fabrik-review"
+
+
+def test_take_never_says_took_when_another_session_already_holds_the_claim(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """T04 review pass 3 C-O14: session A genuinely takes the item (a live real claim). Session
+    B's `take` then hits `open_linked` returning that SAME id (T01's own contract: a live claim of
+    ANOTHER session is left alone, never overwritten) — and if the read-back that would reveal A's
+    claim then fails, B must NEVER see `took`; two sessions believing they each hold the one queue
+    is exactly the defect this closes."""
+    env = _work_env(tmp_path)
+    repo = _init_work_store(tmp_path, env)
+    ledger = tmp_path / "ledger.jsonl"
+    _write(ledger, [_row("fabrik-review", 10, 1, "lean: a")])
+
+    # session A takes it for real, through the CLI — a genuine, live claim on disk
+    env_a = {**env, "CLAUDE_CODE_SESSION_ID": "SESSION-A"}
+    taken = _take_proc(repo, "fabrik-review", env_a, ledger)
+    assert taken.returncode == 0 and taken.stdout.startswith("took W-"), (
+        taken.stdout,
+        taken.stderr,
+    )
+    item_id = taken.stdout.split()[1]
+
+    # session B's take, in-process, with `_claim_of` forced to raise on the read-back that would
+    # have revealed A's live claim
+    m = _cfr()
+    real = m._work()
+
+    class RealExceptClaim:
+        def __getattr__(self, name):
+            return getattr(real, name)
+
+        def _claim_of(self, root, item_id):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(m, "_work", lambda: RealExceptClaim())
+    out = m.take("fabrik-review", repo, "SESSION-B", ledger)
+    assert not out.startswith("took"), out
+    assert out.startswith(f"{item_id} —"), out
+    assert "claim not re-read (RuntimeError)" in out, out
+    assert "work.py status" in out, out
+    # A's real claim must be untouched by B's failed read-back
+    claim = json.loads(
+        (repo / ".git" / "fabrik-work" / "claims" / f"{item_id}.json").read_text(encoding="utf-8")
+    )
+    assert claim["session"] == "SESSION-A", claim
 
 
 def test_take_on_an_empty_queue_creates_nothing(tmp_path: Path) -> None:

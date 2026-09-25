@@ -97,9 +97,11 @@ python3 /opt/fabrik/scripts/command_feedback_report.py --take <command>
 
 Prints exactly one of, and each names what you do next:
 - `took W-xxxxxxxx — /<command>, N unanswered` — proceed; PHASE 5 closes `W-xxxxxxxx`.
-- `took W-xxxxxxxx — /<command>, N unanswered (claim not re-read: <ExceptionType>)` — the item
-  WAS created and claimed by this call; only the read-back that confirms it failed (see stderr).
-  Proceed exactly like the plain `took` line — PHASE 5 still closes `W-xxxxxxxx`.
+- `W-xxxxxxxx — /<command> — claim not re-read (<ExceptionType>); run python3 scripts/work.py
+  status before working it` — the item exists, but WHO holds its claim is unknown: `open_linked`
+  returns this SAME id whether this call's session got it or another live session already held
+  it, and the read-back that tells the two apart is what just failed (see stderr). Check
+  `work.py status`'s CLAIMS line for `W-xxxxxxxx` before treating it as yours — never "took".
 - `W-xxxxxxxx — /<command> is held by <agent-or-session> — nothing taken` — another session is
   already on this queue; work a different command's instead.
 - `/<command> has no unanswered verdicts — nothing taken` — the queue is empty (a typo, or
