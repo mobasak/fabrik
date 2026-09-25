@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-25T18:39:22.240787Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c373dfe2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-09-25-plan-1-work-store-single-tracker",
+    "spec": ""
+  },
+  "next": "use the _links() read helper T02a added (scripts/work.py) in _linked_items and add a test with a non-dict links item",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "work.py _linked_items reads (it.get('links') or {}).get(key): a non-dict links makes open_linked/close_linked fail open to None"
+}

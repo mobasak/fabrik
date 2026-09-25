@@ -45,6 +45,9 @@ def _env(tmp_path: Path, agent: str | None = None) -> dict[str, str]:
         "GIT_AUTHOR_EMAIL": "t@example.invalid",
         "GIT_COMMITTER_NAME": "t",
         "GIT_COMMITTER_EMAIL": "t@example.invalid",
+        # hermetic: the obligation lines never read the real mailbox or feedback ledger
+        "FABRIK_MAIL_ROOT": str(tmp_path / "tmp" / "mail"),
+        "COMMAND_RUN_DIR": str(tmp_path / "tmp" / "state" / "command-runs"),
     }
     if agent is not None:
         env["CLAUDE_AGENT"] = agent
@@ -367,7 +370,7 @@ def test_import_is_side_effect_free(tmp_path):
 # ── 4. ready / next ──────────────────────────────────────────────────────────────────────────
 
 
-def test_ready_lists_open_unblocked_items_by_priority_then_age(tmp_path):
+def test_ready_all_lists_open_unblocked_items_by_priority_then_age(tmp_path):
     env = _env(tmp_path)
     repo = _repo(tmp_path, env)
     _init(repo, env)
@@ -389,7 +392,7 @@ def test_ready_lists_open_unblocked_items_by_priority_then_age(tmp_path):
     _edit(repo, closed, status="dropped")
     _edit(repo, blocked, blocked_by=[blocker])
     (repo / ".fabrik" / "work" / "W-deadbeef.json").write_text("{not json", encoding="utf-8")
-    r = run(["ready"], env, repo)
+    r = run(["ready", "--all"], env, repo)
     assert r.returncode == 0, r.stderr
     assert _ids(r.stdout) == [p0, p1_old, p1_new, blocker, unblocked, p3_old]
 

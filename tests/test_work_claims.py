@@ -58,6 +58,9 @@ def _env(tmp_path: Path, agent: str | None = None) -> dict[str, str]:
         "GIT_AUTHOR_EMAIL": "t@example.invalid",
         "GIT_COMMITTER_NAME": "t",
         "GIT_COMMITTER_EMAIL": "t@example.invalid",
+        # hermetic: the obligation lines never read the real mailbox or feedback ledger
+        "FABRIK_MAIL_ROOT": str(tmp_path / "tmp" / "mail"),
+        "COMMAND_RUN_DIR": str(tmp_path / "tmp" / "state" / "command-runs"),
     }
     if agent is not None:
         env["CLAUDE_AGENT"] = agent
@@ -142,7 +145,7 @@ def _add(tree: Path, env: dict[str, str], title: str = "T") -> str:
 
 
 def _ready_ids(tree: Path, env: dict[str, str]) -> list[str]:
-    return [ln.split()[0] for ln in _ok(["ready"], env, tree).splitlines() if ln.strip()]
+    return [ln.split()[0] for ln in _ok(["ready", "--all"], env, tree).splitlines() if ln.strip()]
 
 
 def _commit_store(repo: Path, env: dict[str, str], msg: str = "store") -> None:

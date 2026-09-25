@@ -51,7 +51,7 @@ section it implements and restates nothing that section already settles.
 |---|---|---|---|---|---|
 | T01 | Store: mail and feedback kinds, linked items, duplicate drop | — | ⛓️ | ✅ | 1a754bc96 |
 | T04 | Feedback queues: depth and the taken item | T01 | ⚡ | ✅ | 659ea6a32 |
-| T02a | The view: obligations, crisp ready, status lines | T01, T04 | ⛓️ | ⬜ | |
+| T02a | The view: obligations, crisp ready, status lines | T01, T04 | ⛓️ | ✅ | 249a8801a |
 | T02b | The prompt block: obligations, others' claims, unnamed line | T02a | ⛓️ | ⬜ | |
 | T03 | mail.py claim/ack/requeue create and close the mail item | T01 | ⚡ | ✅ | bc90eca8a |
 | T05a | The harvest's NEXT rules in on_harvest | T02b | ⛓️ | ⬜ | |
