@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-25T15:11:49.942275Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-b951a71d",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "tests/test_pg_ledger_auto0.py passes receipt_dir=None, so every run appends fake agent-test-0001 receipts to the real .tmp/subagents/receipts.jsonl (127 of 8,471 rows on 2026-09-25) — thread tmp_path through _recorded_quality as receipt_dir"
+}

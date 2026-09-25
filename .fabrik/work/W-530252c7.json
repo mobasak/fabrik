@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-25T12:48:41.272712Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "73adc7bd5d68e9f4763a0bf3eeb7c708ff5a9831",
   "id": "W-530252c7",
   "kind": "task",
   "legacy": false,
@@ -11,10 +11,10 @@
     "plan": "",
     "spec": ""
   },
-  "next": "",
+  "next": "W-530252c7",
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "test_pg_ledger_auto0: the errored/capped '_module_invariant' tests pass quality_score=None, so they never exercise record_run's own nulling (a no-op mutant of it stays 5/5 green) — pass 4.0 and assert None"
 }
