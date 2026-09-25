@@ -84,6 +84,8 @@ class _Conn:
 
 
 def _recorded_quality(result, sink, receipt_dir, quality_score=None):
+    if receipt_dir is None:  # str(None) is "None": it would write ./None/receipts.jsonl instead
+        raise TypeError("receipt_dir is required — None writes receipts under the CWD")
     ok = record_agent_run(
         _Spec(),
         result,
@@ -153,5 +155,5 @@ def test_recording_never_writes_receipts_outside_its_own_dir(tmp_path, monkeypat
     monkeypatch.chdir(cwd)
     receipts = tmp_path / "receipts"
     _recorded_quality(_Result(status="done", text="a real finding"), [], receipts)
-    assert not (cwd / ".tmp").exists(), "a receipt was written under the CWD"
+    assert not any(cwd.iterdir()), ("a file was written under the CWD", sorted(cwd.rglob("*")))
     assert any(receipts.iterdir()), "the receipt did not land in the dir it was given"
