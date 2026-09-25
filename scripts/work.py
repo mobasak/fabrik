@@ -675,6 +675,13 @@ def _priority(item: dict) -> int:
     return p if isinstance(p, int) and not isinstance(p, bool) else DEFAULT_PRIORITY
 
 
+def _links(item: dict) -> dict:
+    """The item's ``links`` for a READ path — a hand-edited non-dict value reads as none, so one
+    malformed item never crashes ``status`` or ``sync --check`` for every other item."""
+    links = item.get("links")
+    return links if isinstance(links, dict) else {}
+
+
 def _ready_from(
     items: list[dict],
     closed: set[str],
@@ -757,12 +764,17 @@ def _age_label(seconds: float) -> str:
     return f"{int(seconds // 86400)} d" if seconds >= 86400 else f"{int(seconds // 3600)} h"
 
 
+def _mail_root() -> Path:
+    """Exactly ``mail.py``'s expression — a set-but-empty variable is ``Path("")`` (the cwd) in
+    both tools, so the two always read the same mailbox."""
+    return Path(os.environ.get("FABRIK_MAIL_ROOT", MAIL_ROOT_DEFAULT))
+
+
 def _mail_line(repo: Path) -> str | None:
     trees = _worktrees(repo)
     if not trees:
         raise WorkError("no main checkout to name the mailbox by")
-    root = Path(os.environ.get("FABRIK_MAIL_ROOT") or MAIL_ROOT_DEFAULT)
-    inbox = root / trees[0].name / "inbox"
+    inbox = _mail_root() / trees[0].name / "inbox"
     if not inbox.is_dir():
         return None
     mail = _sibling("mail")
@@ -770,9 +782,14 @@ def _mail_line(repo: Path) -> str | None:
         return None
     count = 0
     oldest: float | None = None
-    for path in sorted(inbox.glob("*.md")):
-        if path.name.startswith("."):
+    # os.scandir, not Path.glob: glob swallows an unreadable directory's PermissionError, which
+    # would silently read as "no mail"; scandir raises it to obligations' one-line warning
+    with os.scandir(inbox) as entries:
+        names = sorted(e.name for e in entries)
+    for name in names:
+        if name.startswith(".") or not name.endswith(".md"):
             continue
+        path = inbox / name
         try:
             fm = mail._parse(path.read_text(encoding="utf-8", errors="replace"))
         except OSError:
@@ -1607,13 +1624,11 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
     dirty = _dirty_paths(repo)  # ONE git status call per run (A-O17), reused below
     head_blobs = _head_blobs(repo, sorted(dirty))  # ONE cat-file batch per run (A-O20)
     items = list(_iter_items(repo))
-    linked_specs = {
-        _normalize_repo_path(repo, (it.get("links") or {}).get("spec") or "") for it in items
-    }
+    linked_specs = {_normalize_repo_path(repo, _links(it).get("spec") or "") for it in items}
     linked_specs.discard("")
     linked_plans: dict[str, list[dict]] = {}
     for it in items:
-        plan = _normalize_plan_ref(repo, (it.get("links") or {}).get("plan") or "")
+        plan = _normalize_plan_ref(repo, _links(it).get("plan") or "")
         if plan:
             linked_plans.setdefault(plan, []).append(it)
 
@@ -3046,23 +3061,36 @@ AGED_MAIL_DAYS = 14
 AGED_MAIL_FLAG_OVER = 50
 
 
-def _distributor_lines(items: list[dict], closed: set[str], claims: dict[str, dict]) -> list[str]:
+NO_SESSION = "(no session)"
+
+
+def _session_label(session: str) -> str:
+    return session[:8] if session else NO_SESSION
+
+
+def _distributor_lines(
+    items: list[dict], closed: set[str], claims: dict[str, dict], *, now: float | None = None
+) -> list[str]:
     """``status``'s lines for the distributor (spec D4): unowned open items, live claims per
-    session, stale ``next`` items, aged open mail items. COBRA (D-253): the claims flag is
-    dodged by spreading claims across sessions, and the unowned count by assigning everything
+    session, stale ``next`` items, aged open mail items — every item count over ``status ==
+    "open"`` items only. A claim with no session is grouped by its agent (one line each), and an
+    empty session prints ``(no session)``, never a blank column. COBRA (D-253): the claims flag
+    is dodged by spreading claims across sessions, and the unowned count by assigning everything
     to one name — both show up here as the lines they create, never as a hidden score."""
-    now = time.time()
+    now = time.time() if now is None else now
     open_items = [it for it in items if it.get("status") == "open" and it["id"] not in closed]
     unowned = sum(1 for it in open_items if not it.get("owner") and it.get("kind") != "next")
     lines = [f"{'UNOWNED':<17}{unowned} open item(s) with no owner"]
-    per_session: dict[str, list[dict]] = {}
+    groups: dict[tuple[str, str], list[dict]] = {}
     for claim in claims.values():
-        per_session.setdefault(str(claim.get("session") or ""), []).append(claim)
-    for session, held in sorted(per_session.items()):
+        session = str(claim.get("session") or "")
+        agent_key = "" if session else str(claim.get("agent") or "")
+        groups.setdefault((session, agent_key), []).append(claim)
+    for (session, _agent), held in sorted(groups.items()):
         agents = sorted({str(c.get("agent") or "") for c in held} - {""})
         flag = f" — over {CLAIMS_FLAG_OVER}" if len(held) > CLAIMS_FLAG_OVER else ""
         who = ",".join(agents) or "unnamed"
-        lines.append(f"{'CLAIMS':<17}{session[:8]} ({who}) {len(held)}{flag}")
+        lines.append(f"{'CLAIMS':<17}{_session_label(session)} ({who}) {len(held)}{flag}")
     for it in sorted(open_items, key=lambda it: str(it["id"])):
         if it.get("kind") != "next":
             continue
@@ -3071,13 +3099,14 @@ def _distributor_lines(items: list[dict], closed: set[str], claims: dict[str, di
             continue
         age = now - set_at.timestamp()
         if age > STALE_NEXT_DAYS * 86400:
-            session = str((it.get("links") or {}).get("session") or "")
+            session = str(_links(it).get("session") or "")
             lines.append(
-                f"{'STALE NEXT':<17}{it['id']} {session[:8]} set {int(age // 86400)} d ago"
+                f"{'STALE NEXT':<17}{it['id']} {_session_label(session)} "
+                f"set {int(age // 86400)} d ago"
             )
     aged = 0
-    for it in items:
-        if it.get("kind") != "mail" or it.get("status") in RESOLVED or it["id"] in closed:
+    for it in open_items:
+        if it.get("kind") != "mail":
             continue
         created = _parse_iso(str(it.get("created") or ""))
         if created is not None and now - created.timestamp() > AGED_MAIL_DAYS * 86400:

@@ -345,3 +345,208 @@ def test_status_prints_claims_per_session_stale_next_unowned_and_aged_mail(tmp_p
     assert young in "\n".join(out)
     head = [ln.split()[0] for ln in out[:5]]
     assert head == ["UNOWNED", "CLAIMS", "CLAIMS", "STALE", "AGED"], out[:6]
+
+
+# ── review round 1 (T02a): the status boundaries and the defects the round confirmed ─────────
+
+NOW = datetime(2026, 9, 25, 12, 0, 0, tzinfo=UTC)
+
+
+def _it(item_id: str, kind: str = "backlog", status: str = "open", **fields: object) -> dict:
+    return {"id": item_id, "kind": kind, "status": status, "owner": "", **fields}
+
+
+def _claims(session: str, n: int, agent: str = "infra", start: int = 0) -> dict[str, dict]:
+    return {f"W-{start + i:08x}": {"session": session, "agent": agent} for i in range(n)}
+
+
+def _lines(work: ModuleType, items: list[dict], claims: dict[str, dict] | None = None) -> list[str]:
+    return work._distributor_lines(items, set(), claims or {}, now=NOW.timestamp())
+
+
+def test_status_claims_flag_fires_above_five_not_at_five():
+    work = _work_module()
+    claims = {**_claims("sessionAAAA", 5), **_claims("sessionBBBB", 6, agent="fleet", start=100)}
+    out = _lines(work, [], claims)
+    assert "CLAIMS           sessionA (infra) 5" in out, out  # exactly 5: the plain line
+    assert "CLAIMS           sessionB (fleet) 6 — over 5" in out, out
+
+
+def test_status_stale_next_is_strictly_older_than_six_days():
+    work = _work_module()
+    at_6 = _it("W-00000001", "next", next_at=_iso(NOW - timedelta(days=6)), links={"session": "s1"})
+    past_6 = _it(
+        "W-00000002",
+        "next",
+        next_at=_iso(NOW - timedelta(days=6, microseconds=1)),
+        links={"session": "sessionXYZ"},
+    )
+    out = _lines(work, [at_6, past_6])
+    stale = [ln for ln in out if ln.startswith("STALE NEXT")]
+    assert stale == ["STALE NEXT       W-00000002 sessionX set 6 d ago"], out
+
+
+def test_status_aged_mail_is_strictly_older_than_fourteen_days_and_flags_above_fifty():
+    work = _work_module()
+    exactly = _iso(NOW - timedelta(days=14))
+    older = _iso(NOW - timedelta(days=14, microseconds=1))
+    items = [_it("W-10000000", "mail", created=exactly)]
+    items += [_it(f"W-2{i:07x}", "mail", created=older) for i in range(50)]
+    out = _lines(work, items)
+    assert "AGED MAIL        50 open mail item(s) created more than 14 days ago" in out, out
+    items.append(_it("W-30000000", "mail", created=older))
+    out = _lines(work, items)
+    assert "AGED MAIL        51 open mail item(s) created more than 14 days ago — over 50" in out
+
+
+def test_status_aged_mail_counts_only_open_items():
+    work = _work_module()
+    old = _iso(NOW - timedelta(days=15))
+    items = [
+        _it("W-00000001", "mail", created=old),  # open: still counted
+        _it("W-00000002", "mail", "awaiting-operator", created=old),
+        _it("W-00000003", "mail", "blocked", created=old),
+        _it("W-00000004", "mail", "done", created=old),
+    ]
+    out = _lines(work, items)
+    assert "AGED MAIL        1 open mail item(s) created more than 14 days ago" in out, out
+
+
+def test_status_labels_an_empty_session_and_splits_sessionless_claims_by_agent():
+    work = _work_module()
+    claims = {
+        "W-00000001": {"session": "", "agent": "infra"},
+        "W-00000002": {"session": "", "agent": "fleet"},
+        "W-00000003": {"session": "", "agent": "fleet"},
+        "W-00000004": {"session": "sessionAAAA-1", "agent": "intel"},
+    }
+    nxt = _it("W-00000009", "next", next_at=_iso(NOW - timedelta(days=7)), links={})
+    out = _lines(work, [nxt], claims)
+    assert "CLAIMS           (no session) (fleet) 2" in out, out
+    assert "CLAIMS           (no session) (infra) 1" in out, out
+    assert "CLAIMS           sessionA (intel) 1" in out, out  # a normal line is unchanged
+    assert "STALE NEXT       W-00000009 (no session) set 7 d ago" in out, out
+
+
+def test_status_survives_a_next_item_whose_links_is_not_a_dict(tmp_path, monkeypatch):
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env)
+    _apply(monkeypatch, env)
+    work = _work_module()
+    eight_days = _iso(datetime.now(UTC) - timedelta(days=8))
+    good = _make(work, repo, "next", "good", links={"session": "sessionGOOD"}, next_at=eight_days)
+    before = _ok(["status"], env, repo)
+    assert f"STALE NEXT       {good} sessionG set 8 d ago" in before  # well-formed: unchanged
+    bad = _make(work, repo, "next", "bad", next_at=eight_days)
+    _edit(repo, bad, links="not a dict")
+    after = run(["status"], env, repo)
+    assert after.returncode == 0, after.stderr
+    assert f"STALE NEXT       {bad} (no session) set 8 d ago" in after.stdout
+    assert f"STALE NEXT       {good} sessionG set 8 d ago" in after.stdout
+    listing = [ln for ln in after.stdout.splitlines() if ln.startswith("open ")]
+    assert any(bad in ln for ln in listing), after.stdout  # the item listing still printed
+
+
+def test_ready_prints_no_more_line_at_exactly_ten_others_and_one_more_at_eleven(tmp_path):
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env)
+    for i in range(10):
+        _add(repo, env, f"o{i}")
+    out = _ok(["ready"], env, repo)
+    assert len(_ids(out)) == 10 and "… and" not in out, out
+    _add(repo, env, "o10")
+    lines = _ok(["ready"], env, repo).splitlines()
+    assert len(_ids("\n".join(lines))) == 10, lines
+    assert lines[-1] == "… and 1 more — work.py ready --all", lines
+
+
+def test_ready_leaves_an_owned_item_another_session_claims_out_of_the_owned_section(tmp_path):
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env)
+    taken = _add(repo, env, "owned but taken")
+    free = _add(repo, env, "owned and free")
+    _edit(repo, taken, owner="infra")
+    _edit(repo, free, owner="infra")
+    _ok(["claim", taken], _as(env, agent="fleet", session="sess-other"), repo)
+    out = _ok(["ready"], _as(env, agent="infra", session="sess-me"), repo)
+    assert _ids(out) == [free], out
+
+
+def test_ready_never_marks_a_claim_on_a_done_item_as_yours(tmp_path):
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env)
+    me = _as(env, session="sess-me")
+    done = _add(repo, env, "finished")
+    live = _add(repo, env, "live")
+    _ok(["claim", done], me, repo)
+    _ok(["claim", live], me, repo)
+    _edit(repo, done, status="done")  # the claim is still live, the item is resolved
+    out = _ok(["ready"], me, repo)
+    assert done not in out, out
+    assert any(ln.startswith(live) and ln.endswith(" (yours)") for ln in out.splitlines()), out
+
+
+def test_a_raising_obligation_reader_warns_once_and_never_fails_ready_or_status(
+    tmp_path, monkeypatch, capsys
+):
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env)
+    _apply(monkeypatch, env)
+    work = _work_module()
+
+    def boom(repo: Path) -> str | None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(work, "_mail_line", boom)
+    monkeypatch.setattr(work, "_feedback_line", boom)
+    for verb in ("ready", "status"):
+        capsys.readouterr()
+        assert work.main(["--repo", str(repo), verb]) == 0
+        err = capsys.readouterr().err.splitlines()
+        assert [ln for ln in err if "line skipped" in ln] == [
+            "work: mail line skipped — RuntimeError: boom",
+            "work: feedback queues line skipped — RuntimeError: boom",
+        ], (verb, err)
+
+
+def test_an_unreadable_inbox_warns_and_a_readable_empty_one_is_silent(
+    tmp_path, monkeypatch, capsys
+):
+    if os.geteuid() == 0:
+        pytest.skip("root reads a mode-000 directory")
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env, store=False)
+    _apply(monkeypatch, env)
+    work = _work_module()
+    inbox = tmp_path / "mail" / "repo" / "inbox"
+    inbox.mkdir(parents=True)
+    work.obligations(repo)  # warm the by-path import of mail.py before capturing
+    capsys.readouterr()
+    assert work.obligations(repo) == []  # readable and empty: no line, no warning
+    assert capsys.readouterr().err == ""
+    _mail(inbox, "01AAAAAAAAAAAAAAAAAAAAAAAA.md", ack="required", ts=NOW.isoformat())
+    inbox.chmod(0)
+    try:
+        assert work.obligations(repo) == []
+        err = capsys.readouterr().err.splitlines()
+    finally:
+        inbox.chmod(0o755)
+    assert len(err) == 1 and err[0].startswith("work: mail line skipped — PermissionError"), err
+    assert [p.name for p in inbox.iterdir()] == ["01AAAAAAAAAAAAAAAAAAAAAAAA.md"]  # nothing moved
+
+
+def test_the_mail_root_is_mail_pys_expression_exactly(tmp_path, monkeypatch):
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env, store=False)
+    _apply(monkeypatch, env)
+    work = _work_module()
+    monkeypatch.delenv("FABRIK_MAIL_ROOT")
+    assert work._mail_root() == Path("/opt/fabrik-mail")  # unset: the default, never read here
+    monkeypatch.setenv("FABRIK_MAIL_ROOT", "")
+    assert work._mail_root() == Path("")  # set but empty: the cwd, as mail.py reads it
+    cwd = tmp_path / "cwd"
+    _mail(
+        cwd / "repo" / "inbox", "01BBBBBBBBBBBBBBBBBBBBBBBB.md", ack="required", ts=NOW.isoformat()
+    )
+    monkeypatch.chdir(cwd)
+    assert [ln.split(" (")[0] for ln in work.obligations(repo)] == ["mail: 1 need an answer"]
