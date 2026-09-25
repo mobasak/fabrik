@@ -12,18 +12,18 @@ Surface: `scripts/work.py`, `scripts/thread_anchor.py`, `scripts/mail.py`, `scri
 - **The distributor agent** (intel on the hub, D-395): assigns owners; sees unowned, stale and over-claimed work in `status`.
 - **The worker agents** (up to three sessions per repo): take work, do it, close it.
 - **Automated consumers** — each duty's holder named:
-  - the Stop hook (`.claude/hooks/final_gate_stop.py`) — runs `thread_anchor.py harvest`, which updates the register and calls `work.on_harvest` (D3);
+  - the Stop hook (`.claude/hooks/final_gate_stop.py`) — runs `thread_anchor.py harvest`, which calls `work.on_harvest` with the turn's last NEXT (D3); the register itself is unchanged;
   - the prompt hook (`thread_anchor.py line --hook`) — prints `work.prompt_block` (D1, D4, D6);
   - `mail.py claim`, `ack`, `requeue` — create and close a mail item (D2);
   - `/fabrik-command-improve` — creates a feedback item when it takes a command's queue; `command_feedback_report.py --mark-answered` closes it (D2);
-  - the completion gate's `Work items (sync)` row — unchanged;
+  - the completion gate's `Work items (sync)` row — reads drift class 6, which now also exempts `mail` and `feedback` items (D2);
   - fleet repos' agents — receive all of it through the governance sync.
 
 **Step budgets (frozen).**
 - Operator: open any session → the prompt shows every awaiting question, the mail and feedback-queue lines, and every live claim in the repo with its session and agent (1).
 - Worker, on store work: the prompt shows its own claims (1) → work, ending the turn with `NEXT: <item id>`, which claims it (2) → `done --evidence <sha>` (3).
 - Worker, on mail: `mail.py claim <id>` — the mail item is created and claimed (1) → work → `mail.py ack <id>` — the item closes (2).
-- Distributor: `work.py status` shows unowned items, live claims per session, and stale `next` items (1) → `assign` (2).
+- Distributor: `work.py status` shows unowned items, live claims per session, and `next` items unchanged for 7 days (1) → `assign` (2).
 
 Every item of § The delta traces to one of these; none is untraceable.
 
@@ -40,7 +40,7 @@ The parent spec built the store and fed it the backlog and DECISION blocks. Meas
 - **`ready` is a swamp.** It lists every open item, most of them old backlog.
 - **Owners do not resolve.** No hub window is named (`CLAUDE_AGENT` unset), so `--mine` finds nothing.
 
-How this design removes each: one view reads the other sources live (D1); taking an obligation creates its item and claim (D2); every register thread has a store item and a NEXT naming an item claims it (D3); the prompt shows every live claim and `ready` defaults to what is yours (D4); a duplicate question can be retired (D5); an unnamed window is told so (D6).
+How this design removes each: one view reads the other sources live (D1); taking an obligation creates its item and claim (D2); every session's current free-text NEXT is one store item, and a NEXT naming an item claims it (D3); the prompt shows every live claim and `ready` defaults to what is yours (D4); a duplicate question can be retired (D5); an unnamed window is told so (D6).
 
 ## Intake Inventory
 
@@ -55,7 +55,7 @@ How this design removes each: one view reads the other sources live (D1); taking
 | I7 | Gap 3: NEXT is free text | IN | D3 |
 | I8 | Gap 4: windows unnamed | IN (visibility); naming stays the operator's action | D6 |
 | I9 | No verb retires a duplicate awaiting question (W-4025bfea) | IN | D5 |
-| I10 | The register and the store hold the same threads apart | IN — the register stays (D-392) and feeds one store item per thread | D3 |
+| I10 | The register and the store hold the same threads apart | IN — the register stays as it is (D-392); the store holds one `next` item per session instead of mirroring the register | D3 |
 | I11 | *"send mails to fleet and intel so they can work their items. we have a lot to cover."* | OUT-OF-SCOPE — done in chat, not a design item | mails 01M3C572CA1N6XJV0PV6CH7J1J (fleet) and 01M3C572JPBTV22MBS439Y61VG (intel), 2026-09-25 |
 | I12 | The loop program's next measurement | OUT-OF-SCOPE — separate work | item W-992909ca |
 | I13 | The git-decoder spec's design approval | OUT-OF-SCOPE — a separate question for the operator | item W-f9e2e6ec |
@@ -88,28 +88,28 @@ The reader fails open (any error → no line) and is shown at the head of `ready
 
 - **Mail.** `mail.py claim <id>` creates a `kind: mail` item — title the subject, `links.mail` the message id — claimed by the claiming session, in the store of the claiming repo (the repo whose mailbox holds the message; nothing when that repo has no store). The owner is the agent name `work.py` resolves, and the resolver is used ONLY for this store call — never to pick a mailbox (D-271). `mail.py ack <id>` closes the linked item as `done` with the note `mail ack: <disposition>`; `mail.py requeue <id>` closes it as `dropped` with the note `requeued` (the mail is back in the D1 count). An `ack` with no prior claim creates nothing (there was no taking to record).
 - **Feedback queues.** When `/fabrik-command-improve <command>` takes a command's queue it creates one `kind: feedback` item for that command (never one per row), `links.command` the command name; `--mark-answered` closes it as `done` with the edit's commit.
-- **The close.** Both closes go through one API function, `close_linked(repo, kind, link, status, note)`, under the store lock. `mail` and `feedback` items are exempt from the commit-names-the-id evidence rule (like `legacy` items, parent § The durable item): their evidence is the mail disposition or the corpus commit.
+- **The close.** Both closes go through one API function, `close_linked(repo, kind, link, status, note)`, under the store lock. `mail` and `feedback` items are exempt from the commit-names-the-id evidence rule: `done` refuses to close them by hand, their evidence is the mail disposition or the corpus commit, and drift class 6 (`work.py:1581`, today exempting only `legacy`) exempts both kinds too.
 - **No hand-made ones.** `KINDS` gains `mail` and `feedback`, and `work.py add` refuses both — they come only from the paths above, as awaiting items come only from accepted DECISION blocks.
 
-### D3. The register feeds the store; a NEXT claims the item it names
+### D3. A NEXT claims the item it names, or becomes the session's one `next` item
 
 At the Stop harvest (`thread_anchor.py harvest`, then `work.on_harvest` under the store lock), the turn's last `NEXT:` line is read in this order, and the first rule that matches decides:
 1. **`none — terminal`, an operator decision, or `BLOCKED:`** → no claim and no thread item, whatever the line names (D-392: nothing forced).
-2. **It names an item id** (the first id in the line) → `_set_next` as today; and when no other session holds a live claim on the item, the session claims it (a new claim, or a renewal of its own). An item another live session holds is left alone — neither its `next` nor its claim changes.
-3. **Free text the register accepts** (`_is_anchor`) → the register records it as today (D-392: the register stays, with its caps). The store then holds exactly one open `kind: next` item per register anchor, linked by the anchor key (`links.anchor`): created when the anchor is created, its `next` updated when the anchor's text changes, closed as `done` when `thread_anchor.py done` closes the anchor and as `dropped` with the note `evicted` when the register's caps evict it. The item's `creator` is the session; its owner is the session's agent name, or empty (unassigned) when the window is unnamed — owners are always agent names.
+2. **It names an item id** → `_set_next` as today, and the session claims the first id in the line that names an open, unblocked item no other live session holds (a new claim, or a renewal of its own). An item that is awaiting, closed, blocked or held by another live session is left alone; if no id qualifies, nothing is claimed. A claim that fails for any reason fails open, like the rest of `on_harvest`.
+3. **Free text the register accepts** (`_is_anchor`) → the store holds ONE open `kind: next` item per session, `links.session` the session id: created on the session's first such NEXT, its `next` replaced by each later one. Its `creator` is the session; its owner is the session's agent name, or empty (unassigned) when the window is unnamed — owners are always agent names. It closes as `done` when the same session's NEXT falls under rules 1 or 2, and as `dropped` with the note `no NEXT from its session in 7 days` when any Stop harvest in the repo finds it unchanged for 7 days. The register is not touched by any of this (D-392).
 4. **Anything else** → nothing.
 
-Measured volume (`next_census.py`, 2026-09-25, last 7 days): 653 anchor-worthy lines forming **183 threads fleet-wide, 102 of them on the hub**. The register's caps bound open `next` items per session to its own limits.
+Measured volume (`next_census.py`, 2026-09-25, last 7 days): **17 sessions fleet-wide, 3 on the hub,** ended at least one turn on a free-text NEXT the register accepts — so at most that many open `next` items a week, before the 7-day close.
 
 ### D4. The view shows every claim; `ready` shows what is yours
 
 - The prompt block adds every live claim in the repo, one line per claiming session: `on it: <session short id> (<agent or "unnamed">) — W-xxxx, W-yyyy`.
 - `work.py ready` defaults to: the D1 lines; this session's claims; items owned by this agent; awaiting items; then the top 10 others by priority. `ready --all` prints every open item, as today. `next` is unchanged. The field's lesson, quoted: *"The goal is keeping bd ready crisp and actionable."* (Ian Bull on Beads, fetched 2026-09-25).
-- `work.py status` adds three lines for the distributor: unowned open items (count); live claims per session, flagging any session holding more than 5; `next` items whose register anchor has not changed in 7 days.
+- `work.py status` adds three lines for the distributor: unowned open items (count); live claims per session, flagging any session holding more than 5; `next` items unchanged for 7 days (the ones the next Stop will close).
 
 ### D5. A duplicate question can be retired
 
-`work.py drop <id> --duplicate-of <keep>` is allowed on an `awaiting-operator` `<id>` when `<keep>` is an open awaiting item, and only to the distributor or to the creator of both items. `<keep>` records `<id>`'s `block_digest` in a new list `alt_block_digests`, and the harvest's open-item match reads that list too — so a later message that re-asks either wording refreshes `<keep>` instead of creating a third item. `<id>` closes as `dropped` with the note `duplicate of <keep>`, and `<keep>`'s question line in the prompt adds `(also asked as <id>)`.
+`work.py drop <id> --duplicate-of <keep>` is allowed on an `awaiting-operator` `<id>` when `<keep>` is an open awaiting item, and only to the distributor or to a caller whose agent name (or, unnamed, session id) equals the `creator` field of both items — in an unnamed window that is the session that asked both. `<keep>` records `<id>`'s `block_digest` in a new list `alt_block_digests`, and the harvest's open-item match reads that list too — so a later message that re-asks either wording refreshes `<keep>` instead of creating a third item. `<id>` closes as `dropped` with the note `duplicate of <keep>`, and `<keep>`'s question line in the prompt adds `(also asked as <id>)`.
 
 ### D6. An unnamed window is told so
 
@@ -121,13 +121,14 @@ Every copy of the work-items paragraph — one in `CLAUDE.md`, two in `templates
 
 ## Contract deltas
 
-None to `docs/data-contract.md` or `docs/ui-design.md` (the hub has neither). Item schema: two new `kind` values (`mail`, `feedback`), two new link keys (`links.mail`, `links.command`, plus `links.anchor` for `next` items), and `alt_block_digests` on awaiting items. CLI: `drop --duplicate-of`, `ready --all` (the old default).
+None to `docs/data-contract.md` or `docs/ui-design.md` (the hub has neither). Item schema: two new `kind` values (`mail`, `feedback`), three new link keys (`links.mail`, `links.command`, `links.session`), and `alt_block_digests` on awaiting items. Drift class 6 exempts the two new kinds. CLI: `drop --duplicate-of`, `ready --all` (the old default).
 
 ## Rejected alternatives
 
 - **Copy every obligation into the store** (a sync pass mirroring each `ack: required` mail and each feedback row as an item, and every distinct free-text NEXT as an item). Rejected 3–0 by the judge panel: two sources of truth that drift, against the parent's derived-never-copied rule, and **6,843** distinct NEXT texts a week plus 158 mails would bury `ready`.
 - **Gate the Stop on a NEXT that names no item.** Rejected 3–0: the gate the operator refused (D-392 — *"agent will start making up unnecessary tasks in next field"*), and it leaves mail and queues where they are.
-- **Retire the register into the store.** Rejected: D-392 keeps the register (*"3 no i will not do that"*), and its caps are what bound the `next` items (D3).
+- **Retire the register into the store.** Rejected: D-392 keeps the register (*"3 no i will not do that"*).
+- **One `next` item per register thread** (the first draft of this spec). Rejected in review: the register re-roots a thread's key on every rewording, keeps its per-session files with no expiry, and closes anchors from a CLI verb outside the Stop lock, so a 1:1 mirror could not hold; one item per session needs none of that.
 - **Move mail into the store.** Rejected: fabrik-mail is the cross-repo transport with its own claim lock; the store is per repo.
 - **One feedback item per queue row.** Rejected: 455 rows; the unit of work is a command's queue, which `/fabrik-command-improve` takes whole.
 - **Let any agent retire a duplicate.** Rejected: it reopens the parent's cobra of an inconvenient awaiting question dropped to clear it (D5 limits it to the distributor or the creator of both).
@@ -135,14 +136,14 @@ None to `docs/data-contract.md` or `docs/ui-design.md` (the hub has neither). It
 ## Lifecycle
 
 - **Adoption.** Ships through the governance sync with the next `work.py`, `thread_anchor.py` and `mail.py`. Hub first; then the fleet on the existing rollout item (W-59c5ab33). The adoption ends with one fleet mail and a message to every live session stating the new rules — NEXT names the item you are on, claiming a mail creates its item — because the operator asked for every repo's agents to be told of each change to the way of working (I16).
-- **Growth.** Triggers, each read from the store or `next_census.py`: more than 200 open `next` items in one repo (the register's caps are too loose for the store); the prompt block over 1 s; more than 50 open `mail` items older than 14 days in one repo (claims taken and not acked — the distributor's queue).
+- **Growth.** Triggers, each read from the store or `next_census.py`: more than 20 open `next` items in one repo (the 7-day close is too slow for the repo's session count); the prompt block over 1 s; more than 50 open `mail` items older than 14 days in one repo (claims taken and not acked — the distributor's queue).
 - **Degradation.** Every new reader fails open to "no line"; every new write happens where a write happens today (the Stop harvest, `mail.py claim/ack/requeue`, `--mark-answered`) under the parent's lock and budget rules. A repo without a store behaves exactly as today.
-- **Retirement.** Items are files; removing the reader and the D2/D3 writes leaves them readable, and the register works as it does today.
+- **Retirement.** Items are files; removing the reader and the D2/D3 writes leaves them readable; the register was never changed.
 
 ## External dependencies and practice (fetched 2026-09-25)
 
 - **Beads** (Steve Yegge) — README, raw: https://raw.githubusercontent.com/gastownhall/beads/main/README.md (curl, 200, 2026-09-25); found through an exa search and a brave search the same day. Its agent contract: *"Use `bd ready`, `bd show <id>`, `bd update <id> --claim`, and `bd close <id>`."* — one queue, an explicit claim, a close.
-- **Ian Bull, "Beads - Memory for your Agent"** — https://ianbull.com/posts/beads/ (curl, 200, 2026-09-25): *"Claude doesn’t proactively use it. You need to say “track this in beads” or “check bd ready.”"* and *"CLAUDE.md instructions fade."* — the reason D2 and D3 hang on existing hooks and verbs rather than on an instruction; *"The goal is keeping bd ready crisp and actionable."* — the reason for D4; and *"The discovered-from type is particularly powerful."* — Beads' link for work found mid-task, which D3's register-fed `next` items play here.
+- **Ian Bull, "Beads - Memory for your Agent"** — https://ianbull.com/posts/beads/ (curl, 200, 2026-09-25): *"Claude doesn’t proactively use it. You need to say “track this in beads” or “check bd ready.”"* and *"CLAUDE.md instructions fade."* — the reason D2 and D3 hang on existing hooks and verbs rather than on an instruction; *"The goal is keeping bd ready crisp and actionable."* — the reason for D4; and *"The discovered-from type is particularly powerful."* — Beads' link for work found mid-task, which D3's per-session `next` item plays here.
 - No external API is called; no vendor limit applies.
 
 ## fabrik-lib verdict
@@ -155,43 +156,43 @@ None — no service, no `shape:` flag, no port. Box-local files only: `/opt/fabr
 
 ## Constraints
 
-Digest (MUST-READ set computed 2026-09-25 by `review_rubric.py --changed` over the surface: FLOOR `core/10-python.md` + 12-FACTOR, MATCHED `core/40-documentation.md`) — carried from the parent's § Constraints unchanged: stdlib only for fleet-synced scripts; hooks fail open inside their budgets (Stop harvest 5 s kill, store lock ≤ 2 s from hooks, prompt store budget 3 s, and the prompt path takes the store lock only for the DECISION second chance — T04's A-O3); CLI verbs fail loud; no temporary workaround ships. D3's writes happen in `on_harvest`, which already holds the store lock at the Stop, and D1 and D4 only read, so A-O3 is untouched.
+Digest (MUST-READ set computed 2026-09-25 by `review_rubric.py --changed` over the surface: FLOOR `core/10-python.md` + 12-FACTOR, MATCHED `core/40-documentation.md`) — carried from the parent's § Constraints unchanged: stdlib only for fleet-synced scripts; hooks fail open inside their budgets (Stop harvest 5 s kill, store lock ≤ 2 s from hooks, prompt store budget 3 s, and the prompt path takes the store lock only for the DECISION second chance — T04's A-O3); CLI verbs fail loud; no temporary workaround ships. Every D3 write happens in `on_harvest`, which already holds the store lock at the Stop; D1 and D4 only read; so A-O3 is untouched.
 
 ## Documentation landing sites
 
-- `docs/reference/work-tracking.md` — the one reference doc: § The view (D1, D4, D6), § Items from mail and feedback queues (D2), § NEXT lines and the register (D3), the `drop --duplicate-of` and `ready --all` rows (D5, D4), the new kinds and links.
-- `docs/reference/thread-anchors.md` — the register feeds one store item per anchor (D3).
+- `docs/reference/work-tracking.md` — the one reference doc: § The view (D1, D4, D6), § Items from mail and feedback queues (D2), § NEXT lines (D3), the `drop --duplicate-of` and `ready --all` rows (D5, D4), the new kinds and links.
+- `docs/reference/thread-anchors.md` — one sentence: in a repo with a store, a free-text NEXT also becomes the session's `next` item (D3); the register is unchanged.
 - `docs/reference/fabrik-mail.md` — `claim`, `ack` and `requeue` name the item they create and close.
 - The three contract copies — the D7 sentence.
 - `CHANGELOG.md`, D-rows, `docs/workstation/hooks-index.md` (the harvest and prompt rows), `INDEX.md` (the new script).
 
 ## Validation
 
-- **V1 — one thread, one item; a NEXT claims.** Three Stops whose NEXT lines are one thread in different words leave one open `next` item linked to that anchor, holding the last text; a later NEXT naming its id claims it; a NEXT naming an item another live session holds changes nothing. (Seam test through the real hook.)
+- **V1 — one session, one item; a NEXT claims.** Three Stops of one session with different free-text NEXT lines leave one open `next` item holding the last text; a later NEXT naming an open item claims it and closes the `next` item; a NEXT naming an item another live session holds, or an awaiting or closed one, claims nothing; an operator-decision NEXT naming an id changes nothing; a `next` item unchanged for 7 days is closed by another session's Stop. (Seam test through the real hook.)
 - **V2 — mail round trip.** `mail.py claim` creates a claimed `mail` item in the claiming repo's store; `ack` closes it `done`, `requeue` closes it `dropped`; an `ack` without a claim creates nothing; in a store-less repo all three behave exactly as today; `work.py add --kind mail` is refused.
 - **V3 — the view.** On the hub, the prompt block lists every live claim with its session; default `ready` prints the D1 lines, this session's claims, owned items, awaiting items and at most 10 others; `ready --all` prints every open item.
 - **V4 — budgets hold.** With the hub's inbox and the full feedback ledger, `work.py prompt_block` returns in under 0.5 s (timed in the test); the mail read measured 0.7 ms today.
-- **V5 — volume matches the measurement.** `python3 scripts/sysadmin/next_census.py --since 7` — the three measurements of § Why this exists as one script — run two weeks after hub adoption: the hub's `next` items created that week are within 2× of the measured 102, and the hub shows more than 0 live claims.
+- **V5 — volume matches the measurement.** `python3 scripts/sysadmin/next_census.py --since 7` — the three measurements of § Why this exists as one script — run two weeks after hub adoption: the hub's `next` items created that week are within 2× of the measured 3 sessions (at most 6), and the hub shows more than 0 live claims.
 - **V6 — duplicates.** After `drop A --duplicate-of B`, a new message re-asking A's wording refreshes B and creates no item; `drop` by an agent that is neither the distributor nor the creator of both is refused.
 
 ## Cobra (D-253)
 
 - **"Who is working on what" satisfied by claiming everything.** Claims expire when read unless renewed at a Stop (the parent's lease), and `status` flags any session holding more than 5 claims (D4).
 - **A crisp `ready` satisfied by never assigning owners.** `status` shows the unowned count to the distributor, and D4 always prints the top 10 others.
-- **Thread items as busywork.** Nothing counts, scores or rewards items (the parent's rule); `next` items come only from anchors the register already keeps.
+- **`next` items as busywork.** Nothing counts, scores or rewards items (the parent's rule); a `next` item comes only from a NEXT line the agent already writes, one per session.
 - **A mail claimed to look busy and never acked.** The growth trigger (open `mail` items older than 14 days) lists them to the distributor.
 - **An inconvenient question retired as a "duplicate".** Only the distributor or the creator of both may do it, and the kept question names the one it absorbed (D5).
 
 ## Open / blocking unknowns
 
-- **Open, resolution step named.** Whether the register's caps suit the store (they were built for a prompt display). Resolution: V5's reading two weeks after adoption; the growth trigger tightens them.
+- **Open, resolution step named.** Whether `_is_anchor` is the right filter for which free-text NEXT becomes the session's `next` item (it was built for the register). Resolution: V5's reading two weeks after adoption.
 - **Resolved.** The mail read's cost (2.3 ms for the largest inbox) and the feedback queue's (one in-process parse replaces a 54 ms subprocess per command), measured 2026-09-25.
 - **Resolved.** Which repo a mail item lands in: the repo whose mailbox holds the message, named by the main-checkout basename (`mail.py:303`).
 
 ## Cost
 
-- `scripts/work.py` — `obligations`, the D4 prompt lines, `ready` default and `--all`, the `status` lines, `drop --duplicate-of`, `alt_block_digests`, the D3 claim in `on_harvest`, the `next` item per anchor, `close_linked`, the two kinds; tests.
-- `scripts/thread_anchor.py` — the anchor lifecycle calls into the store (create, update, done, evict); tests.
+- `scripts/work.py` — `obligations`, the D4 prompt lines, `ready` default and `--all`, the `status` lines, `drop --duplicate-of`, `alt_block_digests`, the D3 rules in `on_harvest` (claim, the per-session `next` item, the 7-day close), `close_linked`, the two kinds and their drift class 6 exemption; tests.
+- `scripts/thread_anchor.py` — no logic change: it already passes the turn's last NEXT to `on_harvest`; its seam tests grow.
 - `scripts/mail.py` — `claim`, `ack`, `requeue` call the store (fail open); tests.
 - `commands/_sources/fabrik-command-improve.md` and `scripts/command_feedback_report.py` — take and close the feedback item.
 - `scripts/sysadmin/next_census.py` — the measurement script (new).
@@ -200,8 +201,8 @@ Every script but the census is on a governance-sync path, so each ticket gets th
 
 ## Decisions taken
 
-- **Chosen: derive the view, create items only when an obligation is taken, let the register feed one item per thread, and let a NEXT claim the item it names.** The judge panel ranked Derive first 3–0; no split verdict.
+- **Chosen: derive the view, create items only when an obligation is taken, keep one `next` item per session, and let a NEXT claim the item it names.** The judge panel ranked Derive first 3–0; no split verdict.
 - **Operator ruling (2026-09-25, W-f8a26582):** the work store becomes the single tracker, built through the full chain — D-416.
-- The register stays (D-392); the store mirrors its threads, it does not replace them.
+- The register stays as it is (D-392); the store never mirrors it.
 - `ack: no` mail is information, never counted or itemised.
 - `mail` and `feedback` items come only from taking an obligation, never from `add`.
