@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the ranker no longer scores runs from the 2026-08-28 transdoc re-score batch (2026-09-25)
+- `rank_task_subagents.py` excludes the 238 `status='scored'` rows a transdoc session wrote over its whole ledger history on 2026-08-28, which shadowed 226 other sessions' runs under latest-wins; transdoc's own runs keep their scores. No production row is written (D-421, W-40a0370e).
+
 ### Added — /fabrik-command-improve takes and closes a feedback work item per command queue (2026-09-25)
 - `scripts/command_feedback_report.py` gains `queue_depths()` — every command's unanswered depth from one ledger read and one answered-index read, equal to what `--queue <command>` prints — and `--take <command>`, which opens and claims the command's one `kind: feedback` work item (it says who holds it when another session does, and takes nothing for an empty queue or when the store is unavailable). A successful `--mark-answered` closes the item; the close never changes the mark's result. `/fabrik-command-improve` PHASE 1 runs `--take` and lists every line it prints. Tests: `tests/test_command_feedback_report.py` (plan 2026-09-25-plan-1, T04).
 

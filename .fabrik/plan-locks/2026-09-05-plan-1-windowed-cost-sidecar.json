@@ -14,7 +14,10 @@
   ],
   "branch": "master",
   "started_at": "2026-09-05T10:34:15",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "d78e57c886c201db9506440ba13b9e7df1acc3fc",
-  "baseline_gate": "final_gate.py --lean --json -> status: success, 0 red checks, skipped_checks: [] (captured before Phase A; ANY red at finish is this run's)"
+  "baseline_gate": "final_gate.py --lean --json -> status: success, 0 red checks, skipped_checks: [] (captured before Phase A; ANY red at finish is this run's)",
+  "completed_at": "2026-09-05",
+  "released_note": "released 2026-09-25 by intel: plan Status EXECUTED 2026-09-05 (phases A/B/C shipped); the lock was left active by omission",
+  "final_commit": "6dca810df"
 }

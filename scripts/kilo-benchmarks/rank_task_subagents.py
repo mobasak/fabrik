@@ -476,6 +476,20 @@ OUTPUT_PATH = (
 # with ONLY orphans still drops at the outer HAVING. success/cost collapse per-agent — today
 # every agent has exactly one objective row (verified 0/6259 multi-row agents), so both are
 # numerically identical to the old per-row form on real data.
+#
+# Recorded contamination incidents, discounted at READ time — the table is INSERT-only and a
+# re-assert row cannot un-score a run that was never scored. Each clause names ONE incident's
+# rows exactly (never a pattern), so it can only ever match history.
+# 2026-08-28 (W-40a0370e, transdoc mail 01M154PZQ): set_quality over transdoc's whole ledger wrote
+# 238 scored rows in one minute onto 235 runs, 226 of them other sessions'. transdoc's OWN runs
+# (dispatched in that session, 2026-08-28 >= 21:15 UTC) keep their verdict.
+CONTAMINATED_SCORE_ROWS = f"""
+    NOT (status = 'scored' AND project = 'transdoc'
+         AND ts >= '2026-08-28 21:32:00+00' AND ts < '2026-08-28 21:33:00+00'
+         AND NOT EXISTS (SELECT 1 FROM {TABLE} own
+                         WHERE own.agent_id = {TABLE}.agent_id AND own.status <> 'scored'
+                           AND own.project = 'transdoc' AND own.ts >= '2026-08-28 21:15:00+00'))
+""".strip()
 QUERY = f"""
 SELECT task_type, model,
        SUM(n_obj) AS n,
@@ -492,6 +506,7 @@ FROM (
     FROM {TABLE}
     WHERE ts > NOW() - INTERVAL '{WINDOW_DAYS} days'
       AND project <> 'canary-grounding'
+      AND {CONTAMINATED_SCORE_ROWS}
     GROUP BY task_type, model, agent_id
 ) per_agent
 GROUP BY task_type, model
