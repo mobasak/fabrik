@@ -83,7 +83,7 @@ class _Conn:
         pass
 
 
-def _recorded_quality(result, sink, quality_score=None):
+def _recorded_quality(result, sink, receipt_dir, quality_score=None):
     ok = record_agent_run(
         _Spec(),
         result,
@@ -91,7 +91,7 @@ def _recorded_quality(result, sink, quality_score=None):
         project="auto0-test",
         dsn="postgresql://fake",
         connect=lambda dsn: _Conn(sink),
-        receipt_dir=None,
+        receipt_dir=str(receipt_dir),  # never None: that writes the REAL repo receipts
         outbox_dir=None,
     )
     assert ok, "the fake-connection insert must be treated as confirmed"
@@ -107,7 +107,7 @@ def test_errored_run_stays_null_module_invariant(tmp_path):
     not teach pick_models a verdict). Offering None here would pass with the coercion deleted."""
     sink = []
     score = _recorded_quality(
-        _Result(status="error", error="boom", text=""), sink, quality_score=4.0
+        _Result(status="error", error="boom", text=""), sink, tmp_path, quality_score=4.0
     )
     assert score is None, score
 
@@ -115,7 +115,9 @@ def test_errored_run_stays_null_module_invariant(tmp_path):
 def test_capped_run_stays_null_module_invariant(tmp_path):
     """capped → NULL even when a score IS offered (the same record_run coercion)."""
     sink = []
-    score = _recorded_quality(_Result(status="capped", text="partial"), sink, quality_score=4.0)
+    score = _recorded_quality(
+        _Result(status="capped", text="partial"), sink, tmp_path, quality_score=4.0
+    )
     assert score is None, score
 
 
@@ -123,13 +125,13 @@ def test_done_but_empty_output_stays_unscored(tmp_path):
     """status=done + blank text stays NULL — the auto-0 was reversed upstream (97d2cf72): a 0
     would permanently tank a good model for the caller's too-small output budget."""
     sink = []
-    score = _recorded_quality(_Result(status="done", text="   \n"), sink)
+    score = _recorded_quality(_Result(status="done", text="   \n"), sink, tmp_path)
     assert score is None, score
 
 
 def test_healthy_unscored_stays_null(tmp_path):
     sink = []
-    score = _recorded_quality(_Result(status="done", text="a real finding"), sink)
+    score = _recorded_quality(_Result(status="done", text="a real finding"), sink, tmp_path)
     assert score is None, ("healthy unscored must stay NULL — unscored != bad", score)
 
 
@@ -137,5 +139,19 @@ def test_write_unit_with_diff_but_empty_text_stays_null(tmp_path):
     """A mode='write' coder's value IS its diff — empty text with a real diff is HEALTHY,
     never auto-0 (self-caught during the Phase C review round)."""
     sink = []
-    score = _recorded_quality(_Result(status="done", text="", diff="+ real change\n"), sink)
+    score = _recorded_quality(
+        _Result(status="done", text="", diff="+ real change\n"), sink, tmp_path
+    )
     assert score is None, score
+
+
+def test_recording_never_writes_receipts_outside_its_own_dir(tmp_path, monkeypatch):
+    """W-b951a71d: with receipt_dir=None the module appends to `.tmp/subagents/receipts.jsonl`
+    under the CWD — from the repo root that is the REAL ledger (127 fake rows found there)."""
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+    receipts = tmp_path / "receipts"
+    _recorded_quality(_Result(status="done", text="a real finding"), [], receipts)
+    assert not (cwd / ".tmp").exists(), "a receipt was written under the CWD"
+    assert any(receipts.iterdir()), "the receipt did not land in the dir it was given"
