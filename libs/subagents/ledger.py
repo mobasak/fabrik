@@ -139,6 +139,47 @@ _RESULT_FIELDS = (
 # one record can't bloat the JSONL (the FULL diff is still on the AgentResult).
 _MAX_DIFF_CHARS = 100_000
 
+# T04 — `lanes.classify`'s structured `FailureCause.cause` vocabulary, mapped onto this ledger's
+# PRE-EXISTING `failure_reason` tokens (a live column with historical rows — see the branch below).
+# `classify` emits `auth / rate-limited / unavailable / request-too-large / model-gone /
+# priced-out / bad-request / error`; `loop.py` additionally tags a content-stall cap directly with
+# `content-stall` (never produced by `classify` itself — verified at both source sites). This is
+# NOT a rename table: three causes get a NEW token rather than a lossy fold, a decision made here
+# and not silently —
+#
+#   * `model-gone` — NOT the same thing as this ledger's existing `invalid-model-id`.
+#     `invalid-model-id` is commented "OURS" (a typo'd model id caught before dispatch);
+#     `model-gone` is a model that answered and was RETIRED. Folding them would destroy a
+#     distinction an operator needs when reading this column.
+#   * `request-too-large` / `bad-request` — both OUR-fault classes (a malformed/oversized request
+#     WE sent), with no existing counterpart. Folding either into `provider-error` would attribute
+#     our own mistake to the vendor in every ranking query that groups by this column.
+#
+# So the value SET widens by three tokens — a Doc Sync Matrix "table/column/enum changed" event.
+# `failure_reason` is plain TEXT with no CHECK constraint (`pg_ledger.py:62`), so this is not a
+# migration, but any downstream reader that enumerates known tokens (a dashboard, `select`'s
+# ranking) needs to learn the three new ones; that note is owed to `pg_ledger.py`'s callers, not
+# resolved here (out of this ticket's owned paths).
+_CAUSE_TO_REASON: dict[str, str] = {
+    "rate-limited": "rate-limited",  # 1:1, already the same word on both sides
+    "priced-out": "priced-out",  # 1:1, already discriminated at the substring site below
+    # 1:1 in MEANING, not spelling: loop.py's content-stall cap and this token are the same event
+    # (the provider accepted and streamed nothing) seen from two different callers.
+    "content-stall": "provider-stalled",
+    "auth": "auth-failed",
+    # `unavailable` (a 429/503-adjacent transient provider failure) and `error` (classify's own
+    # catch-all: "5xx, a transport/timeout error, or anything unclassified") both land on THIS
+    # ledger's own catch-all rather than the narrower `transport` token — `error` explicitly
+    # covers real 5xx provider failures, not only transport/timeout ones, and mapping it to
+    # `transport` would misdescribe a genuine provider fault as a network issue.
+    "unavailable": "provider-error",
+    "error": "provider-error",
+    # WIDENED (see the module comment above): no existing token was honest for these three.
+    "model-gone": "model-gone",
+    "request-too-large": "request-too-large",
+    "bad-request": "bad-request",
+}
+
 
 def agent_record(spec: object, result: object) -> dict[str, object]:
     """Build the canonical provenance record for one agent run (secret-free).
@@ -178,9 +219,34 @@ def agent_record(spec: object, result: object) -> dict[str, object]:
     _status = str(record.get("status") or "")
     _turns = record.get("turns")
     _err = str(record.get("error") or "")
-    if _status == "capped":
+    # T04 — PREFER the structured cause (`result.failure`, a `lanes.FailureCause`) over every
+    # branch below, when the result carries one. `failure` is deliberately NOT in
+    # `_RESULT_FIELDS`: `Ledger.append` serializes with `json.dumps(record, default=str)`, so
+    # whitelisting the raw dataclass would land its `repr()` in the record as a new free-text
+    # field to substring-match — the exact defect this ticket removes, re-created one field over.
+    # Read the cause off the result (duck-typed via `getattr`, like every other field here) and
+    # write only the MAPPED TOKEN via `_CAUSE_TO_REASON`.
+    #
+    # This DELIBERATELY outranks the `capped` turns-based split just below: a `capped` run that
+    # lost to a mid-flight rate-limit, a retired model, or a content stall is a PRECISE verdict
+    # `loop.classify` already reached (`loop.py:508,595,787`) — the turns-based
+    # provider-stalled/turn-budget-exhausted split is a coarser fallback for exactly the case
+    # nothing more specific fired (a plain wall-clock/turn-budget cap with nothing to classify,
+    # `loop.py:502,549,723`, carries no `failure` at all and is unaffected by this branch).
+    #
+    # An unmapped cause (none exist in the enumerated vocabulary today, but a future `classify`
+    # addition could land here before this table is updated) falls through to the branches below
+    # rather than writing an unvetted token — the same "map, never widen silently" rule this
+    # table itself exists to honor.
+    _failure = getattr(result, "failure", None)
+    _cause = getattr(_failure, "cause", None) if _failure is not None else None
+    if isinstance(_cause, str) and _cause in _CAUSE_TO_REASON:
+        record["failure_reason"] = _CAUSE_TO_REASON[_cause]
+    elif _status == "capped":
         # The module already draws this line for the human-readable message (`_cap_message`):
         # 0 turns means the provider accepted and streamed nothing; >=1 means it worked and ran out.
+        # This NARROWS the fork above; it does not remove it — a `capped` result with no
+        # structured cause still falls here, same as before T04.
         record["failure_reason"] = (
             "provider-stalled" if not _turns else "turn-budget-exhausted"
         )

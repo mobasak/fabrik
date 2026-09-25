@@ -943,7 +943,8 @@ def flush_outbox(
         lands inside the file this flush already read and is unlinked with it. See the README gotcha
         "a row appended during a claim can be lost" — the window is real, narrow and cross-process, and
         `_append_outbox` deliberately does not take `pg_outbox.lock` (it must never block a run). A batch already pending in ``.flushing`` (a prior crash / DB outage) is processed
-        first and ``live`` is left to accumulate (claimed next run) — there is NO file-merging, so no
+        first and ``live`` is left to accumulate (claimed next run; an EMPTY pending batch that could be removed is
+        the exception — ``live`` is then claimed in the same call) — there is NO file-merging, so no
         merge-crash double-insert or non-atomic-rewrite loss.
       * **Poison-proof** — parsed LINE BY LINE; any MALFORMED line (bad JSON from a torn write, a
         non-dict, or a row missing a required column) is quarantined to ``pg_outbox.corrupt.jsonl`` and
@@ -1026,12 +1027,13 @@ def _flush_locked(
     connect: Callable[[str], Any] | None,
     receipt_dir: str | None,
     reason_sink: list[str] | None = None,
+    _after_empty_batch: bool = False,
 ) -> int:
     """The flush critical section, run under the outbox lock. See :func:`flush_outbox`.
 
     Deliberately NO file-merging (no staging file): if a batch is already pending in ``flushing`` (a
     prior run crashed, or the DB was down), process THAT this run and leave ``live`` to accumulate —
-    it's claimed on the next flush. The only file mutations are an atomic ``os.replace`` claim and the
+    it's claimed on the next flush (unless the pending batch held no rows: see the `if not good:` branch). The only file mutations are an atomic ``os.replace`` claim and the
     post-commit ``unlink``, so the sole at-least-once window is a crash between commit and unlink (a
     prior over-clever staging/merge introduced a double-insert + a non-atomic-rewrite loss; both gone)."""
     _db_reason_recorded: list[bool] = []  # THIS invocation only — never the caller's list
@@ -1101,7 +1103,24 @@ def _flush_locked(
     if not good:
         with contextlib.suppress(Exception):
             flushing.unlink()
-        return _no("all-rows-malformed")
+        # A `.flushing` that could not be removed shadows `live` on every future run, whatever it held —
+        # report the claim as failed, never a verdict that reads as settled. (Its bad lines, if any, were
+        # already appended to the corrupt file above, and will be again each run until it is removed.)
+        if flushing.exists():
+            return _no("claim-failed")
+        if bad:
+            return _no("all-rows-malformed")
+        # The batch held no rows at all: nothing was quarantined, so `all-rows-malformed` (which reads as
+        # data loss) would be false. But "empty" is only true of THIS batch: a pending empty `.flushing`
+        # left by an earlier run shadowed `live`, so claim `live` now. Recursion is bounded: `flushing`
+        # is gone, so the next call takes the claim branch, and `_after_empty_batch` caps it at ONE extra
+        # claim so a writer that keeps re-creating an empty `live` cannot spin this under the lock.
+        if live.exists() and not _after_empty_batch:
+            return _flush_locked(
+                dsn, live, flushing, base, connect, receipt_dir,
+                reason_sink=reason_sink, _after_empty_batch=True,
+            )
+        return _no("outbox-empty")
     # 3) INSERT the good rows in one transaction.
     conn = None
     # ⚠ Distinguishes an EXECUTE-phase failure from a COMMIT-phase one, because only the

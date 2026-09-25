@@ -4,8 +4,11 @@ Plan C4, GROUNDED NARROWER at execution: record_run ALREADY nulls error/capped s
 design ("an infra/provider failure can't teach pick_models a false 0" — pg_ledger.py:167-171)
 and the ranker's success_rate term already punishes those statuses. The one failure that slips
 BOTH nets is status=="done" with EMPTY output — the model "succeeded" and returned nothing
-gradeable (the class behind today's four misread dispatches). Auto-0 covers exactly that;
-error/capped stay NULL (module invariant); healthy unscored stays NULL (unscored ≠ bad).
+gradeable (the class behind today's four misread dispatches). That auto-0 was REVERSED
+upstream on 2026-08-29 (fabrik-lib 97d2cf72, intel's policy call): an empty `done` run is left
+UNSCORED (NULL), because an empty completion is usually the caller's output budget, not a bad
+model; the `empty_output` marker carries the visibility instead. So every case here stays NULL:
+error/capped (module invariant), empty `done`, and healthy unscored (unscored ≠ bad).
 Asserted at the injectable ``connect`` seam.
 """
 
@@ -110,12 +113,12 @@ def test_capped_run_stays_null_module_invariant(tmp_path):
     assert 0.0 not in params, params
 
 
-def test_done_but_empty_output_auto_scores_zero(tmp_path):
-    """status=done + blank text = the model returned nothing gradeable — a TRUE 0 the
-    success_rate term cannot see. THE auto-0 case."""
+def test_done_but_empty_output_stays_unscored(tmp_path):
+    """status=done + blank text stays NULL — the auto-0 was reversed upstream (97d2cf72): a 0
+    would permanently tank a good model for the caller's too-small output budget."""
     sink = []
     params = _recorded_quality(_Result(status="done", text="   \n"), sink)
-    assert 0.0 in params, params
+    assert 0.0 not in params, params
 
 
 def test_healthy_unscored_stays_null(tmp_path):

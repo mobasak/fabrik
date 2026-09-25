@@ -1,4 +1,19 @@
 # ══════════════════════════════════════════════════════════════════════════════════
+# ⛔  RETIRED 2026-09-07 — fabrik-lib D-132 (operator ruling: cost could not be justified
+# against Claude Code for the quality delivered, and it took too much time). DO NOT VENDOR
+# THIS, and do not RE-VENDOR it to repair a broken partial copy — the correct repair for an
+# ImportError from `libs/subagents` is to DELETE the directory, not to refresh it. Every repo
+# holding a copy was asked to remove it; the hub keeps its own copy only because live
+# importers there have not migrated yet. Fan-out now runs on native Claude Task subagents
+# (D-181/D-182 — the OpenRouter pool is OFF by policy). This file is frozen: the only changes
+# it should ever see again are retirement docs. Context:
+# docs/superpowers/specs/2026-09-06-subagents-availability-aware-dispatch-design.md
+# § Current state at retirement + § Resume guide.
+#
+# (Placed HERE, in the source, because a re-vendor copies .py files and never reads a README —
+# measured: one repo deleted its copy, then a later session restored all 21 files to fix an
+# ImportError, reported by iterative_image_editor 2026-09-10.)
+# ══════════════════════════════════════════════════════════════════════════════════
 # ⚠️  DEV-TIME ONLY — importing this from a project's src/ or tests/ breaks CI and the
 # deployed container. It is gitignored fleet-wide (Fabrik-synced VENDORED_DIRS). Vendor
 # what you need into tracked source; never import it from shipped code.
@@ -31,6 +46,7 @@ from ._dotenv import env_status, load_env
 from .agent import (
     AgentResult,
     AgentSpec,
+    InsufficientCreditsError,
     arun_agents,
     fanout,
     results_table,
@@ -38,7 +54,10 @@ from .agent import (
 )
 from .lanes import (
     AllLanesExhaustedError,
+    FailureCause,
+    apply_bench,
     bench_remaining,
+    classify,
     lane_chain,
     lane_progress,
     reset_lane_state,
@@ -122,7 +141,14 @@ __all__ = [
     # soft-import resolves it exactly this way.
     "lane_chain",
     "AllLanesExhaustedError",
+    "InsufficientCreditsError",
     "bench_remaining",
     "lane_progress",
     "reset_lane_state",
+    # The classify/apply_bench split (T01) — same "export HERE, not just from lanes.__all__" rule
+    # as above, so `from subagents import classify` works rather than tripping the trap this file's
+    # own comment already names two entries up.
+    "FailureCause",
+    "classify",
+    "apply_bench",
 ]
