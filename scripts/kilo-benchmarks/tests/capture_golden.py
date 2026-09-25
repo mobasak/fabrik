@@ -536,8 +536,10 @@ def ai_pack_hosts() -> list[Path]:
 
 def _query_constants(mod) -> dict[str, str]:
     """Freeze EVERY str-valued ``*QUERY`` module constant by NAME PATTERN — a new query
-    constant lands in the snapshot (and the daily drift alarm) with no edit here. The two
-    legacy keys keep their frozen names; discovered extras get ``q_<lowername>`` keys."""
+    constant is discovered with no edit here. Until it is FROZEN, verify() only announces it
+    (NEW query NOT YET FROZEN) and cannot see it change; test_every_live_consumer_query_is_frozen
+    is what goes red. The two legacy keys keep their frozen names; discovered extras get
+    ``q_<lowername>`` keys."""
     legacy = {"QUERY": "rank_task_subagents.flywheel", "CANARY_QUERY": "rank_task_subagents.canary"}
     out: dict[str, str] = {}
     for name in dir(mod):

@@ -366,10 +366,18 @@ def test_an_unfrozen_db_query_is_announced(monkeypatch, capsys):
 
 def test_every_live_consumer_query_is_frozen():
     """The guard the notice is not: a query the hub issues today but the golden never froze can
-    change silently. Reads the live extractor, not a hand-kept list."""
-    live = {k for k, v in cg._db_queries().items() if "UNAVAILABLE" not in str(v)}
-    frozen = set(json.loads(cg.DB_QUERIES.read_text(encoding="utf-8")))
-    assert live - frozen == set(), f"consumer queries never frozen: {sorted(live - frozen)}"
+    change silently. Compared against structure.json — the file verify() actually reads — and by
+    VALUE, and it refuses an unimportable engine instead of reading its absent keys as agreement."""
+    if not (cg.SCRIPT_DIR / "rank_task_subagents.py").is_file():
+        pytest.skip("engine excised (Phase E) — its queries are legitimately unavailable")
+    live = cg._db_queries()
+    unavailable = sorted(k for k, v in live.items() if "UNAVAILABLE" in str(v))
+    assert not unavailable, f"engine present but its queries could not be read: {unavailable}"
+    frozen = json.loads(cg.MANIFEST.read_text(encoding="utf-8"))["db_queries"]
+    assert sorted(set(live) - set(frozen)) == [], "consumer queries never frozen"
+    assert sorted(set(frozen) - set(live)) == [], "frozen queries no consumer issues any more"
+    stale = sorted(k for k in live if live[k] != frozen[k])
+    assert stale == [], f"frozen SQL differs from what the consumer issues: {stale}"
 
 
 def test_gitignored_artifact_loss_is_drift_on_the_pipeline_host(monkeypatch):
