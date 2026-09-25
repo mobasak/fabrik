@@ -23,7 +23,7 @@ file-swap rotation used to do.
   caps.json               per-account weekly reserves, e.g. {"ob@ocoron.com": 90}
 ```
 
-Fleet root override: `CLAUDE_FLEET_ROOT` (`_fleet_root`, `claude_rotate.py:1432`). Only
+Fleet root override: `CLAUDE_FLEET_ROOT` (`_fleet_root`, `claude_rotate.py:1504`). Only
 `--new-dir` creates the root; readers never mkdir it.
 
 ## How a session binds to the pointer

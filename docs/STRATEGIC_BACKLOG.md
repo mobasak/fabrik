@@ -331,7 +331,8 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 Three hub agents share this repo, each with a charter in [`docs/reference/agents/`](reference/agents/)
 injected at SessionStart by `agent_role.py` (keyed on `CLAUDE_AGENT`). **An untagged item is work
 nobody owns** — the same failure the fabrik-mail addressee solved for messages, applied to the
-backlog. Tag every new row.
+backlog. New work is `python3 scripts/work.py add --kind backlog`, and the distributor sets its
+owner with `work.py assign`; an item still shown as `[unassigned]` in the block above has no owner yet.
 
 | Tag | Agent | Beat |
 | :--- | :--- | :--- |
@@ -340,9 +341,8 @@ backlog. Tag every new row.
 | `[intel]` | intel | research, model selection, the subagent flywheel |
 | `[operator]` | — | needs a human: credentials, third-party consoles, or a decision only the operator can make |
 
-**Cross-beat items name BOTH halves** rather than being split into two rows — one owner drives, the
-other is named in the text (e.g. CI-parity Phase 4 is `[infra]` for the existing-repo sweep while the
-scaffold half is fleet's).
+**Cross-beat items name BOTH halves** rather than being split into two items — one owner drives, the
+other is named in the text.
 
 ---
 
@@ -355,7 +355,7 @@ scaffold half is fleet's).
 - ⚠️ **sqlite3 `-csv` mode quotes timestamp fields with embedded space**, breaking `strptime` unless you strip quotes. The default `-list` (pipe-separator) mode works cleanly for our 3 simple columns. Documented in `detect_reversals.py` `collect_sidecar_actions()`.
 - 💡 **Trio loop guards (4 layers) are sufficient for `consult`-only protocol AND future `propose`/`ack` Phase 5 work**. Same handler, same guards. No protocol version bump needed when Phase 5 ships propose/ack. Documented in [`scripts/sysadmin/peer-protocol.md`](../scripts/sysadmin/peer-protocol.md) §3.2.1.
 - 💡 **Watchdog sidecar action log (`state.db`) is the canonical source for "AI took an action"** today — `sysadmin-actions.jsonl` is mostly diagnose-only wakes for now. When host-AI gains explicit action verbs (e.g., autonomous container restart from proactive-check), add the `action_name` + `target` fields to the jsonl entry so `detect_reversals.py::collect_host_sysadmin_actions()` starts firing.
-- ⚠️ **Gatus configs live ONLY on vps1** (not in this repo) — see "Now" row above. If you edit an existing endpoint and want it source-controlled, you need to also pull the file into the repo manually OR do the gatus-source-control work first.
+- ⚠️ **Gatus configs live ONLY on vps1** (not in this repo). If you edit an existing endpoint and want it source-controlled, you need to also pull the file into the repo manually OR do the gatus-source-control work first.
 
 ---
 
@@ -363,7 +363,7 @@ scaffold half is fleet's).
 
 Items move to active development when:
 
-1. **Focus window opens**: A block of 3+ hours of uninterrupted time is identified — applies to "Now" tier specifically (DR drill needs 3-4 hours, Gatus migration needs 1-2 hours).
+1. **Focus window opens**: A block of 3+ hours of uninterrupted time is identified — applies to the highest-priority open items first.
 2. **Triggering incident**: A "deferred until real case" item gets a real case (propose/ack, Apprise pre-route, Loki ruler, repeated-flag detector).
 3. **Repeated friction**: The same operational pain hits 3+ times in a week — e.g., the same PromQL query becomes "type this AGAIN" → Grafana dashboard tier.
 4. **Resource availability**: External tools / budgets / operator availability — DR drill needs a throwaway VPS purchase.
