@@ -20,6 +20,7 @@ from __future__ import annotations
 import datetime
 import importlib.util
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -511,4 +512,31 @@ def test_refresh_captures_usage_even_when_the_rate_cannot_be_measured(tmp_path, 
     store = json.loads((tmp_path / "store.json").read_text(encoding="utf-8"))
     assert store["days"][_day(0)] == {"claude-opus-5": 500_000}, (
         "the day must be captured even though the RATE refused — they are independent"
+    )
+
+
+def test_the_sidecar_is_fsynced_before_it_replaces_the_old_one(rig, monkeypatch):
+    """W-bed507e3: the rename is journaled, the temp file's data may not be — fsync must come first."""
+    events: list[tuple[str, str]] = []
+    real_fsync, real_replace = cpc.os.fsync, cpc.os.replace
+
+    def fsync(fd):
+        events.append(("fsync", os.path.realpath(f"/proc/self/fd/{fd}")))
+        return real_fsync(fd)
+
+    def replace(src, dst):
+        events.append(("replace", os.path.realpath(src)))
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(cpc.os, "fsync", fsync)
+    monkeypatch.setattr(cpc.os, "replace", replace)
+    cpc.refresh()
+    # refresh() also writes the usage store (its own fsync + rename) earlier in the same call, so
+    # the sidecar's write is the LAST rename, and the file it renames must itself have been
+    # fsynced before it — a directory or store fsync does not make the temp file's data durable.
+    last = max(i for i, (kind, _) in enumerate(events) if kind == "replace")
+    tmp = events[last][1]
+    assert os.path.basename(tmp).startswith(".claude_p_cost.json."), events
+    assert ("fsync", tmp) in events[:last], (
+        f"the sidecar temp file was not fsynced before its rename: {events}"
     )

@@ -1316,6 +1316,10 @@ def refresh() -> dict:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(json.dumps(data, indent=2) + "\n")
+            fh.flush()
+            # fsync before the rename, as `_merge_usage_store_locked` does: `os.replace` is journaled
+            # while the temp file's DATA may not be, so a power loss can leave a zero-length sidecar.
+            os.fsync(fh.fileno())
         os.replace(tmp_name, path)
     except BaseException:
         Path(tmp_name).unlink(missing_ok=True)  # never leave debris behind a failed write

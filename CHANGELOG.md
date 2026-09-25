@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the cost sidecar is fsynced before it replaces the old one (2026-09-25)
+- `claude_p_cost.py --refresh` now flushes and fsyncs its temp file before `os.replace`, as the usage-store write beside it already did — a power loss could otherwise leave a zero-length `claude_p_cost.json` (W-bed507e3).
+
 ### Changed — Kilo-era daily jobs retired, the stale family cost split dropped, and a frozen catalog delivery now pages (2026-09-25)
 - `daily_refresh.sh` no longer runs `generate_kilo_agents.py` (its Kilo CLI and Traycer consumers are retired); `kilo_model_sync.py` is marked RETIRED; `tests/test_retired_scripts_not_scheduled.py` refuses a RETIRED-headed script named as a scheduler step (D-415).
 - `claude_p_cost.py --refresh` drops the carried `amortized_per_mtok_by_family` split, which nothing read and which ranked haiku above opus; `per_model_spend.tiers` is the per-family split. The frozen-clock refresh test now freezes only the hour on today's date — it had gone red when its fixed 2026-09-06 date slid out of the fixture's window.
