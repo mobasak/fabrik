@@ -13,7 +13,7 @@
   },
   "next": "## § 1a's heavy-surface list should be an ANCHORED span so the next divergence is a gate warning, not a mail (fabrik-lib 01M2TT9K70EH8MJ4G5Q2BYTJVA)\n\n`check_governance_drift.py` keys on the UNIVERSAL markers' anchor phrases; the heavy-surface list\nis not one, which is why fabrik-lib's copy could drift silently and needed a mail. They recorded\nthe anchor as considered-and-not-done because the UNIVERSAL list is the hub's to own. One anchor\n(lowercase, mid-sentence, case-exact per the markers' own rule) makes every sync-excluded copy's\ndrift visible at its own gate. Hub `CLAUDE.md` § UNIVERSAL + § 1a; small, its own change.",
   "note": "migrated-digest:47986a65c156",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "§ 1a's heavy-surface list should be an ANCHORED span so the next divergence is a gate warning, not a mail (fabrik-lib 01M2TT9K70EH8MJ4G5Q2BYTJVA)"

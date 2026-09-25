@@ -5,7 +5,7 @@
 # ⚠️ THIS SCRIPT NO LONGER PRODUCES THE CATALOG. The engine (scrape → normalize → derive → rank →
 # export, ~210 modules) was relocated to /opt/ai-model-catalog/engine/ on 2026-08-15 and runs from
 # its own cron at `30 5 * * *`, half an hour ahead of this one so the delivered artifacts are fresh
-# when generate_kilo_agents reads them. This header used to document a 9-step producer chain
+# when this hook reads them. This header used to document a 9-step producer chain
 # (verify_openrouter_catalog → classify_ai_category → category_route_mapper → category_export_markdown
 # → update_gateway_counts → fetch_*_prices → derive_cheapest_gateway → rank_* → export_models_browser);
 # every one of those steps is gone from this file. Rewritten 2026-08-16 after a review found the
@@ -18,8 +18,7 @@
 #      gather_envs → registry_sync → gen_dashboard (shared with wsl_startup_hook.sh)
 #      (classify, the paid pool pass, is inside that chain — bounded, cursor-walked)
 #   3. generate_capability_index.py      — regenerate capabilities.json + docs/CAPABILITIES.md
-#   4. generate_kilo_agents.py           — emit the Traycer CLI agent scripts from kilo_agents.db
-#   5. sync_enforcement_to_projects.py   — distribute governance + the delivered docs to ~46 repos
+#   4. sync_enforcement_to_projects.py   — distribute governance + the delivered docs to ~46 repos
 #
 # ⚠️ The heartbeat measures whether THIS script reached its end. It does NOT measure catalog
 # freshness — post-relocation those are different questions, and a green heartbeat here says nothing
@@ -351,25 +350,13 @@ sys.exit(0 if not c._pool_policy_on() else 1)' 2>/dev/null
   _step "generate_capability_index" "$VENV_PY" "$FABRIK_ROOT/scripts/generate_capability_index.py" \
     || echo "[daily_refresh] generate_capability_index failed (non-fatal)"
 
-  # ============================================================
-  # Kilo agent + Traycer registry workflow (ported from wsl_startup_hook.sh
-  # on 2026-06-30 — the 2026-06-28 cron migration left these out, so
-  # ~/.traycer/cli-agents/ + scripts/kilo_47_agents_final.json only got
-  # refreshed when a terminal opened. Now also runs in cron.)
-  #
-  # Deterministic: pre_filter → selector → post_filter → DB. ~50ms, $0 cost,
-  # byte-identical re-runs. No TTY, no interactive prompts → cron-safe.
-  # Honors FABRIK_DISABLE_KILO_WORKFLOW=1 like the bashrc-hook does.
-  # ============================================================
-  if [ "${FABRIK_DISABLE_KILO_WORKFLOW:-0}" = "1" ]; then
-    echo "[daily_refresh] kilo agent workflow skipped (FABRIK_DISABLE_KILO_WORKFLOW=1)"
-  else
-    # 1) Role mapping (deterministic role-winner assignment)
-    # 2) Refresh scripts/kilo_47_agents_final.json from the DB
-    # 3) Emit Traycer CLI agent scripts to ~/.traycer/cli-agents/
-    _step "generate_kilo_agents" "$VENV_PY" "$FABRIK_ROOT/scripts/generate_kilo_agents.py" \
-      || echo "[daily_refresh] generate_kilo_agents failed (non-fatal)"
-  fi
+  # The engine-delivered `last-refreshed:` blocks in the ai/*.md packs call themselves live; page when
+  # any is more than 3 days old (the engine runs daily, so 3 days is two missed deliveries). On
+  # 2026-09-23 they had been frozen at 2026-09-07 for 16 days with no alert (D-415).
+  _step "check_ai_pack_freshness_delivered" "$VENV_PY" "$FABRIK_ROOT/scripts/check_ai_pack_freshness.py" --delivered-max-age 3 \
+    || bash "$KB/pipeline_alert.sh" 'daily_refresh: ai/*.md delivered blocks are stale' \
+         'At least one GATEWAY_COUNTS / OPENROUTER_ROUTES block in .windsurf/rules/ai/*.md is more than 3 days old: the ai-model-catalog engine is not delivering. Read /opt/ai-model-catalog/engine/cache/update.log for the failing step. Re-check: python3 scripts/check_ai_pack_freshness.py --delivered-max-age 3' || true
+
 
   # Embedding catalog sync (sibling to kilo_agents_db.py for embedding models).
 

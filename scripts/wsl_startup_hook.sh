@@ -46,7 +46,6 @@
 
 FABRIK_ROOT="/opt/fabrik"
 VENV_PYTHON="$FABRIK_ROOT/.venv/bin/python"
-AGENT_SCRIPT="$FABRIK_ROOT/scripts/generate_kilo_agents.py"
 EXTENSIONS_SCRIPT="$FABRIK_ROOT/scripts/sync_extensions.sh"
 ENV_WATCHER_SCRIPT="$FABRIK_ROOT/scripts/watch_env_changes.sh"
 ENV_WATCHER_LOG="$FABRIK_ROOT/.tmp/env_watcher.log"

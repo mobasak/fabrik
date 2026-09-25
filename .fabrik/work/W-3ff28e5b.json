@@ -13,7 +13,7 @@
   },
   "next": "## Fire-rate note on the widened `# AFTER-EDIT:` header (measured 2026-09-19, kept deliberately)\n\nFIX DIRECTIVE 5 asks for a measured fire rate before a check is armed, and this one was widened\nrather than armed, so the measurement is recorded here instead of being skipped. `# AFTER-EDIT:` on\n`scripts/fabrik_synced_manifest.py` now names `templates/governance/.worktreeinclude` as well as\n`scripts/sync_enforcement_to_projects.py`. Measured over the file's full history — 53 commits, not a\nsample — only 3 also touched the template, so 12 of 53 past commits would gain an advisory WARN they\ndo not produce today. The coupling is real only when the RENDERED SET changes, which is a strict\nsubset of manifest edits.\n\nKept anyway, and the reason is the row above: the untied template drifted for three days across ~46\nrepos precisely because nothing warned. A 23% advisory false-fire is the cheaper error while no\nenforcement check exists. **If** that check ships, revisit this header — the WARN becomes redundant\nwallpaper at that point, which is exactly the shape FIX DIRECTIVE 5 says kills enforcement.\n**Destination:** infra, revisit with the row above.",
   "note": "migrated-digest:9083e26c6404",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "Fire-rate note on the widened `# AFTER-EDIT:` header (measured 2026-09-19, kept deliberately)"

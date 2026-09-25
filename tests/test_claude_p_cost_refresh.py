@@ -178,7 +178,6 @@ def test_every_key_this_producer_did_not_author_survives(rig):
     rig.write_text(
         json.dumps(
             {
-                "amortized_per_mtok_by_family": {"opus": 0.0054},
                 "quota_draw_pct": 4.2,
                 "built_at": "2026-08-10T07:17:23",
                 "some_future_key": {"written": "by another producer"},
@@ -187,30 +186,36 @@ def test_every_key_this_producer_did_not_author_survives(rig):
         encoding="utf-8",
     )
     data = cpc.refresh()
-    assert data["amortized_per_mtok_by_family"] == {"opus": 0.0054}
     assert data["some_future_key"] == {"written": "by another producer"}
     assert data["quota_draw_pct"] == pytest.approx(4.2)
     on_disk = json.loads(rig.read_text(encoding="utf-8"))
     assert on_disk["some_future_key"] == {"written": "by another producer"}
 
 
-def test_a_carried_family_split_is_flagged_as_carried_not_computed(rig):
-    """The split is carried, never recomputed — the file must say so, without inventing a date.
-
-    Two earlier revisions stamped `prev["built_at"]`, which is the previous REFRESH's clock rather than
-    the split's build time: after one cron tick the stamp claimed today for a map weeks old. The
-    lineage is unrecoverable from this file, so the flag states the one thing the producer knows.
-    """
+def test_the_retired_family_split_is_dropped_with_its_flags(rig):
+    """D-415: the flat per-family split is RETIRED — never recomputed here, read by nothing, and it had
+    inverted the tier order. A previous file that still carries it, or any of its provenance flags,
+    must come out of the refresh without them; `per_model_spend.tiers` is the per-family split."""
     rig.write_text(
         json.dumps(
-            {"amortized_per_mtok_by_family": {"opus": 0.0054}, "built_at": "2026-08-10T07:17:23"}
+            {
+                "amortized_per_mtok_by_family": {"opus": 0.0054, "haiku": 0.0083},
+                "amortized_per_mtok_by_family_carried": True,
+                "amortized_per_mtok_by_family_built_at": "2026-08-10T07:17:23",
+                "built_at": "2026-08-10T07:17:23",
+            }
         ),
         encoding="utf-8",
     )
     data = cpc.refresh()
-    assert data["amortized_per_mtok_by_family_carried"] is True
-    assert "amortized_per_mtok_by_family_built_at" not in data, "a superseded stamp key survived"
-    assert "amortized_per_mtok_by_family_carried_from" not in data
+    for key in (
+        "amortized_per_mtok_by_family",
+        "amortized_per_mtok_by_family_carried",
+        "amortized_per_mtok_by_family_built_at",
+    ):
+        assert key not in data, f"{key} survived the refresh"
+    on_disk = json.loads(rig.read_text(encoding="utf-8"))
+    assert "amortized_per_mtok_by_family" not in on_disk
 
 
 def test_the_carried_flag_is_absent_when_there_is_no_split(rig):
@@ -274,7 +279,13 @@ def test_built_at_is_never_behind_the_window_it_describes(rig, monkeypatch):
     UTC+03:00 box, which is precisely the wall-clock time bomb this suite exists to refuse.
     """
     tz = datetime.timezone(datetime.timedelta(hours=3))
-    frozen_local = datetime.datetime(2026, 9, 6, 1, 0, 0, tzinfo=tz)  # == 2026-09-05T22:00Z
+    # The DATE is today's, never a literal: the fixture's history is written relative to the real
+    # clock (`_day`), so a frozen literal date drifts out of its own window a few days later and the
+    # producer falls back to the anchor with no window at all. Only the 01:00 +03:00 hour is frozen.
+    real_today = datetime.date.today()
+    frozen_local = datetime.datetime(
+        real_today.year, real_today.month, real_today.day, 1, 0, 0, tzinfo=tz
+    )  # 22:00 UTC the previous day
 
     class _FrozenDateTime(datetime.datetime):
         @classmethod
@@ -284,7 +295,7 @@ def test_built_at_is_never_behind_the_window_it_describes(rig, monkeypatch):
     class _FrozenDate(datetime.date):
         @classmethod
         def today(cls):
-            return datetime.date(2026, 9, 6)
+            return real_today
 
     # Aliases captured OUTSIDE the class body: inside it, `datetime = ...` shadows the module for
     # every following line, so `datetime.timedelta` would resolve against the class being defined.

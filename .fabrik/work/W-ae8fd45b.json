@@ -13,7 +13,7 @@
   },
   "next": "## `/fabrik-review-scoped`'s own source puts its classify-first rule two lines above a heading that overrides it (found reviewing 01M2SSVATCF4WBV2HMT8XQ110G, routed 2026-09-19)\n\nThe wrapper fix shipped with that mail is a compensating control: it tells the reader of every\ngenerated wrapper to read the command before opening the record. A review seat located the ROOT,\nand it is one file. `commands/_sources/fabrik-review-scoped.md:15` reads \"**Before the record —\nclassify the surface FIRST**\"; `:17` is `{{include:run-record}}`, which renders immediately beneath\nit as \"## Run record — open it as this command's FIRST act\". A heading beats the paragraph above\nit, and that is exactly what the reporting session did.\n\nThe compensating control is still right — the wrapper is all the Skill tool loads, so a source-only\nfix reaches nobody who has not already opened the file — but the source ordering should be fixed\ntoo, and it is not this change's to make: `run-record.md` has 35 `{{include:}}` consumers, so any\nreordering has to be correct for all of them. Measured while reviewing: 38 of 38 commands carry a\nrecord heading saying FIRST, and 2 of 38 route away without opening one (`fabrik-review-scoped`\nand `fabrik-task`). **Destination:** infra, with the fragment's consumer list enumerated first.",
   "note": "migrated-digest:8b7c901405ad",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "`/fabrik-review-scoped`'s own source puts its classify-first rule two lines above a heading that overrides it (found reviewing 01M2SSVATCF4WBV2HMT8XQ110G, routed 2026-09-19)"

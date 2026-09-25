@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Kilo-era daily jobs retired, the stale family cost split dropped, and a frozen catalog delivery now pages (2026-09-25)
+- `daily_refresh.sh` no longer runs `generate_kilo_agents.py` (its Kilo CLI and Traycer consumers are retired); `kilo_model_sync.py` is marked RETIRED; `tests/test_retired_scripts_not_scheduled.py` refuses a RETIRED-headed script named as a scheduler step (D-415).
+- `claude_p_cost.py --refresh` drops the carried `amortized_per_mtok_by_family` split, which nothing read and which ranked haiku above opus; `per_model_spend.tiers` is the per-family split. The frozen-clock refresh test now freezes only the hour on today's date — it had gone red when its fixed 2026-09-06 date slid out of the fixture's window.
+- `check_ai_pack_freshness.py --delivered-max-age N` exits 1 on a stale engine-delivered `last-refreshed:` block; `daily_refresh.sh` pages at 3 days. The ai-model-catalog engine's delivery crash is mailed to that repo.
+
 ### Added — The hub adopts the work store; archived plans carry their spec in the drift report (2026-09-25)
 - The hub ran `work.py init --distributor intel`, `migrate-backlog` (336 items: 314 open, 22 done, matching an independent reader owner by state) and `render`. `docs/STRATEGIC_BACKLOG.md` is now its hand-written context plus the rendered block (D-413), and two items track the V6 reading due 2026-10-08 and the fleet rollout.
 - `scripts/work.py`: drift class 1 counts a spec named by an ARCHIVED plan as carried forward, and class 4 checks archived EXECUTED plans for open linked items (D-412). The hub's class-1 list went from 28 to 4.

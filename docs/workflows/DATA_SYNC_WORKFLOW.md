@@ -145,7 +145,7 @@ Under the lock, detached with `nohup`:
 | 16 | `scripts/kilo-benchmarks/autocommit_pipeline_outputs.sh` | commit the pipeline's own regenerated tracked files (explicit `PATHS` list: the `docs/reference/kilo/*` selection docs, `docs/CAPABILITIES.md`, `capabilities.json`, `docs/traycer/kilo_selected_agents.md`, `scripts/kilo-benchmarks/claude_p_cost.json`, …), guarded fast-forward push, never force |
 | 17 | heartbeat write | `daily_refresh_last_success.txt` |
 
-`generate_kilo_agents.py` and `sync_cascade_backup.sh` are NOT invoked on the boot path: the hook's comment says so for `sync_cascade_backup.sh`, and `AGENT_SCRIPT` (the hook's variable for `generate_kilo_agents.py`) is defined and never used. `generate_kilo_agents.py` runs from the cron (§ 3.3).
+`generate_kilo_agents.py` and `sync_cascade_backup.sh` are NOT invoked on the boot path (the hook's comment says so for `sync_cascade_backup.sh`), and `generate_kilo_agents.py` no longer runs from the cron either: both tools it fed — the Kilo CLI and Traycer's CLI agents — are retired (D-415). `tests/test_retired_scripts_not_scheduled.py` refuses a RETIRED-headed script named as a step of either scheduler.
 
 ### 3.3 06:00 cron — `daily_refresh.sh` steps, in order
 
@@ -158,7 +158,7 @@ Under the lock, detached with `nohup`:
 | `rank_task_subagents` | must run AFTER delivery — delivery overwrites `TASK_SUBAGENT_SELECTION.md` with the unrestricted doc and the ranker re-applies the operator roster |
 | *(pause gate)* | the flush, the delivery and the ranker are all gated on `_pool_eval_paused`, which calls `check_subagent_flywheel._pool_policy_on()` — the committed constant `_POOL_POLICY_ON`, OFF since D-181/D-182, unless `FABRIK_POOL_POLICY=on|off` overrides it for one run; the probe fails OPEN (an unimportable checker un-pauses all three) — so today all three are SKIPPED on every run (the last run's log says `POOL EVAL PAUSED — skipping …` three times) and the delivered docs and routing doc stay frozen as last written |
 | `generate_capability_index` | `scripts/generate_capability_index.py` → `capabilities.json` + `docs/CAPABILITIES.md` (hub-generated, never delivered) |
-| `generate_kilo_agents` | `scripts/generate_kilo_agents.py` reads `scripts/kilo-benchmarks/kilo_agents.db` (a delivered — and frozen, § 3.4 c — snapshot) and rewrites `~/.traycer/cli-agents/`; skipped when `FABRIK_DISABLE_KILO_WORKFLOW=1`. Its own header says `RETIRED 2026-07-19 … zero runtime callers`, yet this step ran today (`exit=0`, the output dir touched 06:01) — routed |
+| `check_ai_pack_freshness_delivered` | `scripts/check_ai_pack_freshness.py --delivered-max-age 3`; pages through `pipeline_alert.sh` when any engine-delivered `last-refreshed:` block in `.windsurf/rules/ai/*.md` is more than 3 days old — the engine is not delivering (D-415) |
 | `capture_golden --verify` | contract oracle |
 | `sync_enforcement_to_projects` | § 2.1 (c) |
 | heartbeat + disk hygiene | `.microbench_cache` and `translation_bench/cache` files >30 d, all but the 5 newest `direct_vendor_audit_*`, rotated `update.log.*` / `env_watcher.log.*` beyond 3 generations, week-old `.notalog.*` squatters, `.pytest_cache`/`__pycache__` under `scripts/kilo-benchmarks/`, and stale `/tmp/.fabrik_daily_*` lockfiles are deleted |
@@ -180,7 +180,7 @@ The model-catalog steps this file used to run (`kilo_agents_db.py`, `update_kilo
 
 | Cron | Script | State |
 |------|--------|-------|
-| `59 11 * * *` | `scripts/kilo_model_sync.py --sync` (→ `.droid/kilo_model_sync.log`) | alive: the Kilo CLI binary is installed (`~/.npm-global/bin/kilo`) and 349 of the log's 390 runs reached `--- Summary ---`, the last `Sync complete` on 2026-09-21 12:34. The 11:59 slot is the leg that fails lately — its last two runs died on `subprocess.TimeoutExpired: kilo models --verbose --refresh timed out after 60 seconds`; the log also holds 5 `ERROR: Kilo CLI not found` (from the boot sibling, latest 2026-09-22 00:02) and 20 older `kilo models failed: … Configuration is invalid`. 257 KB, never rotated — routed. `scripts/kilo_model_sync_startup.sh` (`~/.bashrc:190`, interactive shells only) writes the same log under a `WSL Startup Sync` banner and usually succeeds |
+| `59 11 * * *` | `scripts/kilo_model_sync.py --sync` (→ `.droid/kilo_model_sync.log`) | RETIRED (D-415): its only output, `kilo_all_models.json`, is read by nothing but the script itself, and the Kilo CLI it drives was retired 2026-07-19. The crontab line (and the `~/.bashrc` hook that runs `kilo_model_sync_startup.sh`) are the operator's to remove; until then it keeps failing on its 60 s `kilo models --refresh` timeout, harmlessly |
 | `30 3 * * *`, `@reboot`, `0 4 * * 0` | `dr_env_backup.sh`, `dr_env_recovery_test.sh` | § 1.2 |
 | `0 5 * * *` | `/opt/ai-model-catalog/engine/daily_refresh.sh` | § 3.4 |
 
@@ -212,7 +212,7 @@ The lockfile name carries the UTC date, so yesterday's lock never blocks today (
 | `external_services_chain.sh` | boot hook + 06:00 cron | `bash scripts/external_services_chain.sh` |
 | `health_summary.py` | boot hook · `fabrik scan --health` | `--json` |
 | `sync_enforcement_to_projects.py` | post-commit `--force` · watcher · 06:00 cron | `--dry-run` first; `--force` overwrites ~46 repos |
-| `deliver_to_fabrik.py`, `rank_task_subagents.py`, `generate_capability_index.py`, `generate_kilo_agents.py` | 06:00 cron (the ranker also at boot) | run from `/opt/fabrik` with the venv named in the cron file |
+| `deliver_to_fabrik.py`, `rank_task_subagents.py`, `generate_capability_index.py` | 06:00 cron (the ranker also at boot) | run from `/opt/fabrik` with the venv named in the cron file |
 | `audit_all_projects.py` | — | heavy scan, ~46 reports; `--fix` for the safe fixes |
 | `deploy_doc_policy.py` | — | inert (§ 2.2) |
 | `sync_schema_to_projects.py` | — | only writes where `db/schema.sql` is missing |

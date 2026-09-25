@@ -85,20 +85,19 @@ carry their own MCP roster.
 
 ---
 
-## 4. Traycer host ⚠️ ACTIVE (regenerated daily)
+## 4. Traycer host ⚠️ ACTIVE (systemd units still running)
 
 `~/.traycer/` is live infrastructure despite the Traycer *workflow* being retired:
 
 - **Two enabled + running systemd user units**: `ai.traycer.host.service`, `traycer-pid-sync.path`
-- `~/.traycer/cli-agents/` is **regenerated every day at 06:00** by
-  `/opt/fabrik/scripts/kilo-benchmarks/daily_refresh.sh` → `generate_kilo_agents.py`, with dated
-  backups (`cli-agents.backup.YYYYMMDD-060041`)
+- `~/.traycer/cli-agents/` is **no longer regenerated**: `daily_refresh.sh` stopped running
+  `generate_kilo_agents.py` on 2026-09-25 (D-415 — both the Kilo CLI and Traycer's CLI agents are
+  retired); the last generation and its dated backups (`cli-agents.backup.YYYYMMDD-060041`) remain
 - Also holds `mcp.json`, `routing-policy.yaml`, `prompt-templates/`, `epics/`, `worktrees/`, `snapshots/`
 - `~/.traycer/.claude/skills/` is a **stale mirror** of the fab-ettw skills, frozen 2026-07-22
 
-> **Open question for the operator:** the daily pipeline still generates **Kilo** agent shims into
-> `~/.traycer/cli-agents/` though Kilo CLI was retired 2026-07-19. Decide whether
-> `generate_kilo_agents.py` should stay in `daily_refresh.sh`.
+> **Resolved (D-415, 2026-09-25):** `generate_kilo_agents.py` is out of `daily_refresh.sh`; the
+> Kilo CLI and Traycer's CLI agents it fed are both retired.
 
 ---
 

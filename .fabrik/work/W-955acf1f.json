@@ -13,7 +13,7 @@
   },
   "next": "## The lane table's \"a governance-sync path\" reads as inapplicable in every repo that is a sync SOURCE (fabrik-lib 01M2TT9K70EH8MJ4G5Q2BYTJVA)\n\nfabrik-lib took § 1a's trigger (their D-274, `56785a81`) and, reading our manifest rather than\nreasoning about it, found the case the phrase misses: `scripts/fabrik_synced_manifest.py:197`\n`VENDORED_DIRS` names `libs/health_probe`, distributed fleet-wide FROM a sync-excluded tree by\nmachinery under the heading \"Vendored fabrik-lib modules (synced fleet-wide)\". That tree receives\nnothing and is still a source with a ~46-repo blast radius; \"a governance-sync path\" names the\nhub's regex and, to a source repo, names nothing. Their fix — each recipient states its own\nqualifying paths beside the clause — is the right shape and is what\n`templates/governance/CLAUDE.md` row 1 should also say for projects: name `libs/` vendored FROM\nfabrik-lib and `.windsurf/rules/` as this repo's own sync-shaped paths next to the hub-regex\npointer. One clause in the template (a sync trigger, so its own full review), not a rider.",
   "note": "migrated-digest:ac5a6c508191",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "The lane table's \"a governance-sync path\" reads as inapplicable in every repo that is a sync SOURCE (fabrik-lib 01M2TT9K70EH8MJ4G5Q2BYTJVA)"

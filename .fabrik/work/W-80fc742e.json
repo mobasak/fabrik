@@ -13,7 +13,7 @@
   },
   "next": "## Two latent residuals in the ignore-only guard (routed 2026-09-19)\n\n1. **The guard can be narrowed back to one hardcoded key with the suite green.** A seat mutated the\n   orphan loop to iterate `{SERENA_GITIGNORE_GROUP}` instead of the set and all tests passed — the\n   same `==`-shaped defect D-199 fixed one level down, reinstated one level up. The grader could\n   kill it the way its sibling does: monkeypatch a SECOND ignore-only group into both the set and\n   the dict, orphan that one, and assert the guard names it.\n2. **Nothing records why the guard is a `raise` and not a bare `assert`.** Executed both forms: as\n   shipped it raises under `python` and `python -O`; rewritten as `assert not orphans, …` it is\n   silently disabled under `-O` and the paths leak. The shipped form is correct; the risk is that a\n   later \"simplification\" to `assert` looks equivalent and is not.\n\n**Destination:** infra, low — both are grader/comment work on a file that already carries a full\nreview's worth of guards.",
   "note": "migrated-digest:280c2632054a",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "Two latent residuals in the ignore-only guard (routed 2026-09-19)"

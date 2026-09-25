@@ -114,3 +114,73 @@ class TestCheckPack:
         status, age, _msg = mod.check_pack(p, date(2026, 6, 29))
         assert status == "fresh"
         assert age == 9  # 2026-06-20, not the 2020 first-in-file stamp
+
+
+class TestDeliveredBlocks:
+    """D-415: the engine-delivered `last-refreshed:` blocks page when they stop moving."""
+
+    def _pack(self, tmp_path: Path, stamp: str) -> Path:
+        p = tmp_path / "10-x.md"
+        p.write_text(
+            f"<!-- GATEWAY_COUNTS:START — last-refreshed: {stamp} (auto-managed) -->\n",
+            encoding="utf-8",
+        )
+        return p
+
+    def test_a_block_older_than_the_limit_is_reported(self, mod, tmp_path):
+        today = date(2026, 9, 25)
+        pack = self._pack(tmp_path, "2026-09-07")
+        assert mod.stale_delivered_blocks([pack], today, 3) == [
+            "10-x.md: last-refreshed 2026-09-07 (18d old)"
+        ]
+
+    def test_a_block_at_the_limit_is_fresh(self, mod, tmp_path):
+        today = date(2026, 9, 25)
+        pack = self._pack(tmp_path, (today - timedelta(days=3)).isoformat())
+        assert mod.stale_delivered_blocks([pack], today, 3) == []
+
+    def test_the_cli_exits_one_on_a_stale_block_and_zero_when_fresh(
+        self, mod, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(mod, "AI_PACKS_DIR", tmp_path)
+        monkeypatch.setattr(mod, "_today", lambda: date(2026, 9, 25))
+        self._pack(tmp_path, "2026-09-07")
+        monkeypatch.setattr(sys, "argv", ["x", "--delivered-max-age", "3"])
+        assert mod.main() == 1
+        self._pack(tmp_path, "2026-09-24")
+        assert mod.main() == 0
+
+    def test_the_default_mode_still_never_fails(self, mod, tmp_path, monkeypatch):
+        monkeypatch.setattr(mod, "AI_PACKS_DIR", tmp_path)
+        self._pack(tmp_path, "2020-01-01")
+        monkeypatch.setattr(sys, "argv", ["x"])
+        assert mod.main() == 0
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ["x", "--delivered-max-age"],
+            ["x", "--delivered-max-age", "3", "extra"],
+            ["x", "y", "--delivered-max-age"],
+        ],
+    )
+    def test_a_malformed_paging_flag_is_exit_two_never_the_default_scan(
+        self, mod, monkeypatch, argv
+    ):
+        monkeypatch.setattr(sys, "argv", argv)
+        assert mod.main() == 2
+
+    def test_a_missing_packs_dir_fails_closed(self, mod, tmp_path, monkeypatch):
+        monkeypatch.setattr(mod, "AI_PACKS_DIR", tmp_path / "absent")
+        assert mod.delivered_main(3) == 1
+
+    def test_packs_with_no_delivered_block_fail_closed(self, mod, tmp_path, monkeypatch):
+        (tmp_path / "10-x.md").write_text("no marker here\n", encoding="utf-8")
+        monkeypatch.setattr(mod, "AI_PACKS_DIR", tmp_path)
+        assert mod.delivered_main(3) == 1
+
+    def test_an_unreadable_pack_is_reported(self, mod, tmp_path):
+        bad = tmp_path / "10-bad.md"
+        bad.write_bytes(b"\xff\xfe last-refreshed: 2026-09-25")
+        found = mod.stale_delivered_blocks([bad], date(2026, 9, 25), 3)
+        assert any("unreadable" in m for m in found)

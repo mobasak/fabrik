@@ -9,6 +9,15 @@ is a freshness signal in the daily log, not a gate.
 
 Invoked from wsl_startup_hook.sh after the embedding pipeline, before
 sync_extensions.sh.
+
+`--delivered-max-age N` is the second, daily mode (D-415): it reads every auto-managed
+`last-refreshed: YYYY-MM-DD` block marker (the GATEWAY_COUNTS and OPENROUTER_ROUTES blocks the
+ai-model-catalog engine delivers) and EXITS 1 when any is older than N days, so daily_refresh.sh can
+page. The blocks call themselves "live"; on 2026-09-23 all 14 still read 2026-09-07 because the engine
+crashed after emitting and before delivering, and nothing noticed for 16 days. The cheapest way to
+satisfy this without the outcome is to bump the marker date without new counts — the marker is
+written only by the engine's own export step, so a hand-bumped date is a visible diff in a
+generated block, never a silent pass.
 """
 
 from __future__ import annotations
@@ -43,6 +52,9 @@ VERIFICATION_RE = re.compile(
     r"Last content verification:\s*(\d{4}-\d{2}-\d{2})",
     re.IGNORECASE,
 )
+
+
+DELIVERED_RE = re.compile(r"last-refreshed:\s*(\d{4}-\d{2}-\d{2})")
 
 
 def _today() -> date:
@@ -94,7 +106,65 @@ def check_pack(pack_path: Path, today: date) -> tuple[str, int | None, str]:
     return ("fresh", age, f"{pack_path.name}: verified {age}d ago")
 
 
+def stale_delivered_blocks(packs: list[Path], today: date, max_age: int) -> list[str]:
+    """Every `last-refreshed:` block marker older than `max_age` days, as `<pack>: <date> (<n>d)`."""
+    stale = []
+    for pack in packs:
+        try:
+            text = pack.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            stale.append(
+                f"{pack.name}: unreadable ({e.__class__.__name__}) — cannot prove it fresh"
+            )
+            continue
+        for raw in DELIVERED_RE.findall(text):
+            try:
+                age = (today - date.fromisoformat(raw)).days
+            except ValueError:
+                stale.append(f"{pack.name}: malformed last-refreshed {raw!r}")
+                continue
+            if age > max_age:
+                stale.append(f"{pack.name}: last-refreshed {raw} ({age}d old)")
+    return stale
+
+
+def delivered_main(max_age: int) -> int:
+    today = _today()
+    packs = sorted(AI_PACKS_DIR.glob("*.md")) if AI_PACKS_DIR.is_dir() else []
+    markers = 0
+    for pack in packs:
+        try:
+            markers += len(DELIVERED_RE.findall(pack.read_text(encoding="utf-8")))
+        except (OSError, UnicodeDecodeError):
+            pass  # counted as stale by stale_delivered_blocks
+    if markers == 0:
+        # Fail CLOSED: no delivered block to measure is the total-loss case this mode exists for.
+        print(f"[ai-pack-freshness] ⚠️  no `last-refreshed:` block found under {AI_PACKS_DIR}")
+        return 1
+    stale = stale_delivered_blocks(packs, today, max_age)
+    if not stale:
+        print(f"[ai-pack-freshness] delivered blocks fresh (<= {max_age}d) in {len(packs)} packs")
+        return 0
+    print(f"[ai-pack-freshness] ⚠️  {len(stale)} delivered block(s) older than {max_age}d:")
+    for m in stale:
+        print(f"  - {m}")
+    return 1
+
+
 def main() -> int:
+    if "--delivered-max-age" in sys.argv[1:]:
+        # Any malformed use of the paging flag is exit 2, never a fall-through to the warn-only scan:
+        # a cron line that lost its value would otherwise turn the page into a silent exit 0.
+        if len(sys.argv) != 3 or sys.argv[1] != "--delivered-max-age":
+            print("[ai-pack-freshness] usage: --delivered-max-age N", file=sys.stderr)
+            return 2
+        try:
+            return delivered_main(int(sys.argv[2]))
+        except ValueError:
+            print(
+                f"[ai-pack-freshness] invalid --delivered-max-age {sys.argv[2]!r}", file=sys.stderr
+            )
+            return 2
     today = _today()
     if not AI_PACKS_DIR.is_dir():
         print(f"[ai-pack-freshness] {AI_PACKS_DIR} does not exist — skipping")

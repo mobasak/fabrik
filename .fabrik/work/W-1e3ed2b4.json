@@ -12,9 +12,9 @@
     "spec": ""
   },
   "next": "## Activation\n\nItems move to active development when:\n\n1. **Focus window opens**: A block of 3+ hours of uninterrupted time is identified — applies to \"Now\" tier specifically (DR drill needs 3-4 hours, Gatus migration needs 1-2 hours).\n2. **Triggering incident**: A \"deferred until real case\" item gets a real case (propose/ack, Apprise pre-route, Loki ruler, repeated-flag detector).\n3. **Repeated friction**: The same operational pain hits 3+ times in a week — e.g., the same PromQL query becomes \"type this AGAIN\" → Grafana dashboard tier.\n4. **Resource availability**: External tools / budgets / operator availability — DR drill needs a throwaway VPS purchase.\n\nThe hardest discipline here is the second one — resisting the urge to build \"propose/ack\" speculatively because it sounds important. The Phase 5 plan explicitly says: each new incident teaches; capability expands from incidents, not architecture.",
-  "note": "migrated-digest:57e2e77dfa94",
+  "note": "backlog section heading, not work (D-413)",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "Activation"
 }

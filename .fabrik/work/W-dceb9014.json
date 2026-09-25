@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-25T08:54:43.192182Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-dceb9014",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure extract/shortlist prompt size against claude -p wall time on the 3 failing briefs, then choose: route the leg through llm-dispatch's bounded flags, or split extract batches — a D-row records the pick",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "rivals_run.py's claude -p leg exceeds 900 s on deep-research shortlist/extract, so briefs ship zero cards while the engine reports complete (mail 01M35Q2ZZDYMW323WNJTA3CETX)"
+}

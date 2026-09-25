@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # AFTER-EDIT: none
+# RETIRED 2026-09-25 (D-415) — its only output, kilo_all_models.json, is read by nothing but this script, and the Kilo CLI it drives was retired 2026-07-19. Its crontab line and the ~/.bashrc hook that calls kilo_model_sync_startup.sh are the operator's to remove.
 """
 Kilo Model Sync - Semi-automatic model discovery and sync.
 

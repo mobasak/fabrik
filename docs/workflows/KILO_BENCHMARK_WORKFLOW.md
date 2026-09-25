@@ -28,7 +28,7 @@ The daily pipeline (`wsl_startup_hook.sh`, step 5) runs two sibling pipelines.
 | 5c | `scrape_artificial_analysis.py` | Scrape throughput (tokens/sec) + TTFT from artificialanalysis.ai; fill `output_tokens_per_sec`. |
 | 5d | `role_mapper.py` | **Deterministic** role assignment: `pre_filter → selector → post_filter → DB`. No LLM. |
 | 5e | `export_traycer_registry.py` | Refresh `scripts/kilo_47_agents_final.json` from the new `agent_roles` table. |
-| 5f | `generate_kilo_agents.py` (in `scripts/`) | Emit per-agent Traycer CLI wrapper scripts into `~/.traycer/cli-agents/`. |
+| 5f | `generate_kilo_agents.py` (in `scripts/`) | RETIRED (D-415) — emitted per-agent Traycer CLI wrapper scripts into `~/.traycer/cli-agents/`; no scheduler runs it (it left this boot hook with the 2026-08-15 engine move, and the 06:00 cron on 2026-09-25). |
 
 `role_mapper.py` already runs `export_traycer_registry.py` inline after writing
 assignments, so step 5e is belt-and-suspenders to keep the JSON registry from
@@ -218,8 +218,8 @@ Non-kilo steps in `wsl_startup_hook.sh`:
 | `/opt/ai-model-catalog/engine/embedding_pre_filter.py` | Embedding shortlists. |
 | `/opt/ai-model-catalog/engine/embedding_role_mapper.py` | Embedding role winners. |
 | `/opt/ai-model-catalog/engine/embedding_export_markdown.py` | Updates embedding doc sections. |
-| `/opt/fabrik/scripts/generate_kilo_agents.py` | Generates Traycer CLI wrappers into `~/.traycer/cli-agents/`. |
-| `/opt/fabrik/scripts/check_ai_pack_freshness.py` | Warn-only: flags `.windsurf/rules/ai/*.md` packs whose `Last content verification:` line is >90d old (`AI_PACK_STALE_DAYS` override). Never modifies packs. |
+| `/opt/fabrik/scripts/generate_kilo_agents.py` | RETIRED (D-415) — generated Traycer CLI wrappers into `~/.traycer/cli-agents/`; no scheduler runs it. |
+| `/opt/fabrik/scripts/check_ai_pack_freshness.py` | Warn-only: flags `.windsurf/rules/ai/*.md` packs whose `Last content verification:` line is >90d old (`AI_PACK_STALE_DAYS` override). Never modifies packs. Its second mode, `--delivered-max-age N`, exits 1 when an engine-delivered `last-refreshed:` block is older than N days; `daily_refresh.sh` runs it with 3 and pages (D-415). |
 | `/opt/ai-model-catalog/engine/verify_openrouter_catalog.py` | Verifies pricing/capabilities vs the live OpenRouter API before category routing runs. |
 | `/opt/ai-model-catalog/engine/classify_ai_category.py` | Pure-SQL classifier, models → the 7 categories. |
 | `/opt/ai-model-catalog/engine/category_route_mapper.py` | Per-category top-N selection → `agent_roles` pins. |

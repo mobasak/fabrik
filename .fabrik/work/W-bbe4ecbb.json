@@ -13,7 +13,7 @@
   },
   "next": "## § Completion Contract 1a's `>5 files` and the lane table's `>3` are two numbers in one contract (routed from T04a)\n\n§ 1a's `>5` is REVIEW sizing (how heavy a pass does work already in flight owe?); the lane table's\n`>3` is LANE sizing (which lane should this change take at all?). They are different axes and both\nare correct, but they sit ~170 lines apart with nothing saying so, and T04a's step 3 permits exactly\none change on that line. Worth one disambiguating clause in § 1a, or an explicit note that 1a keeps\nits own number.",
   "note": "migrated-digest:2cfbd0521b75",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "§ Completion Contract 1a's `>5 files` and the lane table's `>3` are two numbers in one contract (routed from T04a)"

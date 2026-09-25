@@ -13,7 +13,7 @@
   },
   "next": "Track the fleet broadcast sent at hub adoption: each repo's own agent runs work.py init --distributor <its distributor>, migrate-backlog, render, then trims the migrated rows from its backlog keeping hand-written context; close when readings.jsonl exists in every synced repo (the 9 unfilled template repos migrate to an empty store).",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 1,
   "status": "open",
   "title": "Fleet rollout of the work store: each repo runs init --distributor and migrate-backlog"

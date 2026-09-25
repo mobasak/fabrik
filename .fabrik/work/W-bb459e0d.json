@@ -13,7 +13,7 @@
   },
   "next": "## Pre-existing red at HEAD: `test_docs_updater.py::TestMultiAgentOperatingModelDoc` (noted 2026-09-19)\n\n`test_doc_exists_and_names_the_planned_surfaces` fails at HEAD `623c00cfb`, verified in a throwaway\nworktree before any of this change was applied. Not touched here: it is a different subsystem, and\nfixing an unrelated doc test inside a governance-sync review would bundle unreviewed work into a\n46-repo distribution. Recorded so the next reader knows it is not this change's. **Destination:**\nwhoever owns the multi-agent operating-model doc.",
   "note": "migrated-digest:4dc7f1816dc1",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "Pre-existing red at HEAD: `test_docs_updater.py::TestMultiAgentOperatingModelDoc` (noted 2026-09-19)"

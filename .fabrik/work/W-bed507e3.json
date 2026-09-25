@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-25T09:04:11.633230Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-bed507e3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add flush+fsync before os.replace in refresh(), mirroring _merge_usage_store_locked, with a test that the temp file is fsynced",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "claude_p_cost.refresh()'s atomic write skips fh.flush()/os.fsync() before os.replace, unlike _merge_usage_store_locked beside it — a power loss can leave a zero-length sidecar (found in the D-415 review)"
+}

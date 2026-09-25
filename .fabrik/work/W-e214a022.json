@@ -13,7 +13,7 @@
   },
   "next": "## The synced block's header is false for a third of its groups, and it CANNOT be corrected in one edit (routed 2026-09-19)\n\n`gitignore_block_text()` heads the block *\"Fabrik-synced files — DO NOT EDIT (centrally managed)\"*,\nbut 3 of its 9 groups are explicitly NOT synced: the retired vendored group, the MCP-config group,\nand the new per-machine serena group. The obvious one-word repair (\"Fabrik-MANAGED files\") is a\nTRAP, and this row exists to stop the next agent making it: `sync_enforcement_to_projects.py`'s\n`_GITIGNORE_BLOCK_RE` keys on the literal `# Fabrik-synced files`. Executed against a pinned copy\nof a real project `.gitignore`: with the header renamed the regex stops matching (`False`), so the\nNEXT sync appends a SECOND block and the file ends with two `# End Fabrik-synced block` markers —\nin 46 repos, with the stale block never reaped.\n\nThe correct order is a migration: widen the regex to accept BOTH headers, sync, then change the\nheader, sync again, then narrow the regex. Three sync passes, or a one-off repair script.\n**Destination:** infra, with its own review; the block is a public contract for ~46 repos.",
   "note": "migrated-digest:51215bd18cd2",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "The synced block's header is false for a third of its groups, and it CANNOT be corrected in one edit (routed 2026-09-19)"

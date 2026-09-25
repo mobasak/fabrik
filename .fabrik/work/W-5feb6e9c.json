@@ -13,7 +13,7 @@
   },
   "next": "## `check_synced_unmodified.py` swallows a missing manifest symbol and degrades 46 gates silently (routed 2026-09-19)\n\n`scripts/enforcement/check_synced_unmodified.py:45-53` and `:72-80` do\n`from fabrik_synced_manifest import SEEDED_NOT_ENFORCED` (and `RETIRED_VENDORED_DIRS`) inside a\n`try/except ImportError` that returns an empty set. `from X import Y` raises ImportError when Y is\nMISSING, not just when X is — so a future rename of either symbol makes the check quietly report\n\"no seeded exemptions / no retired dirs\" with no message. `fabrik_synced_manifest.py` is not in\n`CORE_SCRIPTS` (verified), so project repos hold no copy and import the HUB's live module through a\n`sys.path` insert: one hub rename degrades the gate in every project at once.\n\nThis was found while verifying that THIS change's rename (`RETIRED_GITIGNORE_GROUPS` →\n`IGNORE_ONLY_GITIGNORE_GROUPS`) was safe. It was — two independent whole-`/opt` sweeps found zero\nreferences outside the hub — but it was safe by luck of which symbol was renamed, not by design.\n**Destination:** infra — catch the symbol explicitly, or import the module and `getattr` with a\nloud failure.",
   "note": "migrated-digest:293d59a28302",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "`check_synced_unmodified.py` swallows a missing manifest symbol and degrades 46 gates silently (routed 2026-09-19)"

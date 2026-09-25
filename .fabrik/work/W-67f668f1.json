@@ -13,7 +13,7 @@
   },
   "next": "work.py status lists them as DRIFT 2 (2026-06-29 empire-operating-model, 2026-07-06 universal-watchdog, 2026-07-12 wavespeed-integration, 2026-08-11 knowledge-ratchet, 2026-08-22 fabrik-mail-loop-safety, 2026-08-25 payments-ingest-role, 2026-09-05 glitchtip-deny-by-default, 2026-09-06 session-history-retention). For each: execute it (take a plan lock), mark it SUPERSEDED/EXECUTED and archive it, or link an item to it. Until the list is empty the hub never records the 7 clean days that make sync --check blocking (spec § Lifecycle).",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
   "title": "Triage the 8 CONVERGED plans older than 7 days with no plan lock (drift class 2) so the hub's sync can reach 7 clean days"

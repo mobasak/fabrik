@@ -12,9 +12,9 @@
     "spec": ""
   },
   "next": "## Ownership — every item carries an owner\n\nThree hub agents share this repo, each with a charter in [`docs/reference/agents/`](reference/agents/)\ninjected at SessionStart by `agent_role.py` (keyed on `CLAUDE_AGENT`). **An untagged item is work\nnobody owns** — the same failure the fabrik-mail addressee solved for messages, applied to the\nbacklog. Tag every new row.\n\n| Tag | Agent | Beat |\n| :--- | :--- | :--- |\n| `[infra]` | infra | command corpus (`commands/_sources/`), enforcement checks, gates, mail/`command_run` machinery, governance docs |\n| `[fleet]` | fleet | VPS + deploy (`specs/services/`, registrar, compose), monitoring/alerting, DR, scaffolding |\n| `[intel]` | intel | research, model selection, the subagent flywheel |\n| `[operator]` | — | needs a human: credentials, third-party consoles, or a decision only the operator can make |\n\n**Cross-beat items name BOTH halves** rather than being split into two rows — one owner drives, the\nother is named in the text (e.g. CI-parity Phase 4 is `[infra]` for the existing-repo sweep while the\nscaffold half is fleet's).\n\n---",
-  "note": "migrated-digest:c5188e77ee17",
+  "note": "backlog section heading, not work (D-413)",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "Ownership — every item carries an owner"
 }

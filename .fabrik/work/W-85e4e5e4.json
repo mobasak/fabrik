@@ -13,7 +13,7 @@
   },
   "next": "## The lane table's hub-only references, as seen from a project repo (routed from T04b)\n\nThree were fixed in the template (the sync regex path, the vendored-surface example, and\n`docs/CAPABILITIES.md`). Two references remain hub-shaped in the template and are worth a pass:\n`templates/governance/CLAUDE.md:162` tells a project agent to run\n`scripts/sync_enforcement_to_projects.py --force` \"yourself\" on a governance-sync trigger surface —\npre-existing, not T04b's, but it is the hub's fleet-wide distribution script and a project agent\neither no-ops or, from a box carrying `/opt/fabrik`, pushes the hub's tree to 46 repos. And the\ngrounding pointer at `:66` now names an absolute hub path, which is correct but means a project\nreader cannot follow it without the hub checked out.",
   "note": "migrated-digest:bd599d780dd3",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "The lane table's hub-only references, as seen from a project repo (routed from T04b)"

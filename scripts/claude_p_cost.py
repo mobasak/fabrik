@@ -18,14 +18,12 @@ DATA FILES (resolved in order: env override → co-located with this script → 
                  grounded from platform.claude.com/docs/en/about-claude/pricing.
   • amortized  — `claude_p_cost.json`. `--refresh` AUTHORS eight keys unconditionally: the rate
                  `amortized_per_mtok`, the window it came from (`window_start`, `window_end`,
-                 `accounts`, `spend_usd`, `tokens`), `quota_draw_pct` and `built_at` — so a FRESH box
-                 with no previous file has exactly eight. It CARRIES FORWARD every other key the
-                 previous file had, and where that includes `amortized_per_mtok_by_family` (owned by
-                 `derive_cost.amortized_by_family`, never recomputed here) it authors a ninth,
-                 `amortized_per_mtok_by_family_carried: true` — TEN in total on this box today. That
-                 flag is deliberately NOT a date: the split's build time is not recoverable from this
-                 file, and `built_at` describes ② only. Nothing
-                 past the eight is guaranteed; a reader must `.get`. Window keys are `null` when the
+                 `accounts`, `spend_usd`, `tokens`), `quota_draw_pct` and `built_at`, plus the tier-weighted
+                 `per_model_spend` split. It CARRIES FORWARD every other key the previous file had,
+                 except the retired flat `amortized_per_mtok_by_family` split and its provenance flags,
+                 which it DROPS (D-415 — never recomputed here, read by nothing, and it had inverted the
+                 tier order; `per_model_spend.tiers` is the per-family split). Nothing past the
+                 authored keys is guaranteed; a reader must `.get`. Window keys are `null` when the
                  rate fell back to the research anchor (which came from no window), and
                  `accounts`/`spend_usd` are `null` when the account count could not be measured.
 
@@ -1288,8 +1286,11 @@ def refresh() -> dict:
         "amortized_per_mtok_by_family_carried",
     ):
         data.pop(authored, None)  # authored HERE in some revision; never a foreign key
-    if "amortized_per_mtok_by_family" in prev:
-        data["amortized_per_mtok_by_family_carried"] = True
+    # RETIRED, not carried (D-415): the flat per-family split was never recomputed here, nothing on the
+    # box read it, and by 2026-09-23 it ranked haiku ABOVE opus while `per_model_spend.tiers` below —
+    # recomputed every run from the same window — weights haiku as the 1x tier. A carried key beside a
+    # recomputed one is indistinguishable to a reader, so the stale one goes and the tiers are the split.
+    data.pop("amortized_per_mtok_by_family", None)
     data.update(
         {
             "amortized_per_mtok": w["amortized_per_mtok"],
@@ -1307,9 +1308,8 @@ def refresh() -> dict:
             "built_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         }
     )
-    # ATOMIC: this file is now the SOLE store of `amortized_per_mtok_by_family`, which nothing in
-    # this repo can regenerate (`derive_cost.amortized_by_family` is reachable only from the orphaned
-    # `write_cost_sidecar`). A torn write would lose it permanently, and Phase C puts this on a cron.
+    # ATOMIC: this file carries every foreign key forward (`data = dict(prev)`), and a torn write on
+    # the 06:00 cron would lose them permanently.
     # Unique temp per invocation: three agent sessions and a cron share this box, and a shared
     # `<name>.tmp` lets two producers interleave their writes into one file before either replaces it.
     fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")

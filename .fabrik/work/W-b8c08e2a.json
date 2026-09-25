@@ -12,9 +12,9 @@
     "spec": ""
   },
   "next": "## Related scripts\n\nScripts that declare this document in their `# AFTER-EDIT:` header — editing one of them\nmeans updating this page in the same change. This list is generated from those headers\n(`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.\n\n- `scripts/sysadmin/rules_currency_watch.py`\n<!-- END related-scripts -->",
-  "note": "migrated-digest:ea55e6c88f8e",
+  "note": "backlog section heading, not work (D-413)",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "Related scripts"
 }
