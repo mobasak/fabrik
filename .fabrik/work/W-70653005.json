@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-26T20:36:46.539481Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-70653005",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Confirm no live caller (git grep outside archived/ and the set itself, crontab, wsl_startup_hook.sh), then move the set to scripts/archived/ with excise_manifest.py's KEEP rows updated in the same change; the crontab/bashrc lines stay the operator's",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "Dead Kilo/Traycer code in the hub: agent_selector.py, classify_ticket.py, db_models.py, kilo_telemetry.py (scripts/kilo-benchmarks/), coding-auto.sh, kilo_auto_route.py, generate_kilo_agents.py, kilo_model_sync*.{py,sh} are called only by each other, archived scripts and excise_manifest.py (found in W-21f99f3a)"
+}
