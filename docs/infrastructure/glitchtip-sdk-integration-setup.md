@@ -158,6 +158,7 @@ Emitted files:
 ```text
 src/{package}/glitchtip_init.py    # init_glitchtip() with FastApiIntegration + StarletteIntegration
 src/{package}/main.py              # imports + calls init_glitchtip() BEFORE FastAPI()
+tests/test_glitchtip_no_secret_leak.py  # captured-event leak test + vacuity guard (FastAPI backends)
 requirements.txt                   # adds: sentry-sdk[fastapi]>=2.18.0
 .env.example                       # adds: SENTRY_DSN= and ENVIRONMENT=production
 ```

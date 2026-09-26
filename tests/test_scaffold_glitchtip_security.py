@@ -427,3 +427,140 @@ def test_scaffold_raises_when_the_vendored_template_is_missing(tmp_path, monkeyp
     assert "glitchtip_init.py" in str(excinfo.value) or isinstance(
         excinfo.value, (FileNotFoundError, OSError)
     ), f"scaffold failed for an unrelated reason: {excinfo.value!r}"
+
+
+_NAIVE_INIT = """
+import os
+
+import sentry_sdk
+
+
+def init_glitchtip():
+    sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], traces_sample_rate=1.0)
+    return True
+"""
+
+
+_DROP_EVERY_EVENT = """
+import pytest
+import sentry_sdk
+
+
+@pytest.fixture(autouse=True)
+def _drop_every_event(monkeypatch):
+    monkeypatch.setattr(sentry_sdk.Client, "capture_event", lambda self, *a, **k: None)
+"""
+
+
+# An SDK that stopped capturing ONE channel (span data, where the outbound URL key travels): the
+# events still arrive, so only the vacuity guard's every-secret check can notice.
+_DROP_SPAN_DATA = """
+import pytest
+import sentry_sdk.tracing
+
+
+@pytest.fixture(autouse=True)
+def _drop_span_data(monkeypatch):
+    monkeypatch.setattr(sentry_sdk.tracing.Span, "set_data", lambda self, *a, **k: None)
+"""
+
+# The shapes the emitted corpus must keep: each has a history of real leaks (the hub corpus above).
+_REQUIRED_SECRET_SHAPES = {
+    "dsn",
+    "dsn_no_at",
+    "jwt",
+    "password",
+    "header",
+    "query",
+    "otp",
+    "apikey",
+}
+
+
+def _run_emitted_leak_test(project_dir, *extra):
+    import subprocess
+    import sys
+
+    return subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "-rA",
+            "tests/test_glitchtip_no_secret_leak.py",
+            *extra,
+        ],
+        cwd=project_dir,
+        env={**os.environ, "PYTHONPATH": str(project_dir / "src")},
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+
+def test_every_fastapi_backend_emits_a_leak_test_that_catches_a_leak(tmp_path):
+    """W-dc4f5470: the scaffolded project checks its OWN init on the captured event.
+
+    Green against the emitted scrubber. With capture dropped, BOTH tests fail (neither can pass on
+    an empty wire); with one channel dropped, the vacuity guard fails and names it. Against an
+    unscrubbed init the leak test fails while the vacuity guard passes — so the pair tells "no
+    leak" from "nothing captured".
+    """
+    from fabrik.scaffold import _scaffold_fastapi_backend
+
+    project_dir = tmp_path / "svc"
+    project_dir.mkdir()
+    _scaffold_fastapi_backend(project_dir, "svc", "svcpkg")
+    emitted = project_dir / "tests" / "test_glitchtip_no_secret_leak.py"
+    assert emitted.exists(), "the backend generator did not emit the leak test"
+    assert "{pkg}" not in emitted.read_text()
+
+    leak = "tests/test_glitchtip_no_secret_leak.py::test_no_secret_reaches_the_wire"
+    vacuity = (
+        "tests/test_glitchtip_no_secret_leak.py::test_vacuity_guard_an_unscrubbed_sdk_does_leak"
+    )
+
+    # the file must leave the SDK disabled: its vacuity guard runs with PII and locals on
+    after = project_dir / "tests" / "test_zz_after.py"
+    after.write_text(
+        "import sentry_sdk\n\n\ndef test_sdk_left_disabled():\n"
+        "    assert not sentry_sdk.get_client().is_active()\n"
+    )
+    green = _run_emitted_leak_test(project_dir, "tests/test_zz_after.py")
+    tail = green.stdout[-3000:]
+    assert green.returncode == 0, tail + green.stderr[-2000:]
+    assert f"PASSED {leak}" in green.stdout and f"PASSED {vacuity}" in green.stdout, tail
+    assert "PASSED tests/test_zz_after.py::test_sdk_left_disabled" in green.stdout, tail
+    after.unlink()
+
+    # an SDK whose capture path stopped delivering: both tests must say so, neither may pass empty
+    (project_dir / "tests" / "conftest.py").write_text(_DROP_EVERY_EVENT)
+    dropped = _run_emitted_leak_test(project_dir)
+    assert f"FAILED {leak}" in dropped.stdout, dropped.stdout[-3000:]
+    assert f"FAILED {vacuity}" in dropped.stdout, dropped.stdout[-3000:]
+
+    # one channel gone quiet: the leak test has nothing to find there, the vacuity guard must say so
+    (project_dir / "tests" / "conftest.py").write_text(_DROP_SPAN_DATA)
+    quiet = _run_emitted_leak_test(project_dir)
+    assert f"PASSED {leak}" in quiet.stdout, quiet.stdout[-3000:]
+    assert f"FAILED {vacuity}" in quiet.stdout, quiet.stdout[-3000:]
+    assert "apikey" in quiet.stdout, quiet.stdout[-3000:]
+    (project_dir / "tests" / "conftest.py").unlink()
+
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("emitted_leak_test", emitted)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert set(module.SECRETS) >= _REQUIRED_SECRET_SHAPES, sorted(
+        _REQUIRED_SECRET_SHAPES - set(module.SECRETS)
+    )
+
+    (project_dir / "src" / "svcpkg" / "glitchtip_init.py").write_text(_NAIVE_INIT)
+    red = _run_emitted_leak_test(project_dir)
+    assert red.returncode != 0, red.stdout[-3000:]
+    assert f"FAILED {leak}" in red.stdout, red.stdout[-3000:]
+    assert f"PASSED {vacuity}" in red.stdout, red.stdout[-3000:]

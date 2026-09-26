@@ -73,7 +73,7 @@
 │       ├── __init__.py · main.py · logger.py · middleware.py · metrics.py
 │       └── glitchtip_init.py · internal_auth.py · pause_state.py
 ├── tests/
-│   └── __init__.py · conftest.py · test_health.py
+│   └── __init__.py · conftest.py · test_health.py · test_glitchtip_no_secret_leak.py
 ├── config/ · data/ · logs/ · backups/ · .tmp/ · output/ · .cache/   # standard dirs
 ├── .dockerignore · .env.example · .gitignore · .pre-commit-config.yaml
 ├── .windsurfrules · .worktreeinclude

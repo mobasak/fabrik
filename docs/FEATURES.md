@@ -37,6 +37,14 @@ in the module docstring, verified at execution time rather than read from the pl
 existing project: vendor the template over your own copy and prove it with the guard.
 Mandate: `.windsurf/rules/core/55-observability.md` § Error Reporting.
 
+**Each scaffolded project now carries its own proof (2026-09-26, D-424).** The FastAPI backend generator
+also emits `tests/test_glitchtip_no_secret_leak.py`. It raises inside a real request with eight secret
+shapes in play and captures through a `Transport` subclass. It then asserts two things: nothing reaches
+the wire through the project's own `init_glitchtip()`, and a VACUITY GUARD in which an unscrubbed SDK
+ships every one of those shapes. A project that edits or re-vendors its scrubber, or bumps sentry-sdk,
+therefore learns from its own suite whether it leaks. It also learns if the capture path stopped seeing a
+channel, which would otherwise make "no leak" meaningless. Projects scaffolded earlier do not get the file.
+
 ## Grounding-integrity canary — the refuses-ungrounded flywheel axis (2026-08-29)
 
 Weekly missing-input canary probes (`scripts/sysadmin/canary_grounding.py`) measure, per pool

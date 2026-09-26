@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Every FastAPI-backend scaffold ships a GlitchTip leak test with a vacuity guard (2026-09-26)
+- `_scaffold_fastapi_backend` now emits `tests/test_glitchtip_no_secret_leak.py` into python-api, python-api-gpu and the `server/` of saas-skeleton, office-extension and static-site. The test raises inside a real request with eight secret shapes, captures through a `Transport` subclass, and asserts over every serialized envelope that the project's own `init_glitchtip()` leaks none of them. A kept vacuity guard shows that an unscrubbed SDK ships every shape, so a changed capture path fails the file instead of leaving the leak test silently green. The hub grader runs the emitted file in four configurations and kills five mutants. D-424, W-dc4f5470 (tryton-crm 01M145D3N).
+
 ### Changed — the work-tracking, thread-anchor, fabrik-mail, hooks-index and command-run docs land the single-tracker delta (2026-09-26)
 - `docs/reference/work-tracking.md` gains the `mail`/`feedback`/`next` kinds and how each is created and closed (and that `drop` closes any of them by hand), the four NEXT rules with `classify_next`, § The view (the obligation lines, `on it:` lines, the `status` distributor lines, the unnamed-window line, the crisp `ready`), and the V5 reading with `next_census.py`; `thread-anchors.md`, `fabrik-mail.md`, `hooks-index.md` and `command-run-protocol.md` each state their part of the delta. Every claim was checked against the merged code (plan 2026-09-25-plan-1, T07b; review 3 passes, confirmed 16 → 2 → 0).
 

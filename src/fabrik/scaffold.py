@@ -1602,8 +1602,9 @@ def _scaffold_fastapi_backend(dest_dir: Path, name: str, package_name: str) -> N
     Single source of truth for the backend that both ``python-api`` (dest_dir ==
     project root) and ``saas-skeleton`` (dest_dir == ``project/server``) emit:
     ``src/<package_name>/{__init__,internal_auth,metrics,glitchtip_init,logger,
-    pause_state,middleware,main}.py``. Pure file emission — no venv/tests/
-    template side effects; callers add those and their own requirements.txt.
+    pause_state,middleware,main}.py`` plus ``tests/test_glitchtip_no_secret_leak.py`` (the
+    project's own check of its scrubber). Pure file emission — no venv or template side
+    effects; callers add the rest of tests/ and their own requirements.txt.
     """
     # Create starter src/<package_name>/ package with logger, middleware, and main
     package_dir = dest_dir / "src" / package_name
@@ -1722,6 +1723,15 @@ def metrics_app():
     glitchtip_src = TEMPLATE_DIR / "python" / "glitchtip_init.py"
     (package_dir / "glitchtip_init.py").write_text(
         glitchtip_src.read_text().replace("{pkg}", package_name).replace("{name}", name)
+    )
+    # ...and the project's own check of it: a captured-event leak test plus the vacuity guard that
+    # keeps it honest across sentry-sdk upgrades (W-dc4f5470; tryton-crm 01M145D3N). Unconditional
+    # for the same reason as the scrubber above.
+    (dest_dir / "tests").mkdir(parents=True, exist_ok=True)
+    (dest_dir / "tests" / "test_glitchtip_no_secret_leak.py").write_text(
+        (TEMPLATE_DIR / "python" / "test_glitchtip_no_secret_leak.py")
+        .read_text()
+        .replace("{pkg}", package_name)
     )
 
     # logger.py — structlog JSON logger with PII redaction, UTC timestamps, LOG_LEVEL from env

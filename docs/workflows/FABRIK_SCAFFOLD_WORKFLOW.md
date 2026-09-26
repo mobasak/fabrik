@@ -374,7 +374,8 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 │       └── README.md                # Pipeline overview
 ├── tests/
 │   ├── __init__.py
-│   └── test_health.py               # Health endpoint test
+│   ├── test_health.py               # Health endpoint test
+│   └── test_glitchtip_no_secret_leak.py  # GlitchTip leak test + vacuity guard
 ├── .github/workflows/ci.yml         # CI (python API types) — rendered from src/fabrik/ci_scaffold.py
 ├── AGENTS.md                        # Copied from /opt/fabrik/AGENTS.md
 ├── CHANGELOG.md                     # Version history
@@ -429,6 +430,7 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `src/<package>/__init__.py` | Generated inline | Package init |
 | `tests/__init__.py` | Generated inline | Tests package |
 | `tests/test_health.py` | Generated inline | Health endpoint test |
+| `tests/test_glitchtip_no_secret_leak.py` | `templates/scaffold/python/test_glitchtip_no_secret_leak.py` | The project's own GlitchTip check: no secret reaches the captured event, plus a vacuity guard that fails if the SDK stops capturing a channel |
 | **Quality Gates** | | |
 | `scripts/final_gate.py` | Copied from Fabrik | Pre-commit quality gate |
 | `scripts/health_checker.py` | Copied from Fabrik | Health endpoint checker |
