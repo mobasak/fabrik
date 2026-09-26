@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-26T13:31:48.424914Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "0a11c7817902296712945017638d5738f7509ea8",
   "id": "W-2107380c",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WaveSpeed integration plan: CONVERGED 2026-07-12, no build commits (one gate-fix mention only) — build it or mark it superseded"
 }
