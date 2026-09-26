@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-25T09:04:11.761939Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "a28bed4c3f2bb1cc6e9dd9c811e6013d8abd9912",
   "id": "W-0355625c",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "docs/workflows/KILO_BENCHMARK_WORKFLOW.md describes a boot-hook chat pipeline (kilo_agents_db, role_mapper, run_kilo_workflow.sh …) that moved to /opt/ai-model-catalog/engine on 2026-08-15; run_kilo_workflow.sh does not exist (found in the D-415 review)"
 }
