@@ -94,10 +94,17 @@
       "review": "docs/development/reviews/2026-09-25-plan-1-work-store-single-tracker-T06-review.md"
     },
     "T07a": {
-      "state": "in review",
+      "state": "merged",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ae5932b46aa30b811",
       "branch": "worktree-agent-ae5932b46aa30b811",
-      "base_commit": "4420b2dde"
+      "base_commit": "4420b2dde",
+      "review": "docs/development/reviews/2026-09-25-plan-1-work-store-single-tracker-T07a-review.md"
+    },
+    "T07b": {
+      "state": "in review",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ad2b567c4b3410cfb",
+      "branch": "worktree-agent-ad2b567c4b3410cfb",
+      "base_commit": "6e9099dfd"
     }
   }
 }

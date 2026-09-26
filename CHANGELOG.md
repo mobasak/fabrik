@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the Work items paragraph tells agents that a NEXT naming an item claims it, and that mail claims create items (2026-09-26)
+- `CLAUDE.md` and both § FINAL OUTPUT copies in `templates/governance/CLAUDE.md` gain one sentence in the **Work items.** paragraph: end a turn on work with `NEXT: <item id>` to claim that item (the first it names that is open, ready, not a `next` item and held by no other session); `mail.py claim` in the mailbox's own repo creates the mail's item and `mail.py ack` there closes it. `tests/test_work_contract_rule.py` pins the new text (plan 2026-09-25-plan-1, T07a; review 3 passes, confirmed 8 → 1 → 0).
+
 ### Added — next_census.py counts the NEXT: lines in session transcripts and reads the work store's V5 bound (2026-09-26)
 - `scripts/sysadmin/next_census.py` (hub-only, read-only) reads the transcripts modified within `--since` days and prints the NEXT-line classes with their session denominator (sorted by the store's own `work.classify_next`, holds split into none / blocked / operator-decision), the distinct free-text count, and the sessions per repo whose last NEXT is free text the register accepts; `--repo` adds the V5 reading (`V5: PASS` / `FAIL — <bound>`). Rows are deduplicated by their uuid, NEXT lines inside code fences are ignored, transcripts are streamed, and unreadable files and bad lines are counted apart. Tests: `tests/test_next_census.py` (plan 2026-09-25-plan-1, T06; review 3 passes, confirmed 22 → 4 → 0).
 
