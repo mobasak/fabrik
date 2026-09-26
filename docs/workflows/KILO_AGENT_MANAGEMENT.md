@@ -14,7 +14,8 @@ role assignment) no longer runs from `scripts/wsl_startup_hook.sh`. Since 2026-0
 `generate_kilo_agents.py` is retired (2026-07-19; D-415 took it off the scheduler). The catalog-producing
 scripts below (sync, scrapers, the role-assignment pipeline) keep their descriptions for reference, but
 their hub paths no longer exist; the runtime-selection scripts (`agent_selector.py`, `classify_ticket.py`,
-`db_models.py`, `kilo_telemetry.py`) remain in `scripts/kilo-benchmarks/`. What the hub still consumes: `docs/workflows/KILO_BENCHMARK_WORKFLOW.md`.
+`db_models.py`, `kilo_telemetry.py`) remain in `scripts/kilo-benchmarks/`; `role_selector.py`,
+`manage_blocked.py` and `migrate_roles_v2.py` are gone from the hub too. What the hub still consumes: `docs/workflows/KILO_BENCHMARK_WORKFLOW.md`.
 
 ## Database Statistics
 
@@ -757,7 +758,7 @@ operator's.
 > `scripts/wsl_startup_hook.sh`'s own header lags the code (W-39b1c993); read the block itself when they differ.
 
 **Persistent processes (started on every WSL boot, run continuously):**
-- `watch_env_changes.sh` — Monitors every `/opt/<project>/.env` except fabrik's own via `inotifywait` and runs the `audit_envs.py` violation audit, which reports to the log only (it writes `data/env_audit.yaml` only when run by hand with `--yaml`, and never writes a `.env`). Log: `.tmp/env_watcher.log`
+- `watch_env_changes.sh` — Monitors every `/opt/<project>/.env` except fabrik's own via `inotifywait` and runs the `audit_envs.py` violation audit, which reports to the log only (it writes `data/env_audit.yaml` only when run by hand with `--yaml` or `--fix`, and never writes a `.env`). Log: `.tmp/env_watcher.log`
   - **Note:** the old `consolidate_envs.py --apply` auto-sync is **deprecated** (script retired to `scripts/consolidate_envs.py.deprecated`), so that consolidation is dormant. `/opt/fabrik/.env` is now the **canonical** source, maintained directly and mirrored off-site by the W9 DR watcher (`fabrik-dr-watcher.service` + `scripts/dr_env_backup.sh`). See `docs/operations/credential-recovery.md`.
 
 **Schema documentation:** `kilo_agents_db.py schema-docs` exists only in the engine. It targets

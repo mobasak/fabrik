@@ -88,7 +88,7 @@ Backup of pre-cleanup crontab: `~/.crontab.backup.20260630-105542Z`.
    - Project registry sync (`scripts/sync_projects.py`): `project.yaml` from every `/opt/*/project.yaml` → merged into `data/projects.yaml` + the `AUTO-GENERATED:PROJECTS` block of `docs/PROJECT_CATALOG.md`
    - Health summary
    - The hub-side consumer steps (subagent ranking, contract oracle, heartbeat check, autocommit): see `docs/workflows/KILO_BENCHMARK_WORKFLOW.md`
-   - No catalog-producing step: the Kilo agent workflow, the embedding selection pipeline and OpenRouter category routing moved to `/opt/ai-model-catalog/engine/` on 2026-08-15, and the Cascade backup check left the boot path (D-071)
+   - No catalog-producing step: the Kilo agent workflow, the embedding selection pipeline and OpenRouter category routing moved to `/opt/ai-model-catalog/engine/` on 2026-08-15, and the Cascade backup check left the boot path on 2026-09-04 (7d186893d; Windsurf/Cascade retired 2026-07-19)
 
 Lockfile coordination: bashrc-hook and daily_refresh.sh share `/tmp/.fabrik_daily_$(date -u +%Y%m%d)`. Whichever fires first (typically cron at 03:00 UTC) wins the day; the other path sees the lockfile and exits at the gate. Lockfile rolls over cleanly at 00:00 UTC.
 
