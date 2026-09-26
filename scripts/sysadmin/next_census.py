@@ -12,15 +12,20 @@ string ``content`` — some older rows — is read as-is). Every other entry sha
 ``"attachment"``, ``"queue-operation"``, a textless (tool-use/thinking-only) assistant row —
 contributes NOTHING: a line inside one of those counts for nothing, on purpose (a NEXT: written
 by the OPERATOR, inside a quoted mail body, or a tool result must never be read as the agent's
-own).
+own). A row's identity — ``message.id`` (the API message id), falling back to the transcript
+row's own top-level ``uuid`` when that is absent — is kept in one GLOBAL seen-set for the whole
+run: a row already seen (the same assistant turn written twice, or copied verbatim into a resumed
+session's file) contributes nothing to any count, the second time it is met.
 
-A NEXT: LINE is one line of a turn's text — after ``str.strip()`` — that starts with the literal
-``"NEXT:"`` (the rule the 2026-09-25 fleet measurement used; deliberately simpler than
-``thread_anchor._next_values``'s markdown/quote handling). Its value is classified with
-``work.classify_next`` (T05a), imported by path from ``scripts/work.py`` beside this script — the
-harvest and the census share one classifier so they never disagree about a line. A ``"hold"``
-verdict is split for REPORTING (never for the store) by its own leading word into ``none``,
-``blocked``, or — anything else, including a mid-line ``operator decision`` — ``operator-decision``.
+A NEXT: LINE is one line of a turn's text — after ``str.strip()``, and OUTSIDE a fenced code
+block (a line matching ```` ``` ```` or ``~~~``, any leading blockquote/whitespace, toggles the
+fence; a NEXT: inside stays unread) — that starts with the literal ``"NEXT:"`` (the rule the
+2026-09-25 fleet measurement used; deliberately simpler than ``thread_anchor._next_values``'s
+markdown/quote handling). Its value is classified with ``work.classify_next`` (T05a), imported by
+path from ``scripts/work.py`` beside this script — the harvest and the census share one
+classifier so they never disagree about a line. A ``"hold"`` verdict is split for REPORTING
+(never for the store) by its own leading word into ``none``, ``blocked``, or — anything else,
+including a mid-line ``operator decision`` — ``operator-decision``.
 
 Four measurements, one line each (plus a closing ``skipped:`` line, never a silent zero):
 
@@ -29,14 +34,21 @@ Four measurements, one line each (plus a closing ``skipped:`` line, never a sile
 3. Sessions per repo — a session whose transcript's LAST turn carrying a NEXT: line ends on a
    ``free-text`` value ``thread_anchor._is_anchor`` accepts (``scripts/thread_anchor.py:465``,
    imported by path from ``Path(__file__).resolve().parents[1]``, the way
-   ``scripts/thread_anchor.py:245-270`` loads ``work.py``) — grouped by repo, the project
-   directory's name with a leading ``-opt-`` stripped.
+   ``scripts/thread_anchor.py:245-270`` loads ``work.py``) — grouped by repo, the Claude Code
+   project directory's name (every non-alphanumeric character becomes ``-``) with a leading
+   ``-opt-`` stripped.
 4. ``--repo <path>`` — the store's Validation V5 reading: PASS when the repo's open ``kind: next``
-   items whose ``next_at`` is within 7 days number no more than measurement 3's count for that
-   repo, AND the repo shows more than 0 live claims (``work._live_claims``); else FAIL naming
-   whichever bound missed; a repo with no store prints ``V5: no store in <path>``.
+   items whose ``next_at`` reads between 1 day in the future (clock skew) and 7 days in the past
+   number no more than measurement 3's count for that repo, AND the repo shows more than 0 live
+   claims (``work._live_claims``); an item hidden by a closed marker in ANOTHER tree
+   (``work._closed_ids``) is never counted; else FAIL naming whichever bound missed; a repo with
+   no store prints ``V5: no store in <path>``.
 
-No write anywhere, no network. Exit 0 always except a bad argument (argparse's 2).
+No write anywhere, no network. Exit 0 always except a bad argument (argparse's 2) — including a
+non-positive ``--since``, since a zero or negative window silently reads as all-zero counts rather
+than the "no window" it looks like. When ``scripts/work.py`` or ``scripts/thread_anchor.py``
+itself fails to import, the run prints ``census unavailable — <file> import failed: <exc>``
+instead of a real-looking (but meaningless) all-zero census, and still exits 0.
 
     python3 scripts/sysadmin/next_census.py --root <projects-tree> --since 7 [--repo <path>]
 """
@@ -79,7 +91,7 @@ def _load_by_path(mod_name: str, path: Path) -> ModuleType:
 def _work() -> ModuleType:
     """``scripts/work.py``, imported by path once per process; a failure is cached and re-raised
     (``census`` cannot classify a NEXT: line without ``work.classify_next``, so this is fatal to
-    the run — ``main`` still guarantees exit 0)."""
+    the run — ``main`` still guarantees exit 0, by reporting the failure instead of the counts)."""
     global _WORK, _WORK_ERR
     if _WORK is not None:
         return _WORK
@@ -135,13 +147,23 @@ def _classify_for_report(work_mod: ModuleType, value: str) -> str:
 
 _CLASS_ORDER = ("names-item", "none", "operator-decision", "blocked", "free-text")
 
+# A fenced code block's opening/closing line — leading blockquote/whitespace tolerated so a
+# quoted turn's fence is still recognised. A NEXT: line inside one is never read (item 8).
+_FENCE_LINE_RE = re.compile(r"^[ \t>]*(?:```|~~~)")
+
 
 def _extract_next_lines(text: str) -> list[str]:
-    """Every NEXT: line's value, in order, from one turn's joined text — a line whose
-    ``str.strip()`` starts with the literal ``"NEXT:"``. Deliberately no markdown/quote handling
-    (module docstring)."""
+    """Every NEXT: line's value, in order, from one turn's joined text, OUTSIDE any fenced code
+    block — a line whose ``str.strip()`` starts with the literal ``"NEXT:"``. Deliberately no
+    markdown/quote handling beyond the fence toggle (module docstring)."""
     out = []
+    in_fence = False
     for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        if _FENCE_LINE_RE.match(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         s = line.strip()
         if s.startswith("NEXT:"):
             out.append(s[len("NEXT:") :].strip())
@@ -162,10 +184,30 @@ def _assistant_text(entry: dict[str, Any]) -> str:
     )
 
 
+def _row_identity(entry: dict[str, Any]) -> str | None:
+    """This transcript row's identity for the global dedup set (item 3): the API message id
+    (``message.id``) when present, else the row's own top-level ``uuid``; None when neither
+    exists — such a row is never treated as a duplicate (there is nothing stable to key it on)."""
+    msg = entry.get("message")
+    if isinstance(msg, dict):
+        mid = msg.get("id")
+        if isinstance(mid, str) and mid:
+            return mid
+    row_uuid = entry.get("uuid")
+    if isinstance(row_uuid, str) and row_uuid:
+        return row_uuid
+    return None
+
+
+# The Claude Code project-directory name for an absolute repo path: EVERY character that is not
+# an ASCII letter or digit becomes ``-`` (observed under ``~/.claude/projects/`` — not just the
+# path separator, which under-mapped a name carrying a dot, space or underscore, item 4).
+_NON_ALNUM_RE = re.compile(r"[^A-Za-z0-9]")
+
+
 def _dir_name_for_path(path: Path) -> str:
-    """The Claude Code project-directory name for an absolute repo path — every path separator
-    becomes ``-`` (``/opt/fabrik`` -> ``-opt-fabrik``, observed under ``~/.claude/projects/``)."""
-    return str(path).replace(os.sep, "-")
+    """The Claude Code project-directory name for an absolute repo path."""
+    return _NON_ALNUM_RE.sub("-", str(path))
 
 
 def _display_repo(dir_name: str) -> str:
@@ -177,33 +219,45 @@ def _display_repo(dir_name: str) -> str:
 
 
 class _Scan:
-    __slots__ = ("class_counts", "free_text_values", "sessions_total", "repo_sessions", "skipped")
+    __slots__ = (
+        "class_counts",
+        "free_text_values",
+        "sessions_total",
+        "repo_sessions",
+        "skipped_files",
+        "skipped_lines",
+    )
 
     def __init__(self) -> None:
         self.class_counts: Counter[str] = Counter()
         self.free_text_values: set[str] = set()
         self.sessions_total = 0
         self.repo_sessions: Counter[str] = Counter()
-        self.skipped = 0
+        self.skipped_files = 0
+        self.skipped_lines = 0
 
 
 def _scan(root: Path, since_days: int, work_mod: ModuleType, anchor_mod: ModuleType) -> _Scan:
     """One pass over every ``<root>/<project-dir>/*.jsonl`` transcript modified within the last
-    ``since_days`` days. A non-regular path or a file that cannot be opened is skipped whole (the
-    ``skipped`` counter, never the session denominator); inside a readable file, a line that is
-    not JSON is skipped the same way and the rest of the file is still read."""
+    ``since_days`` days, read line by line (never loaded whole into memory). A non-regular path
+    or a file that cannot be opened is skipped whole (``skipped_files``, never the session
+    denominator); inside a readable file, a line that is not JSON — including one whose parse
+    overflows Python's recursion limit — is skipped the same way (``skipped_lines``) and the rest
+    of the file is still read. A row already seen once this run (``_row_identity``) is silently
+    skipped a second time — it contributes to no count."""
     result = _Scan()
     if not root.is_dir():
         return result
     cutoff = time.time() - since_days * 86400
+    seen: set[str] = set()
     for path in sorted(root.glob("*/*.jsonl")):
         try:
             if not path.is_file():
-                result.skipped += 1
+                result.skipped_files += 1
                 continue
             mtime = path.stat().st_mtime
         except OSError:
-            result.skipped += 1
+            result.skipped_files += 1
             continue
         if mtime < cutoff:
             continue
@@ -211,34 +265,39 @@ def _scan(root: Path, since_days: int, work_mod: ModuleType, anchor_mod: ModuleT
         last_turn_next_lines: list[str] = []
         try:
             with path.open("rb") as fh:
-                raw_lines = fh.readlines()
+                result.sessions_total += 1
+                for raw in fh:
+                    try:
+                        entry = json.loads(raw)
+                    except Exception:  # noqa: BLE001 - any parse failure is one skipped line
+                        result.skipped_lines += 1
+                        continue
+                    if not isinstance(entry, dict) or entry.get("type") != "assistant":
+                        continue
+                    if entry.get("isSidechain"):
+                        continue
+                    text = _assistant_text(entry)
+                    if not text.strip():
+                        continue
+                    identity = _row_identity(entry)
+                    if identity is not None:
+                        if identity in seen:
+                            continue
+                        seen.add(identity)
+                    next_lines = _extract_next_lines(text)
+                    for raw_value in next_lines:
+                        value = " ".join(raw_value.split())
+                        cls = _classify_for_report(work_mod, value)
+                        result.class_counts[cls] += 1
+                        if cls == "free-text":
+                            result.free_text_values.add(value)
+                    if next_lines:
+                        # overwritten only by a turn that itself carries a NEXT: line — a later
+                        # textless (or duplicate) turn must never erase an earlier one (item 1)
+                        last_turn_next_lines = next_lines
         except OSError:
-            result.skipped += 1
+            result.skipped_files += 1
             continue
-        result.sessions_total += 1
-        for raw in raw_lines:
-            if b'"type"' not in raw:
-                continue
-            try:
-                entry = json.loads(raw)
-            except ValueError:
-                result.skipped += 1
-                continue
-            if not isinstance(entry, dict) or entry.get("type") != "assistant":
-                continue
-            if entry.get("isSidechain"):
-                continue
-            text = _assistant_text(entry)
-            if not text.strip():
-                continue
-            next_lines = _extract_next_lines(text)
-            for raw_value in next_lines:
-                value = " ".join(raw_value.split())
-                cls = _classify_for_report(work_mod, value)
-                result.class_counts[cls] += 1
-                if cls == "free-text":
-                    result.free_text_values.add(value)
-            last_turn_next_lines = next_lines  # overwritten each turn: ends as the LAST turn's
         if last_turn_next_lines:
             final_value = " ".join(last_turn_next_lines[-1].split())
             if work_mod.classify_next(final_value) == "free-text" and anchor_mod._is_anchor(
@@ -267,9 +326,15 @@ def _sessions_line(scan: _Scan) -> str:
     return f"sessions with an accepted free-text NEXT: {n} ({detail})"
 
 
+# An item due within this many seconds in the FUTURE still counts (one day of clock skew); one
+# due further out than that is not a real due date yet and must not inflate the bound (item 2).
+_V5_SKEW_S = 86400
+_V5_WINDOW_S = 7 * 86400
+
+
 def _v5_line(repo_arg: str, scan: _Scan, work_mod: ModuleType) -> str:
-    """Validation V5: PASS when the repo's open ``kind: next`` items due within 7 days number no
-    more than measurement 3's session count for that repo, AND the repo shows a live claim."""
+    """Validation V5: PASS when the repo's open ``kind: next`` items due within the window number
+    no more than measurement 3's session count for that repo, AND the repo shows a live claim."""
     root = work_mod.repo_root(repo_arg)
     if root is None or not work_mod.has_store(root):
         return f"V5: no store in {repo_arg}"
@@ -282,7 +347,10 @@ def _v5_line(repo_arg: str, scan: _Scan, work_mod: ModuleType) -> str:
         if item.get("id") in closed:
             continue
         at = work_mod._parse_iso(str(item.get("next_at") or ""))
-        if at is not None and now - at.timestamp() <= 7 * 86400:
+        if at is None:
+            continue
+        delta = now - at.timestamp()
+        if -_V5_SKEW_S <= delta <= _V5_WINDOW_S:
             open_next += 1
     live_claims = len(work_mod._live_claims(root))
     repo_name = _display_repo(_dir_name_for_path(root))
@@ -301,10 +369,25 @@ def _default_root() -> Path:
     return Path.home() / ".claude" / "projects"
 
 
+def _since_arg(value: str) -> int:
+    """argparse ``type=`` for ``--since``: a positive integer only — 0 or a negative window
+    reads as "everything is too old", a silent all-zero census that looks like a real reading
+    rather than a bad argument (item 10)."""
+    try:
+        n = int(value)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(f"{value!r} is not an integer") from e
+    if n <= 0:
+        raise argparse.ArgumentTypeError(f"{value!r} must be a positive integer")
+    return n
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0] if __doc__ else "")
     parser.add_argument("--root", type=Path, default=None, help="the <repo>/<session>.jsonl root")
-    parser.add_argument("--since", type=int, default=7, help="only files modified this many days")
+    parser.add_argument(
+        "--since", type=_since_arg, default=7, help="only files modified this many days"
+    )
     parser.add_argument("--repo", default=None, help="print V5's reading for this repo path")
     args = parser.parse_args(argv)
 
@@ -312,15 +395,13 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         work_mod = _work()
+    except ImportError as e:
+        print(f"census unavailable — {_WORK_PATH.name} import failed: {e}")
+        return 0
+    try:
         anchor_mod = _thread_anchor()
     except ImportError as e:
-        print(f"next_census: {e}", file=sys.stderr)
-        print(f"next: 0 lines over 0 sessions — {' · '.join(f'{c} 0' for c in _CLASS_ORDER)}")
-        print("distinct free-text: 0")
-        print("sessions with an accepted free-text NEXT: 0")
-        if args.repo:
-            print(f"V5: no store in {args.repo}")
-        print("skipped: 0 file(s)")
+        print(f"census unavailable — {_THREAD_ANCHOR_PATH.name} import failed: {e}")
         return 0
 
     scan = _scan(root, args.since, work_mod, anchor_mod)
@@ -330,7 +411,7 @@ def main(argv: list[str] | None = None) -> int:
     print(_sessions_line(scan))
     if args.repo:
         print(_v5_line(args.repo, scan, work_mod))
-    print(f"skipped: {scan.skipped} file(s)")
+    print(f"skipped: {scan.skipped_files} file(s), {scan.skipped_lines} line(s)")
     return 0
 
 
