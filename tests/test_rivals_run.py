@@ -1725,7 +1725,7 @@ def test_a_bad_repo_says_so_on_stdout(tmp_path, monkeypatch, capsys):
 
 def test_a_real_main_run_leaves_no_key_behind(monkeypatch):
     """W-f2d483a6: the helper the autouse fixture relies on must undo whatever main() loads."""
-    for key in rr._ENV_KEYS:
+    for key in (*rr._ENV_KEYS, "DATABASE_URL"):  # the same set it plants and asserts below
         monkeypatch.delenv(key, raising=False)
     with _search_keys_restored():
         rr.main(["--market", "x", "--greenfield", "--budget", "0", "--preflight-only"])
