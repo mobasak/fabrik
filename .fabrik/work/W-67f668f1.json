@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-25T02:00:02.005536Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "a3204047ecfd796d31f3148f5fc83d08a006ef66",
   "id": "W-67f668f1",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Triage the 8 CONVERGED plans older than 7 days with no plan lock (drift class 2) so the hub's sync can reach 7 clean days"
 }
