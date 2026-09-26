@@ -1893,7 +1893,7 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
 
     # Create requirements.txt (production dependencies only)
     (project_dir / "requirements.txt").write_text(
-        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\nstructlog>=24.0.0\nprometheus-client>=0.21.0\nsentry-sdk[fastapi]>=2.18.0\n"
+        "fastapi>=0.115.0\nuvicorn[standard]>=0.32.0\npydantic>=2.9.0\npython-dotenv>=1.0.0\nhttpx>=0.28.0\nstructlog>=24.0.0\nprometheus-client>=0.21.0\nsentry-sdk[fastapi]>=2.18.0\nredis>=5.0\n"
     )
 
     # Create requirements-dev.txt (includes dev dependencies)
@@ -2117,7 +2117,7 @@ _SAAS_SERVER_REQUIREMENTS = (
     "argon2-cffi>=23.1\n"  # password hashing (core/35)
     "pydantic-settings>=2.2\n"  # module Settings (BaseSettings)
     "uuid-utils>=0.10\n"  # UUIDv7 PKs (core/25)
-    "redis>=5.0\n"  # jti denylist / instant revocation
+    "redis>=5.0\n"  # jti denylist / instant revocation, and pause_state.py's client
     # --- vendored app-audit-log (libs/audit_log) — the scheduled jobs' sync connection ---
     "psycopg[binary]>=3.1\n"
 )
@@ -4610,6 +4610,7 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
 structlog>=24.4.0
 supabase>=2.9.0
 pypdf>=4.3.0
+redis>=5.0
 """
     )
 

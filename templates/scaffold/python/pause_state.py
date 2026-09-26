@@ -29,6 +29,24 @@ Configuration
   PAUSE_KEY_PREFIX — env var `PAUSE_KEY_PREFIX`, defaults to `{SERVICE_NAME}:pause:`.
   REDIS_URL        — env var, defaults to `redis://redis-main:6379/0`.
   PAUSE_TTL_*      — per-resource TTL override env vars (e.g. PAUSE_TTL_NETWORK=30).
+  PAUSE_REDIS_TIMEOUT_SEC          — Redis connect/read timeout, default 2.
+  PAUSE_DEGRADED_LOG_INTERVAL_SEC  — minimum gap between degraded warnings, default 60.
+
+Posture when Redis is unreachable: FAIL-OPEN, declared and counted
+----------------------------------------------------------------
+A pause flag OPTIMISES (it saves wasted attempts); it protects nothing a breach cannot recover
+from, so when Redis is down the read answers "not paused" and work proceeds (58-resilience.md
+§ When the resilience substrate itself fails). The degrade is never silent:
+  • every failed call counts in `degraded_count()` and, with prometheus_client installed, in
+    `pause_redis_degraded_total{op}` — registered on this package's `metrics.REGISTRY` (the one
+    /metrics serves) when there is one, else on the default registry. op is `read`, `set` or
+    `clear` for a Redis failure, `client` when the client cannot be built (no redis package, a
+    malformed REDIS_URL); the client connects lazily, so an unreachable server shows as `read`.
+  • `pause_redis_degraded` is logged at most once per PAUSE_DEGRADED_LOG_INTERVAL_SEC, and
+    `pause_redis_recovered` only after a logged degrade — a down or flapping Redis yields at most
+    two lines per interval, never one per poll.
+  • each Redis command (KEYS, GET, SETEX, DEL) is bounded by PAUSE_REDIS_TIMEOUT_SEC, so a
+    black-holed Redis costs a few timeouts per call (redis-py may retry), not the OS connect timeout.
 
 Add project-specific resources by extending TRANSIENT_PATTERNS below.
 See 58-resilience.md § Error Classifier for the full pattern.
@@ -40,6 +58,8 @@ Production example: /opt/youtube/pause_state.py (YouTube pipeline)
 from __future__ import annotations
 
 import os
+import threading
+import time
 
 import structlog
 
@@ -48,18 +68,111 @@ logger = structlog.get_logger(__name__)
 SERVICE_NAME = os.getenv("SERVICE_NAME", "service")
 PAUSE_KEY_PREFIX = os.getenv("PAUSE_KEY_PREFIX", f"{SERVICE_NAME}:pause:")
 
+_TIMEOUT_SEC = float(os.getenv("PAUSE_REDIS_TIMEOUT_SEC", "2"))
+_LOG_INTERVAL_SEC = float(os.getenv("PAUSE_DEGRADED_LOG_INTERVAL_SEC", "60"))
+
+
+def _metrics_registry():
+    """The registry this package's /metrics serves, or None (no metrics module: file-worker)."""
+    try:
+        from .metrics import REGISTRY
+
+        return REGISTRY
+    except ImportError:
+        return None
+
+
+def _degraded_metric():
+    try:
+        from prometheus_client import Counter
+    except ImportError:
+        return None
+    registry = _metrics_registry()
+    try:
+        return Counter(
+            "pause_redis_degraded_total",
+            "Pause-flag Redis calls that failed and fell open (work proceeded unpaused)",
+            ["op"],
+            **({"registry": registry} if registry is not None else {}),
+        )
+    except ValueError as exc:  # already registered in this process (a reload, a second import name)
+        logger.warning("pause_redis_metric_unavailable", error=str(exc))
+        return None
+
+
+_DEGRADED_METRIC = _degraded_metric()
+_lock = threading.RLock()  # re-entered: _redis() -> _degrade()
+_client = None
+_degraded_total = 0
+_degraded = False
+_last_log: float | None = None
+_logged_since_recovery = False
+
+
+def degraded_count() -> int:
+    """Pause-flag Redis calls that have failed open in this process."""
+    return _degraded_total
+
+
+def _degrade(op: str, exc: BaseException) -> None:
+    """Record one fail-open: always counted, logged at most once per interval.
+
+    The log is emitted under the lock so a concurrent recovery can never print before it.
+    """
+    global _degraded_total, _degraded, _last_log, _logged_since_recovery
+    with _lock:
+        _degraded_total += 1
+        entering = not _degraded
+        _degraded = True
+        now = time.monotonic()
+        if _DEGRADED_METRIC is not None:
+            _DEGRADED_METRIC.labels(op=op).inc()
+        if _last_log is None or now - _last_log >= _LOG_INTERVAL_SEC:
+            _last_log = now
+            _logged_since_recovery = True
+            logger.warning(
+                "pause_redis_degraded",
+                op=op,
+                error=type(exc).__name__,
+                entering=entering,
+                failed_calls=_degraded_total,
+                posture="fail-open: pause flags read as not paused until Redis returns",
+            )
+
+
+def _recovered() -> None:
+    global _degraded, _logged_since_recovery
+    if not _degraded:  # fast path: a healthy call never takes the lock
+        return
+    with _lock:
+        if not _degraded:
+            return
+        _degraded = False
+        if _logged_since_recovery:
+            _logged_since_recovery = False
+            logger.warning("pause_redis_recovered")
+
 
 def _redis():
-    """Lazy Redis client. Returns None on connection failure so callers
-    degrade gracefully (no pause is enforced)."""
-    try:
-        import redis as _redis_mod
-        return _redis_mod.from_url(
-            os.getenv("REDIS_URL", "redis://redis-main:6379/0"),
-            decode_responses=True,
-        )
-    except Exception:  # noqa: BLE001
-        return None
+    """The cached Redis client, built once per process, or None (counted and logged)."""
+    global _client
+    if _client is not None:  # fast path: the lock guards only the build
+        return _client
+    with _lock:
+        if _client is None:
+            try:
+                import redis as _redis_mod
+
+                _client = _redis_mod.from_url(
+                    os.getenv("REDIS_URL", "redis://redis-main:6379/0"),
+                    decode_responses=True,
+                    socket_connect_timeout=_TIMEOUT_SEC,
+                    socket_timeout=_TIMEOUT_SEC,
+                )
+            except Exception as exc:  # noqa: BLE001
+                _degrade("client", exc)
+                return None
+        return _client
 
 
 def is_globally_paused() -> str | None:
@@ -73,16 +186,17 @@ def is_globally_paused() -> str | None:
         return None
     try:
         keys = rc.keys(PAUSE_KEY_PREFIX + "*")
-        if not keys:
-            return None
-        for k in keys:
+        found = None
+        for k in keys or []:
             v = rc.get(k)
             if v:
-                resource = k[len(PAUSE_KEY_PREFIX):]
-                return f"{resource}:{v}"
+                found = f"{k[len(PAUSE_KEY_PREFIX) :]}:{v}"
+                break
+    except Exception as exc:  # noqa: BLE001
+        _degrade("read", exc)
         return None
-    except Exception:  # noqa: BLE001
-        return None
+    _recovered()
+    return found
 
 
 def set_global_pause(resource: str, reason: str, ttl_sec: int) -> None:
@@ -96,14 +210,16 @@ def set_global_pause(resource: str, reason: str, ttl_sec: int) -> None:
         return
     try:
         rc.setex(PAUSE_KEY_PREFIX + resource, max(10, int(ttl_sec)), reason[:200])
-        logger.warning(
-            "pause_set",
-            resource=resource,
-            reason=reason[:80],
-            ttl_sec=ttl_sec,
-        )
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001
+        _degrade("set", exc)
+        return
+    _recovered()
+    logger.warning(
+        "pause_set",
+        resource=resource,
+        reason=reason[:80],
+        ttl_sec=ttl_sec,
+    )
 
 
 def clear_global_pause(resource: str) -> None:
@@ -112,10 +228,13 @@ def clear_global_pause(resource: str) -> None:
     if rc is None:
         return
     try:
-        if rc.delete(PAUSE_KEY_PREFIX + resource):
-            logger.warning("pause_cleared", resource=resource)
-    except Exception:  # noqa: BLE001
-        pass
+        deleted = rc.delete(PAUSE_KEY_PREFIX + resource)
+    except Exception as exc:  # noqa: BLE001
+        _degrade("clear", exc)
+        return
+    _recovered()
+    if deleted:
+        logger.warning("pause_cleared", resource=resource)
 
 
 # ── Error Classifier ─────────────────────────────────────────────────────
@@ -131,23 +250,19 @@ def clear_global_pause(resource: str) -> None:
 TRANSIENT_PATTERNS: list[tuple[str, str, int]] = [
     # (substring_to_match, resource_name, default_ttl_seconds)
     # Order matters — most specific first.
-
     # Vendor credit/billing — human must top up. Long TTL.
     # ("insufficient credit", "vendor_credit", 1800),
     # ("payment required", "vendor_credit", 1800),
-
     # Network / DNS — usually short blips.
     ("name resolution", "network", 30),
     ("nameresolutionerror", "network", 30),
     ("temporary failure", "network", 30),
     ("connectionpool", "network", 30),
     ("max retries exceeded", "network", 30),
-
     # SSL / connection mid-stream issues.
     ("ssl syscall", "network_ssl", 30),
     ("unexpected_eof", "network_ssl", 30),
     ("504 gateway timeout", "network_ssl", 30),
-
     # PostgreSQL connection pool exhaustion.
     ("pool exhausted", "db_pool", 120),
     ("too many connections", "db_pool", 120),

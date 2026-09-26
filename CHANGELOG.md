@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The scaffolded pause flag no longer fails open silently, and the types that ship it now install redis (2026-09-26)
+- `templates/scaffold/python/pause_state.py` declares its fail-open posture and makes it visible. A failed Redis call still reads as "not paused", but it is now counted: `degraded_count()` always, plus `pause_redis_degraded_total{op}` on the package's `metrics.REGISTRY` (the registry `/metrics` serves) when there is one. `pause_redis_degraded` is logged at most once per 60 s, and `pause_redis_recovered` only after a logged degrade, so a down or flapping Redis never floods the log. The client is built once, with 2 s connect and read timeouts. Before, every error returned "not paused" with no counter and no log line.
+- The `requirements.txt` that the python-api and file-worker scaffolds emit now lists `redis>=5.0`. Both shipped `pause_state.py` without it, so `import redis` failed and the pause never engaged in any of their projects. Mail 01M1GGBFSHSNBRDH961QYZ1XQK, W-e3c97977.
+
 ### Fixed — importing `fabrik.config` no longer loads the hub's real `.env` into test processes (2026-09-26)
 - `src/fabrik/config.py` now honours `FABRIK_NO_AUTOLOAD=1`, the opt-out `libs/alerting` already respects and the root `conftest.py` sets for every test; before, any test importing the package loaded the whole hub `.env` (real API keys included) into pytest for the rest of the session (W-f2d483a6).
 
