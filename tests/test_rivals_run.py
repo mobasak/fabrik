@@ -1746,3 +1746,62 @@ def test_zz_autouse_probe_leaks_a_key():
 
 def test_zz_autouse_probe_the_leak_did_not_survive():
     assert os.environ.get("CONTEXT7_API_KEY") != _LEAK_PROBE, "the autouse restore did not run"
+
+
+# ── W-6a157c25: a copy run from inside ANOTHER checkout refuses instead of using its own repo ──
+
+
+def test_a_copy_run_from_inside_another_checkout_refuses(tmp_path, monkeypatch, capsys):
+    other = tmp_path / "project-p"
+    (other / ".git").mkdir(parents=True)
+    (other / "src").mkdir()
+    monkeypatch.chdir(other / "src")
+    called: list = []
+    monkeypatch.setattr(rr, "load_env", lambda repo: called.append(repo) or [])
+    rc = rr.main(["--market", "x", "--greenfield", "--preflight-only"])
+    err = capsys.readouterr().err
+    assert rc == 2 and "WIRING ERROR (nothing was spent)" in err and str(other) in err, err
+    assert called == [], "refused AFTER reading the wrong repo's keys"
+
+
+def test_the_own_checkout_and_no_checkout_are_not_refused(tmp_path, monkeypatch):
+    monkeypatch.chdir(REPO / "scripts")
+    assert rr._foreign_caller_repo() is None, "a subdir of the copy's own checkout was refused"
+    here = tmp_path.resolve()
+    if any((p / ".git").exists() for p in (here, *here.parents)):
+        pytest.skip(
+            "tmp_path sits inside a checkout on this box — the no-checkout case is untestable"
+        )
+    monkeypatch.chdir(tmp_path)
+    assert rr._foreign_caller_repo() is None, "a directory outside any checkout was refused"
+
+
+def test_a_worktree_git_file_counts_as_a_checkout(tmp_path, monkeypatch):
+    """From a SUBDIR, so the answer (the dir holding the .git FILE) differs from the CWD — a walk
+    that compared the CWD alone, or ignored a .git file, cannot produce it."""
+    wt = tmp_path / "wt"
+    (wt / "sub").mkdir(parents=True)
+    (wt / ".git").write_text("gitdir: /elsewhere\n")
+    monkeypatch.chdir(wt / "sub")
+    assert rr._foreign_caller_repo() == wt.resolve()
+
+
+def test_a_nested_checkout_inside_the_copys_own_repo_is_not_refused(monkeypatch, tmp_path):
+    """A vendored clone under REPO (live: scripts/kilo-benchmarks/.lcb-src) sits between the CWD
+    and REPO; the nearest-.git rule alone refused REPO's OWN copy from inside it."""
+    fake_repo = tmp_path / "repo"
+    (fake_repo / "vendor" / "dep" / ".git").mkdir(parents=True)
+    (fake_repo / ".git").mkdir()
+    monkeypatch.setattr(rr, "REPO", fake_repo.resolve())
+    monkeypatch.chdir(fake_repo / "vendor" / "dep")
+    assert rr._foreign_caller_repo() is None
+
+
+def test_an_unreadable_or_vanished_cwd_fails_open(monkeypatch):
+    """The walk never raises: a deleted CWD or an EACCES ancestor reads as 'nothing to compare'."""
+
+    def boom():
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(rr.Path, "cwd", staticmethod(boom))
+    assert rr._foreign_caller_repo() is None

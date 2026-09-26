@@ -145,12 +145,16 @@ loader sets what it finds and returns, and the thing that speaks is `_preflight`
 `WIRING ERROR` naming every missing key BEFORE anything is spent. Do not look for a `note:` in the
 normal missing-key case — there is none, and there should not be. The one `note:` the loader does
 print covers a caller passing an empty or non-existent repo path; it exists so a future caller cannot
-silently get some other tree's keys. ⚠️ It does NOT cover running the HUB's copy of the script from
-another repo: `REPO` is derived from `__file__`, so `python /opt/fabrik/scripts/rivals_run.py` inside
-project P reads the HUB's `.env` and writes its checkpoint under `/opt/fabrik/.tmp` while preflight
-calls it repo-local (reproduced 2026-09-14). Run each repo's OWN synced copy — the script is synced
-to every repo precisely so that is always possible — and treat a hub path in the command line as the
-wiring bug it is. Swallowing it would be the same diagnosability gap this command filed upstream against
+silently get some other tree's keys. Running one repo's copy from inside ANOTHER checkout is refused
+outright: `REPO` is derived from `__file__`, so `python /opt/fabrik/scripts/rivals_run.py` inside
+project P would read the HUB's `.env` and write its checkpoint under `/opt/fabrik/.tmp` while
+preflight calls it repo-local (reproduced 2026-09-14). `main()` allows any CWD inside `REPO` —
+whatever nested checkout sits in between, a vendored clone or one of the repo's own worktrees — and
+otherwise takes the nearest `.git` above the CWD as a foreign checkout: it exits 2 with
+`WIRING ERROR (nothing was spent)` naming the right command, before any `.env` is read
+(W-6a157c25). Outside any checkout, or when a path cannot be read, there is nothing to compare and
+the run proceeds. Run each repo's OWN synced copy — the script is synced to every repo
+precisely so that is always possible. Swallowing it would be the same diagnosability gap this command filed upstream against
 the engine's `_safe_research`, which logs a stage label and not the cause.
 
 ### The LLM arity trap (found live, filed upstream)

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-26T01:39:11.864649Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-5d4ed90f",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "scripts/rivals_run.py:934 reuses the name 'cell' as str then Any|None — mypy reports it on HEAD (found by the W-6a157c25 review, outside its diff); rename the second"
+}

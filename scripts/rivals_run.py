@@ -1342,8 +1342,42 @@ async def _run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _foreign_caller_repo() -> Path | None:
+    """The git checkout the process runs inside, when it is NOT the one this copy belongs to.
+
+    `REPO` comes from `__file__`, so `python /opt/fabrik/scripts/rivals_run.py` run inside project
+    P binds REPO to the HUB: it reads the hub's `.env` and writes its checkpoint under
+    `/opt/fabrik/.tmp` while preflight calls it repo-local (reproduced 2026-09-14, W-6a157c25).
+    A CWD anywhere INSIDE `REPO` is its own run, whatever nested checkout sits in between (a
+    vendored clone like `scripts/kilo-benchmarks/.lcb-src`, or a worktree under
+    `.claude/worktrees/` sharing this repo's `.env`). Otherwise the nearest `.git` walking up from
+    the CWD — a `.git` FILE counts — names the foreign checkout. Outside any checkout there is
+    nothing to compare, and an unreadable path fails OPEN like the rest of this loader: None."""
+    try:
+        here = Path.cwd().resolve()
+        if here == REPO or REPO in here.parents:
+            return None
+        for parent in (here, *here.parents):
+            if (parent / ".git").exists():
+                return parent
+    except OSError:  # a deleted CWD, or an ancestor without search permission (EACCES)
+        return None
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
+    foreign = _foreign_caller_repo()
+    if foreign is not None:
+        # Refused BEFORE load_env: running on would read the wrong repo's keys. Same exit and
+        # label as every other wiring bug, so a caller already handling rc 2 needs nothing new.
+        print(
+            f"WIRING ERROR (nothing was spent): this is {REPO}'s copy of rivals_run.py, run from "
+            f"inside {foreign} — it would read {REPO}/.env and checkpoint under {REPO}/.tmp. "
+            f"Run that repo's own copy: `cd {foreign} && python scripts/rivals_run.py …`",
+            file=sys.stderr,
+        )
+        return 2
     try:
         # No `subagents` sys.path search happens here any more. That loop existed ONLY so the
         # deleted `from libs.subagents import load_env` could resolve across three layouts, and

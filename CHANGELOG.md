@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `rivals_run.py` refuses to run from inside another repo's checkout (2026-09-26)
+- A copy of the fleet-synced driver run from inside a DIFFERENT checkout (e.g. the hub's copy inside project P) now exits 2 with `WIRING ERROR (nothing was spent)` before reading any `.env`, instead of silently using its own repo's keys and checkpoint dir; runs from anywhere inside the copy's own repo, or outside any checkout, are unaffected (D-422, W-6a157c25).
+
 ### Added — the Stop harvest tells the work store whether the register accepted the NEXT; the V1 seam walk (2026-09-26)
 - `scripts/thread_anchor.py`: `cmd_harvest` passes `next_anchored` to `work.on_harvest` — True only when the register accepted AND wrote the NEXT (a busy session lock reports False) — and hands the store the same 300 characters the register judges, so free text becomes the session's one `next` item exactly when the register kept an anchor. The keyword reaches only an `on_harvest` that declares it or takes `**kwargs` (judged once per function), so a repo holding an older `work.py` for one sync cycle still gets its decision item; `inspect` loads only on the harvest path. The register is unchanged: a test runs the same harvests through the pre-ticket script and this one on one clock and compares the session state after every step. `tests/test_work_hook_seam.py` walks spec § Validation V1 through the real Stop hook (plan 2026-09-25-plan-1, T05b; review 2 passes, confirmed 11 → 0).
 
