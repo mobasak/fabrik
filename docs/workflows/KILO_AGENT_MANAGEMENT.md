@@ -749,38 +749,28 @@ traceability (skipped slots + dominance swaps explained in `reason` fields).
 
 ### WSL Startup Automation
 
-The entire workflow runs automatically on WSL startup via `.bashrc` hooks:
+The catalog workflow above (discover → scrape → sync → assign) no longer runs from the hub's boot
+hook: it moved to `/opt/ai-model-catalog/engine/` on 2026-08-15 and runs from that repo's own cron
+(see `docs/workflows/KILO_BENCHMARK_WORKFLOW.md` for what the hub still consumes).
 
 ```bash
-# In ~/.bashrc (add these lines):
+# In ~/.bashrc:
 source /opt/fabrik/scripts/wsl_startup_hook.sh
-[ -f /opt/fabrik/scripts/kilo_model_sync_startup.sh ] && /opt/fabrik/scripts/kilo_model_sync_startup.sh
 ```
 
-> **Full startup pipeline reference:** `docs/workflows/DATA_SYNC_WORKFLOW.md`
+The second line older setups carry, `kilo_model_sync_startup.sh`, drives `kilo_model_sync.py`, which is
+RETIRED (D-415); removing that `~/.bashrc` line is the operator's.
+
+> **Full startup pipeline reference:** the step list at the top of `scripts/wsl_startup_hook.sh` (the
+> canonical, maintained copy) and `docs/workflows/DATA_SYNC_WORKFLOW.md`.
 
 **Persistent processes (started on every WSL boot, run continuously):**
 - `watch_env_changes.sh` — Monitors `/opt/*/.env` file changes via `inotifywait` and runs the **read-only** `audit_envs.py` violation audit. Log: `.tmp/env_watcher.log`
   - **Note:** the old `consolidate_envs.py --apply` auto-sync is **deprecated** (script retired to `scripts/consolidate_envs.py.deprecated`), so that consolidation is dormant. `/opt/fabrik/.env` is now the **canonical** source, maintained directly and mirrored off-site by the W9 DR watcher (`fabrik-dr-watcher.service` + `scripts/dr_env_backup.sh`). See `docs/operations/credential-recovery.md`.
 
-**Daily pipeline (runs once per WSL boot day, non-blocking, chained):**
-
-1. `sync_projects.py` — Refresh project registry + BUSINESS_MODEL.md + PORTS.md
-2. `sync_cascade_backup.sh` — Check Cascade memory backup freshness (warn if >7d)
-3. `health_summary.py` — Scaffold health overview across all projects
-4. `kilo_agents_db.py all` — Sync model catalog from Kilo CLI + Ollama; daily snapshot + export
-5. `update_kilo_benchmarks.py --force` — Scrape Arena ELO + Terminal-Bench, write to DB
-6. `scrape_artificial_analysis.py` — Scrape throughput (tokens/sec) + TTFT from artificialanalysis.ai, apply `cache/speed_overrides.json`, write to DB
-7. `role_mapper.py` — Deterministic role assignment (pre_filter → selector → post_filter → DB write). ~50ms, $0, byte-identical re-runs
-8. `generate_kilo_agents.py` — **Generate Traycer CLI agent scripts** from current `agent_roles`
-9. `sync_extensions.sh` — Windsurf extensions documentation
-
-**Failure handling:** the Kilo sub-pipeline (steps 4–8) is chained with `&&` — if any step fails, the rest are skipped and the log shows the break point. Steps 1–3 and 9 are advisory and use `;` so cascade failures don't block downstream steps. Set `FABRIK_DISABLE_KILO_WORKFLOW=1` in the environment to skip steps 4–8 entirely.
-
-**Schema Documentation Auto-Generation:**
-- When `sync` detects schema changes (new columns), it automatically updates this file's schema section
-- When `ollama-sync` detects schema changes, it updates `LOCAL_LLM_INFRASTRUCTURE.md` schema section
-- Manual trigger: `kilo_agents_db.py schema-docs`
+**Schema documentation:** `kilo_agents_db.py schema-docs` now runs in the engine and writes the
+schema section into the engine's own output copy of this file (`kilo_agents_db.py:1245`); it is not
+delivered to the hub, so this file's schema section is no longer auto-updated.
 
 **Lock files prevent duplicate runs:** `/tmp/.fabrik_daily_YYYYMMDD`
 

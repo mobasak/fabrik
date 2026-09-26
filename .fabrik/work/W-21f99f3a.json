@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-26T20:13:12.399793Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-21f99f3a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Measure which sections still describe live hub behaviour, then either cut the file to those or move it to docs/archive/ with a pointer from KILO_BENCHMARK_WORKFLOW.md",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "docs/workflows/KILO_AGENT_MANAGEMENT.md is largely Kilo/Traycer-era: its generate_kilo_agents.py section (~:785-820, :25, :1015) documents a generator retired by D-415 and CLI wrappers for retired Traycer agents; decide rewrite-to-current vs archive (found in W-cb5b89be)"
+}
