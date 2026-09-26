@@ -6,17 +6,21 @@ run_cmd children inherited it, un-skipping env-keyed tests into a connect agains
 leaked DSN — the gate's pytest red while the identical command passed standalone
 (trade-intelligence, proven end-to-end 2026-08-16, finding 01M0CT0GDXWTB3Y6XXPVXJFN14).
 Subprocess-based: the fabrik import is cached per process, so only a clean process can
-observe the leak."""
+observe the leak. Both probes drop FABRIK_NO_AUTOLOAD, which the root conftest.py sets for the
+suite and a real gate process never does — inherited, it made the premise read False and the
+helper's 'no leak' pass trivially (W-f2d483a6)."""
 
 import subprocess
 import sys
 
 PROBE_PREMISE = (
-    "import os, sys; os.environ.pop('DATABASE_URL', None); sys.path.insert(0, 'src'); "
+    "import os, sys; os.environ.pop('DATABASE_URL', None); os.environ.pop('FABRIK_NO_AUTOLOAD', None); "
+    "sys.path.insert(0, 'src'); "
     "from fabrik.spec_loader import load_spec; print('DATABASE_URL' in os.environ)"
 )
 PROBE_HELPER = (
-    "import os, sys; os.environ.pop('DATABASE_URL', None); sys.path.insert(0, 'scripts'); "
+    "import os, sys; os.environ.pop('DATABASE_URL', None); os.environ.pop('FABRIK_NO_AUTOLOAD', None); "
+    "sys.path.insert(0, 'scripts'); "
     "import final_gate; ls = final_gate._import_load_spec(); "
     "print(ls is not None, 'DATABASE_URL' in os.environ)"
 )

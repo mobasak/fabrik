@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — importing `fabrik.config` no longer loads the hub's real `.env` into test processes (2026-09-26)
+- `src/fabrik/config.py` now honours `FABRIK_NO_AUTOLOAD=1`, the opt-out `libs/alerting` already respects and the root `conftest.py` sets for every test; before, any test importing the package loaded the whole hub `.env` (real API keys included) into pytest for the rest of the session (W-f2d483a6).
+
 ### Changed — the Stop harvest's NEXT claims the item it names, or keeps the session's one next item (2026-09-25)
 - `work.on_harvest` applies spec D3 under its one store lock. `classify_next` (shared with T06's census) sorts the NEXT line: a hold (a leading `none`/`BLOCKED`, markdown-wrapped too, or `operator decision(s)` anywhere) claims nothing; a line naming items claims the first open, ready, non-`next` item no other live session holds (the claim written first, then the item's `next`; ids inside paths or URLs name nothing; the claim records the session's bound agent), even for callers that omit the new `next_anchored` keyword; free text the register accepted (`next_anchored=True`) keeps one open `kind: next` item per session, its title and next in step. The first two rules close that item `superseded`; every harvest closes `next` items idle more than 7 days, skipping ones already closed in another tree; `nosession` never claims or creates. `_set_next` is removed. Tests: `tests/test_work_harvest_rules.py` (plan 2026-09-25-plan-1, T05a; review 4 passes, confirmed 15 → 4 → 1 → 0).
 

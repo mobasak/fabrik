@@ -9,6 +9,7 @@ were set for the rest of every session from the first such import.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -40,7 +41,10 @@ def _import_config(no_autoload: str | None) -> str:
 def test_the_package_import_loads_no_dotenv_under_no_autoload():
     # Control first: this box's .env must actually carry the key, or "not loaded" proves nothing.
     env_file = REPO / ".env"
-    if not env_file.is_file() or "EXA_API_KEY=" not in env_file.read_text(encoding="utf-8"):
+    has_key = env_file.is_file() and re.search(
+        r"(?m)^\s*(export\s+)?EXA_API_KEY=\S", env_file.read_text(encoding="utf-8")
+    )
+    if not has_key:
         pytest.skip("no EXA_API_KEY in the hub .env — nothing to leak, nothing to measure")
     assert _import_config(None) == "True", "control: without the flag the import loads .env"
     assert _import_config("1") == "False", "FABRIK_NO_AUTOLOAD=1 was ignored by fabrik.config"
