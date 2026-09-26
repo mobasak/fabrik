@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "W-dceb9014",
+  "next": "measure extract/shortlist prompt size against claude -p wall time on the 3 failing briefs, then choose: route the leg through llm-dispatch's bounded flags, or split extract batches — a D-row records the pick",
   "note": "",
   "owner": "intel",
   "priority": 2,

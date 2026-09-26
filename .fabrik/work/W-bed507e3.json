@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "W-bed507e3",
+  "next": "add flush+fsync before os.replace in refresh(), mirroring _merge_usage_store_locked, with a test that the temp file is fsynced",
   "note": "",
   "owner": "intel",
   "priority": 2,

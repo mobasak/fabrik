@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "W-13d0d691",
+  "next": "**[intel]** **Kilo golden-parity standing red — routes/IMAGE_GEN/ai-pack marker drift** (2026-08-29, surfaced during the canary Phase B review): 10 `test_golden_parity` failures list ONLY foreign artifacts — `scripts/kilo_openrouter_routes_final.json` structure change + OPENROUTER_ROUTES marker rows collapsed to 0 across the ai/ packs + `IMAGE_GEN_SELECTION.md` 3→1 rows — the routes half of the daily pipeline has gone husk; `capture_golden --verify` (a `severity='critical'` daily gate) is red on it. Deliberately NOT frozen over during the canary work (freezing empties makes them \"never red again\"). Fix the routes pipeline, then re-snapshot.",
   "note": "migrated-digest:934cb1248509",
   "owner": "intel",
   "priority": 2,

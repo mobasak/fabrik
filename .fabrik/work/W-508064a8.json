@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "operator decision: start fleet's queue with W-508064a8 — see DECISION NEEDED above",
+  "next": "## [fleet] `fix_project`'s hub guard keys on `FABRIK_ROOT`, so a worktree override turns it off (2026-09-24)\n\n`src/fabrik/scaffold.py::_assert_not_hub` compares the target against `FABRIK_ROOT`; with `FABRIK_ROOT` set to\na worktree (which the scaffold tests need, since templates resolve through it), `fix_project(/opt/fabrik)` runs\nfor real and rewrites the shared checkout — it did, during plan audit-log-everywhere T05 (restored, verified\nbyte-identical to master, nothing distributed). Fix: refuse any directory that IS a hub checkout (detect its\nmarker files, e.g. `scripts/fabrik_synced_manifest.py` + `src/fabrik/`), with a test that sets `FABRIK_ROOT`\nelsewhere and still gets the refusal. Owner: fleet (scaffolding). See docs/LESSONS_LEARNT.md (2026-09-24).",
   "note": "migrated-digest:19551d4256ea",
   "owner": "fleet",
   "priority": 2,

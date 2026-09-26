@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "W-40a0370e",
+  "next": "**[intel]** **Reconcile the 2026-08-28 transdoc score contamination in `subagent_runs`** (transdoc 01M154PZQ, self-reported): ~226 historical review runs (2026-08-21→28, other sessions' agent_ids) received `status='scored'` deltas at 2026-08-28T21:3x from project=transdoc with per-model constants (v3.2-exp 4.0, qwen3-max 4.0, gemini-3-flash 3.0, v4-flash 3.0) — under latest-wins those now shadow real adjudications. MEASURE FIRST (the fix directive): count affected agent_ids whose prior latest score differed, split had-prior-score (re-assert prior latest via fresh deltas — INSERT-only-compatible) vs never-scored (needs an aggregation-side exclusion or acceptance — decide on measured counts). Module-side guards (refuse re-score without override + ownership warning) filed to fabrik-lib the same day.",
   "note": "migrated-digest:30cf8f30ffa6",
   "owner": "intel",
   "priority": 2,
