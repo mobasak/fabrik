@@ -19,3 +19,5 @@ means no real source supports that metric — the reason is in the hand-off mail
 | 2026-08-30 | 100% (1/1) | — | — | 9.7 (n=21) | — | — | 18 filed / 9 none / 17 unstated |
 | 2026-09-06 | — | 0 occ / 0 cls | — | 20.8 (n=23) | — | — | 62 filed / 33 none / 0 unstated |
 | 2026-09-08 | — | 0 occ / 0 cls | — | 9.7 (n=38) | — | — | 327 filed / 2059 none / 0 unstated |
+| 2026-09-20 | — | 0 occ / 0 cls | — | 6.3 (n=49) | — | — | 491 filed / 240 none / 0 unstated |
+| 2026-09-25 | — | — | — | 32.7 (n=9) | — | — | 5 filed / 4 none / 0 unstated |

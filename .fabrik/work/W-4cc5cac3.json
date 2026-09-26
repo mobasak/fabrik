@@ -1,0 +1,26 @@
+{
+  "block_digest": "98d659035a7c72703518c1ec1a3a85aa128d5ee3011a3002f3f5dad17ce46c2d",
+  "blocked_by": [],
+  "created": "2026-09-25T11:40:10.421948Z",
+  "creator": "intel",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-4cc5cac3",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "7e883558365cbdaf0beb5cceb693833fdb7d5ebcd31d16bdaabec07bd20de8a9"
+  ],
+  "next": "awaiting your reply on dropping W-4cc5cac3; otherwise I'll check the 35-vs-33 gap, then take W-0ca15040.",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May I roll the work store out across the fleet (W-59c5ab33)? Each project repo would run `work.py init --distributor` and `migrate-backlog`, which writes and commits a `.fabrik/work/` store in every repo.",
+  "status": "awaiting-operator",
+  "title": "May I roll the work store out across the fleet (W-59c5ab33)? Each project repo would run `work.py init --distributor` and `migrate-backlog`, which writes and commits a `.fabrik/work/` store in every repo."
+}

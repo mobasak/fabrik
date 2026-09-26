@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-06-28
 **Owner contract:** edits to this file are made by AI agents (Claude, other Code agents) as decisions evolve. The operator decides WITH the agent in chat; the agent persists the verdict here.
-**Consumed by:** any agent extending or pruning the daily benchmark pipeline ([wsl_startup_hook.sh](../../../scripts/wsl_startup_hook.sh) → [KILO_BENCHMARK_WORKFLOW.md](../../workflows/KILO_BENCHMARK_WORKFLOW.md)).
+**Consumed by:** any agent extending or pruning the daily benchmark pipeline, which runs in `/opt/ai-model-catalog/engine/` (`daily_refresh.sh`) since 2026-08-15; the hub only consumes it ([KILO_BENCHMARK_WORKFLOW.md](../../workflows/KILO_BENCHMARK_WORKFLOW.md)).
 
 ---
 
@@ -265,13 +265,12 @@ This is a **real, observable gap** that meets the §1 criteria. The fix is small
 
 ## 6. How to wire a new source (after a CONFIRMED ✅ verdict)
 
-1. Add a scraper in `scripts/kilo-benchmarks/scrape_<name>.py` following the shape of `/opt/ai-model-catalog/engine/scrape_benchlm.py` (ai-model-catalog) (httpx + cache file + JSON output).
+1. Add a scraper in `/opt/ai-model-catalog/engine/scrape_<name>.py` (ai-model-catalog) following the shape of `/opt/ai-model-catalog/engine/scrape_benchlm.py` (ai-model-catalog) (httpx + cache file + JSON output).
 2. Add a column to `kilo_agents.db.agents` for the new score.
-3. Wire the scraper into `/opt/ai-model-catalog/engine/update_kilo_benchmarks.py` (ai-model-catalog) so it runs as part of step 5b in the daily pipeline.
+3. Wire the scraper into `/opt/ai-model-catalog/engine/update_kilo_benchmarks.py` (ai-model-catalog) so it runs in the engine's `daily_refresh.sh`.
 4. Add the new score column to the `/opt/ai-model-catalog/engine/role_mapper.py` (ai-model-catalog) sort-key in the right priority slot.
 5. Move the entry from §3 to §2 here, fill in the "Lands in" + "Last verified" fields.
-6. Update [KILO_BENCHMARK_WORKFLOW.md](../../workflows/KILO_BENCHMARK_WORKFLOW.md) step 5b's table cell to mention the new source.
-7. Run the pipeline once manually; verify the column populates in the DB.
+6. Run the pipeline once manually; verify the column populates in the DB.
 
 ## 7. How to retire a WIRED source (after a CONFIRMED ❌ verdict)
 
@@ -279,4 +278,3 @@ This is a **real, observable gap** that meets the §1 criteria. The fix is small
 2. Leave the DB column in place (don't drop — keeps historical snapshots intact); just stop writing to it.
 3. Remove the source from `role_mapper.py` sort-key.
 4. Move the entry from §2 to §4 here, fill in the failing axes + re-evaluate trigger.
-5. Update [KILO_BENCHMARK_WORKFLOW.md](../../workflows/KILO_BENCHMARK_WORKFLOW.md) step 5b's table cell.

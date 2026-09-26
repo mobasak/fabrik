@@ -6787,7 +6787,7 @@ def create_project(
     preset: str | None = None,
     generate_spec: bool = True,
     preplan: object = None,  # T3-01: a fabrik.preplan.Preplan instance or None
-    **kwargs: object,
+    use_database: bool = False,
 ) -> Path:
     """Create a new project with full structure.
 
@@ -6841,13 +6841,13 @@ def create_project(
     # _scaffold_shared() creates all shared structure AND runs git init + pre-commit install.
     _scaffold_shared(project_dir, name, description, today, host_port, project_type)
 
-    scaffolder(project_dir, name, description, preset=preset, **kwargs)
+    scaffolder(project_dir, name, description, preset=preset, use_database=use_database)
 
     # CI-parity (Fix B): Python API types get ci.yml + ci_local.sh from one source, so
     # "green locally" (scripts/ci_local.sh) means "green CI". needs_database reuses the
     # same signal the compose scaffolder uses; pgvector/web toggles come from the spec.
     if project_type in _CI_PYTHON_TYPES:
-        _write_ci_files(project_dir, needs_database=bool(kwargs.get("use_database", False)))
+        _write_ci_files(project_dir, needs_database=use_database)
 
     # Provision i18n-kit for GUI-enabled scaffold types
     _provision_i18n(project_dir, project_type)
@@ -6914,7 +6914,7 @@ def create_project(
                 specs_dir,
                 secrets_from_env=secrets_from_env,
                 secrets_from_file=secrets_from_file,
-                use_database=bool(kwargs.get("use_database", False)),
+                use_database=use_database,
             )
             try:
                 shown = spec_path.relative_to(FABRIK_ROOT)

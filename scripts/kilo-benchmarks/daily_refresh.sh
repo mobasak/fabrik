@@ -4,8 +4,8 @@
 #
 # ⚠️ THIS SCRIPT NO LONGER PRODUCES THE CATALOG. The engine (scrape → normalize → derive → rank →
 # export, ~210 modules) was relocated to /opt/ai-model-catalog/engine/ on 2026-08-15 and runs from
-# its own cron at `30 5 * * *`, half an hour ahead of this one so the delivered artifacts are fresh
-# when this hook reads them. This header used to document a 9-step producer chain
+# its own cron, ahead of this one so the delivered artifacts are fresh when this hook reads them
+# (the interval's canonical row is the engine's docs/RESILIENCE.md §7; never restate it here). This header used to document a 9-step producer chain
 # (verify_openrouter_catalog → classify_ai_category → category_route_mapper → category_export_markdown
 # → update_gateway_counts → fetch_*_prices → derive_cheapest_gateway → rank_* → export_models_browser);
 # every one of those steps is gone from this file. Rewritten 2026-08-16 after a review found the

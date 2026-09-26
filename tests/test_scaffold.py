@@ -1153,3 +1153,29 @@ class TestDocsSiteVendoring:
         assert (ds / ".gitignore").exists()
         # Package name pointed at the project.
         assert json.loads((ds / "package.json").read_text())["name"] == "acme-docs"
+
+
+class TestCreateProjectRejectsUnknownKeywords:
+    """W-202f7fc6: `create_project(**kwargs)` swallowed a mistyped `base_dir=` (the keyword is
+    `base=`), so the default base `/opt` was used and four projects were scaffolded there."""
+
+    def test_a_mistyped_keyword_raises_before_anything_is_written(self, tmp_path):
+        from fabrik.scaffold import create_project
+
+        base = tmp_path / "base"
+        base.mkdir()
+        with pytest.raises(TypeError, match="base_dir"):
+            create_project(name="typo-probe", description="d", base=base, base_dir=base)
+
+        assert list(base.iterdir()) == [], "a refused call must write nothing"
+
+    def test_use_database_is_still_accepted(self, tmp_path):
+        from fabrik.scaffold import create_project
+
+        project = create_project(
+            name="db-probe", description="d", base=tmp_path, generate_spec=False, use_database=True
+        )
+
+        assert (project / ".env.local").exists(), (
+            "use_database=True must still reach the scaffolder"
+        )
