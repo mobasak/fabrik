@@ -6,25 +6,13 @@
 
 This document covers tools for managing AI agents in `scripts/kilo-benchmarks/`.
 
-## WSL Startup Workflow (Automatic Daily)
+## Daily catalog refresh (moved to the engine)
 
-**Trigger:** `~/.bashrc` sources `scripts/wsl_startup_hook.sh` on WSL start
-
-**Steps:**
-1. `kilo_agents_db.py all` - Sync ALL ~330 Kilo CLI models + 4 custom local Ollama agents (FREE)
-   - **Kilo CLI:** Vision support, tool calling, reasoning modes, context windows, input/output costs
-   - **Local Ollama agents:** fabrik-coder, fabrik-fixer, fabrik-reviewer, fabrik-docs
-   - Creates daily historical snapshot
-2. `update_kilo_benchmarks.py --force` - Scrape Arena ELO, TBench, Windsurf models (FREE)
-3. `scrape_artificial_analysis.py` - Scrape throughput + TTFT from artificialanalysis.ai (FREE)
-   - Updates `output_tokens_per_sec` and `ttft_ms` columns
-   - Manual proxies in `cache/speed_overrides.json` fill gaps for models AA doesn't track
-4. `role_mapper.py` - Deterministic role assignment (FREE, ~50ms, byte-identical re-runs)
-   - Pipeline: `pre_filter.py` → `selector.py` → `post_filter.py` → DB write
-   - No LLM in the loop; rules live in `role_configs.yaml`
-5. `generate_kilo_agents.py` - Generate CLI agent scripts in `~/.traycer/cli-agents/` (FREE)
-
-**Cost:** $0/day | **Duration:** ~3-4 minutes (dominated by benchmark scrapes) | **Log:** `scripts/kilo-benchmarks/cache/update.log`
+The daily catalog run (Kilo/OpenRouter catalog sync, benchmark and throughput scrapes, deterministic
+role assignment) no longer runs from `scripts/wsl_startup_hook.sh`. Since 2026-08-15 it runs in
+`/opt/ai-model-catalog/engine/` from that engine's `daily_refresh.sh` (user crontab, `0 5 * * *`), and
+`generate_kilo_agents.py` is retired (D-415). The scripts below keep their descriptions for reference;
+their hub paths no longer exist. What the hub still consumes: `docs/workflows/KILO_BENCHMARK_WORKFLOW.md`.
 
 ## Database Statistics
 
@@ -95,7 +83,7 @@ Grouped by pipeline stage. Every active script has an explicit role; the depreca
 | File | Role | Triggered by | Output |
 | ---- | ---- | ------------ | ------ |
 | `discover_kilo_agents.py` | Extracts the FULL capability profile of every Kilo CLI model (~332 models): pricing, context window, vision/tools/reasoning flags, variants. | Manual on first setup or after Kilo CLI updates. | `kilo_all_agents.json` |
-| `kilo_agents_db.py` | Master DB sync. Reads `kilo_all_agents.json` + local Ollama models, writes/updates rows in `agents`. Also creates daily snapshots and exports. | WSL startup (daily pipeline); CLI: `kilo_agents_db.py all`. | Rows in `agents` table |
+| `kilo_agents_db.py` | Master DB sync. Reads `kilo_all_agents.json` + local Ollama models, writes/updates rows in `agents`. Also creates daily snapshots and exports. | The engine's `daily_refresh.sh` (no longer the hub's boot hook); CLI: `kilo_agents_db.py all`. | Rows in `agents` table |
 
 ### Benchmark ingestion (score every agent)
 
@@ -105,7 +93,7 @@ Grouped by pipeline stage. Every active script has an explicit role; the depreca
 | `scrape_benchlm.py` | Scrapes coding benchmark data from `benchlm.ai/api/data/leaderboard?category=coding` — SWE-bench Pro, weighted_coding, LiveCodeBench. | JSON API. | `cache/benchlm_cache.json` |
 | `scrape_artificial_analysis.py` | Scrapes throughput (tokens/sec) + TTFT from artificialanalysis.ai/leaderboards/models, matches to DB agents via canonical (provider, name) keys, applies manual overrides, writes `output_tokens_per_sec` + `ttft_ms` columns. | HTML scraping. | `cache/aa_raw.html`, `cache/aa_parsed.json`, agent rows |
 | ~~`scrape_windsurf_models.py`~~ | **Retired 2026-07-20** — moved to `scripts/.archive/scrape_windsurf_models.py`; no longer invoked by the daily pipeline. Windsurf Cascade itself was retired 2026-07-19 (see `project_kilo_cascade_retired`), so the Cascade credit-multiplier catalog it scraped is dead data. The rest of the benchmark-ingestion pipeline below is unaffected and still live. | — | — |
-| `update_kilo_benchmarks.py` | Orchestrator: calls the scrapers, builds (model → score) maps, applies them to `kilo_agents.db`, also updates `docs/traycer/kilo_selected_agents.md` and Cascade docs. | WSL startup (daily, with 20 h cache window); `--force` overrides cache. | `cache/benchmark_cache.json`, agent rows, docs |
+| `update_kilo_benchmarks.py` | Orchestrator: calls the scrapers, builds (model → score) maps, applies them to `kilo_agents.db`, also updates `docs/traycer/kilo_selected_agents.md` and Cascade docs. | The engine's `daily_refresh.sh` (daily, with 20 h cache window); `--force` overrides cache. | `cache/benchmark_cache.json`, agent rows, docs |
 
 ### Selection pipeline (deterministic, no LLM)
 
@@ -750,27 +738,31 @@ traceability (skipped slots + dominance swaps explained in `reason` fields).
 ### WSL Startup Automation
 
 The catalog workflow above (discover → scrape → sync → assign) no longer runs from the hub's boot
-hook: it moved to `/opt/ai-model-catalog/engine/` on 2026-08-15 and runs from that repo's own cron
-(see `docs/workflows/KILO_BENCHMARK_WORKFLOW.md` for what the hub still consumes).
+hook: it moved to `/opt/ai-model-catalog/engine/` on 2026-08-15 and runs from the engine's
+`daily_refresh.sh` (user crontab, `0 5 * * *`); `discover_kilo_agents.py` is not scheduled there (see
+`docs/workflows/KILO_BENCHMARK_WORKFLOW.md` for what the hub still consumes).
 
 ```bash
 # In ~/.bashrc:
 source /opt/fabrik/scripts/wsl_startup_hook.sh
 ```
 
-The second line older setups carry, `kilo_model_sync_startup.sh`, drives `kilo_model_sync.py`, which is
-RETIRED (D-415); removing that `~/.bashrc` line is the operator's.
+`kilo_model_sync.py` is RETIRED (D-415), yet two entry points still run it: a daily crontab line
+(`59 11 * * *`) and a `~/.bashrc` line that calls `kilo_model_sync_startup.sh`. Removing both is the
+operator's.
 
-> **Full startup pipeline reference:** the step list at the top of `scripts/wsl_startup_hook.sh` (the
-> canonical, maintained copy) and `docs/workflows/DATA_SYNC_WORKFLOW.md`.
+> **Full startup pipeline reference:** `docs/workflows/DATA_SYNC_WORKFLOW.md`. The step list in
+> `scripts/wsl_startup_hook.sh`'s own header lags the code (W-39b1c993); read the block itself when they differ.
 
 **Persistent processes (started on every WSL boot, run continuously):**
-- `watch_env_changes.sh` — Monitors `/opt/*/.env` file changes via `inotifywait` and runs the **read-only** `audit_envs.py` violation audit. Log: `.tmp/env_watcher.log`
+- `watch_env_changes.sh` — Monitors every `/opt/<project>/.env` except fabrik's own via `inotifywait` and runs the `audit_envs.py` violation audit, which never writes a `.env` (it writes `data/env_audit.yaml`, names and metadata only). Log: `.tmp/env_watcher.log`
   - **Note:** the old `consolidate_envs.py --apply` auto-sync is **deprecated** (script retired to `scripts/consolidate_envs.py.deprecated`), so that consolidation is dormant. `/opt/fabrik/.env` is now the **canonical** source, maintained directly and mirrored off-site by the W9 DR watcher (`fabrik-dr-watcher.service` + `scripts/dr_env_backup.sh`). See `docs/operations/credential-recovery.md`.
 
-**Schema documentation:** `kilo_agents_db.py schema-docs` now runs in the engine and writes the
-schema section into the engine's own output copy of this file (`kilo_agents_db.py:1245`); it is not
-delivered to the hub, so this file's schema section is no longer auto-updated.
+**Schema documentation:** `kilo_agents_db.py schema-docs` exists only in the engine. It targets
+`engine/out/docs/workflows/KILO_AGENT_MANAGEMENT.md` (`kilo_agents_db.py:1245`), which nothing creates,
+so it logs "Documentation file not found" and writes nothing: this file's schema section is no longer
+auto-updated. Were that target ever created, `deliver_to_fabrik.py` (which copies every file under
+`out/`) would overwrite this hand-maintained file; filed with ai-model-catalog.
 
 **Lock files prevent duplicate runs:** `/tmp/.fabrik_daily_YYYYMMDD`
 
