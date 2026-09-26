@@ -354,9 +354,17 @@ sys.exit(0 if not c._pool_policy_on() else 1)' 2>/dev/null
   # The engine-delivered `last-refreshed:` blocks in the ai/*.md packs call themselves live; page when
   # any is more than 3 days old (the engine runs daily, so 3 days is two missed deliveries). On
   # 2026-09-23 they had been frozen at 2026-09-07 for 16 days with no alert (D-415).
-  _step "check_ai_pack_freshness_delivered" "$VENV_PY" "$FABRIK_ROOT/scripts/check_ai_pack_freshness.py" --delivered-max-age 3 \
-    || bash "$KB/pipeline_alert.sh" 'daily_refresh: ai/*.md delivered blocks are stale' \
-         'At least one GATEWAY_COUNTS / OPENROUTER_ROUTES block in .windsurf/rules/ai/*.md is more than 3 days old: the ai-model-catalog engine is not delivering. Read /opt/ai-model-catalog/engine/cache/update.log for the failing step. Re-check: python3 scripts/check_ai_pack_freshness.py --delivered-max-age 3' || true
+  # Gated on the SAME pause as deliver_to_fabrik above (W-1a18423a): while delivery is skipped the
+  # markers age by construction, so a page carries no information and fired daily blaming a clean
+  # engine. Cost, stated: nothing measures pack freshness while paused. It measures DATES only, never
+  # whether a block is empty.
+  if _pool_eval_paused; then
+    echo "[daily_refresh] POOL EVAL PAUSED — skipping check_ai_pack_freshness_delivered (deliver_to_fabrik is skipped too, so the ai/*.md markers age by design)"
+  else
+    _step "check_ai_pack_freshness_delivered" "$VENV_PY" "$FABRIK_ROOT/scripts/check_ai_pack_freshness.py" --delivered-max-age 3 \
+      || bash "$KB/pipeline_alert.sh" 'daily_refresh: ai/*.md delivered blocks are stale' \
+           'At least one GATEWAY_COUNTS / OPENROUTER_ROUTES block in .windsurf/rules/ai/*.md is more than 3 days old. Two causes: the ai-model-catalog engine stopped producing (read /opt/ai-model-catalog/engine/cache/update.log), or this chain'"'"'s deliver_to_fabrik step failed (read this run'"'"'s log for its [timing] line). Re-check: python3 scripts/check_ai_pack_freshness.py --delivered-max-age 3' || true
+  fi
 
 
   # Embedding catalog sync (sibling to kilo_agents_db.py for embedding models).

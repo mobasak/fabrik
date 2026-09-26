@@ -87,3 +87,51 @@ def test_the_guard_actually_pauses_and_the_seam_actually_re_enables():
         env={"PATH": "/usr/bin:/bin", "FABRIK_POOL_POLICY": "on", "HOME": str(Path.home())},
     )
     assert on.stdout.strip() == "ACTIVE", on.stdout + on.stderr
+
+
+def _freshness_block() -> str:
+    """The delivered-freshness step as the chain holds it: from its leading comment to the blank line."""
+    t = _text()
+    start = t.index("# The engine-delivered `last-refreshed:` blocks")
+    return t[t.rindex("\n", 0, start) + 1 : t.index("\n\n", start)]
+
+
+def _run_freshness_block(tmp_path: Path, paused: bool) -> tuple[str, str | None]:
+    """Execute the block with the check forced stale: `_step` fails, the alert helper records its
+    arguments, and the pause predicate answers as told. Returns (stdout, the alert text or None)."""
+    kb = tmp_path / "kb"
+    kb.mkdir()
+    alert = tmp_path / "alert.txt"
+    (kb / "pipeline_alert.sh").write_text(f'printf "%s\\n%s\\n" "$1" "$2" > "{alert}"\n')
+    script = (
+        f'FABRIK_ROOT="{tmp_path}"; VENV_PY=true; KB="{kb}"\n'
+        '_step() { echo "STEP-RAN $1"; return 1; }\n'
+        f"_pool_eval_paused() {{ return {0 if paused else 1}; }}\n"
+        f"{_freshness_block()}\n"
+    )
+    out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=False)
+    return out.stdout, alert.read_text() if alert.exists() else None
+
+
+def test_the_delivered_freshness_page_stands_down_while_delivery_is_paused(tmp_path):
+    """W-1a18423a: the chain skips deliver_to_fabrik while the pool is paused, so the delivered
+    markers age by construction. Paging on that certainty fired every day and blamed the engine;
+    while paused the step must page nothing and say in the log that the pause is the cause."""
+    stdout, alert = _run_freshness_block(tmp_path, paused=True)
+    assert alert is None, f"paged while paused:\n{alert}"
+    assert "STEP-RAN" not in stdout, stdout
+    assert "POOL EVAL PAUSED" in stdout and "check_ai_pack_freshness_delivered" in stdout, stdout
+
+
+def test_the_delivered_freshness_page_still_fires_when_the_pool_is_on_and_names_both_causes(
+    tmp_path,
+):
+    """The mirror of the stand-down: deleting the check would also stop the false page. With the
+    pool on, a stale marker must still page, and the text must name the hub's own delivery step as
+    well as the engine instead of blaming only the engine."""
+    stdout, alert = _run_freshness_block(tmp_path, paused=False)
+    assert "STEP-RAN check_ai_pack_freshness_delivered" in stdout, stdout
+    assert alert is not None, "a stale marker did not page with the pool on"
+    assert (
+        "deliver_to_fabrik" in alert and "/opt/ai-model-catalog/engine/cache/update.log" in alert
+    ), alert

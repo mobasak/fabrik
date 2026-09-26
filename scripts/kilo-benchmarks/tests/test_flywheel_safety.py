@@ -279,8 +279,11 @@ def test_every_daily_refresh_alert_can_actually_deliver():
     # the change was committed — which is the FD6 class this file exists to catch, landing again: a
     # pinned count in a module the author's own test sweep never reached, because that sweep grepped
     # for changed MODULE names and this test keys on the shell files instead.
-    assert len(sites) == 20, (
-        f"expected exactly 20 alert sites across the three entry points, found {len(sites)}. "
+    # 20 -> 22 (2026-09-26, intel, W-1a18423a): daily_refresh.sh's rank_task_subagents failure page
+    # (6bad6a701, 2026-09-06) and its delivered-freshness page (31f987b6c, D-415) were both added
+    # without this bump, so the test sat red for three weeks; the hub gate runs no pytest.
+    assert len(sites) == 22, (
+        f"expected exactly 22 alert sites across the three entry points, found {len(sites)}. "
         f"If you ADDED one, bump this number; if it DROPPED, an alert was deleted."
     )
     for ln in sites:
