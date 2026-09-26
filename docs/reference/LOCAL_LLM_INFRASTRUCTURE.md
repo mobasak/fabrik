@@ -1,6 +1,6 @@
 # Local LLM Infrastructure (Ollama)
 
-**Last Updated:** 2026-07-19 (hand-written sections re-grounded). The model-status tables below were auto-refreshed by `kilo_agents_db.py`; since that moved to the ai-model-catalog engine on 2026-08-15 they are no longer refreshed here
+**Last Updated:** 2026-09-26 (hand-written sections last re-grounded 2026-07-19). The model-status tables below were auto-refreshed by `kilo_agents_db.py`; since that moved to the ai-model-catalog engine on 2026-08-15 they are no longer refreshed here
 
 Local AI inference via Ollama on the development machine. Provides zero-cost, offline-capable AI for **dev-box tooling** (benchmark pipeline, local experiments) without API rate limits or outages.
 

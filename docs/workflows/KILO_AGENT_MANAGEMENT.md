@@ -11,8 +11,10 @@ This document covers tools for managing AI agents in `scripts/kilo-benchmarks/`.
 The daily catalog run (Kilo/OpenRouter catalog sync, benchmark and throughput scrapes, deterministic
 role assignment) no longer runs from `scripts/wsl_startup_hook.sh`. Since 2026-08-15 it runs in
 `/opt/ai-model-catalog/engine/` from that engine's `daily_refresh.sh` (user crontab, `0 5 * * *`), and
-`generate_kilo_agents.py` is retired (D-415). The scripts below keep their descriptions for reference;
-their hub paths no longer exist. What the hub still consumes: `docs/workflows/KILO_BENCHMARK_WORKFLOW.md`.
+`generate_kilo_agents.py` is retired (2026-07-19; D-415 took it off the scheduler). The catalog-producing
+scripts below (sync, scrapers, the role-assignment pipeline) keep their descriptions for reference, but
+their hub paths no longer exist; the runtime-selection scripts (`agent_selector.py`, `classify_ticket.py`,
+`db_models.py`, `kilo_telemetry.py`) remain in `scripts/kilo-benchmarks/`. What the hub still consumes: `docs/workflows/KILO_BENCHMARK_WORKFLOW.md`.
 
 ## Database Statistics
 
@@ -93,7 +95,7 @@ Grouped by pipeline stage. Every active script has an explicit role; the depreca
 | `scrape_benchlm.py` | Scrapes coding benchmark data from `benchlm.ai/api/data/leaderboard?category=coding` — SWE-bench Pro, weighted_coding, LiveCodeBench. | JSON API. | `cache/benchlm_cache.json` |
 | `scrape_artificial_analysis.py` | Scrapes throughput (tokens/sec) + TTFT from artificialanalysis.ai/leaderboards/models, matches to DB agents via canonical (provider, name) keys, applies manual overrides, writes `output_tokens_per_sec` + `ttft_ms` columns. | HTML scraping. | `cache/aa_raw.html`, `cache/aa_parsed.json`, agent rows |
 | ~~`scrape_windsurf_models.py`~~ | **Retired 2026-07-20** — moved to `scripts/.archive/scrape_windsurf_models.py`; no longer invoked by the daily pipeline. Windsurf Cascade itself was retired 2026-07-19 (see `project_kilo_cascade_retired`), so the Cascade credit-multiplier catalog it scraped is dead data. The rest of the benchmark-ingestion pipeline below is unaffected and still live. | — | — |
-| `update_kilo_benchmarks.py` | Orchestrator: calls the scrapers, builds (model → score) maps, applies them to `kilo_agents.db`, also updates `docs/traycer/kilo_selected_agents.md` and Cascade docs. | The engine's `daily_refresh.sh` (daily, with 20 h cache window); `--force` overrides cache. | `cache/benchmark_cache.json`, agent rows, docs |
+| `update_kilo_benchmarks.py` | Orchestrator: calls the scrapers, builds (model → score) maps, applies them to `kilo_agents.db`, also updates `docs/traycer/kilo_selected_agents.md` and Cascade docs. | The engine's `daily_refresh.sh` (daily, with `--force`, so the 20 h cache window applies only to manual runs). | `cache/benchmark_cache.json`, agent rows, docs |
 
 ### Selection pipeline (deterministic, no LLM)
 
@@ -755,7 +757,7 @@ operator's.
 > `scripts/wsl_startup_hook.sh`'s own header lags the code (W-39b1c993); read the block itself when they differ.
 
 **Persistent processes (started on every WSL boot, run continuously):**
-- `watch_env_changes.sh` — Monitors every `/opt/<project>/.env` except fabrik's own via `inotifywait` and runs the `audit_envs.py` violation audit, which never writes a `.env` (it writes `data/env_audit.yaml`, names and metadata only). Log: `.tmp/env_watcher.log`
+- `watch_env_changes.sh` — Monitors every `/opt/<project>/.env` except fabrik's own via `inotifywait` and runs the `audit_envs.py` violation audit, which reports to the log only (it writes `data/env_audit.yaml` only when run by hand with `--yaml`, and never writes a `.env`). Log: `.tmp/env_watcher.log`
   - **Note:** the old `consolidate_envs.py --apply` auto-sync is **deprecated** (script retired to `scripts/consolidate_envs.py.deprecated`), so that consolidation is dormant. `/opt/fabrik/.env` is now the **canonical** source, maintained directly and mirrored off-site by the W9 DR watcher (`fabrik-dr-watcher.service` + `scripts/dr_env_backup.sh`). See `docs/operations/credential-recovery.md`.
 
 **Schema documentation:** `kilo_agents_db.py schema-docs` exists only in the engine. It targets

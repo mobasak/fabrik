@@ -83,14 +83,12 @@ Backup of pre-cleanup crontab: `~/.crontab.backup.20260630-105542Z`.
 
 `~/.bashrc:212` sources `/opt/fabrik/scripts/wsl_startup_hook.sh` on every interactive shell open (`[ -t 1 ] &&` guard — non-interactive shells skip it). The hook runs:
 
-1. **Env watcher** (persistent process; not daily): starts `watch_env_changes.sh` if not already running. Monitors `/opt/*/.env` for changes and logs violations.
+1. **Env watcher** (persistent process; not daily): starts `watch_env_changes.sh` if not already running. Monitors every `/opt/<project>/.env` except fabrik's own for changes and logs violations.
 2. **Daily pipeline** (lockfile-gated; once per UTC day):
    - Project registry sync (`scripts/sync_projects.py`): `project.yaml` from every `/opt/*/project.yaml` → merged into `data/projects.yaml` + the `AUTO-GENERATED:PROJECTS` block of `docs/PROJECT_CATALOG.md`
-   - Cascade backup freshness check
    - Health summary
-   - **Kilo agent workflow** (also now in cron daily_refresh.sh): kilo_agents_db.py, update_kilo_benchmarks.py, scrape_artificial_analysis.py, role_mapper.py, export_traycer_registry.py, generate_kilo_agents.py
-   - **Embedding selection pipeline** (also now in cron): embedding_models_db.py, embedding_pre_filter.py, embedding_role_mapper.py, embedding_export_markdown.py
-   - **OpenRouter category routing** (also now in cron)
+   - The hub-side consumer steps (subagent ranking, contract oracle, heartbeat check, autocommit): see `docs/workflows/KILO_BENCHMARK_WORKFLOW.md`
+   - No catalog-producing step: the Kilo agent workflow, the embedding selection pipeline and OpenRouter category routing moved to `/opt/ai-model-catalog/engine/` on 2026-08-15, and the Cascade backup check left the boot path (D-071)
 
 Lockfile coordination: bashrc-hook and daily_refresh.sh share `/tmp/.fabrik_daily_$(date -u +%Y%m%d)`. Whichever fires first (typically cron at 03:00 UTC) wins the day; the other path sees the lockfile and exits at the gate. Lockfile rolls over cleanly at 00:00 UTC.
 
