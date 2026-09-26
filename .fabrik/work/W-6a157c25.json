@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-25T23:51:19.966606Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "422e7fe0ecc6b10754d7f4654c9b788faf1b049b",
   "id": "W-6a157c25",
   "kind": "task",
   "legacy": false,
@@ -11,10 +11,10 @@
     "plan": "",
     "spec": ""
   },
-  "next": "",
+  "next": "W-6a157c25",
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "rivals_run.py run from the HUB's copy in another repo binds REPO to the hub: it reads the hub's .env and checkpoints under /opt/fabrik/.tmp while preflight calls it repo-local — the doc states the precondition, no check enforces it (split from W-062639c2)"
 }
