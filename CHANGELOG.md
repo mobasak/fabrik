@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the work-tracking, thread-anchor, fabrik-mail, hooks-index and command-run docs land the single-tracker delta (2026-09-26)
+- `docs/reference/work-tracking.md` gains the `mail`/`feedback`/`next` kinds and how each is created and closed (and that `drop` closes any of them by hand), the four NEXT rules with `classify_next`, § The view (the obligation lines, `on it:` lines, the `status` distributor lines, the unnamed-window line, the crisp `ready`), and the V5 reading with `next_census.py`; `thread-anchors.md`, `fabrik-mail.md`, `hooks-index.md` and `command-run-protocol.md` each state their part of the delta. Every claim was checked against the merged code (plan 2026-09-25-plan-1, T07b; review 3 passes, confirmed 16 → 2 → 0).
+
 ### Changed — the Work items paragraph tells agents that a NEXT naming an item claims it, and that mail claims create items (2026-09-26)
 - `CLAUDE.md` and both § FINAL OUTPUT copies in `templates/governance/CLAUDE.md` gain one sentence in the **Work items.** paragraph: end a turn on work with `NEXT: <item id>` to claim that item (the first it names that is open, ready, not a `next` item and held by no other session); `mail.py claim` in the mailbox's own repo creates the mail's item and `mail.py ack` there closes it. `tests/test_work_contract_rule.py` pins the new text (plan 2026-09-25-plan-1, T07a; review 3 passes, confirmed 8 → 1 → 0).
 

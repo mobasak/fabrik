@@ -328,7 +328,14 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   marks its rows — `command_feedback_report.py --mark-answered <command> --rows <ts,…> --commit
   <sha>`, which refuses a commit touching no corpus path and writes
   `~/.claude/state/command-feedback-answered.jsonl` beside the ledger. `--queue` excludes those
-  rows and states how many it dropped.
+  rows and states how many it dropped. In a repo with a work store, TAKING a command's queue
+  (`command_feedback_report.py --take <command>`) opens (or reports held) the one `kind: feedback`
+  work-store item for that queue's `/fabrik-command-improve` run, and `--mark-answered` closes it
+  `done` with the note `answered by <sha prefix>` — but NOT always at the same depth the `QUEUE:` line
+  reports: a mark that writes fresh rows closes the item EVEN WHEN rows remain unanswered (one run, one
+  item — the next `--take` opens another, D-419); only a no-op mark (every named row already answered)
+  conditions its close on the queue reading depth 0 (`_close_feedback_work_item`,
+  `docs/reference/work-tracking.md`).
 - **Auto-captured:** wall-clock (`now − started_epoch`), the round count and the trend (the `confirmed`
   series when every round states it, the `findings` series otherwise), the phase reached. The close
   prints the finished line — `FEEDBACK: /<command> · <wall> · rounds <n> (<trend>) · confusion: … ·
@@ -406,7 +413,10 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   wedge a close), a non-finite usage value counts as absent, and NOTHING the reader raises can
   escape (a pure accounting read).
 - **The report:** `python3 scripts/command_feedback_report.py [--since DAYS] [--command NAME]
-  [--agent NAME] [--observer-rank] [--queue COMMAND] [--stages] [--json]` — `--stages` (D-358) is its own report: review-family runs (every `*-review` command and `/fabrik-review-scoped`) grouped by the change their `surface` names — a plan slug, else a spec slug, else a D-row — with stages, hours, rounds and summed confirmed defects per change, led by its coverage (keyed of all review runs; the unkeyed are counted, never dropped). Otherwise, per command: runs, done/blocked/handoff, median and max wall-clock, median
+  [--agent NAME] [--observer-rank] [--queue COMMAND] [--take COMMAND] [--stages] [--json]` — `--take`
+  claims (creating it if none exists) the one open `kind: feedback` work-store item for a command's
+  queue, in `--repo`'s store, for `CLAUDE_CODE_SESSION_ID`; exclusive with every report flag, same as
+  `--mark-answered`. `--stages` (D-358) is its own report: review-family runs (every `*-review` command and `/fabrik-review-scoped`) grouped by the change their `surface` names — a plan slug, else a spec slug, else a D-row — with stages, hours, rounds and summed confirmed defects per change, led by its coverage (keyed of all review runs; the unkeyed are counted, never dropped). Otherwise, per command: runs, done/blocked/handoff, median and max wall-clock, median
   rounds, how many runs said `change: none`, summed pool `cost_usd` (with how many rows carried a
   number), median tokens per run with the rows that carried them, the cache-hit share, the seats'
   tokens beside them (rows · seats seen — never folded into the orchestrator's total) — `--json` keys per command: `seat_total`, `seat_rows` (rows carrying seat spend), `seats_seen`, `seats_seen_rows` (its denominator — a 0 over 0 rows prints "—"), `seats_skipped`, `seats_partial_rows`, `seats_mismatch_rows`, `tok_partial_rows`; the text report lists the last three under "⚠ LOWER BOUNDS"

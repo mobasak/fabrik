@@ -58,7 +58,7 @@ section it implements and restates nothing that section already settles.
 | T05b | The harvest passes next_anchored; the V1 seam test | T05a | ⛓️ | ✅ | 6f9d3c36a |
 | T06 | next_census.py: the NEXT measurement | T05a | ⚡ | ✅ | f22c660f9 |
 | T07a | The contract sentence in all three copies | T05b | ⚡ | ✅ | b8d67293c |
-| T07b | The landing docs | T02b, T03, T04, T05b, T06 | ⚡ | ⬜ | |
+| T07b | The landing docs | T02b, T03, T04, T05b, T06 | ⚡ | ✅ | 67de82a33 |
 | T08 | Integration: validation, hub adoption, announcement, receipt | T07a, T07b | ⛓️ | ⬜ | |
 
 ## Merge Order

@@ -94,7 +94,11 @@ its heartbeat, even on a quiet turn with no text. On the next `UserPromptSubmit`
 session's slot for this repo (at most 7 days old, among the newest state files) and creates an item
 for any whose MESSAGE digest — never the block's — no item already holds, so a block answered and then
 re-asked word for word in a new message whose Stop write failed still gets its item; a write that still
-fails prints one warning line. Detail: `docs/reference/work-tracking.md`.
+fails prints one warning line. The turn's last NEXT: goes through the store's own rules too (spec D3):
+a free-text NEXT the register accepts (and actually writes) also becomes the session's one `kind: next`
+item, and a NEXT claims the FIRST item it names that is open, ready (blockers resolved), not itself a
+`next` item and held live by no other session — the register itself is unchanged (D-392). Detail:
+`docs/reference/work-tracking.md`.
 
 **The boundary, stated plainly:** this makes *forgetting* impossible, not *ignoring*. An agent that
 reads an injected open thread and still drops it is the checkpoint-stall problem, owned by

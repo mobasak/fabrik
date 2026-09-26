@@ -83,7 +83,12 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
   invisible message) and the next `ack` sweeps it back once the WINDOW is >60s old (the
   window's open time is `utime`-stamped at creation — renames preserve the message's own
   mtime, so the gate measures the window, never the message; per-process window names mean
-  no two resolvers ever target the same window file).
+  no two resolvers ever target the same window file). **In a repo carrying a work store,** `claim`
+  additionally opens (or renews) a linked `kind: mail` item — claimed by this session, in the store of
+  the repo whose mailbox holds the message — and `ack` closes it `done` with the note `mail ack:
+  <disposition>`; an `ack` with no prior claim creates nothing (there was no taking to record), and a
+  cross-repo `--repo` target creates nothing in EITHER store (`mail.py` never resolves an agent name or
+  picks a mailbox for the store call, D-271). Detail: `docs/reference/work-tracking.md`.
 - **⚠️ HANDLE-NOW is the rule; `sweep` is only the net.** A message is **read → validated → executed
   if needed → `ack`ed → archived in the SAME session it is opened.** Not in 7 days, not in 14. `ack`
   does not inspect the `ack:` field — it archives ANY message with a disposition line, so
@@ -126,7 +131,10 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
 - **Requeue crash recovery.** A claimer that crashes mid-act leaves an archived file with no
   `acked-by:` line (the digest surfaces it as unacked). `mail.py requeue <id>` moves it back to inbox —
   and **strips any trailing `acked-by:` claim marker**, so a re-opened message never carries a stale
-  `disposition: done` into the next reader's inbox (fabrik-lib production finding, 2026-08-12).
+  `disposition: done` into the next reader's inbox (fabrik-lib production finding, 2026-08-12). In a
+  repo carrying a work store, `requeue` also closes the linked `kind: mail` item `dropped` with the
+  note `requeued` — the mail itself is back in the D1 obligation count, not lost. Detail:
+  `docs/reference/work-tracking.md`.
 - **Size cap 64 KB.** `send` refuses a larger body — a mail is a pointer, not a payload.
 - **Secrets never travel.** `send` REFUSES on a high-confidence secret pattern (PEM/private-key
   headers, `KEY=<entropy>`, `sk-`/`sk-ant-` and the UNDERSCORE vendor style `sk_live_`/`sk_test_`/`rk_`,
