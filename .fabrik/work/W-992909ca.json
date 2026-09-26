@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-25T10:09:25.793487Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "abc9d3fa166c7eb0f7fc310255382abbeba1c4df",
   "id": "W-992909ca",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "title": "Loop program: measure review-stage yield per change across the two measured chains"
 }
