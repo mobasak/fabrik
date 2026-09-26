@@ -3,7 +3,7 @@
 **Status:** CLEAN
 **Surface:** `git rev-parse HEAD` = 73adc7bd5; range tip 659ea6a32 (coder commits 604b7cda1, 97bd6e4f5, 99cdc2796, 4ed42453e; orchestrator mechanical fixup 659ea6a32); `git diff 73adc7bd5..4ed42453e` md5 7f57a87a7f0a092cef260e3d4ee2651b
 **Command:** /fabrik-review · **Changed:** `scripts/command_feedback_report.py`, `tests/test_command_feedback_report.py`, `commands/_sources/fabrik-command-improve.md`
-**Plan:** `docs/development/plans/2026-09-25-plan-1-work-store-single-tracker`
+**Plan:** `docs/development/plans/archived/2026-09-25-plan-1-work-store-single-tracker`
 
 ## Coverage Checklist
 

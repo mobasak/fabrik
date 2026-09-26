@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-26T03:08:27.319118Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-aa89df9f",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/archived/2026-09-25-plan-1-work-store-single-tracker",
+    "spec": ""
+  },
+  "next": "on or after 2026-10-09 run python3 scripts/sysadmin/next_census.py --since 7 --repo /opt/fabrik and record the V5 line (PASS/FAIL and the bound) plus the classes line in docs/reference/work-tracking.md § Validation reading; the spec's open unknown (_is_anchor as the next-item filter) is judged on it",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "title": "V5 reading of the single-tracker work store, due 2026-10-09 (two weeks after hub adoption)"
+}

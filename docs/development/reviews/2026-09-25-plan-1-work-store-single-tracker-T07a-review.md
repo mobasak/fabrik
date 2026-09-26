@@ -3,7 +3,7 @@
 **Status:** CLEAN
 **Surface:** `git rev-parse HEAD` = 6e9099dfdd210103d70a9471e3a6fe9d572f425d; range tip b8d67293c; `git diff 4420b2dde..b8d67293c -- CLAUDE.md templates/governance/CLAUDE.md tests/test_work_contract_rule.py` md5 a3d3fccd0dae04669666a8bd16a44c5d (5515 bytes)
 **Command:** /fabrik-review · **Changed:** `CLAUDE.md`, `templates/governance/CLAUDE.md`, `tests/test_work_contract_rule.py`
-**Plan:** `docs/development/plans/2026-09-25-plan-1-work-store-single-tracker`
+**Plan:** `docs/development/plans/archived/2026-09-25-plan-1-work-store-single-tracker`
 
 ## Coverage Checklist
 

@@ -1,6 +1,6 @@
 # Plan — the work store as the one place every open obligation shows up
 
-Status: IN-PROGRESS (2026-09-25, /fabrik-execute-plan — converged 2026-09-25 by /fabrik-plan-review, 3 passes, confirmed 24 → 4 → 0; see § Pass Ledger)
+Status: EXECUTED (2026-09-26, /fabrik-execute-plan — every ticket merged with its /fabrik-review CLEAN, whole-plan validation found 0 at its closing pass; receipt docs/development/reviews/2026-09-25-plan-1-work-store-single-tracker-review.md; D-423. Converged 2026-09-25 by /fabrik-plan-review, 3 passes, confirmed 24 → 4 → 0; see § Pass Ledger)
 **Owner:** infra (the unnamed hub window)
 Spec: docs/superpowers/specs/2026-09-25-work-store-single-tracker-design.md
 Date: 2026-09-25
@@ -59,7 +59,7 @@ section it implements and restates nothing that section already settles.
 | T06 | next_census.py: the NEXT measurement | T05a | ⚡ | ✅ | f22c660f9 |
 | T07a | The contract sentence in all three copies | T05b | ⚡ | ✅ | b8d67293c |
 | T07b | The landing docs | T02b, T03, T04, T05b, T06 | ⚡ | ✅ | 67de82a33 |
-| T08 | Integration: validation, hub adoption, announcement, receipt | T07a, T07b | ⛓️ | ⬜ | |
+| T08 | Integration: validation, hub adoption, announcement, receipt | T07a, T07b | ⛓️ | ✅ | 36ea99199 |
 
 ## Merge Order
 

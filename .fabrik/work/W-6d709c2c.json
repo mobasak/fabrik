@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-26T02:54:28.946222Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6d709c2c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M2Z93VY3X5A8KBN2EBHNFZV2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "FEEDBACK relay — 1 filed verdict(s) from command closes (+2 none-verdicts, not expanded)"
+}

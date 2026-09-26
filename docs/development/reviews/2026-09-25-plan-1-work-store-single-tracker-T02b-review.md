@@ -3,7 +3,7 @@
 **Status:** CLEAN
 **Surface:** `git rev-parse HEAD` = aff5e2ffd7e4ce2a130e36fd277a01417a1889c0; range tip 3a72696e709ef28af3bcf7ab26e832bc631d83b8; `git diff aff5e2ffd..3a72696e7 -- scripts/work.py tests/test_work_prompt.py tests/test_work_claims.py tests/test_thread_anchor.py` md5 5a4f933720c7585633b2405e1d75c3a3 (29272 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/work.py`, `tests/test_work_prompt.py`, `tests/test_work_claims.py`, `tests/test_thread_anchor.py`
-**Plan:** `docs/development/plans/2026-09-25-plan-1-work-store-single-tracker`
+**Plan:** `docs/development/plans/archived/2026-09-25-plan-1-work-store-single-tracker`
 
 ## Coverage Checklist
 

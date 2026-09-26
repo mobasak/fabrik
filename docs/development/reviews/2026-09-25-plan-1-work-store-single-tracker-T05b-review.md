@@ -3,7 +3,7 @@
 **Status:** CLEAN
 **Surface:** `git rev-parse HEAD` = 991c5c27053e6df8208f6c1e555adca3b24b98ef; range tip 6f9d3c36a562c8af956a8f213546ee9caea19c86; `git diff 5e62d02f8..6f9d3c36a -- scripts/thread_anchor.py tests/test_thread_anchor.py tests/test_work_hook_seam.py` md5 47202d9d08b6bb22ab075d67ba8957a8 (28223 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/thread_anchor.py`, `tests/test_thread_anchor.py`, `tests/test_work_hook_seam.py`
-**Plan:** `docs/development/plans/2026-09-25-plan-1-work-store-single-tracker`
+**Plan:** `docs/development/plans/archived/2026-09-25-plan-1-work-store-single-tracker`
 
 ## Coverage Checklist
 

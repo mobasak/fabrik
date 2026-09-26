@@ -3,7 +3,7 @@
 **Status:** CLEAN
 **Surface:** `git rev-parse HEAD` = 777c827083878713e16e65e5c89c04b5bff03e30; range tip 1a754bc9651bf65f4c38d97c582d2eee1a82f57e (the coder's commits 493e8587f, f406c0c67, 572cad4ec, 1a754bc96); `git diff 777c82708..1a754bc96 -- scripts/work.py tests/test_work_linked.py` md5 5982cd83e7455b318b706440663477c7
 **Command:** /fabrik-review · **Changed:** `scripts/work.py`, `tests/test_work_linked.py`
-**Plan:** `docs/development/plans/2026-09-25-plan-1-work-store-single-tracker`
+**Plan:** `docs/development/plans/archived/2026-09-25-plan-1-work-store-single-tracker`
 
 ## Coverage Checklist
 

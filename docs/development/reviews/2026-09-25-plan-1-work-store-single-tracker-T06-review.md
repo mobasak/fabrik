@@ -3,7 +3,7 @@
 **Status:** CLEAN
 **Surface:** `git rev-parse HEAD` = f3c6b92eb756a6c4b5cdd39b1dae606d918879c8; range tip f22c660f975ff696dcb6c21b2f0435b064c37f19; `git diff 5e62d02f8..f22c660f9 -- scripts/sysadmin/next_census.py tests/test_next_census.py` md5 84721ceca49e263df73f16070ab3f007 (55175 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/sysadmin/next_census.py`, `tests/test_next_census.py`
-**Plan:** `docs/development/plans/2026-09-25-plan-1-work-store-single-tracker`
+**Plan:** `docs/development/plans/archived/2026-09-25-plan-1-work-store-single-tracker`
 
 ## Coverage Checklist
 

@@ -8,7 +8,7 @@
   "legacy": false,
   "links": {
     "decision": "",
-    "plan": "docs/development/plans/2026-09-25-plan-1-work-store-single-tracker",
+    "plan": "docs/development/plans/archived/2026-09-25-plan-1-work-store-single-tracker",
     "spec": ""
   },
   "next": "decide in the spec whether a NEXT naming a new item releases the session's previous rule-2 claim (D3 is silent); measure the claims-per-session distribution after T08's adoption readings first",

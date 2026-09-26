@@ -3,7 +3,7 @@
 **Status:** CLEAN
 **Surface:** `git rev-parse HEAD` = f45fbbab0ec049092c060101d6a26965342a3778; range tip 67de82a33; `git diff 6e9099dfd..67de82a33 -- docs/reference/work-tracking.md docs/reference/thread-anchors.md docs/reference/fabrik-mail.md docs/workstation/hooks-index.md docs/reference/command-run-protocol.md` md5 73c4d2eaa18f654a432ca3dc82f7d0a0 (38162 bytes)
 **Command:** /fabrik-review · **Changed:** `docs/reference/work-tracking.md`, `docs/reference/thread-anchors.md`, `docs/reference/fabrik-mail.md`, `docs/workstation/hooks-index.md`, `docs/reference/command-run-protocol.md`
-**Plan:** `docs/development/plans/2026-09-25-plan-1-work-store-single-tracker`
+**Plan:** `docs/development/plans/archived/2026-09-25-plan-1-work-store-single-tracker`
 
 ## Coverage Checklist
 
