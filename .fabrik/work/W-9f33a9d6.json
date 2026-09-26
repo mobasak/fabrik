@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-26T15:42:07.978363Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-9f33a9d6",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Add SERVICE_NAME=<project> to the saas .env.example and assert it",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "saas-skeleton's root .env.example sets no SERVICE_NAME while python-api, file-worker and chrome-extension do (found by the W-fa4084cf review, O5)"
+}

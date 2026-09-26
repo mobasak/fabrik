@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-26T15:42:07.663211Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-202f7fc6",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Reject unknown kwargs in create_project (validate against the keys scaffolders read) and grade that a typo raises before any write",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "create_project(**kwargs) silently swallows an unknown keyword: a review seat's base_dir= (the real kwarg is base=) scaffolded four projects straight into /opt (removed by the seat, 2026-09-26, W-fa4084cf review)"
+}

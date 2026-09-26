@@ -759,9 +759,12 @@ def _next_available_port(port_range: tuple[int, int] = (8000, 8099)) -> int:
 def _logger_py_content(name: str, package_name: str) -> str:
     """Return the content for a scaffolded logger.py module.
 
-    Shared across python-api, file-worker, and chrome-extension server scaffolds.
-    Includes: structlog JSON, UTC timestamps, PII redaction, LOG_LEVEL from env,
-    SERVICE_NAME binding.
+    Emitted for python-api and python-api-gpu, the saas-skeleton server (both via
+    _scaffold_fastapi_backend), file-worker and the chrome-extension server — not the mobile-app
+    server/, which is copied from templates/mobile-app/ and carries no logger.py. Includes: structlog JSON,
+    UTC timestamps, PII redaction, LOG_LEVEL from env, and a SERVICE_NAME binding whose fallback is the
+    PROJECT name — the value .env.example sets and GlitchTip reports as server_name — never the
+    package name (W-fa4084cf).
     """
     return (
         f'"""Structured logging module for {name}.\n'
@@ -908,7 +911,7 @@ def _logger_py_content(name: str, package_name: str) -> str:
         f"\n"
         f"def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:\n"
         f'    """Return a structlog logger bound with service name."""\n'
-        f'    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{package_name}"))  # type: ignore[no-any-return]\n'
+        f'    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{name}"))  # type: ignore[no-any-return]\n'
     )
 
 

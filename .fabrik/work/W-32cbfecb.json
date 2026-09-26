@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-26T15:42:07.893639Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-32cbfecb",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Pass the real import path into _logger_py_content's usage line per type and assert it for file-worker",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "file-worker's emitted logger.py docstring says 'from <package>.logger import get_logger' but the module is worker/logger.py (found by the W-fa4084cf review, O4)"
+}

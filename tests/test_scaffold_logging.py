@@ -183,11 +183,10 @@ class TestPythonApiLogging:
         assert "structlog.contextvars.merge_contextvars" in content
 
     def test_logger_py_has_service_name(self, mock_fabrik_root: Path, temp_dir: Path) -> None:
-        """logger.py reads SERVICE_NAME env var with package_name fallback."""
+        """logger.py reads SERVICE_NAME with the PROJECT-name fallback (W-fa4084cf)."""
         project = _scaffold_python_api(mock_fabrik_root, temp_dir)
         content = (project / "src" / "test_svc" / "logger.py").read_text()
-        assert "SERVICE_NAME" in content
-        assert "test_svc" in content
+        assert 'os.getenv("SERVICE_NAME", "test-svc")' in content
 
     def test_middleware_py_exists(self, mock_fabrik_root: Path, temp_dir: Path) -> None:
         """middleware.py is generated in the package directory."""
@@ -293,6 +292,9 @@ class TestChromeExtensionLogging:
         assert "def get_logger" in content
         assert "structlog.configure" in content
         assert "merge_contextvars" in content
+        assert 'os.getenv("SERVICE_NAME", "test-ext")' in content, (
+            "fallback must be the project name"
+        )
 
     def test_server_main_imports(self, mock_fabrik_root: Path, temp_dir: Path) -> None:
         """Server main.py imports logger and middleware."""
@@ -412,8 +414,9 @@ class TestFileWorkerLogging:
         content = (project / "worker" / "logger.py").read_text()
         assert "def get_logger(name: str = __name__)" in content
         assert "SERVICE_NAME" in content
-        # Fallback is the package name (snake_case), per the shared _logger_py_content.
-        assert '"test_worker"' in content
+        # The unset fallback is the PROJECT name, the same value .env.example sets (next test) and
+        # GlitchTip reports as server_name — never the snake_case package name (W-fa4084cf).
+        assert 'os.getenv("SERVICE_NAME", "test-worker")' in content
 
     def test_env_example_has_service_name(self, mock_fabrik_root: Path, temp_dir: Path) -> None:
         """.env.example contains SERVICE_NAME with comment."""

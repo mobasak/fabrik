@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-26T15:48:45.558631Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-ddf409c0",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Make _post_scaffold_sync a no-op unless project_dir.parent is the scanned /opt root, and grade that a tmp-dir scaffold never spawns sync_projects with FABRIK_SCAFFOLD_OFFLINE unset",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "create_project runs the hub-wide scripts/sync_projects.py after EVERY scaffold, even into a temp dir it can never register (the sync scans /opt only); a review seat's bare call rewrote the hub's docs/PROJECT_CATALOG.md and data/projects.yaml at 18:45 (identical bytes this time) — found by the W-fa4084cf review"
+}

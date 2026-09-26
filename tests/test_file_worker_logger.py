@@ -56,11 +56,15 @@ class TestFileWorkerLogger:
         content = (project_dir / "worker" / "logger.py").read_text()
         assert "structlog.processors.JSONRenderer()" in content
         assert "structlog.contextvars.merge_contextvars" in content
-        assert "structlog.processors.add_log_level" in content
-        assert 'structlog.processors.TimeStamper(fmt="iso")' in content
+        # b8d12ad88: stdlib's add_log_level and UTC timestamps, in BOTH chains (structlog's own and
+        # the ProcessorFormatter foreign_pre_chain that stdlib records go through)
+        assert content.count("structlog.stdlib.add_log_level") == 2
+        assert content.count('structlog.processors.TimeStamper(fmt="iso", utc=True)') == 2
+        assert "structlog.processors.add_log_level" not in content
 
     def test_logger_py_substitutes_project_name(self, tmp_path: Path) -> None:
-        """Verify worker/logger.py has the project name as fallback SERVICE_NAME."""
+        """The logger falls back to the PROJECT name, the service identity every other scaffolded
+        surface uses (.env.example SERVICE_NAME, GlitchTip server_name), never the package name."""
         create_project(
             name="test-fw-log",
             project_type="file-worker",
@@ -69,7 +73,8 @@ class TestFileWorkerLogger:
         )
         project_dir = tmp_path / "test-fw-log"
         content = (project_dir / "worker" / "logger.py").read_text()
-        assert '"test-fw-log"' in content
+        assert 'os.getenv("SERVICE_NAME", "test-fw-log")' in content
+        assert "SERVICE_NAME=test-fw-log" in (project_dir / ".env.example").read_text()
 
     def test_main_py_imports_worker_logger(self, tmp_path: Path) -> None:
         """Verify main.py imports from worker.logger instead of raw structlog."""

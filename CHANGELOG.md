@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The scaffolded logger falls back to the project name, like every other service-name surface (2026-09-26)
+- `_logger_py_content`, shared by python-api, file-worker and chrome-extension, made `get_logger` fall back to `SERVICE_NAME` = the snake_case package name (`test_fw_log`), while `.env.example` sets the hyphenated project name and GlitchTip's `server_name` falls back to it. A service run without `SERVICE_NAME` logged under one name and reported errors under another. The fallback is now the project name. `tests/test_file_worker_logger.py` failed 2 of 6 on HEAD: its processor assertions predated b8d12ad88 (`structlog.stdlib.add_log_level`, UTC `TimeStamper`) and are updated, and the fallback is now asserted against `.env.example`. W-fa4084cf.
+
 ### Changed — plan execution reviews per merge wave; the spec review asks what a write overwrites (2026-09-26)
 - `/fabrik-execute-plan` (dispatcher mode): the tickets a D-loop pass dispatches together share one `/fabrik-review` run with a slice per ticket; the last wave's run is the whole-plan validation and writes `<plan>-review.md`; no separate docs review when the plan has a doc ticket; validation fixes ride the next run. `/fabrik-spec-review` axis C now asks, for every write to an existing record, what it overwrites (D-429, from the stage-yield measurement in `docs/reference/command-loop-performance.md` § 6).
 
