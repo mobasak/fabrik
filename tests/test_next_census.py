@@ -193,6 +193,21 @@ def test_sessions_per_repo_only_counts_accepted_anchors(tmp_path: Path) -> None:
     assert sessions_line == "sessions with an accepted free-text NEXT: 1 (projA 1)"
 
 
+def test_the_anchor_is_judged_on_the_registers_first_300_characters(tmp_path: Path) -> None:
+    # the harvest judges `matches[-1][:300]` (thread_anchor.py cmd_harvest); a NEXT whose anchor
+    # shape sits past character 300 is no accepted anchor there, so the census must not count it
+    root = tmp_path / "root"
+    late = "x" * 310 + " phase B of the plan — docs/development/plans/2026-09-25-x/T06.md"
+    _write_transcript(root / "-opt-projA" / "s1.jsonl", [_assistant_entry("NEXT: " + late)])
+    early = "phase B of the plan — docs/development/plans/2026-09-25-x/T06.md " + "y" * 310
+    _write_transcript(root / "-opt-projB" / "s2.jsonl", [_assistant_entry("NEXT: " + early)])
+    result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
+    assert result.returncode == 0, result.stderr
+    lines = _lines(result.stdout)
+    sessions_line = next(ln for ln in lines if ln.startswith("sessions with an accepted"))
+    assert sessions_line == "sessions with an accepted free-text NEXT: 1 (projB 1)"
+
+
 def test_a_next_inside_a_user_message_is_not_counted(tmp_path: Path) -> None:
     root = tmp_path / "root"
     repo_dir = root / "-opt-alpha"

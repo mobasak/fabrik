@@ -305,7 +305,8 @@ def _scan(root: Path, since_days: int, work_mod: ModuleType, anchor_mod: ModuleT
             result.skipped_files += 1
             continue
         if last_turn_next_lines:
-            final_value = " ".join(last_turn_next_lines[-1].split())
+            # the register (and so the harvest) judges only the first 300 characters
+            final_value = " ".join(last_turn_next_lines[-1][:300].split())
             if work_mod.classify_next(final_value) == "free-text" and anchor_mod._is_anchor(
                 final_value
             ):
