@@ -652,8 +652,9 @@ The footer is the manner, not the machinery: it never substitutes for the 7-line
 DECISION block the Stop hook accepts becomes an `awaiting-operator` item on its own, and the agent the
 operator answers closes it with `work.py answer <id> --note "<their words>"`. Item files are ordinary
 files: commit the ones your verbs changed with your task; the item a `NEXT:` line names is updated at the
-Stop and rides your next commit. `NEXT: none — terminal` stays legal and nothing counts, scores or rewards
-items (hub D-392, hub D-394).
+Stop and rides your next commit. End a turn on work with `NEXT: <item id>`, which claims it for your
+session; claiming a mail with `mail.py claim` creates its item, and `mail.py ack` closes it. `NEXT: none —
+terminal` stays legal and nothing counts, scores or rewards items (hub D-392, hub D-394).
 
 **⚠️ `NEXT: operator decision` HAS A BAR — it was the contract's only UNGUARDED exit, which is exactly why it gets abused.** Compare the three sanctioned `NEXT:` values: `BLOCKED:` has three named causes and a required format; a named command obliges you to RUN it; `operator decision` is legitimate only behind a **DECISION block**, written unfenced — a fenced example, like the two below, never exempts a turn:
 
@@ -741,8 +742,9 @@ owns in THIS session, it is dispatched, not narrated.
 DECISION block the Stop hook accepts becomes an `awaiting-operator` item on its own, and the agent the
 operator answers closes it with `work.py answer <id> --note "<their words>"`. Item files are ordinary
 files: commit the ones your verbs changed with your task; the item a `NEXT:` line names is updated at the
-Stop and rides your next commit. `NEXT: none — terminal` stays legal and nothing counts, scores or rewards
-items (hub D-392, hub D-394).
+Stop and rides your next commit. End a turn on work with `NEXT: <item id>`, which claims it for your
+session; claiming a mail with `mail.py claim` creates its item, and `mail.py ack` closes it. `NEXT: none —
+terminal` stays legal and nothing counts, scores or rewards items (hub D-392, hub D-394).
 
 **⚠️ `NEXT: operator decision` HAS A BAR — it was the contract's only UNGUARDED exit, which is exactly why it gets abused.** Compare the three sanctioned `NEXT:` values: `BLOCKED:` has three named causes and a required format; a named command obliges you to RUN it; `operator decision` is legitimate only behind a **DECISION block**, written unfenced — a fenced example, like the two below, never exempts a turn:
 
