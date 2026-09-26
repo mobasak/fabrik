@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — plan execution reviews per merge wave; the spec review asks what a write overwrites (2026-09-26)
+- `/fabrik-execute-plan` (dispatcher mode): the tickets a D-loop pass dispatches together share one `/fabrik-review` run with a slice per ticket; the last wave's run is the whole-plan validation and writes `<plan>-review.md`; no separate docs review when the plan has a doc ticket; validation fixes ride the next run. `/fabrik-spec-review` axis C now asks, for every write to an existing record, what it overwrites (D-429, from the stage-yield measurement in `docs/reference/command-loop-performance.md` § 6).
+
 ### Fixed — The scaffold test suite runs offline: 725 s to 123 s, and it no longer rewrites the hub's registry (2026-09-26)
 - `FABRIK_SCAFFOLD_OFFLINE` (read at call time by `scaffold._scaffold_offline()`, pinned session-wide by `tests/conftest.py`) makes `create_project` write every file but create no venv, install nothing, create no local database, and skip the hub registry sync and the `.mcp.json` emitter; the skipped venv and database steps print their command. Before, each python-api scaffold in the tests spent about 25 s on a real venv and a networked pip install, probed Postgres with `sudo`, and ran `scripts/sync_projects.py` against the hub, rewriting `data/projects.yaml` and `docs/PROJECT_CATALOG.md`. The two identical local-database blocks are now one helper. `tests/test_scaffold*.py`: 389 passed in 123 s, with the hub's registry files unchanged. D-427, W-b0c1b4fc.
 

@@ -142,7 +142,7 @@ recommended approach the one the cited current best-practice (1c) supports as th
 / pro-grade choice — or an over-engineered, high-maintenance, or stale-from-memory pick that the cited
 research contradicts?** Flag the latter. Is the spec a single independently-buildable unit, or does it hide
 multiple subsystems that should be **separate specs**? Is each unit isolated (state-able as *what it does /
-how you use it / what it depends on*)?
+how you use it / what it depends on*)? **For every write the design makes to a record that already exists — a field, a file, a row — what does it overwrite, and who wrote that?** A write that replaces another actor's content is a finding unless the spec says why it may be lost (D-425: a NEXT rewrote items' migrated text, and every later stage was built to the spec that designed it).
 
 **D) Completeness + consistency.** Placeholders (`TBD`/`TODO`/"handle appropriately"); internal
 contradictions (architecture vs. features); ambiguity (a requirement readable two ways → pick one, make it

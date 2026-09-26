@@ -452,11 +452,11 @@ while the Board has non-terminal tickets:
     eligible = ⬜ tickets with every Depends: row ✅, no pending Serialized: barrier,
                and (spine carries Epic:) Touches inside the epic's owned_paths — an escape is refused → 🔴
     dispatch up to 3 coders, Merge-Order position order, runtime per Complexity (D2)
-    on each coder return: per-ticket review loop to coverage-adjudicated exit (D4)
+    when the WAVE's coders have all returned: its per-ticket review loop as ONE run, a slice per ticket (D4)
     merge in Merge Order: squash-apply code + Board flip + applied Deltas in ONE commit (D5)
     timeout / dead coder → salvage procedure (D6); 3 same-test strikes → 🔴, CONTINUE the Board
 
-all non-🔴 terminal → D7 final validation (found: 0, fixed: 0) → Finish (whole-directory archive)
+every non-🔴 ticket but Integration ✅ → the Integration ticket's wave IS D7's validation (found: 0, fixed: 0), then it merges → Finish (whole-directory archive)
 any 🔴 remaining and nothing in flight → blocked-end (D7): spine BLOCKED, lock retained/paths cleared
 ```
 
@@ -547,8 +547,8 @@ its Touches (contract violation → its diff is rejected at acceptance).
     exhaust in ~2–3 days) — meter Opus, prefer Sonnet seats for breadth, Haiku for trivial checks — priced haiku 1× · sonnet 2× · opus 5× · fable 10× (D-190; `dispatch_headroom.py` prints the round's cost), so an Opus breadth seat is 2.5× a Sonnet one and the Fable adjudicator is one seat per run.<!-- POOL OFF (D-181): two currencies — pool = metered dollars at cents-scale; never burn an Opus call to avoid a cents-scale pool unit -->
   - **Native tier map (four rungs — canonical in `core/62` § Dispatch economics; this restates it for the plan loop):** **Fable** = orchestrator/adjudication + the final validation's
     authoritative native seat (it SUBSTITUTES for, never adds to, the Opus seat there); never a routine
-    finder, never a coder. **Opus** = the per-round per-ticket authoritative finder (inside the loop, the third
-    finder on the riskiest slice) + design-heavy never-route coding. **Sonnet** = default never-route coder, and the ROUTINE
+    finder, never a coder. **Opus** = the per-round per-wave authoritative finder (inside the loop, the third
+    finder on the riskiest ticket's slice) + design-heavy never-route coding. **Sonnet** = default never-route coder, and the ROUTINE
     breadth finder — one seat per independent failure-class group per the count discipline below
     (breadth is unit-funded, not trigger-funded; D-186 superseded the trigger precondition). **Haiku** = trivial-mechanical checks; never codes.
   - **Count discipline — a review round is sized by the review command it runs (the exception is
@@ -558,8 +558,8 @@ its Touches (contract violation → its diff is rejected at acceptance).
     `Workflow` call per pass — and `/fabrik-review-scoped` by its units
     (`dispatch_headroom.py --units <N>`). Either way the seats are stamped BEFORE they go out with `python3
     scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them, then closed with `python3
-    scripts/command_run.py round --seats <n> …` when THIS ticket's seats return (a partial close releases only
-    what closed; the other tickets' seats stay reserved — D-191). The partition is what the surface HAS, so a
+    scripts/command_run.py round --seats <n> …` when THIS wave's seats return (a partial close releases only
+    what closed; any other run's seats stay reserved — D-191). The partition is what the surface HAS, so a
     named trigger (diff >~400 net LOC · never-route surface · a repeat-failed round) means MORE slices or units,
     not a bigger cap. Grounding fan-outs: one unit per independent dependency, never per file.
   - **Quota-pause terminal:** a native call failing on quota exhaustion (not a transient error) → the
@@ -586,23 +586,23 @@ applied diff is part of the acceptance-review surface, landing in the acceptance
 `check_changelog.py` demands the entry). Integration-ticket command outputs flow through the same
 mechanism.
 
-### D4 — Per-ticket receive + review: the ettw-07 floor, per round
+### D4 — Per-wave receive + review: the ettw-07 floor, per round
 
 ("ettw-07" is provenance — the epic-to-ticket workflow step this floor was adapted from; the CONTRACT
-is the text below, self-contained.) Each returned ticket converges to `/fabrik-review`'s coverage-adjudicated exit BEFORE merge — its
-review-loop workflow over the ticket's diff (file slices, two cheap finders and one refuter per slice, D-344) **AND
-exactly 1 native Opus finder per round, UNCONDITIONAL** — the riskiest slice's third finder
+is the text below, self-contained.) **The review unit is the WAVE** — the tickets one pass of the D-loop dispatched together (D-429: 28 per-ticket runs were 76% of three chains' review minutes, each paying a 9–29 min floor). The wave converges to `/fabrik-review`'s coverage-adjudicated exit BEFORE any of its tickets merges — ONE
+review-loop workflow run over the wave, **one slice per ticket** (that ticket's diff; two cheap finders and one refuter per slice, D-344) **AND
+exactly 1 native Opus finder per round, UNCONDITIONAL** — the riskiest ticket's slice's third finder
 (`models: ["sonnet", "haiku", "opus"]`; under `Profile: small` this floor runs ONCE, at D7 — the carve-out below). **Secrets
 carve-out:** a diff touching secret-material paths (`.env` / `.env.*` **except `.env.example`** — the
 Doc-Sync-Matrix file every env-var change touches; without the exemption a routine env-var phase would be
 misread as secret-bearing — `secrets/`, key files) is reviewed
 **native-only** — secret contents never go to pool APIs; all other never-route classes get both layers.
-The orchestrator refutes/merges/adjudicates; fixups route per D2. **Every per-ticket round is stamped and closed like any other:** `python3 scripts/command_run.py dispatch --seats <n>` BEFORE its seats go out, `python3 scripts/command_run.py round --seats <n> --findings <n> --classes-swept … --classes-new …` at its close — the D-186 tripwire is blind to a round that stamps and never closes, and the sibling reservation stands until its 25-minute expiry. **Under `Profile: small` the per-ticket
+The orchestrator refutes/merges/adjudicates; fixups route per D2. **Every wave round is stamped and closed like any other:** `python3 scripts/command_run.py dispatch --seats <n>` BEFORE its seats go out, `python3 scripts/command_run.py round --seats <n> --findings <n> --classes-swept … --classes-new …` at its close — the D-186 tripwire is blind to a round that stamps and never closes, and the sibling reservation stands until its 25-minute expiry. **Under `Profile: small` the per-ticket
 layer is `/fabrik-review-scoped`** — tests + gate + the light scoped round, its run record the artifact, NO
 per-ticket review file — and the floor above runs ONCE at D7 over the whole-plan diff into the single
 receipt; the rest of this section (docs converge with the ticket, fixups, 3-strikes) binds unchanged.
-Otherwise each ticket's review is persisted as
-`docs/development/reviews/<plan>-T<id>-review.md` (full ID; **one file per ticket, round sections
+Otherwise each wave's review is persisted as
+`docs/development/reviews/<plan>-T<id>-review.md` named for the wave's FIRST ticket in Merge Order and listing every ticket it covers — except the last wave, whose run is D7's validation and writes `<plan>-review.md` (full ID; **one file per wave, round sections
 APPENDED**, each round carrying a machine-readable roster line — `Finders: pool <model×n> + native
 <model×n> — round N` — so the floor is attestable, not asserted). `/fabrik-generate-tests` runs at
 acceptance for non-TDD'd behaviors. Consumer seam tests are blocking at the CONSUMER's review. **Fixups
@@ -666,11 +666,10 @@ dispatch timeout, or a coder-report context marker.
 
 ### D7 — Final validation + terminal states
 
-**The Integration ticket runs BEFORE validation — it is a Board unit (the LAST one), not part of
-validation.** The set's
+**The Integration ticket's work lands BEFORE validation reviews it — it is a Board unit (the LAST one), and its wave's review run IS the validation (D4).** The set's
 exactly-one `Integration: true` ticket (`Complexity: native`, last in Merge Order — both
 gate-enforced) owns the monolith's mandatory closing work: the whole-plan doc receipts
-(`check_doc_sync.py --range <baseline>..HEAD` + `check_doc_stubs.py --range`), `/fabrik-docs-review`,
+(`check_doc_sync.py --range <baseline>..HEAD` + `check_doc_stubs.py --range`), `/fabrik-docs-review` (none when the plan has a doc ticket — that ticket's wave slice IS the docs review),
 `/fabrik-features` when features shipped, the cross-ticket seam-test run, and the whole-plan
 `final_gate.py --check --json` + `check_convergence.py` run; its command outputs and doc-drift fixes
 flow through `## Deltas` (D3), and it merges like any ticket. D7's validation is the adversarial
@@ -680,8 +679,8 @@ layer ON TOP of those receipts — never a substitute for them. **The whole-plan
 rows and the ledger/phase shapes; the reviewer writes every verdict (born `IN-PROGRESS`; a lazy flip fails
 the gate). Under `Profile: small` this is the plan's ONLY review artifact.
 
-Validation runs only when every non-🔴 ticket is terminal (✅ — no ⬜ dispatchable, no 🔵/🟡 in
-flight, all salvage procedures complete). ONE whole-plan validation — internally consistent · factual · correct:
+Validation runs only when every non-🔴 ticket but the Integration ticket is terminal and the Integration coder has returned (✅ — no other ⬜ dispatchable, no 🔵/🟡 in
+flight, all salvage procedures complete). ONE whole-plan validation — internally consistent · factual · correct — and it is the LAST wave's review run (the Integration ticket's wave, before that ticket merges), carrying a cross-ticket slice over the cumulative diff beside that ticket's own slice, never a separate run after it; its receipt is the whole-plan `<plan>-review.md`, never a `-T##` name:
 spine↔tickets↔frozen-contract seams + the integrated cumulative diff + a full run of **every ticket's
 Behavior-Contract tests and every seam test**. **Finder counts SCALE with the surface:** minimum 3 native Sonnet
 finders + the native authoritative seat (**Fable substitutes for Opus here**; the pool is OFF, D-181), adding ~1 finder per
@@ -689,7 +688,7 @@ finders + the native authoritative seat (**Fable substitutes for Opus here**; th
 standing rows are CITED, never counted — D-206 (superseding D-048); counting them makes this terminal gate unreachable
 whenever a standing accepted-risk row stays true)**. A flaky test is itself a finding (fix or
 quarantine-with-recorded-ruling — never an excuse to loop). Validation findings are FIXED by fresh
-coders/units bound to the owning ticket's Touches through the per-ticket review loop (cross-cutting
+coders/units bound to the owning ticket's Touches, reviewed as that ticket's slice in the next wave's run, or in this last run while it is open (cross-cutting
 findings split along Touches); a producer-originated defect surfacing here (or at the Integration seam
 run) flips the producer's row ✅→🔵 and re-dispatches — the **sanctioned back-flip**. The validation MAY
 run in a fresh orchestrator context (spine + lock are the durable handoff).
