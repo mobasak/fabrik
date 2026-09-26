@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — create_project rejects a mistyped keyword instead of scaffolding into /opt (2026-09-26)
+- `scaffold.create_project` took `**kwargs: object`, so a mistyped `base_dir=` (the keyword is `base=`) was silently swallowed and the default base `/opt` applied — a review seat scaffolded four projects there this way. The one extra keyword any caller passes, `use_database`, is now an explicit parameter and `**kwargs` is gone, so an unknown keyword raises `TypeError` before anything is written. W-202f7fc6.
+
 ### Fixed — The scaffolded logger falls back to the project name, like every other service-name surface (2026-09-26)
 - `_logger_py_content`, shared by python-api, file-worker and chrome-extension, made `get_logger` fall back to `SERVICE_NAME` = the snake_case package name (`test_fw_log`), while `.env.example` sets the hyphenated project name and GlitchTip's `server_name` falls back to it. A service run without `SERVICE_NAME` logged under one name and reported errors under another. The fallback is now the project name. `tests/test_file_worker_logger.py` failed 2 of 6 on HEAD: its processor assertions predated b8d12ad88 (`structlog.stdlib.add_log_level`, UTC `TimeStamper`) and are updated, and the fallback is now asserted against `.env.example`. W-fa4084cf.
 

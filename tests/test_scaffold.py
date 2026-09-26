@@ -1153,3 +1153,55 @@ class TestDocsSiteVendoring:
         assert (ds / ".gitignore").exists()
         # Package name pointed at the project.
         assert json.loads((ds / "package.json").read_text())["name"] == "acme-docs"
+
+
+class TestCreateProjectRejectsUnknownKeywords:
+    """W-202f7fc6: `create_project(**kwargs)` swallowed a mistyped `base_dir=` (the keyword is
+    `base=`), so the default base `/opt` was used and four projects were scaffolded there."""
+
+    def test_a_mistyped_keyword_raises_before_anything_is_written(self, tmp_path):
+        from fabrik.scaffold import create_project
+
+        base = tmp_path / "base"
+        base.mkdir()
+        with pytest.raises(TypeError, match="base_dir"):
+            create_project(name="typo-probe", description="d", base=base, base_dir=base)
+
+        assert list(base.iterdir()) == [], "a refused call must write nothing"
+
+    def test_use_database_is_still_accepted(self, tmp_path):
+        from fabrik.scaffold import create_project
+
+        project = create_project(
+            name="db-probe", description="d", base=tmp_path, generate_spec=False, use_database=True
+        )
+
+        assert (project / ".env.local").exists(), (
+            "use_database=True must still reach the scaffolder"
+        )
+        # the CI replica (no ci.yml, by operator directive) starts Postgres only when told to
+        ci_local = (project / "scripts" / "ci_local.sh").read_text()
+        assert 'PG_IMAGE="' in ci_local, "use_database=True must reach the CI replica"
+
+    def test_no_database_means_no_ci_postgres(self, tmp_path):
+        from fabrik.scaffold import create_project
+
+        project = create_project(
+            name="nodb-probe", description="d", base=tmp_path, generate_spec=False
+        )
+
+        assert 'PG_IMAGE="' not in (project / "scripts" / "ci_local.sh").read_text()
+
+    def test_a_truthy_use_database_reaches_the_ci_writer_as_a_bool(self, tmp_path, monkeypatch):
+        """The removed `bool(kwargs.get(...))` normalised the flag; the explicit parameter keeps it."""
+        import fabrik.scaffold as scaffold
+
+        seen = []
+        monkeypatch.setattr(
+            scaffold, "_write_ci_files", lambda _dir, *, needs_database: seen.append(needs_database)
+        )
+        scaffold.create_project(
+            name="truthy-probe", description="d", base=tmp_path, generate_spec=False, use_database=1
+        )
+
+        assert seen == [True] and type(seen[0]) is bool
