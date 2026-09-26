@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — next_census.py counts the NEXT: lines in session transcripts and reads the work store's V5 bound (2026-09-26)
+- `scripts/sysadmin/next_census.py` (hub-only, read-only) reads the transcripts modified within `--since` days and prints the NEXT-line classes with their session denominator (sorted by the store's own `work.classify_next`, holds split into none / blocked / operator-decision), the distinct free-text count, and the sessions per repo whose last NEXT is free text the register accepts; `--repo` adds the V5 reading (`V5: PASS` / `FAIL — <bound>`). Rows are deduplicated by their uuid, NEXT lines inside code fences are ignored, transcripts are streamed, and unreadable files and bad lines are counted apart. Tests: `tests/test_next_census.py` (plan 2026-09-25-plan-1, T06; review 3 passes, confirmed 22 → 4 → 0).
+
 ### Changed — `rivals_run.py` refuses to run from inside another repo's checkout (2026-09-26)
 - A copy of the fleet-synced driver run from inside a DIFFERENT checkout (e.g. the hub's copy inside project P) now exits 2 with `WIRING ERROR (nothing was spent)` before reading any `.env`, instead of silently using its own repo's keys and checkpoint dir; runs from anywhere inside the copy's own repo, or outside any checkout, are unaffected (D-422, W-6a157c25).
 

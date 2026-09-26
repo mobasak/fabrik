@@ -273,5 +273,6 @@ means updating this page in the same change. This list is generated from those h
 
 - `scripts/command_feedback_report.py`
 - `scripts/mail.py`
+- `scripts/sysadmin/next_census.py`
 - `scripts/work.py`
 <!-- END related-scripts -->
