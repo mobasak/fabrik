@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-26T13:54:49.266925Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "3dce5ab25d4836cccd742706138545b2f5bb72c2",
   "id": "W-fa4084cf",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "tests/test_file_worker_logger.py fails 2 of 6 on HEAD: it asserts 'structlog.processors.add_log_level' and a quoted \"test-fw-log\" SERVICE_NAME default in the emitted logger.py, which _logger_py_content no longer emits (it binds the package name test_fw_log) — stale test or generator regression, found by the W-b0c1b4fc review"
 }
