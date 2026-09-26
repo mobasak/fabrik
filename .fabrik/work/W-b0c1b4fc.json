@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-01T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "b7bf654884c82c750fc57fa964aedc0b678398e8",
   "id": "W-b0c1b4fc",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:beed11f9c2f6",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`tests/test_scaffold*.py` cannot run to completion (2026-09-01, owner: fleet = me)"
 }
