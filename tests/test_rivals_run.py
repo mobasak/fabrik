@@ -1729,5 +1729,20 @@ def test_a_real_main_run_leaves_no_key_behind(monkeypatch):
         monkeypatch.delenv(key, raising=False)
     with _search_keys_restored():
         rr.main(["--market", "x", "--greenfield", "--budget", "0", "--preflight-only"])
-        os.environ["EXA_API_KEY"] = "planted-inside"  # guarantees there is something to undo
-    assert [k for k in rr._ENV_KEYS if k in os.environ] == []
+        for key in (*rr._ENV_KEYS, "DATABASE_URL"):  # every key, so a partial restore goes red
+            os.environ[key] = "planted-inside"  # even on a box with no .env or fleet file
+    assert [k for k in (*rr._ENV_KEYS, "DATABASE_URL") if k in os.environ] == []
+
+
+# The two tests below run in file order: the first leaks a key with a bare os.environ write, the
+# second proves the AUTOUSE fixture undid it — so dropping `autouse` goes red, which a direct call
+# of the helper above cannot show.
+_LEAK_PROBE = "leak-probe-autouse"
+
+
+def test_zz_autouse_probe_leaks_a_key():
+    os.environ["CONTEXT7_API_KEY"] = _LEAK_PROBE
+
+
+def test_zz_autouse_probe_the_leak_did_not_survive():
+    assert os.environ.get("CONTEXT7_API_KEY") != _LEAK_PROBE, "the autouse restore did not run"
