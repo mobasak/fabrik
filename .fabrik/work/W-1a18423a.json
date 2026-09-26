@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-26T17:34:23.888446Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-1a18423a",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Gate check_ai_pack_freshness_delivered on _pool_eval_paused like its producer (or measure engine out/blocks freshness instead), reword the page text, add a test that the paused path does not page, prove it red first",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "title": "daily_refresh.sh's D-415 delivered-freshness page fires EVERY day while the pool is paused: the hub itself skips deliver_to_fabrik (daily_refresh.sh:317) so the ai/*.md blocks age by construction (14/14 at 2026-09-07 today), and the page text (:358) blames the engine, whose log is clean"
+}

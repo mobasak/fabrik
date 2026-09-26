@@ -274,7 +274,7 @@ This is a **real, observable gap** that meets the §1 criteria. The fix is small
 
 ## 7. How to retire a WIRED source (after a CONFIRMED ❌ verdict)
 
-1. Delete the scraper invocation from `update_kilo_benchmarks.py`.
+1. Delete the scraper invocation from `/opt/ai-model-catalog/engine/update_kilo_benchmarks.py` (ai-model-catalog).
 2. Leave the DB column in place (don't drop — keeps historical snapshots intact); just stop writing to it.
-3. Remove the source from `role_mapper.py` sort-key.
+3. Remove the source from the `/opt/ai-model-catalog/engine/role_mapper.py` (ai-model-catalog) sort-key.
 4. Move the entry from §2 to §4 here, fill in the failing axes + re-evaluate trigger.

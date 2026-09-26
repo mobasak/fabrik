@@ -1,4 +1,4 @@
-# AFTER-EDIT: ../rank_task_subagents.py | ../../../docs/reference/kilo/TASK_SUBAGENT_SELECTION.md
+# AFTER-EDIT: scripts/kilo-benchmarks/rank_task_subagents.py
 """The routing doc's `Evidence age:` line (operator ask 2026-09-08, D-182 follow-up).
 
 `Last refresh:` is the day the RANKER RAN; the cron re-stamps it every morning. It says nothing
