@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — a `NEXT:` naming a work item says what the item is (2026-09-26)
+- The Work items paragraph (CLAUDE.md, both copies in `templates/governance/CLAUDE.md`) now asks for `NEXT: <item id> — <what it is>`, e.g. `NEXT: W-1a2b3c4d — fix the flaky login test`, because a bare id tells a reader nothing (operator ruling, D-426). `tests/test_work_contract_rule.py` pins the new text.
+
 ### Fixed — a NEXT naming a work item no longer overwrites that item's `next` (2026-09-26)
 - `scripts/work.py::_claim_named` (rule 2 of the Stop harvest) now only claims the named item; it no longer rewrites the item's `next` with the session's NEXT line, which destroyed authored next-actions and migrated backlog bodies (reported by fleet; D-425). Tests flipped to "file byte-identical", plus a regression test red on the old code; `docs/reference/work-tracking.md` updated, and the Work items paragraph (CLAUDE.md, both copies in templates/governance/CLAUDE.md) drops its stale clause "the item a `NEXT:` line names is updated at the Stop and rides your next commit".
 

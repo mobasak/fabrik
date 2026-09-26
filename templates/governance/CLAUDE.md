@@ -648,11 +648,13 @@ NEXT: <the successor: exact command · the operator decision awaited — see DEC
 The footer is the manner, not the machinery: it never substitutes for the 7-line block on a task-completing response, and a footer `NEXT:` naming undispatched own-session work is the same checkpoint-stall as a bare undispatched block `NEXT:` (same rule, same hook). **`DONE:`/`NEXT:` discipline:** `DONE:` states only what actually happened (commit hashes / files / verdicts — never "mostly done"); `NEXT:` names the successor precisely enough to run without re-derivation — the exact command + argument, the exact operator decision, or an explicit `none — terminal`. A vague `NEXT:` ("continue", "more testing") is a missing line. If `NEXT:` names work THIS agent owns in THIS session, it is dispatched, not narrated — the block is a TASK terminator, so emitting it while own-session work remains is itself the checkpoint-stall (the promise-guard catches the phrasing-level variants — "I'll run it", "the pass is owed" — but a bare undispatched `NEXT:` is caught by THIS rule, not by the hook).
 
 **Work items.** A repo with a `.fabrik/work/` store keeps its open work there (`python3 scripts/work.py`;
-`/opt/fabrik/docs/reference/work-tracking.md`): `NEXT:` names the item id (`W-` and 8 lowercase hex) when one exists, a
-DECISION block the Stop hook accepts becomes an `awaiting-operator` item on its own, and the agent the
+`/opt/fabrik/docs/reference/work-tracking.md`): `NEXT:` names the item id (`W-` and 8 lowercase hex) when one exists and then says in
+plain words what the item is (`NEXT: W-1a2b3c4d — fix the flaky login test`), because a bare id tells a
+reader nothing; a DECISION block the Stop hook accepts becomes an `awaiting-operator` item on its own,
+and the agent the
 operator answers closes it with `work.py answer <id> --note "<their words>"`. Item files are ordinary
 files: commit the ones your verbs changed with your task.
-End a turn on work with `NEXT: <item id>` to claim that item for your
+End a turn on work with `NEXT: <item id> — <what it is>` to claim that item for your
 session (the first item it names that is open, ready, not a `next` item and held by no other session);
 `mail.py claim` run in the mailbox's own repo creates the mail's item, and `mail.py ack` there closes it.
 `NEXT: none — terminal` stays legal and nothing counts, scores or rewards items (hub D-392, hub D-394).
@@ -739,11 +741,13 @@ exact operator decision, or `none — terminal`. A vague `NEXT:` is a missing li
 owns in THIS session, it is dispatched, not narrated.
 
 **Work items.** A repo with a `.fabrik/work/` store keeps its open work there (`python3 scripts/work.py`;
-`/opt/fabrik/docs/reference/work-tracking.md`): `NEXT:` names the item id (`W-` and 8 lowercase hex) when one exists, a
-DECISION block the Stop hook accepts becomes an `awaiting-operator` item on its own, and the agent the
+`/opt/fabrik/docs/reference/work-tracking.md`): `NEXT:` names the item id (`W-` and 8 lowercase hex) when one exists and then says in
+plain words what the item is (`NEXT: W-1a2b3c4d — fix the flaky login test`), because a bare id tells a
+reader nothing; a DECISION block the Stop hook accepts becomes an `awaiting-operator` item on its own,
+and the agent the
 operator answers closes it with `work.py answer <id> --note "<their words>"`. Item files are ordinary
 files: commit the ones your verbs changed with your task.
-End a turn on work with `NEXT: <item id>` to claim that item for your
+End a turn on work with `NEXT: <item id> — <what it is>` to claim that item for your
 session (the first item it names that is open, ready, not a `next` item and held by no other session);
 `mail.py claim` run in the mailbox's own repo creates the mail's item, and `mail.py ack` there closes it.
 `NEXT: none — terminal` stays legal and nothing counts, scores or rewards items (hub D-392, hub D-394).

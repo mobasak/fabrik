@@ -61,11 +61,13 @@ def test_template_has_the_paragraph_in_both_final_output_copies() -> None:
 _CANONICAL = (
     "**Work items.** A repo with a `.fabrik/work/` store keeps its open work there "
     "(`python3 scripts/work.py`; `docs/reference/work-tracking.md`): `NEXT:` names the item id "
-    "(`W-` and 8 lowercase hex) when one exists, a DECISION block the Stop hook accepts becomes an "
+    "(`W-` and 8 lowercase hex) when one exists and then says in plain words what the item is "
+    "(`NEXT: W-1a2b3c4d — fix the flaky login test`), because a bare id tells a reader nothing; "
+    "a DECISION block the Stop hook accepts becomes an "
     "`awaiting-operator` item on its own, and the agent the operator answers closes it with "
     '`work.py answer <id> --note "<their words>"`. Item files are ordinary files: commit the ones '
-    "your verbs changed with your task. End a turn on work with `NEXT: <item id>` to claim that "
-    "item for your "
+    "your verbs changed with your task. End a turn on work with `NEXT: <item id> — <what it is>` "
+    "to claim that item for your "
     "session (the first item it names that is open, ready, not a `next` item and held by no "
     "other session); "
     "`mail.py claim` run in the mailbox's own repo creates the mail's item, and `mail.py ack` there "
