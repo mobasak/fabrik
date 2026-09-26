@@ -330,9 +330,12 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   `~/.claude/state/command-feedback-answered.jsonl` beside the ledger. `--queue` excludes those
   rows and states how many it dropped. In a repo with a work store, TAKING a command's queue
   (`command_feedback_report.py --take <command>`) opens (or reports held) the one `kind: feedback`
-  work-store item for that queue, and `--mark-answered` closes it `done` with the note `answered by
-  <sha prefix>` in the SAME call that marks the rows — the `QUEUE:` depth and the item track one
-  number (`docs/reference/work-tracking.md`).
+  work-store item for that queue's `/fabrik-command-improve` run, and `--mark-answered` closes it
+  `done` with the note `answered by <sha prefix>` — but NOT always at the same depth the `QUEUE:` line
+  reports: a mark that writes fresh rows closes the item EVEN WHEN rows remain unanswered (one run, one
+  item — the next `--take` opens another, D-419); only a no-op mark (every named row already answered)
+  conditions its close on the queue reading depth 0 (`_close_feedback_work_item`,
+  `docs/reference/work-tracking.md`).
 - **Auto-captured:** wall-clock (`now − started_epoch`), the round count and the trend (the `confirmed`
   series when every round states it, the `findings` series otherwise), the phase reached. The close
   prints the finished line — `FEEDBACK: /<command> · <wall> · rounds <n> (<trend>) · confusion: … ·
