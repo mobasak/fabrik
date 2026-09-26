@@ -107,7 +107,7 @@
 - [scripts/ci_fix_dispatcher.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_ci_fix_dispatcher.py, INDEX.md, CHANGELOG.md
 - [scripts/classify_services.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/tests/test_gather_envs.py tests/test_external_services_chain.py scripts/external_services_chain.sh docs/reference/external-services-registry
 - [scripts/claude_p_cost.py](../INDEX.md) (owner: infra): AFTER-EDIT: kilo-benchmarks/claude_price_ratios.json (the ① price source incl. `_model_cache`) · tests/test_claude_p_cost.py · tests/test_claude_p_cost_refresh.
-- [scripts/command_feedback_report.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_command_feedback_report.py, docs/reference/command-run-protocol.md
+- [scripts/command_feedback_report.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_command_feedback_report.py, docs/reference/command-run-protocol.md, docs/reference/work-tracking.md
 - [scripts/command_run.py](../INDEX.md) (owner: infra): AFTER-EDIT: CLAUDE.md | templates/governance/CLAUDE.md | docs/reference/command-run-protocol.md | .claude/hooks/final_gate_stop.py | commands/_sources/fabrik-re
 - [scripts/container_images.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/reference/prebuilt-app-containers.md
 - [scripts/decisions.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_decisions_helper.py, docs/reference/decision-ledger.md, scripts/docs_updater.py (keep MERGE_OWNER_RE identical) | NOT the 2026-08-30 desi
@@ -171,7 +171,7 @@
 - [scripts/kilo-benchmarks/update_gateway_counts.py](../INDEX.md) (owner: intel): AFTER-EDIT: docs/workflows/KILO_BENCHMARK_WORKFLOW.md
 - [scripts/kilo_terminal_runner.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/lint_fix_agent.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/mail.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_mail.py, docs/reference/fabrik-mail.md, docs/workstation/fabrik-mail.md, .env.example, docs/CONFIGURATION.md
+- [scripts/mail.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_mail.py, docs/reference/fabrik-mail.md, docs/workstation/fabrik-mail.md, .env.example, docs/CONFIGURATION.md, docs/reference/work-trackin
 - [scripts/migrate_db_rename.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/probes/glitchtip_webhook_capture.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/provision_glitchtip_project.sh](../INDEX.md) (owner: infra): provision_glitchtip_project.sh — Idempotently provision a GlitchTip project + DSN.
@@ -206,10 +206,10 @@
 - [scripts/sysadmin/kaizen_shrink_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_shrink_audit.py, docs/workstation/kaizen-shrink-audit.md | none
 - [scripts/sysadmin/liveness_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_liveness_audit.py | docs/workstation/liveness.md | .fabrik/liveness-registry.json | INDEX.md
 - [scripts/sysadmin/mcp_health.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_mcp_health.py · docs/workstation/mcp-roster.md (§ fix-first) | none
+- [scripts/sysadmin/next_census.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/reference/work-tracking.md
 - [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/quota-dashboard.md, PORTS.md, docs/workstation/claude-account-rotation.md
 - [scripts/sysadmin/rules_render_versions.py](../INDEX.md) (owner: infra): AFTER-EDIT: .windsurf/rules/versions.yaml, scripts/sysadmin/rules_currency_watch.py, tests/sysadmin/test_rules_render_versions.py | none
 - [scripts/sysadmin/stop_mine.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/hooks-index.md, docs/reference/thread-anchors.md, docs/workstation/kaizen-event-stream.md
-- [scripts/thread_anchor.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_thread_anchor.py, docs/reference/thread-anchors.md, .claude/hooks/final_gate_stop.py, .claude/settings.json, scripts/work.py | none
 - [scripts/traycer_write_report.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/update_vps_docs.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/verify_prod_parity.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/DEPLOYMENT.md, docs/OPERATIONS.md | none
