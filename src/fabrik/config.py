@@ -13,7 +13,12 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# FABRIK_NO_AUTOLOAD=1 opts out of the import-time .env load — the same switch libs/alerting
+# honours, and the one the root conftest.py sets so a test process never absorbs the hub's real
+# secrets: without it, any test importing fabrik.config (spec_loader does) loaded the WHOLE .env
+# into pytest (W-f2d483a6).
+if os.environ.get("FABRIK_NO_AUTOLOAD") != "1":
+    load_dotenv()
 
 # Project paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
