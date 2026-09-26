@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-25T23:56:54.949080Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "8cae58a0364e405b3d0ccca6ef3641f724a5ef4d",
   "id": "W-f2d483a6",
   "kind": "task",
   "legacy": false,
@@ -11,10 +11,10 @@
     "plan": "",
     "spec": ""
   },
-  "next": "",
+  "next": "W-f2d483a6",
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "tests/test_rivals_run.py: test_main_returns_0_on_a_sound_preflight (and the other rr.main tests) call the real main(), whose load_env(str(REPO)) likely loads the hub's REAL .env search keys into the pytest process and never clears them — a review seat found EXA_API_KEY already set to a UUID inside test sessions; unverified, check and stub load_env in those tests"
 }
