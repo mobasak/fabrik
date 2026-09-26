@@ -89,15 +89,37 @@ def test_the_guard_actually_pauses_and_the_seam_actually_re_enables():
     assert on.stdout.strip() == "ACTIVE", on.stdout + on.stderr
 
 
+_INVOKE = re.compile(r'check_ai_pack_freshness\.py"?\s+--delivered-max-age')
+_GATE = re.compile(r"^(\s*)if\s+!?\s*_pool_eval_paused\s*;\s*then\b")
+
+
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip())
+
+
+def _freshness_gate() -> tuple[list[str], int, int, int]:
+    """(chain lines, leading-comment line, gate `if` line, closing `fi` line) of the delivered-freshness
+    step. The `fi` is the first later line at the gate's indentation or shallower that opens with `fi`,
+    so a trailing comment, a `;` or a blank line inside the block moves nothing."""
+    lines = _text().splitlines()
+    start = next(
+        i for i, ln in enumerate(lines) if "# The engine-delivered `last-refreshed:`" in ln
+    )
+    gate = next(i for i in range(start, len(lines)) if _GATE.match(lines[i]))
+    depth = _indent(lines[gate])
+    fi = next(
+        i
+        for i in range(gate + 1, len(lines))
+        if lines[i].strip().startswith("fi") and _indent(lines[i]) <= depth
+    )
+    return lines, start, gate, fi
+
+
 def _freshness_block() -> str:
     """The delivered-freshness step as the chain holds it: from its leading comment to the `fi` that
-    closes its pause gate (a blank line inside the block must not truncate it)."""
-    t = _text()
-    start = t.index("# The engine-delivered `last-refreshed:` blocks")
-    gate = t.index("  if _pool_eval_paused; then", start)
-    end = re.compile(r"\n  fi\b[^\n]*").search(t, gate)
-    assert end, "the pause gate around the delivered-freshness step has no closing fi"
-    return t[t.rindex("\n", 0, start) + 1 : end.end()]
+    closes its pause gate."""
+    lines, start, _, fi = _freshness_gate()
+    return "\n".join(lines[start : fi + 1])
 
 
 def _run_freshness_block(tmp_path: Path, paused: bool) -> tuple[str, str | None]:
@@ -149,11 +171,19 @@ def test_the_delivered_freshness_page_still_fires_when_the_pool_is_on_and_names_
 
 def test_the_delivered_freshness_check_runs_only_inside_its_pause_gate():
     """A second, ungated copy of the check anywhere else in the chain would bring the daily false
-    page back while the block tests above stay green: the check appears exactly once, in the block."""
-    t, block, flag = _text(), _freshness_block(), "--delivered-max-age"
-    assert t.count(flag) == block.count(flag), (
-        "the delivered-freshness check also runs outside its gate"
+    page back while the block tests above stay green. Exactly one live invocation (comments and the
+    page's own "Re-check:" hint are not invocations), and it sits strictly inside the gate's branch:
+    after the `if` line, before the `fi` line, indented deeper than the gate."""
+    lines, _, gate, fi = _freshness_gate()
+    calls = [
+        i
+        for i, ln in enumerate(lines)
+        if _INVOKE.search(ln) and not ln.lstrip().startswith("#") and "Re-check:" not in ln
+    ]
+    assert len(calls) == 1, (
+        f"{len(calls)} live invocations of the delivered-freshness check: {calls}"
     )
-    assert (
-        block.count("_pool_eval_paused") == 1 and re.search(r"\n  fi\b[^\n]*$", block) is not None
-    ), block
+    (call,) = calls
+    assert gate < call < fi and _indent(lines[call]) > _indent(lines[gate]), (
+        f"the check at line {call + 1} is not inside the pause gate (lines {gate + 1}-{fi + 1})"
+    )
