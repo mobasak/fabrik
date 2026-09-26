@@ -90,10 +90,11 @@ def test_the_guard_actually_pauses_and_the_seam_actually_re_enables():
 
 
 def _freshness_block() -> str:
-    """The delivered-freshness step as the chain holds it: from its leading comment to the blank line."""
+    """The delivered-freshness step as the chain holds it: from its leading comment to the `fi` that
+    closes its pause gate (a blank line inside the block must not truncate it)."""
     t = _text()
     start = t.index("# The engine-delivered `last-refreshed:` blocks")
-    return t[t.rindex("\n", 0, start) + 1 : t.index("\n\n", start)]
+    return t[t.rindex("\n", 0, start) + 1 : t.index("\n  fi\n", start) + len("\n  fi")]
 
 
 def _run_freshness_block(tmp_path: Path, paused: bool) -> tuple[str, str | None]:
@@ -103,11 +104,15 @@ def _run_freshness_block(tmp_path: Path, paused: bool) -> tuple[str, str | None]
     kb.mkdir()
     alert = tmp_path / "alert.txt"
     (kb / "pipeline_alert.sh").write_text(f'printf "%s\\n%s\\n" "$1" "$2" > "{alert}"\n')
+    # `set -u` because the chain runs under it (an unbound variable there kills the rest of the
+    # run, heartbeat included), and BLOCK-END proves the block fell through rather than exiting.
     script = (
+        "set -u\n"
         f'FABRIK_ROOT="{tmp_path}"; VENV_PY=true; KB="{kb}"\n'
         '_step() { echo "STEP-RAN $1"; return 1; }\n'
         f"_pool_eval_paused() {{ return {0 if paused else 1}; }}\n"
         f"{_freshness_block()}\n"
+        "echo BLOCK-END\n"
     )
     out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=False)
     return out.stdout, alert.read_text() if alert.exists() else None
@@ -121,6 +126,7 @@ def test_the_delivered_freshness_page_stands_down_while_delivery_is_paused(tmp_p
     assert alert is None, f"paged while paused:\n{alert}"
     assert "STEP-RAN" not in stdout, stdout
     assert "POOL EVAL PAUSED" in stdout and "check_ai_pack_freshness_delivered" in stdout, stdout
+    assert "BLOCK-END" in stdout, f"the block did not fall through:\n{stdout}"
 
 
 def test_the_delivered_freshness_page_still_fires_when_the_pool_is_on_and_names_both_causes(
@@ -132,6 +138,14 @@ def test_the_delivered_freshness_page_still_fires_when_the_pool_is_on_and_names_
     stdout, alert = _run_freshness_block(tmp_path, paused=False)
     assert "STEP-RAN check_ai_pack_freshness_delivered" in stdout, stdout
     assert alert is not None, "a stale marker did not page with the pool on"
-    assert (
-        "deliver_to_fabrik" in alert and "/opt/ai-model-catalog/engine/cache/update.log" in alert
-    ), alert
+    assert "BLOCK-END" in stdout, f"the block did not fall through:\n{stdout}"
+    assert "Two causes" in alert and "deliver_to_fabrik step failed" in alert, alert
+    assert "/opt/ai-model-catalog/engine/cache/update.log" in alert, alert
+
+
+def test_the_delivered_freshness_check_runs_only_inside_its_pause_gate():
+    """A second, ungated copy of the check anywhere else in the chain would bring the daily false
+    page back while the block tests above stay green: the check appears exactly once, in the block."""
+    t, needle = _text(), 'check_ai_pack_freshness.py" --delivered-max-age'
+    assert t.count(needle) == 1, f"{t.count(needle)} invocations of the delivered-freshness check"
+    assert needle in _freshness_block()

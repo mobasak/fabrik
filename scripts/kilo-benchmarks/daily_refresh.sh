@@ -363,7 +363,7 @@ sys.exit(0 if not c._pool_policy_on() else 1)' 2>/dev/null
   else
     _step "check_ai_pack_freshness_delivered" "$VENV_PY" "$FABRIK_ROOT/scripts/check_ai_pack_freshness.py" --delivered-max-age 3 \
       || bash "$KB/pipeline_alert.sh" 'daily_refresh: ai/*.md delivered blocks are stale' \
-           'At least one GATEWAY_COUNTS / OPENROUTER_ROUTES block in .windsurf/rules/ai/*.md is more than 3 days old. Two causes: the ai-model-catalog engine stopped producing (read /opt/ai-model-catalog/engine/cache/update.log), or this chain'"'"'s deliver_to_fabrik step failed (read this run'"'"'s log for its [timing] line). Re-check: python3 scripts/check_ai_pack_freshness.py --delivered-max-age 3' || true
+           'At least one GATEWAY_COUNTS / OPENROUTER_ROUTES block in .windsurf/rules/ai/*.md is more than 3 days old. Two causes: the ai-model-catalog engine stopped producing (read /opt/ai-model-catalog/engine/cache/update.log), or this chain'"'"'s deliver_to_fabrik step failed or was skipped (read this run'"'"'s log for its [timing] line or an '"'"'engine venv missing'"'"' WARNING). Re-check: python3 scripts/check_ai_pack_freshness.py --delivered-max-age 3' || true
   fi
 
 
