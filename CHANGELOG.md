@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the delivered-freshness page no longer fires daily while the pool is paused (2026-09-26)
+- `daily_refresh.sh` skipped `deliver_to_fabrik` while the pool was paused, so the `ai/*.md` `last-refreshed:` markers aged by construction, and the D-415 page fired every day blaming a clean engine. The step now shares the delivery's `_pool_eval_paused` gate and logs the pause; with the pool on it still pages, naming both causes. Two behavioural graders in `test_pool_eval_pause.py` run the block in bash in both pause states (red on HEAD). `test_flywheel_safety.py`'s alert-site pin moves 20 → 22 for two alerts added without a bump (red since 2026-09-06). D-430 corrects D-415's diagnosis; the engine's empty `OPENROUTER_ROUTES` blocks are filed with ai-model-catalog (W-1a18423a).
+
 ### Fixed — create_project rejects a mistyped keyword instead of scaffolding into /opt (2026-09-26)
 - `scaffold.create_project` took `**kwargs: object`, so a mistyped `base_dir=` (the keyword is `base=`) was silently swallowed and the default base `/opt` applied — a review seat scaffolded four projects there this way. The one extra keyword any caller passes, `use_database`, is now an explicit parameter and `**kwargs` is gone, so an unknown keyword raises `TypeError` before anything is written. W-202f7fc6.
 

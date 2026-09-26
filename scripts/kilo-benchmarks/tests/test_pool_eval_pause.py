@@ -94,7 +94,10 @@ def _freshness_block() -> str:
     closes its pause gate (a blank line inside the block must not truncate it)."""
     t = _text()
     start = t.index("# The engine-delivered `last-refreshed:` blocks")
-    return t[t.rindex("\n", 0, start) + 1 : t.index("\n  fi\n", start) + len("\n  fi")]
+    gate = t.index("  if _pool_eval_paused; then", start)
+    end = re.compile(r"\n  fi\b[^\n]*").search(t, gate)
+    assert end, "the pause gate around the delivered-freshness step has no closing fi"
+    return t[t.rindex("\n", 0, start) + 1 : end.end()]
 
 
 def _run_freshness_block(tmp_path: Path, paused: bool) -> tuple[str, str | None]:
@@ -139,13 +142,18 @@ def test_the_delivered_freshness_page_still_fires_when_the_pool_is_on_and_names_
     assert "STEP-RAN check_ai_pack_freshness_delivered" in stdout, stdout
     assert alert is not None, "a stale marker did not page with the pool on"
     assert "BLOCK-END" in stdout, f"the block did not fall through:\n{stdout}"
-    assert "Two causes" in alert and "deliver_to_fabrik step failed" in alert, alert
+    assert "Two causes" in alert and "deliver_to_fabrik step failed or was skipped" in alert, alert
+    assert "engine venv missing" in alert, alert
     assert "/opt/ai-model-catalog/engine/cache/update.log" in alert, alert
 
 
 def test_the_delivered_freshness_check_runs_only_inside_its_pause_gate():
     """A second, ungated copy of the check anywhere else in the chain would bring the daily false
     page back while the block tests above stay green: the check appears exactly once, in the block."""
-    t, needle = _text(), 'check_ai_pack_freshness.py" --delivered-max-age'
-    assert t.count(needle) == 1, f"{t.count(needle)} invocations of the delivered-freshness check"
-    assert needle in _freshness_block()
+    t, block, flag = _text(), _freshness_block(), "--delivered-max-age"
+    assert t.count(flag) == block.count(flag), (
+        "the delivered-freshness check also runs outside its gate"
+    )
+    assert (
+        block.count("_pool_eval_paused") == 1 and re.search(r"\n  fi\b[^\n]*$", block) is not None
+    ), block
