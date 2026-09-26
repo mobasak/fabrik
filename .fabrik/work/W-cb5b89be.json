@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-26T17:30:55.245918Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-cb5b89be",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Replace the numbered list with the boot hook's real steps (its header, scripts/wsl_startup_hook.sh:18-43) and point catalog readers at docs/workflows/KILO_BENCHMARK_WORKFLOW.md",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "docs/workflows/KILO_AGENT_MANAGEMENT.md § daily pipeline (~:763-778) lists six catalog steps and FABRIK_DISABLE_KILO_WORKFLOW that the boot hook no longer runs or reads (found in the W-0355625c rewrite)"
+}

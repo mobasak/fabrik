@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-26T17:30:55.468048Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-39b1c993",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Delete the empty if/subshell and header item 6, renumber the header, re-run tests/capture_golden.py --verify (it parses the hook's child block)",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "scripts/wsl_startup_hook.sh: the OpenRouter category-routing block (~:185-207) is an empty subshell and header item 6 still says it classifies and injects routes — remove the dead block and header item (found in the W-0355625c rewrite)"
+}
