@@ -113,4 +113,74 @@ def test_the_switch_is_what_skips_them(tmp_path, spawned, monkeypatch):
         use_database=True,
     )
 
-    assert set(_SIDE_EFFECTS) <= set(spawned), spawned
+    # sync_projects is reachable only for a project under /opt (see the scan-root tests below)
+    assert set(_SIDE_EFFECTS) - {"sync_projects"} <= set(spawned), spawned
+
+
+def test_a_scaffold_outside_the_scan_root_never_syncs_the_hub(tmp_path, spawned, monkeypatch):
+    """W-ddf409c0: scripts/sync_projects.py scans /opt only, so running it after a scaffold anywhere
+    else registers nothing and only rewrites the hub's catalog. Online, a tmp-dir scaffold must not
+    spawn it."""
+    monkeypatch.delenv("FABRIK_SCAFFOLD_OFFLINE", raising=False)
+
+    scaffold.create_project(
+        name="elsewhere-probe", description="d", base=tmp_path, generate_spec=False
+    )
+
+    assert "sync_projects" not in spawned, spawned
+
+
+@pytest.mark.parametrize(
+    ("project_path", "syncs"),
+    [
+        ("/opt/probe-x", True),
+        ("/tmp/../opt/probe-x", True),  # a spelling that resolves into /opt
+        ("/opt/group/probe-x", False),  # nested: the sync lists /opt's children only
+        ("/opt-elsewhere/probe-x", False),  # a string-prefix match is not the root
+    ],
+)
+def test_the_sync_gate_is_the_resolved_direct_parent(spawned, monkeypatch, project_path, syncs):
+    monkeypatch.delenv("FABRIK_SCAFFOLD_OFFLINE", raising=False)
+
+    scaffold._post_scaffold_sync(Path(project_path))
+
+    assert (spawned == ["sync_projects"]) is syncs, spawned
+
+
+def test_the_scan_root_matches_sync_projects():
+    """The gate copies sync_projects.scan_projects' default root; this keeps the two equal."""
+    import importlib.util
+    import inspect
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "sync_projects.py"
+    spec = importlib.util.spec_from_file_location("sync_projects_under_test", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    default = inspect.signature(module.scan_projects).parameters["root"].default
+    assert Path(default) == scaffold._SYNC_SCAN_ROOT
+    assert "scan_projects()" in inspect.getsource(module.main), "main() must use the default root"
+
+
+def test_a_scaffold_under_the_scan_root_still_syncs(spawned, monkeypatch):
+    """Mirror: a project created under /opt is still registered (the spawn is faked)."""
+    monkeypatch.delenv("FABRIK_SCAFFOLD_OFFLINE", raising=False)
+
+    scaffold._post_scaffold_sync(Path("/opt") / "never-created-sync-probe")
+
+    assert spawned == ["sync_projects"]
+
+
+def test_a_symlinked_scan_root_still_matches(spawned, monkeypatch, tmp_path):
+    """If the scan root is a symlink, a project in its real directory must still sync: the gate
+    resolves both sides."""
+    monkeypatch.delenv("FABRIK_SCAFFOLD_OFFLINE", raising=False)
+    real = tmp_path / "real-opt"
+    real.mkdir()
+    link = tmp_path / "opt-link"
+    link.symlink_to(real)
+    monkeypatch.setattr(scaffold, "_SYNC_SCAN_ROOT", link)
+
+    scaffold._post_scaffold_sync(real / "probe-x")
+
+    assert spawned == ["sync_projects"]

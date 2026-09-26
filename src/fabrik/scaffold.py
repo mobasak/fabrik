@@ -6604,13 +6604,23 @@ def _emit_mcp_config(project_dir: Path) -> None:
         pass  # next fleet emission run covers it
 
 
+# The root scripts/sync_projects.py scans: its scan_projects default, which main() uses. Kept equal
+# by tests/test_scaffold_offline_seam.py::test_the_scan_root_matches_sync_projects.
+_SYNC_SCAN_ROOT = Path("/opt")
+
+
 def _post_scaffold_sync(project_dir: Path) -> None:
     """Post-scaffold hook: update project registry and PROJECT_CATALOG.md.
 
     Runs sync_projects.py to pick up the new project. Failure is non-fatal
-    (scaffold already succeeded).
+    (scaffold already succeeded). Only for a project DIRECTLY in the sync's scan root (the sync
+    lists that root's children, nothing deeper): a scaffold anywhere else (a temp dir, a test, a
+    nested dir) can never be registered, and running the sync then only rewrites the hub's catalog
+    (W-ddf409c0).
     """
     sync_script = FABRIK_ROOT / "scripts" / "sync_projects.py"
+    if Path(project_dir).resolve().parent != _SYNC_SCAN_ROOT.resolve():
+        return
     if _scaffold_offline() or not sync_script.exists():
         return
     try:

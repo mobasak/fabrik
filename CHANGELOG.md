@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Scaffolding into a temp dir no longer rewrites the hub's project catalog (2026-09-26)
+- `create_project` ran `scripts/sync_projects.py` after every scaffold, but that script scans only `/opt`, so for a project anywhere else it could register nothing and only rewrote the hub's `docs/PROJECT_CATALOG.md` and `data/projects.yaml` (a review seat's temp-dir scaffold did exactly that on 2026-09-26). `_post_scaffold_sync` now runs only when the project's parent is the sync's scan root, `/opt`. W-ddf409c0.
+
 ### Fixed — the delivered-freshness page no longer fires daily while the pool is paused (2026-09-26)
 - `daily_refresh.sh` skipped `deliver_to_fabrik` while the pool was paused, so the `ai/*.md` `last-refreshed:` markers aged by construction, and the D-415 page fired every day blaming a clean engine. The step now shares the delivery's `_pool_eval_paused` gate and logs the pause; with the pool on it still pages, naming both causes. Two behavioural graders in `test_pool_eval_pause.py` run the block in bash in both pause states (red on HEAD). `test_flywheel_safety.py`'s alert-site pin moves 20 → 22 for two alerts added without a bump (red since 2026-09-06). D-430 corrects D-415's diagnosis; the engine's empty `OPENROUTER_ROUTES` blocks are filed with ai-model-catalog (W-1a18423a).
 

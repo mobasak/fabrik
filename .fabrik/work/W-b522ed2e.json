@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-26T20:28:50.200416Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-b522ed2e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Route both decisions through one helper (the resolved-direct-parent rule) and test the odd spellings for both",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "create_project decides 'is this a real /opt scaffold?' two ways: the post-scaffold sync gate resolves the project's parent against /opt, while the spec-destination gate compares Path(base) == Path('/opt') literally, so a base of '/opt/../opt', '//opt', a symlink to /opt or a relative base with cwd=/opt syncs the catalog but writes the deploy spec under <base>/specs/services (found by the W-ddf409c0 review, O2)"
+}
