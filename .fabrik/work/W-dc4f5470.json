@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-08-28T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "c327e85d5b67f01bd08bc900a6c0ab59bf0d8544",
   "id": "W-dc4f5470",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:8aacc56b882e",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "**Scaffold a captured-event GlitchTip secret-leak test (+ vacuity guard)** (tryton-crm `01M145D3N`, passed back 2026-08-28 after fixing the emitter leak `f273064c`). The emitter now sets `include_l..."
 }
