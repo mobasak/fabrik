@@ -37,8 +37,10 @@ THE WORK STORE (work tracking, spec 2026-09-24 § NEXT, DECISION blocks and the 
 repo — ``--repo``, else the hook payload's ``cwd``, NEVER the process cwd — whose ``.fabrik/work/``
 exists, ``scripts/work.py`` (loaded by path, beside this script) is called in-process:
   harvest   ONE ``on_harvest`` call after the session lock is released (never both locks at once):
-            the accepted DECISION block becomes an awaiting item, a NEXT naming ``W-…`` sets that
-            item's ``next``, and the session's live claims are renewed — a quiet turn included.
+            the accepted DECISION block becomes an awaiting item, the NEXT goes to the store's
+            rules with ``next_anchored`` — whether the register accepted it (``_is_anchor`` on
+            the same 300 characters it judges) — and the session's live claims are renewed, a
+            quiet turn included. An older ``work.py`` without that keyword is called without it.
             The stored slot carries the resolved ``repo``.
   line      the second chance: every session's slot for this repo (≤ 7 days old) whose message
             digest no item holds is created in ONE ``ensure_decision_items`` call; a failed write
@@ -56,6 +58,7 @@ import argparse
 import contextlib
 import hashlib
 import importlib.util
+import inspect
 import io
 import json
 import math
@@ -268,6 +271,25 @@ def _work() -> ModuleType | None:
         return None
     _WORK = mod
     return mod
+
+
+_ANCHORED_KW: tuple[object, bool] | None = None  # (the work module it was judged for, knows it)
+
+
+def _takes_next_anchored(w: Any) -> bool:
+    """Whether ``w.on_harvest`` declares ``next_anchored`` — judged once per loaded module, beside
+    ``_work()``'s cache. ``thread_anchor.py`` and ``work.py`` ride one sync, but a repo can hold
+    this script beside an OLDER ``work.py`` for a cycle, and there the keyword is a ``TypeError``
+    that would cost the decision write the same call carries. A signature that cannot be read
+    counts as no."""
+    global _ANCHORED_KW
+    if _ANCHORED_KW is None or _ANCHORED_KW[0] is not w:
+        try:
+            knows = "next_anchored" in inspect.signature(w.on_harvest).parameters
+        except Exception:
+            knows = False
+        _ANCHORED_KW = (w, knows)
+    return _ANCHORED_KW[1]
 
 
 def _resolve_repo(raw: object) -> Path | None:
@@ -560,8 +582,12 @@ def cmd_harvest(
         except Exception as e:
             _warn(f"DECISION block not stored — {e}")
     if not matches and not block:
-        _store_harvest(repo, session, None, "", None)  # a quiet turn still renews its claims
+        # a quiet turn still renews its claims
+        _store_harvest(repo, session, None, "", None, next_anchored=False)
         return
+    # what the register judges below (`nxt`): a NEXT whose anchor shape sits past character 300
+    # is rejected there, so it is never reported to the store as accepted
+    anchored = bool(matches) and _is_anchor(matches[-1][:300])
     now = time.time()
     msg = _digest(text)
     stored: list[bool] = []  # apply() stored the block in the slot this turn
@@ -596,20 +622,35 @@ def cmd_harvest(
     # The echo guard reaches the store too: an answered message harvested again (the Stop hook's
     # retry re-reads the same text) never mints an item for a settled question (A-O3).
     store_block = block if stored else None
-    _store_harvest(repo, session, store_block, msg, matches[-1] if matches else None)
+    _store_harvest(
+        repo, session, store_block, msg, matches[-1] if matches else None, next_anchored=anchored
+    )
 
 
 def _store_harvest(
-    repo: Path | None, session: str, block: str | None, msg: str, next_text: str | None
+    repo: Path | None,
+    session: str,
+    block: str | None,
+    msg: str,
+    next_text: str | None,
+    *,
+    next_anchored: bool,
 ) -> None:
-    """The Stop harvest's ONE store call (``work.on_harvest``, fail-open inside). Never raises."""
+    """The Stop harvest's ONE store call (``work.on_harvest``, fail-open inside). Never raises.
+    ``next_anchored`` (the register accepted the NEXT) is passed only to a ``work.py`` that
+    declares it (``_takes_next_anchored``)."""
     if repo is None:
         return
     w = _work()
     if w is None:
         return
+    extra: dict[str, bool] = {}
+    if _takes_next_anchored(w):
+        extra["next_anchored"] = next_anchored
     try:
-        w.on_harvest(repo, session=session, block=block, msg_digest=msg, next_text=next_text)
+        w.on_harvest(
+            repo, session=session, block=block, msg_digest=msg, next_text=next_text, **extra
+        )
     except Exception as e:
         _warn(f"work store not updated — {type(e).__name__}: {e}")
 

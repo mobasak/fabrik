@@ -207,6 +207,124 @@ def test_v1_two_stops_become_two_awaiting_items_every_session_sees(tmp_path):
         (Path(env["THREAD_ANCHOR_DIR"]) / "s-c.json").unlink(missing_ok=True)
 
 
+# ── V1 (T05b): a NEXT claims the item it names, or becomes the session's one `next` item ─────
+
+
+def _task(env: dict[str, str], repo: Path, title: str) -> str:
+    before = {it["id"] for it in _items(repo)}
+    _work(env, repo, "add", "--kind", "task", "--title", title)
+    (new,) = [it["id"] for it in _items(repo) if it["id"] not in before]
+    return new
+
+
+def _by_id(repo: Path) -> dict[str, dict]:
+    return {it["id"]: it for it in _items(repo)}
+
+
+def _item_files(repo: Path) -> dict[str, bytes]:
+    return {p.name: p.read_bytes() for p in (repo / ".fabrik" / "work").glob("W-*.json")}
+
+
+def _claim(repo: Path, item_id: str) -> dict | None:
+    path = repo / ".git" / "fabrik-work" / "claims" / f"{item_id}.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
+def _open_nexts(repo: Path, sid: str) -> list[dict]:
+    return [
+        it
+        for it in _items(repo)
+        if it["kind"] == "next" and it["status"] == "open" and it["links"]["session"] == sid
+    ]
+
+
+def _said(nxt: str) -> str:
+    return f"Done with that step.\n\nNEXT: {nxt}\n"
+
+
+def test_v1_a_next_claims_the_item_it_names_or_becomes_the_sessions_next_item(tmp_path):
+    """Spec § Validation V1 through the REAL Stop hook, one session (s-1) walking every rule, then
+    a second session (s-2) whose Stop closes a third session's (s-3) 8-day-old `next` item. s-2
+    also holds the item s-1 names in its last NEXT, and ends on that item — its own claim renews."""
+    env = _env(tmp_path)
+    repo = _repo(tmp_path, env)
+    a = _task(env, repo, "wire the harvest")
+    c = _task(env, repo, "write the seam test")
+    h = _task(env, repo, "land the docs")
+    _allowed(_stop(env, "s-x", _DECISION, repo))  # another session's question: an awaiting item
+    (awaiting,) = [it["id"] for it in _awaiting(repo)]
+    _work(env, repo, "claim", h, "--session", "s-2")
+
+    # three Stops on free text the register accepts: ONE open `next` item, the last text
+    stamps = []
+    for nxt in (
+        "command 1 of 5 — the audit",
+        "phase B of the rollout",
+        "docs/development/plans/2026-09-25-plan-1-x.md step 2",
+    ):
+        _allowed(_stop(env, "s-1", _said(nxt), repo))
+        (mine,) = _open_nexts(repo, "s-1")
+        assert mine["next"] == nxt, mine
+        stamps.append(mine["next_at"])
+    assert stamps == sorted(stamps) and len(set(stamps)) == 3, stamps
+    thread = mine["id"]
+
+    # a NEXT naming an open item: claims it, sets its next, and supersedes the `next` item
+    finish = f"finish {a} — then the docs"
+    _allowed(_stop(env, "s-1", _said(finish), repo))
+    items = _by_id(repo)
+    assert items[a]["next"] == finish and (_claim(repo, a) or {}).get("session") == "s-1"
+    assert (items[thread]["status"], items[thread]["note"]) == ("dropped", "superseded")
+    assert _open_nexts(repo, "s-1") == []
+
+    # an operator-decision NEXT naming an id: no claim, no item file changed
+    files = _item_files(repo)
+    _allowed(_stop(env, "s-1", _said(f"operator decision: approve {c} first"), repo))
+    assert _item_files(repo) == files and _claim(repo, c) is None
+
+    # awaiting id first, open id second: only the second is claimed and updated
+    mixed = f"answer {awaiting} then {c}"
+    _allowed(_stop(env, "s-1", _said(mixed), repo))
+    items = _by_id(repo)
+    assert (_claim(repo, c) or {}).get("session") == "s-1" and items[c]["next"] == mixed
+    assert _claim(repo, awaiting) is None and items[awaiting].get("next") != mixed
+
+    # a NEXT naming only an item another live session holds: no claim, no item file changed
+    files = _item_files(repo)
+    held = _claim(repo, h)
+    _allowed(_stop(env, "s-1", _said(f"pair on {h}"), repo))
+    assert _item_files(repo) == files
+    assert _claim(repo, h) == held and (held or {}).get("session") == "s-2"
+
+    # a third session's `next` item, 8 days idle — planted only now, after s-1's last Stop,
+    # because any harvest closes it
+    _allowed(_stop(env, "s-3", _said("command 2 of 9 — the census"), repo))
+    (idle,) = _open_nexts(repo, "s-3")
+    old = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 8 * 86400))
+    idle.update(next_at=old, created=old)
+    path = repo / ".fabrik" / "work" / f"{idle['id']}.json"
+    path.write_text(json.dumps(idle, indent=2) + "\n", encoding="utf-8")
+
+    _allowed(_stop(env, "s-2", _said(f"continue {h} — the docs pass"), repo))
+    items = _by_id(repo)
+    assert (items[idle["id"]]["status"], items[idle["id"]]["note"]) == ("dropped", "idle 7 days")
+    assert (_claim(repo, h) or {}).get("session") == "s-2" and _renewed_claim(repo, h, held)
+
+    # the whole store: ONE superseded `next` item; s-1 holds exactly the first named item and
+    # the second id of the mixed line
+    superseded = [
+        it for it in items.values() if it["kind"] == "next" and it.get("note") == "superseded"
+    ]
+    assert [it["id"] for it in superseded] == [thread], superseded
+    held_by_1 = sorted(i for i in items if (_claim(repo, i) or {}).get("session") == "s-1")
+    assert held_by_1 == sorted([a, c]), held_by_1
+
+
+def _renewed_claim(repo: Path, item_id: str, before: dict | None) -> bool:
+    now = _claim(repo, item_id) or {}
+    return bool(before) and now.get("at", 0) > (before or {}).get("at", 0)
+
+
 # ── the other allowed exits and a blocked Stop (a fabrik-style repo) ─────────────────────────
 
 
