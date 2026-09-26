@@ -13,7 +13,7 @@
   },
   "next": "on or after 2026-10-09 run python3 scripts/sysadmin/next_census.py --since 7 --repo /opt/fabrik and record the V5 line (PASS/FAIL and the bound) plus the classes line in docs/reference/work-tracking.md § Validation reading; the spec's open unknown (_is_anchor as the next-item filter) is judged on it",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 1,
   "status": "open",
   "title": "V5 reading of the single-tracker work store, due 2026-10-09 (two weeks after hub adoption)"

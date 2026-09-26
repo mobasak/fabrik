@@ -11,9 +11,9 @@
     "plan": "",
     "spec": ""
   },
-  "next": "",
+  "next": "W-96cbe6a9",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "commands/_sources/fabrik-rivals.md Phase 1 trap list omits the new foreign-checkout refusal (W-6a157c25) that docs/reference/rivals-command.md documents; add one line and re-render"
