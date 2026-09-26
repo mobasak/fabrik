@@ -26,7 +26,7 @@ The hub's steps that touch the catalog, in `daily_refresh.sh` order:
 | Step | What it does |
 |---|---|
 | `deliver_to_fabrik.py --apply` (engine script, run with the engine's venv) | Copies the engine's whole-file docs, injects its marker blocks (`OPENROUTER_ROUTES`, `GATEWAY_COUNTS`, and others) into their host files, including the `.windsurf/rules/ai/*.md` packs and their `Last content verification:` stamp, and copies `kilo_agents.db` into `scripts/kilo-benchmarks/`. That copy is the engine's own SQLite file, frozen since the engine moved to Postgres, because nothing writes the export it looks for first (`deliver_to_fabrik.py` says so beside the fallback). Skipped while the pool evaluation is paused (D-181/D-182). |
-| `rank_task_subagents.py` | Re-renders `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` with the hub's operator deny list and allowlist applied over the delivered ranking. Pages if it fails, because the engine copy carries neither. `daily_refresh.sh` skips it while the pool is paused, but the boot hook re-renders it ungated, so `Last refresh:` keeps moving while the `Evidence age:` line shows the evidence is frozen. |
+| `rank_task_subagents.py` | Re-renders `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` with the hub's operator deny list and allowlist applied over the delivered ranking. Pages if it fails, because the engine copy carries neither. `daily_refresh.sh` skips it while the pool is paused, but the boot hook re-renders it ungated on the days it takes the lockfile, so `Last refresh:` usually keeps moving while the `Evidence age:` line shows the evidence is frozen. |
 | `check_ai_pack_freshness.py --delivered-max-age 3` | Exits 1 when any `last-refreshed:` marker in `.windsurf/rules/ai/*.md` (the `GATEWAY_COUNTS` and `OPENROUTER_ROUTES` blocks) is more than 3 days old, or when it finds no marker at all, and the step pages (D-415). Stale blocks have two causes: the engine stopped producing, or the hub skipped delivery because the pool is paused, which has been the case since 2026-09-08. Read the engine log and this log's `POOL EVAL PAUSED` lines before blaming either. The step is not gated on the pause, so it pages daily while paused (W-1a18423a). |
 | `tests/capture_golden.py --verify` | The contract oracle. It checks that every artifact and marker the fleet consumes is still produced and not an empty husk. Among other things it snapshots the SQL count queries in the hub's retained `update_gateway_counts.py`. |
 | `sync_enforcement_to_projects.py`, then `autocommit_pipeline_outputs.sh` | Distributes governance and the delivered docs to the fleet, then commits the regenerated docs. |
@@ -36,8 +36,8 @@ The hub's steps that touch the catalog, in `daily_refresh.sh` order:
 `scripts/wsl_startup_hook.sh` runs once per WSL boot day. It runs no producer step and never calls
 `deliver_to_fabrik`: the six-script Kilo agent workflow it used to run left with the engine, and its
 "OpenRouter category routing" block is now a subshell that only `cd`s. It does run the hub ranker
-(without the pause gate), the contract oracle, the heartbeat check and the autocommit, under the
-shared lockfile above, plus the warn-only pack freshness check below.
+(without the pause gate), the contract oracle, the heartbeat check, the autocommit and the warn-only
+pack freshness check below, all under the shared lockfile above.
 
 ### AI rule pack freshness check (warn-only)
 
@@ -69,10 +69,11 @@ python3 scripts/check_ai_pack_freshness.py --delivered-max-age 3; echo "rc=$?"
 tail -100 scripts/kilo-benchmarks/cache/update.log
 ```
 
-A green hub heartbeat (`check_daily_refresh_freshness.py`) says that the hub's script reached its end
-and that the selection doc's `Last refresh:` stamp is recent. Neither says the engine produced fresh
-data. For that, read the
-`--delivered-max-age` result and the `Evidence age:` line in `TASK_SUBAGENT_SELECTION.md`.
+A green hub heartbeat (`check_daily_refresh_freshness.py`) says that the hub's daily run reached its
+end (the cron or the boot hook, whichever took the lockfile; both write the heartbeat) and that the
+selection doc's `Last refresh:` stamp is recent. Neither says the engine produced fresh data. For
+that, read the `--delivered-max-age` result and the `Evidence age:` line in
+`TASK_SUBAGENT_SELECTION.md`.
 
 ## History
 
