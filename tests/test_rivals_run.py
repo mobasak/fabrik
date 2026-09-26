@@ -13,8 +13,10 @@ involved anywhere in this file.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import importlib.util
 import json
+import os
 import sys
 from decimal import Decimal
 from pathlib import Path
@@ -26,6 +28,28 @@ _spec = importlib.util.spec_from_file_location("rivals_run", REPO / "scripts" / 
 assert _spec and _spec.loader
 rr = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(rr)
+
+
+@contextlib.contextmanager
+def _search_keys_restored():
+    """Put the search keys back exactly as they were. `main()` calls the REAL `load_env(REPO)`,
+    which writes the hub's live keys into this process; without this they stayed set for the rest
+    of the session (measured with a hash probe — W-f2d483a6)."""
+    saved = {k: os.environ.get(k) for k in (*rr._ENV_KEYS, "DATABASE_URL")}
+    try:
+        yield
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+@pytest.fixture(autouse=True)
+def _no_loaded_key_outlives_its_test():
+    with _search_keys_restored():
+        yield
 
 
 def _legs() -> dict[str, object]:
@@ -425,7 +449,11 @@ def test_main_returns_2_on_a_wiring_error_and_never_a_traceback(capsys):
     assert "WIRING ERROR (nothing was spent)" in capsys.readouterr().err
 
 
-def test_main_returns_0_on_a_sound_preflight(capsys):
+def test_main_returns_0_on_a_sound_preflight(capsys, monkeypatch):
+    # Hermetic: fake keys and no real autoload — this passed only because the hub's .env was there.
+    monkeypatch.setattr(rr, "load_env", lambda repo: [])
+    for key in ("EXA_API_KEY", "BRAVE_API_KEY", "FIRECRAWL_API_KEY"):
+        monkeypatch.setenv(key, "test-key")
     rc = rr.main(["--market", "x", "--greenfield", "--preflight-only"])
     assert rc == 0
     out = capsys.readouterr().out
@@ -1693,3 +1721,13 @@ def test_a_bad_repo_says_so_on_stdout(tmp_path, monkeypatch, capsys):
     monkeypatch.delenv("SUBAGENTS_ENV_FILE", raising=False)
     rr.load_env("")
     assert "note: no project .env read" in capsys.readouterr().out
+
+
+def test_a_real_main_run_leaves_no_key_behind(monkeypatch):
+    """W-f2d483a6: the helper the autouse fixture relies on must undo whatever main() loads."""
+    for key in rr._ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+    with _search_keys_restored():
+        rr.main(["--market", "x", "--greenfield", "--budget", "0", "--preflight-only"])
+        os.environ["EXA_API_KEY"] = "planted-inside"  # guarantees there is something to undo
+    assert [k for k in rr._ENV_KEYS if k in os.environ] == []
