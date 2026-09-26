@@ -1320,16 +1320,17 @@ def test_no_repo_and_no_cwd_touch_no_store(tmp_path):
     assert _snapshot(repo) == before, "a store was written without --repo or a payload cwd"
 
 
-def test_a_next_naming_an_item_sets_its_next_field(tmp_path):
+def test_a_next_naming_an_item_claims_it_and_leaves_its_file(tmp_path):
     env = _env(tmp_path)
     repo = _store_repo(tmp_path, env)
     _work(env, repo, "add", "--kind", "task", "--title", "wire the harvest")
     (item,) = _items(repo)
     nxt = f"finish {item['id']} — the claim renewal tests"
+    before = _items(repo)
     run3(
         ["harvest", "--session", "s-nx", "--repo", str(repo)], env, stdin=f"done.\n\nNEXT: {nxt}\n"
     )
-    assert _items(repo)[0].get("next") == nxt, _items(repo)
+    assert _items(repo) == before, _items(repo)
     claim = repo / ".git" / "fabrik-work" / "claims" / f"{item['id']}.json"
     assert json.loads(claim.read_text(encoding="utf-8"))["session"] == "s-nx"
 

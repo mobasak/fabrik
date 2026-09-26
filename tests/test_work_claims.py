@@ -572,9 +572,7 @@ def test_ensure_decision_items_creates_every_missing_entry_under_one_lock(
     }
 
 
-def test_on_harvest_writes_the_decision_then_the_items_next_under_one_lock(
-    tmp_path, api, monkeypatch
-):
+def test_on_harvest_writes_the_decision_then_the_claim_under_one_lock(tmp_path, api, monkeypatch):
     work, env = api
     repo = _store(tmp_path, env)
     item = _add(repo, env)  # open and unclaimed: rule 2 takes the claim itself
@@ -601,6 +599,7 @@ def test_on_harvest_writes_the_decision_then_the_items_next_under_one_lock(
 
     monkeypatch.setattr(work, "_write_item", item_write)
     monkeypatch.setattr(work, "_write_claim", claim_write)
+    before = _item_file(repo, item).read_bytes()
     got = work.on_harvest(
         repo,
         session="S1",
@@ -610,16 +609,15 @@ def test_on_harvest_writes_the_decision_then_the_items_next_under_one_lock(
     )
     assert got and got != item
     assert _item(repo, got)["kind"] == "decision"
-    assert _item(repo, item)["next"] == f"{item}: write the migration test"
+    assert _item_file(repo, item).read_bytes() == before
     assert calls == [True]
     claim = _claim(repo, item)
     assert claim["session"] == "S1" and claim["token"] == 1 and claim["lease_s"] == 7200
     kinds = [(w[0], w[1] == got, w[1] == item) for w in writes]
     decision_at = kinds.index(("item", True, False))
-    next_at = kinds.index(("item", False, True))
     claim_at = kinds.index(("claim", False, True))
-    # the claim precedes the item's next, so a failed claim never leaves a rewritten next
-    assert decision_at < claim_at < next_at, writes
+    # the decision, then the claim; the named item's own file is never written
+    assert decision_at < claim_at and ("item", False, True) not in kinds, writes
 
 
 def test_on_harvest_fails_open_when_the_lock_is_held(tmp_path, api):
@@ -772,7 +770,7 @@ def test_on_harvest_leaves_the_next_of_an_item_another_session_holds(tmp_path, a
     assert _item_file(repo, item).read_bytes() == before
     assert _claim(repo, item) == held  # B neither took nor renewed A's claim
     work.on_harvest(repo, session="A", next_text=f"{item}: yours")
-    assert _item(repo, item)["next"] == f"{item}: yours"
+    assert _item_file(repo, item).read_bytes() == before
     mine = _claim(repo, item)
     assert mine["session"] == "A" and mine["token"] == held["token"]  # A's own claim, renewed
 

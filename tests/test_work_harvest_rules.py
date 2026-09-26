@@ -243,8 +243,9 @@ def test_a_next_naming_an_open_item_claims_it_and_supersedes_the_next_item(store
     work.on_harvest(repo, session="S1", next_text="fix the flake", next_anchored=True)
     (nxt,) = _open_next(repo, "S1")
     # next_anchored omitted, as today's callers do: rule 2 still claims
+    before = _file(repo, x).read_bytes()
     work.on_harvest(repo, session="S1", next_text=f"{x} — continue")
-    assert _item(repo, x)["next"] == f"{x} — continue"
+    assert _file(repo, x).read_bytes() == before
     assert _live_session(repo, x) == "S1"
     closed = _item(repo, nxt["id"])
     assert closed["status"] == "dropped" and closed["note"] == "superseded"
@@ -255,16 +256,17 @@ def test_a_next_naming_an_open_item_claims_it_and_supersedes_the_next_item(store
     assert again["id"] != nxt["id"]
 
 
-def test_only_the_first_qualifying_id_is_updated_and_claimed(store):
+def test_only_the_first_qualifying_id_is_claimed(store):
     work, repo, env = store
     awaiting = work.ensure_decision_item(repo, block=BLOCK, msg_digest="m0", session="S0")
     assert awaiting and _item(repo, awaiting)["status"] == "awaiting-operator"
     y, z = _add(repo, env, "Y"), _add(repo, env, "Z")
     before_awaiting, before_z = _file(repo, awaiting).read_bytes(), _file(repo, z).read_bytes()
+    before_y = _file(repo, y).read_bytes()
     work.on_harvest(repo, session="S1", next_text=f"answer {awaiting}, then {y} and {z}")
     assert _file(repo, awaiting).read_bytes() == before_awaiting
     assert _claim(repo, awaiting) is None
-    assert _item(repo, y)["next"] == f"answer {awaiting}, then {y} and {z}"
+    assert _file(repo, y).read_bytes() == before_y
     assert _live_session(repo, y) == "S1"
     assert _file(repo, z).read_bytes() == before_z and _claim(repo, z) is None
 
@@ -463,28 +465,17 @@ def test_a_failed_claim_write_leaves_the_items_next_alone_and_still_supersedes(
     assert _item(repo, nxt["id"])["note"] == "superseded"
 
 
-def test_a_failed_next_write_after_the_claim_says_the_claim_stands(store, monkeypatch, capsys):
+def test_rule_two_claims_the_named_item_and_never_rewrites_its_file(store):
+    """A migrated item keeps its whole body in ``next``; naming it in a NEXT only claims it."""
     work, repo, env = store
     x = _add(repo, env, "X")
-    work.on_harvest(repo, session="S1", next_text="fix the flake", next_anchored=True)
-    (nxt,) = _open_next(repo, "S1")
+    item = _item(repo, x)
+    item["next"] = "the migrated backlog body, several sentences long"
+    _file(repo, x).write_text(json.dumps(item, indent=2) + "\n", encoding="utf-8")
     before = _file(repo, x).read_bytes()
-    real = work._write_item
-
-    def refuse_x(repo_, item, **k):
-        if item.get("id") == x:
-            raise OSError("item file is read-only")
-        return real(repo_, item, **k)
-
-    monkeypatch.setattr(work, "_write_item", refuse_x)
-    capsys.readouterr()
-    work.on_harvest(repo, session="S1", next_text=f"{x} continue")
-    err = capsys.readouterr().err
-    assert f"named item {x} claimed, its next not written — OSError" in err
-    assert "not claimed" not in err
+    work.on_harvest(repo, session="S1", next_text=f"{x} — continue")
     assert _live_session(repo, x) == "S1"
     assert _file(repo, x).read_bytes() == before
-    assert _item(repo, nxt["id"])["note"] == "superseded"
 
 
 def test_a_successful_rule_two_harvest_prints_nothing(store, capsys):

@@ -3461,8 +3461,9 @@ def _supersede_next(repo: Path, session: str, closed: set[str]) -> None:
 def _claim_named(repo: Path, v: str, session: str, closed: set[str]) -> None:
     """Rule 2: the FIRST named id that is open, ready, not a ``next`` item and not held live by
     another session gets ``claim``'s own write (``_claim_record``, the agent resolved for
-    ``session``) and THEN ``next = v`` (only when different) — so a failed claim never leaves a
-    rewritten ``next`` behind. No other named item is touched; when none qualifies nothing is."""
+    ``session``) and nothing else: the item file is never written, because its ``next`` is the
+    item's own authored next action (a migrated item's whole body lives there) and the session's
+    NEXT line is already kept by the thread-anchor register. When none qualifies nothing is."""
     by_id = {str(it["id"]): it for it in _iter_items(repo)}
     now = time.time()
     for ref in _next_refs(v):
@@ -3475,15 +3476,6 @@ def _claim_named(repo: Path, v: str, session: str, closed: set[str]) -> None:
         if taken is None:  # another session's live claim: its item stays byte-identical
             continue
         _write_claim(repo, ref, taken[0])
-        text = v[:LINE_MAX]
-        if item.get("next") != text:
-            item["next"] = text
-            try:  # the claim stands: say so, never "not claimed"
-                _write_item(repo, item)
-            except Exception as exc:
-                _warn(
-                    f"named item {ref} claimed, its next not written — {type(exc).__name__}: {exc}"
-                )
         return
 
 

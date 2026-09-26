@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a NEXT naming a work item no longer overwrites that item's `next` (2026-09-26)
+- `scripts/work.py::_claim_named` (rule 2 of the Stop harvest) now only claims the named item; it no longer rewrites the item's `next` with the session's NEXT line, which destroyed authored next-actions and migrated backlog bodies (reported by fleet; D-425). Tests flipped to "file byte-identical", plus a regression test red on the old code; `docs/reference/work-tracking.md` updated, and the Work items paragraph (CLAUDE.md, both copies in templates/governance/CLAUDE.md) drops its stale clause "the item a `NEXT:` line names is updated at the Stop and rides your next commit".
+
 ### Added — Every FastAPI-backend scaffold ships a GlitchTip leak test with a vacuity guard (2026-09-26)
 - `_scaffold_fastapi_backend` now emits `tests/test_glitchtip_no_secret_leak.py` into python-api, python-api-gpu and the `server/` of saas-skeleton, office-extension and static-site. The test raises inside a real request with eight secret shapes, captures through a `Transport` subclass, and asserts over every serialized envelope that the project's own `init_glitchtip()` leaks none of them. A kept vacuity guard shows that an unscrubbed SDK ships every shape, so a changed capture path fails the file instead of leaving the leak test silently green. The hub grader runs the emitted file in four configurations and kills five mutants. D-424, W-dc4f5470 (tryton-crm 01M145D3N).
 

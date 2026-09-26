@@ -64,8 +64,8 @@ _CANONICAL = (
     "(`W-` and 8 lowercase hex) when one exists, a DECISION block the Stop hook accepts becomes an "
     "`awaiting-operator` item on its own, and the agent the operator answers closes it with "
     '`work.py answer <id> --note "<their words>"`. Item files are ordinary files: commit the ones '
-    "your verbs changed with your task; the item a `NEXT:` line names is updated at the Stop and "
-    "rides your next commit. End a turn on work with `NEXT: <item id>` to claim that item for your "
+    "your verbs changed with your task. End a turn on work with `NEXT: <item id>` to claim that "
+    "item for your "
     "session (the first item it names that is open, ready, not a `next` item and held by no "
     "other session); "
     "`mail.py claim` run in the mailbox's own repo creates the mail's item, and `mail.py ack` there "

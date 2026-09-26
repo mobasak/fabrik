@@ -44,7 +44,7 @@ plus a random nonce, exclusive-created so a collision just retries with a fresh 
 | `owner` | agent name (`[a-z0-9-]{1,32}`, `whoami_agent.py`'s rule), set by the distributor; empty means unassigned |
 | `links` | `{spec, plan, decision}` on every item, paths and D-ids the item tracks; plus, written only when non-empty, `mail` (the message id, `kind: mail`), `command` (the command name, `kind: feedback`), `session` (the session id, `kind: next`) |
 | `blocked_by` | item ids that, if present, would gate `ready` and `claim` until each reads `done`/`dropped` (here, or closed by a marker elsewhere) — genuinely READ by both (`_is_ready`, `_refuse_blocked`). In practice it never blocks anything today: `add` has no `--blocked-by` flag and every item is minted with `blocked_by: []`, so nothing currently WRITES this field. |
-| `next` | the concrete next action, one line, clipped to 300 characters (`LINE_MAX`) — the same 300 characters the register (`thread_anchor.py`) judges a NEXT by; `add --next` and `migrate-backlog` store their text in full, with no such limit. A NEXT that qualifies under rule 2 (§ NEXT, DECISION blocks and the register, below) updates and claims that item's `next`; a `kind: next` item's own `next` is its session's current free-text NEXT |
+| `next` | the item's own concrete next action, written by `add --next` or `migrate-backlog` in full (a migrated item's whole body lives here) — a Stop harvest never rewrites it: a NEXT that qualifies under rule 2 (§ NEXT, DECISION blocks and the register, below) only CLAIMS the item. A `kind: next` item's own `next` is its session's current free-text NEXT, clipped to 300 characters (`LINE_MAX`) — the same 300 characters the register (`thread_anchor.py`) judges a NEXT by |
 | `next_at` | `kind: next` only: the time this item's `next`/title text was last set — a Stop harvest closes the item `dropped` `idle 7 days` once this reads more than 7 days old |
 | `evidence` | set by `done`: a commit SHA whose message names the item id |
 | `legacy` | `true` only on items `migrate-backlog` created from rows already resolved; exempt from the evidence rule |
@@ -175,9 +175,10 @@ also does, when the repo has a store:
   1. **`hold`** (`none — terminal`, an operator decision, `BLOCKED:`) — no claim and no thread item,
      whatever the line names.
   2. **`names-item`** — the FIRST named id that is open, unblocked, not itself a `next` item and not
-     held live by another session gets the claim (written FIRST, so a failed claim never leaves a
-     rewritten `next` behind) and then its `next` is updated; no other named id is touched, and an id
-     that qualifies nothing leaves nothing updated.
+     held live by another session gets the claim — and nothing else: the item's file is never
+     written, because its `next` is its own authored next action (a migrated item's whole body
+     lives there) and the NEXT line is already kept by the register (D-425); no other named id is
+     touched, and an id that qualifies nothing leaves nothing claimed.
   3. **`free-text` the register accepts** (`_is_anchor`) — but only when the register itself WROTE the
      anchor (`next_anchored`; a busy session lock makes this false even for accepted text) — the
      session's own `next` item carries it (below).

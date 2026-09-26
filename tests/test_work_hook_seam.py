@@ -269,11 +269,12 @@ def test_v1_a_next_claims_the_item_it_names_or_becomes_the_sessions_next_item(tm
     assert stamps == sorted(stamps) and len(set(stamps)) == 3, stamps
     thread = mine["id"]
 
-    # a NEXT naming an open item: claims it, sets its next, and supersedes the `next` item
+    # a NEXT naming an open item: claims it, leaves its file, and supersedes the `next` item
     finish = f"finish {a} — then the docs"
+    before_a = _by_id(repo)[a]
     _allowed(_stop(env, "s-1", _said(finish), repo))
     items = _by_id(repo)
-    assert items[a]["next"] == finish and (_claim(repo, a) or {}).get("session") == "s-1"
+    assert items[a] == before_a and (_claim(repo, a) or {}).get("session") == "s-1"
     assert (items[thread]["status"], items[thread]["note"]) == ("dropped", "superseded")
     assert _open_nexts(repo, "s-1") == []
 
@@ -282,11 +283,12 @@ def test_v1_a_next_claims_the_item_it_names_or_becomes_the_sessions_next_item(tm
     _allowed(_stop(env, "s-1", _said(f"operator decision: approve {c} first"), repo))
     assert _item_files(repo) == files and _claim(repo, c) is None
 
-    # awaiting id first, open id second: only the second is claimed and updated
+    # awaiting id first, open id second: only the second is claimed; no item file changes
     mixed = f"answer {awaiting} then {c}"
+    files = _item_files(repo)
     _allowed(_stop(env, "s-1", _said(mixed), repo))
     items = _by_id(repo)
-    assert (_claim(repo, c) or {}).get("session") == "s-1" and items[c]["next"] == mixed
+    assert (_claim(repo, c) or {}).get("session") == "s-1" and _item_files(repo) == files
     assert _claim(repo, awaiting) is None and items[awaiting].get("next") != mixed
 
     # a NEXT naming only an item another live session holds: no claim, no item file changed
