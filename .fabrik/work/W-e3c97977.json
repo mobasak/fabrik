@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-03T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "acb816a356460bf2029cc7e876a5490bf40bd3c9",
   "id": "W-e3c97977",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:f5007f7fa362",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Scaffolded `pause_state.py` fails OPEN with no counter and no log line (2026-09-03, owner: fleet)"
 }
