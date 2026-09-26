@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-26T05:58:18.003638Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b96232fd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3DJX4W2JC3BQMDHFJJ0MDGR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "The Stop hook overwrites a work item's `next` field with the session's NEXT line, destroying the item's migrated text"
+}
