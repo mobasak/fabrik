@@ -17,6 +17,7 @@ import os
 import subprocess
 import sys
 import time
+import types
 from pathlib import Path
 
 import pytest
@@ -1329,6 +1330,8 @@ def test_a_next_naming_an_item_sets_its_next_field(tmp_path):
         ["harvest", "--session", "s-nx", "--repo", str(repo)], env, stdin=f"done.\n\nNEXT: {nxt}\n"
     )
     assert _items(repo)[0].get("next") == nxt, _items(repo)
+    claim = repo / ".git" / "fabrik-work" / "claims" / f"{item['id']}.json"
+    assert json.loads(claim.read_text(encoding="utf-8"))["session"] == "s-nx"
 
 
 # ── T04 review pass 1: the echo guard, one rescue call, the prompt deadline, a bounded scan ────
@@ -1500,3 +1503,336 @@ def test_rescuing_another_sessions_slot_leaves_its_claims_alone(tmp_path):
     assert _hook_line(env, _prompt("s-live", repo))[0] == 0
     assert any(it["status"] == "awaiting-operator" for it in _items(repo))
     assert claim_path.read_bytes() == before, "the rescue renewed another session's claim"
+
+
+# ── T05b: the harvest tells the store whether the register accepted the NEXT ──────────────────
+
+
+class _Harvests:
+    """work.py's API, ``on_harvest`` recorded with the CURRENT signature and passed through."""
+
+    def __init__(self, real, calls: list[dict]) -> None:
+        self._real, self.calls = real, calls
+
+    def __getattr__(self, name: str):
+        return getattr(self._real, name)
+
+    def on_harvest(
+        self,
+        repo,
+        *,
+        session,
+        block=None,
+        msg_digest=None,
+        next_text=None,
+        next_anchored=False,
+        lock_timeout=None,
+    ):
+        self.calls.append({"next_text": next_text, "next_anchored": next_anchored})
+        return self._real.on_harvest(
+            repo,
+            session=session,
+            block=block,
+            msg_digest=msg_digest,
+            next_text=next_text,
+            next_anchored=next_anchored,
+        )
+
+
+class _OldHarvests(_Harvests):
+    """A work.py from before T05a: ``on_harvest`` has no ``next_anchored`` — passing it raises."""
+
+    def on_harvest(  # type: ignore[override]
+        self, repo, *, session, block=None, msg_digest=None, next_text=None, lock_timeout=None
+    ):
+        self.calls.append({"next_text": next_text, "block": block})
+        return self._real.on_harvest(
+            repo, session=session, block=block, msg_digest=msg_digest, next_text=next_text
+        )
+
+
+_PAST_300 = "x" * 300 + " step 3 of 9"  # the anchor shape sits past the register's 300 chars
+
+
+@pytest.mark.parametrize(
+    ("text", "anchored"),
+    [
+        ("done.\n\nNEXT: command 3 of 7 — the census", True),
+        ("done.\n\nNEXT: phase C of the rollout", True),
+        ("done.\n\nNEXT: tidy the docs afterwards", False),
+        (f"done.\n\nNEXT: {_PAST_300}", False),
+        ("no footer at all", False),
+    ],
+)
+def test_the_harvest_tells_the_store_whether_the_register_accepted_the_next(
+    tmp_path, monkeypatch, capsys, text, anchored
+):
+    """D3: ``next_anchored`` is the register's own verdict on the SAME 300 characters it stores,
+    so free text becomes the session's ``next`` item exactly when the register kept an anchor;
+    a quiet turn passes False and still reaches the store (the claim heartbeat). A NEXT under 300
+    characters reaches the store byte-identical."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    ta, real = _in_process(monkeypatch, env)
+    calls: list[dict] = []
+    ta._WORK = _Harvests(real, calls)
+    ta.cmd_harvest("s-an", text, repo=repo)
+    assert [c["next_anchored"] for c in calls] == [anchored], calls
+    value = text.split("NEXT: ", 1)[1] if "NEXT: " in text else None
+    assert calls[0]["next_text"] == (value[:300] if value else None), calls
+    state_file = tmp_path / "threads" / "s-an.json"
+    anchors = _state(env, "s-an")["anchors"] if state_file.exists() else []
+    assert bool(anchors) is anchored, anchors  # the store's verdict IS the register's
+    nexts = [it for it in _items(repo) if it["kind"] == "next"]
+    assert len(nexts) == (1 if anchored else 0), nexts
+    assert "work store not updated" not in capsys.readouterr().err
+
+
+def test_a_busy_session_lock_tells_the_store_the_next_was_not_accepted(
+    tmp_path, monkeypatch, capsys
+):
+    """The register skips its write when the session lock is busy, so it kept no anchor: the store
+    must not be told the NEXT was accepted. The same harvest once the lock is free passes True."""
+    import fcntl
+
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    ta, real = _in_process(monkeypatch, env)
+    monkeypatch.setattr(ta, "_LOCK_TIMEOUT_S", 0.05)
+    calls: list[dict] = []
+    ta._WORK = _Harvests(real, calls)
+    text = "done.\n\nNEXT: command 3 of 7 — the census"
+    lock = ta._state_path("s-busy").with_suffix(".lock")
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(lock, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        ta.cmd_harvest("s-busy", text, repo=repo)
+    finally:
+        os.close(fd)
+    assert [c["next_anchored"] for c in calls] == [False], calls
+    assert not ta._state_path("s-busy").exists()  # the register really skipped its write
+    assert [it for it in _items(repo) if it["kind"] == "next"] == []
+    assert "this write was skipped" in capsys.readouterr().err
+    ta.cmd_harvest("s-busy", text, repo=repo)  # the lock is free again: accepted, as before
+    assert [c["next_anchored"] for c in calls] == [False, True], calls
+    assert len([it for it in _items(repo) if it["kind"] == "next"]) == 1
+
+
+def test_an_id_past_the_registers_300_characters_claims_nothing(tmp_path, monkeypatch):
+    """The store is handed the SAME 300 characters the register judges and stores: an id that
+    sits only past character 300 of a 460-character NEXT names nothing."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    _work(env, repo, "add", "--kind", "task", "--title", "wire the harvest")
+    (item,) = _items(repo)
+    nxt = "y" * 440 + f" then {item['id']} now"
+    assert len(nxt) == 460 and nxt.index(item["id"]) > 300
+    ta, real = _in_process(monkeypatch, env)
+    calls: list[dict] = []
+    ta._WORK = _Harvests(real, calls)
+    ta.cmd_harvest("s-long", f"done.\n\nNEXT: {nxt}\n", repo=repo)
+    assert calls[0]["next_text"] == nxt[:300], calls
+    claim = repo / ".git" / "fabrik-work" / "claims" / f"{item['id']}.json"
+    assert not claim.exists()
+    assert _items(repo) == [item]
+
+
+def test_an_older_work_py_without_the_keyword_still_gets_the_decision_item(
+    tmp_path, monkeypatch, capsys
+):
+    """Lifecycle — Degradation (version skew): a work.py whose on_harvest has no ``next_anchored``
+    is called without it — a TypeError there would lose the decision item the same call carries."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    ta, real = _in_process(monkeypatch, env)
+    calls: list[dict] = []
+    ta._WORK = _OldHarvests(real, calls)
+    ta.cmd_harvest("s-old", _DECISION_TEXT, decision_ok=True, repo=repo)
+    ta.cmd_harvest("s-old", "done.\n\nNEXT: command 4 of 7 — the census", repo=repo)
+    assert len(calls) == 2, calls
+    assert [it["status"] for it in _items(repo)] == ["awaiting-operator"], _items(repo)
+    assert "work store not updated" not in capsys.readouterr().err
+    # the verdict is per function: the CURRENT work.py, loaded next, gets the keyword
+    current: list[dict] = []
+    ta._WORK = _Harvests(real, current)
+    ta.cmd_harvest("s-old", "done.\n\nNEXT: command 5 of 7 — the census", repo=repo)
+    assert current and current[0]["next_anchored"] is True, current
+
+
+def _named(repo, *, session, next_anchored=False, **rest):
+    return None
+
+
+def _var_kw(repo, *, session, **kwargs):
+    return None
+
+
+def _neither(repo, *, session, block=None, msg_digest=None, next_text=None):
+    return None
+
+
+@pytest.mark.parametrize(("fn", "knows"), [(_named, True), (_var_kw, True), (_neither, False)])
+def test_the_keyword_is_passed_to_a_named_parameter_or_a_kwargs(monkeypatch, fn, knows):
+    """A ``**kwargs`` on_harvest accepts the keyword as surely as a named parameter does; one
+    with neither is never handed it."""
+    ta = _ta_module()
+    assert ta._takes_next_anchored(types.SimpleNamespace(on_harvest=fn)) is knows
+
+
+def test_a_swapped_on_harvest_is_judged_afresh_and_each_function_once(
+    tmp_path, monkeypatch, capsys
+):
+    """The verdict is keyed on the on_harvest FUNCTION, not the module holding it: an on_harvest
+    swapped (or reloaded) on the same module is judged again, so the old signature never gets
+    the keyword and its decision item is written. Each function's signature is read once."""
+    import inspect
+
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    ta, real = _in_process(monkeypatch, env)
+    seen: list[str] = []
+    signature = inspect.signature
+
+    def counting(fn, *a, **kw):
+        seen.append(fn.__name__)
+        return signature(fn, *a, **kw)
+
+    monkeypatch.setattr(inspect, "signature", counting)
+    got: list[dict] = []
+
+    def current(repo, *, session, block=None, msg_digest=None, next_text=None, next_anchored=False):
+        got.append({"next_anchored": next_anchored})
+        return real.on_harvest(
+            repo, session=session, block=block, msg_digest=msg_digest, next_text=next_text
+        )
+
+    def older(repo, *, session, block=None, msg_digest=None, next_text=None):
+        got.append({"older": True})
+        return real.on_harvest(
+            repo, session=session, block=block, msg_digest=msg_digest, next_text=next_text
+        )
+
+    module = types.SimpleNamespace(on_harvest=current)
+    ta._WORK = module
+    ta.cmd_harvest("s-sw", "done.\n\nNEXT: command 1 of 7 — the census", repo=repo)
+    ta.cmd_harvest("s-sw", "done.\n\nNEXT: command 2 of 7 — the census", repo=repo)
+    module.on_harvest = older  # the same module object, its on_harvest replaced
+    ta.cmd_harvest("s-sw", _DECISION_TEXT, decision_ok=True, repo=repo)
+    assert got == [{"next_anchored": True}, {"next_anchored": True}, {"older": True}], got
+    assert [it["status"] for it in _items(repo)] == ["awaiting-operator"], _items(repo)
+    assert "work store not updated" not in capsys.readouterr().err
+    assert seen == ["current", "older"], seen  # one inspection per function
+
+
+def test_loading_the_script_does_not_import_inspect(tmp_path):
+    """The prompt-time ``line`` path loads this script on every prompt: ``inspect`` is imported
+    only when a harvest reaches the store."""
+    probe = (
+        "import importlib.util, sys\n"
+        f"spec = importlib.util.spec_from_file_location('ta', {str(SCRIPT)!r})\n"
+        "mod = importlib.util.module_from_spec(spec)\n"
+        "spec.loader.exec_module(mod)\n"
+        "print('inspect' in sys.modules)\n"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", probe], capture_output=True, text=True, env=_env(tmp_path)
+    )
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip() == "False", out.stdout
+
+
+class _Clock:
+    """``time`` with a settable ``time()`` — the anchor state's timestamps, pinned."""
+
+    def __init__(self, now: float) -> None:
+        self.now = now
+
+    def __getattr__(self, name: str):
+        return getattr(time, name)
+
+    def time(self) -> float:
+        return self.now
+
+
+_REGISTER_BASE = "bde8b388d"  # the last commit whose thread_anchor.py passes no next_anchored
+_CLEAR = object()  # a step: the operator answers the open DECISION block
+_REGISTER_STEPS: tuple = (
+    ("NEXT: command 1 of 5 — the audit", False),
+    ("NEXT: command 2 of 5 — the audit", False),
+    ("no footer at all", False),
+    ("NEXT: phase B of the rollout", False),
+    ("NEXT: tidy the docs afterwards", False),
+    ("NEXT: finish W-0000abcd — docs/development/plans/2026-09-25-plan-1-x.md", False),
+    (f"NEXT: {_PAST_300}", False),
+    # an anchor longer than the register's 300 characters: stored at exactly 300
+    ("NEXT: command 4 of 5 — " + "y" * 350, False),
+    # two NEXT lines in one message: the LAST is the operative one
+    ("NEXT: phase C of the rollout\n\nmore work.\n\nNEXT: command 5 of 9 — the census", False),
+    # more anchors than the young cap: the oldest are evicted and counted
+    *((f"NEXT: topic {c} — step 1 of 3 — go", False) for c in "abcdefghijklmn"),
+    ("NEXT: none — terminal", False),
+    # a DECISION block, answered, then the same whole message again: the echo is not re-stored
+    (_DECISION_TEXT, True),
+    _CLEAR,
+    (_DECISION_TEXT, True),
+    ("NEXT: operator decision — see DECISION NEEDED above", False),
+    ("NEXT: command 3 of 5 — the audit", False),
+)
+
+
+def test_the_register_writes_the_same_anchor_state_as_before_the_ticket(tmp_path, monkeypatch):
+    """D-392: the register is untouched. The same steps, run through the pre-ticket script and this
+    one on one pinned clock, against a store at the same path, leave byte-identical session state
+    after EVERY step."""
+    import importlib.util
+    import shutil
+
+    old = subprocess.run(
+        ["git", "-C", str(REPO), "show", f"{_REGISTER_BASE}:scripts/thread_anchor.py"],
+        capture_output=True,
+        text=True,
+    )
+    assert old.returncode == 0, f"the pre-ticket script is not in this clone: {old.stderr}"
+    assert "next_anchored" not in old.stdout
+    env = _env(tmp_path)
+    for k in ("COMMAND_RUN_DIR", "FABRIK_MAIL_ROOT", "HOME", "TMPDIR"):
+        monkeypatch.setenv(k, env[k])
+    hook = _ta_module()._hook()  # the DECISION parser, shared by both runs
+    base = time.time()
+    shared = tmp_path / "shared"
+    states: dict[str, list[bytes]] = {}
+    for variant, source in (("old", old.stdout), ("new", SCRIPT.read_text(encoding="utf-8"))):
+        scripts = tmp_path / variant / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "thread_anchor.py").write_text(source, encoding="utf-8")
+        (scripts / "work.py").write_bytes(WORK.read_bytes())
+        spec = importlib.util.spec_from_file_location(f"ta_{variant}", scripts / "thread_anchor.py")
+        assert spec is not None and spec.loader is not None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        mod._HOOK = hook
+        clock = _Clock(base)
+        monkeypatch.setattr(mod, "time", clock)
+        threads = tmp_path / variant / "threads"
+        threads.mkdir()
+        monkeypatch.setenv("THREAD_ANCHOR_DIR", str(threads))
+        shutil.rmtree(shared, ignore_errors=True)
+        shared.mkdir()
+        repo = _store_repo(shared, env)  # the same path both runs: the slot stores it
+        snaps = states[variant] = []
+        for i, step in enumerate(_REGISTER_STEPS):
+            clock.now = base + 60 * i  # the same clock reading at the same step in both runs
+            if step is _CLEAR:
+                mod.cmd_clear_decision("s-reg", "A")
+            else:
+                text, decision_ok = step
+                mod.cmd_harvest("s-reg", f"done.\n\n{text}\n", decision_ok=decision_ok, repo=repo)
+            path = threads / "s-reg.json"
+            snaps.append(path.read_bytes() if path.exists() else b"")
+        assert mod._work() is not None  # both runs reached a store
+    final = json.loads(states["old"][-1])
+    assert len(final["anchors"]) >= 2 and final.get("dropped"), final
+    assert final.get("cleared_msg"), final
+    for i, (a, b) in enumerate(zip(states["old"], states["new"], strict=True)):
+        assert b == a, (i, _REGISTER_STEPS[i])

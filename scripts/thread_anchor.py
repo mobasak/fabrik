@@ -37,8 +37,12 @@ THE WORK STORE (work tracking, spec 2026-09-24 § NEXT, DECISION blocks and the 
 repo — ``--repo``, else the hook payload's ``cwd``, NEVER the process cwd — whose ``.fabrik/work/``
 exists, ``scripts/work.py`` (loaded by path, beside this script) is called in-process:
   harvest   ONE ``on_harvest`` call after the session lock is released (never both locks at once):
-            the accepted DECISION block becomes an awaiting item, a NEXT naming ``W-…`` sets that
-            item's ``next``, and the session's live claims are renewed — a quiet turn included.
+            the accepted DECISION block becomes an awaiting item, the NEXT goes to the store's
+            rules as the same 300 characters the register judges, with ``next_anchored`` —
+            whether the register accepted AND wrote it (``_is_anchor``; a busy session lock is
+            False) — and the session's live claims are renewed, a quiet turn included. An older
+            ``work.py`` whose ``on_harvest`` takes neither that keyword nor ``**kwargs`` is
+            called without it.
             The stored slot carries the resolved ``repo``.
   line      the second chance: every session's slot for this repo (≤ 7 days old) whose message
             digest no item holds is created in ONE ``ensure_decision_items`` call; a failed write
@@ -268,6 +272,39 @@ def _work() -> ModuleType | None:
         return None
     _WORK = mod
     return mod
+
+
+_ANCHORED_KW: dict[object, bool] = {}  # on_harvest's function object -> it takes next_anchored
+
+
+def _takes_next_anchored(w: Any) -> bool:
+    """Whether ``w.on_harvest`` accepts ``next_anchored`` — a parameter of that name or a
+    ``**kwargs`` — judged once per FUNCTION object (a bound method by its ``__func__``), beside
+    ``_work()``'s cache, so an ``on_harvest`` swapped or reloaded on the same module is judged
+    afresh. ``thread_anchor.py`` and ``work.py`` ride one sync, but a repo can hold this script
+    beside an OLDER ``work.py`` for a cycle, and there the keyword is a ``TypeError`` that would
+    cost the decision write the same call carries. A signature that cannot be read counts as no.
+    ``inspect`` is imported here, never at module level: the prompt-time ``line`` path must not
+    pay for it."""
+    try:
+        fn = w.on_harvest
+        key = getattr(fn, "__func__", fn)
+        if key in _ANCHORED_KW:
+            return _ANCHORED_KW[key]
+    except Exception:
+        return False
+    try:
+        import inspect
+
+        params = inspect.signature(fn).parameters.values()
+        knows = any(
+            p.name == "next_anchored" or p.kind is inspect.Parameter.VAR_KEYWORD for p in params
+        )
+    except Exception:
+        knows = False
+    with contextlib.suppress(Exception):  # an unhashable callable is judged every call
+        _ANCHORED_KW[key] = knows
+    return knows
 
 
 def _resolve_repo(raw: object) -> Path | None:
@@ -560,8 +597,13 @@ def cmd_harvest(
         except Exception as e:
             _warn(f"DECISION block not stored — {e}")
     if not matches and not block:
-        _store_harvest(repo, session, None, "", None)  # a quiet turn still renews its claims
+        # a quiet turn still renews its claims
+        _store_harvest(repo, session, None, "", None, next_anchored=False)
         return
+    # the ONE string the register judges and stores below (`nxt`), and the store is handed the
+    # same: a NEXT whose anchor shape — or id — sits past character 300 counts for neither
+    nxt_text = matches[-1][:300] if matches else None
+    anchored = nxt_text is not None and _is_anchor(nxt_text)
     now = time.time()
     msg = _digest(text)
     stored: list[bool] = []  # apply() stored the block in the slot this turn
@@ -588,7 +630,8 @@ def cmd_harvest(
         _enforce_caps(state, now)
         return True
 
-    if not _update(session, apply) and block:
+    applied = _update(session, apply)  # False: the session lock was busy and apply() never ran
+    if not applied and block:
         # The session lock was busy, so apply() never ran: judge the echo from an unlocked read
         # rather than lose the block in both places.
         if msg != _load(session).get("cleared_msg"):
@@ -596,20 +639,34 @@ def cmd_harvest(
     # The echo guard reaches the store too: an answered message harvested again (the Stop hook's
     # retry re-reads the same text) never mints an item for a settled question (A-O3).
     store_block = block if stored else None
-    _store_harvest(repo, session, store_block, msg, matches[-1] if matches else None)
+    # accepted = the register ACCEPTED it and WROTE it: a skipped write kept no anchor
+    _store_harvest(repo, session, store_block, msg, nxt_text, next_anchored=anchored and applied)
 
 
 def _store_harvest(
-    repo: Path | None, session: str, block: str | None, msg: str, next_text: str | None
+    repo: Path | None,
+    session: str,
+    block: str | None,
+    msg: str,
+    next_text: str | None,
+    *,
+    next_anchored: bool,
 ) -> None:
-    """The Stop harvest's ONE store call (``work.on_harvest``, fail-open inside). Never raises."""
+    """The Stop harvest's ONE store call (``work.on_harvest``, fail-open inside). Never raises.
+    ``next_anchored`` (the register accepted the NEXT) is passed only to a ``work.py`` that
+    declares it (``_takes_next_anchored``)."""
     if repo is None:
         return
     w = _work()
     if w is None:
         return
+    extra: dict[str, bool] = {}
+    if _takes_next_anchored(w):
+        extra["next_anchored"] = next_anchored
     try:
-        w.on_harvest(repo, session=session, block=block, msg_digest=msg, next_text=next_text)
+        w.on_harvest(
+            repo, session=session, block=block, msg_digest=msg, next_text=next_text, **extra
+        )
     except Exception as e:
         _warn(f"work store not updated — {type(e).__name__}: {e}")
 
