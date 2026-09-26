@@ -1866,6 +1866,69 @@ def metrics_app():
     )
 
 
+def _scaffold_offline() -> bool:
+    """``FABRIK_SCAFFOLD_OFFLINE`` set to 1/true/yes/on: ``create_project`` writes every file but
+    creates no venv, installs nothing, probes or creates no local database, skips the hub registry
+    sync and the ``.mcp.json`` emitter. The venv and database steps print the command to run
+    instead. Read at CALL time. The test suite pins it for the whole session (tests/conftest.py):
+    those steps cost ~25 s per scaffold and rewrote the hub's registry from inside tests
+    (W-b0c1b4fc). It scopes ``create_project`` only — ``fabrik scaffold``'s own registry save, sync and
+    GitHub wiring around it are separate."""
+    return os.environ.get("FABRIK_SCAFFOLD_OFFLINE", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _create_local_dev_database(db_name_dev: str) -> None:
+    """Create the WSL dev database with ``sudo -u postgres`` unless it exists (exact-name match)."""
+    import click
+
+    if _scaffold_offline():
+        click.echo(
+            f"⏭  Offline scaffold: create the database with sudo -u postgres createdb {db_name_dev}"
+        )
+        return
+    try:
+        # Check if database exists (exact match to avoid partial name collisions)
+        check_result = subprocess.run(
+            ["sudo", "-u", "postgres", "psql", "-lqt"],
+            capture_output=True,
+            timeout=5,
+            text=True,
+        )
+
+        db_exists = False
+        if check_result.returncode == 0:
+            # Parse database list, exact match only
+            for line in check_result.stdout.split("\n"):
+                if "|" in line:
+                    db_in_line = line.split("|")[0].strip()
+                    if db_in_line == db_name_dev:
+                        db_exists = True
+                        break
+
+        if not db_exists:
+            create_result = subprocess.run(
+                ["sudo", "-u", "postgres", "psql", "-c", f"CREATE DATABASE {db_name_dev};"],
+                capture_output=True,
+                timeout=5,
+            )
+            if create_result.returncode == 0:
+                click.echo(f"✅ Created PostgreSQL database: {db_name_dev}")
+            else:
+                click.echo("⚠️  Could not create database. Run manually:")
+                click.echo(f"    sudo -u postgres psql -c 'CREATE DATABASE {db_name_dev};'")
+        else:
+            click.echo(f"✅ PostgreSQL database exists: {db_name_dev}")
+
+    except Exception:
+        click.echo("⚠️  Database auto-creation failed. Create manually:")
+        click.echo(f"    sudo -u postgres psql -c 'CREATE DATABASE {db_name_dev};'")
+
+
 def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
     """Create Python API-specific project structure."""
     package_name = _get_package_name(name)
@@ -1951,46 +2014,7 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
             f"TEST_DATABASE_URL=postgresql://postgres@localhost:5432/{db_name_test}\n"
         )
 
-        # Auto-create development database
-        import click
-
-        try:
-            # Check if database exists (exact match to avoid partial name collisions)
-            check_result = subprocess.run(
-                ["sudo", "-u", "postgres", "psql", "-lqt"],
-                capture_output=True,
-                timeout=5,
-                text=True,
-            )
-
-            db_exists = False
-            if check_result.returncode == 0:
-                # Parse database list, exact match only
-                for line in check_result.stdout.split("\n"):
-                    if "|" in line:
-                        db_in_line = line.split("|")[0].strip()
-                        if db_in_line == db_name_dev:
-                            db_exists = True
-                            break
-
-            if not db_exists:
-                # Create database
-                create_result = subprocess.run(
-                    ["sudo", "-u", "postgres", "psql", "-c", f"CREATE DATABASE {db_name_dev};"],
-                    capture_output=True,
-                    timeout=5,
-                )
-                if create_result.returncode == 0:
-                    click.echo(f"✅ Created PostgreSQL database: {db_name_dev}")
-                else:
-                    click.echo("⚠️  Could not create database. Run manually:")
-                    click.echo(f"    sudo -u postgres psql -c 'CREATE DATABASE {db_name_dev};'")
-            else:
-                click.echo(f"✅ PostgreSQL database exists: {db_name_dev}")
-
-        except Exception:
-            click.echo("⚠️  Database auto-creation failed. Create manually:")
-            click.echo(f"    sudo -u postgres psql -c 'CREATE DATABASE {db_name_dev};'")
+        _create_local_dev_database(db_name_dev)
 
         # .env.example names both DSNs with no value (the registrar injects them); the
         # audit-log kit (module, schema fold, jobs, requirements) rides the same flag.
@@ -2066,6 +2090,13 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
     )
 
     # Create Python virtual environment and install dependencies
+    if _scaffold_offline():
+        import click
+
+        click.echo(
+            "⏭  Offline scaffold: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt"
+        )
+        return
     venv_path = project_dir / ".venv"
     subprocess.run(["python", "-m", "venv", ".venv"], cwd=project_dir, capture_output=True)
 
@@ -5747,50 +5778,20 @@ SERVICE_NAME={name}
             f"DATABASE_URL_OWNER=postgresql://postgres@localhost:5432/{db_name_dev}\n"
         )
 
-        # Auto-create development database
-        import click
-
-        try:
-            # Check if database exists (exact match)
-            check_result = subprocess.run(
-                ["sudo", "-u", "postgres", "psql", "-lqt"],
-                capture_output=True,
-                timeout=5,
-                text=True,
-            )
-
-            db_exists = False
-            if check_result.returncode == 0:
-                for line in check_result.stdout.split("\n"):
-                    if "|" in line:
-                        db_in_line = line.split("|")[0].strip()
-                        if db_in_line == db_name_dev:
-                            db_exists = True
-                            break
-
-            if not db_exists:
-                create_result = subprocess.run(
-                    ["sudo", "-u", "postgres", "psql", "-c", f"CREATE DATABASE {db_name_dev};"],
-                    capture_output=True,
-                    timeout=5,
-                )
-                if create_result.returncode == 0:
-                    click.echo(f"✅ Created PostgreSQL database: {db_name_dev}")
-                else:
-                    click.echo("⚠️  Could not create database. Run manually:")
-                    click.echo(f"    sudo -u postgres psql -c 'CREATE DATABASE {db_name_dev};'")
-            else:
-                click.echo(f"✅ PostgreSQL database exists: {db_name_dev}")
-
-        except Exception:
-            click.echo("⚠️  Database auto-creation failed. Create manually:")
-            click.echo(f"    sudo -u postgres psql -c 'CREATE DATABASE {db_name_dev};'")
+        _create_local_dev_database(db_name_dev)
 
         # .env.example names both DSNs (no value — the registrar injects them), and the
         # server/ backend gets the audit-log kit (module, schema fold, jobs, requirements).
         _emit_python_audit_log(project_dir, name, "chrome-extension")
 
     # 7. Create Python virtual environment and install dependencies
+    if _scaffold_offline():
+        import click
+
+        click.echo(
+            "⏭  Offline scaffold: python -m venv .venv && .venv/bin/pip install -r requirements.txt"
+        )
+        return
     venv_path = project_dir / ".venv"
     subprocess.run(["python", "-m", "venv", ".venv"], cwd=project_dir, capture_output=True)
 
@@ -6607,7 +6608,7 @@ def _post_scaffold_sync(project_dir: Path) -> None:
     (scaffold already succeeded).
     """
     sync_script = FABRIK_ROOT / "scripts" / "sync_projects.py"
-    if not sync_script.exists():
+    if _scaffold_offline() or not sync_script.exists():
         return
     try:
         subprocess.run(
@@ -6881,7 +6882,8 @@ def create_project(
 
     # MCP split (plan-3, D-028/D-029): emit the repo's ruled .mcp.json (gitignored)
     # so the FIRST Claude window opens with the correct per-type/overlay server set.
-    _emit_mcp_config(project_dir)
+    if not _scaffold_offline():  # offline: the next hub-wide emission run covers it
+        _emit_mcp_config(project_dir)
 
     # Auto-generate deployment spec for supported types.
     # ``use_database`` propagates the CLI ``--db`` flag through so the emitted

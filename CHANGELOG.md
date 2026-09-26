@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The scaffold test suite runs offline: 725 s to 123 s, and it no longer rewrites the hub's registry (2026-09-26)
+- `FABRIK_SCAFFOLD_OFFLINE` (read at call time by `scaffold._scaffold_offline()`, pinned session-wide by `tests/conftest.py`) makes `create_project` write every file but create no venv, install nothing, create no local database, and skip the hub registry sync and the `.mcp.json` emitter; the skipped venv and database steps print their command. Before, each python-api scaffold in the tests spent about 25 s on a real venv and a networked pip install, probed Postgres with `sudo`, and ran `scripts/sync_projects.py` against the hub, rewriting `data/projects.yaml` and `docs/PROJECT_CATALOG.md`. The two identical local-database blocks are now one helper. `tests/test_scaffold*.py`: 389 passed in 123 s, with the hub's registry files unchanged. D-427, W-b0c1b4fc.
+
 ### Changed — a `NEXT:` naming a work item says what the item is (2026-09-26)
 - The Work items paragraph (CLAUDE.md, both copies in `templates/governance/CLAUDE.md`) now asks for `NEXT: <item id> — <what it is>`, e.g. `NEXT: W-1a2b3c4d — fix the flaky login test`, because a bare id tells a reader nothing (operator ruling, D-426). `tests/test_work_contract_rule.py` pins the new text.
 

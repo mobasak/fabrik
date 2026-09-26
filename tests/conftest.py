@@ -200,7 +200,7 @@ def _isolated_command_run_dir(tmp_path, _private_monkeypatch):
     `CLAUDE_SESSION_ID` or the harness's `CLAUDE_CODE_SESSION_ID`, under `COMMAND_RUN_DIR` or the
     operator's live `~/.claude/state/command-runs`): a suite run inside a live Claude session
     would otherwise grade fixtures against whatever plan the operator's real record names
-    (mail-triage Phase B review, round 3). Same class as the two pins above — one autouse pin,
+    (mail-triage Phase B review, round 3). Same class as the pins above — one autouse pin,
     composable: a test that wants a specific record still sets its own dir and sid after this."""
     monkeypatch = _private_monkeypatch
     runs = (
@@ -293,3 +293,22 @@ def _tempfile_under_basetemp(tmp_path_factory):
         os.environ.pop("TMPDIR", None)
     else:
         os.environ["TMPDIR"] = previous_env
+
+
+# Every scaffold a test runs is OFFLINE (W-b0c1b4fc): files written, but no venv, no pip install, no
+# `sudo -u postgres` probe, no .mcp.json emitter and no scripts/sync_projects.py run against the hub.
+# Those cost ~25 s per `create_project` (725 s for the scaffold files) and rewrote the hub's
+# data/projects.yaml and docs/PROJECT_CATALOG.md from inside tests. SESSION-scoped on purpose: a
+# function-scoped pin runs AFTER module-scoped fixtures, and tests/test_scaffold_saas_backend.py
+# builds its project in one, so it scaffolded online. Read at call time by
+# `scaffold._scaffold_offline()`; a test that wants the real steps deletes the variable with its own
+# monkeypatch, which restores it afterwards. Grader: tests/test_scaffold_offline_seam.py.
+@pytest.fixture(autouse=True, scope="session")
+def _offline_scaffold():
+    previous = os.environ.get("FABRIK_SCAFFOLD_OFFLINE")
+    os.environ["FABRIK_SCAFFOLD_OFFLINE"] = "1"
+    yield
+    if previous is None:
+        os.environ.pop("FABRIK_SCAFFOLD_OFFLINE", None)
+    else:
+        os.environ["FABRIK_SCAFFOLD_OFFLINE"] = previous

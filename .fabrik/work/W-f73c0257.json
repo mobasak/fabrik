@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-26T14:08:43.402672Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-f73c0257",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Set FABRIK_SCAFFOLD_OFFLINE=1 for pack_layout_audit's probe create_project calls and drop its attribute patch of _post_scaffold_sync; grade that no venv/pip/sudo spawns",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "scripts/enforcement pack_layout_audit (the production advisory) still builds a real venv, runs a networked pip install and a sudo psql probe for every probed python-api/chrome-extension type; it could set FABRIK_SCAFFOLD_OFFLINE=1 around its probe scaffolds (found by the W-b0c1b4fc review, O8)"
+}
