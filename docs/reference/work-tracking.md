@@ -38,17 +38,19 @@ plus a random nonce, exclusive-created so a collision just retries with a fresh 
 | Field | Meaning |
 |---|---|
 | `id`, `title`, `creator`, `created` | identity |
-| `kind` | `backlog` · `decision` (awaiting the operator — created only by the Stop-hook harvest, never by `add`) · `next` · `task` |
+| `kind` | `backlog` · `decision` (awaiting the operator — created only by the Stop-hook harvest, never by `add`) · `mail` (a mail claim — created only by `mail.py claim`, closed only by `ack`/`requeue`, never by `add` or by hand) · `feedback` (a command's feedback queue, one item per command — created only by `command_feedback_report.py --take`, closed only by `--mark-answered`, never by `add` or by hand) · `next` (the session's current free-text NEXT — created and closed only by the Stop harvest) · `task` |
 | `status` | closed vocabulary: `open` · `blocked` · `awaiting-operator` · `done` · `dropped`. **"Claimed" is never a stored status** — an item is claimed only while a live claim file exists in the shared dir and its lease has not passed, so a crashed claimer's item becomes ready again by itself. `blocked` genuinely gates readiness when set (`ready`'s `_is_ready` excludes anything but `open`; `claim` refuses a `blocked` item by name) — but no verb ever WRITES it today; see `blocked_by`. |
 | `priority` | 0 (urgent) to 3 (someday), default 2 |
 | `owner` | agent name (`[a-z0-9-]{1,32}`, `whoami_agent.py`'s rule), set by the distributor; empty means unassigned |
-| `links` | `{spec, plan, decision}` — paths and D-ids the item tracks |
+| `links` | `{spec, plan, decision}` on every item, paths and D-ids the item tracks; plus, written only when non-empty, `mail` (the message id, `kind: mail`), `command` (the command name, `kind: feedback`), `session` (the session id, `kind: next`) |
 | `blocked_by` | item ids that, if present, would gate `ready` and `claim` until each reads `done`/`dropped` (here, or closed by a marker elsewhere) — genuinely READ by both (`_is_ready`, `_refuse_blocked`). In practice it never blocks anything today: `add` has no `--blocked-by` flag and every item is minted with `blocked_by: []`, so nothing currently WRITES this field. |
-| `next` | the concrete next action, one line. A `NEXT:` line naming an item id updates this field, clipped to 300 characters (`_set_next`'s own cap) — `add --next` and `migrate-backlog` store their text in full, with no such limit |
+| `next` | the concrete next action, one line, clipped to 300 characters (`LINE_MAX`) — the same 300 characters the register (`thread_anchor.py`) judges a NEXT by; `add --next` and `migrate-backlog` store their text in full, with no such limit. A NEXT naming an open, unclaimed, non-`next` item updates and claims that item's `next` (§ NEXT, DECISION blocks and the register); a `kind: next` item's own `next` is its session's current free-text NEXT |
+| `next_at` | `kind: next` only: the time this item's `next`/title text was last set — a Stop harvest closes the item `dropped` `idle 7 days` once this reads more than 7 days old |
 | `evidence` | set by `done`: a commit SHA whose message names the item id |
 | `legacy` | `true` only on items `migrate-backlog` created from rows already resolved; exempt from the evidence rule |
 | `question`, `ground`, `msg_digests`, `block_digest` | `kind: decision` only: the plain-words question, the DECISION block's `ground:` token, every message digest that created or refreshed the item, and the block's own digest |
-| `note` | the last closing reason (`drop --why`, `answer --note`), or (on a migrated row) `migrated-digest:<12 hex>` |
+| `alt_block_digests`, `alt_ids` | `kind: decision` (awaiting) only: the block digests and item ids of every duplicate `drop --duplicate-of` folded into this item, so a later message re-asking any of those words refreshes this item instead of opening a third |
+| `note` | the last closing reason (`drop --why`, `answer --note`, `drop --duplicate-of` — `duplicate of <keep>`, a mail ack — `mail ack: <disposition>`, a mail requeue — `requeued`, a feedback close — `answered by <sha prefix>`), or (on a migrated row) `migrated-digest:<12 hex>` |
 
 ## Identity, the lock, the lease
 
@@ -85,22 +87,22 @@ plus a random nonce, exclusive-created so a collision just retries with a fresh 
 
 ## The CLI — `scripts/work.py`
 
-Executed against the merged script (`work.py --help`, then `work.py <verb> --help`, 2026-09-24) — 14
+Executed against the merged script (`work.py --help`, then `work.py <verb> --help`, 2026-09-26) — 14
 verbs:
 
 | Verb | Who | What |
 |---|---|---|
 | `init [--distributor <agent>]` | once per repo | create `.fabrik/work/` and `config.json`; nothing else writes an item into a repo without it |
-| `add --kind {backlog,decision,next,task} --title <t> [--next <t>] [--link key=value] [--priority 0-3]` | anyone | create an item; `--kind decision` is refused (those come only from an accepted DECISION block) |
+| `add --kind {backlog,decision,feedback,mail,next,task} --title <t> [--next <t>] [--link key=value] [--priority 0-3]` | anyone | create an item; `--kind decision`, `--kind mail`, `--kind feedback` and `--kind next` are all refused — each comes only from its own mechanism (an accepted DECISION block, a mail claim, taking a feedback queue, the Stop harvest's NEXT rules), never from `add` |
 | `assign <id> [--owner <agent>] [--priority 0-3]` | distributor | set owner and/or priority |
-| `ready [--mine]` | worker | `open`, unblocked, unclaimed items by priority then age; `--mine` puts the caller's own first, then unassigned ones |
+| `ready [--mine] [--all]` | worker | spec D4's crisp default: the obligation lines (§ The view), this session's claims, items this agent owns, awaiting items, then the top 10 remaining ready items (and how many more `--all` would show); `--mine` puts the caller's own first among those remaining, then unassigned ones; `--all` is the OLD default — every `open`, unblocked, unclaimed item by priority then age |
 | `next` | worker | the first item `ready --mine` would list |
 | `claim <id> [--session <s>]` | worker | take (or renew) the live claim; refused when another session holds a live claim, or the item is `blocked`/has an unresolved `blocked_by` |
 | `release <id> [--session <s>]` | worker | give up this session's live claim (fenced the same way as `done`) |
-| `done <id> --evidence <sha> [--session <s>]` | worker | refused without `--evidence`, with a SHA that does not resolve, or whose commit message does not name the item id |
-| `drop <id> --why <text> [--session <s>]` | the owner, the distributor, or anyone for an unassigned item | end an item that won't be done; refused on `awaiting-operator` items |
+| `done <id> --evidence <sha> [--session <s>]` | worker | refused without `--evidence`, with a SHA that does not resolve, or whose commit message does not name the item id; refused BY HAND on a `mail`/`feedback` item — those close only through `mail.py ack`/`close_linked` |
+| `drop <id> (--why <text> \| --duplicate-of <keep>) [--session <s>]` | `--why`: the owner, the distributor, or anyone for an unassigned item · `--duplicate-of`: the distributor, or a caller whose agent name or session id is the `creator` of BOTH items | end an item that won't be done (`--why`, refused on `awaiting-operator` items); or retire an open `awaiting-operator` `<id>` into another open `awaiting-operator` `<keep>` (`--duplicate-of`, D5) — `<keep>` absorbs `<id>`'s block digest and id so a later re-ask of either wording refreshes `<keep>` instead of opening a third item |
 | `answer <id> --note <text> [--decision D-NNN] [--session <s>]` | the agent the operator answered | close an awaiting-operator item with the operator's own words |
-| `status` | anyone | items by state, uncommitted item files, plan-board ticket counts, and the eight drift classes below (read-only, no lock) |
+| `status` | anyone | the obligation lines and the distributor's lines (§ The view), items by state, uncommitted item files, plan-board ticket counts, and the eight drift classes below (read-only, no lock) |
 | `sync --check` | gate, pipeline | the same drift report, plus one `readings.jsonl` line; exits non-zero only when a listed class is both `(blocking)` in its output **and** the repo has passed its blocking window (below) |
 | `render` | pipeline, agents | regenerate the backlog's `AUTO-GENERATED:BACKLOG` block — its only writer |
 | `migrate-backlog` | once per repo | turn existing `docs/STRATEGIC_BACKLOG.md` rows into items; once `migrated_at` is set, a run creates nothing |
@@ -161,11 +163,70 @@ also does, when the repo has a store:
   block's digest, so a block answered and then re-asked word for word in a new message whose Stop
   write failed still gets its item. A write that still fails prints one warning line naming the count,
   so a lost write is never silent.
-- **A NEXT naming an item id** (`W-xxxxxxxx`) updates that item's `next` field, unless another
-  session's live claim holds it.
+- **The NEXT rules (spec D3).** `work.classify_next` (T05a) classifies the turn's last NEXT ONCE — the
+  Stop harvest and `scripts/sysadmin/next_census.py`'s fleet measurement both call the SAME function, so
+  they never disagree: `"hold"` when the line starts (after any markdown run) with `none`/`BLOCKED`, or
+  carries `operator decision(s)` anywhere; `"names-item"` when it names a `W-` id outside a path or URL
+  (`?item=W-…`, `x/W-…` and `W-….json` name nothing); else `"free-text"`. The harvest applies the FIRST
+  rule that matches:
+  1. **`hold`** (`none — terminal`, an operator decision, `BLOCKED:`) — no claim and no thread item,
+     whatever the line names.
+  2. **`names-item`** — the FIRST named id that is open, unblocked, not itself a `next` item and not
+     held live by another session gets the claim (written FIRST, so a failed claim never leaves a
+     rewritten `next` behind) and then its `next` is updated; no other named id is touched, and an id
+     that qualifies nothing leaves nothing updated.
+  3. **`free-text` the register accepts** (`_is_anchor`) — but only when the register itself WROTE the
+     anchor (`next_anchored`; a busy session lock makes this false even for accepted text) — the
+     session's own `next` item carries it (below).
+  4. **Anything else** — nothing.
+
+  **The session's `next` item, as one rule.** While a session's last NEXT is free text the register
+  accepts, the session has exactly one open `kind: next` item (`links.session` the session id) whose
+  `next`/`title` and `next_at` are that text and the time it was set — created on the session's first
+  such NEXT, rewritten (never duplicated) on every later one. Rules 1 and 2, and a new rule-3 write,
+  each close the session's OWN prior open `next` item `dropped` `superseded` first. Any Stop harvest in
+  the repo — any session's — also closes `dropped` `idle 7 days` every `next` item whose `next_at` is
+  more than 7 days old. The register itself is untouched by any of this (D-392).
 
 There is no `await` CLI verb and no other way to create an `awaiting-operator` item — only an accepted
 DECISION block does. `NEXT: none` stays legal; nothing counts or scores items (D-392).
+
+## The view
+
+One open place every session and the distributor read, live, never copied into the store (spec D1,
+D4, D6):
+
+- **The obligation lines (D1), `work.obligations(repo)`.** At most two lines, read fresh on every
+  call: the count of unread `ack: required` mail in this repo's inbox with the oldest one's age —
+  `mail: 3 need an answer (oldest 4 d) — python3 scripts/mail.py list`; and, only in the repo holding
+  `commands/_sources/` (the hub), the three deepest command-feedback queues — `feedback queues:
+  fabrik-execute-plan 36 · … — /fabrik-command-improve <command>`. Either line fails open to nothing on
+  any error, with one stderr warning — an unreadable inbox WARNS rather than silently reading as no
+  mail. `ack: no` mail is information and is never counted. `ready` and `status` print these lines
+  first, bare; the prompt block prints them too, each prefixed `work: `.
+- **The prompt block (D1, D4, D6).** Ahead of the usual anchor block: the unnamed-window line, only
+  when `CLAUDE_AGENT` resolves nothing — `work: this window has no agent name — owned items cannot
+  reach it; run python3 scripts/whoami_agent.py --as <name>`; the obligation lines above; every
+  `awaiting-operator` item with its question (and, once retired by D5, `(also asked as <id>)`); this
+  session's own live claims — `work: your claim — <id>: <title> (token …, lease until …)`; one `on it:`
+  line per OTHER session holding a live claim, so every live claim in the repo is visible to every
+  session, not only its own — `work: on it: <session short id> (<agent or "unnamed">) — W-xxxx, W-yyyy`;
+  and the ready count.
+- **`status`'s distributor lines (D4).** `UNOWNED` — open items with no owner (a `next` item is never
+  counted; it is nobody's to own); `CLAIMS` — one line per session holding a live claim (a session-less
+  claim groups by its agent instead, and prints `(no session)`), flagged `— over 5`; `STALE NEXT` — an
+  open `next` item whose `next_at` is more than 6 days old (a day before the Stop harvest would close
+  it); `AGED MAIL` — open `kind: mail` items created more than 14 days ago, flagged `— over 50`. Every
+  count reads `status == "open"` items only, so a closed or resolved item never inflates one.
+- **`ready`'s crisp default (D4)** is the obligation lines above, this session's claims, items this
+  agent owns, awaiting items, then the top 10 remaining ready items (and how many more `--all` would
+  show); `--all` is the OLD default, unchanged.
+
+**Validation reading.** `python3 scripts/sysadmin/next_census.py --since 7 --repo .` classifies every
+NEXT: line of the fleet's transcripts with the SAME `classify_next` the harvest uses (so the two never
+disagree), reports the class/distinct/per-repo-session counts of spec § Why this exists, and — with
+`--repo` — prints this repo's Validation V5 verdict: PASS when its open `next` items due within 7 days
+number no more than the qualifying sessions counted for it, AND it shows more than 0 live claims.
 
 ## Spec and plan state is derived, never copied
 
