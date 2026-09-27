@@ -1,0 +1,26 @@
+{
+  "block_digest": "090503a0fca72488243a8eb3d1a9f94b10845afd52df231da275d49ab40acafd",
+  "blocked_by": [],
+  "created": "2026-09-27T19:13:11.138791Z",
+  "creator": "intel",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-d26e1d24",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "853a792c14a9815ad982c1db6908c22176c499e1e5d663e9b348f08064654eac"
+  ],
+  "next": "",
+  "note": "ask them not me",
+  "owner": "",
+  "priority": 2,
+  "question": "May I roll the work store out across the fleet? Each project repo would run `work.py init --distributor` and `migrate-backlog`, which creates and commits a `.fabrik/work/` store in every repo (W-4cc5cac3, unblocking W-59c5ab33).",
+  "status": "done",
+  "title": "May I roll the work store out across the fleet? Each project repo would run `work.py init --distributor` and `migrate-backlog`, which creates and commits a `.fabrik/work/` store in every repo (W-4cc5cac3, unblocking W-59c5ab33)."
+}
