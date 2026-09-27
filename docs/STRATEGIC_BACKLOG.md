@@ -313,7 +313,6 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 - **[intel]** The seat-brief clause: five residuals the scope-growth stop left (routed 2026-09-19) (`W-a8361c19`)
 - **[intel]** claude_p_cost.refresh()'s atomic write skips fh.flush()/os.fsync() before os.replace, unlike _merge_usage_store_locked beside it — a power loss can leave a zero-length sidecar (found in the D-415 review) (`W-bed507e3`)
 - **[intel]** 119 uncommitted ruff-format files sit under every session's diffs — land them AFTER the review-convergence plan closes (2026-09-09, owner: intel) (`W-d74b0ce6`)
-- **[intel]** Upstream the subagents routing denies to fabrik-lib (intel, opened 2026-09-05) (`W-d897e5fe`)
 - **[intel]** **fanout resilience** (01M1CGKVWC): pre-flight credits check, 402/404 unit (`W-e31f7f4a`)
 - **[intel]** An accepted DECISION is lost when the session lock and the store lock are both busy at the Stop harvest (D7 W4-O3) (`W-e64aa44a`)
 - **[operator]** **Do the 33 explicit `code_fix_window_sec: 1800` lines follow D-378's 300 s default? (2026-09-23)** — 33 of the 72 live specs (`specs/services/*.yaml`) set it explicitly (19 from the 2026-07-05 swe... (`W-6c60e1e3`)
