@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T23:38:14.331412Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-d5d2a42f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M35P4TDRECDC4J6D0B2P4EHY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "# payments-ingest role: no grant on `purchases`, so PayTR one-offs cannot be recorded — and CONFIGURATION.md:216's assertion checks nothing"
+}

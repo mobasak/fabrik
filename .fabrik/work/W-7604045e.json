@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T23:38:14.436336Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-7604045e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M35P9VMZAVB9HHZPQV9635XT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "# Correction to 01M35P4TDRECDC4J6D0B2P4EHY — do NOT add a purchases grant to the payments-ingest role"
+}
