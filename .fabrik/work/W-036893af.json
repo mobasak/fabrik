@@ -12,9 +12,9 @@
     "spec": ""
   },
   "next": "**[intel]** **`libs/subagents` `fanout` docstring still advertises a default price cap** the pool no longer applies — routed to intel (D-135/D-137: the module is fabrik-lib's vendored copy; the hub does not edit it). (T16, mailed)",
-  "note": "migrated-digest:d8031e95787e",
+  "note": "fabrik-lib's vendored module (D-137): acked done 2026-09-07 (01M1XKR1) but canonical agent.py:3268 still says '≤$1.5 cap'; re-opened with fabrik-lib by today's follow-up mail (ack required)",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "**`libs/subagents` `fanout` docstring still advertises a default price cap** the pool no longer applies — routed to intel (D-135/D-137: the module is fabrik-lib's vendored copy; the hub does not ed..."
 }
