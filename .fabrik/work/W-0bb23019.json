@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T03:28:07.033448Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-0bb23019",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Remove the Agent scripts on disk row or mark it retired, and sweep the guide for other Traycer-era rows",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "status": "open",
+  "title": "docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md:215 source-of-truth row still names generate_kilo_agents.py as the freshness trigger for ~/.traycer/cli-agents/*.sh; the generator is retired (2026-07-19) and archived (D-432), Traycer is retired (D-102) — drop or rewrite the row (found in the W-70653005 review)"
+}
