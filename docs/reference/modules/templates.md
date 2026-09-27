@@ -15,7 +15,7 @@ All rows are exposed via `fabrik scaffold --type <name>`. (`wordpress` is a reco
 | Template | Stack | Port | Typical use | Default shape (true flags) |
 |---|---|---|---|---|
 | `python-api` | Python 3.12 + FastAPI + Uvicorn | 8000 | REST APIs, microservices | service, public, metrics |
-| `python-api-gpu` | python-api + `gpu_handler.py` (on-demand GPU rent) | 8000 | GPU-burst APIs/workers | service, public, metrics |
+| `python-api-gpu` | python-api + `gpu_handler.py` (pinned RunPod serverless client) | 8000 | GPU-burst APIs/workers | service, public, metrics |
 | `node-api` | Node.js 22 + Express/Fastify | 3000 | Node.js APIs | service, public, metrics |
 | `saas-skeleton` | Next.js 15 + React 19 + TypeScript + Tailwind | 3000 | Full SaaS apps & dashboards | service, public, bearer-api, DB, cache, persistent, metrics |
 | `static-site` | No own `Dockerfile.j2` — routed through `_scaffold_saas_skeleton` (Next.js 15 + React 19 + TypeScript + Tailwind, same as `saas-skeleton`) | 3000 | Landing pages, doc sites | static, public |

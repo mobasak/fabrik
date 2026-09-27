@@ -291,9 +291,10 @@ fabrik scaffold my-gpu-service --type python-api-gpu
 
 This creates a standard `python-api` project (identical spec shape — the Shape model has no `needs_gpu`/`gpu_kind` fields yet) + adds:
 
-- `src/<package>/gpu_handler.py` with the `rent_for_workload(workload, work_fn)` helper; its `DEFAULT_KIND = "pod-rtx-4090"` constant sets the GPU kind
+- `src/<package>/gpu_handler.py` with `run_on_gpu(payload)`: a self-contained httpx client for a RunPod serverless endpoint you deploy once and pin. It never imports `fabrik` (the container does not have it, and `gpu_rent` reads hub-only files). It submits to `/v2/<endpoint>/run`, polls `/status/<id>`, cancels a job it gives up on, and raises `GpuJobError` on any failure
+- `RUNPOD_API_KEY` and `RUNPOD_SERVERLESS_ENDPOINT_ID` in `.env.example` and in the compose `environment:` list, so they reach the container and the generated spec
 
-Edit `src/<package>/gpu_handler.py` to call your workload from a job handler.
+Call `run_on_gpu(...)` from your job handler. Dedicated pods are rented hub-side with `fabrik gpu rent`, never from the service.
 
 ---
 

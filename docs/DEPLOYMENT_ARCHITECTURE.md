@@ -217,7 +217,7 @@ Scaffold uses these to generate `/opt/<project>/` trees. Every template has a `d
 | Template | Kind | Key files |
 |---|---|---|
 | `templates/python-api/` | FastAPI service | `compose.yaml.j2`, `defaults.yaml` |
-| `templates/python-api-gpu/` | FastAPI + on-demand GPU rental (`app/gpu_handler.py` wraps `fabrik.orchestrator.gpu_rent`) | `defaults.yaml` (shape mirrors `python-api` — GPU auto-provisioning is a separate tracked slice, not a `Shape` field yet) |
+| `templates/python-api-gpu/` | FastAPI + a pinned RunPod serverless client (`src/<package>/gpu_handler.py`, never imports `fabrik`) | `defaults.yaml` (shape mirrors `python-api` — GPU auto-provisioning is a separate tracked slice, not a `Shape` field yet) |
 | `templates/node-api/` | Node.js API | `compose.yaml.j2`, `Dockerfile.j2`, `AGENTS.md.j2`, `defaults.yaml` |
 | `templates/saas-skeleton/` | Next.js 14 + TypeScript + Tailwind + Shadcn | `compose.yaml.j2`, `Dockerfile`, plus the full Next.js skeleton (largest template) |
 | `templates/static-site/` | Static HTML/JS (nginx) | `compose.yaml.j2`, `defaults.yaml` |

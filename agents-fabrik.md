@@ -419,7 +419,7 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 | Type | Template | Stack | shape.kind | shape flags (true only) |
 |---|---|---|---|---|
 | python-api | `templates/scaffold/` | FastAPI + Uvicorn + Docker | service | is_public, exposes_metrics |
-| python-api-gpu | `templates/python-api-gpu/` | FastAPI + Uvicorn + on-demand GPU rental (`gpu_rent`) | service | is_public, exposes_metrics |
+| python-api-gpu | `templates/python-api-gpu/` | FastAPI + Uvicorn + a pinned RunPod serverless client (`gpu_handler.py`) | service | is_public, exposes_metrics |
 | saas-skeleton | `templates/saas-skeleton/` | Next.js 15 + React 19 + TypeScript + Tailwind | service | is_public, has_bearer_api, has_persistent_data, needs_database, needs_cache, exposes_metrics |
 | node-api | `templates/node-api/` | Node.js API + Docker | service | is_public, exposes_metrics |
 | file-api | `templates/file-api/` | File operations API | service | is_public, has_persistent_data |
