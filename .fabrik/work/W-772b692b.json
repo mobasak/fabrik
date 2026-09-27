@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T21:35:02.985410Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-772b692b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M32YS4VXNH0QPE1VFGVW45KA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "docs/workflows/SCAFFOLD_STRUCTURE.md and DATA_SYNC_WORKFLOW.md are stale inventories — 4 named scripts do not exist, the sync stage is wrong, counts are half the truth (measured 2026-09-22)"
+}
