@@ -14,6 +14,7 @@
 # strings), so three checks now consult the marker — all other gate checks still run.
 # Real runtime secrets never live here; they belong in .env.
 
+import fnmatch
 import json
 import logging
 import os
@@ -239,6 +240,16 @@ I18N_KIT_DIR = FABRIK_ROOT / "templates" / "i18n-kit"
 # fabrik-lib is the sibling repo (/opt/fabrik-lib) of FABRIK_ROOT (/opt/fabrik);
 # it holds the vendorable lib modules (docs-site, etc.).
 FABRIK_LIB_DIR = FABRIK_ROOT.parent / "fabrik-lib"
+# Tool caches a source tree on this box accumulates (the hub's scripts/, fabrik-lib's modules)
+# that no scaffold may copy into a project: every shutil.copytree below ignores them, and every
+# hand-written copy loop skips a path _is_tool_cache names.
+_TOOL_CACHES = ("__pycache__", "*.pyc", ".mypy_cache", ".pytest_cache", ".ruff_cache")
+
+
+def _is_tool_cache(parts: tuple[str, ...]) -> bool:
+    """True when any component of a relative path is a tool cache (or a stray .pyc)."""
+    return any(fnmatch.fnmatch(part, pattern) for part in parts for pattern in _TOOL_CACHES)
+
 
 # Scaffold types that get i18n-kit provisioned automatically.
 # Maps project_type → i18n strategy so the copy helper knows which files to place.
@@ -1177,7 +1188,12 @@ def _scaffold_shared(
     fabrik_enforcement = FABRIK_ROOT / "scripts" / "enforcement"
     project_enforcement = project_dir / "scripts" / "enforcement"
     if fabrik_enforcement.exists():
-        shutil.copytree(fabrik_enforcement, project_enforcement, dirs_exist_ok=True)
+        shutil.copytree(
+            fabrik_enforcement,
+            project_enforcement,
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns(*_TOOL_CACHES),
+        )
 
     # Copy vendored fabrik-lib modules so every new project — of ANY type — ships with them.
     # Driven by the SAME manifest constant the fleet sync uses (VENDORED_DIRS) so the two never drift,
@@ -1196,7 +1212,7 @@ def _scaffold_shared(
                 fabrik_vendored,
                 project_dir / _vendored_rel,
                 dirs_exist_ok=True,
-                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+                ignore=shutil.ignore_patterns(*_TOOL_CACHES),
             )
 
     # Copy .windsurfrules, .windsurf/rules/, .windsurf/workflows/ (authoritative)
@@ -1221,13 +1237,17 @@ def _scaffold_shared(
     windsurf_target = project_dir / ".windsurf" / "rules"
     if windsurf_target.exists():
         shutil.rmtree(windsurf_target)
-    shutil.copytree(fabrik_windsurf_rules, windsurf_target)
+    shutil.copytree(
+        fabrik_windsurf_rules, windsurf_target, ignore=shutil.ignore_patterns(*_TOOL_CACHES)
+    )
 
     # Copy .windsurf/workflows/ directory (no symlinks - workspace isolation)
     workflows_target = project_dir / ".windsurf" / "workflows"
     if workflows_target.exists():
         shutil.rmtree(workflows_target)
-    shutil.copytree(fabrik_windsurf_workflows, workflows_target)
+    shutil.copytree(
+        fabrik_windsurf_workflows, workflows_target, ignore=shutil.ignore_patterns(*_TOOL_CACHES)
+    )
 
     # (.windsurf/hooks.json is copied by _copy_windsurf_hooks() below — Cascade
     # definition-of-done hook that surfaces final_gate.)
@@ -1249,6 +1269,7 @@ def _scaffold_shared(
             fabrik_claude,
             claude_target,
             ignore=shutil.ignore_patterns(
+                *_TOOL_CACHES,
                 "worktrees",
                 "projects",
                 "todos",
@@ -1264,7 +1285,6 @@ def _scaffold_shared(
                 ".credentials.json*",
                 "manager-accounts",
                 "*.log",
-                "__pycache__",
             ),
         )
 
@@ -1274,7 +1294,7 @@ def _scaffold_shared(
         kilo_target = project_dir / "docs" / "reference" / "kilo"
         if kilo_target.exists():
             shutil.rmtree(kilo_target)
-        shutil.copytree(fabrik_kilo_docs, kilo_target)
+        shutil.copytree(fabrik_kilo_docs, kilo_target, ignore=shutil.ignore_patterns(*_TOOL_CACHES))
 
     # Copy AGENTS.md (no symlinks - workspace isolation)
     if FABRIK_AGENTS_MD.exists():
@@ -1409,14 +1429,21 @@ def _scaffold_shared(
             fabrik_saas_skeleton,
             project_saas_skeleton,
             dirs_exist_ok=True,
-            ignore=shutil.ignore_patterns(".next", "node_modules", ".turbo", "dist", "build"),
+            ignore=shutil.ignore_patterns(
+                *_TOOL_CACHES, ".next", "node_modules", ".turbo", "dist", "build"
+            ),
         )
 
     # Copy templates/spec-pipeline/ for Traycer discovery workflow (Stage 0)
     fabrik_spec_pipeline = FABRIK_ROOT / "templates" / "spec-pipeline"
     project_spec_pipeline = project_dir / "templates" / "spec-pipeline"
     if fabrik_spec_pipeline.exists():
-        shutil.copytree(fabrik_spec_pipeline, project_spec_pipeline, dirs_exist_ok=True)
+        shutil.copytree(
+            fabrik_spec_pipeline,
+            project_spec_pipeline,
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns(*_TOOL_CACHES),
+        )
 
     # Create PORTS.md (every project tracks its own ports)
     (project_dir / "PORTS.md").write_text(
@@ -2131,7 +2158,7 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
 
 
 _SAAS_SKIP_FILES = {"AGENTS.md", "pyproject.toml", "requirements.txt"}
-_SAAS_SKIP_DIRS = {"node_modules", ".next", ".turbo", "dist", "build", "__pycache__"}
+_SAAS_SKIP_DIRS = {"node_modules", ".next", ".turbo", "dist", "build"}
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -3377,7 +3404,7 @@ def _vendor_fastapi_user_auth(dest_src: Path) -> None:
         module_src,
         dest,
         ignore=shutil.ignore_patterns(
-            "__pycache__", "*.pyc", "reference_adapter.py", "conftest.py", "pytest.ini"
+            *_TOOL_CACHES, "reference_adapter.py", "conftest.py", "pytest.ini"
         ),
     )
 
@@ -3525,15 +3552,7 @@ def _vendor_app_audit_log(backend_dir: Path) -> None:
     shutil.copytree(
         APP_AUDIT_LOG_DIR,
         dest,
-        ignore=shutil.ignore_patterns(
-            "__pycache__",
-            "*.pyc",
-            ".mypy_cache",
-            ".pytest_cache",
-            ".ruff_cache",
-            "test_*.py",
-            "UPSTREAM_FEEDBACK.md",
-        ),
+        ignore=shutil.ignore_patterns(*_TOOL_CACHES, "test_*.py", "UPSTREAM_FEEDBACK.md"),
     )
 
 
@@ -4053,7 +4072,7 @@ def _scaffold_saas_skeleton(
         rel = src.relative_to(SAAS_SKELETON_DIR)
 
         # Skip build artifact directories
-        if any(part in _SAAS_SKIP_DIRS for part in rel.parts):
+        if any(part in _SAAS_SKIP_DIRS for part in rel.parts) or _is_tool_cache(rel.parts):
             continue
 
         # Skip excluded filenames
@@ -4140,7 +4159,7 @@ def _vendor_docs_site(project_dir: Path, name: str) -> None:
         docs_src,
         dest,
         ignore=shutil.ignore_patterns(
-            "node_modules", "build", ".docusaurus", "package-lock.json", ".git"
+            *_TOOL_CACHES, "node_modules", "build", ".docusaurus", "package-lock.json", ".git"
         ),
     )
 
@@ -5853,7 +5872,7 @@ def _scaffold_mobile_app(project_dir: Path, name: str, description: str, **kwarg
         "app.config.ts",  # identity-substituted below
     }
     for entry in sorted(MOBILE_APP_TEMPLATE_DIR.iterdir()):
-        if entry.name in _skip:
+        if entry.name in _skip or _is_tool_cache((entry.name,)):
             continue
         dest = project_dir / entry.name
         if entry.is_dir():
@@ -5861,7 +5880,7 @@ def _scaffold_mobile_app(project_dir: Path, name: str, description: str, **kwarg
                 entry,
                 dest,
                 dirs_exist_ok=True,
-                ignore=shutil.ignore_patterns("node_modules", "__pycache__", "*.pyc"),
+                ignore=shutil.ignore_patterns(*_TOOL_CACHES, "node_modules"),
             )
         else:
             shutil.copy2(entry, dest)
@@ -6014,7 +6033,12 @@ def _scaffold_desktop_app(project_dir: Path, name: str, description: str, **kwar
     # Copy electron/ directory from template
     template_electron = DESKTOP_APP_TEMPLATE_DIR / "electron"
     if template_electron.exists():
-        shutil.copytree(template_electron, project_dir / "electron", dirs_exist_ok=True)
+        shutil.copytree(
+            template_electron,
+            project_dir / "electron",
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns(*_TOOL_CACHES),
+        )
 
     # Create minimal index.html (referenced by electron/main.js win.loadFile)
     (project_dir / "index.html").write_text(
@@ -6406,7 +6430,7 @@ def _provision_i18n(project_dir: Path, project_type: str) -> None:
         snippets_dir = project_dir / "docs" / "reference" / "i18n-snippets"
         snippets_dir.mkdir(parents=True, exist_ok=True)
         for f in (kit / "snippets").iterdir():
-            if f.is_file():
+            if f.is_file() and not _is_tool_cache((f.name,)):
                 shutil.copy2(f, snippets_dir / f.name)
 
     elif strategy == "react":
@@ -6414,7 +6438,7 @@ def _provision_i18n(project_dir: Path, project_type: str) -> None:
         i18n_lib = project_dir / "lib" / "i18n"
         i18n_lib.mkdir(parents=True, exist_ok=True)
         for f in (kit / "react").iterdir():
-            if f.is_file():
+            if f.is_file() and not _is_tool_cache((f.name,)):
                 shutil.copy2(f, i18n_lib / f.name)
 
     elif strategy == "rn":
@@ -7265,7 +7289,9 @@ def fix_project(
             windsurf_rules_path.unlink()
         elif windsurf_rules_path.exists():
             shutil.rmtree(windsurf_rules_path)
-        shutil.copytree(windsurf_rules_target, windsurf_rules_path)
+        shutil.copytree(
+            windsurf_rules_target, windsurf_rules_path, ignore=shutil.ignore_patterns(*_TOOL_CACHES)
+        )
         added.append(".windsurf/rules (copied)")
 
         # Copy .windsurf/workflows/ directory (remove symlink if exists)
@@ -7274,7 +7300,11 @@ def fix_project(
             windsurf_workflows_path.unlink()
         elif windsurf_workflows_path.exists():
             shutil.rmtree(windsurf_workflows_path)
-        shutil.copytree(windsurf_workflows_target, windsurf_workflows_path)
+        shutil.copytree(
+            windsurf_workflows_target,
+            windsurf_workflows_path,
+            ignore=shutil.ignore_patterns(*_TOOL_CACHES),
+        )
         added.append(".windsurf/workflows (copied)")
 
         # Copy docs/reference/kilo/ directory (remove symlink if exists)
@@ -7286,7 +7316,9 @@ def fix_project(
             elif kilo_path.exists():
                 shutil.rmtree(kilo_path)
             kilo_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(fabrik_kilo_docs, kilo_path)
+            shutil.copytree(
+                fabrik_kilo_docs, kilo_path, ignore=shutil.ignore_patterns(*_TOOL_CACHES)
+            )
             added.append("docs/reference/kilo (copied)")
 
         # Copy AGENTS.md (remove symlink if exists)
