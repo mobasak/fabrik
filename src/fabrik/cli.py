@@ -3435,7 +3435,7 @@ def gpu_rent(
 
     Examples:
 
-      fabrik gpu rent serverless --workload smoke --max-cost 1
+      fabrik gpu rent serverless --workload smoke --max-cost 5
 
       fabrik gpu rent pod-rtx-4090 --workload smoke --max-lifetime 1 \\
                                     --max-cost 1 --cloud COMMUNITY
@@ -3862,6 +3862,11 @@ def gpu_compare(kind, hours, utilization, needs_checkpointing, needs_serverless)
         click.echo(f"   {rec['rationale']}")
     else:
         click.echo(f"✗ no provider matches: {rec['reason']}")
+    age = gpu_rent_mod.prices_age_days()
+    stale = " — STALE, re-verify the rates" if gpu_rent_mod.prices_are_stale() else ""
+    click.echo(
+        f"   prices verified {gpu_rent_mod.PRICES_VERIFIED.isoformat()} ({age} days ago){stale}"
+    )
 
 
 @gpu.command("history")

@@ -45,7 +45,7 @@ import time
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -110,19 +110,24 @@ def client_for_provider(name: str) -> Any:
     return cls()
 
 
-# Cost lookup per (provider, kind), hourly USD. RunPod and Modal cells read off the vendors' own
-# pricing pages on 2026-09-27. Re-verify quarterly.
+# Cost lookup per (provider, kind), hourly USD. The date the RunPod and Modal cells were read off
+# the vendors' own pricing pages is PRICES_VERIFIED below; `fabrik gpu compare` prints it and rent()
+# warns once it is older than PRICES_STALE_AFTER_DAYS, so staleness shows where the numbers are used.
 # - RunPod = Secure Cloud pods (the driver defaults cloud_type=SECURE), runpod.io/pricing.
 # - Modal = BASE rates (modal.com/pricing lists per second; x 3600 here). The driver requests neither
 #   non-preemptible (3x) nor a region (1.15-1.75x), so base is what a session pays.
 # - Vast.ai = typical verified-host floor prices; the marketplace price is per host, so these are
 #   budget figures, not a page read (the pack's gpu-marketplace-h100-rates claim brackets H100 at
 #   $1.30-2.50 on verified hosts).
+# - "serverless" = the hourly rate of ONE worker on the GPU that provider's endpoint runs on. RunPod:
+#   gpu_rent passes no GPU type and the template picks it, so the H100 tier is the budget (the 24 GB
+#   tier is $1.10). Modal: the driver defaults the endpoint to an L4. Vast: an RTX 4090 worker on
+#   standby. With workers_max > 1, real spend can reach that many times this rate.
 # - None = the provider offers no mapping for that kind; estimate_cost refuses it and
 #   selection_advice lists it as unsupported.
 HOURLY_USD_BY_PROVIDER: dict[str, dict[str, float | None]] = {
     "runpod": {
-        "serverless": 0.50,  # rough budget for an idle endpoint
+        "serverless": 4.79,  # H100 80 GB serverless worker (the template picks the GPU)
         "pod-h100": 3.49,  # H100 SXM
         "pod-h100-pcie": 2.89,
         "pod-h100-nvl": 3.19,
@@ -133,7 +138,7 @@ HOURLY_USD_BY_PROVIDER: dict[str, dict[str, float | None]] = {
         "pod-rtx-4090": 0.74,
     },
     "modal": {
-        "serverless": 0.50,  # serverless is the default Modal flow anyway
+        "serverless": 0.80,  # L4, the driver's default endpoint GPU ($0.000222/s)
         "pod-h100": 3.95,  # $0.001097/s
         "pod-h100-pcie": 3.95,
         "pod-h100-nvl": None,  # no Modal mapping for this kind (MODAL_GPU_TYPES)
@@ -159,6 +164,45 @@ HOURLY_USD_BY_PROVIDER: dict[str, dict[str, float | None]] = {
         "pod-rtx-4090": 0.40,
     },
 }
+
+# When the RunPod and Modal cells above were last read off the vendors' pricing pages.
+PRICES_VERIFIED = date(2026, 9, 27)
+PRICES_STALE_AFTER_DAYS = 90
+
+
+def _today() -> date:
+    return datetime.now(UTC).date()
+
+
+def prices_age_days(today: date | None = None) -> int:
+    """Days since the price table was verified against the vendors' pages.
+
+    Floored at 0: PRICES_VERIFIED is a local calendar date and ``today`` is UTC, so on the
+    verification day the difference can be -1.
+    """
+    return max(0, ((today or _today()) - PRICES_VERIFIED).days)
+
+
+def prices_are_stale(today: date | None = None) -> bool:
+    return prices_age_days(today) > PRICES_STALE_AFTER_DAYS
+
+
+def _warn_if_prices_stale() -> None:
+    """Warn on every rental the cost guards price from an out-of-date table.
+
+    Per rental, not once per process, so a long-lived caller keeps hearing it; rentals are rare
+    enough that this never floods a log.
+    """
+    if not prices_are_stale():
+        return
+    logger.warning(
+        "gpu_rent: the price table was verified %s (%d days ago, re-verify every %d); cost caps "
+        "and bookings may be off — refresh HOURLY_USD_BY_PROVIDER from the vendors' pricing pages",
+        PRICES_VERIFIED.isoformat(),
+        prices_age_days(),
+        PRICES_STALE_AFTER_DAYS,
+    )
+
 
 # Friendly --kind aliases → driver GPU_TYPE_IDS lookup. "serverless" is a
 # special case that creates/uses an endpoint instead of a pod.
@@ -680,6 +724,7 @@ def _preflight(
             "keep_warm_after_use is not supported for Modal pods: the pod is an ephemeral "
             "app.run() context that stops with this process. Use a serverless endpoint instead."
         )
+    _warn_if_prices_stale()
     est = estimate_cost(kind, max_lifetime_hours, provider=provider)
     if est > max_cost_usd:
         raise GPUBudgetExceededError(

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — The GPU price table's verified date is shown where the prices are used (2026-09-27)
+- `gpu_rent.PRICES_VERIFIED` holds the date the table was read off the vendors' pages. `fabrik gpu compare` prints `prices verified <date> (<n> days ago)`, flagged STALE past 90 days, and every `rent()`/`rented()` that prices on a stale table logs a warning. Serverless cells are now the rate of one worker on the GPU each provider's endpoint runs on: RunPod $4.79 (H100 — the template picks the GPU, so the top tier is the budget), Modal $0.80 (L4, the driver's default), Vast $0.40 (an RTX 4090 on standby). Graders in `tests/orchestrator/test_gpu_price_verified.py` use an injected date, so none of them turns red on a calendar day. D-row in `docs/DECISIONS.md`; mail 01M3482Z.
+
 ### Fixed — GPU price table refreshed from the vendors' pages (2026-09-27)
 - `gpu_rent.HOURLY_USD_BY_PROVIDER` had last been read on 2026-06-16. From runpod.io/pricing and modal.com/pricing on 2026-09-27: RunPod Secure H100 SXM $3.49 (was 2.89), A100 80GB $1.59 (1.49), H200 $4.59 (4.39), L40S $1.09 (0.86), RTX 4090 $0.74 (0.69); Modal L40S $1.95 (was 0.80, the L4 price), H200 $4.54 (4.50) and A100 $2.10 (was the 80 GB rate; the driver requests a bare "A100", which Modal bills at the 40 GB rate even when it upgrades the card). Modal offers no H100 NVL mapping, so that cell is now "not offered" and `fabrik gpu compare` no longer recommends a Modal rental that would fail. Every `rent()` cost cap, booking and `compare` prices on this table, so the daily cap had been checked against numbers up to ~17% low for the default pod kind. Tests that restated the old prices now read the table, and the budget-guard test's cap sits between two providers' rates so it still catches a provider-unaware guard. Mail 01M3482Z.
 

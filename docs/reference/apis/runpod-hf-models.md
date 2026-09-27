@@ -192,13 +192,13 @@ Grouped by family. **vLLM-served** under the hood via RunPod's HF deployment flo
        # endpoint.url is the OpenAI-compatible /v1/chat/completions endpoint
        ...
 
-   rent("serverless", workload="smoke", work_fn=use_endpoint, max_cost_usd=1.0)
+   rent("serverless", workload="smoke", work_fn=use_endpoint, max_cost_usd=5.0)
    ```
 
    Or from the CLI:
 
    ```bash
-   fabrik gpu rent serverless --workload smoke-test --max-cost 1
+   fabrik gpu rent serverless --workload smoke-test --max-cost 5
    ```
 
 ---
