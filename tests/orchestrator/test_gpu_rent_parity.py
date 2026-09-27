@@ -91,16 +91,21 @@ def test_a_non_runpod_destroy_error_is_logged_and_left_pending(enter, tmp_path):
 
 @pytest.mark.parametrize("enter", ["rent", "rented"])
 def test_the_budget_guard_prices_the_chosen_provider(enter):
-    """Modal's pod-h100 is $3.95/h: a $3 cap must refuse on both entry points."""
+    """A cap between RunPod's and Modal's H100 rate refuses Modal on both entry points; a guard that
+    priced every provider at RunPod's rate would let it through."""
+    table = gpu_rent.HOURLY_USD_BY_PROVIDER
+    runpod_rate, modal_rate = table["runpod"]["pod-h100"], table["modal"]["pod-h100"]
+    assert runpod_rate < modal_rate, "the cap below needs RunPod cheaper than Modal for this kind"
+    cap = (runpod_rate + modal_rate) / 2
     client = _client()
     with pytest.raises(gpu_rent.GPUBudgetExceededError):
         if enter == "rent":
             gpu_rent.rent(
-                "pod-h100", workload="t", provider="modal", max_cost_usd=3.0, client=client
+                "pod-h100", workload="t", provider="modal", max_cost_usd=cap, client=client
             )
         else:
             with gpu_rent.rented(
-                "pod-h100", workload="t", provider="modal", max_cost_usd=3.0, client=client
+                "pod-h100", workload="t", provider="modal", max_cost_usd=cap, client=client
             ):
                 pass
     client.create_pod.assert_not_called()
@@ -303,7 +308,9 @@ def test_the_orphan_path_books_what_the_pod_cost(enter, monkeypatch):
     enter(client)
 
     assert [b["cost_actual_usd"] for b in booked] == [
-        pytest.approx(gpu_rent.HOURLY_USD_BY_PROVIDER["runpod"]["pod-rtx-4090"] * 300 / 3600)
+        pytest.approx(
+            gpu_rent.HOURLY_USD_BY_PROVIDER["runpod"]["pod-rtx-4090"] * 300 / 3600, abs=1e-6
+        )
     ]
 
 

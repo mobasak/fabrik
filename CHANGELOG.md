@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — GPU price table refreshed from the vendors' pages (2026-09-27)
+- `gpu_rent.HOURLY_USD_BY_PROVIDER` had last been read on 2026-06-16. From runpod.io/pricing and modal.com/pricing on 2026-09-27: RunPod Secure H100 SXM $3.49 (was 2.89), A100 80GB $1.59 (1.49), H200 $4.59 (4.39), L40S $1.09 (0.86), RTX 4090 $0.74 (0.69); Modal L40S $1.95 (was 0.80, the L4 price), H200 $4.54 (4.50) and A100 $2.10 (was the 80 GB rate; the driver requests a bare "A100", which Modal bills at the 40 GB rate even when it upgrades the card). Modal offers no H100 NVL mapping, so that cell is now "not offered" and `fabrik gpu compare` no longer recommends a Modal rental that would fail. Every `rent()` cost cap, booking and `compare` prices on this table, so the daily cap had been checked against numbers up to ~17% low for the default pod kind. Tests that restated the old prices now read the table, and the budget-guard test's cap sits between two providers' rates so it still catches a provider-unaware guard. Mail 01M3482Z.
+
 ### Fixed — Sixteen more identifier checks reject a trailing newline (2026-09-27)
 - Driver and registrar checks tested names with `re.match(r"^...$")`, and `$` also matches just before a final newline, so `"name\n"` passed into SQL (`postgres`, `backrest`, `scripts/provision_watchdog_ro.py`), Authelia rules, Gatus/Prometheus/Redis/GlitchTip/Meilisearch registrar names, Supabase table and column names, a preplan filename, and a bot token later substituted into `.env.sysadmin`. The Authelia resource check's own docstring promised to reject newlines. All 16 now use `re.fullmatch`, with one grader each in `tests/test_name_validators_full_match.py` (each proven red with its fix reverted). Five checks a probe showed already reject a newline are unchanged; the same shape in infra's scripts is mailed to infra. W-3e5a0e84.
 

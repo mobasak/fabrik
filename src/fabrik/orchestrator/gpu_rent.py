@@ -110,40 +110,44 @@ def client_for_provider(name: str) -> Any:
     return cls()
 
 
-# Cost lookup per (provider, kind). Verified 2026-06-16 from each provider's
-# pricing page. Re-verify quarterly. Each cell is hourly USD.
-# - RunPod = Secure Cloud (more stable; we default cloud_type=SECURE in driver)
-# - Modal = on-demand non-preemptible
-# - Vast.ai = on-demand verified (interruptible spot ~50% less, but unstable)
-HOURLY_USD_BY_PROVIDER: dict[str, dict[str, float]] = {
+# Cost lookup per (provider, kind), hourly USD. RunPod and Modal cells read off the vendors' own
+# pricing pages on 2026-09-27. Re-verify quarterly.
+# - RunPod = Secure Cloud pods (the driver defaults cloud_type=SECURE), runpod.io/pricing.
+# - Modal = BASE rates (modal.com/pricing lists per second; x 3600 here). The driver requests neither
+#   non-preemptible (3x) nor a region (1.15-1.75x), so base is what a session pays.
+# - Vast.ai = typical verified-host floor prices; the marketplace price is per host, so these are
+#   budget figures, not a page read (the pack's gpu-marketplace-h100-rates claim brackets H100 at
+#   $1.30-2.50 on verified hosts).
+# - None = the provider offers no mapping for that kind; estimate_cost refuses it and
+#   selection_advice lists it as unsupported.
+HOURLY_USD_BY_PROVIDER: dict[str, dict[str, float | None]] = {
     "runpod": {
         "serverless": 0.50,  # rough budget for an idle endpoint
-        "pod-h100": 2.89,  # RunPod Secure Cloud H100 SXM
+        "pod-h100": 3.49,  # H100 SXM
         "pod-h100-pcie": 2.89,
         "pod-h100-nvl": 3.19,
-        "pod-a100": 1.49,
-        "pod-a100-sxm": 1.49,
-        "pod-h200": 4.39,
-        "pod-l40s": 0.86,
-        "pod-rtx-4090": 0.69,
+        "pod-a100": 1.59,  # A100 80GB PCIe
+        "pod-a100-sxm": 1.59,  # A100 SXM 80GB
+        "pod-h200": 4.59,
+        "pod-l40s": 1.09,
+        "pod-rtx-4090": 0.74,
     },
     "modal": {
         "serverless": 0.50,  # serverless is the default Modal flow anyway
-        "pod-h100": 3.95,
+        "pod-h100": 3.95,  # $0.001097/s
         "pod-h100-pcie": 3.95,
-        "pod-h100-nvl": 3.95,
-        "pod-a100": 2.50,
-        "pod-a100-sxm": 2.50,
-        "pod-h200": 4.50,
-        "pod-l40s": 0.80,
-        "pod-rtx-4090": 0.80,  # Modal maps RTX to L4 (no 4090 in catalog)
+        "pod-h100-nvl": None,  # no Modal mapping for this kind (MODAL_GPU_TYPES)
+        # The driver asks for a bare "A100": billed at the 40 GB rate ($0.000583/s) even when Modal
+        # upgrades it to 80 GB, which its docs say "does not change the cost".
+        "pod-a100": 2.10,
+        "pod-a100-sxm": 2.10,
+        "pod-h200": 4.54,  # $0.001261/s
+        "pod-l40s": 1.95,  # $0.000542/s
+        "pod-rtx-4090": 0.80,  # Modal maps RTX to L4 (no 4090 in catalog), $0.000222/s
     },
     "vast": {
-        # Vast.ai prices fluctuate; these are typical floor prices
-        # (verified-cloud, non-spot). Spot is ~50% lower.
-        # Vast serverless rate flipped 2026-06-17 (Phase 3.5): endpoint
-        # creation is free; only worker instances bill. ~$0.40/hr is a
-        # conservative budget for an RTX 4090 worker on standby.
+        # Vast serverless: endpoint creation is free; only worker instances bill.
+        # ~$0.40/hr is a budget for an RTX 4090 worker on standby.
         "serverless": 0.40,
         "pod-h100": 2.00,
         "pod-h100-pcie": 1.80,
@@ -164,7 +168,7 @@ ALL_KINDS = KINDS_SERVERLESS | KINDS_POD
 
 # Default per-kind hourly cost for the DEFAULT provider (runpod). Kept as a
 # convenience for estimate_cost() — providers > 1 use HOURLY_USD_BY_PROVIDER.
-HOURLY_USD: dict[str, float] = dict(HOURLY_USD_BY_PROVIDER["runpod"])
+HOURLY_USD: dict[str, float | None] = dict(HOURLY_USD_BY_PROVIDER["runpod"])
 
 # Default image for pod-mode rentals. NVIDIA's public CUDA runtime image is
 # always available (vs `runpod/pytorch:*` which RunPod versions and removes).
@@ -249,7 +253,8 @@ def selection_advice(
     }
     for provider in ("runpod", "modal", "vast"):
         pricing = HOURLY_USD_BY_PROVIDER[provider]
-        if kind not in pricing or pricing[kind] is None:
+        rate_hourly = pricing.get(kind)
+        if rate_hourly is None:
             results["providers"][provider] = {
                 "supported": False,
                 "reason": "kind not offered by this provider",
@@ -258,7 +263,6 @@ def selection_advice(
         # Modal bills per-second so utilization_rate actually scales cost.
         # RunPod + Vast bill per-hour (always-on); utilization_rate just
         # tells US whether the user is wasting paid-for cycles.
-        rate_hourly = pricing[kind]
         if provider == "modal":
             actual_hours = hours * utilization_rate
             est = round(rate_hourly * actual_hours, 4)

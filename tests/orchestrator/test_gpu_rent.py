@@ -70,12 +70,12 @@ def _mock_client(*, pod_id: str = "pod-abc", endpoint_id: str = "ep-xyz") -> Mag
 # Test 1 — cost estimation rounds up to whole hour
 # ============================================================================
 def test_estimate_cost_uses_kind_pricing():
-    # pod-rtx-4090 = $0.69/hr (RunPod). Half hour rounds up to 1 hour.
-    assert gpu_rent.estimate_cost("pod-rtx-4090", 0.5) == 0.69
+    rates = gpu_rent.HOURLY_USD_BY_PROVIDER["runpod"]  # read the table, never restate a price
+    # Half an hour rounds up to 1 hour.
+    assert gpu_rent.estimate_cost("pod-rtx-4090", 0.5) == rates["pod-rtx-4090"]
     # 1.5 hours rounds up to 2 hours
-    assert gpu_rent.estimate_cost("pod-rtx-4090", 1.5) == round(0.69 * 2, 4)
-    # 1 hour pod-h100 = $2.89 (RunPod Secure Cloud, verified 2026-06-16)
-    assert gpu_rent.estimate_cost("pod-h100", 1) == 2.89
+    assert gpu_rent.estimate_cost("pod-rtx-4090", 1.5) == round(rates["pod-rtx-4090"] * 2, 4)
+    assert gpu_rent.estimate_cost("pod-h100", 1) == rates["pod-h100"]
 
 
 def test_estimate_cost_provider_aware():
@@ -83,9 +83,10 @@ def test_estimate_cost_provider_aware():
     runpod_h100 = gpu_rent.estimate_cost("pod-h100", 1, provider="runpod")
     modal_h100 = gpu_rent.estimate_cost("pod-h100", 1, provider="modal")
     vast_h100 = gpu_rent.estimate_cost("pod-h100", 1, provider="vast")
-    assert runpod_h100 == 2.89
-    assert modal_h100 == 3.95
-    assert vast_h100 == 2.00
+    table = gpu_rent.HOURLY_USD_BY_PROVIDER
+    assert runpod_h100 == table["runpod"]["pod-h100"]
+    assert modal_h100 == table["modal"]["pod-h100"]
+    assert vast_h100 == table["vast"]["pod-h100"]
     # Vast cheapest, Modal most expensive
     assert vast_h100 < runpod_h100 < modal_h100
 
@@ -140,7 +141,7 @@ def test_dry_run_creates_nothing():
     r = gpu_rent.rent("pod-rtx-4090", workload="smoke", dry_run=True, client=c)
     assert r["dry_run"] is True
     assert r["kind"] == "pod-rtx-4090"
-    assert r["cost_estimate_usd"] == 0.69
+    assert r["cost_estimate_usd"] == gpu_rent.HOURLY_USD_BY_PROVIDER["runpod"]["pod-rtx-4090"]
     c.create_pod.assert_not_called()
     c.create_endpoint.assert_not_called()
 
