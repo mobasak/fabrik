@@ -306,7 +306,6 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 - **[intel]** docs/workflows/KILO_BENCHMARK_WORKFLOW.md describes a boot-hook chat pipeline (kilo_agents_db, role_mapper, run_kilo_workflow.sh …) that moved to /opt/ai-model-catalog/engine on 2026-08-15; run_kilo_workflow.sh does not exist (found in the D-415 review) (`W-0355625c`)
 - **[intel]** **`/fabrik-rivals` guard debt left after the 2026-09-14 key-autoload review** — four low-severity grader gaps a 25-mutant battery found and the run deliberately did not close, each one line: the un... (`W-062639c2`)
 - **[intel]** **Reconcile the 2026-08-28 transdoc score contamination in `subagent_runs`** (transdoc 01M154PZQ, self-reported): ~226 historical review runs (2026-08-21→28, other sessions' agent_ids) received `st... (`W-40a0370e`)
-- **[intel]** **Flywheel back-scoring debt — ~1093 unrecorded pool runs** (box-wide advisory printed on every `fanout`; predates this session): `audit_unrecorded('/opt/fabrik/.tmp/subagents/ledger.jsonl')` lists... (`W-4282d2a3`)
 - **[intel]** Triage the 8 CONVERGED plans older than 7 days with no plan lock (drift class 2) so the hub's sync can reach 7 clean days (`W-67f668f1`)
 - **[infra]** The seat-brief clause: five residuals the scope-growth stop left (routed 2026-09-19) (`W-a8361c19`)
 - **[intel]** claude_p_cost.refresh()'s atomic write skips fh.flush()/os.fsync() before os.replace, unlike _merge_usage_store_locked beside it — a power loss can leave a zero-length sidecar (found in the D-415 review) (`W-bed507e3`)
