@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-27T09:04:08.981502Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "359b19a72f88fb6a93e5192991c99cb4e9a0ddf2",
   "id": "W-1e3374c6",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "done",
   "title": "KILO_AGENT_SELECTION_GUIDE.md Source of Truth rows 'Role definitions' and 'Current assignments' cite engine/role_configs.yaml and engine/assignments.json by a path that does not resolve from /opt/fabrik, and assignments.json was last written 2026-03-22 — 'On pipeline run' is stale in the Postgres era (found in the W-0bb23019 review)"
 }
