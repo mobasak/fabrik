@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T21:57:09.902340Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-cdb60b4d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M335ERZMNPVHZN8PQACQR5GC",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "three mechanisms disagree about who owns a project's PORTS.md — the sync's registry copy, the scaffolder's inline per-project file, and the Doc Sync Matrix row all write the same gitignored path"
+}
