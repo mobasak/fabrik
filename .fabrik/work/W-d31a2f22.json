@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T23:34:38.556570Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-d31a2f22",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M35GSMKNRNT3WDAWWVSP60Z9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "# file-api scaffold: seven findings from the 67-file-api currency turn (file 21 of the rules pass)"
+}
