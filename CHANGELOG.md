@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — One /opt test decides both the registry sync and where a scaffold's deploy spec goes (2026-09-27)
+- `create_project` sent the deploy spec to the hub's `specs/services` only when `base` was literally `Path("/opt")`, while the registry sync resolves the project's parent against `/opt`. For any other spelling of the root (`/opt/../opt`, a symlink, a relative path), the catalog registered the project but its spec landed under the spelled base, where `fabrik apply` never looks. Both now use `_in_sync_scan_root`. A `str` base, which used to raise `TypeError`, now works. Graders in `tests/test_scaffold_offline_seam.py` cover the direct, `..`, symlink and relative spellings, an outside base and a `str` base, with the spec writer faked so no test can write the hub's specs. W-b522ed2e.
+
 ### Fixed — Scaffolding into a temp dir no longer rewrites the hub's project catalog (2026-09-26)
 - `create_project` ran `scripts/sync_projects.py` after every scaffold, but that script scans only `/opt`, so for a project anywhere else it could register nothing and only rewrote the hub's `docs/PROJECT_CATALOG.md` and `data/projects.yaml` (a review seat's temp-dir scaffold did exactly that on 2026-09-26). `_post_scaffold_sync` now runs only when the project's parent is the sync's scan root, `/opt`. W-ddf409c0.
 

@@ -6609,6 +6609,13 @@ def _emit_mcp_config(project_dir: Path) -> None:
 _SYNC_SCAN_ROOT = Path("/opt")
 
 
+def _in_sync_scan_root(project_dir: Path) -> bool:
+    """Is this project DIRECTLY in the sync's scan root, both sides resolved? The one test for "a
+    real /opt scaffold": it decides both the registry sync and where the deploy spec goes, so an
+    odd spelling of /opt (``/opt/../opt``, a symlink) can never split the two (W-b522ed2e)."""
+    return Path(project_dir).resolve().parent == _SYNC_SCAN_ROOT.resolve()
+
+
 def _post_scaffold_sync(project_dir: Path) -> None:
     """Post-scaffold hook: update project registry and PROJECT_CATALOG.md.
 
@@ -6619,7 +6626,7 @@ def _post_scaffold_sync(project_dir: Path) -> None:
     (W-ddf409c0).
     """
     sync_script = FABRIK_ROOT / "scripts" / "sync_projects.py"
-    if Path(project_dir).resolve().parent != _SYNC_SCAN_ROOT.resolve():
+    if not _in_sync_scan_root(project_dir):
         return
     if _scaffold_offline() or not sync_script.exists():
         return
@@ -6822,7 +6829,7 @@ def create_project(
         valid = ", ".join(sorted(SCAFFOLD_TYPES))
         raise ValueError(f"Invalid project type: '{project_type}'. Valid types: {valid}")
 
-    project_dir = base / name
+    project_dir = Path(base) / name
     if project_dir.exists():
         raise ValueError(f"Project already exists: {project_dir}")
 
@@ -6914,7 +6921,9 @@ def create_project(
             # current Shape defaults are (2026-08-27 finding: a new default flag dirtied 71 tracked
             # files on the shared tree, riding through the pre-commit stash/restore).
             specs_dir = (
-                (FABRIK_ROOT if Path(base) == Path("/opt") else Path(base)) / "specs" / "services"
+                (FABRIK_ROOT if _in_sync_scan_root(project_dir) else Path(base))
+                / "specs"
+                / "services"
             )
             # Detect secrets from .env.example for deployment-ready specs
             secrets_from_env, secrets_from_file = _detect_secrets(project_dir)

@@ -184,3 +184,56 @@ def test_a_symlinked_scan_root_still_matches(spawned, monkeypatch, tmp_path):
     scaffold._post_scaffold_sync(real / "probe-x")
 
     assert spawned == ["sync_projects"]
+
+
+@pytest.fixture
+def spec_dirs(monkeypatch):
+    """Where create_project asked the spec writer to put the deploy spec. The writer is faked, so
+    nothing is written: a routing test that reaches the hub branch must never touch the hub's
+    tracked specs/services (the 2026-08-27 incident class). Every spec-destination test uses this."""
+    seen = []
+    monkeypatch.setattr(
+        scaffold,
+        "generate_and_save_spec",
+        lambda _name, _type, _dir, specs_dir, **_kw: seen.append(specs_dir) or specs_dir / "x.yaml",
+    )
+    return seen
+
+
+@pytest.mark.parametrize("spelling", ["direct", "dotdot", "symlink", "relative"])
+def test_the_spec_destination_follows_the_same_scan_root_test(
+    tmp_path, monkeypatch, spec_dirs, spelling
+):
+    """W-b522ed2e: the deploy spec goes to the hub exactly when the sync would register the project;
+    a literal `base == /opt` comparison split the two for any other spelling of the root."""
+    root = tmp_path / "scan-root"
+    root.mkdir()
+    monkeypatch.setattr(scaffold, "_SYNC_SCAN_ROOT", root)
+    if spelling == "direct":
+        base = root
+    elif spelling == "dotdot":
+        base = root / ".." / root.name
+    elif spelling == "symlink":
+        base = tmp_path / "root-link"
+        base.symlink_to(root)
+    else:
+        monkeypatch.chdir(tmp_path)
+        base = Path(root.name)
+
+    scaffold.create_project(name="spec-probe", description="d", base=base)
+
+    assert spec_dirs == [scaffold.FABRIK_ROOT / "specs" / "services"], spec_dirs
+
+
+def test_a_scaffold_outside_the_root_keeps_its_spec_under_its_base(tmp_path, spec_dirs):
+    scaffold.create_project(name="spec-probe", description="d", base=tmp_path)
+
+    assert spec_dirs == [tmp_path / "specs" / "services"], spec_dirs
+
+
+def test_a_string_base_is_accepted(tmp_path, spec_dirs):
+    """A str base (as a CLI or script passes it) scaffolds like a Path; it used to raise TypeError."""
+    scaffold.create_project(name="spec-probe", description="d", base=str(tmp_path))
+
+    assert (tmp_path / "spec-probe").is_dir()
+    assert spec_dirs == [tmp_path / "specs" / "services"], spec_dirs
