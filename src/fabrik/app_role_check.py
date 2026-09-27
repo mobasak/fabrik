@@ -80,6 +80,7 @@ passes 1, 2 and 3 (spec § Derivations D1):
 
 from __future__ import annotations
 
+import ast
 import fnmatch
 import os
 import re
@@ -281,12 +282,59 @@ class CheckResult:
     failures: list[str]
 
 
-def _scan_lines(rel: Path, lines: list[str]) -> list[Finding]:
+# Characters str.splitlines() treats as line breaks that Python's tokenizer does not.
+_SPLITLINES_ONLY_BREAKS = re.compile("[\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]")
+
+
+def _parse_python(text: str) -> ast.Module:
+    return ast.parse(text)
+
+
+def _docstring_lines(rel: Path, text: str) -> frozenset[int]:
+    """The 1-based lines of a Python file that hold ONLY docstring text.
+
+    A docstring — the first string statement of a module, class or function — never
+    executes, so the DDL a guard's docstring DESCRIBES (``ALTER TABLE … NO FORCE ROW
+    LEVEL SECURITY`` in fabrik-lib's request_guard) is not DDL the project runs. A line
+    the docstring shares with code (a one-line ``def``, a statement after ``;``) stays
+    scanned, and a file that does not parse gets no exemption at all (fail closed). Cobra
+    check: the cheapest way to clear a finding this way is to move the SQL into a
+    docstring, which also stops it running — unless the code executes its own
+    ``__doc__``, which nothing in the fleet does.
+    """
+    if rel.suffix != ".py" or _SPLITLINES_ONLY_BREAKS.search(text):
+        # a break str.splitlines() honours and the parser does not would shift every
+        # later line number, so the exemption could land on code
+        return frozenset()
+    try:
+        tree = _parse_python(text)
+    except (SyntaxError, ValueError, RecursionError, MemoryError):
+        return frozenset()
+    inert: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        body = node.body
+        first = body[0] if body else None
+        if not (
+            isinstance(first, ast.Expr)
+            and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)
+        ):
+            continue
+        span = set(range(first.lineno, (first.end_lineno or first.lineno) + 1))
+        # the def/class header line and a statement that starts on the docstring's last line
+        shared = {getattr(node, "lineno", 0)} | {n.lineno for n in body[1:2]}
+        inert |= span - shared
+    return frozenset(inert)
+
+
+def _scan_lines(rel: Path, lines: list[str], inert: frozenset[int] = frozenset()) -> list[Finding]:
     posix = rel.as_posix()
     markers = _comment_markers(rel)
     findings: list[Finding] = []
     for lineno, raw in enumerate(lines, start=1):
-        if _is_comment_line(raw, markers):
+        if lineno in inert or _is_comment_line(raw, markers):
             continue
         label = None
         for pattern_label, regex in _LINE_PATTERNS:
@@ -301,12 +349,14 @@ def _scan_lines(rel: Path, lines: list[str]) -> list[Finding]:
     return findings
 
 
-def _scan_alembic_env(rel: Path, lines: list[str]) -> list[Finding]:
+def _scan_alembic_env(
+    rel: Path, lines: list[str], inert: frozenset[int] = frozenset()
+) -> list[Finding]:
     posix = rel.as_posix()
     markers = _comment_markers(rel)
     findings: list[Finding] = []
     for lineno, raw in enumerate(lines, start=1):
-        if _is_comment_line(raw, markers) or not _URL_TOKEN_RE.search(raw):
+        if lineno in inert or _is_comment_line(raw, markers) or not _URL_TOKEN_RE.search(raw):
             continue
         if _suppressed_by_owner(_strip_comment(raw), raw):
             continue
@@ -551,9 +601,10 @@ def _scan_compose_structure(rel: Path, text: str) -> list[Finding]:
 
 def _scan_file(rel: Path, text: str) -> list[Finding]:
     lines = text.splitlines()
-    findings = _scan_lines(rel, lines)
+    inert = _docstring_lines(rel, text)
+    findings = _scan_lines(rel, lines, inert)
     if rel.name == "env.py" and _ALEMBIC_IMPORT_RE.search(text):
-        findings.extend(_scan_alembic_env(rel, lines))
+        findings.extend(_scan_alembic_env(rel, lines, inert))
     if _is_compose_file(rel.name):
         findings.extend(_scan_compose_structure(rel, text))
     return findings

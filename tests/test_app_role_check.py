@@ -1141,3 +1141,74 @@ def test_db_name_refuses_a_non_string_depends_postgres(value):
 
 def test_db_name_string_depends_postgres_still_wins():
     assert _db_name_for_spec({"id": "x", "depends": {"postgres": "x_db"}}) == "x_db"
+
+
+# ── Docstrings never execute, so their prose is not a finding ───────────────── #
+
+_DOC_DDL = "ALTER TABLE t NO FORCE ROW LEVEL SECURITY"
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        f'"""Module doc.\n\nThree escapes: ``{_DOC_DDL}``.\n"""\nx = 1\n',
+        f'def guard():\n    """Refuse a connection that could run\n    {_DOC_DDL}."""\n    return 1\n',
+        f'class Guard:\n    """{_DOC_DDL}"""\n\n    def f(self):\n        return 1\n',
+    ],
+    ids=["module", "function", "class"],
+)
+def test_a_docstring_that_names_ddl_is_not_a_finding(tmp_path, content):
+    repo = tmp_path / "repo"
+    _write(repo / "src/guard.py", content)
+
+    assert scan_repo(repo).findings == []
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        f'"""Doc."""\nSQL = "{_DOC_DDL}"\n',
+        f'def f(): """doc"""; run("{_DOC_DDL}")\n',
+        f'def f():\n    """doc"""\n    return "{_DOC_DDL}"\n',
+        f'def broken(:\n    """{_DOC_DDL}"""\n',
+        f'def f():\n    x = 1\n    y = 2\n    "{_DOC_DDL}"\n    return x + y\n',
+    ],
+    ids=[
+        "string-constant",
+        "same-line-code",
+        "code-after-docstring",
+        "unparseable-file",
+        "later-bare-string-is-not-a-docstring",
+    ],
+)
+def test_ddl_outside_a_real_docstring_is_still_a_finding(tmp_path, content):
+    repo = tmp_path / "repo"
+    _write(repo / "src/runtime.py", content)
+
+    assert [f.pattern for f in scan_repo(repo).findings] == ["runtime DDL"]
+
+
+@pytest.mark.parametrize("exc", [RecursionError, MemoryError])
+def test_a_parser_blowup_scans_the_file_whole_instead_of_crashing(tmp_path, monkeypatch, exc):
+    repo = tmp_path / "repo"
+    _write(repo / "src/deep.py", f'"""{_DOC_DDL}"""\n')
+
+    def blow(_text):
+        raise exc("too deep")
+
+    monkeypatch.setattr(arc, "_parse_python", blow)
+
+    assert [f.pattern for f in scan_repo(repo).findings] == ["runtime DDL"]
+
+
+def test_a_line_break_python_does_not_count_voids_the_exemption(tmp_path):
+    """str.splitlines() breaks on \\x0c; the parser does not. Numbering would drift and the
+    exemption land on a later line — here a def header whose default argument runs DDL."""
+    content = (
+        'def a():\n    """doc\x0cmore"""\n    return 1\n\n\n'
+        f'def b(q="{_DOC_DDL}"):\n    """doc"""\n    return q\n'
+    )
+    repo = tmp_path / "repo"
+    _write(repo / "src/drift.py", content)
+
+    assert [f.pattern for f in scan_repo(repo).findings] == ["runtime DDL"]
