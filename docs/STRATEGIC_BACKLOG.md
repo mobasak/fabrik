@@ -310,7 +310,7 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 - **[intel]** **Flywheel back-scoring debt — ~1093 unrecorded pool runs** (box-wide advisory printed on every `fanout`; predates this session): `audit_unrecorded('/opt/fabrik/.tmp/subagents/ledger.jsonl')` lists... (`W-4282d2a3`)
 - **[intel]** Triage the 8 CONVERGED plans older than 7 days with no plan lock (drift class 2) so the hub's sync can reach 7 clean days (`W-67f668f1`)
 - **[intel]** `rule_activation` reads ~2% on its two largest samples, and nobody can say whether that is behaviour or instrument (2026-09-20) (`W-a399dab1`)
-- **[intel]** The seat-brief clause: five residuals the scope-growth stop left (routed 2026-09-19) (`W-a8361c19`)
+- **[infra]** The seat-brief clause: five residuals the scope-growth stop left (routed 2026-09-19) (`W-a8361c19`)
 - **[intel]** claude_p_cost.refresh()'s atomic write skips fh.flush()/os.fsync() before os.replace, unlike _merge_usage_store_locked beside it — a power loss can leave a zero-length sidecar (found in the D-415 review) (`W-bed507e3`)
 - **[intel]** **fanout resilience** (01M1CGKVWC): pre-flight credits check, 402/404 unit (`W-e31f7f4a`)
 - **[intel]** An accepted DECISION is lost when the session lock and the store lock are both busy at the Stop harvest (D7 W4-O3) (`W-e64aa44a`)
