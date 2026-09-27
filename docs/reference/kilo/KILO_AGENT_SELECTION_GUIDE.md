@@ -1,6 +1,6 @@
 # Kilo Agent Selection Guide
 
-**Last Updated:** 2026-05-20
+**Last Updated:** 2026-09-27
 
 ---
 
@@ -118,7 +118,7 @@ Sometimes the pipeline picks wrong. Here's how to think about it:
 → Reasoning problem. Increase ELO floor or pin to Opus/Gemini Pro. Models below ELO 1480 hallucinate significantly more on unfamiliar codebases.
 
 ### "The cost is too high for this ticket"
-→ Traycer should have routed it to `coding_simple`. If it's genuinely complex but budget-constrained, manually dispatch to the P3 agent (cheaper fallback). Or use a local Ollama model for the first draft, then a cloud model for review.
+→ It should have gone to `coding_simple`. If it's genuinely complex but budget-constrained, manually dispatch to the P3 agent (cheaper fallback). Or use a local Ollama model for the first draft, then a cloud model for review.
 
 ### "I need vision (screenshot of a bug, UI mockup)"
 → Only some models have `has_vision=1`. Currently: Claude Opus/Sonnet, Gemini Pro/Flash. GPT-5.x does NOT have vision in Kilo Gateway. Pin to Gemini Pro for vision tasks.
@@ -148,11 +148,13 @@ You can optimize for two of three. The third suffers.
 
 ## Refresh & Override
 
-### Automated pipeline (don't touch — runs daily)
-```bash
-# kilo_model_sync_startup.sh triggers this on WSL boot (once/day)
-python3 scripts/kilo_model_sync.py --sync
-```
+### Automated pipeline (don't touch)
+The engine's `/opt/ai-model-catalog/engine/daily_refresh.sh` rebuilds the catalog every day. The hub's
+`scripts/kilo-benchmarks/daily_refresh.sh` delivers it, but that delivery step is skipped while the pool is paused
+(D-181/D-182), and it never runs on a day the boot hook takes the daily lockfile first. So engine changes reach this
+guide and the hub's `kilo_agents.db` only on a day the hub cron runs with the pool unpaused
+(`docs/workflows/KILO_BENCHMARK_WORKFLOW.md`).
+`scripts/kilo_model_sync.py` still runs from the operator's crontab but is retired: nothing reads its output (D-415).
 
 ### Manual full refresh
 ```bash
@@ -172,6 +174,7 @@ reaches the roster above when the hub's `scripts/kilo-benchmarks/daily_refresh.s
 Edit `engine/assignments.json` directly. The next `compute_assignments.py` run will overwrite it — to make it permanent, also edit `role_configs.yaml` floors to ensure your preferred model qualifies.
 
 ### Live data queries
+These read the hub's `kilo_agents.db`, whose catalog rows stop at 2026-08-16 (see Source of Truth below), so "current" and "right now" mean that snapshot.
 ```bash
 # Current assignments
 sqlite3 scripts/kilo-benchmarks/kilo_agents.db \
@@ -209,8 +212,10 @@ python /opt/ai-model-catalog/engine/manage_blocked.py list
 
 | What | Where | Freshness |
 |---|---|---|
-| All models + pricing + benchmarks | `scripts/kilo-benchmarks/kilo_agents.db` | Auto-updated daily |
+| All models + pricing + benchmarks | `scripts/kilo-benchmarks/kilo_agents.db` | Frozen catalog: the engine's pre-Postgres SQLite file, catalog rows last updated 2026-08-16; a delivery re-copies the whole file (see Automated pipeline above); `build_task_baselines.py`, run by hand only (nothing schedules it), writes its `model_task_baseline` table, which the next delivery overwrites (`docs/workflows/KILO_BENCHMARK_WORKFLOW.md`) |
 | Role definitions + floors | `engine/role_configs.yaml` | Manual (stable) |
 | Current assignments | `engine/assignments.json` | On pipeline run |
-| Agent scripts on disk | `~/.traycer/cli-agents/*.sh` | On `generate_kilo_agents.py` |
-| Kilo CLI | `/usr/local/bin/kilo` (v7.3.1) | `npm update -g @kilocode/cli` |
+
+The Traycer CLI agent scripts (`~/.traycer/cli-agents/*.sh`) and the Kilo CLI are no longer sources: nothing regenerates
+those scripts since `generate_kilo_agents.py` left the daily run (D-415) and was archived (D-432), and the Kilo CLI
+retired on 2026-07-19.
