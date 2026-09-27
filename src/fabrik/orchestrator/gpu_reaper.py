@@ -24,7 +24,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from fabrik.drivers.runpod import RunPodClient, RunPodError
+from fabrik.drivers.runpod import RunPodClient
 from fabrik.orchestrator import gpu_rent, gpu_state
 
 logger = logging.getLogger(__name__)
@@ -185,7 +185,7 @@ def reap(
                 except Exception as e:
                     logger.warning("reaper: state mark_destroyed failed for %s: %s", sid, e)
             report["destroyed"].append(target)
-        except RunPodError as e:
+        except Exception as e:  # noqa: BLE001 — VastError/ModalError must not abort the rest
             report["errors"].append(
                 {
                     "resource_id": rid,
@@ -204,7 +204,7 @@ def reap(
             "session_id": f"reaper-{now.strftime('%Y%m%d-%H%M%S')}",
             "kind": "reaper",
             "workload": "reconcile",
-            "provider": "runpod",
+            "provider": provider_label,
             "success": len(report["errors"]) == 0,
             "checks": {
                 "lifetime_exceeded": len(report["lifetime_exceeded"]),

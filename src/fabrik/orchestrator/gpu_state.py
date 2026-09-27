@@ -280,9 +280,10 @@ def reconcile(client: Any, *, provider: str | None = None) -> dict[str, Any]:
     is set, ``in_state_not_live`` only considers sessions whose recorded
     ``provider`` matches — so Modal sessions don't get flagged as missing
     when the reconcile client is RunPod. ``lifetime_exceeded`` and
-    ``destroy_pending`` remain provider-agnostic (those checks read state
-    only and don't need a live API). When ``provider`` is None (legacy
-    single-provider call), all sessions are checked against the one client.
+    ``destroy_pending`` are scoped the same way: the reaper destroys those
+    entries with THIS provider's client, so another provider's resource id
+    must never reach it. When ``provider`` is None (legacy single-provider
+    call), all sessions are checked against the one client.
 
     This function does NOT destroy anything. ``gpu_reaper.reap()`` consumes
     this report when ``--auto-destroy`` is set.
@@ -332,18 +333,20 @@ def reconcile(client: Any, *, provider: str | None = None) -> dict[str, Any]:
             continue
         rid = rec.get("resource_id")
         rtype = rec.get("resource_type")
-        # in_state_not_live: only when this session belongs to the provider
-        # we're reconciling against. Mixing providers would falsely flag
-        # Modal pods as missing on a RunPod scan and vice versa.
-        if _matches_provider(rec):
-            if rtype == "pod" and rid not in live_pods:
-                report["in_state_not_live"].append(
-                    {"session_id": sid, "resource_id": rid, "type": "pod"}
-                )
-            elif rtype == "endpoint" and rid not in live_endpoints:
-                report["in_state_not_live"].append(
-                    {"session_id": sid, "resource_id": rid, "type": "endpoint"}
-                )
+        # Every category is scoped to the provider we're reconciling against:
+        # in_state_not_live would falsely flag Modal pods as missing on a RunPod
+        # scan, and lifetime_exceeded / destroy_pending feed the reaper, which
+        # destroys with THIS provider's client.
+        if not _matches_provider(rec):
+            continue
+        if rtype == "pod" and rid not in live_pods:
+            report["in_state_not_live"].append(
+                {"session_id": sid, "resource_id": rid, "type": "pod"}
+            )
+        elif rtype == "endpoint" and rid not in live_endpoints:
+            report["in_state_not_live"].append(
+                {"session_id": sid, "resource_id": rid, "type": "endpoint"}
+            )
         if rec.get("destroy_pending"):
             report["destroy_pending"].append({"session_id": sid, "resource_id": rid, "type": rtype})
         try:

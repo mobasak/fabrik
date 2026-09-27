@@ -34,9 +34,11 @@ What this is NOT
   ``torch.save``, etc.) is the workload's concern.
 - **Not a model registry**: there's no "production version" concept here.
   For that, point HuggingFace or a real registry at the same B2 prefix.
-- **Not transactional**: an interrupted upload leaves a partial object. The
-  ``load_latest_checkpoint`` resolver picks the highest-step COMPLETE
-  upload (verified via metadata/checksum), so partial ones are ignored.
+- **Not transactional**: an interrupted upload can leave a partial object.
+  ``load_latest_checkpoint`` trusts the ``_meta.json`` pointer, which is written
+  only after an upload returns. Its LIST fallback (no pointer) takes the
+  highest-step key WITHOUT any size or checksum check, so it can select a
+  partial upload.
 
 Phase 3 status
 ==============

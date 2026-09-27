@@ -3358,7 +3358,7 @@ def gpu():
     is_flag=True,
     help=(
         "(provider=auto only) Only providers offering true serverless are "
-        "considered (RunPod, Modal — not Vast yet)."
+        "considered (RunPod, Modal and Vast all publish one)."
     ),
 )
 @click.option(
@@ -3381,7 +3381,7 @@ def gpu():
 @click.option(
     "--image",
     default=None,
-    help="(pod-* only) Override container image. Defaults to RunPod PyTorch.",
+    help="(pod-* only) Override container image. Defaults to nvidia/cuda:12.4.1-runtime-ubuntu22.04.",
 )
 @click.option(
     "--cloud",

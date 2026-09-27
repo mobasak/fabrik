@@ -48,6 +48,8 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from fabrik.drivers.runpod import fabrik_endpoint_tag
+
 logger = logging.getLogger(__name__)
 
 SYSADMIN_ENV = Path("/opt/fabrik/.env.sysadmin")
@@ -382,10 +384,7 @@ class ModalClient:
             if a.get("state") == "stopped":
                 continue
             desc = a.get("description") or ""
-            env_tag = {}
-            if desc.startswith("fabrik-gpu-"):
-                # C4 tag-safety: synthesize env so reaper sees Fabrik apps
-                env_tag = {"FABRIK_SESSION_ID": desc.rsplit("-", 1)[-1]}
+            env_tag = fabrik_endpoint_tag(desc)  # the rule all three drivers share (C4)
             out.append(
                 {
                     "id": a["app_id"],
@@ -698,7 +697,7 @@ class ModalClient:
     def billing_pods(self, start: str | None = None, end: str | None = None) -> dict[str, Any]:
         # Modal exposes billing via dashboard, not SDK as of 0.65.x.
         # Phase 2 returns empty; cost reconciliation lives in
-        # gpu_rent._compute_actual_cost using wall-clock + HOURLY_USD.
+        # gpu_rent._compute_actual_cost using wall-clock + the Modal rate table.
         return {"pods": [], "_note": "Modal billing not yet SDK-accessible"}
 
     def billing_endpoints(self, start: str | None = None, end: str | None = None) -> dict[str, Any]:

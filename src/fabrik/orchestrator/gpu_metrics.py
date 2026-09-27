@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -49,10 +50,12 @@ def _escape_label(v: str) -> str:
 
 
 def _line(metric: str, labels: dict[str, str], value: float) -> str:
+    # The exposition format spells infinity "+Inf"/"-Inf"; Python's str() gives "inf".
+    shown = ("+Inf" if value > 0 else "-Inf") if math.isinf(value) else str(value)
     if labels:
         label_str = ",".join(f'{k}="{_escape_label(str(v))}"' for k, v in labels.items())
-        return f"{metric}{{{label_str}}} {value}"
-    return f"{metric} {value}"
+        return f"{metric}{{{label_str}}} {shown}"
+    return f"{metric} {shown}"
 
 
 def collect() -> dict[str, Any]:
@@ -109,9 +112,11 @@ def collect() -> dict[str, Any]:
         try:
             age_seconds = (now - datetime.fromisoformat(last_recon)).total_seconds()
         except ValueError:
-            age_seconds = -1.0
+            age_seconds = math.inf
     else:
-        age_seconds = -1.0
+        # Never reconciled: +Inf, so `gpu_rent_last_reconcile_age_seconds > 3600` fires.
+        # The old -1 sentinel sat below every threshold and silenced the alert.
+        age_seconds = math.inf
 
     return {
         "sessions_total": sessions_total,

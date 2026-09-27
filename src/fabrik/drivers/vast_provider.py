@@ -36,6 +36,8 @@ from typing import Any
 import httpx
 from dotenv import load_dotenv
 
+from fabrik.drivers.runpod import fabrik_endpoint_tag
+
 logger = logging.getLogger(__name__)
 
 VAST_API_BASE = "https://console.vast.ai/api/v0"
@@ -748,9 +750,7 @@ class VastClient:
         out: list[dict[str, Any]] = []
         for ep in results:
             name = ep.get("endpoint_name") or ""
-            env_tag = {}
-            if name.startswith("fabrik-gpu-"):
-                env_tag = {"FABRIK_SESSION_ID": name.rsplit("-", 1)[-1]}
+            env_tag = fabrik_endpoint_tag(name)  # the rule all three drivers share (C4)
             out.append(
                 {
                     "id": str(ep.get("endpoint_id") or ep.get("id")),

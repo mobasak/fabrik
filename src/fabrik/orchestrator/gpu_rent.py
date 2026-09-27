@@ -7,7 +7,7 @@ Public API
 
 - :func:`rent` — one-shot rent. Provisions, optionally runs ``work_fn``,
   always destroys (unless ``keep_warm_after_use`` or ``keep_on_failure``).
-- :class:`rented` — context-manager wrapper around :func:`rent`.
+- :func:`rented` — context manager with the same guards and teardown as :func:`rent`.
 - :class:`GPUBudgetExceededError` — raised by ``rent()`` BEFORE any provider
   create call when either the per-call ``--max-cost`` or the daily
   ``MAX_DAILY_GPU_COST`` envelope would be exceeded.
@@ -519,8 +519,9 @@ def _create_serverless_endpoint(
     - **Vast.ai**: POST ``/endptjobs/`` then POST ``/workergroups/``.
 
     The endpoint name is the same shape across providers:
-    ``fabrik-gpu-<workload>-<sid_short>`` so the reaper's C4 tag-safety
-    invariant catches them all.
+    ``fabrik-gpu-<workload>-<sid_short>``. Each driver's ``list_endpoints``
+    derives the ``FABRIK_SESSION_ID`` env tag from that name, which is what
+    ``gpu_state.reconcile`` reads to tell a Fabrik orphan from a foreign endpoint.
     """
     name = f"fabrik-gpu-{workload}-{session_id[-6:]}"
 
@@ -637,21 +638,120 @@ def _record_actual_cost(
         logger.exception("gpu_rent: failed to record actual cost in state")
 
 
-def _compute_actual_cost(kind: str, wall_clock_seconds: float) -> float:
-    """Cost actually consumed by the session.
+def _compute_actual_cost(kind: str, wall_clock_seconds: float, *, provider: str) -> float:
+    """Cost booked for the session: the PROVIDER's hourly rate * (wall_clock / 3600), no rounding.
 
-    For pods: hourly rate * (wall_clock / 3600), no rounding.
-    For reused serverless endpoints: $0 — the endpoint persists scale-to-zero,
-    we didn't pay for the rental session itself (per-request billing happens
-    via RunPod's own metering, not our control plane).
-    For created serverless endpoints: also $0 for the session (they bill
-    per-request); the cost shows up only when requests fire.
+    Serverless is booked at the same per-provider budget rate the estimate uses: the control
+    plane cannot see per-request billing, and a $0 booking let serverless sessions escape the
+    MAX_DAILY_GPU_COST guard and the cost metric entirely. The booking is a budget figure, not
+    an invoice — billing reconciliation (``gpu_state.record_actual_cost``) may overwrite it.
     """
-    if kind == "serverless":
+    rate = HOURLY_USD_BY_PROVIDER.get(provider, {}).get(kind)
+    if rate is None:
         return 0.0
-    if kind not in HOURLY_USD:
-        return 0.0
-    return round(HOURLY_USD[kind] * (wall_clock_seconds / 3600.0), 6)
+    return round(rate * (wall_clock_seconds / 3600.0), 6)
+
+
+def _preflight(
+    kind: str,
+    *,
+    provider: str,
+    max_lifetime_hours: int,
+    max_cost_usd: float,
+    keep_warm_after_use: bool,
+) -> tuple[float, float, float, UsageTracker]:
+    """Every guard that fires BEFORE a provider call, shared by :func:`rent` and :func:`rented`.
+
+    Returns ``(estimate, today_gpu_spend, daily_cap, tracker)``. Raises ``NotImplementedError``
+    for an unknown kind/provider, ``ValueError`` for keep-warm on a Modal pod (an ephemeral
+    ``app.run()`` context that dies with the process, so the session would stay ``active``
+    forever), and :class:`GPUBudgetExceededError` for either cost guard.
+    """
+    if kind not in ALL_KINDS:
+        raise NotImplementedError(f"unknown gpu kind {kind!r}; valid: {sorted(ALL_KINDS)}")
+    if provider not in PROVIDERS:
+        raise NotImplementedError(f"unknown gpu provider {provider!r}; valid: {sorted(PROVIDERS)}")
+    if keep_warm_after_use and provider == "modal" and kind != "serverless":
+        raise ValueError(
+            "keep_warm_after_use is not supported for Modal pods: the pod is an ephemeral "
+            "app.run() context that stops with this process. Use a serverless endpoint instead."
+        )
+    est = estimate_cost(kind, max_lifetime_hours, provider=provider)
+    if est > max_cost_usd:
+        raise GPUBudgetExceededError(
+            f"estimated cost ${est} exceeds --max-cost ${max_cost_usd} (kind {kind})"
+        )
+    try:
+        daily_cap = float(os.environ.get("MAX_DAILY_GPU_COST", "50"))
+    except (TypeError, ValueError):
+        daily_cap = 50.0
+    tracker = UsageTracker()
+    today_gpu_spend = tracker.today_total(kind="gpu")
+    if today_gpu_spend + est > daily_cap:
+        raise GPUBudgetExceededError(
+            f"daily GPU spend ${today_gpu_spend:.2f} + estimate ${est:.2f} "
+            f"would exceed MAX_DAILY_GPU_COST=${daily_cap:.2f}"
+        )
+    return est, today_gpu_spend, daily_cap, tracker
+
+
+def _finalize(
+    client: Any,
+    report: dict[str, Any],
+    resource: dict[str, Any] | None,
+    *,
+    keep: bool,
+    tracker: UsageTracker,
+    wall: float,
+) -> None:
+    """The one teardown both entry points run in their ``finally``.
+
+    Destroys by the RECORDED id when ``resource`` is None (create succeeded, the RUNNING wait
+    raised — the G-LIVE-5 orphan), catches EVERY provider error on destroy so the audit line
+    and the ``destroy_pending`` flag are always written, then books the cost whenever a resource
+    id exists — the orphan path included, since that pod billed until the destroy.
+    """
+    session_id = report["session_id"]
+    kind = report["kind"]
+    provider = report["provider"]
+    report["wall_clock_seconds"] = wall
+    reuse_flag = bool(resource and resource.get("_fabrik_reuse"))
+    cost_actual = _compute_actual_cost(kind, wall, provider=provider)
+    report["cost_actual_usd"] = cost_actual
+    report["reused_endpoint"] = reuse_flag
+
+    destroy_id = (resource or {}).get("id") or report.get("resource_id")
+    if destroy_id and not keep:
+        try:
+            _destroy(
+                client,
+                resource_type=report["resource_type"],
+                resource_id=destroy_id,
+                reuse=reuse_flag,
+            )
+            gpu_state.mark_destroyed(session_id, cost_actual_usd=cost_actual)
+            report["checks"]["destroyed"] = "skipped_reused" if reuse_flag else True
+        except Exception as e:  # noqa: BLE001 — RunPodError, VastError, ModalError alike
+            logger.exception("gpu_rent destroy failed for %s", session_id)
+            report["checks"]["destroyed"] = False
+            report["checks"]["destroy_error"] = repr(e)
+            gpu_state.mark_destroy_pending(session_id)
+    elif keep and destroy_id:
+        report["checks"]["kept_for_inspection"] = True
+
+    report["ended_at"] = datetime.now(UTC).isoformat()
+    write_report(report)
+
+    if destroy_id and cost_actual > 0:
+        _record_actual_cost(
+            tracker,
+            session_id=session_id,
+            kind=kind,
+            workload=report["workload"],
+            provider=provider,
+            wall_clock_seconds=wall,
+            cost_actual_usd=cost_actual,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -715,29 +815,14 @@ def rent(
         Called as ``work_fn(resource_dict)`` once the resource is RUNNING.
         ``resource_dict`` is the full provider response (Pod or Endpoint).
     """
-    if kind not in ALL_KINDS:
-        raise NotImplementedError(f"unknown gpu kind {kind!r}; valid: {sorted(ALL_KINDS)}")
-    if provider not in PROVIDERS:
-        raise NotImplementedError(f"unknown gpu provider {provider!r}; valid: {sorted(PROVIDERS)}")
-
-    # --- Cost guards (FIRE BEFORE PROVIDER CALL) -----------------------
-    est = estimate_cost(kind, max_lifetime_hours, provider=provider)
-    if est > max_cost_usd:
-        raise GPUBudgetExceededError(
-            f"estimated cost ${est} exceeds --max-cost ${max_cost_usd} (kind {kind})"
-        )
-    daily_cap_raw = os.environ.get("MAX_DAILY_GPU_COST", "50")
-    try:
-        daily_cap = float(daily_cap_raw)
-    except (TypeError, ValueError):
-        daily_cap = 50.0
-    tracker = UsageTracker()
-    today_gpu_spend = tracker.today_total(kind="gpu")
-    if today_gpu_spend + est > daily_cap:
-        raise GPUBudgetExceededError(
-            f"daily GPU spend ${today_gpu_spend:.2f} + estimate ${est:.2f} "
-            f"would exceed MAX_DAILY_GPU_COST=${daily_cap:.2f}"
-        )
+    # --- Guards (FIRE BEFORE PROVIDER CALL) ----------------------------
+    est, today_gpu_spend, daily_cap, tracker = _preflight(
+        kind,
+        provider=provider,
+        max_lifetime_hours=max_lifetime_hours,
+        max_cost_usd=max_cost_usd,
+        keep_warm_after_use=keep_warm_after_use,
+    )
 
     # --- Identifiers + dry-run early return ----------------------------
     ts = datetime.now(UTC)
@@ -854,59 +939,15 @@ def rent(
         report["error"] = repr(e)
         logger.warning("gpu_rent %s failed: %s", session_id, e)
     finally:
-        wall = round(time.monotonic() - start, 1)
-        report["wall_clock_seconds"] = wall
-
-        # Cost actually consumed
-        reuse_flag = bool(resource and resource.get("_fabrik_reuse"))
-        cost_actual = _compute_actual_cost(kind, wall)
-        report["cost_actual_usd"] = cost_actual
-        report["reused_endpoint"] = reuse_flag
-
-        # Decide whether to keep the resource alive.
-        # CRITICAL: if create_pod succeeded but wait_for_running raised
-        # (poll-trap, timeout), resource is None BUT report["resource_id"]
-        # is recorded. Use the recorded ID to destroy — otherwise the pod
-        # is orphaned and bills until manually destroyed (G-LIVE-5 bug).
         keep = (failed and keep_on_failure) or (report["success"] and keep_warm_after_use)
-        destroy_id = (resource or {}).get("id") or report.get("resource_id")
-        if destroy_id and not keep:
-            try:
-                _destroy(
-                    client,
-                    resource_type=report["resource_type"],
-                    resource_id=destroy_id,
-                    reuse=reuse_flag,
-                )
-                if reuse_flag:
-                    report["checks"]["destroyed"] = "skipped_reused"
-                    gpu_state.mark_destroyed(session_id, cost_actual_usd=cost_actual)
-                else:
-                    gpu_state.mark_destroyed(session_id, cost_actual_usd=cost_actual)
-                    report["checks"]["destroyed"] = True
-            except Exception as e:  # noqa: BLE001
-                # Catch ALL provider errors (RunPodError, VastError, ModalError)
-                # — never let destroy failures escape the finally block.
-                logger.exception("gpu_rent destroy failed for %s", session_id)
-                report["checks"]["destroyed"] = False
-                report["checks"]["destroy_error"] = repr(e)
-                gpu_state.mark_destroy_pending(session_id)
-        elif keep and destroy_id:
-            report["checks"]["kept_for_inspection"] = True
-
-        report["ended_at"] = datetime.now(UTC).isoformat()
-        write_report(report)
-
-        if resource is not None and cost_actual > 0:
-            _record_actual_cost(
-                tracker,
-                session_id=session_id,
-                kind=kind,
-                workload=workload,
-                provider=provider,
-                wall_clock_seconds=wall,
-                cost_actual_usd=cost_actual,
-            )
+        _finalize(
+            client,
+            report,
+            resource,
+            keep=keep,
+            tracker=tracker,
+            wall=round(time.monotonic() - start, 1),
+        )
 
     return report
 
@@ -953,28 +994,13 @@ def rented(
     style. Instead, ``rented()`` duplicates the try/finally lifecycle here
     (smaller scope: no work_fn callback, but otherwise identical guards).
     """
-    if kind not in ALL_KINDS:
-        raise NotImplementedError(f"unknown gpu kind {kind!r}; valid: {sorted(ALL_KINDS)}")
-    if provider not in PROVIDERS:
-        raise NotImplementedError(f"unknown gpu provider {provider!r}")
-
-    # Cost guards (same as rent())
-    est = estimate_cost(kind, max_lifetime_hours)
-    if est > max_cost_usd:
-        raise GPUBudgetExceededError(
-            f"estimated cost ${est} exceeds --max-cost ${max_cost_usd} (kind {kind})"
-        )
-    try:
-        daily_cap = float(os.environ.get("MAX_DAILY_GPU_COST", "50"))
-    except (TypeError, ValueError):
-        daily_cap = 50.0
-    tracker = UsageTracker()
-    today_gpu_spend = tracker.today_total(kind="gpu")
-    if today_gpu_spend + est > daily_cap:
-        raise GPUBudgetExceededError(
-            f"daily GPU spend ${today_gpu_spend:.2f} + estimate ${est:.2f} "
-            f"would exceed MAX_DAILY_GPU_COST=${daily_cap:.2f}"
-        )
+    est, _today, _cap, tracker = _preflight(
+        kind,
+        provider=provider,
+        max_lifetime_hours=max_lifetime_hours,
+        max_cost_usd=max_cost_usd,
+        keep_warm_after_use=keep_warm_after_use,
+    )
 
     ts = datetime.now(UTC)
     session_id = _make_session_id(kind)
@@ -1058,41 +1084,12 @@ def rented(
         report["error"] = repr(e)
         raise
     finally:
-        wall = round(time.monotonic() - start, 1)
-        report["wall_clock_seconds"] = wall
-        reuse_flag = bool(resource and resource.get("_fabrik_reuse"))
-        cost_actual = _compute_actual_cost(kind, wall)
-        report["cost_actual_usd"] = cost_actual
-        report["reused_endpoint"] = reuse_flag
-
         keep = (failed and keep_on_failure) or (report["success"] and keep_warm_after_use)
-        if resource is not None and not keep:
-            try:
-                _destroy(
-                    client,
-                    resource_type=resource_type,
-                    resource_id=resource["id"],
-                    reuse=reuse_flag,
-                )
-                gpu_state.mark_destroyed(session_id, cost_actual_usd=cost_actual)
-                report["checks"]["destroyed"] = "skipped_reused" if reuse_flag else True
-            except RunPodError as e:
-                logger.exception("rented() destroy failed for %s", session_id)
-                report["checks"]["destroyed"] = False
-                report["checks"]["destroy_error"] = str(e)
-                gpu_state.mark_destroy_pending(session_id)
-        elif keep and resource is not None:
-            report["checks"]["kept_for_inspection"] = True
-
-        report["ended_at"] = datetime.now(UTC).isoformat()
-        write_report(report)
-        if resource is not None and cost_actual > 0:
-            _record_actual_cost(
-                tracker,
-                session_id=session_id,
-                kind=kind,
-                workload=workload,
-                provider=provider,
-                wall_clock_seconds=wall,
-                cost_actual_usd=cost_actual,
-            )
+        _finalize(
+            client,
+            report,
+            resource,
+            keep=keep,
+            tracker=tracker,
+            wall=round(time.monotonic() - start, 1),
+        )

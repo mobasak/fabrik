@@ -99,7 +99,7 @@ Provision a GPU, optionally use it, **always destroy at exit**.
 | `--needs-serverless` | off | (auto only) Restrict to providers publishing a serverless tier — RunPod, Modal, and Vast all qualify (Phase 3.5), so this filter currently excludes no one. |
 | `--max-lifetime` | `1` (hours) | Reaper destroys past this |
 | `--max-cost` | `5.0` (USD) | Refused BEFORE provider create if estimate exceeds |
-| `--keep-warm-after-use` | off | Don't destroy after successful work_fn |
+| `--keep-warm-after-use` | off | Don't destroy after successful work_fn. Refused for `--provider modal --kind pod-*` (see below) |
 | `--keep-on-failure` | off | Leave pod alive if work_fn raised, for inspection |
 | `--dry-run` | off | Print the plan + cost guard result, no API call |
 | `--image` | NVIDIA CUDA runtime | (pod-* only) Override container image |
@@ -188,9 +188,9 @@ fabrik gpu destroy gpu-pod-rtx-4090-20260616-204119-302ea1 -y
 # → reads provider=modal, calls ModalClient.destroy_pod(fc-id)
 ```
 
-**Critical safety (C4)**: `reconcile --auto-destroy` only touches pods carrying `FABRIK_SESSION_ID` env tag. **Foreign pods (not created by Fabrik) are NEVER destroyed — on ANY of the three accounts.** A foreign-count of `1` on RunPod (your manually-created SmolLM2 serverless endpoint) is expected and intentional.
+**Critical safety (C4)**: `reconcile --auto-destroy` only touches pods and endpoints carrying the `FABRIK_SESSION_ID` env tag. Pods get it at create; endpoints hold no env of their own, so every driver's `list_endpoints` derives it from the `fabrik-gpu-<workload>-<sid6>` name `gpu_rent` gives them. `lifetime_exceeded` and `destroy_pending` are scoped to the provider being reconciled, so a session is only ever destroyed with its own provider's client. **Foreign pods (not created by Fabrik) are NEVER destroyed — on ANY of the three accounts.** A foreign-count of `1` on RunPod (your manually-created SmolLM2 serverless endpoint) is expected and intentional.
 
-**Modal `--keep-warm-after-use` limitation**: Modal "pods" are really FunctionCalls inside an `app.run()` context. The context is process-scoped — when the CLI exits, the context closes regardless. So `--keep-warm-after-use` does NOT work for `--provider modal --kind pod-*` (the context dies anyway). Use Modal serverless (Phase 3) for persistent endpoints. RunPod + Vast pods CAN survive the CLI exit and honor `--keep-warm-after-use`.
+**Modal `--keep-warm-after-use` limitation**: Modal "pods" are really FunctionCalls inside an `app.run()` context. The context is process-scoped — when the CLI exits, the context closes regardless. So `--keep-warm-after-use` is REFUSED for `--provider modal --kind pod-*`, before any create call: the context would die anyway, and the session would stay `active` in state forever. Use Modal serverless (Phase 3) for persistent endpoints. RunPod + Vast pods CAN survive the CLI exit and honor `--keep-warm-after-use`.
 
 ---
 
@@ -198,9 +198,11 @@ fabrik gpu destroy gpu-pod-rtx-4090-20260616-204119-302ea1 -y
 
 Two guards fire BEFORE any provider call:
 
-1. **Per-call** (`--max-cost`): refuses if `estimate_cost(kind, max_lifetime) > max-cost`.
+1. **Per-call** (`--max-cost`): refuses if `estimate_cost(kind, max_lifetime, provider=…) > max-cost`, priced at the chosen provider's rate.
 2. **Daily envelope** (`MAX_DAILY_GPU_COST` env): refuses if
    `today's GPU spend + estimate > MAX_DAILY_GPU_COST`.
+
+`rent()` and `rented()` run the same guards and the same teardown. Today's spend is what each session booked: the provider's hourly rate × wall-clock. Serverless is booked at the same per-provider budget rate the estimate uses, because the control plane cannot see per-request billing. That booking is a budget figure, not an invoice.
 
 When tripped, `GPUBudgetExceededError` is raised (the CLI renders it as
 `✗ budget exceeded: <msg>`); no provider API call has been made.
@@ -274,7 +276,7 @@ the node-exporter textfile collector. Add panels in Grafana for:
 - `gpu_rent_active{provider="runpod"}` — live count
 - `rate(gpu_rent_cost_usd_total[1d])` — daily spend
 - `gpu_rent_destroy_pending` — orphan risk (alert if > 0)
-- `gpu_rent_last_reconcile_age_seconds` — alert if > 3600 (reaper not running)
+- `gpu_rent_last_reconcile_age_seconds` — alert if > 3600 (reaper not running). A state that was never reconciled reads `+Inf`, so the same alert fires. A timer that was never installed writes no textfile at all, so also alert on `absent()` of the series.
 
 ### Scaffolding a new GPU service (Phase 5)
 

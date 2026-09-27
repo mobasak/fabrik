@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -77,6 +78,23 @@ class RunPodError(RuntimeError):
         super().__init__(message)
         self.status = status
         self.body = body
+
+
+# gpu_rent names every endpoint `fabrik-gpu-<workload>-<sid6>`, sid6 being the last six characters of
+# the session id — `uuid4().hex[:6]`, so six lowercase hex digits. Endpoints carry no env of their own,
+# so this name is the ONLY ownership mark reconcile can read, and the reaper destroys what it marks.
+# Anything looser (the bare prefix) tags a hand-named `fabrik-gpu-experiment` as ours and reaps it (C4).
+_FABRIK_ENDPOINT_NAME = re.compile(r"fabrik-gpu-.+-([0-9a-f]{6})")
+
+
+def fabrik_endpoint_tag(name: str | None) -> dict[str, str]:
+    """The ``FABRIK_SESSION_ID`` env tag a Fabrik-created endpoint name implies, or ``{}``.
+
+    Shared by the RunPod, Vast and Modal drivers' ``list_endpoints`` so all three classify an
+    endpoint the same way.
+    """
+    m = _FABRIK_ENDPOINT_NAME.fullmatch(name or "")
+    return {"FABRIK_SESSION_ID": m.group(1)} if m else {}
 
 
 class RunPodClient:
@@ -290,8 +308,19 @@ class RunPodClient:
 
     # --- Serverless endpoint API -------------------------------------------
     def list_endpoints(self) -> list[dict[str, Any]]:
+        """List serverless endpoints, each carrying the ``env`` tag reconcile reads.
+
+        RunPod endpoints hold no env of their own (env lives on the template), so the
+        ``FABRIK_SESSION_ID`` tag is derived from the name ``gpu_rent`` gives every endpoint
+        (:func:`fabrik_endpoint_tag`, shared with the Vast and Modal drivers). Without it, a
+        Fabrik endpoint missing from state read as foreign and was never reaped.
+        """
         result = self._request("GET", "/endpoints")
-        return result if isinstance(result, list) else result.get("endpoints", [])
+        endpoints = result if isinstance(result, list) else result.get("endpoints", [])
+        return [
+            {**ep, "env": {**(ep.get("env") or {}), **fabrik_endpoint_tag(ep.get("name"))}}
+            for ep in endpoints
+        ]
 
     def get_endpoint(self, endpoint_id: str) -> dict[str, Any]:
         return self._request("GET", f"/endpoints/{endpoint_id}")

@@ -1051,7 +1051,7 @@ def test_vast_list_endpoints_handles_singular_result_shape(monkeypatch):
         # Singular shape with a single endpoint inside `result`
         return {
             "success": True,
-            "result": {"id": 555, "endpoint_name": "fabrik-gpu-singular-aaa"},
+            "result": {"id": 555, "endpoint_name": "fabrik-gpu-singular-aaa111"},
         }
 
     monkeypatch.setattr(VastClient, "_request", fake_request_singular)
