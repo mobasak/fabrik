@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T23:40:13.397549Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-d3e967c6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M37SPA86MGV4Z7DDJFY4E4DJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "addendum to 01M37RTQ0NX8MJQAAXAHHMG723 — the registrar makes the app role the DB owner, so the audit table can never be append-only"
+}

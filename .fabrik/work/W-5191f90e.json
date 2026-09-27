@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T23:40:13.298067Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5191f90e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M37RV3WG528WN7ZG6HRHCCF3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "correction to 01M37RTQ0NX8MJQAAXAHHMG723 — the count is 37 of 41 project repos, not 39 of 43"
+}
