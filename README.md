@@ -710,6 +710,11 @@ services:  # Generates pages automatically
 
 ### 8. Development Workspace (`.droid/`)
 
+> **Mostly history:** the Kilo CLI and Traycer writers this section names are retired (Kilo CLI 2026-07-19;
+> `kilo_code_review.py` was archived in 7a8dc2810 and `generate_kilo_agents.py` by D-432; `kilo_dispatch.py` and
+> `kilo_consult.py` were deleted in 73bde59a5). Read the Kilo/Traycer rows as how `.droid/` was filled, not as live
+> writers — except the hub's own `/opt/fabrik/.droid/kilo_model_sync.log`, which the operator's cron still writes.
+
 Every project scaffolded by `fabrik scaffold` gets a `.droid/` directory — it's part of `SHARED_DIRS` in `scaffold.py`, meaning all 11 scaffold types (python-api, saas-skeleton, node-api, wordpress, etc.) receive it. `fabrik fix` also creates/updates it on existing projects. The directory is the runtime workspace for Kilo CLI, Traycer, and the development tracker. Only `review-context/` and `traycer-reports/` are git-tracked; everything else is gitignored runtime state.
 
 **How it connects to the workflow:**
@@ -723,7 +728,7 @@ The 9-step development flow (Section "The Complete Development Flow" above) gene
 - **Traycer dispatch:** `kilo_dispatch.py` writes analysis reports to `traycer-reports/latest.md` after dispatched review sessions
 - **Multi-model consultations:** `kilo_consult.py` writes architecture/plan consultation results (querying multiple LLMs in parallel) to `consultations/`
 - **Docs enforcement:** `docs_updater.py` tracks which documentation was auto-generated in `docs_log/` and queues pending generation jobs in `docs_queue/`
-- **Model sync (daily cron):** `kilo_model_sync.py --sync` checks which LLM providers are available and logs to `kilo_model_sync.log` — ensures Kilo agent scripts always reference reachable models
+- **Model sync (retired, still on the operator's crontab):** `kilo_model_sync.py --sync` logs to `kilo_model_sync.log`, but nothing reads its output any more (D-415) — the Kilo agent scripts it kept current are retired
 
 | Path | Written by | What it stores |
 |------|-----------|---------------|
@@ -736,7 +741,7 @@ The 9-step development flow (Section "The Complete Development Flow" above) gene
 | `docs_queue/` | `docs_updater.py` | Pending doc generation jobs |
 | `dev_tracker.db` | `dev_tracker.py` | SQLite — gate results, review costs, issues, workflow step events |
 | `kilo_usage.jsonl` | Kilo agent `.sh` scripts | Append-only JSONL — token counts + cost per review invocation |
-| `kilo_model_sync.log` | `kilo_model_sync_startup.sh` | Daily model availability sync log (active — written by cron) |
+| `kilo_model_sync.log` | the operator's cron (`kilo_model_sync.py … >> .droid/kilo_model_sync.log`) and the `~/.bashrc` hook (`kilo_model_sync_startup.sh`) | Model sync log — still written by the operator's cron, read by nothing (retired, D-415) |
 | `kilo_metrics.jsonl` | `kilo_code_review.py` | Reserved metrics file (schema exists, not yet actively written) |
 
 **Querying the tracker:**

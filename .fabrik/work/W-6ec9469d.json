@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T09:43:15.508603Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-6ec9469d",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Correct the header to name the ~/.bashrc caller and point at D-415/D-432; one-line comment edit, run /fabrik-review-scoped",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "scripts/kilo_model_sync_startup.sh:2 header says 'Zero runtime callers … do not use', but D-432 (docs/DECISIONS.md:18) and kilo_model_sync.py:3 say the operator's ~/.bashrc hook still runs it — a cleanup reading only the header would delete a live script (found in the W-2704d8cc review)"
+}

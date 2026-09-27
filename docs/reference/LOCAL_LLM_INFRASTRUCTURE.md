@@ -635,6 +635,11 @@ python /opt/ai-model-catalog/engine/kilo_agents_db.py ollama-status
 ```
 
 ### IDE Integration (Windsurf/Cascade)
+
+> **Retired:** everything in this section is history. Windsurf Cascade retired on 2026-07-19, the wrapper scripts it
+> names left `scripts/` with the catalog extraction (73bde59a5), and nothing regenerates the `~/.traycer/cli-agents/`
+> scripts they called (D-415, D-432).
+
 - **Manual selection**: Choose model in IDE settings
 - **Auto-routing**: System automatically picks agent based on task type
 - **Hardware aware**: Automatically uses appropriate model based on available VRAM/RAM

@@ -34,7 +34,7 @@ Run `crontab -l` to view. Every entry is documented below. **Schedule cell shows
 | `30 3 * * *` (03:30 daily) | `/opt/fabrik/scripts/dr_env_backup.sh` | DR mirror of credentials (`/opt/fabrik/.env`, `vps:.env.sysadmin`, `vps2/vps3:.env` + `.restic-password`) to private GitHub repo at `/opt/fabrik-dr-store`. W9 of fleet-hardening. Also triggered change-driven by `fabrik-dr-watcher.service`. |
 | `@reboot` (+60s sleep) | `/opt/fabrik/scripts/dr_env_backup.sh` | Catch-up DR backup after WSL boots. |
 | `0 4 * * 0` (Sun 04:00) | `/opt/fabrik/scripts/dr_env_recovery_test.sh` | Weekly self-test: reads `/opt/fabrik-dr-store/env/latest`, extracts restic + B2 creds, confirms B2 restic repo is readable via Backrest's in-container restic. |
-| `59 11 * * *` (11:59 daily) | `cd /opt/fabrik && python3 scripts/kilo_model_sync.py --sync` | Daily Kilo model sync (added 2026-03-09). |
+| `59 11 * * *` (11:59 daily) | `cd /opt/fabrik && python3 scripts/kilo_model_sync.py --sync >> .droid/kilo_model_sync.log 2>&1` | **RETIRED 2026-09-25** (D-415) — Kilo model sync (added 2026-03-09); its output is read by nothing, and the line stays until the operator removes it. |
 | `0 3 * * 0` (Sun 03:00) | `/home/ozgur/.local/bin/cache-prune.sh` | Weekly cache cap — clears regenerable download/build caches only when they exceed a threshold; never touches `~/.local` or source/data. |
 | `17 5 * * *` | `find ~/.claude-youtube-headless/projects -type f -mtime +1 -delete` | Prunes headless-Claude session files older than 1 day. |
 | `40 * * * *` | `/opt/fabrik/scripts/ci_fix_dispatcher.py` | Hourly CI auto-fix net: polls GitHub for failed runs and dispatches a local coder-AI fix. Logs to `~/.local/state/ci-fix/cron.log`. |
