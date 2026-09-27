@@ -24,28 +24,28 @@ The audit log is MANDATORY in every project, whatever its scaffold type. "Proper
 1. **Vendored** — `cp -r /opt/fabrik-lib/app-audit-log <project>/libs/audit_log` (vendor-don't-import).
 2. **The table in the project's schema** — `libs/audit_log/schema.sql` folded into the project's own
    `db/schema.sql` (the backend's, e.g. `server/db/schema.sql`, where the project has one). ⚠️ Append-only is a
-   ROLE-SEPARATION property, not a grant: Fabrik's registrar makes the app's role the database OWNER, and an
-   owner can always re-grant itself `DELETE`, so the module's `REVOKE UPDATE, DELETE` cannot bind it. Until the
-   registrar provisions a separate non-owning app role (filed to fleet), the hash chain is tamper-EVIDENCE, not
-   tamper-proof — say so in the project's `docs/COMPLIANCE.md`, and never call the table append-only in a
-   compliance claim. Where the watchdog sidecar is enabled, the registrar's `<db>_wd_rw` role also gets
-   `UPDATE, DELETE` on every table by default privileges, `audit_log` included — run
-   `REVOKE UPDATE, DELETE ON audit_log FROM <db>_wd_rw` when you fold the table in — and again after every registrar
-   provisioning run, which re-grants it; where the watchdog is enabled (the role exists only
-   there) the weekly job checks `has_table_privilege('<db>_wd_rw', 'audit_log', 'UPDATE') OR
-   has_table_privilege('<db>_wd_rw', 'audit_log', 'DELETE')` and treats TRUE as an incident (also filed to fleet).
+   ROLE-SEPARATION property, not a grant: an owner can always re-grant itself `DELETE`. The registrar supplies the
+   separation — `fabrik apply` mints the non-owner runtime role `<db>_app`, keeps `audit_log` owned by the database
+   owner and, on every apply, revokes `UPDATE, DELETE, TRUNCATE, TRIGGER, REFERENCES` on it from the app, `<db>_wd_rw`
+   and the group roles (`drivers/postgres.py::ensure_app_role`). The table is append-only for the app once the
+   project is cut over — `shape.database_url_app_role: true` points `DATABASE_URL` at `<db>_app` and adds
+   `DATABASE_URL_OWNER`; before that cutover the app still connects as the owner and the hash chain is tamper-EVIDENCE
+   only — say so in the project's `docs/COMPLIANCE.md` and never call the table append-only in a compliance claim.
+   The scaffolded weekly job (item 5) also checks the table's ownership and privileges and logs a grant that came
+   back as an incident.
 3. **Every sensitive operation recorded** — the vocabulary below: auth, billing, admin actions on user
    data, privacy rights and consent, and autonomous watchdog actions. A client-only surface (extension,
    mobile, desktop or static page) records through the backend it calls, never with a client-side write.
-4. **Retention scheduled** — `data_retention.sql` from the project's scheduler, as the owner role (the app's
-   role today; `<db>_wd_rw` can delete too until revoked). The watchdog sidecar does NOT run it, whatever the module's README and
+4. **Retention scheduled** — `data_retention.sql` from the project's scheduler, as the database OWNER
+   (`DATABASE_URL_OWNER`), which is how the scaffolded job connects. The watchdog sidecar does NOT run it, whatever the module's README and
    `data_retention.sql` header say (filed to fabrik-lib); register it yourself.
 5. **Weekly verification** — `verify_chain(conn, since=<ts of the LAST row the previous run verified>)` from the
    scheduler: `verify_chain` skips the pointer check of the first row in its window, so starting at the previous
    run's last row makes every NEW row's pointer checked. A non-empty result is an incident (§ Hash-Chain Verification).
 
-No scaffold type emits any of this yet (every emitted `db/schema.sql` lacks the table — filed to fleet), so
-in a new project it is the first backend ticket; in an existing one it is owed now.
+Every scaffold type that has a database emits items 1, 2, 4 and 5 (`scaffold.py`: the vendored module, the table
+folded into its `db/schema.sql`, and the retention and weekly verification jobs — D-409); item 3 is always the
+project's own work. An existing project scaffolded before that owes all five now.
 
 **Per type:** the Python-backed types (`saas-skeleton`, `python-api`, `python-api-gpu`, `file-worker`, and the `server/` that `office-extension`, `chrome-extension`, `mobile-app` and `static-site`
 emit) vendor the module as above. `node-api` and `file-api` (both Node) have no fabrik-lib port yet (filed to fabrik-lib); until it lands
@@ -175,8 +175,8 @@ fabrik-lib). Until it does, a project running the sidecar records them from its 
 
 ## Retention Policy
 
-**Default TTL: 12 months from `ts`.** Apply via `data_retention.sql` from your project's scheduler, as the owner
-role (the app's role today — § Every project has it (operator ruling 2026-09-23, D-368)); the watchdog sidecar does not run it.
+**Default TTL: 12 months from `ts`.** Apply via `data_retention.sql` from your project's scheduler, as the database
+owner (`DATABASE_URL_OWNER` — § Every project has it (operator ruling 2026-09-23, D-368; the app role, D-385)); the watchdog sidecar does not run it.
 
 **Longer periods — keep for the legal period, then purge (never indefinitely):**
 

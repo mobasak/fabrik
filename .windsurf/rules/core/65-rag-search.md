@@ -68,7 +68,7 @@ Apply for instant keyword search: product catalogs, documentation, autocomplete,
 - Always use **HNSW** indexes. Do not use IVFFlat — it requires manual rebuilds to maintain recall.
 - Build parameters: `WITH (m = 16, ef_construction = 64)` — pgvector's own defaults, and what `migration.sql` writes; state them anyway so a hand-written index cannot silently take different ones.
 - Query-time tuning: `hnsw.ef_search = 40` (pgvector's default) for interactive latency, `200` for analytical background jobs — the module's `rag_search(…, ef_search_val)` sets it per call with `SET LOCAL`.
-- **Filtered queries need iterative scans.** With approximate indexes the `WHERE` filter is applied AFTER the index scan, so a selective filter starves the result set (10% selectivity at `ef_search = 40` averages 4 rows); set `hnsw.iterative_scan = relaxed_order` (pgvector's 0.8 line; `strict_order` keeps exact distance order at lower throughput — `relaxed_order` is the default here because RRF re-ranks by position anyway) for any tenant- or metadata-filtered search. ⚠️ The module does NOT set it today, and its `FORCE ROW LEVEL SECURITY` on `tenant_id` makes EVERY `rag_search()` a filtered query — add `SET LOCAL hnsw.iterative_scan = relaxed_order` beside the `SET LOCAL hnsw.ef_search` in `migration.sql`'s function (or next to `statement_timeout` in `search.py`) and file it in the module's `UPSTREAM_FEEDBACK.md` (mailed to fabrik-lib 2026-09-22).
+- **Filtered queries need iterative scans.** With approximate indexes the `WHERE` filter is applied AFTER the index scan, so a selective filter starves the result set (10% selectivity at `ef_search = 40` averages 4 rows); set `hnsw.iterative_scan = relaxed_order` (pgvector's 0.8 line; `strict_order` keeps exact distance order at lower throughput — `relaxed_order` is the default here because RRF re-ranks by position anyway) for any tenant- or metadata-filtered search. The module sets it since fabrik-lib `b9d75cae` (its D-284): `rag_search()` runs `SET LOCAL hnsw.iterative_scan = relaxed_order` only on pgvector ≥ 0.8.0, because the `hnsw.` prefix is reserved from 0.6 and an unguarded set errors there — and its `FORCE ROW LEVEL SECURITY` on `tenant_id` makes EVERY `rag_search()` a filtered query, so a copy vendored before that commit (check: `grep -n "hnsw.iterative_scan" migration.sql` prints nothing) is re-vendored, never patched by hand.
 
 ## Hybrid Search
 
@@ -265,8 +265,8 @@ summarizer. Each phase is its own epic; each later phase depends on the one befo
 >
 > **The registrar does NOT.** `shape.has_search_feature: true` provisions **MeiliSearch only**
 > (`src/fabrik/drivers/meilisearch.py` — `SHAPE_FLAG = "has_search_feature"`; its mutation surface is two in-container `curl` calls over ssh — a POST to `/indexes`
-> (`create_index`) and a DELETE (`delete_index`, the `--drop-data` path) — neither issuing SQL). Executed against the codebase: **`hnsw` appears in 0 of the hub's 80 tracked
-> `src/*.py` files**, and no registrar issues `CREATE EXTENSION`. There is no shape flag for pgvector; do not look
+> (`create_index`) and a DELETE (`delete_index`, the `--drop-data` path) — neither issuing SQL). Executed against the codebase: **`hnsw` appears in none of the hub's tracked
+> `src/*.py` files** (`git ls-files 'src/*.py' | xargs grep -l hnsw` prints nothing), and no registrar issues `CREATE EXTENSION`. There is no shape flag for pgvector; do not look
 > for one.
 >
 > So **every RAG epic MUST carry its own migration** creating the extension and the index — the vendored

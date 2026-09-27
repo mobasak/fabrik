@@ -184,14 +184,11 @@ subprocess per project — it IS this ladder as a generic client (`complete()`/`
 `get_last_usage()`): **claude -p subscription primary** (`--output-format json`, whose envelope carries
 `total_cost_usd`, `usage` (main loop only) and a per-model `modelUsage` — client-side estimates, not a bill;
 `llm-dispatch` hands `usage` and `cost_usd` to `budget_record`, while `get_last_usage()` returns `usage` plus the
-model label only; for per-model `modelUsage`, call `dispatch()` and read `result.raw["modelUsage"]`) with an **OpenRouter HTTP fallback**; env-driven `LLMConfig`; **INJECT** your vendored
-`cost-budget` via the `budget_check`/`budget_record` hooks; `complete()`/`complete_json()` return empty instead of raising when a CALL fails (building the config from the environment can still raise `ValueError` on a malformed numeric var). The module's own default model
-(`CLAUDE_CLI_MODEL`) is `opus` — set `haiku` for rung 1 below. ⚠️ `complete(model=…)` sets the OpenRouter model
-only; the `claude -p` leg always runs `CLAUDE_CLI_MODEL`, so choose the rung with a per-rung config —
-`complete(prompt, config=dataclasses.replace(LLMConfig.from_env(), claude_model="sonnet"))` (a bare
-`LLMConfig(...)` skips the environment: no OpenRouter key, default effort) — or `dispatch(ClaudeCall(prompt,
-model="sonnet"))`, which RAISES (`DispatchError`, or `ValueError` for an invalid `ClaudeCall`) and has no OpenRouter leg, so catch both yourself. The CLI leg runs at
-`CLAUDE_CLI_EFFORT=low` by default — raise it before judging that a rung measurably fell short.
+model label only; for per-model `modelUsage`, read `DispatchResult.model_usage` from `dispatch()`) with an **opt-in OpenRouter HTTP fallback** (`LLM_ALLOW_METERED_FALLBACK`, off by default; never after a CLI call that already billed); env-driven `LLMConfig`; **INJECT** your vendored
+`cost-budget` via the `budget_check`/`budget_record` hooks; `complete()`/`complete_json()` return empty instead of raising when a CALL fails (building the config from the environment can still raise `ValueError` on a malformed numeric var). The module bakes in NO model: an unset
+`CLAUDE_CLI_MODEL` (or `LLM_DEFAULT_MODEL` when the HTTP leg runs) raises `ModelNotConfigured` at the point of use unless the call names one (a missing binary or a refusing `budget_check` raises first). ⚠️ `complete(model=…)` sets the OpenRouter model
+only; choose the `claude -p` rung per call with `complete(prompt, claude_model="sonnet")` — or `dispatch(ClaudeCall(prompt,
+model="sonnet"))`, which RAISES (`DispatchError`, or `ValueError` for an invalid `ClaudeCall`) and has no OpenRouter leg, so catch both yourself. `CLAUDE_CLI_EFFORT` defaults to empty (each model's designed effort) — set it deliberately before judging that a rung measurably fell short.
 **Infra prerequisite:** a *deployed* service that shells to
 `claude -p` MUST declare **`shape.uses_claude_cli: true`** (+ `claude_cli_home`) so the deployer mounts the
 host's **rotated** `~/.claude` read-only into the container — auth follows the fleet account rotation;
@@ -204,15 +201,14 @@ select the rung — always by alias, so each rung is the latest model of its fam
    enough (task fails its quality gate / errors — a measured escalation, never a vibes one).
 3. **`claude -p --model fable`** — only when opus is measurably not enough.
 4. **Fallback: OpenRouter** — for a call Claude can't serve (capability/latency mismatch, or the call must
-   be metered-isolated from the subscription). ⚠️ `complete()`/`complete_json()` take this leg whenever the
-   `claude -p` leg yields no text — binary missing, auth failure, timeout, error, quota, an empty result, and
-   also when YOUR `budget_check` refuses `claude-cli` (and `budget_check` fails OPEN if it raises);
+   be metered-isolated from the subscription). ⚠️ `complete()`/`complete_json()` take this leg ONLY with `LLM_ALLOW_METERED_FALLBACK=1`, and then when the
+   `claude -p` leg failed to produce text — binary missing, auth failure, timeout, error, quota, or YOUR `budget_check` refusing `claude-cli` — never after a CLI call that succeeded empty (already billed); `budget_check` fails OPEN if it raises, so deny by returning `False`;
    `dispatch()` and the session/agentic calls never fall back, and `complete_structured()` only through a `fallback=` you inject. The key is
    `KILO_API_KEY` before `OPENROUTER_API_KEY`, and `KILO_API_URL` overrides the endpoint — wherever the
-   fleet's keys sit in the environment (the hub's, per D-182) they win. So unset both `KILO_*` vars and set
+   fleet's keys sit in the environment (the hub's, per D-182) they win. So when you opt in, unset both `KILO_*` vars, set
    the project's OWN `OPENROUTER_API_KEY`, guard the leg with `budget_check`, and alert on the dispatcher's
-   no-content fallback — or run with no key at all when the call must never go metered. Set `LLM_DEFAULT_MODEL` to the bake-off
-   winner (the module's built-in default is a placeholder id, not evidence). The model is chosen by
+   no-content fallback; leave the opt-in off when the call must never go metered. Set `LLM_DEFAULT_MODEL` to the bake-off
+   winner (the module has no built-in default). The model is chosen by
    **tested evidence, never assumption**: consult the selection MDs / `suggest_model.py`, or run a
    scored bake-off — lowest cost that meets the required capability; record the result in the
    project's decision ledger.

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — four rule packs brought current with what shipped (2026-09-27)
+- `ai/00-ai-model-selection.md`: llm-dispatch's metered fallback is opt-in, no model is baked in, `complete(claude_model=)` picks the CLI rung, `model_usage` is a field, effort defaults to empty. `core/app-audit-log.md`: the registrar's non-owner `<db>_app` role and its revokes, the cutover flag and the scaffolded jobs replace the owner-role caveats. `core/65-rag-search.md`: rag sets `hnsw.iterative_scan` itself. `saas/95-multi-tenant-saas.md`: rag's `NULLIF`, and the shared-tenancy spec as approved. From infra mail 01M3AEG1, 01M3A5FP, 01M3D7XQR, 01M39MAS.
+
 ### Fixed — Project and app name checks reject a trailing newline (2026-09-27)
 - `_validate_project_name` (scaffold), `_destroy_compose` (destroyer) and `_validate_name` (deployer_ssh) checked names with `re.match(r"^...$")`, and `$` also matches just before a final newline, so `"name\n"` passed. The project name is built into package names, paths and emitted code (a generated `logger.py` failed to compile); the app name is built into SSH shell commands. All three now use `re.fullmatch`. Graders: `tests/test_name_validators_full_match.py`. Ten more validators with the same shape, latent behind the `spec.id` pattern, are filed as W-3e5a0e84. W-479028c8.
 
