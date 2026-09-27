@@ -160,13 +160,13 @@ cd /opt/fabrik
 PATH=/usr/local/bin:$PATH python3 /opt/ai-model-catalog/engine/discover_kilo_agents.py  # Gateway models
 python3 /opt/ai-model-catalog/engine/update_kilo_benchmarks.py   # Scrape leaderboards
 python3 /opt/ai-model-catalog/engine/compute_assignments.py       # Recompute roles
-python3 /opt/ai-model-catalog/engine/generate_selection_guide_roster.py  # Update this roster (generate_kilo_agents.py is archived)
+python3 /opt/ai-model-catalog/engine/generate_selection_guide_roster.py  # Emit the ROSTER block (touches no hub file)
 ```
 
-The last step auto-updates the roster above via `generate_selection_guide_roster.py`. You can also run it standalone:
-```bash
-python3 /opt/ai-model-catalog/engine/generate_selection_guide_roster.py
-```
+The last step only writes the ROSTER block under the engine's `out/blocks/`; it never edits this file. The block
+reaches the roster above when the hub's `scripts/kilo-benchmarks/daily_refresh.sh` runs
+`deliver_to_fabrik.py --apply`, which is skipped while the pool is paused (`docs/workflows/KILO_BENCHMARK_WORKFLOW.md`).
+(`generate_kilo_agents.py`, which this recipe used to end with, is archived.)
 
 ### Manual override (pin a model to a role)
 Edit `engine/assignments.json` directly. The next `compute_assignments.py` run will overwrite it — to make it permanent, also edit `role_configs.yaml` floors to ensure your preferred model qualifies.

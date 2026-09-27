@@ -3,8 +3,8 @@
   "owners": {
     "unassigned": 0,
     "fleet": 105,
-    "infra": 361,
-    "intel": 17,
+    "infra": 358,
+    "intel": 13,
     "external:fabrik-lib": 71
   },
   "capabilities": [
@@ -1346,17 +1346,6 @@
       "verified_at": "2026-09-26T03:01:52+00:00"
     },
     {
-      "name": "scripts/coding-auto.sh",
-      "kind": "script",
-      "summary": "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550",
-      "invoke": "bash scripts/coding-auto.sh",
-      "status": "manual",
-      "owner": "infra",
-      "defects": [],
-      "doc_link": "INDEX.md",
-      "verified_at": "2026-09-26T03:01:52+00:00"
-    },
-    {
       "name": "scripts/command_feedback_report.py",
       "kind": "script",
       "summary": "AFTER-EDIT: tests/test_command_feedback_report.py, docs/reference/command-run-protocol.md, docs/reference/work-tracking.md",
@@ -2516,19 +2505,6 @@
       "verified_at": "2026-09-26T03:01:52+00:00"
     },
     {
-      "name": "scripts/generate_kilo_agents.py",
-      "kind": "script",
-      "summary": "AFTER-EDIT: docs/workflows/KILO_AGENT_MANAGEMENT.md",
-      "invoke": "python scripts/generate_kilo_agents.py",
-      "status": "retired",
-      "owner": "infra",
-      "defects": [
-        "retired"
-      ],
-      "doc_link": "INDEX.md",
-      "verified_at": "2026-09-26T03:01:52+00:00"
-    },
-    {
       "name": "scripts/generate_vps_inventory.py",
       "kind": "script",
       "summary": "AFTER-EDIT: docs/DEPLOYMENT_ARCHITECTURE.md",
@@ -2617,17 +2593,6 @@
       "verified_at": "2026-09-26T03:01:52+00:00"
     },
     {
-      "name": "scripts/kilo-benchmarks/agent_selector.py",
-      "kind": "script",
-      "summary": "AFTER-EDIT: docs/workflows/KILO_AGENT_MANAGEMENT.md",
-      "invoke": "python scripts/kilo-benchmarks/agent_selector.py",
-      "status": "manual",
-      "owner": "intel",
-      "defects": [],
-      "doc_link": "INDEX.md",
-      "verified_at": "2026-09-26T03:01:52+00:00"
-    },
-    {
       "name": "scripts/kilo-benchmarks/audit_usage_cost.py",
       "kind": "script",
       "summary": "AFTER-EDIT: none",
@@ -2672,32 +2637,10 @@
       "verified_at": "2026-09-26T03:01:52+00:00"
     },
     {
-      "name": "scripts/kilo-benchmarks/classify_ticket.py",
-      "kind": "script",
-      "summary": "AFTER-EDIT: docs/workflows/KILO_AGENT_MANAGEMENT.md",
-      "invoke": "python scripts/kilo-benchmarks/classify_ticket.py",
-      "status": "manual",
-      "owner": "intel",
-      "defects": [],
-      "doc_link": "INDEX.md",
-      "verified_at": "2026-09-26T03:01:52+00:00"
-    },
-    {
       "name": "scripts/kilo-benchmarks/daily_refresh.sh",
       "kind": "script",
       "summary": "fabrik's CONSUMER pipeline for the AI model catalog. Cron-safe (no PATH assumptions, no shell",
       "invoke": "bash scripts/kilo-benchmarks/daily_refresh.sh",
-      "status": "manual",
-      "owner": "intel",
-      "defects": [],
-      "doc_link": "INDEX.md",
-      "verified_at": "2026-09-26T03:01:52+00:00"
-    },
-    {
-      "name": "scripts/kilo-benchmarks/db_models.py",
-      "kind": "script",
-      "summary": "AFTER-EDIT: docs/workflows/KILO_AGENT_MANAGEMENT.md",
-      "invoke": "python scripts/kilo-benchmarks/db_models.py",
       "status": "manual",
       "owner": "intel",
       "defects": [],
@@ -2731,17 +2674,6 @@
       "kind": "script",
       "summary": "AFTER-EDIT: autocommit_pipeline_outputs.sh (consumes this filter) | tests/test_guard_selection_freshness.py",
       "invoke": "python scripts/kilo-benchmarks/guard_selection_freshness.py",
-      "status": "manual",
-      "owner": "intel",
-      "defects": [],
-      "doc_link": "INDEX.md",
-      "verified_at": "2026-09-26T03:01:52+00:00"
-    },
-    {
-      "name": "scripts/kilo-benchmarks/kilo_telemetry.py",
-      "kind": "script",
-      "summary": "AFTER-EDIT: docs/workflows/KILO_AGENT_MANAGEMENT.md",
-      "invoke": "python scripts/kilo-benchmarks/kilo_telemetry.py",
       "status": "manual",
       "owner": "intel",
       "defects": [],
@@ -2800,19 +2732,6 @@
       "status": "ok",
       "owner": "intel",
       "defects": [],
-      "doc_link": "INDEX.md",
-      "verified_at": "2026-09-26T03:01:52+00:00"
-    },
-    {
-      "name": "scripts/kilo_auto_route.py",
-      "kind": "script",
-      "summary": "AFTER-EDIT: docs/workflows/KILO_AGENT_MANAGEMENT.md",
-      "invoke": "python scripts/kilo_auto_route.py",
-      "status": "retired",
-      "owner": "infra",
-      "defects": [
-        "retired"
-      ],
       "doc_link": "INDEX.md",
       "verified_at": "2026-09-26T03:01:52+00:00"
     },

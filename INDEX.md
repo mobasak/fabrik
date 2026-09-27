@@ -1623,7 +1623,7 @@ transitive dependencies the manifest derived — `alerting/`, `build_task_baseli
 **Post-excise corrections (2026-08-16, from the E.closing review):** `agent_selector.py` was RETAINED
 because `kilo_docs_enforcer.py:66-70` needed it (then fleet-synced `CORE_SCRIPTS` on 47 project copies;
 that enforcer was RETIRED to `scripts/archived/` by the M0 shrink ruling 2026-08-19 and its project
-copies pruned — `agent_selector.py`'s retention can be revisited at the next census). Nothing inside `kilo-benchmarks/` references it, so the import-graph
+copies pruned — `agent_selector.py`'s retention can be revisited at the next census). **That census ran on 2026-09-27:** `agent_selector.py` and the coding-router deps `classify_ticket.py`/`db_models.py`/`kilo_telemetry.py` moved to `scripts/archived/` (D-432, W-70653005). Nothing inside `kilo-benchmarks/` references it, so the import-graph
 closure never saw the edge; `excise_manifest.py` now scans the fabrik-side CONSUMERS too and rediscovered it
 independently. Also retained: `tests/test_flywheel_safety.py` and `tests/test_commit_trailer_guard.py`, which
 test RETAINED surfaces (the A.0 flywheel tripwire and the commit-msg governance guard) rather than engine code.
