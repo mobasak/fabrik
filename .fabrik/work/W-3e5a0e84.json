@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T02:58:54.886634Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-3e5a0e84",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "switch each to .fullmatch with one test per validator; drivers incl. authelia (auth) make this a full /fabrik-review",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Ten more identifier validators accept a trailing newline: re.match(r'^...$') lets 'x\\n' through in authelia._RESOURCE_RE (breaks its own 'reject newlines' contract; a newline bearer_bypass_prefix silently disables the bypass), postgres._IDENT_RE, backrest._DB_NAME_RE, supabase table/column, glitchtip/gatus/meilisearch/prometheus/redis name checks, preplan._validate_slug, scripts/provision_watchdog_ro.py, claude_rotate slug, scratch_sweep SID, quota_dashboard; DOMAIN_PATTERN unchecked. Latent where spec.id's pattern guards the input. Found by the W-479028c8 review (Opus seat, 12 of 14 probes accepted)"
+}

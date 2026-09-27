@@ -107,7 +107,7 @@ def _extract_git_host(repository: str) -> str | None:
 
 def _validate_name(name: str) -> None:
     """Raise ``DeployError`` if *name* is not a valid compose app name."""
-    if not _NAME_RE.match(name):
+    if not _NAME_RE.fullmatch(name):  # fullmatch: `$` alone admits a trailing "\n"
         raise DeployError(f"Invalid app name: {name!r} — must match ^[a-z0-9][a-z0-9-]{{0,62}}$")
 
 

@@ -322,7 +322,8 @@ def _destroy_compose(name: str, dry_run: bool, drop_data: bool = False) -> Actio
         if dry_run:
             return ActionResult("compose", "dry_run", detail=f"app {name}")
 
-        if not re.match(r"^[a-z0-9][a-z0-9-]{0,62}$", name):
+        # fullmatch: `^...$` with re.match would admit a trailing "\n" into the SSH commands below
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", name):
             return ActionResult("compose", "error", error=f"invalid app name: {name!r}")
 
         # Check directory exists

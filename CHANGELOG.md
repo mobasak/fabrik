@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Project and app name checks reject a trailing newline (2026-09-27)
+- `_validate_project_name` (scaffold), `_destroy_compose` (destroyer) and `_validate_name` (deployer_ssh) checked names with `re.match(r"^...$")`, and `$` also matches just before a final newline, so `"name\n"` passed. The project name is built into package names, paths and emitted code (a generated `logger.py` failed to compile); the app name is built into SSH shell commands. All three now use `re.fullmatch`. Graders: `tests/test_name_validators_full_match.py`. Ten more validators with the same shape, latent behind the `spec.id` pattern, are filed as W-3e5a0e84. W-479028c8.
+
 ### Removed — the dead Kilo/Traycer scripts move to scripts/archived/ (2026-09-27)
 - `agent_selector.py`, `classify_ticket.py`, `db_models.py`, `kilo_telemetry.py` (from `scripts/kilo-benchmarks/`), `coding-auto.sh`, `kilo_auto_route.py` and `generate_kilo_agents.py` are archived with history kept: nothing live called them since the Kilo CLI (2026-07-19) and Traycer (D-102) retirements. `kilo_model_sync.py` stays until the operator removes its crontab and `~/.bashrc` lines; `kilo_agents.db` stays because the subagent ranker reads it. `excise_manifest.py` drops the four stale roots, the retired-scripts test anchors on `kilo_model_sync.py`, and the docs that named the old paths are updated (D-432, W-70653005).
 

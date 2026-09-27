@@ -691,7 +691,7 @@ def _validate_project_name(name: str) -> None:
     """Validate project name. Raises ValueError if invalid."""
     if not name:
         raise ValueError("Project name cannot be empty")
-    if not re.match(r"^[a-z][a-z0-9-]*$", name):
+    if not re.fullmatch(r"[a-z][a-z0-9-]*", name):  # fullmatch: `$` would admit a trailing "\n"
         raise ValueError(
             f"Invalid project name: '{name}'. "
             "Must be lowercase, start with letter, contain only letters, numbers, hyphens."
