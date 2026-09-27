@@ -158,25 +158,30 @@ guide and the hub's `kilo_agents.db` only on a day the hub cron runs with the po
 
 ### Manual full refresh
 ```bash
-cd /opt/fabrik
-PATH=/usr/local/bin:$PATH python3 /opt/ai-model-catalog/engine/discover_kilo_agents.py  # Gateway models
-python3 /opt/ai-model-catalog/engine/update_kilo_benchmarks.py   # Scrape leaderboards
-python3 /opt/ai-model-catalog/engine/compute_assignments.py       # Recompute roles
-python3 /opt/ai-model-catalog/engine/generate_selection_guide_roster.py  # Emit the ROSTER block (touches no hub file)
+bash /opt/ai-model-catalog/engine/daily_refresh.sh   # the engine's own run: loads its .env, then every step in order
 ```
 
-The last step only writes the ROSTER block under the engine's `out/blocks/`; it never edits this file. The block
-reaches the roster above when the hub's `scripts/kilo-benchmarks/daily_refresh.sh` runs
+Run the engine's script rather than its steps one by one: it loads the engine's `.env` (so `CATALOG_DSN` points the
+steps at the Postgres catalog store) and refuses to run without it, while a step run from a plain shell falls back to
+the frozen SQLite snapshot and writes there. It runs at most once per UTC day and exits 0 with "skipping — already ran
+today" if it already ran that UTC day (cron or by hand); delete `/tmp/.amc_engine_daily_$(date -u +%Y%m%d)` first to force a same-day re-run. The run writes the ROSTER block under the engine's `out/blocks/`, never
+this file; the block reaches the roster above when the hub's `scripts/kilo-benchmarks/daily_refresh.sh` runs
 `deliver_to_fabrik.py --apply`, which is skipped while the pool is paused (`docs/workflows/KILO_BENCHMARK_WORKFLOW.md`).
 (`generate_kilo_agents.py`, which this recipe used to end with, is archived.)
 
-### Manual override (pin a model to a role)
-Edit `engine/assignments.json` directly. The next `compute_assignments.py` run will overwrite it — to make it permanent, also edit `role_configs.yaml` floors to ensure your preferred model qualifies.
+### Steering a role (there is no direct pin)
+Floors only admit models: `selector.py` keeps the cheapest survivors, up to the role's `fleet_size`. To steer a role, edit
+`quality_floor`, `cost_cap` or `fleet_size` in `/opt/ai-model-catalog/engine/role_configs.yaml`, add a speed override in
+`engine/cache/speed_overrides.json`, or block a model (Blocking Underperforming Models, below). `role_mapper.py` applies
+the change on its next run in the engine's `daily_refresh.sh`, but it has been exiting 1 there (permission denied on the
+Postgres schema; `/opt/ai-model-catalog/engine/cache/update.log`), so nothing changes until that is fixed. Do not edit
+`assignments.json`: nothing writes it any more (`compute_assignments.py` only prints), and it feeds only the ROSTER block
+above, which is why that block can lag the real assignments.
 
 ### Live data queries
 These read the hub's `kilo_agents.db`, whose catalog rows stop at 2026-08-16 (see Source of Truth below), so "current" and "right now" mean that snapshot.
 ```bash
-# Current assignments
+# Assignments as of the hub snapshot (the live table is in the engine's catalog store; see Source of Truth)
 sqlite3 scripts/kilo-benchmarks/kilo_agents.db \
   "SELECT ar.role, a.id, a.input_cost_per_m, a.arena_elo, a.tbench_accuracy FROM agent_roles ar JOIN agents a ON ar.agent_id=a.id ORDER BY ar.role, ar.priority;"
 
@@ -213,8 +218,8 @@ python /opt/ai-model-catalog/engine/manage_blocked.py list
 | What | Where | Freshness |
 |---|---|---|
 | All models + pricing + benchmarks | `scripts/kilo-benchmarks/kilo_agents.db` | Frozen catalog: the engine's pre-Postgres SQLite file, catalog rows last updated 2026-08-16; a delivery re-copies the whole file (see Automated pipeline above); `build_task_baselines.py`, run by hand only (nothing schedules it), writes its `model_task_baseline` table, which the next delivery overwrites (`docs/workflows/KILO_BENCHMARK_WORKFLOW.md`) |
-| Role definitions + floors | `engine/role_configs.yaml` | Manual (stable) |
-| Current assignments | `engine/assignments.json` | On pipeline run |
+| Role definitions + floors | `/opt/ai-model-catalog/engine/role_configs.yaml` (read by `selector.py`) | Manual (edited by hand) |
+| Current assignments | the `agent_roles` table in the engine's catalog store (Postgres when `CATALOG_DSN` is set), written by `role_mapper.py` | Daily when `role_mapper.py` succeeds in the engine's `daily_refresh.sh`; it has been exiting 1 there (`/opt/ai-model-catalog/engine/cache/update.log`). `assignments.json` (last written 2026-03-22) is written by nothing and still feeds the ROSTER block |
 
 The Traycer CLI agent scripts (`~/.traycer/cli-agents/*.sh`) and the Kilo CLI are no longer sources: nothing regenerates
 those scripts since `generate_kilo_agents.py` left the daily run (D-415) and was archived (D-432), and the Kilo CLI
