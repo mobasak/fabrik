@@ -12,9 +12,9 @@
     "spec": ""
   },
   "next": "**[intel→fabrik-lib] fanout resilience** (01M1CGKVWC): pre-flight credits check, 402/404 unit\n  re-route to next ranked model, dead-unit count surfaced in the return. OPERATOR: OpenRouter\n  credits tail is SPENT — top-up needed.\n- **I1 watch item** (01M1CCNMGT): auto-mode permission-classifier outages (31× in one project) are\n  indistinguishable from agent stalls — harness-level; watch for recurrence post-CLI-updates —\n  and it fired AGAIN on this very session while this row was being written.",
-  "note": "full-tag:[intel→fabrik-lib]; migrated-digest:b4cb61c65d5b",
+  "note": "landed upstream in fabrik-lib: batch.dead_units surfaced in the fanout return (agent.py:280-318); the fallback cascade routes 404 model-gone and 402 auth to the next rung, benching an auth-failed provider on first occurrence (agent.py:2066-2090), which replaces the credits pre-flight. The I1 classifier-outage line was a harness watch item with no hub action; the pool is OFF (D-181/D-182)",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "**fanout resilience** (01M1CGKVWC): pre-flight credits check, 402/404 unit"
 }

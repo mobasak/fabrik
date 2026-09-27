@@ -309,7 +309,6 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 - **[intel]** Triage the 8 CONVERGED plans older than 7 days with no plan lock (drift class 2) so the hub's sync can reach 7 clean days (`W-67f668f1`)
 - **[infra]** The seat-brief clause: five residuals the scope-growth stop left (routed 2026-09-19) (`W-a8361c19`)
 - **[intel]** claude_p_cost.refresh()'s atomic write skips fh.flush()/os.fsync() before os.replace, unlike _merge_usage_store_locked beside it — a power loss can leave a zero-length sidecar (found in the D-415 review) (`W-bed507e3`)
-- **[intel]** **fanout resilience** (01M1CGKVWC): pre-flight credits check, 402/404 unit (`W-e31f7f4a`)
 - **[intel]** An accepted DECISION is lost when the session lock and the store lock are both busy at the Stop harvest (D7 W4-O3) (`W-e64aa44a`)
 - **[operator]** **Do the 33 explicit `code_fix_window_sec: 1800` lines follow D-378's 300 s default? (2026-09-23)** — 33 of the 72 live specs (`specs/services/*.yaml`) set it explicitly (19 from the 2026-07-05 swe... (`W-6c60e1e3`)
 - **[operator]** **Bot token rotation** for `SysAdminVPS2` (`8838110344:...`) + `SysAdminVPS3` (`8674270904:...`): Operator declared this private chat 2026-06-07 and declined rotation. Re-evaluate if the chat scope... (`W-897b5c04`)
