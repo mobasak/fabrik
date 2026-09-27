@@ -29,6 +29,7 @@ home = Path(os.environ.get("HOME", str(Path.home())))
 if (
     not sid
     or os.environ.get("CLAUDE_MESH_HEADLESS") == "1"
+    or os.environ.get("FABRIK_HEADLESS") == "1"
     or d.get("source") == "compact"
     or not (home / ".claude/bin/claude-selfwatch.sh").is_file()
     or not (cwd == "/opt" or cwd.startswith("/opt/"))

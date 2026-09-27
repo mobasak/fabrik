@@ -143,6 +143,23 @@ def test_headless_run_gets_no_arm_order(tmp_path: Path) -> None:
     assert "Governance" in out  # the rest of ORIENT still prints
 
 
+def test_fabrik_headless_run_gets_no_arm_order(tmp_path: Path) -> None:
+    # The declared headless spawners (ci_fix_dispatcher, claude_broker, rivals_run) set
+    # FABRIK_HEADLESS=1 alone; with tools on, a `claude -p` worker obeys the order and
+    # burns its timeout re-arming a watch (intel, 01M3C9BH).
+    _mesh_home(tmp_path)
+    proj = tmp_path / "opt" / "p4b"
+    proj.mkdir(parents=True)
+    rc, out = _run(
+        proj,
+        tmp_path,
+        json.dumps({"cwd": str(proj), "session_id": "s4b"}),
+        extra_env={"FABRIK_HEADLESS": "1"},
+    )
+    assert rc == 0 and "ARM YOUR SELF-WATCH" not in out
+    assert "Governance" in out  # the rest of ORIENT still prints
+
+
 def test_compact_source_gets_no_arm_order(tmp_path: Path) -> None:
     # Compaction keeps the same process — an already-armed Monitor SURVIVES it
     # (proven live 2026-08-09); re-ordering an arm there breeds duplicate watchers.

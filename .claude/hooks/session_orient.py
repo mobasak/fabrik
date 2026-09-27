@@ -421,11 +421,12 @@ def main() -> int:
     # reviver against a pane forks a second writer — spec-disqualified), and a
     # background task can only be armed BY the agent — so the ORIENT block orders it
     # with the concrete session id. Skipped when: headless (the reviver exports
-    # CLAUDE_MESH_HEADLESS=1 — no pane to wake) or source=compact (same process,
+    # CLAUDE_MESH_HEADLESS=1, the declared spawners FABRIK_HEADLESS=1 — no pane to wake) or source=compact (same process,
     # the already-armed task SURVIVES compaction; selfwatch_check.py re-orders an arm whose lock is free — proven live 2026-08-09;
     # re-ordering there breeds duplicate watchers).
     arm_line = ""
     if sid and os.environ.get("CLAUDE_MESH_HEADLESS") != "1" \
+            and os.environ.get("FABRIK_HEADLESS") != "1" \
             and data.get("source") != "compact" \
             and Path(os.environ.get("HOME", str(Path.home()))) \
             .joinpath(".claude/bin/claude-selfwatch.sh").is_file():

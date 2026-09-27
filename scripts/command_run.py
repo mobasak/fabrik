@@ -1163,7 +1163,7 @@ def _kaizen() -> Any:
             import kaizen_events
 
             _events_mod = kaizen_events
-        except Exception:
+        except (Exception, SystemExit):  # fail-open: an import that exits never ends the caller
             _events_mod = None
     return _events_mod
 
@@ -2826,6 +2826,25 @@ def _is_marker(ln: str) -> bool:
     return s.startswith("- ") or s.rstrip() == "-"
 
 
+def _sync_applies(root: Path) -> bool:
+    """Is the governance-sync filter a PUBLIC CONTRACT in the repo at ``root``?
+
+    Only in the hub itself, and in a project the hub syncs into — one carrying the
+    ``.fabrik/synced.lock`` the sync writes. A sync-EXCLUDED repo (fabrik-lib) owns files whose
+    paths the hub's filter happens to match (``scripts/final_gate.py``, ``.claude/hooks/*``);
+    there the match is not a contract and must not route the lane (fabrik-lib 01M3FQ152 C4).
+    Cobra: deleting the lock in a synced project opens the lane for a synced copy, but the
+    sync rewrites the lock and ``check_synced_unmodified.py`` still refuses the edited copy.
+    """
+    hub = Path(os.environ.get("FABRIK_HUB_ROOT") or "/opt/fabrik")
+    try:
+        if root.resolve() == hub.resolve():
+            return True
+    except (OSError, RuntimeError):  # a symlink loop; a missing path resolves without raising
+        return False
+    return (root / ".fabrik" / "synced.lock").is_file()
+
+
 def _sync_filter_source() -> str | None:
     """The governance-sync `files:` scalar, read from the HUB's `.pre-commit-config.yaml`.
 
@@ -3085,7 +3104,7 @@ def _task_size_gate(args: argparse.Namespace) -> tuple[int, dict[str, Any] | Non
             "[command_run] ⚠ fabrik-task: sync lane test SKIPPED "
             "(cannot read the governance-sync filter)\n"
         )
-    sync_hit = pat is not None and any(pat.search(r) for r in rels)
+    sync_hit = pat is not None and _sync_applies(root) and any(pat.search(r) for r in rels)
 
     declared: dict[str, Any] = {
         "files": rels,
@@ -3427,7 +3446,10 @@ def _task_measure(
         raise TypeError(f"declared.files is not a list of str: {type(_raw_files).__name__}")
     declared = set(_raw_files)
     excl = _task_excl(rp)
-    src_txt = _sync_filter_source()
+    # A sync-EXCLUDED repo has no sync contract: nothing it commits is a sync hit, and a sync
+    # claim there is refused below rather than read as unverifiable (01M3FQ152 C4, mirror).
+    applies = _sync_applies(Path(rp))
+    src_txt = _sync_filter_source() if applies else None
     pat: re.Pattern[str] | None = None
     if src_txt:
         try:
@@ -3471,6 +3493,16 @@ def _task_measure(
                 if p and pat.search(p):
                     b.add(p)
 
+    if upgrade == "sync" and not applies:
+        flag = "evidence" if args.cmd == "done" else "reason"
+        return (
+            _refuse(
+                f"REFUSED — fabrik-task: --{flag} claims UPGRADE: sync but this repo is not "
+                "governance-synced (not the hub, no .fabrik/synced.lock)"
+            ),
+            "",
+            True,
+        )
     if upgrade == "sync" and pat is not None and not b:
         # `UPGRADE: sync` is the lane's widest claim — it says this change reaches ~46 repos. A
         # commit whose paths the filter never matches cannot have made it. Guarded on
@@ -3488,8 +3520,8 @@ def _task_measure(
 
     paths = sorted(a | b)
     if paths:
-        return 0, _task_field(len(paths), sha, paths), pat is not None
-    if pat is None:
+        return 0, _task_field(len(paths), sha, paths), pat is not None or not applies
+    if pat is None and applies:
         # ⚠️ Keyed on the CLOSE-time reading alone. The first cut also required the START-time
         # `sync_test == "unavailable"`, so a filter readable at start and unreadable at close scored
         # a clean `0` — half the measurement never ran and the row could not say so (whole-plan
@@ -3497,7 +3529,7 @@ def _task_measure(
         # Invariant (vi)'s third reason, and its PRECEDENCE: the membership arm still ran, so a
         # COUNT still wins above — this is reported only when the measurable half found nothing.
         return 0, "unmeasurable=sync_test-unavailable", False
-    return 0, "0", pat is not None
+    return 0, "0", pat is not None or not applies
 
 
 def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[int, dict[str, str]]:

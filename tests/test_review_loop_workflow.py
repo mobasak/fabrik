@@ -703,6 +703,29 @@ def test_every_seat_is_told_never_to_write_under_the_repo_and_to_time_box_blocki
         assert "timeout" in p, label
 
 
+def test_every_seat_is_told_how_to_import_a_pinned_module_and_to_prove_it() -> None:
+    """01M39TARZW9B71WK2H2R8F2JTT: a pins dir holds only the slice's files, so a pinned
+    `src/fabrik/cli.py` put first on sys.path is a namespace portion and the editable install's
+    regular package from the main checkout wins — the seat executes master's code and reports
+    it as the change. Every seat is told the recipe and to print the module's `__file__`."""
+    _, _, prompts = _harness(
+        _ARGS,
+        {
+            "find:S:sonnet": {
+                "files_read": ["a.py", "b.py"],
+                "notes": "",
+                "candidates": [_cand("S-S1", 3)],
+            }
+        },
+    )
+    for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
+        p = prompts[label]
+        assert "IMPORT" in p and "__file__" in p and "overlay" in p, label
+        # the recipe must be runnable and write only inside the seat's scratch (review W-S1/S2)
+        assert "git archive" in p and "tar -x -C SCRATCH" in p and "sys.path" in p, label
+        assert "<repo>" not in p, label
+
+
 def test_a_defect_all_three_finders_raise_is_one_candidate_crediting_all_three() -> None:
     """Review of chunk 6, pass 2: `!k.also` let a candidate absorb one twin only, so a defect raised by the Sonnet,
     Haiku and Opus finders of a three-finder slice came back as two candidates."""

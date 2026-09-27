@@ -94,9 +94,12 @@ def main() -> int:
         cwd = str(payload.get("cwd") or os.getcwd())
         if (
             not sid
+            # headless: the reviver sets CLAUDE_MESH_HEADLESS, the declared spawners set
+            # FABRIK_HEADLESS — a `claude -p` worker HAS Monitor unless `--tools` removes it,
+            # and obeying the order burns its timeout (intel, 01M3C9BH)
             or os.environ.get("CLAUDE_MESH_HEADLESS") == "1"
-            or os.environ.get("CLAUDE_MESH_AUTONOMOUS")
-            == "1"  # `claude -p` workers: no Monitor tool (B11)
+            or os.environ.get("FABRIK_HEADLESS") == "1"
+            or os.environ.get("CLAUDE_MESH_AUTONOMOUS") == "1"
             or not (cwd == "/opt" or cwd.startswith("/opt/"))
             or not WATCH.is_file()
         ):

@@ -21,7 +21,7 @@ def _run(payload: object, home: Path, project_dir: str | None = None, **env: str
     e = {
         k: v
         for k, v in os.environ.items()
-        if k not in ("CLAUDE_PROJECT_DIR", "CLAUDE_MESH_HEADLESS")
+        if k not in ("CLAUDE_PROJECT_DIR", "CLAUDE_MESH_HEADLESS", "FABRIK_HEADLESS")
     }
     e["HOME"] = str(home)
     if project_dir is not None:
@@ -69,6 +69,8 @@ def test_silent_outside_opt_headless_on_compact_and_without_the_watch_script(
     assert (
         _run({"session_id": "s1", "cwd": "/opt/fabrik-lib"}, home, CLAUDE_MESH_HEADLESS="1") == ""
     )
+    # the declared headless spawners set FABRIK_HEADLESS alone (intel, 01M3C9BH)
+    assert _run({"session_id": "s1", "cwd": "/opt/fabrik-lib"}, home, FABRIK_HEADLESS="1") == ""
     assert _run({"cwd": "/opt/fabrik-lib"}, home) == ""  # no sid → nothing to arm
     bare = tmp_path / "bare"
     bare.mkdir()

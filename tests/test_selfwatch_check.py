@@ -36,6 +36,7 @@ def _run(tmp_path: Path, cwd: str = "/opt/anything", sid: str = SID, **env: str)
     locks.mkdir(exist_ok=True)
     e = {**os.environ, "CLAUDE_SOUND_LOCKDIR": str(locks)}
     e.pop("CLAUDE_MESH_HEADLESS", None)  # the box's own env must not decide the test
+    e.pop("FABRIK_HEADLESS", None)
     e.update(env)  # …but a test that SETS it must win (the first draft popped it after merging)
     proc = subprocess.run(
         [sys.executable, str(HOOK)],
@@ -90,6 +91,8 @@ def test_a_released_lock_reads_as_unarmed_again(tmp_path):
 def test_tmp_helpers_and_headless_and_sidless_are_silent(tmp_path):
     assert _run(tmp_path, cwd="/tmp/vscode-helper") == "", "a /tmp one-shot has no pane to wake"
     assert _run(tmp_path, CLAUDE_MESH_HEADLESS="1") == "", "headless never arms, by design"
+    # the declared headless spawners set FABRIK_HEADLESS alone (intel, 01M3C9BH)
+    assert _run(tmp_path, FABRIK_HEADLESS="1") == "", "FABRIK_HEADLESS is headless too"
     assert _run(tmp_path, sid="") == ""
 
 
@@ -160,7 +163,8 @@ def test_cwd_exactly_opt_is_a_pane_too(tmp_path):
 
 def test_autonomous_headless_workers_are_silent(tmp_path):
     """B11: ci_fix_dispatcher.py:208 runs `claude -p` under CLAUDE_MESH_AUTONOMOUS=1 (the only producer in a repo-wide grep — review P2-13)
-    (not HEADLESS) from /opt cwds — no Monitor tool exists there, the order is noise per prompt."""
+    (not HEADLESS) from /opt cwds — a headless worker has no pane to wake, so the order is noise
+    per prompt (and with tools on it obeys and re-arms until its timeout)."""
     assert _run(tmp_path, CLAUDE_MESH_AUTONOMOUS="1") == ""
 
 

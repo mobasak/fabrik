@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-task's sync lane outside synced repos, the headless self-watch gate, and a pinned-import recipe for review seats (2026-09-27)
+- `scripts/command_run.py`: the /fabrik-task sync-lane test and the close's `UPGRADE: sync` check apply only in the hub or a repo carrying `.fabrik/synced.lock` (`_sync_applies`); elsewhere the close REFUSES an `UPGRADE: sync` claim instead of letting it through; `_kaizen()` survives a `SystemExit` at import. From fabrik-lib 01M3FQ152 (C4, C5).
+- `scripts/sysadmin/selfwatch_check.py`, `.claude/hooks/session_orient.py` and `scripts/sysadmin/claude_selfwatch_orient.sh` also stand down on `FABRIK_HEADLESS=1`, so a headless `claude -p` run gets no self-watch arm order. From intel 01M3C9BH.
+- `.claude/workflows/fabrik-review-loop.js`: finder seats (and shell-bearing refuters) are told how to IMPORT a module from the pinned SHA — `git archive` into scratch, the change overlaid, its parent first on `sys.path` — and to print `__file__` as proof. From fleet 01M39TAR.
+
 ### Changed — four rule packs brought current with what shipped (2026-09-27)
 - `ai/00-ai-model-selection.md`: llm-dispatch's metered fallback is opt-in, no model is baked in, `complete(claude_model=)` picks the CLI rung, `model_usage` is a field, effort defaults to empty. `core/app-audit-log.md`: the registrar's non-owner `<db>_app` role and its revokes, the cutover flag and the scaffolded jobs replace the owner-role caveats. `core/65-rag-search.md`: rag sets `hnsw.iterative_scan` itself. `saas/95-multi-tenant-saas.md`: rag's `NULLIF`, and the shared-tenancy spec as approved. From infra mail 01M3AEG1, 01M3A5FP, 01M3D7XQR, 01M39MAS.
 

@@ -137,6 +137,10 @@ def repo(tmp_path: Path) -> Path:
     (r / "scripts" / "enforcement" / "check_x.py").write_text("x = 1\n", encoding="utf-8")
     for n in "abcd":
         (r / "src" / f"{n}.py").write_text("x = 1\n", encoding="utf-8")
+    # A synced PROJECT carries the lock of what the hub distributed to it; the sync lane test
+    # applies only there and in the hub (fabrik-lib 01M3FQ152 C4).
+    (r / ".fabrik").mkdir()
+    (r / ".fabrik" / "synced.lock").write_text("[]\n", encoding="utf-8")
     subprocess.run(["git", "init", "-q"], cwd=r, check=True, timeout=15)
     subprocess.run(["git", "add", "-A"], cwd=r, check=True, timeout=15)
     subprocess.run(
@@ -2665,3 +2669,74 @@ def test_a_rename_of_an_excluded_sync_hit_counts_its_source(
     got = _rows(run_dir)[-1]["oversized_mini"]
     assert got == f"1 · commit={sha} · paths={src}", got
 
+
+def test_the_sync_lane_test_is_skipped_in_a_repo_the_hub_does_not_sync(
+    run_dir: Path, repo: Path, hub: Path
+) -> None:
+    """fabrik-lib 01M3FQ152 C4. A sync-EXCLUDED repo (no `.fabrik/synced.lock`, not the hub)
+    owns its `scripts/enforcement/` files; the hub's filter matching them is not a public
+    contract there, so the lane opens instead of refusing to the full review."""
+    (repo / ".fabrik" / "synced.lock").unlink()
+    subprocess.run(
+        ["git", "rm", "-q", "--cached", ".fabrik/synced.lock"], cwd=repo, check=True, timeout=15
+    )
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "unsynced"],
+        cwd=repo,
+        check=True,
+        timeout=15,
+    )
+    r = _cr(
+        run_dir,
+        *_start("--file", "scripts/enforcement/check_x.py", "--declare", _ALL_NO),
+        cwd=repo,
+        extra_env={"FABRIK_HUB_ROOT": str(hub)},
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "REFUSED" not in r.stdout
+    assert (run_dir / "s1.json").exists()
+
+
+def test_kaizen_import_that_exits_does_not_end_the_command(monkeypatch: pytest.MonkeyPatch) -> None:
+    """fabrik-lib 01M3FQ152 C5. The emitter is fail-open: a `kaizen_events` whose import raises
+    SystemExit must yield None, never end the caller's `start` with that exit code."""
+    import builtins
+
+    spec = importlib.util.spec_from_file_location("cr_kaizen_probe", _SCRIPT)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    real_import = builtins.__import__
+
+    def exiting_import(name, *a, **k):
+        if name == "kaizen_events":
+            raise SystemExit(9)
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", exiting_import)
+    monkeypatch.delitem(sys.modules, "kaizen_events", raising=False)
+    mod._events_mod = mod._EVENTS_UNSET
+    assert mod._kaizen() is None
+
+
+def test_a_repo_the_hub_does_not_sync_refuses_an_upgrade_sync_claim_at_close(
+    run_dir: Path, repo: Path, hub: Path
+) -> None:
+    """The close mirror of 01M3FQ152 C4. A sync-EXCLUDED repo has no sync contract, so an
+    `UPGRADE: sync` claim there is refused outright — never waved through as unverifiable —
+    while a plain close still measures the commit."""
+    _seed_claude(repo)
+    (repo / ".fabrik" / "synced.lock").unlink()
+    _commit_all(repo, "unsynced")
+    _start_task(run_dir, repo, hub, "scripts/enforcement/check_x.py")
+    _write(repo, "scripts/enforcement/check_x.py", "x = 2\n")
+    sha = _commit_all(repo, "an owned file the hub filter happens to match")
+    r = _close_run(
+        run_dir, repo, hub, "done", "--commit", sha, "--evidence", "UPGRADE: sync — not synced"
+    )
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "this repo is not governance-synced" in r.stdout, r.stdout
+    assert _rec(run_dir)["state"] == "running"
+    ok = _close_run(run_dir, repo, hub, "done", "--commit", sha, "--evidence", "the change")
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    assert "sync_test-unavailable" not in json.dumps(_rec(run_dir)), _rec(run_dir)
