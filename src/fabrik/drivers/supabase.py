@@ -24,13 +24,13 @@ _TABLE_NAME_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 def _validate_table_name(table: str) -> None:
     """Validate table name to prevent path injection."""
-    if not _TABLE_NAME_PATTERN.match(table):
+    if not _TABLE_NAME_PATTERN.fullmatch(table):
         raise ValueError(f"Invalid table name: {table}")
 
 
 def _validate_column_name(col: str) -> None:
     """Validate column name to prevent query parameter injection."""
-    if not _TABLE_NAME_PATTERN.match(col):
+    if not _TABLE_NAME_PATTERN.fullmatch(col):
         raise ValueError(f"Invalid column name: {col}")
 
 

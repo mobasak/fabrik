@@ -66,20 +66,28 @@ _DOMAIN_RE = re.compile(
 
 
 def _validate_project_name(name: str) -> None:
-    if not isinstance(name, str) or not _PROJECT_RE.match(name):
+    if not isinstance(name, str) or not _PROJECT_RE.fullmatch(name):
         raise ValueError(
             f"Invalid project name {name!r}: must match [a-zA-Z0-9][a-zA-Z0-9_-]{{0,63}}"
         )
 
 
 def _validate_domain(domain: str) -> None:
-    if not isinstance(domain, str) or not _DOMAIN_RE.match(domain):
+    if not isinstance(domain, str) or not _DOMAIN_RE.fullmatch(domain):
         raise ValueError(f"Invalid domain {domain!r}: must be a bare hostname")
 
 
 def _validate_health_path(path: str) -> None:
-    if not isinstance(path, str) or not path.startswith("/") or "'" in path or '"' in path:
-        raise ValueError(f"Invalid health path {path!r}: must start with / and contain no quotes")
+    if (
+        not isinstance(path, str)
+        or not path.startswith("/")
+        or "'" in path
+        or '"' in path
+        or not path.isprintable()  # a newline lands in the probed URL and the check never passes
+    ):
+        raise ValueError(
+            f"Invalid health path {path!r}: must start with /, contain no quotes or control characters"
+        )
 
 
 def _build_endpoint_yaml(

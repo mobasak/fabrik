@@ -104,7 +104,7 @@ def applies_to(shape: dict[str, Any]) -> bool:
 
 def _validate_uid(uid: str) -> None:
     """Raise :class:`ValueError` if ``uid`` is not a safe MeiliSearch index UID."""
-    if not isinstance(uid, str) or not _UID_RE.match(uid):
+    if not isinstance(uid, str) or not _UID_RE.fullmatch(uid):
         raise ValueError(
             f"Invalid MeiliSearch index UID {uid!r}: must match [a-zA-Z0-9][a-zA-Z0-9_-]{{0,127}}"
         )

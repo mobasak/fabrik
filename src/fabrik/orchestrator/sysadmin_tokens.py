@@ -21,9 +21,10 @@ Pool file (``$FABRIK_DR_STORE/env/sysadmin-bot-tokens.json``)::
 
 Hygiene contract (plan PR3 constraint C4):
   - ``claim_bot_token`` never double-assigns; an already-claimed host reclaims
-    the SAME token (idempotent); an empty/exhausted pool returns ``None`` (logged)
-    so the caller can SKIP enabling the bot rather than write a placeholder that
-    crash-loops ``bot.py`` into ``StartLimitBurst``.
+    the SAME token (idempotent) unless that token is malformed; an empty/exhausted
+    pool or a malformed held token returns ``None`` (logged) so the caller can SKIP
+    enabling the bot rather than write a placeholder that crash-loops ``bot.py``
+    into ``StartLimitBurst``.
   - ``release_bot_token`` returns a slot to the pool on reverse-teardown.
 """
 
@@ -90,15 +91,24 @@ def _write_unlocked(data: dict[str, Any]) -> None:
 def claim_bot_token(name: str) -> str | None:
     """Claim the next free bot token for host ``name``.
 
-    Idempotent: if ``name`` already holds a token, returns the same one (no new
-    assignment). Returns ``None`` if the pool is empty/exhausted — the caller MUST
-    then skip enabling the bot (never write a placeholder token).
+    Idempotent: if ``name`` already holds a well-formed token, returns the same one
+    (no new assignment). Returns ``None`` if the pool is empty/exhausted, or if the
+    token ``name`` holds is malformed — the caller MUST then skip enabling the bot
+    (never write a placeholder token).
     """
     with file_lock(_LOCK, timeout_seconds=15.0):
         data = _load()
         # Idempotent reclaim — a re-run of provision for the same host.
         for entry in data["pool"]:
             if entry.get("assigned_to") == name:
+                if not _TOKEN_RE.fullmatch(entry.get("token", "")):
+                    # Assigned before the check tightened: never hand it to the .env.sysadmin sed.
+                    logger.warning(
+                        "token pool: %s holds a malformed token (label %s) — not reusing; fix the pool file",
+                        name,
+                        entry.get("label"),
+                    )
+                    return None
                 logger.info("token pool: %s already holds %s — reusing", name, entry.get("label"))
                 return entry["token"]
         # First free slot — but never assign a malformed token (it would later
@@ -107,7 +117,7 @@ def claim_bot_token(name: str) -> str | None:
             if entry.get("assigned_to") is not None:
                 continue
             token = entry.get("token", "")
-            if not _TOKEN_RE.match(token):
+            if not _TOKEN_RE.fullmatch(token):
                 logger.warning(
                     "token pool: skipping malformed token for label %s "
                     "(expected '<digits>:<alnum/_/->') — fix the pool file",

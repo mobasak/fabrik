@@ -97,7 +97,7 @@ PASSWORD_LENGTH = 32
 
 def _validate_identifier(value: str, what: str) -> None:
     """Raise :class:`ValueError` if ``value`` is not a safe SQL identifier."""
-    if not isinstance(value, str) or not _IDENT_RE.match(value):
+    if not isinstance(value, str) or not _IDENT_RE.fullmatch(value):
         raise ValueError(
             f"Invalid PostgreSQL {what} name {value!r}: must match [a-zA-Z_][a-zA-Z0-9_]{{0,62}}"
         )

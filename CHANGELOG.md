@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Sixteen more identifier checks reject a trailing newline (2026-09-27)
+- Driver and registrar checks tested names with `re.match(r"^...$")`, and `$` also matches just before a final newline, so `"name\n"` passed into SQL (`postgres`, `backrest`, `scripts/provision_watchdog_ro.py`), Authelia rules, Gatus/Prometheus/Redis/GlitchTip/Meilisearch registrar names, Supabase table and column names, a preplan filename, and a bot token later substituted into `.env.sysadmin`. The Authelia resource check's own docstring promised to reject newlines. All 16 now use `re.fullmatch`, with one grader each in `tests/test_name_validators_full_match.py` (each proven red with its fix reverted). Five checks a probe showed already reject a newline are unchanged; the same shape in infra's scripts is mailed to infra. W-3e5a0e84.
+
 ### Fixed — kilo_model_sync_startup.sh no longer claims zero callers (2026-09-27)
 - Its header said "Zero runtime callers; kept for history", yet the operator's `~/.bashrc` hook still runs it on every shell start (D-432) — a cleanup trusting the header would delete a live script. The header now names that caller and how to find it, says the crontab runs `kilo_model_sync.py` directly, that both lines must go before either script moves (D-432), and that concurrent shell starts re-run the sync (most days 1-3 runs, some up to 17). Retired date corrected to 2026-09-25 (D-415), and the caller warning now leads the header, so the `capabilities.json` summary derived from it carries it too (W-6ec9469d).
 

@@ -51,7 +51,7 @@ def _validate_db_name(db: str) -> str:
     alnum + underscore (fabrik derives them from kebab spec ids). Reject anything
     else — no quotes, spaces, semicolons, or dashes.
     """
-    if not _DB_NAME_RE.match(db or ""):
+    if not _DB_NAME_RE.fullmatch(db or ""):
         raise ValueError(f"unsafe/invalid db name {db!r}: expected ^[a-z_][a-z0-9_]{{0,62}}$")
     return db
 

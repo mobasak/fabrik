@@ -163,7 +163,7 @@ def _compute_insert_index(
 
 
 def _validate_domain(domain: str) -> None:
-    if not isinstance(domain, str) or not _DOMAIN_RE.match(domain):
+    if not isinstance(domain, str) or not _DOMAIN_RE.fullmatch(domain):
         raise ValueError(
             f"Invalid Authelia domain {domain!r}: must be a bare FQDN "
             f"(e.g. 'coolify.vps1.ocoron.com')"
@@ -185,7 +185,7 @@ def _validate_resources(resources: list[str] | None) -> None:
     for r in resources:
         if not isinstance(r, str) or not r:
             raise ValueError(f"Invalid resource {r!r}: must be non-empty string")
-        if not _RESOURCE_RE.match(r):
+        if not _RESOURCE_RE.fullmatch(r):
             raise ValueError(
                 f"Invalid resource {r!r}: must be printable ASCII "
                 f"(reject newlines, control chars, non-ASCII)"

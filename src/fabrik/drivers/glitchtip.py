@@ -227,7 +227,7 @@ def applies_to(shape: dict[str, Any]) -> bool:
 
 def _validate_name(name: str) -> None:
     """Raise :class:`ValueError` if ``name`` is not a safe project name."""
-    if not isinstance(name, str) or not _NAME_RE.match(name):
+    if not isinstance(name, str) or not _NAME_RE.fullmatch(name):
         raise ValueError(
             f"Invalid GlitchTip project name {name!r}: must match [a-zA-Z0-9][a-zA-Z0-9_-]{{0,127}}"
         )

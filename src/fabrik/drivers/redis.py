@@ -77,7 +77,7 @@ so the two drivers agree on what a 'service name' looks like."""
 
 
 def _validate_service_name(name: str) -> None:
-    if not isinstance(name, str) or not _SERVICE_RE.match(name):
+    if not isinstance(name, str) or not _SERVICE_RE.fullmatch(name):
         raise ValueError(
             f"Invalid service name {name!r}: must match [a-zA-Z0-9][a-zA-Z0-9_-]{{0,63}}"
         )

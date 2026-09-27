@@ -189,7 +189,7 @@ _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def _validate_slug(slug: str) -> None:
-    if not _SLUG_RE.match(slug):
+    if not _SLUG_RE.fullmatch(slug):
         raise ValueError(
             f"Invalid slug: {slug!r}. Must be kebab-case (1–48 chars, "
             f"a-z0-9-, no leading/trailing dash)."

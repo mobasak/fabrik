@@ -308,7 +308,7 @@ def _validate_db_name(db_name: str) -> None:
     """Pass-2 adversarial: a shell-special char would break the
     pre-backup.sh for-loop. Reject anything outside `[a-z][a-z0-9_]*`.
     """
-    if not isinstance(db_name, str) or not _DB_NAME_RE.match(db_name):
+    if not isinstance(db_name, str) or not _DB_NAME_RE.fullmatch(db_name):
         raise ValueError(
             f"Invalid db_name for backrest plan {db_name!r}: must match "
             "[a-z][a-z0-9_]{0,62} — shell-safe + matches pre-backup.sh loop"
