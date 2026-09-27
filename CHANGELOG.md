@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — an office-extension scaffold emits its deploy spec (2026-09-27)
+- `fabrik scaffold --type office-extension` wrote no `specs/services/<name>.yaml`, so `fabrik apply` had nothing to deploy, although the add-in's backend runs on the fleet (D-039) and its one instance, tojlo-mail, had a hand-written spec. office-extension is now a spec type, and its spec is generated from the saas-skeleton template it already reuses (`spec_generator._SPEC_TEMPLATE_OF`): the same shape, resources, health check, env and secrets as a saas-skeleton scaffold of the same name, with `template: saas-skeleton`. The CLI's GitHub auto-create and spec regeneration now cover it too. The fail-loud "no shape block" error names the file actually read. `tests/test_shape_phase_4k.py`'s three failures on HEAD are fixed (the matrix lacked office-extension, the saas-skeleton row had `has_bearer_api` wrong, the constructor test compared a closed dict that missed newer Shape fields), and `tests/test_spec_generator.py` names the two excluded types instead of pinning a count. Reviewed by /fabrik-review-scoped; a 5-mutant battery kills all 5.
+
 ### Fixed — the project contract carried its FINAL OUTPUT section twice (2026-09-27)
 - `templates/governance/CLAUDE.md` held `## ⚠️ FINAL OUTPUT` twice since the 2026-09-21 lean pass (52733d7d2): an older copy with stories and the hub-aligned copy later edits maintained. The two had drifted apart, and every project read both. It now carries the maintained copy once, in the hub's position before § Spec contract awareness (72 lines, 8,340 bytes lighter). A sentence-level loss check found no rule only the old copy stated. Tests bound to two copies now bind one (W-6f0c06c8, the fold item).
 

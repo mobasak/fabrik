@@ -26,17 +26,15 @@ from fabrik.spec_loader import Kind, load_spec
 class TestConstants:
     """Verify module-level constants are correctly defined."""
 
-    def test_spec_enabled_types_has_nine_entries(self):
-        # 10 deployable types: python-api, python-api-gpu, node-api,
-        # saas-skeleton, file-api, file-worker, static-site, docusaurus,
-        # chrome-extension, mobile-app. chrome-extension + mobile-app are client
-        # artifacts (CRX / RN build) whose companion FastAPI backend
-        # (``server/``) IS a real VPS service; python-api-gpu is python-api + a
-        # GPU rental helper (same deploy shape) — see the ``SPEC_ENABLED_TYPES``
-        # docstring.
-        # Still excluded: desktop-app (Electron artifact, no backend), wordpress
-        # (scaffolding moved to /opt/wpf).
-        assert len(SPEC_ENABLED_TYPES) == 10
+    def test_every_scaffold_type_but_two_gets_a_spec(self):
+        """Every scaffold type deploys a spec except desktop-app (an Electron artifact with no
+        backend) and wordpress (refused, out of fabrik). Naming the excluded pair instead of a
+        count means a type added to SCAFFOLD_TYPES must be placed on one side on purpose."""
+        from fabrik.scaffold import SCAFFOLD_TYPES
+
+        assert SPEC_ENABLED_TYPES <= SCAFFOLD_TYPES
+        excluded = SCAFFOLD_TYPES - SPEC_ENABLED_TYPES
+        assert excluded == {"desktop-app", "wordpress"}
 
     def test_file_worker_in_enabled_types(self):
         assert "file-worker" in SPEC_ENABLED_TYPES

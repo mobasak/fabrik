@@ -73,17 +73,20 @@ class TestShapeModel:
             needs_database=True,
         )
         dumped = {k: (v.value if hasattr(v, "value") else v) for k, v in shape.model_dump().items()}
-        assert dumped == {
+        given = {
             "kind": "service",
             "is_public": True,
-            "is_admin_dashboard": False,
-            "has_bearer_api": False,
             "has_persistent_data": True,
             "needs_database": True,
-            "has_search_feature": False,
-            "exposes_metrics": False,
-            "needs_cache": False,
         }
+        # Every field not passed keeps its declared default, so a field added to Shape later is
+        # covered without editing this test.
+        unset = {
+            name: (f.default.value if hasattr(f.default, "value") else f.default)
+            for name, f in Shape.model_fields.items()
+            if name not in given
+        }
+        assert dumped == {**unset, **given}
 
 
 # --- Per-type shape emission ------------------------------------------------
@@ -94,7 +97,10 @@ SHAPE_MATRIX: dict[str, tuple[str, bool, bool, bool, bool, bool, bool]] = {
     "python-api": ("service", True, False, False, False, False, False),
     "python-api-gpu": ("service", True, False, False, False, False, False),
     "node-api": ("service", True, False, False, False, False, False),
-    "saas-skeleton": ("service", True, False, False, True, True, False),
+    "saas-skeleton": ("service", True, False, True, True, True, False),
+    # office-extension deploys the saas-skeleton web + backend (D-039), so its spec is
+    # generated from that template
+    "office-extension": ("service", True, False, True, True, True, False),
     "file-api": ("service", True, False, False, True, False, False),
     "static-site": ("static", True, False, False, False, False, False),
     "docusaurus": ("static", True, False, False, False, False, False),
@@ -257,3 +263,28 @@ class TestSpecGenerationEndToEnd:
         # But shape: IS present with the expected kind.
         assert "shape" in data
         assert data["shape"]["kind"] == "service"
+
+    def test_office_extension_scaffold_emits_a_saas_skeleton_spec(self, tmp_path: Path) -> None:
+        """An office add-in's backend deploys to the fleet (D-039), so its scaffold must emit the
+        spec `fabrik apply` reads — the spec a saas-skeleton scaffold of the same name gets."""
+        from fabrik.scaffold import create_project
+
+        specs = {}
+        for project_type in ("office-extension", "saas-skeleton"):
+            base = tmp_path / project_type
+            create_project(name="probe", description="d", base=base, project_type=project_type)
+            spec_path = base / "specs" / "services" / "probe.yaml"
+            assert spec_path.exists(), f"{project_type} scaffold wrote no deploy spec"
+            specs[project_type] = yaml.safe_load(spec_path.read_text())
+        assert specs["office-extension"]["template"] == "saas-skeleton"
+        # shape, resources, health, env and secrets all come through the alias
+        assert specs["office-extension"] == specs["saas-skeleton"]
+
+    def test_a_missing_alias_shape_names_the_file_actually_read(self, monkeypatch) -> None:
+        """The fail-loud error must point at saas-skeleton's defaults.yaml — the file read for
+        office-extension — never at a templates/office-extension/ copy that must not exist."""
+        import fabrik.spec_generator as sg
+
+        monkeypatch.setattr(sg, "_load_template_defaults", lambda _t: {})
+        with pytest.raises(ValueError, match="templates/saas-skeleton/defaults.yaml"):
+            sg.generate_spec("x", "office-extension", "x.example.com", use_database=True)

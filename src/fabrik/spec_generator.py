@@ -45,12 +45,13 @@ logger = logging.getLogger(__name__)
 # B16/B18 fixes). The CRX itself ships via the Chrome Web Store; the
 # spec drives the **backend**, which is a real VPS service. Users who
 # want a pure-client CRX with no backend can opt out via ``--no-spec``.
+# ``mobile-app`` is enabled for the same reason (a bundled FastAPI backend), and
+# ``office-extension`` because its taskpane web + backend are saas-skeleton's (D-039) —
+# its spec is generated from that template (``_SPEC_TEMPLATE_OF``).
 #
 # **Excluded by design** (do NOT add):
-#   - ``desktop-app`` / ``mobile-app``: packaged client artifacts
-#     (.dmg/.exe installer, APK/IPA). The current scaffolder does NOT
-#     emit a ``compose.yaml`` for these — they have no companion backend.
-#     Tracked under Phase C (G11) for backend-scaffolding implementation.
+#   - ``desktop-app``: a packaged client artifact (.dmg/.exe installer). The
+#     scaffolder does NOT emit a ``compose.yaml`` for it — it has no companion backend.
 #   - ``next-tailwind``: template files exist but no ``_scaffold_next_tailwind``
 #     wired up yet; tracked as G10. Add to this set in the same change
 #     that lands the scaffolder.
@@ -70,8 +71,21 @@ SPEC_ENABLED_TYPES: frozenset[str] = frozenset(
         "docusaurus",
         "chrome-extension",
         "mobile-app",  # ships a bundled FastAPI backend (port 8000, /health) like chrome-extension
+        "office-extension",  # the saas-skeleton web + backend plus manifest.xml (D-039)
     }
 )
+
+# A type whose deployable halves ARE another type's template generates its spec from that
+# template: shape, env, resources and the spec's ``template:`` field. office-extension reuses
+# ``_scaffold_saas_skeleton`` and adds only the add-in manifest (D-039), so its spec is
+# saas-skeleton's; one table keeps the two from drifting, where a copied defaults.yaml would.
+_SPEC_TEMPLATE_OF: dict[str, str] = {"office-extension": "saas-skeleton"}
+
+
+def _spec_template(project_type: str) -> str:
+    """The template directory whose defaults drive ``project_type``'s spec."""
+    return _SPEC_TEMPLATE_OF.get(project_type, project_type)
+
 
 SECRET_PATTERNS: tuple[str, ...] = (
     "PASSWORD",
@@ -86,6 +100,7 @@ SECRET_PATTERNS: tuple[str, ...] = (
 # ``SPEC_ENABLED_TYPES``; the artifact-only ``desktop-app`` has no entry because
 # it doesn't deploy. ``chrome-extension`` and ``mobile-app`` ARE here because
 # each bundles a FastAPI backend (port 8000, ``/health``) that is deployable.
+# A ``_SPEC_TEMPLATE_OF`` alias takes its base type's row (the ``update`` below).
 _TYPE_DEFAULTS: dict[str, dict] = {
     "python-api": {"memory": "512M", "cpu": "0.5", "health_path": "/health"},
     "python-api-gpu": {"memory": "512M", "cpu": "0.5", "health_path": "/health"},
@@ -98,6 +113,7 @@ _TYPE_DEFAULTS: dict[str, dict] = {
     "chrome-extension": {"memory": "256M", "cpu": "0.5", "health_path": "/health"},
     "mobile-app": {"memory": "256M", "cpu": "0.5", "health_path": "/health"},
 }
+_TYPE_DEFAULTS.update({alias: _TYPE_DEFAULTS[base] for alias, base in _SPEC_TEMPLATE_OF.items()})
 
 # The audit-log jobs module (retention + the weekly chain verification, D-390 / spec § 3)
 # of each Python backend that has no scheduler of its own, as the ``python -m`` module
@@ -203,7 +219,8 @@ def _parse_compose_env(compose_path: Path) -> dict[str, str]:
 
 
 def _load_template_defaults(project_type: str) -> dict:
-    """Load ``templates/<project_type>/defaults.yaml`` as a dict.
+    """Load ``templates/<project_type>/defaults.yaml`` as a dict — for an alias in
+    ``_SPEC_TEMPLATE_OF``, its base type's file.
 
     Returns an empty dict if the file is missing or fails to parse (both are
     non-fatal — caller treats missing data as "use all-False Shape defaults").
@@ -212,7 +229,7 @@ def _load_template_defaults(project_type: str) -> dict:
     fields. Resource / health defaults still live in ``_TYPE_DEFAULTS`` below
     (they are not yet migrated to defaults.yaml to keep this phase focused).
     """
-    defaults_path = _TEMPLATES_DIR / project_type / "defaults.yaml"
+    defaults_path = _TEMPLATES_DIR / _spec_template(project_type) / "defaults.yaml"
     if not defaults_path.exists():
         logger.debug(
             "No defaults.yaml for project_type=%s at %s — returning empty dict",
@@ -467,7 +484,7 @@ def generate_spec(
             f"{project_type!r} would emit a database-backed spec "
             f"(use_database={use_database!r}, "
             f"depends_postgres={ctx.get('depends_postgres')!r}) but "
-            f"templates/{project_type}/defaults.yaml has no `shape:` block — "
+            f"templates/{_spec_template(project_type)}/defaults.yaml has no `shape:` block — "
             "refusing to emit depends.postgres with no database_url_app_role "
             "flag. Add a `shape:` block to the template's defaults.yaml."
         )
@@ -551,7 +568,7 @@ def generate_spec(
 
     return create_spec(
         id=name,
-        template=project_type,
+        template=_spec_template(project_type),
         domain=domain,
         kind=kind,
         expose=expose,
