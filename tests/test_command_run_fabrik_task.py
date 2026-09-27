@@ -2748,15 +2748,50 @@ def test_a_worktree_keeps_the_sync_lane_of_the_checkout_it_belongs_to(
     (main / ".fabrik").mkdir()
     (main / ".fabrik" / "synced.lock").write_text("{}")
     assert mod._sync_applies(wt) is True  # a worktree of a synced project
-    assert mod._sync_applies(tmp_path / "not-a-repo") is False
-    # an unreadable `.fabrik` is no contract — and never an escaping PermissionError (C-H1)
+    plain = tmp_path / "plain-dir"
+    plain.mkdir()
+    assert mod._sync_applies(plain) is False  # no git, no lock: provably unsynced
+    # a removed path cannot be decided, so the filter keeps applying (fabrik-lib 01M3GMG3 F2)
+    assert mod._sync_verdict(tmp_path / "removed") is None
+    assert mod._sync_applies(tmp_path / "removed") is True
+    # an unreadable `.fabrik` cannot be decided — never an escaping PermissionError (C-H1)
     monkeypatch.setenv("FABRIK_HUB_ROOT", str(tmp_path / "elsewhere"))
     (main / ".fabrik").chmod(0)
     try:
         if os.geteuid() != 0:
-            assert mod._sync_applies(wt) is False
+            assert mod._sync_verdict(wt) is None
     finally:
         (main / ".fabrik").chmod(0o755)
+
+
+def test_a_no_commit_close_never_refuses_a_sync_claim_it_cannot_decide(
+    run_dir: Path, repo: Path, hub: Path, tmp_path: Path
+) -> None:
+    """fabrik-lib 01M3GMG3 F1 + F2. The no-commit refusal fires only on a repo that is PROVABLY
+    unsynced. A worktree removed before the close (F2) and a corrupt `repo_root` (F1, a NUL byte
+    raised an uncaught ValueError and stranded the record `running` at rc 0) cannot be decided,
+    so the claim is recorded as unverified, as before the guard existed."""
+    wt = tmp_path / "wt"
+    subprocess.run(
+        ["git", "worktree", "add", "-q", "--detach", str(wt)], cwd=repo, check=True, timeout=15
+    )
+    _start_task(run_dir, wt, hub, "src/app.py")
+    subprocess.run(
+        ["git", "worktree", "remove", "--force", str(wt)], cwd=repo, check=True, timeout=15
+    )
+    r = _close_run(run_dir, repo, hub, "blocked", "--reason", "UPGRADE: sync — found mid-run")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rec(run_dir)["state"] == "blocked"
+    assert _rows(run_dir)[-1]["upgrade"] == "sync (unverified)", _rows(run_dir)[-1]
+    _start_task(run_dir, repo, hub, "src/app.py", sid="s2")
+    rec_path = run_dir / "s2.json"
+    rec = json.loads(rec_path.read_text())
+    rec["repo_root"] = "a\u0000b"
+    rec_path.write_text(json.dumps(rec))
+    r2 = _close_run(run_dir, repo, hub, "blocked", "--reason", "UPGRADE: sync — x", sid="s2")
+    assert r2.returncode == 0, r2.stdout + r2.stderr
+    assert _rec(run_dir, "s2")["state"] == "blocked", r2.stdout + r2.stderr
+    assert _rows(run_dir)[-1]["upgrade"] == "sync (unverified)", _rows(run_dir)[-1]
 
 
 def test_a_repo_the_hub_does_not_sync_refuses_an_upgrade_sync_claim_at_close(

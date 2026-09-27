@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the /fabrik-task sync verdict is three-way: a repo the guard cannot decide is never refused (2026-09-28)
+- `scripts/command_run.py`: `_sync_verdict` answers synced, provably unsynced, or cannot tell (a removed worktree, a corrupt `repo_root`, a git dir not named `.git`, an unreadable `.fabrik`). `_sync_applies` means "unless provably unsynced", and the start lane and both close paths use it. So a true `UPGRADE: sync` claim from a removed worktree is recorded as unverified, not refused. A NUL byte in `repo_root` no longer strands the record at rc 0. From fabrik-lib 01M3GMG3 (F1, F2).
+
 ### Fixed — new projects no longer receive the source trees' tool caches (2026-09-28)
 - Every scaffold copied `__pycache__` from the hub's `scripts/enforcement/` (61 `.pyc` in each of the 12 types), and a saas-skeleton scaffold also copied `docs-site/{__pycache__,.mypy_cache,.pytest_cache,.ruff_cache}` from fabrik-lib, where `__pycache__` is not gitignored, so the `.pyc` files reached the project's first commit. `scaffold._TOOL_CACHES` now names the five patterns: all 16 `shutil.copytree` calls ignore them, and the hand-written copy loops (the saas-skeleton template, the i18n kit, the mobile-app template) skip them through `_is_tool_cache`. `tests/test_scaffold_ignores_tool_caches.py` plants caches into fake sources for each loop and for docs-site, runs every scaffold type while asking each `copytree` call's real `ignore` about the caches, and refuses a bare `from shutil import copytree`; a 7-mutant battery kills all 7. The watchdog sidecar's build-context copy has the same gap and is filed as W-f829a5aa.
 

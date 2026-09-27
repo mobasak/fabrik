@@ -2827,35 +2827,53 @@ def _is_marker(ln: str) -> bool:
 
 
 def _sync_applies(root: Path) -> bool:
-    """Is the governance-sync filter a PUBLIC CONTRACT in the repo at ``root``?
+    """Is the governance-sync filter a PUBLIC CONTRACT in the repo at ``root``? Yes unless
+    :func:`_sync_verdict` proves the repo unsynced — an undecidable repo keeps the filter, so the
+    start routes UP and every close path gives the same answer (01M3GMG3 review, C-S1)."""
+    return _sync_verdict(root) is not False
+
+
+def _sync_verdict(root: Path) -> bool | None:
+    """True synced · False provably not · None when it cannot be decided.
 
     Only in the hub itself, and in a project the hub syncs into — one carrying the
     ``.fabrik/synced.lock`` the sync writes. A sync-EXCLUDED repo (fabrik-lib) owns files whose
     paths the hub's filter happens to match (``scripts/final_gate.py``, ``.claude/hooks/*``);
     there the match is not a contract and must not route the lane (fabrik-lib 01M3FQ152 C4).
     A git WORKTREE is judged by the MAIN checkout it belongs to (git's common dir): it has
-    neither the hub's path nor the untracked lock, and judging it by its own root turned the
-    lane off exactly where plans execute (fabrik-lib 01M3GH76). Mirror: a plain CLONE of the
-    hub elsewhere is its own repo, not a worktree, and reads unsynced.
+    neither the hub's path nor the untracked lock (fabrik-lib 01M3GH76). None — a removed
+    worktree, a git that cannot answer, a git dir not named `.git`, a corrupt path — lets the
+    no-commit close record a sync claim as unverified instead of refusing a claim that may be
+    true (fabrik-lib 01M3GMG3). Mirror: a plain CLONE of the hub elsewhere is its own repo and
+    reads unsynced.
     Cobra: deleting the lock in a synced project opens the lane for a synced copy, but the
     sync rewrites the lock and ``check_synced_unmodified.py`` still refuses the edited copy.
     """
     hub = Path(os.environ.get("FABRIK_HUB_ROOT") or "/opt/fabrik")
     try:
+        if root.resolve() == hub.resolve():
+            return True
         main = _main_checkout(root)
+        if main is None:
+            if (root / ".fabrik" / "synced.lock").is_file():
+                return True
+            # a plain directory — no git, no lock — is provably unsynced; a repo git cannot read
+            # (dubious ownership, a timeout), a removed path or a relocated git dir is not
+            return False if root.is_dir() and not (root / ".git").exists() else None
         if main.resolve() == hub.resolve():
             return True
         return (main / ".fabrik" / "synced.lock").is_file()
-    except (OSError, RuntimeError):  # a symlink loop, an unreadable `.fabrik`: not a contract
-        return False
+    except (OSError, RuntimeError, ValueError):  # a symlink loop, an unreadable dir, a NUL byte
+        return None
 
 
-def _main_checkout(root: Path) -> Path:
-    """The main checkout a worktree belongs to — ``root`` itself when it is one, or not a repo.
+def _main_checkout(root: Path) -> Path | None:
+    """The main checkout a worktree belongs to — ``root`` itself when it is one; None when git
+    cannot say (not a repo, a removed dir, a git dir not named `.git`).
 
     Recorded limit (review of 01M3GH76, C-S1): a main checkout made with `--separate-git-dir`
     is not recorded anywhere a linked worktree can read — git 2.43's own `worktree list` names
-    the git dir there — so such a worktree is judged by its own root, as before this helper."""
+    the git dir there — so such a worktree is undecidable."""
     try:
         common = subprocess.run(
             ["git", "-C", str(root), "rev-parse", "--path-format=absolute", "--git-common-dir"],
@@ -2866,9 +2884,9 @@ def _main_checkout(root: Path) -> Path:
             env=_scrubbed_git_env(),
         ).stdout.strip()
     except Exception:
-        return root
+        return None
     c = Path(common)
-    return c.parent if c.name == ".git" else root
+    return c.parent if c.name == ".git" else None
 
 
 _SYNC_CLAIM_UNSYNCED = (
@@ -3479,7 +3497,9 @@ def _task_measure(
     declared = set(_raw_files)
     excl = _task_excl(rp)
     # A sync-EXCLUDED repo has no sync contract: nothing it commits is a sync hit, and a sync
-    # claim there is refused below rather than read as unverifiable (01M3FQ152 C4, mirror).
+    # claim there is refused below rather than read as unverifiable (01M3FQ152 C4, mirror). Only
+    # a PROVABLY unsynced repo: an undecidable one is measured against the filter as before C4,
+    # the same answer the no-commit close gives (01M3GMG3 review, C-S1).
     applies = _sync_applies(Path(rp))
     src_txt = _sync_filter_source() if applies else None
     pat: re.Pattern[str] | None = None
