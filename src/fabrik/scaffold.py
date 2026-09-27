@@ -1282,6 +1282,7 @@ def _scaffold_shared(
                 "statsig",
                 "backups",
                 "history.jsonl",
+                "settings.local.json",  # the hub's own local approvals, never a project's
                 ".credentials.json*",
                 "manager-accounts",
                 "*.log",

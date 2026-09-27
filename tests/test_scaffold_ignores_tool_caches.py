@@ -184,3 +184,25 @@ def test_every_copytree_in_the_scaffolder_ignores_the_tool_caches_by_structure()
 
     assert len(calls) >= 16, len(calls)
     assert [c.lineno for c in calls if not ignores_the_caches(c)] == []
+
+
+def test_the_hubs_local_claude_settings_never_reach_a_project(tmp_path, monkeypatch):
+    """_scaffold_shared copies the hub's .claude/ for its hooks; the hub's untracked
+    settings.local.json (its own permission approvals) must stay behind."""
+    calls = []
+    real = shutil.copytree
+
+    def recording(src, dst, *args, **kwargs):
+        if sys._getframe(1).f_globals.get("__name__") == scaffold.__name__:
+            calls.append((Path(src), kwargs.get("ignore")))
+        return real(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr(scaffold.shutil, "copytree", recording)
+    monkeypatch.setenv("FABRIK_SCAFFOLD_OFFLINE", "1")
+    scaffold.create_project(
+        name="loc", description="d", base=tmp_path, project_type="python-api", generate_spec=False
+    )
+
+    [(src, ignore)] = [(s, i) for s, i in calls if s.name == ".claude"]
+    assert "settings.local.json" in ignore(str(src), ["settings.local.json", "settings.json"])
+    assert "settings.json" not in ignore(str(src), ["settings.local.json", "settings.json"])

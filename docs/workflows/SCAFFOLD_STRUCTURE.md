@@ -1,6 +1,6 @@
 # Fabrik Scaffold Structure
 
-**Last Updated:** 2026-09-22 — every tree entry below is re-derived from a fresh `create_project(project_type="python-api")` emission (`scripts/enforcement/pack_layout_audit.py::_emitted_paths_for_type`, 283 paths; its walker prunes the 15 names in `scripts/rules_match.py::_EXCLUDE`, so `.droid/`, `backups/`, `output/`, `.tmp/`, `templates/`, `.git/` and `.venv/` are grounded in `scaffold.py` directly), every list from `scripts/fabrik_synced_manifest.py`, every count from `git ls-files`.
+**Last Updated:** 2026-09-28 — every tree entry below is re-derived from a fresh `create_project(project_type="python-api")` emission (`scripts/enforcement/pack_layout_audit.py::_emitted_paths_for_type`; its walker prunes the 15 names in `scripts/rules_match.py::_EXCLUDE`, so `.droid/`, `backups/`, `output/`, `.tmp/`, `templates/`, `.git/` and `.venv/` are grounded in `scaffold.py` directly), every list from `scripts/fabrik_synced_manifest.py`. Counts that only restate a manifest set or a `git ls-files` total are not written here — they went stale within days — so read the named source.
 **Script:** `src/fabrik/scaffold.py` (`create_project`, the `fabrik scaffold` command)
 
 > Complete reference for the folder and file structure created by `fabrik scaffold`. Sister doc to the broader `FABRIK_SCAFFOLD_WORKFLOW.md` (this file is narrowly scoped to the file tree).
@@ -22,7 +22,8 @@
 │   │                              #   mcp_watch · quota_stop · session_orient · skill_router (with
 │   │                              #   settings.json and .windsurf/hooks.json = the 9 AGENT_HOOK_FILES)
 │   ├── settings.json              # synced (hooks + permissions.allow)
-│   └── settings.local.json
+│   └── workflows/
+│       └── fabrik-review-loop.js  # the review-loop workflow script, copied with the hub's .claude/
 ├── .droid/                        # .gitignore · review-context/.gitkeep · traycer-reports/.gitignore
 ├── .fabrik/
 │   └── run-pytest                 # arms the gate's pytest leg (python-api · python-api-gpu · file-api)
@@ -30,8 +31,8 @@
 ├── .mcp.json                      # EMITTED by scripts/sysadmin/emit_mcp_project_config.py — gitignored
 ├── .windsurf/
 │   ├── hooks.json                 # synced (AGENT_HOOK_FILES)
-│   ├── rules/                     # 56 packs, ALL in subdirs: ai/ 11 · chrome-ext/ 3 · core/ 29 ·
-│   │   ├── CLAIMS.yaml            #   desktop-app/ 2 · mobile-app/ 6 · saas/ 5 — no pack at the top level
+│   ├── rules/                     # packs, ALL in subdirs: ai/ · chrome-ext/ · core/ · desktop-app/ ·
+│   │   ├── CLAIMS.yaml            #   mobile-app/ · saas/ — no pack at the top level
 │   │   └── versions.yaml
 │   └── workflows/                 # 6: bug-fix · deploy · new-feature · registrar-audit · review · subagent-runs-flywheel
 ├── db/
@@ -59,11 +60,12 @@
 │   ├── saas-skeleton/             # 43 files, copied into EVERY type by _scaffold_shared (build artifacts excluded)
 │   └── spec-pipeline/             # 3 Traycer stage-0 prompts + a README, copied from the hub
 ├── scripts/
-│   ├── enforcement/               # the whole dir, 78 files (git ls-files scripts/enforcement)
+│   ├── enforcement/               # the whole dir (git ls-files scripts/enforcement)
 │   ├── ci_local.sh                # local clean-room check runner (python-api · python-api-gpu · file-api)
-│   ├── command_run.py · doc_reconcile.py · docs_updater.py · final_gate.py · health_checker.py
-│   ├── mail.py · release_cut.py · review_receipt.py · review_rubric.py · rivals_run.py
-│   ├── rules_match.py · select_rules.py · thread_anchor.py · whoami_agent.py   # CORE_SCRIPTS (14)
+│   ├── check_research_ledger.py · command_run.py · doc_reconcile.py · docs_updater.py · final_gate.py
+│   ├── health_checker.py · mail.py · release_cut.py · review_receipt.py · review_rubric.py
+│   ├── rivals_run.py · rules_match.py · select_rules.py · thread_anchor.py · whoami_agent.py
+│   ├── work.py                    # CORE_SCRIPTS (the manifest set)
 │   ├── verify_prod_parity.py      # the parity-contract runner
 │   ├── kilo_47_agents_final.json  # agent registry snapshot (gitignored in the hub)
 │   └── runc · runclean · rund · rundsh · runk · runlast · runls · runtail · runwait
@@ -137,12 +139,12 @@ Seeding is **type-aware**: `_scaffold_shared` skips a doc whose registry bucket 
 | `/opt/fabrik/AGENTS.md` (a 9-line pointer to `agents-fabrik.md`), `AGENTS-compact.md`, `.windsurfrules`, `opencode.json` | same name at the project root — 4 of the 6 GOVERNANCE_FILES; `agents-fabrik.md` and `agents-fabrik-core.md` arrive with the governance sync, not at scaffold time |
 | `templates/governance/CLAUDE.md`, `DECISIONS.md`, `.worktreeinclude` | `CLAUDE.md`, `docs/DECISIONS.md`, `.worktreeinclude` (GOVERNANCE_TEMPLATES) |
 | `/opt/fabrik/.windsurf/rules/`, `.windsurf/workflows/`, `docs/reference/kilo/` | same paths (3 of the 4 GOVERNANCE_DIRS; `docs/reference/MD/` is created empty and filled by the sync) |
-| `/opt/fabrik/scripts/enforcement/` | `scripts/enforcement/` (78 files) |
-| `/opt/fabrik/scripts/<core>` (CORE_SCRIPTS, 14, read from the manifest) | `scripts/` |
+| `/opt/fabrik/scripts/enforcement/` | `scripts/enforcement/` |
+| `/opt/fabrik/scripts/<core>` (CORE_SCRIPTS, read from the manifest) | `scripts/` |
 | `templates/scaffold/scripts/` — the 11 RUN_SCRIPTS + `verify_prod_parity.py` (`scaffold.py::SCRIPT_FILES`, 12) | `scripts/` |
 | `/opt/fabrik/.claude/hooks/*` + `.claude/settings.json` + `.windsurf/hooks.json` | same paths (AGENT_HOOK_FILES, 9) |
 | `libs/health_probe/` | `libs/health_probe/` (VENDORED_DIRS) |
-| `docs/PROJECT_CATALOG.md`, `PORTS.md`, `docs/reference/technology-stack-decision-guide.md` — 3 of the 7 REFERENCE_DOCS — plus `docs/reference/prebuilt-app-containers.md` (in no manifest list) | `docs/reference/opt-project-catalog.md`, `PORTS.md`, the same two names. The `PORTS.md` copy is overwritten at once by the inline-generated one — which the first FORCED governance-sync replaces with the hub's `PORTS.md` again — the post-commit sync runs `--force` (`scripts/governance_sync_postcommit.sh`), and `--force` skips the `dest_mtime > source_mtime` "destination newer" branch entirely (`sync_enforcement_to_projects.py::sync_single_file`); a NON-forced run (the live `watch_enforcement_changes.sh` watcher and the 06:00 `daily_refresh.sh` step, both invoking the sync with no flags) WARN-skips that generated file — written with `mtime = now` — as destination-newer until a hub edit makes the source newer. 46 of the 48 synced projects hold the hub's `PORTS.md` byte-for-byte today and none holds a generated one. The remaining 4 REFERENCE_DOCS arrive with the sync |
+| `docs/PROJECT_CATALOG.md`, `PORTS.md`, `docs/reference/technology-stack-decision-guide.md` — 3 of the 7 REFERENCE_DOCS — plus `docs/reference/prebuilt-app-containers.md` (in no manifest list) | `docs/reference/opt-project-catalog.md`, `PORTS.md`, the same two names. The `PORTS.md` copy is overwritten at once by the inline-generated one — which the first FORCED governance-sync replaces with the hub's `PORTS.md` again — the post-commit sync runs `--force` (`scripts/governance_sync_postcommit.sh`), and `--force` skips the `dest_mtime > source_mtime` "destination newer" branch entirely (`sync_enforcement_to_projects.py::sync_single_file`); a NON-forced run (the live `watch_enforcement_changes.sh` watcher and the 06:00 `daily_refresh.sh` step, both invoking the sync with no flags) WARN-skips that generated file — written with `mtime = now` — as destination-newer until a hub edit makes the source newer. The remaining 4 REFERENCE_DOCS arrive with the sync |
 | `/opt/fabrik/scripts/kilo_47_agents_final.json` | `scripts/kilo_47_agents_final.json` (in no manifest list) |
 | `templates/saas-skeleton/` (43 files, build artifacts excluded) + `templates/spec-pipeline/` (4 files) | the same paths, for every type |
 
@@ -161,12 +163,12 @@ The manifest is the canonical list of what the SYNC distributes — read it, nev
 
 These are **auto-synced** from `/opt/fabrik/` to every project by `scripts/sync_enforcement_to_projects.py`; the canonical list is `scripts/fabrik_synced_manifest.py`:
 
-1. **Cascade compact contract** — `.windsurfrules` (81 lines; Cascade silently truncates it at 6,000 characters, so the budget is characters, not lines).
+1. **Cascade compact contract** — `.windsurfrules`. Cascade silently truncates it at 6,000 characters, so the budget is characters, not lines — and the file is longer than that today (`wc -c .windsurfrules`), so its tail never reaches Cascade.
 2. **Governance files** — the 6 GOVERNANCE_FILES (`AGENTS.md`, `AGENTS-compact.md`, `agents-fabrik.md`, `agents-fabrik-core.md`, `.windsurfrules`, `opencode.json` — the last is the Kilo-safe rules config, still gated by `check_opencode_json.py`) and the 3 GOVERNANCE_TEMPLATES (`CLAUDE.md`, `docs/DECISIONS.md`, `.worktreeinclude`).
-3. **Governance rules** — `.windsurf/rules/` (56 packs in 6 subdirs) — project-wide coding standards.
+3. **Governance rules** — `.windsurf/rules/` (packs in 6 subdirs) — project-wide coding standards.
 4. **Workflows** — `.windsurf/workflows/` (6 files).
-5. **Enforcement scripts** — `scripts/enforcement/` (78 files): the quality-gate checks.
-6. **Core scripts** — the 14 CORE_SCRIPTS (`final_gate.py` is the COMPLETION gate, run by hand; `command_run.py`, `docs_updater.py`, `review_rubric.py`, …) and the 11 RUN_SCRIPTS. `kilo_code_review.py`, `kilo_docs_enforcer.py` and `update_agents_toc.py` are RETIRED_CORE_SCRIPTS: the sync DELETES stale project copies and never re-seeds them.
+5. **Enforcement scripts** — `scripts/enforcement/`: the quality-gate checks.
+6. **Core scripts** — the CORE_SCRIPTS (`final_gate.py` is the COMPLETION gate, run by hand; `command_run.py`, `docs_updater.py`, `review_rubric.py`, …) and the 11 RUN_SCRIPTS. `kilo_code_review.py`, `kilo_docs_enforcer.py` and `update_agents_toc.py` are RETIRED_CORE_SCRIPTS: the sync DELETES stale project copies and never re-seeds them.
 7. **Agent hooks** — `.claude/hooks/` + `.claude/settings.json` + `.windsurf/hooks.json` (AGENT_HOOK_FILES).
 8. **Reference docs and dirs** — REFERENCE_DOCS + `docs/reference/MD/` + `docs/reference/kilo/`.
 9. **Vendored module** — `libs/health_probe/`.
@@ -185,11 +187,11 @@ The scaffolder does not run a template engine. `_scaffold_shared` (`scaffold.py`
 
 ### Auto-Spec Generation
 
-Inside `create_project`, `generate_and_save_spec()` writes a deployment spec for the 10 `SPEC_ENABLED_TYPES` (`src/fabrik/spec_generator.py`): `python-api`, `python-api-gpu`, `saas-skeleton`, `node-api`, `file-api`, `file-worker`, `static-site`, `docusaurus`, `chrome-extension`, `mobile-app`. Each type's `shape:` defaults come from `templates/<type>/defaults.yaml`, which is also where the per-type `compose.yaml.j2` lives — those directories serve the spec/deploy path, not the scaffold tree.
+Inside `create_project`, `generate_and_save_spec()` writes a deployment spec for the `SPEC_ENABLED_TYPES` (`src/fabrik/spec_generator.py`): `python-api`, `python-api-gpu`, `saas-skeleton`, `node-api`, `file-api`, `file-worker`, `static-site`, `docusaurus`, `chrome-extension`, `mobile-app`, `office-extension`. Each type's `shape:` defaults come from `templates/<type>/defaults.yaml` — `office-extension` has no template dir and reads `saas-skeleton`'s, its spec carrying `template: saas-skeleton` (`spec_generator._SPEC_TEMPLATE_OF`, D-440) — and most of those directories also hold the type's `compose.yaml.j2` (`python-api-gpu` and `mobile-app` have none); they serve the spec/deploy path, not the scaffold tree.
 
 > `chrome-extension` and `mobile-app` ARE spec-enabled: each bundles a deployable FastAPI backend under `server/` (port 8000, `/health`), so each gets its own `specs/services/<name>.yaml` for that backend. Only the packaged client artifact (Chrome Web Store `.zip` / App Store build) is out-of-spec.
 >
-> **Not spec-enabled:** `desktop-app` (a packaged, direct-distribution artifact with no server component), `office-extension` (not in `SPEC_ENABLED_TYPES`), and `wordpress` (not scaffolded at all — § Scaffold Types).
+> **Not spec-enabled:** `desktop-app` (a packaged, direct-distribution artifact with no server component) and `wordpress` (not scaffolded at all — § Scaffold Types).
 
 **Spec file location:** `/opt/fabrik/specs/services/{project-name}.yaml`. Skip it with `fabrik scaffold my-api --type python-api --no-spec`.
 
@@ -210,7 +212,7 @@ The `fabrik scaffold` command runs the same checks after `create_project()` retu
 | Type | Scaffolder reads | What is built |
 |------|------------------|---------------|
 | `python-api` | `templates/scaffold/` (`TEMPLATE_DIR`) | FastAPI + Uvicorn service (`_scaffold_fastapi_backend`) |
-| `python-api-gpu` | the `python-api` scaffold, then inline GPU additions | GPU-aware `python-api` variant (`gpu_rent` job-handler hook) |
+| `python-api-gpu` | the `python-api` scaffold, then inline GPU additions | `python-api` plus `src/<package>/gpu_handler.py`, a client for a pinned RunPod serverless endpoint that never imports `fabrik`, and its two env vars in `.env.example` and compose (D-437) |
 | `saas-skeleton` | `templates/saas-skeleton/` (`SAAS_SKELETON_DIR`) | Next.js + TypeScript + Tailwind, with a FastAPI backend (`_scaffold_saas_backend`) |
 | `static-site` | the `saas-skeleton` scaffolder | same tree (landing pages) |
 | `office-extension` | the `saas-skeleton` scaffolder; `manifest.xml` written inline | the hosted taskpane web + backend, plus `manifest.xml` |

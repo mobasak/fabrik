@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — new projects no longer inherit the hub's local Claude approvals; SCAFFOLD_STRUCTURE.md re-derived (2026-09-28)
+- `_scaffold_shared` copies the hub's `.claude/` for its hooks, and its ignore list, which the code comment says keeps session state out, did not name `settings.local.json`, so the hub's own untracked permission approvals landed in every new project. It is now ignored; `tests/test_scaffold_ignores_tool_caches.py` asserts the `.claude` copy drops it and keeps `settings.json`.
+- `docs/workflows/SCAFFOLD_STRUCTURE.md` (mail 01M32YS4): the list of core scripts gains `check_research_ledger.py` and `work.py`; office-extension is spec-enabled (D-440); the python-api-gpu row describes the pinned RunPod client (D-437); the tree lists `.claude/workflows/fabrik-review-loop.js` and no longer lists `settings.local.json`; two templates without a `compose.yaml.j2` are named; `.windsurfrules` is stated to exceed Cascade's 6,000-character truncation. Hand-typed counts that restate a manifest set, a `git ls-files` total or a fleet census were removed, and the header points at the sources instead. The `DATA_SYNC_WORKFLOW.md` remainder went to infra (01M3JCWM).
+
 ### Fixed — the /fabrik-task sync verdict is three-way: a repo the guard cannot decide is never refused (2026-09-28)
 - `scripts/command_run.py`: `_sync_verdict` answers synced, provably unsynced, or cannot tell (a removed worktree, a corrupt `repo_root`, a git dir not named `.git`, an unreadable `.fabrik`). `_sync_applies` means "unless provably unsynced", and the start lane and both close paths use it. So a true `UPGRADE: sync` claim from a removed worktree is recorded as unverified, not refused. A NUL byte in `repo_root` no longer strands the record at rc 0. From fabrik-lib 01M3GMG3 (F1, F2).
 
