@@ -612,26 +612,25 @@ done
 
 ### Fabrik Workflow Integration
 
+> **Retired:** the local models are no longer part of the Fabrik workflow (see the scope note at the top). This section
+> records what became of each former use.
+
 #### Code Reviews
 ```bash
-# Review staged changes (uses fabrik-reviewer)
-python scripts/kilo_code_review.py staged
-
-# Auto-fix loop (uses fabrik-fixer for fixes)
-python scripts/kilo_code_review.py auto-fix src/ --max-iterations 3
+# (retired: scripts/kilo_code_review.py is archived under scripts/archived/, 7a8dc2810; code review now runs as
+#  /fabrik-review or /fabrik-review-scoped in Claude Code, not on the local fabrik-reviewer/fabrik-fixer models)
 ```
 
 #### Documentation
 ```bash
-# (retired: scripts/kilo_docs_enforcer.py is archived under scripts/archived/)
+# (retired: scripts/kilo_docs_enforcer.py is archived under scripts/archived/, 7a8dc2810)
 ```
 
 #### Model Selection
 ```bash
-# Current role assignments live in the engine's agent_roles table (db_models.py is archived)
-
-# View local model status
-python /opt/ai-model-catalog/engine/kilo_agents_db.py ollama-status
+# Local models hold no roles any more; cloud-agent role assignments live in the engine's agent_roles table
+# (db_models.py is archived). Live status of the installed local models:
+ollama list
 ```
 
 ### IDE Integration (Windsurf/Cascade)
