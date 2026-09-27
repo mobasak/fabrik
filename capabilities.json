@@ -2764,7 +2764,7 @@
     {
       "name": "scripts/kilo_model_sync_startup.sh",
       "kind": "script",
-      "summary": "RETIRED 2026-07-19 \u2014 Kilo CLI stack retired (operator directive: LLM access = Claude Max OAuth + OpenRouter only). Zero runtime callers; kept for history \u2014 do n",
+      "summary": "RETIRED 2026-09-25 (D-415). Still run by the operator's ~/.bashrc hook: do not move it before that hook and the cron line go (D-432).",
       "invoke": "bash scripts/kilo_model_sync_startup.sh",
       "status": "retired",
       "owner": "infra",

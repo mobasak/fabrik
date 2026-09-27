@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — kilo_model_sync_startup.sh no longer claims zero callers (2026-09-27)
+- Its header said "Zero runtime callers; kept for history", yet the operator's `~/.bashrc` hook still runs it on every shell start (D-432) — a cleanup trusting the header would delete a live script. The header now names that caller and how to find it, says the crontab runs `kilo_model_sync.py` directly, that both lines must go before either script moves (D-432), and that concurrent shell starts re-run the sync (most days 1-3 runs, some up to 17). Retired date corrected to 2026-09-25 (D-415), and the caller warning now leads the header, so the `capabilities.json` summary derived from it carries it too (W-6ec9469d).
+
 ### Fixed — GPU rentals: rent() and rented() share one lifecycle, costs are provider-true, the reaper stays in its lane (2026-09-27)
 - `rented()` had drifted from `rent()`: it orphaned a pod when the RUNNING wait failed, let a non-RunPod destroy error skip the audit line and the `destroy_pending` flag, and priced its budget guard at RunPod rates for every provider. Both entry points now run one `_preflight` and one `_finalize`, and `tests/orchestrator/test_gpu_rent_parity.py` drives every scenario through both.
 - Actual cost uses the chosen provider's rate (Modal was booked ~27% low against `MAX_DAILY_GPU_COST`), and serverless sessions are booked at the same per-provider budget rate the estimate uses instead of $0, so they count against the daily cap and the cost metric. The orphan path books the pod's cost too.

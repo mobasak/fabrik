@@ -1,13 +1,12 @@
 #!/bin/bash
-# RETIRED 2026-07-19 — Kilo CLI stack retired (operator directive: LLM access = Claude Max OAuth + OpenRouter only). Zero runtime callers; kept for history — do not use.
-# Kilo Model Sync - WSL Startup Hook
-# Runs model sync on WSL startup (via .bashrc or systemd)
-#
-# Installation:
-#   1. Add to ~/.bashrc:
-#      [ -f /opt/fabrik/scripts/kilo_model_sync_startup.sh ] && /opt/fabrik/scripts/kilo_model_sync_startup.sh
-#
-#   2. Or create systemd user service (see below)
+# RETIRED 2026-09-25 (D-415). Still run by the operator's ~/.bashrc hook: do not move it before that hook and the cron line go (D-432).
+# The Kilo model sync; the Kilo CLI it fed retired 2026-07-19. Do not use or install it. Find the hook with
+# `grep -n kilo_model_sync_startup ~/.bashrc`; it calls this script on every shell start. The last-run file below is written
+# only after the background sync finishes, so a shell opened while a sync is running starts another one (most days in the
+# log show 1-3 runs; some show up to 17). No repo code calls it.
+# It runs scripts/kilo_model_sync.py, which the operator's crontab (59 11 * * *) also runs directly.
+# The hook as it was installed (shown so it can be found and removed, not copied):
+#   [ -f /opt/fabrik/scripts/kilo_model_sync_startup.sh ] && /opt/fabrik/scripts/kilo_model_sync_startup.sh
 
 set -euo pipefail
 
