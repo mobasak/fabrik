@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-27T03:02:03.910625Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "091a74ad154ceb3f78db8bb1ecbd96d772582e1d",
   "id": "W-1ec3c60a",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "intel",
   "priority": 3,
-  "status": "open",
+  "status": "done",
   "title": "docs/reference/LOCAL_LLM_INFRASTRUCTURE.md's Kilo/Ollama workflow section still runs archived scripts (scripts/kilo_code_review.py around :618-622) and describes the pre-2026-08-15 hub pipeline (found in W-70653005)"
 }
