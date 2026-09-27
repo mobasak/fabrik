@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the QUOTA bullet in both contracts, 12,474 → 8,805 bytes, no rule lost (2026-09-27)
+- `CLAUDE.md` and `templates/governance/CLAUDE.md`: the § Pointers fleet-quota bullet is replaced by fabrik-lib's lean version (mail 01M3FQ150), plus two rules its first draft dropped — a review-family start at RED is "never a fresh round on something new", and a `caps.json` weekly cap can open an episode at `walled` with no warning first. Stories, worked examples and machinery restatements are gone; the rules, the `QUOTA:` line format and the graded spans stay. fabrik-lib takes the two clauses by mail.
+
 ### Fixed — /fabrik-task's sync lane outside synced repos, the headless self-watch gate, and a pinned-import recipe for review seats (2026-09-27)
 - `scripts/command_run.py`: the /fabrik-task sync-lane test and the close's `UPGRADE: sync` check apply only in the hub or a repo carrying `.fabrik/synced.lock` (`_sync_applies`); elsewhere the close REFUSES an `UPGRADE: sync` claim instead of letting it through; `_kaizen()` survives a `SystemExit` at import. From fabrik-lib 01M3FQ152 (C4, C5).
 - `scripts/sysadmin/selfwatch_check.py`, `.claude/hooks/session_orient.py` and `scripts/sysadmin/claude_selfwatch_orient.sh` also stand down on `FABRIK_HEADLESS=1`, so a headless `claude -p` run gets no self-watch arm order. From intel 01M3C9BH.
