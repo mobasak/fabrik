@@ -296,7 +296,7 @@ judgment. *"My change type isn't in the table"* is never a reason to leave a doc
 | Code/Docker/deps changed | `CHANGELOG.md` |
 | File added/removed/renamed | `INDEX.md` — ⚠️ the GATE enforces this for `docs/`-prefixed markdown ONLY (`check_doc_index.py`'s stated scope); a new test, script or source file with no INDEX row passes green. That half is your judgment, per this table's own FLOOR rule — three test files slipped three green gates at web-ecommerce-factory before anyone noticed (01M2J9HKBHY7) |
 | API/SDK/CLI changed | `docs/QUICKSTART.md` |
-| New port allocated | `PORTS.md` |
+| New port allocated | the hub's registry `/opt/fabrik/PORTS.md` — the hub allocates it: ask with `python scripts/mail.py send --to fabrik --to-agent fleet --kind request`; a project's `PORTS.md` is a read-only synced copy (D-380) |
 | Feature shipped | `docs/FEATURES.md` |
 | New subsystem / standalone service / box-local system | a DEDICATED doc — `docs/reference/<name>.md` (box-local → `docs/workstation/<name>.md`) — **grep/`ls` first that it doesn't already exist** (extend the existing one, never a second), then add its `INDEX.md` row. A `FEATURES`/`CHANGELOG` entry is NOT a substitute for the subsystem's own reference doc |
 | Schema migration | Alembic + `db/schema.sql` |

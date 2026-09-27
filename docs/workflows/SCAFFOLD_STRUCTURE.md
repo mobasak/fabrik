@@ -125,7 +125,6 @@ Seeding is **type-aware**: `_scaffold_shared` skips a doc whose registry bucket 
 
 | File | Purpose |
 |------|---------|
-| `PORTS.md` | Port allocation tracking |
 | `docs/development/PLANS.md` | Development plans index |
 | `docs/archive/README.md` | Archive directory index |
 | `db/schema.sql` | Schema header, written as an f-string (the `templates/scaffold/db/schema.sql` file is not read) |
@@ -144,7 +143,7 @@ Seeding is **type-aware**: `_scaffold_shared` skips a doc whose registry bucket 
 | `templates/scaffold/scripts/` — the 11 RUN_SCRIPTS + `verify_prod_parity.py` (`scaffold.py::SCRIPT_FILES`, 12) | `scripts/` |
 | `/opt/fabrik/.claude/hooks/*` + `.claude/settings.json` + `.windsurf/hooks.json` | same paths (AGENT_HOOK_FILES, 9) |
 | `libs/health_probe/` | `libs/health_probe/` (VENDORED_DIRS) |
-| `docs/PROJECT_CATALOG.md`, `PORTS.md`, `docs/reference/technology-stack-decision-guide.md` — 3 of the 7 REFERENCE_DOCS — plus `docs/reference/prebuilt-app-containers.md` (in no manifest list) | `docs/reference/opt-project-catalog.md`, `PORTS.md`, the same two names. The `PORTS.md` copy is overwritten at once by the inline-generated one — which the first FORCED governance-sync replaces with the hub's `PORTS.md` again — the post-commit sync runs `--force` (`scripts/governance_sync_postcommit.sh`), and `--force` skips the `dest_mtime > source_mtime` "destination newer" branch entirely (`sync_enforcement_to_projects.py::sync_single_file`); a NON-forced run (the live `watch_enforcement_changes.sh` watcher and the 06:00 `daily_refresh.sh` step, both invoking the sync with no flags) WARN-skips that generated file — written with `mtime = now` — as destination-newer until a hub edit makes the source newer. The remaining 4 REFERENCE_DOCS arrive with the sync |
+| `docs/PROJECT_CATALOG.md`, `PORTS.md`, `docs/reference/technology-stack-decision-guide.md` — 3 of the 7 REFERENCE_DOCS — plus `docs/reference/prebuilt-app-containers.md` (in no manifest list) | `docs/reference/opt-project-catalog.md`, `PORTS.md`, the same two names. `PORTS.md` is the hub's port registry, read-only in the project (D-380): the scaffolder writes no project rows into it, and the governance sync keeps it current. The remaining 4 REFERENCE_DOCS arrive with the sync |
 | `/opt/fabrik/scripts/kilo_47_agents_final.json` | `scripts/kilo_47_agents_final.json` (in no manifest list) |
 | `templates/saas-skeleton/` (43 files, build artifacts excluded) + `templates/spec-pipeline/` (4 files) | the same paths, for every type |
 

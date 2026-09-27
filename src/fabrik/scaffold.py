@@ -237,6 +237,8 @@ MOBILE_APP_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "mobile-app"
 DESKTOP_APP_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "desktop-app"
 DOCUSAURUS_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "docusaurus"
 I18N_KIT_DIR = FABRIK_ROOT / "templates" / "i18n-kit"
+# The fleet port registry: a project holds a read-only copy (D-380).
+HUB_PORTS_MD = FABRIK_ROOT / "PORTS.md"
 # fabrik-lib is the sibling repo (/opt/fabrik-lib) of FABRIK_ROOT (/opt/fabrik);
 # it holds the vendorable lib modules (docs-site, etc.).
 FABRIK_LIB_DIR = FABRIK_ROOT.parent / "fabrik-lib"
@@ -1336,10 +1338,17 @@ def _scaffold_shared(
         catalog_target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(fabrik_catalog, catalog_target)
 
-    # Copy PORTS.md (so Traycer can check port conflicts)
-    fabrik_ports = FABRIK_ROOT / "PORTS.md"
-    if fabrik_ports.exists():
-        shutil.copy(fabrik_ports, project_dir / "PORTS.md")
+    # Copy the hub's PORTS.md: the fleet port registry, read-only in a project (D-380) — the
+    # governance sync keeps it current, so the scaffolder never writes project rows into it
+    if HUB_PORTS_MD.exists():
+        shutil.copy(HUB_PORTS_MD, project_dir / "PORTS.md")
+    else:
+        logger.warning(
+            "hub port registry %s is missing — %s gets no PORTS.md until the governance sync "
+            "seeds it",
+            HUB_PORTS_MD,
+            project_dir.name,
+        )
 
     # Copy .windsurf/hooks.json (rewriting cwd to point at the new project)
     _copy_windsurf_hooks(project_dir)
@@ -1445,42 +1454,6 @@ def _scaffold_shared(
             dirs_exist_ok=True,
             ignore=shutil.ignore_patterns(*_TOOL_CACHES),
         )
-
-    # Create PORTS.md (every project tracks its own ports)
-    (project_dir / "PORTS.md").write_text(
-        f"""# {name} Port Allocations
-
-**Last Updated:** {today}
-
-This document tracks port allocations for {name} services to prevent conflicts.
-
----
-
-## Port Ranges
-
-| Range | Purpose | Environment |
-|-------|---------|-------------|
-| 3000-3099 | Frontend apps (Node.js) | WSL & VPS |
-| 5000-5099 | Python services (misc) | WSL only |
-| 8000-8099 | Python APIs (FastAPI) | WSL & VPS |
-| 8100-8199 | Workers & background services | WSL & VPS |
-
----
-
-## Current Allocations
-
-| Port | Service | URL/Purpose |
-|------|---------|-------------|
-| TBD | Main service | Add your allocations here |
-
----
-
-## Notes
-
-- Register all ports in this file before using them
-- Check this file before adding new services to avoid conflicts
-"""
-    )
 
     # Create PLANS.md inline (no template file)
     (project_dir / "docs" / "development" / "PLANS.md").write_text(
