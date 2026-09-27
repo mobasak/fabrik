@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the research ledger reaches every synced repo; execute-plan names the review workflow by its hub path (2026-09-27)
+- `scripts/check_research_ledger.py` is synced into every project (`CORE_SCRIPTS`, the governance-sync trigger, `.worktreeinclude`), and `templates/governance/CLAUDE.md` § External Knowledge states the rule with the command a project runs before committing a ledger (D-438). The checker names a row that is a DUPLICATE of itself as such. `docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md` § Core Scripts is rebuilt from `CORE_SCRIPTS`: 16 entries, the retired Kilo scripts gone.
+- `commands/_sources/fabrik-execute-plan.md` names `/opt/fabrik/.claude/workflows/fabrik-review-loop.js`. It was the corpus's only relative reference, and it pointed at a file no project has.
+
 ### Fixed — python-api-gpu's generated GPU helper runs inside the deployed service (2026-09-27)
 - The generated `src/<pkg>/gpu_handler.py` imported `fabrik.orchestrator.gpu_rent`, which the service's `requirements.txt` does not carry and which only works on the hub (it reads `/opt/fabrik/.env.sysadmin` and writes hub state), so any call from a deployed container raised `ModuleNotFoundError`. It is now a small client for a RunPod serverless endpoint pinned by `RUNPOD_SERVERLESS_ENDPOINT_ID`: `run_on_gpu(payload)` submits to `/run`, polls until the job finishes, cancels any job it gives up on (deadline passed, a poll failed, a status it does not know) so it stops billing, refuses an endpoint or job id that could change the request path, and turns every failure — a failed job, a malformed reply, a closed client, a missing setting — into one `GpuJobError`. Both variables are written to `.env.example` and to the compose `environment:` list, which is what hands them to the container and what the spec's `env:` is generated from. Dedicated pods are rented hub-side with `fabrik gpu rent`. 33 graders drive the generated module through a mocked transport; two mutant batteries (13, then 8 over the review's fixes) kill every mutant. Mail 01M348TJ.
 

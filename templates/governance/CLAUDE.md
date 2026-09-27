@@ -256,7 +256,7 @@ differently, and one engine's silence once deleted a true citation. A tier-2 eng
 REPORTED (§ Behavior, the MCP FIX-FIRST bullet) and the tier-2 gate is then satisfied without it. `exa` and `firecrawl` are METERED:
 tier 2 is for a miss, never a habit. A `/fabrik-*` command that wires its own research tools or order
 (`/fabrik-spec`, `/fabrik-rivals`, …) keeps that wiring inside its run; this ladder is the default everywhere else.
-Cite the URL and the engine that found it in the artifact you produce (code, spec, ledger row, `CLAIMS.yaml`). 3. After 3 QUERIES with no usable answer, tier 2 included:
+Cite the URL and the engine that found it in the artifact you produce (code, spec, ledger row, `CLAIMS.yaml`). **A research FAN-OUT's results are filed whole before anything is synthesized from them:** every fact a seat or engine returned goes verbatim into `docs/reference/research/<date>-<topic>-ledger.md`, one table row per fact, each dispositioned; a source is rejected only after it is read in full, never on its quote. `python3 scripts/check_research_ledger.py <ledger>` owns the row grammar (ids and the four dispositions — it prints them on a refusal); run it and reach exit 0 before committing the ledger. 3. After 3 QUERIES with no usable answer, tier 2 included:
 `BLOCKED: <vendor> — <searched, tier by tier> — <missing>`; stop. Skip: stdlib, syntax, Fabrik conventions.
 
 ## HARD STOPS — NEVER

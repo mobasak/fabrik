@@ -47,6 +47,7 @@ scripts/whoami_agent.py
 scripts/command_run.py
 scripts/thread_anchor.py
 scripts/work.py
+scripts/check_research_ledger.py
 scripts/enforcement/
 scripts/rund
 scripts/rundsh

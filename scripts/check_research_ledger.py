@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: none
+# AFTER-EDIT: tests/test_research_ledger.py
 """Refuse a research ledger that leaves a returned fact undispositioned.
 
 A research fan-out returns facts to the lead session only; a fact the lead does not carry into its synthesis leaves
@@ -75,7 +75,11 @@ def check(path: Path) -> list[str]:
             continue
         m = DUP.match(disp)
         if m:
-            if m.group(1) not in ids or m.group(1) == r[0]:
+            if m.group(1) == r[0]:
+                bad.append(
+                    f"{path}: {r[0]}: DUPLICATE of itself — name the row that carries the fact"
+                )
+            elif m.group(1) not in ids:
                 bad.append(f"{path}: {r[0]}: DUPLICATE of an id not in this ledger ({m.group(1)})")
             continue
         m = REJ.match(disp)

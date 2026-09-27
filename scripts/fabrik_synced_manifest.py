@@ -61,6 +61,7 @@ CORE_SCRIPTS = [
     "command_run.py",  # COMMAND RUN-RECORD: the pinned `RUN:` line + class ledger; the Stop hook's 5th cause reads its state
     "thread_anchor.py",  # THREAD ANCHORS: durable NEXT:-line memory — the Stop hook harvests, SessionStart/UserPromptSubmit re-inject (settings.json references it, so it must travel with settings.json)
     "work.py",  # WORK TRACKING: the open-work store (ready/next/claim/done/answer/assign/status/sync/render) — travels with thread_anchor.py, whose DECISION harvest and prompt block call it by path (plan 2026-09-24 T04)
+    "check_research_ledger.py",  # RESEARCH LEDGER (D-352): the row grammar every research fan-out files its facts under, in every repo
 ]
 
 # Scripts RETIRED from CORE_SCRIPTS — the sync DELETES these from every project copy.

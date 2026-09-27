@@ -251,9 +251,9 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
    `/fabrik-review-scoped` (its round ledger is the artifact; its route-up trigger defers to the Finish
    review) and the full round below runs ONCE at Finish over the whole-plan diff — the rest of this item
    binds unchanged.** Otherwise, at each phase boundary, run the full `/fabrik-review` on the changed surface
-   *plus everything it calls / is called by* — ITS loop, never a restatement of it: the surface partitioned by
+   *plus everything it calls / is called by* — ITS loop, never a restatement of it: partitioned by
    file, two cheap finders per slice and one refuter per slice in ONE `Workflow` call per pass
-   (`.claude/workflows/fabrik-review-loop.js`), every later pass the round-1 seats over their own slice ledgers
+   (`/opt/fabrik/.claude/workflows/fabrik-review-loop.js`), every later pass the round-1 seats over their own slice ledgers
    (D-335, D-344); a phase diff touching auth / schema / migrations / secrets / concurrency names it as its
    slice's hunt priority and that slice adds a native Opus finder (`models: ["sonnet", "haiku", "opus"]`). You adjudicate and **prove-before-fix** each confirmed finding with a kept regression
    test. Every finding terminates **FIXED or REFUTED** (proof required to refute); an `unverified` verdict never

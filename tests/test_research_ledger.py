@@ -55,7 +55,9 @@ def test_a_rejection_without_a_real_reason_or_a_dangling_duplicate_is_refused(
     bad = crl.check(p)
     assert len(bad) == 3
     assert (
-        "five words" in bad[0] and "not in this ledger" in bad[1] and "not in this ledger" in bad[2]
+        "five words" in bad[0]
+        and "not in this ledger" in bad[1]
+        and "DUPLICATE of itself" in bad[2]
     )
 
 
@@ -82,3 +84,19 @@ def test_a_ledger_with_no_fact_rows_is_refused_and_a_missing_path_is_a_usage_err
     p = _ledger(tmp_path, "")
     assert crl.check(p) and "no fact rows" in crl.check(p)[0]
     assert crl.main([str(tmp_path / "absent-ledger.md")]) == 2
+
+
+def test_every_synced_repo_gets_the_rule_and_the_checker() -> None:
+    """The rule reaches the fleet (operator 2026-09-27: every repo under /opt works this way):
+    the project template states it and the checker is synced into every project's scripts/."""
+    import sys
+
+    root = Path(__file__).resolve().parent.parent
+    sys.path.insert(0, str(root / "scripts"))
+    import fabrik_synced_manifest as manifest
+
+    assert "check_research_ledger.py" in manifest.CORE_SCRIPTS
+    for contract in ("CLAUDE.md", "templates/governance/CLAUDE.md"):
+        text = (root / contract).read_text(encoding="utf-8")
+        assert "A research FAN-OUT's results are filed whole" in text, contract
+        assert "scripts/check_research_ledger.py" in text, contract

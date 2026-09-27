@@ -66,15 +66,24 @@ Synchronizes Fabrik governance + enforcement files to all `/opt/*` projects, ens
 
 | Script | Purpose |
 |--------|----------|
-| `final_gate.py` | Pre/post Kilo gate checks |
-| `kilo_code_review.py` | Kilo CLI review integration |
-| `kilo_docs_enforcer.py` | Step 4 DOCUMENTATOR |
+| `final_gate.py` | The completion gate (`--json` Tier 2, `--lean`, `--systemic`) |
 | `docs_updater.py` | Documentation maintenance |
-| `doc_reconcile.py` | Tier-1 doc-reconcile loop (pool author → verify → converge); agents run it per phase |
-| `update_agents_toc.py` | AGENTS.md table of contents |
+| `doc_reconcile.py` | Tier-1 doc-reconcile loop; agents run it per phase |
 | `health_checker.py` | HTTP + DB health probes |
 | `select_rules.py` | Plan-time: lists applicable `.windsurf/rules` packs |
 | `review_rubric.py` | Armed-review rubric extractor — `/fabrik-review` injects its output into finders |
+| `review_receipt.py` | Review-artifact skeleton (`--init`) |
+| `rules_match.py` | The path↔pack glob matcher `select_rules.py` and `review_rubric.py` import |
+| `release_cut.py` | `/fabrik-release` version cut |
+| `mail.py` | fabrik-mail sender and store |
+| `rivals_run.py` | `/fabrik-rivals` driver |
+| `whoami_agent.py` | Session self-naming; `command_run.py` imports its resolver |
+| `command_run.py` | Command run records — the `RUN:` line, rounds, the close |
+| `thread_anchor.py` | Durable `NEXT:` memory the Stop and prompt hooks read |
+| `work.py` | The open-work store (`.fabrik/work/`) |
+| `check_research_ledger.py` | Research-ledger row grammar (D-352): run on a ledger before committing it |
+
+The list is `CORE_SCRIPTS` in `scripts/fabrik_synced_manifest.py`; this table mirrors it.
 
 ### Run Scripts
 
