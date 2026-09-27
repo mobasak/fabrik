@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T08:52:35.816152Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-3b5507d3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M34A4FYNEN417Y2JA53FJ9B5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "gpu_rent / gpu_reaper / gpu_checkpoint — ten committed defects found by grading core/76-gpu-workers.md against the code (endpoints never tagged, rented() orphans on wait failure, serverless cost = $0, Modal under-counted ~27% against the daily cap)"
+}
