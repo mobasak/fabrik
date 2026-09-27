@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T23:37:36.427079Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "f6a777978a936c7aaaa3511698509efed22c414d",
   "id": "W-59c5ab33",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "intel",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "title": "Fleet rollout of the work store: each repo runs init --distributor and migrate-backlog"
 }
