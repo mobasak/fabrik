@@ -1509,7 +1509,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 
 ### Core Scripts
 
-- `scripts/generate_kilo_agents.py` - Generates tier-based agent scripts from the agent manifest
+- `scripts/archived/generate_kilo_agents.py` - Retired 2026-07-19; archived 2026-09-27 with the rest of the dead Kilo/Traycer set (W-70653005)
 - `scripts/archived/kilo_code_review.py` - RETIRED 2026-08-19 (was: Code review, Step 4 in the Kilo workflow)
 - `scripts/kilo_model_sync.py` - Syncs the model catalog + pricing
 - `scripts/external_services_chain.sh` - THE external-services chain, one definition: gather_envs → classify (bounded, cursor-walked) → gather_envs → registry_sync --fetch-credits → gen_dashboard (only when every DATA step succeeded — a failed classify alerts but never ages the heartbeat); each step under `timeout`, alerts on failure; run by BOTH `daily_refresh.sh` and `wsl_startup_hook.sh` (they share the daily lock)
@@ -1527,7 +1527,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 - `libs/alerting/` + `libs/cost_budget.py` - vendored fabrik-lib (send_alert / check_caps) for the unattended paid-LLM loop
 - `scripts/gen_dashboard.py` - Render the external-services registry as a self-contained HTML dashboard (`external-services-dashboard.html`, sortable/filterable, zero secrets); regenerated daily by `external_services_chain.sh` as the chain's last step, only when every DATA step succeeded — the chain then stamps the liveness heartbeat (`external-services-chain`, `.tmp/external-services/chain-heartbeat`); the dashboard's own mtime is not evidence
 - `scripts/dashboard_server.py` - LIVE dashboard server (binds 0.0.0.0:8770 by default for WSL2 NAT; `DASHBOARD_HOST=127.0.0.1` restricts) — queries the registry on every load, auto-refresh 30s, renders through `gen_dashboard.HELPERS`
-- `scripts/kilo-benchmarks/` - Benchmark-driven agent-selection subsystem (`agent_selector.py`, `compute_assignments.py`, `db_models.py`, embedding assignment, OpenRouter category routing: `classify_ai_category.py`, `category_selector.py`, `category_route_mapper.py`, `category_export_markdown.py`, `update_gateway_counts.py`, `seed_direct_vendors.py` + `ai_category_configs.yaml`). Direct-vendor pricing plan also lives here: `direct_vendor_parsers/` (vendor-specific HTML parsers — assemblyai, anthropic, cartesia, deepgram, openai, soniox, speechmatics, subscription_monitor), `direct_vendor_pricing_registry.yaml`, `fetch_direct_vendor_prices.py` orchestrator, `audit_direct_vendor_freshness.py` quarterly helper.
+- `scripts/kilo-benchmarks/` - The hub's CONSUMER side of the model catalog (the producer, with its scrapers, role and category routing and direct-vendor pricing, moved to `/opt/ai-model-catalog/engine/` on 2026-08-15): `daily_refresh.sh` (06:00 cron), `rank_task_subagents.py` + `build_task_baselines.py` (subagent ranking, read `kilo_agents.db`), `check_daily_refresh_freshness.py`, `flush_subagent_outboxes.py`, `derive_cost.py`, `audit_usage_cost.py`, `guard_selection_freshness.py`, `reclassify_cap_rows.py`, `stage_ai_rule_renders.py`, `update_gateway_counts.py` (kept as the contract oracle's reference), `pipeline_alert.sh`, `autocommit_pipeline_outputs.sh`. See `docs/workflows/KILO_BENCHMARK_WORKFLOW.md`.
 
 ### Data Files (AUTHORITATIVE)
 

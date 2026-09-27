@@ -55,8 +55,8 @@ on engine-written blocks.
 - `scripts/run_kilo_workflow.sh` (the manual trigger) no longer exists. To re-run the producer, run
   the engine's own `daily_refresh.sh` from `/opt/ai-model-catalog/engine/`.
 - `FABRIK_DISABLE_KILO_WORKFLOW` is read by no script. The boot-hook branch it guarded was removed.
-- `scripts/generate_kilo_agents.py` (Traycer CLI wrappers) is retired (D-415) and no scheduler runs
-  it.
+- `generate_kilo_agents.py` (Traycer CLI wrappers) is retired (D-415) and archived to
+  `scripts/archived/generate_kilo_agents.py` (2026-09-27, W-70653005); no scheduler runs it.
 
 ## Diagnostics
 

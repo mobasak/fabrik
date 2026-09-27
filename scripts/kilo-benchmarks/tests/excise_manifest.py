@@ -64,11 +64,6 @@ KEEP_ROOTS = {
     "pipeline_alert.sh": "wsl_startup_hook.sh:112/185/187 — the operator's alert path",
     "autocommit_pipeline_outputs.sh": "wsl_startup_hook.sh:195",
     "tests/capture_golden.py": "wsl_startup_hook.sh:186 + daily_refresh.sh — the contract oracle",
-    # Found by this script's OWN boundary scan after the excise had already taken it:
-    # scripts/kilo_docs_enforcer.py:66-70 needs it and exits 2 without it. That script is
-    # fleet-synced CORE_SCRIPTS on 47 project copies, and nothing inside KB references
-    # agent_selector, so the inside-only closure never saw the edge.
-    "agent_selector.py": "scripts/kilo_docs_enforcer.py:66-70 (fleet-synced CORE_SCRIPTS)",
     "tests/test_golden_parity.py": "the Phase-A oracle; C.3 gate (i) invokes it post-E",
     "tests/test_parallel_run_diff.py": "the Phase-C window harness",
     # ⚠️ THIS FILE. It deleted ITSELF on the first excise run: it lives under tests/ and was not a
@@ -76,13 +71,13 @@ KEEP_ROOTS = {
     # engine tree". But gate (c) is manifest-aware, so without this tool the post-excise residue
     # check cannot run at all. The thing that computes the delete set has to survive it.
     "tests/excise_manifest.py": "computes KEEP/DELETE; gate (c) reads it post-excise",
-    "classify_ticket.py": "scripts/kilo_auto_route.py:58 (live Traycer coding router)",
-    "db_models.py": "scripts/kilo_auto_route.py:59-62",
-    "kilo_telemetry.py": "scripts/kilo_auto_route.py:63-67",
+    # agent_selector, classify_ticket, db_models and kilo_telemetry were roots here for
+    # kilo_docs_enforcer.py and kilo_auto_route.py; both callers retired, so the four moved to
+    # scripts/archived/ on 2026-09-27 (W-70653005).
 }
 # Data files a retained consumer reads. Not reachable through the import graph, so stated.
 KEEP_DATA = {
-    "kilo_agents.db": "scripts/generate_kilo_agents.py reads it directly via sqlite3",
+    "kilo_agents.db": "rank_task_subagents.py and build_task_baselines.py read it via sqlite3",
     "models_browser.html": "delivered artifact with a retained fabrik home",
     "claude_p_cost.json": "scripts/claude_p_cost.py _find() fallback (rule 7)",
     "claude_price_ratios.json": "scripts/claude_p_cost.py _find() fallback (rule 7)",

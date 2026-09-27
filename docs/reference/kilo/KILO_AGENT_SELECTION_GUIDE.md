@@ -160,7 +160,7 @@ cd /opt/fabrik
 PATH=/usr/local/bin:$PATH python3 /opt/ai-model-catalog/engine/discover_kilo_agents.py  # Gateway models
 python3 /opt/ai-model-catalog/engine/update_kilo_benchmarks.py   # Scrape leaderboards
 python3 /opt/ai-model-catalog/engine/compute_assignments.py       # Recompute roles
-python3 scripts/generate_kilo_agents.py                      # Regenerate agent scripts + update this roster
+python3 /opt/ai-model-catalog/engine/generate_selection_guide_roster.py  # Update this roster (generate_kilo_agents.py is archived)
 ```
 
 The last step auto-updates the roster above via `generate_selection_guide_roster.py`. You can also run it standalone:

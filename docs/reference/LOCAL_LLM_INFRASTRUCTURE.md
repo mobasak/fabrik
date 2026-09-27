@@ -623,14 +623,12 @@ python scripts/kilo_code_review.py auto-fix src/ --max-iterations 3
 
 #### Documentation
 ```bash
-# Update docs at phase end (uses fabrik-docs)
-python scripts/kilo_docs_enforcer.py --auto-generate
+# (retired: scripts/kilo_docs_enforcer.py is archived under scripts/archived/)
 ```
 
 #### Model Selection
 ```bash
-# Check available models and roles
-python scripts/kilo-benchmarks/db_models.py
+# Current role assignments live in the engine's agent_roles table (db_models.py is archived)
 
 # View local model status
 python /opt/ai-model-catalog/engine/kilo_agents_db.py ollama-status

@@ -55,7 +55,7 @@ def _executable_lines(path: Path) -> list[str]:
 
 def test_the_scan_sees_the_retired_set() -> None:
     names = {p.name for p in _retired_scripts()}
-    assert {"generate_kilo_agents.py", "kilo_model_sync.py"} <= names, sorted(names)
+    assert {"kilo_model_sync.py"} <= names, sorted(names)
 
 
 def test_no_retired_script_is_a_scheduler_step() -> None:

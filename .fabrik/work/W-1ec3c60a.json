@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T03:02:03.910625Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-1ec3c60a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Cut the section to what still runs (engine commands under /opt/ai-model-catalog/engine) or point it at KILO_BENCHMARK_WORKFLOW.md",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "status": "open",
+  "title": "docs/reference/LOCAL_LLM_INFRASTRUCTURE.md's Kilo/Ollama workflow section still runs archived scripts (scripts/kilo_code_review.py around :618-622) and describes the pre-2026-08-15 hub pipeline (found in W-70653005)"
+}

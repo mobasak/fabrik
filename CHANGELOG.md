@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed — the dead Kilo/Traycer scripts move to scripts/archived/ (2026-09-27)
+- `agent_selector.py`, `classify_ticket.py`, `db_models.py`, `kilo_telemetry.py` (from `scripts/kilo-benchmarks/`), `coding-auto.sh`, `kilo_auto_route.py` and `generate_kilo_agents.py` are archived with history kept: nothing live called them since the Kilo CLI (2026-07-19) and Traycer (D-102) retirements. `kilo_model_sync.py` stays until the operator removes its crontab and `~/.bashrc` lines; `kilo_agents.db` stays because the subagent ranker reads it. `excise_manifest.py` drops the four stale roots, the retired-scripts test anchors on `kilo_model_sync.py`, and the docs that named the old paths are updated (D-432, W-70653005).
+
 ### Fixed — One /opt test decides both the registry sync and where a scaffold's deploy spec goes (2026-09-27)
 - `create_project` sent the deploy spec to the hub's `specs/services` only when `base` was literally `Path("/opt")`, while the registry sync resolves the project's parent against `/opt`. For any other spelling of the root (`/opt/../opt`, a symlink, a relative path), the catalog registered the project but its spec landed under the spelled base, where `fabrik apply` never looks. Both now use `_in_sync_scan_root`. A `str` base, which used to raise `TypeError`, now works. Graders in `tests/test_scaffold_offline_seam.py` cover the direct, `..`, symlink and relative spellings, an outside base and a `str` base, with the spec writer faked so no test can write the hub's specs. W-b522ed2e.
 
