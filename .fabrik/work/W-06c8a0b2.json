@@ -12,9 +12,9 @@
     "spec": ""
   },
   "next": "**[intel]** **Wire `MISTRAL_MONTHLY_CAP_USD` to a real enforcer** (2026-08-29, found by the key-wiring self-review): the $10/month hard cap across ALL Mistral keys is provisioned in `.env` + documented in CONFIGURATION.md, but NO consumer reads it — an advisory cap on a paid API is the stored-and-never-read class. Mitigated today: all four Mistral keys 401 (monthly free credit EXHAUSTED — operator-confirmed; usable again at the credit reset, which makes the enforcer MORE urgent, not less: an unbudgeted consumer burns the whole month's credit in a day). Resolution: when the Mistral account activates and a first consumer appears (crowdlex haiku-replacement is the candidate), route its spend through the cost-budget seam reading this var — monthly + total across keys, never per-call (sysadmin-loop rule).",
-  "note": "migrated-digest:a7133ca7523d",
+  "note": "not the hub's to wire: the enforcer (spend_cap.py, ProviderConfig.monthly_cap_env) lives in vendored libs/subagents (D-137) and the mistral row sets no monthly_cap_env; no hub code calls Mistral outside it and the pool is OFF (D-181/D-182). Handed to fabrik-lib as mail 01M3J2978A6J4XG9HPT5DBXDE1 (ack required), incl. the free_tier=True $0-cost gap",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "**Wire `MISTRAL_MONTHLY_CAP_USD` to a real enforcer** (2026-08-29, found by the key-wiring self-review): the $10/month hard cap across ALL Mistral keys is provisioned in `.env` + documented in CONF..."
 }
