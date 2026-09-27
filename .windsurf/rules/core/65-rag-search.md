@@ -53,7 +53,7 @@ Apply for instant keyword search: product catalogs, documentation, autocomplete,
 
 ### Resilience
 
-- MeiliSearch and pgvector are external dependencies — wrap Meili and ingest DB calls with timeout + retry per `58-resilience.md`. **Neither `search()` nor `embed_texts()`/`embed_single()` takes an outer retry:** `search()` is deadline-bounded and deliberately retry-free (`max_retries=0` — a retry multiplies `RAG_SEARCH_DEADLINE_S` and re-enters the in-flight bound), and the embed client already retries internally (`MAX_RETRIES` with exponential backoff, one breaker failure per exhausted request) — an outer retry multiplies both and trips the breaker early. A search-backend outage must degrade gracefully, never hang the request (the `rag` module's `search()` fails OPEN to `[]` on ANY embed or SQL failure — a deadline, in-flight saturation, an open breaker, a statement timeout, a missing `rag_search()` — and returns NO degradation signal: a failed search and an empty corpus are the same `[]`. Wrap `search()` and read your own timer/breaker to surface "degraded" instead of "no results"; the missing signal is filed upstream, the same class as `hnsw.iterative_scan`).
+- MeiliSearch and pgvector are external dependencies — wrap Meili and ingest DB calls with timeout + retry per `58-resilience.md`. **Neither `search()` nor `embed_texts()`/`embed_single()` takes an outer retry:** `search()` is deadline-bounded and deliberately retry-free (`max_retries=0` — a retry multiplies `RAG_SEARCH_DEADLINE_S` and re-enters the in-flight bound), and the embed client already retries internally (`MAX_RETRIES` with exponential backoff, one breaker failure per exhausted request) — an outer retry multiplies both and trips the breaker early. A search-backend outage must degrade gracefully, never hang the request (the `rag` module's `search()` fails OPEN to `[]` on ANY embed or SQL failure — a deadline, in-flight saturation, an open breaker, a statement timeout, a missing `rag_search()`, a closed connection — so a failed search and an empty corpus return the same `[]`. To show "degraded" instead of "no results", call `rag.search.search_outcome()` (same parameters, same fail-open): its `status` names the fault (`ok` means the SQL ran) and `degraded` is true only for a fault, never a blank query. It cannot see a missing tenant — an unscoped connection reads `ok` with `[]`).
 
 ## Vector Storage
 
@@ -244,7 +244,7 @@ if token_count > budget:
 - [ ] `searchableAttributes`, `filterableAttributes`, `sortableAttributes` explicitly declared per index.
 - [ ] Synonyms defined for domain terms; the instance's default ranking rules retained (never a hand-written list), `typo` never removed.
 - [ ] Meili indexing and reindex run via background worker — API thread never blocked.
-- [ ] Meili, ingest and embedding calls wrapped with timeout/retry per `58-resilience.md`; `search()` is NOT wrapped in an outer retry; a failed-open empty search is surfaced as degraded by the caller's own wrapper.
+- [ ] Meili, ingest and embedding calls wrapped with timeout/retry per `58-resilience.md`; `search()` is NOT wrapped in an outer retry; a failed-open empty search is surfaced as degraded via `search_outcome()`, never a hand-rolled wrapper.
 
 ---
 

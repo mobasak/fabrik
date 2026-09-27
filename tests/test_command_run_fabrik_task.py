@@ -2719,6 +2719,46 @@ def test_kaizen_import_that_exits_does_not_end_the_command(monkeypatch: pytest.M
     assert mod._kaizen() is None
 
 
+def test_a_worktree_keeps_the_sync_lane_of_the_checkout_it_belongs_to(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """fabrik-lib 01M3GH76 (the mirror of C4). A git worktree of the hub, or of a synced
+    project, has neither the hub's path nor its own `.fabrik/synced.lock` (the lock is not
+    tracked), so judging the worktree by its own root turned the sync lane OFF exactly where
+    plans execute. The repo is judged by its MAIN checkout, found through git's common dir."""
+    spec = importlib.util.spec_from_file_location("cr_sync_probe", _SCRIPT)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    main = tmp_path / "main"
+    main.mkdir()
+    git = ["git", "-c", "user.email=t@t", "-c", "user.name=t"]
+    subprocess.run([*git, "init", "-q"], cwd=main, check=True, timeout=15)
+    subprocess.run(
+        [*git, "commit", "-q", "--allow-empty", "-m", "i"], cwd=main, check=True, timeout=15
+    )
+    wt = tmp_path / "wt"
+    subprocess.run(
+        [*git, "worktree", "add", "-q", "--detach", str(wt)], cwd=main, check=True, timeout=15
+    )
+    monkeypatch.setenv("FABRIK_HUB_ROOT", str(main))
+    assert mod._sync_applies(wt) is True  # a worktree of the hub
+    monkeypatch.setenv("FABRIK_HUB_ROOT", str(tmp_path / "elsewhere"))
+    assert mod._sync_applies(wt) is False  # a worktree of an unsynced repo
+    (main / ".fabrik").mkdir()
+    (main / ".fabrik" / "synced.lock").write_text("{}")
+    assert mod._sync_applies(wt) is True  # a worktree of a synced project
+    assert mod._sync_applies(tmp_path / "not-a-repo") is False
+    # an unreadable `.fabrik` is no contract — and never an escaping PermissionError (C-H1)
+    monkeypatch.setenv("FABRIK_HUB_ROOT", str(tmp_path / "elsewhere"))
+    (main / ".fabrik").chmod(0)
+    try:
+        if os.geteuid() != 0:
+            assert mod._sync_applies(wt) is False
+    finally:
+        (main / ".fabrik").chmod(0o755)
+
+
 def test_a_repo_the_hub_does_not_sync_refuses_an_upgrade_sync_claim_at_close(
     run_dir: Path, repo: Path, hub: Path
 ) -> None:
@@ -2736,6 +2776,12 @@ def test_a_repo_the_hub_does_not_sync_refuses_an_upgrade_sync_claim_at_close(
     )
     assert r.returncode == 1, r.stdout + r.stderr
     assert "this repo is not governance-synced" in r.stdout, r.stdout
+    assert "UPGRADE: heavy" in r.stdout, r.stdout  # the refusal names what to do instead
+    assert _rec(run_dir)["state"] == "running"
+    # `blocked` with no commit reaches no measurement; it must refuse the same claim (01M3GH76)
+    b = _close_run(run_dir, repo, hub, "blocked", "--reason", "UPGRADE: sync — not synced")
+    assert b.returncode == 1, b.stdout + b.stderr
+    assert "this repo is not governance-synced" in b.stdout, b.stdout
     assert _rec(run_dir)["state"] == "running"
     ok = _close_run(run_dir, repo, hub, "done", "--commit", sha, "--evidence", "the change")
     assert ok.returncode == 0, ok.stdout + ok.stderr

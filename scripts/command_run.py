@@ -2833,16 +2833,48 @@ def _sync_applies(root: Path) -> bool:
     ``.fabrik/synced.lock`` the sync writes. A sync-EXCLUDED repo (fabrik-lib) owns files whose
     paths the hub's filter happens to match (``scripts/final_gate.py``, ``.claude/hooks/*``);
     there the match is not a contract and must not route the lane (fabrik-lib 01M3FQ152 C4).
+    A git WORKTREE is judged by the MAIN checkout it belongs to (git's common dir): it has
+    neither the hub's path nor the untracked lock, and judging it by its own root turned the
+    lane off exactly where plans execute (fabrik-lib 01M3GH76). Mirror: a plain CLONE of the
+    hub elsewhere is its own repo, not a worktree, and reads unsynced.
     Cobra: deleting the lock in a synced project opens the lane for a synced copy, but the
     sync rewrites the lock and ``check_synced_unmodified.py`` still refuses the edited copy.
     """
     hub = Path(os.environ.get("FABRIK_HUB_ROOT") or "/opt/fabrik")
     try:
-        if root.resolve() == hub.resolve():
+        main = _main_checkout(root)
+        if main.resolve() == hub.resolve():
             return True
-    except (OSError, RuntimeError):  # a symlink loop; a missing path resolves without raising
+        return (main / ".fabrik" / "synced.lock").is_file()
+    except (OSError, RuntimeError):  # a symlink loop, an unreadable `.fabrik`: not a contract
         return False
-    return (root / ".fabrik" / "synced.lock").is_file()
+
+
+def _main_checkout(root: Path) -> Path:
+    """The main checkout a worktree belongs to — ``root`` itself when it is one, or not a repo.
+
+    Recorded limit (review of 01M3GH76, C-S1): a main checkout made with `--separate-git-dir`
+    is not recorded anywhere a linked worktree can read — git 2.43's own `worktree list` names
+    the git dir there — so such a worktree is judged by its own root, as before this helper."""
+    try:
+        common = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+            env=_scrubbed_git_env(),
+        ).stdout.strip()
+    except Exception:
+        return root
+    c = Path(common)
+    return c.parent if c.name == ".git" else root
+
+
+_SYNC_CLAIM_UNSYNCED = (
+    "claims UPGRADE: sync but this repo is not governance-synced (not the hub, no "
+    ".fabrik/synced.lock) — name the real row: `UPGRADE: heavy`, or drop the `UPGRADE:` prefix"
+)
 
 
 def _sync_filter_source() -> str | None:
@@ -3496,10 +3528,7 @@ def _task_measure(
     if upgrade == "sync" and not applies:
         flag = "evidence" if args.cmd == "done" else "reason"
         return (
-            _refuse(
-                f"REFUSED — fabrik-task: --{flag} claims UPGRADE: sync but this repo is not "
-                "governance-synced (not the hub, no .fabrik/synced.lock)"
-            ),
+            _refuse(f"REFUSED — fabrik-task: --{flag} {_SYNC_CLAIM_UNSYNCED}"),
             "",
             True,
         )
@@ -3571,6 +3600,11 @@ def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[i
         # `blocked`/`handoff` may close before any commit exists. `no-commit` WINS
         # unconditionally: with no diff the membership arm cannot run, so neither a count nor
         # `sync_test-unavailable` is reachable from here.
+        root = rec.get("repo_root")
+        if up == "sync" and isinstance(root, str) and root and not _sync_applies(Path(root)):
+            # The no-commit close reaches no measurement, so the unsynced-repo refusal is
+            # repeated here — or `blocked` records a sync reach `done` refuses (01M3GH76 item 2).
+            return _refuse(f"REFUSED — fabrik-task: --reason {_SYNC_CLAIM_UNSYNCED}"), {}
         fields["oversized_mini"] = "unmeasurable=no-commit"
         _mark_unverified_sync(fields)
         return 0, fields

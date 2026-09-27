@@ -26,7 +26,7 @@ for project docs: *"every surface DERIVES from PROJECT_DOCS here, so they can ne
 | Direction | Mechanism | Enforced by |
 |---|---|---|
 | script → doc | `# AFTER-EDIT: <files>` in the first 25 lines, as a **comment** (never inside a docstring) | `scripts/enforcement/check_script_headers.py` — WARNs when a staged script has no header, or names a coupled file that was not staged in the same change |
-| doc → script | a generated `## Related scripts` block between HTML markers | `scripts/render_doc_script_links.py --check` — fails when a page's block disagrees with the headers |
+| doc → script | a generated `## Related scripts` block between HTML markers | `scripts/render_doc_script_links.py --check` — fails when a page's block disagrees with the headers, including a block no script declares any more (an orphan, which the render strips) |
 
 Both are **advisory (WARN)** rows in `final_gate.py`. Neither can turn a gate red today.
 

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the /fabrik-task sync lane in worktrees, orphaned related-scripts blocks, and the rag pack's degradation advice (2026-09-27)
+- `scripts/command_run.py`: `_sync_applies` judges a git worktree by its MAIN checkout (git's common dir), so a worktree of the hub or of a synced project keeps the sync lane — the previous fix read a hub worktree as unsynced and opened the lane there. An unreadable `.fabrik` returns False instead of raising. The unsynced-repo refusal now names the remedy (`UPGRADE: heavy`, or drop the prefix), and `blocked`/`handoff` without `--commit` refuse an `UPGRADE: sync` claim there too. From fabrik-lib 01M3GH76.
+- `scripts/render_doc_script_links.py`: a page still carrying a related-scripts block that no script declares any more (an ORPHAN) now fails `--check` and is stripped by the render; the scan sees the gate's tracked+staged population, skips symlinks, and a non-UTF-8 page is reported `UNREADABLE` instead of crashing the check. From intel 01M3GD0Q.
+- `.windsurf/rules/core/65-rag-search.md`: surface a failed-open search with fabrik-lib rag's `search_outcome()` instead of a hand-rolled wrapper (fabrik-lib 925e7c81). `commands/_sources/fabrik-task.md`: a `sync` claim the close cannot VERIFY is refused.
+
 ### Changed — the QUOTA bullet in both contracts, 12,474 → 8,805 bytes, no rule lost (2026-09-27)
 - `CLAUDE.md` and `templates/governance/CLAUDE.md`: the § Pointers fleet-quota bullet is replaced by fabrik-lib's lean version (mail 01M3FQ150), plus two rules its first draft dropped — a review-family start at RED is "never a fresh round on something new", and a `caps.json` weekly cap can open an episode at `walled` with no warning first. Stories, worked examples and machinery restatements are gone; the rules, the `QUOTA:` line format and the graded spans stay. fabrik-lib takes the two clauses by mail.
 

@@ -132,5 +132,5 @@ python3 scripts/command_run.py handoff --command fabrik-task \
   the full `/fabrik-review` at phase 4 instead of `/fabrik-review-scoped` (seeded with `design.md`; the
   nested heavy record is accepted deliberately), discharge phase 5 in full, and close with the phase-5
   `done` line — `--commit` and all — its `--evidence` reading `"UPGRADE: sync — <proof>"`. `done`,
-  not `handoff`: nothing stays open. ⚠️ A `sync` claim the close cannot refute from the commit's paths
+  not `handoff`: nothing stays open. ⚠️ A `sync` claim the close cannot verify from the commit's paths
   is REFUSED — if no sync path survived into the commit it was `heavy`, or none.

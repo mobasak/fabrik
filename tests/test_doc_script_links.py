@@ -94,6 +94,31 @@ def test_check_mode_fails_on_a_stale_block_and_writes_nothing(repo: Path):
     assert doc.read_text() == before, "--check must never mutate the tree"
 
 
+def test_a_block_whose_last_declaring_script_left_is_an_orphan_check_fails_and_render_strips(
+    repo: Path, capsys
+):
+    """intel 01M3GD0Q: when every script declaring a doc moves under a SKIP_DIRS path the doc
+    leaves the coupled set, and a checker that iterates only coupled docs never looks at it
+    again — its block keeps the moved paths under the do-not-hand-edit marker, --check green."""
+    rdsl.run(["--repo", str(repo)])
+    doc = repo / "docs" / "workstation" / "board.md"
+    assert rdsl.BEGIN in doc.read_text()
+    (repo / "scripts" / "archived").mkdir()
+    (repo / "scripts" / "sysadmin" / "board.py").rename(repo / "scripts" / "archived" / "board.py")
+    before = doc.read_text()
+    capsys.readouterr()
+    assert rdsl.run(["--repo", str(repo), "--check"]) == 1, "an orphan block must fail --check"
+    out = capsys.readouterr().out
+    # rotation.md is stale too (board.py declared it) — the orphan must be named on its own
+    assert "  docs/workstation/board.md" in out, out
+    assert doc.read_text() == before, "--check must never mutate the tree"
+    assert rdsl.run(["--repo", str(repo)]) == 0
+    after = doc.read_text()
+    assert rdsl.BEGIN not in after and rdsl.END not in after
+    assert after.startswith("# Board\n\nProse.")
+    assert rdsl.run(["--repo", str(repo), "--check"]) == 0
+
+
 def test_a_declared_doc_that_does_not_exist_is_reported_not_created(repo: Path, capsys):
     """Fail-CLOSED on a typo'd header. Creating `docs/typo.md` because a header named it would
     manufacture an empty page and make the typo look correct forever."""
@@ -306,6 +331,34 @@ def test_gate_modes_ignore_a_siblings_untracked_unstaged_script(tmp_path):
     rdsl.run(["--repo", str(repo), "--coverage"])  # seeds at the TRACKED+STAGED count: 0
     code, _ = rdsl.ratchet(repo, write=False)
     assert code == 0, "an unstaged headerless scratch file must not raise the ratchet"
+
+
+def test_orphan_scan_ignores_untracked_docs_symlinks_and_survives_non_utf8(tmp_path):
+    """Review of intel 01M3GD0Q's orphan fix. The scan must see what the scripts see: in a gate
+    mode a SIBLING's untracked doc carrying a block must not red --check for everyone; a
+    symlinked page is its target's, never written through; a non-UTF-8 page is reported, never
+    a crash of the whole check."""
+    repo = _git_repo(tmp_path)
+    rdsl.run(["--repo", str(repo)])
+    block = rdsl.block_for(["scripts/gone.py"])
+    (repo / "docs" / "reference" / "sibling.md").write_text("# Sibling\n\n" + block + "\n")
+    assert rdsl.run(["--repo", str(repo), "--check"]) == 0, "an untracked sibling doc reds the gate"
+    target = tmp_path.parent / (tmp_path.name + "-outside.md")
+    target.write_text("# Outside\n\n" + block + "\n")
+    (repo / "docs" / "reference" / "link.md").symlink_to(target)
+    (repo / "docs" / "reference" / "latin1.md").write_bytes(b"# Caf\xe9\n")
+    (repo / "scripts" / "b.py").write_text("# AFTER-EDIT: docs/reference/latin1.md\n")
+    import subprocess as sp
+
+    sp.run(["git", "-C", str(repo), "add", "docs", "scripts"], check=True)
+    assert rdsl.run(["--repo", str(repo), "--check"]) in (
+        0,
+        1,
+    )  # a coupled non-UTF-8 page: no crash
+    rdsl.run(["--repo", str(repo)])
+    assert rdsl.BEGIN in target.read_text(), "a symlinked orphan was written through"
+    assert (repo / "docs" / "reference" / "latin1.md").read_bytes() == b"# Caf\xe9\n"
+    assert rdsl.BEGIN not in (repo / "docs" / "reference" / "sibling.md").read_text()
 
 
 def test_gate_modes_do_see_a_staged_new_script(tmp_path):

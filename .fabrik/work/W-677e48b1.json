@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T04:32:18.675453Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-677e48b1",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure first: how many /fabrik-task starts in fabrik-lib touched scripts/final_gate*.py, scripts/enforcement/* or .claude/hooks/* with heavy=no (the D-row + feedback ledger); build only if that is non-zero — proposal from fabrik-lib 01M3GH76 item 3 (e.g. .fabrik/heavy_paths read by _task_size_gate as heavy)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "fabrik-task: a repo-local heavy-path list so a sync-EXCLUDED repo routes its own gate/hook/enforcement edits up mechanically"
+}

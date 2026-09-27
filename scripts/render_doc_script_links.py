@@ -109,6 +109,23 @@ def _scripts(repo: Path) -> list[Path]:
     `scripts/` returns 3,476 files here, of which 3,235 are untracked benchmark/venv artifacts
     that no one edits and no doc documents. Falls back to rglob where git cannot answer (a
     tmp_path fixture, a tarball) so the renderer is testable without a repo."""
+    out = []
+    for n in _listed(repo, "scripts", ".py"):
+        if any(("scripts/" + s) in ("scripts/" + n) for s in SKIP_DIRS):
+            continue
+        # A SYMLINK's couplings belong to its TARGET's world, not to this repo's. The hub symlinks
+        # `scripts/verify_prod_parity.py` at a scaffold template whose header names `docs/DEPLOYMENT.md`
+        # and `docs/OPERATIONS.md` — correct in every PROJECT the scaffolder seeds it into, absent
+        # here. Reported as MISSING it is a permanent false finding, and a note that is always wrong
+        # is how a reader learns to skip the notes (FIX DIRECTIVE 5: wallpaper is how enforcement dies).
+        if (repo / n).is_symlink():
+            continue
+        out.append(repo / n)
+    return sorted(out)
+
+
+def _listed(repo: Path, top: str, suffix: str) -> list[str]:
+    """Repo-relative paths under ``top`` ending in ``suffix``, as the gate may see them."""
     try:
         # TRACKED **plus** untracked-not-ignored. `ls-files` alone cannot see a script that has
         # not been committed yet — so a brand-new script's coupling would be invisible to the very
@@ -126,27 +143,15 @@ def _scripts(repo: Path) -> list[Path]:
         names = []
         for extra in extras:
             out = subprocess.run(
-                ["git", "-C", str(repo), "ls-files", "-z", *extra, "scripts"],
+                ["git", "-C", str(repo), "ls-files", "-z", *extra, top],
                 capture_output=True,
                 timeout=30,
                 check=True,
             ).stdout.decode("utf-8", "replace")
-            names += [n for n in out.split("\0") if n.endswith(".py")]
+            names += [n for n in out.split("\0") if n.endswith(suffix)]
     except (subprocess.SubprocessError, OSError):
-        names = [p.relative_to(repo).as_posix() for p in (repo / "scripts").rglob("*.py")]
-    out = []
-    for n in names:
-        if any(("scripts/" + s) in ("scripts/" + n) for s in SKIP_DIRS):
-            continue
-        # A SYMLINK's couplings belong to its TARGET's world, not to this repo's. The hub symlinks
-        # `scripts/verify_prod_parity.py` at a scaffold template whose header names `docs/DEPLOYMENT.md`
-        # and `docs/OPERATIONS.md` — correct in every PROJECT the scaffolder seeds it into, absent
-        # here. Reported as MISSING it is a permanent false finding, and a note that is always wrong
-        # is how a reader learns to skip the notes (FIX DIRECTIVE 5: wallpaper is how enforcement dies).
-        if (repo / n).is_symlink():
-            continue
-        out.append(repo / n)
-    return sorted(out)
+        names = [p.relative_to(repo).as_posix() for p in (repo / top).rglob("*" + suffix)]
+    return names
 
 
 def _declared(script: Path, repo: Path) -> list[str]:
@@ -317,9 +322,33 @@ def run(argv: list[str] | None = None) -> int:
         return code
 
     docs, notes = graph(repo)
+    # An ORPHAN: a page still carrying a block although no script declares it any more (its last
+    # declarer moved under SKIP_DIRS, or dropped the doc). Iterating only the coupled set never
+    # looked at it again, so the stale list kept the do-not-hand-edit marker with --check green
+    # (intel 01M3GD0Q). An empty script list makes apply_block strip the block.
+    # The same population the scripts use: tracked + STAGED in gate mode, so a sibling's
+    # untracked doc cannot red the BLOCKING --check; a symlink is its target's page, never ours.
+    orphans: dict[Path, list[str]] = {}
+    for rel in sorted(set(_listed(repo, "docs", ".md"))):
+        d = repo / rel
+        if d in docs or d.is_symlink() or not d.is_file() or not renderable(rel):
+            continue
+        if BEGIN.encode() in d.read_bytes():  # bytes: a non-UTF-8 page must not crash the scan
+            orphans[d] = []
+    for d in orphans:
+        notes.append(
+            f"  ORPHAN      {d.relative_to(repo).as_posix()} — a related-scripts block no script "
+            f"declares any more; the render strips it"
+        )
     stale, written = [], 0
-    for doc, scripts in docs.items():
-        current = doc.read_text(encoding="utf-8")
+    for doc, scripts in {**docs, **orphans}.items():
+        try:
+            current = doc.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            notes.append(
+                f"  UNREADABLE  {doc.relative_to(repo).as_posix()} — not UTF-8; skipped, never rewritten"
+            )
+            continue
         if marker_state(current) == "malformed":
             notes.append(
                 f"  MALFORMED   {doc.relative_to(repo).as_posix()} — an unpaired related-scripts "
@@ -339,14 +368,17 @@ def run(argv: list[str] | None = None) -> int:
         print(note)
     if args.check:
         if stale:
-            print(f"\ndoc↔script links STALE in {len(stale)} of {len(docs)} coupled doc(s):")
+            print(f"\ndoc↔script links STALE in {len(stale)} of {len(docs) + len(orphans)} doc(s):")
             for s in stale:
                 print(f"  {s}")
             print("\nfix: python3 scripts/render_doc_script_links.py")
             return 1
         print(f"doc↔script links: {len(docs)} coupled doc(s) current")
         return 0
-    print(f"doc↔script links: {written} doc(s) updated, {len(docs)} coupled doc(s) total")
+    print(
+        f"doc↔script links: {written} doc(s) updated, {len(docs)} coupled doc(s) total, "
+        f"{len(orphans)} orphan block(s)"
+    )
     return 0
 
 
