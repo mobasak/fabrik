@@ -1,6 +1,6 @@
 # GPU rentals — operator runbook
 
-**Last updated:** 2026-06-16 (Phase 1+2+3+4+5 shipped; live-validated against RunPod)
+**Last updated:** 2026-09-27 (price table refreshed from the vendors' pages; Phase 1+2+3+4+5 shipped 2026-06-16, live-validated against RunPod)
 **Companion docs:**
 
 - [Plan](../development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/2026-06-16-fabrik-gpu-rent.md) — implementation plan + validation gates
@@ -40,16 +40,17 @@ provider call.
 
 | Provider | Pod mode | Serverless mode | When auto picks it |
 | --- | --- | --- | --- |
-| **RunPod** | ✅ live (G-LIVE-2/3) | ✅ live (G-LIVE-1, pinned endpoint reuse) | utilization ≥ 0.5, no checkpointing |
-| **Modal** | ✅ live (G-LIVE-7/8/9) | ✅ live (LIVE-12 echo; LIVE-13 vLLM lifecycle PARTIAL — destroy verified) | utilization < 0.5 (per-second billing wins) |
+| **RunPod** | ✅ live (G-LIVE-2/3) | ✅ live (G-LIVE-1, pinned endpoint reuse) | the cheapest non-Vast provider near full utilization (it bills whole hours; H100 over 4 h: above ~88%) |
+| **Modal** | ✅ live (G-LIVE-7/8/9) | ✅ live (LIVE-12 echo; LIVE-13 vLLM lifecycle PARTIAL — destroy verified) | the cheapest non-Vast provider below that (per-second billing); preferred under 50% utilization when within 20% of the cheapest |
 | **Vast.ai** | ✅ live (G-LIVE-5) | ✅ driver shipped + LIVE-16 cross-provider reconcile GREEN (LIVE-14 requires ≥$5 account balance for endpoint create) | `--needs-checkpointing` (spot ~50% cheaper) |
 
 `fabrik gpu compare` shows side-by-side pricing + recommends one based on utilization rate + checkpointing requirement. `--provider auto` (the default) runs that recommendation and proceeds directly.
 
 **Cold vs hot:**
 
-- `--kind serverless` → RunPod scale-to-zero endpoint (cold-by-default,
-  ~500ms FlashBoot warm dispatch, $0 idle)
+- `--kind serverless` → scale-to-zero endpoint (cold-by-default, ~500ms FlashBoot warm dispatch on
+  RunPod, $0 idle at the vendor). The cost guards still budget it at the table's per-worker rate
+  for the whole session (RunPod $4.79/h, Modal $0.80/h), so `--max-cost` must cover that.
 - `--kind pod-*` → dedicated pod (hot until destroyed). Auto-reaped past
   `--max-lifetime` hours.
 
@@ -117,7 +118,11 @@ fabrik gpu rent pod-h100 --workload train-7b --max-lifetime 8 --max-cost 30
 
 # Auto-pick provider for bursty inference (low util → Modal per-second)
 fabrik gpu rent pod-h100 --workload chat-server --utilization 0.2 \
-                          --max-lifetime 24 --max-cost 50
+                          --max-lifetime 8 --max-cost 40
+# (auto picks Modal on the utilization-scaled estimate, but both --max-cost and
+#  MAX_DAILY_GPU_COST price the full --max-lifetime: 8 h x $3.95 = $31.60. The
+#  prerequisite sample above sets MAX_DAILY_GPU_COST=5, which refuses every H100
+#  example here; raise it (default 50) before running them)
 
 # Auto-pick provider for checkpoint-resumable training (cheapest → Vast spot)
 fabrik gpu rent pod-h100 --workload distill --needs-checkpointing \
@@ -130,8 +135,8 @@ fabrik gpu rent pod-rtx-4090 --workload smoke --provider vast --max-cost 1
 
 **How `auto` decides** (verified by `fabrik gpu compare` + unit tests):
 
-- **utilization ≥ 0.5 + no checkpointing** → **RunPod**. Sustained workloads win on RunPod's hourly Secure pricing (e.g. H100 at $2.89/hr).
-- **utilization < 0.5** → **Modal**. Per-second billing dominates for bursty work — a 20%-util 4hr workload pays only the active 48 minutes (effective $3.16 for an H100 vs RunPod's $11.56 for the full 4 hours).
+- **The cheapest provider that is not Vast** (Vast only with `--needs-checkpointing`, below). Modal bills per second of use, RunPod per whole hour, so RunPod wins only near full utilization: for an H100 over 4 hours, Modal is cheaper up to about 88% utilization and RunPod ($3.49/hr SXM, $13.96 for the 4 hours) above it. `fabrik gpu compare` shows the figures and the table's verified date.
+- **Bursty work** → **Modal**. A 20%-util 4hr workload pays only the active 48 minutes (effective $3.16 for an H100 vs RunPod's $13.96 for the full 4 hours). Below 50% utilization Modal is also preferred when it is within 20% of the cheapest.
 - **--needs-checkpointing** + GPU available on Vast → **Vast.ai spot/interruptible**. ~50% cheaper, but preemptible — only safe if your workload writes checkpoints.
 - **--needs-serverless** → keeps only providers publishing a serverless tier; all three now do (Vast serverless wired in Phase 3.5), so it no longer drops Vast.
 
@@ -229,7 +234,7 @@ def workflow(endpoint):
     finally:
         c.close()
 
-rent("serverless", workload="smoke", work_fn=workflow, max_cost_usd=1.0)
+rent("serverless", workload="smoke", work_fn=workflow, max_cost_usd=5.0)  # RunPod serverless budgets $4.79/h
 ```
 
 ### Training with checkpointing (Phase 3)

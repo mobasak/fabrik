@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T17:24:02.891694Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-33830800",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3482ZN8MRHZXQ7E1066JH17",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "python-api-gpu scaffold — the emitted gpu_handler.py documents a spec field that does not exist, and gpu_rent's price table is a quarter past its own re-verify date"
+}
