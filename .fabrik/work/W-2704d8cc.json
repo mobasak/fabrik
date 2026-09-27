@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-27T09:03:55.946197Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "c35182a8a94d15758204b3a5126eae0a88c86425",
   "id": "W-2704d8cc",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "done",
   "title": "Five hub docs still describe the retired kilo_model_sync.py as live (README.md:726,739 · INDEX.md:1514 · docs/operations/wsl-environment.md:37 · docs/reference/architecture.md:263 'feeds the model catalog'), and two still present ~/.traycer/cli-agents as live (docs/reference/LOCAL_LLM_INFRASTRUCTURE.md:713, docs/traycer/README.md) — contradicts D-415/D-432 (found in the W-0bb23019 review)"
 }
