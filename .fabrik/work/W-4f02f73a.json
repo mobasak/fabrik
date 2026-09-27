@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T03:22:01.752757Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4f02f73a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "sync_cascade_backup.sh and sync_extensions.sh still ship to every project; the watcher's hand-kept list still names RETIRED_CORE_SCRIPTS and the hub CLAUDE.md. Source: mail 01M3417AN0SDHESWGAJBZB0SFA.",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Drop the two retired Windsurf/Cascade helpers from RUN_SCRIPTS and make watch_enforcement_changes.sh derive its list from fabrik_synced_manifest.py"
+}
