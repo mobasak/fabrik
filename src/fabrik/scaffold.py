@@ -2652,14 +2652,16 @@ The canonical Fabrik job model (.windsurf/rules/core/75-workers-jobs.md):
 
 Run (the compose ``worker`` service command):  python -m __PKG__.worker
 
-This is an asyncio implementation tuned for I/O-bound jobs. For CPU-bound work,
-swap in the fork-based adaptive pool from the file-worker scaffold.
+This is an asyncio implementation tuned for I/O-bound jobs. CPU-bound work belongs in
+a process pool the handler awaits (``loop.run_in_executor`` with a
+``concurrent.futures.ProcessPoolExecutor``), never in the event loop.
 """
 from __future__ import annotations
 
 import asyncio
 import os
 import pathlib
+import random
 import signal
 from typing import Any
 
@@ -2687,10 +2689,31 @@ POLL_FALLBACK_SEC = int(os.getenv("WORKER_POLL_FALLBACK_SEC", "60"))
 ORPHAN_TIMEOUT = os.getenv("WORKER_ORPHAN_TIMEOUT", "10 minutes")
 # Stable advisory-lock key so only ONE replica runs the beat scheduler.
 BEAT_LOCK_KEY = int(os.getenv("WORKER_BEAT_LOCK_KEY", "910771"))
+# Retry backoff (75 §Retry): base * 2^(retry number - 1) plus jitter; the budget is the job
+# row's own max_retries (column default 5 — set it per job when enqueueing).
+RETRY_BASE_SEC = float(os.getenv("WORKER_RETRY_BASE_SEC", "5"))
+RETRY_MAX_SEC = float(os.getenv("WORKER_RETRY_MAX_SEC", "3600"))
+if not 0 < RETRY_BASE_SEC <= RETRY_MAX_SEC < float("inf"):
+    raise ValueError(
+        "WORKER_RETRY_BASE_SEC must be > 0 and <= WORKER_RETRY_MAX_SEC, which must be finite: "
+        f"got {RETRY_BASE_SEC} and {RETRY_MAX_SEC}"
+    )
 
 _shutdown = asyncio.Event()
 # Set by the LISTEN/NOTIFY listener to instantly wake idle claim-loops.
 _wake = asyncio.Event()
+
+
+def _retry_delay(attempts: int) -> float:
+    """Seconds until a job that has now failed ``attempts`` times runs again.
+
+    The backoff is base * 2^(attempts - 1) — base seconds before the first retry — capped at
+    RETRY_MAX_SEC, and random jitter of up to as much again is added on top, so a burst of
+    failures never re-fires as one herd against a recovering vendor, even at the cap.
+    """
+    exponent = min(max(attempts - 1, 0), 40)  # 2**40 * base is far past any sane cap
+    backoff = min(RETRY_MAX_SEC, RETRY_BASE_SEC * 2**exponent)
+    return backoff + random.uniform(0, backoff)
 
 
 async def _handle(row: asyncpg.Record) -> None:
@@ -2736,13 +2759,14 @@ async def _claim_one(pool: asyncpg.Pool) -> bool:
             UPDATE jobs
             SET status = $2,
                 attempts = $3,
-                run_at = NOW() + (INTERVAL '5 seconds' * POWER(2, $3)),
+                run_at = NOW() + make_interval(secs => $4),
                 updated_at = NOW()
             WHERE id = $1
             """,
             row["id"],
             "failed" if terminal else "pending",
             attempts,
+            _retry_delay(attempts),
         )
         log.error("job_failed", job_id=str(row["id"]), error=str(exc), terminal=terminal)
     return True
@@ -3247,6 +3271,7 @@ services:
       start_period: 30s
     restart: unless-stopped
     stop_grace_period: 45s
+    init: true  # a reaping PID 1, so a handler's subprocesses never linger as zombies
     deploy:
       resources:
         limits:
