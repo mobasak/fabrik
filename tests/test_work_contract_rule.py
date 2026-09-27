@@ -1,9 +1,9 @@
 """T08 (plan 2026-09-24-plan-2-work-tracking): both contracts carry the short work-items rule.
 
-The hub CLAUDE.md has one § FINAL OUTPUT section, templates/governance/CLAUDE.md has two (a known,
-routed duplication pinned by tests/test_governance_template_split.py). Each section must hold the
-work-items paragraph exactly once, directly after the `DONE:`/`NEXT:` discipline paragraph, and the
-three copies must be identical except the template's `hub D-392` for the hub's `D-392`.
+The hub CLAUDE.md and templates/governance/CLAUDE.md each have one § FINAL OUTPUT section (the
+template carried a duplicate until 2026-09-27, W-6f0c06c8). Each section must hold the work-items
+paragraph exactly once, directly after the `DONE:`/`NEXT:` discipline paragraph, and the two copies
+must be identical except the template's `hub D-392` for the hub's `D-392`.
 """
 
 from __future__ import annotations
@@ -48,14 +48,13 @@ def test_hub_has_one_final_output_section_with_the_paragraph_after_done_next() -
     _work_paragraph(sections[0])
 
 
-def test_template_has_the_paragraph_in_both_final_output_copies() -> None:
+def test_template_has_one_final_output_section_with_the_paragraph() -> None:
     sections = _sections(TEMPLATE)
-    assert len(sections) == 2, f"template: expected 2 § FINAL OUTPUT copies, found {len(sections)}"
-    for section in sections:
-        _work_paragraph(section)
+    assert len(sections) == 1, f"template: expected 1 § FINAL OUTPUT section, found {len(sections)}"
+    _work_paragraph(sections[0])
 
 
-# The canonical text, pinned HERE so an identical drift in all three copies still reds. COBRA: the
+# The canonical text, pinned HERE so an identical drift in both copies still reds. COBRA: the
 # cheapest green after a wording change is to paste the new wording below; that edit is a visible
 # change of meaning in review, which is the point of pinning it.
 _CANONICAL = (

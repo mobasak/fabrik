@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the project contract carried its FINAL OUTPUT section twice (2026-09-27)
+- `templates/governance/CLAUDE.md` held `## ⚠️ FINAL OUTPUT` twice since the 2026-09-21 lean pass (52733d7d2): an older copy with stories and the hub-aligned copy later edits maintained. The two had drifted apart, and every project read both. It now carries the maintained copy once, in the hub's position before § Spec contract awareness (72 lines, 8,340 bytes lighter). A sentence-level loss check found no rule only the old copy stated. Tests bound to two copies now bind one (W-6f0c06c8, the fold item).
+
 ### Changed — the research ledger reaches every synced repo; execute-plan names the review workflow by its hub path (2026-09-27)
 - `scripts/check_research_ledger.py` is synced into every project (`CORE_SCRIPTS`, the governance-sync trigger, `.worktreeinclude`), and `templates/governance/CLAUDE.md` § External Knowledge states the rule with the command a project runs before committing a ledger (D-438). The checker names a row that is a DUPLICATE of itself as such. `docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md` § Core Scripts is rebuilt from `CORE_SCRIPTS`: 16 entries, the retired Kilo scripts gone.
 - `commands/_sources/fabrik-execute-plan.md` names `/opt/fabrik/.claude/workflows/fabrik-review-loop.js`. It was the corpus's only relative reference, and it pointed at a file no project has.

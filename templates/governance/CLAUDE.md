@@ -517,90 +517,6 @@ NEXT: <the next command or step, NAMED — /fabrik-<x> <args> | operator decisio
 FEEDBACK: /<command> · <wall-clock> · rounds <n> (<confirmed trend, or the findings trend when a round never stated confirmed>) · tokens <input> input / <output> output (<n>% cached) · confusion: <…|none> · waste: <…|none> · change: <lean|fast|accurate|waste|infra|rules|manifesto>: <the one edit to this command or a rule | none — `none` carries no key> · filed: <mail id(s) to a beat | none — surfaces exercised: …> [· cost: <a plain amount, e.g. 0.0125 — prose is refused>]
 ```
 
-Missing any line on a task-completing response = failure. Re-run gate until `success`, then output the 7 lines. The `FEEDBACK:` line is the run-record close verdict made CHAT-VISIBLE (operator directive 2026-09-01 — the 7th ask: verdicts persisted to records were still invisible in the conversation); same bar as the close: a "filed" claim names a durable artifact, a bare "none" is a defect — `none — <surfaces exercised>` or the filing. **EVERY OTHER response — conversational, clarifying, read-only, mid-plan status (operator mandate 2026-08-10: "in any answer agents must reply in that manner") — ends with the two-line STATE footer instead** (no gate, no changelog entry owed):
-
-```
-STATE: <where things stand — the stage/board/loop position, one line>
-NEXT: <the successor: exact command · the operator decision awaited — see DECISION NEEDED above · "awaiting your reply" · none — terminal>
-```
-
-The footer is the manner, not the machinery: it never substitutes for the 7-line block on a task-completing response, and a footer `NEXT:` naming undispatched own-session work is the same checkpoint-stall as a bare undispatched block `NEXT:` (same rule, same hook). **`DONE:`/`NEXT:` discipline:** `DONE:` states only what actually happened (commit hashes / files / verdicts — never "mostly done"); `NEXT:` names the successor precisely enough to run without re-derivation — the exact command + argument, the exact operator decision, or an explicit `none — terminal`. A vague `NEXT:` ("continue", "more testing") is a missing line. If `NEXT:` names work THIS agent owns in THIS session, it is dispatched, not narrated — the block is a TASK terminator, so emitting it while own-session work remains is itself the checkpoint-stall (the promise-guard catches the phrasing-level variants — "I'll run it", "the pass is owed" — but a bare undispatched `NEXT:` is caught by THIS rule, not by the hook).
-
-**Work items.** A repo with a `.fabrik/work/` store keeps its open work there (`python3 scripts/work.py`;
-`/opt/fabrik/docs/reference/work-tracking.md`): `NEXT:` names the item id (`W-` and 8 lowercase hex) when one exists and then says in
-plain words what the item is (`NEXT: W-1a2b3c4d — fix the flaky login test`), because a bare id tells a
-reader nothing; a DECISION block the Stop hook accepts becomes an `awaiting-operator` item on its own,
-and the agent the
-operator answers closes it with `work.py answer <id> --note "<their words>"`. Item files are ordinary
-files: commit the ones your verbs changed with your task.
-End a turn on work with `NEXT: <item id> — <what it is>` to claim that item for your
-session (the first item it names that is open, ready, not a `next` item and held by no other session);
-`mail.py claim` run in the mailbox's own repo creates the mail's item, and `mail.py ack` there closes it.
-`NEXT: none — terminal` stays legal and nothing counts, scores or rewards items (hub D-392, hub D-394).
-
-**⚠️ `NEXT: operator decision` HAS A BAR — it was the contract's only UNGUARDED exit, which is exactly why it gets abused.** Compare the three sanctioned `NEXT:` values: `BLOCKED:` has three named causes and a required format; a named command obliges you to RUN it; `operator decision` is legitimate only behind a **DECISION block**, written unfenced — a fenced example, like the two below, never exempts a turn:
-
-```
-DECISION NEEDED (ground: gate|underivable|owned)
-- Question: <one plain sentence, no internal ids without their meaning>
-- Why it is yours: <gate → the class; underivable → what changes if the answer differs, and `searched:` what came back silent; owned → `asked:` the operator's earlier question still unanswered, or `scope:` the line of the operator's request this step goes past>
-- Options: <A — what changes if chosen> · <B — what changes if chosen>
-- Recommendation: <A or B, and the one-line reason>
-```
-
-Name exactly ONE ground in the heading. The three, kept whole from hub D-054: (1) `gate` — a **contractual human gate**, named by a token from the closed list: deploy · destructive · irreversible · spend (real money) · cross-repo · publish · credentials · design approval · plan approval · Gate 1 · Gate 2 · production data (the § EXIT ad-hoc-branch disposition — keep-as-is · discard — is named `destructive`, since discarding a branch/worktree is the destructive act, never a menu). (2) `underivable` — the answer **materially changes the work AND cannot be resolved** from the artifacts, the code, or `docs/DECISIONS.md`, stating first what changes if the answer differs, then `searched:` citing the path, backticked command, D-id or `/fabrik-*` command that came back silent. (3) `owned` — the operator **already owns** that decision this turn: `asked:` quotes their own still-unanswered question verbatim, ending in its `?`; `scope:` quotes the line of their request this step goes past, refused while a command run record is `running` (the invoked command already grants its own scope). **Everything else is DISPATCHED, not offered** — an `(a)/(b)` options menu is never legitimate: derive the verdict, state it, proceed. Citing your own reliability, fatigue or context budget is a `BLOCKED:` if it is anything at all. A remaining task that is obvious is not a decision; it is your next action.
-
-Legitimate:
-```
-DECISION NEEDED (ground: gate)
-- Question: Deploy the certified build to production now?
-- Why it is yours: gate — Gate 2, a destructive/irreversible action needing authorisation.
-- Options: A — deploy now, live in ~5 min · B — hold for one more smoke pass (+15 min)
-- Recommendation: A — the certification gauntlet already passed; holding adds no new evidence.
-```
-
-Refused (a manufactured fork, not a decision):
-```
-DECISION NEEDED (ground: owned)
-- Question: (a) mine the unread session first, or (b) deploy first?
-- Why it is yours: owned — asked: [no such operator question exists]
-- Options: A — mine first · B — deploy first
-- Recommendation: none
-```
-REFUSED — both tasks were already agreed and their order was never in doubt; this is the agent's own uncertainty relabelled as the operator's decision, exactly the `(a)/(b)` menu the grounds above forbid.
-
-**⚠️ The block is a TASK terminator, never a phase/loop terminator.** Mid-`/fabrik-execute-plan` phase
-boundaries and mid-certification rounds are NOT task-completing responses — do NOT emit this block there,
-and NEVER treat having emitted it as permission to stop (live defect: an agent emitted the block at a
-green phase gate, read it as "done," and handed back control mid-plan — the checkpoint-stall). Emit it
-ONCE, at the true end of the run.
-
-**Freshness — evidence before assertions.** The `GATE:` line must report a run made **in THIS turn**; never cite an earlier run's result. If ANY file changed since your last gate run — yours OR a sibling's on shared `master` — re-run before you claim. "Should pass" / "passed earlier" is not evidence, and a stale green is exactly how a turn claims done while the tree is red. The same rule binds every "fixed / passing / converged / reviewed" claim anywhere in a response: run the proving command in the **same message** you make the claim, read its actual output, then claim. A subagent's "success" is a claim, not proof — verify it yourself (its diff + re-run its tests).
-
-## Spec contract awareness
-
-Every Fabrik project has `specs/services/<id>.yaml` (on the hub) with a `shape:` block that drives which
-Postgres DB / Redis index / Backrest plan / Gatus endpoint / Prometheus job / GlitchTip project / Authelia rule /
-Meilisearch index get auto-created on `fabrik apply`. The shape contract is canonical: code MUST match it. Adds a
-database call → `shape.needs_database` MUST be `true` · a Redis cache → `shape.needs_cache` · exposes `/metrics` →
-`shape.exposes_metrics` · Meilisearch indexes → `shape.has_search_feature` · an admin UI behind auth →
-`shape.is_admin_dashboard`. If you change code in a way that affects any of these, ALSO update the spec —
-otherwise `fabrik apply` skips the registrar and the deploy is silently broken. `fabrik` is a hub-side CLI, not
-on a project's PATH — ground it by READING the spec's `shape:` block and the flag→registrar mapping above
-(inspection, not a shell-out).
-
-## ⚠️ FINAL OUTPUT (last 7 lines of every task-completing response)
-
-```
-GATE: <command run> → success|failure
-DOCS UPDATED: <files | none>
-CHANGELOG: <entry title | n/a>
-LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
-DONE: <one line — what this run delivered: the commits/artifacts, not intentions>
-NEXT: <the next command or step, NAMED — /fabrik-<x> <args> | operator decision: <what> — see DECISION NEEDED above | none — terminal>
-FEEDBACK: /<command> · <wall-clock> · rounds <n> (<confirmed trend, or the findings trend when a round never stated confirmed>) · tokens <input> input / <output> output (<n>% cached) · confusion: <…|none> · waste: <…|none> · change: <lean|fast|accurate|waste|infra|rules|manifesto>: <the one edit to this command or a rule | none — `none` carries no key> · filed: <mail id(s) to a beat | none — surfaces exercised: …> [· cost: <a plain amount, e.g. 0.0125 — prose is refused>]
-```
-
 Missing any line on a task-completing response = failure. Re-run the gate until `success`, then output the 7
 lines. The `FEEDBACK:` line is the run-record close verdict made chat-visible: a "filed" claim names a durable
 artifact; a bare "none" is a defect — `none — <surfaces exercised>` or the filing. **EVERY OTHER response —
@@ -671,6 +587,18 @@ an earlier run's result. If ANY file changed since your last gate run — yours 
 `master` — re-run before you claim. The same binds every "fixed / passing / converged / reviewed" claim anywhere
 in a response: run the proving command in the same message you make the claim, read its actual output, then
 claim. A subagent's "success" is a claim, not proof — verify it yourself (its diff + re-run its tests).
+
+## Spec contract awareness
+
+Every Fabrik project has `specs/services/<id>.yaml` (on the hub) with a `shape:` block that drives which
+Postgres DB / Redis index / Backrest plan / Gatus endpoint / Prometheus job / GlitchTip project / Authelia rule /
+Meilisearch index get auto-created on `fabrik apply`. The shape contract is canonical: code MUST match it. Adds a
+database call → `shape.needs_database` MUST be `true` · a Redis cache → `shape.needs_cache` · exposes `/metrics` →
+`shape.exposes_metrics` · Meilisearch indexes → `shape.has_search_feature` · an admin UI behind auth →
+`shape.is_admin_dashboard`. If you change code in a way that affects any of these, ALSO update the spec —
+otherwise `fabrik apply` skips the registrar and the deploy is silently broken. `fabrik` is a hub-side CLI, not
+on a project's PATH — ground it by READING the spec's `shape:` block and the flag→registrar mapping above
+(inspection, not a shell-out).
 
 ## Platform core (auto-loaded)
 

@@ -1103,8 +1103,8 @@ def test_compact_instructions_heading_exists_with_its_five_lines() -> None:
 
 # ── T02b: the DECISION block MIRRORED into templates/governance/CLAUDE.md ──────────────────────
 # docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction/T02b-template-claude-md.md. The
-# template carries § FINAL OUTPUT TWICE (:629, :672 pre-edit) — the duplication itself is routed to
-# docs/STRATEGIC_BACKLOG.md by T06, never fixed here — so every grader below checks BOTH copies.
+# template carried § FINAL OUTPUT twice until 2026-09-27 (a lean-pass leftover, W-6f0c06c8); it
+# now carries it once, and the graders below check that one section.
 # Nothing binds the template to the hub's T02a text but a grader like this one: the hub agent who
 # wrote the DECISION block reads it every session and would never notice the ~46 synced repos
 # still taught the old, unguarded `operator decision:` exit.
@@ -1113,13 +1113,13 @@ def test_compact_instructions_heading_exists_with_its_five_lines() -> None:
 def _final_output_sections(text: str) -> list[str]:
     """Every § FINAL OUTPUT section in document order.
 
-    O5: the template carries the block EXACTLY twice — a looser `>= 1` bound would silently accept
-    a renamed or removed second heading, and every per-copy grader below would then check copy 1
-    alone, twice, while reporting "template copy 2" for what is really copy 1's text again."""
+    O5: the template carries the section EXACTLY once — a looser `>= 1` bound would silently
+    accept a second copy creeping back in, the drift this bound exists to catch (a lean-pass
+    leftover shipped two drifted copies fleet-wide for six days)."""
     start = "## ⚠️ FINAL OUTPUT"
     end = "\n## "
     parts = text.split(start)[1:]
-    assert len(parts) == 2, f"expected exactly 2 § FINAL OUTPUT copies, found {len(parts)}"
+    assert len(parts) == 1, f"expected exactly 1 § FINAL OUTPUT section, found {len(parts)}"
     return [p.split(end, 1)[0] if end in p else p for p in parts]
 
 
@@ -1198,9 +1198,9 @@ def test_the_templates_final_output_copies_carry_the_decision_block_format() -> 
     """T02b Behavior Contract: every § FINAL OUTPUT copy in the template carries the SAME DECISION
     block FORMAT as the hub's, byte-identical (spec § Contract deltas).
 
-    Mutant: delete '- Recommendation: <A or B, and the one-line reason>' from ONE of the two
-    template copies' format blocks only — RED for that copy, proving the check is per-copy, not a
-    single whole-file substring search that the other copy's surviving text would satisfy."""
+    Mutant: delete '- Recommendation: <A or B, and the one-line reason>' from the template's
+    format block — RED, proving the check reads the section's block, not a whole-file substring
+    search that a surviving copy elsewhere would satisfy."""
     hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
     tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
     hub_block = _decision_format_block(_final_output_section(hub))
@@ -1210,7 +1210,7 @@ def test_the_templates_final_output_copies_carry_the_decision_block_format() -> 
 
 
 def test_the_templates_final_output_copies_carry_the_two_decision_examples() -> None:
-    """The Legitimate/Refused worked examples, byte-identical to the hub's, in BOTH copies.
+    """The Legitimate/Refused worked examples, byte-identical to the hub's, in the template's section.
 
     Mutant: swap the `ground:` tokens between the two examples in one copy only — RED for that
     copy."""
@@ -1237,7 +1237,7 @@ def test_the_templates_final_output_copies_carry_the_two_decision_examples() -> 
 
 def test_the_templates_final_output_next_lines_point_at_the_decision_block() -> None:
     """S1/O5 mirrored: the 7-line template's `NEXT:` and the STATE footer's `NEXT:` both point at
-    the DECISION block in BOTH template copies.
+    the DECISION block in the template's section.
 
     Mutant: delete ' — see DECISION NEEDED above' from one copy's 7-line `NEXT:` line — RED for
     that copy."""
@@ -1254,7 +1254,7 @@ def test_the_templates_final_output_next_lines_point_at_the_decision_block() -> 
 
 def test_the_templates_bar_paragraph_matches_the_hub_in_both_copies() -> None:
     """The full HAS A BAR paragraph — every restored and new rule from the hub's T02a round —
-    byte-identical in BOTH template copies, up to the ONE sanctioned `hub D-054` id rewrite.
+    byte-identical in the template's section, up to the ONE sanctioned `hub D-054` id rewrite.
 
     Mutant: delete 'is a `BLOCKED:` if it is anything at all' from one copy's paragraph only — RED
     for that copy."""
@@ -1274,7 +1274,7 @@ def test_the_templates_bar_paragraph_and_examples_match_the_hub_end_to_end() -> 
     never read the text BETWEEN the fenced blocks, so a rewritten or inverted REFUSED rationale, or
     a swapped 'Legitimate'/'Refused' label pair, stayed green against them.
 
-    Mutant: reword the REFUSED verdict sentence in copy 2 only (leave both fenced examples and
+    Mutant: reword the REFUSED verdict sentence only (leave both fenced examples and
     their `ground:` tokens untouched) — RED for that copy, where every narrower check above stays
     green."""
     hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
