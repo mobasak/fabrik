@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T22:32:18.381757Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-d1444d92",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M343KNE86FPSEM0Z9DF9T85N",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "CORRECTION to 01M342MM0WQCQ72WQ0354MT25D — the asyncio pool is saas-skeleton's; the file-worker scaffold ships something worse"
+}
