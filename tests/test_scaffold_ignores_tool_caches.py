@@ -78,7 +78,9 @@ def test_the_i18n_kit_loops_carry_no_stray_pyc(tmp_path, monkeypatch, project_ty
         (kit / folder / "stray.pyc").write_bytes(b"\0")
     monkeypatch.setattr(scaffold, "I18N_KIT_DIR", kit)
     project = tmp_path / "proj"
-    project.mkdir()
+    (project / "app").mkdir(parents=True)
+    # the react strategy also mounts the provider in the root layout it finds there
+    shutil.copy2(scaffold.SAAS_SKELETON_DIR / "app" / "layout.tsx", project / "app" / "layout.tsx")
 
     scaffold._provision_i18n(project, project_type)
 

@@ -59,8 +59,17 @@ export default function SettingsPage() {
               <div className="text-2xl font-bold">Free</div>
               <div className="text-sm text-muted-foreground">5 jobs/month</div>
             </div>
-            <button className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
-              Upgrade to Pro
+            {/* Plan changes, cancellation, payment methods and invoices go through the
+                Paddle customer portal (core/85-payments-billing.md): add a backend route that
+                creates a portal session per click and redirect to it — never an in-app upgrade
+                or billing form. Disabled until that route exists, so it cannot 404. */}
+            <button
+              type="button"
+              disabled
+              title="Connect the Paddle customer portal first"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground opacity-50"
+            >
+              Manage billing
             </button>
           </div>
         </SectionCard>

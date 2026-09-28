@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a new saas-skeleton can sign in, renders translations, keeps its theme, and bills through the portal (2026-09-28)
+- **Sign-in.** Web (cookie) login and passwordless could not work as emitted. The IdP router is mounted at `/auth`, but Traefik sent only `/api` to the backend, so `/auth` reached Next.js. The backend also lacked the IdP's `CsrfOriginMiddleware`, whose absence makes it refuse to mint a cookie session. The api router now takes `/api` and `/auth`, and the middleware is installed inside CORS. Its origin allow-list is `AUTH_ALLOWED_ORIGINS` when set, else `CORS_ORIGINS` plus the app's own `NEXT_PUBLIC_APP_URL`, so the default is the app itself rather than a lockout. A web sign-in lands on `/app` (`AUTH_WEB_LOGIN_REDIRECT`), not the marketing page.
+- **Frontend.** The root layout mounts the i18n kit's `I18nProvider`, whose `useI18n()` threw everywhere without it. This happens for saas-skeleton only; static-site and office-extension don't take the react kit. A pre-hydration script applies the stored or OS theme before first paint, even when `localStorage` is blocked.
+- **Billing and the stale kit.** The settings page's in-app "Upgrade to Pro" is gone: billing goes through the Paddle portal (`core/85`). The unreferenced, divergent `templates/scaffold/i18n-kit/` is deleted.
+- **Tests.** `tests/test_scaffold_saas_web_wiring.py` drives a real login through the emitted IdP's middleware and runs the theme script in node; a 7-mutant battery kills all 7.
+- **Filed for the spec chain:** Tailwind v4, the responsive rail and the verification tooling (W-cc5a1409). Mails 01M37NN5/01M37P3K/01M37PRR.
+
 ### Fixed — the pre-cutover scan no longer blocks on DDL a docstring only describes (2026-09-28)
 - `fabrik app-role-check` scans a project for code that still reaches its database as the owner. It matched docstring prose as runtime DDL, so fabrik-lib's vendored `fastapi_user_auth/request_guard.py`, whose docstring explains the `ALTER TABLE … NO FORCE ROW LEVEL SECURITY` escape it refuses, blocked every saas-family project's cutover and failed `test_scaffold_audit_log` for saas-skeleton, static-site and office-extension. `app_role_check._docstring_lines` now exempts only the lines of a real docstring (the first string statement of a module, class or function). A line shared with code stays scanned, and the exemption fails closed: a file that does not parse, a parser `RecursionError`/`MemoryError`, or a line break `str.splitlines()` honours but Python does not all leave the file scanned whole.
 
