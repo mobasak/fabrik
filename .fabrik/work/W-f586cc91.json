@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-28T12:06:19.904642Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-f586cc91",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M37NN5ZSM3EEG8CR7V30JB8R",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "saas-skeleton scaffold — i18n validator still runs on the retired Kilo CLI, a stale second i18n kit, and Tailwind v3"
+}

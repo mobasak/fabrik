@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-28T12:06:28.948913Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-1f344d31",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M37P3K1Z59TG9XD9J5BK0Y7Y",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "saas-skeleton addendum to 01M37NN5ZSM3EEG8CR7V30JB8R — five more gaps between the scaffold and saas/60-saas-ui.md"
+}

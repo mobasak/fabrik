@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-28T12:06:29.091264Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-565db14c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M37PRRKDG5RC6P488RE0NSAN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "saas-skeleton addendum 2 to 01M37NN5ZSM3EEG8CR7V30JB8R — passwordless web mode cannot work as emitted"
+}
