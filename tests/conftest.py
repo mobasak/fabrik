@@ -293,8 +293,9 @@ def _no_live_app_role_step(request, _private_monkeypatch):
 #      PATH. It catches what layer 1 cannot see — a wrapper (`env ssh`, `timeout 30 ssh`), a script
 #      that runs ssh itself (vultr's bootstrap-*.sh), `os.system` — without scanning arguments, so
 #      `echo ssh` still runs.
-# Residual, stated: an ABSOLUTE path inside a script or wrapper (`env /usr/bin/ssh`) bypasses both;
-# no src/ call site does that today. A test's own mock of `subprocess.run`/`Popen` still wins.
+# Residual, stated: a SCRIPT that runs an absolute `/usr/bin/ssh`, or one started with PATH dropped
+# (`env -i`, sudo's secure_path) that runs ssh by name, bypasses both layers; no src/ call site does
+# that today. After a wrapper (sudo, env, timeout, exec, …) any word naming a fleet binary is refused. A test's own mock of `subprocess.run`/`Popen` still wins.
 # `FABRIK_TEST_ALLOW_FLEET=1` lets a PERSON run a deliberate live check (layer 1 reads it at call
 # time; layer 2 is not installed when it is set at start). COBRA (D-253): the cheapest bypass is a
 # test that sets it, so tests/test_conftest_isolation.py::test_no_test_opts_itself_into_the_live_fleet
@@ -302,25 +303,91 @@ def _no_live_app_role_step(request, _private_monkeypatch):
 # ---------------------------------------------------------------------------------------------
 _FLEET_BINARIES = frozenset({"ssh", "scp", "rsync", "sftp", "sshpass"})
 _SHELLS = frozenset({"sh", "bash", "dash", "zsh"})
-_SHELL_SEGMENT_SPLIT = re.compile(r"&&|\|\||\$\(|[;|&\n`()]")
+# a command that runs ANOTHER command from its arguments: after one of these, a fleet binary
+# anywhere in the words is refused (`sudo -u root ssh`, `env -i ssh`, `timeout 30 ssh`, `exec ssh`)
+_WRAPPERS = frozenset(
+    {
+        "sudo",
+        "doas",
+        "env",
+        "timeout",
+        "nice",
+        "nohup",
+        "setsid",
+        "stdbuf",
+        "xargs",
+        "strace",
+        "command",
+        "builtin",
+        "exec",
+        "time",
+        "!",
+        "if",
+        "then",
+        "else",
+        "do",
+        "while",
+        "until",
+        "{",
+    }
+)
 _SHELL_C_FLAG = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
+_REDIRECTION = re.compile(r"^\d*[<>]")
 _FLEET_REFUSAL = "test reached the live fleet"
 
 
+def _command_names(words: list[str]) -> list[str]:
+    """Basenames that may be EXECUTED by one simple command: its head, or every word after a wrapper."""
+    words = [w for w in words if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", w)]
+    words = [w for w in words if not _REDIRECTION.match(w)]
+    if not words:
+        return []
+    head = os.path.basename(words[0])
+    if head in _WRAPPERS:
+        return [head] + [os.path.basename(w) for w in words[1:]]
+    if head in _SHELLS:
+        flag = None
+        for k, w in enumerate(words[1:], 1):
+            if not w.startswith("-"):
+                break  # the script operand: a later -c belongs to the script, not the shell
+            if _SHELL_C_FLAG.match(w):
+                flag = k
+                break
+        if flag is not None and flag + 1 < len(words):
+            return [head] + _shell_heads(words[flag + 1])
+    return [head]
+
+
 def _shell_heads(text: str) -> list[str]:
-    """The command at the head of every segment of a shell string (after any VAR=value words)."""
+    """What a shell command line may execute: each simple command, quote-aware, plus substitutions."""
     import shlex
 
-    heads = []
-    for segment in _SHELL_SEGMENT_SPLIT.split(text):
-        try:
-            words = shlex.split(segment)
-        except ValueError:
-            words = segment.split()
-        words = [w for w in words if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", w)]
-        if words:
-            heads.append(os.path.basename(words[0]))
-    return heads
+    names: list[str] = []
+    for sub in re.findall(r"\$\(([^()]*)\)|`([^`]*)`", text):  # $(…) and `…`, quoted or not
+        names += _shell_heads(sub[0] or sub[1])
+    try:
+        lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        tokens = list(lexer)
+    except ValueError:
+        tokens = text.split()
+    segment: list[str] = []
+    target = False  # the word after a redirection operator is its target, never a command
+    for tok in [*tokens, ";"]:
+        if tok and set(tok) <= set("();<>|&\n"):
+            if tok.strip("<>"):  # an operator ends the simple command
+                names += _command_names(segment)
+                segment, target = [], False
+            else:  # a redirection: drop an fd number glued before it, skip its target
+                if segment and segment[-1].isdigit():
+                    segment.pop()
+                target = True
+            continue
+        if target:
+            target = False
+            continue
+        segment.append(tok.lstrip("`$("))
+    return names
 
 
 def _fleet_binary_in(args, shell: bool, executable=None) -> str | None:
@@ -337,14 +404,8 @@ def _fleet_binary_in(args, shell: bool, executable=None) -> str | None:
         argv = [os.fsdecode(a) if isinstance(a, (bytes, os.PathLike)) else str(a) for a in args]
     if not argv:
         return None
-    if shell:  # a shell=True LIST runs its first element as the command line
-        names = _shell_heads(argv[0])
-    else:
-        names = [os.path.basename(argv[0])]
-        if names[0] in _SHELLS:
-            flag = next((i for i, a in enumerate(argv[1:], 1) if _SHELL_C_FLAG.match(a)), None)
-            if flag is not None and flag + 1 < len(argv):
-                names += _shell_heads(argv[flag + 1])
+    # a shell=True LIST runs its first element as the command line
+    names = _shell_heads(argv[0]) if shell else _command_names(argv)
     return next((n for n in names if n in _FLEET_BINARIES), None)
 
 

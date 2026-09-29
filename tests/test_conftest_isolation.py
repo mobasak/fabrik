@@ -297,6 +297,12 @@ def test_every_subprocess_shape_of_ssh_scp_rsync_is_refused():
         lambda: subprocess.run([f"cd / && ssh {h} true"], shell=True, capture_output=True),
         lambda: subprocess.run(["x", h, "true"], executable="/usr/bin/ssh", capture_output=True),
         lambda: subprocess.Popen(["x", h], -1, "/usr/bin/ssh"),  # executable passed positionally
+        # a wrapper or keyword runs its arguments; sudo's secure_path would bypass the PATH shim
+        lambda: subprocess.run(["sudo", "-n", "-u", "root", "ssh", h], capture_output=True),
+        lambda: subprocess.run(["env", "-i", "ssh", h], capture_output=True),
+        lambda: subprocess.run(f"exec /usr/bin/ssh {h} true", shell=True, capture_output=True),
+        lambda: subprocess.run(f"2>/dev/null ssh {h} true", shell=True, capture_output=True),
+        lambda: subprocess.run(f'echo "$(ssh {h} true)"', shell=True, capture_output=True),
     ]
     for shape in shapes:
         _assert_refused(shape, guard)
@@ -304,15 +310,21 @@ def test_every_subprocess_shape_of_ssh_scp_rsync_is_refused():
     assert subprocess.run(["true"]).returncode == 0
     assert subprocess.run(["echo", "ssh"], capture_output=True, text=True).stdout.strip() == "ssh"
     assert subprocess.run("echo ssh", shell=True, capture_output=True, text=True).stdout == "ssh\n"
+    quoted = subprocess.run('echo "a; ssh x"', shell=True, capture_output=True, text=True)
+    assert quoted.stdout == "a; ssh x\n"  # an operator inside quotes is text, not a new command
+    # a -c after the script operand belongs to the script, not to bash
+    assert subprocess.run(["bash", "/nonexistent.sh", "-c", "ssh"], capture_output=True).returncode
 
 
-def test_what_the_popen_guard_cannot_see_meets_the_path_shim():
-    """A wrapper, a script that runs ssh itself, or os.system never names ssh to Popen."""
-
+def test_what_the_popen_guard_cannot_see_meets_the_path_shim(tmp_path):
+    """A script that runs ssh itself, a name computed at runtime, or os.system never names ssh to
+    Popen; the PATH shim still refuses them."""
     h = "unroutable.invalid"
-    _assert_shim_refused(["env", "ssh", h, "true"])
-    _assert_shim_refused(["timeout", "30", "ssh", h, "true"])
-    _assert_shim_refused(["sh", "-c", f'x=ssh; "$x" {h} true'])  # the name is only known at runtime
+    script = tmp_path / "deploy.sh"  # the shape of vultr's bootstrap-*.sh
+    script.write_text(f"#!/bin/sh\nssh {h} true\n", encoding="utf-8")
+    script.chmod(0o755)
+    _assert_shim_refused([str(script)])
+    _assert_shim_refused(["sh", "-c", f'x=ssh; "$x" {h} true'])
     assert os.WEXITSTATUS(os.system(f"ssh {h} true 2>/dev/null")) == 255
     from shutil import which
 
