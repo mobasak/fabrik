@@ -226,9 +226,56 @@ def _resolves(target: str, src: Path, extra_bases: list[str] | None = None) -> b
             return True
     # source-relative resolution
     cand = (src.parent / t).resolve()
-    if not _bounded(cand):
-        return False  # escaped to the rest of the host FS — never resolve there
-    return cand.exists()
+    if _bounded(cand) and cand.exists():
+        return True
+    return _resolves_in_main_checkout(norm)
+
+
+_MAIN_CACHE: dict[str, Path | None] = {}
+
+
+def _main_checkout() -> Path | None:
+    """The main checkout of REPO when REPO is a linked worktree, else None.
+
+    A gitignored runtime artifact (a kilo cache file, a generated catalog) exists only in the checkout that
+    produced it, so a doc citing it reads broken in every fresh worktree although the repo is fine. The main
+    checkout is the parent of the git common dir; any git error answers None (no extra resolution)."""
+    key = str(REPO)
+    if key not in _MAIN_CACHE:
+        main = None
+        try:
+            r = subprocess.run(
+                ["git", "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"],
+                cwd=REPO,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            dirs = r.stdout.removesuffix("\n").split("\n")
+            if r.returncode == 0 and len(dirs) == 2 and dirs[0] != dirs[1]:
+                main = Path(dirs[1]).parent
+        except (OSError, subprocess.SubprocessError):
+            pass
+        _MAIN_CACHE[key] = main
+    return _MAIN_CACHE[key]
+
+
+def _resolves_in_main_checkout(norm: str) -> bool:
+    """From a linked worktree, a repo-relative ref that git IGNORES resolves if the main checkout has it.
+
+    Only gitignored paths: a tracked file missing from the worktree is a real break, and in the main checkout
+    this adds nothing. The cheapest way to pass without the outcome — citing a gitignored path that exists
+    nowhere — still fails, because the main checkout must hold the file."""
+    main = _main_checkout()
+    if main is None or norm.startswith("../"):
+        return False
+    cand = Path(os.path.normpath(main / norm))
+    if not str(cand).startswith(str(main) + "/") or not cand.exists():
+        return False
+    r = subprocess.run(
+        ["git", "check-ignore", "-q", "--no-index", norm], cwd=REPO, capture_output=True, timeout=10
+    )
+    return r.returncode == 0
 
 
 def _bounded(cand: Path) -> bool:

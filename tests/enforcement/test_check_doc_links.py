@@ -188,3 +188,38 @@ def test_a_deep_relative_escape_never_reaches_the_host_through_the_repo_root_bra
     assert (
         cdl._resolves("../" * 40 + "opt/fabrik/docs/QUICKSTART.md", src) is True
     )  # a sibling stays sanctioned
+
+
+def test_a_linked_worktree_resolves_a_gitignored_ref_through_the_main_checkout(
+    tmp_path, monkeypatch
+):
+    """A runtime artifact is gitignored, so only the main checkout that produced it has it. From a linked
+    worktree the same doc ref must still resolve — through the main checkout, for a gitignored path only.
+    A missing path that is NOT gitignored stays broken, and the main checkout itself is unchanged."""
+
+    def git(*args, cwd):
+        subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+
+    main = tmp_path / "main"
+    main.mkdir()
+    git("init", "-q", "-b", "master", cwd=main)
+    (main / ".gitignore").write_text("cache/\n")
+    (main / "docs").mkdir()
+    (main / "docs" / "a.md").write_text("see `scripts/cache/x.json` and `scripts/gone.json`\n")
+    git("add", ".", cwd=main)
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init", cwd=main)
+    (main / "scripts" / "cache").mkdir(parents=True)
+    (main / "scripts" / "cache" / "x.json").write_text("{}")
+    wt = tmp_path / "wt"
+    git("worktree", "add", "-q", "--detach", str(wt), "HEAD", cwd=main)
+
+    monkeypatch.setattr(cdl, "REPO", wt)
+    monkeypatch.setattr(cdl, "_MAIN_CACHE", {}, raising=False)
+    src = wt / "docs" / "a.md"
+    assert cdl._resolves("scripts/cache/x.json", src) is True
+    assert cdl._resolves("scripts/gone.json", src) is False
+
+    monkeypatch.setattr(cdl, "REPO", main)
+    monkeypatch.setattr(cdl, "_MAIN_CACHE", {}, raising=False)
+    (main / "scripts" / "cache" / "x.json").unlink()
+    assert cdl._resolves("scripts/cache/x.json", main / "docs" / "a.md") is False
