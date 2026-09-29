@@ -209,12 +209,13 @@ def _memory_line(cwd: str) -> str:
 # but a HUMAN writes `MERGE OWNER: UNDECLARED — we un-adopted` as an ordinary un-adoption
 # row, and without the lookahead this hook then announces `UNDECLARED` as the owner.
 # Case-insensitive because the phrase match is, so `undeclared` cannot sneak past it.
+# TOKEN-exact: `undeclared-team` is a real owner name, and `decisions.py` captures the whole token.
 # ⚠️ The CAPTURE is byte-identical to both single sources — no length quantifier of
 # our own. `docs_updater.py` states the permissiveness is deliberate ("stays permissive so
 # it can still READ a name minted before this tightening"), so a narrower copy here would be
 # a silent third dialect; the length cap belongs at RENDER time and lives in `_identity_line`.
 _MERGE_OWNER_RE = re.compile(
-    r"^\**\s*MERGE OWNER:\s*(?!UNDECLARED\b)([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I
+    r"^\**\s*MERGE OWNER:\s*(?!UNDECLARED(?![A-Za-z0-9_.@-]))([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I
 )
 _LEDGER_ROW_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
 _LEDGER_WINDOW_BYTES = 64 * 1024  # bounded like every other read here (see _MEMORY_READ_BYTES)
@@ -266,7 +267,7 @@ def _declared_merge_owner(cwd: str) -> str:
 # cannot import it); `tests/test_session_orient_hook.py` compares the result to the real
 # `decisions.py --merge-owner` over escaped-pipe, code-span and escaped-name ledgers.
 _ESCAPABLE = frozenset("""!"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~""")  # GFM: punctuation only
-_UNDECLARED_RE = re.compile(r"^\**\s*MERGE OWNER:\s*UNDECLARED\b", re.I)
+_UNDECLARED_RE = re.compile(r"^\**\s*MERGE OWNER:\s*UNDECLARED(?![A-Za-z0-9_.@-])", re.I)
 
 
 def _code_span_ranges(s: str) -> list[tuple[int, int]]:
@@ -511,7 +512,9 @@ def _model_line(
                     f" is `{owner}`.** Only the merge owner works here. If you are not"
                     f" `{owner}`, bind first — `python3 /opt/fabrik/scripts/whoami_agent.py"
                     " --as <name>` — then move with `EnterWorktree` into"
-                    " `.claude/worktrees/<name>`; the conversation follows you.\n"
+                    " `.claude/worktrees/<name>`; the conversation follows you. Then check the"
+                    " gitignored paths `.worktreeinclude` lists (`.env`, …) arrived, and copy"
+                    " any missing one in from the main checkout.\n"
                 )
             elif name != owner.lower():  # names are lowercase; a hand-written owner may not be
                 instructed = True
@@ -519,7 +522,9 @@ def _model_line(
                     f"- ⚠️ **You are `{name}` in the main checkout, and the merge owner is"
                     f" `{owner}`.** Only the merge owner works here: move now with"
                     f" `EnterWorktree` into `.claude/worktrees/{name}` — the conversation"
-                    " follows you, and a target under `.claude/worktrees/` asks no approval.\n"
+                    " follows you, and a target under `.claude/worktrees/` asks no approval. Then"
+                    " check the gitignored paths `.worktreeinclude` lists (`.env`, …) arrived, and"
+                    " copy any missing one in from the main checkout.\n"
                 )
         latest: dict[str, dict] = {}
         for row in rows:  # LAST row per session wins, as in the writer
@@ -598,8 +603,8 @@ def _identity_line(
             if name:
                 return _charter_line(cwd, name, hub=True, env_set=bool(env))
             return (
-                f"- ⚠️ **CLAUDE_AGENT is UNSET — this hub session is UNNAMED.**{bad} Three sessions"
-                " share this tree; the role charter, beat routing and Agent-Name trailers all"
+                f"- ⚠️ **CLAUDE_AGENT is UNSET — this hub session is UNNAMED.**{bad} Several sessions"
+                " share this repo; the role charter, beat routing and Agent-Name trailers all"
                 " key on the env var (a window rename never reaches hooks — the mis-signed-day"
                 " class). Ask the operator which role this window is, or work without beat"
                 " claims until named.\n"

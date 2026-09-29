@@ -882,7 +882,8 @@ def test_the_merge_owner_grammar_tracks_its_sources_and_names_its_one_divergence
     phrase = "MERGE OWNER:" + bs + "s*"
     assert phrase + capture in du, "docs_updater's MERGE_OWNER_RE drifted"
     assert phrase + capture in dec, "decisions.py's MERGE_OWNER_RE drifted"
-    lookahead = "(?!UNDECLARED" + bs + "b)"
+    # token-exact: `(?![A-Za-z0-9_.@-])`, so `undeclared-team` stays an owner as decisions.py reads it
+    lookahead = "(?!UNDECLARED(?![A-Za-z0-9_.@-]))"
     assert phrase + lookahead + capture in hook, "the hook's grammar drifted from its sources"
     assert lookahead not in du and lookahead not in dec, (
         "a source grew the hook's lookahead — reconcile deliberately, do not let it drift in"
@@ -1129,6 +1130,8 @@ _ALICE = "| D-001 | d | a | MERGE OWNER: alice | y | z |\n"
         # a code span opened in the WHO cell runs into the owner cell: `\_` inside a span is NOT
         # unescaped, so the name stops at the backslash (decisions.py answers `a`, not `a_b`)
         "| D-002 | d | `x | MERGE OWNER: a\\_b` | y | z |\n",
+        # an owner NAME that merely starts with the word: decisions.py captures the whole token
+        _ALICE + "| D-002 | d | a | MERGE OWNER: undeclared-team | y | z |\n",
     ],
     ids=[
         "pipe-in-when",
@@ -1137,6 +1140,7 @@ _ALICE = "| D-001 | d | a | MERGE OWNER: alice | y | z |\n"
         "escaped-name",
         "undeclared-last",
         "code-span-backslash",
+        "owner-named-undeclared-team",
     ],
 )
 def test_the_owner_reader_agrees_with_decisions_py(tmp_path: Path, rows: str) -> None:
@@ -1373,3 +1377,13 @@ def test_a_pid_only_row_is_live_and_the_list_is_capped_at_twelve(tmp_path: Path)
     rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), _store(tmp_path, rows[1:]))
     assert rc == 0
     assert "`pidonly`" in _bindings(out), out
+
+
+def test_the_move_line_tells_the_mover_to_check_the_worktreeinclude_set(tmp_path: Path) -> None:
+    """EnterWorktree applied `.worktreeinclude` in both hub moves (2026-09-30, Claude Code 2.1.280),
+    but a mover must still check the gitignored set arrived — the move line says so, once."""
+    repo = _git_repo(tmp_path / "opt" / "adopted", "alpha")
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), {"CLAUDE_AGENT": "beta"})
+    assert rc == 0
+    move = [ln for ln in out.splitlines() if "EnterWorktree" in ln]
+    assert len(move) == 1 and "`.worktreeinclude` lists" in move[0], out

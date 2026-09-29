@@ -223,3 +223,67 @@ def test_a_linked_worktree_resolves_a_gitignored_ref_through_the_main_checkout(
     monkeypatch.setattr(cdl, "_MAIN_CACHE", {}, raising=False)
     (main / "scripts" / "cache" / "x.json").unlink()
     assert cdl._resolves("scripts/cache/x.json", main / "docs" / "a.md") is False
+
+
+def test_a_source_relative_ref_out_of_a_worktree_resolves_as_from_the_main_checkout(
+    tmp_path, monkeypatch
+):
+    """`../../../sib/README.md` from `docs/x/a.md` names a sibling repo of the MAIN checkout; from a worktree
+    nested at `.claude/worktrees/<n>` the same text climbs somewhere else, so it is re-resolved from the main
+    checkout's copy of the source file. A ref that is missing there too stays broken."""
+
+    def git(*args, cwd):
+        subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+
+    main = tmp_path / "opt" / "fabrik"
+    (main / "docs" / "x").mkdir(parents=True)
+    (tmp_path / "opt" / "sib").mkdir()
+    (tmp_path / "opt" / "sib" / "README.md").write_text("hi")
+    (main / "docs" / "x" / "a.md").write_text("see [s](../../../sib/README.md)\n")
+    git("init", "-q", "-b", "master", cwd=main)
+    git("add", ".", cwd=main)
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init", cwd=main)
+    wt = main / ".claude" / "worktrees" / "fleet"
+    git("worktree", "add", "-q", "--detach", str(wt), "HEAD", cwd=main)
+    monkeypatch.setattr(cdl, "_bounded", lambda cand: str(cand).startswith(str(tmp_path) + "/"))
+    monkeypatch.setattr(cdl, "_MAIN_CACHE", {})
+
+    monkeypatch.setattr(cdl, "REPO", main)
+    assert cdl._resolves("../../../sib/README.md", main / "docs" / "x" / "a.md") is True
+    monkeypatch.setattr(cdl, "REPO", wt)
+    src = wt / "docs" / "x" / "a.md"
+    assert cdl._resolves("../../../sib/README.md", src) is True
+    assert cdl._resolves("../../../sib/GONE.md", src) is False
+
+
+def test_the_main_checkout_of_a_submodule_worktree_is_the_submodule_not_git_internals(
+    tmp_path, monkeypatch
+):
+    """For a submodule, the common dir is `<outer>/.git/modules/<name>` — its parent is git internals, not the
+    submodule's working tree; the main checkout is read from the common dir's `core.worktree`."""
+
+    def git(*args, cwd):
+        subprocess.run(
+            ["git", "-c", "protocol.file.allow=always", *args],
+            cwd=cwd,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    lib = tmp_path / "lib"
+    lib.mkdir()
+    git("init", "-q", "-b", "master", cwd=lib)
+    (lib / "f.md").write_text("x")
+    git("add", ".", cwd=lib)
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "i", cwd=lib)
+    outer = tmp_path / "outer"
+    outer.mkdir()
+    git("init", "-q", "-b", "master", cwd=outer)
+    git("submodule", "add", "-q", str(lib), "sub", cwd=outer)
+    sub = outer / "sub"
+    wt = tmp_path / "subwt"
+    git("worktree", "add", "-q", "--detach", str(wt), "HEAD", cwd=sub)
+    monkeypatch.setattr(cdl, "REPO", wt)
+    monkeypatch.setattr(cdl, "_MAIN_CACHE", {})
+    assert cdl._main_checkout() == sub.resolve()

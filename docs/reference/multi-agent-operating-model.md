@@ -66,8 +66,9 @@ layer. The hub's T07 cut-over applies this for `fleet` and `intel`.
   lines, `[tags]` and the `Agent-Name:` trailer carry (`agent_role.py` accepts any `[a-z0-9-]{1,32}`; a
   charter at `docs/reference/agents/<name>.md` is optional). The session name `-n <name>-<repo>` is
   **box-wide**: a bare `-n alpha` in a second repo is silently renamed and `@alpha` addressing breaks.
-- **`--worktree` is the only launch form.** `.worktreeinclude` fires on `claude --worktree`, not on
-  the `EnterWorktree` tool (residual R1, below); any other entry has no gate, no packs, no `.env`.
+- **`--worktree` is the launch form for a NEW window; a RUNNING window moves with `EnterWorktree`.**
+  Either way, check the gitignored set `.worktreeinclude` lists arrived and copy any missing path in
+  from the main checkout (residual R1, below); an entry without it has no gate, no packs, no `.env`.
 - Commit heredocs use a **quoted** delimiter (`<<'EOF'`) — the isolation enforcement refuses the unquoted shape.
 - Who is agent-1: the merge owner named by the ledger's `MERGE OWNER:` row (`python3
   scripts/decisions.py --merge-owner .`) — written by `/fabrik-epics-review` on the epic path (the
@@ -119,9 +120,8 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
   `python3 scripts/decisions.py --merge-owner .` and defaults to that answer, so a repo that never
   names the two separately gets one agent doing both. The two are independent fields and can diverge —
   the hub records intel as its distributor (D-395) while the hub's cut-over (plan
-  `2026-09-29-plan-1-hub-worktree-cutover`, T07) records infra as merge owner with a `MERGE OWNER:
-  infra` row; until that row lands, `--merge-owner` reads `UNDECLARED` and the repo is unadopted
-  under this same rule (§ Hub vs project below).
+  `2026-09-29-plan-1-hub-worktree-cutover`, T07) recorded infra as merge owner with the `MERGE
+  OWNER: infra` row D-453, so `--merge-owner` reads `infra` (§ Hub vs project below).
 - **Ledgers and ids across branches** (D-448) — each agent writes its own ledger rows
   (`CHANGELOG.md`, `docs/DECISIONS.md`, `docs/STRATEGIC_BACKLOG.md`) on its own branch; two
   branches that both prepend a row to the same table always conflict at merge — `rerere` only
@@ -230,7 +230,7 @@ Agent-1 runs the pipeline from `5-certify` once every branch is merged: `/fabrik
 
 | Probe | Question | Result |
 |---|---|---|
-| R1 | does `.worktreeinclude` fire on `EnterWorktree`? | **No** (T01b, scratch repo): only tracked files were carried. `--worktree` is the launch form for a NEW window, where `.worktreeinclude` DOES fire; a RUNNING window instead MOVES with `EnterWorktree` (§ Launch recipe, above), which does NOT apply `.worktreeinclude` — the gitignored set is copied by hand (T07's `.env` copy into `fleet`/`intel` is the planned instance) |
+| R1 | does `.worktreeinclude` fire on `EnterWorktree`? | **Observed both ways**: an early probe (T01b, scratch repo) carried only tracked files; at the hub cut-over (2026-09-30, Claude Code 2.1.280) both `EnterWorktree` moves (`fleet`, `intel`) received `.env` unaided, with no `WorktreeCreate` hook configured in the project or user settings. So after a move, check the gitignored set arrived and copy any missing path in from the main checkout. `--worktree` is the launch form for a NEW window, where `.worktreeinclude` fires |
 | R2 | does the wip-net snapshot linked worktrees? | **On master (T13, merged 2026-09-06)**: `wip_backup.sh` snapshots each dirty worktree to `refs/wip/wt-<name>-<ts>`; on master today it walks the main trees only |
 | R3 | fire rate + cost of the mid-epic re-copy loop | **Measured** (T01b): 3 of 45 synced projects carried worktrees (82 in all); zero cost where there are none |
 | R6 | nested subagent worktrees from an isolated session | **Written as a once-per-repo step** in `/fabrik-execute-plan` step 8; default if blocked: subagents on branches inside the agent's worktree |
@@ -241,9 +241,8 @@ Agent-1 runs the pipeline from `5-certify` once every branch is merged: `/fabrik
 Projects adopted first; the hub runs the same model now, cut over by
 `docs/superpowers/specs/2026-09-29-hub-worktree-cutover-design.md` (D-447) once its two hub-only
 hazards were closed. **infra is agent-1**, the merge owner, alone in `/opt/fabrik` — recorded as a
-`MERGE OWNER: infra` ledger row by the cut-over plan's own last ticket (T07); until that row lands,
-`python3 scripts/decisions.py --merge-owner .` reads `UNDECLARED` and SessionStart treats the hub as
-an unadopted repo (§ Ownership surfaces' `--adopt` rule, above). Fleet and intel work in
+`MERGE OWNER: infra` ledger row (D-453) by the cut-over plan's own last ticket (T07), so
+`python3 scripts/decisions.py --merge-owner .` reads `infra`. Fleet and intel work in
 `.claude/worktrees/fleet` and `.claude/worktrees/intel`; intel stays the distributor unchanged
 (D-395, `.fabrik/work/config.json`) — the merge-owner and distributor roles are independent fields
 and diverge here on purpose (§ Ownership surfaces, above).

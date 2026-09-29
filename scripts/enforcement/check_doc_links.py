@@ -228,7 +228,7 @@ def _resolves(target: str, src: Path, extra_bases: list[str] | None = None) -> b
     cand = (src.parent / t).resolve()
     if _bounded(cand) and cand.exists():
         return True
-    return _resolves_in_main_checkout(norm)
+    return _resolves_in_main_checkout(norm) or _escapes_from_main_checkout(t, src)
 
 
 _MAIN_CACHE: dict[str, Path | None] = {}
@@ -253,7 +253,16 @@ def _main_checkout() -> Path | None:
             )
             dirs = r.stdout.removesuffix("\n").split("\n")
             if r.returncode == 0 and len(dirs) == 2 and dirs[0] != dirs[1]:
-                main = Path(dirs[1]).parent
+                common = Path(dirs[1])
+                # A submodule's common dir is `<outer>/.git/modules/<name>`: its parent is git internals,
+                # and the submodule's own working tree is recorded in that dir's `core.worktree`.
+                wt = subprocess.run(
+                    ["git", "--git-dir", str(common), "config", "core.worktree"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                ).stdout.strip()
+                main = (common / wt).resolve() if wt else common.parent
         except (OSError, subprocess.SubprocessError):
             pass
         _MAIN_CACHE[key] = main
@@ -276,6 +285,21 @@ def _resolves_in_main_checkout(norm: str) -> bool:
         ["git", "check-ignore", "-q", "--no-index", norm], cwd=REPO, capture_output=True, timeout=10
     )
     return r.returncode == 0
+
+
+def _escapes_from_main_checkout(t: str, src: Path) -> bool:
+    """A source-relative ref that climbs OUT of the repo (`../../../fabrik-lib/README.md`) names a place relative
+    to the MAIN checkout; a worktree nested at `.claude/worktrees/<n>` climbs somewhere else, so re-resolve it
+    from the main checkout's copy of the source file. A ref that is missing from there too stays broken."""
+    main = _main_checkout()
+    if main is None or not t.startswith("../"):
+        return False
+    try:
+        rel = src.resolve().relative_to(REPO.resolve())
+    except ValueError:
+        return False
+    cand = ((main / rel).parent / t).resolve()
+    return _bounded(cand) and cand.exists()
 
 
 def _bounded(cand: Path) -> bool:

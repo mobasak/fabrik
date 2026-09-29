@@ -1385,7 +1385,7 @@ def test_the_templates_orient_d_is_unconditional_and_names_the_running_window_mo
     than the merge owner's moves with `EnterWorktree`. The rules the conditional version carried
     survive the rewrite: each clause below is one of them, so dropping a rule reds here. Mutants
     this must kill (executed): the condition restored in any case ("If more than one agent works
-    in this repo:"), "fires on it, so never copy", a copy-in clause whose example list lost
+    in this repo:"), a revived "does not fire on it" claim, a copy-in clause whose example list lost
     `CLAUDE.md`, and `--single-window` made conditional on a lone window — `--adopt` counts only
     `claude` processes whose cwd IS the main checkout (`docs_updater.py::count_sessions_sharing`),
     so agent-1 always counts one and a conditional flag sends a multi-window repo into exit 2."""
@@ -1396,10 +1396,14 @@ def test_the_templates_orient_d_is_unconditional_and_names_the_running_window_mo
     assert not re.search(r"\bif\b[^.]{0,80}\bagents?\b", flat, re.I), "(d) restates a condition"
     assert "a window other than the merge owner's" in flat, "the move lost its owner qualifier"
     assert "moves with `EnterWorktree`" in flat, "(d) does not name the running-window move"
-    assert "`.worktreeinclude` does not fire on it" in flat, "the move must say it copies nothing"
-    assert "copy every gitignored path `.worktreeinclude` lists" in flat, "copy-in set cut down"
-    copy_in = flat.split("copy every gitignored path", 1)[1]
-    copy_in = copy_in.split("in from the main checkout", 1)[0]
+    # U1, observed at the hub cut-over (2026-09-30, Claude Code 2.1.280): EnterWorktree DID apply
+    # `.worktreeinclude`, while an older probe (T01b) saw it copy nothing — so the rule is to CHECK
+    # the set arrived and copy any missing path, never to claim either behaviour as fixed.
+    assert "does not fire on it" not in flat, "(d) still claims EnterWorktree copies nothing"
+    assert "check that the gitignored paths `.worktreeinclude` lists" in flat, "no arrival check"
+    assert "copy any missing one in from the main checkout" in flat, "no copy-in remedy"
+    copy_in = flat.split("check that the gitignored paths `.worktreeinclude` lists", 1)[1]
+    copy_in = copy_in.split("copy any missing one in", 1)[0]
     assert "`CLAUDE.md`" in copy_in, f"the copy-in examples lost the contract itself: {copy_in!r}"
     assert "only window open" not in flat, "--single-window is conditional; --adopt counts one"
     for clause in (

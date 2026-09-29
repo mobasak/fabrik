@@ -42,6 +42,9 @@ wheels/
 venv/
 ENV/
 
+# Agent worktrees (fleet, intel) — D-444/D-445
+.claude/worktrees/
+
 # IDE
 .idea/
 .vscode/
