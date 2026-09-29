@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — a hub agent's request carries the operator's authority; cross-repo is no longer an operator decision (2026-09-29)
+- `CLAUDE.md` and `templates/governance/CLAUDE.md`: a request from infra, intel or fleet is validated by the receiving agent, then done if correct, or discussed with the sender if not. It is never parked for the operator (D-441). The cross-repo HARD STOP now says to send the request to that repo's agent. `cross-repo` leaves the DECISION block's gate list.
+- `.claude/hooks/final_gate_stop.py`: `cross-repo` and `another repo` no longer exempt a deferral or satisfy a `ground: gate` DECISION block, so a cross-repo change can't be handed to the operator as a decision.
+
 ### Fixed — a new saas-skeleton can sign in, renders translations, keeps its theme, and bills through the portal (2026-09-28)
 - **Sign-in.** Web (cookie) login and passwordless could not work as emitted. The IdP router is mounted at `/auth`, but Traefik sent only `/api` to the backend, so `/auth` reached Next.js. The backend also lacked the IdP's `CsrfOriginMiddleware`, whose absence makes it refuse to mint a cookie session. The api router now takes `/api` and `/auth`, and the middleware is installed inside CORS. Its origin allow-list is `AUTH_ALLOWED_ORIGINS` when set, else `CORS_ORIGINS` plus the app's own `NEXT_PUBLIC_APP_URL`, so the default is the app itself rather than a lockout. A web sign-in lands on `/app` (`AUTH_WEB_LOGIN_REDIRECT`), not the marketing page.
 - **Frontend.** The root layout mounts the i18n kit's `I18nProvider`, whose `useI18n()` threw everywhere without it. This happens for saas-skeleton only; static-site and office-extension don't take the react kit. A pre-hydration script applies the stored or OS theme before first paint, even when `localStorage` is blocked.

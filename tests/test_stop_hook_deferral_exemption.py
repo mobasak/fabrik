@@ -5,8 +5,9 @@ six magic phrases disarmed the guard outright. Measured over one session's 905 N
 the fix (92998479): 281 deferrals, only 15% naming a reason that genuinely required a human.
 
 The contract now: self-naming gates exempt alone; bare deferral vocabulary must share its line
-with a HARD-STOP class (cross-repo, deploy, spend, irreversible, policy, or rule-conflict citing
-path:line). Found at the day's closing review: the fix had shipped with only a SCRATCHPAD probe —
+with a HARD-STOP class (deploy, spend, irreversible, policy, or rule-conflict citing path:line).
+Cross-repo is not one (D-441): a hub agent's request carries the operator's authority, so a
+cross-repo change goes to that repo's agent, never to the operator. Found at the day's closing review: the fix had shipped with only a SCRATCHPAD probe —
 this file is the permanent grader the FIX DIRECTIVE requires.
 """
 
@@ -43,6 +44,7 @@ def exempt(line: str) -> bool:
         "NEXT: your call — extend the grader, or leave it deferred",
         "NEXT: operator decision — approve the design so C1/C2 can be planned",
         "NEXT: say the word and I will run the sweep",
+        "NEXT: operator decision [cross-repo] — write the marker into 39 repos I was not launched in",
     ],
 )
 def test_a_classless_deferral_no_longer_disarms_the_stall_guard(line):
@@ -52,7 +54,6 @@ def test_a_classless_deferral_no_longer_disarms_the_stall_guard(line):
 @pytest.mark.parametrize(
     "line",
     [
-        "NEXT: operator decision [cross-repo] — write the marker into 39 repos I was not launched in",
         "NEXT: operator decision [gate 2] — dispatch /fabrik-deploy for the zitadel stack",
         "NEXT: operator decision [spend] — the full benchmark run costs ~$24 of real quota",
         "NEXT: operator decision [irreversible] — drop and recreate the production database",
@@ -70,7 +71,7 @@ def test_the_per_line_exemption_does_not_clear_a_deferral(tmp_path, monkeypatch)
     """Spec 2026-09-23-stop-and-compaction § C1: the class exemption above still waives the five
     pattern shapes, but a DEFERRAL is cleared only by a DECISION block or `BLOCKED:`."""
     monkeypatch.delenv("CLAUDE_MESH_HEADLESS", raising=False)  # the check is interactive-only
-    line = "NEXT: operator decision [cross-repo] — write the marker into 39 repos I was not launched in"
+    line = "NEXT: operator decision [spend] — the full benchmark run costs ~$24 of real quota"
     assert exempt(line), "precondition: the pattern shapes' per-line exemption still applies"
     tr = tmp_path / "t.jsonl"
     tr.write_text(

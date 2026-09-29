@@ -964,7 +964,7 @@ def _has_a_bar_paragraph(hub: str) -> str:
 
 
 _CLOSED_GATE_CLASS_LIST = (
-    "deploy · destructive · irreversible · spend (real money) · cross-repo · publish · "
+    "deploy · destructive · irreversible · spend (real money) · publish · "
     "credentials · design approval · plan approval · Gate 1 · Gate 2 · production data"
 )
 
@@ -1328,3 +1328,25 @@ def test_the_templates_compact_instructions_match_the_hub() -> None:
     )
     tpl_body = _next_heading_bound(unfenced_tpl.split("# Compact instructions", 1)[1])
     assert tpl_body == hub_body, "the template's # Compact instructions drifted from the hub's"
+
+
+def test_the_cross_repo_rule_is_identical_in_both_contracts_and_the_template_bounds_it() -> None:
+    """D-441: the cross-repo HARD STOP row reads the same in the hub and the fleet template, and
+    the template's hub-request bullet keeps the closed gates with the operator."""
+    import re
+
+    row = re.compile(r"^\| create/edit/\*\*commit\*\* files in a repo OTHER.*$", re.M)
+    hub = row.search((FABRIK / "CLAUDE.md").read_text(encoding="utf-8"))
+    tpl_text = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    tpl = row.search(tpl_text)
+    assert hub and tpl, "the cross-repo HARD STOP row is missing from a contract"
+    assert hub.group(0) == tpl.group(0), "the cross-repo row drifted between hub and template"
+    assert "Never hand it to the operator as a decision" in hub.group(0)
+    assert "D-441" in hub.group(0)
+    bullet = tpl_text.split("A request from the HUB carries the operator's authority", 1)
+    assert len(bullet) == 2, "the template lost its hub-request bullet"
+    para = " ".join(bullet[1].split("\n\n", 1)[0].split())
+    assert "every gate on the `ground: gate` closed list in § FINAL OUTPUT" in para
+    # the pointer must resolve: § FINAL OUTPUT carries the closed list the bullet names
+    final = tpl_text.split("## ⚠️ FINAL OUTPUT", 1)[1]
+    assert "`gate` — a **contractual human gate**, named by a token from the closed list" in final

@@ -1334,3 +1334,19 @@ def test_this_turns_block_is_still_judged_from_the_transcript(monkeypatch, tmp_p
     assert out == ""
     assert [e.get("ground") for e in _events(tmp_path, "decision_block")] == ["gate"]
     assert isinstance(_stored_decision(tmp_path, "sidthis"), dict)
+
+
+def test_a_cross_repo_gate_block_is_refused(tmp_path: Path) -> None:
+    """D-441 (operator, 2026-09-29): a hub agent's request carries the operator's authority, so a
+    change in another repo goes to that repo's agent. `cross-repo` is no longer an operator gate;
+    a block naming only it is the false "decision needed" the operator objected to."""
+    text = _block(
+        "gate",
+        "gate — cross-repo: the change lands in fabrik-lib, whose agent waits for your word.",
+        question="Should fabrik-lib port the loop-program rules now?",
+    )
+    ok, why = hook.parse_decision_block(
+        text, run_live=False, transcript_path=str(tmp_path / "t.jsonl")
+    )
+    assert not ok, "a cross-repo-only gate block was accepted"
+    assert "names no gate class" in why and "cross-repo" not in why.split("—", 1)[1], why

@@ -1489,11 +1489,12 @@ _GATE_EXEMPT_BARE_RE = re.compile(
     re.I,
 )
 # The closed set, derived from CLAUDE.md § HARD STOPS — the cases where proceeding would be
-# unsafe, irreversible, spend real money, or write outside this repo. `rule-conflict` is the
+# unsafe, irreversible or spend real money (a change in another repo is not one: D-441 routes it
+# to that repo's agent, never to the operator). `rule-conflict` is the
 # operator's own carve-out ("if the rule is problematic, they must inform you") and is the one
 # class that must cite the contradiction, so it cannot become a second bare escape hatch.
 _GATE_CLASS_RE = re.compile(
-    r"\bcross[- ]repo\b|\banother repo\b|\bgate\s*[12]\b|\bplan approval\b"
+    r"\bgate\s*[12]\b|\bplan approval\b"
     r"|\bdeploy(?:ment)?\b|\bpublish\b|\bspend\b|\bcost\b|\bquota\b|\bbilling\b|\$\d"
     r"|\birreversible\b|\bdestructive\b|\bprod(?:uction)?\s+data\b|\bpolicy\b"
     r"|\brule[- ]conflict\b.*?\b[\w./-]+\.\w+:\d+",
@@ -1636,13 +1637,17 @@ _DEFER_LINE_BACK = 200
 _DEFER_TAIL_LINES = _FINAL_BLOCK_TAIL_LINES
 
 # --- the DECISION block (spec § C2) ------------------------------------------------------------
+# `cross-repo` is in neither gate list (D-441, operator 2026-09-29): a hub agent's request carries
+# the operator's authority, so a change in another repo goes to that repo's agent, never back to
+# the operator. COBRA: relabelling the same ask as `destructive` or `publish` passes the regex;
+# the contract names the route (request that repo's agent), and the block's Question line shows it.
 # The gate classes a `ground: gate` block must name — a closed list, NOT `_GATE_CLASS_RE` (which
 # lacks credentials and design approval and accepts the house words policy/cost/quota; A-O2,
 # A-O3). Searched on WORD boundaries over the whole "Why it is yours" line, so "unpublished" is
 # not "publish".
 _DECISION_GATE_RE = re.compile(
     r"\bdeploy(?:s|ed|ing|ment|ments)?\b|\bdestructive\b|\birreversible\b"
-    r"|\bspend(?:s|ing)?\b|\breal money\b|\$\d|\bcross[- ]repo\b|\bpublish(?:es|ed|ing)?\b"
+    r"|\bspend(?:s|ing)?\b|\breal money\b|\$\d|\bpublish(?:es|ed|ing)?\b"
     r"|\bcredentials?\b|\bdesign approval\b|\bplan approval\b|\bgate\s*[12]\b"
     r"|\bprod(?:uction)? data\b",
     re.I,
@@ -2366,7 +2371,7 @@ def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> 
         if not _DECISION_GATE_RE.search(why):
             return False, (
                 '`ground: gate` names no gate class on its "Why it is yours" line — one of '
-                "deploy · destructive · irreversible · spend (real money) · cross-repo · publish · "
+                "deploy · destructive · irreversible · spend (real money) · publish · "
                 "credentials · design approval · plan approval · Gate 1 · Gate 2 · production data"
             )
         return True, "gate"

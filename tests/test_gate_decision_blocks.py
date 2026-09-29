@@ -82,7 +82,6 @@ CLOSED_GATE_CLASSES: tuple[str, ...] = (
     "destructive",
     "irreversible",
     "spend",
-    "cross-repo",
     "publish",
     "credentials",
     "design approval",

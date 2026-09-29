@@ -957,8 +957,8 @@ def test_next_round_footer_operator_gated_is_exempt(tmp_path: Path) -> None:
     """Inverted by T03: spec 2026-09-23-stop-and-compaction § C1 — the gate-named line still waives the ROUND promise, and D1 now fires on its
     "operator decision" (named-gate wording no longer exempts a deferral)."""
     # 2026-08-29 hardening: a bare deferral phrase no longer disarms by itself —
-    # the line must also name a HARD-STOP class (gate 1/2, deploy, cross-repo,
-    # spend, destructive, policy). Both directions asserted.
+    # the line must also name a HARD-STOP class (gate 1/2, deploy, spend,
+    # destructive, policy; cross-repo left the list with D-441). Both directions asserted.
     tr = tmp_path / "t.jsonl"
     _turn(
         tr,
@@ -1204,7 +1204,7 @@ def test_conditional_offer_is_an_operator_gate_not_a_stall(tmp_path: Path) -> No
         tr,
         _user(),
         _asst_text(
-            "This is a cross-repo change into another repo — say the word and "
+            "This drops a production data table — say the word and "
             "I'll run it through the pipeline."
         ),
     )
