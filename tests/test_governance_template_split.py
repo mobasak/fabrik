@@ -1369,3 +1369,82 @@ def test_every_relative_doc_cite_in_the_template_is_a_file_projects_receive() ->
     assert not orphans, (
         f"relative cites of docs projects never receive (cite /opt/fabrik/…): {orphans}"
     )
+
+
+# ── T06a (plan 2026-09-29-plan-1-hub-worktree-cutover): the model unconditional, ids reserved ──
+
+
+def _orient_d(text: str) -> str:
+    """The template's § Orient (d) paragraph, from its bold lead to the next blank line."""
+    assert "\n**(d) " in text, "the template lost its § Orient (d) paragraph"
+    return text.split("\n**(d) ", 1)[1].split("\n\n", 1)[0]
+
+
+def test_the_templates_orient_d_is_unconditional_and_names_the_running_window_move() -> None:
+    """Spec V7: § Orient (d) binds every repo, even while one window is open, and a window other
+    than the merge owner's moves with `EnterWorktree`. The rules the conditional version carried
+    survive the rewrite: each clause below is one of them, so dropping a rule reds here. Mutants
+    this must kill (executed): the condition restored in any case ("If more than one agent works
+    in this repo:"), "fires on it, so never copy", a copy-in clause whose example list lost
+    `CLAUDE.md`, and `--single-window` made conditional on a lone window — `--adopt` counts only
+    `claude` processes whose cwd IS the main checkout (`docs_updater.py::count_sessions_sharing`),
+    so agent-1 always counts one and a conditional flag sends a multi-window repo into exit 2."""
+    d = _orient_d((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"))
+    flat = " ".join(d.split())
+    assert "even while one window is open" in flat, "§ Orient (d) is not stated unconditionally"
+    assert not re.search(r"more than one agent", flat, re.I), "§ Orient (d) is still conditional"
+    assert not re.search(r"\bif\b[^.]{0,80}\bagents?\b", flat, re.I), "(d) restates a condition"
+    assert "a window other than the merge owner's" in flat, "the move lost its owner qualifier"
+    assert "moves with `EnterWorktree`" in flat, "(d) does not name the running-window move"
+    assert "`.worktreeinclude` does not fire on it" in flat, "the move must say it copies nothing"
+    assert "copy every gitignored path `.worktreeinclude` lists" in flat, "copy-in set cut down"
+    copy_in = flat.split("copy every gitignored path", 1)[1]
+    copy_in = copy_in.split("in from the main checkout", 1)[0]
+    assert "`CLAUDE.md`" in copy_in, f"the copy-in examples lost the contract itself: {copy_in!r}"
+    assert "only window open" not in flat, "--single-window is conditional; --adopt counts one"
+    for clause in (
+        "claude --worktree <name> -n <name>-<repo>",
+        "branch `worktree-<name>`",
+        "edit the main checkout: only the merge owner",
+        "`<<'EOF'`",
+        "one ticket owns any migration, nobody else runs one",
+        "taken from the merge owner one at a time",
+        "/opt/fabrik/docs/reference/multi-agent-operating-model.md",
+        "python scripts/docs_updater.py --adopt <names> --single-window",
+        "it counts only sessions in the main checkout itself",
+        "`docs/development/PLANS.md` shows who owns what",
+    ):
+        assert clause in flat, f"§ Orient (d) lost a rule: {clause}"
+
+
+def test_the_templates_mint_sentence_reserves_the_id() -> None:
+    """Spec V5, the template's own mint sentence: from "**Mint the" to "never by eye" it names
+    `--reserve-id` and no `--next-id` — a mutant keeping `--next-id .` there and pointing at
+    `--reserve-id` later in the bullet passes a whole-file grep and must red here."""
+    text = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    assert "**Mint the" in text and "never by eye" in text, "the mint sentence is gone"
+    mint = text.split("**Mint the", 1)[1].split("never by eye", 1)[0]
+    assert "decisions.py --reserve-id" in mint, f"the mint sentence does not reserve: {mint!r}"
+    assert "--next-id" not in mint, f"the mint sentence still mints with --next-id: {mint!r}"
+
+
+@pytest.mark.parametrize("rel", [TEMPLATE_REL, "commands/_sources/fabrik-epics-review.md"])
+def test_the_mint_line_reserves_the_id_and_never_mints_with_next_id(rel: str) -> None:
+    """Spec V5: an agent mints a D- id with `decisions.py --reserve-id` (it reserves, so a sibling
+    worktree cannot be handed the same id); `--next-id` only reads, so its command form may not
+    stand anywhere an agent is told to mint."""
+    text = (FABRIK / rel).read_text(encoding="utf-8")
+    assert "decisions.py --reserve-id" in text, f"{rel} does not mint with --reserve-id"
+    assert "decisions.py --next-id" not in text, f"{rel} still mints with --next-id"
+
+
+def test_the_templates_shared_tree_lines_match_the_unconditional_model() -> None:
+    """Three single-tree lines contradicted the unconditional § Orient (d): the HARD STOPS row put
+    every agent on one `master`, the Agent-Name row applied only where more than one agent works,
+    and the shared-repo bullet put everyone's WIP in one tree."""
+    text = " ".join((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8").split())
+    assert "multiple agents + the daily pipeline commit to one `master`" not in text
+    assert "agents 2..N to their own worktree branch" in text, "the HARD STOPS row is single-tree"
+    assert "in a repo where more than one agent works" not in text
+    assert "| **every AI commit.** ⚠️ **Write it BY HAND.**" in text, "Agent-Name is conditional"
+    assert "the main checkout's writers — the merge owner and the pipeline — routinely have" in text

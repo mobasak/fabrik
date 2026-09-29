@@ -207,7 +207,7 @@ python3 /opt/fabrik/scripts/epic_order.py --assign <alpha,beta,gamma> --epics-di
 - Re-run 2b after any route-back that recreated a file: the recreated ticket carries `owner: ""`.
 - After `--assign` succeeds, run `python3 /opt/fabrik/scripts/decisions.py --merge-owner .`; when it
   prints `UNDECLARED` (exit 3), mint the `MERGE OWNER: <first name>` row in `docs/DECISIONS.md` — id via
-  `python3 /opt/fabrik/scripts/decisions.py --next-id .` — in the same change, so the epic path and
+  `python3 /opt/fabrik/scripts/decisions.py --reserve-id .` — in the same change, so the epic path and
   `docs_updater.py --adopt` converge on one declaration (D-154).
 
 **2c — prove the assignment:**

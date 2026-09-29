@@ -148,8 +148,8 @@ def test_epics_review_step_1_5_names_merge_owner_read_and_mint():
     assert "MERGE OWNER:" in section, (
         f"Step 1.5 does not name the MERGE OWNER: row mint:\n{section}"
     )
-    assert "--next-id" in section, (
-        f"Step 1.5 does not name minting the id via --next-id:\n{section}"
+    assert "decisions.py --reserve-id" in section, (
+        f"Step 1.5 does not name minting the id via decisions.py --reserve-id:\n{section}"
     )
     assert "D-154" in section, f"Step 1.5 does not cite the ruling D-154:\n{section}"
 

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The project contract: every repo runs the multi-agent model, and decision ids are reserved (2026-09-30)
+- `templates/governance/CLAUDE.md` § Orient (d) is unconditional: agent 1 works in the main checkout and agents 2..N in worktrees even while one window is open; a window other than the merge owner's moves with `EnterWorktree` (the conversation follows; copy every gitignored path `.worktreeinclude` lists in by hand); every repo records its merge owner once with `docs_updater.py --adopt <names> --single-window` (it counts only sessions in the main checkout, where agent-1 is alone). Three lines that assumed one shared tree now match the model (spec 2026-09-29 hub-worktree-cutover § D1, V7; D-444).
+- The template's decision-ledger mint line and `/fabrik-epics-review` Step 2b mint with `decisions.py --reserve-id`; `--next-id` is named only as the read form (§ D7, V5). Graders in `tests/test_governance_template_split.py` (plan 2026-09-29-plan-1, T06a).
 ### Added — The hub commit-msg check warns a non-owner main-checkout commit, and counts it (2026-09-29)
 - `scripts/check_commit_trailers.py`: in the hub's main checkout, a commit whose resolved session name is not the declared merge owner (and whose `Agent-Name` is not `kilo-pipeline`) prints an advisory and emits one `commit_merge_owner_warning` kaizen event (added to `EVENT_TYPES`); it never refuses, and every subprocess is timeout-bounded and fails open. Silent in a linked worktree, in any project repo, and with no declared owner (spec 2026-09-29 hub-worktree-cutover § D5 (b), V6; plan 2026-09-29-plan-1, T04b).
 ### Added — SessionStart runs the multi-agent model in every repo and the hub (2026-09-29)

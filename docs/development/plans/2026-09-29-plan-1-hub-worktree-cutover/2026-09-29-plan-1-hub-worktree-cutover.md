@@ -38,7 +38,7 @@ each ticket cites the spec section it implements and restates nothing that secti
 | T05 | Ids held until merged; the automated writers identify themselves | — | ⚡ | ✅ | 98430e3dc, c9222e091 |
 | T04a | SessionStart: adopt at any count, the move line, live bindings | — | ⚡ | ✅ | c7a29389a, 158b430c9, 1b73afc7d |
 | T04b | The hub commit warning, counted | — | ⚡ | ✅ | 4636dbd4e, e5c4870e1 |
-| T06a | The project contract: the model unconditional, ids reserved | T04a, T04b, T05 | ⛓️ | 🔵 | |
+| T06a | The project contract: the model unconditional, ids reserved | T04a, T04b, T05 | ⛓️ | ✅ | e25accc14, 7d1dde45b, a76a6bcf6 |
 | T06c | The hub contract: the mint line, and § Shared repo scoped to the main checkout | T06a | ⛓️ | ⬜ | |
 | T06b | The landing docs and the hub's worktree include set | T01, T02a, T02b, T03a, T03b, T04a, T04b, T05 | ⚡ | 🔵 | |
 | T07 | Integration: the hub cut-over, whole-plan validation, receipt | T06a, T06b, T06c | ⛓️ | ⬜ | |
