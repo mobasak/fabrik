@@ -1,0 +1,26 @@
+{
+  "block_digest": "a28aa2739f211a818c879728e8fa7710c9efbbd8bda202ff02346323d1b527be",
+  "blocked_by": [],
+  "created": "2026-09-29T18:39:21.833940Z",
+  "creator": "intel",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-ffd390d2",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "4ec101748e33ec2af22f2e3d474471102c8053f9524f225db607f445217c0a3e"
+  ],
+  "next": "",
+  "note": "the hook will enforce open window's agent to proceed.",
+  "owner": "",
+  "priority": 2,
+  "question": "Should I build a hook that only alerts you when the \"organization has disabled Claude subscription access\" message appears, rather than one that auto-sends \"proceed\"?",
+  "status": "done",
+  "title": "Should I build a hook that only alerts you when the \"organization has disabled Claude subscription access\" message appears, rather than one that auto-sends \"proceed\"?"
+}
