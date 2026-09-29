@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "the hub's orchestrator test suites reach PRODUCTION — real SQL on postgres-main (fabrik_analytics, CREATE ROLE) and real watchdog builds over ssh vps — every time they run"
 }
