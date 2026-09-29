@@ -1451,37 +1451,56 @@ def test_the_templates_shared_tree_lines_match_the_unconditional_model() -> None
 
 
 # ── T06c (plan 2026-09-29-plan-1-hub-worktree-cutover): the hub contract runs the same model ──
+# Each check takes the TEXT, so the mutant table below proves it red on an in-memory copy of the
+# live hub contract — a mutant that no longer applies (its `old` span is gone) fails as such,
+# never as a vacuous green.
 
 
-def test_the_hub_mint_sentence_reserves_the_id() -> None:
-    """Spec V5 on the HUB contract: its own mint sentence, from "**Mint the" to "never by eye",
-    names `decisions.py --reserve-id` and no `--next-id` (mirror of the template's grader above),
-    and the hub file names `decisions.py --next-id` nowhere an agent is told to mint."""
-    text = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
-    assert text.count("**Mint the") == 1 and "never by eye" in text, "the mint sentence is gone"
-    mint = text.split("**Mint the", 1)[1].split("never by eye", 1)[0]
+def _hub_text() -> str:
+    return (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+
+
+def _hub_item(text: str, lead: str) -> str:
+    """One § Behavior list item: from its `- **<lead>` line to the next item or heading."""
+    assert text.count(f"\n- **{lead}") == 1, f"expected one '- **{lead}' item"
+    body = text.split(f"\n- **{lead}", 1)[1]
+    return f"- **{lead}" + re.split(r"\n- \*\*|\n## ", body, maxsplit=1)[0]
+
+
+def _check_hub_mint(text: str) -> None:
+    """Spec V5: the mint sentence names `decisions.py --reserve-id`, and `--next-id` appears
+    NOWHERE in the decision-ledger bullet (an "or equally `--next-id .`" tail must red)."""
+    bullet = _hub_item(text, "The decision ledger")
+    assert "**Mint the" in bullet and "never by eye" in bullet, "the mint sentence is gone"
+    mint = bullet.split("**Mint the", 1)[1].split("never by eye", 1)[0]
     assert "decisions.py --reserve-id" in mint, f"the hub mint sentence does not reserve: {mint!r}"
-    assert "--next-id" not in mint, f"the hub mint sentence still mints with --next-id: {mint!r}"
+    assert "--next-id" not in bullet, "the decision-ledger bullet still offers --next-id"
     assert "decisions.py --next-id" not in text, "the hub contract still mints with --next-id"
 
 
-def test_the_hub_shared_repo_item_opens_on_the_main_checkouts_writers() -> None:
-    """Spec D6 step 5: § Shared repo binds the MAIN CHECKOUT's writers — agent-1 (infra, the merge
-    owner) and the daily pipeline — and says fleet and intel work in their own worktrees. The
-    OPENING bold sentence is graded, not the whole item: a mutant that keeps the old "ONE of THREE
-    … in this same tree" opening and mentions the worktrees three paragraphs later must red."""
-    text = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
-    items = [ln for ln in text.splitlines() if ln.startswith("- **Shared repo")]
-    assert len(items) == 1, f"expected one § Shared repo item, found {len(items)}"
-    opening = items[0].split(".**", 1)[0]
+_SHARED_REPO_WRONG = re.compile(r"all three sessions share|this same tree|ONE of THREE", re.I)
+_RENAME_RULE = (
+    "`/rename` each window by role while more than one session shares a directory "
+    "(auto-names collide)"
+)
+
+
+def _check_hub_shared_repo(text: str) -> None:
+    """Spec D6 step 5: § Shared repo OPENS on the main checkout's writers (agent-1, the merge
+    owner, and the pipeline), puts fleet and intel in their own worktrees that never edit the
+    main checkout, keeps the conditioned `/rename` rule, and says nothing single-tree anywhere in
+    the item; the HARD STOPS row carries the template's wording."""
+    item = _hub_item(text, "Shared repo")
+    opening = item.split(".**", 1)[0]
     for needle in ("MAIN CHECKOUT", "agent-1", "merge owner", "pipeline"):
         assert needle in opening, f"§ Shared repo's opening does not name {needle!r}: {opening!r}"
-    head = items[0][:900]
+    head = item[:900]
     for wt in ("`.claude/worktrees/fleet`", "`.claude/worktrees/intel`"):
         assert wt in head, f"§ Shared repo's opening does not place {wt} in its own worktree"
-    assert "ONE of THREE concurrent Claude sessions here" not in text, (
-        "the single-tree opening survives"
-    )
+    assert "never edit the main checkout" in head, "the worktree agents are not kept out of main"
+    wrong = _SHARED_REPO_WRONG.findall(item)
+    assert not wrong, f"§ Shared repo still states the single-tree model: {wrong}"
+    assert _RENAME_RULE in item, "the conditioned /rename rule is gone"
     flat = " ".join(text.split())
     assert "multiple agents + the daily pipeline commit to one `master`" not in flat
     assert (
@@ -1490,17 +1509,116 @@ def test_the_hub_shared_repo_item_opens_on_the_main_checkouts_writers() -> None:
     ), "the HARD STOPS shared-tree row does not match the template's model"
 
 
-def test_every_universal_anchor_survives_in_the_hub_rules_outside_its_own_index() -> None:
-    """Spec D6: a lean pass may not drop a UNIVERSAL anchor. The § UNIVERSAL list itself always
-    contains every anchor, so presence is checked in the hub text with that section REMOVED —
-    the rule carrying each anchor must still exist, case-exact."""
-    text = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+# An anchor that occurs MORE than once outside the § UNIVERSAL index is pinned to the one carrier
+# that makes it a rule — a bare count passes when the carrier is renamed and a passing mention
+# survives. A new multi-occurrence anchor with no entry here reds until it is pinned.
+_ANCHOR_CARRIERS = {
+    "Agent Provenance Trailers": "\n## Agent Provenance Trailers (required on all AI-authored commits)\n",
+}
+
+
+def _check_universal_anchors(text: str) -> None:
+    """Spec D6: a lean pass may not drop a UNIVERSAL anchor, checked with the index REMOVED
+    (the index always contains every anchor), case-exact, carrier-pinned when repeated."""
     start = "## UNIVERSAL governance markers"
     assert text.count(start) == 1, "§ UNIVERSAL heading drifted"
     before, rest = text.split(start, 1)
     section, after = rest.split("\n## ", 1)
     anchors = re.findall(r"^- `[a-z-]+` — anchor \*\*(.+?)\*\* — ", section, re.MULTILINE)
     assert len(anchors) >= 14, f"the anchor list parsed short: {anchors}"
-    body = before + after
+    body = before + "\n## " + after
     missing = [a for a in anchors if a not in body]
     assert not missing, f"UNIVERSAL anchors no longer carried by any hub rule: {missing}"
+    unpinned = [a for a in anchors if body.count(a) > 1 and a not in _ANCHOR_CARRIERS]
+    assert not unpinned, f"repeated anchors need a pinned carrier in _ANCHOR_CARRIERS: {unpinned}"
+    for anchor, carrier in _ANCHOR_CARRIERS.items():
+        assert anchor in carrier, f"the carrier for {anchor!r} does not contain it"
+        assert carrier in body, f"the carrier of {anchor!r} is gone: {carrier.strip()!r}"
+
+
+def test_the_hub_mint_sentence_reserves_the_id() -> None:
+    _check_hub_mint(_hub_text())
+
+
+def test_the_hub_shared_repo_item_opens_on_the_main_checkouts_writers() -> None:
+    _check_hub_shared_repo(_hub_text())
+
+
+def test_every_universal_anchor_survives_in_the_hub_rules_outside_its_own_index() -> None:
+    _check_universal_anchors(_hub_text())
+
+
+_HUB_MUTANTS = (
+    # (id, old span, replacement, check that must red)
+    (
+        "mint-next-id",
+        "decisions.py --reserve-id .`, never by eye**",
+        "decisions.py --next-id .`, never by eye**",
+        _check_hub_mint,
+    ),
+    (
+        "mint-or-equally-next-id",
+        "never by eye** — it reserves",
+        "never by eye** — or equally `--next-id .` — it reserves",
+        _check_hub_mint,
+    ),
+    (
+        "shared-old-opening",
+        "- **Shared repo — the MAIN CHECKOUT's writers are agent-1 (infra, the merge owner) and "
+        "the daily pipeline.**",
+        "- **Shared repo — you are ONE of THREE concurrent Claude sessions here (plus the daily "
+        "pipeline).**",
+        _check_hub_shared_repo,
+    ),
+    (
+        "shared-fleet-intel-edit-main",
+        "Fleet and intel work in `.claude/worktrees/fleet` and `.claude/worktrees/intel` and never "
+        "edit the main checkout, yet",
+        "Fleet and intel also edit the main checkout; `.claude/worktrees/fleet` and "
+        "`.claude/worktrees/intel` stay unused, yet",
+        _check_hub_shared_repo,
+    ),
+    (
+        "shared-all-three-same-tree",
+        "and the daily pipeline.** ",
+        "and the daily pipeline.** All three sessions share this same tree. ",
+        _check_hub_shared_repo,
+    ),
+    (
+        "shared-rename-rule-cut",
+        " " + _RENAME_RULE + ".",
+        "",
+        _check_hub_shared_repo,
+    ),
+    (
+        "hard-stops-one-master",
+        "the merge owner and the daily pipeline commit to `master` in the main checkout, agents "
+        "2..N to their own worktree branch.",
+        "multiple agents + the daily pipeline commit to one `master`.",
+        _check_hub_shared_repo,
+    ),
+    (
+        "anchor-trailers-heading-renamed",
+        "\n## Agent Provenance Trailers (required",
+        "\n## Commit trailers (required",
+        _check_universal_anchors,
+    ),
+    (
+        "anchor-scratch-lowercased",
+        "**Then CLEAN your own scratch**",
+        "**Then clean your own scratch**",
+        _check_universal_anchors,
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "check"), [m[1:] for m in _HUB_MUTANTS], ids=[m[0] for m in _HUB_MUTANTS]
+)
+def test_each_hub_contract_mutant_reds_its_check(old: str, new: str, check) -> None:
+    """Red-proof on an in-memory COPY of the live hub contract: each mutant must apply exactly
+    once (else the mutant is stale, not the check green) and must red its check."""
+    text = _hub_text()
+    assert text.count(old) == 1, f"stale mutant — its span is not in the hub once: {old!r}"
+    with pytest.raises(AssertionError):
+        check(text.replace(old, new))
