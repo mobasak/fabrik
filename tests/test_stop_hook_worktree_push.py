@@ -182,6 +182,46 @@ def test_an_origin_with_only_a_pushurl_is_indeterminate(monkeypatch, tmp_path: P
     assert _drive(monkeypatch, tmp_path, wt) == ""
 
 
+def _worktree_on(main: Path, wt: Path) -> None:
+    _git(main, "worktree", "add", "-q", "-b", "feat", str(wt))
+    (wt / "notes.txt").write_text("a note\n", encoding="utf-8")
+    _git(wt, "add", "notes.txt")
+    _git(wt, "commit", "-qm", "docs: a note")
+
+
+def _blocks_then_steps_aside_after_push_u(monkeypatch, tmp_path: Path, wt: Path) -> None:
+    assert hook._ahead_of_upstream(wt, {"notes.txt"}) == 1
+    assert "UNPUSHED WORK" in json.loads(_drive(monkeypatch, tmp_path, wt))["reason"]
+    _git(wt, "push", "-q", "-u", "origin", "HEAD")
+    assert hook._ahead_of_upstream(wt, {"notes.txt"}) is None, (
+        "the block would repeat forever after the remedy it names has run"
+    )
+
+
+def test_a_single_branch_clone_steps_aside_after_push_u(monkeypatch, tmp_path: Path) -> None:
+    """A `--single-branch` (or `--depth 1`) clone's fetch refspec maps only `master`, so
+    `push -u` creates no `refs/remotes/origin/feat` and `@{upstream}` never resolves."""
+    seed, _ = _main_and_worktree(tmp_path / "seed")
+    origin = tmp_path / "seed" / "origin.git"
+    assert _git(seed, "remote", "get-url", "origin") == str(origin)
+    main = tmp_path / "main"
+    subprocess.run(
+        ["git", "clone", "-q", "--single-branch", "-b", "master", str(origin), str(main)],
+        check=True,
+    )
+    for cfg in (("user.email", "t@t"), ("user.name", "t"), ("commit.gpgsign", "false")):
+        _git(main, "config", *cfg)
+    wt = tmp_path / "wt"
+    _worktree_on(main, wt)
+    _blocks_then_steps_aside_after_push_u(monkeypatch, tmp_path, wt)
+
+
+def test_an_unset_fetch_refspec_steps_aside_after_push_u(monkeypatch, tmp_path: Path) -> None:
+    main, wt = _main_and_worktree(tmp_path)
+    _git(main, "config", "--unset", "remote.origin.fetch")
+    _blocks_then_steps_aside_after_push_u(monkeypatch, tmp_path, wt)
+
+
 def test_a_detached_worktree_is_indeterminate(tmp_path: Path) -> None:
     """`git push -u origin HEAD` fails on a detached HEAD, so it must never be the remedy."""
     _main, wt = _main_and_worktree(tmp_path)
@@ -220,7 +260,8 @@ def test_a_gone_upstream_after_merge_is_not_counted(tmp_path: Path) -> None:
         capture_output=True,
     )
     assert gone.returncode != 0, "the fixture's upstream is not gone"
-    assert hook._ahead_of_upstream(wt, {"notes.txt"}) == 0
+    # `branch.feat.merge` is still set, so the fallback steps aside: indeterminate, never a block
+    assert hook._ahead_of_upstream(wt, {"notes.txt"}) is None
 
 
 def test_one_deadline_bounds_the_whole_worktree_path(monkeypatch, tmp_path: Path) -> None:

@@ -692,29 +692,46 @@ def _git_by(root: Path, deadline: float, *args: str) -> subprocess.CompletedProc
 
 
 def _worktree_base(root: Path, deadline: float) -> str | None:
-    """A LINKED WORKTREE's push base when its branch has no upstream: the main checkout's branch.
+    """The main checkout's branch, as the base for "this worktree branch was never published".
 
-    That is the symbolic HEAD of the git common dir — the rule `scripts/final_gate.py::
-    _linked_worktree_base` uses (cf4374537), re-implemented because this hook imports nothing
-    from it. A worktree branch holding committed work not on that branch is exactly the state the
-    push law exists for (spec 2026-09-29-hub-worktree-cutover § D4). None — no base, never a
-    block — whenever the remedy `git push -u origin HEAD` could not succeed or the question does
-    not arise: a detached main checkout, a detached worktree HEAD, HEAD already ON the main branch
-    (the main checkout itself), a repo with no `origin` fetch URL, or any git error.
+    The fallback answers exactly one question: "this worktree branch was never published". It
+    applies only when ALL of these hold, checked in one pass under the one deadline:
+    - the tree is a linked worktree;
+    - its HEAD is a symbolic branch `refs/heads/<b>`;
+    - `branch.<b>.merge` is NOT set (the branch has no configured upstream: once `push -u` has
+      run, the fallback steps aside whatever the tracking-ref state);
+    - `remote.origin.url` is set (the remedy can succeed);
+    - the main checkout's HEAD is symbolic and differs from `<b>`.
+    Any other state → None (no base, never a block). The main checkout's branch is the symbolic
+    HEAD of the git common dir — the rule `scripts/final_gate.py::_linked_worktree_base` uses
+    (cf4374537), re-implemented because this hook imports nothing from it (spec
+    2026-09-29-hub-worktree-cutover § D4).
     """
     try:
-        r = _git_by(root, deadline, "rev-parse", "--path-format=absolute", "--git-common-dir")
-        common = r.stdout.strip()
-        if r.returncode != 0 or not common:
+        r = _git_by(
+            root,
+            deadline,
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-common-dir",
+            "--absolute-git-dir",
+        )
+        dirs = r.stdout.split()
+        if r.returncode != 0 or len(dirs) != 2 or dirs[0] == dirs[1]:
+            return None  # not a linked worktree
+        common = dirs[0]
+        h = _git_by(root, deadline, "symbolic-ref", "--quiet", "HEAD")
+        branch = h.stdout.strip()
+        if h.returncode != 0 or not branch.startswith("refs/heads/"):
+            return None
+        name = branch[len("refs/heads/") :]
+        if _git_by(root, deadline, "config", "--get", f"branch.{name}.merge").returncode == 0:
+            return None
+        if _git_by(root, deadline, "config", "--get", "remote.origin.url").returncode != 0:
             return None
         r = _git_by(root, deadline, "--git-dir", common, "symbolic-ref", "--quiet", "HEAD")
-        main_branch = r.stdout.strip() if r.returncode == 0 else ""
-        h = _git_by(root, deadline, "symbolic-ref", "--quiet", "HEAD")
-        if not main_branch or h.returncode != 0 or h.stdout.strip() == main_branch:
-            return None
-        # `remote.origin.url`, not `remote get-url origin`: get-url falls back to a pushurl, and a
-        # pushurl-only origin takes the push but never creates `refs/remotes/origin/<b>`
-        if _git_by(root, deadline, "config", "--get", "remote.origin.url").returncode != 0:
+        main_branch = r.stdout.strip()
+        if r.returncode != 0 or not main_branch or main_branch == branch:
             return None
         return main_branch
     except Exception:
