@@ -24,7 +24,8 @@ import yaml
 REPO = Path(__file__).resolve().parents[3]
 GUARD = REPO / "scripts" / "check_commit_trailers.py"
 sys.path.insert(0, str(REPO / "scripts"))
-from check_commit_trailers import REJECT_CODE  # noqa: E402 — path set immediately above
+import check_commit_trailers as cct  # noqa: E402 — path set immediately above
+from check_commit_trailers import REJECT_CODE  # noqa: E402
 
 # The guard signals "these trailers do not parse" with a DEDICATED status, so the shim can tell
 # a verdict from a crash. Asserting a bare `== 1` would go green on any interpreter failure —
@@ -1149,3 +1150,156 @@ def test_the_agent_name_check_reads_the_session_binding_when_the_env_var_is_unse
     # a MALFORMED env var is judged by the resolver's name rule, so the binding answers instead
     bad_env = _run_as(signed, tmp_path, CLAUDE_CODE_SESSION_ID="s-1", CLAUDE_AGENT="Agent_1")
     assert "agent-2" in bad_env.stderr and "agent_1" not in bad_env.stderr, bad_env.stderr
+
+
+# ── T04b — the D5(b) merge-owner advisory ───────────────────────────────────────────────
+
+# A minimal Agent-Role-bearing message with NO Agent-Name trailer — an Agent-Name that is not
+# "kilo-pipeline" per the BC row's own wording (absence is "other than kilo-pipeline").
+_AGENT_MSG = (
+    "chore(test): a commit under test\n"
+    "\n"
+    "Agent-Role: primary\n"
+    "Agent-Context: exercising the merge-owner advisory\n"
+    "Co-Authored-By: Claude <noreply@anthropic.com>\n"
+)
+
+
+def _make_fake_hub(tmp_path: Path, *, owner: str | None) -> Path:
+    """A scratch git repo shaped like the hub's main checkout — the manifest sentinel
+    `_hub_main_checkout_root()` keys on, plus a REAL (copied) `scripts/decisions.py` so the
+    advisory's own `--merge-owner` subprocess has something to run, never the real /opt/fabrik
+    ledger. `owner=None` leaves the ledger with no `MERGE OWNER:` row (UNDECLARED)."""
+    hub = tmp_path / "hub"
+    (hub / "scripts").mkdir(parents=True)
+    (hub / "scripts" / "fabrik_synced_manifest.py").write_text("", encoding="utf-8")
+    shutil.copy(REPO / "scripts" / "decisions.py", hub / "scripts" / "decisions.py")
+    (hub / "docs").mkdir()
+    header = "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+    row = f"| D-001 | 2026-09-29 | test | MERGE OWNER: {owner} | test | test |\n" if owner else ""
+    (hub / "docs" / "DECISIONS.md").write_text(header + row, encoding="utf-8")
+    for cmd in (
+        ["git", "init", "-q"],
+        ["git", "config", "user.email", "t@example.com"],
+        ["git", "config", "user.name", "t"],
+        ["git", "add", "-A"],
+        ["git", "commit", "-q", "--no-verify", "-m", "init"],
+    ):
+        subprocess.run(cmd, cwd=hub, check=True, capture_output=True, text=True)
+    return hub
+
+
+def _run_advisory(
+    tmp_path,
+    monkeypatch,
+    *,
+    cwd: Path,
+    message: str = _AGENT_MSG,
+    claude_agent: str = "fleet",
+    hub_path: Path | None,
+) -> int:
+    """Call the guard IN-PROCESS (not as a subprocess): the D5(b) advisory reads a module-level
+    `_HUB_PATH` constant a subprocess call could not be monkeypatched across."""
+    monkeypatch.setenv("KAIZEN_EVENTS_DIR", str(tmp_path / "events"))
+    monkeypatch.setenv("CLAUDE_AGENT", claude_agent)
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
+    if hub_path is not None:
+        monkeypatch.setattr(cct, "_HUB_PATH", hub_path)
+    monkeypatch.chdir(cwd)
+    msg = tmp_path / "MSG"
+    msg.write_text(message, encoding="utf-8")
+    rc = cct.main(["check_commit_trailers.py", str(msg)])
+    return rc
+
+
+def _events_written(tmp_path: Path) -> list[str]:
+    events_dir = tmp_path / "events"
+    if not events_dir.is_dir():
+        return []
+    lines: list[str] = []
+    for path in events_dir.glob("*.jsonl"):
+        lines.extend(path.read_text(encoding="utf-8").splitlines())
+    return lines
+
+
+def test_a_non_owner_commit_in_the_hub_main_checkout_warns_and_emits_one_kaizen_event(
+    tmp_path, monkeypatch, capsys
+):
+    hub = _make_fake_hub(tmp_path, owner="infra")
+    rc = _run_advisory(tmp_path, monkeypatch, cwd=hub, hub_path=hub)
+    err = capsys.readouterr().err
+    assert rc == 0, err
+    assert "fleet" in err and "infra" in err, err
+    events = _events_written(tmp_path)
+    assert len(events) == 1, events
+
+
+def test_a_commit_signed_kilo_pipeline_is_silent(tmp_path, monkeypatch, capsys):
+    hub = _make_fake_hub(tmp_path, owner="infra")
+    signed = _AGENT_MSG.replace("Agent-Context:", "Agent-Name: kilo-pipeline\nAgent-Context:")
+    rc = _run_advisory(tmp_path, monkeypatch, cwd=hub, message=signed, hub_path=hub)
+    err = capsys.readouterr().err
+    assert rc == 0, err
+    assert "declared merge owner" not in err, err
+    assert _events_written(tmp_path) == []
+
+
+def test_no_declared_merge_owner_is_silent(tmp_path, monkeypatch, capsys):
+    hub = _make_fake_hub(tmp_path, owner=None)
+    rc = _run_advisory(tmp_path, monkeypatch, cwd=hub, hub_path=hub)
+    err = capsys.readouterr().err
+    assert rc == 0, err
+    assert "declared merge owner" not in err, err
+    assert _events_written(tmp_path) == []
+
+
+def test_resolved_name_equal_to_the_owner_is_silent(tmp_path, monkeypatch, capsys):
+    hub = _make_fake_hub(tmp_path, owner="fleet")
+    rc = _run_advisory(tmp_path, monkeypatch, cwd=hub, hub_path=hub)
+    err = capsys.readouterr().err
+    assert rc == 0, err
+    assert "declared merge owner" not in err, err
+    assert _events_written(tmp_path) == []
+
+
+def test_a_linked_worktree_of_the_hub_is_silent(tmp_path, monkeypatch, capsys):
+    hub = _make_fake_hub(tmp_path, owner="infra")
+    wt = tmp_path / "wt"
+    subprocess.run(
+        ["git", "worktree", "add", "-q", "-b", "wt-branch", str(wt)],
+        cwd=hub,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    rc = _run_advisory(tmp_path, monkeypatch, cwd=wt, hub_path=hub)
+    err = capsys.readouterr().err
+    assert rc == 0, err
+    assert "declared merge owner" not in err, err
+    assert _events_written(tmp_path) == []
+
+
+def test_a_project_repo_without_the_manifest_is_silent(tmp_path, monkeypatch, capsys):
+    """No `scripts/fabrik_synced_manifest.py` sentinel — never the hub at all."""
+    repo = tmp_path / "project"
+    repo.mkdir()
+    for cmd in (
+        ["git", "init", "-q"],
+        ["git", "config", "user.email", "t@example.com"],
+        ["git", "config", "user.name", "t"],
+    ):
+        subprocess.run(cmd, cwd=repo, check=True, capture_output=True, text=True)
+    (repo / "README.md").write_text("x", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "commit", "-q", "--no-verify", "-m", "init"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    rc = _run_advisory(tmp_path, monkeypatch, cwd=repo, hub_path=tmp_path / "hub")
+    err = capsys.readouterr().err
+    assert rc == 0, err
+    assert "declared merge owner" not in err, err
+    assert _events_written(tmp_path) == []

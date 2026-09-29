@@ -40,12 +40,23 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any
 
 REQUIRED = "Agent-Role"
 # A dedicated status for "the trailers do not parse", so the shim can tell a VERDICT from a
 # CRASH. Anything else the interpreter returns means the guard broke, and a broken guard must
 # never block a commit.
 REJECT_CODE = 9
+
+# The hub's own checkout — spec docs/superpowers/specs/2026-09-29-hub-worktree-cutover-design.md
+# § The delta D5 (b). Kept as a bare module-level constant (not a default arg, not inlined),
+# mirroring `src/fabrik/config.py::_HUB_PATH`, so a test can `monkeypatch.setattr(this_module,
+# "_HUB_PATH", tmp_hub)` and get a resolution that never reads or writes the real /opt/fabrik.
+_HUB_PATH = Path("/opt/fabrik")
+
+# Bounds every subprocess the D5(b) merge-owner advisory spawns (git + `decisions.py`) — this
+# runs on EVERY hub main-checkout commit, so a hang here must never hang the commit.
+_ADVISORY_SUBPROCESS_TIMEOUT_S = 5
 
 
 # Git's cut line is ONE exact string — 24 dashes, space, >8, space, 24 dashes — confirmed by
@@ -558,6 +569,151 @@ def install(force: bool = False) -> int:
     return 0
 
 
+def _hub_main_checkout_root() -> Path | None:
+    """The tree's toplevel when it is the hub's MAIN checkout — never a linked worktree, never
+    a project repo — else ``None``.
+
+    Hub identity (spec 2026-09-29 hub-worktree cut-over, D4/H4, mirroring
+    ``final_gate.py::_is_hub``): ``scripts/fabrik_synced_manifest.py`` is present in the tree
+    AND the git common dir's parent is ``_HUB_PATH``. Re-implemented here rather than imported
+    — this hook already runs standalone (the same precedent set by ``final_gate_stop.py`` for
+    ``_linked_worktree_base``). Main-checkout-ness (the other half T04b adds) is the tree's
+    absolute git-dir equalling its absolute git-common-dir: a linked worktree's git-dir sits
+    under ``<common>/worktrees/<name>``, never equal to the common dir itself — so a hub
+    worktree satisfies hub identity but fails this half and reads ``None``, same as any
+    project repo.
+
+    Fails OPEN (``None``) on any git error, timeout, or old git lacking
+    ``--path-format=absolute`` (>= 2.31) — this backs an ADVISORY only, never a refusal.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "rev-parse",
+                "--path-format=absolute",
+                "--show-toplevel",
+                "--git-common-dir",
+                "--git-dir",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_ADVISORY_SUBPROCESS_TIMEOUT_S,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    lines = result.stdout.strip().splitlines()
+    if len(lines) != 3:
+        return None
+    toplevel, common_dir, git_dir = (Path(x) for x in lines)
+    if not (toplevel / "scripts" / "fabrik_synced_manifest.py").is_file():
+        return None
+    try:
+        if common_dir.resolve().parent != _HUB_PATH.resolve():
+            return None
+        if git_dir.resolve() != common_dir.resolve():
+            return None  # a linked worktree
+    except OSError:
+        return None
+    return toplevel
+
+
+def _merge_owner(repo: Path) -> str | None:
+    """The declared merge owner for ``repo`` (``decisions.py --merge-owner``), or ``None`` when
+    unreadable OR UNDECLARED — "no declared owner means no advisory" (T04b, COBRA/D-253: the
+    remedy for a noisy warning is the ledger row, not a blind comparison with nothing to
+    compare against). Bounded by a timeout: this runs on every hub main-checkout commit and
+    must never add noticeable latency or block one.
+    """
+    decisions_py = repo / "scripts" / "decisions.py"
+    if not decisions_py.is_file():
+        return None
+    try:
+        result = subprocess.run(
+            [sys.executable, str(decisions_py), "--merge-owner", str(repo)],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_ADVISORY_SUBPROCESS_TIMEOUT_S,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None  # UNDECLARED (rc 3) or an unreadable ledger (rc 1) — either way, no advisory
+    owner = result.stdout.strip()
+    return owner or None
+
+
+# The kaizen emitter module, imported LAZILY and cached, exactly the way `command_run.py`
+# (:1143-1166) does it, so a missing module or a broken import fails open and never blocks a
+# commit. The sys.path additions are ADDITIVE and IDEMPOTENT (appended, never inserted, and
+# only when absent), so importing this module can never shadow a caller's own packages.
+_EVENTS_UNSET: Any = object()
+_events_mod: Any = _EVENTS_UNSET
+
+
+def _kaizen() -> Any:
+    global _events_mod
+    if _events_mod is _EVENTS_UNSET:
+        _events_mod = None
+        try:
+            for extra in (
+                str(Path(__file__).resolve().parent / "sysadmin"),
+                "/opt/fabrik/scripts/sysadmin",
+            ):
+                if extra not in sys.path:
+                    sys.path.append(extra)
+            import kaizen_events  # noqa: PLC0415
+
+            _events_mod = kaizen_events
+        except (Exception, SystemExit):  # fail-open: an import that exits never ends the caller
+            _events_mod = None
+    return _events_mod
+
+
+def _warn_not_merge_owner(trailers: dict[str, list[str]]) -> None:
+    """ADVISORY (spec 2026-09-29 hub-worktree cut-over, D5(b)): a commit in the hub's MAIN
+    checkout by a session whose resolved name is not the declared merge owner warns — never
+    rejects (promotion to a refusal waits on the measured rate, spec § Lifecycle). One kaizen
+    event per firing makes that rate computable (spec § Validation V6).
+
+    Silent when: no resolved name (mirrors ``_warn_agent_name_mismatch`` — an unbound session
+    names nothing to warn about); not the hub's main checkout (a project repo, or any linked
+    worktree); no DECLARED merge owner; the resolved name IS the owner; or the commit signs
+    ``Agent-Name: kilo-pipeline`` (the automated writer that legitimately commits to the main
+    checkout, spec D5(b)).
+    """
+    resolved = _session_agent_name().strip()
+    if not resolved:
+        return
+    signed = {v.strip().lower() for v in trailers.get("agent-name", []) if v.strip()}
+    if "kilo-pipeline" in signed:
+        return
+    root = _hub_main_checkout_root()
+    if root is None:
+        return
+    owner = _merge_owner(root)
+    if not owner or owner.strip().lower() == resolved.lower():
+        return
+    print(
+        f"\nℹ️  [advisory] {resolved} is committing to the hub's main checkout, but the "
+        f"declared merge owner is {owner} (spec 2026-09-29 hub-worktree cut-over, D5(b)). "
+        f"Commit proceeds; move to a worktree (`EnterWorktree`) unless you are acting as the "
+        f"merge owner this turn.\n",
+        file=sys.stderr,
+    )
+    mod = _kaizen()
+    if mod is None:
+        return
+    try:
+        mod.emit("commit_merge_owner_warning", resolved_name=resolved, merge_owner=owner)
+    except (Exception, SystemExit):  # fail-open: an advisory must never affect the exit code
+        pass
+
+
 def _session_agent_name() -> str:
     """``CLAUDE_AGENT``, else this session's ``whoami_agent.py --as`` binding — the one resolver
     ``command_run.py`` uses, so a renamed window (env var unset) is checked too (tryton-crm
@@ -686,6 +842,7 @@ def main(argv: list[str]) -> int:
     # any() over the values: one non-empty value is provenance, exactly as git reports it.
     if any(trailers.get(REQUIRED.lower(), [])):
         _warn_agent_name_mismatch(trailers)
+        _warn_not_merge_owner(trailers)
         return 0
 
     print(
