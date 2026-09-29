@@ -1,6 +1,6 @@
 # Plan — every repo a three-agent repo: the hub's worktree cut-over
 
-Status: CONVERGED (2026-09-29, /fabrik-plan-review — 3 passes, confirmed 16 → 2 → 0; see § Pass Ledger; D-450)
+Status: IN-PROGRESS (2026-09-29, /fabrik-execute-plan; was CONVERGED 2026-09-29, /fabrik-plan-review — 3 passes, confirmed 16 → 2 → 0; see § Pass Ledger; D-450)
 **Owner:** infra
 Spec: docs/superpowers/specs/2026-09-29-hub-worktree-cutover-design.md
 Date: 2026-09-29
@@ -30,9 +30,9 @@ each ticket cites the spec section it implements and restates nothing that secti
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01 | Hub write root: tracked outputs land in the invoker's tree | — | ⚡ | ⬜ | |
-| T02a | The corpus render is refused from a worktree | — | ⚡ | ⬜ | |
-| T02b | Merges distribute governance | — | ⚡ | ⬜ | |
+| T01 | Hub write root: tracked outputs land in the invoker's tree | — | ⚡ | 🔵 | |
+| T02a | The corpus render is refused from a worktree | — | ⚡ | 🔵 | |
+| T02b | Merges distribute governance | — | ⚡ | 🔵 | |
 | T03a | The Stop hook's push law binds a worktree branch with no upstream | — | ⚡ | ⬜ | |
 | T03b | A hub worktree is the hub to the gate | — | ⚡ | ⬜ | |
 | T05 | Ids held until merged; the automated writers identify themselves | — | ⚡ | ⬜ | |
