@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T14:54:14.994789Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-745042ab",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-181",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "title": "Retire the hub copy libs/subagents: the pool is OFF (D-181/D-182) but 29 hub .py files still reference it and fabrik-lib's post-commit hook keeps re-vendoring into it, leaving ownerless dirty files in the hub tree (D-210's open condition)"
+}
