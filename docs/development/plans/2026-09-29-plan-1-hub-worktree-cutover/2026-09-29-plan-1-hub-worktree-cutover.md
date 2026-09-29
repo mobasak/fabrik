@@ -1,6 +1,6 @@
 # Plan — every repo a three-agent repo: the hub's worktree cut-over
 
-Status: DRAFT
+Status: CONVERGED (2026-09-29, /fabrik-plan-review — 3 passes, confirmed 16 → 2 → 0; see § Pass Ledger; D-450)
 **Owner:** infra
 Spec: docs/superpowers/specs/2026-09-29-hub-worktree-cutover-design.md
 Date: 2026-09-29
@@ -207,6 +207,14 @@ Grounding run 2026-09-29 in `/opt/fabrik` at 91d2495de.
 - Every ticket cites the spec section it implements; no ticket restates a settled design.
 - Every Validation row V1–V11 lands in a ticket: V1 T07 · V2 T02b · V3 T02a · V4 T03a · V5 T05, T06a, T06c · V6 T04a, T04b · V7 T04a, T06a, T07 · V8 T03b · V9 T01 · V10 T07 · V11 T05.
 - The seven governance files are in no Touches; the ledger rows are the orchestrator's.
+
+## Pass Ledger
+
+| Pass | seats · axes re-checked | counters | method | plan md5 (start → end) |
+|---|---|---|---|---|
+| Pass 1 | opus×1 (A: spine rule sections + T02a, T02b, T03a, T03b, T04a) + sonnet×1 (B: T01, T04b, T05, T06a–c, T07 + Evidence) · all axes | found: 16, new: 16, confirmed: 16, fixed: 16, unexecuted: 0, edits: 16 | method: citation — full pass, shape: agent-tool; every cite resolved at the pin, ORIG_HEAD on fast-forward probed in a scratch repo, the render guard's ROOT vs cwd executed | 068431fd → aa328d03 |
+| Pass 2 | opus×1 + sonnet×1 (the round-1 slice owners) · their ledgers over fix 1 | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0, edits: 2 | method: re-derivation — 16 of 16 NOW_FALSE; 2 new inside fix 1 (a function-local named as a module constant; a `--dest` aliasing the corpus) | aa328d03 → 8affecc6 |
+| Pass 3 | opus×1 (the owner of A) · the two pass-2 claims only | found: 0, new: 0, **confirmed: 0**, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — 2 of 2 NOW_FALSE; nothing new; B unchanged since pass 2 | 8affecc6 → 8affecc6 ✓ → **CONVERGED** |
 
 ## Residual unknowns
 
