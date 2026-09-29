@@ -168,6 +168,13 @@ WHOAMI_PY = Path(__file__).with_name("whoami_agent.py")
 DOCS_UPDATER_PY = Path(__file__).with_name("docs_updater.py")  # T03: migrate-backlog / render
 NAME_RULE = "[a-z0-9-]{1,32}"  # whoami_agent.py's agent-name rule: owners are agent names only
 _NAME_RE = re.compile(NAME_RULE)
+# A tag is the constraint that must travel WITH an item (tryton-crm 01M3PM5H) — the repo's own
+# vocabulary, e.g. `runtime` for "applying this needs the shared-runtime act" (multi-agent model
+# § The shared runtime). Written only when non-empty, so an untagged item's JSON never changes.
+# COBRA (D-253): a tag is a label, never a gate — nothing refuses or orders on it, so the cheap
+# path (tag nothing) costs only what the tag was for: the distributor seeing the constraint.
+TAG_RULE = "[a-z0-9][a-z0-9-]{0,31}"
+_TAG_RE = re.compile(TAG_RULE)
 _ID_RE = re.compile(r"W-[0-9a-f]{8}")  # always .fullmatch — `$` admits a trailing newline
 _GIT_TIMEOUT_S = 10.0
 # Re-entrancy is per THREAD: the depth of each (shared dir, thread) hold. flock is per open-file
@@ -1114,7 +1121,11 @@ def _after_write(repo: Path, *sessions: str) -> None:
 
 def _line(item: dict) -> str:
     owner = item.get("owner") or "-"
-    return f"{item['id']}  P{_priority(item)}  {owner}  {item.get('kind', '')}  {item.get('title', '')}"
+    line = f"{item['id']}  P{_priority(item)}  {owner}  {item.get('kind', '')}  {item.get('title', '')}"
+    tags = item.get("tags")
+    if isinstance(tags, list) and tags:
+        line += f"  [tags: {','.join(str(t) for t in tags)}]"
+    return line
 
 
 # ── T02: readers reused by import, with a local fallback ────────────────────────────────────
@@ -2639,6 +2650,9 @@ def cmd_add(repo: Path, args: argparse.Namespace) -> int:
         links=_parse_links(args.link or []),
         priority=args.priority,
     )
+    tags = _parse_tags(args.tag or [])
+    if tags:
+        item["tags"] = tags
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="add"):
         path = _create_item(repo, item)
         _after_write(repo, _session())
@@ -2646,10 +2660,23 @@ def cmd_add(repo: Path, args: argparse.Namespace) -> int:
     return 0
 
 
+def _parse_tags(values: list[str]) -> list[str]:
+    for tag in values:
+        if not _TAG_RE.fullmatch(tag):
+            raise WorkError(f"--tag {tag!r} is not a tag ({TAG_RULE})")
+    return sorted(set(values))
+
+
 def cmd_assign(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
-    if args.owner is None and args.priority is None:
-        raise WorkError("assign needs --owner and/or --priority")
+    # --untag is NOT validated against TAG_RULE: removing must work for any value already stored,
+    # including one a hand edit or an older rule let in (a validated --untag could never clear it).
+    add_tags, drop_tags = _parse_tags(args.tag or []), sorted(set(args.untag or []))
+    both = set(add_tags) & set(drop_tags)
+    if both:
+        raise WorkError(f"--tag and --untag both name {', '.join(sorted(both))}; pick one")
+    if args.owner is None and args.priority is None and not add_tags and not drop_tags:
+        raise WorkError("assign needs --owner, --priority, --tag and/or --untag")
     owner = None if args.owner is None else args.owner.strip()
     if owner and not _valid_name(owner):
         raise WorkError(f"--owner {owner!r} is not an agent name ({NAME_RULE}); owners are agents")
@@ -2665,6 +2692,12 @@ def cmd_assign(repo: Path, args: argparse.Namespace) -> int:
             item["owner"] = owner
         if args.priority is not None:
             item["priority"] = args.priority
+        if add_tags or drop_tags:
+            tags = (set(item.get("tags") or []) | set(add_tags)) - set(drop_tags)
+            if tags:
+                item["tags"] = sorted(tags)
+            else:
+                item.pop("tags", None)
         path = _write_item(repo, item)
         _after_write(repo, _session())
     print(_rel(repo, path))
@@ -3854,12 +3887,15 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--next", help="the concrete next action, one line")
     s.add_argument("--link", action="append", help="spec=<path> | plan=<path> | decision=D-NNN")
     s.add_argument("--priority", type=_priority_arg, default=DEFAULT_PRIORITY)
+    s.add_argument("--tag", action="append", help=f"a constraint label ({TAG_RULE}), repeatable")
     s.set_defaults(fn=cmd_add)
 
-    s = sub.add_parser("assign", help="set owner and/or priority (the distributor's verb)")
+    s = sub.add_parser("assign", help="set owner, priority, tags (the distributor's verb)")
     s.add_argument("id")
     s.add_argument("--owner")
     s.add_argument("--priority", type=_priority_arg)
+    s.add_argument("--tag", action="append", help="add a tag, repeatable")
+    s.add_argument("--untag", action="append", help="remove a tag, repeatable")
     s.set_defaults(fn=cmd_assign)
 
     s = sub.add_parser(

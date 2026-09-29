@@ -2598,9 +2598,8 @@ def get_git_status_hash() -> str:
 
 
 def _diff_base() -> str | None:
-    """Ref to diff HEAD against for 'what this session will publish' — the tracking
-    upstream if set, else origin/master|main. None when no remote base exists (fresh
-    repo / detached HEAD) → callers fall back to the working tree only.
+    """Ref to diff HEAD against for 'what this session will publish' — the upstream, else a
+    linked worktree's main-checkout branch, else origin/master|main; None → working tree only.
 
     Without this, a session that has COMMITTED its work leaves a clean working tree,
     get_changed_files() returns empty, and the gate falls back to whole-tree — which
@@ -2609,10 +2608,11 @@ def _diff_base() -> str | None:
     """
     for cmd in (
         ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+        None,  # a linked worktree's main-checkout branch: _linked_worktree_base()
         ["git", "rev-parse", "--verify", "--quiet", "origin/master"],
         ["git", "rev-parse", "--verify", "--quiet", "origin/main"],
     ):
-        code, out = run_cmd(cmd)
+        code, out = run_cmd(cmd) if cmd else (0, _linked_worktree_base())
         if code == 0 and out.strip():
             return out.strip().splitlines()[0]
     return None
@@ -3174,6 +3174,31 @@ def main() -> int:
 
     print(f"\n{GREEN}{BOLD}✓ All checks passed - Proceed{RESET}")
     return 0
+
+
+def _linked_worktree_base() -> str:
+    """The main checkout's branch when THIS tree is a linked worktree on another branch, else "".
+
+    A linked worktree's branch has no upstream (the multi-agent model's agents 2..N) and a repo's
+    base need not be master/main, so `_diff_base` found nothing, the change set shrank to the
+    working tree, and committed code read as docs-only — a false green that ran no static tier
+    (tryton-crm 01M3PKJP, D-442). What a worktree hands the merge owner is exactly what is not yet
+    on the main checkout's branch — the HEAD of the git COMMON dir, which is the main checkout's
+    HEAD (or a bare repo's own). In the main checkout that branch IS HEAD's, and diffing HEAD
+    against itself would hide committed work, so it answers "" — as it does when the main
+    checkout is detached (the old None fallback then applies). Defined down here so the gate's
+    cited line numbers above do not move.
+    """
+    code, common = run_cmd(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"])
+    if code != 0 or not common.strip():
+        return ""
+    git_dir = common.strip().splitlines()[0]
+    code, out = run_cmd(["git", "--git-dir", git_dir, "symbolic-ref", "--quiet", "--short", "HEAD"])
+    main_branch = out.strip() if code == 0 else ""
+    code, head = run_cmd(["git", "symbolic-ref", "--quiet", "--short", "HEAD"])
+    if not main_branch or (code == 0 and head.strip() == main_branch):
+        return ""
+    return main_branch
 
 
 if __name__ == "__main__":

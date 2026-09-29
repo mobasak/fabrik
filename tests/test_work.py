@@ -831,3 +831,39 @@ def test_init_is_refused_when_any_other_worktree_holds_a_store(tmp_path):
     assert r2.returncode != 0
     assert str(wt) in r2.stderr, r2.stderr
     assert not (wt2 / ".fabrik").exists()
+
+
+def test_tags_ride_the_item_and_ready_shows_them(tmp_path):
+    """tryton-crm 01M3PM5H items 2-3: a constraint such as "needs the runtime mutex" travels WITH
+    the item. `add --tag` sets it, `assign --tag/--untag` (the distributor's verb) edits it,
+    `ready` prints it, an untagged item's JSON is unchanged, and a malformed tag is refused."""
+    env = _env(tmp_path, agent="intel")
+    repo = _repo(tmp_path, env)
+    _init(repo, env)
+    plain = _add(repo, env, title="plain")
+    assert "tags" not in _items(repo)[plain]
+    tagged = _add(repo, env, "--tag", "runtime", "--tag", "gui", title="tagged")
+    assert _items(repo)[tagged]["tags"] == ["gui", "runtime"]
+    bad = run(["add", "--kind", "task", "--title", "x", "--tag", "Bad Tag"], env, repo)
+    assert bad.returncode != 0 and "tag" in bad.stderr
+    r = run(["assign", plain, "--tag", "runtime"], env, repo)
+    assert r.returncode == 0, r.stderr
+    assert _items(repo)[plain]["tags"] == ["runtime"]
+    r = run(["assign", tagged, "--untag", "gui", "--untag", "runtime"], env, repo)
+    assert r.returncode == 0, r.stderr
+    assert "tags" not in _items(repo)[tagged]
+    out = run(["ready", "--all"], env, repo)
+    assert out.returncode == 0, out.stderr
+    line = next(ln for ln in out.stdout.splitlines() if plain in ln)
+    assert line.endswith("[tags: runtime]"), line
+    other = next(ln for ln in out.stdout.splitlines() if tagged in ln)
+    assert "[tags:" not in other, other
+    # both verbs naming one tag is refused, and nothing changes
+    clash = run(["assign", plain, "--tag", "gui", "--untag", "gui"], env, repo)
+    assert clash.returncode != 0 and "gui" in clash.stderr
+    assert _items(repo)[plain]["tags"] == ["runtime"]
+    # a stored value the rule would refuse can still be REMOVED
+    _edit(repo, plain, tags=["Bad_Tag", "runtime"])
+    r = run(["assign", plain, "--untag", "Bad_Tag"], env, repo)
+    assert r.returncode == 0, r.stderr
+    assert _items(repo)[plain]["tags"] == ["runtime"]

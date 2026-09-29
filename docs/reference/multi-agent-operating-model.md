@@ -130,12 +130,48 @@ outside the tree you are in. `/fabrik-execute-plan` nests its subagent worktrees
 worktree (two levels, ordinary git — `$GIT_COMMON_DIR` is shared) and merges into
 `git branch --show-current`, never a named default. Lifecycle detail: `docs/reference/plan-lock-lifecycle.md`.
 
-## The shared dev database is NOT isolated (§ Lifecycle)
+## The shared runtime is NOT isolated (§ Lifecycle)
 
-Worktrees isolate files; every window's app reaches the same dev database. The only guard is the
-epic schema's **single-migration-owner rule** — `epic_order.py --check` reports two epics of the
-same phase that both own `alembic/versions/**` or `db/schema.sql` ("at most one may"). It is
-stated, not solved.
+Worktrees isolate FILES. The runtime is one per repo: one dev database, one app container, one
+worker, one bind-mounted module — every worktree's code runs against it. So the scarce resource in
+a repo with a stateful dev stack is not the files but the **serialising acts**: any act that changes
+the runtime for every worktree at once — running a migration, reloading or upgrading a module
+(`trytond-admin -u <module>`), restarting the app or worker, starting, stopping or resetting a
+shared container, reseeding the dev database. Measured in tryton-crm on the model's first real day
+(01M3PM5H, D-442): 7 of 11 open items needed a module reload to APPLY.
+
+- **Develop in parallel; take the act from the merge owner.** Reading, reproducing, writing code
+  and running tests against the running stack are parallel — the serialisation is a mutex on the
+  ACT, never on the item. Ask the merge owner (a peer message) before a serialising act, do it,
+  and say when it is done; the merge owner grants one at a time, because another agent's in-flight
+  test run reds under a reload it cannot attribute. Reading the runtime (a `docker ps`, a query)
+  is anyone's.
+- **The repo names its own acts.** List them under `## Serialising acts` in the repo's
+  `docs/OPERATIONS.md`; the list above is the default when a repo names none.
+- **The item carries it.** An item whose completion needs a serialising act gets the tag the repo
+  uses for it (`work.py add|assign --tag runtime`), so the constraint travels with the item and
+  `ready` prints it — not with the distributor's memory (§ Claim or assign, below).
+- **Migrations have a stricter owner.** The epic schema's single-migration-owner rule —
+  `epic_order.py --check` reports two epics of the same phase that both own `alembic/versions/**`
+  or `db/schema.sql` ("at most one may") — still holds: one ticket owns any migration.
+
+## Claim or assign (D-442)
+
+The distributor is not a gate on every item — a worker that waits for an assignment while the store
+already offers `claim` has turned one agent into a serialisation point. The default is
+**self-service**: an idle agent runs `work.py ready`, claims what it will do, and says so. The
+distributor **assigns** where self-service would go wrong: items tagged for a serialising act
+(above), items that must not run concurrently with another, and a queue the distributor has not
+yet triaged (a migrated or polluted one) — say so to the other agents while it lasts, so they know
+to wait for an assignment instead of claiming.
+
+## The Agent-Name trailer is a claim (D-442)
+
+No project repo installs a commit hook that checks `Agent-Name:` (the hub's guard is installed in the
+hub only) — the trailer each agent writes is a CLAIM, verified by nothing but `git interpret-trailers --parse` confirming it parses. Bind the
+session (`whoami_agent.py --as <name>`, § Launch recipe) so run records and `work.py` actions resolve the
+same name; in the hub, `check_commit_trailers.py` compares the signed name against `CLAUDE_AGENT`
+or that binding and warns on a mismatch (advisory, D-034).
 
 ## The tail (§ The tail)
 

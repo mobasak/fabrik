@@ -558,19 +558,50 @@ def install(force: bool = False) -> int:
     return 0
 
 
+def _session_agent_name() -> str:
+    """``CLAUDE_AGENT``, else this session's ``whoami_agent.py --as`` binding — the one resolver
+    ``command_run.py`` uses, so a renamed window (env var unset) is checked too (tryton-crm
+    01M3PM5H). Guarded exactly as there: a missing or failing resolver degrades to the env var,
+    never an exception out of a git hook."""
+    try:
+        here = str(Path(__file__).resolve().parent)
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        from whoami_agent import resolve_agent_name  # noqa: PLC0415
+    except (Exception, SystemExit):
+        # no resolver beside this script: the env var alone, as before the binding existed
+        return os.environ.get("CLAUDE_AGENT", "").strip()
+    try:
+        # the resolver applies the agent-name rule to CLAUDE_AGENT itself, so a malformed value
+        # is judged exactly as command_run.py judges it
+        return resolve_agent_name().strip()
+    except (Exception, SystemExit) as exc:
+        # fail OPEN — a git hook must never block on an advisory. This arm is reached only by a
+        # CONTRACT break (a raise, a non-str): resolve_agent_name() itself returns "" on any
+        # internal failure (whoami_agent.py), so a corrupt store reads like an unbound session —
+        # the same trade command_run.py makes, recorded in D-442
+        print(
+            f"[check_commit_trailers] whoami_agent.resolve_agent_name failed ({exc!r}) — "
+            "Agent-Name not checked",
+            file=sys.stderr,
+        )
+        return ""
+
+
 def _warn_agent_name_mismatch(trailers: dict[str, list[str]]) -> None:
-    """ADVISORY (D-034): a session with CLAUDE_AGENT set signing an Agent-Name that
-    differs is the mis-signed-day class — warn loudly, never reject (a wrong warning
-    must not block a shared tree; promotion waits on measured fire rate). Env unset
-    (every project repo, unnamed hub windows) or no Agent-Name trailer → silent."""
-    env_name = os.environ.get("CLAUDE_AGENT", "").strip().lower()
+    """ADVISORY (D-034): a session whose resolved name (``CLAUDE_AGENT``, else its
+    ``whoami_agent.py`` binding) differs from the Agent-Name it signs is the mis-signed-day
+    class — warn loudly, never reject (a wrong warning must not block a shared tree;
+    promotion waits on measured fire rate). No resolvable name, or no Agent-Name
+    trailer → silent: the trailer is then a CLAIM nothing checks."""
+    env_name = _session_agent_name().lower()
     signed = [v.strip().lower() for v in trailers.get("agent-name", []) if v.strip()]
     if not env_name or not signed or env_name in signed:
         return
     print(
-        f"\n⚠️  [advisory] Agent-Name mismatch: this session is CLAUDE_AGENT={env_name} "
-        f"but the commit signs Agent-Name: {', '.join(signed)} — the mis-signed-day class "
-        f"(D-034). Commit proceeds; fix the trailer if the env var is right.\n",
+        f"\n⚠️  [advisory] Agent-Name mismatch: this session is {env_name} (CLAUDE_AGENT or "
+        f"its whoami_agent.py binding) but the commit signs Agent-Name: {', '.join(signed)} — "
+        f"the mis-signed-day class (D-034). Commit proceeds; fix the trailer if the name is right.\n",
         file=sys.stderr,
     )
 

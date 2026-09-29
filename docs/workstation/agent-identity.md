@@ -67,10 +67,11 @@ row wins per session, rows trimmed at 30 days by the writer — nothing else pru
 - **It is not a lock against `--force`.** A bind is serialized (an `flock` around the whole
   read-modify-write, so a concurrent sibling can neither double-bind nor be erased by the 30-day
   trim), but `--force` deliberately overrides a live holder. Nothing downstream catches two
-  sessions on one name: `check_commit_trailers.py` reads `CLAUDE_AGENT` **directly** and never
-  consults this binding at all — so for a session named with `--as` its mismatch check does not
-  merely lack cross-session state, it **does not fire**. Routed to
-  `docs/STRATEGIC_BACKLOG.md`, owner infra.
+  sessions on one name: the hub's `check_commit_trailers.py` resolves `CLAUDE_AGENT`, else this
+  session's binding (D-442), and warns only when the SIGNED `Agent-Name` differs from it — two
+  sessions bound to one name both pass. No project repo installs that trailer check, so there the
+  trailer is a claim (`docs/reference/multi-agent-operating-model.md` § The Agent-Name trailer is a
+  claim).
 - **A binding with no session pid reserves nothing.** If the `/proc` ancestry walk cannot find the
   `claude` ancestor, the row carries no pid and cannot hold the name against a sibling. The bind
   says so in its success message rather than implying protection it does not have.

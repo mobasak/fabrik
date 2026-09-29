@@ -42,6 +42,7 @@ plus a random nonce, exclusive-created so a collision just retries with a fresh 
 | `status` | closed vocabulary: `open` · `blocked` · `awaiting-operator` · `done` · `dropped`. **"Claimed" is never a stored status** — an item is claimed only while a live claim file exists in the shared dir and its lease has not passed, so a crashed claimer's item becomes ready again by itself. `blocked` genuinely gates readiness when set (`ready`'s `_is_ready` excludes anything but `open`; `claim` refuses a `blocked` item by name) — but no verb ever WRITES it today; see `blocked_by`. |
 | `priority` | 0 (urgent) to 3 (someday), default 2 |
 | `owner` | agent name (`[a-z0-9-]{1,32}`, `whoami_agent.py`'s rule), set by the distributor; empty means unassigned |
+| `tags` | written only when non-empty: sorted labels (`[a-z0-9][a-z0-9-]{0,31}`, `TAG_RULE`) for a constraint that must travel WITH the item — e.g. `runtime` for "applying this needs a serialising act" (`docs/reference/multi-agent-operating-model.md` § The shared runtime, D-442). Set by `add --tag`, edited by `assign --tag/--untag`, printed as `[tags: a,b]` at the end of every `ready` line; `--untag` removes any stored value, and one call naming a tag in both is refused; a label, never a gate — nothing refuses or orders on it |
 | `links` | `{spec, plan, decision}` on every item, paths and D-ids the item tracks; plus, written only when non-empty, `mail` (the message id, `kind: mail`), `command` (the command name, `kind: feedback`), `session` (the session id, `kind: next`) |
 | `blocked_by` | item ids that, if present, would gate `ready` and `claim` until each reads `done`/`dropped` (here, or closed by a marker elsewhere) — genuinely READ by both (`_is_ready`, `_refuse_blocked`). In practice it never blocks anything today: `add` has no `--blocked-by` flag and every item is minted with `blocked_by: []`, so nothing currently WRITES this field. |
 | `next` | the item's own concrete next action, written by `add --next` or `migrate-backlog` in full (a migrated item's whole body lives here) — a Stop harvest never rewrites it: a NEXT that qualifies under rule 2 (§ NEXT, DECISION blocks and the register, below) only CLAIMS the item. A `kind: next` item's own `next` is its session's current free-text NEXT, clipped to 300 characters (`LINE_MAX`) — the same 300 characters the register (`thread_anchor.py`) judges a NEXT by |
@@ -93,8 +94,8 @@ verbs:
 | Verb | Who | What |
 |---|---|---|
 | `init [--distributor <agent>]` | once per repo | create `.fabrik/work/` and `config.json`; nothing else writes an item into a repo without it |
-| `add --kind {backlog,decision,feedback,mail,next,task} --title <t> [--next <t>] [--link key=value] [--priority 0-3]` | anyone | create an item; `--kind decision`, `--kind mail`, `--kind feedback` and `--kind next` are all refused — each comes only from its own mechanism (an accepted DECISION block, a mail claim, taking a feedback queue, the Stop harvest's NEXT rules), never from `add` |
-| `assign <id> [--owner <agent>] [--priority 0-3]` | distributor | set owner and/or priority |
+| `add --kind {backlog,decision,feedback,mail,next,task} --title <t> [--next <t>] [--link key=value] [--priority 0-3] [--tag <t>]…` | anyone | create an item; `--kind decision`, `--kind mail`, `--kind feedback` and `--kind next` are all refused — each comes only from its own mechanism (an accepted DECISION block, a mail claim, taking a feedback queue, the Stop harvest's NEXT rules), never from `add` |
+| `assign <id> [--owner <agent>] [--priority 0-3] [--tag <t>]… [--untag <t>]…` | distributor | set owner, priority and/or tags |
 | `ready [--mine] [--all]` | worker | spec D4's crisp default: the obligation lines (§ The view), this session's claims, items this agent owns, awaiting items, then the top 10 remaining ready items (and how many more `--all` would show); `--mine` puts the caller's own first among those remaining, then unassigned ones; `--all` is the OLD default — every `open`, unblocked, unclaimed item by priority then age |
 | `next` | worker | the first item `ready --all --mine` would list — `_ready_items(mine=True)`'s ordering (open, unblocked, no live claim; this agent's own first, then unassigned; never an item owned by someone else), NOT the crisp `ready` default above |
 | `claim <id> [--session <s>]` | worker | take (or renew) the live claim; refused when another session holds a live claim, or the item is `blocked`/has an unresolved `blocked_by` |
@@ -132,7 +133,10 @@ integrates branches into the base branch (§ Merge protocol there); the distribu
 and priorities (`work.py assign`) so a worker's `ready --mine` and a claim never collide over who
 should be doing what. The two may be the same agent or different ones — `init` merely defaults to the
 former when nothing else is named. In the hub, intel is the distributor (D-395), which is the
-dispatcher lane `docs/reference/agents/intel.md` used to record as deferred.
+dispatcher lane `docs/reference/agents/intel.md` used to record as deferred. Assigning is not
+the default way work moves: an idle worker claims from `ready` itself, and the distributor assigns
+the items self-service would get wrong (tagged for a serialising act, or a queue not yet triaged) —
+`docs/reference/multi-agent-operating-model.md` § Claim or assign.
 
 ## NEXT, DECISION blocks and the register
 

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — multi-agent model: the shared runtime, work-item tags, claim or assign, a checkable Agent-Name, and a worktree gate that sees committed code (2026-09-29)
+
+- `docs/reference/multi-agent-operating-model.md` § The shared runtime: worktrees isolate files, not the runtime — a serialising act (migration, module reload, app/worker restart, shared-container start/reset) is taken from the merge owner one at a time, development and tests up to it stay parallel; a repo lists its acts under `## Serialising acts` in `docs/OPERATIONS.md`. The project template's § Orient (d) sentence carries the rule fleet-wide. § Claim or assign: self-service `claim` is the default; the distributor assigns tagged, conflicting or untriaged items. § The Agent-Name trailer is a claim.
+- `scripts/work.py`: an optional `tags` field — `add --tag`, `assign --tag/--untag`, printed as `[tags: a,b]` by `ready`; written only when non-empty; a label, never a gate.
+- `scripts/check_commit_trailers.py`: the Agent-Name mismatch check resolves `CLAUDE_AGENT`, else the session's `whoami_agent.py --as` binding; `session_orient.py` and `docs/workstation/agent-identity.md` now say project repos install no trailer check.
+- `scripts/final_gate.py`: in a linked worktree with no upstream, the change set is diffed against the main checkout's branch (`_linked_worktree_base`), so committed code on a worktree branch is no longer a false green when the repo's base is not master/main.
+- From tryton-crm mails 01M3PM5H and 01M3PKJP (D-442); review `docs/development/reviews/2026-09-29-multi-agent-runtime-tags-diff-base-review.md`.
+
 ### Changed — a hub agent's request carries the operator's authority; cross-repo is no longer an operator decision (2026-09-29)
 - `CLAUDE.md` and `templates/governance/CLAUDE.md`: a request from infra, intel or fleet is validated by the receiving agent, then done if correct, or discussed with the sender if not. It is never parked for the operator (D-441). The cross-repo HARD STOP now says to send the request to that repo's agent. `cross-repo` leaves the DECISION block's gate list.
 - `.claude/hooks/final_gate_stop.py`: `cross-repo` and `another repo` no longer exempt a deferral or satisfy a `ground: gate` DECISION block, so a cross-repo change can't be handed to the operator as a decision.

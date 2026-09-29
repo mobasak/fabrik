@@ -1107,3 +1107,45 @@ def test_an_indented_block_below_a_real_cut_line_is_still_caught(tmp_path):
     assert result.returncode == REJECT_CODE, (
         "an indented trailer block below a genuine cut line was accepted, and git drops it"
     )
+
+
+def _run_as(message: str, tmp_path: Path, **env_extra: str) -> subprocess.CompletedProcess[str]:
+    """The guard with a HERMETIC identity: no inherited CLAUDE_AGENT, a private binding store."""
+    msg = tmp_path / "COMMIT_EDITMSG"
+    msg.write_text(message, encoding="utf-8")
+    env = {
+        k: v for k, v in os.environ.items() if k not in ("CLAUDE_AGENT", "CLAUDE_CODE_SESSION_ID")
+    }
+    env["AGENT_IDENTITY_FILE"] = str(tmp_path / "agent-identity.jsonl")
+    env.update(env_extra)
+    return subprocess.run(
+        [sys.executable, str(GUARD), str(msg)],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=REPO,
+        env=env,
+    )
+
+
+def test_the_agent_name_check_reads_the_session_binding_when_the_env_var_is_unset(tmp_path):
+    """tryton-crm 01M3PM5H item 4: a window renamed agent-1 has CLAUDE_AGENT unset, so a check that
+    read the env var only could never compare the signed name. A `whoami_agent.py --as` binding
+    is the same identity `command_run.py` resolves, and the check now reads it too."""
+    (tmp_path / "agent-identity.jsonl").write_text(
+        '{"session_id": "s-1", "name": "agent-2"}\n', encoding="utf-8"
+    )
+    signed = GOOD.replace("Agent-Context:", "Agent-Name: agent-1\nAgent-Context:")
+    mis = _run_as(signed, tmp_path, CLAUDE_CODE_SESSION_ID="s-1")
+    assert mis.returncode == 0, mis.stderr  # advisory, never a reject
+    assert "Agent-Name mismatch" in mis.stderr and "agent-2" in mis.stderr, mis.stderr
+    ok = _run_as(signed.replace("agent-1", "agent-2"), tmp_path, CLAUDE_CODE_SESSION_ID="s-1")
+    assert ok.returncode == 0 and "mismatch" not in ok.stderr, ok.stderr
+    unbound = _run_as(signed, tmp_path, CLAUDE_CODE_SESSION_ID="s-other")
+    assert unbound.returncode == 0 and "mismatch" not in unbound.stderr, unbound.stderr
+    # the env var still WINS over the binding
+    env_wins = _run_as(signed, tmp_path, CLAUDE_CODE_SESSION_ID="s-1", CLAUDE_AGENT="agent-1")
+    assert "mismatch" not in env_wins.stderr, env_wins.stderr
+    # a MALFORMED env var is judged by the resolver's name rule, so the binding answers instead
+    bad_env = _run_as(signed, tmp_path, CLAUDE_CODE_SESSION_ID="s-1", CLAUDE_AGENT="Agent_1")
+    assert "agent-2" in bad_env.stderr and "agent_1" not in bad_env.stderr, bad_env.stderr
