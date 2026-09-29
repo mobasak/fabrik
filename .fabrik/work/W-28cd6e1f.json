@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T23:16:43.285709Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-28cd6e1f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QNZG3FX23PSE5FMFG45YW9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-lib CLAUDE.md lean pass (hub D-331) LANDED — ae3b1bcc on origin/main"
+}
