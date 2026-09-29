@@ -21,6 +21,15 @@
 # so the failure branch was UNREACHABLE and a sync that died on repo 12 of 48 exited 0 with no
 # warning and no re-run command, while CLAUDE.md § Sync-consciousness promises it "prints loudly".
 # Probed 2026-09-01: `set -u; (exit 3) | tail -3 || echo TAKEN` prints nothing, rc=0.
+#
+# ⚠️ WHAT SYNCS AND WHAT DOES NOT, in the main checkout (/opt/fabrik) only — a worktree syncs nothing:
+#   SYNCS   — `git commit` (post-commit, incl. a conflicted merge or a squash concluded by `git commit`);
+#             `git merge`, fast-forward or `--no-ff`, and a merging `git pull` (post-merge).
+#   DOES NOT — `git pull --rebase`, `git rebase <branch>`, `git reset --hard <branch>` and any plumbing
+#             (`commit-tree`/`update-ref`): git fires neither hook for them, so
+#             trigger paths they bring in are NOT distributed. The hub's flow is `git merge --no-ff` by
+#             the merge owner, so no post-rewrite hook exists by design. After any of those, run
+#             `scripts/sync_enforcement_to_projects.py --force` yourself.
 set -uo pipefail
 
 [ "$(pwd)" = "/opt/fabrik" ] || exit 0  # never from a worktree (the renderer-prune class)
@@ -81,11 +90,14 @@ PY
 # branch tip, whose own diff misses a trigger path touched by any commit below it. A `--squash` leaves
 # ORIG_HEAD == HEAD (nothing listed); the squash is committed later and reaches post-commit. A conflicted
 # merge concluded by `git commit` reaches post-commit too, whose first-parent read already lists it.
+# ⚠️ `--no-renames` on BOTH reads: with rename detection (git's default) a move lists only its
+# DESTINATION, so moving a file OUT of a trigger path read as a non-trigger change and the fleet kept
+# the stale copy. Without it a move lists both the deleted source and the added destination.
 if [ "$MODE" = post-merge ]; then
-  NAMES="$(git diff --name-only ORIG_HEAD HEAD)" \
+  NAMES="$(git diff --no-renames --name-only ORIG_HEAD HEAD)" \
     || { echo "[governance-sync post-merge] cannot read the merged paths (ORIG_HEAD..HEAD) — SYNC NOT RUN; run scripts/sync_enforcement_to_projects.py --force yourself"; exit 1; }
 else
-  NAMES="$(git log -1 --first-parent --format= --name-only)" \
+  NAMES="$(git log -1 --first-parent --no-renames --format= --name-only)" \
     || { echo "[governance-sync post-commit] cannot read HEAD's paths — SYNC NOT RUN; run scripts/sync_enforcement_to_projects.py --force yourself"; exit 1; }
 fi
 if grep -qE "$FILTER" <<<"$NAMES"; then

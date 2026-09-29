@@ -181,13 +181,15 @@ def test_detection_is_not_a_pipeline_and_sees_merges() -> None:
     # line that matters. That is verbatim the defect the sibling test above records as already
     # found and fixed, reproduced here 15 lines below its own description of it. Strip comments.
     code = [ln for ln in src.splitlines() if not ln.lstrip().startswith("#")]
-    assert any("git log -1 --first-parent" in ln for ln in code), (
-        "without --first-parent a merge emits NO paths and silently skips the sync"
+    # `--no-renames` on both reads: with rename detection a move lists only its destination, so a
+    # file moved OUT of a trigger path never synced (tests/test_merge_sync.py drives both modes).
+    assert any("git log -1 --first-parent --no-renames" in ln for ln in code), (
+        "without --first-parent a merge emits NO paths; without --no-renames a move out is missed"
     )
     # post-merge mode must read the WHOLE merged range, not HEAD's own diff: a fast-forward's HEAD is
     # the branch tip, and a trigger path touched below it is otherwise never distributed.
-    assert any("git diff --name-only ORIG_HEAD HEAD" in ln for ln in code), (
-        "post-merge mode no longer reads ORIG_HEAD..HEAD — a merged-in trigger below the tip is missed"
+    assert any("git diff --no-renames --name-only ORIG_HEAD HEAD" in ln for ln in code), (
+        "post-merge mode no longer reads ORIG_HEAD..HEAD without renames — a merged-in trigger is missed"
     )
 
 
@@ -488,6 +490,20 @@ def test_a_pre_commit_takeover_never_puts_the_sync_under_pre_commit_and_the_inst
     assert _install(repo).returncode == 0
     assert "Installed by scripts/install_post_commit_hook.sh" in (hooks / "post-commit").read_text()
     assert not (hooks / "post-commit.legacy").exists()
+
+
+def test_installer_removes_its_own_legacy_copies_of_both_hooks(tmp_path: Path) -> None:
+    """The `.legacy` cleanup, with no pre-commit binary needed (the takeover test above is skipped
+    without one): our own `<hook>.legacy` copies are dead weight once the plain hooks are back."""
+    repo = _scratch_repo(tmp_path)
+    hooks = repo / ".git" / "hooks"
+    for name in ("post-commit", "post-merge"):
+        (hooks / f"{name}.legacy").write_text(
+            "#!/bin/sh\n# Installed by scripts/install_post_commit_hook.sh\n", encoding="utf-8"
+        )
+    assert _install(repo).returncode == 0
+    left = sorted(p.name for p in hooks.glob("*.legacy"))
+    assert left == [], f"the installer left its own legacy copies behind: {left}"
 
 
 def test_installer_refuses_when_core_hooks_path_is_set(tmp_path: Path) -> None:

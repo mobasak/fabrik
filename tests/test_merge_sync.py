@@ -165,6 +165,37 @@ def test_a_commit_in_a_linked_worktree_distributes_nothing(hub: Hub, tmp_path: P
     assert hub.syncs() == ["SYNCED"], f"the post-commit hook is not live: {hub.syncs()}"
 
 
+def _trigger_on_base(h: Hub) -> None:
+    """Land TRIGGER on the base branch (its own post-commit sync is cleared from the log)."""
+    _commit(h.repo, TRIGGER, "rules on base")
+    assert h.syncs() == ["SYNCED"], f"the base trigger commit did not sync: {h.syncs()}"
+    h.log.unlink()
+
+
+def test_a_merge_that_moves_a_file_out_of_a_trigger_path_syncs(hub: Hub) -> None:
+    """With rename detection the merged-path list names only the DESTINATION, so a move out of a
+    governance-sync path looked like a non-trigger change and the fleet kept the stale file."""
+    _trigger_on_base(hub)
+    wt = hub.repo.parent / "wt-move"
+    _git(hub.repo, "worktree", "add", "-q", "-b", "move", str(wt))
+    _git(wt, "mv", TRIGGER, "moved.md")
+    _git(wt, "commit", "-qm", "move the rule out")
+    assert hub.syncs() == []
+    _git(hub.repo, "merge", "-q", "--no-ff", "move", "-m", "merge move")
+    assert hub.syncs() == ["SYNCED"], (
+        f"a merge moving a trigger path out did not sync: {hub.syncs()}"
+    )
+
+
+def test_a_commit_that_moves_a_file_out_of_a_trigger_path_syncs(hub: Hub) -> None:
+    _trigger_on_base(hub)
+    _git(hub.repo, "mv", TRIGGER, "moved.md")
+    _git(hub.repo, "commit", "-qm", "move the rule out")
+    assert hub.syncs() == ["SYNCED"], (
+        f"a commit moving a trigger path out did not sync: {hub.syncs()}"
+    )
+
+
 def test_the_installer_writes_both_hooks_and_each_execs_the_sync_script(hub: Hub) -> None:
     hooks = hub.repo / ".git" / "hooks"
     script = f'exec bash "{hub.repo}/scripts/governance_sync_postcommit.sh"'
