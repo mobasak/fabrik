@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T20:13:54.776077Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-43ccb000",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-09-29-plan-1-hub-worktree-cutover",
+    "spec": ""
+  },
+  "next": "Execute the repro in a scratch repo; if confirmed, name 'git push -u origin HEAD' in the upstream-path remedy when branch.<b>.merge differs from refs/heads/<b>",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "The Stop hook's UPSTREAM-path block tells a worktree branch that tracks origin/master (git worktree add -b x path origin/master, autoSetupMerge) to 'git push', which fails under push.default=simple because the upstream name differs"
+}
