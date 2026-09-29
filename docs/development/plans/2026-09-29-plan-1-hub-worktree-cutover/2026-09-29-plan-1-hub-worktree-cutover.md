@@ -34,7 +34,7 @@ each ticket cites the spec section it implements and restates nothing that secti
 | T02a | The corpus render is refused from a worktree | — | ⚡ | ✅ | c02d49015, d1ebccf3f, 87d33a001 |
 | T02b | Merges distribute governance | — | ⚡ | ✅ | b1766a8d5, 21aebc980 |
 | T03a | The Stop hook's push law binds a worktree branch with no upstream | — | ⚡ | ✅ | c583139dc, 556817d82, fa2ae86b0, afb1f1071, 6ba494f81, 3427e6c73, 8ec9d10fe |
-| T03b | A hub worktree is the hub to the gate | — | ⚡ | 🔵 | |
+| T03b | A hub worktree is the hub to the gate | — | ⚡ | ✅ | b94727fcc |
 | T05 | Ids held until merged; the automated writers identify themselves | — | ⚡ | 🔵 | |
 | T04a | SessionStart: adopt at any count, the move line, live bindings | — | ⚡ | ⬜ | |
 | T04b | The hub commit warning, counted | — | ⚡ | ⬜ | |

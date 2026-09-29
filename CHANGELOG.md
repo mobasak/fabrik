@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — A hub worktree is the hub to the gate (2026-09-29)
+- `scripts/enforcement/check_vendored_drift.py` and `scripts/final_gate.py` (the `check_symlinks` self-exemption and `_synced_paths`) identify the hub as "`scripts/fabrik_synced_manifest.py` in the tree AND the git common dir's parent is `/opt/fabrik`", so a linked worktree of the hub is graded as the hub and grades its own governance set; a project repo, with or without a manifest, stays a project (spec § D4, V8).
+- `final_gate.py`'s function-local `fabrik_master` is now `_FABRIK_ROOT`, one hub-path constant per file. Tests: `tests/test_hub_identity_worktree.py` (plan 2026-09-29-plan-1, T03b).
 ### Fixed — The Stop hook's push law binds a worktree branch with no upstream (2026-09-29)
 - `.claude/hooks/final_gate_stop.py`: `_ahead_of_upstream` and `session_unpushed` count against `@{upstream}` when it resolves. Otherwise they fall back to the main checkout's branch only when a linked-worktree branch was never published: a symbolic `refs/heads/<b>`, no `branch.<b>.merge`, a `remote.origin.url`, and a symbolic main HEAD that differs from `<b>`; the fallback excludes anything already on a remote-tracking ref (`--not --remotes`). Any other state, including after `push -u` on a single-branch or shallow clone, is indeterminate and never blocks (spec 2026-09-29 hub-worktree-cutover § D4, V4).
 - For that case the UNPUSHED block names `git push -u origin HEAD`, then reporting the branch to the merge owner, instead of `git push` / `git pull --rebase=merges`, which fail without an upstream.
