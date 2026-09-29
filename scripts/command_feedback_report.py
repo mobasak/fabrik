@@ -26,13 +26,46 @@ import importlib.util
 import io
 import json
 import math
+import os
 import re
 import statistics
+import subprocess
 import sys
 import time
 from pathlib import Path
 from types import ModuleType
 from typing import TypeGuard
+
+# Replicated (not imported) from src/fabrik/config.py::_resolve_fabrik_root — this script runs
+# standalone via its own file path, and the installed `fabrik` package resolves through a fixed
+# editable-install path that does not track a worktree checkout. Spec docs/superpowers/specs/
+# 2026-09-29-hub-worktree-cutover-design.md § The delta D3.
+_HUB_PATH = Path("/opt/fabrik")
+
+
+def _resolve_fabrik_root() -> Path:
+    env_root = os.environ.get("FABRIK_ROOT")
+    if env_root:
+        return Path(env_root)
+    hub_path = _HUB_PATH.resolve()
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return hub_path
+    if result.returncode != 0:
+        return hub_path
+    lines = result.stdout.strip().splitlines()
+    if len(lines) != 2:
+        return hub_path
+    toplevel, common_dir = Path(lines[0]), Path(lines[1])
+    if common_dir.parent.resolve() == hub_path:
+        return toplevel.resolve()
+    return hub_path
 
 
 def _default_ledger() -> Path | None:
@@ -1706,7 +1739,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--repo",
         type=Path,
-        default=Path("/opt/fabrik"),
+        default=_resolve_fabrik_root(),
         help="--mark-answered/--take: repo to act in",
     )
     ap.add_argument(

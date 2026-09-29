@@ -16,7 +16,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -25,7 +27,38 @@ from dotenv import load_dotenv
 
 load_dotenv("/opt/fabrik/.env")
 
-FABRIK_ROOT = Path("/opt/fabrik")
+# Replicated (not imported) from src/fabrik/config.py::_resolve_fabrik_root — see the identical
+# comment in scripts/sync_projects.py. Spec docs/superpowers/specs/2026-09-29-hub-worktree-
+# cutover-design.md § The delta D3.
+_HUB_PATH = Path("/opt/fabrik")
+
+
+def _resolve_fabrik_root() -> Path:
+    env_root = os.environ.get("FABRIK_ROOT")
+    if env_root:
+        return Path(env_root)
+    hub_path = _HUB_PATH.resolve()
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return hub_path
+    if result.returncode != 0:
+        return hub_path
+    lines = result.stdout.strip().splitlines()
+    if len(lines) != 2:
+        return hub_path
+    toplevel, common_dir = Path(lines[0]), Path(lines[1])
+    if common_dir.parent.resolve() == hub_path:
+        return toplevel.resolve()
+    return hub_path
+
+
+FABRIK_ROOT = _resolve_fabrik_root()
 TZ = timezone(timedelta(hours=3))  # UTC+3
 
 VPS_STATUS = FABRIK_ROOT / "docs" / "infrastructure" / "vps-status.md"
@@ -748,8 +781,6 @@ def main() -> int:
     print()
     print("📊 Syncing project registry...")
     if not args.dry_run:
-        import subprocess
-
         sync_script = FABRIK_ROOT / "scripts" / "sync_projects.py"
         if sync_script.exists():
             result = subprocess.run(
