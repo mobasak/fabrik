@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T14:41:19.348803Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-8de0716a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M39CVDAFQ1QW0WGBH4Z99CWG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "watchdog spec and registrar drift — a retired default fallback model, a per-incident budget documented as enforced, and cost_ledger GRANTs no apply path runs"
+}

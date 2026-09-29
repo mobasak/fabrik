@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T14:32:30.214333Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-4d2b7f5f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M384GXAN3ZFQJKXS4RE799MM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "watchdog Tier-D snapshot needs STORAGE_BACKEND, which the hub driver never renders — a timed-out or approved fix may abort at apply"
+}

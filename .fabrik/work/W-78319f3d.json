@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T14:09:14.582750Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-78319f3d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M39AJE8MAJJKX0N1YYD0J56D",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "saas-skeleton emits placeholder /terms and /privacy pages that fail Paddle onboarding and grant 'personal, non-commercial' use"
+}

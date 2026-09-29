@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T14:22:18.755102Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-0e800dbe",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "saas/88:50,56,64 — iyzico/PayTR need these; the legal-pages spec covers the Paddle lane only",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "saas-skeleton TRY lane: distance-sales contract, delivery/return terms, About and Contact pages"
+}

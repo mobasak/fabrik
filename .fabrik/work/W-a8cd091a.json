@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-25T21:14:03.662501Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-a8cd091a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M335ES31BY625VC8W8XG7EGC",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "`fabrik fix` seeds every project from the python-api template map unless --type is passed — the type is never read from project.yaml"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T14:36:50.809317Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-8bacadc0",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "the legal-pages design renders a visible marker for unset config and has no gate between scaffold and Paddle submission; add the check to the per-project parity contract (templates/scaffold/scripts/verify_prod_parity.py, run by /fabrik-deploy-verify) — fetch each page and fail on '[set '",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Deploy-time guard: no '[set LEGAL_…]' marker ships on /terms, /privacy, /refund or /cookies"
+}

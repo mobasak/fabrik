@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T14:42:45.967994Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-89c193f6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M39MZQJTJ0JB3YBW0QKGXAER",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "design-system split (rules currency file 31) — four scaffold outputs still ship or mislabel the Ocoron house brand, and the i18n kit's Level 2/3 run on the retired Kilo CLI"
+}

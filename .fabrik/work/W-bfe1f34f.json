@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T14:43:19.479212Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-bfe1f34f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "mail 01M39MZQ items 1-3: emit brand-neutral design-system-template slot values (or seed from the project's docs/design-system.md); docs-site custom.css is vendored from fabrik-lib (/opt/fabrik-lib/docs-site/src/css/custom.css:1) — fix upstream by mail or override at scaffold time; mobile-app light --text-muted fails AA; scaffold.py:4909 mislabels #4f46e5 as Ocoron",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Scaffold outputs default to the Ocoron house brand (D-051): saas docs-site custom.css, mobile-app global.css, chrome-extension global.css"
+}

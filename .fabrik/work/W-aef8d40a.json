@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T14:42:01.070736Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-aef8d40a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M39FQ6DKF968P4TD0M8109C8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "re-vendor advisory — watchdog cost controls fixed at fabrik-lib 2f46e7f9 (D-278); every existing watchdog copy still fails OPEN on a stale ledger and calls a retired model"
+}

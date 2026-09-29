@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T17:05:21.862391Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-90784c3b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after the operator approves fabrik-lib SB-031 (payments-scoped-service-roles-design.md, D-322): replace src/fabrik/drivers/postgres.py:809-830's policy block with SELECT payments_grant_ingest('<role>') and drop the table-level SELECT re-grant; heavy lane (auth/schema) -> full /fabrik-review; pairs with W-5985e74a (fulfilment role) and W-43cf7df3",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "security"
+  ],
+  "title": "payments registrar block: DROP POLICY + CREATE TO <role> replaces payments_ingest_sel's role list at every apply, and the table-level SELECT re-grant on customers+subscriptions re-widens the ingest role to email (fabrik-lib 01M3PS98J findings 1-2)"
+}

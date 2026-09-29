@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T14:29:07.752469Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-56f180f7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M39XVSYFN5DRGFTZ2ES58R11",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "the hub's orchestrator test suites reach PRODUCTION — real SQL on postgres-main (fabrik_analytics, CREATE ROLE) and real watchdog builds over ssh vps — every time they run"
+}

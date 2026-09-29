@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T14:42:22.081377Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-2f4b28a7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M39F0TE64137P9F5KK1R2ZR8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "saas-skeleton defines current_tenant_id() twice — schema.sql without the fail-closed EXCEPTION clause, the vendored IdP's rls/native.sql with it; whichever runs last wins"
+}

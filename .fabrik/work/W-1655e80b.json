@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T14:42:01.242588Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-1655e80b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M39G1ANA6VFYVM9B20ZVX9FR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "cost-budget items 6 + 8 fixed at c7f9c9f2 — and item 8 leaves one question only the hub can answer"
+}

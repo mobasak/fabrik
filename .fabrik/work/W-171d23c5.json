@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T14:22:18.661526Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-171d23c5",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Paddle's seller handbook requires acceptance before purchase and recommends the links in the post-purchase email; the legal-pages spec (docs/superpowers/specs/2026-09-29-saas-skeleton-legal-pages-design.md) ships the pages only — wire the acceptance into the Paddle checkout/billing UI (core/85-payments-billing.md)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "saas-skeleton checkout: buyer accepts Terms + Refund Policy before purchase, and the post-purchase email links them"
+}
