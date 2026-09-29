@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The Stop hook's push law binds a worktree branch with no upstream (2026-09-29)
+- `.claude/hooks/final_gate_stop.py`: `_ahead_of_upstream` and `session_unpushed` count against `@{upstream}` when it resolves. Otherwise they fall back to the main checkout's branch only when a linked-worktree branch was never published: a symbolic `refs/heads/<b>`, no `branch.<b>.merge`, a `remote.origin.url`, and a symbolic main HEAD that differs from `<b>`; the fallback excludes anything already on a remote-tracking ref (`--not --remotes`). Any other state, including after `push -u` on a single-branch or shallow clone, is indeterminate and never blocks (spec 2026-09-29 hub-worktree-cutover § D4, V4).
+- For that case the UNPUSHED block names `git push -u origin HEAD`, then reporting the branch to the merge owner, instead of `git push` / `git pull --rebase=merges`, which fail without an upstream.
+- A caller's `timeout` is one deadline for the whole git sequence, so `scripts/thread_anchor.py`'s ~2 s budget holds. Tests: `tests/test_stop_hook_worktree_push.py` (plan 2026-09-29-plan-1, T03a).
 ### Added — Merges distribute governance: the post-merge sync hook (2026-09-29)
 - `scripts/governance_sync_postcommit.sh` gains a `post-merge` mode that syncs every trigger path a merge brought in (`git diff --no-renames --name-only ORIG_HEAD HEAD`), so fast-forward and `--no-ff` merges of worktree branches reach the fleet; the `pwd` guard still blocks worktree commits. Both modes read paths with `--no-renames`, so moving a file out of a governance-sync path distributes the change.
 - The header states what does not sync (`pull --rebase`, `rebase`, `reset --hard`, plumbing) and the remedy, `scripts/sync_enforcement_to_projects.py --force`.

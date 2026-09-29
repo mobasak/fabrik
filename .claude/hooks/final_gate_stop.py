@@ -679,11 +679,110 @@ def _commit_is_mine(touched: set[str], distinctive: set[str], authored: set[str]
     return bool(touched) and touched <= _ROUTINE_GOVERNANCE and bool(touched & authored)
 
 
+def _git_by(root: Path, deadline: float, *args: str) -> subprocess.CompletedProcess[str]:
+    """One git call bounded by what is LEFT of a shared deadline (never less than 0.1 s), so a
+    caller's `timeout` budgets the whole sequence rather than each call in it."""
+    return subprocess.run(
+        ["git", *args],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=max(0.1, deadline - time.monotonic()),
+    )
+
+
+def _worktree_base(root: Path, deadline: float) -> str | None:
+    """The main checkout's branch, as the base for "this worktree branch was never published".
+
+    The fallback answers exactly one question: "this worktree branch was never published". It
+    applies only when ALL of these hold, checked in one pass under the one deadline:
+    - the tree is a linked worktree;
+    - its HEAD is a symbolic branch `refs/heads/<b>`;
+    - `branch.<b>.merge` is NOT set (the branch has no configured upstream: once `push -u` has
+      run, the fallback steps aside whatever the tracking-ref state);
+    - `remote.origin.url` is set (the remedy can succeed);
+    - the main checkout's HEAD is symbolic and differs from `<b>`.
+    Any other state → None (no base, never a block). The main checkout's branch is the symbolic
+    HEAD of the git common dir — the rule `scripts/final_gate.py::_linked_worktree_base` uses
+    (cf4374537), re-implemented because this hook imports nothing from it (spec
+    2026-09-29-hub-worktree-cutover § D4).
+    """
+    try:
+        r = _git_by(
+            root,
+            deadline,
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-common-dir",
+            "--absolute-git-dir",
+        )
+        # One path per `\n`-terminated line. Neither `split()` (spaces) nor `splitlines()`
+        # (\x0b \x0c \x1c-\x1e \x85 U+2028/9) is safe for a path. A path containing `\n` or `\r`
+        # cannot be parsed from `rev-parse` output (no `-z` form, and text mode normalises `\r`),
+        # so such a tree stays indeterminate — the accepted fail-open direction.
+        dirs = r.stdout.removesuffix("\n").split("\n")
+        if r.returncode != 0 or len(dirs) != 2 or dirs[0] == dirs[1]:
+            return None  # not a linked worktree
+        common = dirs[0]
+        h = _git_by(root, deadline, "symbolic-ref", "--quiet", "HEAD")
+        branch = h.stdout.strip()
+        if h.returncode != 0 or not branch.startswith("refs/heads/"):
+            return None
+        name = branch[len("refs/heads/") :]
+        if _git_by(root, deadline, "config", "--get", f"branch.{name}.merge").returncode == 0:
+            return None
+        if _git_by(root, deadline, "config", "--get", "remote.origin.url").returncode != 0:
+            return None
+        r = _git_by(root, deadline, "--git-dir", common, "symbolic-ref", "--quiet", "HEAD")
+        main_branch = r.stdout.strip()
+        if r.returncode != 0 or not main_branch or main_branch == branch:
+            return None
+        return main_branch
+    except Exception:
+        return None
+
+
+def _unpushed_log(root: Path, fmt: str, timeout: float = 30) -> str | None:
+    """`git log -z --no-renames --name-only --format=<fmt> <base>..HEAD` stdout; None = no base.
+
+    The base is `@{upstream}` — ONE subprocess on that path, the common case — and only when that
+    range fails does `_worktree_base` supply the main checkout's branch; that fallback range also
+    excludes everything on any remote-tracking ref (`--not --remotes`), so a commit already on
+    `origin/master`, or on a gone upstream's merge target, is not "unpushed". A stale
+    remote-tracking ref (the remote branch deleted, the local repo not pruned) can hide an
+    unpushed commit; that undercount is the accepted fail-open direction. `timeout` is ONE
+    deadline for the whole sequence. Any git error: None."""
+    deadline = time.monotonic() + timeout
+    log = ("log", "-z", "--no-renames", "--name-only", f"--format={fmt}")
+    try:
+        r = _git_by(root, deadline, *log, "@{upstream}..HEAD")
+        if r.returncode != 0:
+            base = _worktree_base(root, deadline)
+            if base is None:
+                return None
+            r = _git_by(root, deadline, *log, f"{base}..HEAD", "--not", "--remotes")
+        return r.stdout if r.returncode == 0 else None
+    except Exception:
+        return None
+
+
+def _has_upstream(root: Path, timeout: float = 30) -> bool:
+    """Does HEAD's branch have an upstream? Picks the UNPUSHED block's remedy; an error or a tree
+    with no worktree base keeps the wording the push law always carried."""
+    deadline = time.monotonic() + timeout
+    try:
+        r = _git_by(root, deadline, "rev-parse", "--verify", "--quiet", "@{upstream}")
+        return r.returncode == 0 or _worktree_base(root, deadline) is None
+    except Exception:
+        return True
+
+
 def _ahead_of_upstream(root: Path, authored: set[str] | None = None) -> int | None:
-    """Commits on the current branch not on its upstream that THIS SESSION authored; None =
-    indeterminate (no upstream / detached HEAD / any git error — indeterminate never blocks:
-    throwaway repos and mid-plan worktree branches have no upstream by design).
-    Purely local (`rev-list @{upstream}..HEAD`) — never touches the network, so an offline box
+    """Commits on the current branch not on its push base that THIS SESSION authored; None =
+    indeterminate (no base / any git error — indeterminate never blocks). The base is
+    `_unpushed_log`'s: the upstream when set, else — in a linked worktree — the main checkout's
+    branch, so a worktree branch with no upstream is bound by the push law like any other.
+    Purely local (`git log <base>..HEAD`) — never touches the network, so an offline box
     counts correctly and pushes fail visibly later.
 
     ⚠️ SCOPED TO THIS SESSION'S OWN COMMITS (T13.4, 01M20E1QN). The count used to be every commit
@@ -729,28 +828,14 @@ def _ahead_of_upstream(root: Path, authored: set[str] | None = None) -> int | No
         # named `a"b.py` gave 0. `-z` emits every path raw and `%x00%H` delimits each commit with a
         # NUL, so both classes close on the delimiter git already provides instead of on a
         # heuristic. It also makes a sha256-object repo a non-question.
-        r = subprocess.run(
-            [
-                "git",
-                "log",
-                "-z",
-                "--no-renames",
-                "--name-only",
-                "--format=%x00%H",
-                "@{upstream}..HEAD",
-            ],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if r.returncode != 0:
+        stdout = _unpushed_log(root, "%x00%H")
+        if stdout is None:
             return None
         mine = 0
         touched: set[str] = set()
         expect_sha = True
         started = False
-        for field in r.stdout.split("\0"):
+        for field in stdout.split("\0"):
             if not field:
                 # the NUL that opens each commit: bank the previous one
                 if started and _commit_is_mine(touched, distinctive, authored):
@@ -778,36 +863,22 @@ def session_unpushed(
     """`<sha> <subject>` for each of THIS session's commits not on the upstream, newest first.
 
     The list form of `_ahead_of_upstream`'s count, for the compact-time WHERE block
-    (`scripts/thread_anchor.py`, T04): the same `@{upstream}..HEAD` range, the same NUL-delimited
+    (`scripts/thread_anchor.py`, T04): the same `_unpushed_log` range, the same NUL-delimited
     read, and the same attribution (`_commit_is_mine`, with shared-append names never distinctive
-    on their own). Indeterminate — no upstream, no `authored`, any git error or timeout — is an
+    on their own). Indeterminate — no base, no `authored`, any git error or timeout — is an
     EMPTY list, never "every commit": a sibling's commit must not be listed as this session's."""
     if not authored:
         return []
     distinctive = {f for f in authored if f not in _ROUTINE_GOVERNANCE}
     try:
-        r = subprocess.run(
-            [
-                "git",
-                "log",
-                "-z",
-                "--no-renames",
-                "--name-only",
-                "--format=%x00%h %s",
-                "@{upstream}..HEAD",
-            ],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        if r.returncode != 0:
+        stdout = _unpushed_log(root, "%x00%h %s", timeout)
+        if stdout is None:
             return []
         out: list[str] = []
         head: str | None = None
         touched: set[str] = set()
         expect_head = True
-        for field in r.stdout.split("\0"):
+        for field in stdout.split("\0"):
             if not field:
                 if head is not None and _commit_is_mine(touched, distinctive, authored):
                     out.append(head)
@@ -2976,14 +3047,24 @@ def main(argv: list[str]) -> int:
                 counter.write_text(
                     f"{g},{c},{s_att if stall else 0},{p_att},{r_att if run_active else 0},{v_att}"
                 )
-                reason = (
-                    f"UNPUSHED WORK (attempt {p_att}/{CAP}). {ahead} committed commit(s) on "
-                    "this branch are not on origin — an unpushed task is an "
-                    "OFF-BOX-UNPROTECTED task (CLAUDE.md § EXIT): push YOUR work now "
-                    "(`git push`). Rejected? dirty tree → defer (wip-net protects) · clean "
-                    "tree → `git pull --rebase=merges` then push · conflict → "
-                    "`git rebase --abort` + report · NEVER --force."
-                )
+                if _has_upstream(root):
+                    reason = (
+                        f"UNPUSHED WORK (attempt {p_att}/{CAP}). {ahead} committed commit(s) on "
+                        "this branch are not on origin — an unpushed task is an "
+                        "OFF-BOX-UNPROTECTED task (CLAUDE.md § EXIT): push YOUR work now "
+                        "(`git push`). Rejected? dirty tree → defer (wip-net protects) · clean "
+                        "tree → `git pull --rebase=merges` then push · conflict → "
+                        "`git rebase --abort` + report · NEVER --force."
+                    )
+                else:
+                    # a worktree branch with no upstream: plain `git push` and a pull both fail
+                    reason = (
+                        f"UNPUSHED WORK (attempt {p_att}/{CAP}). {ahead} committed commit(s) on "
+                        "this worktree branch are not on the main checkout's branch and the "
+                        "branch has no upstream — an unpushed task is an OFF-BOX-UNPROTECTED "
+                        "task (CLAUDE.md § EXIT): publish it now (`git push -u origin HEAD`), "
+                        "then report the branch to the merge owner · NEVER --force."
+                    )
                 _kaizen(
                     "stop_block",
                     ev_sid,
