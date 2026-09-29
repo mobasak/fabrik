@@ -240,12 +240,17 @@ def test_a_source_relative_ref_out_of_a_worktree_resolves_as_from_the_main_check
     (tmp_path / "opt" / "sib").mkdir()
     (tmp_path / "opt" / "sib" / "README.md").write_text("hi")
     (main / "docs" / "x" / "a.md").write_text("see [s](../../../sib/README.md)\n")
+    (main / "docs" / "gone.md").write_text("deleted on the branch")
     git("init", "-q", "-b", "master", cwd=main)
     git("add", ".", cwd=main)
     git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init", cwd=main)
     wt = main / ".claude" / "worktrees" / "fleet"
     git("worktree", "add", "-q", "--detach", str(wt), "HEAD", cwd=main)
-    monkeypatch.setattr(cdl, "_bounded", lambda cand: str(cand).startswith(str(tmp_path) + "/"))
+    (tmp_path / "elsewhere").mkdir()
+    (tmp_path / "elsewhere" / "README.md").write_text("outside the sanctioned set")
+    monkeypatch.setattr(
+        cdl, "_bounded", lambda cand: str(cand).startswith(str(tmp_path / "opt") + "/")
+    )
     monkeypatch.setattr(cdl, "_MAIN_CACHE", {})
 
     monkeypatch.setattr(cdl, "REPO", main)
@@ -254,6 +259,13 @@ def test_a_source_relative_ref_out_of_a_worktree_resolves_as_from_the_main_check
     src = wt / "docs" / "x" / "a.md"
     assert cdl._resolves("../../../sib/README.md", src) is True
     assert cdl._resolves("../../../sib/GONE.md", src) is False
+    # A `../` ref that stays INSIDE the repo is never re-resolved: a target the branch deleted stays broken
+    # although the main checkout still has it.
+    (wt / "docs" / "gone.md").unlink()
+    assert cdl._resolves("../gone.md", src) is False
+    # The re-resolution stays bounded: a climb that leaves the sanctioned set is broken although it exists.
+    assert cdl._resolves("../../../../elsewhere/README.md", main / "docs" / "x" / "a.md") is False
+    assert cdl._resolves("../../../../elsewhere/README.md", src) is False
 
 
 def test_the_main_checkout_of_a_submodule_worktree_is_the_submodule_not_git_internals(

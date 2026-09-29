@@ -194,7 +194,7 @@ FIX-FIRST (§ Behavior), never a silent fallback; a server only a reload restore
   the wrapper. Know the blast radius BEFORE staging; a hub-only experiment never goes on a synced path. ⚠️ NOT
   every manifest-synced path is a trigger (RUN_SCRIPTS, `.windsurf/workflows/`, most reference docs ride the next
   unrelated sync) — when distribution must happen NOW, run `scripts/sync_enforcement_to_projects.py --force` from
-  the MAIN checkout only (a worktree's copy would distribute an unmerged branch).
+  the MAIN checkout only (a worktree's copy ships the main checkout's files through its own branch's manifest — a mix neither tree holds).
 - **Conflict resolution:** rule pack > ticket (for HOW to write). `spec.shape` is canonical for WHAT the code
   must match — an orthogonal axis, never up for negotiation. Surface any conflict before proceeding.
 - **State conflict:** task contradicts existing state → stop, report. Never silently overwrite.

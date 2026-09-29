@@ -882,8 +882,9 @@ def test_the_merge_owner_grammar_tracks_its_sources_and_names_its_one_divergence
     phrase = "MERGE OWNER:" + bs + "s*"
     assert phrase + capture in du, "docs_updater's MERGE_OWNER_RE drifted"
     assert phrase + capture in dec, "decisions.py's MERGE_OWNER_RE drifted"
-    # token-exact: `(?![A-Za-z0-9_.@-])`, so `undeclared-team` stays an owner as decisions.py reads it
-    lookahead = "(?!UNDECLARED(?![A-Za-z0-9_.@-]))"
+    # token-exact, so `undeclared-team` stays an owner as decisions.py reads it; a trailing full stop
+    # is punctuation (`UNDECLARED.` is an un-adoption row), a dot before a name character is not
+    lookahead = "(?!UNDECLARED(?![A-Za-z0-9_@-]|\\.[A-Za-z0-9_@-]))"
     assert phrase + lookahead + capture in hook, "the hook's grammar drifted from its sources"
     assert lookahead not in du and lookahead not in dec, (
         "a source grew the hook's lookahead — reconcile deliberately, do not let it drift in"
@@ -1160,6 +1161,35 @@ def test_the_owner_reader_agrees_with_decisions_py(tmp_path: Path, rows: str) ->
     move = [ln for ln in out.splitlines() if "EnterWorktree" in ln]
     if want:
         assert len(move) == 1 and f"merge owner is `{want}`" in move[0], (want, out)
+    else:
+        assert move == [], out
+        assert "docs_updater.py --adopt" in out
+
+
+@pytest.mark.parametrize(
+    ("row", "owner"),
+    [
+        # a sentence period ends the token: an un-adoption row written as prose is still one
+        ("MERGE OWNER: UNDECLARED.", ""),
+        # a period followed by a name character is part of a name, so this one is an owner
+        ("MERGE OWNER: UNDECLARED.team", "UNDECLARED.team"),
+    ],
+    ids=["undeclared-full-stop", "owner-named-undeclared-dot-team"],
+)
+def test_a_full_stop_after_undeclared_is_punctuation_not_a_name(
+    tmp_path: Path, row: str, owner: str
+) -> None:
+    """The one deliberate divergence from decisions.py (which captures `UNDECLARED.`): a human's
+    un-adoption row ending in a full stop must not read as an owner called `UNDECLARED.`."""
+    repo = _git_repo(tmp_path / "opt" / "stop", None)
+    (repo / "docs/DECISIONS.md").write_text(
+        _HDR + _ALICE + f"| D-002 | d | a | {row} | y | z |\n", encoding="utf-8"
+    )
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), {"CLAUDE_AGENT": "zed"})
+    assert rc == 0 and "ORIENT" in out
+    move = [ln for ln in out.splitlines() if "EnterWorktree" in ln]
+    if owner:
+        assert len(move) == 1 and f"merge owner is `{owner}`" in move[0], out
     else:
         assert move == [], out
         assert "docs_updater.py --adopt" in out

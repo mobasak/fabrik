@@ -290,7 +290,9 @@ def _resolves_in_main_checkout(norm: str) -> bool:
 def _escapes_from_main_checkout(t: str, src: Path) -> bool:
     """A source-relative ref that climbs OUT of the repo (`../../../fabrik-lib/README.md`) names a place relative
     to the MAIN checkout; a worktree nested at `.claude/worktrees/<n>` climbs somewhere else, so re-resolve it
-    from the main checkout's copy of the source file. A ref that is missing from there too stays broken."""
+    from the main checkout's copy of the source file. A ref that is missing from there too stays broken, and a ref
+    that lands INSIDE the main checkout is never re-resolved: its target is the branch's own file, so one the
+    branch deleted stays broken although the main checkout still has it."""
     main = _main_checkout()
     if main is None or not t.startswith("../"):
         return False
@@ -299,6 +301,8 @@ def _escapes_from_main_checkout(t: str, src: Path) -> bool:
     except ValueError:
         return False
     cand = ((main / rel).parent / t).resolve()
+    if cand.is_relative_to(main.resolve()):
+        return False
     return _bounded(cand) and cand.exists()
 
 

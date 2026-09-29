@@ -210,12 +210,14 @@ def _memory_line(cwd: str) -> str:
 # row, and without the lookahead this hook then announces `UNDECLARED` as the owner.
 # Case-insensitive because the phrase match is, so `undeclared` cannot sneak past it.
 # TOKEN-exact: `undeclared-team` is a real owner name, and `decisions.py` captures the whole token.
+# A trailing full stop is punctuation (`UNDECLARED.` is un-adoption prose); a dot before a name
+# character is not (`UNDECLARED.team` is an owner).
 # ⚠️ The CAPTURE is byte-identical to both single sources — no length quantifier of
 # our own. `docs_updater.py` states the permissiveness is deliberate ("stays permissive so
 # it can still READ a name minted before this tightening"), so a narrower copy here would be
 # a silent third dialect; the length cap belongs at RENDER time and lives in `_identity_line`.
 _MERGE_OWNER_RE = re.compile(
-    r"^\**\s*MERGE OWNER:\s*(?!UNDECLARED(?![A-Za-z0-9_.@-]))([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I
+    r"^\**\s*MERGE OWNER:\s*(?!UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-]))([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I
 )
 _LEDGER_ROW_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
 _LEDGER_WINDOW_BYTES = 64 * 1024  # bounded like every other read here (see _MEMORY_READ_BYTES)
@@ -267,7 +269,7 @@ def _declared_merge_owner(cwd: str) -> str:
 # cannot import it); `tests/test_session_orient_hook.py` compares the result to the real
 # `decisions.py --merge-owner` over escaped-pipe, code-span and escaped-name ledgers.
 _ESCAPABLE = frozenset("""!"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~""")  # GFM: punctuation only
-_UNDECLARED_RE = re.compile(r"^\**\s*MERGE OWNER:\s*UNDECLARED(?![A-Za-z0-9_.@-])", re.I)
+_UNDECLARED_RE = re.compile(r"^\**\s*MERGE OWNER:\s*UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-])", re.I)
 
 
 def _code_span_ranges(s: str) -> list[tuple[int, int]]:
