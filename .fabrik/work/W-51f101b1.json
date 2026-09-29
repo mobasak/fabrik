@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-28T12:06:44.961971Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-51f101b1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3J7DFJX8HV0MJZFCH29ANJR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: CLAUDE.md missing loop-program rules — VERIFIED, recorded as SB-023, held for the operator's go-ahead"
+}

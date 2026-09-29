@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T04:55:00.370207Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5b7a0fec",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3GF7CNS8R3D74C3XDAEFB47",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "CORRECTION to 01M3GF6YN2 — test_search_outcome.py is 38 passed, not 37"
+}

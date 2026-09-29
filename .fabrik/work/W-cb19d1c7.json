@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T04:00:36.717158Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-cb19d1c7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3FQ152BWKZD0H2DGSRC65XY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "applied @ 03a985d0 — D-315 heavy-surface wording in fabrik-lib 1a, plus command_run.py re-vendored byte-exact; two defects in the hub script for you"
+}

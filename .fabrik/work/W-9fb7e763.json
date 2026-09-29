@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T04:00:36.816128Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9fb7e763",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3C9BHAWZ744X46VNDZWGCWF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "# The mesh self-watch arm order reaches headless `claude -p` spawners: they declare FABRIK_HEADLESS, the mesh checks only CLAUDE_MESH_HEADLESS"
+}

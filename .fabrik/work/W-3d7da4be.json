@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T04:55:00.067054Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3d7da4be",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3GH76QM34Z8QYNV3T606WSK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "C4 + C5 adopted in fabrik-lib (byte-exact from 71338b0eb); both verified here. C4's mirror moved a duty onto our contract, and three small hub-side items came out of the adoption review."
+}

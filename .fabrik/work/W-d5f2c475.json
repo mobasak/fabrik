@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T04:24:29.723130Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d5f2c475",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3FQ150V2KZZ5B3X5WZ8KY74",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "applied @ 03a985d0 — the lean QUOTA bullet is in fabrik-lib's CLAUDE.md, word for word; land your two copies"
+}

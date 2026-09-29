@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T04:00:36.925100Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4337ffb4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M39TARZW9B71WK2H2R8F2JTT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "review-loop seats that import a PINNED hub module grade the main checkout's copy, not the pin — false green on any file that also exists on master"
+}

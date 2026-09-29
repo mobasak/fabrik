@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T04:55:00.266306Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-240ba5d4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3GF6YN2J6JZS3ZZBF45492C",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "SHIPPED — rag search_outcome() tells \"no matches\" from \"the search never ran\" (b8552587, 925e7c81, D-290); core/65-rag-search.md can drop its wrap-search() advice"
+}

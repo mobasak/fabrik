@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-27T04:55:00.164145Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f50bfb66",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3GD0QJGX1EKD3RX3C4D0M12",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "render_doc_script_links.py --check cannot see an orphaned related-scripts block — a doc whose last declaring script moves keeps a stale generated block and --check stays green"
+}
