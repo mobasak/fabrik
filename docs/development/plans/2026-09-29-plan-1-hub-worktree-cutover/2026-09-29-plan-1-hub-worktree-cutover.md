@@ -36,7 +36,7 @@ each ticket cites the spec section it implements and restates nothing that secti
 | T03a | The Stop hook's push law binds a worktree branch with no upstream | — | ⚡ | ✅ | c583139dc, 556817d82, fa2ae86b0, afb1f1071, 6ba494f81, 3427e6c73, 8ec9d10fe |
 | T03b | A hub worktree is the hub to the gate | — | ⚡ | ✅ | b94727fcc |
 | T05 | Ids held until merged; the automated writers identify themselves | — | ⚡ | ✅ | 98430e3dc, c9222e091 |
-| T04a | SessionStart: adopt at any count, the move line, live bindings | — | ⚡ | 🔵 | |
+| T04a | SessionStart: adopt at any count, the move line, live bindings | — | ⚡ | ✅ | c7a29389a, 158b430c9, 1b73afc7d |
 | T04b | The hub commit warning, counted | — | ⚡ | 🔵 | |
 | T06a | The project contract: the model unconditional, ids reserved | T04a, T04b, T05 | ⛓️ | ⬜ | |
 | T06c | The hub contract: the mint line, and § Shared repo scoped to the main checkout | T06a | ⛓️ | ⬜ | |

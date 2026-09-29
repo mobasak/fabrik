@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — SessionStart runs the multi-agent model in every repo and the hub (2026-09-29)
+- `.claude/hooks/session_orient.py` prompts `docs_updater.py --adopt` in the main checkout of any repo that has not adopted, whatever the session count, and tells a session whose resolved name is not the declared merge owner to move into `.claude/worktrees/<name>` with `EnterWorktree` (the conversation follows); an unnamed session is told to bind with `whoami_agent.py --as` first. One instruction per state (spec 2026-09-29 hub-worktree-cutover § D1, D5, V7).
+- It lists the repo's live `whoami_agent.py` bindings, scoped to the git common dir, stating that sessions named at launch by `CLAUDE_AGENT` write none (V6); the merge owner is read in-process with `decisions.py`'s cell grammar and last-row-wins, pinned against the real `decisions.py --merge-owner` on a table of ledgers. A session named only by a whoami binding is told that its role charter (and, in the hub, beat routing) still needs `CLAUDE_AGENT`.
+- Hub identity is "the manifest is present AND the git common dir's parent is `/opt/fabrik`", so a hub worktree is the hub (§ D4). Tests: `tests/test_session_orient_hook.py` (plan 2026-09-29-plan-1, T04a).
 ### Changed — Decision ids are held until merged; the automated writers identify themselves (2026-09-29)
 - `scripts/decisions.py`: `--next-id` skips ids held by a live `--reserve-id` reservation and counts ids already on the integration branch (`_merge_base_ids`), as `--reserve-id` does; a reservation is released when its id lands in the integration branch's ledger, replacing the fixed 7-day TTL, so a worktree branch can stay unmerged for longer without its id being reissued (spec § D7, V5).
 - `scripts/kilo-benchmarks/autocommit_pipeline_outputs.sh` signs its commits `Agent-Name: kilo-pipeline`; `scripts/wsl_startup_hook.sh` no longer runs `sync_projects.py` in the main checkout, and prints `install_post_commit_hook.sh`'s stderr when it fails (spec § D5 (b), V11). Tests: `tests/test_automated_writers.py` (plan 2026-09-29-plan-1, T05).
