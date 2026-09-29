@@ -1,7 +1,7 @@
 # T02a — The corpus render is refused from a worktree
 
 ## Scope
-Implements spec § The delta D3 (a) and V3. `commands/assemble_commands.py` refuses a render (not `--check`) whose `git rev-parse --show-toplevel` is not the main checkout — the parent of `git rev-parse --path-format=absolute --git-common-dir` — failing CLOSED with a message naming the main checkout; the guard sits before any write in `__main__` (`commands/assemble_commands.py:1368-1382`), ahead of the prune (`:1262-1287`). DO-NOT: change the render or prune logic itself.
+Implements spec § The delta D3 (a) and V3. `commands/assemble_commands.py` refuses a render into the installed corpus, and an `--extract` (which writes the sources, `commands/assemble_commands.py:895-928`), when the tree it renders FROM is not the main checkout: `git -C ROOT rev-parse --show-toplevel` (ROOT is the script's own directory, `:26` — never the cwd, so `cd /tmp && python3 /opt/fabrik/commands/assemble_commands.py` still renders and a worktree's copy run from anywhere is refused) must equal the parent of `git -C ROOT rev-parse --path-format=absolute --git-common-dir`. It fails CLOSED with a message naming the main checkout; the guard sits in `__main__`'s render branch (`:1378-1382`) before any write, ahead of the prune (`:1262-1287`). `--check` and a `--dest` preview are unaffected; tests that call `render()` directly are unaffected. DO-NOT: change the render or prune logic itself.
 
 Depends: —
 Parallel: ⚡

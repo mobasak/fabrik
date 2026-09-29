@@ -5,7 +5,7 @@ Implements spec § The delta D1 (the template's § Orient (d) loses its conditio
 
 Depends: T04a, T04b, T05
 Parallel: ⛓️
-Complexity: native
+Complexity: never-route
 Gate: python -m pytest tests/test_governance_template_split.py -q
 Docs: none (the template IS the contract)
 

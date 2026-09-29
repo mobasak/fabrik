@@ -1,7 +1,7 @@
 # T05 — Ids held until merged; the automated writers identify themselves
 
 ## Scope
-Implements spec § The delta D7 (ids) and D5 (b) (automated writers), and V5, V11. `scripts/decisions.py`: `--next-id` skips live reservations (`_next_id`, `scripts/decisions.py:540-553`); a reservation is held until its id appears in the main checkout branch's ledger, replacing the fixed `_RESERVE_TTL_DAYS` expiry (`:285`) for ids whose rows are not yet merged. `scripts/kilo-benchmarks/autocommit_pipeline_outputs.sh:272`: the commit signs `Agent-Name: kilo-pipeline`, and the rule at `:255` stays. `scripts/wsl_startup_hook.sh:175`: the boot hook stops running `sync_projects.py` in the main checkout. DO-NOT: change the ledger format or `--reserve-id`'s key (`:295-321`).
+Implements spec § The delta D7 (ids) and D5 (b) (automated writers), and V5, V11. `scripts/decisions.py`: `--next-id` skips live reservations (`_next_id`, `scripts/decisions.py:540-553`); a reservation is held until its id appears in the integration branch's ledger — read through `_merge_base_ids` (`scripts/decisions.py:392-421`, the ref chain `origin/HEAD`, `origin/master`, `origin/main`, `master`, `main`) — replacing the fixed `_RESERVE_TTL_DAYS` expiry (`:285`) for ids whose rows are not yet there. A reservation whose branch is abandoned stays held; the cost is a gap in the sequence, which the allocator already treats as normal. `scripts/kilo-benchmarks/autocommit_pipeline_outputs.sh:272`: the commit signs `Agent-Name: kilo-pipeline`, and the rule at `:255` stays. `scripts/wsl_startup_hook.sh:175`: the boot hook stops running `sync_projects.py` in the main checkout. DO-NOT: change the ledger format or `--reserve-id`'s key (`:295-321`).
 
 Depends: —
 Parallel: ⚡

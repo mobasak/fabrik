@@ -1,7 +1,7 @@
 # T04b — The hub commit warning, counted
 
 ## Scope
-Implements spec § The delta D5 (b) and V6's warning half. `scripts/check_commit_trailers.py`: in the hub's main checkout, a commit whose resolved name (`_session_agent_name`, `scripts/check_commit_trailers.py:561`) is set and is not the merge owner (`python3 scripts/decisions.py --merge-owner`), and whose `Agent-Name` is not `kilo-pipeline`, prints an advisory and emits one kaizen event through `scripts/sysadmin/kaizen_events.py::emit` (`scripts/sysadmin/kaizen_events.py:526`). The check never refuses. DO-NOT: change the trailer-parse verdict or the Agent-Name mismatch advisory.
+Implements spec § The delta D5 (b) and V6's warning half. `scripts/check_commit_trailers.py`: in the hub's main checkout, a commit whose resolved name (`_session_agent_name`, `scripts/check_commit_trailers.py:561`) is set and is not the merge owner (`python3 scripts/decisions.py --merge-owner`), and whose `Agent-Name` is not `kilo-pipeline`, prints an advisory and emits one kaizen event through `scripts/sysadmin/kaizen_events.py::emit` (`scripts/sysadmin/kaizen_events.py:526`), imported the way `scripts/command_run.py:1155-1166` does it — append `Path(__file__).resolve().parent / "sysadmin"` and `/opt/fabrik/scripts/sysadmin` to `sys.path`, import inside `try/except (Exception, SystemExit)` — so a missing module fails open and never blocks a commit. The check never refuses. DO-NOT: change the trailer-parse verdict or the Agent-Name mismatch advisory.
 
 Depends: —
 Parallel: ⚡

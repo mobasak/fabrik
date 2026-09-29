@@ -5,7 +5,7 @@ Implements spec § The delta D7 (the hub's mint line names `--reserve-id`, `CLAU
 
 Depends: T06a
 Parallel: ⛓️
-Complexity: native
+Complexity: never-route
 Gate: python -m pytest tests/test_governance_template_split.py tests/test_work_contract_rule.py -q
 Docs: none (CLAUDE.md is the contract)
 
@@ -13,7 +13,7 @@ Docs: none (CLAUDE.md is the contract)
 - CLAUDE.md — PRIMARY PATH
 
 ## Behavior Contract
-- **Given** the hub `CLAUDE.md`, **When** grepped, **Then** its mint sentence names `decisions.py --reserve-id`, § Shared repo opens by naming the main checkout's writers, and every UNIVERSAL marker anchor is still present verbatim (spec § The delta D6)
+- **Given** the hub `CLAUDE.md`, **When** grepped, **Then** its mint sentence names `decisions.py --reserve-id`, § Shared repo opens by naming the main checkout's writers, and every UNIVERSAL marker anchor is still present verbatim (spec § Validation V5; spec § The delta D6)
 
 ## Context Files
 - .windsurf/rules/core/40-documentation.md

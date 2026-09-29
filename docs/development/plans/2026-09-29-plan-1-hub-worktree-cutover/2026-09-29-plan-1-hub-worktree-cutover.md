@@ -71,10 +71,9 @@ template and command source carry the same one-sentence mint change, and its tes
 
 ## Interfaces
 
-- **T01 → T07 — `fabrik.config.FABRIK_ROOT`** resolves to the invoker's worktree toplevel inside a hub worktree. Seam test: `tests/test_hub_write_root.py` (T01) runs the real scripts from a throwaway worktree; T07 re-runs it as V9.
-- **T02b → T07 — the `post-merge` hook** installed by `scripts/install_post_commit_hook.sh`. Seam test: `tests/test_merge_sync.py` (T02b); T07 installs it in the hub.
-- **T05 → T06a — `decisions.py --reserve-id`** semantics the contract names. Seam test: `tests/test_governance_template_split.py` (T06a) pins the mint sentence; `tests/test_decisions_helper.py` (T05) the behaviour.
-- **T04a, T04b → T06b — the SessionStart and commit-msg outputs** the hooks index documents. Seam tests: `tests/test_session_orient_hook.py` (T04a), `scripts/kilo-benchmarks/tests/test_commit_trailer_guard.py` (T04b).
+- **T05 → T06a — `decisions.py --reserve-id`** semantics the contract names. Seam test: `tests/test_governance_template_split.py` (T06a, the consumer) pins the mint sentence against T05's merged behaviour.
+
+Validation hand-offs (no code consumer, so no seam test): T07 re-runs T01's `tests/test_hub_write_root.py` (V9) and T02b's `tests/test_merge_sync.py` (V2) after the cut-over, and installs T02b's `post-merge` hook; T06b documents the outputs T04a and T04b's tests pin (`tests/test_session_orient_hook.py`, `scripts/kilo-benchmarks/tests/test_commit_trailer_guard.py`).
 
 
 ## Constraints Digest
@@ -97,7 +96,7 @@ template and command source carry the same one-sentence mint change, and its tes
   named this work).
 - **Dispatch policy** — native Claude seats (the pool is OFF, D-181/D-182): `dispatch_headroom.py` then
   `python3 scripts/command_run.py dispatch --seats N` before each fan-out. Coders: Opus for T02a, T02b, T03a, T03b, T04a
-  (hooks, the render, the sync, hub identity) and T06a, T06c (contracts); Sonnet for T01, T04b, T05, T06b. Haiku never codes.
+  (hooks, the render, the sync, hub identity — T03a, T03b, T04a are `never-route`) and T06a, T06c (contracts, `never-route`); Sonnet for T01, T04b, T05, T06b. Haiku never codes.
 - **Parallelism + merge** — T01, T02a, T02b, T03a, T03b, T05, T04a, T04b run together in their own worktrees (disjoint
   Touches); T06a after T04a, T04b and T05; T06c after T06a; T06b after every code ticket; T07 last. Every merge happens
   in the main checkout in § Merge Order. The corpus render (T06a's source edit) is the orchestrator's, from the
@@ -112,10 +111,11 @@ template and command source carry the same one-sentence mint change, and its tes
 - **Given** a linked worktree of a repo carrying `commands/assemble_commands.py`, **When** the renderer runs without `--check`, **Then** it exits non-zero naming the main checkout and writes nothing under its output dirs; `--check` still runs (spec § Validation V3)
 - **Given** the main checkout, **When** the renderer runs, **Then** it proceeds as today (spec § The delta D3)
 - **Given** a scratch repo with a branch whose NON-tip commit touches a path the filter matches, **When** that branch is merged by fast-forward and, separately, by `git merge --no-ff`, **Then** the post-merge mode reports that path as a trigger both times (spec § Validation V2)
-- **Given** a commit made in a linked worktree, **When** the post-commit hook runs, **Then** nothing is distributed (spec § Validation V2)
+- **Given** a commit made in a linked worktree, **When** the post-commit hook runs, **Then** nothing is distributed — a regression guard: the `pwd` guard already holds it today (spec § Validation V2)
 - **Given** `install_post_commit_hook.sh` run in a scratch repo, **When** its hooks dir is listed, **Then** both `post-commit` and `post-merge` exist and each execs the sync script (spec § The delta D3)
 - **Given** a linked worktree branch with no upstream holding one commit the session authored and not on the main checkout's branch, **When** `_ahead_of_upstream` runs, **Then** it returns 1 and the Stop hook's push cause fires (spec § Validation V4)
 - **Given** the same branch after that commit is merged into the main checkout's branch, **When** `_ahead_of_upstream` runs, **Then** it returns 0 (spec § The delta D4)
+- **Given** that branch and the push cause firing, **When** its block text is read, **Then** it names `git push -u origin HEAD` and not `git pull --rebase=merges`, and `_unpushed_commits` lists the same commit (spec § The delta D4)
 - **Given** a detached main checkout or a repo with no common-dir HEAD, **When** `_ahead_of_upstream` runs in a worktree without upstream, **Then** it returns None and never blocks (spec § The delta D4)
 - **Given** a throwaway linked worktree of the hub, **When** `check_vendored_drift.py` runs there, **Then** it grades instead of returning 0 at its hub test (spec § Validation V8)
 - **Given** the same worktree, **When** `final_gate.py`'s self-exemption and `_synced_paths` resolve, **Then** they treat it as the hub, exactly as the main checkout; a project repo is still a project (spec § The delta D4)
@@ -124,15 +124,17 @@ template and command source carry the same one-sentence mint change, and its tes
 - **Given** the pipeline script, **When** its commit command is read, **Then** it carries `Agent-Name: kilo-pipeline`, and the boot hook no longer invokes `sync_projects.py` (spec § Validation V11)
 - **Given** one live session in the main checkout of a repo with no `MERGE OWNER:` row, **When** SessionStart runs, **Then** the output names `docs_updater.py --adopt` (spec § Validation V7)
 - **Given** a repo whose merge owner is `alpha` and a session resolved as `beta` in its main checkout, **When** SessionStart runs, **Then** the output tells it to move into `.claude/worktrees/beta` with `EnterWorktree` and says the conversation follows (spec § The delta D5)
+- **Given** the hub's main checkout with a declared merge owner `infra` and a session resolved as `fleet`, **When** SessionStart runs, **Then** the move line appears there too (spec § The delta D5)
 - **Given** two live bindings in the whoami store for the repo's common dir, **When** SessionStart runs, **Then** both names are listed, and a dead-pid row is not (spec § Validation V6)
 - **Given** the hub's main checkout, a resolved name that is not the merge owner, and an `Agent-Name` other than `kilo-pipeline`, **When** the commit-msg check runs, **Then** it prints the advisory, exits 0, and one kaizen event is written; a commit signed `Agent-Name: kilo-pipeline` prints nothing and writes nothing (spec § Validation V6)
 - **Given** the rendered project template, **When** § Orient (d) is read, **Then** it carries no "MORE THAN ONE AGENT" condition and names `EnterWorktree` for a running window (spec § Validation V7)
 - **Given** the template and `commands/_sources/fabrik-epics-review.md`, **When** grepped for the mint command, **Then** each names `decisions.py --reserve-id` and neither tells an agent to mint with `--next-id` (spec § Validation V5)
-- **Given** the hub `CLAUDE.md`, **When** grepped, **Then** its mint sentence names `decisions.py --reserve-id`, § Shared repo opens by naming the main checkout's writers, and every UNIVERSAL marker anchor is still present verbatim (spec § The delta D6)
+- **Given** the hub `CLAUDE.md`, **When** grepped, **Then** its mint sentence names `decisions.py --reserve-id`, § Shared repo opens by naming the main checkout's writers, and every UNIVERSAL marker anchor is still present verbatim (spec § Validation V5; spec § The delta D6)
 - **Given** the model doc, **When** § Hub vs project is read, **Then** it states the hub runs the model with infra as agent-1 and no longer says the hub is deferred (spec § The delta D2)
 - **Given** a fresh hub worktree created by `claude --worktree`, **When** its root is listed, **Then** `.env` is present (spec § The delta D2)
 - **Given** every ticket merged and fleet and intel moved, **When** `git status --porcelain` runs in `/opt/fabrik` and in each hub worktree, **Then** the main checkout lists no uncommitted path created by fleet or intel, and each worktree lists only its own agent's (spec § Validation V1)
-- **Given** the cut-over, **When** `python3 scripts/decisions.py --merge-owner /opt/fabrik` runs, **Then** it prints `infra`; fabrik-lib's and trade-intelligence's ledgers each carry a row adopting the model (spec § Validation V10)
+- **Given** fleet's and intel's worktrees after the move, **When** each root is listed, **Then** `.env` is present (spec § Open / blocking unknowns U1)
+- **Given** the cut-over, **When** `python3 scripts/decisions.py --merge-owner /opt/fabrik` runs, **Then** it prints `infra`; fabrik-lib's and trade-intelligence's ledgers each carry a row adopting the model (spec § Validation V7, V10)
 
 
 ## Global Constraints
@@ -175,6 +177,7 @@ template and command source carry the same one-sentence mint change, and its tes
 - scripts/wsl_startup_hook.sh
 - src/fabrik/config.py
 - templates/governance/CLAUDE.md
+- tests/enforcement/test_governance_sync_postcommit.py
 - tests/test_assemble_worktree_guard.py
 - tests/test_automated_writers.py
 - tests/test_decisions_helper.py
@@ -184,7 +187,6 @@ template and command source carry the same one-sentence mint change, and its tes
 - tests/test_merge_sync.py
 - tests/test_session_orient_hook.py
 - tests/test_stop_hook_worktree_push.py
-- docs/development/reviews/2026-09-29-plan-1-hub-worktree-cutover-review.md
 
 
 ## Evidence
@@ -203,7 +205,7 @@ Grounding run 2026-09-29 in `/opt/fabrik` at 91d2495de.
 ## Self-audit
 
 - Every ticket cites the spec section it implements; no ticket restates a settled design.
-- Every Validation row V1–V11 lands in a ticket: V1 T07 · V2 T02b · V3 T02a · V4 T03a · V5 T05, T06a · V6 T04a, T04b · V7 T04a, T06a · V8 T03b · V9 T01 · V10 T07 · V11 T05.
+- Every Validation row V1–V11 lands in a ticket: V1 T07 · V2 T02b · V3 T02a · V4 T03a · V5 T05, T06a, T06c · V6 T04a, T04b · V7 T04a, T06a, T07 · V8 T03b · V9 T01 · V10 T07 · V11 T05.
 - The seven governance files are in no Touches; the ledger rows are the orchestrator's.
 
 ## Residual unknowns
