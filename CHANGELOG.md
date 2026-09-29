@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — The command-corpus render is refused from a linked worktree (2026-09-29)
+- `commands/assemble_commands.py` refuses a render into the installed corpus, and refuses `--extract`, unless the script's own tree is the main checkout (its git dir equals its common dir, so a submodule checkout renders and a linked worktree is refused). It fails closed with exit 3 and names the main checkout, or says "the repository's main checkout" when the first worktree entry holds no working tree (a bare repo, a submodule's worktree) (spec 2026-09-29 hub-worktree-cutover § D3 (a), V3).
+- `--check`, a `--dest` preview elsewhere and direct `render()` calls are unaffected; a `--dest` that resolves to the installed corpus is guarded like a default render. Tests: `tests/test_assemble_worktree_guard.py` (8; plan 2026-09-29-plan-1, T02a).
 ### Added — Hub write root: tracked outputs land in the invoker's tree (2026-09-29)
 - `src/fabrik/config.py` resolves `FABRIK_ROOT` as: the env var when set, else the linked worktree's toplevel when the git common dir belongs to the hub, else `/opt/fabrik` (spec 2026-09-29 hub-worktree-cutover § D3, V9). A session in a hub worktree now writes tracked outputs into its own tree, not into the main checkout.
 - `scripts/sync_projects.py`, `scripts/vps_sync.py` and `scripts/command_feedback_report.py` carry the same resolution locally, because the shared `.venv`'s editable install pins `import fabrik` to `/opt/fabrik/src`, so a worktree cannot import its own copy.

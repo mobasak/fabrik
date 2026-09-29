@@ -31,7 +31,7 @@ each ticket cites the spec section it implements and restates nothing that secti
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
 | T01 | Hub write root: tracked outputs land in the invoker's tree | — | ⚡ | ✅ | 2458d663a, c6118f430 |
-| T02a | The corpus render is refused from a worktree | — | ⚡ | 🔵 | |
+| T02a | The corpus render is refused from a worktree | — | ⚡ | ✅ | c02d49015, d1ebccf3f, 87d33a001 |
 | T02b | Merges distribute governance | — | ⚡ | 🔵 | |
 | T03a | The Stop hook's push law binds a worktree branch with no upstream | — | ⚡ | ⬜ | |
 | T03b | A hub worktree is the hub to the gate | — | ⚡ | ⬜ | |

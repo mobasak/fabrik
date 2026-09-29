@@ -17,6 +17,7 @@ import argparse
 import contextlib
 import difflib
 import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -1365,6 +1366,61 @@ def check():
         print("check OK — installed commands + skills match rendered sources")
 
 
+def main_checkout_refusal() -> str | None:
+    """Return why a write into the installed corpus (or `--extract`) is refused here, else None.
+
+    A render PRUNES every installed command/skill absent from the rendering tree's `_sources/`, so
+    only the MAIN checkout may render box-wide (spec 2026-09-29 hub-worktree-cutover § D3 (a)).
+    The tree is the one this SCRIPT sits in (`ROOT`), never the cwd: the main checkout's copy run
+    from anywhere renders, a worktree's copy run from anywhere is refused. The rule: the tree is the
+    main checkout iff its git dir (`--absolute-git-dir`) IS its common dir (`--git-common-dir`) —
+    a plain checkout (`.git` == `.git`) and a submodule (`<outer>/.git/modules/<name>` for both)
+    pass; a linked worktree (`<common>/worktrees/<id>`) is refused, a submodule's worktree too.
+    Fails CLOSED — a tree git cannot place (outside any repo, or a bare repo with no work tree) is
+    refused too. `--check`, a `--dest` preview elsewhere and direct `render()` calls never reach
+    this guard.
+    COBRA (D-253): the cheapest way past it is to run the MAIN checkout's copy from a worktree —
+    which renders main's sources, the one tree allowed to, so it is the intended path, not a hole;
+    a `--dest` spelled to the installed corpus is compared after `.resolve()`, so an alias is
+    guarded like the default.
+    """
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(ROOT), *args], capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+    try:
+        top = Path(git("rev-parse", "--show-toplevel")).resolve()
+        git_dir = Path(git("rev-parse", "--absolute-git-dir")).resolve()
+        common = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir")).resolve()
+        if git_dir == common:
+            return None
+        # the main worktree is the first `worktree list` entry — but for a worktree made FROM a
+        # submodule that entry is `<outer>/.git/modules/<name>`, a git dir with no working tree,
+        # so it is named only when it holds one
+        first = git("worktree", "list", "--porcelain").splitlines()[0].removeprefix("worktree ")
+    except (OSError, subprocess.CalledProcessError, IndexError) as exc:
+        return f"refused: cannot resolve the git checkout of {ROOT} ({exc}) — render from the main checkout"
+    main = (
+        f"the main checkout ({first})"
+        if (Path(first) / ".git").exists()
+        else "the repository's main checkout"
+    )
+    return (
+        f"refused: {top} is a linked worktree, not the main checkout — a render from here "
+        f"would prune the installed corpus to this tree's sources. Render from {main} after "
+        f"merging; --check and --dest <elsewhere> stay available here."
+    )
+
+
+def _guard_main_checkout() -> None:
+    reason = main_checkout_refusal()
+    if reason:
+        print(reason, file=sys.stderr)
+        sys.exit(3)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--extract", action="store_true")
@@ -1372,6 +1428,7 @@ if __name__ == "__main__":
     ap.add_argument("--dest", default=str(OUT))
     a = ap.parse_args()
     if a.extract:
+        _guard_main_checkout()  # --extract writes the sources
         extract()
     elif a.check:
         check()
@@ -1379,4 +1436,7 @@ if __name__ == "__main__":
         dest = Path(a.dest)
         # path-normalized: only emit skills when rendering to the REAL commands dir,
         # regardless of how --dest was spelled (trailing slash, ~, symlink).
-        render(dest, SKILLS if dest.resolve() == OUT.resolve() else None)
+        live = dest.resolve() == OUT.resolve()
+        if live:
+            _guard_main_checkout()  # before any write — ahead of render()'s prune
+        render(dest, SKILLS if live else None)
