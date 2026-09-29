@@ -82,6 +82,7 @@ ROTATE_LOCK = Path(
 SWITCH_HEADER = "X-Quota-Dash"  # required on POST /switch — a custom header forces a CORS preflight
 SWITCH_TIMEOUT_S = float(os.getenv("QUOTA_DASH_SWITCH_TIMEOUT_S", "90"))
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
+_EMAIL_RE = re.compile(r"^[a-z0-9._%+-]{1,64}@[a-z0-9.-]{1,190}\.[a-z]{2,24}$")
 _MAX_BODY = 4096
 
 # The quota windows themselves. A cached reading older than its own window describes a window
@@ -758,9 +759,12 @@ def _row(acct: dict, active: str | None, rank: str | None = None, posture: objec
     elif rank:
         tone = "cap" if rank.endswith("NEXT") else ""
         badges.append(f'<span class="badge {tone}">{escape(rank)}</span>')
-    if cap is not None:
+    parked = acct.get("parked") is True
+    if parked:
+        badges.append('<span class="badge crit">PARKED — out of service</span>')
+    elif cap is not None:
         badges.append(f'<span class="badge cap">cap {int(cap)}%</span>')
-    if cap_walled:
+    if cap_walled and not parked:
         badges.append('<span class="badge crit">RESERVED — fleet excluded</span>')
     elif walled:
         badges.append('<span class="badge crit">WALLED</span>')
@@ -838,7 +842,7 @@ def _row(acct: dict, active: str | None, rank: str | None = None, posture: objec
         f"{cell(s_left, s_used, five.get('resets_at_epoch'), _FIVE_HOUR_S, _posture_sub(posture, 'five_hour') if is_active else '')}"
         f"{cell(w_left, w_used, seven.get('resets_at_epoch'), _SEVEN_DAY_S, _posture_sub(posture, 'seven_day') if is_active else '')}"
         f"{cell(f_left, f_used, fable.get('resets_at_epoch'), _SEVEN_DAY_S, _posture_sub(posture, 'fable') if is_active else '')}"
-        f"{_switch_cell(slug, is_active)}"
+        f"{_switch_cell(slug, is_active, email, parked)}"
         "</tr>"
     )
 
@@ -900,15 +904,31 @@ def _pending_row(slug: str) -> str:
     )
 
 
-def _switch_cell(slug: str, is_active: bool) -> str:
-    """The manual-rotation control: a button on every row that is NOT the active pointer.
-    The active row shows nothing clickable — switching to the account you are already on is
-    not a rotation, and a button there would only invite a misclick."""
+def _switch_cell(slug: str, is_active: bool, email: str = "", parked: bool = False) -> str:
+    """The manual controls. `switch →` on every row that is NOT the active pointer (switching to
+    the account you are already on is not a rotation) and not PARKED (a parked account is out of
+    service until enabled); `disable`/`enable` on every row with an email — the operator parks an
+    account from here (2026-09-29: "put a button in the gui so i can enable disable them")."""
+    toggle = ""
+    if _EMAIL_RE.match(email):
+        verb, label = ("unpark", "enable") if parked else ("park", "disable")
+        tip = (
+            f"Put {email} back in service"
+            if parked
+            else f"Take {email} out of service — it stays listed, the fleet never picks it"
+        )
+        toggle = (
+            f' <button type="button" class="switch park" data-email="{escape(email)}" '
+            f'data-verb="{verb}" title="{escape(tip)}">{label}</button>'
+        )
+    if parked:
+        return f'<td class="act"><span class="muted">parked</span>{toggle}</td>'
     if is_active or not _SLUG_RE.match(slug):
-        return '<td class="act"><span class="muted">active</span></td>'
+        return f'<td class="act"><span class="muted">active</span>{toggle}</td>'
     return (
         f'<td class="act"><button type="button" class="switch" data-slug="{escape(slug)}" '
-        f'title="Make {escape(slug)} the active account for every session">switch →</button></td>'
+        f'title="Make {escape(slug)} the active account for every session">switch →</button>'
+        f"{toggle}</td>"
     )
 
 
@@ -1201,7 +1221,10 @@ def _returns_at(a: dict, now: float) -> float | None:
     """When an account that is NOT eligible now next becomes eligible — the same two buckets
     `claude_rotate._next_session_relief` uses: a weekly-walled or cap-walled account waits for
     its WEEKLY reset (a session reset does not lift a weekly wall); anything else waits for its
-    5h reset. None when the reset is unknown or already past (an unread new account, a stale row)."""
+    5h reset. None when the reset is unknown or already past (an unread new account, a stale row),
+    and None for a PARKED account, which no reset returns — only `--unpark` does."""
+    if a.get("parked") is True:
+        return None
     seven = _util(a, "seven_day", now)
     cap = a.get("weekly_cap")
     weekly_blocked = a.get("cap_walled") is True or (
@@ -1252,7 +1275,9 @@ def _queue(payload: dict, now: float, _key=None) -> list[dict]:
     entries = [entry(a, "active") for a in head]
     entries += [entry(a, "eligible") for a in eligible]
     returns = [entry(a, "returns", _returns_at(a, now)) for a in tail]
-    if head:
+    # a PARKED active account is flipped away and never comes back on a reset — no ghost row on
+    # either route below (the relief branch recomputes its return from the raw reset)
+    if head and head[0].get("parked") is not True:
         a = head[0]
         five = _util(a, "five_hour", now)
         ra = _returns_at(a, now)
@@ -2399,7 +2424,27 @@ every session bound to the pointer follows it — no restart.</footer>
         if (conn) {{ conn.textContent = "server unreachable — retrying"; }}
       }});
   }}, {REFRESH_S} * 1000);
-  document.querySelectorAll("button.switch").forEach(function (btn) {{
+  document.querySelectorAll("button.park").forEach(function (btn) {{
+    btn.addEventListener("click", function () {{
+      var email = btn.getAttribute("data-email"), verb = btn.getAttribute("data-verb");
+      var ask = verb === "park"
+        ? "Take " + email + " OUT of service?\\n\\nIt stays listed; the fleet never picks it until you enable it again."
+        : "Put " + email + " back IN service?";
+      if (!confirm(ask)) {{ return; }}
+      btn.disabled = true;
+      fetch("/park", {{method: "POST", cache: "no-store",
+        headers: {{"Content-Type": "application/json", "{SWITCH_HEADER}": "1"}},
+        body: JSON.stringify({{account: email, park: verb === "park"}})}})
+        .then(function (r) {{ return r.json().then(function (j) {{ return [r.status, j]; }}); }})
+        .then(function (sj) {{
+          if (sj[0] === 200 && sj[1].ok) {{ location.reload(); return; }}
+          alert("Failed (" + sj[0] + "):\\n" + (sj[1].error || JSON.stringify(sj[1])));
+          btn.disabled = false;
+        }})
+        .catch(function (e) {{ alert("Request failed: " + e); btn.disabled = false; }});
+    }});
+  }});
+  document.querySelectorAll("button.switch:not(.park)").forEach(function (btn) {{
     btn.addEventListener("click", function () {{
       var slug = btn.getAttribute("data-slug");
       if (!confirm("Switch the active account to " + slug + " now?\\n\\nEvery Claude session bound to the pointer follows it — no restart needed.")) {{ return; }}
@@ -2674,6 +2719,30 @@ def _known_slugs() -> set[str]:
     return out
 
 
+def _known_emails() -> set[str]:
+    """The account emails the board itself last rendered — the ONLY targets `/park` may name."""
+    try:
+        payload = json.loads(_JSON.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    return {
+        str(a.get("email")).lower()
+        for a in payload.get("accounts") or []
+        if isinstance(a.get("email"), str) and _EMAIL_RE.match(str(a.get("email")).lower())
+    }
+
+
+def park_account(email: object, park: object) -> tuple[int, dict]:
+    """Relay one park/unpark to the rotation CLI (`--park`/`--unpark`) — same contract as
+    :func:`switch_account`: 400 before the CLI for anything the board did not render, 502 with
+    the CLI's own stderr on refusal, 200 after a synchronous re-render."""
+    if not isinstance(park, bool):
+        return 400, {"ok": False, "error": "park must be true or false"}
+    if not isinstance(email, str) or email.lower() not in _known_emails():
+        return 400, {"ok": False, "error": f"unknown account {email!r} — not on the board"}
+    return _run_rotate(["--park" if park else "--unpark", email.lower()])
+
+
 def switch_account(slug: object) -> tuple[int, dict]:
     """Relay one manual flip to the rotation CLI. Returns (http_status, json_body).
 
@@ -2683,9 +2752,14 @@ def switch_account(slug: object) -> tuple[int, dict]:
     """
     if not isinstance(slug, str) or not _SLUG_RE.match(slug) or slug not in _known_slugs():
         return 400, {"ok": False, "error": f"unknown account {slug!r} — not on the board"}
+    return _run_rotate(["--switch", slug])
+
+
+def _run_rotate(verb_args: list[str]) -> tuple[int, dict]:
+    """Run one validated rotation-CLI verb, then invalidate the banner and re-render the board."""
     try:
-        proc = subprocess.run(  # noqa: S603 — fixed argv, validated slug, no shell
-            [sys.executable, str(ROTATE_CLI), "--switch", slug],
+        proc = subprocess.run(  # noqa: S603 — fixed argv, validated args, no shell
+            [sys.executable, str(ROTATE_CLI), *verb_args],
             capture_output=True,
             text=True,
             timeout=SWITCH_TIMEOUT_S,
@@ -2722,14 +2796,14 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 (stdlib interface)
         path = self.path.split("?", 1)[0]
-        if path != "/switch":
+        if path not in ("/switch", "/park"):
             self.send_error(404)
             return
         if not self.headers.get(SWITCH_HEADER):
             # No custom header = not our page's fetch(). A cross-origin form/fetch cannot add
             # one without a preflight, and this server answers no OPTIONS — so this is the
             # whole CSRF story for a loopback-only board.
-            sys.stderr.write("quota_dashboard: POST /switch refused — no custom header\n")
+            sys.stderr.write(f"quota_dashboard: POST {path} refused — no custom header\n")
             self._json(403, {"ok": False, "error": f"missing {SWITCH_HEADER} header"})
             return
         try:
@@ -2746,9 +2820,12 @@ class _Handler(BaseHTTPRequestHandler):
             return
         slug = (body or {}).get("account") if isinstance(body, dict) else None
         t0 = time.time()
-        status, out = switch_account(slug)
+        if path == "/park":
+            status, out = park_account(slug, body.get("park") if isinstance(body, dict) else None)
+        else:
+            status, out = switch_account(slug)
         sys.stderr.write(
-            f"quota_dashboard: POST /switch {slug!r} -> {status} in {time.time() - t0:.1f}s:"
+            f"quota_dashboard: POST {path} {slug!r} -> {status} in {time.time() - t0:.1f}s:"
             f" {out.get('output') or out.get('error') or ''}\n"
         )
         self._json(status, out)

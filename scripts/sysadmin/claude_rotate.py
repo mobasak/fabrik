@@ -3238,6 +3238,8 @@ def _flip_churn_excluded(
     window ≥100 (walled — revives on reset, never by a flip), weekly ≥ its ``caps.json`` cap
     (cap-walled — the operator's reserve), or either window ≥ ``ROTATE_THRESHOLD`` (flipping
     there just trips the flip-away next tick — pointless churn)."""
+    if _is_parked(cap):
+        return True  # parked is unconditional — it never waited on a reading being present
     if any(u is not None and u >= 100.0 for u in utils.values()):
         return True
     wu = utils.get("seven_day")
@@ -3376,6 +3378,8 @@ def _flip_candidate_verdict(
     if _flip_churn_excluded(utils, row.get("weekly_cap"), threshold):
         wu = utils.get("seven_day")
         cap = row.get("weekly_cap")
+        if _is_parked(cap):
+            return slug, utils, "parked by the operator (`--unpark` restores it)"
         if cap is not None and wu is not None and wu >= cap:
             return slug, utils, f"weekly {wu:.0f}% ≥ cap {cap}"
         return slug, utils, f"a window ≥ {threshold:.0f}% (flip-away next tick)"
@@ -3640,7 +3644,7 @@ def _load_usage_cache() -> dict:
         return {}
 
 
-def _account_caps() -> dict[str, int]:
+def _caps_file() -> dict[str, int]:
     """Per-account WEEKLY utilization caps: ``<fleet_root>/caps.json`` = {"email": cap%}.
 
     Operator contract (2026-08-15): "do not consume ob@'s weekly quota more than 90% — I also
@@ -3652,7 +3656,11 @@ def _account_caps() -> dict[str, int]:
 
     Fail direction: a broken caps file must never HALT rotation, but must never be silent
     either — missing file → no caps; unparseable/wrong-shape → loud stderr naming the file +
-    no caps; non-numeric entries skipped with a warning. Values clamp to 1..100. Keys are
+    no caps; non-numeric entries skipped with a warning. Values clamp to 0..100; a cap of 0
+    PARKS the account (operator 2026-09-29: "not available for a few days — do not remove it
+    from the rotation but make it unusable"): every reading is at/over it, so the account stays
+    listed but is cap-walled — never picked, never counted as capacity — until the cap is raised.
+    Keys are
     normalized to LOWERCASE (every consumer lowercases its comparison email too — F-C2: a case
     mismatch silently doing nothing violates this loader's own never-silent contract), and a
     key matching no known account warns via :func:`_fleet_row_warnings`.
@@ -3682,8 +3690,84 @@ def _account_caps() -> dict[str, int]:
                 "entry skipped\n"
             )
             continue
-        caps[str(email).lower()] = int(min(100, max(1, cap)))
+        caps[str(email).lower()] = int(min(100, max(0, cap)))
     return caps
+
+
+def _parked_accounts() -> set[str]:
+    """Accounts the operator has PARKED: ``<fleet_root>/parked.json`` = ["email", ...].
+
+    Operator 2026-09-29: "not available for a few days — do not remove it from the rotation but
+    make it unusable until I say it is available again", and "enabling it must be easy". A parked
+    account keeps its dir, its pin and its ``caps.json`` cap; :func:`_account_caps` reads it as
+    cap 0, so every reader (picker, flip-away, relief, the board) walls it through the path it
+    already has, and unparking restores the untouched cap. Missing file → nothing parked. A broken
+    file is LOUD and parks nothing: failing closed would silently remove accounts from service
+    with no operator action behind it. The cheapest way to satisfy "parked" without the outcome
+    is an email that matches no account — :func:`_cmd_park` refuses those."""
+    path = _fleet_root() / "parked.json"
+    try:
+        data = json.loads(path.read_text())
+    except FileNotFoundError:
+        return set()
+    except (OSError, ValueError) as e:
+        sys.stderr.write(f"claude_rotate: {path} unreadable ({e}) — NOTHING is parked\n")
+        return set()
+    if not isinstance(data, list):
+        sys.stderr.write(f"claude_rotate: {path} is not a JSON list — NOTHING is parked\n")
+        return set()
+    return {e.lower() for e in data if isinstance(e, str) and "@" in e}
+
+
+def _account_caps() -> dict[str, int]:
+    """The effective per-account weekly caps: ``caps.json`` (:func:`_caps_file`) with every
+    PARKED account (:func:`_parked_accounts`) read as cap 0 — walled at any reading."""
+    caps = _caps_file()
+    for email in _parked_accounts():
+        caps[email] = 0
+    return caps
+
+
+def _known_account_emails() -> set[str]:
+    """Every account email the fleet knows: the assignments' pinned identities and accounts."""
+    known: set[str] = set()
+    for arow in _load_assignments(strict=False).values():
+        if isinstance(arow, dict):
+            for field in ("identity", "account"):
+                v = arow.get(field)
+                if isinstance(v, str) and "@" in v:
+                    known.add(v.lower())
+    return known
+
+
+def _cmd_park(email: str, park: bool) -> int:
+    """``--park <email>`` / ``--unpark <email>``: take an account out of service, or put it back.
+    It stays listed; parked, it is never picked, counted as capacity or named as relief, and an
+    ACTIVE parked account is flipped away from on the next tick like any cap-walled one."""
+    email = email.strip().lower()
+    known = _known_account_emails()
+    if email not in known:
+        sys.stderr.write(
+            f"claude_rotate: {email!r} is not a known account — known: {', '.join(sorted(known))}\n"
+        )
+        return 1
+    path = _fleet_root() / "parked.json"
+    parked = _parked_accounts()
+    if park == (email in parked):
+        print(f"{email} is already {'parked' if park else 'in service'} — nothing changed")
+        return 0
+    parked = parked | {email} if park else parked - {email}
+    try:
+        _write_json_atomic(path, sorted(parked), mode=0o644)
+    except OSError as e:
+        sys.stderr.write(f"claude_rotate: cannot write {path} ({e}) — nothing changed\n")
+        return 1
+    print(
+        f"{email} PARKED — listed, never picked, no capacity counted; `--unpark {email}` restores it"
+        if park
+        else f"{email} back IN SERVICE — its caps.json cap applies again"
+    )
+    return 0
 
 
 def _fleet_account_rows(
@@ -3759,6 +3843,8 @@ def _fleet_account_rows(
             "identity_mismatches": [],
             "weekly_cap": caps.get(email.lower()),
             "cap_walled": False,
+            # the operator's out-of-service mark (`--park`), so a reader need not re-derive it
+            "parked": _is_parked(caps.get(email.lower())),
         }
         windows = None
         if with_creds and (now - with_creds[0]["mtime"]) < _FLEET_TOKEN_FRESH_S:
@@ -4096,7 +4182,12 @@ def _fleet_row_warnings(accounts: list[dict]) -> list[str]:
         # the warning follows the BOARD's reading (`_weekly_blocked`, which names an unreadable
         # figure), not the verdict-aligned flag — keying it on the flag silenced the operator's
         # "reserved for operator use" line for exactly the garbage cell (remainder seat F, F2)
-        if row.get("weekly_cap") is not None and _weekly_blocked(
+        if _is_parked(row.get("weekly_cap")):
+            warns.append(
+                f"⚠ {row['email']}: PARKED — out of service (parked.json, or a caps.json cap of 0); "
+                f"`--unpark {row['email']}` restores it (--switch still may, deliberately)"
+            )
+        elif row.get("weekly_cap") is not None and _weekly_blocked(
             row.get("seven_day"), row.get("weekly_cap")
         ):
             wk = row.get("seven_day")
@@ -4119,15 +4210,10 @@ def _fleet_row_warnings(accounts: list[dict]) -> list[str]:
     # F-C2: a caps.json key matching NO known account email (pinned identities + assignments
     # accounts, all lowercased) is a typo silently doing nothing — surface it. File reads
     # only, no probes (the docstring contract above holds).
-    caps = _account_caps()
+    caps = _caps_file()
     if caps:
         known = {str(row.get("email", "")).lower() for row in accounts}
-        for arow in _load_assignments(strict=False).values():
-            if isinstance(arow, dict):
-                for field in ("identity", "account"):
-                    v = arow.get(field)
-                    if isinstance(v, str) and "@" in v:
-                        known.add(v.lower())
+        known |= _known_account_emails()
         for key in sorted(caps):
             if key not in known:
                 warns.append(
@@ -4206,7 +4292,9 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
         # cache cell — a readable figure only (remainder seat F, F1)
         active_walled = state == "active" and weekly_walled and wv is not None
         active_spent = state == "active" and session_spent
-        if state == "over-threshold" and wr is not None and wr >= now:
+        if _is_parked(cap):
+            pass  # parked: nothing returns it but `--unpark` — no reset on any window counts
+        elif state == "over-threshold" and wr is not None and wr >= now:
             returns_at = wr
         elif (
             (state in ("weekly-exhausted", "cap-walled", "weekly-unreadable") or active_walled)
@@ -4534,9 +4622,12 @@ def _fleet_readings(accounts: list[dict], picture: dict) -> dict:
         slug = next(iter(row.get("slugs") or []), None)
         wk_u, _ = _window_reading(row.get("seven_day"))
         cap = caps.get(email)
+        if _is_parked(cap):
+            continue  # parked serves nothing, reading or not
         # a weekly at or over its WALL serves nothing, whatever the picker's state string says —
         # and the wall is the cap when one is finite, else 100 — `_fleet_picture`'s predicate on every
-        # cap `_account_caps` can produce (it rejects bools and non-numbers and clamps to 1..100);
+        # cap `_account_caps` can produce (it rejects bools and non-numbers and clamps to 0..100 —
+        # 0 is a PARKED account, walled at every reading);
         # the two differ only on shapes that loader refuses
         # (the ACTIVE account is always `state == "active"`, so only this guard can drop it; the
         # first cut walled only on a cap and let a capless active at weekly 100 serve 5h — seat 1)
@@ -4639,7 +4730,7 @@ def _band_lines(wall: float | None) -> tuple[float, float]:
     garbage cap must never silently widen the runway, and 100 is the only bound every window has.
     """
     w = _usable_ts(wall)
-    if w is None or not (0.0 < w <= 100.0):
+    if w is None or not (0.0 <= w <= 100.0):  # 0 is a PARKED account's wall: RED at any reading
         w = 100.0
     return max(w - _BAND_AMBER_RUNWAY, 0.0), max(w - _BAND_RED_RUNWAY, 0.0)
 
@@ -5880,6 +5971,14 @@ def _urgent_drain_pct() -> float:
     return _env_float("ROTATE_URGENT_DRAIN_PCT", 90.0)
 
 
+def _is_parked(cap: object) -> bool:
+    """A ``caps.json`` cap of 0 PARKS an account (operator 2026-09-29): listed, cap-walled, and
+    never coming back on its own — every weekly reading, a fresh reset's 0% included, is at/over
+    it. So a parked account has no return and relieves nothing; naming its weekly reset as relief
+    promised the fleet (and the wall stamp's resume) capacity that the reset cannot deliver."""
+    return cap == 0 and not isinstance(cap, bool)
+
+
 def _next_session_relief(
     accounts: list[dict], active_email: str, now: float
 ) -> tuple[float, str, str] | None:
@@ -5916,6 +6015,8 @@ def _next_session_relief(
         fh = fh if isinstance(fh, dict) else {}
         wk = wk if isinstance(wk, dict) else {}
         cap = row.get("weekly_cap")
+        if _is_parked(cap):
+            continue  # parked: no reset ever relieves it
         weekly_blocked = _weekly_blocked(wk, cap)  # the board's reading, one predicate
         # through the ONE validator: `float()` of a giant JSON int in the usage cache raised out
         # of this writer and the tick (Delta 22 seat A, A3); a bool reads None as it read 1.0
@@ -7094,6 +7195,8 @@ def main(argv: list[str] | None = None) -> int:
         ``python3 claude_rotate.py --list``            list accounts, mark the active one
         ``python3 claude_rotate.py --switch <name>``   set active to a named account/email/prefix
         ``python3 claude_rotate.py --next``            cycle to the next other account
+        ``python3 claude_rotate.py --park <email>``    take an account out of service (listed,
+                                                       never picked) · ``--unpark`` restores it
         ``python3 claude_rotate.py --capture-current`` snapshot the live creds into the active
                                                        account (keeps the store un-stale)
         ``python3 claude_rotate.py --drift-check``     capture only if the live token diverged
@@ -7118,7 +7221,7 @@ def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if not args:
         sys.stderr.write(
-            "usage: claude_rotate.py [--list | --switch <name> | --next | --capture-current"
+            "usage: claude_rotate.py [--list | --switch <name> | --park|--unpark <email> | --next | --capture-current"
             " | --drift-check | --status | --probe-current | --tick | --touch | --pause-switch"
             " | --resume-switch | --new-dir <slug> <email> [--project <repo>]"
             " | --sync-mcp | --sync-shared | --keepalive | <claude> args...]\n"
@@ -7131,6 +7234,11 @@ def main(argv: list[str] | None = None) -> int:
             sys.stderr.write("usage: claude_rotate.py --switch <account-name-or-email>\n")
             return 2
         return _cmd_switch(args[1])
+    if args[0] in ("--park", "--unpark"):
+        if len(args) != 2:
+            sys.stderr.write(f"usage: claude_rotate.py {args[0]} <account-email>\n")
+            return 2
+        return _cmd_park(args[1], park=args[0] == "--park")
     if args[0] == "--next":
         return _cmd_next()
     if args[0] == "--capture-current":

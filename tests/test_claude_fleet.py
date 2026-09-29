@@ -3251,8 +3251,8 @@ def test_account_caps_loader_clamps_skips_and_fails_soft(tmp_path, monkeypatch, 
     capsys.readouterr()
     caps = cr._account_caps()
     err = capsys.readouterr().err
-    assert caps == {"ob@ocoron.com": 90, "hi@x.com": 100, "lo@x.com": 1}, (
-        "values clamp to 1..100; non-numeric entries are skipped"
+    assert caps == {"ob@ocoron.com": 90, "hi@x.com": 100, "lo@x.com": 0}, (
+        "values clamp to 0..100 (0 parks the account); non-numeric entries are skipped"
     )
     assert "bad@x.com" in err and "caps.json" in err, "a skipped entry warns, naming the file"
     # unparseable file: loud warning naming the file, and rotation proceeds UNCAPPED
@@ -3265,6 +3265,146 @@ def test_account_caps_loader_clamps_skips_and_fails_soft(tmp_path, monkeypatch, 
     capsys.readouterr()
     assert cr._account_caps() == {}
     assert "caps.json" in capsys.readouterr().err
+
+
+def test_a_parked_account_with_no_weekly_reading_is_still_never_picked(
+    tmp_path, monkeypatch, capsys
+):
+    """Parking is unconditional. A cap only walls a READABLE weekly figure, so a parked account
+    whose weekly reading is missing (a probe that returned the session window alone) passed the
+    candidate predicate with a clean verdict and was picked — "unusable" held only while a number
+    happened to be there (round-zero probe of the park review, 2026-09-29)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "mob", "mob@ocoron.com"]) == 0
+    _pin(fleet, "mob", "mob@ocoron.com")
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fleet_creds(fleet, "mob", "tok-mob", age_s=60.0)
+    _caps(fleet, {"mob@ocoron.com": 0})
+    _fake_oauth(
+        monkeypatch,
+        usages={
+            "tok-seo": _usage_blob(96.0, 50.0),  # active, over threshold
+            "tok-intel": _usage_blob(40.0, 60.0),  # ob: usable
+            "tok-mob": _usage_blob(0.0, None),  # parked, session read, weekly MISSING
+        },
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._flip_churn_excluded({"five_hour": 0.0, "seven_day": None}, 0, 98.0) is True
+    assert cr._cmd_tick() == 0
+    assert os.readlink(fleet / "active") == "intel", (
+        "a parked account is never picked, reading or not"
+    )
+
+
+def test_an_active_parked_account_with_no_weekly_reading_is_flipped_away(
+    tmp_path, monkeypatch, capsys
+):
+    """Parking the ACTIVE account must move the fleet off it on the next tick even when its weekly
+    figure is unreadable — the cap trip compared a reading that was not there, so it never fired."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _caps(fleet, {"sarp@ocoron.com": 0})  # seo is sarp@ — the active account, parked
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(10.0, None), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+    assert os.readlink(fleet / "active") == "intel", (
+        "the parked active account is flipped away from"
+    )
+
+
+def test_a_parked_account_supplies_no_fleet_capacity_even_without_a_weekly_reading(
+    tmp_path, monkeypatch
+):
+    """The fleet band is computed from the accounts that can still SERVE. A parked account is out
+    of service, so its cool session reading must never be the fleet's 5h capacity — even when it
+    is the ACTIVE account (state `active` is serving) and its weekly figure is unreadable, which
+    is the one shape the wall comparison cannot drop."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=600.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=600.0)
+    now = FLEET_NOW
+    parked = _row(
+        "sarp@ocoron.com",
+        3.0,
+        float("nan"),
+        cap=0,
+        s_reset=now + 3600,
+        w_reset=now + 86400,
+        slug="seo",
+    )
+    other = _row(
+        "ob@ocoron.com", 50.0, 40.0, cap=99, s_reset=now + 3600, w_reset=now + 86400, slug="intel"
+    )
+    pic = cr._fleet_picture([parked, other], "seo", now)
+    readings = cr._fleet_readings([parked, other], pic)
+    assert readings["five_hour"]["slug"] == "intel", readings
+
+
+def test_a_parked_active_account_gets_no_return_its_band_walls_and_status_names_it_parked():
+    """Park review pass 1 (A-S1, A-H1, A-S2): the return guard covered the weekly branch only, so
+    an ACTIVE parked account with a spent session was promised its 5h reset; `_band_lines` read a
+    wall of 0 as "uncapped, 100"; and `--status` blamed caps.json for a wall parked.json made."""
+    now = FLEET_NOW
+    row = _row("mob@ocoron.com", 95.0, 10.0, cap=0, s_reset=now + 3600, w_reset=now + 86400)
+    pic = cr._fleet_picture([row], "mob", now)
+    assert pic["accounts"][0]["returns_at"] is None, pic["accounts"][0]
+    assert cr._band_lines(0.0) == (0.0, 0.0), "a wall of 0 is RED at any reading"
+    warn = [w for w in cr._fleet_row_warnings([dict(row, cap_walled=True)]) if "mob@" in w]
+    assert warn and "PARKED" in warn[0] and "--unpark mob@ocoron.com" in warn[0], warn
+    assert "(caps.json) — reserved" not in warn[0]
+
+
+def test_park_and_unpark_round_trip_without_touching_caps_json(tmp_path, monkeypatch, capsys):
+    """Operator 2026-09-29: "make it unusable until I say it is available again" and "enabling
+    it must be easy". `--park` reads the account as cap 0 through `_account_caps`; `--unpark`
+    restores it; `caps.json` is never rewritten, so the old cap comes back untouched."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "mob", "mob@ocoron.com"]) == 0
+    _pin(fleet, "mob", "mob@ocoron.com")
+    _caps(fleet, {"mob@ocoron.com": 99})
+    caps_before = (fleet / "caps.json").read_text()
+    capsys.readouterr()
+
+    assert cr.main(["--park", "MOB@ocoron.com"]) == 0
+    assert cr._account_caps()["mob@ocoron.com"] == 0 and cr._caps_file()["mob@ocoron.com"] == 99
+    assert json.loads((fleet / "parked.json").read_text()) == ["mob@ocoron.com"]
+    assert cr.main(["--park", "mob@ocoron.com"]) == 0  # idempotent
+    assert "already parked" in capsys.readouterr().out
+
+    assert cr.main(["--unpark", "mob@ocoron.com"]) == 0
+    assert cr._account_caps()["mob@ocoron.com"] == 99
+    assert (fleet / "caps.json").read_text() == caps_before, "caps.json is never rewritten"
+
+    capsys.readouterr()
+    assert cr.main(["--park", "nobody@x.com"]) == 1, "an email matching no account is refused"
+    assert "not a known account" in capsys.readouterr().err
+    assert not cr._parked_accounts()
+    assert cr.main(["--park"]) == 2
+
+
+def test_a_broken_parked_file_is_loud_and_parks_nothing(tmp_path, monkeypatch, capsys):
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    fleet.mkdir(parents=True, exist_ok=True)
+    for raw in ("{not json", '{"mob@ocoron.com": true}'):
+        (fleet / "parked.json").write_text(raw)
+        capsys.readouterr()
+        assert cr._parked_accounts() == set()
+        assert "NOTHING is parked" in capsys.readouterr().err
 
 
 def test_cap_walled_candidate_is_excluded_even_when_best_by_weekly(tmp_path, monkeypatch, capsys):
@@ -3295,6 +3435,40 @@ def test_cap_walled_candidate_is_excluded_even_when_best_by_weekly(tmp_path, mon
 
     assert os.readlink(fleet / "active") == "mob", (
         "a cap-walled account is never an automated flip target, however good its weekly"
+    )
+
+
+def test_a_parked_account_is_never_picked_even_at_zero_usage(tmp_path, monkeypatch, capsys):
+    """Operator 2026-09-29: mob@ "is not available for a few days — do not remove it from the
+    rotation but make it unusable". A cap of 0 parks it: right after a weekly reset it reads 0%
+    on both windows and is the BEST candidate, and it must still never be a flip target — the
+    case a cap of 1 (the old clamp floor) let through until it burned its first percent."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "mob", "mob@ocoron.com"]) == 0
+    _pin(fleet, "mob", "mob@ocoron.com")
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fleet_creds(fleet, "mob", "tok-mob", age_s=60.0)
+    _caps(fleet, {"mob@ocoron.com": 0})
+    _fake_oauth(
+        monkeypatch,
+        usages={
+            "tok-seo": _usage_blob(96.0, 50.0),  # active, over threshold
+            "tok-intel": _usage_blob(40.0, 60.0),  # ob: usable, worse on both windows
+            "tok-mob": _usage_blob(0.0, 0.0),  # parked: fresh reset, best on both windows
+        },
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    capsys.readouterr()
+
+    assert cr._account_caps() == {"mob@ocoron.com": 0}, "a cap of 0 survives the loader"
+    assert cr._cmd_tick() == 0
+
+    assert os.readlink(fleet / "active") == "intel", (
+        "a parked (cap 0) account is never an automated flip target, even at 0% usage"
     )
 
 
@@ -4580,6 +4754,24 @@ def test_next_session_relief_falls_back_to_the_soonest_weekly_reset_when_every_s
         _row("b@x", 5.0, 96.0, cap=90, s_reset=now + 100, w_reset=now + 2000),  # cap-walled
     ]
     assert cr._next_session_relief(rows, "act@x", now) == (now + 2000, "b@x", "weekly")
+
+
+def test_a_parked_account_is_never_named_as_relief_nor_given_a_return():
+    """A cap of 0 parks an account: its weekly reset brings it back to 0%, which is still at its
+    cap, so naming that reset as relief (or as its `returns_at`) promised the fleet capacity that
+    never arrives — the hold's resume and the wake would fire on a lie."""
+    now = FLEET_NOW
+    rows = [
+        _row("act@x", 91.0, 40.0, cap=99),
+        _row("parked@x", 5.0, 10.0, cap=0, s_reset=now + 100, w_reset=now + 2000),
+        _row("b@x", 5.0, 96.0, cap=90, s_reset=now + 100, w_reset=now + 5000),  # cap-walled
+    ]
+    assert cr._next_session_relief(rows, "act@x", now) == (now + 5000, "b@x", "weekly")
+    assert cr._next_session_relief(rows[:2], "act@x", now) is None, "parked alone relieves nothing"
+    pic = cr._fleet_picture(rows, None, now)
+    parked = next(r for r in pic["accounts"] if r["email"] == "parked@x")
+    assert parked["state"] == "cap-walled" and parked["returns_at"] is None
+    assert cr._is_parked(0) and not cr._is_parked(False) and not cr._is_parked(None)
 
 
 def test_next_session_relief_skips_stale_past_resets_and_returns_none_when_nothing_is_known():

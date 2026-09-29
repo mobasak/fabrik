@@ -333,6 +333,9 @@ def _switch_env(tmp_path, monkeypatch):
         "    if pathlib.Path(sys.argv[0] + '.fail').exists():\n"
         "        sys.stderr.write('switch failed — active pointer unchanged\\n'); sys.exit(1)\n"
         "    print('active fleet account -> ' + sys.argv[2]); sys.exit(0)\n"
+        "if sys.argv[1] in ('--park', '--unpark'):\n"
+        "    print(sys.argv[2] + (' PARKED' if sys.argv[1] == '--park' else ' back IN SERVICE'))\n"
+        "    sys.exit(0)\n"
         "sys.exit(2)\n",
         encoding="utf-8",
     )
@@ -408,6 +411,112 @@ def test_every_idle_row_has_a_switch_button_and_the_active_row_has_none(tmp_path
     html = qd.generate()
     assert 'data-slug="sarp"' in html
     assert 'data-slug="mob"' not in html  # mob is the active pointer
+
+
+def test_park_without_the_custom_header_is_refused(tmp_path, monkeypatch):
+    """`/park` takes an account out of service — the same CSRF guard as `/switch`: a plain
+    cross-origin POST carries no custom header, so it is refused and the CLI never runs."""
+    qd, stub = _switch_env(tmp_path, monkeypatch)
+    httpd, base = _serve(qd)
+    try:
+        status, body = _post(f"{base}/park", b'{"account": "sarp@ocoron.com", "park": true}')
+        assert status == 403, body
+        assert not any(c[:1] in (["--park"], ["--unpark"]) for c in _calls(stub))
+    finally:
+        httpd.shutdown()
+
+
+def test_park_rejects_an_account_the_board_does_not_know_or_a_non_bool_park(tmp_path, monkeypatch):
+    qd, stub = _switch_env(tmp_path, monkeypatch)
+    httpd, base = _serve(qd)
+    try:
+        for bad in (
+            b'{"account": "nobody@x.com", "park": true}',
+            b'{"account": "sarp@ocoron.com", "park": "yes"}',
+            b'{"account": "sarp@ocoron.com"}',
+            b'{"account": "--help", "park": true}',
+        ):
+            status, body = _post(f"{base}/park", bad, {qd.SWITCH_HEADER: "1"})
+            assert status == 400, (bad, body)
+        assert not any(c[:1] in (["--park"], ["--unpark"]) for c in _calls(stub))
+    finally:
+        httpd.shutdown()
+
+
+def test_park_and_unpark_shell_the_rotation_cli_and_regenerate_the_board(tmp_path, monkeypatch):
+    """Operator 2026-09-29: "enabling it must be easy — put a button in the gui". One click is
+    exactly one `--park`/`--unpark <email>` call, then a fresh render."""
+    qd, stub = _switch_env(tmp_path, monkeypatch)
+    httpd, base = _serve(qd)
+    try:
+        for park, verb in ((True, "--park"), (False, "--unpark")):
+            before = _calls(stub)
+            payload = json.dumps({"account": "SARP@ocoron.com", "park": park}).encode()
+            status, body = _post(f"{base}/park", payload, {qd.SWITCH_HEADER: "1"})
+            assert status == 200 and body["ok"] is True, body
+            after = _calls(stub)[len(before) :]
+            assert [c for c in after if c[0] == verb] == [[verb, "sarp@ocoron.com"]]
+            assert ["--status", "--json"] in after  # the regeneration probe ran AFTER it
+    finally:
+        httpd.shutdown()
+
+
+def test_a_parked_row_shows_parked_and_enable_and_an_unparked_row_offers_disable(
+    tmp_path, monkeypatch
+):
+    qd = _load(tmp_path, monkeypatch)
+
+    def payload():
+        p = _multi_payload()
+        p["accounts"][-1].update(weekly_cap=0, cap_walled=True, parked=True)  # sarp parked
+        return p
+
+    monkeypatch.setattr(qd, "_probe", payload)
+    html = qd.generate()
+    assert "PARKED — out of service" in html
+    assert 'data-email="sarp@ocoron.com" data-verb="unpark"' in html and ">enable<" in html
+    assert 'data-slug="sarp"' not in html, "a parked account offers no switch → until enabled"
+    assert 'data-email="mob@ocoron.com" data-verb="park"' in html and ">disable<" in html
+    assert "cap 0%" not in html, "a parked row names itself PARKED, not a 0% cap"
+
+
+def test_a_parked_account_is_never_shown_returning(tmp_path, monkeypatch):
+    """Park review pass 1 (B-S1, B-S2): the board's own queue mirror computed a return from the
+    weekly reset of a PARKED row, so the queue badge and the active row's ghost promised the
+    account back at a time no reset can deliver — only `--unpark` returns it."""
+    qd = _load(tmp_path, monkeypatch)
+    now = time.time()
+    acct = {
+        "email": "sarp@ocoron.com",
+        "slugs": ["sarp"],
+        "weekly_cap": 0,
+        "cap_walled": True,
+        "parked": True,
+        "five_hour": {"utilization": 99.0, "resets_at_epoch": now + 3600},
+        "seven_day": {"utilization": 10.0, "resets_at_epoch": now + 86400},
+    }
+    assert qd._returns_at(acct, now) is None
+    assert qd._returns_at(dict(acct, parked=False), now) == now + 86400, "control: unparked returns"
+    # the queue's relief branch (pass 2, B-S2): an ACTIVE parked account in the drain band with an
+    # eligible standby was drawn a `return` ghost from its raw window reset
+    active = dict(
+        acct, five_hour={"utilization": qd._drain_band() + 5, "resets_at_epoch": now + 3600}
+    )
+    standby = {
+        "email": "ob@ocoron.com",
+        "slugs": ["ob"],
+        "weekly_cap": 95,
+        "cap_walled": False,
+        "five_hour": {"utilization": 5.0, "resets_at_epoch": now + 3600},
+        "seven_day": {"utilization": 5.0, "resets_at_epoch": now + 86400},
+    }
+
+    def ghosts(active_row):
+        payload = {"active": "sarp", "accounts": [active_row, standby]}
+        return [e for e in qd._queue(payload, now) if e["kind"] == "return"]
+
+    assert ghosts(active) == [], "a parked active account is never drawn returning"
+    assert ghosts(dict(active, parked=False)), "control: the unparked twin does get its ghost"
 
 
 def test_a_short_body_cannot_hold_a_handler_thread_forever(tmp_path, monkeypatch):

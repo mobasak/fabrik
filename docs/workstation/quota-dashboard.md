@@ -85,7 +85,8 @@ Properties that still hold:
 | Warnings section | the same `fleet_warnings` the CLI prints (carrier/occupancy/cap/identity-mismatch) |
 | `OpenRouter pool` banner | the metered pool's balance — **the fleet's other quota**. Shown on the **Quota** tab AND the **External services** tab, because OpenRouter is an external service before it is a quota and that page already lists it as a paid provider with an unfilled `credit` field — the operator looked for it there first, correctly. Green above `POOL_CREDITS_WARN_USD`, amber at or below it, red at zero with what the operator will actually see (`every fanout() returns HTTP 402 with no output and no spend`). Absent entirely when no key is configured. A balance served past its TTL says `endpoint unreachable` with its age rather than blanking — the same stale-beats-blank rule as the account rows |
 
-| `switch →` button | on every row that is NOT the active pointer: one click flips the fleet to that account NOW — the same manual flip as `--switch <slug>` (pause-, dwell- and cap-exempt), confirmed in-page first; every session bound to the pointer (`CLAUDE_CONFIG_DIR` → the `active` symlink, § How a session binds to the pointer in `claude-account-rotation.md`) follows it without a restart. The active row carries no button (nothing to rotate to) |
+| `switch →` button | on every row that is NOT the active pointer: one click flips the fleet to that account NOW — the same manual flip as `--switch <slug>` (pause-, dwell- and cap-exempt), confirmed in-page first; every session bound to the pointer (`CLAUDE_CONFIG_DIR` → the `active` symlink, § How a session binds to the pointer in `claude-account-rotation.md`) follows it without a restart. The active row carries no button (nothing to rotate to), and neither does a parked row |
+| `disable` / `enable` button | on every account row: **disable** parks the account (`--park <email>` — listed, never picked, no capacity counted; `claude-account-rotation.md` § Parking), **enable** puts it back (`--unpark`); confirmed in-page first. A parked row shows the `PARKED — out of service` badge in place of its cap and offers only **enable** |
 
 Rows sort by weekly headroom, so the fleet's next flip target is the top eligible row.
 
@@ -266,6 +267,7 @@ the chain's liveness contract is "mtime ≤ 30 h", so a stale stamp here is the 
 | `/quota.json` | the raw `--status --json` payload behind the page |
 | `/health` | `ok` — liveness for the keepalive |
 | `POST /switch` | body `{"account": "<slug>"}` + the `X-Quota-Dash` header → shells `claude_rotate.py --switch <slug>`, re-renders synchronously, answers `{ok, output}` (200); every outcome is one line in `~/.claude/quota-dashboard.log` (`POST /switch 'can' -> 200 in 3.2s: …`) — a click that "did not work" now leaves its trace · `{ok:false, error}` — 403 without the header, 400 for a slug the board's last payload does not list, 502 when the CLI refuses (its stderr is the error). The custom header is the CSRF story: a cross-origin page cannot add one without a preflight this server never answers |
+| `POST /park` | body `{"account": "<email>", "park": true|false}` + the same `X-Quota-Dash` header → shells `claude_rotate.py --park|--unpark <email>` and re-renders, with `/switch`'s contract: 403 without the header, 400 for an email the board's last payload does not list or a non-boolean `park`, 502 with the CLI's stderr on refusal. Same `QUOTA_DASH_SWITCH_TIMEOUT_S`, same log line (`POST /park …`) |
 
 ## Lifecycle
 

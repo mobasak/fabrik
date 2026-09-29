@@ -21,6 +21,7 @@ file-swap rotation used to do.
   active -> mob           the pointer every session follows (a relative symlink)
   assignments.json        slug → account, pinned identity
   caps.json               per-account weekly reserves, e.g. {"ob@ocoron.com": 90}
+  parked.json             accounts taken out of service, e.g. ["mob@ocoron.com"] (§ Parking)
 ```
 
 Fleet root override: `CLAUDE_FLEET_ROOT` (`_fleet_root`, `claude_rotate.py:1504`). Only
@@ -181,6 +182,21 @@ says so, reserving the remainder for the operator's own claude.ai browser use. `
 still target it deliberately. Keys are matched case-insensitively; a key matching no known
 account warns ("cap inactive") rather than failing silently. The file is mirrored off-box by
 `scripts/dr_claude_backup.sh` (D-150 — that script's fleet loop walks account *directories*, and caps.json sits at the fleet root).
+
+### Parking — taking an account out of service
+
+`claude_rotate.py --park <email>` (or the **disable** button on its board row) takes an account out of
+service without removing it: it stays listed, pinned and logged in, but it is never an automated
+flip target, never counted as fleet capacity, never named as relief, and an ACTIVE parked account
+is flipped away from on the next tick. `--unpark <email>` (or **enable**) puts it back. The mark
+lives in `~/.claude-fleet/parked.json`; `_account_caps()` reads a parked account as cap 0, so every
+reader walls it through the cap-walled path it already has, and `caps.json` is never rewritten —
+the account's own cap applies again the moment it is unparked. A cap of 0 written into `caps.json`
+by hand parks the same way, and parking holds whatever the account's readings say (a missing weekly
+figure included). `--status` shows the account `cap-walled` with no return time plus a `PARKED` warning
+naming the `--unpark` command; the board shows **PARKED — out of service**. Only a known account email is accepted, and a broken
+`parked.json` warns loudly and parks nothing. `--switch` may still target a parked account
+deliberately, like any cap-walled one.
 
 ## `--status` — the board
 
@@ -453,6 +469,7 @@ anyway, or a later `--new-dir <slug> <new-email>` will be refused by the stale c
 | See the board | <http://localhost:5051/> or `--status` |
 | Move the fleet now | `--switch <account>`, or the `switch →` button on the board row (same flip, confirmed in-page) |
 | Reserve quota for browser use | edit `caps.json`, no restart needed |
+| Take an account out of service for a while | `--park <email>` or the board's **disable** button; `--unpark` / **enable** restores it |
 | Freeze automated flips | `--pause-switch` (`--resume-switch` to release) |
 | A window ignores the pointer | check the occupancy warning; it needs the env — for extension windows, `wsl --shutdown` + reopen |
 

@@ -106,6 +106,9 @@ do_backup() {
   # and regenerable from nothing: losing it silently drops every cap back to the built-in default,
   # which is exactly the "small, hand-maintained, NOT regenerable" class this script exists for.
   mirror "$HOME/.claude-fleet/caps.json"           "claude-fleet/caps.json"
+  # parked.json (`--park`/`--unpark`, the board's disable/enable) sits beside it: the accounts the
+  # operator took out of service. An unpark writes `[]`, never deletes, so this copy tracks it.
+  mirror "$HOME/.claude-fleet/parked.json"         "claude-fleet/parked.json"
   mirror "$WIN_DESKTOP_CFG"                        "windows/claude_desktop_config.json"
 
   # selective file sets (dirs carry state we don't want)
