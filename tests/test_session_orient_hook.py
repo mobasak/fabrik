@@ -39,6 +39,12 @@ def _run(cwd: Path, home: Path, stdin: str, extra_env: dict | None = None) -> tu
     return proc.returncode, proc.stdout
 
 
+def _hub_env(hub: Path) -> dict:
+    """The hook's test seam for the hub path (`FABRIK_HUB_ROOT`, default `/opt/fabrik`) — a tmp
+    dir stands in for the hub, never the real checkout."""
+    return {"FABRIK_HUB_ROOT": str(hub)}
+
+
 def test_orientation_names_the_connected_mesh(tmp_path: Path) -> None:
     rc, out = _run(tmp_path, tmp_path, json.dumps({"cwd": str(tmp_path)}))
     assert rc == 0
@@ -202,7 +208,8 @@ def test_hub_repo_gets_hub_orientation(tmp_path: Path) -> None:
     hub = tmp_path / "opt" / "fabrikish"
     (hub / "scripts").mkdir(parents=True)
     (hub / "scripts/fabrik_synced_manifest.py").write_text("# marker\n", encoding="utf-8")
-    rc, out = _run(hub, tmp_path, json.dumps({"cwd": str(hub)}))
+    # Hub identity is the manifest AND the hub path (D4); the test seam names this dir the hub.
+    rc, out = _run(hub, tmp_path, json.dumps({"cwd": str(hub)}), _hub_env(hub))
     assert rc == 0
     assert "HUB" in out and "canonical" in out.lower()
     assert "never edit" not in out.lower(), "hub sessions must not be told CLAUDE.md is unedittable"
@@ -542,7 +549,10 @@ def test_sessions_advisory_suppressed_in_hub(tmp_path: Path) -> None:
         ],
     )
     rc, out = _run(
-        hub, tmp_path, json.dumps({"cwd": str(hub)}), extra_env={"FABRIK_PROC_ROOT": str(proc)}
+        hub,
+        tmp_path,
+        json.dumps({"cwd": str(hub)}),
+        extra_env={"FABRIK_PROC_ROOT": str(proc), **_hub_env(hub)},
     )
     assert rc == 0
     assert "sessions share this main checkout" not in out
@@ -828,7 +838,7 @@ def test_the_hub_keeps_its_own_wording_not_the_adopted_one(tmp_path: Path) -> No
         "| D-029 | 2026-09-16 | a | MERGE OWNER: agent-1 | x | y |\n",
         encoding="utf-8",
     )
-    rc, out = _run(hub, tmp_path, json.dumps({"cwd": str(hub)}))
+    rc, out = _run(hub, tmp_path, json.dumps({"cwd": str(hub)}), _hub_env(hub))
     assert rc == 0
     assert "this hub session is UNNAMED" in out
     assert "DECLARES merge owner" not in out
@@ -874,3 +884,221 @@ def test_the_merge_owner_grammar_tracks_its_sources_and_names_its_one_divergence
     assert lookahead not in du and lookahead not in dec, (
         "a source grew the hook's lookahead — reconcile deliberately, do not let it drift in"
     )
+
+
+# --- T04a (spec 2026-09-29 hub-worktree cut-over, D1/D4/D5, V6/V7) -----------------------------
+
+
+def _git(cwd: Path, *args: str) -> str:
+    proc = subprocess.run(
+        ["git", "-C", str(cwd), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+        env={"HOME": str(cwd), "PATH": "/usr/bin:/bin"},
+    )
+    return proc.stdout.strip()
+
+
+def _git_repo(root: Path, owner: str | None, *, hub: bool = False) -> Path:
+    """A real throwaway git repo carrying the Fabrik markers the hook keys on: the synced
+    `scripts/docs_updater.py` (the adopt tool), a ledger with or without a MERGE OWNER row, and —
+    for a stand-in hub — the synced manifest."""
+    (root / "scripts").mkdir(parents=True)
+    (root / "docs").mkdir()
+    (root / "scripts/docs_updater.py").write_text("# stub\n", encoding="utf-8")
+    if hub:
+        (root / "scripts/fabrik_synced_manifest.py").write_text("# marker\n", encoding="utf-8")
+    rows = "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+    if owner:
+        rows += f"| D-001 | 2026-09-29 | a | MERGE OWNER: {owner} — adopted | y | z |\n"
+    (root / "docs/DECISIONS.md").write_text(rows, encoding="utf-8")
+    _git(root, "init", "-q")
+    _git(root, "add", "scripts", "docs")
+    _git(root, "commit", "-q", "-m", "seed")
+    return root
+
+
+def _linked_worktree(repo: Path, name: str) -> Path:
+    wt = repo / ".claude" / "worktrees" / name
+    _git(repo, "worktree", "add", "-q", "-b", f"worktree-{name}", str(wt))
+    return wt
+
+
+def _common_dir(repo: Path) -> str:
+    return _git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir")
+
+
+def _pid_start(pid: int) -> int:
+    raw = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    return int(raw[raw.rindex(")") + 1 :].split()[19])
+
+
+def _store(tmp_path: Path, rows: list[dict]) -> dict:
+    """A whoami_agent.py identity store under tmp_path (its `AGENT_IDENTITY_FILE` override) —
+    the real store is never touched."""
+    path = tmp_path / "agent-identity.jsonl"
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    return {"AGENT_IDENTITY_FILE": str(path)}
+
+
+def test_a_single_session_in_an_unadopted_main_checkout_is_prompted_to_adopt(
+    tmp_path: Path,
+) -> None:
+    # V7 / D1: the first window adopts before a second one opens. `--adopt` itself refuses below
+    # two live sessions without `--single-window`, so the prompt must name that flag.
+    repo = _git_repo(tmp_path / "opt" / "fresh", None)
+    proc = _fake_proc(tmp_path, [("601", "claude", str(repo))])
+    env = {"FABRIK_PROC_ROOT": str(proc)}
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), env)
+    assert rc == 0
+    assert "docs_updater.py --adopt" in out
+    assert "--single-window" in out
+    # a linked worktree is not where the merge owner adopts from
+    wt = _linked_worktree(repo, "beta")
+    rc, out = _run(wt, tmp_path, json.dumps({"cwd": str(wt)}), env)
+    assert rc == 0 and "ORIENT" in out
+    assert "docs_updater.py --adopt" not in out
+
+
+def test_a_non_owner_session_in_a_main_checkout_is_told_to_move(tmp_path: Path) -> None:
+    # D5 (a): owner `alpha`, this session resolved as `beta` through its whoami binding.
+    repo = _git_repo(tmp_path / "opt" / "adopted", "alpha")
+    env = _store(tmp_path, [{"session_id": "sess-beta", "name": "beta", "at": 1}])
+    payload = json.dumps({"cwd": str(repo), "session_id": "sess-beta"})
+    rc, out = _run(repo, tmp_path, payload, env)
+    assert rc == 0
+    move = [ln for ln in out.splitlines() if "EnterWorktree" in ln]
+    assert len(move) == 1, out
+    assert ".claude/worktrees/beta" in move[0]
+    assert "conversation follows" in move[0]
+    assert "`alpha`" in move[0]
+
+
+def test_the_move_line_stays_silent_where_it_does_not_apply(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path / "opt" / "adopted", "alpha")
+    # the owner itself stays in the main checkout
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), {"CLAUDE_AGENT": "alpha"})
+    assert rc == 0 and "ORIENT" in out
+    assert "EnterWorktree" not in out
+    # a non-owner already in its linked worktree
+    wt = _linked_worktree(repo, "beta")
+    rc, out = _run(wt, tmp_path, json.dumps({"cwd": str(wt)}), {"CLAUDE_AGENT": "beta"})
+    assert rc == 0 and "ORIENT" in out
+    assert "EnterWorktree" not in out
+    # a project with no merge owner
+    bare = _git_repo(tmp_path / "opt" / "unadopted", None)
+    rc, out = _run(bare, tmp_path, json.dumps({"cwd": str(bare)}), {"CLAUDE_AGENT": "beta"})
+    assert rc == 0 and "ORIENT" in out
+    assert "EnterWorktree" not in out
+
+
+def test_an_unnamed_session_is_told_to_bind_first_then_move(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path / "opt" / "adopted", "alpha")
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo), "session_id": "nobody"}))
+    assert rc == 0
+    move = [ln for ln in out.splitlines() if "EnterWorktree" in ln]
+    assert len(move) == 1, out
+    assert "python3 /opt/fabrik/scripts/whoami_agent.py --as <name>" in move[0]
+    assert "bind first" in move[0]
+    assert ".claude/worktrees/<name>" in move[0]
+
+
+def test_the_hub_main_checkout_tells_a_non_owner_to_move(tmp_path: Path) -> None:
+    # D5 (a) reaches the hub: the old manifest-in-cwd early returns hid every advisory there.
+    hub = _git_repo(tmp_path / "opt" / "hubrepo", "infra", hub=True)
+    env = {**_hub_env(hub), "CLAUDE_AGENT": "fleet"}
+    rc, out = _run(hub, tmp_path, json.dumps({"cwd": str(hub)}), env)
+    assert rc == 0
+    assert "Governance (HUB)" in out
+    move = [ln for ln in out.splitlines() if "EnterWorktree" in ln]
+    assert len(move) == 1, out
+    assert ".claude/worktrees/fleet" in move[0] and "`infra`" in move[0]
+
+
+def test_a_hub_worktree_is_the_hub_and_a_manifest_carrying_project_is_not(
+    tmp_path: Path,
+) -> None:
+    # D4: identity is the manifest AND the git common dir's parent being the hub path — the rule
+    # of final_gate.py::_is_hub and check_vendored_drift.py::_is_hub.
+    hub = _git_repo(tmp_path / "opt" / "hubrepo", None, hub=True)
+    wt = _linked_worktree(hub, "intel")
+    rc, out = _run(wt, tmp_path, json.dumps({"cwd": str(wt)}), _hub_env(hub))
+    assert rc == 0
+    assert "Governance (HUB)" in out
+    # the mirror: a repo that merely carries the manifest has its OWN common dir
+    other = _git_repo(tmp_path / "opt" / "impostor", None, hub=True)
+    rc, out = _run(other, tmp_path, json.dumps({"cwd": str(other)}), _hub_env(hub))
+    assert rc == 0 and "ORIENT" in out
+    assert "Governance (HUB)" not in out
+
+
+def test_live_whoami_bindings_are_listed_and_a_dead_pid_is_not(tmp_path: Path) -> None:
+    # V6: the COBRA counter to binding yourself as the merge owner is that everyone sees who holds
+    # which name. Only rows whose pid is live (same start time) and whose scope is THIS repo.
+    repo = _git_repo(tmp_path / "opt" / "bound", "alpha")
+    common = _common_dir(repo)
+    dead = subprocess.Popen(["true"])
+    dead.wait()
+    me, parent = os.getpid(), os.getppid()
+    live = {"toplevel": common}
+    rows = [
+        {"session_id": "s1", "name": "alpha", "pid": me, "pid_start": _pid_start(me), **live},
+        {
+            "session_id": "s2",
+            "name": "beta",
+            "pid": parent,
+            "pid_start": _pid_start(parent),
+            **live,
+        },
+        {"session_id": "s3", "name": "gamma", "pid": dead.pid, "pid_start": 1, **live},
+        {
+            "session_id": "s4",
+            "name": "delta",
+            "pid": me,
+            "pid_start": _pid_start(me),
+            "toplevel": str(tmp_path / "elsewhere" / ".git"),
+        },
+        {"session_id": "s5", "name": "epsilon", "pid": me, "pid_start": _pid_start(me) + 1, **live},
+    ]
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), _store(tmp_path, rows))
+    assert rc == 0
+    line = [ln for ln in out.splitlines() if "whoami` bindings" in ln]
+    assert len(line) == 1, out
+    assert "`alpha`" in line[0] and "`beta`" in line[0]
+    for gone in ("gamma", "delta", "epsilon"):
+        assert gone not in line[0], gone
+    assert "CLAUDE_AGENT" in line[0], "the stated limit: launch-named sessions write no binding"
+    # the same bindings are visible from a linked worktree of the repo (one common dir)
+    wt = _linked_worktree(repo, "beta")
+    rc, out = _run(wt, tmp_path, json.dumps({"cwd": str(wt)}), _store(tmp_path, rows))
+    assert rc == 0
+    assert any("`alpha`" in ln and "whoami` bindings" in ln for ln in out.splitlines())
+
+
+def test_the_move_line_owner_agrees_with_decisions_py_on_a_deep_ledger(tmp_path: Path) -> None:
+    # The hook reads the owner in-process (a `decisions.py --merge-owner` subprocess costs as much
+    # as the whole hook — measured). Its answer must be decisions.py's: the WHOLE ledger, last row
+    # wins, so an owner row sunk far below a 64 KB window still counts (the hub ledger is
+    # newest-first and ~750 KB).
+    repo = _git_repo(tmp_path / "opt" / "deep", None)
+    filler = "| D-%03d | 2026-09-16 | w | routine row | y | z |\n"
+    (repo / "docs/DECISIONS.md").write_text(
+        "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+        + "".join(filler % i for i in range(1, 2000))
+        + "| D-2001 | 2026-09-16 | a | MERGE OWNER: deepowner | y | z |\n"
+        + "".join(filler % i for i in range(3000, 5000)),
+        encoding="utf-8",
+    )
+    ref = subprocess.run(
+        [sys.executable, str(FABRIK / "scripts/decisions.py"), "--merge-owner", str(repo)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert ref.stdout.strip() == "deepowner"
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), {"CLAUDE_AGENT": "beta"})
+    assert rc == 0
+    move = [ln for ln in out.splitlines() if "EnterWorktree" in ln]
+    assert len(move) == 1 and "`deepowner`" in move[0], out
