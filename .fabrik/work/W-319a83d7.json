@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T19:32:56.964695Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-319a83d7",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-09-29-plan-1-hub-worktree-cutover",
+    "spec": ""
+  },
+  "next": "Apply T01's write-root rule (env, else linked worktree toplevel, else /opt/fabrik) to the three scripts and drop their 'deferred' rows from ALLOWLIST in tests/test_hub_write_root.py",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Three hub scripts still write tracked files under the hard-coded /opt/fabrik root, so a worktree session's output lands in the main checkout: kaizen_digest.py, kaizen_shrink_audit.py, update_vps_docs.py"
+}
