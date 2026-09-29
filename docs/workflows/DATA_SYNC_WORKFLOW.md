@@ -207,7 +207,7 @@ The lockfile name carries the UTC date, so yesterday's lock never blocks today (
 
 | Script | Automated by | Manual use |
 |--------|--------------|------------|
-| `sync_projects.py` | boot hook · `fabrik scan` · post-scaffold | `python3 scripts/sync_projects.py` |
+| `sync_projects.py` | `fabrik scan` · post-scaffold · the deployer's `fabrik apply` (the boot hook stopped running it 2026-09-29, spec 2026-09-29 hub-worktree-cutover § D5(b)) | `python3 scripts/sync_projects.py` |
 | `audit_envs.py` | env watcher (on every project `.env` change) | `--yaml` to write `data/env_audit.yaml` |
 | `external_services_chain.sh` | boot hook + 06:00 cron | `bash scripts/external_services_chain.sh` |
 | `health_summary.py` | boot hook · `fabrik scan --health` | `--json` |

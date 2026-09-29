@@ -260,8 +260,8 @@ and diverge here on purpose (§ Ownership surfaces, above).
   mode over `ORIG_HEAD..HEAD` — every path a fast-forward or `--no-ff` merge just brought in — so a
   merged branch's synced-surface commits distribute on the merge, not (as before) never; a
   conflicted merge concluded by `git commit` keeps reaching the sync through the ordinary
-  post-commit path, whose first-parent read already lists what the merge brought in. `git pull
-  --rebase`, `rebase` and `reset --hard` fire neither hook — the remedy is `scripts/sync_enforcement_to_projects.py --force`.
+  post-commit path, whose first-parent read already lists what the merge brought in. The commits a `git pull
+  --rebase` or `rebase` brings in, and a `reset --hard`, fire no hook (a rebase fires post-commit only for each local commit it replays) — the remedy is `scripts/sync_enforcement_to_projects.py --force`.
 
 **The write-root rule (spec § D3).** Every hub script that writes a TRACKED file resolves its root
 from the git toplevel of the tree its invoker runs in, never a hard-coded `/opt/fabrik` or a
@@ -270,7 +270,7 @@ when set, else — when the cwd is inside a linked worktree whose git common dir
 `/opt/fabrik` — that worktree's own toplevel, else `/opt/fabrik`; the same function is replicated
 (not imported — a worktree's `import fabrik` would still resolve against the main checkout, see
 below) in `scripts/sync_projects.py:45-67`, `scripts/vps_sync.py:36-58` and
-`scripts/command_feedback_report.py:46-67`. So a worktree agent's
+`scripts/command_feedback_report.py:46-68`. So a worktree agent's
 `fabrik apply` bookkeeping (`data/projects.yaml`, `PORTS.md`, `docs/PROJECT_CATALOG.md`) lands on
 that agent's own branch, attributed to it, never dirtying the main checkout. ⚠️ **The shared
 `.venv`'s editable install still pins `import fabrik` to `/opt/fabrik/src`**
@@ -279,6 +279,14 @@ that agent's own branch, attributed to it, never dirtying the main checkout. ⚠
 edits to `src/fabrik/` are invisible to a plain `import fabrik` in ANY worktree's Python process
 until they are merged into the main checkout; only the write-root rule's subprocess/file-path
 resolution is worktree-aware, not the import system.
+
+**Hub identity from a worktree (spec § D4).** `scripts/final_gate.py::_is_hub` and
+`scripts/enforcement/check_vendored_drift.py::_is_hub` treat a tree as the hub when it carries
+`scripts/fabrik_synced_manifest.py` and its git common dir's parent is `/opt/fabrik`, so a hub worktree
+gets the hub's self-exemptions and the vendored-drift check grades the worktree's OWN governance set;
+any git failure reads as "not the hub". From any linked worktree, `scripts/enforcement/check_doc_links.py`
+resolves a doc ref to a GITIGNORED path through the main checkout (a fresh worktree lacks generated
+files); a tracked file missing from the worktree, or an in-repo `../` ref, is still a real break.
 
 T01b's settings block ships from the hub because the hub's `.claude/settings.json` is the synced
 source, and it is **not inert here**: on CLI 2.1.258 `baseRef: "head"` applies to `--worktree`,

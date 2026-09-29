@@ -126,7 +126,7 @@ Every `scripts/command_run.py` row additionally carries `command` + `seq` + `per
 | `operator_override` | `marker`, `kind` (`human-gate`\|`blocked-escalation`), `stalls` (count of waived stalls this turn), `kinds` (every waived kind, in order) | `.claude/hooks/final_gate_stop.py` — turns sanctioned skips from noise into labelled data; ONE event per turn carries the whole waiver ledger |
 | `fleet_health` | `project`, `swept`, `cell`, `reason`, `checks` (`{check: verdict}`), `duration_s` | `scripts/sysadmin/kaizen_outcomes.py --sweep` — one per swept project (T07's nightly outcome tier) |
 | `instrument_alarm` | `reason`, `mismatches` (first 10) | `scripts/sysadmin/kaizen_collect_v2.py` — golden-corpus refusal or a delta darkening; instrument health is metric zero |
-| `commit_merge_owner_warning` | `resolved_name`, `merge_owner` | `scripts/check_commit_trailers.py` — in the hub's main checkout, a commit by a session whose resolved name is not the declared merge owner (spec 2026-09-29 hub-worktree-cutover § D5 (b), V6); advisory only, never a refusal |
+| `commit_merge_owner_warning` | `resolved_name`, `merge_owner` | `scripts/check_commit_trailers.py` — in the hub's main checkout, a commit carrying a parsable `Agent-Role:` trailer by a session whose resolved name is not the declared merge owner (spec 2026-09-29 hub-worktree-cutover § D5 (b), V6); advisory only, never a refusal |
 
 An event outside this list is still written (losing data is worse than a typo) but warns on stderr,
 so a misspelled sensor is visible the day it ships.

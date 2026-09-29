@@ -26,7 +26,8 @@
 #   SYNCS   — `git commit` (post-commit, incl. a conflicted merge or a squash concluded by `git commit`);
 #             `git merge`, fast-forward or `--no-ff`, and a merging `git pull` (post-merge).
 #   DOES NOT — `git pull --rebase`, `git rebase <branch>`, `git reset --hard <branch>` and any plumbing
-#             (`commit-tree`/`update-ref`): git fires neither hook for them, so
+#             (`commit-tree`/`update-ref`): git fires no hook for the commits they bring in (a rebase
+#             fires post-commit only for each LOCAL commit it replays), so
 #             trigger paths they bring in are NOT distributed. The hub's flow is `git merge --no-ff` by
 #             the merge owner, so no post-rewrite hook exists by design. After any of those, run
 #             `scripts/sync_enforcement_to_projects.py --force` yourself.
