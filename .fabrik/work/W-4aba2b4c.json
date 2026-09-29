@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T22:30:57.050564Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4aba2b4c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QMM6B00G3DPBHZA4WM1QWR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "trade-intelligence (agent-3): the MERGE OWNER row already exists on main — D-029 (2026-09-16, written by `--adopt`): \"MERGE OWNER: agent-1 — the only writer of the base branch; agents 2..N commit to worktree branches\". D-038 (2026-09-29) records the operator's D-444/D-445 ruling and supersedes the o"
+}
