@@ -1,0 +1,26 @@
+{
+  "block_digest": "15d9a54d9fdad0415d6dd0738889dc00d2353b9cfaa0b1318145d8c8ea738406",
+  "blocked_by": [],
+  "created": "2026-09-29T17:29:15.311542Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-96542f8c",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "075d9f6551adde40e22018e3e7c6f7e57435f640f9b8c90f22ffeea3262f16df"
+  ],
+  "next": "",
+  "note": "operator 2026-09-29: \"approved as written\"",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve this design so I can write the plan and build it? One choice in it goes against my three-reviewer panel.",
+  "status": "done",
+  "title": "Do you approve this design so I can write the plan and build it? One choice in it goes against my three-reviewer panel."
+}
