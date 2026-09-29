@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T13:18:39.687577Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8eae47d6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3PKJPDRNX575ZNRYXHVAPTH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "final_gate false green on worktree branches with no upstream (multi-agent model)"
+}
