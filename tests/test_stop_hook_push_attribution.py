@@ -95,7 +95,9 @@ def test_a_clean_range_is_zero_not_none(tmp_path: Path) -> None:
 
 
 def test_no_upstream_stays_indeterminate(tmp_path: Path) -> None:
-    """Throwaway repos and mid-plan worktree branches have no upstream by design."""
+    """A throwaway main checkout with no upstream stays indeterminate. (A LINKED worktree branch
+    with no upstream is counted against the main checkout's branch instead — see
+    tests/test_stop_hook_worktree_push.py.)"""
     work = tmp_path / "solo"
     subprocess.run(["git", "init", "-q", str(work)], check=True)
     for cfg in (("user.email", "t@t"), ("user.name", "t"), ("commit.gpgsign", "false")):

@@ -13,6 +13,8 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import os
+import shutil
 import subprocess
 import sys
 import time
@@ -43,9 +45,9 @@ def _git(repo: Path, *args: str) -> str:
     ).stdout.strip()
 
 
-def _main_and_worktree(tmp_path: Path) -> tuple[Path, Path]:
-    """A main checkout on `master` (no remote at all) and a linked worktree on `feat` holding one
-    commit of `notes.txt` that is not on `master`."""
+def _main_and_worktree(tmp_path: Path, *, remote: bool = True) -> tuple[Path, Path]:
+    """A main checkout on `master` (pushed to a bare `origin` unless `remote=False`) and a linked
+    worktree on `feat` — no upstream — holding one commit of `notes.txt` that is not on `master`."""
     main = tmp_path / "main"
     subprocess.run(["git", "init", "-q", "-b", "master", str(main)], check=True)
     for cfg in (("user.email", "t@t"), ("user.name", "t"), ("commit.gpgsign", "false")):
@@ -54,6 +56,11 @@ def _main_and_worktree(tmp_path: Path) -> tuple[Path, Path]:
     (main / "scripts" / "final_gate.py").write_text("", encoding="utf-8")
     _git(main, "add", "scripts/final_gate.py")
     _git(main, "commit", "-qm", "base")
+    if remote:
+        origin = tmp_path / "origin.git"
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "master", str(origin)], check=True)
+        _git(main, "remote", "add", "origin", str(origin))
+        _git(main, "push", "-q", "-u", "origin", "master")
     wt = tmp_path / "wt"
     _git(main, "worktree", "add", "-q", "-b", "feat", str(wt))
     (wt / "notes.txt").write_text("a note\n", encoding="utf-8")
@@ -121,11 +128,7 @@ def test_the_block_names_the_upstream_setting_push_and_the_list_agrees(
 
 def test_the_upstream_block_text_is_unchanged(monkeypatch, tmp_path: Path) -> None:
     """The MIRROR: a branch WITH an upstream keeps the pull-then-push remedy."""
-    origin = tmp_path / "origin.git"
-    subprocess.run(["git", "init", "-q", "--bare", "-b", "master", str(origin)], check=True)
     main, _wt = _main_and_worktree(tmp_path)
-    _git(main, "remote", "add", "origin", str(origin))
-    _git(main, "push", "-q", "-u", "origin", "master")
     (main / "notes.txt").write_text("a main note\n", encoding="utf-8")
     _git(main, "add", "notes.txt")
     _git(main, "commit", "-qm", "docs: main note")
@@ -144,3 +147,73 @@ def test_a_detached_main_checkout_is_indeterminate(tmp_path: Path) -> None:
 def test_no_repo_is_indeterminate(tmp_path: Path) -> None:
     assert hook._ahead_of_upstream(tmp_path, {"notes.txt"}) is None
     assert hook.session_unpushed(tmp_path, {"notes.txt"}) == []
+
+
+def test_a_repo_with_no_remote_is_indeterminate(monkeypatch, tmp_path: Path) -> None:
+    """`git push -u origin HEAD` cannot succeed without a remote, so the fallback never blocks."""
+    _main, wt = _main_and_worktree(tmp_path, remote=False)
+    assert hook._ahead_of_upstream(wt, {"notes.txt"}) is None
+    assert hook.session_unpushed(wt, {"notes.txt"}) == []
+    assert _drive(monkeypatch, tmp_path, wt) == ""
+
+
+def test_a_detached_worktree_is_indeterminate(tmp_path: Path) -> None:
+    """`git push -u origin HEAD` fails on a detached HEAD, so it must never be the remedy."""
+    _main, wt = _main_and_worktree(tmp_path)
+    _git(wt, "checkout", "-q", "--detach")
+    assert hook._ahead_of_upstream(wt, {"notes.txt"}) is None
+    assert hook.session_unpushed(wt, {"notes.txt"}) == []
+
+
+def test_a_main_checkout_branch_without_upstream_is_indeterminate(tmp_path: Path) -> None:
+    """HEAD ON the common dir's branch is the main checkout itself: no base, not a count of 0."""
+    main, _wt = _main_and_worktree(tmp_path)
+    _git(main, "checkout", "-q", "-b", "other")
+    (main / "other.txt").write_text("o\n", encoding="utf-8")
+    _git(main, "add", "other.txt")
+    _git(main, "commit", "-qm", "other")
+    assert hook._ahead_of_upstream(main, {"other.txt"}) is None
+
+
+def test_a_commit_already_on_a_remote_is_not_counted(tmp_path: Path) -> None:
+    """On `origin/master` but not yet on local `master`: it is off-box, so nothing to push."""
+    _main, wt = _main_and_worktree(tmp_path)
+    _git(wt, "push", "-q", "origin", "HEAD:master")
+    assert _git(wt, "branch", "-r", "--contains", "HEAD") == "origin/master"
+    assert hook._ahead_of_upstream(wt, {"notes.txt"}) == 0
+    assert hook.session_unpushed(wt, {"notes.txt"}) == []
+
+
+def test_a_gone_upstream_after_merge_is_not_counted(tmp_path: Path) -> None:
+    """The branch was pushed, merged on the remote, and its remote branch deleted."""
+    _main, wt = _main_and_worktree(tmp_path)
+    _git(wt, "push", "-q", "-u", "origin", "feat")
+    _git(wt, "push", "-q", "origin", "HEAD:master")
+    _git(wt, "push", "-q", "origin", "--delete", "feat")
+    gone = subprocess.run(
+        ["git", "-C", str(wt), "rev-parse", "--verify", "--quiet", "@{upstream}"],
+        capture_output=True,
+    )
+    assert gone.returncode != 0, "the fixture's upstream is not gone"
+    assert hook._ahead_of_upstream(wt, {"notes.txt"}) == 0
+
+
+def test_one_deadline_bounds_the_whole_worktree_path(monkeypatch, tmp_path: Path) -> None:
+    """`timeout` is the budget for the whole call, not per git call: the worktree path makes up to
+    six, and `scripts/thread_anchor.py` hands over what is left of a ~2 s budget."""
+    _main, wt = _main_and_worktree(tmp_path)
+    real_git = shutil.which("git")
+    assert real_git
+    shim_dir = tmp_path / "shim"
+    shim_dir.mkdir()
+    shim = shim_dir / "git"
+    shim.write_text(
+        f'#!/bin/sh\nsleep 0.4 </dev/null >/dev/null 2>&1\nexec "{real_git}" "$@"\n',
+        encoding="utf-8",
+    )
+    shim.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{shim_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+    t0 = time.monotonic()
+    hook.session_unpushed(wt, {"notes.txt"}, timeout=1.0)
+    elapsed = time.monotonic() - t0
+    assert elapsed < 1.6, f"a 1.0 s budget took {elapsed:.2f} s"

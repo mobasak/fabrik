@@ -679,42 +679,41 @@ def _commit_is_mine(touched: set[str], distinctive: set[str], authored: set[str]
     return bool(touched) and touched <= _ROUTINE_GOVERNANCE and bool(touched & authored)
 
 
-def _worktree_base(root: Path, timeout: float = 30) -> str | None:
+def _git_by(root: Path, deadline: float, *args: str) -> subprocess.CompletedProcess[str]:
+    """One git call bounded by what is LEFT of a shared deadline (never less than 0.1 s), so a
+    caller's `timeout` budgets the whole sequence rather than each call in it."""
+    return subprocess.run(
+        ["git", *args],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=max(0.1, deadline - time.monotonic()),
+    )
+
+
+def _worktree_base(root: Path, deadline: float) -> str | None:
     """A LINKED WORKTREE's push base when its branch has no upstream: the main checkout's branch.
 
     That is the symbolic HEAD of the git common dir — the rule `scripts/final_gate.py::
     _linked_worktree_base` uses (cf4374537), re-implemented because this hook imports nothing
     from it. A worktree branch holding committed work not on that branch is exactly the state the
-    push law exists for (spec 2026-09-29-hub-worktree-cutover § D4). A detached main checkout, or
-    HEAD already ON that branch (the main checkout itself), answers None; so does any git error.
+    push law exists for (spec 2026-09-29-hub-worktree-cutover § D4). None — no base, never a
+    block — whenever the remedy `git push -u origin HEAD` could not succeed or the question does
+    not arise: a detached main checkout, a detached worktree HEAD, HEAD already ON the main branch
+    (the main checkout itself), a repo with no remote, or any git error.
     """
     try:
-        r = subprocess.run(
-            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
+        r = _git_by(root, deadline, "rev-parse", "--path-format=absolute", "--git-common-dir")
         common = r.stdout.strip()
         if r.returncode != 0 or not common:
             return None
-        r = subprocess.run(
-            ["git", "--git-dir", common, "symbolic-ref", "--quiet", "HEAD"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
+        r = _git_by(root, deadline, "--git-dir", common, "symbolic-ref", "--quiet", "HEAD")
         main_branch = r.stdout.strip() if r.returncode == 0 else ""
-        h = subprocess.run(
-            ["git", "symbolic-ref", "--quiet", "HEAD"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        if not main_branch or (h.returncode == 0 and h.stdout.strip() == main_branch):
+        h = _git_by(root, deadline, "symbolic-ref", "--quiet", "HEAD")
+        if not main_branch or h.returncode != 0 or h.stdout.strip() == main_branch:
+            return None
+        remotes = _git_by(root, deadline, "remote")
+        if remotes.returncode != 0 or not remotes.stdout.strip():
             return None
         return main_branch
     except Exception:
@@ -725,38 +724,31 @@ def _unpushed_log(root: Path, fmt: str, timeout: float = 30) -> str | None:
     """`git log -z --no-renames --name-only --format=<fmt> <base>..HEAD` stdout; None = no base.
 
     The base is `@{upstream}` — ONE subprocess on that path, the common case — and only when that
-    range fails does `_worktree_base` supply the main checkout's branch. Any git error: None."""
-
-    def _log(base: str) -> subprocess.CompletedProcess[str]:
-        cmd = ["git", "log", "-z", "--no-renames", "--name-only", f"--format={fmt}"]
-        return subprocess.run(
-            [*cmd, f"{base}..HEAD"], cwd=root, capture_output=True, text=True, timeout=timeout
-        )
-
+    range fails does `_worktree_base` supply the main checkout's branch; that fallback range also
+    excludes everything on any remote-tracking ref (`--not --remotes`), so a commit already on
+    `origin/master`, or on a gone upstream's merge target, is not "unpushed". `timeout` is ONE
+    deadline for the whole sequence. Any git error: None."""
+    deadline = time.monotonic() + timeout
+    log = ("log", "-z", "--no-renames", "--name-only", f"--format={fmt}")
     try:
-        r = _log("@{upstream}")
+        r = _git_by(root, deadline, *log, "@{upstream}..HEAD")
         if r.returncode != 0:
-            base = _worktree_base(root, timeout)
+            base = _worktree_base(root, deadline)
             if base is None:
                 return None
-            r = _log(base)
+            r = _git_by(root, deadline, *log, f"{base}..HEAD", "--not", "--remotes")
         return r.stdout if r.returncode == 0 else None
     except Exception:
         return None
 
 
-def _has_upstream(root: Path) -> bool:
+def _has_upstream(root: Path, timeout: float = 30) -> bool:
     """Does HEAD's branch have an upstream? Picks the UNPUSHED block's remedy; an error or a tree
     with no worktree base keeps the wording the push law always carried."""
+    deadline = time.monotonic() + timeout
     try:
-        r = subprocess.run(
-            ["git", "rev-parse", "--verify", "--quiet", "@{upstream}"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        return r.returncode == 0 or _worktree_base(root) is None
+        r = _git_by(root, deadline, "rev-parse", "--verify", "--quiet", "@{upstream}")
+        return r.returncode == 0 or _worktree_base(root, deadline) is None
     except Exception:
         return True
 
