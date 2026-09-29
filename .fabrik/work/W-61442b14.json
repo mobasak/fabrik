@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T23:53:18.572372Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-61442b14",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/archived/2026-09-29-plan-1-hub-worktree-cutover/2026-09-29-plan-1-hub-worktree-cutover.md",
+    "spec": ""
+  },
+  "next": "when fabrik-lib's sentinel replies, run python3 scripts/decisions.py --merge-owner /opt/fabrik-lib (UNDECLARED today) and ack its reply; nothing for the hub to write",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "cross-repo"
+  ],
+  "title": "V10 residual of the hub worktree cut-over: fabrik-lib's ledger row adopting the model (sentinel merge owner, dev1/dev2 in worktrees, spec § D8) — requested by mail 01M3Q192/01M3QM3G, relayed live to its sentinel 2026-09-30"
+}

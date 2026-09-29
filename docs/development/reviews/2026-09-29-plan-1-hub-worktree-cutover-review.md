@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 85a55422c170e8ceb427b935ce412ad79ca9f087; the plan's own commits from `086269f2d` (T01) to `85a55422c` (the docs review) — 55 paths, listed in the rubric invocation below; the range also carries sibling sessions' commits, which this review did not grade
 **Command:** /fabrik-review · **Changed:** the 55 paths of the rubric invocation below
-**Plan:** `docs/development/plans/2026-09-29-plan-1-hub-worktree-cutover/2026-09-29-plan-1-hub-worktree-cutover.md`
+**Plan:** `docs/development/plans/archived/2026-09-29-plan-1-hub-worktree-cutover/2026-09-29-plan-1-hub-worktree-cutover.md`
 
 ## Integration receipts (T07) — pasted verbatim
 
@@ -58,7 +58,7 @@ UNDECLARED
 rc=3
 ```
 
-The hub reads `infra` (D-453) and trade-intelligence `agent-1` (its D-029/D-038). fabrik-lib reads UNDECLARED: its adoption row is the sentinel's to write in its own window (spec § D8; the hub may not edit another repo). Requested by fabrik-mail 01M3Q192 and 01M3QM3G with the operator's words (D-444/D-445); fabrik-lib's reply 01M3QNZG took it after its CLAUDE.md lean pass, and its dev1 and dev2 sessions relayed a live reminder to the sentinel on 2026-09-30. The plan is not archived until that row lands.
+The hub reads `infra` (D-453) and trade-intelligence `agent-1` (its D-029/D-038). fabrik-lib reads UNDECLARED: its adoption row is the sentinel's to write in its own window (spec § D8; the hub may not edit another repo). Requested by fabrik-mail 01M3Q192 and 01M3QM3G with the operator's words (D-444/D-445); fabrik-lib's reply 01M3QNZG took it after its CLAUDE.md lean pass, and its dev1 and dev2 sessions relayed a live reminder to the sentinel on 2026-09-30. The hub's side of D8 is the request, and it is delivered; fabrik-lib's row is tracked as W-61442b14 and verified on the sentinel's reply.
 
 ### The plan's docs — `/fabrik-docs-review`
 

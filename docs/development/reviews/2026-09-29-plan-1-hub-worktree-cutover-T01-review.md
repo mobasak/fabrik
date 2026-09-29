@@ -3,7 +3,7 @@
 **Status:** CONVERGED — 3 passes, confirmed 8 → 1 → 0; round 2 confirmed only a defect inside round 1's T02a fix (own-fix 1), fixed and re-verified by the owning seat; closing pass 3 quiet with every slice verified
 **Surface:** `git rev-parse HEAD` = 037f17834379bf813622907622ba9c94ccff7049; range tip 6b278e5e6a0da9df292db2aec89183aa9b04f539; `git diff 037f17834..6b278e5e6 -- commands/assemble_commands.py scripts/command_feedback_report.py scripts/governance_sync_postcommit.sh scripts/install_post_commit_hook.sh scripts/sync_projects.py scripts/vps_sync.py src/fabrik/config.py tests/enforcement/test_governance_sync_postcommit.py tests/test_assemble_worktree_guard.py tests/test_hub_write_root.py tests/test_merge_sync.py` md5 892d884b7f388b8bfbe30c9504de3642 (80763 bytes)
 **Command:** /fabrik-review · **Changed:** `commands/assemble_commands.py`, `scripts/command_feedback_report.py`, `scripts/governance_sync_postcommit.sh`, `scripts/install_post_commit_hook.sh`, `scripts/sync_projects.py`, `scripts/vps_sync.py`, `src/fabrik/config.py`, `tests/enforcement/test_governance_sync_postcommit.py`, `tests/test_assemble_worktree_guard.py`, `tests/test_hub_write_root.py`, `tests/test_merge_sync.py`
-**Plan:** `docs/development/plans/2026-09-29-plan-1-hub-worktree-cutover/2026-09-29-plan-1-hub-worktree-cutover.md`
+**Plan:** `docs/development/plans/archived/2026-09-29-plan-1-hub-worktree-cutover/2026-09-29-plan-1-hub-worktree-cutover.md`
 
 ## Coverage Checklist
 

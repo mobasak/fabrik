@@ -3,7 +3,7 @@
 **Status:** CONVERGED — 2 passes, confirmed 4 → 0; closing pass 2 quiet with the slice verified
 **Surface:** `git rev-parse HEAD` = 8ba7895ea73198add78033b7e41bdf5771e5158a; range tip 2430348d7041d02e53a29ebe05a1d8a16f946408; `git diff 3eceb0e3d..2430348d7 -- CLAUDE.md tests/test_governance_template_split.py` md5 77900d64418b7addaaaebaeeeb4934a1 (34728 bytes)
 **Command:** /fabrik-review · **Changed:** `CLAUDE.md`, `tests/test_governance_template_split.py`
-**Plan:** `docs/development/plans/2026-09-29-plan-1-hub-worktree-cutover/2026-09-29-plan-1-hub-worktree-cutover.md`
+**Plan:** `docs/development/plans/archived/2026-09-29-plan-1-hub-worktree-cutover/2026-09-29-plan-1-hub-worktree-cutover.md`
 
 ## Coverage Checklist
 

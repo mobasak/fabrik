@@ -3,7 +3,7 @@
 **Status:** CONVERGED — 3 passes, confirmed 9 → 3 → 0; round 2 confirmed one defect inside round 1's T04a fix plus two test gaps, fixed and re-verified by the owning seat; closing pass 3 quiet with every slice verified
 **Surface:** `git rev-parse HEAD` = db6276fb2b2a22179522bf3a6a78330ca1afa5d3; range tip 23c1070758624badc4d1c1618aed92bccbcdc146; `git diff ae4f28761..23c107075 -- .claude/hooks/session_orient.py scripts/check_commit_trailers.py scripts/kilo-benchmarks/tests/test_commit_trailer_guard.py scripts/sysadmin/kaizen_events.py tests/test_hub_write_root.py tests/test_session_orient_hook.py` md5 8cdf67a85222da93757e38fd88881036 (68979 bytes)
 **Command:** /fabrik-review · **Changed:** `.claude/hooks/session_orient.py`, `scripts/check_commit_trailers.py`, `scripts/kilo-benchmarks/tests/test_commit_trailer_guard.py`, `scripts/sysadmin/kaizen_events.py`, `tests/test_hub_write_root.py`, `tests/test_session_orient_hook.py`
-**Plan:** `docs/development/plans/2026-09-29-plan-1-hub-worktree-cutover/2026-09-29-plan-1-hub-worktree-cutover.md`
+**Plan:** `docs/development/plans/archived/2026-09-29-plan-1-hub-worktree-cutover/2026-09-29-plan-1-hub-worktree-cutover.md`
 
 ## Coverage Checklist
 

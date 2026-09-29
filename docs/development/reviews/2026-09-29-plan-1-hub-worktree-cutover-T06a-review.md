@@ -3,7 +3,7 @@
 **Status:** CONVERGED — 3 passes, confirmed 8 → 2 → 0; round 2 confirmed only defects inside round 1's T06a fix, fixed and re-verified by the owning seat; closing pass 3 quiet with every slice verified
 **Surface:** `git rev-parse HEAD` = df90925f8321508208470ce44eaa9d2e26ed9b28; range tip 38ce29e849df3f95d07309450dbc6c5c1d748944; `git diff df90925f8..38ce29e84 -- .worktreeinclude commands/_sources/fabrik-epics-review.md docs/reference/multi-agent-operating-model.md docs/workstation/agent-identity.md docs/workstation/hooks-index.md templates/governance/CLAUDE.md tests/test_governance_template_split.py tests/test_vision_reads_work_stores.py` + 1 untracked file(s) md5 4effad6f50a7a09faba9afca4ac76e75 (77417 bytes)
 **Command:** /fabrik-review · **Changed:** `.worktreeinclude`, `commands/_sources/fabrik-epics-review.md`, `docs/reference/multi-agent-operating-model.md`, `docs/workstation/agent-identity.md`, `docs/workstation/hooks-index.md`, `templates/governance/CLAUDE.md`, `tests/test_governance_template_split.py`, `tests/test_vision_reads_work_stores.py`
-**Plan:** `docs/development/plans/2026-09-29-plan-1-hub-worktree-cutover/2026-09-29-plan-1-hub-worktree-cutover.md`
+**Plan:** `docs/development/plans/archived/2026-09-29-plan-1-hub-worktree-cutover/2026-09-29-plan-1-hub-worktree-cutover.md`
 
 ## Coverage Checklist
 

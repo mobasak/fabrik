@@ -1,6 +1,8 @@
 # Plan — every repo a three-agent repo: the hub's worktree cut-over
 
-Status: IN-PROGRESS (2026-09-29, /fabrik-execute-plan; was CONVERGED 2026-09-29, /fabrik-plan-review — 3 passes, confirmed 16 → 2 → 0; see § Pass Ledger; D-450)
+Status: EXECUTED 2026-09-30 (/fabrik-execute-plan; was CONVERGED 2026-09-29, /fabrik-plan-review — 3 passes, confirmed 16 → 2 → 0; see § Pass Ledger; D-450)
+Completed: D-454, final commit ee36bfcc4; gate `final_gate.py --check --json` success. D7 whole-plan validation confirmed 7 → 4 → 0, the docs review 12 → 0. V10's fabrik-lib half is fabrik-lib's own act (spec § D8), requested and tracked as W-61442b14.
+Whole-plan review: docs/development/reviews/2026-09-29-plan-1-hub-worktree-cutover-review.md
 **Owner:** infra
 Spec: docs/superpowers/specs/2026-09-29-hub-worktree-cutover-design.md
 Date: 2026-09-29
@@ -41,7 +43,7 @@ each ticket cites the spec section it implements and restates nothing that secti
 | T06a | The project contract: the model unconditional, ids reserved | T04a, T04b, T05 | ⛓️ | ✅ | e25accc14, 7d1dde45b, a76a6bcf6 |
 | T06c | The hub contract: the mint line, and § Shared repo scoped to the main checkout | T06a | ⛓️ | ✅ | 603b8aadb, 2430348d7 |
 | T06b | The landing docs and the hub's worktree include set | T01, T02a, T02b, T03a, T03b, T04a, T04b, T05 | ⚡ | ✅ | 3b5b1bb1f, c290f41b6 |
-| T07 | Integration: the hub cut-over, whole-plan validation, receipt | T06a, T06b, T06c | ⛓️ | ⬜ | |
+| T07 | Integration: the hub cut-over, whole-plan validation, receipt | T06a, T06b, T06c | ⛓️ | ✅ | 8ba7895ea, 31217e23d, c47b34fbe, 45d900ecc, 85a55422c, ee36bfcc4 |
 
 
 ## Merge Order

@@ -3,7 +3,7 @@
 **Status:** CONVERGED — 7 passes, confirmed 7 → 1 → 1 → 1 → 1 → 1 → 0; rounds 2-6 confirmed only defects inside the previous round's T03a fix (own-fix 1 each), each fixed and re-verified by the owning seat; closing pass 7 quiet with every slice verified
 **Surface:** `git rev-parse HEAD` = 53ac35e9313be1448672f249b940eaed6036e05c; range tip 9db702257f13c9d7cb149f0a0cfbe9c40c20da43; `git diff 53ac35e93..9db702257 -- .claude/hooks/final_gate_stop.py scripts/decisions.py scripts/enforcement/check_vendored_drift.py scripts/final_gate.py scripts/kilo-benchmarks/autocommit_pipeline_outputs.sh scripts/wsl_startup_hook.sh tests/test_automated_writers.py tests/test_hub_identity_worktree.py tests/test_stop_hook_push_attribution.py tests/test_stop_hook_worktree_push.py` + 3 untracked file(s) md5 7f92a210960700e1a4e61a1265ec1a0f (102001 bytes)
 **Command:** /fabrik-review · **Changed:** `.claude/hooks/final_gate_stop.py`, `scripts/decisions.py`, `scripts/enforcement/check_vendored_drift.py`, `scripts/final_gate.py`, `scripts/kilo-benchmarks/autocommit_pipeline_outputs.sh`, `scripts/wsl_startup_hook.sh`, `tests/test_automated_writers.py`, `tests/test_hub_identity_worktree.py`, `tests/test_stop_hook_push_attribution.py`, `tests/test_stop_hook_worktree_push.py`
-**Plan:** `docs/development/plans/2026-09-29-plan-1-hub-worktree-cutover/2026-09-29-plan-1-hub-worktree-cutover.md`
+**Plan:** `docs/development/plans/archived/2026-09-29-plan-1-hub-worktree-cutover/2026-09-29-plan-1-hub-worktree-cutover.md`
 
 ## Coverage Checklist
 
