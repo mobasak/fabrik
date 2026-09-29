@@ -1350,3 +1350,22 @@ def test_the_cross_repo_rule_is_identical_in_both_contracts_and_the_template_bou
     # the pointer must resolve: § FINAL OUTPUT carries the closed list the bullet names
     final = tpl_text.split("## ⚠️ FINAL OUTPUT", 1)[1]
     assert "`gate` — a **contractual human gate**, named by a token from the closed list" in final
+
+
+def test_every_relative_doc_cite_in_the_template_is_a_file_projects_receive() -> None:
+    """The template is read INSIDE project repos, so a relative `docs/reference/…` cite must be a
+    path the sync distributes; a hub-only doc is cited by its absolute `/opt/fabrik/…` path.
+    Three relative cites of hub-only docs pointed at files 0 of 49 projects had (2026-09-29)."""
+    sys.path.insert(0, str(FABRIK / "scripts"))
+    import fabrik_synced_manifest as m
+
+    synced = [p for paths in m.gitignore_dest_paths().values() for p in paths]
+    text = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    cites = set(re.findall(r"(?<![/\w])(docs/reference/[\w./-]+\.md)", text))
+    assert cites, "the template cites no docs/reference file — the pattern drifted"
+    orphans = sorted(
+        c for c in cites if not any(c == p or (p.endswith("/") and c.startswith(p)) for p in synced)
+    )
+    assert not orphans, (
+        f"relative cites of docs projects never receive (cite /opt/fabrik/…): {orphans}"
+    )

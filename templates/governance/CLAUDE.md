@@ -45,7 +45,7 @@ broken tool, FIX-FIRST (§ Behavior), never a silent fallback; a server only a r
 window — say so.
 **(c) CATCH UP on a NEW chat** — `/fabrik-catchup` and/or `session-recall` before acting on inherited context
 (§ Past sessions); ledger first for a decision-shaped question.
-**(d) MORE THAN ONE AGENT in this repo? Agents 2..N launch as `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>` and work ONLY inside that linked worktree (`.claude/worktrees/<name>/`, branch `worktree-<name>`) — never edit the main checkout: only the merge owner (agent 1, launched `CLAUDE_AGENT=<name> claude -n <name>-<repo>`) writes there, and Claude Code's isolation check refuses main-checkout edits, `cd`/`git -C` redirects into it, and command shapes it cannot trace — so every heredoc is QUOTED (`<<'EOF'`; an unquoted `<<EOF` expands `$` and is refused). Worktrees isolate FILES, not the runtime: a project with a database has ONE `DATABASE_URL` across every worktree, so a migration run in one is live for all — one ticket owns any migration, nobody else runs one — and every other act that changes the shared runtime for all worktrees (a module reload, an app or worker restart, starting or resetting a shared container) is taken from the merge owner one at a time, while developing and testing up to that act stay parallel (`docs/reference/multi-agent-operating-model.md` § The shared runtime). An EXISTING repo with several windows already running is adopted ONCE — agent-1 runs `python scripts/docs_updater.py --adopt <names>` in the main checkout (the first name becomes the merge owner), after which `docs/development/PLANS.md` shows who owns what.
+**(d) MORE THAN ONE AGENT in this repo? Agents 2..N launch as `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>` and work ONLY inside that linked worktree (`.claude/worktrees/<name>/`, branch `worktree-<name>`) — never edit the main checkout: only the merge owner (agent 1, launched `CLAUDE_AGENT=<name> claude -n <name>-<repo>`) writes there, and Claude Code's isolation check refuses main-checkout edits, `cd`/`git -C` redirects into it, and command shapes it cannot trace — so every heredoc is QUOTED (`<<'EOF'`; an unquoted `<<EOF` expands `$` and is refused). Worktrees isolate FILES, not the runtime: a project with a database has ONE `DATABASE_URL` across every worktree, so a migration run in one is live for all — one ticket owns any migration, nobody else runs one — and every other act that changes the shared runtime for all worktrees (a module reload, an app or worker restart, starting or resetting a shared container) is taken from the merge owner one at a time, while developing and testing up to that act stay parallel (`/opt/fabrik/docs/reference/multi-agent-operating-model.md` § The shared runtime). An EXISTING repo with several windows already running is adopted ONCE — agent-1 runs `python scripts/docs_updater.py --adopt <names>` in the main checkout (the first name becomes the merge owner), after which `docs/development/PLANS.md` shows who owns what.
 
 0. **Task→skill routing:** step 0 applies to the operator request that STARTS a run — not to steps inside a command or plan already executing (the plan-execution override and invoked-command rule govern those). At that point, classify the request against the pipeline stages below and invoke the matching skill — a task that matches a stage and is executed without its skill is a defect, the sibling of "Invoked command = loaded command" (§ Behavior). Full command chain: § Pipeline (this table names stages only, it doesn't duplicate the chain).
 
@@ -431,7 +431,7 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   route via the hub. To message a specific SIBLING project, send `--to fabrik --to-agent infra`
   (relay delivery is the mail-machinery beat) and ask the hub to relay.
 - Full protocol (claim-before-work, the shared inbox for a repo's concurrent agents, the digest):
-  `mail.py --help` and — hub-side — `docs/reference/fabrik-mail.md`. **Never** hand-write into a mailbox;
+  `mail.py --help` and — hub-side — `/opt/fabrik/docs/reference/fabrik-mail.md`. **Never** hand-write into a mailbox;
   always go through `mail.py` (the tmp-then-exclusive-create publish is the protocol).
 
 ## Pointers (detail in packs)
@@ -501,7 +501,7 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   Sonnet breadth, Haiku mechanical — priced haiku 1× · sonnet 2× · opus 5× · fable 10× (hub D-190), so breadth on
   Opus is a 2.5× overspend. The unit count is what the SURFACE HAS; spend is bounded by units (or slices), never
   by how idle the box looks. The `ai-consult` lane is off with the pool. The pool contract is frozen in
-  `docs/reference/subagent-pool-contract.md` (hub D-343); the corpus keeps its `<!-- POOL OFF -->` comments, and
+  `/opt/fabrik/docs/reference/subagent-pool-contract.md` (hub D-343); the corpus keeps its `<!-- POOL OFF -->` comments, and
   re-enabling is an operator ruling first, then a restore from that file — never a quiet uncomment.
 
 ## Pipeline — next-command chaining (every `/fabrik-*` command ends by pointing to the next)
