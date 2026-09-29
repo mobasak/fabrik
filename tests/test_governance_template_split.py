@@ -1385,16 +1385,23 @@ def test_the_templates_orient_d_is_unconditional_and_names_the_running_window_mo
     than the merge owner's moves with `EnterWorktree`. The rules the conditional version carried
     survive the rewrite: each clause below is one of them, so dropping a rule reds here. Mutants
     this must kill (executed): the condition restored in any case ("If more than one agent works
-    in this repo:"), "fires on it, so never copy", and a copy-in set cut down to `.env`."""
+    in this repo:"), "fires on it, so never copy", a copy-in clause whose example list lost
+    `CLAUDE.md`, and `--single-window` made conditional on a lone window — `--adopt` counts only
+    `claude` processes whose cwd IS the main checkout (`docs_updater.py::count_sessions_sharing`),
+    so agent-1 always counts one and a conditional flag sends a multi-window repo into exit 2."""
     d = _orient_d((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"))
     flat = " ".join(d.split())
     assert "even while one window is open" in flat, "§ Orient (d) is not stated unconditionally"
     assert not re.search(r"more than one agent", flat, re.I), "§ Orient (d) is still conditional"
     assert not re.search(r"\bif\b[^.]{0,80}\bagents?\b", flat, re.I), "(d) restates a condition"
     assert "a window other than the merge owner's" in flat, "the move lost its owner qualifier"
-    assert "moves with `EnterWorktree`" in flat, "§ Orient (d) does not name the running-window move"
+    assert "moves with `EnterWorktree`" in flat, "(d) does not name the running-window move"
     assert "`.worktreeinclude` does not fire on it" in flat, "the move must say it copies nothing"
     assert "copy every gitignored path `.worktreeinclude` lists" in flat, "copy-in set cut down"
+    copy_in = flat.split("copy every gitignored path", 1)[1]
+    copy_in = copy_in.split("in from the main checkout", 1)[0]
+    assert "`CLAUDE.md`" in copy_in, f"the copy-in examples lost the contract itself: {copy_in!r}"
+    assert "only window open" not in flat, "--single-window is conditional; --adopt counts one"
     for clause in (
         "claude --worktree <name> -n <name>-<repo>",
         "branch `worktree-<name>`",
@@ -1403,9 +1410,8 @@ def test_the_templates_orient_d_is_unconditional_and_names_the_running_window_mo
         "one ticket owns any migration, nobody else runs one",
         "taken from the merge owner one at a time",
         "/opt/fabrik/docs/reference/multi-agent-operating-model.md",
-        "python scripts/docs_updater.py --adopt <names>",
-        # --adopt refuses (exit 2) below two live sessions without it — docs_updater.py _adopt
-        "`--single-window` while it is the only window open",
+        "python scripts/docs_updater.py --adopt <names> --single-window",
+        "it counts only sessions in the main checkout itself",
         "`docs/development/PLANS.md` shows who owns what",
     ):
         assert clause in flat, f"§ Orient (d) lost a rule: {clause}"
