@@ -1369,3 +1369,45 @@ def test_every_relative_doc_cite_in_the_template_is_a_file_projects_receive() ->
     assert not orphans, (
         f"relative cites of docs projects never receive (cite /opt/fabrik/…): {orphans}"
     )
+
+
+# ── T06a (plan 2026-09-29-plan-1-hub-worktree-cutover): the model unconditional, ids reserved ──
+
+
+def _orient_d(text: str) -> str:
+    """The template's § Orient (d) paragraph, from its bold lead to the next blank line."""
+    assert "\n**(d) " in text, "the template lost its § Orient (d) paragraph"
+    return text.split("\n**(d) ", 1)[1].split("\n\n", 1)[0]
+
+
+def test_the_templates_orient_d_is_unconditional_and_names_the_running_window_move() -> None:
+    """Spec V7: § Orient (d) binds every repo, even while one window is open, and a window already
+    running moves with `EnterWorktree`. The rules the conditional version carried survive the
+    rewrite: each clause below is one of them, so dropping a rule reds here."""
+    d = _orient_d((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"))
+    flat = " ".join(d.split())
+    assert "MORE THAN ONE AGENT" not in flat, "§ Orient (d) is still conditional"
+    assert "`EnterWorktree`" in flat, "§ Orient (d) does not name the running-window move"
+    assert ".worktreeinclude" in flat, "the move must say the include set is not copied by it"
+    for clause in (
+        "claude --worktree <name> -n <name>-<repo>",
+        "branch `worktree-<name>`",
+        "edit the main checkout: only the merge owner",
+        "`<<'EOF'`",
+        "one ticket owns any migration, nobody else runs one",
+        "taken from the merge owner one at a time",
+        "/opt/fabrik/docs/reference/multi-agent-operating-model.md",
+        "python scripts/docs_updater.py --adopt <names>",
+        "`docs/development/PLANS.md` shows who owns what",
+    ):
+        assert clause in flat, f"§ Orient (d) lost a rule: {clause}"
+
+
+@pytest.mark.parametrize("rel", [TEMPLATE_REL, "commands/_sources/fabrik-epics-review.md"])
+def test_the_mint_line_reserves_the_id_and_never_mints_with_next_id(rel: str) -> None:
+    """Spec V5: an agent mints a D- id with `decisions.py --reserve-id` (it reserves, so a sibling
+    worktree cannot be handed the same id); `--next-id` only reads, so no command form of it may
+    stand where an agent is told to mint. A bare `--next-id` mentioned for reading stays legal."""
+    text = (FABRIK / rel).read_text(encoding="utf-8")
+    assert "decisions.py --reserve-id" in text, f"{rel} does not mint with --reserve-id"
+    assert "decisions.py --next-id" not in text, f"{rel} still mints with --next-id"
