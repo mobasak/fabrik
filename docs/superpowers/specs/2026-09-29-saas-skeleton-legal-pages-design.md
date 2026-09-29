@@ -1,6 +1,13 @@
 # saas-skeleton legal pages that pass Paddle onboarding — design spec
 
-Status: CONVERGED
+Status: BLOCKED — waiting on fabrik-lib's legal-content module (mail 01M3QDBVWD676SD9KGNKP3T2R6)
+Split (operator 2026-09-29, "ok proceed"; supersedes D-446's scope): the legal TEXT (Terms, Privacy,
+Refund, Cookies, the Paddle reseller clause, KVKK Art. 10, the fill-in markers) is designed and owned by
+fabrik-lib; this hub spec is re-cut to the scaffold wiring only — vendor the module, four force-dynamic
+routes, server-only `LEGAL_*` runtime config, the links on every marketing page, the docs-site pointers
+and the scaffold tests — once fabrik-lib names the module's public interface. Until then the content
+sections below (§ Constraints digest, § Config values, § The pages) stand as the REQUIREMENTS handed to
+fabrik-lib, not as a hub build.
 Profile: full (two of the four pages, `/refund` and `/cookies`, have no code behind them today)
 Mail: 01M39AJE8MAJJKX0N1YYD0J56D (fleet, claimed 2026-09-29) · work item W-78319f3d
 Research ledger: `docs/reference/research/2026-09-29-saas-skeleton-legal-pages-ledger.md` (59 rows)

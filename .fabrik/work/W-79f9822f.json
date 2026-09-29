@@ -1,0 +1,26 @@
+{
+  "block_digest": "ba3e803dee13428dd3f8a6f88910e2e89700f088f2c5ac0d707a060e4adf8ca6",
+  "blocked_by": [],
+  "created": "2026-09-29T18:52:16.359256Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-79f9822f",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "de6f5a20dc7fa8c384ed3d09c2093c19d9dd7e67b64b6a3312386e9817b9df84"
+  ],
+  "next": "",
+  "note": "superseded by the operator's split (\"ok proceed\" on W-2d013c85): the hub-only design is no longer the one to approve; the re-cut wiring spec comes back for approval after fabrik-lib names its module interface",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve the saas-skeleton legal-pages design (`docs/superpowers/specs/2026-09-29-saas-skeleton-legal-pages-design.md`, reviewed and pushed as 304641875) so it can go to planning?",
+  "status": "done",
+  "title": "Do you approve the saas-skeleton legal-pages design (`docs/superpowers/specs/2026-09-29-saas-skeleton-legal-pages-design.md`, reviewed and pushed as 304641875) so it can go to planning?"
+}

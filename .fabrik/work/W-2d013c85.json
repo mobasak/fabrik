@@ -1,0 +1,26 @@
+{
+  "block_digest": "21506edfff19449c690604be6c864259c2cbd777e03bd4a864421faa0abf01a4",
+  "blocked_by": [],
+  "created": "2026-09-29T20:10:26.639176Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-2d013c85",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "6e10731db7f41fd8e632cfa4a37960dd1494a259790ef7a52211a60f1d5af3dd"
+  ],
+  "next": "",
+  "note": "operator: \"ok proceed\" — split: fabrik-lib designs the legal content (mail 01M3QDBV), hub spec re-cut to wiring",
+  "owner": "",
+  "priority": 2,
+  "question": "Should I split the legal-pages work so fabrik-lib's agents design the legal content, with the hub spec reduced to vendoring and wiring their module?",
+  "status": "done",
+  "title": "Should I split the legal-pages work so fabrik-lib's agents design the legal content, with the hub spec reduced to vendoring and wiring their module?"
+}
