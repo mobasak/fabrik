@@ -534,8 +534,9 @@ def _append_row(ledger: Path, fields: list[str], key: str) -> int:
 
 
 def _next_id(repo: Path) -> int:
-    """Print the next free ``D-NNN`` for *repo*'s ledger, derived from the file right now, and
-    skipping any id a live ``--reserve-id`` call still holds.
+    """Print the next free ``D-NNN`` for *repo*'s ledger, derived from the file right now, the
+    integration branch's ledger (:func:`_merge_base_ids`), and skipping any id a live
+    ``--reserve-id`` call still holds.
 
     Removes the HAND-derivation error, which is a real and repeated one: deriving "the next
     number" by eye picks up a stale maximum whenever a sibling appended while you were reading —
@@ -543,11 +544,14 @@ def _next_id(repo: Path) -> int:
     already taken by the time a row was written), and three concurrent agents in another repo
     produced a duplicate D-006 the same way (mail 01M1KR2ANYTRZR80WF1H29399T).
 
-    ⚠ Spec delta D7: before this, `_next_id` read the ledger alone and never looked at
-    `--reserve-id`'s reservation file, so a stale caller could be handed back the exact id a live
-    reservation was already holding for someone else. A reservation counts as landed here once
-    its id appears in THIS ledger read; one that has not yet landed is skipped regardless of age
-    (see :func:`_live_reservations` — the fixed TTL no longer governs either caller).
+    ⚠ Spec delta D7: before this, `_next_id` read the ledger alone — neither the reservation
+    file nor the integration branch — so a STALE worktree (one whose local ledger is missing
+    rows master already gained) or a stale caller (one that reserved but never appended) could
+    both be handed back an id already live elsewhere. It now uses the exact same landed-ids
+    union `_allocate`/`_append_row` use (:func:`_live_reservations`'s own contract): a reservation
+    or a merge-base row counts as landed once it appears in THIS ledger OR the integration
+    branch's; one that has not landed anywhere is skipped regardless of age (the fixed TTL
+    governs none of the three callers now).
 
     It does NOT make allocation atomic, and saying so is the point: two agents calling this in
     the same window still get the same number. The race is closed at the OTHER end — by minting
@@ -562,8 +566,10 @@ def _next_id(repo: Path) -> int:
         sys.stderr.write(f"decisions: cannot read {ledger} ({exc})\n")
         return 1
     ids = [int(m) for m in re.findall(r"^\|\s*D-(\d+)\s*\|", text, re.M)]
-    live = _live_reservations(_reserve_path(_repo_key(repo)), set(ids))
-    pool = ids + live
+    merge_base = _merge_base_ids(ledger)
+    merged_ids = set(ids) | set(merge_base)
+    live = _live_reservations(_reserve_path(_repo_key(repo)), merged_ids)
+    pool = ids + merge_base + live
     if not pool:
         # A ledger with no rows yet starts at D-001, not D-000: every existing ledger's first
         # row is 001, and a zeroth row would sort oddly against them.

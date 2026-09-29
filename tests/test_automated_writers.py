@@ -41,6 +41,13 @@ LEDGER_HEADER = (
     "| D-001 | 2026-09-29 | operator | seed row | seed | seed |\n"
 )
 
+LEDGER_EMPTY = (
+    "# Decisions\n\n"
+    "Append-at-top. One row per decision; rows are IMMUTABLE.\n\n"
+    "| id | when | who | what (the decision) | why | where |\n"
+    "|---|---|---|---|---|---|\n"
+)
+
 
 def _git(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
@@ -48,13 +55,24 @@ def _git(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _init_repo(root: Path) -> None:
+def _init_repo(root: Path, ledger_text: str = LEDGER_HEADER) -> None:
     root.mkdir(parents=True, exist_ok=True)
     _git("init", "-q", "-b", "master", cwd=root)
     (root / "docs").mkdir(parents=True, exist_ok=True)
-    (root / "docs" / "DECISIONS.md").write_text(LEDGER_HEADER, encoding="utf-8")
+    (root / "docs" / "DECISIONS.md").write_text(ledger_text, encoding="utf-8")
     _git("add", "docs/DECISIONS.md", cwd=root)
     _git("commit", "-q", "-m", "seed", cwd=root)
+
+
+def _append_row_on_master(root: Path, row: str, msg: str) -> None:
+    """Commit *row* atop the table on *root*'s checked-out branch (the main checkout)."""
+    ledger = root / "docs" / "DECISIONS.md"
+    lines = ledger.read_text(encoding="utf-8").split("\n")
+    sep = next(n for n, ln in enumerate(lines) if ln.strip().startswith("|---"))
+    lines.insert(sep + 1, row)
+    ledger.write_text("\n".join(lines), encoding="utf-8")
+    _git("add", "docs/DECISIONS.md", cwd=root)
+    _git("commit", "-q", "-m", msg, cwd=root)
 
 
 def _worktree(root: Path, path: Path, branch: str) -> None:
@@ -99,9 +117,10 @@ def test_reservation_outlives_the_fixed_ttl_until_its_row_lands(tmp_path, monkey
     """A reservation aged past 7 days whose id is on an unmerged branch's ledger, and not on the
     main checkout branch's, must still be held when `--reserve-id` runs from a second worktree —
     it must return a DIFFERENT id, never the one the aged (but unmerged) reservation holds. Once
-    the row lands on the main checkout branch (master), the reservation is released —
-    `_live_reservations` (the function both `--reserve-id` and `--next-id` now call) no longer
-    counts it as live.
+    the row lands on the main checkout branch (master), allocation continues correctly THROUGH
+    THE CLI — `--next-id`/`--reserve-id` from a still-unmerged worktree must never re-suggest the
+    now-landed id, proven by driving `dec.main` (the public entry point) rather than poking
+    `_live_reservations` directly.
     """
     _git_env(monkeypatch, tmp_path / "home")
     root = tmp_path / "repo"
@@ -133,20 +152,61 @@ def test_reservation_outlives_the_fixed_ttl_until_its_row_lands(tmp_path, monkey
     )
 
     # Land agentA's row on the MAIN checkout branch (master) — root itself sits on master.
-    ledger = root / "docs" / "DECISIONS.md"
-    lines = ledger.read_text(encoding="utf-8").split("\n")
-    sep = next(n for n, ln in enumerate(lines) if ln.strip().startswith("|---"))
-    lines.insert(sep + 1, "| D-002 | 2026-09-29 | agentA | landed | landed | landed |")
-    ledger.write_text("\n".join(lines), encoding="utf-8")
-    _git("add", "docs/DECISIONS.md", cwd=root)
-    _git("commit", "-q", "-m", "land D-002", cwd=root)
+    _append_row_on_master(
+        root, "| D-002 | 2026-09-29 | agentA | landed | landed | landed |", "land D-002"
+    )
 
-    # Once landed, D-002's reservation is no longer counted as live.
-    wt2_ledger = dec._ledger_of(wt2)
-    merged = set(dec._merge_base_ids(wt2_ledger)) | set(dec._ledger_ids(wt2_ledger))
-    assert 2 in merged, "the landed row must be visible through the merge-base read"
-    live_after = dec._live_reservations(reservation_file, merged)
-    assert 2 not in live_after, "a landed reservation must be released, not held forever"
+    # Through the CLI, from wt2 (still unmerged, holding its own D-003 reservation): the pool is
+    # now {1, 2} from the landed merge-base ledger plus {3} from wt2's own still-live
+    # reservation — D-002 must never be re-suggested, landed or not.
+    assert dec.main(["--next-id", str(wt2)]) == 0
+    after_landing = capsys.readouterr().out.strip()
+    assert after_landing not in {"D-002", "D-003"}, (
+        f"--next-id re-suggested an id already used or reserved: {after_landing}"
+    )
+    assert after_landing == "D-004"
+
+    # And --reserve-id from a THIRD, brand-new worktree confirms allocation keeps working
+    # correctly post-landing — no collision with the landed D-002 or the still-live D-003.
+    wt3 = tmp_path / "wt3"
+    _worktree(root, wt3, "agentC")
+    assert dec.main(["--reserve-id", str(wt3)]) == 0
+    assert capsys.readouterr().out.strip() == "D-004"
+
+
+# ── wave-2 review, CONFIRMED by execution: --next-id ignored the integration branch entirely ───
+
+
+def test_next_id_from_a_stale_worktree_does_not_suggest_an_id_master_already_used(
+    tmp_path, monkeypatch, capsys
+):
+    """`_allocate`/`_append_row` union in `_merge_base_ids` (the integration branch's ledger);
+    `_next_id` did not — it read only the checkout it was pointed at. So a STALE worktree (one
+    whose local ledger predates rows master already gained) could have `--next-id` suggest an id
+    already live on master, while `--reserve-id` from the very same checkout — which DOES read
+    the merge-base — correctly skipped it. Master gains D-001 and D-002 after the worktree
+    branches off; the worktree never pulls; `--next-id` from it must not print either.
+    """
+    _git_env(monkeypatch, tmp_path / "home")
+    root = tmp_path / "repo"
+    _init_repo(root, LEDGER_EMPTY)  # master starts with ZERO rows
+    wt = tmp_path / "wt-stale"
+    _worktree(root, wt, "stale-branch")
+
+    # master gains BOTH rows on the MAIN checkout branch — the worktree never pulls either.
+    _append_row_on_master(
+        root, "| D-001 | 2026-09-29 | operator | first row | seed | seed |", "add D-001"
+    )
+    _append_row_on_master(
+        root, "| D-002 | 2026-09-29 | operator | second row | seed | seed |", "add D-002"
+    )
+
+    assert dec.main(["--next-id", str(wt)]) == 0
+    nxt = capsys.readouterr().out.strip()
+    assert nxt not in {"D-001", "D-002"}, (
+        f"a stale worktree's --next-id suggested an id master already used: {nxt}"
+    )
+    assert nxt == "D-003"
 
 
 # ── V11 / D5: the automated writers identify themselves ────────────────────────────────────────
