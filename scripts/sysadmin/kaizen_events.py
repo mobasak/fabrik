@@ -132,6 +132,7 @@ EVENT_TYPES = (
     "decision_block",  # carries `ground` — the plan's `NEXT: operator decision` moment (T01b)
     "anchor_harvest",  # Stop hook, every Stop: carries `tp`, `chars`, `lam` — the harvest's trace
     "stop_allowed_quota_hold",  # Stop hook: the fleet quota hold let the turn end, no cause read
+    "commit_merge_owner_warning",  # check_commit_trailers.py D5(b): resolved_name, merge_owner
 )
 
 _exposure_cache: dict | None = None

@@ -1230,6 +1230,11 @@ def test_a_non_owner_commit_in_the_hub_main_checkout_warns_and_emits_one_kaizen_
     err = capsys.readouterr().err
     assert rc == 0, err
     assert "fleet" in err and "infra" in err, err
+    # T04b fixup (wave-3 review): the event NAME must be in kaizen_events.EVENT_TYPES — an
+    # out-of-vocabulary event still writes, but ALSO prints "unknown event type ... (emitted
+    # anyway)" to stderr on every single non-owner commit, which is exactly the noise this
+    # advisory must not add.
+    assert "unknown event type" not in err, err
     events = _events_written(tmp_path)
     assert len(events) == 1, events
 
