@@ -1396,14 +1396,21 @@ def main_checkout_refusal() -> str | None:
         common = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir")).resolve()
         if git_dir == common:
             return None
-        # the main worktree is always the first `worktree list` entry, submodule or not
-        main = git("worktree", "list", "--porcelain").splitlines()[0].removeprefix("worktree ")
+        # the main worktree is the first `worktree list` entry — but for a worktree made FROM a
+        # submodule that entry is `<outer>/.git/modules/<name>`, a git dir with no working tree,
+        # so it is named only when it holds one
+        first = git("worktree", "list", "--porcelain").splitlines()[0].removeprefix("worktree ")
     except (OSError, subprocess.CalledProcessError, IndexError) as exc:
         return f"refused: cannot resolve the git checkout of {ROOT} ({exc}) — render from the main checkout"
+    main = (
+        f"the main checkout ({first})"
+        if (Path(first) / ".git").exists()
+        else "the repository's main checkout"
+    )
     return (
         f"refused: {top} is a linked worktree, not the main checkout — a render from here "
-        f"would prune the installed corpus to this tree's sources. Render from the main "
-        f"checkout ({main}) after merging; --check and --dest <elsewhere> stay available here."
+        f"would prune the installed corpus to this tree's sources. Render from {main} after "
+        f"merging; --check and --dest <elsewhere> stay available here."
     )
 
 

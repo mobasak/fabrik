@@ -137,6 +137,33 @@ def test_submodule_checkout_is_its_own_main_checkout(repo, tmp_path):
     assert list((home / ".claude" / "commands").glob("*.md")), "submodule render wrote nothing"
 
 
+def test_submodule_worktree_is_refused_without_naming_the_modules_dir(repo, tmp_path):
+    # a worktree made FROM a submodule is refused; the first `worktree list` entry is then
+    # `<outer>/.git/modules/sub`, which has no working tree — the message must not send you there
+    outer = tmp_path / "outer"
+    outer.mkdir()
+    _git(outer, "init", "-q", "-b", "master")
+    _git(
+        outer,
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        "-q",
+        str(repo["main"]),
+        "sub",
+    )
+    wt = tmp_path / "subwt"
+    _git(outer / "sub", "worktree", "add", "-q", "--detach", str(wt))
+    home = tmp_path / "home"
+    home.mkdir()
+    r = _run(wt, home)
+    assert r.returncode == 3, r.stdout + r.stderr
+    assert REFUSAL in r.stderr, r.stderr
+    assert ".git/modules" not in r.stderr, r.stderr
+    assert _files_under(home) == [], "a refused render wrote under the output dirs"
+
+
 def test_copy_outside_any_git_repo_fails_closed(tmp_path):
     loose = tmp_path / "loose"
     (loose / "commands").mkdir(parents=True)
