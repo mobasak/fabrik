@@ -8,6 +8,7 @@ Loads settings from:
 """
 
 import os
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +23,49 @@ if os.environ.get("FABRIK_NO_AUTOLOAD") != "1":
 
 # Project paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
+
+# The hub's own checkout — spec docs/superpowers/specs/2026-09-29-hub-worktree-cutover-design.md
+# § The delta D3. Kept as a bare module-level constant (not a default arg, not inlined) so a test
+# can `monkeypatch.setattr(config, "_HUB_PATH", tmp_hub)` and get a resolution that never reads or
+# writes the real /opt/fabrik — `_resolve_fabrik_root` looks it up fresh on every call.
+_HUB_PATH = Path("/opt/fabrik")
+
+
+def _resolve_fabrik_root() -> Path:
+    """Tracked-output write root: `$FABRIK_ROOT` if set; else, when the cwd is inside a linked
+    worktree whose git common dir's parent is `_HUB_PATH`, that worktree's toplevel; else
+    `_HUB_PATH`. Every hub script that writes a tracked file resolves its root this way (spec
+    § D3) instead of a hard-coded `/opt/fabrik` or a caller-pinned cwd, so a worktree agent's
+    commit lands on its own branch rather than the main checkout's.
+
+    Fails OPEN on any git error (no git binary, not a git repo, timeout) — the degraded case is
+    `_HUB_PATH`, the same value this replaced.
+    """
+    env_root = os.environ.get("FABRIK_ROOT")
+    if env_root:
+        return Path(env_root)
+    hub_path = _HUB_PATH.resolve()
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return hub_path
+    if result.returncode != 0:
+        return hub_path
+    lines = result.stdout.strip().splitlines()
+    if len(lines) != 2:
+        return hub_path
+    toplevel, common_dir = Path(lines[0]), Path(lines[1])
+    if common_dir.parent.resolve() == hub_path:
+        return toplevel.resolve()
+    return hub_path
+
+
+FABRIK_ROOT = _resolve_fabrik_root()
 CONFIG_DIR = PROJECT_ROOT / "config"
 SPECS_DIR = PROJECT_ROOT / "specs"
 TEMPLATES_DIR = PROJECT_ROOT / "templates"

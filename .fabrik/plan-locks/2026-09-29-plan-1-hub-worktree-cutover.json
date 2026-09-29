@@ -43,5 +43,13 @@
     "status": "success",
     "red": []
   },
-  "tickets": {}
+  "tickets": {
+    "T01": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a95bd31224452977d",
+      "branch": "worktree-agent-a95bd31224452977d",
+      "base_commit": "4bcd8af36",
+      "review": "docs/development/reviews/2026-09-29-plan-1-hub-worktree-cutover-T01-review.md"
+    }
+  }
 }

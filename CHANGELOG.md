@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Hub write root: tracked outputs land in the invoker's tree (2026-09-29)
+- `src/fabrik/config.py` resolves `FABRIK_ROOT` as: the env var when set, else the linked worktree's toplevel when the git common dir belongs to the hub, else `/opt/fabrik` (spec 2026-09-29 hub-worktree-cutover § D3, V9). A session in a hub worktree now writes tracked outputs into its own tree, not into the main checkout.
+- `scripts/sync_projects.py`, `scripts/vps_sync.py` and `scripts/command_feedback_report.py` carry the same resolution locally, because the shared `.venv`'s editable install pins `import fabrik` to `/opt/fabrik/src`, so a worktree cannot import its own copy.
+- `tests/test_hub_write_root.py` (24 tests) covers each rule per script and holds a repo-wide search for hard-coded hub-root write sites with a 101-entry allowlist. Three writers stay on the allowlist for a follow-up: `scripts/sysadmin/kaizen_digest.py`, `scripts/sysadmin/kaizen_shrink_audit.py`, `scripts/update_vps_docs.py` (plan 2026-09-29-plan-1, T01; wave-1 review 3 passes, confirmed 8 → 1 → 0).
 ### Fixed — A Tier-D watchdog with no snapshot storage degrades to escalate-only instead of looping on fixes it can never apply (2026-09-29)
 - `src/fabrik/drivers/watchdog.py`: the sidecar stores a pre-apply snapshot before every autonomous apply and refuses the apply when it cannot. `provision()` now reads the snapshot keys (`STORAGE_BACKEND`, plus the B2 or Supabase keys it needs) from the app's `/opt/<id>/.env`, parsed the way compose's `env_file` reads them. `_gate_tier_d` then degrades Tier-D to escalate-only, with an ERROR naming the missing keys (never their values), when the backend is not `b2` or `supabase` or its keys are unset. The dry-run line now says the apply-time checks can degrade Tier-D. Mail 01M384GX, W-4d2b7f5f.
 ### Fixed — The hub's test suite can no longer reach the live fleet (2026-09-29)

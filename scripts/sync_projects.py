@@ -21,7 +21,9 @@ Workflow Doc: docs/workflows/SYNC_PROJECTS_WORKFLOW.md
 
 import json
 import logging
+import os
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -32,7 +34,40 @@ import yaml
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 
-FABRIK_ROOT = Path("/opt/fabrik")
+# Replicated (not imported) from src/fabrik/config.py::_resolve_fabrik_root — this script runs
+# standalone via its own file path (`python3 scripts/sync_projects.py`), and the installed
+# `fabrik` package resolves through a fixed editable-install path that does not track a worktree
+# checkout, so importing fabrik.config here would silently re-resolve against the WRONG tree.
+# See spec docs/superpowers/specs/2026-09-29-hub-worktree-cutover-design.md § The delta D3.
+_HUB_PATH = Path("/opt/fabrik")
+
+
+def _resolve_fabrik_root() -> Path:
+    env_root = os.environ.get("FABRIK_ROOT")
+    if env_root:
+        return Path(env_root)
+    hub_path = _HUB_PATH.resolve()
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return hub_path
+    if result.returncode != 0:
+        return hub_path
+    lines = result.stdout.strip().splitlines()
+    if len(lines) != 2:
+        return hub_path
+    toplevel, common_dir = Path(lines[0]), Path(lines[1])
+    if common_dir.parent.resolve() == hub_path:
+        return toplevel.resolve()
+    return hub_path
+
+
+FABRIK_ROOT = _resolve_fabrik_root()
 DEFAULT_EXCLUDES = {
     "_*",
     ".*",
