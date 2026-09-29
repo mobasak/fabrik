@@ -1,0 +1,27 @@
+{
+  "block_digest": "1a06f5ebd2548fec6196e594fc1c1fcd2cdda2fc5b7027dee038c171bc9e5f5e",
+  "blocked_by": [],
+  "created": "2026-09-29T14:49:13.500436Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-461e8db5",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "b995990a9008baf94d9f53e80539a20ab076bad8a6dc65931bc2161ca8cbac1b",
+    "e7df23823a4b4b0d2f25d493828490dacd255463c313ed669d8a0af17ca52a83"
+  ],
+  "next": "",
+  "note": "operator 2026-09-29: \"all our repos our 3 agents repos, or must be so. approved proceed.\"",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve the D-444 rollout plan, starting with the design for moving the hub itself into worktrees?",
+  "status": "done",
+  "title": "Do you approve the D-444 rollout plan, starting with the design for moving the hub itself into worktrees?"
+}

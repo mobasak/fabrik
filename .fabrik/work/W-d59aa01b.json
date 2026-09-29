@@ -1,0 +1,26 @@
+{
+  "block_digest": "4bc7d5274b5bb8e3f219c84d3747e8a836cea601906d9d6642214638bca89f1a",
+  "blocked_by": [],
+  "created": "2026-09-29T14:47:37.353664Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-d59aa01b",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "a14ebcb7270c8141524d3f97b2f4c9493847131c4e73b00ca0631cf8e12cd976"
+  ],
+  "next": "",
+  "note": "operator 2026-09-29: \"all our repos our 3 agents repos, or must be so. approved proceed.\"",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve this plan, starting with the design for moving the hub itself into worktrees?",
+  "status": "done",
+  "title": "Do you approve this plan, starting with the design for moving the hub itself into worktrees?"
+}
