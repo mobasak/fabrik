@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The hub's test suite can no longer reach the live fleet (2026-09-29)
+- `tests/conftest.py` installs two layers in `pytest_configure`, so collection-time calls are covered too, and removes them in `pytest_unconfigure`:
+  - `subprocess.Popen` refuses a directly named `ssh`, `scp`, `rsync`, `sftp` or `sshpass`: as argv0, as `executable=`, at the head of any segment of a shell string, or inside an `sh -…c` payload.
+  - A PATH shim of refusing fake binaries catches wrappers (`env ssh`, `timeout 30 ssh`), scripts that run ssh themselves, and `os.system`.
+- A person opts in with `FABRIK_TEST_ALLOW_FLEET=1`. A grader refuses any test or conftest under tests/ or scripts/ that names the variable, and `@pytest.mark.live_fleet` tests are skipped unless opted in. Mail 01M39XVS, W-56f180f7.
+- A full-suite run under the guard found three tests that were reaching real hosts. `test_run_locked_concurrency_proof_live_vps` ran ssh on the VPS every run, and is now `live_fleet`. The destroy-from-state archive test ran a real watchdog-governance teardown over ssh, and is now patched and asserted. A failed-bootstrap vultr test ssh'd to 9.9.9.9, and is now stubbed. The scripts/ tests remain unguarded (W-41a564e0).
 ### Added — park a Claude account out of service without removing it, from the CLI or the quota board (2026-09-29)
 - `scripts/sysadmin/claude_rotate.py` (and its twin `scripts/aro-wake/claude_rotate.py`): `--park <email>` and `--unpark <email>` keep a list in `~/.claude-fleet/parked.json`. A parked account stays listed but is never picked, never counted as fleet capacity, never promised a return, and is flipped away from if active, whatever its readings say. `caps.json` is untouched, so unparking restores the old cap. The caps loader now accepts a cap of 0, which parks the same way (D-443).
 - `scripts/sysadmin/quota_dashboard.py`: a disable/enable button on every account row, a `PARKED — out of service` badge, and `POST /park`, behind the same `X-Quota-Dash` header guard as `POST /switch`.

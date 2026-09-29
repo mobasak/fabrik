@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "after the operator approves fabrik-lib SB-031 (payments-scoped-service-roles-design.md, D-322): replace src/fabrik/drivers/postgres.py:809-830's policy block with SELECT payments_grant_ingest('<role>') and drop the table-level SELECT re-grant; heavy lane (auth/schema) -> full /fabrik-review; pairs with W-5985e74a (fulfilment role) and W-43cf7df3",
+  "next": "after fabrik-lib mails that the payments module side shipped (SB-031 design approved at their D-324; mail 01M3Q1QP8B): in src/fabrik/drivers/postgres.py:809-830 call payments_grant_ingest('<role>') when to_regprocedure resolves, keep the block as fallback, drop the table-level SELECT re-grant on that path; with W-5985e74a; heavy lane -> full /fabrik-review",
   "note": "",
   "owner": "",
   "priority": 1,

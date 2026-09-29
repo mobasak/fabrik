@@ -17,8 +17,11 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import subprocess
 from pathlib import Path
 
+# read at IMPORT (collection) time: proves the fleet guard is installed before collection
+_MODULE_LEVEL_POPEN = subprocess.Popen
 _REAL_LOCK_DIR = Path(f"/tmp/claude-sound-locks-{os.getuid()}")
 
 
@@ -238,3 +241,156 @@ def test_no_test_can_reach_the_real_opt_or_mail_a_real_repo(tmp_path_factory):
     assert settings and Path(settings).resolve().is_relative_to(
         tmp_path_factory.getbasetemp().resolve()
     ), settings
+
+
+# ── No test reaches the live fleet (fabrik-mail 01M39XVS, 2026-09-24) ──────────────────────────
+# Suites that patched only some drivers ran real SQL on postgres-main (CREATE ROLE on
+# fabrik_analytics) and real watchdog builds over ssh. The guard sits at `subprocess.Popen`, the
+# one constructor every ssh/scp/rsync path reaches, whatever name a module imported it under.
+
+
+def _assert_refused(call, layer: str = "") -> None:
+    import pytest
+
+    with pytest.raises(RuntimeError, match=f"test reached the live fleet: .*{layer}"):
+        call()
+
+
+def _assert_shim_refused(cmd, **kw) -> None:
+    """A process the Popen guard cannot see still meets the PATH shim: exit 255 and its message."""
+    import subprocess
+
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=30, **kw)
+    assert r.returncode == 255, (cmd, r.returncode, r.stderr)
+    assert "test reached the live fleet" in r.stderr and "PATH shim" in r.stderr, r.stderr
+
+
+def test_the_ssh_driver_cannot_reach_the_fleet():
+    from fabrik.drivers import ssh as ssh_mod
+
+    _assert_refused(lambda: ssh_mod.ssh("true", timeout=5))
+    _assert_refused(lambda: ssh_mod.scp_to_vps("/etc/hostname", "/tmp/x"))
+
+
+def test_the_postgres_driver_cannot_run_sql_on_postgres_main():
+    from fabrik.drivers import postgres
+
+    _assert_refused(lambda: postgres._run_sql("SELECT 1", "postgres-main"))
+
+
+def test_every_subprocess_shape_of_ssh_scp_rsync_is_refused():
+    import subprocess
+
+    guard = "subprocess guard"
+    h = "unroutable.invalid"  # a missing guard fails locally and never reaches the real VPS
+    shapes = [
+        lambda: subprocess.run(["ssh", h, "true"], capture_output=True),
+        lambda: subprocess.run(["/usr/bin/scp", "a", f"{h}:b"], capture_output=True),
+        lambda: subprocess.check_output(["rsync", "-a", "x", f"{h}:y"]),
+        lambda: subprocess.run(f"ssh {h} true", shell=True, capture_output=True),
+        lambda: subprocess.run(["bash", "-c", f"cd / && ssh {h} true"], capture_output=True),
+        lambda: subprocess.run(["bash", "-lc", f"ssh {h} true"], capture_output=True),
+        lambda: subprocess.run(f"true;ssh {h} true", shell=True, capture_output=True),
+        lambda: subprocess.run(f"echo $(ssh {h} true)", shell=True, capture_output=True),
+        lambda: subprocess.run(f"echo `ssh {h} true`", shell=True, capture_output=True),
+        lambda: subprocess.run(f"FOO=1 ssh {h} true", shell=True, capture_output=True),
+        lambda: subprocess.run([f"cd / && ssh {h} true"], shell=True, capture_output=True),
+        lambda: subprocess.run(["x", h, "true"], executable="/usr/bin/ssh", capture_output=True),
+        lambda: subprocess.Popen(["x", h], -1, "/usr/bin/ssh"),  # executable passed positionally
+    ]
+    for shape in shapes:
+        _assert_refused(shape, guard)
+    # controls: a local command still runs, and "ssh" as an ARGUMENT is not a fleet call
+    assert subprocess.run(["true"]).returncode == 0
+    assert subprocess.run(["echo", "ssh"], capture_output=True, text=True).stdout.strip() == "ssh"
+    assert subprocess.run("echo ssh", shell=True, capture_output=True, text=True).stdout == "ssh\n"
+
+
+def test_what_the_popen_guard_cannot_see_meets_the_path_shim():
+    """A wrapper, a script that runs ssh itself, or os.system never names ssh to Popen."""
+
+    h = "unroutable.invalid"
+    _assert_shim_refused(["env", "ssh", h, "true"])
+    _assert_shim_refused(["timeout", "30", "ssh", h, "true"])
+    _assert_shim_refused(["sh", "-c", f'x=ssh; "$x" {h} true'])  # the name is only known at runtime
+    assert os.WEXITSTATUS(os.system(f"ssh {h} true 2>/dev/null")) == 255
+    from shutil import which
+
+    assert which("ssh") and "fabrik-fleet-shim-" in which("ssh"), which("ssh")
+
+
+def test_the_guard_is_in_place_before_collection():
+    """Installed by pytest_configure, so module-level and decorator-time calls are covered too."""
+    import subprocess
+
+    from tests import conftest
+
+    assert subprocess.Popen is conftest._NoFleetPopen
+    assert _MODULE_LEVEL_POPEN is conftest._NoFleetPopen
+
+
+def test_a_tests_own_subprocess_mock_still_wins(monkeypatch):
+    """The guard must not break the suites that already mock the transport correctly."""
+    from types import SimpleNamespace
+
+    from fabrik.drivers import ssh as ssh_mod
+
+    monkeypatch.setattr(
+        ssh_mod.subprocess,
+        "run",
+        lambda *a, **k: SimpleNamespace(returncode=0, stdout="mocked\n", stderr=""),
+    )
+    assert ssh_mod.ssh("true") == "mocked"
+
+
+def test_no_test_opts_itself_into_the_live_fleet():
+    """COBRA (D-253): the cheapest way past the guard is a test that sets the human-only escape.
+    `FABRIK_TEST_ALLOW_FLEET` exists for a person deliberately running a live check; no test or
+    conftest may name it — under tests/ at any depth, or among the scripts/ tests pytest also runs."""
+    here = Path(__file__).resolve().parent
+    exempt = {here / "conftest.py", Path(__file__).resolve()}
+    candidates = list(here.rglob("*.py")) + [
+        p
+        for p in (here.parent / "scripts").rglob("*.py")
+        if p.name.startswith("test_") or p.name == "conftest.py"
+    ]
+    hits = [
+        str(p)
+        for p in candidates
+        if p.resolve() not in exempt
+        and "FABRIK_TEST_ALLOW_FLEET" in p.read_text(encoding="utf-8", errors="replace")
+    ]
+    assert hits == [], hits
+
+
+def test_a_live_fleet_test_is_skipped_unless_a_person_opts_in(monkeypatch):
+    """A deliberate live check (`@pytest.mark.live_fleet`) is skipped unless a person opted in —
+    before the guard such a test ran against the real VPS every run; after it, it would only fail."""
+    import pytest
+
+    from tests import conftest
+    from tests.drivers import test_locks
+
+    marks = [m.name for m in test_locks.test_run_locked_concurrency_proof_live_vps.pytestmark]
+    assert "live_fleet" in marks, marks
+
+    class _Item:
+        def __init__(self, live: bool):
+            self.live, self.added = live, []
+
+        def get_closest_marker(self, name):
+            return object() if (name == "live_fleet" and self.live) else None
+
+        def add_marker(self, mark):
+            self.added.append(mark)
+
+    live, plain = _Item(True), _Item(False)
+    monkeypatch.delenv("FABRIK_TEST_ALLOW_FLEET", raising=False)
+    conftest.pytest_collection_modifyitems(None, [live, plain])
+    assert [m.name for m in live.added] == ["skip"] and plain.added == []
+    assert isinstance(live.added[0], pytest.MarkDecorator)
+
+    opted = _Item(True)
+    monkeypatch.setenv("FABRIK_TEST_ALLOW_FLEET", "1")
+    conftest.pytest_collection_modifyitems(None, [opted])
+    assert opted.added == []

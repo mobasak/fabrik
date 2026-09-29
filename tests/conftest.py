@@ -1,7 +1,12 @@
 """Pytest configuration and Hypothesis profiles."""
 
 import os
+import re
+import shutil
+import subprocess
+import tempfile
 from datetime import timedelta
+from pathlib import Path
 
 from hypothesis import Phase, settings
 
@@ -75,17 +80,21 @@ _GIT_ENV_LEAKS = (
 )
 
 
-def pytest_configure(config):  # noqa: ARG001 - pytest hook signature
+def pytest_configure(config):
     """Strip inherited git-context variables before ANY test runs.
 
     `pytest_configure` rather than a fixture: it fires before collection, so even a module-level or
     collection-time git call is covered.
     """
+    config.addinivalue_line(
+        "markers", "live_fleet: reaches the real fleet; runs only when a person opts in"
+    )
     for var in _GIT_ENV_LEAKS:
         os.environ.pop(var, None)
     # GIT_CONFIG_KEY_n / GIT_CONFIG_VALUE_n come in numbered pairs with no fixed bound.
     for key in [k for k in os.environ if k.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))]:
         os.environ.pop(key, None)
+    _install_fleet_guard()
 
 
 # ---------------------------------------------------------------------------------------------
@@ -265,6 +274,139 @@ def _no_live_app_role_step(request, _private_monkeypatch):
     _private_monkeypatch.setattr(
         InfrastructureProvisioner, "_provision_app_role", lambda *a, **k: None, raising=False
     )
+
+
+# ---------------------------------------------------------------------------------------------
+# No test reaches the live fleet over ssh, scp or rsync (fabrik-mail 01M39XVS, 2026-09-24).
+#
+# Suites that patched only some drivers ran real SQL on postgres-main — `ensure_shared_analytics_db`
+# and `create_subagent_ins_role` (CREATE ROLE on fabrik_analytics) — and real watchdog image builds
+# over `ssh vps`, on every run. The driver-by-driver stubs above cannot close that class: 14 modules
+# bind `ssh` at import and ~25 call sites import it lazily, and vultr/dns/coolify/audit/watchdog
+# shell out to `ssh` themselves. Two layers, both installed in `pytest_configure` (before collection,
+# so a module-level or decorator-time call is covered) and removed in `pytest_unconfigure`:
+#   1. `subprocess.Popen` becomes `_NoFleetPopen`, which refuses a fleet binary named directly —
+#      argv[0], `executable=`, the command at the head of each segment of a shell string (`;`, `&&`,
+#      `|`, `$(`, backtick) and of a `sh|bash -…c` payload. `run`, `check_output`, `call` and
+#      asyncio's transport all construct it at call time, whatever name a module imported them under.
+#   2. A PATH shim: a dir of fake `ssh`/`scp`/… that print the refusal and exit 255, prepended to
+#      PATH. It catches what layer 1 cannot see — a wrapper (`env ssh`, `timeout 30 ssh`), a script
+#      that runs ssh itself (vultr's bootstrap-*.sh), `os.system` — without scanning arguments, so
+#      `echo ssh` still runs.
+# Residual, stated: an ABSOLUTE path inside a script or wrapper (`env /usr/bin/ssh`) bypasses both;
+# no src/ call site does that today. A test's own mock of `subprocess.run`/`Popen` still wins.
+# `FABRIK_TEST_ALLOW_FLEET=1` lets a PERSON run a deliberate live check (layer 1 reads it at call
+# time; layer 2 is not installed when it is set at start). COBRA (D-253): the cheapest bypass is a
+# test that sets it, so tests/test_conftest_isolation.py::test_no_test_opts_itself_into_the_live_fleet
+# refuses any test file naming it. Graders: the `*fleet*` tests in that file.
+# ---------------------------------------------------------------------------------------------
+_FLEET_BINARIES = frozenset({"ssh", "scp", "rsync", "sftp", "sshpass"})
+_SHELLS = frozenset({"sh", "bash", "dash", "zsh"})
+_SHELL_SEGMENT_SPLIT = re.compile(r"&&|\|\||\$\(|[;|&\n`()]")
+_SHELL_C_FLAG = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
+_FLEET_REFUSAL = "test reached the live fleet"
+
+
+def _shell_heads(text: str) -> list[str]:
+    """The command at the head of every segment of a shell string (after any VAR=value words)."""
+    import shlex
+
+    heads = []
+    for segment in _SHELL_SEGMENT_SPLIT.split(text):
+        try:
+            words = shlex.split(segment)
+        except ValueError:
+            words = segment.split()
+        words = [w for w in words if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", w)]
+        if words:
+            heads.append(os.path.basename(words[0]))
+    return heads
+
+
+def _fleet_binary_in(args, shell: bool, executable=None) -> str | None:
+    """The fleet binary this Popen call would start directly, or None."""
+    if executable is not None:
+        name = os.path.basename(os.fsdecode(executable))
+        if name in _FLEET_BINARIES:
+            return name
+    if isinstance(args, (bytes, os.PathLike)):
+        args = os.fsdecode(args)
+    if isinstance(args, str):
+        argv = [args]
+    else:
+        argv = [os.fsdecode(a) if isinstance(a, (bytes, os.PathLike)) else str(a) for a in args]
+    if not argv:
+        return None
+    if shell:  # a shell=True LIST runs its first element as the command line
+        names = _shell_heads(argv[0])
+    else:
+        names = [os.path.basename(argv[0])]
+        if names[0] in _SHELLS:
+            flag = next((i for i, a in enumerate(argv[1:], 1) if _SHELL_C_FLAG.match(a)), None)
+            if flag is not None and flag + 1 < len(argv):
+                names += _shell_heads(argv[flag + 1])
+    return next((n for n in names if n in _FLEET_BINARIES), None)
+
+
+_REAL_POPEN = subprocess.Popen
+
+
+class _NoFleetPopen(_REAL_POPEN):  # type: ignore[misc, valid-type]
+    """subprocess.Popen that refuses a fleet binary unless a person opted in."""
+
+    def __init__(self, args, *a, **k):
+        # Popen(args, bufsize, executable, stdin, stdout, stderr, preexec_fn, close_fds, shell, ...)
+        executable = k.get("executable", a[1] if len(a) > 1 else None)
+        shell = bool(k.get("shell", a[7] if len(a) > 7 else False))
+        binary = _fleet_binary_in(args, shell, executable)
+        if binary and os.environ.get("FABRIK_TEST_ALLOW_FLEET") != "1":
+            raise RuntimeError(f"{_FLEET_REFUSAL}: {binary} (subprocess guard)")
+        super().__init__(args, *a, **k)
+
+
+_FLEET_SHIM_DIR: str | None = None
+
+
+def _install_fleet_guard() -> None:
+    global _FLEET_SHIM_DIR
+    subprocess.Popen = _NoFleetPopen  # type: ignore[misc]
+    if os.environ.get("FABRIK_TEST_ALLOW_FLEET") == "1" or _FLEET_SHIM_DIR:
+        return
+    _FLEET_SHIM_DIR = tempfile.mkdtemp(prefix="fabrik-fleet-shim-")
+    for name in _FLEET_BINARIES:
+        shim = Path(_FLEET_SHIM_DIR) / name
+        shim.write_text(
+            f'#!/bin/sh\necho "{_FLEET_REFUSAL}: {name} (PATH shim)" >&2\nexit 255\n',
+            encoding="utf-8",
+        )
+        shim.chmod(0o755)
+    os.environ["PATH"] = _FLEET_SHIM_DIR + os.pathsep + os.environ.get("PATH", "")
+
+
+def _remove_fleet_guard() -> None:
+    global _FLEET_SHIM_DIR
+    subprocess.Popen = _REAL_POPEN  # type: ignore[misc]
+    if _FLEET_SHIM_DIR:
+        parts = os.environ.get("PATH", "").split(os.pathsep)
+        os.environ["PATH"] = os.pathsep.join(p for p in parts if p != _FLEET_SHIM_DIR)
+        shutil.rmtree(_FLEET_SHIM_DIR, ignore_errors=True)
+        _FLEET_SHIM_DIR = None
+
+
+def pytest_unconfigure(config):  # noqa: ARG001 - pytest hook signature
+    _remove_fleet_guard()
+
+
+def pytest_collection_modifyitems(config, items):  # noqa: ARG001 - pytest hook signature
+    """A `live_fleet`-marked test is a deliberate live check: it runs only when a PERSON opted in."""
+    if os.environ.get("FABRIK_TEST_ALLOW_FLEET") == "1":
+        return
+    skip = pytest.mark.skip(
+        reason="live_fleet: reaches the real fleet (set FABRIK_TEST_ALLOW_FLEET=1)"
+    )
+    for item in items:
+        if item.get_closest_marker("live_fleet"):
+            item.add_marker(skip)
 
 
 # ---------------------------------------------------------------------------------------------

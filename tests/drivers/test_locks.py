@@ -135,6 +135,7 @@ def _vps_ssh_available() -> bool:
 
 
 @pytest.mark.requires_fabrik_env
+@pytest.mark.live_fleet
 @pytest.mark.skipif(
     not _vps_ssh_available(),
     reason="requires `ssh vps` alias in ~/.ssh/config",

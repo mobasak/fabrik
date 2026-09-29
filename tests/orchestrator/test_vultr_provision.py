@@ -26,6 +26,8 @@ def _isolate(tmp_path, monkeypatch):
     monkeypatch.setattr(prov, "_ssh_ozgur", lambda *a, **k: MagicMock(returncode=0, stdout=""))
     monkeypatch.setattr(prov, "_check_aro_wake_health", lambda *a, **k: "200")
     monkeypatch.setattr(prov, "_check_bot_token", lambda *a, **k: "valid")
+    # a failed bootstrap probes `ssh ozgur@<ip>`; the G6 tests override this per-test
+    monkeypatch.setattr(prov, "_probe_ozgur_works", lambda *a, **k: False)
     yield
 
 

@@ -77,6 +77,7 @@ def patched_destroyers():
         "_destroy_app": ActionResult(step="compose", status="removed"),
         "_destroy_dns": ActionResult(step="dns", status="removed"),
         "_destroy_files": ActionResult(step="files", status="removed"),
+        "_destroy_watchdog_governance": ActionResult(step="watchdog-governance", status="removed"),
     }
     mocks = {}
     with (
@@ -119,6 +120,10 @@ def patched_destroyers():
         patch(
             "fabrik.orchestrator.destroyer._destroy_files", return_value=targets["_destroy_files"]
         ) as m_files,
+        patch(
+            "fabrik.orchestrator.destroyer._destroy_watchdog_governance",
+            return_value=targets["_destroy_watchdog_governance"],
+        ) as m_gov,
     ):
         mocks.update(
             {
@@ -133,6 +138,7 @@ def patched_destroyers():
                 "compose": m_app,
                 "dns": m_dns,
                 "files": m_files,
+                "watchdog-governance": m_gov,
             }
         )
         # HANDLER_FUNCS references the unmocked module-level objects; need
@@ -440,6 +446,8 @@ class TestArchiveOnSuccess:
         assert not target.exists()
         archived = list((tmp_path / "_destroyed").glob("demo.json.*"))
         assert len(archived) == 1
+        # the governance-dir teardown ran through the stub (unstubbed, it is `ssh vps sudo rm -rf`)
+        patched_destroyers["watchdog-governance"].assert_called_once_with("demo", False)
 
     def test_archive_skipped_in_dry_run(self, patched_destroyers, tmp_path, monkeypatch):
         from fabrik import state as state_module
