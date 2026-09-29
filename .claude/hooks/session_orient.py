@@ -426,7 +426,7 @@ def _identity_rows() -> list[dict]:
             row = json.loads(line)
         except ValueError:
             continue
-        if isinstance(row, dict) and isinstance(row.get("session_id"), str) and row["session_id"]:
+        if isinstance(row, dict) and row.get("session_id"):
             rows.append(row)
     return rows
 
@@ -548,6 +548,21 @@ def _model_line(
         return "", False
 
 
+def _charter_line(cwd: str, name: str, hub: bool, env_set: bool) -> str:
+    """The whoami-only session's bullet: named for attribution, but the charter (and, in the hub,
+    beat routing) needs the env var. `name` is `_AGENT_NAME_RE`-valid, so it renders safely."""
+    what = "the role charter (`agent_role.py`)" + (" and, in the hub, beat routing" if hub else "")
+    if "/.claude/worktrees/" in cwd:
+        relaunch = f"`CLAUDE_AGENT={name} claude --worktree {name} -n {name}-<repo>`"
+    else:
+        relaunch = f"`CLAUDE_AGENT={name} claude`"
+    state = "is not a valid name" if env_set else "is unset"
+    return (
+        f"- ⚠️ **Named `{name}` by whoami, but `CLAUDE_AGENT` {state}:** {what} reads the env var"
+        f" only — a named relaunch {relaunch} gives {'both' if hub else 'it'}.\n"
+    )
+
+
 def _identity_line(
     cwd: str,
     live: int | None = None,
@@ -558,24 +573,30 @@ def _identity_line(
     """Advisory (D-034, re-keyed 2026-09-16): an UNNAMED session is a mistake wherever several
     agents share one tree — the hub always, and any project repo that either DECLARES a merge
     owner in its ledger or currently has >=2 live `claude` sessions in this exact checkout.
-    A session NAMED by `_resolved_name` (a valid `CLAUDE_AGENT` or its whoami binding — the one
-    validity test), and a single-session unadopted repo, get nothing HERE — that repo's `--adopt`
-    prompt is `_model_line`'s (spec 2026-09-29 D1). `yield_to_model`: `_model_line` already
-    printed this session's bind-or-move instruction, and one instruction is the whole point."""
+    A session named by a valid `CLAUDE_AGENT` (the one validity test, `_AGENT_NAME_RE`), and a
+    single-session unadopted repo, get nothing HERE — that repo's `--adopt` prompt is
+    `_model_line`'s (spec 2026-09-29 D1). `yield_to_model`: `_model_line` already printed this
+    session's bind-or-move instruction, and one instruction is the whole point.
+    ⚠️ A session named ONLY by its whoami binding (`name`) is attributable but still has no role
+    charter (`agent_role.py` reads the env var only) and, in the hub, no beat routing — so it
+    gets the short `_charter_line` instead of silence, with no "bind" remedy: it is bound."""
     try:
+        env = os.environ.get("CLAUDE_AGENT", "").strip()
+        if _AGENT_NAME_RE.fullmatch(env) or yield_to_model:
+            return ""
         if name is None:  # a direct caller; main() passes the name it resolved once
             name = _resolved_name("", _identity_rows())
-        if name or yield_to_model:
-            return ""
         bad = (
             " (`CLAUDE_AGENT` is set, but not to a valid `[a-z0-9-]{1,32}` name, so every"
             " consumer drops it.)"
-            if os.environ.get("CLAUDE_AGENT", "").strip()
+            if env
             else ""
         )
         if hub is None:  # a direct caller; main() passes the one probe it shares
             hub = _is_hub(cwd)
         if hub:
+            if name:
+                return _charter_line(cwd, name, hub=True, env_set=bool(env))
             return (
                 f"- ⚠️ **CLAUDE_AGENT is UNSET — this hub session is UNNAMED.**{bad} Three sessions"
                 " share this tree; the role charter, beat routing and Agent-Name trailers all"
@@ -597,6 +618,8 @@ def _identity_line(
         # not cover: a DECLARED owner (any session count) and a worktree session.
         if not owner and "/.claude/worktrees/" not in cwd:
             return ""
+        if name:
+            return _charter_line(cwd, name, hub=False, env_set=bool(env))
         why = (
             f"this repo DECLARES merge owner `{owner}`"
             if owner

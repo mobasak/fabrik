@@ -1126,8 +1126,18 @@ _ALICE = "| D-001 | d | a | MERGE OWNER: alice | y | z |\n"
         "| D-001 | d | a | MERGE OWNER: bob\\_x | y | z |\n",
         # an un-adoption row: last row wins, so nobody owns it
         _ALICE + "| D-002 | d | a | MERGE OWNER: UNDECLARED — un-adopted | y | z |\n",
+        # a code span opened in the WHO cell runs into the owner cell: `\_` inside a span is NOT
+        # unescaped, so the name stops at the backslash (decisions.py answers `a`, not `a_b`)
+        "| D-002 | d | `x | MERGE OWNER: a\\_b` | y | z |\n",
     ],
-    ids=["pipe-in-when", "pipe-in-who", "code-span-pipe", "escaped-name", "undeclared-last"],
+    ids=[
+        "pipe-in-when",
+        "pipe-in-who",
+        "code-span-pipe",
+        "escaped-name",
+        "undeclared-last",
+        "code-span-backslash",
+    ],
 )
 def test_the_owner_reader_agrees_with_decisions_py(tmp_path: Path, rows: str) -> None:
     repo = _git_repo(tmp_path / "opt" / "parity", None)
@@ -1272,6 +1282,63 @@ def test_a_cut_store_never_reads_its_partial_first_line(tmp_path: Path) -> None:
     line = _bindings(out)
     assert "`lastone`" in line, out
     assert "ghost" not in line
+
+
+def test_a_store_cut_on_a_line_start_keeps_that_row(tmp_path: Path) -> None:
+    # The mirror of the partial-line test: when the 4 MB cut lands exactly on a line start, the
+    # row that starts there is whole and must be kept (the reader seeks one byte before the cut).
+    repo = _git_repo(tmp_path / "opt" / "edgestore", "alpha")
+    common = _common_dir(repo)
+    cap = 4 * 1024 * 1024
+    edge = json.dumps(_live_row("s-edge", "edgerow", common)) + "\n"
+    last = json.dumps(_live_row("s-last", "lastone", common)) + "\n"
+    room = cap - len(edge) - len(last)
+    filler = ("x" * 999 + "\n") * (room // 1000)
+    rest = room - len(filler)
+    filler += ("y" * (rest - 1) + "\n") if rest else ""
+    body = "z" * 100 + "\n" + edge + filler + last
+    assert body[-cap:].startswith(edge) and body[-cap - 1] == "\n"
+    path = tmp_path / "agent-identity.jsonl"
+    path.write_text(body, encoding="utf-8")
+    env = {"AGENT_IDENTITY_FILE": str(path)}
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), env)
+    assert rc == 0
+    line = _bindings(out)
+    assert "`edgerow`" in line and "`lastone`" in line, out
+
+
+def _charter_bullet(out: str) -> list[str]:
+    return [ln for ln in out.splitlines() if "by whoami" in ln]
+
+
+def test_a_whoami_only_hub_session_learns_it_has_no_charter(tmp_path: Path) -> None:
+    # T04a-11: a hub session bound by whoami with no CLAUDE_AGENT has no role charter and no beat
+    # routing (both read the env var only), so it is told so — without a "bind now" remedy.
+    hub = _git_repo(tmp_path / "opt" / "hubrepo", None, hub=True)
+    env = {**_hub_env(hub), **_store(tmp_path, [{"session_id": "s-infra", "name": "infra"}])}
+    rc, out = _run(hub, tmp_path, json.dumps({"cwd": str(hub), "session_id": "s-infra"}), env)
+    assert rc == 0
+    lines = _charter_bullet(out)
+    assert len(lines) == 1, out
+    assert "`infra`" in lines[0] and "charter" in lines[0] and "beat routing" in lines[0]
+    assert "CLAUDE_AGENT=infra claude" in lines[0]
+    assert "bind" not in lines[0].lower()
+    assert "this hub session is UNNAMED" not in out
+
+
+def test_a_whoami_only_worktree_session_learns_it_has_no_charter(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path / "opt" / "adopted", "alpha")
+    wt = _linked_worktree(repo, "beta")
+    env = _store(tmp_path, [{"session_id": "s-beta", "name": "beta"}])
+    rc, out = _run(wt, tmp_path, json.dumps({"cwd": str(wt), "session_id": "s-beta"}), env)
+    assert rc == 0
+    lines = _charter_bullet(out)
+    assert len(lines) == 1, out
+    assert "`beta`" in lines[0] and "charter" in lines[0]
+    assert "CLAUDE_AGENT=beta claude" in lines[0]
+    assert "beat routing" not in lines[0], "beat routing is the hub's alone"
+    assert "bind" not in lines[0].lower()
+    assert "CLAUDE_AGENT is UNSET and" not in out
 
 
 def test_malformed_binding_rows_are_skipped(tmp_path: Path) -> None:
