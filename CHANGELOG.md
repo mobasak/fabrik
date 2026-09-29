@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — The hub commit-msg check warns a non-owner main-checkout commit, and counts it (2026-09-29)
+- `scripts/check_commit_trailers.py`: in the hub's main checkout, a commit whose resolved session name is not the declared merge owner (and whose `Agent-Name` is not `kilo-pipeline`) prints an advisory and emits one `commit_merge_owner_warning` kaizen event (added to `EVENT_TYPES`); it never refuses, and every subprocess is timeout-bounded and fails open. Silent in a linked worktree, in any project repo, and with no declared owner (spec 2026-09-29 hub-worktree-cutover § D5 (b), V6; plan 2026-09-29-plan-1, T04b).
 ### Added — SessionStart runs the multi-agent model in every repo and the hub (2026-09-29)
 - `.claude/hooks/session_orient.py` prompts `docs_updater.py --adopt` in the main checkout of any repo that has not adopted, whatever the session count, and tells a session whose resolved name is not the declared merge owner to move into `.claude/worktrees/<name>` with `EnterWorktree` (the conversation follows); an unnamed session is told to bind with `whoami_agent.py --as` first. One instruction per state (spec 2026-09-29 hub-worktree-cutover § D1, D5, V7).
 - It lists the repo's live `whoami_agent.py` bindings, scoped to the git common dir, stating that sessions named at launch by `CLAUDE_AGENT` write none (V6); the merge owner is read in-process with `decisions.py`'s cell grammar and last-row-wins, pinned against the real `decisions.py --merge-owner` on a table of ledgers. A session named only by a whoami binding is told that its role charter (and, in the hub, beat routing) still needs `CLAUDE_AGENT`.

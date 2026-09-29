@@ -327,6 +327,7 @@ ALLOWLIST: dict[str, str] = {
     ".claude/hooks/session_orient.py": "untracked: session-binding state under ~/.claude, outside the repo",
     "scripts/aro-wake/claude_rotate.py": "untracked: byte-identical vendored copy of scripts/sysadmin/claude_rotate.py — rotate-ledger.jsonl under ~/.claude/state",
     "scripts/audit_envs.py": "untracked: writes data/env_audit.yaml (gitignored `data/`)",
+    "scripts/check_commit_trailers.py": "untracked: install() writes only the git hooks dir (commit-msg + a backup), never a tracked path; _HUB_PATH is a read-only hub-identity comparison",
     "scripts/command_run.py": "untracked: run records under ~/.claude/state/command-runs, outside the repo",
     "scripts/dev_tracker.py": "untracked: writes .droid/dev_tracker.db (gitignored `.droid/`)",
     "scripts/proof_run.py": "untracked: writes proof-logs/ and PROOF.md (both gitignored)",
