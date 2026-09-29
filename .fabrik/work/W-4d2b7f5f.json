@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "watchdog Tier-D snapshot needs STORAGE_BACKEND, which the hub driver never renders — a timed-out or approved fix may abort at apply"
 }
