@@ -78,6 +78,13 @@
       "branch": "worktree-agent-af79ccccf2346cd82",
       "base_commit": "c8194caaf",
       "review": "docs/development/reviews/2026-09-29-plan-1-hub-worktree-cutover-T03a-review.md"
+    },
+    "T05": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a872d061c45349fab",
+      "branch": "worktree-agent-a872d061c45349fab",
+      "base_commit": "c8194caaf",
+      "review": "docs/development/reviews/2026-09-29-plan-1-hub-worktree-cutover-T03a-review.md"
     }
   }
 }

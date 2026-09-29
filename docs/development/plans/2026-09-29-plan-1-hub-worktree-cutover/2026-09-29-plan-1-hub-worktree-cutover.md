@@ -35,7 +35,7 @@ each ticket cites the spec section it implements and restates nothing that secti
 | T02b | Merges distribute governance | — | ⚡ | ✅ | b1766a8d5, 21aebc980 |
 | T03a | The Stop hook's push law binds a worktree branch with no upstream | — | ⚡ | ✅ | c583139dc, 556817d82, fa2ae86b0, afb1f1071, 6ba494f81, 3427e6c73, 8ec9d10fe |
 | T03b | A hub worktree is the hub to the gate | — | ⚡ | ✅ | b94727fcc |
-| T05 | Ids held until merged; the automated writers identify themselves | — | ⚡ | 🔵 | |
+| T05 | Ids held until merged; the automated writers identify themselves | — | ⚡ | ✅ | 98430e3dc, c9222e091 |
 | T04a | SessionStart: adopt at any count, the move line, live bindings | — | ⚡ | ⬜ | |
 | T04b | The hub commit warning, counted | — | ⚡ | ⬜ | |
 | T06a | The project contract: the model unconditional, ids reserved | T04a, T04b, T05 | ⛓️ | ⬜ | |

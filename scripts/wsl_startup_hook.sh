@@ -19,28 +19,31 @@
 # 2. wait_for_network.sh — WSL brings the network up AFTER the first login shell; bounded
 #      (WAIT_NET_TIMEOUT_S, default 90s) and ALWAYS exit 0, since this file is sourced into every
 #      interactive login and a guard that can hang is worse than the race it closes
-# 3. Project registry sync: project.yaml → data/projects.yaml + PROJECT_CATALOG.md + PORTS.md (daily)
-# 4. Health summary (daily)
-# 5. rank_task_subagents.py — deterministic subagent selection (~50ms, $0, byte-identical re-runs).
+# 3. Health summary (daily)
+# 4. rank_task_subagents.py — deterministic subagent selection (~50ms, $0, byte-identical re-runs).
 #      The model-catalog scrapes it used to sit beside now live in /opt/ai-model-catalog/engine.
-# 6. OpenRouter category routing (daily, deterministic): classifies models
+# 5. OpenRouter category routing (daily, deterministic): classifies models
 #      into the 7 ai/NN-*.md packs, ranks per-category, injects OPENROUTER_ROUTES
 #      markers + refreshes 'Last content verification:' stamps. Pure SQL, no
-#      LLM, no extra network calls beyond what step 5 already made. Per-script
+#      LLM, no extra network calls beyond what step 4 already made. Per-script
 #      `|| echo "..."` failure isolation: a crash here MUST NOT short-circuit
-#      steps 7 or 8. Operator kill-switch: `touch /tmp/.openrouter_routing_disabled`.
-# 7. AI rule pack freshness check (warn-only): warns in update.log when any
+#      steps 6 or 7. Operator kill-switch: `touch /tmp/.openrouter_routing_disabled`.
+# 6. AI rule pack freshness check (warn-only): warns in update.log when any
 #      .windsurf/rules/ai/*.md 'Last content verification:' line is >90 days old
-# 8. Command-corpus drift check: installed ~/.claude/commands vs rendered sources
-# 9. flush_subagent_outboxes.py — stranded flywheel rows, BEFORE the ranker reads the ledger
-# 10. capture_golden.py --verify — the contract oracle, ABOVE the auto-commit that would
+# 7. Command-corpus drift check: installed ~/.claude/commands vs rendered sources
+# 8. flush_subagent_outboxes.py — stranded flywheel rows, BEFORE the ranker reads the ledger
+# 9. capture_golden.py --verify — the contract oracle, ABOVE the auto-commit that would
 #      otherwise commit a husk before anything verified it
-# 11. check_daily_refresh_freshness.py — the stale-heartbeat + selection-doc legs
-# 12. external_services_chain.sh — the SAME chain daily_refresh.sh runs (a boot before the
+# 10. check_daily_refresh_freshness.py — the stale-heartbeat + selection-doc legs
+# 11. external_services_chain.sh — the SAME chain daily_refresh.sh runs (a boot before the
 #      06:00 cron would otherwise skip it entirely)
-# 13. autocommit_pipeline_outputs.sh — commits the ~14 tracked docs this hook regenerates
-# 14. session-recall incremental index: yesterday's Claude Code sessions into the
+# 12. autocommit_pipeline_outputs.sh — commits the ~14 tracked docs this hook regenerates
+# 13. session-recall incremental index: yesterday's Claude Code sessions into the
 #      local search DB (bounded: timeout 600; fail-quiet when Postgres is down)
+#
+# sync_projects.py no longer runs here (spec delta D5(b), 2026-09-29): its generated files
+# (PORTS.md, docs/PROJECT_CATALOG.md, data/projects.yaml) are written by the deployer's own
+# `fabrik apply` on the deployer's branch (D3) instead, so the main checkout stays clean.
 #
 # Full reference: docs/workflows/DATA_SYNC_WORKFLOW.md
 
@@ -49,7 +52,6 @@ VENV_PYTHON="$FABRIK_ROOT/.venv/bin/python"
 EXTENSIONS_SCRIPT="$FABRIK_ROOT/scripts/sync_extensions.sh"
 ENV_WATCHER_SCRIPT="$FABRIK_ROOT/scripts/watch_env_changes.sh"
 ENV_WATCHER_LOG="$FABRIK_ROOT/.tmp/env_watcher.log"
-SYNC_PROJECTS_SCRIPT="$FABRIK_ROOT/scripts/sync_projects.py"
 # sync_cascade_backup.sh is NOT called from the boot path any more: Windsurf/Cascade is retired
 # (D-071) and the check printed `⚠️  CASCADE BACKUP MISSING` on every single boot for a tool
 # nobody runs. The script itself stays for a hand-run; its only other mention is the
@@ -111,8 +113,13 @@ fi
 # Keep the POST-COMMIT governance sync installed as a PLAIN git hook (D-369): pre-commit's post-commit
 # stage stashed the whole tree around the ~60 s sync and reverted siblings' edits. Same cwd pin, same
 # subshell, same idempotence as the trailer guard; the installer refuses to clobber a foreign hook.
+# ⚠️ Review finding T02b-4: this used to redirect BOTH stdout and stderr to /dev/null, so a foreign
+# hook (the installer's one refusal case) failed silently on every boot — neither hook got
+# (re)installed and nothing said why. Capture stderr only (stdout stays discarded) and print it
+# ONLY on a non-zero exit; a clean install stays exactly as silent as before.
 [ -f "$FABRIK_ROOT/scripts/install_post_commit_hook.sh" ] && ( cd "$FABRIK_ROOT" 2>/dev/null &&
-    bash "$FABRIK_ROOT/scripts/install_post_commit_hook.sh" >/dev/null 2>&1 )
+    _err=$(bash "$FABRIK_ROOT/scripts/install_post_commit_hook.sh" 2>&1 >/dev/null) ||
+        echo "[wsl_startup_hook] install_post_commit_hook.sh failed: $_err" >&2 )
 
 # Keep the PRE-PUSH gate installed, for exactly the reason stated above and proven the same day it
 # shipped: `.git/hooks/` is untracked, so a fresh clone, a new worktree, or another machine gets NO
@@ -157,8 +164,9 @@ if [ ! -f "$LOCK_FILE" ]; then
             "Could not append to $_broken. Every step of the boot pipeline redirects there, so each would have been skipped individually and the heartbeat never written — with no alert reachable from inside. Now logging to $LOG_FILE for this boot. Investigate disk/permissions now." \
             >>"$LOG_FILE" 2>&1 & )  # the ONE alert whose non-delivery line was discarded — and the one where knowing it ALSO failed matters most; LOG_FILE is already re-pointed by the ladder above (FD6)
     fi
-    # Run full pipeline in background (chained to ensure order)
-    # Project sync → Cascade backup check → Health summary → Kilo agents → Extensions
+    # Run full pipeline in background (chained to ensure order) — see the step list at the
+    # top of this file for the current, accurate order (project registry sync no longer runs
+    # here as of spec delta D5(b), 2026-09-29).
     # `>/dev/null 2>&1`: every line inside carries its OWN redirect (to $LOG_FILE, or — for the
     # heartbeat stamp — to its own file), so nohup had
     # nothing left to save — it still printed `nohup: appending output to 'nohup.out'` to the
@@ -172,7 +180,11 @@ if [ ! -f "$LOCK_FILE" ]; then
         # channels, stranded the pipeline's own auto-commit off-box, and returned 0 of 10 pool units.
         # Bounded and FAIL-OPEN (always exit 0): a boot guard that can hang is worse than the race.
         bash $FABRIK_ROOT/scripts/wait_for_network.sh >> $LOG_FILE 2>&1
-        cd $FABRIK_ROOT && $VENV_PYTHON $SYNC_PROJECTS_SCRIPT >> $LOG_FILE 2>&1 ; \
+        # sync_projects.py no longer runs from the main-checkout boot (spec delta D5(b),
+        # 2026-09-29): PORTS.md / docs/PROJECT_CATALOG.md / data/projects.yaml are written by
+        # the deployer's own \`fabrik apply\` on the deployer's branch (D3) — running it here
+        # left those generated files dirty in the shared main checkout for every agent's
+        # \`git status\` to trip over.
         cd $FABRIK_ROOT && $VENV_PYTHON $HEALTH_SUMMARY_SCRIPT >> $LOG_FILE 2>&1 ;
         # === KILO AGENT BENCHMARK WORKFLOW ===
         # Deterministic role assignment (pre_filter → selector → post_filter)

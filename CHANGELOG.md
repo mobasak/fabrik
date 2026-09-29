@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Decision ids are held until merged; the automated writers identify themselves (2026-09-29)
+- `scripts/decisions.py`: `--next-id` skips ids held by a live `--reserve-id` reservation and counts ids already on the integration branch (`_merge_base_ids`), as `--reserve-id` does; a reservation is released when its id lands in the integration branch's ledger, replacing the fixed 7-day TTL, so a worktree branch can stay unmerged for longer without its id being reissued (spec § D7, V5).
+- `scripts/kilo-benchmarks/autocommit_pipeline_outputs.sh` signs its commits `Agent-Name: kilo-pipeline`; `scripts/wsl_startup_hook.sh` no longer runs `sync_projects.py` in the main checkout, and prints `install_post_commit_hook.sh`'s stderr when it fails (spec § D5 (b), V11). Tests: `tests/test_automated_writers.py` (plan 2026-09-29-plan-1, T05).
 ### Fixed — A hub worktree is the hub to the gate (2026-09-29)
 - `scripts/enforcement/check_vendored_drift.py` and `scripts/final_gate.py` (the `check_symlinks` self-exemption and `_synced_paths`) identify the hub as "`scripts/fabrik_synced_manifest.py` in the tree AND the git common dir's parent is `/opt/fabrik`", so a linked worktree of the hub is graded as the hub and grades its own governance set; a project repo, with or without a manifest, stays a project (spec § D4, V8).
 - `final_gate.py`'s function-local `fabrik_master` is now `_FABRIK_ROOT`, one hub-path constant per file. Tests: `tests/test_hub_identity_worktree.py` (plan 2026-09-29-plan-1, T03b).
