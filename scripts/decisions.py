@@ -282,7 +282,6 @@ def _check(root: Path) -> int:
 
 
 # --- id reservation, box-local (spec delta §2) -------------------------------------------------
-_RESERVE_TTL_DAYS = 7
 _LOCK_TRIES, _LOCK_WAIT_S = 50, 0.1
 
 
@@ -358,10 +357,18 @@ def _locked(path: Path) -> Iterator[bool]:
             fh.close()
 
 
-def _live_reservations(path: Path) -> list[int]:
-    """Reserved ids not older than the TTL. A pruned id is NEVER re-issued — allocation is a
-    monotonic high-water mark, so the hole it leaves is permanent, which is what makes pruning safe."""
-    cutoff = time.time() - _RESERVE_TTL_DAYS * 86400
+def _live_reservations(path: Path, merged_ids: set[int]) -> list[int]:
+    """Reserved ids not yet in *merged_ids* — the ledger's own rows unioned with the integration
+    branch's (:func:`_merge_base_ids`), which the caller computes once and passes in.
+
+    Spec delta D7: a reservation is held until its id APPEARS THERE, never by a fixed TTL — the
+    old `_RESERVE_TTL_DAYS` cutoff pruned by AGE alone, so an unmerged worktree branch that simply
+    outlived 7 days had its reservation silently dropped, and a second worktree's `--reserve-id`
+    then re-issued the exact id the first branch was still holding (executed, D7). A pruned
+    (landed) id is never re-issued anyway — allocation is a monotonic high-water mark — so
+    releasing on landing costs nothing, and an abandoned branch's reservation just stays held
+    forever, leaving a permanent gap the allocator already treats as normal.
+    """
     out: list[int] = []
     try:
         text = path.read_text(encoding="utf-8")
@@ -370,10 +377,11 @@ def _live_reservations(path: Path) -> list[int]:
     for line in text.splitlines():
         try:
             row = json.loads(line)
-            if float(row.get("at", 0)) >= cutoff:
-                out.append(int(row["id"]))
+            rid = int(row["id"])
         except (ValueError, TypeError, KeyError):
             continue
+        if rid not in merged_ids:
+            out.append(rid)
     return out
 
 
@@ -440,6 +448,8 @@ def _allocate(ledger: Path, key: str, *, reserve: bool) -> tuple[int | None, str
     is stolen from a holder that does not exist.
     """
     ids = _ledger_ids(ledger)
+    merge_base = _merge_base_ids(ledger)
+    merged_ids = set(ids) | set(merge_base)
     path = _reserve_path(key)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -450,12 +460,12 @@ def _allocate(ledger: Path, key: str, *, reserve: bool) -> tuple[int | None, str
         with _locked(path) as held:
             if not held:
                 return None, "decisions: could not take the reservation lock — no id issued\n"
-            pool = ids + _live_reservations(path) + _merge_base_ids(ledger)
+            pool = ids + _live_reservations(path, merged_ids) + merge_base
             return (max(pool) + 1 if pool else 1), ""
     with _locked(path) as held:
         if not held:
             return None, "decisions: could not take the reservation lock — no id issued\n"
-        pool = ids + _live_reservations(path) + _merge_base_ids(ledger)
+        pool = ids + _live_reservations(path, merged_ids) + merge_base
         nid = max(pool) + 1 if pool else 1
         try:
             with path.open("a", encoding="utf-8") as fh:
@@ -486,7 +496,8 @@ def _append_row(ledger: Path, fields: list[str], key: str) -> int:
             sys.stderr.write("decisions: could not take the lock — nothing written\n")
             return 1
         ids = _ledger_ids(ledger)
-        pool = ids + _live_reservations(path) + _merge_base_ids(ledger)
+        merge_base = _merge_base_ids(ledger)
+        pool = ids + _live_reservations(path, set(ids) | set(merge_base)) + merge_base
         nid = max(pool) + 1 if pool else 1
         try:
             lines = ledger.read_text(encoding="utf-8", errors="replace").split("\n")
@@ -523,13 +534,20 @@ def _append_row(ledger: Path, fields: list[str], key: str) -> int:
 
 
 def _next_id(repo: Path) -> int:
-    """Print the next free ``D-NNN`` for *repo*'s ledger, derived from the file right now.
+    """Print the next free ``D-NNN`` for *repo*'s ledger, derived from the file right now, and
+    skipping any id a live ``--reserve-id`` call still holds.
 
     Removes the HAND-derivation error, which is a real and repeated one: deriving "the next
     number" by eye picks up a stale maximum whenever a sibling appended while you were reading —
     it happened twice in one day here (a D-084 collision between two hub sessions, and a D-107
     already taken by the time a row was written), and three concurrent agents in another repo
     produced a duplicate D-006 the same way (mail 01M1KR2ANYTRZR80WF1H29399T).
+
+    ⚠ Spec delta D7: before this, `_next_id` read the ledger alone and never looked at
+    `--reserve-id`'s reservation file, so a stale caller could be handed back the exact id a live
+    reservation was already holding for someone else. A reservation counts as landed here once
+    its id appears in THIS ledger read; one that has not yet landed is skipped regardless of age
+    (see :func:`_live_reservations` — the fixed TTL no longer governs either caller).
 
     It does NOT make allocation atomic, and saying so is the point: two agents calling this in
     the same window still get the same number. The race is closed at the OTHER end — by minting
@@ -544,12 +562,14 @@ def _next_id(repo: Path) -> int:
         sys.stderr.write(f"decisions: cannot read {ledger} ({exc})\n")
         return 1
     ids = [int(m) for m in re.findall(r"^\|\s*D-(\d+)\s*\|", text, re.M)]
-    if not ids:
+    live = _live_reservations(_reserve_path(_repo_key(repo)), set(ids))
+    pool = ids + live
+    if not pool:
         # A ledger with no rows yet starts at D-001, not D-000: every existing ledger's first
         # row is 001, and a zeroth row would sort oddly against them.
         print("D-001")
         return 0
-    print(f"D-{max(ids) + 1:03d}")
+    print(f"D-{max(pool) + 1:03d}")
     return 0
 
 

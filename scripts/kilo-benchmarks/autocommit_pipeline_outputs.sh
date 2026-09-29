@@ -272,6 +272,7 @@ fi
 git commit -q \
   -m "chore(kilo): ${CALLER} auto-commit of regenerated selection docs + catalog ($(date -u +%Y-%m-%d))" \
   -m "Agent-Role: primary
+Agent-Name: kilo-pipeline
 Agent-Context: the pipeline commits its own regenerated tracked outputs so the working tree stays clean for the next agent
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>" \
   -- "${STAGED[@]}" \
