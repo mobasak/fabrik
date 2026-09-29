@@ -716,7 +716,7 @@ def _worktree_base(root: Path, deadline: float) -> str | None:
             "--git-common-dir",
             "--absolute-git-dir",
         )
-        dirs = r.stdout.split()
+        dirs = r.stdout.splitlines()  # one path per line; a path may contain spaces
         if r.returncode != 0 or len(dirs) != 2 or dirs[0] == dirs[1]:
             return None  # not a linked worktree
         common = dirs[0]

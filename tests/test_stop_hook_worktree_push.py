@@ -222,6 +222,13 @@ def test_an_unset_fetch_refspec_steps_aside_after_push_u(monkeypatch, tmp_path: 
     _blocks_then_steps_aside_after_push_u(monkeypatch, tmp_path, wt)
 
 
+def test_a_repo_path_with_spaces_still_counts(tmp_path: Path) -> None:
+    """The linked-worktree probe reads two PATHS from git; a space in them must not split them."""
+    _main, wt = _main_and_worktree(tmp_path / "sp ace")
+    assert " " in str(wt)
+    assert hook._ahead_of_upstream(wt, {"notes.txt"}) == 1
+
+
 def test_a_detached_worktree_is_indeterminate(tmp_path: Path) -> None:
     """`git push -u origin HEAD` fails on a detached HEAD, so it must never be the remedy."""
     _main, wt = _main_and_worktree(tmp_path)
