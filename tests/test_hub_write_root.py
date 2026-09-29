@@ -11,6 +11,7 @@ git-common-dir-parent comparison in `_resolve_fabrik_root` matches it instead of
 from __future__ import annotations
 
 import importlib.util
+import itertools
 import subprocess
 import sys
 from pathlib import Path
@@ -19,6 +20,18 @@ from types import ModuleType
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# The four converted files, keyed for parametrized cross-target tests below — every target must
+# answer the SAME `_resolve_fabrik_root` call the same way, config.py included, so a defect in any
+# one replica (not just config.py) turns its own parametrize case red.
+_TARGETS: dict[str, Path] = {
+    "config": Path("src/fabrik/config.py"),
+    "sync_projects": Path("scripts/sync_projects.py"),
+    "vps_sync": Path("scripts/vps_sync.py"),
+    "command_feedback_report": Path("scripts/command_feedback_report.py"),
+}
+
+_MODULE_TAG = itertools.count()
 
 
 def _git(*args: str, cwd: Path) -> subprocess.CompletedProcess:
@@ -58,93 +71,75 @@ def _load_module(path: Path, name: str) -> ModuleType:
     return module
 
 
-@pytest.fixture
-def fabrik_config() -> ModuleType:
-    """`src/fabrik/config.py` loaded by FILE PATH, never `import fabrik.config` — the repo's
-    shared `.venv` has `fabrik` editable-installed against the literal `/opt/fabrik/src` (an
-    absolute path baked into the site-packages `.pth` at install time), so a plain `import
-    fabrik.config` from inside a worktree silently loads the MAIN CHECKOUT's copy, not this
-    worktree's edits. Loading by path is the only way this worktree's own `config.py` is what
-    gets exercised."""
-    return _load_module(REPO_ROOT / "src" / "fabrik" / "config.py", "_t01_fabrik_config_probe")
+def _load_target(key: str) -> ModuleType:
+    """Load one of the four converted files by its `_TARGETS` key, with a fresh, collision-free
+    module name every call (parametrized tests reload the same file repeatedly)."""
+    rel = _TARGETS[key]
+    return _load_module(REPO_ROOT / rel, f"_t01_{key}_{next(_MODULE_TAG)}")
 
 
-# ── Behavior Contract row 1: fabrik.config._resolve_fabrik_root ─────────────
+# ── Behavior Contract row 1 (cross-target): every one of the four converted files answers the
+# SAME `_resolve_fabrik_root` call the same way — config.py's own function AND each replica's
+# independently-typed copy. A mutation to any single target's algorithm (not only config.py's)
+# must turn its own parametrize case red.
 
 
-def test_resolve_fabrik_root_from_linked_worktree(tmp_path, monkeypatch, fabrik_config):
+@pytest.mark.parametrize("target", sorted(_TARGETS))
+def test_resolve_fabrik_root_from_linked_worktree_all_targets(tmp_path, monkeypatch, target):
     hub = _init_fake_hub(tmp_path)
     wt = _add_worktree(hub, tmp_path)
     monkeypatch.delenv("FABRIK_ROOT", raising=False)
-    monkeypatch.setattr(fabrik_config, "_HUB_PATH", hub)
+    module = _load_target(target)
+    monkeypatch.setattr(module, "_HUB_PATH", hub)
     monkeypatch.chdir(wt)
-    assert fabrik_config._resolve_fabrik_root() == wt.resolve()
+    assert module._resolve_fabrik_root() == wt.resolve()
 
 
-def test_resolve_fabrik_root_from_main_checkout(tmp_path, monkeypatch, fabrik_config):
+@pytest.mark.parametrize("target", sorted(_TARGETS))
+def test_resolve_fabrik_root_from_main_checkout_all_targets(tmp_path, monkeypatch, target):
     hub = _init_fake_hub(tmp_path)
     monkeypatch.delenv("FABRIK_ROOT", raising=False)
-    monkeypatch.setattr(fabrik_config, "_HUB_PATH", hub)
+    module = _load_target(target)
+    monkeypatch.setattr(module, "_HUB_PATH", hub)
     monkeypatch.chdir(hub)
-    assert fabrik_config._resolve_fabrik_root() == hub.resolve()
+    assert module._resolve_fabrik_root() == hub.resolve()
 
 
-def test_resolve_fabrik_root_outside_any_hub_tree(tmp_path, monkeypatch, fabrik_config):
+@pytest.mark.parametrize("target", sorted(_TARGETS))
+def test_resolve_fabrik_root_outside_any_hub_tree(tmp_path, monkeypatch, target):
     """A git tree that exists but is NOT a worktree of the hub falls back to the hub path."""
     hub = _init_fake_hub(tmp_path)
     other = _init_fake_hub(tmp_path, name="unrelated-repo")
     monkeypatch.delenv("FABRIK_ROOT", raising=False)
-    monkeypatch.setattr(fabrik_config, "_HUB_PATH", hub)
+    module = _load_target(target)
+    monkeypatch.setattr(module, "_HUB_PATH", hub)
     monkeypatch.chdir(other)
-    assert fabrik_config._resolve_fabrik_root() == hub.resolve()
+    assert module._resolve_fabrik_root() == hub.resolve()
 
 
-def test_resolve_fabrik_root_outside_any_git_tree(tmp_path, monkeypatch, fabrik_config):
+@pytest.mark.parametrize("target", sorted(_TARGETS))
+def test_resolve_fabrik_root_outside_any_git_tree(tmp_path, monkeypatch, target):
     hub = _init_fake_hub(tmp_path)
     outside = tmp_path / "not-a-repo"
     outside.mkdir()
     monkeypatch.delenv("FABRIK_ROOT", raising=False)
-    monkeypatch.setattr(fabrik_config, "_HUB_PATH", hub)
+    module = _load_target(target)
+    monkeypatch.setattr(module, "_HUB_PATH", hub)
     monkeypatch.chdir(outside)
-    assert fabrik_config._resolve_fabrik_root() == hub.resolve()
+    assert module._resolve_fabrik_root() == hub.resolve()
 
 
-def test_resolve_fabrik_root_env_var_always_wins(tmp_path, monkeypatch, fabrik_config):
+@pytest.mark.parametrize("target", sorted(_TARGETS))
+def test_resolve_fabrik_root_env_var_always_wins(tmp_path, monkeypatch, target):
     hub = _init_fake_hub(tmp_path)
     wt = _add_worktree(hub, tmp_path)
     override = tmp_path / "explicit-override"
     override.mkdir()
     monkeypatch.setenv("FABRIK_ROOT", str(override))
-    monkeypatch.setattr(fabrik_config, "_HUB_PATH", hub)
-    monkeypatch.chdir(wt)
-    assert fabrik_config._resolve_fabrik_root() == override
-
-
-# ── Behavior Contract row 1 (replicas): the two standalone scripts run the same algorithm ──
-
-
-@pytest.mark.parametrize(
-    "rel_path,mod_name",
-    [
-        ("scripts/sync_projects.py", "_t01_sync_projects_probe"),
-        ("scripts/vps_sync.py", "_t01_vps_sync_probe"),
-        ("scripts/command_feedback_report.py", "_t01_cfr_probe"),
-    ],
-)
-def test_replica_resolve_fabrik_root_matches_config(rel_path, mod_name, tmp_path, monkeypatch):
-    """Each replicated `_resolve_fabrik_root` (D3's "replicate the few lines" fallback) makes the
-    SAME call as fabrik.config's — same worktree-detection outcome, loaded from the file on disk
-    so a worktree's own edits are what gets exercised (never the installed package)."""
-    hub = _init_fake_hub(tmp_path)
-    wt = _add_worktree(hub, tmp_path)
-    monkeypatch.delenv("FABRIK_ROOT", raising=False)
-    monkeypatch.chdir(wt)
-    module = _load_module(REPO_ROOT / rel_path, mod_name)
+    module = _load_target(target)
     monkeypatch.setattr(module, "_HUB_PATH", hub)
-    assert module._resolve_fabrik_root() == wt.resolve()
-
-    monkeypatch.chdir(hub)
-    assert module._resolve_fabrik_root() == hub.resolve()
+    monkeypatch.chdir(wt)
+    assert module._resolve_fabrik_root() == override
 
 
 # ── Behavior Contract row 2 / spec § V9: writes land in the worktree, not the main checkout ──
@@ -253,6 +248,12 @@ def test_vps_sync_writes_land_in_the_worktree_not_the_main_checkout(tmp_path, mo
 
 
 def test_command_feedback_report_repo_default_follows_the_worktree(tmp_path, monkeypatch):
+    """Exercises the SCRIPT's real `main()` parser (never a parser rebuilt in the test) — a
+    mutation of the `--repo` default back to a hard-coded `Path("/opt/fabrik")` must turn this
+    red. `--take` is the cheapest real code path that both (a) builds the actual argparse parser
+    inside `main()` with no `--repo` flag, so the DEFAULT is what gets parsed, and (b) hands the
+    parsed `a.repo` to a function this test can intercept (`take()`) without touching the ledger
+    or any other file."""
     hub = _init_fake_hub(tmp_path)
     wt = _add_worktree(hub, tmp_path)
     monkeypatch.delenv("FABRIK_ROOT", raising=False)
@@ -261,10 +262,19 @@ def test_command_feedback_report_repo_default_follows_the_worktree(tmp_path, mon
         REPO_ROOT / "scripts" / "command_feedback_report.py", "_t01_cfr_default_probe"
     )
     monkeypatch.setattr(module, "_HUB_PATH", hub)
-    ap = module.argparse.ArgumentParser()
-    ap.add_argument("--repo", type=Path, default=module._resolve_fabrik_root())
-    args = ap.parse_args([])
-    assert args.repo == wt.resolve()
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "t01-probe-session")
+
+    captured: dict[str, Path] = {}
+
+    def _fake_take(command: str, repo: Path, session: str, ledger) -> str:
+        captured["repo"] = repo
+        return "stubbed"
+
+    monkeypatch.setattr(module, "take", _fake_take)
+
+    rc = module.main(["--take", "some-command"])
+    assert rc == 0
+    assert captured["repo"] == wt.resolve()
 
 
 # ── Behavior Contract row 3: every hub-root write hit is converted or dispositioned ─────────
