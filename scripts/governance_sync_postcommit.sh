@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AFTER-EDIT: .pre-commit-config.yaml (the governance-sync hook entry + its files: regex), CLAUDE.md § Sync-consciousness
 #
-# POST-COMMIT governance-sync dispatcher (operator decision 2026-08-29).
+# POST-COMMIT (and POST-MERGE) governance-sync dispatcher (operator decision 2026-08-29).
 #
 # WHY post-commit: as a pre-commit hook the sync was the slowest hook (~30s x 47 repos), which made
 # it the widest window for pre-commit's tree-delta detection to catch an UNRELATED concurrent
@@ -21,9 +21,29 @@
 # so the failure branch was UNREACHABLE and a sync that died on repo 12 of 48 exited 0 with no
 # warning and no re-run command, while CLAUDE.md § Sync-consciousness promises it "prints loudly".
 # Probed 2026-09-01: `set -u; (exit 3) | tail -3 || echo TAKEN` prints nothing, rc=0.
+#
+# ⚠️ WHAT SYNCS AND WHAT DOES NOT, in the main checkout (/opt/fabrik) only — a worktree syncs nothing:
+#   SYNCS   — `git commit` (post-commit, incl. a conflicted merge or a squash concluded by `git commit`);
+#             `git merge`, fast-forward or `--no-ff`, and a merging `git pull` (post-merge).
+#   DOES NOT — `git pull --rebase`, `git rebase <branch>`, `git reset --hard <branch>` and any plumbing
+#             (`commit-tree`/`update-ref`): git fires neither hook for them, so
+#             trigger paths they bring in are NOT distributed. The hub's flow is `git merge --no-ff` by
+#             the merge owner, so no post-rewrite hook exists by design. After any of those, run
+#             `scripts/sync_enforcement_to_projects.py --force` yourself.
 set -uo pipefail
 
 [ "$(pwd)" = "/opt/fabrik" ] || exit 0  # never from a worktree (the renderer-prune class)
+
+# MODE: `post-commit` (the default — the post-commit hook passes nothing) or `post-merge` (the
+# post-merge hook passes it). A worktree commit syncs nothing (the guard above), so a governance-sync
+# path reaches the fleet only when it is MERGED into this checkout — and `git merge`, fast-forward or
+# `--no-ff`, fires no post-commit hook. The post-merge hook is that path (spec
+# 2026-09-29-hub-worktree-cutover-design § D3 (b)).
+MODE="${1:-post-commit}"
+case "$MODE" in
+  post-commit|post-merge) ;;
+  *) echo "[governance-sync] unknown mode '$MODE' — SYNC NOT RUN; run scripts/sync_enforcement_to_projects.py --force yourself"; exit 1 ;;
+esac
 
 FILTER="$(/opt/fabrik/.venv/bin/python - <<'PY'
 import yaml
@@ -35,16 +55,16 @@ for repo in cfg.get("repos", []):
             raise SystemExit(0)
 raise SystemExit(1)
 PY
-)" || { echo "[governance-sync post-commit] cannot read the files: filter from .pre-commit-config.yaml — SYNC NOT RUN; run scripts/sync_enforcement_to_projects.py --force yourself"; exit 1; }
+)" || { echo "[governance-sync $MODE] cannot read the files: filter from .pre-commit-config.yaml — SYNC NOT RUN; run scripts/sync_enforcement_to_projects.py --force yourself"; exit 1; }
 
 # ⚠️ An EMPTY filter is fail-OPEN, so refuse it explicitly: the heredoc prints `hook.get("files","")`
 # and exits 0, so a governance-sync hook that merely LOST its `files:` key yields FILTER="" — which
 # `grep -qE ""` matches on every line, silently syncing on every commit and defeating the
 # single-sourcing contract this block exists to uphold. The `||` above cannot see it (exit was 0).
-[ -n "$FILTER" ] || { echo "[governance-sync post-commit] the governance-sync files: filter is EMPTY — refusing to treat every commit as a trigger; fix .pre-commit-config.yaml"; exit 1; }
+[ -n "$FILTER" ] || { echo "[governance-sync $MODE] the governance-sync files: filter is EMPTY — refusing to treat every commit as a trigger; fix .pre-commit-config.yaml"; exit 1; }
 
-# HEAD's own paths (first-parent view — on this shared box a merged-in trigger commit was already
-# synced when ITS author committed it).
+# The paths to test: HEAD's own first-parent diff (post-commit), or everything the merge brought in
+# (post-merge — commits made in a worktree synced nothing when their author made them).
 #
 # ⚠️ NO PIPELINE HERE, and it must stay that way now that `pipefail` is on. `git log … | grep -qE`
 # is a SIGPIPE trap: `grep -q` exits at the FIRST match and closes the pipe, so git dies with 141,
@@ -65,8 +85,21 @@ PY
 # ⚠️ And the capture needs its own failure branch. Every other step here fails LOUD (FILTER has
 # one, SYNC has one); an unchecked `NAMES=` would fail SILENT-SKIP on a corrupt index or unborn
 # HEAD — the exact shape this script exists to make impossible.
-NAMES="$(git log -1 --first-parent --format= --name-only)" \
-  || { echo "[governance-sync post-commit] cannot read HEAD's paths — SYNC NOT RUN; run scripts/sync_enforcement_to_projects.py --force yourself"; exit 1; }
+# post-merge reads every path the merge BROUGHT IN — `ORIG_HEAD..HEAD`, which git sets before a
+# fast-forward and a `--no-ff` merge alike — not HEAD's first-parent diff: a fast-forward's HEAD is the
+# branch tip, whose own diff misses a trigger path touched by any commit below it. A `--squash` leaves
+# ORIG_HEAD == HEAD (nothing listed); the squash is committed later and reaches post-commit. A conflicted
+# merge concluded by `git commit` reaches post-commit too, whose first-parent read already lists it.
+# ⚠️ `--no-renames` on BOTH reads: with rename detection (git's default) a move lists only its
+# DESTINATION, so moving a file OUT of a trigger path read as a non-trigger change and the fleet kept
+# the stale copy. Without it a move lists both the deleted source and the added destination.
+if [ "$MODE" = post-merge ]; then
+  NAMES="$(git diff --no-renames --name-only ORIG_HEAD HEAD)" \
+    || { echo "[governance-sync post-merge] cannot read the merged paths (ORIG_HEAD..HEAD) — SYNC NOT RUN; run scripts/sync_enforcement_to_projects.py --force yourself"; exit 1; }
+else
+  NAMES="$(git log -1 --first-parent --no-renames --format= --name-only)" \
+    || { echo "[governance-sync post-commit] cannot read HEAD's paths — SYNC NOT RUN; run scripts/sync_enforcement_to_projects.py --force yourself"; exit 1; }
+fi
 if grep -qE "$FILTER" <<<"$NAMES"; then
   # SYNC_CMD exists so the fail-loud branch below is TESTABLE — a fail-open path that no test can
   # exercise is how the unreachable `||` shipped in the first place.
@@ -80,6 +113,6 @@ if grep -qE "$FILTER" <<<"$NAMES"; then
   # Intentionally unquoted: $SYNC is a command line that must word-split.
   # shellcheck disable=SC2086
   $SYNC 2>&1 | tail -3 \
-    || { echo "[governance-sync post-commit] SYNC FAILED — the commit landed but did NOT distribute; run scripts/sync_enforcement_to_projects.py --force"; exit 1; }
+    || { echo "[governance-sync $MODE] SYNC FAILED — the ${MODE#post-} landed but did NOT distribute; run scripts/sync_enforcement_to_projects.py --force"; exit 1; }
 fi
 exit 0

@@ -1,6 +1,17 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A path filter must read with --no-renames, and a merge test must build its branch in a linked worktree (2026-09-29)
+
+Git's rename detection hides a deleted source path: `--name-only` lists only the destination of a move, so a
+filter that decides whether to act on a change (here, whether a commit or merge touched a governance-sync path)
+must read with `--no-renames`, or a move out of the filtered set looks like no change at all. The wave-1 review
+of the hub cut-over found it in both the new post-merge read and the post-commit read that had shipped before it.
+
+A merge test must build its feature branch in a linked worktree. Built in the main checkout, the branch's own
+commits fire post-commit, and a `--no-ff` "merge distributes" test goes green without the post-merge hook
+existing. Assert that nothing synced before the merge.
+
 ## Adopting a tool turns its source file into its output, and every reader of the old file breaks (2026-09-25)
 
 The work-tracking plan's own tests passed on every ticket, then the hub adoption moved the backlog from 4,952

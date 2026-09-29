@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Merges distribute governance: the post-merge sync hook (2026-09-29)
+- `scripts/governance_sync_postcommit.sh` gains a `post-merge` mode that syncs every trigger path a merge brought in (`git diff --no-renames --name-only ORIG_HEAD HEAD`), so fast-forward and `--no-ff` merges of worktree branches reach the fleet; the `pwd` guard still blocks worktree commits. Both modes read paths with `--no-renames`, so moving a file out of a governance-sync path distributes the change.
+- The header states what does not sync (`pull --rebase`, `rebase`, `reset --hard`, plumbing) and the remedy, `scripts/sync_enforcement_to_projects.py --force`.
+- `scripts/install_post_commit_hook.sh` installs a `post-merge` hook beside `post-commit`, refusing a foreign hook on either name before writing anything.
+- `tests/test_merge_sync.py` runs real ff and `--no-ff` merges and a linked-worktree commit against hooks written by the real installer in scratch repos (plan 2026-09-29-plan-1, T02b).
 ### Added — The command-corpus render is refused from a linked worktree (2026-09-29)
 - `commands/assemble_commands.py` refuses a render into the installed corpus, and refuses `--extract`, unless the script's own tree is the main checkout (its git dir equals its common dir, so a submodule checkout renders and a linked worktree is refused). It fails closed with exit 3 and names the main checkout, or says "the repository's main checkout" when the first worktree entry holds no working tree (a bare repo, a submodule's worktree) (spec 2026-09-29 hub-worktree-cutover § D3 (a), V3).
 - `--check`, a `--dest` preview elsewhere and direct `render()` calls are unaffected; a `--dest` that resolves to the installed corpus is guarded like a default render. Tests: `tests/test_assemble_worktree_guard.py` (8; plan 2026-09-29-plan-1, T02a).
