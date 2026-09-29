@@ -1,0 +1,26 @@
+{
+  "block_digest": "fc3f4d7deb4166ee00704a8788f33acf26322bd51d24515a6539c0bd67b1f08e",
+  "blocked_by": [],
+  "created": "2026-09-28T12:07:19.939885Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-6e879289",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "290ef15f234950201a125198c7ebbd698471026eab7f075b9b230c17f3b41b43"
+  ],
+  "next": "",
+  "note": "operator: 'why do you keep saying decision needed while there is no decision needed from my side? ... everything is there' — the go was already given ('be sure all repos under opt including fabrik-lib ... will work in that manner'); relayed to fabrik-lib as 01M3PEC1",
+  "owner": "",
+  "priority": 2,
+  "question": "Should fabrik-lib port the loop-program rules into its own contract now?",
+  "status": "done",
+  "title": "Should fabrik-lib port the loop-program rules into its own contract now?"
+}
