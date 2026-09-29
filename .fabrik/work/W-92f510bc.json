@@ -1,0 +1,26 @@
+{
+  "block_digest": "c598719c86e3c2185c6d1bfe5c3dda4b7a559dc08ad5ad882458bdfcfca2c58a",
+  "blocked_by": [],
+  "created": "2026-09-29T11:07:29.921313Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-92f510bc",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "7493b9196c5a23d1de9f9df203572ed4ebeebd10845537a0d39fa90fef8df06e"
+  ],
+  "next": "",
+  "note": "operator: 'best practise, permanent resolution asap' — resolved without either option: root cause was ExpressVPN's WFP callout left running while disconnected, which dropped loopback traffic from browser-named processes into WSL mirrored mode; after the operator's ExpressVPN repair (2026-09-29 14:41) the service runs and browsers reach WSL (Edge headless ok on 127.0.0.1 and localhost:5051). Mirrored mode (D-360) stays.",
+  "owner": "",
+  "priority": 2,
+  "question": "How should browsers on Windows reach the WSL services again: through a relay on a different port, or by switching WSL back to NAT mode?",
+  "status": "done",
+  "title": "How should browsers on Windows reach the WSL services again: through a relay on a different port, or by switching WSL back to NAT mode?"
+}
