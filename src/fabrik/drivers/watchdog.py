@@ -237,6 +237,37 @@ if __name__ == "__main__":
 '''
 
 
+# The backends the sidecar's vendored storage accepts, and the keys each one refuses to run without
+# (fabrik-lib watchdog vendor/storage/{storage,b2_backend,supabase_backend}.py).
+_SNAPSHOT_BACKEND_KEYS: dict[str, tuple[str, ...]] = {
+    "b2": ("B2_KEY_ID", "B2_APPLICATION_KEY", "B2_BUCKET_NAME"),
+    "supabase": ("SUPABASE_URL", "SUPABASE_SERVICE_KEY", "SUPABASE_BUCKET"),
+}
+_STORAGE_ENV_KEYS = (
+    "STORAGE_BACKEND",
+    *sorted({k for ks in _SNAPSHOT_BACKEND_KEYS.values() for k in ks}),
+)
+_ENV_LINE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*[=:]\s*(.*)$")
+_QUOTED_VALUE = re.compile(r"^([\"'])(.*?)\1(?:\s+#.*)?$")
+
+
+def _env_value(raw: str) -> str:
+    """A .env value as compose's env_file reads it: matching quotes stripped, else ` #` comment cut.
+
+    Compose interpolates outside single quotes: ``$$`` is a literal ``$``, and any other ``$`` is a
+    reference to an environment this probe cannot see — returned as "" (unresolved), so the gate
+    treats the key as missing rather than trusting a value that may expand to nothing.
+    """
+    v = raw.strip()
+    m = _QUOTED_VALUE.match(v)
+    if m and m.group(1) == "'":
+        return m.group(2)  # single quotes: a literal, never interpolated
+    v = m.group(2) if m else re.split(r"\s#", v, maxsplit=1)[0].strip()
+    if "$" in v.replace("$$", ""):
+        return ""
+    return v.replace("$$", "$")
+
+
 class WatchdogProvisionError(RuntimeError):
     """Driver failed in a way the orchestrator should treat as non-fatal warn."""
 
@@ -426,7 +457,13 @@ class WatchdogDriver:
         if dry_run:
             steps = [
                 "pre-flight app HEALTHCHECK (warn-only)",
-                f"build {rctx.image_tag}" + (" + Tier-D bootstrap" if rctx.auto_code_fix else ""),
+                f"build {rctx.image_tag}"
+                + (
+                    " + Tier-D bootstrap (unless the apply-time HEALTHCHECK or "
+                    "STORAGE_BACKEND check degrades it to escalate-only)"
+                    if rctx.auto_code_fix
+                    else ""
+                ),
                 f"write {self._compose_dir(rctx)}/compose.watchdog.yaml",
                 "docker compose up -d watchdog",
             ]
@@ -441,7 +478,8 @@ class WatchdogDriver:
             # result decides whether Tier-D can be safely enabled — which in
             # turn decides the image's entrypoint — so it must precede the build.
             has_hc = self._check_app_healthcheck(rctx)
-            self._gate_tier_d(rctx, has_hc)
+            storage_env = self._read_storage_env(rctx) if rctx.auto_code_fix else {}
+            self._gate_tier_d(rctx, has_hc, storage_env)
             self._build_image(rctx)
             # Ship governance BEFORE the overlay — the overlay's volume list +
             # env read the returned flag. Fail-soft (False → no mount/env).
@@ -549,7 +587,9 @@ class WatchdogDriver:
             target_vps=getattr(ctx, "target_vps", None) or spec.get("target_vps") or "vps1",
         )
 
-    def _gate_tier_d(self, rctx: _RenderContext, has_healthcheck: bool) -> None:
+    def _gate_tier_d(
+        self, rctx: _RenderContext, has_healthcheck: bool, storage_env: dict[str, str]
+    ) -> None:
         """Enforce Tier-D deploy-time prerequisites; degrade rather than ship blind.
 
         Mutates ``rctx.auto_code_fix`` to False when a prerequisite the spec
@@ -561,6 +601,11 @@ class WatchdogDriver:
           it is an operator error → fail the apply loudly (not a silent degrade).
         - **app HEALTHCHECK** (degrade): without one, ``verify_health`` is a
           no-op so auto-rollback can't fire (R-B). Refuse Tier-D → escalate-only.
+        - **snapshot storage** (degrade): the sidecar stores a pre-apply snapshot
+          before every autonomous apply and refuses the apply when it cannot; its
+          vendored storage accepts only ``STORAGE_BACKEND`` b2|supabase, each with
+          its own keys. Without them every fix would abort at apply (mail
+          01M384GX) → escalate-only.
         """
         if not rctx.auto_code_fix:
             return
@@ -579,6 +624,51 @@ class WatchdogDriver:
                 rctx.main_container,
             )
             rctx.auto_code_fix = False
+            return
+        backend = storage_env.get("STORAGE_BACKEND", "").lower()
+        # blank, or unresolved (`_env_value` returns "" for a `$VAR` reference)
+        missing = [
+            k for k in _SNAPSHOT_BACKEND_KEYS.get(backend, ()) if not storage_env.get(k, "").strip()
+        ]
+        if backend not in _SNAPSHOT_BACKEND_KEYS or missing:
+            logger.error(
+                "watchdog: auto_code_fix requested for %s but its .env cannot store a pre-apply "
+                "snapshot (STORAGE_BACKEND=%r; accepted %s; missing %s) — every fix would abort "
+                "at apply. REFUSING Tier-D; degrading to escalate-only. Set STORAGE_BACKEND and "
+                "that backend's keys in /opt/%s/.env and re-apply to enable Tier-D.",
+                rctx.project_id,
+                backend,
+                "|".join(sorted(_SNAPSHOT_BACKEND_KEYS)),
+                ", ".join(missing) or "-",
+                rctx.project_id,
+            )
+            rctx.auto_code_fix = False
+
+    def _read_storage_env(self, rctx: _RenderContext) -> dict[str, str]:
+        """The snapshot-storage keys of the app's ``/opt/<id>/.env`` on the watchdog's host.
+
+        That file is the sidecar's compose ``env_file``, so it is what the sidecar's process
+        environment holds (``_render_env`` sets none of these keys). Parsed as compose reads it:
+        ``export``, leading spaces and ``KEY = v`` / ``KEY: v`` allowed, matching quotes stripped,
+        an unquoted `` #`` comment cut, the last assignment wins. Only key NAMES are ever logged. Any failure
+        reads as empty, so the gate degrades rather than enabling a loop that cannot apply.
+        """
+        keys = "|".join(_STORAGE_ENV_KEYS)
+        try:
+            out = ssh(
+                f"sudo grep -E '^[[:space:]]*(export[[:space:]]+)?({keys})[[:space:]]*[=:]' "
+                f"{self._compose_dir(rctx)}/.env 2>/dev/null || true",
+                timeout=15,
+            )
+        except Exception as e:  # noqa: BLE001 — any probe failure degrades Tier-D
+            logger.warning("watchdog: could not read storage env for %s: %r", rctx.project_id, e)
+            return {}
+        env: dict[str, str] = {}
+        for line in (out or "").splitlines():
+            m = _ENV_LINE.match(line.rstrip("\r"))
+            if m and m.group(1) in _STORAGE_ENV_KEYS:
+                env[m.group(1)] = _env_value(m.group(2))
+        return env
 
     # ── Build flow ────────────────────────────────────────────────────────
 

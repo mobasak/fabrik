@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T18:16:56.878529Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-c7de366c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure first: fabrik plan specs/services/spoke-canary.yaml + read the last apply log for where compose.watchdog.yaml landed; then wrap WatchdogDriver.provision's remote steps in _target_vps_env(ctx) with a grader that asserts the ssh host for a vps2 ctx",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "watchdog"
+  ],
+  "title": "watchdog driver ssh()s the hub for spoke apps: every WatchdogDriver ssh call (build, overlay, HEALTHCHECK and storage probes, bring-up) targets FABRIK_VPS_SSH_HOST and provision() never runs inside deployer_ssh._target_vps_env; specs/services/spoke-canary.yaml (a spoke) has the watchdog on by default (review W-S4/W-O4, 2026-09-29)"
+}

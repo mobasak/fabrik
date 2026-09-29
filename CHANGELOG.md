@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — A Tier-D watchdog with no snapshot storage degrades to escalate-only instead of looping on fixes it can never apply (2026-09-29)
+- `src/fabrik/drivers/watchdog.py`: the sidecar stores a pre-apply snapshot before every autonomous apply and refuses the apply when it cannot. `provision()` now reads the snapshot keys (`STORAGE_BACKEND`, plus the B2 or Supabase keys it needs) from the app's `/opt/<id>/.env`, parsed the way compose's `env_file` reads them. `_gate_tier_d` then degrades Tier-D to escalate-only, with an ERROR naming the missing keys (never their values), when the backend is not `b2` or `supabase` or its keys are unset. The dry-run line now says the apply-time checks can degrade Tier-D. Mail 01M384GX, W-4d2b7f5f.
 ### Fixed — The hub's test suite can no longer reach the live fleet (2026-09-29)
 - `tests/conftest.py` installs two layers in `pytest_configure`, so collection-time calls are covered too, and removes them in `pytest_unconfigure`:
   - `subprocess.Popen` refuses a directly named `ssh`, `scp`, `rsync`, `sftp` or `sshpass`: as argv0, as `executable=`, at the head of any segment of a shell string, or inside an `sh -…c` payload.

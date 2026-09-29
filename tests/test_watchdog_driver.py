@@ -298,32 +298,181 @@ class TestTriggerSources:
         assert any("never PAGE" in r.message for r in caplog.records)
 
 
+_B2 = {"STORAGE_BACKEND": "b2", "B2_KEY_ID": "k", "B2_APPLICATION_KEY": "a", "B2_BUCKET_NAME": "b"}
+_SUPABASE = {
+    "STORAGE_BACKEND": "supabase",
+    "SUPABASE_URL": "https://x.supabase.co",
+    "SUPABASE_SERVICE_KEY": "s",
+    "SUPABASE_BUCKET": "b",
+}
+
+
 class TestGateTierD:
     def test_missing_git_remote_hard_fails(self):
         d = WatchdogDriver()
         rctx = _tier_d_rctx(d, git_remote="")
         with pytest.raises(WatchdogProvisionError, match="project_git_remote is empty"):
-            d._gate_tier_d(rctx, has_healthcheck=True)
+            d._gate_tier_d(rctx, has_healthcheck=True, storage_env=_B2)
 
     def test_no_healthcheck_degrades_to_escalate_only(self, caplog):
         d = WatchdogDriver()
         rctx = _tier_d_rctx(d)
         with caplog.at_level("ERROR"):
-            d._gate_tier_d(rctx, has_healthcheck=False)
+            d._gate_tier_d(rctx, has_healthcheck=False, storage_env={})
         assert rctx.auto_code_fix is False  # degraded
         assert any("REFUSING Tier-D" in r.message for r in caplog.records)
+        # one reason per refusal: the storage check does not pile on
+        assert not any("pre-apply snapshot" in r.message for r in caplog.records)
 
-    def test_all_prereqs_met_keeps_tier_d(self):
+    @pytest.mark.parametrize("env", [_B2, _SUPABASE, {**_B2, "STORAGE_BACKEND": "B2"}])
+    def test_all_prereqs_met_keeps_tier_d(self, env):
         d = WatchdogDriver()
         rctx = _tier_d_rctx(d)
-        d._gate_tier_d(rctx, has_healthcheck=True)
+        d._gate_tier_d(rctx, has_healthcheck=True, storage_env=env)
         assert rctx.auto_code_fix is True
+
+    @pytest.mark.parametrize(
+        "env",
+        [
+            {},
+            {"STORAGE_BACKEND": "s3"},
+            {**_B2, "STORAGE_BACKEND": ""},
+            {k: v for k, v in _B2.items() if k != "B2_APPLICATION_KEY"},  # backend, no key
+            {**_SUPABASE, "SUPABASE_BUCKET": ""},
+            {**_B2, "B2_BUCKET_NAME": "  "},
+        ],
+    )
+    def test_no_usable_snapshot_storage_degrades_to_escalate_only(self, env, caplog):
+        """The sidecar refuses every apply whose pre-apply snapshot it cannot store (mail 01M384GX):
+        an autonomous loop that can never apply a fix is escalate-only in all but name."""
+        d = WatchdogDriver()
+        rctx = _tier_d_rctx(d)
+        with caplog.at_level("ERROR"):
+            d._gate_tier_d(rctx, has_healthcheck=True, storage_env=env)
+        assert rctx.auto_code_fix is False
+        msgs = [r.getMessage() for r in caplog.records]
+        assert any("pre-apply snapshot" in m and "REFUSING Tier-D" in m for m in msgs)
+        assert all("https://x.supabase.co" not in m for m in msgs)  # values are never logged
 
     def test_noop_when_tier_d_off(self):
         d = WatchdogDriver()
         rctx = _rctx(d)  # auto_code_fix False
-        d._gate_tier_d(rctx, has_healthcheck=False)  # must not raise
+        d._gate_tier_d(rctx, has_healthcheck=False, storage_env={})  # must not raise
         assert rctx.auto_code_fix is False
+
+
+class TestReadStorageEnv:
+    """The snapshot keys of the app's /opt/<id>/.env as compose's env_file reads them."""
+
+    @pytest.mark.parametrize(
+        ("out", "want"),
+        [
+            ("STORAGE_BACKEND=b2\n", "b2"),
+            ('STORAGE_BACKEND="supabase"\n', "supabase"),
+            ("export STORAGE_BACKEND=b2\n", "b2"),
+            ("  STORAGE_BACKEND=b2\n", "b2"),
+            ("STORAGE_BACKEND=b2 # prod\n", "b2"),
+            ('STORAGE_BACKEND="b2" # prod\n', "b2"),
+            ("STORAGE_BACKEND=b2\r\n", "b2"),
+            ('STORAGE_BACKEND=b2"\n', 'b2"'),  # an unmatched quote is kept, as compose keeps it
+            ("STORAGE_BACKEND=b2\n export STORAGE_BACKEND=supabase\n", "supabase"),  # last wins
+            ("STORAGE_BACKEND = b2\n", "b2"),
+            ("STORAGE_BACKEND: b2\n", "b2"),
+            ("STORAGE_BACKEND=${BACKEND}\n", ""),  # unresolved interpolation reads as unset
+            ('STORAGE_BACKEND="$BACKEND"\n', ""),  # double quotes still interpolate
+            ("", None),
+        ],
+    )
+    def test_parses_like_compose_env_file(self, out, want):
+        d = WatchdogDriver()
+        with mock.patch("fabrik.drivers.watchdog.ssh", return_value=out) as m:
+            env = d._read_storage_env(_rctx(d))
+        assert env.get("STORAGE_BACKEND") == want
+        cmd = m.call_args.args[0]
+        assert "/opt/demo/.env" in cmd and "export" in cmd and "B2_KEY_ID" in cmd
+
+    @pytest.mark.parametrize(
+        ("line", "want"),
+        [
+            ("B2_APPLICATION_KEY='abc$def'", "abc$def"),  # single quotes: literal
+            ("B2_APPLICATION_KEY=abc$$def", "abc$def"),  # $$ is an escaped $
+            ("B2_APPLICATION_KEY=abc$def", ""),  # a reference: unresolved
+            ('B2_APPLICATION_KEY="${K}"', ""),
+        ],
+    )
+    def test_interpolation_like_compose(self, line, want):
+        d = WatchdogDriver()
+        with mock.patch("fabrik.drivers.watchdog.ssh", return_value=line + "\n"):
+            assert d._read_storage_env(_rctx(d))["B2_APPLICATION_KEY"] == want
+        env = {**_B2, "B2_APPLICATION_KEY": want}
+        rctx = _tier_d_rctx(d)
+        d._gate_tier_d(rctx, has_healthcheck=True, storage_env=env)
+        assert rctx.auto_code_fix is bool(
+            want
+        )  # a literal with $ keeps Tier-D; unresolved degrades
+
+    def test_reads_the_backend_keys_too(self):
+        d = WatchdogDriver()
+        out = "STORAGE_BACKEND=b2\nB2_KEY_ID=k\nB2_APPLICATION_KEY='a'\nB2_BUCKET_NAME=b\nOTHER=x\n"
+        with mock.patch("fabrik.drivers.watchdog.ssh", return_value=out):
+            assert d._read_storage_env(_rctx(d)) == _B2
+
+    def test_an_ssh_failure_reads_as_empty(self):
+        d = WatchdogDriver()
+        with mock.patch("fabrik.drivers.watchdog.ssh", side_effect=RuntimeError("down")):
+            assert d._read_storage_env(_rctx(d)) == {}
+
+    def test_the_remote_grep_selects_what_the_parser_needs(self, tmp_path):
+        """Run the exact command the driver sends (minus sudo, against a local copy of the .env)."""
+        import subprocess
+
+        dotenv = tmp_path / ".env"
+        dotenv.write_text(
+            "OTHER=1\n  export STORAGE_BACKEND=b2 # prod\nB2_KEY_ID = k\n#STORAGE_BACKEND=x\n"
+            "B2_APPLICATION_KEY: a\nB2_BUCKET_NAME=b\nSTORAGE_BACKENDX=no\n",
+            encoding="utf-8",
+        )
+        d = WatchdogDriver()
+        with mock.patch("fabrik.drivers.watchdog.ssh", return_value="") as m:
+            d._read_storage_env(_rctx(d))
+        cmd = m.call_args.args[0].replace("sudo ", "", 1).replace("/opt/demo/.env", str(dotenv))
+        out = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True).stdout
+        with mock.patch("fabrik.drivers.watchdog.ssh", return_value=out):
+            assert d._read_storage_env(_rctx(d)) == _B2
+
+
+class TestProvisionWiresTheStorageGate:
+    """provision() feeds the gate what the reader returned, and probes only for Tier-D."""
+
+    class _StopError(Exception):
+        pass
+
+    def _run(self, spec_watchdog):
+        d = WatchdogDriver()
+        seen = {}
+
+        def gate(rctx, has_hc, storage_env):
+            seen["storage_env"] = storage_env
+            raise self._StopError
+
+        spec = {"id": "p", "source": {"type": "git", "repository": "git@github.com:o/p.git"}}
+        spec["watchdog"] = {"enabled": True, **spec_watchdog}
+        with (
+            mock.patch.object(d, "_check_app_healthcheck", return_value=True),
+            mock.patch.object(d, "_read_storage_env", return_value={"STORAGE_BACKEND": "zz"}) as rd,
+            mock.patch.object(d, "_gate_tier_d", side_effect=gate),
+        ):
+            with pytest.raises(WatchdogProvisionError, match="_StopError"):
+                d.provision(_ctx(spec), dry_run=False)  # provision wraps every failure
+        return seen["storage_env"], rd.call_count
+
+    def test_tier_d_reads_and_forwards_the_storage_env(self):
+        env, calls = self._run({"propose_fix_prs": True, "auto_code_fix": True})
+        assert env == {"STORAGE_BACKEND": "zz"} and calls == 1
+
+    def test_no_probe_without_tier_d(self):
+        env, calls = self._run({})
+        assert env == {} and calls == 0
 
 
 class TestBootstrapTemplate:

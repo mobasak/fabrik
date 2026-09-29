@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T18:30:31.061271Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-16ebba0a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "find the writer: every _flip_active call writes a flip row, so look for a pointer write outside it (dashboard POST, a DR restore, --new-dir, a sibling session's manual ln); add a guard that a parked account is never the active pointer except via an explicit --switch, and a ledger row for every pointer change",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "rotation"
+  ],
+  "title": "the fleet pointer landed on the PARKED account mob between 20:18 and 21:19 on 2026-09-29 with no rotate-ledger flip row; subagent spawns failed 'organization has disabled Claude subscription access' until the 21:19:29 dead-chain flip mob->ob healed it"
+}

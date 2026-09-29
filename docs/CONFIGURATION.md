@@ -234,6 +234,8 @@ At `fabrik apply`, the watchdog driver ships the project's governance set — `C
 
 Unlike the auto-injected vars above, these two are **operator-supplied** in the project `.env` (loaded by the sidecar via `env_file`; the hub does NOT mint them): `WATCHDOG_REDEPLOY_TIMEOUT` (seconds before a redeploy is considered timed-out) and `WATCHDOG_TELEGRAM_OPERATOR_IDS` (comma-separated Telegram chat IDs that gate the fail-closed approval channel). Fail-closed behaviors they drive (fabrik-lib `watchdog/`, commit `1226196`): the sidecar does **not** auto-deploy when the Telegram channel is unreachable, and only PROPOSE-phase incidents auto-apply on timeout. Full behavior in the `WATCHDOG` rule pack.
 
+**Tier-D snapshot storage — `STORAGE_BACKEND` plus that backend's keys (operator-supplied, project `.env`).** Before every autonomous apply the sidecar stores a pre-apply snapshot, and it refuses the apply when it cannot. Its vendored storage accepts `STORAGE_BACKEND=b2` (needs `B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_BUCKET_NAME`) or `STORAGE_BACKEND=supabase` (needs `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_BUCKET`). At `fabrik apply`, the watchdog driver reads these keys from `/opt/<id>/.env` the way compose's `env_file` does. If the backend or any of its keys is missing, blank or an unresolved `$VAR`, the driver degrades Tier-D to escalate-only and logs an ERROR naming the missing keys, never their values (`src/fabrik/drivers/watchdog.py` `_gate_tier_d`).
+
 ### Shared fleet config — `~/.config/fabrik/subagents.env` (all AI-supplier keys)
 
 **Two key conventions coexist on this box — know which one your consumer reads.**
