@@ -114,6 +114,52 @@ def test_worktree_dest_preview_elsewhere_still_renders(repo, tmp_path):
     assert _files_under(home) == [], "a preview wrote into the installed corpus"
 
 
+def test_submodule_checkout_is_its_own_main_checkout(repo, tmp_path):
+    # a submodule's common dir is `<outer>/.git/modules/<name>` — not a `.git` dir — yet the
+    # submodule checkout IS the main checkout of that repo, so it renders
+    outer = tmp_path / "outer"
+    outer.mkdir()
+    _git(outer, "init", "-q", "-b", "master")
+    _git(
+        outer,
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        "-q",
+        str(repo["main"]),
+        "sub",
+    )
+    home = tmp_path / "home"
+    home.mkdir()
+    r = _run(outer / "sub", home)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert list((home / ".claude" / "commands").glob("*.md")), "submodule render wrote nothing"
+
+
+def test_copy_outside_any_git_repo_fails_closed(tmp_path):
+    loose = tmp_path / "loose"
+    (loose / "commands").mkdir(parents=True)
+    shutil.copy2(HUB_COMMANDS / "assemble_commands.py", loose / "commands")
+    for sub in ("_fragments", "_sources", "_agents"):
+        shutil.copytree(HUB_COMMANDS / sub, loose / "commands" / sub)
+    home = tmp_path / "home"
+    home.mkdir()
+    env_ceiling = {"GIT_CEILING_DIRECTORIES": str(tmp_path)}
+    r = subprocess.run(
+        [sys.executable, str(loose / "commands" / "assemble_commands.py")],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "HOME": str(home), **env_ceiling},
+        cwd=str(tmp_path),
+        timeout=300,
+        check=False,
+    )
+    assert r.returncode == 3, r.stdout + r.stderr
+    assert "cannot resolve" in r.stderr, r.stderr
+    assert _files_under(home) == [], "a refused render wrote under the output dirs"
+
+
 def test_main_checkout_renders_and_worktree_check_still_runs(repo, tmp_path):
     home = tmp_path / "home"
     home.mkdir()

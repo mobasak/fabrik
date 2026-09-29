@@ -1372,9 +1372,13 @@ def main_checkout_refusal() -> str | None:
     A render PRUNES every installed command/skill absent from the rendering tree's `_sources/`, so
     only the MAIN checkout may render box-wide (spec 2026-09-29 hub-worktree-cutover § D3 (a)).
     The tree is the one this SCRIPT sits in (`ROOT`), never the cwd: the main checkout's copy run
-    from anywhere renders, a worktree's copy run from anywhere is refused. Fails CLOSED — a tree
-    git cannot place is refused too. `--check`, a `--dest` preview elsewhere and direct `render()`
-    calls never reach this guard.
+    from anywhere renders, a worktree's copy run from anywhere is refused. The rule: the tree is the
+    main checkout iff its git dir (`--absolute-git-dir`) IS its common dir (`--git-common-dir`) —
+    a plain checkout (`.git` == `.git`) and a submodule (`<outer>/.git/modules/<name>` for both)
+    pass; a linked worktree (`<common>/worktrees/<id>`) is refused, a submodule's worktree too.
+    Fails CLOSED — a tree git cannot place (outside any repo, or a bare repo with no work tree) is
+    refused too. `--check`, a `--dest` preview elsewhere and direct `render()` calls never reach
+    this guard.
     COBRA (D-253): the cheapest way past it is to run the MAIN checkout's copy from a worktree —
     which renders main's sources, the one tree allowed to, so it is the intended path, not a hole;
     a `--dest` spelled to the installed corpus is compared after `.resolve()`, so an alias is
@@ -1388,17 +1392,19 @@ def main_checkout_refusal() -> str | None:
 
     try:
         top = Path(git("rev-parse", "--show-toplevel")).resolve()
-        common = git("rev-parse", "--path-format=absolute", "--git-common-dir")
-    except (OSError, subprocess.CalledProcessError) as exc:
+        git_dir = Path(git("rev-parse", "--absolute-git-dir")).resolve()
+        common = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir")).resolve()
+        if git_dir == common:
+            return None
+        # the main worktree is always the first `worktree list` entry, submodule or not
+        main = git("worktree", "list", "--porcelain").splitlines()[0].removeprefix("worktree ")
+    except (OSError, subprocess.CalledProcessError, IndexError) as exc:
         return f"refused: cannot resolve the git checkout of {ROOT} ({exc}) — render from the main checkout"
-    main = Path(common).parent.resolve()
-    if top != main:
-        return (
-            f"refused: {top} is a linked worktree, not the main checkout — a render from here "
-            f"would prune the installed corpus to this tree's sources. Render from the main "
-            f"checkout ({main}) after merging; --check and --dest <elsewhere> stay available here."
-        )
-    return None
+    return (
+        f"refused: {top} is a linked worktree, not the main checkout — a render from here "
+        f"would prune the installed corpus to this tree's sources. Render from the main "
+        f"checkout ({main}) after merging; --check and --dest <elsewhere> stay available here."
+    )
 
 
 def _guard_main_checkout() -> None:
