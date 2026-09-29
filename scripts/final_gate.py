@@ -2442,10 +2442,10 @@ def check_symlinks() -> tuple[bool, str]:
             - (True, "") if all files are local copies or source repo
             - (False, "<failures>") with per-file failure messages
     """
-    fabrik_master = Path("/opt/fabrik")
+    # Hub identity is _is_hub() (end of file, over the ONE constant _FABRIK_ROOT).
 
-    # Self-exemption: skip check when running inside /opt/fabrik itself
-    if PROJECT_ROOT.resolve() == fabrik_master.resolve():
+    # Self-exemption: skip check when running inside the hub (main checkout or a worktree)
+    if _is_hub():
         return True, "(source repo — isolation check skipped)"
 
     # Governance files to validate
@@ -2465,7 +2465,7 @@ def check_symlinks() -> tuple[bool, str]:
     def is_under_fabrik(target_path: Path) -> bool:
         """Path-aware check if target is under /opt/fabrik."""
         try:
-            target_path.resolve().relative_to(fabrik_master.resolve())
+            target_path.resolve().relative_to(_FABRIK_ROOT.resolve())
             return True
         except ValueError:
             return False
@@ -2738,7 +2738,7 @@ def _synced_paths() -> set[str]:
     failure → empty (fail-open: lint normally rather than silently skip everything).
     """
     try:
-        if PROJECT_ROOT.resolve() == _FABRIK_ROOT.resolve():
+        if _is_hub():
             return set()
         lock = PROJECT_ROOT / ".fabrik" / "synced.lock"
         if not lock.exists():
@@ -3199,6 +3199,33 @@ def _linked_worktree_base() -> str:
     if not main_branch or (code == 0 and head.strip() == main_branch):
         return ""
     return main_branch
+
+
+def _is_hub() -> bool:
+    """True when PROJECT_ROOT is the hub — its main checkout or a linked worktree of it.
+
+    Hub identity (spec 2026-09-29 hub-worktree cut-over, D4/H4): `scripts/fabrik_synced_manifest.py`
+    is present in the tree AND the git common dir's parent is `_FABRIK_ROOT`, so a hub worktree is
+    the hub and `cwd == /opt/fabrik` no longer decides it. The mirror stays a project: a project
+    repo carries no manifest, and one that did would still have its OWN common dir. The main
+    checkout path short-circuits (it satisfies the rule anyway). A git failure reads as "not the
+    hub" — the gate then treats the tree as a project, its pre-change behaviour off the hub path.
+    Defined down here so the gate's cited line numbers above do not move.
+    """
+    try:
+        root = PROJECT_ROOT.resolve()
+        hub = _FABRIK_ROOT.resolve()
+        if root == hub:
+            return True
+        if not (root / "scripts" / "fabrik_synced_manifest.py").is_file():
+            return False
+        code, out = run_cmd(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=root
+        )
+        common = out.strip().splitlines()
+        return code == 0 and bool(common) and Path(common[0]).resolve().parent == hub
+    except Exception:
+        return False
 
 
 if __name__ == "__main__":

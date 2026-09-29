@@ -26,20 +26,24 @@ PULL; nothing is pushed to them.** A sender fixing a shared file tells them "re-
 yourself", never "it will reach you on the next sync".
 
 warn_only: this check has no failing exit path — an UNREVIEWED DIFF is a ⚠ advisory line
-(the ⚠-first stdout is the gate emitter's opt-in). Hub-only: on any repo that is not
-/opt/fabrik it prints nothing and exits 0 (the same self-skip pattern as the command-corpus
-audit — the comparison target is the hub's own tree).
+(the ⚠-first stdout is the gate emitter's opt-in). Hub-only: on any repo that is not the hub
+it prints nothing and exits 0 (the same self-skip pattern as the command-corpus audit — the
+comparison target is the hub's own tree). The hub is the main checkout at ``HUB`` or a linked
+worktree of it (``_is_hub``), and a worktree grades ITS OWN governance set — the tree the
+session is editing — not the main checkout's.
 """
 
 from __future__ import annotations
 
 import hashlib
+import subprocess
 import sys
 from pathlib import Path
 
 HUB = Path("/opt/fabrik")
 OPT = Path("/opt")
 ALLOWLIST_REL = ".fabrik/vendored-divergence-allowlist"
+MANIFEST_REL = "scripts/fabrik_synced_manifest.py"
 
 # The governance set a vendorer copies: the enforcement dir plus the root drivers.
 # scripts/mail.py joined 2026-08-26: the addressing guard ships fleet-wide via the sync,
@@ -123,12 +127,40 @@ def _vendoring_repos() -> list[Path]:
     return found
 
 
+def _is_hub(root: Path) -> bool:
+    """True for the hub's main checkout or a linked worktree of it (spec 2026-09-29 D4/H4).
+
+    Identity is "the manifest is in the tree AND the git common dir's parent is ``HUB``", so a
+    hub worktree is the hub. The mirror: a project repo carries no manifest, and a repo that did
+    would still have its OWN common dir, whose parent is not the hub. ``root == HUB`` stays a
+    short-circuit for the main checkout. Any git failure reads as "not the hub" (silent exit 0,
+    the check's existing off-hub behaviour).
+    """
+    hub = HUB.resolve()
+    if root == hub:
+        return True
+    if not (root / MANIFEST_REL).is_file():
+        return False
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    common = out.stdout.strip().splitlines()
+    return out.returncode == 0 and bool(common) and Path(common[0]).resolve().parent == hub
+
+
 def main() -> int:
     root = Path.cwd().resolve()
-    if root != HUB:
+    if not _is_hub(root):
         return 0  # hub-only by design — the comparison target is the hub's own tree
 
-    hub_set = _governance_set(HUB)
+    hub_set = _governance_set(root)
     lines: list[str] = []
     for repo in _vendoring_repos():
         theirs = _governance_set(repo)
