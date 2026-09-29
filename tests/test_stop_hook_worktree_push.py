@@ -170,6 +170,18 @@ def test_a_repo_whose_only_remote_is_not_origin_is_indeterminate(
     assert _drive(monkeypatch, tmp_path, wt) == ""
 
 
+def test_an_origin_with_only_a_pushurl_is_indeterminate(monkeypatch, tmp_path: Path) -> None:
+    """A pushurl-only `origin` accepts the push but never creates `refs/remotes/origin/<b>`, so
+    `@{upstream}` never resolves and the block would repeat forever."""
+    main, wt = _main_and_worktree(tmp_path, remote=False)
+    bare = tmp_path / "push-only.git"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "master", str(bare)], check=True)
+    _git(main, "config", "remote.origin.pushurl", str(bare))
+    assert hook._ahead_of_upstream(wt, {"notes.txt"}) is None
+    assert hook.session_unpushed(wt, {"notes.txt"}) == []
+    assert _drive(monkeypatch, tmp_path, wt) == ""
+
+
 def test_a_detached_worktree_is_indeterminate(tmp_path: Path) -> None:
     """`git push -u origin HEAD` fails on a detached HEAD, so it must never be the remedy."""
     _main, wt = _main_and_worktree(tmp_path)

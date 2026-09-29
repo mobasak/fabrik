@@ -700,7 +700,7 @@ def _worktree_base(root: Path, deadline: float) -> str | None:
     push law exists for (spec 2026-09-29-hub-worktree-cutover § D4). None — no base, never a
     block — whenever the remedy `git push -u origin HEAD` could not succeed or the question does
     not arise: a detached main checkout, a detached worktree HEAD, HEAD already ON the main branch
-    (the main checkout itself), a repo with no `origin` remote, or any git error.
+    (the main checkout itself), a repo with no `origin` fetch URL, or any git error.
     """
     try:
         r = _git_by(root, deadline, "rev-parse", "--path-format=absolute", "--git-common-dir")
@@ -712,7 +712,9 @@ def _worktree_base(root: Path, deadline: float) -> str | None:
         h = _git_by(root, deadline, "symbolic-ref", "--quiet", "HEAD")
         if not main_branch or h.returncode != 0 or h.stdout.strip() == main_branch:
             return None
-        if _git_by(root, deadline, "remote", "get-url", "origin").returncode != 0:
+        # `remote.origin.url`, not `remote get-url origin`: get-url falls back to a pushurl, and a
+        # pushurl-only origin takes the push but never creates `refs/remotes/origin/<b>`
+        if _git_by(root, deadline, "config", "--get", "remote.origin.url").returncode != 0:
             return None
         return main_branch
     except Exception:
