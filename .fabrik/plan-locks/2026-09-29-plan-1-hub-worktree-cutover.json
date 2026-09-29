@@ -106,6 +106,13 @@
       "branch": "worktree-agent-af73df67445f3d6c8",
       "base_commit": "df90925f8",
       "review": "docs/development/reviews/2026-09-29-plan-1-hub-worktree-cutover-T06a-review.md"
+    },
+    "T06b": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a55842569d00f096e",
+      "branch": "worktree-agent-a55842569d00f096e",
+      "base_commit": "df90925f8",
+      "review": "docs/development/reviews/2026-09-29-plan-1-hub-worktree-cutover-T06a-review.md"
     }
   }
 }

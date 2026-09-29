@@ -12,7 +12,8 @@ run in a **linked git worktree** under `.claude/worktrees/<name>`, on branch `wo
 commit only to that branch. Conflicts move from the shared index to merge time, serialised by one
 owner — a session cannot stage a file it does not have, and Claude Code's own isolation enforcement
 blocks every route from a worktree into the main checkout (`git -C`, `GIT_DIR`, `cd`, unquoted
-heredocs). Projects first; the hub is deferred (§ Hub vs project, below).
+heredocs). Projects adopted first; the hub now runs the model too, with its own merge owner (§ Hub
+vs project, below).
 
 ## Launch recipe — one per window (§ Isolation, § Identity)
 
@@ -34,6 +35,32 @@ python3 /opt/fabrik/scripts/whoami_agent.py --as alpha   # then --who to confirm
 
 The env var still WINS where it is set, so a named launch never needs the command. Detail:
 `docs/workstation/agent-identity.md`.
+
+⚠️ **A window that lands in the main checkout and is not the merge owner MOVES, it doesn't
+relaunch** (spec 2026-09-29-hub-worktree-cutover-design.md § D5(a)): `EnterWorktree` into
+`.claude/worktrees/<name>` carries the running conversation forward ("the transcript follows" — see
+Resume, above), and a target already under `.claude/worktrees/` asks no approval. SessionStart's
+move line (`.claude/hooks/session_orient.py::_model_line`) orders this — bind first
+(`whoami_agent.py --as <name>`) when the session is unnamed, then move directly when it is already
+named but not the owner — and lists the repo's live `whoami` bindings alongside it, so a name the
+owner already holds is visible to whoever else binds it.
+
+⚠️ **A worktree under a TRACKED `CLAUDE.md` (the hub, fabrik-lib) double-loads it.** Claude Code
+loads `CLAUDE.md` from the working directory and every directory above it
+(https://code.claude.com/docs/en/memory § How CLAUDE.md files load, v2.1.28x-era docs), so a
+worktree at `<repo>/.claude/worktrees/<name>` also loads the main checkout's `<repo>/CLAUDE.md` as
+an ancestor — a second copy that drifts stale until the worktree's branch catches up with master,
+and double the context paid every turn. The condition is TRACKING, not "being the hub": a repo that
+TRACKS `CLAUDE.md` (the hub, fabrik-lib, and any project that does — e.g. `ai-model-catalog`)
+double-loads the same way; a project whose `CLAUDE.md` is instead gitignored and synced
+per-worktree carries no second tracked copy to double. Remedy, one per
+worktree, in its own untracked `.claude/settings.local.json` (never the tracked
+`.claude/settings.json`, which would strip the main checkout's own contract too):
+```json
+{"claudeMdExcludes": ["<repo>/CLAUDE.md"]}
+```
+an absolute path — `claudeMdExcludes` matches glob patterns against absolute paths, at any settings
+layer. The hub's T07 cut-over applies this for `fleet` and `intel`.
 
 - **Two names, deliberately.** `CLAUDE_AGENT=<name>` is repo-local — what `owner:` fields, `**Owner:**`
   lines, `[tags]` and the `Agent-Name:` trailer carry (`agent_role.py` accepts any `[a-z0-9-]{1,32}`; a
@@ -91,9 +118,20 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
   `.fabrik/work/config.json`; without `--distributor`, `init` asks
   `python3 scripts/decisions.py --merge-owner .` and defaults to that answer, so a repo that never
   names the two separately gets one agent doing both. The two are independent fields and can diverge —
-  the hub records intel as its distributor (D-395) although it has no `MERGE OWNER:` ledger row at all
-  (`--merge-owner` reads `UNDECLARED` there; the hub's three sessions share one tree rather than
-  running the worktree-per-agent shape this page otherwise describes, § Hub vs project below).
+  the hub records intel as its distributor (D-395) while the hub's cut-over (plan
+  `2026-09-29-plan-1-hub-worktree-cutover`, T07) records infra as merge owner with a `MERGE OWNER:
+  infra` row; until that row lands, `--merge-owner` reads `UNDECLARED` and the repo is unadopted
+  under this same rule (§ Hub vs project below).
+- **Ledgers and ids across branches** (D-448) — each agent writes its own ledger rows
+  (`CHANGELOG.md`, `docs/DECISIONS.md`, `docs/STRATEGIC_BACKLOG.md`) on its own branch; two
+  branches that both prepend a row to the same table always conflict at merge — `rerere` only
+  replays a resolution it has already recorded, so it helps with nothing new here — and agent-1
+  resolves the conflict BY HAND, keeping both sides (§ Merge protocol, below). Decision ids: mint
+  with `python3 scripts/decisions.py --reserve-id .`, never `--next-id` alone — a flocked
+  reservation keyed by the git common dir (so every worktree of a repo shares one file), and
+  `--next-id` SKIPS a live reservation rather than reissuing it; a reservation is held until its id
+  appears in the main checkout branch's ledger, not for a fixed TTL, so an id reserved on a
+  long-lived worktree branch is never handed to a second agent while that branch is still unmerged.
 - **The two advisories** — `docs_updater.py --check`'s single `ADVISORY:` line (never a finding) and
   the SessionStart line from `session_orient.py` fire only at ≥2 live `claude` sessions sharing the
   checkout with incomplete ownership; both never fire in a single-session repo or in the hub. The
@@ -192,7 +230,7 @@ Agent-1 runs the pipeline from `5-certify` once every branch is merged: `/fabrik
 
 | Probe | Question | Result |
 |---|---|---|
-| R1 | does `.worktreeinclude` fire on `EnterWorktree`? | **No** (T01b, scratch repo): only tracked files were carried — `--worktree` is the only launch form |
+| R1 | does `.worktreeinclude` fire on `EnterWorktree`? | **No** (T01b, scratch repo): only tracked files were carried. `--worktree` is the launch form for a NEW window, where `.worktreeinclude` DOES fire; a RUNNING window instead MOVES with `EnterWorktree` (§ Launch recipe, above), which does NOT apply `.worktreeinclude` — the gitignored set is copied by hand (T07's `.env` copy into `fleet`/`intel` is the planned instance) |
 | R2 | does the wip-net snapshot linked worktrees? | **On master (T13, merged 2026-09-06)**: `wip_backup.sh` snapshots each dirty worktree to `refs/wip/wt-<name>-<ts>`; on master today it walks the main trees only |
 | R3 | fire rate + cost of the mid-epic re-copy loop | **Measured** (T01b): 3 of 45 synced projects carried worktrees (82 in all); zero cost where there are none |
 | R6 | nested subagent worktrees from an isolated session | **Written as a once-per-repo step** in `/fabrik-execute-plan` step 8; default if blocked: subagents on branches inside the agent's worktree |
@@ -200,10 +238,51 @@ Agent-1 runs the pipeline from `5-certify` once every branch is merged: `/fabrik
 
 ## Hub vs project (§ Decisions derived (b))
 
-Projects adopt first. The hub's three sessions keep working in one tree until two hub-only hazards
-close: `commands/assemble_commands.py` PRUNES the installed corpus when rendered from a worktree, and
-the post-commit governance sync distributes the MAIN tree, not a worktree's. T01b's settings block
-ships from the hub because the hub's `.claude/settings.json` is the synced source — and it is **not
-inert here**: on CLI 2.1.258 `baseRef: "head"` applies to `--worktree`, `EnterWorktree` and agent
-isolation, and the hub has live worktrees; there is no delta today only because `origin/master ==
-master` (T01b review, recorded for the whole-plan review T16).
+Projects adopted first; the hub runs the same model now, cut over by
+`docs/superpowers/specs/2026-09-29-hub-worktree-cutover-design.md` (D-447) once its two hub-only
+hazards were closed. **infra is agent-1**, the merge owner, alone in `/opt/fabrik` — recorded as a
+`MERGE OWNER: infra` ledger row by the cut-over plan's own last ticket (T07); until that row lands,
+`python3 scripts/decisions.py --merge-owner .` reads `UNDECLARED` and SessionStart treats the hub as
+an unadopted repo (§ Ownership surfaces' `--adopt` rule, above). Fleet and intel work in
+`.claude/worktrees/fleet` and `.claude/worktrees/intel`; intel stays the distributor unchanged
+(D-395, `.fabrik/work/config.json`) — the merge-owner and distributor roles are independent fields
+and diverge here on purpose (§ Ownership surfaces, above).
+
+**Two acts stay main-checkout-only, both closed hazards the hub carried that projects never did:**
+- **The corpus render.** `commands/assemble_commands.py` PRUNES every installed command/skill absent
+  from the rendering tree's own `_sources/`, so only the main checkout may render box-wide;
+  `main_checkout_refusal()` (`commands/assemble_commands.py:1369-1414`) names the reason, and
+  `_guard_main_checkout()` (`:1417-1421`) — called before both a render and `--extract` — refuses
+  from a linked worktree with `exit(3)`, fails CLOSED on any git error, and names the main checkout
+  to render from after merging (`--check` and a `--dest` preview elsewhere stay available anywhere).
+- **Governance distribution.** The post-commit sync (`scripts/governance_sync_postcommit.sh`) still
+  runs only in the main checkout and syncs nothing from a worktree commit. A `.git/hooks/post-merge`
+  hook (installed by `scripts/install_post_commit_hook.sh`) now runs the same sync in `post-merge`
+  mode over `ORIG_HEAD..HEAD` — every path a fast-forward or `--no-ff` merge just brought in — so a
+  merged branch's synced-surface commits distribute on the merge, not (as before) never; a
+  conflicted merge concluded by `git commit` keeps reaching the sync through the ordinary
+  post-commit path, whose first-parent read already lists what the merge brought in. `git pull
+  --rebase`, `rebase` and `reset --hard` fire neither hook — the remedy is `scripts/sync_enforcement_to_projects.py --force`.
+
+**The write-root rule (spec § D3).** Every hub script that writes a TRACKED file resolves its root
+from the git toplevel of the tree its invoker runs in, never a hard-coded `/opt/fabrik` or a
+caller-pinned `cwd`: `src/fabrik/config.py::_resolve_fabrik_root` (`:34-65`) returns `$FABRIK_ROOT`
+when set, else — when the cwd is inside a linked worktree whose git common dir's parent is
+`/opt/fabrik` — that worktree's own toplevel, else `/opt/fabrik`; the same function is replicated
+(not imported — a worktree's `import fabrik` would still resolve against the main checkout, see
+below) in `scripts/sync_projects.py:45-67`, `scripts/vps_sync.py:36-58` and
+`scripts/command_feedback_report.py:46-67`. So a worktree agent's
+`fabrik apply` bookkeeping (`data/projects.yaml`, `PORTS.md`, `docs/PROJECT_CATALOG.md`) lands on
+that agent's own branch, attributed to it, never dirtying the main checkout. ⚠️ **The shared
+`.venv`'s editable install still pins `import fabrik` to `/opt/fabrik/src`**
+(`.venv/lib/python3.12/site-packages/_editable_impl_fabrik.pth` reads the literal path
+`/opt/fabrik/src`, symlinked into every worktree per the settings block below) — a worktree's own
+edits to `src/fabrik/` are invisible to a plain `import fabrik` in ANY worktree's Python process
+until they are merged into the main checkout; only the write-root rule's subprocess/file-path
+resolution is worktree-aware, not the import system.
+
+T01b's settings block ships from the hub because the hub's `.claude/settings.json` is the synced
+source, and it is **not inert here**: on CLI 2.1.258 `baseRef: "head"` applies to `--worktree`,
+`EnterWorktree` and agent isolation, and the hub has live worktrees. `.worktreeinclude` (new at the
+cut-over, hub root) lists `.env` for the same reason projects' does — `.venv` needs no entry, it is
+already a `symlinkDirectories` entry in `.claude/settings.json`.
