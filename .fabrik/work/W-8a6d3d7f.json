@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T23:26:37.769754Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8a6d3d7f",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make decisions.py and docs_updater.py treat the UNDECLARED token (full stop included, as session_orient.py does since 45d900ecc) as un-adoption, drop the hook's divergence pin in tests/test_session_orient_hook.py, run /fabrik-review (both are fleet-synced)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "parser-parity"
+  ],
+  "title": "decisions.py --merge-owner reads an un-adoption row (MERGE OWNER: UNDECLARED — …) as owner UNDECLARED at rc 0, so check_commit_trailers warns every commit and work.py names UNDECLARED as distributor; docs_updater.read_merge_owner shares the grammar"
+}

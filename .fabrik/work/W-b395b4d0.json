@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T21:50:58.132571Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b395b4d0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Q2D9DT6AP7GSB7QPM2H9H0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Worktree model (D-444/D-445): a --worktree session loads the MAIN checkout's CLAUDE.md too, so a repo that TRACKS CLAUDE.md runs two contract versions until each branch rebases"
+}
