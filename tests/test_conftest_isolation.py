@@ -303,6 +303,12 @@ def test_every_subprocess_shape_of_ssh_scp_rsync_is_refused():
         lambda: subprocess.run(f"exec /usr/bin/ssh {h} true", shell=True, capture_output=True),
         lambda: subprocess.run(f"2>/dev/null ssh {h} true", shell=True, capture_output=True),
         lambda: subprocess.run(f'echo "$(ssh {h} true)"', shell=True, capture_output=True),
+        lambda: subprocess.run(f"true\n/usr/bin/ssh {h} true", shell=True, capture_output=True),
+        lambda: subprocess.run(["bash", "-o", "pipefail", "-c", f"ssh {h}"], capture_output=True),
+        lambda: subprocess.run(
+            f"if false; then :; elif /usr/bin/ssh {h}; then :; fi", shell=True, capture_output=True
+        ),
+        lambda: subprocess.run(["flock", "/tmp/x.lock", "ssh", h], capture_output=True),
     ]
     for shape in shapes:
         _assert_refused(shape, guard)

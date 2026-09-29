@@ -329,6 +329,16 @@ _WRAPPERS = frozenset(
         "while",
         "until",
         "{",
+        "elif",
+        "eval",
+        "coproc",
+        "flock",
+        "ionice",
+        "chroot",
+        "su",
+        "unbuffer",
+        "busybox",
+        "script",
     }
 )
 _SHELL_C_FLAG = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
@@ -347,8 +357,15 @@ def _command_names(words: list[str]) -> list[str]:
         return [head] + [os.path.basename(w) for w in words[1:]]
     if head in _SHELLS:
         flag = None
+        takes_arg = False
         for k, w in enumerate(words[1:], 1):
-            if not w.startswith("-"):
+            if takes_arg:  # the argument of -o/-O/+o/+O (`bash -o pipefail -c …`)
+                takes_arg = False
+                continue
+            if w in ("-o", "-O", "+o", "+O"):
+                takes_arg = True
+                continue
+            if not w.startswith(("-", "+")):
                 break  # the script operand: a later -c belongs to the script, not the shell
             if _SHELL_C_FLAG.match(w):
                 flag = k
@@ -366,7 +383,8 @@ def _shell_heads(text: str) -> list[str]:
     for sub in re.findall(r"\$\(([^()]*)\)|`([^`]*)`", text):  # $(…) and `…`, quoted or not
         names += _shell_heads(sub[0] or sub[1])
     try:
-        lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
+        # a newline separates commands like `;` (shlex treats it as whitespace)
+        lexer = shlex.shlex(text.replace("\n", ";"), posix=True, punctuation_chars=True)
         lexer.whitespace_split = True
         tokens = list(lexer)
     except ValueError:
