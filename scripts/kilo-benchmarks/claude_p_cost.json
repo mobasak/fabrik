@@ -6,7 +6,7 @@
   "accounts": 4,
   "spend_usd": 800.0,
   "tokens": 25430209856,
-  "built_at": "2026-09-29T14:55:48+03:00",
+  "built_at": "2026-09-29T15:31:16+03:00",
   "per_model_spend": {
     "window_start": "2026-08-31",
     "window_end": "2026-09-29",
