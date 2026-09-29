@@ -1,6 +1,6 @@
 # Every repo a three-agent repo: the hub's worktree cut-over, and the model made unconditional
 
-Status: DRAFT
+Status: CONVERGED (2026-09-29, /fabrik-spec-review — 6 passes, confirmed 23 → 4 → 1 → 1 → 1 → 0; see § Review — Pass Ledger; D-447)
 Profile: delta — on `docs/superpowers/specs/2026-09-03-multi-agent-per-repo-design.md` and `2026-09-06-multi-agent-adoption-design.md`, whose model is live in projects (`docs/reference/multi-agent-operating-model.md`) and DEFERRED for the hub (same doc, § Hub vs project, `:201-203`). Every Intake item maps to code that exists today.
 Owner: infra
 Decisions: D-444 (every repo runs the model), D-445 (rollout approved; the hub designed first)
@@ -148,3 +148,16 @@ None — no service, port or `shape:` flag; hub and synced-machinery change only
 - U1 (open) — does `.worktreeinclude` fire on `EnterWorktree`? The docs list only `--worktree`, subagent and desktop worktrees; residual probe R1 (2026-09-06) found it did not fire. Resolution: re-probe in a scratch repo as the plan's first ticket; if it does not fire, the mid-session move is followed by a script that copies the include set (the sync's existing re-copy loop, model doc § The four emitted artifacts, already refreshes worktrees).
 - U2 (open, the operator's) — the ledger choice deviates from the panel (§ Decisions taken). Resolution: carried to the approval gate.
 - U3 (resolved) — does a running session lose its history by moving? No: "the transcript follows" (worktrees doc § Resume a worktree session).
+
+## Review — Pass Ledger
+
+| Pass | seats · axes re-checked | counters | method | spec md5 (start → end) |
+|---|---|---|---|---|
+| Pass 1 | opus×1 (R: the delta, decisions, validation, unknowns) + sonnet×1 (F: grounded facts) + sonnet×1 researcher (X: external quotes) · all axes | found: 26, new: 26, confirmed: 23, fixed: 23, unexecuted: 0, edits: 23 | method: citation — full pass, shape: agent-tool (3 seats, box headroom 3); every `path:line` opened, counts re-derived, the worktrees page re-fetched (exa's copy found stale); the orchestrator re-ran the merge-owner, first-parent and reservation checks | 44b26729 → 6d4568ab |
+| Pass 2 | opus×1 + sonnet×1 + researcher (the round-1 slice owners) · their ledgers over fix 1 | found: 4, new: 4, confirmed: 4, fixed: 4, unexecuted: 0, edits: 4 | method: re-derivation — 23 of 23 NOW_FALSE; 4 new inside fix 1 (reservation TTL, single-session adopt prompt, the pipeline's no-shared-files rule, a count the fix got wrong); X all VERIFIED | 6d4568ab → 32292cf4 |
+| Pass 3 | opus×1 (R) + sonnet×1 (F) · the four pass-2 claims plus fix 2 | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — 4 of 4 NOW_FALSE; 1 new (the `sync_projects.py` callers pin `cwd`) | 32292cf4 → 6cf7c825 |
+| Pass 4 | opus×1 (R) · fix 3 only (scope-growth stop, advisory) | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — 1 of 1 NOW_FALSE; 1 new at the same site (`vps_sync.py`'s own outputs) — the site REWRITTEN as one rule, not patched | 6cf7c825 → bf83f535 |
+| Pass 5 | opus×1 (R) · the rewrite only | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — 1 of 1 NOW_FALSE; 1 new in the rewrite's search clause (a root inside a longer literal) — the clause DELETED to the plan | bf83f535 → 1d5c7db1 |
+| Pass 6 | opus×1 (R) · the deletion only | found: 0, new: 0, **confirmed: 0**, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — 1 of 1 NOW_FALSE; nothing new; one wording note ("a test holds it (V9)") recorded, not a defect | 1d5c7db1 → 1d5c7db1 ✓ → **CONVERGED** |
+
+Residuals carried: U1 (`.worktreeinclude` on `EnterWorktree`, re-probed in the plan's first ticket) and U2 (the ledger choice deviates from the 3-0 panel — the operator's, at approval).
