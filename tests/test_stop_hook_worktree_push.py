@@ -1,0 +1,146 @@
+"""The push law binds a linked-worktree branch that has no upstream (T03a, spec § D4 / V4).
+
+`_ahead_of_upstream` used to answer None for every branch without `@{upstream}` — "mid-plan
+worktree branches have no upstream by design" — so committed work on a worktree branch never
+tripped the UNPUSHED cause. Under the worktree model that is exactly the state the push law
+exists for: the base is the main checkout's branch (the git common dir's symbolic HEAD, the rule
+`scripts/final_gate.py::_linked_worktree_base` uses), and a detached main checkout still answers
+None, never a block.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import io
+import json
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import pytest
+
+_HOOK = Path(__file__).resolve().parents[1] / ".claude" / "hooks" / "final_gate_stop.py"
+_spec = importlib.util.spec_from_file_location("fgs_worktree_push", _HOOK)
+hook = importlib.util.module_from_spec(_spec)
+assert _spec.loader is not None
+_spec.loader.exec_module(hook)
+
+
+@pytest.fixture(autouse=True)
+def _isolated(monkeypatch, tmp_path) -> None:
+    """No hook side effect reaches the operator's real state."""
+    monkeypatch.delenv("CLAUDE_MESH_HEADLESS", raising=False)
+    monkeypatch.setenv("THREAD_ANCHOR_DIR", str(tmp_path / "threads"))
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "runs"))
+    monkeypatch.setenv("KAIZEN_EVENTS_DIR", str(tmp_path / "events"))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(repo), *args], capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+
+def _main_and_worktree(tmp_path: Path) -> tuple[Path, Path]:
+    """A main checkout on `master` (no remote at all) and a linked worktree on `feat` holding one
+    commit of `notes.txt` that is not on `master`."""
+    main = tmp_path / "main"
+    subprocess.run(["git", "init", "-q", "-b", "master", str(main)], check=True)
+    for cfg in (("user.email", "t@t"), ("user.name", "t"), ("commit.gpgsign", "false")):
+        _git(main, "config", *cfg)
+    (main / "scripts").mkdir()
+    (main / "scripts" / "final_gate.py").write_text("", encoding="utf-8")
+    _git(main, "add", "scripts/final_gate.py")
+    _git(main, "commit", "-qm", "base")
+    wt = tmp_path / "wt"
+    _git(main, "worktree", "add", "-q", "-b", "feat", str(wt))
+    (wt / "notes.txt").write_text("a note\n", encoding="utf-8")
+    _git(wt, "add", "notes.txt")
+    _git(wt, "commit", "-qm", "docs: a note")
+    return main, wt
+
+
+def _drive(monkeypatch, tmp_path: Path, proj: Path) -> str:
+    """Run the Stop hook's main() on a transcript that wrote `notes.txt` in `proj`."""
+    tr = tmp_path / "t.jsonl"
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
+    entries = [
+        {"type": "user", "message": {"content": [{"type": "text", "text": "write a note"}]}},
+        {
+            "type": "assistant",
+            "timestamp": stamp,
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "Write",
+                        "input": {"file_path": str(proj / "notes.txt")},
+                    }
+                ]
+            },
+        },
+        {"type": "assistant", "message": {"content": [{"type": "text", "text": "Committed."}]}},
+    ]
+    tr.write_text("\n".join(json.dumps(e) for e in entries) + "\n", encoding="utf-8")
+    payload = {"cwd": str(proj), "session_id": "sidwt", "transcript_path": str(tr)}
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+    out = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.setattr(hook.tempfile, "gettempdir", lambda: str(tmp_path))
+    assert hook.main([]) == 0
+    return out.getvalue().strip()
+
+
+def test_a_worktree_commit_without_upstream_counts_and_blocks(monkeypatch, tmp_path: Path) -> None:
+    """V4: an unpushed commit on a worktree branch with no upstream blocks the Stop hook."""
+    _main, wt = _main_and_worktree(tmp_path)
+    assert hook._ahead_of_upstream(wt, {"notes.txt"}) == 1
+    out = _drive(monkeypatch, tmp_path, wt)
+    assert out, "the push cause did not fire on a worktree branch holding committed work"
+    assert "UNPUSHED WORK" in json.loads(out)["reason"]
+
+
+def test_the_count_is_zero_once_merged_into_the_main_branch(tmp_path: Path) -> None:
+    main, wt = _main_and_worktree(tmp_path)
+    _git(main, "merge", "-q", "--ff-only", "feat")
+    assert hook._ahead_of_upstream(wt, {"notes.txt"}) == 0
+
+
+def test_the_block_names_the_upstream_setting_push_and_the_list_agrees(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _main, wt = _main_and_worktree(tmp_path)
+    reason = json.loads(_drive(monkeypatch, tmp_path, wt))["reason"]
+    assert "git push -u origin HEAD" in reason
+    assert "git pull --rebase=merges" not in reason
+    sha = _git(wt, "rev-parse", "--short", "HEAD")
+    assert hook.session_unpushed(wt, {"notes.txt"}) == [f"{sha} docs: a note"]
+
+
+def test_the_upstream_block_text_is_unchanged(monkeypatch, tmp_path: Path) -> None:
+    """The MIRROR: a branch WITH an upstream keeps the pull-then-push remedy."""
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "master", str(origin)], check=True)
+    main, _wt = _main_and_worktree(tmp_path)
+    _git(main, "remote", "add", "origin", str(origin))
+    _git(main, "push", "-q", "-u", "origin", "master")
+    (main / "notes.txt").write_text("a main note\n", encoding="utf-8")
+    _git(main, "add", "notes.txt")
+    _git(main, "commit", "-qm", "docs: main note")
+    reason = json.loads(_drive(monkeypatch, tmp_path, main))["reason"]
+    assert "git pull --rebase=merges" in reason
+    assert "git push -u origin HEAD" not in reason
+
+
+def test_a_detached_main_checkout_is_indeterminate(tmp_path: Path) -> None:
+    main, wt = _main_and_worktree(tmp_path)
+    _git(main, "checkout", "-q", "--detach")
+    assert hook._ahead_of_upstream(wt, {"notes.txt"}) is None
+    assert hook.session_unpushed(wt, {"notes.txt"}) == []
+
+
+def test_no_repo_is_indeterminate(tmp_path: Path) -> None:
+    assert hook._ahead_of_upstream(tmp_path, {"notes.txt"}) is None
+    assert hook.session_unpushed(tmp_path, {"notes.txt"}) == []

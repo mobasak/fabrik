@@ -679,11 +679,94 @@ def _commit_is_mine(touched: set[str], distinctive: set[str], authored: set[str]
     return bool(touched) and touched <= _ROUTINE_GOVERNANCE and bool(touched & authored)
 
 
+def _worktree_base(root: Path, timeout: float = 30) -> str | None:
+    """A LINKED WORKTREE's push base when its branch has no upstream: the main checkout's branch.
+
+    That is the symbolic HEAD of the git common dir — the rule `scripts/final_gate.py::
+    _linked_worktree_base` uses (cf4374537), re-implemented because this hook imports nothing
+    from it. A worktree branch holding committed work not on that branch is exactly the state the
+    push law exists for (spec 2026-09-29-hub-worktree-cutover § D4). A detached main checkout, or
+    HEAD already ON that branch (the main checkout itself), answers None; so does any git error.
+    """
+    try:
+        r = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        common = r.stdout.strip()
+        if r.returncode != 0 or not common:
+            return None
+        r = subprocess.run(
+            ["git", "--git-dir", common, "symbolic-ref", "--quiet", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        main_branch = r.stdout.strip() if r.returncode == 0 else ""
+        h = subprocess.run(
+            ["git", "symbolic-ref", "--quiet", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if not main_branch or (h.returncode == 0 and h.stdout.strip() == main_branch):
+            return None
+        return main_branch
+    except Exception:
+        return None
+
+
+def _unpushed_log(root: Path, fmt: str, timeout: float = 30) -> str | None:
+    """`git log -z --no-renames --name-only --format=<fmt> <base>..HEAD` stdout; None = no base.
+
+    The base is `@{upstream}` — ONE subprocess on that path, the common case — and only when that
+    range fails does `_worktree_base` supply the main checkout's branch. Any git error: None."""
+
+    def _log(base: str) -> subprocess.CompletedProcess[str]:
+        cmd = ["git", "log", "-z", "--no-renames", "--name-only", f"--format={fmt}"]
+        return subprocess.run(
+            [*cmd, f"{base}..HEAD"], cwd=root, capture_output=True, text=True, timeout=timeout
+        )
+
+    try:
+        r = _log("@{upstream}")
+        if r.returncode != 0:
+            base = _worktree_base(root, timeout)
+            if base is None:
+                return None
+            r = _log(base)
+        return r.stdout if r.returncode == 0 else None
+    except Exception:
+        return None
+
+
+def _has_upstream(root: Path) -> bool:
+    """Does HEAD's branch have an upstream? Picks the UNPUSHED block's remedy; an error or a tree
+    with no worktree base keeps the wording the push law always carried."""
+    try:
+        r = subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", "@{upstream}"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return r.returncode == 0 or _worktree_base(root) is None
+    except Exception:
+        return True
+
+
 def _ahead_of_upstream(root: Path, authored: set[str] | None = None) -> int | None:
-    """Commits on the current branch not on its upstream that THIS SESSION authored; None =
-    indeterminate (no upstream / detached HEAD / any git error — indeterminate never blocks:
-    throwaway repos and mid-plan worktree branches have no upstream by design).
-    Purely local (`rev-list @{upstream}..HEAD`) — never touches the network, so an offline box
+    """Commits on the current branch not on its push base that THIS SESSION authored; None =
+    indeterminate (no base / any git error — indeterminate never blocks). The base is
+    `_unpushed_log`'s: the upstream when set, else — in a linked worktree — the main checkout's
+    branch, so a worktree branch with no upstream is bound by the push law like any other.
+    Purely local (`git log <base>..HEAD`) — never touches the network, so an offline box
     counts correctly and pushes fail visibly later.
 
     ⚠️ SCOPED TO THIS SESSION'S OWN COMMITS (T13.4, 01M20E1QN). The count used to be every commit
@@ -729,28 +812,14 @@ def _ahead_of_upstream(root: Path, authored: set[str] | None = None) -> int | No
         # named `a"b.py` gave 0. `-z` emits every path raw and `%x00%H` delimits each commit with a
         # NUL, so both classes close on the delimiter git already provides instead of on a
         # heuristic. It also makes a sha256-object repo a non-question.
-        r = subprocess.run(
-            [
-                "git",
-                "log",
-                "-z",
-                "--no-renames",
-                "--name-only",
-                "--format=%x00%H",
-                "@{upstream}..HEAD",
-            ],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if r.returncode != 0:
+        stdout = _unpushed_log(root, "%x00%H")
+        if stdout is None:
             return None
         mine = 0
         touched: set[str] = set()
         expect_sha = True
         started = False
-        for field in r.stdout.split("\0"):
+        for field in stdout.split("\0"):
             if not field:
                 # the NUL that opens each commit: bank the previous one
                 if started and _commit_is_mine(touched, distinctive, authored):
@@ -778,36 +847,22 @@ def session_unpushed(
     """`<sha> <subject>` for each of THIS session's commits not on the upstream, newest first.
 
     The list form of `_ahead_of_upstream`'s count, for the compact-time WHERE block
-    (`scripts/thread_anchor.py`, T04): the same `@{upstream}..HEAD` range, the same NUL-delimited
+    (`scripts/thread_anchor.py`, T04): the same `_unpushed_log` range, the same NUL-delimited
     read, and the same attribution (`_commit_is_mine`, with shared-append names never distinctive
-    on their own). Indeterminate — no upstream, no `authored`, any git error or timeout — is an
+    on their own). Indeterminate — no base, no `authored`, any git error or timeout — is an
     EMPTY list, never "every commit": a sibling's commit must not be listed as this session's."""
     if not authored:
         return []
     distinctive = {f for f in authored if f not in _ROUTINE_GOVERNANCE}
     try:
-        r = subprocess.run(
-            [
-                "git",
-                "log",
-                "-z",
-                "--no-renames",
-                "--name-only",
-                "--format=%x00%h %s",
-                "@{upstream}..HEAD",
-            ],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        if r.returncode != 0:
+        stdout = _unpushed_log(root, "%x00%h %s", timeout)
+        if stdout is None:
             return []
         out: list[str] = []
         head: str | None = None
         touched: set[str] = set()
         expect_head = True
-        for field in r.stdout.split("\0"):
+        for field in stdout.split("\0"):
             if not field:
                 if head is not None and _commit_is_mine(touched, distinctive, authored):
                     out.append(head)
@@ -2976,14 +3031,24 @@ def main(argv: list[str]) -> int:
                 counter.write_text(
                     f"{g},{c},{s_att if stall else 0},{p_att},{r_att if run_active else 0},{v_att}"
                 )
-                reason = (
-                    f"UNPUSHED WORK (attempt {p_att}/{CAP}). {ahead} committed commit(s) on "
-                    "this branch are not on origin — an unpushed task is an "
-                    "OFF-BOX-UNPROTECTED task (CLAUDE.md § EXIT): push YOUR work now "
-                    "(`git push`). Rejected? dirty tree → defer (wip-net protects) · clean "
-                    "tree → `git pull --rebase=merges` then push · conflict → "
-                    "`git rebase --abort` + report · NEVER --force."
-                )
+                if _has_upstream(root):
+                    reason = (
+                        f"UNPUSHED WORK (attempt {p_att}/{CAP}). {ahead} committed commit(s) on "
+                        "this branch are not on origin — an unpushed task is an "
+                        "OFF-BOX-UNPROTECTED task (CLAUDE.md § EXIT): push YOUR work now "
+                        "(`git push`). Rejected? dirty tree → defer (wip-net protects) · clean "
+                        "tree → `git pull --rebase=merges` then push · conflict → "
+                        "`git rebase --abort` + report · NEVER --force."
+                    )
+                else:
+                    # a worktree branch with no upstream: plain `git push` and a pull both fail
+                    reason = (
+                        f"UNPUSHED WORK (attempt {p_att}/{CAP}). {ahead} committed commit(s) on "
+                        "this worktree branch are not on the main checkout's branch and the "
+                        "branch has no upstream — an unpushed task is an OFF-BOX-UNPROTECTED "
+                        "task (CLAUDE.md § EXIT): publish it now (`git push -u origin HEAD`), "
+                        "then report the branch to the merge owner · NEVER --force."
+                    )
                 _kaizen(
                     "stop_block",
                     ev_sid,
