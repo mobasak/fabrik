@@ -1,0 +1,7 @@
+# The hub's own worktreeinclude (spec 2026-09-29-hub-worktree-cutover-design.md § D2) — copied
+# into a NEW linked worktree at creation by Claude Code's `.worktreeinclude` mechanism (a
+# gitignored file matching a pattern here is copied in; tracked files are never duplicated).
+# `.venv` needs no entry: it is already a `symlinkDirectories` entry in `.claude/settings.json`.
+# This is NOT the synced project template (templates/governance/.worktreeinclude) — the hub is not
+# a project and keeps its own, minimal set.
+.env

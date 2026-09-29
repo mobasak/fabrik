@@ -78,6 +78,15 @@ row wins per session, rows trimmed at 30 days by the writer — nothing else pru
 - **The SessionStart hooks bind late.** `agent_role.py` (the role charter) and `session_orient.py`
   (the unnamed-session advisory) both run at session start, so naming yourself mid-flight takes
   effect for them at the NEXT start. Attribution in run records is immediate.
+- **SessionStart prints a live-binding line naming who holds what.** `session_orient.py`'s
+  multi-agent model output (`_model_line`, spec 2026-09-29-hub-worktree-cutover-design.md §
+  D5(a)) lists every LIVE binding in the repo — `` `<name>` (pid <n>) `` per session, scoped to the
+  git common dir, filtered to bindings whose pid is still alive at the row's recorded start — right
+  alongside the move-to-worktree instruction for a non-owner main-checkout session. This is the
+  COBRA counter to that instruction (D-253): binding yourself as the merge owner silences the
+  instruction, but a second session bound to the same name is then VISIBLE in this line, not
+  invisible the way the underlying store's own "not a lock against `--force`" gap otherwise leaves
+  it. A session named at launch by `CLAUDE_AGENT` writes no binding, so it never appears here.
 - **The mandated shared-append commit path fires no git hook.** `git commit-tree` + `git update-ref`
   — which `CLAUDE.md` requires for `CHANGELOG.md`, `docs/DECISIONS.md`, `docs/STRATEGIC_BACKLOG.md`
   and `INDEX.md` — runs none of the four commit hooks (executed). On that path you call
