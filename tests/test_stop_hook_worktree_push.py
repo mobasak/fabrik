@@ -157,6 +157,19 @@ def test_a_repo_with_no_remote_is_indeterminate(monkeypatch, tmp_path: Path) -> 
     assert _drive(monkeypatch, tmp_path, wt) == ""
 
 
+def test_a_repo_whose_only_remote_is_not_origin_is_indeterminate(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """The remedy names `origin`; a repo whose only remote is `upstream` cannot run it."""
+    main, wt = _main_and_worktree(tmp_path, remote=False)
+    other = tmp_path / "upstream.git"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "master", str(other)], check=True)
+    _git(main, "remote", "add", "upstream", str(other))
+    assert hook._ahead_of_upstream(wt, {"notes.txt"}) is None
+    assert hook.session_unpushed(wt, {"notes.txt"}) == []
+    assert _drive(monkeypatch, tmp_path, wt) == ""
+
+
 def test_a_detached_worktree_is_indeterminate(tmp_path: Path) -> None:
     """`git push -u origin HEAD` fails on a detached HEAD, so it must never be the remedy."""
     _main, wt = _main_and_worktree(tmp_path)

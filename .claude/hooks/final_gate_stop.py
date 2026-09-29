@@ -700,7 +700,7 @@ def _worktree_base(root: Path, deadline: float) -> str | None:
     push law exists for (spec 2026-09-29-hub-worktree-cutover § D4). None — no base, never a
     block — whenever the remedy `git push -u origin HEAD` could not succeed or the question does
     not arise: a detached main checkout, a detached worktree HEAD, HEAD already ON the main branch
-    (the main checkout itself), a repo with no remote, or any git error.
+    (the main checkout itself), a repo with no `origin` remote, or any git error.
     """
     try:
         r = _git_by(root, deadline, "rev-parse", "--path-format=absolute", "--git-common-dir")
@@ -712,8 +712,7 @@ def _worktree_base(root: Path, deadline: float) -> str | None:
         h = _git_by(root, deadline, "symbolic-ref", "--quiet", "HEAD")
         if not main_branch or h.returncode != 0 or h.stdout.strip() == main_branch:
             return None
-        remotes = _git_by(root, deadline, "remote")
-        if remotes.returncode != 0 or not remotes.stdout.strip():
+        if _git_by(root, deadline, "remote", "get-url", "origin").returncode != 0:
             return None
         return main_branch
     except Exception:
@@ -726,7 +725,9 @@ def _unpushed_log(root: Path, fmt: str, timeout: float = 30) -> str | None:
     The base is `@{upstream}` — ONE subprocess on that path, the common case — and only when that
     range fails does `_worktree_base` supply the main checkout's branch; that fallback range also
     excludes everything on any remote-tracking ref (`--not --remotes`), so a commit already on
-    `origin/master`, or on a gone upstream's merge target, is not "unpushed". `timeout` is ONE
+    `origin/master`, or on a gone upstream's merge target, is not "unpushed". A stale
+    remote-tracking ref (the remote branch deleted, the local repo not pruned) can hide an
+    unpushed commit; that undercount is the accepted fail-open direction. `timeout` is ONE
     deadline for the whole sequence. Any git error: None."""
     deadline = time.monotonic() + timeout
     log = ("log", "-z", "--no-renames", "--name-only", f"--format={fmt}")
