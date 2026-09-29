@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-29T14:40:07.341113Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1807f126",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-442",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Project repos have no Agent-Name trailer check: check_commit_trailers.py is installed in the hub only, so in a multi-agent project who-did-what rests on each agent signing correctly (D-442 docs say so)"
+}
