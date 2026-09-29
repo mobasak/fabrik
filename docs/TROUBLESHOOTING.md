@@ -248,6 +248,21 @@ Reference path used by automation: `scripts/proof_run.py` lines 410–423 demons
 
 > **2026-04-17 migration:** Duplicati was replaced by Backrest at `backup.vps1.ocoron.com`. Backrest is restic-based with Backblaze B2 as the remote. Old Duplicati troubleshooting was archived to `docs/archive/2026-04-28-duplicati-setup.md`. For Backrest operations, see Backrest's web UI and `docs/operations/disaster-recovery.md`.
 
+## Claude Account Issues
+
+### "Your organization has disabled Claude subscription access for Claude Code" (`oauth_org_not_allowed`, HTTP 403)
+
+**Cause:** a **payment problem on that Claude account**, whatever the message says. Confirmed 2026-09-30: `mob@ocoron.com` and `ob@ocoron.com` both returned this with a billing issue, and `ob` worked again as soon as it was paid. No organization setting was involved.
+
+**Symptoms:** every Claude Code session on the account fails at once; retrying or typing "proceed" does nothing. The rotation tick does not notice, because the account's refresh ping and usage reading still succeed, so it can stay first in line.
+
+**Confirm (one request per account, from any shell):**
+```bash
+CLAUDE_CONFIG_DIR=~/.claude-fleet/<slug> claude -p ok --output-format json   # 403 = blocked, "ok" = healthy
+```
+
+**Fix:** switch to a healthy account (`claude_rotate.py --switch <slug>`) and park the blocked one (`--park <email>`) so the rotation cannot flip back onto it. Pay the account's balance at claude.ai billing, re-run the check above, then `--unpark <email>` (or the quota board's enable button). Details: `docs/workstation/claude-account-rotation.md` § Parking.
+
 ## Getting Help
 
 If issues persist:

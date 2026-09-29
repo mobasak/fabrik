@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "CORRECTED 2026-09-30: the refusal is server-side (Anthropic: 'organization has disabled Claude subscription access for Claude Code'), it hit ob too (20:51-21:10Z), and the tick cannot see it (mail to infra, prevention = an inference probe; ob parked as stopgap). What remains of THIS item: find what wrote the pointer to mob between 20:18 and 21:19 local with no flip row. find the writer: every _flip_active call writes a flip row, so look for a pointer write outside it (dashboard POST, a DR restore, --new-dir, a sibling session's manual ln); add a guard that a parked account is never the active pointer except via an explicit --switch, and a ledger row for every pointer change",
+  "next": "CAUSE FOUND 2026-09-30 (operator): oauth_org_not_allowed = a PAYMENT issue on the account (mob, ob; ob unblocked the moment it was paid). docs/TROUBLESHOOTING.md § Claude Account Issues. What remains of THIS item: what wrote the active pointer to mob between 20:18 and 21:19 local on 2026-09-29 with no flip row.",
   "note": "",
   "owner": "",
   "priority": 1,
