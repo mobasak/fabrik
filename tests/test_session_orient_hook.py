@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 FABRIK = Path(__file__).resolve().parents[1]
 HOOK = FABRIK / ".claude/hooks/session_orient.py"
 
@@ -40,9 +42,10 @@ def _run(cwd: Path, home: Path, stdin: str, extra_env: dict | None = None) -> tu
 
 
 def _hub_env(hub: Path) -> dict:
-    """The hook's test seam for the hub path (`FABRIK_HUB_ROOT`, default `/opt/fabrik`) — a tmp
-    dir stands in for the hub, never the real checkout."""
-    return {"FABRIK_HUB_ROOT": str(hub)}
+    """The hook's own test seam for the hub path (`FABRIK_ORIENT_HUB_ROOT`, default
+    `/opt/fabrik`) — a tmp dir stands in for the hub, never the real checkout. Hook-specific:
+    `FABRIK_HUB_ROOT` is `command_run.py`'s, for another purpose."""
+    return {"FABRIK_ORIENT_HUB_ROOT": str(hub)}
 
 
 def test_orientation_names_the_connected_mesh(tmp_path: Path) -> None:
@@ -1102,3 +1105,204 @@ def test_the_move_line_owner_agrees_with_decisions_py_on_a_deep_ledger(tmp_path:
     assert rc == 0
     move = [ln for ln in out.splitlines() if "EnterWorktree" in ln]
     assert len(move) == 1 and "`deepowner`" in move[0], out
+
+
+# --- T04a fixup (wave-3 review) ------------------------------------------------------------------
+
+_HDR = "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+_ALICE = "| D-001 | d | a | MERGE OWNER: alice | y | z |\n"
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        # an escaped pipe in the WHEN cell: the owner cell is `a`, so alice stays the owner
+        _ALICE + "| D-002 | d \\| x | MERGE OWNER: bob | y | z |\n",
+        # an escaped pipe in the WHO cell: the owner cell IS `MERGE OWNER: bob`
+        _ALICE + "| D-002 | d | a \\| b | MERGE OWNER: bob | y | z |\n",
+        # `\|` inside a code span is still cell content
+        _ALICE + "| D-002 | d | `a\\|b` | MERGE OWNER: carol | y | z |\n",
+        # a markdown-escaped name decodes to `bob_x`
+        "| D-001 | d | a | MERGE OWNER: bob\\_x | y | z |\n",
+        # an un-adoption row: last row wins, so nobody owns it
+        _ALICE + "| D-002 | d | a | MERGE OWNER: UNDECLARED — un-adopted | y | z |\n",
+    ],
+    ids=["pipe-in-when", "pipe-in-who", "code-span-pipe", "escaped-name", "undeclared-last"],
+)
+def test_the_owner_reader_agrees_with_decisions_py(tmp_path: Path, rows: str) -> None:
+    repo = _git_repo(tmp_path / "opt" / "parity", None)
+    (repo / "docs/DECISIONS.md").write_text(_HDR + rows, encoding="utf-8")
+    ref = subprocess.run(
+        [sys.executable, str(FABRIK / "scripts/decisions.py"), "--merge-owner", str(repo)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    want = ref.stdout.strip()
+    # decisions.py prints `UNDECLARED` for "none" — rc 3 with no row, rc 0 for an un-adoption row
+    want = "" if want == "UNDECLARED" else want
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), {"CLAUDE_AGENT": "zed"})
+    assert rc == 0 and "ORIENT" in out
+    move = [ln for ln in out.splitlines() if "EnterWorktree" in ln]
+    if want:
+        assert len(move) == 1 and f"merge owner is `{want}`" in move[0], (want, out)
+    else:
+        assert move == [], out
+        assert "docs_updater.py --adopt" in out
+
+
+def _instruction_lines(out: str) -> list[str]:
+    marks = ("whoami_agent.py --as", "claude --worktree", "EnterWorktree")
+    return [ln for ln in out.splitlines() if any(m in ln for m in marks)]
+
+
+def test_an_unnamed_session_in_a_shared_adopted_checkout_gets_one_instruction(
+    tmp_path: Path,
+) -> None:
+    repo = _git_repo(tmp_path / "opt" / "adopted", "alpha")
+    proc = _fake_proc(tmp_path, [("701", "claude", str(repo)), ("702", "claude", str(repo))])
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), {"FABRIK_PROC_ROOT": str(proc)})
+    assert rc == 0
+    lines = _instruction_lines(out)
+    assert len(lines) == 1, lines
+    assert "EnterWorktree" in lines[0] and "whoami_agent.py --as" in lines[0]
+    assert "CLAUDE_AGENT is UNSET" not in out
+
+
+def test_a_whoami_bound_session_is_not_also_told_it_is_unset(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path / "opt" / "adopted", "alpha")
+    env = _store(tmp_path, [{"session_id": "sess-beta", "name": "beta", "at": 1}])
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo), "session_id": "sess-beta"}), env)
+    assert rc == 0
+    assert "CLAUDE_AGENT is UNSET" not in out
+    lines = _instruction_lines(out)
+    assert len(lines) == 1 and "You are `beta`" in lines[0], lines
+
+
+def test_an_invalid_claude_agent_is_unnamed_to_every_advisory(tmp_path: Path) -> None:
+    # `ALPHA` fails whoami_agent.py's [a-z0-9-]{1,32}: one validity test, in every bullet.
+    repo = _git_repo(tmp_path / "opt" / "adopted", "alpha")
+    wt = _linked_worktree(repo, "beta")
+    rc, out = _run(wt, tmp_path, json.dumps({"cwd": str(wt)}), {"CLAUDE_AGENT": "ALPHA"})
+    assert rc == 0
+    assert "CLAUDE_AGENT is UNSET" in out and "not to a valid" in out
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), {"CLAUDE_AGENT": "ALPHA"})
+    assert rc == 0
+    lines = _instruction_lines(out)
+    assert len(lines) == 1 and "bind first" in lines[0], lines
+
+
+def test_the_general_hub_env_var_cannot_make_a_project_the_hub(tmp_path: Path) -> None:
+    # `FABRIK_HUB_ROOT` belongs to command_run.py; and no seam value can make a manifest-less
+    # repo the hub, because the manifest is checked before the path.
+    repo = _git_repo(tmp_path / "opt" / "project", None)
+    env = {"FABRIK_HUB_ROOT": str(repo), "FABRIK_ORIENT_HUB_ROOT": str(repo)}
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), env)
+    assert rc == 0 and "ORIENT" in out
+    assert "Governance (HUB)" not in out
+
+
+def test_an_owner_differing_only_in_case_is_not_told_to_move(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path / "opt" / "cased", "Alpha")
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), {"CLAUDE_AGENT": "alpha"})
+    assert rc == 0 and "ORIENT" in out
+    assert "EnterWorktree" not in out
+
+
+def test_the_hub_adopt_prompt_fires_at_two_sessions_without_single_window(
+    tmp_path: Path,
+) -> None:
+    hub = _git_repo(tmp_path / "opt" / "hubrepo", None, hub=True)
+    proc = _fake_proc(tmp_path, [("801", "claude", str(hub)), ("802", "claude", str(hub))])
+    env = {**_hub_env(hub), "FABRIK_PROC_ROOT": str(proc)}
+    rc, out = _run(hub, tmp_path, json.dumps({"cwd": str(hub)}), env)
+    assert rc == 0
+    assert "Governance (HUB)" in out
+    adopt = [ln for ln in out.splitlines() if "docs_updater.py --adopt" in ln]
+    assert len(adopt) == 1, out
+    assert "--single-window" not in adopt[0]
+
+
+def _live_row(sid: str, name: str, common: str, **extra: object) -> dict:
+    me = os.getpid()
+    row = {"session_id": sid, "name": name, "pid": me, "pid_start": _pid_start(me)}
+    row.update({"toplevel": common, **extra})
+    return row
+
+
+def _bindings(out: str) -> str:
+    lines = [ln for ln in out.splitlines() if "whoami` bindings" in ln]
+    assert len(lines) <= 1, lines
+    return lines[0] if lines else ""
+
+
+def test_a_live_binding_older_than_the_store_tail_is_still_listed(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path / "opt" / "bigstore", "alpha")
+    common = _common_dir(repo)
+    rows = [_live_row("s-old", "oldtimer", common)]
+    dead = {"pid": 999999999, "pid_start": 1, "toplevel": common}
+    rows += [{"session_id": f"d{i}", "name": "dead", **dead} for i in range(6000)]  # > 256 KB
+    env = _store(tmp_path, rows)
+    assert Path(env["AGENT_IDENTITY_FILE"]).stat().st_size > 256 * 1024
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), env)
+    assert rc == 0
+    assert "`oldtimer`" in _bindings(out), out
+
+
+def test_a_cut_store_never_reads_its_partial_first_line(tmp_path: Path) -> None:
+    # Past the 4 MB cap the tail is read, and the line the cut lands in is dropped: here the cut
+    # falls exactly on a `{` whose suffix — and the suffix one byte earlier, a space — is a valid
+    # live row inside an otherwise invalid line, so any reader that keeps the partial line lists it.
+    repo = _git_repo(tmp_path / "opt" / "cutstore", "alpha")
+    common = _common_dir(repo)
+    cap = 4 * 1024 * 1024
+    ghost = json.dumps(_live_row("s-ghost", "ghost", common))
+    last = json.dumps(_live_row("s-last", "lastone", common)) + "\n"
+    room = cap - len(ghost) - 1 - len(last)
+    filler = ("x" * 999 + "\n") * (room // 1000)
+    rest = room - len(filler)
+    filler += ("y" * (rest - 1) + "\n") if rest else ""
+    body = "garbage " + ghost + "\n" + filler + last
+    assert body[-cap:].startswith(ghost) and body[-cap - 1] == " "
+    path = tmp_path / "agent-identity.jsonl"
+    path.write_text(body, encoding="utf-8")
+    env = {"AGENT_IDENTITY_FILE": str(path)}
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), env)
+    assert rc == 0
+    line = _bindings(out)
+    assert "`lastone`" in line, out
+    assert "ghost" not in line
+
+
+def test_malformed_binding_rows_are_skipped(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path / "opt" / "badrows", "alpha")
+    common = _common_dir(repo)
+    rows = [
+        _live_row("s-ok", "okrow", common),
+        {"session_id": "s-bool", "name": "boolpid", "pid": True, "toplevel": common},
+        _live_row(5, "intsid", common),  # type: ignore[arg-type]
+        _live_row("s-str", "strpid", common, pid=str(os.getpid())),
+    ]
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), _store(tmp_path, rows))
+    assert rc == 0
+    line = _bindings(out)
+    assert "`okrow`" in line, out
+    for bad in ("boolpid", "intsid", "strpid"):
+        assert bad not in line, bad
+
+
+def test_a_pid_only_row_is_live_and_the_list_is_capped_at_twelve(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path / "opt" / "manyrows", "alpha")
+    common = _common_dir(repo)
+    rows = [_live_row(f"s{i:02d}", f"n{i:02d}", common) for i in range(12)]
+    rows.append({"session_id": "s-pidonly", "name": "pidonly", "pid": os.getpid()})
+    rows[-1]["toplevel"] = common  # a row written before start times existed
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), _store(tmp_path, rows))
+    assert rc == 0
+    line = _bindings(out)
+    assert line.count("` (pid ") == 12, line
+    assert "(+1 more)" in line
+    # with one row fewer the pid-only row is shown by name
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), _store(tmp_path, rows[1:]))
+    assert rc == 0
+    assert "`pidonly`" in _bindings(out), out

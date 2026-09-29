@@ -91,14 +91,16 @@ def _is_hub(cwd: str, layout: tuple[str, str, str] | None = None) -> bool:
     `scripts/final_gate.py::_is_hub` and `scripts/enforcement/check_vendored_drift.py::_is_hub`,
     re-implemented because this hook is standalone and fleet-synced and imports neither. The
     mirror stays a project: a project repo carries no manifest, and one that did would still have
-    its OWN common dir. The hub's main checkout path short-circuits, as in both sources.
-    `FABRIK_HUB_ROOT` is the test seam for the hub path (default `/opt/fabrik`)."""
+    its OWN common dir. ⚠️ Unlike both sources the manifest is checked BEFORE the hub-path
+    short-circuit, so no value of the seam can make a manifest-less repo the hub.
+    `FABRIK_ORIENT_HUB_ROOT` is this hook's own test seam for the hub path (default
+    `/opt/fabrik`) — NOT `FABRIK_HUB_ROOT`, which `command_run.py` reads for another purpose."""
     try:
-        hub = os.path.realpath(os.environ.get("FABRIK_HUB_ROOT") or "/opt/fabrik")
-        if os.path.realpath(cwd) == hub:
-            return True
         if not (Path(cwd) / _MANIFEST_REL).is_file():
             return False
+        hub = os.path.realpath(os.environ.get("FABRIK_ORIENT_HUB_ROOT") or "/opt/fabrik")
+        if os.path.realpath(cwd) == hub:
+            return True
         common = (layout or _git_layout(cwd))[2]  # probed only when the manifest is there
         return bool(common) and os.path.dirname(common) == hub
     except Exception:
@@ -260,15 +262,92 @@ def _declared_merge_owner(cwd: str) -> str:
     return _owner_in(head_txt + tail_txt)
 
 
+# Cell decoding ported from `decisions.py::_rows` / `_code_span_ranges` / `_ESCAPABLE` (this hook
+# cannot import it); `tests/test_session_orient_hook.py` compares the result to the real
+# `decisions.py --merge-owner` over escaped-pipe, code-span and escaped-name ledgers.
+_ESCAPABLE = frozenset("""!"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~""")  # GFM: punctuation only
+_UNDECLARED_RE = re.compile(r"^\**\s*MERGE OWNER:\s*UNDECLARED\b", re.I)
+
+
+def _code_span_ranges(s: str) -> list[tuple[int, int]]:
+    """Half-open ranges of the CommonMark code spans in `s`: a run of N backticks is closed only
+    by a run of exactly N; an unclosed run is literal and opens nothing."""
+    spans: list[tuple[int, int]] = []
+    i, n = 0, len(s)
+    while i < n:
+        if s[i] != "`":
+            i += 1
+            continue
+        j = i
+        while j < n and s[j] == "`":
+            j += 1
+        k = j
+        while k < n:
+            if s[k] != "`":
+                k += 1
+                continue
+            m = k
+            while m < n and s[m] == "`":
+                m += 1
+            if m - k == j - i:
+                spans.append((i, m))
+                i = m
+                break
+            k = m
+        else:
+            i = j
+    return spans
+
+
+def _cells(row: str) -> list[str]:
+    """A table row's cells, GFM-decoded: `\\|` is CONTENT (inside a code span too), and `\\\\|`
+    is a literal backslash then a REAL separator — so the scan consumes each escape rather than
+    looking behind. `\\X` for other punctuation decodes to X outside a code span; a backslash
+    before anything else stays literal."""
+    s = row.strip().strip("|")
+    if "\\" not in s:  # no escape at all: the scan below reduces to exactly this split
+        return [c.strip() for c in s.split("|")]
+    spans = _code_span_ranges(s)
+    cells: list[str] = []
+    buf: list[str] = []
+    i = 0
+    while i < len(s):
+        c = s[i]
+        nxt = s[i + 1] if i + 1 < len(s) else ""
+        if c == "\\" and nxt == "|":
+            buf.append("|")
+            i += 2
+        elif c == "\\" and nxt and nxt in _ESCAPABLE and not any(a <= i < b for a, b in spans):
+            buf.append(nxt)
+            i += 2
+        elif c == "\\" and nxt:
+            buf.append(c + nxt)
+            i += 2
+        elif c == "|":
+            cells.append("".join(buf).strip())
+            buf = []
+            i += 1
+        else:
+            buf.append(c)
+            i += 1
+    cells.append("".join(buf).strip())
+    return cells
+
+
 def _owner_in(text: str) -> str:
-    """The LAST `MERGE OWNER:` row's name in `text` (column 4 of a `| D-NNN |` row), or ""."""
+    """The LAST `MERGE OWNER:` row's name in `text` (column 4 of a `| D-NNN |` row), or "". An
+    un-adoption row (`MERGE OWNER: UNDECLARED`) is a row too: when it is last, nobody owns the
+    repo — `decisions.py --merge-owner` answers `UNDECLARED` for it."""
     found = ""
     for line in text.splitlines():
         s = line.strip()
         if not _LEDGER_ROW_RE.match(s):
             continue
-        cells = [c.strip() for c in s.strip("|").split("|")]
+        cells = _cells(s)
         if len(cells) < 4:
+            continue
+        if _UNDECLARED_RE.match(cells[3]):
+            found = ""
             continue
         m = _MERGE_OWNER_RE.match(cells[3])
         if m:
@@ -296,26 +375,29 @@ def _ledger_merge_owner(top: str) -> str:
             raw = fh.read(_LEDGER_MAX_BYTES)
         low = raw.lower()  # ASCII-only lowering: every offset below indexes `raw` unchanged
         lines = []
-        hit = low.find(b"merge owner:")
+        hit = low.find(b"merge owner")
         while hit != -1:
             start = raw.rfind(b"\n", 0, hit) + 1
             end = raw.find(b"\n", hit)
             end = end if end != -1 else len(raw)
             lines.append(raw[start:end].decode("utf-8", errors="replace"))
-            hit = low.find(b"merge owner:", end)
+            hit = low.find(b"merge owner", end)
         return _owner_in("\n".join(lines))
     except Exception:
         return ""
 
 
 _AGENT_NAME_RE = re.compile(r"[a-z0-9-]{1,32}")  # whoami_agent.py::_NAME_RE, used with fullmatch
-_IDENTITY_READ_BYTES = 256 * 1024  # the store is trimmed to 30 days by its writer
+# The store is trimmed to 30 days by its writer, so the WHOLE store is read up to this cap; past
+# it the TAIL is read (the newest rows) and the line the cut lands in is dropped.
+_IDENTITY_READ_BYTES = 4 * 1024 * 1024
 
 
 def _identity_rows() -> list[dict]:
     """The `whoami_agent.py` binding store's rows (its layout: one JSON object per line at
-    `$AGENT_IDENTITY_FILE`, else `$HOME/.claude/state/agent-identity.jsonl`), oldest first,
-    bounded to the LAST 256 KB. Regular files only: a FIFO would block this hook forever."""
+    `$AGENT_IDENTITY_FILE`, else `$HOME/.claude/state/agent-identity.jsonl`), oldest first. A row
+    needs a non-empty STRING `session_id`; anything else is skipped. Regular files only: a FIFO
+    would block this hook forever."""
     try:
         raw_env = os.environ.get("AGENT_IDENTITY_FILE")
         path = (
@@ -329,11 +411,13 @@ def _identity_rows() -> list[dict]:
         size = path.stat().st_size
         with open(path, "rb") as fh:
             if size > _IDENTITY_READ_BYTES:
-                fh.seek(-_IDENTITY_READ_BYTES, 2)
-            data = fh.read(_IDENTITY_READ_BYTES).decode("utf-8", errors="replace")
-        lines = data.splitlines()
-        if size > _IDENTITY_READ_BYTES:
-            lines = lines[1:]  # the cut's partial first line
+                # one byte before the cut, so a cut landing exactly on a line start keeps it
+                fh.seek(size - _IDENTITY_READ_BYTES - 1)
+                data = fh.read(_IDENTITY_READ_BYTES + 1)
+                data = data[data.find(b"\n") + 1 :]  # drop through the partial line
+            else:
+                data = fh.read()
+        lines = data.decode("utf-8", errors="replace").splitlines()
     except Exception:
         return []
     rows = []
@@ -342,7 +426,7 @@ def _identity_rows() -> list[dict]:
             row = json.loads(line)
         except ValueError:
             continue
-        if isinstance(row, dict) and row.get("session_id"):
+        if isinstance(row, dict) and isinstance(row.get("session_id"), str) and row["session_id"]:
             rows.append(row)
     return rows
 
@@ -350,7 +434,8 @@ def _identity_rows() -> list[dict]:
 def _resolved_name(sid: str, rows: list[dict]) -> str:
     """`whoami_agent.py::resolve_agent_name`'s order: a well-formed `CLAUDE_AGENT`, else this
     session's LAST binding row, else "". `sid` is the payload's raw session id, falling back to
-    `CLAUDE_CODE_SESSION_ID` (the variable the writer keys on)."""
+    `CLAUDE_CODE_SESSION_ID` (the variable the writer keys on). The ONE validity test every
+    advisory here uses: `CLAUDE_AGENT=ALPHA` is unnamed to all of them."""
     env = (os.environ.get("CLAUDE_AGENT") or "").strip()
     if _AGENT_NAME_RE.fullmatch(env):
         return env
@@ -364,27 +449,38 @@ def _resolved_name(sid: str, rows: list[dict]) -> str:
     return name
 
 
+def _is_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def _binding_live(row: dict) -> bool:
-    """`whoami_agent.py::_pid_alive_same_start`: the pid is alive AND started when the row says."""
+    """`whoami_agent.py::_pid_alive_same_start`: the pid is alive AND started when the row says.
+    The pid must be a real int (`True` is 1 — pid 1 is always alive); a row with no start time is
+    pid-only, as the writer treats it."""
     try:
-        pid = int(row.get("pid") or 0)
-        if pid <= 0 or not Path(f"/proc/{pid}").is_dir():
+        pid = row.get("pid")
+        if not _is_int(pid) or pid <= 0 or not Path(f"/proc/{pid}").is_dir():
             return False
         was = row.get("pid_start")
         if was is None:
-            return True  # a row written before start times existed: pid-only, as the writer does
+            return True
+        if not _is_int(was):
+            return False
         raw = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8", errors="replace")
-        return int(raw[raw.rindex(")") + 1 :].split()[19]) == int(was)
+        return int(raw[raw.rindex(")") + 1 :].split()[19]) == was
     except Exception:
         return False
 
 
-def _model_line(cwd: str, layout: tuple[str, str, str], live: int, hub: bool, sid: str) -> str:
+def _model_line(
+    layout: tuple[str, str, str], live: int, hub: bool, name: str, rows: list[dict]
+) -> tuple[str, bool]:
     """The multi-agent model at SessionStart (spec 2026-09-29, D1 and D5 (a)), in every repo AND
     the hub: (1) the main checkout of an UNADOPTED repo is prompted to `--adopt` at ANY session
-    count, so the first window adopts before a second opens; (2) in an adopted main checkout, a
-    session whose resolved name is not the merge owner is told to move into its worktree (an
-    unnamed one to bind first); (3) the repo's live `whoami_agent.py` bindings are listed.
+    count; (2) in an adopted main checkout, a session whose resolved `name` is not the merge owner
+    is told to move into its worktree (an unnamed one to bind first); (3) the repo's live
+    `whoami_agent.py` bindings are listed. Returns (text, instructed): `instructed` is True when
+    (2) printed, and then `_identity_line` and `_sessions_line` yield to it — ONE instruction.
     ⚠️ COBRA (D-253): the cheapest way to silence (2) is to bind yourself AS the merge owner;
     (3) is the counter — the owner's name held by two sessions is then visible to both. Stated
     limit: a session named at launch by `CLAUDE_AGENT` writes no binding and is not listed.
@@ -392,9 +488,9 @@ def _model_line(cwd: str, layout: tuple[str, str, str], live: int, hub: bool, si
     try:
         top, gdir, common = layout
         if not top:
-            return ""
+            return "", False
         out = ""
-        rows = _identity_rows()
+        instructed = False
         if gdir == common:  # the main checkout
             owner = _ledger_merge_owner(top)[:32]  # render cap, as in `_identity_line`
             if not owner:
@@ -405,38 +501,38 @@ def _model_line(cwd: str, layout: tuple[str, str, str], live: int, hub: bool, si
                         "- ⚠️ **This repo has not adopted the multi-agent model** (no `MERGE"
                         " OWNER:` row in `docs/DECISIONS.md`). Every repo runs it — agent-1 here in"
                         " the main checkout, agents 2..N in `.claude/worktrees/<name>` — so adopt"
-                        " now, before a second window opens: `python scripts/docs_updater.py"
+                        " it now: `python scripts/docs_updater.py"
                         f" --adopt <names>{flag}` (the first name becomes the merge owner).\n"
                     )
-            else:
-                name = _resolved_name(sid, rows)
-                if not name:
-                    out += (
-                        f"- ⚠️ **This session is UNNAMED in the main checkout, and the merge owner"
-                        f" is `{owner}`.** Only the merge owner works here. If you are not"
-                        f" `{owner}`, bind first — `python3 /opt/fabrik/scripts/whoami_agent.py"
-                        " --as <name>` — then move with `EnterWorktree` into"
-                        " `.claude/worktrees/<name>`; the conversation follows you.\n"
-                    )
-                elif name != owner.lower():  # names are lowercase; a hand-written owner may not be
-                    out += (
-                        f"- ⚠️ **You are `{name}` in the main checkout, and the merge owner is"
-                        f" `{owner}`.** Only the merge owner works here: move now with"
-                        f" `EnterWorktree` into `.claude/worktrees/{name}` — the conversation"
-                        " follows you, and a target under `.claude/worktrees/` asks no approval.\n"
-                    )
+            elif not name:
+                instructed = True
+                out += (
+                    f"- ⚠️ **This session is UNNAMED in the main checkout, and the merge owner"
+                    f" is `{owner}`.** Only the merge owner works here. If you are not"
+                    f" `{owner}`, bind first — `python3 /opt/fabrik/scripts/whoami_agent.py"
+                    " --as <name>` — then move with `EnterWorktree` into"
+                    " `.claude/worktrees/<name>`; the conversation follows you.\n"
+                )
+            elif name != owner.lower():  # names are lowercase; a hand-written owner may not be
+                instructed = True
+                out += (
+                    f"- ⚠️ **You are `{name}` in the main checkout, and the merge owner is"
+                    f" `{owner}`.** Only the merge owner works here: move now with"
+                    f" `EnterWorktree` into `.claude/worktrees/{name}` — the conversation"
+                    " follows you, and a target under `.claude/worktrees/` asks no approval.\n"
+                )
         latest: dict[str, dict] = {}
         for row in rows:  # LAST row per session wins, as in the writer
-            latest[str(row.get("session_id"))] = row
+            latest[row["session_id"]] = row
         held = []
         for row in latest.values():
-            name = str(row.get("name") or "")
+            bound = str(row.get("name") or "")
             scope = str(row.get("toplevel") or "")
-            if not _AGENT_NAME_RE.fullmatch(name) or not scope:
+            if not _AGENT_NAME_RE.fullmatch(bound) or not scope:
                 continue
             if os.path.realpath(scope) != common or not _binding_live(row):
                 continue
-            held.append(f"`{name}` (pid {int(row.get('pid') or 0)})")
+            held.append(f"`{bound}` (pid {row['pid']})")
         if held:
             shown = sorted(held)[:12]
             more = f" · (+{len(held) - 12} more)" if len(held) > 12 else ""
@@ -447,25 +543,41 @@ def _model_line(cwd: str, layout: tuple[str, str, str], live: int, hub: bool, si
                 + ". Sessions named at launch by `CLAUDE_AGENT` write no binding, so they are"
                 " not listed.\n"
             )
-        return out
+        return out, instructed
     except Exception:
-        return ""
+        return "", False
 
 
-def _identity_line(cwd: str, live: int | None = None, hub: bool | None = None) -> str:
+def _identity_line(
+    cwd: str,
+    live: int | None = None,
+    hub: bool | None = None,
+    name: str | None = None,
+    yield_to_model: bool = False,
+) -> str:
     """Advisory (D-034, re-keyed 2026-09-16): an UNNAMED session is a mistake wherever several
     agents share one tree — the hub always, and any project repo that either DECLARES a merge
     owner in its ledger or currently has >=2 live `claude` sessions in this exact checkout.
-    A named session, and a single-session unadopted repo, get nothing HERE — that repo's
-    `--adopt` prompt is `_model_line`'s (spec 2026-09-29 D1)."""
+    A session NAMED by `_resolved_name` (a valid `CLAUDE_AGENT` or its whoami binding — the one
+    validity test), and a single-session unadopted repo, get nothing HERE — that repo's `--adopt`
+    prompt is `_model_line`'s (spec 2026-09-29 D1). `yield_to_model`: `_model_line` already
+    printed this session's bind-or-move instruction, and one instruction is the whole point."""
     try:
-        if os.environ.get("CLAUDE_AGENT", "").strip():
+        if name is None:  # a direct caller; main() passes the name it resolved once
+            name = _resolved_name("", _identity_rows())
+        if name or yield_to_model:
             return ""
+        bad = (
+            " (`CLAUDE_AGENT` is set, but not to a valid `[a-z0-9-]{1,32}` name, so every"
+            " consumer drops it.)"
+            if os.environ.get("CLAUDE_AGENT", "").strip()
+            else ""
+        )
         if hub is None:  # a direct caller; main() passes the one probe it shares
             hub = _is_hub(cwd)
         if hub:
             return (
-                "- ⚠️ **CLAUDE_AGENT is UNSET — this hub session is UNNAMED.** Three sessions"
+                f"- ⚠️ **CLAUDE_AGENT is UNSET — this hub session is UNNAMED.**{bad} Three sessions"
                 " share this tree; the role charter, beat routing and Agent-Name trailers all"
                 " key on the env var (a window rename never reaches hooks — the mis-signed-day"
                 " class). Ask the operator which role this window is, or work without beat"
@@ -500,7 +612,7 @@ def _identity_line(cwd: str, live: int | None = None, hub: bool | None = None) -
         else:
             remedy = "a relaunch as `CLAUDE_AGENT=<name> claude`"
         return (
-            f"- ⚠️ **CLAUDE_AGENT is UNSET and {why}.** Without a name the role charter is not"
+            f"- ⚠️ **CLAUDE_AGENT is UNSET and {why}.**{bad} Without a name the role charter is not"
             " injected (`agent_role.py`) and the `Agent-Name` trailer you sign is a CLAIM nothing"
             " checks (project repos install no trailer check; the hub's `check_commit_trailers.py`"
             " compares it only against a resolvable name). ✅ **You can fix this"
@@ -544,7 +656,9 @@ def _count_sessions_sharing(real_cwd: str) -> int:
     return count
 
 
-def _sessions_line(cwd: str, live: int | None = None, hub: bool | None = None) -> str:
+def _sessions_line(
+    cwd: str, live: int | None = None, hub: bool | None = None, instructed: bool = False
+) -> str:
     """D5 (multi-agent-adoption spec): ≥2 live `claude` processes sharing this
     exact main checkout is the shared-index way that has lost work before
     (D-099) — undetected until now. A self-contained `/proc` scan: no
@@ -553,7 +667,8 @@ def _sessions_line(cwd: str, live: int | None = None, hub: bool | None = None) -
     entry: a vanished/unreadable pid is skipped, never raised — and the whole
     scan degrades to "" on any top-level OSError. Suppressed for a worktree
     session (cwd under `/.claude/worktrees/`) and for the hub (same `is_hub`
-    test as `_identity_line`)."""
+    test as `_identity_line`). `instructed`: `_model_line` already told this session where to go
+    (`EnterWorktree`), so the count stands alone — no second, relaunch-shaped remedy."""
     if "/.claude/worktrees/" in cwd:
         return ""
     try:
@@ -572,6 +687,11 @@ def _sessions_line(cwd: str, live: int | None = None, hub: bool | None = None) -
     count = live
     if count < 2:
         return ""
+    if instructed:
+        return (
+            f"- ⚠️ **{count} sessions share this main checkout.** Only the merge owner works"
+            " here; the move line below says where this session goes.\n"
+        )
     return (
         f"- ⚠️ **{count} sessions share this main checkout.** The multi-agent model puts agents"
         " 2..N in worktrees — `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>` —"
@@ -727,6 +847,11 @@ def main() -> int:
     # ONE git probe too, shared by hub identity and the model line (both fail open).
     layout = _git_layout(cwd)
     hub = _is_hub(cwd, layout)
+    # ONE identity resolution and ONE model decision, shared so the three bullets that can name a
+    # remedy (identity, shared checkout, move) give exactly one instruction between them.
+    rows = _identity_rows()
+    name = _resolved_name(str(data.get("session_id") or ""), rows)
+    model, instructed = _model_line(layout, live, hub, name, rows)
     print(
         "## ORIENT (binding — read before acting)\n"
         + arm_line
@@ -734,9 +859,9 @@ def main() -> int:
         + "\n"
         + _memory_line(cwd)
         + "\n"
-        + _identity_line(cwd, live, hub)
-        + _sessions_line(cwd, live, hub)
-        + _model_line(cwd, layout, live, hub, str(data.get("session_id") or ""))
+        + _identity_line(cwd, live, hub, name, instructed)
+        + _sessions_line(cwd, live, hub, instructed)
+        + model
         + _mcp_line(cwd)
         + "- **Decision-shaped question? LEDGER FIRST:** grep `docs/DECISIONS.md` (fleet-wide:"
         " `python3 /opt/fabrik/scripts/decisions.py <term>`) BEFORE any wider hunt — a prior ruling,"
