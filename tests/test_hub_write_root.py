@@ -382,6 +382,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/enforcement/check_doc_links.py": "no-write: `/opt/fabrik/` is a READ-side prefix check classifying a doc link, not a write target",
     "scripts/enforcement/check_structure.py": "no-write: the matched lines are a COMMENT describing the pattern, no FABRIK_ROOT usage of its own",
     "scripts/enforcement/check_sync_trigger_coverage.py": "no-write: already resolves via its own `hub_root()` helper (falls back to DEFAULT_HUB); reads to verify sync-trigger regex coverage, writes no tracked hub file",
+    "scripts/enforcement/check_vendored_drift.py": "no-write: `/opt/fabrik` is the hub-identity path it compares the git common dir against (`_is_hub`); its only subprocess is a read-only `git rev-parse`, and it writes nothing",
     "scripts/final_gate.py": "no-write: the gate's own hub-identity check (H4, a separate ticket) — computes the diff/staging root for the current run, not a tracked-output destination",
     "scripts/fleet_doc_audit.py": "no-write: `FABRIK_ROOT = Path(__file__).resolve().parents[1]` — already worktree-relative; the flagged literal is incidental",
     "scripts/generate_capability_index.py": "no-write: `REPO = Path(__file__).resolve().parent.parent` — already worktree-relative; the flagged literal is a doc_link reference to /opt/fabrik-lib",
