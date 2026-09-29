@@ -115,7 +115,7 @@ $ python scripts/review_rubric.py --changed scripts/sysadmin/claude_rotate.py sc
 | Hunt: `tests/test_quota_dashboard.py` — every changed hunk, its enclosing function, its callers | FIXED r2 (tests/test_quota_dashboard.py: /park header, validation, happy path, parked row render, and never-shown-returning incl. the `_queue` relief route with an unparked control) |
 | Hunt: `docs/workstation/claude-account-rotation.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (docs/workstation/claude-account-rotation.md § Parking: added that parking holds whatever the readings say and that --status prints a PARKED warning; every other sentence re-read against the pinned code) |
 | Hunt: `docs/workstation/quota-dashboard.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/workstation/quota-dashboard.md button row and POST /park row checked against quota_dashboard.py do_POST, park_account and _switch_cell; one hygiene hit at :197 recorded as a false positive) |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (R0-2: parking depended on a readable weekly figure — a missing reading made a parked account pickable; now unconditional in the one shared predicate; a broken parked.json parks nothing and warns, the chosen direction, D-442) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (R0-2: parking depended on a readable weekly figure — a missing reading made a parked account pickable; now unconditional in the one shared predicate; a broken parked.json parks nothing and warns, the chosen direction, D-443) |
 | Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | FIXED r1 (a parked account supplied fleet 5h capacity when active with an unreadable weekly; `_fleet_readings` now skips it — test_a_parked_account_supplies_no_fleet_capacity_even_without_a_weekly_reading) |
 | Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1 (A-H1: `0.0 < w` excluded the sentinel wall 0; `_is_parked` rejects bool False, which equals 0) |
 | Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r2 (every park behaviour has a grader; test_an_active_parked_account_with_no_weekly_reading_is_flipped_away was green before its fix — it guards an existing fail-closed path and was never red, stated here) |
@@ -170,7 +170,7 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | F31 | RECORDED — measured (a prevalence figure; makes no code or doc claim) |
 ```
 
-| B-S3 | RECORDED — by design (D-442) |
+| B-S3 | RECORDED — by design (D-443) |
 | H-1 | RECORDED — hygiene false positive (docs/workstation/quota-dashboard.md:197 names the literal placeholder as its subject, it is not unrendered) |
 | P2-A-hop | RECORDED — measured (one hop out of the pass-1 hunks; an active parked account with NO readings at all is not flipped away because the tick stops at 'no quota reading' — filed as W-1584d520) |
 | P3-B-hop | REFUTED (the board's `_eligible` returns False when `cap_walled` is True, which every readable parked row is, and when the weekly reading is None — a parked row can never be drawn eligible) |

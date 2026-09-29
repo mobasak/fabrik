@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added — park a Claude account out of service without removing it, from the CLI or the quota board (2026-09-29)
-- `scripts/sysadmin/claude_rotate.py` (and its twin `scripts/aro-wake/claude_rotate.py`): `--park <email>` and `--unpark <email>` keep a list in `~/.claude-fleet/parked.json`. A parked account stays listed but is never picked, never counted as fleet capacity, never promised a return, and is flipped away from if active, whatever its readings say. `caps.json` is untouched, so unparking restores the old cap. The caps loader now accepts a cap of 0, which parks the same way (D-442).
+- `scripts/sysadmin/claude_rotate.py` (and its twin `scripts/aro-wake/claude_rotate.py`): `--park <email>` and `--unpark <email>` keep a list in `~/.claude-fleet/parked.json`. A parked account stays listed but is never picked, never counted as fleet capacity, never promised a return, and is flipped away from if active, whatever its readings say. `caps.json` is untouched, so unparking restores the old cap. The caps loader now accepts a cap of 0, which parks the same way (D-443).
 - `scripts/sysadmin/quota_dashboard.py`: a disable/enable button on every account row, a `PARKED — out of service` badge, and `POST /park`, behind the same `X-Quota-Dash` header guard as `POST /switch`.
 - `scripts/dr_claude_backup.sh` backs up `parked.json` next to `caps.json`.
 - Tests in `tests/test_claude_fleet.py` and `tests/test_quota_dashboard.py`; review receipt `docs/development/reviews/2026-09-29-account-park-review.md`.
