@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T08:21:53.736160Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-75a781e7",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "file 32 — core/tojlo-design-system.md to the 11-row bar (docs/reference/rules-currency-pass.md); then the roster order by fleet ACTIVE count",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "Rules currency pass: evaluate the 25 packs still missing currency_pass: (32 of 57 done, stopped 2026-09-24 after file 31)"
+}
