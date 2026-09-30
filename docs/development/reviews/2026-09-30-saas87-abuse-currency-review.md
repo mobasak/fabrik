@@ -207,6 +207,8 @@ Pass 2 confirmed 0 and fixed 0 across every slice.
 `final_gate.py --check --json`, pasted verbatim at the flip (check_convergence reads the fenced
 `"status": "success"`):
 
+GATE-SCOPE: out-of-surface — Doc Link Integrity (live tree); findings naming this surface: 0 of 1; measured by: `.venv/bin/python scripts/final_gate.py --check --json` at ebe58ad08 (docs/CAPABILITIES.md:253 links /opt/fabrik-lib/fabrik-lib/README.md, a path removed outside this repo after the closing gate below ran green)
+
 Excerpt of `.venv/bin/python scripts/final_gate.py --check --json` at HEAD 02b85f65a (the top-level keys this review relies on):
 
 ```json
