@@ -13,7 +13,7 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
   "status": "open",
   "title": "command_feedback_report.py --take's claim-not-re-read line names the relative scripts/work.py; from a repo without it the instruction points at a missing file — print /opt/fabrik/scripts/work.py (recorded by the T04 review pass 4, plan 2026-09-25-plan-1)"

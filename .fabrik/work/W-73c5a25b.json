@@ -13,7 +13,7 @@
   },
   "next": "/fabrik-spec seeded from mail 01M39F0T (infra, saas/95 currency pass): templates schema.sql:25-30,44,57,80-81,93,99-100,106-112,126 vs fastapi-user-auth rls/native.sql:4-10; re-check the owner-role claim against the audit-log-everywhere app role (D-386) first",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "title": "saas-skeleton tenant schema: one current_tenant_id() (vendored IdP rls/native.sql), RLS on tenants, cascade-delete blast radius, tenants.deleted_at, jobs exception"

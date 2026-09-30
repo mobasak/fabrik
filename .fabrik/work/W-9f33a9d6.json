@@ -13,7 +13,7 @@
   },
   "next": "Add SERVICE_NAME=<project> to the saas .env.example and assert it",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "title": "saas-skeleton's root .env.example sets no SERVICE_NAME while python-api, file-worker and chrome-extension do (found by the W-fa4084cf review, O5)"

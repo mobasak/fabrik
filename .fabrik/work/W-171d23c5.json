@@ -13,7 +13,7 @@
   },
   "next": "Paddle's seller handbook requires acceptance before purchase and recommends the links in the post-purchase email; the legal-pages spec (docs/superpowers/specs/2026-09-29-saas-skeleton-legal-pages-design.md) ships the pages only — wire the acceptance into the Paddle checkout/billing UI (core/85-payments-billing.md)",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "title": "saas-skeleton checkout: buyer accepts Terms + Refund Policy before purchase, and the post-purchase email links them"

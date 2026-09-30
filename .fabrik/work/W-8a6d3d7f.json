@@ -13,7 +13,7 @@
   },
   "next": "make decisions.py and docs_updater.py treat the UNDECLARED token (full stop included, as session_orient.py does since 45d900ecc) as un-adoption, drop the hook's divergence pin in tests/test_session_orient_hook.py, run /fabrik-review (both are fleet-synced)",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "tags": [

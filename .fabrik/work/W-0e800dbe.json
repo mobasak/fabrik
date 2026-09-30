@@ -13,7 +13,7 @@
   },
   "next": "saas/88:50,56,64 — iyzico/PayTR need these; the legal-pages spec covers the Paddle lane only",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "title": "saas-skeleton TRY lane: distance-sales contract, delivery/return terms, About and Contact pages"

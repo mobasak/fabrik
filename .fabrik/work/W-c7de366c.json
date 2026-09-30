@@ -13,7 +13,7 @@
   },
   "next": "measure first: fabrik plan specs/services/spoke-canary.yaml + read the last apply log for where compose.watchdog.yaml landed; then wrap WatchdogDriver.provision's remote steps in _target_vps_env(ctx) with a grader that asserts the ssh host for a vps2 ctx",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [

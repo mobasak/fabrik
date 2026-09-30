@@ -13,7 +13,7 @@
   },
   "next": "after fabrik-lib mails that the payments module side shipped (SB-031 design approved at their D-324; mail 01M3Q1QP8B): in src/fabrik/drivers/postgres.py:809-830 call payments_grant_ingest('<role>') when to_regprocedure resolves, keep the block as fallback, drop the table-level SELECT re-grant on that path; with W-5985e74a; heavy lane -> full /fabrik-review",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 1,
   "status": "open",
   "tags": [

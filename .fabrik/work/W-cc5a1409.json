@@ -13,7 +13,7 @@
   },
   "next": "/fabrik-spec: decide the Tailwind major in a ledger row, measure the v4 upgrade on an emitted saas-skeleton, and settle port-vs-drop for the i18n semantic levels",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "title": "saas-skeleton UI modernization (mails 01M37NN5/01M37P3K): Tailwind v3 -> v4 (CSS-first @theme, drop tailwind.config.ts); a 56px rail at md: with a hamburger below instead of AppShell's fixed 240px sidebar; @playwright/test + @axe-core/playwright + @lhci/cli with playwright.config and lighthouserc so the pack's verification loop runs; validate_i18n Levels 2/3 still shell out to the retired Kilo CLI — port to claude -p or drop, with the pack's 'Level 1 is the gate'"

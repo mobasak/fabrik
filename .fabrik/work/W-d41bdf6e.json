@@ -13,7 +13,7 @@
   },
   "next": "mail infra (rule-pack owner) with the landing commit when the saas-skeleton legal-pages build lands",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "title": "saas/88 line 56: drop the 'scaffold's terms/privacy are placeholders' warning once the legal-pages build ships"

@@ -13,7 +13,7 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 1,
   "status": "open",
   "title": "Retire the hub copy libs/subagents: the pool is OFF (D-181/D-182) but 29 hub .py files still reference it and fabrik-lib's post-commit hook keeps re-vendoring into it, leaving ownerless dirty files in the hub tree (D-210's open condition)"

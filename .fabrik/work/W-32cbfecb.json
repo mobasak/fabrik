@@ -13,7 +13,7 @@
   },
   "next": "Pass the real import path into _logger_py_content's usage line per type and assert it for file-worker",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "title": "file-worker's emitted logger.py docstring says 'from <package>.logger import get_logger' but the module is worker/logger.py (found by the W-fa4084cf review, O4)"

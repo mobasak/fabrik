@@ -13,7 +13,7 @@
   },
   "next": "only if a real test or src call site hits one of these shapes (0 today, grep over tests/ scripts/ src/): replace the word heuristics in tests/conftest.py _command_names/_shell_heads with bashlex parsing, or accept and keep this row as the record; also su -c / script -c payloads are not parsed (remainder round, pass 4)",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
   "status": "open",
   "tags": [

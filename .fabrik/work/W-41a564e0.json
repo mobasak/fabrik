@@ -13,7 +13,7 @@
   },
   "next": "measure which scripts/ tests shell out to ssh/scp/rsync (grep + one run under a temporary shim), then either a root-level conftest that imports the tests/ guard or per-dir conftests; keep the FABRIK_TEST_ALLOW_FLEET grader's scripts/ scan",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "tags": [

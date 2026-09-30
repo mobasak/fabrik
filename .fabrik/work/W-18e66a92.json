@@ -13,7 +13,7 @@
   },
   "next": "teach the daily janitor to remove a DEAD session's harness worktree whose only change is untracked noise (.venv, synced files), keeping the branch; measure across /opt repos first",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "tags": [

@@ -13,7 +13,7 @@
   },
   "next": "Retiring the file touches the manifest's GOVERNANCE_FILES, scaffold.py, check_structure, final_gate and the sync scripts: size it as spec-chain work (row 1 + >3 files). Source: mail 01M335ES1CV2X7QP3YFRZQR5F2.",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "Retire .windsurfrules from the synced set (Cascade is retired; the file is 8,265 chars against its own 6,000 cap and has no reader)"

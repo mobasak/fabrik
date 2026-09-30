@@ -13,7 +13,7 @@
   },
   "next": "/fabrik-spec seeded from mails 01M39CVD (infra, 5 items), 01M39FQ6 (fabrik-lib re-vendor advisory, 2f46e7f9) and 01M39G1A (fabrik-lib SB-013(a): should the registrar inject FABRIK_ANALYTICS_URL?); surfaces src/fabrik/drivers/watchdog.py:541, spec_loader.py:450-522, drivers/postgres.py:1273,1554, orchestrator/infrastructure.py:546; cross-repo re-vendor mails per project",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "title": "Watchdog cost-budget currency: retired default models, registrar-injected FABRIK_ANALYTICS_URL, cost_ledger GRANTs, zero-cap semantics, fleet re-vendor"
