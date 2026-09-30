@@ -4,9 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The file-worker scaffold's logger import hint and `make dev` now match the worker module (2026-09-30)
+- `src/fabrik/scaffold.py` `_scaffold_file_worker`: the emitted `worker/logger.py` docstring said `from <project_package>.logger import get_logger`, a module that does not exist. It now reads `from worker.logger import get_logger`, the import the shipped `worker/main.py` makes (W-32cbfecb).
+- The emitted Makefile's `dev` target ran `python worker/main.py`, which puts `worker/` on `sys.path`, so `main.py`'s `from worker.logger import …` failed with `ModuleNotFoundError`. It now runs `python -m worker.main`. The Dockerfile is unchanged: it sets `PYTHONPATH=/app`, so it already worked.
+- Tests in `tests/test_scaffold_logging.py` pin the usage line to the real template's import and run a real scaffold to check `make dev` resolves `worker.logger`.
+
 ### Fixed — Hub contract: the orchestrator named by role, the fan-out and §1a sentences disambiguated, a stale ticket_breadth test (2026-09-30)
 - `CLAUDE.md` § Subagent fan-out: the orchestrator is Opus or Fable, whichever the quota allows, and whichever newer model replaces them (D-334, D-456), no longer Fable-first; the FILE loops' seat rules (the Sonnet+Haiku pair, no Opus finder, the extra Haiku seat) are their own sentence, so they no longer read as covering the section loops (W-42dbd4f1).
-- `CLAUDE.md` § 1a: its `>5` sizes the review, the lane table's `>3` sizes the lane and counts only declared code-surface files (W-bbe4ecbb).
+- `CLAUDE.md` § 1a: its `>5` sizes the review, the lane table's `>3` sizes the lane and counts the distinct `--file` paths a run declares (W-bbe4ecbb).
 - `docs/reference/work-tracking.md`: the agent name resolves whoami, then `CLAUDE_AGENT`, then a hook's session binding (W-da48cc32).
 - `tests/test_check_ticket_breadth.py`: the rc-0 test for a bad `--plan-dir` contradicted the deliberate T4.9 refusal and failed on master; now both refusal disjuncts are graded (missing dir, misnamed dir), each proven red on mutation.
 - The template and `subagents-core.md` mirror of these fixes is routed as W-e80af564 (a sync-trigger change, its own full review).
