@@ -51,8 +51,9 @@ def _webhook() -> ast.AsyncFunctionDef:
     return next(n for n in ast.walk(tree) if isinstance(n, ast.AsyncFunctionDef))
 
 
-def _guards(fn: ast.AST, callee: str, exit_type: type) -> list[ast.If]:
-    """`if not [await] <callee>(...):` whose body exits with `exit_type` — the result must GATE, not be discarded."""
+def _guards(fn: ast.AST, callee: str, exit_type: type, *arg_names: str) -> list[ast.If]:
+    """`if not [await] <callee>(...):` whose body exits with `exit_type` — the result must GATE, not be discarded —
+    and whose call names every one of `arg_names` in its arguments (a guard on two literals gates nothing)."""
     out = []
     for n in ast.walk(fn):
         if not (
@@ -63,7 +64,8 @@ def _guards(fn: ast.AST, callee: str, exit_type: type) -> list[ast.If]:
             continue
         inner = n.test.operand.value if isinstance(n.test.operand, ast.Await) else n.test.operand
         if isinstance(inner, ast.Call) and ast.unparse(inner.func).endswith(callee):
-            if any(isinstance(s, exit_type) for s in n.body):
+            args = " ".join(ast.unparse(a) for a in inner.args)
+            if any(isinstance(s, exit_type) for s in n.body) and all(a in args for a in arg_names):
                 out.append(n)
     return out
 
@@ -76,9 +78,13 @@ def _calls_in_order(fn: ast.AST) -> list[str]:
 
 def test_webhook_reads_the_secret_so_a_missing_one_fails() -> None:
     src = ast.unparse(_webhook())
-    assert _guards(_webhook(), "compare_digest", ast.Raise), (
-        "the compare's result must raise on mismatch"
-    )
+    assert _guards(
+        _webhook(),
+        "compare_digest",
+        ast.Raise,
+        "'Authorization'",
+        "settings.revenuecat_webhook_auth",
+    ), "the compare of the Authorization header against the setting must raise on mismatch"
     assert "settings.revenuecat_webhook_auth" in src
     assert "getenv" not in src and "Bearer" not in src, (
         "RevenueCat sends the configured value verbatim; os.getenv turns a missing secret into 'Bearer None'"
@@ -87,8 +93,8 @@ def test_webhook_reads_the_secret_so_a_missing_one_fails() -> None:
 
 
 def test_webhook_dedupes_before_it_writes_state() -> None:
-    assert _guards(_webhook(), "record_event_once", ast.Return), (
-        "a repeat event must return before any write"
+    assert _guards(_webhook(), "record_event_once", ast.Return, "event['id']"), (
+        "a repeat event (keyed on its id) must return before any write"
     )
     order = _calls_in_order(_webhook())
     assert "record_event_once" in order and "sync_entitlements" in order
@@ -103,7 +109,12 @@ def test_webhook_never_branches_on_the_event_type_for_state() -> None:
     reads = [
         n
         for n in ast.walk(fn)
-        if isinstance(n, ast.Subscript) and ast.unparse(n) == "event['type']"
+        if (isinstance(n, ast.Subscript) and ast.unparse(n) == "event['type']")
+        or (
+            isinstance(n, ast.Call)
+            and ast.unparse(n.func) == "event.get"
+            and "'type'" in ast.unparse(n)
+        )
     ]
     compares = [ast.unparse(n) for n in ast.walk(fn) if isinstance(n, ast.Compare)]
     assert len(reads) == 1 and "event['type'] == 'TEST'" in compares, (
