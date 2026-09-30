@@ -8,6 +8,17 @@ import pytest
 from fabrik.scaffold import fix_project
 
 FABRIK_ROOT = Path("/opt/fabrik")
+# the guard's own message: a bare "hub" also matches any unrelated error that echoes a path containing it
+_REFUSAL = "refusing to scaffold/fix the Fabrik hub"
+
+
+def _source_root() -> Path:
+    """The root fix_project copies from — in a worktree the gitignored kilo JSON exists only in /opt/fabrik."""
+    import fabrik.scaffold as scaffold
+
+    return scaffold.FABRIK_ROOT
+
+
 requires_fabrik_env = pytest.mark.skipif(
     not FABRIK_ROOT.exists() or os.getenv("CI") == "true",
     reason="Requires full fabrik environment at /opt/fabrik (not available in CI)",
@@ -21,18 +32,34 @@ class TestScaffoldHubGuard:
     would ignore the hub's own canonical sources (.windsurf/, CLAUDE.md, …).
     """
 
-    def test_fix_project_refuses_hub(self):
-        with pytest.raises(ValueError, match="hub"):
-            fix_project(FABRIK_ROOT)
+    @pytest.fixture()
+    def fake_hub(self, tmp_path, monkeypatch):
+        """A hub checkout in tmp_path, recognised only by its marker (FABRIK_ROOT points elsewhere).
 
-    def test_assert_not_hub_refuses_hub_and_dotpath(self):
+        These guard tests never aim fix_project at the real /opt/fabrik: if the guard regressed,
+        that call would rewrite the shared checkout (2026-09-24, W-508064a8), and on a machine
+        without /opt/fabrik (CI) it would run against a missing path (W-a6d1dbf5)."""
+        import fabrik.scaffold as scaffold
+
+        monkeypatch.setattr(scaffold, "FABRIK_ROOT", tmp_path / "elsewhere")
+        hub = tmp_path / "hub"
+        (hub / "src" / "fabrik").mkdir(parents=True)
+        (hub / "src" / "fabrik" / "scaffold.py").write_text("")
+        (hub / "templates").mkdir()
+        return hub
+
+    def test_fix_project_refuses_hub(self, fake_hub):
+        with pytest.raises(ValueError, match=_REFUSAL):
+            fix_project(fake_hub)
+
+    def test_assert_not_hub_refuses_hub_and_dotpath(self, fake_hub):
         from fabrik.scaffold import _assert_not_hub
 
-        with pytest.raises(ValueError, match="hub"):
-            _assert_not_hub(FABRIK_ROOT)
-        # Path normalization: /opt/fabrik/. resolves to the hub.
-        with pytest.raises(ValueError, match="hub"):
-            _assert_not_hub(FABRIK_ROOT / ".")
+        with pytest.raises(ValueError, match=_REFUSAL):
+            _assert_not_hub(fake_hub)
+        # Path normalization: <hub>/. resolves to the hub.
+        with pytest.raises(ValueError, match=_REFUSAL):
+            _assert_not_hub(fake_hub / ".")
 
     def test_assert_not_hub_allows_non_hub(self):
         from fabrik.scaffold import _assert_not_hub
@@ -40,20 +67,20 @@ class TestScaffoldHubGuard:
         # A normal project path must not trip the guard.
         _assert_not_hub(Path("/opt/some-other-project"))
 
-    def test_assert_not_hub_blocks_hub_subdir(self):
+    def test_assert_not_hub_blocks_hub_subdir(self, fake_hub):
         """Residual-risk R4 closed: a path INSIDE the hub is also refused."""
         from fabrik.scaffold import _assert_not_hub
 
-        with pytest.raises(ValueError, match="hub"):
-            _assert_not_hub(FABRIK_ROOT / "templates" / "x")
+        with pytest.raises(ValueError, match=_REFUSAL):
+            _assert_not_hub(fake_hub / "templates" / "x")
 
-    def test_assert_not_hub_blocks_symlink_to_hub(self, tmp_path):
+    def test_assert_not_hub_blocks_symlink_to_hub(self, fake_hub, tmp_path):
         """Over-block guard: resolve() must follow a symlink and still block the hub."""
         from fabrik.scaffold import _assert_not_hub
 
         link = tmp_path / "hublink"
-        link.symlink_to(FABRIK_ROOT)
-        with pytest.raises(ValueError, match="hub"):
+        link.symlink_to(fake_hub)
+        with pytest.raises(ValueError, match=_REFUSAL):
             _assert_not_hub(link)
 
     @requires_fabrik_env
@@ -215,8 +242,8 @@ class TestFixProjectReferenceDocsRefresh:
 
         added = fix_project(project_dir, project_type="python-api", dry_run=False)
 
-        if (FABRIK_ROOT / "scripts" / "kilo_47_agents_final.json").exists():
-            canonical = (FABRIK_ROOT / "scripts" / "kilo_47_agents_final.json").read_text()
+        if (_source_root() / "scripts" / "kilo_47_agents_final.json").exists():
+            canonical = (_source_root() / "scripts" / "kilo_47_agents_final.json").read_text()
             assert target.read_text() == canonical
             assert any("kilo_47_agents_final.json (refreshed from master)" in e for e in added)
 
@@ -228,13 +255,13 @@ class TestFixProjectReferenceDocsRefresh:
 
         added = fix_project(project_dir, project_type="python-api", dry_run=True)
 
-        if (FABRIK_ROOT / "docs" / "reference" / "technology-stack-decision-guide.md").exists():
+        if (_source_root() / "docs" / "reference" / "technology-stack-decision-guide.md").exists():
             assert any(
                 "technology-stack-decision-guide.md (refreshed from master)" in e for e in added
             )
-        if (FABRIK_ROOT / "docs" / "reference" / "prebuilt-app-containers.md").exists():
+        if (_source_root() / "docs" / "reference" / "prebuilt-app-containers.md").exists():
             assert any("prebuilt-app-containers.md (refreshed from master)" in e for e in added)
-        if (FABRIK_ROOT / "scripts" / "kilo_47_agents_final.json").exists():
+        if (_source_root() / "scripts" / "kilo_47_agents_final.json").exists():
             assert any("kilo_47_agents_final.json (refreshed from master)" in e for e in added)
 
 

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The scaffold hub-guard tests run against a temporary hub, never the real checkout (2026-09-30)
+- `tests/test_scaffold_fix.py`: four `TestScaffoldHubGuard` tests aimed `fix_project`/`_assert_not_hub` at the real `/opt/fabrik`, so a regressed guard would have rewritten the shared checkout, and on a machine without `/opt/fabrik` (CI) they ran against a missing path. They now use a `fake_hub` fixture: a temporary directory holding the hub marker, with `FABRIK_ROOT` pointed elsewhere. They also match the guard's own message instead of the word `hub`. With a broken marker check, `fix_project`'s unrelated "No project.yaml in …/hub" error had still passed that looser match. Mutation-checked: with the marker broken, all four fail.
+- The kilo-JSON and dry-run reference-doc tests now decide whether to assert from the root `fix_project` copies from (`scaffold.FABRIK_ROOT`), not a hard-coded `/opt/fabrik`. In a worktree, the gitignored `scripts/kilo_47_agents_final.json` exists only in the main checkout, so both tests used to fail there. (W-a6d1dbf5)
+
 ### Fixed — The saas-skeleton `.env.example` documents `SERVICE_NAME` like python-api, file-worker and chrome-extension (2026-09-30)
 - `src/fabrik/scaffold.py`: the saas scaffold copied the template's root `.env.example` verbatim, so, unlike python-api, file-worker and chrome-extension, it did not document `SERVICE_NAME`. The pino logger (`lib/logger.ts`) and the backend's structlog logger both read it, and both fall back to the project name, the same value. The scaffold now appends `SERVICE_NAME=<project>` for saas-skeleton and static-site, which shares the scaffold function (W-9f33a9d6). A deployed `.env` is built from the spec, not from `.env.example`, so deploys are unaffected. Test: `tests/test_scaffold_logging.py::test_saas_skeleton_env_example_sets_service_name` scaffolds both types into a tmp base and asserts exactly one `SERVICE_NAME=` line; red first.
 
