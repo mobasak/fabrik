@@ -56,9 +56,10 @@ plus a random nonce, exclusive-created so a collision just retries with a fresh 
 ## Identity, the lock, the lease
 
 - **Who is acting.** The agent name is `whoami_agent.py`'s resolved name, else `CLAUDE_AGENT` (both
-  validated against the same `[a-z0-9-]{1,32}` rule; `scripts/work.py::_agent_name`), so a session with
-  `CLAUDE_AGENT` unset is still named when the identity store binds it. It is empty only in an unnamed
-  session — no valid `CLAUDE_AGENT` and no identity-store entry — and such a session
+  validated against the same `[a-z0-9-]{1,32}` rule; `scripts/work.py::_agent_name`), else — only for a
+  hook handed its session in the payload while `CLAUDE_CODE_SESSION_ID` is empty — that session's
+  identity-store binding; so a session with `CLAUDE_AGENT` unset is still named when the identity store
+  binds it. When none of the three resolves the name is empty: an unnamed session, and such a session
   cannot be `assign`'s TARGET (owners are agent names only), but that is its only limit: `claim`,
   `release`, `done` and `answer` fence on SESSION identity alone and never check `owner` (§ Ownership
   is not identity-enforced, below), so an unnamed session can claim, release, finish or answer ANY
