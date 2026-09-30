@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T09:22:26.807940Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-01dd5437",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "exclude nested repo copies/worktrees (a dir containing .git, or named after the repo) from the lib-module scan at :403-413, with a test; drop the stale fabrik-lib row",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "capabilities"
+  ],
+  "title": "generate_capability_index.py indexes any /opt/fabrik-lib/<dir> with a README as a lib module: a transient /opt/fabrik-lib/fabrik-lib/ copy seen at 03:03 on 2026-09-30 became capabilities.json + docs/CAPABILITIES.md:253, and its removal reddened every session's Doc Link Integrity"
+}
