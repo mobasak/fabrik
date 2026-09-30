@@ -14,6 +14,18 @@ All notable changes to this project will be documented in this file.
 - `tests/test_abuse_pack_activation.py`: emits a saas-skeleton and asserts the pack fires on `server/src/<pkg>/auth.py` and the IdP router, and not on unrelated modules (red on the old globs, green on the new).
 - `.windsurf/rules/CLAIMS.yaml`: six saas/87 rows; `docs/reference/research/2026-09-30-abuse-detection-currency-ledger.md`: the turn's 60 facts.
 
+### Fixed — The file-worker scaffold's logger import hint and `make dev` now match the worker module (2026-09-30)
+- `src/fabrik/scaffold.py` `_scaffold_file_worker`: the emitted `worker/logger.py` docstring said `from <project_package>.logger import get_logger`, a module that does not exist. It now reads `from worker.logger import get_logger`, the import the shipped `worker/main.py` makes (W-32cbfecb).
+- The emitted Makefile's `dev` target ran `python worker/main.py`, which puts `worker/` on `sys.path`, so `main.py`'s `from worker.logger import …` failed with `ModuleNotFoundError`. It now runs `python -m worker.main`. The Dockerfile is unchanged: it sets `PYTHONPATH=/app`, so it already worked.
+- Tests in `tests/test_scaffold_logging.py` pin the usage line to the real template's import and run a real scaffold to check `make dev` resolves `worker.logger`.
+
+### Fixed — Hub contract: the orchestrator named by role, the fan-out and §1a sentences disambiguated, a stale ticket_breadth test (2026-09-30)
+- `CLAUDE.md` § Subagent fan-out: the orchestrator is Opus or Fable, whichever the quota allows, and whichever newer model replaces them (D-334, D-456), no longer Fable-first; the FILE loops' seat rules (the Sonnet+Haiku pair, no Opus finder, the extra Haiku seat) are their own sentence, so they no longer read as covering the section loops (W-42dbd4f1).
+- `CLAUDE.md` § 1a: its `>5` sizes the review, the lane table's `>3` sizes the lane and counts the distinct `--file` paths a run declares (W-bbe4ecbb).
+- `docs/reference/work-tracking.md`: the agent name resolves whoami, then `CLAUDE_AGENT`, then a hook's session binding (W-da48cc32).
+- `tests/test_check_ticket_breadth.py`: the rc-0 test for a bad `--plan-dir` contradicted the deliberate T4.9 refusal and failed on master; now both refusal disjuncts are graded (missing dir, misnamed dir), each proven red on mutation.
+- The template and `subagents-core.md` mirror of these fixes is routed as W-e80af564 (a sync-trigger change, its own full review).
+
 ### Fixed — A worktree's symlinked `.venv` is ignored in every project (2026-09-30)
 - The synced `.claude/settings.json` symlinks `.venv` into every linked worktree (`symlinkDirectories`), and a project's own `.venv/` rule matches directories only, so a symlinked `.venv` was not ignored in 44 of the 45 git repos under /opt. Every new project worktree would have shown `?? .venv`. The synced "Fabrik-synced" .gitignore block (`scripts/fabrik_synced_manifest.py`) now carries a slashless `.venv`, and the sync's safety floor (`scripts/sync_enforcement_to_projects.py`) writes `.venv` too, while its check keeps `.venv/`. Known trade-off: the block overrides a project `!.venv` silently on every sync (0 of 45 repos have one); such a project adds each file with `git add -f`. Tests: `tests/test_synced_manifest.py`, `tests/test_sync_gitignore_safety.py` (each red on revert). Review: `docs/development/reviews/2026-09-30-synced-gitignore-venv-review.md`, 3 passes, confirmed 4 → 2 → 0.
 

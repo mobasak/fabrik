@@ -402,6 +402,53 @@ class TestFileWorkerLogging:
         content = (project / "worker" / "logger.py").read_text()
         assert "wrapper_class=structlog.make_filtering_bound_logger" in content
 
+    def test_usage_line_names_the_real_import_path(
+        self, mock_fabrik_root: Path, temp_dir: Path
+    ) -> None:
+        """The docstring's usage line is the import the worker actually uses (W-32cbfecb).
+
+        The module lives at worker/logger.py and the shipped worker/main.py imports
+        `from worker.logger import get_logger`; a usage line naming the project package points
+        an agent at a module that does not exist."""
+        project = _scaffold_file_worker(mock_fabrik_root, temp_dir)
+        content = (project / "worker" / "logger.py").read_text()
+        assert "Usage: from worker.logger import get_logger" in content
+        assert "from test_worker.logger" not in content
+
+    def test_usage_line_matches_the_real_template_main(
+        self, mock_fabrik_root: Path, temp_dir: Path
+    ) -> None:
+        """The usage line and the real templates/file-worker/worker/main.py import the same module,
+        so neither can drift from the other unnoticed (W-32cbfecb review, L-O2)."""
+        import re
+
+        project = _scaffold_file_worker(mock_fabrik_root, temp_dir)
+        usage = re.search(
+            r"Usage: from (\S+)\.logger import get_logger",
+            (project / "worker" / "logger.py").read_text(),
+        )
+        assert usage, "the emitted logger.py has no usage line"
+        # the template in THIS tree (scaffold.FABRIK_ROOT resolves to the main checkout from a worktree)
+        repo = Path(__file__).resolve().parents[1]
+        real_main = (repo / "templates" / "file-worker" / "worker" / "main.py").read_text()
+        assert f"from {usage.group(1)}.logger import get_logger" in real_main
+
+    def test_make_dev_runs_the_worker_as_a_module(self, temp_dir: Path) -> None:
+        """`make dev` runs the module form: `python worker/main.py` puts worker/ on sys.path and
+        main.py's `from worker.logger import ...` fails with ModuleNotFoundError, while
+        `python -m worker.main` from the project root resolves it (W-32cbfecb review, L-O1).
+        The exact-command assert is the guard: the import behaviour of each form was executed in
+        review, and a `python -c` import probe would pass for either form, because `-c` puts the
+        working directory on sys.path (L-O3)."""
+        from fabrik import scaffold
+
+        project = temp_dir / "dev-probe"
+        project.mkdir()
+        scaffold._scaffold_file_worker(project, "dev-probe", "probe")
+        makefile = (project / "Makefile").read_text()
+        dev_body = makefile.split("\ndev:", 1)[1].splitlines()[1]
+        assert dev_body == "\tpython -m worker.main", dev_body
+
     def test_logger_py_caches_on_first_use(self, mock_fabrik_root: Path, temp_dir: Path) -> None:
         """worker/logger.py sets cache_logger_on_first_use=True."""
         project = _scaffold_file_worker(mock_fabrik_root, temp_dir)

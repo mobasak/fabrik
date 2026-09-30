@@ -250,7 +250,6 @@
 - [email-templates](/opt/fabrik-lib/email-templates/README.md) (owner: external:fabrik-lib): email-templates
 - [email-transport](/opt/fabrik-lib/email-transport/README.md) (owner: external:fabrik-lib): email-transport
 - [expo-push](/opt/fabrik-lib/expo-push/README.md) (owner: external:fabrik-lib): expo-push
-- [fabrik-lib](/opt/fabrik-lib/fabrik-lib/README.md) (owner: external:fabrik-lib): fabrik-lib
 - [fastapi-user-auth](/opt/fabrik-lib/fastapi-user-auth/README.md) (owner: external:fabrik-lib): fastapi-user-auth
 - [file-cache](/opt/fabrik-lib/file-cache/README.md) (owner: external:fabrik-lib): fabrik-lib/file-cache — Local Disk Cache with TTL and LRU Eviction
 - [gdpr-data-rights](/opt/fabrik-lib/gdpr-data-rights/README.md) (owner: external:fabrik-lib): gdpr-data-rights

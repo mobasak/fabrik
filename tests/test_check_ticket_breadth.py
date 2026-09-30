@@ -215,6 +215,15 @@ def test_nonexistent_plan_dir_is_refused(tmp_path: Path) -> None:
     assert "REFUSED: ticket_breadth:" in proc.stdout
 
 
+def test_existing_but_misnamed_plan_dir_is_refused(tmp_path: Path) -> None:
+    """T4.9's second disjunct: a directory that EXISTS but is not named YYYY-MM-DD-plan-<slug> is refused too."""
+    misnamed = tmp_path / "not-a-plan-set"
+    misnamed.mkdir()
+    proc = _run("--plan-dir", str(misnamed), "--project-root", str(tmp_path), "--strict")
+    assert proc.returncode == 2
+    assert "REFUSED: ticket_breadth:" in proc.stdout
+
+
 # ── behaviour: a malformed ticket fails SOFT ────────────────────────────────
 
 

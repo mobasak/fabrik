@@ -4616,10 +4616,9 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
     # a) Create worker/ directory
     (project_dir / "worker").mkdir(parents=True, exist_ok=True)
 
-    # b) Write worker/logger.py — structured logging with PII redaction
-    (project_dir / "worker" / "logger.py").write_text(
-        _logger_py_content(name, name.replace("-", "_"))
-    )
+    # b) Write worker/logger.py — structured logging with PII redaction. The module's import path
+    # is `worker.logger` (the shipped worker/main.py imports it that way), not the project package.
+    (project_dir / "worker" / "logger.py").write_text(_logger_py_content(name, "worker"))
 
     # c) Copy main.py verbatim from file-worker template
     src_main = FILE_WORKER_TEMPLATE_DIR / "worker" / "main.py"
@@ -4677,7 +4676,9 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
                 in_dev_target = True
                 new_lines.append(line)
             elif in_dev_target and line.startswith("\t") and "uvicorn" in line:
-                new_lines.append("\tpython worker/main.py\n")
+                # module form: `python worker/main.py` puts worker/ on sys.path, so main.py's own
+                # `from worker.logger import …` would fail (Docker is spared only by PYTHONPATH=/app)
+                new_lines.append("\tpython -m worker.main\n")
                 in_dev_target = False
             else:
                 in_dev_target = False
