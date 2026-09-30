@@ -228,6 +228,7 @@
 - [api-quota](/opt/fabrik-lib/api-quota/README.md) (owner: external:fabrik-lib): fabrik-lib/api-quota — Track Upstream Quota + Rotate Across Many API Keys
 - [api-smoke-test](/opt/fabrik-lib/api-smoke-test/README.md) (owner: external:fabrik-lib): api-smoke-test
 - [app-audit-log](/opt/fabrik-lib/app-audit-log/README.md) (owner: external:fabrik-lib): app-audit-log
+- [arch](#) (owner: external:fabrik-lib): vendor /opt/fabrik-lib/arch/
 - [async-http-client](/opt/fabrik-lib/async-http-client/README.md) (owner: external:fabrik-lib): fabrik-lib/async-http-client — Pooled AsyncClient + Asyncio Circuit Breaker
 - [authored-list](/opt/fabrik-lib/authored-list/README.md) (owner: external:fabrik-lib): authored-list
 - [backups](#) (owner: external:fabrik-lib): vendor /opt/fabrik-lib/backups/
@@ -249,6 +250,7 @@
 - [email-templates](/opt/fabrik-lib/email-templates/README.md) (owner: external:fabrik-lib): email-templates
 - [email-transport](/opt/fabrik-lib/email-transport/README.md) (owner: external:fabrik-lib): email-transport
 - [expo-push](/opt/fabrik-lib/expo-push/README.md) (owner: external:fabrik-lib): expo-push
+- [fabrik-lib](/opt/fabrik-lib/fabrik-lib/README.md) (owner: external:fabrik-lib): fabrik-lib
 - [fastapi-user-auth](/opt/fabrik-lib/fastapi-user-auth/README.md) (owner: external:fabrik-lib): fastapi-user-auth
 - [file-cache](/opt/fabrik-lib/file-cache/README.md) (owner: external:fabrik-lib): fabrik-lib/file-cache — Local Disk Cache with TTL and LRU Eviction
 - [gdpr-data-rights](/opt/fabrik-lib/gdpr-data-rights/README.md) (owner: external:fabrik-lib): gdpr-data-rights
