@@ -28,17 +28,20 @@ def _rows() -> list[tuple[str, str]]:
     return ROW.findall(COMMAND.read_text(encoding="utf-8"))
 
 
-def _table_body() -> list[str]:
-    """Every line of the overlay table after its header and separator, found by STRUCTURE (the
-    header text, then contiguous `|` lines), never by the row parser's own anchor — a row with a
-    leading space or lost backticks must still be counted, so the parse check below can see it."""
+def _table_body() -> list[str] | None:
+    """Every non-blank line between the overlay table's header+separator and the next blank line.
+
+    Counted by position alone — never by what a line looks like — so ANY malformed row (a leading
+    space, lost backticks, a dropped leading pipe, on any row including the last) is still counted
+    and the parse check below sees the shortfall. None when the header line is not found."""
     lines = COMMAND.read_text(encoding="utf-8").splitlines()
-    start = next(
-        i for i, ln in enumerate(lines) if ln.replace(" ", "") == "|Loadedpack|Walkthissection|"
-    )
+    header = "|Loadedpack|Walkthissection|"
+    start = next((i for i, ln in enumerate(lines) if ln.replace(" ", "") == header), None)
+    if start is None:
+        return None
     body = []
     for ln in lines[start + 2 :]:
-        if not ln.lstrip().startswith("|"):
+        if not ln.strip():
             break
         body.append(ln)
     return body
@@ -46,7 +49,9 @@ def _table_body() -> list[str]:
 
 def test_every_table_row_parses() -> None:
     body = _table_body()
-    assert body, "the overlay-merge table in fabrik-epics.md moved or changed shape"
+    assert body, (
+        "the overlay-merge table in fabrik-epics.md (header 'Loaded pack | Walk this section') moved"
+    )
     assert len(_rows()) == len(body), "a table row no longer parses, so its heading goes unchecked"
 
 
