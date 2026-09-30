@@ -4415,8 +4415,10 @@ const server = http.createServer((req, res) => {
   const head = target.slice(0, 8).toLowerCase();
   const authority = head.startsWith('http://') ? 7 : head.startsWith('https://') ? 8 : 0;
   if (authority) {
-    const slash = target.indexOf('/', authority);
-    target = slash === -1 ? '/' : target.slice(slash);
+    // The authority ends at the first `/`, `?` or `#`; a `/` inside the query is not the path.
+    const rest = target.slice(authority);
+    const cut = rest.search(/[/?#]/);
+    target = cut !== -1 && rest[cut] === '/' ? rest.slice(cut) : '/';
   }
   const path = target.split('?', 1)[0];
 

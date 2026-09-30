@@ -167,6 +167,14 @@ def test_absolute_form_targets_route_on_their_path(running_node_api, target, mar
     assert marker in _raw(port, target)
 
 
+@pytest.mark.parametrize("target", ["http://host?x=/metrics", "http://host?a=/api/health", "http://host#/health"])
+def test_a_slash_after_the_authority_query_is_not_the_path(running_node_api, target):
+    _project, port, _proc = running_node_api
+    reply = _raw(port, target)
+    assert b"shim_up" not in reply
+    assert b'"status":"ok"' not in reply
+
+
 @pytest.mark.parametrize("running_node_api", [{"SHIM_METRICS_FAIL": "1"}], indirect=True)
 def test_a_failing_registry_answers_500_and_the_server_stays_up(running_node_api):
     _project, port, proc = running_node_api
