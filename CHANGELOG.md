@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The saas-skeleton `.env.example` documents `SERVICE_NAME` like python-api, file-worker and chrome-extension (2026-09-30)
+- `src/fabrik/scaffold.py`: the saas scaffold copied the template's root `.env.example` verbatim, so, unlike python-api, file-worker and chrome-extension, it did not document `SERVICE_NAME`. The pino logger (`lib/logger.ts`) and the backend's structlog logger both read it, and both fall back to the project name, the same value. The scaffold now appends `SERVICE_NAME=<project>` for saas-skeleton and static-site, which shares the scaffold function (W-9f33a9d6). A deployed `.env` is built from the spec, not from `.env.example`, so deploys are unaffected. Test: `tests/test_scaffold_logging.py::test_saas_skeleton_env_example_sets_service_name` scaffolds both types into a tmp base and asserts exactly one `SERVICE_NAME=` line; red first.
+
 ### Fixed — The file-worker scaffold's logger import hint and `make dev` now match the worker module (2026-09-30)
 - `src/fabrik/scaffold.py` `_scaffold_file_worker`: the emitted `worker/logger.py` docstring said `from <project_package>.logger import get_logger`, a module that does not exist. It now reads `from worker.logger import get_logger`, the import the shipped `worker/main.py` makes (W-32cbfecb).
 - The emitted Makefile's `dev` target ran `python worker/main.py`, which puts `worker/` on `sys.path`, so `main.py`'s `from worker.logger import …` failed with `ModuleNotFoundError`. It now runs `python -m worker.main`. The Dockerfile is unchanged: it sets `PYTHONPATH=/app`, so it already worked.

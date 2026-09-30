@@ -142,6 +142,22 @@ def test_create_project_to_tmp_base_does_not_pollute_hub_specs(temp_dir: Path) -
     )
 
 
+@pytest.mark.parametrize("ptype", ["saas-skeleton", "static-site"])
+def test_saas_skeleton_env_example_sets_service_name(temp_dir: Path, ptype: str) -> None:
+    """The saas root .env.example documents SERVICE_NAME=<project> like python-api, file-worker
+    and chrome-extension (W-9f33a9d6). static-site is scaffolded by the same function, so it is
+    covered too. Exactly one assignment: a second, conflicting SERVICE_NAME= would also pass a
+    count of the exact line."""
+    from fabrik import scaffold
+
+    scaffold.create_project(
+        "svc-name-probe", "probe", base=temp_dir, project_type=ptype, generate_spec=False
+    )
+    lines = (temp_dir / "svc-name-probe" / ".env.example").read_text().splitlines()
+    assignments = [ln for ln in lines if ln.startswith("SERVICE_NAME=")]
+    assert assignments == ["SERVICE_NAME=svc-name-probe"], assignments
+
+
 def _scaffold_chrome_ext(mock_fabrik_root: Path, temp_dir: Path, name: str = "test-ext") -> Path:
     """Helper to run chrome-extension scaffold with mocked root."""
     from fabrik import scaffold
