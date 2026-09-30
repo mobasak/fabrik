@@ -51,10 +51,11 @@ _CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 _ULID_LEN = 26  # 128 bits encoded MSB-first, left-padded
 
 HUB_NODES = frozenset({"fabrik", "fabrik-lib"})  # the star center + its first-class node
-KINDS = frozenset({"request", "finding", "relay", "reply", "upstream-feedback"})
+KINDS = frozenset({"request", "finding", "relay", "reply", "upstream-feedback", "merge-request"})
 ACK_BY_KIND = {  # default ack per kind
     "request": "required",
     "upstream-feedback": "required",
+    "merge-request": "required",  # a merge obligation the owner must close (D-462)
     "finding": "no",
     "relay": "no",
     "reply": "no",
@@ -1221,6 +1222,116 @@ def _note_mail_requeue(msg_id: str, repo: str) -> None:
         _warn(f"mail item not closed for {msg_id} — {type(exc).__name__}: {exc}")
 
 
+# --- merge-request guards (spec 2026-09-30-merge-request-loop § Contract deltas) --------
+_MERGE_REQUEST = "merge-request"
+_SHA_RE = _re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
+
+
+def _caller_agent() -> str:
+    """The caller's agent name, resolved as ``command_run.py`` does: a GUARDED import of the
+    sibling ``whoami_agent.resolve_agent_name`` (CLAUDE_AGENT first, else this session's identity
+    binding). "" when unknown — never raises; the merge-request guard refuses "" (fail closed)."""
+    try:
+        here = str(Path(__file__).resolve().parent)
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        from whoami_agent import resolve_agent_name  # noqa: PLC0415
+
+        name = resolve_agent_name()
+        return name if isinstance(name, str) else ""
+    except (Exception, SystemExit):  # SystemExit is BaseException — same reasoning as command_run
+        return ""
+
+
+def _merge_request_at(*paths: Path) -> tuple[dict, str] | None:
+    """(frontmatter, body) of the FIRST existing path when it is a ``merge-request``, else None.
+
+    Every other kind — and an absent or malformed file — returns None and goes down
+    claim/ack's unchanged path, whose own rename raises exactly as before."""
+    for path in paths:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except FileNotFoundError:
+            continue
+        fm = _parse(text)
+        if fm is None or fm.get("kind") != _MERGE_REQUEST:
+            return None
+        return fm, text[text.find("\n---", 4) + 4 :]
+    return None
+
+
+def _refuse_non_addressee(msg_id: str, fm: dict, verb: str) -> None:
+    """A merge-request is claimed and acked ONLY by the agent it is addressed to (V7b)."""
+    owner = (fm.get("agent") or "").strip()
+    caller = _caller_agent()
+    if not owner or caller != owner:
+        raise MailRefusedError(
+            f"{msg_id}: a merge-request addressed to {owner or '(nobody)'!r} — {verb} refused for "
+            f"caller {caller or '(unresolved: set CLAUDE_AGENT or bind this session)'!r}"
+        )
+
+
+def _body_fields(body: str) -> dict[str, str]:
+    """The script-written ``field: value`` lines of a merge-request body (first one wins)."""
+    out: dict[str, str] = {}
+    for line in body.splitlines():
+        k, sep, v = line.partition(":")
+        if sep and k.strip() and k.strip() not in out:
+            out[k.strip()] = v.strip()
+    return out
+
+
+def _git(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], capture_output=True, text=True, timeout=60, check=False)
+
+
+def _commit_sha(ref: str) -> str:
+    """Full SHA of ``ref`` as a commit in the CWD's repo, else "" (``--end-of-options``: a ref
+    can never be read as an option)."""
+    if not ref:
+        return ""
+    r = _git("rev-parse", "--verify", "--quiet", "--end-of-options", f"{ref}^{{commit}}")
+    sha = r.stdout.strip()
+    return sha if r.returncode == 0 and _SHA_RE.fullmatch(sha) else ""
+
+
+def _is_ancestor(older: str, newer: str) -> bool:
+    return _git("merge-base", "--is-ancestor", older, newer).returncode == 0
+
+
+def _verify_merge_sha(msg_id: str, body: str, merge_sha: str | None) -> str:
+    """``ack --disposition done`` of a merge-request: ``merge_sha`` must be a commit that is an
+    ancestor of the request's ``base``, whose message carries the request id, AND whose history
+    holds the request's ``head`` (O34 — an empty commit naming the request is no merge of it).
+    Git runs in the CWD's repository. Returns the FULL SHA; raises MailRefusedError otherwise.
+    Cobra note: the cheapest pass without a merge is a commit that merges the head AND names the
+    id — which is a real merge by construction; ancestry of base is what makes it landed."""
+    if not (merge_sha or "").strip():
+        raise MailRefusedError(
+            f"{msg_id}: ack --disposition done of a merge-request needs --merge-sha <sha> "
+            "(the merge commit that landed the request's head in base)"
+        )
+    fields = _body_fields(body)
+    base_ref, head_ref = fields.get("base", ""), fields.get("head", "")
+    sha = _commit_sha(merge_sha.strip())
+    if not sha:
+        raise MailRefusedError(f"{msg_id}: --merge-sha {merge_sha!r} is not a commit in this repo")
+    base = _commit_sha(base_ref)
+    if not base:
+        raise MailRefusedError(f"{msg_id}: the request's base {base_ref!r} is not a commit here")
+    if not _is_ancestor(sha, base):
+        raise MailRefusedError(f"{msg_id}: {sha} is not an ancestor of base {base_ref!r}")
+    msg = _git("log", "-1", "--format=%B", sha)
+    if msg.returncode != 0 or msg_id not in msg.stdout:
+        raise MailRefusedError(f"{msg_id}: {sha}'s message does not carry the request id")
+    head = _commit_sha(head_ref)
+    if not head or not _is_ancestor(head, sha):
+        raise MailRefusedError(
+            f"{msg_id}: the request head {head_ref!r} is not in {sha}'s history — not a merge of it"
+        )
+    return sha
+
+
 # --- claim / ack / requeue ----------------------------------------------------
 def claim(msg_id: str, repo: str) -> Path:
     """Claim WITHOUT resolving: the rename lock alone, no acked-by line.
@@ -1235,18 +1346,22 @@ def claim(msg_id: str, repo: str) -> Path:
     base = _mail_root() / repo
     src = base / "inbox" / f"{msg_id}.md"
     dst = base / "archive" / f"{msg_id}.md"
+    mr = _merge_request_at(src)
+    if mr is not None:  # refused BEFORE the rename: the message stays in the inbox
+        _refuse_non_addressee(msg_id, mr[0], "claim")
     dst.parent.mkdir(parents=True, exist_ok=True)
     os.rename(src, dst)  # FileNotFoundError if already claimed — the race lock
     return dst
 
 
-def _append_ack_line(dst: Path, repo: str, disposition: str) -> None:
+def _append_ack_line(dst: Path, repo: str, disposition: str, extra: str = "") -> None:
     """Append the ack line WITHOUT O_CREAT — if the archived file vanished between ack's
     rename and this append (a concurrent requeue won the race), fail LOUDLY instead of
-    silently creating an archive file that holds only an ack line."""
+    silently creating an archive file that holds only an ack line. ``extra`` (single-line,
+    `` · ``-led) sits BEFORE the disposition, so ``_ACK_LINE`` still matches the line."""
     fd = os.open(dst, os.O_WRONLY | os.O_APPEND)  # FileNotFoundError if requeued meanwhile
     with os.fdopen(fd, "a", encoding="utf-8") as fh:
-        fh.write(f"\nacked-by: {repo} · ts: {_now_iso()} · disposition: {disposition}\n")
+        fh.write(f"\nacked-by: {repo} · ts: {_now_iso()}{extra} · disposition: {disposition}\n")
 
 
 def route(msg_id: str, to_agent: str, repo: str | None = None) -> Path:
@@ -1304,7 +1419,13 @@ def route(msg_id: str, to_agent: str, repo: str | None = None) -> Path:
     return path
 
 
-def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
+def ack(
+    msg_id: str,
+    repo: str,
+    disposition: str = "done",
+    merge_sha: str | None = None,
+    reason: str | None = None,
+) -> Path:
     """Claim + resolve — EVERY resolve goes through a per-process rename-locked window.
 
     Unified after three closer rounds (C1/E1/E2): the direct append-at-path branch let a
@@ -1315,6 +1436,11 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
     targets it), ``utime`` stamps the WINDOW's open time, append, rename back. A concurrent
     ack/claim/requeue during the window gets ENOENT (no archive/<id>.md exists). A message
     already RESOLVED (ack line present) raises — the double-ack loser semantics hold.
+
+    A ``merge-request`` is guarded BEFORE any rename or append (spec § Contract deltas): only
+    its addressee may ack it, ``done`` needs a verified ``merge_sha``, and ``blocked`` or
+    ``wontfix`` (both refusals) a ``reason`` naming the refused step; both land on the ack line. ``reason`` stays optional
+    (and recorded) for every other kind; ``merge_sha`` is refused on them.
     """
     _safe_id(msg_id)
     _safe_name(repo, "repo")
@@ -1325,6 +1451,30 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
     base = _mail_root() / repo
     src = base / "inbox" / f"{msg_id}.md"
     dst = base / "archive" / f"{msg_id}.md"
+    # str.split() breaks on EVERY separator _parse honours (\v \f \x1c-\x1e \x85   …), so a
+    # reason can never end the ack line early or plant a second one
+    why = " ".join((reason or "").split())
+    extra = f" · reason: {why}" if why else ""
+    # Judge the message WHEREVER it lives — inbox, archive, or a resolving window a crashed
+    # ack left behind (the sweep below would restore that window and append to it, so a guard
+    # blind to it is a bypass). Every window is a copy of the same message: same kind, same agent.
+    windows = sorted(dst.parent.glob(f"{msg_id}.md.resolving.*"))
+    mr = _merge_request_at(src, dst, *windows)
+    if mr is None:
+        if merge_sha:
+            raise MailRefusedError(f"{msg_id}: --merge-sha applies only to a merge-request")
+    else:
+        _refuse_non_addressee(msg_id, mr[0], "ack")
+        if disposition in ("blocked", "wontfix") and not why:
+            # both are refusals, and a refusal carries its reason (spec § The delta 5(h))
+            raise MailRefusedError(
+                f"{msg_id}: ack --disposition {disposition} of a merge-request needs --reason "
+                "naming the refused step"
+            )
+        if disposition == "done":
+            extra = f" · merge-sha: {_verify_merge_sha(msg_id, mr[1], merge_sha)}{extra}"
+        elif merge_sha:
+            raise MailRefusedError(f"{msg_id}: --merge-sha applies only to --disposition done")
     dst.parent.mkdir(parents=True, exist_ok=True)
     try:
         os.rename(src, dst)  # claim if still in inbox — the race lock (loser: ENOENT later)
@@ -1378,7 +1528,10 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
     try:
         if _ACK_LINE.search(win.read_text(encoding="utf-8", errors="replace")):
             raise FileNotFoundError(f"{msg_id} already resolved")
-        _append_ack_line(win, repo, disposition)
+        if extra:
+            _append_ack_line(win, repo, disposition, extra)
+        else:  # the unchanged 3-arg call — every existing ack (and its seams) stays byte-identical
+            _append_ack_line(win, repo, disposition)
     finally:
         os.rename(win, dst)
     return dst
@@ -1905,6 +2058,17 @@ def main(argv: list[str] | None = None) -> int:
     p_ack.add_argument("id")
     p_ack.add_argument("--repo")
     p_ack.add_argument("--disposition", default="done", choices=list(DISPOSITIONS))
+    p_ack.add_argument(
+        "--merge-sha",
+        dest="merge_sha",
+        help="merge-request + done (required): the merge commit — an ancestor of base whose "
+        "message names the request and whose history holds its head",
+    )
+    p_ack.add_argument(
+        "--reason",
+        help="written on the ack line; REQUIRED for a merge-request's blocked or wontfix "
+        "(the refused step)",
+    )
 
     p_route = sub.add_parser(
         "route", help="set/clear the intra-mailbox addressee on a message already in the inbox"
@@ -2042,7 +2206,13 @@ def main(argv: list[str] | None = None) -> int:
             _note_mail_claim(args.id, repo, dst)
         elif args.cmd == "ack":
             repo = args.repo or _current_repo()
-            dst = ack(args.id, repo, disposition=args.disposition)
+            dst = ack(
+                args.id,
+                repo,
+                disposition=args.disposition,
+                merge_sha=args.merge_sha,
+                reason=args.reason,
+            )
             print(dst)
             _note_mail_ack(args.id, repo, args.disposition)
         elif args.cmd == "route":

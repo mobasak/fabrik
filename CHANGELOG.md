@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `merge-request` mail kind with addressee and merge-SHA guards (2026-10-01)
+
+`scripts/mail.py`: new `merge-request` kind (`ack: required`). `claim` and `ack` of one are refused unless the caller resolves (via `whoami_agent.resolve_agent_name`, fail-closed) to its `agent:` — also when the message sits in a crashed ack's stale `.resolving.*` window. `ack --disposition done` needs `--merge-sha` that is an ancestor of base, names the request id, and has the request head in its history (O34); `blocked` and `wontfix` need `--reason`. The merge SHA and the reason are written onto the ack line. Tests: `tests/test_mail_merge_request.py` (T01a, plan 2026-09-30-plan-1-merge-request-loop).
+
 ### Fixed — Merge owner is the highest-id ledger row; superseding rows count; readers agree (2026-10-01)
 
 `decisions.py --merge-owner`, `docs_updater.read_merge_owner` and the `session_orient.py` hook picked the bottom-most `MERGE OWNER:` row, although the ledger's header says row position is a convention nothing reads, and none of them read a `supersedes D-NNN: MERGE OWNER: <name>` row. All three now apply one rule: the highest D-id wins wherever it sits; an optional supersedes clause (the ledger's real spellings, any case, up to the cell's first `:` or `.`) may precede an exact uppercase `MERGE OWNER:`; a winning `MERGE OWNER: UNDECLARED` row means no owner (`--merge-owner` now exits 3 instead of printing UNDECLARED at rc 0). The hook reads the whole ledger (16 MB cap, cut line dropped) instead of a 64 KB head+tail window, and `read_merge_owner` decodes GFM cells like the other two. A shared-fixture parity test runs all three readers over 24 cases. Precondition of plan 2026-09-30-plan-1-merge-request-loop T02 (W-076ff4a9).
