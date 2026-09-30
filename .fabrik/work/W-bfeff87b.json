@@ -1,0 +1,26 @@
+{
+  "block_digest": "8f62a2079cdfb4e2f9b83791f6698410fe16931798d648fac8e01f120ac03ab7",
+  "blocked_by": [],
+  "created": "2026-09-30T00:46:37.439722Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "underivable",
+  "id": "W-bfeff87b",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "253e03d77e26b9d9658a06b4d31e05fcb29a21b35a5533cd19ccd860744f2dd9"
+  ],
+  "next": "",
+  "note": "duplicate of W-7ca634e9",
+  "owner": "",
+  "priority": 2,
+  "question": "Should the hub's `libs/subagents` copy follow fabrik-lib's canonical module (commit the re-vendored files), or go back to the hub's last committed version?",
+  "status": "dropped",
+  "title": "Should the hub's `libs/subagents` copy follow fabrik-lib's canonical module (commit the re-vendored files), or go back to the hub's last committed version?"
+}

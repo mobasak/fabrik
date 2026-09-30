@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T07:12:51.926740Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-26527641",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure how many fleet repos gitignore 'node_modules/' AND symlink it into worktrees, then fix at the source that emits the rule (scaffold or the synced gitignore block) under /fabrik-review-scoped",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "worktree"
+  ],
+  "title": "A worktree that symlinks node_modules (symlinkDirectories) shows '?? node_modules': a 'node_modules/' gitignore rule matches directories only, never a symlink — the worktree recipe/template needs '/node_modules' (or 'node_modules' without the slash); reported by fabrik-lib's sentinel 2026-09-30, reproduced in a scratch repo"
+}
