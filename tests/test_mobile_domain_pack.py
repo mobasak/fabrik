@@ -104,8 +104,9 @@ def test_every_cited_sibling_section_exists() -> None:
     for pack_name, section in cites:
         target = next(RULES.rglob(pack_name), None)
         heads = _headings(target) if target else []
-        # a cite may shorten a heading ("Lists") or run on into prose ("App Identity owns the setup")
-        if not any(h.startswith(section) or section.startswith(h) for h in heads):
+        # a cite may shorten a heading ("Lists" for "Lists & Scrolling Performance"), never extend it:
+        # a two-way match would pass a heading renamed to a shorter prefix ("App Identity" -> "App")
+        if not any(h.startswith(section) for h in heads):
             missing.append(f"{pack_name} § {section}")
     assert not missing, f"cited sections not found: {missing}"
 

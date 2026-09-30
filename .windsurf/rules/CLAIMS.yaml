@@ -2225,7 +2225,7 @@ claims:
     pack: mobile-app/00-domain-mobile-app.md
     kind: pricing
     claim: "In the EU/EEA both stores allow store billing, link-out to web checkout, or an alternative in-app provider; Apple's terms change again on 1 October 2026 and Google Play's EEA terms changed on 30 June 2026, and both now leave a small developer a fee difference outside store billing — so the pack forces the three-way decision instead of ruling it out"
-    verify: "https://developer.apple.com/support/dma-and-apps-in-the-eu/ ; https://www.apple.com/newsroom/2026/08/apple-announces-changes-for-apps-in-the-european-union/ ; https://support.google.com/googleplay/android-developer/answer/16954621 (WebFetch + WebSearch/brave/exa, 2026-09-30; ledger sp-02, op-01)"
+    verify: "https://developer.apple.com/support/dma-and-apps-in-the-eu/ ; https://www.apple.com/newsroom/2026/08/apple-announces-changes-for-apps-in-the-european-union/ ; https://support.google.com/googleplay/android-developer/answer/16954621 (WebFetch + WebSearch/brave/exa, 2026-09-30; ledger sp-02, sp-06, op-01)"
     window_days: 90
     last_verified: 2026-09-30
 
@@ -2241,7 +2241,7 @@ claims:
     pack: mobile-app/00-domain-mobile-app.md
     kind: policy
     claim: "Turkey is outside Google Play's User Choice Billing and External Offers programs and outside Apple's EU terms, so store billing stays mandatory for digital goods on both stores"
-    verify: "https://support.google.com/googleplay/android-developer/answer/13821247 ; https://support.google.com/googleplay/android-developer/answer/14372887 (WebSearch + brave + exa, 2026-09-30; ledger sp-03)"
+    verify: "https://support.google.com/googleplay/android-developer/answer/13821247 ; https://support.google.com/googleplay/android-developer/answer/14372887 (WebSearch + brave + exa, 2026-09-30; ledger sp-03, sp-07)"
     window_days: 180
     last_verified: 2026-09-30
 
@@ -2249,7 +2249,7 @@ claims:
     pack: mobile-app/00-domain-mobile-app.md
     kind: practice
     claim: "EAS Update ships JavaScript, styles and compatible assets only, never native code; Shorebird code push supports Flutter only, not React Native"
-    verify: "https://docs.expo.dev/eas-update/introduction/ ; https://docs.shorebird.dev/code-push/ (WebSearch + WebFetch, 2026-09-30; ledger sp-05, op-06)"
+    verify: "https://docs.expo.dev/eas-update/introduction/ ; https://docs.shorebird.dev/code-push/ (WebSearch + WebFetch, 2026-09-30; ledger sp-05, sp-08, op-06)"
     window_days: 365
     last_verified: 2026-09-30
 
@@ -2265,7 +2265,7 @@ claims:
     pack: mobile-app/00-domain-mobile-app.md
     kind: practice
     claim: "Apple has announced no deprecation timeline for SKAdNetwork; AdAttributionKit runs beside it with uneven adoption and is the only Apple attribution that covers installs from EU alternative marketplaces and web distribution; Android's Install Referrer is deterministic and iOS has no equivalent; Firebase Dynamic Links shut down on 25 August 2025"
-    verify: "https://developer.apple.com/support/apps-in-the-eu/ ; https://developer.apple.com/videos/play/wwdc2025/221/ ; https://firebase.google.com/support/dynamic-links-faq (brave + exa, 2026-09-30; ledger at-03..at-05)"
+    verify: "https://developer.apple.com/support/apps-in-the-eu/ ; https://www.appsflyer.com/glossary/install-referrer/ ; https://firebase.google.com/support/dynamic-links-faq (brave + exa, 2026-09-30; ledger at-03..at-05)"
     window_days: 180
     last_verified: 2026-09-30
 

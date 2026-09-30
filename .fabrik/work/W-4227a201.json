@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "reword or drop the comment in the mobile-app template compose (and any sibling template carrying it), keep the memory limit",
+  "next": "reword or drop the generator comment at src/fabrik/scaffold.py:1067, keep the memory limit it explains, and re-emit one scaffold to confirm",
   "note": "",
   "owner": "fleet",
   "priority": 2,
@@ -19,5 +19,5 @@
   "tags": [
     "template"
   ],
-  "title": "templates/mobile-app compose.yaml carries a stale comment about Coolify v4 beta limits_memory, though fabrik apply rejects coolify"
+  "title": "src/fabrik/scaffold.py:1067 (the shared compose generator, every scaffold type) emits a stale comment about Coolify v4 beta limits_memory, though fabrik apply rejects coolify"
 }
