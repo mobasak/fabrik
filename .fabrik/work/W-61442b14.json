@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-29T23:53:18.572372Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "f74d675226bd0c9a3339231b6dd91801a07123fc",
   "id": "W-61442b14",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "cross-repo"
   ],
