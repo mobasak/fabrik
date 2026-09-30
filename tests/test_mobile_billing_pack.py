@@ -34,13 +34,38 @@ requires_fabrik_env = pytest.mark.skipif(
 )
 
 
-def _blocks(lang: str) -> list[str]:
-    return re.findall(rf"```{lang}\n(.*?)```", PACK.read_text(encoding="utf-8"), re.S)
+def _block(lang: str, marker: str) -> str:
+    """The one fenced block of `lang` that carries `marker` — never "the first block", which a new example above
+    it would silently replace."""
+    found = [
+        b
+        for b in re.findall(rf"```{lang}\n(.*?)```", PACK.read_text(encoding="utf-8"), re.S)
+        if marker in b
+    ]
+    assert len(found) == 1, f"expected one {lang} block containing {marker!r}, found {len(found)}"
+    return found[0]
 
 
 def _webhook() -> ast.AsyncFunctionDef:
-    tree = ast.parse(_blocks("python")[0])
+    tree = ast.parse(_block("python", "revenuecat_webhook"))
     return next(n for n in ast.walk(tree) if isinstance(n, ast.AsyncFunctionDef))
+
+
+def _guards(fn: ast.AST, callee: str, exit_type: type) -> list[ast.If]:
+    """`if not [await] <callee>(...):` whose body exits with `exit_type` — the result must GATE, not be discarded."""
+    out = []
+    for n in ast.walk(fn):
+        if not (
+            isinstance(n, ast.If)
+            and isinstance(n.test, ast.UnaryOp)
+            and isinstance(n.test.op, ast.Not)
+        ):
+            continue
+        inner = n.test.operand.value if isinstance(n.test.operand, ast.Await) else n.test.operand
+        if isinstance(inner, ast.Call) and ast.unparse(inner.func).endswith(callee):
+            if any(isinstance(s, exit_type) for s in n.body):
+                out.append(n)
+    return out
 
 
 def _calls_in_order(fn: ast.AST) -> list[str]:
@@ -51,6 +76,9 @@ def _calls_in_order(fn: ast.AST) -> list[str]:
 
 def test_webhook_reads_the_secret_so_a_missing_one_fails() -> None:
     src = ast.unparse(_webhook())
+    assert _guards(_webhook(), "compare_digest", ast.Raise), (
+        "the compare's result must raise on mismatch"
+    )
     assert "settings.revenuecat_webhook_auth" in src
     assert "getenv" not in src and "Bearer" not in src, (
         "RevenueCat sends the configured value verbatim; os.getenv turns a missing secret into 'Bearer None'"
@@ -59,6 +87,9 @@ def test_webhook_reads_the_secret_so_a_missing_one_fails() -> None:
 
 
 def test_webhook_dedupes_before_it_writes_state() -> None:
+    assert _guards(_webhook(), "record_event_once", ast.Return), (
+        "a repeat event must return before any write"
+    )
     order = _calls_in_order(_webhook())
     assert "record_event_once" in order and "sync_entitlements" in order
     assert order.index("record_event_once") < order.index("sync_entitlements"), (
@@ -68,19 +99,27 @@ def test_webhook_dedupes_before_it_writes_state() -> None:
 
 def test_webhook_never_branches_on_the_event_type_for_state() -> None:
     fn = _webhook()
-    compared = [
-        ast.unparse(n)
+    # every read of event["type"] — a compare, a dict lookup, a match subject, a truth test
+    reads = [
+        n
         for n in ast.walk(fn)
-        if isinstance(n, ast.Compare) and "type" in ast.unparse(n.left)
+        if isinstance(n, ast.Subscript) and ast.unparse(n) == "event['type']"
     ]
-    assert compared == ["event['type'] == 'TEST'"], (
-        f"state must come from the re-read, not the event type; found {compared}"
+    compares = [ast.unparse(n) for n in ast.walk(fn) if isinstance(n, ast.Compare)]
+    assert len(reads) == 1 and "event['type'] == 'TEST'" in compares, (
+        f"state must come from the re-read, not the event type; event['type'] is read {len(reads)} times"
+    )
+    assert not any(isinstance(n, ast.Match) for n in ast.walk(fn)), (
+        "no match statement on the event"
     )
 
 
 def test_client_sample_uses_one_key_per_platform_and_does_not_await_configure() -> None:
-    ts = _blocks("typescript")[0]
+    ts = _block("typescript", "Purchases.configure")
     assert "EXPO_PUBLIC_REVENUECAT_IOS_KEY" in ts and "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY" in ts
+    assert "process.env" not in ts, (
+        "read the keys through the scaffold's validated env.ts, never raw process.env"
+    )
     assert "await Purchases.configure" not in ts
     assert "Purchases.logIn(" in ts
 

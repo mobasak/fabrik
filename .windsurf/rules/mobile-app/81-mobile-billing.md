@@ -58,11 +58,12 @@ RevenueCat abstracts Google Play Billing and StoreKit into one subscription back
 // React Native (react-native-purchases) — configure ONCE at app start; configure() is synchronous
 import { Platform } from 'react-native';
 import Purchases from 'react-native-purchases';
+import Env from 'env'; // the scaffold's zod-validated env — declare both keys in its schema
 
 Purchases.configure({
   apiKey: Platform.OS === 'ios'
-    ? process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY!      // appl_… — one public key per platform
-    : process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY!, // goog_…
+    ? Env.EXPO_PUBLIC_REVENUECAT_IOS_KEY      // appl_… — one public key per platform
+    : Env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY, // goog_…
 });
 
 // After sign-in: tie purchases to the backend's user id; on sign-out, Purchases.logOut()
@@ -73,7 +74,7 @@ const info = await Purchases.getCustomerInfo();
 const isPremium = info.entitlements.active['premium'] !== undefined;
 ```
 
-- RevenueCat issues **one public SDK key per platform** (`appl_…`, `goog_…`). The scaffold's `.env.example` ships a single `EXPO_PUBLIC_REVENUECAT_API_KEY` slot — split it into the two keys above.
+- RevenueCat issues **one public SDK key per platform** (`appl_…`, `goog_…`). The scaffold's `.env.example` ships a single `EXPO_PUBLIC_REVENUECAT_API_KEY` slot — split it into the two keys above and add both to `env.ts`'s schema, so a missing key fails at startup instead of reaching `configure` as `undefined`.
 - Real purchases need an EAS development build — Expo Go only mocks the store.
 - The RevenueCat app user id is the backend's `users.id` (the table `fabrik-lib/fastapi-user-auth` creates on `postgres-main`), set with `Purchases.logIn` after sign-in.
 - **Never trust client-side entitlement state for gating premium content.** Client checks drive UX only.
@@ -96,25 +97,27 @@ async def revenuecat_webhook(
         raise HTTPException(status_code=401, detail="Invalid authorization")
 
     event = (await request.json())["event"]
-    if event.get("environment") == "SANDBOX" and settings.env == "production":
+    if event.get("environment") == "SANDBOX" and settings.app_env == "production":
         return {"status": "ignored"}  # sandbox purchases never grant production access
 
-    # 2. Delivery is at-least-once and retried: record the event id first, skip a repeat.
-    if not await record_event_once(db, event["id"]):
-        return {"status": "duplicate"}
-    if event["type"] == "TEST":
-        return {"status": "ok"}
+    # 2. Delivery is at-least-once and retried: record the event id and sync in ONE transaction. If the re-read
+    #    fails, the event row rolls back with it and RevenueCat's retry processes the event again.
+    async with db.begin():
+        if not await record_event_once(db, event["id"]):  # INSERT … ON CONFLICT (event_id) DO NOTHING
+            return {"status": "duplicate"}
+        if event["type"] == "TEST":
+            return {"status": "ok"}
 
-    # 3. Events can arrive out of order and differ in shape: never infer state from event["type"].
-    #    Re-read the customer from RevenueCat and store its active entitlements + expiry.
-    #    TRANSFER carries transferred_from / transferred_to instead of app_user_id — sync every id it names.
-    for user_id in event_user_ids(event):
-        await sync_entitlements(db, user_id)  # GET /v1/subscribers/{user_id} → entitlement rows with expires_at
+        # 3. Events can arrive out of order and differ in shape: never infer state from event["type"].
+        #    Re-read the customer from RevenueCat and store its active entitlements + expiry.
+        #    TRANSFER carries transferred_from / transferred_to instead of app_user_id — sync every id it names.
+        for user_id in event_user_ids(event):
+            await sync_entitlements(db, user_id)  # GET /v1/subscribers/{user_id} → entitlement rows with expires_at
 
     return {"status": "ok"}
 ```
 
-- **The webhook needs a database.** The scaffold's `server/` ships with no database and no auth; billing is the moment to flip `needs_database` and `has_bearer_api` (`00-domain-mobile-app.md` §4) and add two tables: entitlement rows (`user_id`, `entitlement_id`, `expires_at`) and `webhook_events` with a unique `event_id`.
+- **The webhook needs a database and two settings.** The scaffold's `server/` ships with no database and no auth; billing is the moment to flip `needs_database` and `has_bearer_api` (`00-domain-mobile-app.md` §4) and add two tables — entitlement rows (`user_id`, `entitlement_id`, `expires_at`) and `webhook_events` with a unique `event_id` — plus two required fields on the backend's `Settings` (`core/10-python.md`): `revenuecat_webhook_auth: str` and `app_env: str`.
 - Answer RevenueCat quickly (it retries a slow or failed delivery); the single re-read is the only work done inline.
 - **CANCELLATION means auto-renew is off (or a refund) — never revoke on it.** Access follows the entitlement's expiry, which the re-read returns; with grace periods on, BILLING_ISSUE and CANCELLATION arrive together and EXPIRATION only if the grace period lapses.
 - Gate premium API routes on the stored entitlement (`expires_at > now()`), not on a RevenueCat call per request.
