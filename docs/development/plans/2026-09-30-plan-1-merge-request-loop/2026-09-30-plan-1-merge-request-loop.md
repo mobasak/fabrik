@@ -1,6 +1,6 @@
 # Plan — the merge-request loop: finished work reaches base safely and at once, in every repo
 
-Status: CONVERGED
+Status: IN-PROGRESS
 **Owner:** infra
 Spec: docs/superpowers/specs/2026-09-30-merge-request-loop-design.md
 Date: 2026-09-30
@@ -35,7 +35,7 @@ the spec section it implements and restates nothing that section settles.
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01a | mail.py: the merge-request kind and its two guards | — | ⚡ | ⬜ | |
+| T01a | mail.py: the merge-request kind and its two guards | — | ⚡ | 🔵 | |
 | T01b | mail.py who: the live sessions of an agent in this repo | T01a | ⛓️ | ⬜ | |
 | T02 | merge_request.py request: finishing work sends one request | T01b | ⛓️ | ⬜ | |
 | T03 | merge_request.py merge and resume: the one data-safe merge path | T02 | ⛓️ | ⬜ | |
