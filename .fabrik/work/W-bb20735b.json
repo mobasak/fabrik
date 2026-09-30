@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "reword version-free at saas/88's next touch, as saas/87 now does ('MIT again from its current major on')",
+  "next": "at saas/88's next touch: reword the FingerprintJS licence version-free, and point the registration_ip write at saas/87 \u00a7 Where it goes step 3 (the async write after the 201), not the sync module call",
   "note": "",
   "owner": "intel",
   "priority": 2,
@@ -19,5 +19,5 @@
   "tags": [
     "rules"
   ],
-  "title": "saas/88-saas-launch-checklist carries the tool-version literal 'FingerprintJS — MIT-licensed again since v5' outside a marker span"
+  "title": "saas/88-saas-launch-checklist \u00a7 Abuse Prevention drifted from saas/87 (2026-09-30): the 'MIT-licensed again since v5' tool-version literal, and :83 names the sync store_registration_metadata as the registration_ip write"
 }

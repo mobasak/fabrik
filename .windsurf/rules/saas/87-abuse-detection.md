@@ -40,9 +40,11 @@ A saas-skeleton's identity provider is the vendored `fastapi-user-auth` module (
 3. Wrap `send`: when the router answers `201`, read `user_id` from the body and store `registration_ip` (and a fingerprint header, once Phase 2 collects one) on that user — without this write, the cap counts rows that never carry an IP and refuses nothing.
 4. Test end to end: the third signup from one IP inside 24h returns `429`, and a disposable address returns `422`. A mocked count proves nothing here.
 
+The cap is check-then-write — the IP lands on the row only after the `201` — so a burst of parallel signups from one IP passes step 2 together. The burst bound is `core/35-security-auth.md`'s Redis token bucket on the signup route; keep this middleware behind it, never instead of it.
+
 When a project opens the passwordless door, wire the same checks into the hooks, and read the module README's § Consumer signup seams first. `on_signup_attempt` takes **no arguments**: it receives neither the request nor the email, so bind both in a `ContextVar` from a pure ASGI middleware or an async dependency (a sync `def` dependency runs in a threadpool and its `.set()` never reaches the handler). Both hooks **fail open** on an unexpected error, a refusal has already spent the single-use code, and the hooks can double-fire under a create race — so every write they make must be idempotent. A disposable-domain refusal belongs at `POST /auth/passwordless/request` instead, before a code is minted and mailed.
 
-**The client IP is the module's `client_ip(request, settings.trusted_proxy_hops)` — never the raw `X-Forwarded-For` header and never its left-most entry.** Every proxy appends the peer it saw, so the left-most value is whatever the client sent; keying a limit on it lets one attacker mint unlimited distinct keys. On the fleet, Traefik is the only public proxy (Cloudflare DNS is unproxied — `docs/infrastructure/vps-urls.md`), so `trusted_proxy_hops=1`. Putting a domain behind a CDN adds a hop — re-derive the count then, never raise it blindly. In a pure ASGI middleware, build `Request(scope)` and pass it to `client_ip`.
+**The client IP is the module's `client_ip(request, settings.trusted_proxy_hops)` — never the raw `X-Forwarded-For` header and never its left-most entry.** Every proxy appends the peer it saw, so the left-most value is whatever the client sent; keying a limit on it lets one attacker mint unlimited distinct keys. On the fleet, Traefik is the only public proxy (Cloudflare DNS is unproxied — `/opt/fabrik/docs/infrastructure/vps-urls.md`, hub-local), so `trusted_proxy_hops=1`. Putting a domain behind a CDN adds a hop — re-derive the count then, never raise it blindly. In a pure ASGI middleware, build `Request(scope)` and pass it to `client_ip`.
 
 ---
 
@@ -56,7 +58,7 @@ When a project opens the passwordless door, wire the same checks into the hooks,
 | **Per-IP account cap** | Max 2 new accounts per IP per rolling 24h (`ABUSE_MAX_REG_PER_IP`) | None for most users | $0 |
 | **Disposable email block** | Reject throwaway-inbox domains | None for real users | $0 |
 
-- Credits/quota are granted only **after** verification — never on registration alone. On the password door that grant site is `POST /auth/verify-email`, which has no hook either: grant from the same kind of path-scoped middleware on its success response, or from the first authenticated request of a verified user.
+- Credits/quota are granted only **after** verification — never on registration alone. On the password door, `POST /auth/verify-email` has no hook and neither its body (an opaque token) nor its response (`{"status": "verified"}`) carries the user id, so a middleware cannot grant there: grant on the first authenticated request of a user whose `email_verified` is true, with the once-only `UPDATE` of Layer 2.
 - Store `registration_ip` (INET) and, once collected, `registration_fingerprint` (VARCHAR 64) on the user row.
 - **The cap is a blunt instrument.** An office, a university or a mobile carrier's CGNAT puts many real users behind one IPv4 address, and one IPv6 user controls a whole /64 — so an exact-address count over-blocks the first and under-counts the second. Count IPv6 by its /64 prefix (the query in § Adaptation Checklist), return a message that says what to do next, and keep the default low only while the free tier is worth farming.
 - **Never strip dots or a `+suffix` before storing.** Consumer Gmail (`gmail.com`) ignores dots and a `+suffix` in the local part, so `a.b+1@gmail.com` and `ab@gmail.com` are one inbox — but a Google Workspace domain does not ignore dots. Compare a normalised form when clustering accounts (dots only for `gmail.com`), and keep the address the user typed as the login.
@@ -176,7 +178,7 @@ Import it by its own directory, the way the scaffold imports `server/libs/audit_
 ## Adaptation Checklist (after vendoring)
 
 1. Apply the schema through `server/db/schema.sql` with the UUID `delayed_grants` (§ Database Schema).
-2. **Port the two database checks to the async session; use the module for the domain set and the quota split.** The module speaks synchronous DB-API (psycopg) while the scaffold's request path is async SQLAlchemy on asyncpg, and its checks hide their own failures. The ported count, with IPv6 per /64:
+2. **Port the database calls to the async session — the IP count, `store_registration_metadata`'s `UPDATE` (step 3 of § Where it goes) and the grant writes; use the module for the domain set and the quota split.** The module speaks synchronous DB-API (psycopg) while the scaffold's request path is async SQLAlchemy on asyncpg, and its checks hide their own failures. The ported count, with IPv6 per /64:
 
    ```sql
    SELECT count(*) FROM users
