@@ -953,7 +953,18 @@ _EPIC_STATUS = {"0": "TODO", "1": "IN_PROGRESS", "2": "DONE"}  # EPIC-ARTIFACT-S
 # D1 (multi-agent-per-repo spec): the merge owner is ONE ledger row per repo — grammar
 # shared verbatim with scripts/decisions.py's `--merge-owner` (T01; no import — see the
 # Interfaces seam: both tests share one fixture ledger and must agree on the same name).
-MERGE_OWNER_RE = re.compile(r"^\**\s*MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I)
+# W-076ff4a9: a changed owner is a NEW row opening `supersedes D-NNN:`, so the prefix is
+# optional before the phrase; the un-adoption row is TOKEN-exact, as in decisions.py.
+_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+(?:\s*,\s*D-\d+)*\s*:[\s*]*)?"
+MERGE_OWNER_RE = re.compile(
+    r"^\**\s*" + _SUPERSEDES_PREFIX + r"MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I
+)
+_UNDECLARED_RE = re.compile(
+    r"^\**\s*"
+    + _SUPERSEDES_PREFIX
+    + r"MERGE OWNER:\s*UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-])",
+    re.I,
+)
 _DECISION_ROW_ID_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
 # --adopt's own name grammar — IDENTICAL to epic_order.py's `_OWNER_NAME_RE`
 # (`^[a-z0-9-]{1,32}$`, epic_order.py:748), not merely "the same class": a name
@@ -1190,16 +1201,19 @@ def _tag_backlog_rows(text: str, names: list[str]) -> tuple[str, list[tuple[str,
 
 
 def read_merge_owner() -> tuple[str, str] | None:
-    """The `(name, "D-NNN")` declared by the LAST row of `docs/DECISIONS.md` whose `what`
-    cell (cells[3] — decisions.py's own cell scan in `_rows`) matches MERGE_OWNER_RE. A LATER row
-    always wins: a changed merge owner is a NEW row that supersedes, never an edit of this
-    one (the ledger's own law). `None` when the ledger is missing/unreadable or no row
-    matches — the repo hasn't adopted yet."""
+    """The `(name, "D-NNN")` declared by the HIGHEST-id row of `docs/DECISIONS.md` whose `what`
+    cell (cells[3] — decisions.py's own cell scan in `_rows`) matches MERGE_OWNER_RE, optionally
+    after a `supersedes D-NNN:` prefix. The id decides, never the row's position (the ledger's
+    header: position is a convention nothing reads — W-076ff4a9): a changed merge owner is a NEW
+    row that supersedes, never an edit of this one. `None` when the ledger is missing/unreadable,
+    no row matches (the repo hasn't adopted yet), or the winning row is the un-adoption row
+    `MERGE OWNER: UNDECLARED` — the same answer as `decisions.py --merge-owner`'s exit 3."""
     ledger = PROJECT_ROOT / "docs" / "DECISIONS.md"
     try:
         text = ledger.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
+    best = -1
     found: tuple[str, str] | None = None
     for line in text.splitlines():
         stripped = line.strip()
@@ -1208,9 +1222,16 @@ def read_merge_owner() -> tuple[str, str] | None:
         cells = [c.strip() for c in stripped.strip("|").split("|")]
         if len(cells) < 4:
             continue
-        m = MERGE_OWNER_RE.match(cells[3])
-        if m:
-            found = (m.group(1), cells[0].upper())
+        if _UNDECLARED_RE.match(cells[3]):
+            row: tuple[str, str] | None = None
+        else:
+            m = MERGE_OWNER_RE.match(cells[3])
+            if not m:
+                continue
+            row = (m.group(1), cells[0].upper())
+        num = int(cells[0][2:])
+        if num >= best:  # an (illegal) duplicate id resolves to the later row, as before
+            best, found = num, row
     return found
 
 

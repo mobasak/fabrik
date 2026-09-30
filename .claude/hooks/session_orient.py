@@ -216,8 +216,14 @@ def _memory_line(cwd: str) -> str:
 # our own. `docs_updater.py` states the permissiveness is deliberate ("stays permissive so
 # it can still READ a name minted before this tightening"), so a narrower copy here would be
 # a silent third dialect; the length cap belongs at RENDER time and lives in `_identity_line`.
+# W-076ff4a9: a changed owner is a NEW row whose what-cell OPENS `supersedes D-NNN:` (the ledger's
+# own law), so that prefix is optional before the phrase — shared byte for byte with both sources.
+_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+(?:\s*,\s*D-\d+)*\s*:[\s*]*)?"
 _MERGE_OWNER_RE = re.compile(
-    r"^\**\s*MERGE OWNER:\s*(?!UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-]))([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I
+    r"^\**\s*"
+    + _SUPERSEDES_PREFIX
+    + r"MERGE OWNER:\s*(?!UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-]))([A-Za-z0-9][A-Za-z0-9_.@-]*)",
+    re.I,
 )
 _LEDGER_ROW_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
 _LEDGER_WINDOW_BYTES = 64 * 1024  # bounded like every other read here (see _MEMORY_READ_BYTES)
@@ -233,10 +239,10 @@ _LEDGER_WINDOW_BYTES = 64 * 1024  # bounded like every other read here (see _MEM
 
 
 def _declared_merge_owner(cwd: str) -> str:
-    """The agent name this repo's LEDGER declares as merge owner, or "". The LAST matching row
-    wins — the ledger's own law (a changed owner is a NEW superseding row), matching
-    `docs_updater.py::read_merge_owner`. Returns "" for an unadopted repo, a missing or
-    unreadable ledger, and a decode/parse failure. ⚠️ It does NOT catch every exception: the
+    """The agent name this repo's LEDGER declares as merge owner, or "". The HIGHEST-id matching
+    row in the window wins, never the bottom-most (a changed owner is a NEW superseding row; row
+    position is a convention nothing reads), matching `docs_updater.py::read_merge_owner`.
+    Returns "" for an unadopted repo, a missing or unreadable ledger, and a decode/parse failure. ⚠️ It does NOT catch every exception: the
     fail-open boundary for this hook is `_identity_line`'s own `except Exception`, and saying
     so here rather than claiming a guarantee this function does not hold."""
     try:
@@ -269,7 +275,12 @@ def _declared_merge_owner(cwd: str) -> str:
 # cannot import it); `tests/test_session_orient_hook.py` compares the result to the real
 # `decisions.py --merge-owner` over escaped-pipe, code-span and escaped-name ledgers.
 _ESCAPABLE = frozenset("""!"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~""")  # GFM: punctuation only
-_UNDECLARED_RE = re.compile(r"^\**\s*MERGE OWNER:\s*UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-])", re.I)
+_UNDECLARED_RE = re.compile(
+    r"^\**\s*"
+    + _SUPERSEDES_PREFIX
+    + r"MERGE OWNER:\s*UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-])",
+    re.I,
+)
 
 
 def _code_span_ranges(s: str) -> list[tuple[int, int]]:
@@ -338,9 +349,12 @@ def _cells(row: str) -> list[str]:
 
 
 def _owner_in(text: str) -> str:
-    """The LAST `MERGE OWNER:` row's name in `text` (column 4 of a `| D-NNN |` row), or "". An
-    un-adoption row (`MERGE OWNER: UNDECLARED`) is a row too: when it is last, nobody owns the
-    repo — `decisions.py --merge-owner` answers `UNDECLARED` for it."""
+    """The HIGHEST-id `MERGE OWNER:` row's name in `text` (column 4 of a `| D-NNN |` row, an
+    optional `supersedes D-NNN:` prefix allowed), or "". Position never decides: the ledger's
+    header says row order is a convention nothing reads (W-076ff4a9). An un-adoption row
+    (`MERGE OWNER: UNDECLARED`) is a row too: when its id is highest, nobody owns the repo —
+    `decisions.py --merge-owner` answers `UNDECLARED` at exit 3 for it."""
+    best = -1
     found = ""
     for line in text.splitlines():
         s = line.strip()
@@ -350,12 +364,22 @@ def _owner_in(text: str) -> str:
         if len(cells) < 4:
             continue
         if _UNDECLARED_RE.match(cells[3]):
-            found = ""
-            continue
-        m = _MERGE_OWNER_RE.match(cells[3])
-        if m:
-            found = m.group(1)
+            name = ""
+        else:
+            m = _MERGE_OWNER_RE.match(cells[3])
+            if not m:
+                continue
+            name = m.group(1)
+        num = _row_id(cells[0])
+        if num >= best:  # an (illegal) duplicate id resolves to the later row, as before
+            best, found = num, name
     return found
+
+
+def _row_id(cell: str) -> int:
+    """The numeric part of a `D-NNN` id cell; -1 when the decoded cell carries none."""
+    m = re.match(r"D-(\d+)", cell, re.I)
+    return int(m.group(1)) if m else -1
 
 
 # The WHOLE-ledger read the move line needs. `decisions.py --merge-owner` (the named source) reads
@@ -369,7 +393,7 @@ _LEDGER_MAX_BYTES = 16 * 1024 * 1024
 
 
 def _ledger_merge_owner(top: str) -> str:
-    """The merge owner the ledger at `<top>/docs/DECISIONS.md` declares (last row wins), or ""."""
+    """The merge owner the ledger at `<top>/docs/DECISIONS.md` declares (highest id wins), or ""."""
     try:
         path = Path(top) / "docs" / "DECISIONS.md"
         if not path.is_file():
