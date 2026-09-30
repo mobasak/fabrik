@@ -1,0 +1,26 @@
+{
+  "block_digest": "9672b681b08db1c37e6fb59025bbbee3c20abcdff69b00734cfb889d3e476806",
+  "blocked_by": [],
+  "created": "2026-09-30T22:56:49.155534Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-3e35f81a",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "3308ebc964878d5cbfc17089da34246ce3c2c0a571e4b5351f1be5449eb3116f"
+  ],
+  "next": "",
+  "note": "duplicate of W-d1d59d4d — same fulfilment-role design approval, re-asked by my closing DECISION block",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve the reviewed design for the payments fulfilment-worker role (`docs/superpowers/specs/2026-09-30-payments-fulfilment-role-design.md`) so it can go to planning?",
+  "status": "dropped",
+  "title": "Do you approve the reviewed design for the payments fulfilment-worker role (`docs/superpowers/specs/2026-09-30-payments-fulfilment-role-design.md`) so it can go to planning?"
+}
