@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:48.707631Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "da17547bc35533f25bce8f95b079d064a041bb15",
   "id": "W-47520e61",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:eff66ce1bfd9",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`commands/_agents/fabrik-researcher.md:22` says firecrawl \"is not connected on this box\" — it is"
 }

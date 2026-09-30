@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-08-29T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "da17547bc35533f25bce8f95b079d064a041bb15",
   "id": "W-c2cf51b4",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:e8d291138ef0",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Measure the hub's own test suite — the self-exclusion has let it rot (revisited 2026-08-29)"
 }

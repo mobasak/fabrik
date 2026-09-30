@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:47.698018Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "da17547bc35533f25bce8f95b079d064a041bb15",
   "id": "W-42bc5450",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:8d0fb4b6cc68",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`docs/DECISIONS.md` is the one mandated markdown table with NO cell-count check, and 9 of 260 rows are off-width"
 }

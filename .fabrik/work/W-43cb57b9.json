@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:47.759326Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "da17547bc35533f25bce8f95b079d064a041bb15",
   "id": "W-43cb57b9",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:92c85f28b924",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`bandit scripts/` ships at a HIGH floor; promoting it to MEDIUM is a per-repo ratchet with 36 findings named"
 }

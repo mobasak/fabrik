@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-10T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "da17547bc35533f25bce8f95b079d064a041bb15",
   "id": "W-13b52180",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:267501fda4ac",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "**`dispatch_headroom.py`: the box floor fires under `--slices`, and a failed quota probe is held AT the floor (2026-09-10, owner: infra)** — `:578-583` says \"under `slices` BOTH floor sites stand d..."
 }

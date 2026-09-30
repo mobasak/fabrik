@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-08-11T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "da17547bc35533f25bce8f95b079d064a041bb15",
   "id": "W-17968620",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:235a06aa7291",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "**fabrik-mail — hub↔project AI communication channel** (operator-approved 2026-08-11, direction chosen after live research): durable file mailbox at a NEUTRAL path `/opt/fabrik-mail/<repo>/inbox/*."
 }

@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:47.735799Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "da17547bc35533f25bce8f95b079d064a041bb15",
   "id": "W-3190e670",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:3c3b9c4bfa87",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "RETRACTED — the \"nine off-width DECISIONS rows\" were ONE, and my count was the defect"
 }
