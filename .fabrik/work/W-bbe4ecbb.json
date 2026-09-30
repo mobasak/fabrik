@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:48.751722Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "ea18b923a13863a2cbcb9d093c4801ced7583340",
   "id": "W-bbe4ecbb",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:2cfbd0521b75",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "§ Completion Contract 1a's `>5 files` and the lane table's `>3` are two numbers in one contract (routed from T04a)"
 }

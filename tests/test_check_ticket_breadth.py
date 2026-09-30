@@ -208,9 +208,11 @@ def test_all_sweep_on_repo_with_no_plans_is_clean(tmp_path: Path) -> None:
     assert proc.stdout.strip() == ""
 
 
-def test_nonexistent_plan_dir_never_reds(tmp_path: Path) -> None:
+def test_nonexistent_plan_dir_is_refused(tmp_path: Path) -> None:
+    """T4.9: an explicit --plan-dir that is not a dated plan-set directory is a refusal (rc 2), never a green."""
     proc = _run("--plan-dir", str(tmp_path / "nope"), "--project-root", str(tmp_path), "--strict")
-    assert proc.returncode == 0
+    assert proc.returncode == 2
+    assert "REFUSED: ticket_breadth:" in proc.stdout
 
 
 # ── behaviour: a malformed ticket fails SOFT ────────────────────────────────

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T08:43:55.294890Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-06cf054c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide the shape: emit the governance CLAUDE.md for mobile-app like every type, and move the mobile-only rules (already duplicated in AGENTS.md.j2) there; grader = scaffold a mobile-app into tmp and assert CLAUDE.md == templates/governance/CLAUDE.md",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "scaffold"
+  ],
+  "title": "mobile-app scaffold writes templates/mobile-app/CLAUDE.md instead of the governance contract every other type gets (templates/governance/CLAUDE.md), so a new mobile project starts without the fleet contract until a governance sync overwrites it (prompt-audit finding 2026-09-30, probe: scratch scaffold of mobile-app)"
+}

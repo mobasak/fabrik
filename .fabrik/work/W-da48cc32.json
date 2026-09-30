@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "ea18b923a13863a2cbcb9d093c4801ced7583340",
   "id": "W-da48cc32",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:3829b7a75fe5",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`docs/reference/work-tracking.md` equates an unnamed session with `CLAUDE_AGENT` unset (2026-09-24)"
 }
