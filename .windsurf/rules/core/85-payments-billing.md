@@ -201,7 +201,7 @@ logger.info("subscription_created",
 - **Paddle payouts:** Paddle is the Merchant of Record, so the buyer-facing tax is Paddle's. For the Teknokent _döviz beyanı_, export Paddle's monthly **reverse invoices** and **transactions reports** — they evidence the inflow (as a software service export only when md. 12/2 is met; keep that evidence too).
 - **Service-export exemption** (KDV Kanunu md. 11/1-a) applies to services performed for a customer abroad AND used abroad (md. 12/2) — the second condition must be evidenced, not assumed (claim `kdv-rate-and-export-exemption`).
 - **iyzico and PayTR payouts:** neither is a Merchant of Record — you are the merchant. Issue an e-Fatura to e-Fatura-registered buyers and an e-Arşiv Fatura to everyone else (VUK Genel Tebliği 509); domestic sales carry **20% KDV** unless KDV Geçici 20/1 exempts Teknokent-produced software (`saas/88-saas-launch-checklist.md` § Teknokent Tax Compliance).
-- **Gross invoicing and platform commissions:** see `81-mobile-billing.md` § Teknokent Tax Treatment (KVK exemption, KDV 0%/20% split, KDV2 reverse charge, W-8BEN-E); for Teknokent-produced SaaS software the KDV rules are `saas/88-saas-launch-checklist.md` § Teknokent Tax Compliance.
+- **Gross invoicing and platform commissions:** see `81-mobile-billing.md` § Teknokent Tax Treatment (KVK exemption, KDV treatment of export and domestic sales, KDV2 reverse charge, W-8BEN-E); for Teknokent-produced SaaS software the KDV rules are `saas/88-saas-launch-checklist.md` § Teknokent Tax Compliance.
 
 ---
 

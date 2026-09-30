@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — mobile-app/81-mobile-billing: a safe webhook, today's fees, the launch checklist handed to 89 (2026-10-01)
+- `.windsurf/rules/mobile-app/81-mobile-billing.md` (rules currency pass file 36, D-465): the webhook sample no longer accepts "Bearer None" when its secret is unset, stops revoking access in the grace period, dedupes on the event id and re-reads the customer; the client sample uses one key per platform. Teknokent law (4691, not 5746), KDV, W-8BEN-E, Apple's EU terms from 1 October 2026 (W-cd1d49ef), Google's fee models, the US row and StoreKit's deprecation corrected; the store-listing and account checklist removed (89 owns it; two items moved into 89).
+- `tests/test_mobile_billing_pack.py`: parses the pack's webhook and client samples and pins the scaffold's single RevenueCat key slot.
+- `.windsurf/rules/CLAIMS.yaml`: nine 81-mobile-billing rows; `docs/reference/research/2026-09-30-mobile-billing-currency-ledger.md`: the turn's 44 facts.
+
 ### Changed — mobile-app/00-domain-mobile-app: plans for the scaffold that ships, no copied values (2026-09-30)
 - `.windsurf/rules/mobile-app/00-domain-mobile-app.md` (rules currency pass file 35, D-461): the backend is the repo's own `server/` (no DB, no auth until intake opts in); auth is Pattern A passwordless with a social login as a decision (4.8 corrected); EU billing is a three-way intake decision (the "no cost advantage" claim was false); Shorebird, Play promo codes via API, the fraud and decay figures and Crashlytics removed; app identity and analytics region added; every vendor price, rate and curve replaced by a cite; consumers renamed to /fabrik-vision, /fabrik-epics, /fabrik-release. `80-mobile.md` backend line aligned.
 - `tests/test_mobile_domain_pack.py`: pins the scaffold backend facts, every cited sibling section, and the pack's no-price/no-rate rule.

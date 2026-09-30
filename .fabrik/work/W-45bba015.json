@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T21:14:11.495718Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-45bba015",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "replace the slot with EXPO_PUBLIC_REVENUECAT_IOS_KEY and EXPO_PUBLIC_REVENUECAT_ANDROID_KEY (and env.ts if it types them); tests/test_mobile_billing_pack.py::test_scaffold_still_ships_one_revenuecat_key_slot goes red — drop the pack's 'split the single key' note in the same change",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "template"
+  ],
+  "title": "templates/mobile-app/.env.example ships one EXPO_PUBLIC_REVENUECAT_API_KEY slot, but RevenueCat issues one public SDK key per platform (appl_ iOS, goog_ Android)"
+}

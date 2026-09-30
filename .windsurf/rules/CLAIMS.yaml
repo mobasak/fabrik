@@ -2276,3 +2276,75 @@ claims:
     verify: "https://tenjin.com/pricing/ ; https://chottulink.com/pricing.html ; https://www.revenuecat.com/docs/customers/customer-attributes ; https://docs.expo.dev/push-notifications/sending-notifications/ (brave + exa + WebSearch, 2026-09-30; ledger at-01, at-02, at-06, pr-04)"
     window_days: 180
     last_verified: 2026-09-30
+
+  - id: turkey-play-billing-mandatory-2026
+    pack: mobile-app/81-mobile-billing.md
+    kind: policy
+    claim: "Google Play Billing is mandatory for digital goods sold to users in Turkey (outside User Choice Billing; External Offers is EEA-only); Rekabet Kurumu's Play Billing investigation opened 7 August 2025 had no decision by September 2026; Google dates its rest-of-world billing-choice rollout 30 September 2027 and names no date for Turkey"
+    verify: "https://www.rekabet.gov.tr/en/Guncel ; https://support.google.com/googleplay/android-developer/answer/12570971 (exa + WebSearch, 2026-09-30; ledger fs-05, op-06)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: google-play-fee-model-2026
+    pack: mobile-app/81-mobile-billing.md
+    kind: pricing
+    claim: "Legacy Google Play fee: auto-renewing subscriptions 15% regardless of enrolment, other transactions 15% on the first $1M only after enrolment; from 30 June 2026 (US/UK/EEA), 30 September 2026 (AU/JP), 31 December 2026 (KR), 30 September 2027 (rest of world): 10% on the first $1M and all subscriptions, 20-25% otherwise, plus a 5% billing fee only with Play Billing"
+    verify: "https://support.google.com/googleplay/android-developer/answer/112622 ; https://developer.android.com/blog/posts/expanded-billing-choice-and-lower-fees-on-google-play (exa + WebSearch, 2026-09-30; ledger fs-01, fs-02)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: apple-sbp-and-eu-terms-2026
+    pack: mobile-app/81-mobile-billing.md
+    kind: pricing
+    claim: "Apple SBP: 15% on the first $1M, rate starts 15 days after the end of the fiscal month of approval; non-SBP subscriptions drop to 15% after a subscriber's first paid year; EU from 1 October 2026: IAP 26% (15% SBP), link-out 15% (10% SBP), alternative in-app provider 20% (10% SBP), alternative distribution 5% CTC"
+    verify: "https://developer.apple.com/app-store/small-business-program/ ; https://developer.apple.com/support/apps-in-the-eu/ (exa + WebFetch, 2026-09-30; ledger fs-03, op-05)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: us-link-out-status-2026
+    pack: mobile-app/81-mobile-billing.md
+    kind: policy
+    claim: "In the US, iOS apps may link out to web checkout with no Apple commission under the Epic v. Apple injunction (in force, under Supreme Court review), and Android apps may use link-outs or alternative billing under the Epic v. Google remedies"
+    verify: "news roundup, no primary URL returned — re-verify against the court docket before relying on it (WebSearch, 2026-09-30; ledger fs-04)"
+    window_days: 60
+    last_verified: 2026-09-30
+
+  - id: revenuecat-webhook-contract
+    pack: mobile-app/81-mobile-billing.md
+    kind: practice
+    claim: "RevenueCat sends the Authorization value exactly as configured; delivery is at-least-once with up to 5 retries and may be out of order; RevenueCat recommends deduping on the event id and re-reading the customer; TRANSFER carries transferred_from/transferred_to; REST v2 limits vary per endpoint and are reported in RevenueCat-Rate-Limit-* headers with Retry-After on 429"
+    verify: "https://www.revenuecat.com/docs/integrations/webhooks ; https://www.revenuecat.com/docs/integrations/webhooks/event-types-and-fields ; https://www.revenuecat.com/docs/api-v2 (exa + WebSearch, 2026-09-30; ledger rc-02, rc-03, op-02, op-03)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: revenuecat-sdk-and-pricing
+    pack: mobile-app/81-mobile-billing.md
+    kind: practice
+    claim: "react-native-purchases: configure() is synchronous and takes one public key per platform (appl_/goog_); real purchases need a development build; RevenueCat is free under $2,500 monthly tracked revenue, then 1% of that month's tracked revenue"
+    verify: "https://www.revenuecat.com/docs/getting-started/configuring-sdk ; https://www.revenuecat.com/docs/getting-started/installation/expo ; https://www.revenuecat.com/pricing (exa + WebFetch, 2026-09-30; ledger rc-01, rc-04, op-04)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: store-sdk-floors
+    pack: mobile-app/81-mobile-billing.md
+    kind: deprecation
+    claim: "Google refunds purchases not acknowledged within three days; Google retires one Play Billing Library major a year (31 August, extension to 1 November); Apple deprecated the original In-App Purchase API from iOS 18; Apple raises the required Xcode/SDK for submissions each spring"
+    verify: "https://developer.android.com/google/play/billing/lifecycle/subscriptions ; https://developer.android.com/google/play/billing/deprecation-faq ; https://developer.apple.com/documentation/storekit/choosing-a-storekit-api-for-in-app-purchases ; https://developer.apple.com/news/?id=ueeok6yw (exa + WebSearch, 2026-09-30; ledger rc-05..rc-08)"
+    window_days: 365
+    last_verified: 2026-09-30
+
+  - id: teknokent-4691-kdv-20
+    pack: mobile-app/81-mobile-billing.md
+    kind: standard
+    claim: "The Teknokent corporate-tax exemption is Law 4691 temporary article 2 (until 31 December 2028), not Law 5746; mobile application software produced in the zone is KDV-exempt under KDVK temporary article 20/1; for serially sold apps rulings exempt only the intangible-right share; app ad revenue is outside the exemption; export sales are 0% KDV under KDVK 11/1-a"
+    verify: "https://www.lexpera.com.tr/mevzuat/ozelgeler/38418978-125-4691-2022-2-132688-sayili-ozelge-1 ; https://www.muhasebetr.com/yazarlarimiz/ilkerboz/011/ ; https://gib.gov.tr/mevzuat/kanun/435/ozelge/38808 (exa + brave, 2026-09-30; ledger tx-01..tx-03, op-10)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: us-withholding-w8bene-stores
+    pack: mobile-app/81-mobile-billing.md
+    kind: standard
+    claim: "Without a W-8BEN-E, Google withholds on US-user earnings (up to 30%) while Apple treats App Store proceeds as sales and generally withholds nothing; with it, the treaty rate depends on classification — business profits (Article 7, no US PE) can be 0%, copyright royalties 10%"
+    verify: "https://taxsummaries.pwc.com/united-states/corporate/withholding-taxes ; https://developer.apple.com/help/app-store-connect/manage-tax-information/provide-tax-information/ (exa, 2026-09-30; ledger tx-06, op-11)"
+    window_days: 365
+    last_verified: 2026-09-30
