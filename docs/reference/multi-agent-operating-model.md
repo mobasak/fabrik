@@ -109,8 +109,10 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
   PLANS markers, stamps `**Owner:**` on every open unowned plan round-robin, tags every untagged
   `STRATEGIC_BACKLOG.md` row in its own shape (a hub row's `Owner`/`Tag` cell · a project row's `Item`
   cell · a bullet's text after its checkbox), appends the `MERGE OWNER: <first name>` ledger row (the
-  LAST row whose `what` cell opens with `MERGE OWNER:` wins — `python3 scripts/decisions.py
-  --merge-owner .` reads it; a changed owner is a NEW superseding row), and delegates the epic half to
+  row with the HIGHEST D-id whose `what` cell opens with `MERGE OWNER:`, optionally after a
+  `supersedes D-NNN:` prefix (then the phrase must be exact uppercase), wins wherever it sits in the file, and a winning `MERGE OWNER:
+  UNDECLARED` row means nobody owns the repo — `python3 scripts/decisions.py --merge-owner .` reads
+  it; a changed owner is a NEW row opening `supersedes D-NNN: MERGE OWNER: <name>`), and delegates the epic half to
   `epic_order.py --assign` where that hub-only script is present. The PLANS block's second header line
   then prints `<!-- Merge owner: <name> | source: D-NNN -->`.
 - **The distributor** (`docs/reference/work-tracking.md`) is a SECOND, separate role beside the merge

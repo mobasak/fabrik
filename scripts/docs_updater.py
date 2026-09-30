@@ -953,7 +953,24 @@ _EPIC_STATUS = {"0": "TODO", "1": "IN_PROGRESS", "2": "DONE"}  # EPIC-ARTIFACT-S
 # D1 (multi-agent-per-repo spec): the merge owner is ONE ledger row per repo — grammar
 # shared verbatim with scripts/decisions.py's `--merge-owner` (T01; no import — see the
 # Interfaces seam: both tests share one fixture ledger and must agree on the same name).
-MERGE_OWNER_RE = re.compile(r"^\**\s*MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I)
+# W-076ff4a9: a changed owner is a NEW row opening a supersedes clause (any real spelling —
+# see decisions.py), so the prefix is optional before the phrase; the un-adoption row is
+# TOKEN-exact, as in decisions.py.
+# The prefix ends at the cell's FIRST `:` or `.` (the qualifier may hold neither), and the phrase
+# must follow it at once — so it cannot reach a `MERGE OWNER:` written later in the prose.
+# After a supersedes clause the phrase must be the exact UPPERCASE `MERGE OWNER:` (the lookahead's
+# `(?-i:...)`): a prose sentence such as `Supersedes D-001.** Merge owner: rotated weekly` is not a
+# declaration. A bare row with no prefix keeps the case-insensitive phrase it always had.
+_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*(?=(?-i:MERGE OWNER:)))?"
+MERGE_OWNER_RE = re.compile(
+    r"^\**\s*" + _SUPERSEDES_PREFIX + r"MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I
+)
+_UNDECLARED_RE = re.compile(
+    r"^\**\s*"
+    + _SUPERSEDES_PREFIX
+    + r"MERGE OWNER:\s*UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-])",
+    re.I,
+)
 _DECISION_ROW_ID_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
 # --adopt's own name grammar — IDENTICAL to epic_order.py's `_OWNER_NAME_RE`
 # (`^[a-z0-9-]{1,32}$`, epic_order.py:748), not merely "the same class": a name
@@ -1028,8 +1045,8 @@ def _backlog_starts_with_tag(text: str) -> bool:
 
 def _backlog_row_cells(line: str) -> list[str]:
     """Split one `|`-delimited table row into trimmed cell texts (leading/trailing
-    pipe optional). Naive pipe-position split — matches this module's existing table
-    readers (`read_merge_owner`), which already assume unescaped pipes."""
+    pipe optional). Naive pipe-position split, which assumes unescaped pipes (the ledger's
+    `read_merge_owner` decodes GFM escapes instead, via `_ledger_cells`)."""
     s = line.strip()
     if s.startswith("|"):
         s = s[1:]
@@ -1189,28 +1206,111 @@ def _tag_backlog_rows(text: str, names: list[str]) -> tuple[str, list[tuple[str,
     return "\n".join(out), report
 
 
+# GFM cell decoding ported from `decisions.py::_rows` / `_code_span_ranges` / `_ESCAPABLE` (this
+# module is fleet-synced and decisions.py is hub-only, so it cannot import it): `\|` is CONTENT,
+# inside a code span too; `\\|` is a literal backslash then a REAL separator; `\X` for other
+# punctuation decodes to X outside a code span. The same port lives in the hook
+# (`session_orient.py::_cells`); tests/test_session_orient_hook.py runs all three readers over one
+# escaped-pipe ledger and they must agree (W-076ff4a9).
+_LEDGER_ESCAPABLE = frozenset("""!"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~""")
+
+
+def _ledger_code_spans(s: str) -> list[tuple[int, int]]:
+    """Half-open ranges of the CommonMark code spans in `s`: a run of N backticks is closed only
+    by a run of exactly N; an unclosed run is literal and opens nothing."""
+    spans: list[tuple[int, int]] = []
+    i, n = 0, len(s)
+    while i < n:
+        if s[i] != "`":
+            i += 1
+            continue
+        j = i
+        while j < n and s[j] == "`":
+            j += 1
+        k = j
+        while k < n:
+            if s[k] != "`":
+                k += 1
+                continue
+            m = k
+            while m < n and s[m] == "`":
+                m += 1
+            if m - k == j - i:
+                spans.append((i, m))
+                i = m
+                break
+            k = m
+        else:
+            i = j
+    return spans
+
+
+def _ledger_cells(row: str) -> list[str]:
+    """A ledger table row's cells, GFM-decoded exactly as `decisions.py::_rows` decodes them."""
+    s = row.strip().strip("|")
+    if "\\" not in s:  # no escape at all: the scan below reduces to exactly this split
+        return [c.strip() for c in s.split("|")]
+    spans = _ledger_code_spans(s)
+    cells: list[str] = []
+    buf: list[str] = []
+    i = 0
+    while i < len(s):
+        c = s[i]
+        nxt = s[i + 1] if i + 1 < len(s) else ""
+        if c == "\\" and nxt == "|":
+            buf.append("|")
+            i += 2
+        elif (
+            c == "\\" and nxt and nxt in _LEDGER_ESCAPABLE and not any(a <= i < b for a, b in spans)
+        ):
+            buf.append(nxt)
+            i += 2
+        elif c == "\\" and nxt:
+            buf.append(c + nxt)
+            i += 2
+        elif c == "|":
+            cells.append("".join(buf).strip())
+            buf = []
+            i += 1
+        else:
+            buf.append(c)
+            i += 1
+    cells.append("".join(buf).strip())
+    return cells
+
+
 def read_merge_owner() -> tuple[str, str] | None:
-    """The `(name, "D-NNN")` declared by the LAST row of `docs/DECISIONS.md` whose `what`
-    cell (cells[3] — decisions.py's own cell scan in `_rows`) matches MERGE_OWNER_RE. A LATER row
-    always wins: a changed merge owner is a NEW row that supersedes, never an edit of this
-    one (the ledger's own law). `None` when the ledger is missing/unreadable or no row
-    matches — the repo hasn't adopted yet."""
+    """The `(name, "D-NNN")` declared by the HIGHEST-id row of `docs/DECISIONS.md` whose `what`
+    cell (cells[3] — decisions.py's own cell scan in `_rows`) matches MERGE_OWNER_RE, optionally
+    after a `supersedes D-NNN:` prefix. The id decides, never the row's position (the ledger's
+    header: position is a convention nothing reads — W-076ff4a9): a changed merge owner is a NEW
+    row that supersedes, never an edit of this one. `None` when the ledger is missing/unreadable,
+    no row matches (the repo hasn't adopted yet), or the winning row is the un-adoption row
+    `MERGE OWNER: UNDECLARED` — the same answer as `decisions.py --merge-owner`'s exit 3."""
     ledger = PROJECT_ROOT / "docs" / "DECISIONS.md"
     try:
         text = ledger.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
+    best = -1
     found: tuple[str, str] | None = None
     for line in text.splitlines():
         stripped = line.strip()
         if not _DECISION_ROW_ID_RE.match(stripped):
             continue
-        cells = [c.strip() for c in stripped.strip("|").split("|")]
+        cells = _ledger_cells(stripped)
         if len(cells) < 4:
             continue
-        m = MERGE_OWNER_RE.match(cells[3])
-        if m:
-            found = (m.group(1), cells[0].upper())
+        if _UNDECLARED_RE.match(cells[3]):
+            row: tuple[str, str] | None = None
+        else:
+            m = MERGE_OWNER_RE.match(cells[3])
+            if not m:
+                continue
+            row = (m.group(1), cells[0].upper())
+        num = int(cells[0][2:])
+        if num >= best:  # an (illegal) duplicate id resolves to the later row, as before
+            best, found = num, row
     return found
 
 
