@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "file 33 \u2014 saas/00-domain-saas.md (manual activation, applies to all 17 saas-skeleton repos at planning), then mobile-app (4 repos), chrome-ext (2), by real audience not glob count",
+  "next": "file 34 \u2014 mobile-app/80-mobile.md (the main mobile code pack; 4 mobile-app repos), then the rest of mobile-app, chrome-ext (2), by real audience not glob count",
   "note": "",
   "owner": "intel",
   "priority": 2,
@@ -19,5 +19,5 @@
   "tags": [
     "rules"
   ],
-  "title": "Rules currency pass: evaluate the 24 packs still missing currency_pass: (33 of 57 done; file 32 saas/87 landed 2026-09-30, D-455)"
+  "title": "Rules currency pass: evaluate the 23 packs still missing currency_pass: (34 of 57 done; file 33 saas/00-domain-saas landed 2026-09-30, D-457)"
 }
