@@ -4300,6 +4300,9 @@ def _scaffold_node_api(project_dir: Path, name: str, description: str, **kwargs:
         "dependencies": {
             "pino": "^9.0.0",
             "@sentry/node": "^8.40.0",
+            # /metrics (shape.exposes_metrics defaults true in templates/node-api/defaults.yaml;
+            # core/12-node.md § /metrics names prom-client).
+            "prom-client": "^15.1.3",
         },
     }
     (project_dir / "package.json").write_text(json.dumps(package_json, indent=2) + "\n")
@@ -4387,10 +4390,17 @@ import './glitchtip_init.js';
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import client from 'prom-client';
 import { logger } from './logger.js';
 
 const asyncCtx = new AsyncLocalStorage();
 const PORT = process.env.PORT || 3000;
+
+// Prometheus scrapes /metrics (shape.exposes_metrics); default process + runtime metrics.
+client.collectDefaultMetrics();
+
+// The pack's /health, plus /api/health: the compose healthcheck and the spec's health_path.
+const HEALTH_PATHS = new Set(['/health', '/api/health']);
 
 // Flipped true on SIGTERM so /health returns 503 and Traefik drains us.
 let isShuttingDown = false;
@@ -4398,12 +4408,38 @@ let isShuttingDown = false;
 const server = http.createServer((req, res) => {
   const requestId = req.headers['x-request-id'] || randomUUID();
   res.setHeader('X-Request-ID', requestId);
+  // The path without its query string or fragment. Never `new URL(req.url, base)`: it throws on a target like
+  // `//a:b` (an uncaught throw here kills the process) and reads `//metrics` as a host.
+  // An absolute-form target (RFC 9112 section 3.2.2, `http://host/metrics`) routes on its own path.
+  let target = req.url || '/';
+  const head = target.slice(0, 8).toLowerCase();
+  const authority = head.startsWith('http://') ? 7 : head.startsWith('https://') ? 8 : 0;
+  if (authority) {
+    // The authority ends at the first `/`, `?` or `#`; a `/` inside the query is not the path.
+    const rest = target.slice(authority);
+    const cut = rest.search(/[/?#]/);
+    target = cut !== -1 && rest[cut] === '/' ? rest.slice(cut) : '/';
+  }
+  const path = target.split(/[?#]/, 1)[0];
 
-  asyncCtx.run({ traceId: requestId }, () => {
-    if (req.method === 'GET' && req.url === '/health') {
+  asyncCtx.run({ traceId: requestId }, async () => {
+    if (req.method === 'GET' && HEALTH_PATHS.has(path)) {
       const code = isShuttingDown ? 503 : 200;
       res.writeHead(code, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ service: '{name}', status: isShuttingDown ? 'draining' : 'ok' }));
+      return;
+    }
+
+    if (req.method === 'GET' && path === '/metrics') {
+      try {
+        const body = await client.register.metrics();
+        res.writeHead(200, { 'Content-Type': client.register.contentType });
+        res.end(body);
+      } catch (err) {
+        logger.error({ ...asyncCtx.getStore(), event: 'metrics_failed', err: String(err) });
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('metrics unavailable');
+      }
       return;
     }
 

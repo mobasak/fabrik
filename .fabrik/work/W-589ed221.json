@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T22:54:46.966413Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-589ed221",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one author-blind seat scaffolds a node-api and probes origin- and absolute-form targets with ?, # and // against 14796e438",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "node-api scaffold: independent read of the round-4 fragment fix (14796e438, path ends at first ? or #) — closed on the scope-growth stop, no fresh reader yet"
+}
