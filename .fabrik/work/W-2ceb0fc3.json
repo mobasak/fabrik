@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T08:35:13.985407Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-2ceb0fc3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after infra's hub-template pass (mail 01M3RQ7G) lands: run /claude-api prompt-audit scoped to the fleet-owned prompt templates, commit the report + diff on worktree-fleet, /fabrik-review-scoped, hand the branch to infra",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "prompts"
+  ],
+  "title": "fleet slice of the /claude-api prompt-audit: prompt text the scaffolder emits into new projects (templates/**/AGENTS.md.j2, template CLAUDE/AGENTS stubs) and the watchdog system prompt — propose-only, D-331 loss-checked"
+}

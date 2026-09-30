@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-08-25T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "da17547bc35533f25bce8f95b079d064a041bb15",
   "id": "W-29ee66ec",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:873f4d63fd4a",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "**Plan-lock release check — a finished plan must not hold its lock** (specced 2026-08-25, operator-requested follow-on). **Nothing writes a plan lock but the agent.** `grep` across `scripts/` and `..."
 }

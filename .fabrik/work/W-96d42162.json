@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-08T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "da17547bc35533f25bce8f95b079d064a041bb15",
   "id": "W-96d42162",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:353774b05c32",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "**The /fabrik-review convergence bar reopens the loop on ANY receipt row — the D-191 review ran 12 rounds over 5.4 h of run-record wall-clock (10:38 → 16:00, still open at that reading) on a 91-fil..."
 }

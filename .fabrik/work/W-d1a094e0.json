@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-15T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "da17547bc35533f25bce8f95b079d064a041bb15",
   "id": "W-d1a094e0",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:06ae7bafa8b0",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`final_gate.py --json` per-check dicts carry no `status` key — a consumer cannot tell green from red per check (2026-09-15, plan-2 Phase G review round 2, MACHINERY note)"
 }

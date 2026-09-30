@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:48.634441Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "da17547bc35533f25bce8f95b079d064a041bb15",
   "id": "W-3805d189",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:9df68b47585b",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "VERDICT: the gate-verdict rule does NOT belong in /fabrik-execute-plan — fleet-synced governance already owns it"
 }
