@@ -179,9 +179,9 @@ The RN client is a **Pattern-A client** (same model as web): it talks to a **sel
 ## Localization (i18n)
 
 - Use `expo-localization` to detect device locale and `i18next` + `react-i18next` for translations. The app loads translation JSON from `src/translations/<lang>.json` (imported by `src/lib/i18n/resources.ts` in the scaffold).
-- **Source-of-truth JSON lives at `static/i18n/<lang>.json`** (the same format across all fabrik GUI projects). ⚠️ `scripts/sync_rn_locales.py` currently copies it to `src/locales/`, which the app does not read — until the scaffold aligns the two paths, copy each file into `src/translations/` and register the language in `resources.ts`; never run `sync_rn_locales.py --init` (it writes a second i18next init under `src/locales/`). `scripts/validate_i18n.py` checks `static/i18n/` only, so it cannot see a stale `src/translations/` copy.
+- ⚠️ **The scaffold carries two unrelated translation sets.** The app's live strings are `src/translations/<lang>.json` (`en`, `ar` — the RTL exemplar), while `static/i18n/` holds the i18n-kit's own key set (`en.json`, `_context.json` and `*.example.json` seeds), which the app does not load; the two use different keys, so never copy files between them, and `scripts/sync_rn_locales.py` (which writes `src/locales/`) and `--init` do not apply. Until the scaffold unifies them, add each language in `src/translations/` with exactly the keys of `src/translations/en.json`, and register it in `resources.ts`. `scripts/validate_i18n.py` checks `static/i18n/` only, so it says nothing about the live set.
 - All user-facing strings live in translation files. No hardcoded strings in components — caught at code review.
-- Supported languages from day 1: **English (en), Turkish (tr)**. The scaffold ships `en` and `ar` (the RTL exemplar) in `src/translations/`, but its `static/i18n/` holds only `en.json` plus `tr.example.json` and `es.example.json` — rename `tr.example.json` to `tr.json`, copy it into `src/translations/` and register it, and copy `src/translations/ar.json` into `static/i18n/` so `ar` has a source of truth. Add Spanish (es), German (de), French (fr) and Portuguese-BR (pt-BR) as markets prove out.
+- Supported languages from day 1: **English (en), Turkish (tr)** — the scaffold ships no `tr` in the live set, so author `src/translations/tr.json`. Add Spanish (es), German (de), French (fr) and Portuguese-BR (pt-BR) as markets prove out.
 - Dates and numbers: `Intl.DateTimeFormat` and `Intl.NumberFormat` with the user's locale. Never hardcode `MM/DD/YYYY` or `1,000.00` formats.
 - Time zones: store all timestamps in **UTC** server-side. Render in user locale on the client via `date-fns-tz`. Before adopting `Temporal`, confirm the project's Hermes build supports it; otherwise add `@js-temporal/polyfill`.
 - Currency display: `Intl.NumberFormat` with locale + currency code. Pricing source-of-truth is RevenueCat (see Monetization).
@@ -387,7 +387,7 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 - [ ] GDPR consent gate blocks analytics and non-essential SDKs until user consent (EU/EEA/UK locales).
 - [ ] AI-driven decision features carry transparency notice + manual override path.
 - [ ] All user-facing strings live in translation files — no hardcoded strings.
-- [ ] `python scripts/validate_i18n.py` passes clean (Level 1: no MISSING_KEY, no PLACEHOLDER_MISMATCH across the `static/i18n/` locale files), and each `src/translations/<lang>.json` matches its `static/i18n/<lang>.json`. Run after any ticket that adds or changes UI strings.
+- [ ] Every `src/translations/<lang>.json` carries exactly the keys of `src/translations/en.json` (the live set); `python scripts/validate_i18n.py` passes clean for `static/i18n/` if the project uses that set. Run after any ticket that adds or changes UI strings.
 - [ ] App tested in `en-US`, `tr-TR`, and at least one RTL or non-Latin locale.
 - [ ] Dates, numbers, currency rendered via `Intl` APIs with user locale.
 - [ ] Pricing configured per country in RevenueCat dashboard.

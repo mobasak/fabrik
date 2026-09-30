@@ -118,9 +118,12 @@ def test_scaffold_facts_the_pack_warns_about(project: Path) -> None:
     assert {"en.json", "ar.json"} <= translations and "tr.json" not in translations, (
         f"the scaffold's languages changed ({sorted(translations)}): update § Localization"
     )
-    assert (project / "static" / "i18n" / "tr.example.json").is_file()
-    assert not (project / "static" / "i18n" / "ar.json").exists(), (
-        "static/i18n/ar.json now exists: drop the pack's 'copy ar into static/i18n' step"
+    live = set(
+        json.loads((project / "src" / "translations" / "en.json").read_text(encoding="utf-8"))
+    )
+    kit = set(json.loads((project / "static" / "i18n" / "en.json").read_text(encoding="utf-8")))
+    assert live != kit, (
+        "the two translation sets now share keys: update § Localization's 'two unrelated sets'"
     )
 
 

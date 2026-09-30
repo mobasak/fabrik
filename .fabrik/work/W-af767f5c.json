@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "align the two paths (point the script at src/translations/ and have --init register the language in resources.ts), with a test; mobile-app/80-mobile.md (currency pass 2026-09-30) documents the workaround",
+  "next": "unify on one key set and one path (the i18n-kit format in src/translations/, or the reverse), make sync_rn_locales.py and validate_i18n.py target it, with a test; then drop the 'two unrelated sets' warning from mobile-app/80-mobile.md \u00a7 Localization",
   "note": "",
   "owner": "fleet",
   "priority": 2,
@@ -19,5 +19,5 @@
   "tags": [
     "rules"
   ],
-  "title": "mobile-app scaffold: scripts/sync_rn_locales.py writes src/locales/ but the app loads src/translations/ (src/lib/i18n/resources.ts), so a synced language never reaches the app"
+  "title": "mobile-app scaffold carries two unrelated translation sets: the app loads src/translations/ (starter-kit keys, en+ar) while static/i18n/ holds the i18n-kit key set the app never loads, and scripts/sync_rn_locales.py writes a third path (src/locales/)"
 }
