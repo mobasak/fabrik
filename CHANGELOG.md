@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Hub contract: the orchestrator named by role, the fan-out and §1a sentences disambiguated, a stale ticket_breadth test (2026-09-30)
+- `CLAUDE.md` § Subagent fan-out: the orchestrator is Opus or Fable, whichever the quota allows, and whichever newer model replaces them (D-334, D-456), no longer Fable-first; the FILE loops' seat rules (the Sonnet+Haiku pair, no Opus finder, the extra Haiku seat) are their own sentence, so they no longer read as covering the section loops (W-42dbd4f1).
+- `CLAUDE.md` § 1a: its `>5` sizes the review, the lane table's `>3` sizes the lane and counts only declared code-surface files (W-bbe4ecbb).
+- `docs/reference/work-tracking.md`: the agent name resolves whoami, then `CLAUDE_AGENT`, then a hook's session binding (W-da48cc32).
+- `tests/test_check_ticket_breadth.py`: the rc-0 test for a bad `--plan-dir` contradicted the deliberate T4.9 refusal and failed on master; now both refusal disjuncts are graded (missing dir, misnamed dir), each proven red on mutation.
+- The template and `subagents-core.md` mirror of these fixes is routed as W-e80af564 (a sync-trigger change, its own full review).
+
 ### Fixed — A worktree's symlinked `.venv` is ignored in every project (2026-09-30)
 - The synced `.claude/settings.json` symlinks `.venv` into every linked worktree (`symlinkDirectories`), and a project's own `.venv/` rule matches directories only, so a symlinked `.venv` was not ignored in 44 of the 45 git repos under /opt. Every new project worktree would have shown `?? .venv`. The synced "Fabrik-synced" .gitignore block (`scripts/fabrik_synced_manifest.py`) now carries a slashless `.venv`, and the sync's safety floor (`scripts/sync_enforcement_to_projects.py`) writes `.venv` too, while its check keeps `.venv/`. Known trade-off: the block overrides a project `!.venv` silently on every sync (0 of 45 repos have one); such a project adds each file with `git add -f`. Tests: `tests/test_synced_manifest.py`, `tests/test_sync_gitignore_safety.py` (each red on revert). Review: `docs/development/reviews/2026-09-30-synced-gitignore-venv-review.md`, 3 passes, confirmed 4 → 2 → 0.
 
