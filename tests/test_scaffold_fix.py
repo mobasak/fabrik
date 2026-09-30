@@ -45,7 +45,6 @@ class TestScaffoldHubGuard:
         hub = tmp_path / "hub"
         (hub / "src" / "fabrik").mkdir(parents=True)
         (hub / "src" / "fabrik" / "scaffold.py").write_text("")
-        (hub / "templates").mkdir()
         return hub
 
     def test_fix_project_refuses_hub(self, fake_hub):
@@ -57,9 +56,9 @@ class TestScaffoldHubGuard:
 
         with pytest.raises(ValueError, match=_REFUSAL):
             _assert_not_hub(fake_hub)
-        # Path normalization: <hub>/. resolves to the hub.
+        # Path normalization: <hub>/docs/.. resolves to the hub (pathlib keeps the "..").
         with pytest.raises(ValueError, match=_REFUSAL):
-            _assert_not_hub(fake_hub / ".")
+            _assert_not_hub(fake_hub / "docs" / "..")
 
     def test_assert_not_hub_allows_non_hub(self):
         from fabrik.scaffold import _assert_not_hub
@@ -72,7 +71,7 @@ class TestScaffoldHubGuard:
         from fabrik.scaffold import _assert_not_hub
 
         with pytest.raises(ValueError, match=_REFUSAL):
-            _assert_not_hub(fake_hub / "templates" / "x")
+            _assert_not_hub(fake_hub / "docs" / "x")
 
     def test_assert_not_hub_blocks_symlink_to_hub(self, fake_hub, tmp_path):
         """Over-block guard: resolve() must follow a symlink and still block the hub."""
@@ -82,6 +81,28 @@ class TestScaffoldHubGuard:
         link.symlink_to(fake_hub)
         with pytest.raises(ValueError, match=_REFUSAL):
             _assert_not_hub(link)
+
+    def test_the_configured_root_is_refused_without_a_marker(self, tmp_path, monkeypatch):
+        """The FABRIK_ROOT branch alone: a root carrying no marker, and a link into it, are refused."""
+        import fabrik.scaffold as scaffold
+
+        root = tmp_path / "configured-root"
+        root.mkdir()
+        monkeypatch.setattr(scaffold, "FABRIK_ROOT", root)
+        link = tmp_path / "rootlink"
+        link.symlink_to(root)
+        # Only resolve() puts <link>/new-project under the root; no marker exists to catch it.
+        for target in (root, root / "new-project", link / "new-project"):
+            with pytest.raises(ValueError, match=_REFUSAL):
+                scaffold._assert_not_hub(target)
+
+    def test_create_project_refuses_a_hub_base(self, fake_hub):
+        """The scaffold path calls the guard too, before anything is written."""
+        from fabrik.scaffold import create_project
+
+        with pytest.raises(ValueError, match=_REFUSAL):
+            create_project("new-project", "d", base=fake_hub, generate_spec=False)
+        assert not (fake_hub / "new-project").exists()
 
     @requires_fabrik_env
     def test_hub_is_refused_when_fabrik_root_points_elsewhere(self, tmp_path, monkeypatch):
@@ -93,9 +114,9 @@ class TestScaffoldHubGuard:
         import fabrik.scaffold as scaffold
 
         monkeypatch.setattr(scaffold, "FABRIK_ROOT", tmp_path / "some-worktree")
-        with pytest.raises(ValueError, match="hub"):
+        with pytest.raises(ValueError, match=_REFUSAL):
             scaffold._assert_not_hub(FABRIK_ROOT)
-        with pytest.raises(ValueError, match="hub"):
+        with pytest.raises(ValueError, match=_REFUSAL):
             scaffold._assert_not_hub(FABRIK_ROOT / "templates" / "x")
 
     def test_any_hub_checkout_is_refused_by_its_markers(self, tmp_path, monkeypatch):
@@ -114,7 +135,7 @@ class TestScaffoldHubGuard:
         (dangling / "src" / "fabrik").mkdir(parents=True)
         (dangling / "src" / "fabrik" / "scaffold.py").symlink_to(tmp_path / "gone")
         for target in (hub, hub / "docs" / "deep", odd_dir, dangling / "new-project"):
-            with pytest.raises(ValueError, match="hub"):
+            with pytest.raises(ValueError, match=_REFUSAL):
                 scaffold._assert_not_hub(target)
 
     def test_synced_project_files_do_not_make_a_hub(self, tmp_path, monkeypatch):
@@ -206,7 +227,7 @@ class TestFixProjectReferenceDocsRefresh:
         added = fix_project(project_dir, project_type="python-api", dry_run=False)
 
         canonical = (
-            FABRIK_ROOT / "docs" / "reference" / "technology-stack-decision-guide.md"
+            _source_root() / "docs" / "reference" / "technology-stack-decision-guide.md"
         ).read_text()
         assert target.read_text() == canonical, "Reference doc was not refreshed from master"
         assert target.read_text() != stale_marker
@@ -225,7 +246,9 @@ class TestFixProjectReferenceDocsRefresh:
 
         added = fix_project(project_dir, project_type="python-api", dry_run=False)
 
-        canonical = (FABRIK_ROOT / "docs" / "reference" / "prebuilt-app-containers.md").read_text()
+        canonical = (
+            _source_root() / "docs" / "reference" / "prebuilt-app-containers.md"
+        ).read_text()
         assert target.read_text() == canonical
         assert any("prebuilt-app-containers.md (refreshed from master)" in e for e in added)
 
@@ -242,10 +265,13 @@ class TestFixProjectReferenceDocsRefresh:
 
         added = fix_project(project_dir, project_type="python-api", dry_run=False)
 
-        if (_source_root() / "scripts" / "kilo_47_agents_final.json").exists():
-            canonical = (_source_root() / "scripts" / "kilo_47_agents_final.json").read_text()
-            assert target.read_text() == canonical
+        source = _source_root() / "scripts" / "kilo_47_agents_final.json"
+        if source.exists():
+            assert target.read_text() == source.read_text()
             assert any("kilo_47_agents_final.json (refreshed from master)" in e for e in added)
+        else:  # gitignored: absent in a worktree, so nothing is copied or reported
+            assert target.read_text() == '{"stale": true}\n'
+            assert not any("kilo_47_agents_final.json" in e for e in added)
 
     def test_dry_run_previews_reference_doc_refresh(self, tmp_path):
         """dry_run accurately reports the reference docs as refreshed."""
@@ -261,8 +287,8 @@ class TestFixProjectReferenceDocsRefresh:
             )
         if (_source_root() / "docs" / "reference" / "prebuilt-app-containers.md").exists():
             assert any("prebuilt-app-containers.md (refreshed from master)" in e for e in added)
-        if (_source_root() / "scripts" / "kilo_47_agents_final.json").exists():
-            assert any("kilo_47_agents_final.json (refreshed from master)" in e for e in added)
+        kilo = any("kilo_47_agents_final.json (refreshed from master)" in e for e in added)
+        assert kilo == (_source_root() / "scripts" / "kilo_47_agents_final.json").exists()
 
 
 @requires_fabrik_env
