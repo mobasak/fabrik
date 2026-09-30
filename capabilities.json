@@ -5,7 +5,7 @@
     "fleet": 105,
     "infra": 358,
     "intel": 13,
-    "external:fabrik-lib": 73
+    "external:fabrik-lib": 72
   },
   "capabilities": [
     {
@@ -4366,17 +4366,6 @@
       "owner": "external:fabrik-lib",
       "defects": [],
       "doc_link": "/opt/fabrik-lib/expo-push/README.md",
-      "verified_at": "2026-09-30T03:03:14+00:00"
-    },
-    {
-      "name": "fabrik-lib",
-      "kind": "lib-module",
-      "summary": "fabrik-lib",
-      "invoke": "vendor /opt/fabrik-lib/fabrik-lib/",
-      "status": "ok",
-      "owner": "external:fabrik-lib",
-      "defects": [],
-      "doc_link": "/opt/fabrik-lib/fabrik-lib/README.md",
       "verified_at": "2026-09-30T03:03:14+00:00"
     },
     {
