@@ -1949,6 +1949,86 @@ claims:
     window_days: 365
     last_verified: 2026-09-30
 
+  - id: rn-new-architecture-only
+    pack: mobile-app/80-mobile.md
+    kind: version
+    claim: "React Native runs only on the New Architecture: RN 0.82 removed the opt-out and RN 0.85 removed the legacy bridge code; Expo SDK 55 removed the newArchEnabled option (a leftover key is ignored); Expo SDK 57 (30 June 2026, RN 0.86) is the current stable and SDK 58 is in beta"
+    verify: "https://docs.expo.dev/guides/new-architecture/ ; https://expo.dev/changelog/sdk-57 (exa + brave + WebSearch, 2026-09-30; ledger pf-01, pf-03..pf-05)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: expo-router-decoupled
+    pack: mobile-app/80-mobile.md
+    kind: deprecation
+    claim: "Since Expo SDK 56 expo-router no longer depends on React Navigation: importing @react-navigation/* in app code is a Metro bundler error; a codemod rewrites imports; EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK=1 only silences the check; Expo's templates ship experiments.typedRoutes on"
+    verify: "https://docs.expo.dev/router/migrate/sdk-55-to-56/ ; https://docs.expo.dev/router/reference/typed-routes/ (brave + WebSearch + WebFetch, 2026-09-30; ledger pf-06..pf-08)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: rn-android-toolchain
+    pack: mobile-app/80-mobile.md
+    kind: version
+    claim: "Current React Native requests NDK 27.1.12297006, JDK 17 and CMake 3.30.5 (overridable with CMAKE_VERSION); Google Play requires 16 KB page-size support for new apps and updates targeting Android 15+ from 1 Nov 2025"
+    verify: "https://github.com/facebook/react-native/blob/main/packages/react-native/ReactAndroid/build.gradle.kts ; https://android-developers.googleblog.com/2025/05/prepare-play-apps-for-devices-with-16kb-page-size.html (exa + brave, 2026-09-30; ledger pf-09, pf-10)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: rn-edge-to-edge-keyboard
+    pack: mobile-app/80-mobile.md
+    kind: practice
+    claim: "Android 16 targets cannot opt out of edge-to-edge and Expo SDK 54 made it the default; Expo recommends react-native-keyboard-controller over the core KeyboardAvoidingView under edge-to-edge"
+    verify: "https://expo.dev/changelog/sdk-54 ; https://expo.dev/blog/edge-to-edge-display-now-streamlined-for-android (WebSearch + brave, 2026-09-30; ledger pf-11, pf-12)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: rn-library-apis
+    pack: mobile-app/80-mobile.md
+    kind: version
+    claim: "react-native-mmkv's current API: createMMKV() and .remove(key), Info.plist AppGroupIdentifier, needs react-native-nitro-modules; @testing-library/react-native v14 is stable and async (codemod rntl-v14-async-functions); FlashList's current major is New-Architecture-only without estimatedItemSize; Hey API enables validation with validator on the @hey-api/sdk plugin"
+    verify: "https://github.com/mrousavy/react-native-mmkv ; https://oss.callstack.com/react-native-testing-library/docs/start/migration-v14 ; https://shopify.github.io/flash-list/docs/v2-migration/ ; https://fastapi.tiangolo.com/advanced/generate-clients/ (exa + brave + WebFetch, 2026-09-30; ledger lb-01..lb-03, lb-09, lb-10)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: rn-styling-engines
+    pack: mobile-app/80-mobile.md
+    kind: practice
+    claim: "Uniwind is an MIT build-time Tailwind compiler from the Unistyles team whose free tier re-renders on theme change (Uniwind Pro is paid, proprietary, zero-re-render); react-native-unistyles v3 is New-Architecture-only with a C++/JSI core; NativeWind's stable line targets Tailwind v3 and its Tailwind-v4 line is a release candidate; React Native Reusables is MIT with Uniwind or NativeWind starters"
+    verify: "https://github.com/uni-stack/uniwind ; https://www.unistyl.es/v3/start/getting-started/ ; https://www.nativewind.dev/v5 ; https://github.com/founded-labs/react-native-reusables (exa + brave + WebSearch, 2026-09-30; ledger lb-04..lb-07)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: apple-login-and-deletion
+    pack: mobile-app/80-mobile.md
+    kind: standard
+    claim: "Apple 4.8: a third-party/social primary login must be paired with an equivalent login service limiting data to name and email, allowing a private email and collecting no ad interactions without consent; 5.1.1(v): account creation requires in-app deletion; privacy manifests are enforced from 1 May 2024 for newly added listed SDKs; Google Play requires in-app deletion plus a web deletion link"
+    verify: "https://developer.apple.com/app-store/review/guidelines/ ; https://developer.apple.com/news/?id=pvszzano ; https://support.google.com/googleplay/android-developer/answer/13327111 (WebFetch + exa + brave, 2026-09-30; ledger st-01..st-03, st-06)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: ai-decision-transparency-scope
+    pack: mobile-app/80-mobile.md
+    kind: standard
+    claim: "GDPR Art. 22 binds solely-automated decisions with legal or similarly significant effects; AI Act Art. 50 transparency duties apply from 2 Aug 2026 to chatbots, generated content and deepfakes, while recommendation systems are minimal-risk; KVKK Art. 11(1)(g) grants a right to object to a detrimental result of exclusively automated analysis, and KVKK published a generative-AI guide on 24 Nov 2025"
+    verify: "https://digital-strategy.ec.europa.eu/en/faqs/transparency-obligations-under-article-50-ai-act ; https://www.dataguidance.com/news/turkey-kvkk-publishes-guide-generative-ai-and-personal (exa + brave, 2026-09-30; ledger st-07, st-10)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: kvkk-cross-border-7499
+    pack: mobile-app/80-mobile.md
+    kind: standard
+    claim: "Since Law 7499 took effect on 1 June 2024, a KVKK transfer abroad needs an adequacy decision, an appropriate safeguard such as the Board's standard contract (notified to the Authority within 5 business days of signing) or an incidental-transfer ground"
+    verify: "https://www.esenyelpartners.com/cross-border-data-transfer-under-kvkk/ ; the official KVKK translation of Law 6698 as amended (brave + exa, 2026-09-30; ledger st-09)"
+    window_days: 365
+    last_verified: 2026-09-30
+
+  - id: mobile-dated-deadlines
+    pack: mobile-app/80-mobile.md
+    kind: deprecation
+    claim: "Firebase Dynamic Links shut down on 25 Aug 2025 (links return 404); the FTC's amended COPPA Rule took effect 23 June 2025 with a compliance date of 22 April 2026"
+    verify: "https://firebase.google.com/support/dynamic-links-faq ; https://www.federalregister.gov/documents/2025/04/22/2025-05904/childrens-online-privacy-protection-rule (WebSearch + exa, 2026-09-30; ledger pf-16, st-12)"
+    window_days: 365
+    last_verified: 2026-09-30
+
   - id: fingerprintjs-oss-accuracy
     pack: saas/87-abuse-detection.md
     kind: practice

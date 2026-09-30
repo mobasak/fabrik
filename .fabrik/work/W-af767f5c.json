@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T10:46:44.101698Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-af767f5c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "align the two paths (point the script at src/translations/ and have --init register the language in resources.ts), with a test; mobile-app/80-mobile.md (currency pass 2026-09-30) documents the workaround",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "mobile-app scaffold: scripts/sync_rn_locales.py writes src/locales/ but the app loads src/translations/ (src/lib/i18n/resources.ts), so a synced language never reaches the app"
+}

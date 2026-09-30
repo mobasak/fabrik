@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T10:46:44.334209Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-db9e219f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "upgrade the template with the rntl-v14-async-functions codemod over the emitted tests, then drop the pack's 'scaffold still pins the previous major' note",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "mobile-app scaffold pins @testing-library/react-native at the previous major (13.3.x); the current stable major (v14) makes render/fireEvent/act async"
+}

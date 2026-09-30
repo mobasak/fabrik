@@ -1,13 +1,14 @@
 ---
 activation: glob
-globs: ["**/metro.config.*", "**/react-native.config.*", "**/app.json", "**/eas.json"]
+globs: ["**/metro.config.*", "**/react-native.config.*", "**/app.json", "**/app.config.*", "**/eas.json"]
 description: React Native mobile discipline — architecture, backend, navigation, performance, monetization, compliance, and i18n for worldwide shipping
 trigger: glob
+currency_pass: 2026-09-30
 ---
 <!-- CONSUMER: Coding agents building React Native mobile apps
      GOAL: RN/Expo architecture, navigation, state, styling, accessibility, compliance, i18n
-     TRAYCER USAGE: Injects as Context File for mobile client-lane tickets.
-     AGENT USAGE: Follow verbatim for client-side mobile code. Backend rules from 10-python apply. -->
+     PLANNING USAGE: /fabrik-flows and /fabrik-epics derive project screens from the inventory below.
+     AGENT USAGE: Follow for client-side mobile code; the emitted mobile-app scaffold is the reference. Backend rules from 10-python apply. -->
 
 # Mobile Rules (React Native)
 
@@ -21,15 +22,15 @@ Worldwide-shipping baseline. Compliance floor is GDPR + EU AI Act; other markets
 
 ## Screen Inventory (minimum viable mobile app)
 
-Every mobile app project must ship these screens. Traycer derives additional project-specific screens during `core-flows` and `ticket-breakdown`.
+Every mobile app project must ship these screens. `/fabrik-flows` and `/fabrik-epics` derive the project-specific screens.
 
 ### Auth & Onboarding
 
 | Screen | Route/Name | Purpose |
 |---|---|---|
-| **Splash** | App launch | Brand splash (800ms max per design system § Motion). Checks auth state → routes to onboarding or home. |
+| **Splash** | App launch | Brand splash (`expo-splash-screen`), held only until auth state resolves → routes to onboarding or home. |
 | **Onboarding wizard** | `Onboarding` | 3-5 swipeable value screens. Skippable. Shows before signup for value-before-signup pattern. |
-| **Login** | `Login` | FastAPI auth service (`fabrik-lib/fastapi-user-auth`) — **PASSWORDLESS by default** (`35-security-auth.md` § Passwordless): one email field → OTP code entry, with the magic link landing via the Universal Links / App Links wiring § Deep linking already mandates. A password field is an ADDITIONAL affordance the project justifies, never the default. Social/OAuth handled server-side; client stores the app-issued JWT in `expo-secure-store`. Per Apple Guideline 4.8, if you offer any third-party/social login you must also offer an equivalent privacy-preserving option — Sign in with Apple (via the FastAPI auth service) is the canonical way to satisfy this. |
+| **Login** | `Login` | FastAPI auth service (`fabrik-lib/fastapi-user-auth`) — **PASSWORDLESS by default** (`35-security-auth.md` § Passwordless): one email field → OTP code entry, with the magic link landing via the Universal Links / App Links wiring § Deep linking already mandates. A password field is an ADDITIONAL affordance the project justifies, never the default. Social/OAuth handled server-side; client stores the app-issued JWT in `expo-secure-store`. Apple Guideline 4.8 applies only if the app offers a third-party/social login for the primary account: it must then also offer an equivalent login service that limits data to name and email, lets the user keep the email private, and collects no interactions for advertising without consent — add Sign in with Apple via the FastAPI auth service. ⚠️ The scaffold's `src/features/auth/components/login-form.tsx` is a **demo email+password form** with hard-coded English copy — replace it with the passwordless flow before the foundation epic closes, keeping only its `@tanstack/react-form` + Zod + keyboard-controller shape. |
 | **Signup** | `Signup` | Registration. Redirects to verify-email screen. |
 | **Verify email** | `VerifyEmail` | "Check your email" — resend button, change email link. Cannot proceed until verified. |
 | **Forgot password** | `ForgotPassword` | Email input → triggers reset flow. |
@@ -40,7 +41,7 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 | Screen | Route/Name | Purpose |
 |---|---|---|
 | **Home / Dashboard** | `Home` | Primary tab. Active status, quick actions, recent items. |
-| **[Core feature screens]** | Project-specific | Defined per epic during `core-flows`. 2-4 tabs typical. |
+| **[Core feature screens]** | Project-specific | Defined per epic during `/fabrik-flows`. 2-4 tabs typical. |
 | **Profile / Settings** | `Settings` | Account info, locale, notifications, linked accounts, app version. |
 
 ### Billing & Subscription
@@ -56,7 +57,7 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 |---|---|---|
 | **Edit profile** | `EditProfile` | Display name, avatar, email (change triggers verification). |
 | **Notification preferences** | `NotificationPreferences` | Per event-type toggle (push on/off). |
-| **Language** | `LanguageSettings` | Locale picker (en, tr, + future languages). |
+| **Language** | `LanguageSettings` | Locale picker (en, tr, ar, + future languages). |
 | **Privacy & data** | `PrivacyData` | Privacy policy link, data export, account deletion. |
 | **About** | `About` | App version, licenses, support link. |
 
@@ -70,7 +71,7 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 **Rules:**
 - Auth + onboarding screens ship in the foundation epic — launch-blocking.
 - Paywall ships in the billing epic. "Restore Purchases" is store-mandatory.
-- Core feature screens are project-specific — Traycer defines them during `core-flows`.
+- Core feature screens are project-specific — `/fabrik-flows` defines them.
 - Every screen follows the design system 5 states (loading, empty, error, success, disabled).
 - Navigation: **expo-router** file-based routing — `Stack` for hierarchical flows, `Tabs` for top-level (3-5 tabs).
 
@@ -78,20 +79,20 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 
 ## Architecture
 
-- React Native with TypeScript is the mobile framework. The New Architecture (Fabric/JSI) is the default since React Native 0.76 and Expo SDK 53; the legacy bridge was frozen in June 2025 and removed in RN 0.82 (Oct 2025). Expo SDK 55 made it **mandatory** — `newArchEnabled: false` is a no-op. Current stable is **Expo SDK 57** (released 2026-06-30, built on React Native 0.86). Never generate code relying on the legacy asynchronous JSON bridge.
+- React Native with TypeScript on Expo is the mobile framework. React Native now runs **only** on the New Architecture (Fabric/JSI): the opt-out is gone and current Expo ignores `newArchEnabled` (the scaffold's `newArchEnabled: true` in `app.config.ts` is inert). Never set it `false`, and never generate code relying on the legacy asynchronous bridge. The SDK version is whatever the project's `package.json` pins (`expo`); move it with the Expo SDK upgrade guide and `npx expo install --fix`, never by hand-editing individual package versions.
 - Web DOM elements (`<div>`, `<span>`, `<p>`, `<img>`, `<a>`) are **strictly forbidden**. Use React Native primitives: `<View>`, `<Text>`, `<Pressable>`, `<Image>`.
 - Minimize direct modifications to `android/` and `ios/` directories. Prefer config plugins or autolinking where possible.
-- If the project uses Expo Managed Workflow, never suggest `npx expo eject` or manual native file edits. All native configuration belongs in `app.json` config plugins.
+- If the project uses Expo Managed Workflow, never suggest `npx expo eject` or manual native file edits. All native configuration belongs in config plugins in `app.config.ts` (the scaffold's) or `app.json`.
 
 ---
 
 ## Navigation
 
-- Use **expo-router** (file-based routing, screens under `app/`) for all navigation — Expo's recommended router and the `create-expo-app` default since SDK 50. **As of SDK 56, expo-router forked from React Navigation and no longer depends on `@react-navigation/*`**: importing directly from `@react-navigation/*` in app code no longer works out of the box (a codemod repoints those imports to expo-router's own entry points). Importing `@react-navigation/*` from app code triggers a **Metro/Expo CLI bundler ERROR** at build time (override with `EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK=1`) — it is **not** an `expo-doctor` warning. Do NOT add `@react-navigation/*` packages to a new app.
-- Use expo-router's `Stack` for hierarchical screen flows and `Tabs` for top-level sections (defined by the file layout in `app/`, e.g. `_layout.tsx`).
-- Enable **typed routes** (`experiments.typedRoutes: true` in `app.json`) for type-safe hrefs and route params — no hand-maintained route-name file.
+- Use **`expo-router`** (file-based routing; the scaffold keeps screens under `src/app/`) for all navigation — Expo's recommended router and the `create-expo-app` default. **expo-router no longer depends on React Navigation**: app code imports navigation primitives from expo-router's own entry points, and importing `@react-navigation/*` in app code is a **Metro bundler error** (not an `expo-doctor` warning). Expo ships a codemod that rewrites old imports; `EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK=1` only silences the check and risks two navigation copies in the bundle. Do NOT add `@react-navigation/*` packages.
+- Use expo-router's `Stack` for hierarchical screen flows and `Tabs` for top-level sections (defined by the file layout in `src/app/`, e.g. `_layout.tsx`).
+- Keep **typed routes** on (`experiments.typedRoutes: true` — Expo's current templates ship it enabled) for type-safe hrefs and route params — no hand-maintained route-name file.
 - Deep linking is handled by expo-router's file-based routes. Use Universal Links (iOS AASA) and App Links (Android assetlinks.json) — wired as Expo config plugins at prebuild. Custom URL schemes are fallback only.
-- Deep-link routing via ChottuLink (or equivalent) for attribution. See `00-domain-mobile-app.md` § Attribution for the full stack (ChottuLink + Tenjin + RevenueCat).
+- Deep-link routing via ChottuLink (or equivalent) for attribution. See `00-domain-mobile-app.md` § 12. Analytics, Attribution & Crash/Stability for the full stack (ChottuLink + Tenjin + RevenueCat).
 - Use tabs for three to five top-level destinations; reserve modals for short focused tasks.
 
 ---
@@ -100,11 +101,11 @@ Every mobile app project must ship these screens. Traycer derives additional pro
 
 - Use unidirectional data flow: state flows down, events flow up.
 - **Server/API state:** TanStack React Query for caching, deduplication, and optimistic updates.
-  - **FastAPI backend (primary data layer):** the client talks only to FastAPI endpoints (Pattern A, same client model as web). Wrap each endpoint in a typed React Query hook; mirror the backend Pydantic schemas with Zod and validate at the React Query boundary when input/output crosses a trust boundary. Generate the typed client from the FastAPI OpenAPI 3.1 schema with **`@hey-api/openapi-ts`** (FastAPI's own docs name Hey API as the purpose-built TypeScript generator) plus its **`@tanstack/react-query`** plugin (typed React Query v5 hooks) and **`zod`** plugin (Zod validators). Wire validation through with **`validator: true` on the `@hey-api/sdk` plugin** — plugin-scoped, i.e. `{ name: '@hey-api/sdk', validator: true }`, NOT `sdk.validator: true`. One config emits the hooks + validators, unlike `openapi-typescript` (types only → every hook and Zod schema hand-written). Never `supabase gen types`, and never a `supabase-js` client.
+  - **FastAPI backend (primary data layer):** the client talks only to FastAPI endpoints (Pattern A, same client model as web). Wrap each endpoint in a typed React Query hook; mirror the backend Pydantic schemas with Zod and validate at the React Query boundary when input/output crosses a trust boundary. Generate the typed client from the FastAPI OpenAPI schema with **`@hey-api/openapi-ts`** (FastAPI's own docs name Hey API as the purpose-built TypeScript generator) plus its **`@tanstack/react-query`** plugin (typed React Query hooks) and **`zod`** plugin (Zod validators). The scaffold still lists `axios`, `react-query-kit` and `@tanstack/zod-form-adapter`, which nothing uses since the Hey API client replaced them — never import them. Wire validation through on the `@hey-api/sdk` plugin — plugin-scoped, `{ name: '@hey-api/sdk', validator: true }` as the scaffold's `openapi-ts.config.ts` does (`true` resolves to the configured Zod plugin; `validator: 'zod'` is the explicit form) — never a top-level `sdk.validator`. One config emits the hooks + validators, unlike `openapi-typescript` (types only → every hook and Zod schema hand-written). Never `supabase gen types`, and never a `supabase-js` client.
   - The client never talks to Postgres or any data store directly — all data goes through FastAPI, which owns `postgres-main` access, AI workflows, scraping, and scheduled jobs.
 - **Global UI state:** Zustand. Avoid Redux boilerplate and standalone `React.Context` for high-frequency updates.
-- **Local persistence:** `react-native-mmkv` (V4+) for fast, synchronous key-value storage (30× faster than AsyncStorage via JSI memory-mapped files). Reserve `expo-sqlite` + Drizzle ORM for complex offline relational queries only.
-  - **V4 API — the constructor and one method were renamed** (do not copy pre-V4 snippets — V3 and earlier used `new MMKV()`): create a store with `createMMKV(...)` (not `new MMKV(...)` — the JS class was removed, MMKV is now a purely native Nitro/JSI HybridObject) and delete a key with `.remove(key)` (not `.delete(key)` — `delete` is a reserved keyword in C++). Also `AppGroup` in Info.plist was renamed to `AppGroupIdentifier`. V4 requires `react-native-nitro-modules` and RN ≥ 0.76 (README Limitations: "V4 requires react-native 0.76 or higher"). See [react-native-mmkv V4_UPGRADE_GUIDE.md](https://github.com/mrousavy/react-native-mmkv/blob/main/docs/V4_UPGRADE_GUIDE.md).
+- **Local persistence:** `react-native-mmkv` for fast, synchronous key-value storage (its README claims ~30× AsyncStorage, via JSI memory-mapped files). Reserve `expo-sqlite` + Drizzle ORM for complex offline relational queries only.
+  - **The current (Nitro) API renamed the constructor and one method** — never copy an older snippet: create a store with `createMMKV(...)` (not `new MMKV(...)`; MMKV is now a native Nitro/JSI HybridObject) and delete a key with `.remove(key)` (not `.delete(key)`); the Info.plist key `AppGroup` became `AppGroupIdentifier`. It needs `react-native-nitro-modules` (the scaffold ships both). See [the upgrade guide](https://github.com/mrousavy/react-native-mmkv/blob/main/docs/V4_UPGRADE_GUIDE.md).
 - Never call the FastAPI backend directly from a screen component — wrap in a typed React Query hook.
 
 ---
@@ -116,7 +117,7 @@ The RN client is a **Pattern-A client** (same model as web): it talks to a **sel
 - **FastAPI + `postgres-main` is the primary data layer**: app data, tenant-isolation RLS, storage routing, realtime. Auth is `fabrik-lib/fastapi-user-auth`.
 - **Auth (Pattern A):** the FastAPI auth service (`fabrik-lib/fastapi-user-auth`) issues the app's own JWT and owns registration, **passwordless sign-in (the default — OTP code and/or magic link)**, login, password reset (password mode only), email verification, and OAuth/social — including **Sign in with Apple** (handled server-side, not by Supabase). The client stores the app-issued JWT in `expo-secure-store` and sends it in the `Authorization` header. Never store JWTs in AsyncStorage or MMKV. Token lifecycle (Argon2, 15-min access, refresh-token rotation, denylist) is exactly per `35-security-auth.md` § Pattern A.
 - **Data:** the client uses typed React Query hooks against FastAPI endpoints. No `supabase-js`, no direct-from-client DB access, no Supabase Edge Functions. Anything needing secrets, AI workflows, scraping, or scheduled jobs runs behind FastAPI.
-- **RLS:** keep tenant-isolation RLS on `postgres-main`. `fabrik-user-auth` owns the `auth` schema; policies use `auth.uid()` reimplemented over the `request.jwt.claims` GUC (per `35-security-auth.md` § Pattern A-compat and `95-multi-tenant-saas.md`). All tables enforce RLS before any query. No exceptions.
+- **RLS:** keep tenant-isolation RLS on `postgres-main`, set up exactly as `saas/95-multi-tenant-saas.md` specifies. All tables enforce RLS before any query. No exceptions.
 - **Vector / RAG:** pgvector on `postgres-main` + `fabrik-lib/rag`. **Storage:** `fabrik-lib/storage` (Backblaze B2), fronted by FastAPI presigned URLs. **Realtime:** `redis-main` pub/sub with WS/SSE from FastAPI — only if a feature actually needs it; default to React Query polling.
 - **Hosting region:** `postgres-main` runs on the Fabrik VPS (EU) — satisfies GDPR and KVKK alignment with acceptable worldwide latency. Data residency is a VPS-placement decision, not a per-project BaaS region setting.
 - **Legacy (Pattern B / Supabase Auth):** for a project that *already* runs on Supabase Auth and has not yet migrated, pass the Supabase JWT in the `Authorization` header and validate server-side per `35-security-auth.md` § Pattern B (confirm signing method — ES256 JWKS vs legacy HS256 shared secret; prefer `getClaims()`; always assert `aud == "authenticated"`, `iss`, `exp`). Such projects should plan their move to Pattern A / Pattern A-compat. Do not use this path for new work.
@@ -127,7 +128,7 @@ The RN client is a **Pattern-A client** (same model as web): it talks to a **sel
 
 - Use `FlatList` for dynamic lists. Tune `windowSize`, `initialNumToRender`, `maxToRenderPerBatch`, and `removeClippedSubviews` based on profiling.
 - Provide stable `keyExtractor` functions — never use array index as key for dynamic lists.
-- For lists exceeding ~50 items with complex rows, use `@shopify/flash-list` for native view recycling at 60 fps.
+- For long lists or complex/heterogeneous rows, use `@shopify/flash-list` (view recycling; the scaffold ships it). Its current major runs on the New Architecture only and drops `estimatedItemSize` — never copy an older snippet that sets it.
 - Never use `<ScrollView>` with `.map()` for dynamic data — it renders all items simultaneously.
 - Avoid heavy computation or synchronous image decoding inside list item render functions.
 
@@ -135,51 +136,24 @@ The RN client is a **Pattern-A client** (same model as web): it talks to a **sel
 
 ## Styling
 
-- Use React Native `StyleSheet.create()` as the default styling approach.
-- React Native Flexbox defaults to `flexDirection: 'column'` — do not assume web CSS behavior.
-- Never use web CSS properties (`className`, media queries, `hover`) in React Native components.
-- **NativeWind v4** moved to build-time compilation (Metro plugin) — static styles compile to `StyleSheet.create()` objects at build, so static-style performance is equivalent to raw StyleSheet. However, **dynamic styles (theming, responsive, state-driven)** still require React context/bridge; `react-native-unistyles` (C++/JSI, synchronous) is faster for these. **Recommendation:** use `react-native-unistyles` for projects with deep theming (Ocoron Design System dark/light switching) or frequent dynamic style updates. NativeWind v4 is acceptable for static-heavy UIs if the team prefers Tailwind DX. NativeWind v5 (aligns with Tailwind CSS v4 Rust engine) is in preview — not production-ready.
-- For complex adaptive theming with design tokens, `react-native-unistyles` (C++/JSI, zero re-render overhead) is the approved alternative.
+- **The scaffold styles with Uniwind** (`uniwind`) — a build-time Tailwind compiler for React Native (MIT, from the Unistyles team): `className` on RN primitives, compiled at build time with no runtime style parsing, variants via `tailwind-variants`, tokens fed through Tailwind's CSS-first `@theme` block in `src/global.css`. Keep it unless the project records a reason to change.
+- `className` is only valid through a build-time compiler (Uniwind, or NativeWind). Never assume web CSS behaviour: no `hover`, no media queries, and Flexbox defaults to `flexDirection: 'column'`.
+- `StyleSheet.create()` is the fallback for a one-off style a utility class cannot express — never inline objects recreated every render.
+- **Alternatives, and when:** the free Uniwind re-renders on a theme change (a rare, deliberate event — acceptable); when zero-re-render synchronous theming is a hard requirement, use `react-native-unistyles` (New Architecture only, a C++/JSI core) or the paid, proprietary Uniwind Pro. NativeWind's stable line targets the previous Tailwind major; its line for the current Tailwind is still a release candidate — not for production.
 
 ### Component sources — where a component COMES FROM (the engine above only styles it)
 
-Measured 2026-08-29 (web-ecommerce-factory, 0 of 6 mobile-pack files named a component source):
-every mobile build was re-answering "hand-roll or adopt a set?" from scratch. The rule, mirroring
-`saas/60-saas-ui.md`'s structure/skin split:
+- **Default: React Native Reusables** (`founded-labs/react-native-reusables` — MIT): shadcn/ui's copy-paste model for React Native, with starters for Uniwind or NativeWind. Components are STRUCTURE; the project's design system (resolved by the ladder in `saas/60-saas-ui.md` — BIC identity first, a house brand only by explicit declaration) is the SKIN. Four of the five fabrik-lib `rn-*-kit` modules ship UI on Uniwind (`rn-analytics-kit` has none).
+- **One set spanning web and RN: gluestack-ui** (MIT per its README and GitHub's licence badge) — verify at adoption per the filter below.
+- ⚠️ **THE LICENCE FILTER (load-bearing — a Fabrik scaffold IS a starter kit).** Premium UI-kit licences (Tailwind Plus, Flowbite Pro, shadcnblocks) forbid redistributing their components in a starter kit or website builder; their "unlimited end products" grant covers one app, never an emitted starter. So for anything a scaffold or template emits: **permissive OSI licences only** (MIT / Apache-2.0 / BSD), read at adoption from the raw licence file (never the marketing page), with the SPDX id and read-date recorded in the project's `docs/design-system.md` header. Terms you cannot retrieve = not an option.
+- **Produced-artifact mirror:** components adopted here serve the app's OWN UI — artifacts the product generates for its customers never inherit them (same boundary as the web rule).
 
-- **Default: React Native Reusables** (`founded-labs/react-native-reusables` — **MIT, licence file
-  read live 2026-08-29**): shadcn/ui's copy-paste model ported to RN, running on **Uniwind** — the
-  engine this pack already accepts and the one all five fabrik-lib `rn-*-kit` modules ship on.
-  Components are STRUCTURE; the project's design system (resolved by the ladder in
-  `saas/60-saas-ui.md` — BIC identity first, tojlo only by explicit declaration) is the SKIN.
-- **Candidate for one set spanning web+RN: gluestack-ui** — ⚠️ its MIT claim did **NOT** verify this
-  session (no licence file at the repo root; the GitHub API reports no SPDX id). Verify at adoption
-  per the filter below; an unverifiable licence is a NO, not a maybe.
-- ⚠️ **THE LICENCE FILTER (load-bearing — a Fabrik scaffold IS a starter kit).** Premium UI-kit
-  licences uniformly prohibit exactly what a scaffolder does — verified verbatim on Tailwind Plus
-  this session (*"website builder" project where end users can build their own websites using
-  components, templates, or libraries included with or derived from Tailwind Plus*; *starter kit
-  using the components, templates, or libraries and making it available either for sale or for
-  free*), with the same clause independently read on Flowbite Pro and shadcnblocks. Their
-  "unlimited end products" grant covers an agency's ONE app — never an emitted starter. So: for
-  anything a scaffold or template emits, **permissive OSI licences only** (MIT / Apache-2.0 / BSD),
-  the licence **read at adoption from the raw licence file** (never the marketing page), and the
-  SPDX id + read-date recorded in the project's `docs/design-system.md` header. Terms you cannot
-  retrieve = not an option (NativeLaunch, native-templates.com: redistribution terms unretrievable).
-- **Produced-artifact mirror:** components adopted here serve the app's OWN UI — artifacts the
-  product generates for its customers never inherit them (same boundary as the web rule).
-- **Uniwind** (`uniwind`, by the Unistyles team — `uni-stack/uniwind`, "from the creators of Unistyles") is an **accepted third styling option**: a **build-time Tailwind-v4 Metro compiler** with `className` DX and **no runtime style parsing** (so the perf reason NativeWind v2/v3 was banned does not apply). It is **NOT** the `react-native-unistyles` C++/JSI runtime — it **re-renders on theme change** (a rare, non-hot-path event — a deliberate dark/light toggle — acceptable for Ocoron theming; not a scroll/gesture/animation path). The zero-re-render synchronous C++ engine is the **unreleased "Uniwind Pro"** tier (the clean future upgrade). Custom tokens are fed via Tailwind-v4 CSS-first `@theme`/`@variant` blocks + the Metro plugin (no `tailwind.config.js`). RN ≥ 0.81, Expo-compatible (incl. Expo Go), MIT, currently v1.x. **Choose raw `react-native-unistyles` when zero-re-render synchronous theming is a hard requirement; Uniwind otherwise** (e.g. when adopting the Obytes template, which ships it).
+### Design system (mobile)
 
-### Ocoron Design System (Mobile)
-
-- Apply Ocoron Design System color tokens (`ocoron-design-system.md`) via `react-native-unistyles` theme configuration. Same hex values as web, mapped to the unistyles theme object.
-- Load **Space Grotesk** and **Inter** as custom fonts via `expo-font` or manual linking. Use **JetBrains Mono** for data/metrics displays only.
-- **Both dark and light mode are mandatory.** Dark is default. Detect OS preference via `Appearance.getColorScheme()` + `addEventListener('change')` on mount. Manual override in Settings screen. Persist preference in MMKV. Switch via `react-native-unistyles` theme.
-- Cards → `Pressable` list items with `translateY(1)` + `scale(0.98)` press feedback (`0.15s` duration).
-- Tab bar → bottom navigation using `--color-accent` (`#5B5BF7`) for the active tab indicator.
-- Font size floor: 13px. No text smaller than this on any mobile surface.
-- Spacing follows the Ocoron token scale (`xs: 4, sm: 8, md: 16, lg: 24, xl: 32, 2xl: 48`) mapped to unistyles spacing.
-- Component patterns (cards with 1px borders, tags, pills, buttons) follow canonical design system specs adapted for touch targets.
+- Token SLOTS, both colour modes, the contrast contract, motion and states come from `core/design-system-template.md`; the VALUES come from the design system the ladder in `saas/60-saas-ui.md` resolves — a house brand only when the project declares it (Ocoron: values in `core/ocoron-design-system.md`, mobile deltas in `mobile-app/ocoron-mobile-design-system.md`; Tojlo likewise). Never copy hex values or a spacing scale into this pack or into components.
+- Map the tokens into the styling engine's theme (Uniwind: `@theme` variables in `src/global.css`) — no raw hex values in components.
+- **Both dark and light mode are mandatory**: follow the OS with a manual override in Settings, persisted in MMKV — the scaffold's `src/lib/hooks/use-selected-theme.tsx` does this with `Uniwind.setTheme('light' | 'dark' | 'system')`.
+- Font size floor: 13px on any mobile surface; touch-target and motion rules per the template.
 
 ---
 
@@ -197,19 +171,19 @@ every mobile build was re-answering "hand-roll or adopt a set?" from scratch. Th
 
 - Use `Platform.OS === 'ios'` or `Platform.select()` for platform-specific behavior (shadows, keyboard, haptics).
 - Always use `useSafeAreaInsets()` from `react-native-safe-area-context` instead of hardcoded top/bottom padding.
-- Handle keyboard avoidance with `KeyboardAvoidingView` — `behavior="padding"` on iOS, `behavior="height"` on Android.
+- Handle the keyboard with `react-native-keyboard-controller` (the scaffold ships it; Expo recommends it over the core `KeyboardAvoidingView` because Android apps now draw edge-to-edge — enforced for apps targeting Android 16, and the Expo default). Use its `KeyboardAvoidingView` / `KeyboardAwareScrollView`, not the core component; it needs `<KeyboardProvider>` at the root (the scaffold's `src/app/_layout.tsx` has it). Edge-to-edge itself comes from `react-native-edge-to-edge` (dependency + config plugin in the scaffold) — never re-add status-bar padding by hand.
 - Never assume identical shadow rendering, status bar behavior, or keyboard dismiss behavior across platforms.
 
 ---
 
 ## Localization (i18n)
 
-- Use `expo-localization` to detect device locale and `i18next` + `react-i18next` for translations. Translation JSON in `src/locales/<lang>.json`.
-- **Source-of-truth JSON lives at `static/i18n/en.json`** (same format across all fabrik GUI projects). Sync to `src/locales/` via `python scripts/sync_rn_locales.py`. First-time setup: `python scripts/sync_rn_locales.py --init` generates `src/locales/i18n.ts` with expo-localization + i18next config.
+- Use `expo-localization` to detect device locale and `i18next` + `react-i18next` for translations. The app loads translation JSON from `src/translations/<lang>.json` (imported by `src/lib/i18n/resources.ts` in the scaffold).
+- **Source-of-truth JSON lives at `static/i18n/<lang>.json`** (the same format across all fabrik GUI projects). ⚠️ `scripts/sync_rn_locales.py` currently copies it to `src/locales/`, which the app does not read — until the scaffold aligns the two paths, copy each file into `src/translations/` and register the language in `resources.ts`; never run `sync_rn_locales.py --init` (it writes a second i18next init under `src/locales/`). `scripts/validate_i18n.py` checks `static/i18n/` only, so it cannot see a stale `src/translations/` copy.
 - All user-facing strings live in translation files. No hardcoded strings in components — caught at code review.
-- Supported languages from day 1: **English (en), Turkish (tr)**. Add Spanish (es), German (de), French (fr), Portuguese-BR (pt-BR), Arabic (ar) as markets prove out.
+- Supported languages from day 1: **English (en), Turkish (tr)**. The scaffold ships `en` and `ar` (the RTL exemplar) with only `static/i18n/tr.example.json` — rename it to `tr.json`, copy it into `src/translations/`, and register it. Add Spanish (es), German (de), French (fr) and Portuguese-BR (pt-BR) as markets prove out.
 - Dates and numbers: `Intl.DateTimeFormat` and `Intl.NumberFormat` with the user's locale. Never hardcode `MM/DD/YYYY` or `1,000.00` formats.
-- Time zones: store all timestamps in **UTC** server-side. Render in user locale on the client via `date-fns-tz`. (Temporal is not yet implemented in Hermes — if used, add `@js-temporal/polyfill`; `date-fns-tz` is the zero-dependency default.)
+- Time zones: store all timestamps in **UTC** server-side. Render in user locale on the client via `date-fns-tz`. Before adopting `Temporal`, confirm the project's Hermes build supports it; otherwise add `@js-temporal/polyfill`.
 - Currency display: `Intl.NumberFormat` with locale + currency code. Pricing source-of-truth is RevenueCat (see Monetization).
 - Phone numbers: `libphonenumber-js` for parsing, formatting, and validation. Never assume a national format.
 - RTL readiness: structure all Flexbox layouts to flip correctly under `I18nManager.isRTL`. Use `start`/`end` instead of `left`/`right` in styles. Even if Arabic ships later, design for it now.
@@ -219,26 +193,23 @@ every mobile build was re-answering "hand-roll or adopt a set?" from scratch. Th
 
 ## Forms
 
-- Use `react-hook-form` with `zod` resolvers for form validation. Uncontrolled components prevent full-form re-renders on every keystroke.
-- Mirror Zod schemas with backend Pydantic schemas (FastAPI) to maintain type alignment across the network boundary.
+- Use `@tanstack/react-form` with Zod validators (the scaffold's forms, e.g. `src/features/auth/components/login-form.tsx`) — field-level subscriptions avoid whole-form re-renders on every keystroke.
+- Reuse the Zod schemas generated from the FastAPI OpenAPI contract (§ State Management) so client and server validation cannot drift.
 
 ---
 
 ## Testing
 
-- **Unit / component:** `@testing-library/react-native` (v14+) + Jest.
-  - **v14 API is async** — `render`, `renderHook`, `fireEvent`, and `act` all return Promises and MUST be awaited. Tests written against v13 or earlier that used `const { getByText } = render(<Comp/>)` without `await` will now leak the Promise and fail on Suspense boundaries / the React 19 `use()` hook. If you migrated the v13.3 `renderAsync` / `fireEventAsync` / `renderHookAsync` APIs, rename them to their non-`Async` counterparts (they were the preview, now the default). Codemod: `rntl-v14-async-functions`. See [migration-v14](https://oss.callstack.com/react-native-testing-library/docs/start/migration-v14).
+- **Unit / component:** `@testing-library/react-native` + Jest (`jest-expo`).
+  - **Its current major is async** — `render`, `renderHook`, `fireEvent` and `act` return Promises and MUST be awaited, and the previous major's `renderAsync`/`fireEventAsync`/`renderHookAsync` are gone (codemod `rntl-v14-async-functions`, [migration guide](https://oss.callstack.com/react-native-testing-library/docs/start/migration-v14)). ⚠️ The scaffold still pins the previous major, whose `render` is synchronous — write tests for the version in `package.json`, and migrate with the codemod when you upgrade.
 - **E2E automation:** Maestro (declarative YAML flows targeting `testID` attributes, stored in `.maestro/`). Maestro handles implicit waits for network and animations, reducing flakiness vs Detox/Appium.
 
 ---
 
 ## MCP Servers (Mobile Automation)
 
-- Configure these MCP servers in the AI agent (Claude Code / Cursor) for autonomous verification:
-  - **Expo MCP**: SDK docs, EAS build inspection, simulator screenshots.
-  - **Mobile Next MCP**: native iOS/Android accessibility tree interaction for end-to-end UI verification.
-  - **iOS Simulator MCP** (idb-based): boot, focus, control simulator windows.
-  - **Appium MCP**: cross-platform automation against simulators and physical devices when needed.
+- The MCP roster (`/opt/fabrik/docs/workstation/mcp-roster.md`, hub-local) assigns every mobile-app repo **`mobile-mcp`** (Mobile Next — iOS/Android simulators, emulators and devices through the accessibility tree) and **`maestro`** (runs the `.maestro/` flows); the hub writes them into `.mcp.json`. Use them for verification.
+- Optional: **Expo MCP** (Expo-hosted, OAuth; current docs, EAS build/log inspection, simulator screenshots) and `appium/appium-mcp` for device farms — add them only through the MCP roster's process, never by hand-editing `.mcp.json`.
 - After every non-trivial feature, prompt the agent to verify against the simulator via MCP. Manual click-testing is a smell — automate the verification loop.
 
 ---
@@ -253,28 +224,28 @@ every mobile build was re-answering "hand-roll or adopt a set?" from scratch. Th
 The right build path depends on WHO consumes the binary, not on personal preference. Pick before wiring CI:
 
 - **Store / team distribution** (App Store, Play Store, TestFlight, Play Console Internal Testing, RevenueCat-gated releases) → **EAS Build is primary.** Managed signing, CI, shareable install links, quota is a non-issue at this scale. Define EAS profiles in `eas.json` (`development`, `preview`, `production`). Trigger from GitHub Actions on tag push. **EAS Submit** to TestFlight and Play Console Internal Testing is the default first ring.
-- **Sideload / solo / personal APK** (one-operator dev builds, personal utility apps, non-store distribution) → **Local `expo prebuild` + `./gradlew assembleRelease` is primary; EAS is the backup.** First build is 15–40 min (Gradle downloads the toolchain), repeat builds are 2–5 min from Gradle cache; EAS is a constant ~15 min per run + account + monthly quota. For the solo path, local is strictly faster and has no external dependency once the toolchain is set up.
+- **Sideload / solo / personal APK** (one-operator dev builds, personal utility apps, non-store distribution) → **Local `expo prebuild` + `./gradlew assembleRelease` is primary; EAS is the backup.** After the first toolchain download, repeat local builds come from the Gradle cache and need no account or build quota.
 
 ### Local Android toolchain (one-time setup — required for sideload builds AND for anything with a native C++ module)
 
-Pinned versions (verified against the RN 0.76 android template):
+Install exactly what the project's React Native version requests — never a version copied from a doc, which goes stale with every RN release:
 
-- **JDK 17** (`openjdk-17-jdk` or Temurin 17).
-- **Android SDK** — install via Android Studio SDK Manager (platform + build-tools matching your `compileSdkVersion`).
-- **NDK 27.1.12297006** — MANDATORY for any app with a native/C++ module. RN 0.76+ defaults to NDK 27 for 16KB page-size support (Play Store requirement from Nov 2025). `react-native-mmkv` V4 is a Nitro/JSI C++ module, so if MMKV is in the tree you WILL exercise the NDK path.
-- **CMake 3.22.1** — the version RN 0.76's android template pins. Newer CMakes work in general but the template hardcodes this one; matching avoids a class of surprising build failures.
+- **JDK** — the version React Native's "Set Up Your Environment" page names (the Android build compiles against it).
+- **Android SDK** — platform + build-tools matching `compileSdkVersion` in the prebuilt `android/` project.
+- **NDK** — MANDATORY for any app with a native/C++ module (MMKV's Nitro module is one). A managed app has no `android/` folder: run a throwaway `npx expo prebuild --platform android` and read `ndkVersion` in `android/build.gradle` (set by React Native's version catalog). Google Play requires 16 KB page-size support for new apps and updates targeting Android 15+ (since 1 Nov 2025), which that NDK provides.
+- **CMake** — the version React Native's Android build requests: `cmakeVersion` in `node_modules/react-native/ReactAndroid/build.gradle.kts` (overridable with `CMAKE_VERSION`); a mismatch is a common source of native build failures.
 
-Install NDK + CMake via `sdkmanager` (not Android Studio — the CLI pins the exact versions):
+Install NDK + CMake via `sdkmanager` with those values (the CLI installs exact versions):
 
 ```bash
-sdkmanager --install "ndk;27.1.12297006" "cmake;3.22.1"
+sdkmanager --install "ndk;<ndkVersion>" "cmake;<cmakeVersion>"
 ```
 
 ### Bundled-assets rule (the .gitignore gotcha that killed our first EAS upload)
 
-**EAS Build honors `.gitignore` — anything gitignored is silently dropped from the uploaded tarball.** We shipped a first cloud upload of 1.6 MB instead of ~20 MB because the deck-media directory was gitignored (working-tree-only), so the bundle would fail at runtime. Concrete rule:
+**EAS Build uploads the project minus what `.gitignore` excludes** (a `.easignore`, when present, replaces `.gitignore` rather than adding to it) — a gitignored runtime asset is silently missing from the cloud build and fails at runtime. Concrete rule:
 
-- **Runtime assets (images, decks, fonts, seed data, on-device DBs) MUST be git-tracked**, not gitignored. `.easignore` is unreliable when the app lives in a subdir of a parent git repo — the parent-repo `.gitignore` wins.
+- **Runtime assets (images, fonts, seed data, on-device DBs) MUST be git-tracked**, not gitignored. Do not rely on `.easignore` when the app lives in a subdirectory of a parent git repo: eas-cli has been observed reading the git-root ignore file instead of the one beside `eas.json` (expo/eas-cli#4259).
 - **Local Gradle builds are immune** — they read from the working tree, so gitignored assets still land in the APK. This is a second reason the sideload path is easier for solo work.
 - If a large binary asset genuinely does not belong in git, host it externally and download on first run — do NOT rely on `.easignore` overrides.
 
@@ -315,12 +286,13 @@ The compliance baseline is **GDPR + EU AI Act** because they are the strictest. 
 ### Mandatory in every build, every market
 
 - Privacy policy and Terms of Service URLs configured in `app.json` and reachable from in-app Settings.
-- Data export and account deletion endpoints implemented as authenticated FastAPI routes (→ `postgres-main`, `ON DELETE CASCADE`), reachable from in-app Settings. Required by GDPR, CCPA, KVKK, and Apple App Store policy.
-- **Apple Privacy Manifest** (`PrivacyInfo.xcprivacy`): declare every reason API and tracking domain. Required for App Store submission.
+- Data export and account deletion implemented as authenticated FastAPI routes (→ `postgres-main`), reachable from in-app Settings. Apple requires in-app account deletion for any app that supports account creation (Guideline 5.1.1(v)); Google Play requires an in-app deletion path **and** a web link to request deletion (entered in Play Console). Also required by GDPR, CCPA and KVKK.
+- **Apple Privacy Manifest** (`PrivacyInfo.xcprivacy`): declare every required-reason API and tracking domain. Since 1 May 2024 App Store Connect rejects a new or updated app whose newly added SDK from Apple's commonly-used-SDK list lacks its privacy manifest and signature.
 - **Play Data Safety form**: filled accurately in Play Console. Inaccuracies trigger removal.
 - **Apple App Tracking Transparency (ATT)**: prompt before any IDFA collection or third-party tracking SDK fires. No exceptions, all markets.
-- **GDPR consent gate**: no analytics, advertising, or non-essential third-party SDKs may fire before user consent. Use a CMP or built-in consent screen. Applies to all EU/EEA/UK users — detect via locale and IP.
+- **GDPR consent gate**: no analytics, advertising, or non-essential third-party SDKs may fire before user consent. The scaffold's gate is `src/lib/consent` (PostHog analytics opted out by default; every capture checks `hasAnalyticsConsent()`) — wire the consent screen to its opt-in/opt-out, never build a second gate. Set `EXPO_PUBLIC_POSTHOG_HOST` to PostHog's EU endpoint (the default is the US one) and list PostHog as a processor in the privacy policy and DPA. Applies to all EU/EEA/UK users — detect via locale and IP.
 - Encrypt PII at rest on the FastAPI VPS: use disk encryption + column-level encryption on `postgres-main` for sensitive fields.
+- Crash reporting: the client's `Sentry.init` (`src/lib/crash.tsx`) must meet `core/55-observability.md`'s two flags — `includeLocalVariables: false` and a deny-by-default `beforeSend` scrubber; the scaffold's copy does not set them yet.
 - Never include PII in AI agent prompts or in any `chat text` sent to Gemini/Claude/OpenAI APIs from the app. Enforce via server-side redaction (the durable control). `.aiexclude` only applies to Google/Gemini tooling that honors it — it is not a cross-vendor guarantee.
 - Document the data-hosting region (Fabrik VPS, EU) in the privacy policy.
 
@@ -331,15 +303,15 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 - Display a transparency notice ("This recommendation was generated automatically").
 - Provide a manual override or "ask a human" path.
 - Log override events server-side for regulator inquiries.
-- Required by GDPR Art. 22 (prohibition on solely-automated decisions) and the EU AI Act; under Turkish law, KVKK Art. 11/1-g gives data subjects a right to object to decisions made solely by automated systems (see KVKK's Nov 2025 Generative AI guidance and its Apr 2025 AI recommendations). Treat the transparency + override path as a global default. <!-- Confirm exact KVKK obligations with legal counsel. -->
+- This is a house default, stricter than the law for most features: GDPR Art. 22 binds only a solely-automated decision with legal or similarly significant effects; KVKK Art. 11(1)(g) gives a right to object to a detrimental result of exclusively automated analysis (KVKK's generative-AI guide, Nov 2025); the EU AI Act's Art. 50 transparency duties (from 2 Aug 2026) cover chatbots and AI-generated content, and plain recommendation features are minimal-risk under it. A chat assistant or generated content in the app must disclose that it is AI. <!-- Confirm exact KVKK obligations with legal counsel. -->
 
 ### Regional layers
 
 - **EU/EEA/UK (GDPR + AI Act)**: full consent gate, DPA addendum required for any third-party processor, cookie/tracking notice on first launch in EU locales.
-- **Turkey (KVKK)**: processing Turkish-user PII on the EU-hosted Fabrik VPS (`postgres-main`) is a cross-border transfer under KVKK and requires a lawful transfer basis — it is not automatically compliant by virtue of being in the EU. <!-- Confirm the transfer basis with counsel. --> Manual override on automated decisions covered by the global rule above.
+- **Turkey (KVKK)**: processing Turkish-user PII on the EU-hosted Fabrik VPS (`postgres-main`) is a cross-border transfer. Since 1 June 2024 (Law 7499) it needs an adequacy decision, an appropriate safeguard — e.g. the Board's standard contract, notified to the Authority within 5 business days of signing — or one of the incidental-transfer grounds; being in the EU is not itself a basis. <!-- Confirm the transfer basis with counsel. -->
 - **California, USA (CCPA/CPRA)**: "Do Not Sell or Share My Personal Information" link/toggle in Settings if any data is shared with third parties. Honor Global Privacy Control (GPC) signal.
 - **Brazil (LGPD)**: equivalent to GDPR — covered by the GDPR baseline.
-- **Children**: if app could be used by under-13s (under-16 in some EU states), comply with COPPA and follow Apple/Google child-directed app rules. Default to no third-party tracking SDKs.
+- **Children**: if the app could be used by under-13s (under-16 in some EU states), comply with COPPA — the FTC's amended Rule is in force, compliance date 22 Apr 2026 — and Apple/Google child-directed app rules. Default to no third-party tracking SDKs.
 
 ---
 
@@ -348,19 +320,19 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 | Pattern | Use Instead |
 |---------|-------------|
 | Web DOM elements (`<div>`, `<span>`, `<p>`, `<img>`) | React Native primitives (`<View>`, `<Text>`, `<Pressable>`, `<Image>`) |
-| Web CSS (`className`, `hover`, media queries) | React Native `StyleSheet.create()` + Flexbox |
+| Web CSS assumptions (`hover`, media queries, `className` without a build-time compiler) | Uniwind utility classes (the scaffold's engine) or `StyleSheet.create()` + Flexbox |
 | `<ScrollView>` + `.map()` for dynamic data | `FlatList` or `@shopify/flash-list` |
 | Array index as `key` in dynamic lists | Stable unique ID via `keyExtractor` |
 | Hardcoded top/bottom padding for notches | `useSafeAreaInsets()` from `react-native-safe-area-context` |
 | `AsyncStorage` for performance-critical data | `react-native-mmkv` (synchronous JSI) |
 | JWTs in AsyncStorage or MMKV | `expo-secure-store` |
-| NativeWind v2/v3 (runtime parsing) | NativeWind v4+ or `uniwind` (build-time compilers) or `react-native-unistyles` (C++/JSI, zero-re-render dynamic theming) |
+| A runtime-parsing styling library (old NativeWind lines) | Uniwind (the scaffold's), NativeWind's current stable line, or `react-native-unistyles` |
 | Legacy bridge-dependent native modules | New Architecture (Fabric/JSI) compatible modules |
 | Manual edits to `android/` / `ios/` in Expo projects | Expo Config Plugins in `app.json` |
 | Direct FastAPI calls from screen components | Typed React Query hooks |
 | `supabase-js` / direct-Supabase-from-client / `supabase gen types` | FastAPI endpoints via typed React Query hooks; client generated with `@hey-api/openapi-ts` (react-query + zod plugins) |
-| `@react-navigation/*` in a new app; hand-written navigation | **expo-router** (file-based; forked from React Navigation in SDK 56 — `@react-navigation/*` app-code imports error at bundle time, not `expo-doctor`) |
-| `openapi-typescript` (types only → hand-written hooks/Zod) | `@hey-api/openapi-ts` — hooks + Zod validators from one config (`validator: true` on `@hey-api/sdk`) |
+| `@react-navigation/*` in app code; hand-written navigation | **expo-router** entry points (`@react-navigation/*` app-code imports are a bundler error) |
+| `openapi-typescript` (types only → hand-written hooks/Zod) | `@hey-api/openapi-ts` — hooks + Zod validators from one config (`validator` on the `@hey-api/sdk` plugin) |
 | `postgres-main` tables without RLS | RLS enabled before any query |
 | Hardcoded user-facing strings | `i18next` translation files |
 | Hardcoded prices or offering IDs | RevenueCat dashboard remote config |
@@ -369,7 +341,9 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 | PII in AI agent prompts or external LLM calls | Server-side redaction (durable control); `.aiexclude` is Google/Gemini-only, not cross-vendor |
 | `any` type | `unknown` + type guards (per `20-typescript.md`) |
 | `console.log()` in production builds | Sentry breadcrumbs or strip via babel plugin; dev-only in `__DEV__` guard |
-| Firebase Dynamic Links | Dead (Aug 2025) — use ChottuLink or equivalent |
+| Firebase Dynamic Links | Shut down 25 Aug 2025 — use ChottuLink or equivalent |
+| Core `KeyboardAvoidingView` on Android | `react-native-keyboard-controller` (edge-to-edge) |
+| `react-hook-form` in a scaffolded app | `@tanstack/react-form` + Zod (the scaffold's forms) |
 
 ---
 
@@ -381,7 +355,7 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 - `55-observability.md` — backend structlog + GlitchTip; client Sentry RN SDK
 - `58-resilience.md` — backend external call resilience (timeout/retry/CB)
 - `design-system-template.md` — token slots, motion, accessibility, states
-- `ocoron-design-system.md` — the house brand's token values, for a project that declares it
+- `core/ocoron-design-system.md` + `ocoron-mobile-design-system.md` (and the Tojlo pair) — a house brand's values and mobile deltas, only for a project that declares it
 - `00-domain-mobile-app.md` — planning-level decisions (17 dimensions, attribution stack, distribution)
 
 ---
@@ -394,15 +368,15 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 - [ ] `FlatList` or `FlashList` used for all dynamic lists — no `<ScrollView>` + `.map()`.
 - [ ] Safe areas handled via `useSafeAreaInsets()`, not hardcoded padding.
 - [ ] Platform-specific behavior uses `Platform.OS` or `Platform.select()`.
-- [ ] `StyleSheet.create()` used for all styles — no inline web CSS patterns.
+- [ ] Styles through Uniwind classes (or `StyleSheet.create()` for one-offs) — no web CSS assumptions, no per-render inline style objects.
 - [ ] TypeScript strict mode enabled — no `any` types.
 - [ ] Navigation uses **expo-router** file-based routes with typed routes enabled — no `@react-navigation/*` in app code.
-- [ ] Ocoron color tokens applied via `react-native-unistyles` theme — no raw hex values in components.
+- [ ] Design tokens from the resolved design system mapped into the styling engine's theme — no raw hex values in components.
 - [ ] Client generated with `@hey-api/openapi-ts` (react-query + zod plugins) from the FastAPI OpenAPI schema and committed — no `supabase-js`, no `supabase gen types`, no hand-written hooks.
 - [ ] All `postgres-main` tables have RLS enabled.
 - [ ] App-issued JWT stored in `expo-secure-store`, not AsyncStorage or MMKV.
 - [ ] EAS profiles defined in `eas.json` (development, preview, production).
-- [ ] At least one MCP server wired and used in the verification loop.
+- [ ] `mobile-mcp` or `maestro` used in the verification loop.
 - [ ] RevenueCat integrated (free ≤ $2.5K MTR, then 1% — see `81-mobile-billing.md`), paywall remote-configurable.
 - [ ] Push permission requested post-onboarding, not on first launch.
 - [ ] Privacy policy and ToS URLs in `app.json`, reachable from in-app Settings.
@@ -413,7 +387,7 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 - [ ] GDPR consent gate blocks analytics and non-essential SDKs until user consent (EU/EEA/UK locales).
 - [ ] AI-driven decision features carry transparency notice + manual override path.
 - [ ] All user-facing strings live in translation files — no hardcoded strings.
-- [ ] `python scripts/validate_i18n.py` passes clean (Level 1: no MISSING_KEY, no PLACEHOLDER_MISMATCH across all locale files). Run after any ticket that adds or changes UI strings.
+- [ ] `python scripts/validate_i18n.py` passes clean (Level 1: no MISSING_KEY, no PLACEHOLDER_MISMATCH across the `static/i18n/` locale files), and each `src/translations/<lang>.json` matches its `static/i18n/<lang>.json`. Run after any ticket that adds or changes UI strings.
 - [ ] App tested in `en-US`, `tr-TR`, and at least one RTL or non-Latin locale.
 - [ ] Dates, numbers, currency rendered via `Intl` APIs with user locale.
 - [ ] Pricing configured per country in RevenueCat dashboard.

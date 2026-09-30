@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — mobile-app/80-mobile: matches the emitted scaffold, no version literals (2026-09-30)
+- `.windsurf/rules/mobile-app/80-mobile.md` (rules currency pass file 34, D-460): names the scaffold's real defaults (Uniwind, `@tanstack/react-form`, `react-native-keyboard-controller`, `src/translations/`, the PostHog consent gate) and flags its known gaps; SDK/RN/toolchain/library-major literals replaced by read-from-project instructions; Apple 4.8, privacy manifests, Play deletion, GDPR Art. 22 / AI Act Art. 50 and KVKK transfer statements corrected; Traycer references removed. One-line alignments in `ocoron-mobile-design-system.md` and `00-domain-mobile-app.md`.
+- `tests/test_mobile_pack_scaffold_defaults.py`: emits a mobile-app scaffold and pins every default and workaround the pack states.
+- `.windsurf/rules/CLAIMS.yaml`: ten 80-mobile rows; `docs/reference/research/2026-09-30-mobile-currency-ledger.md`: the turn's 68 facts.
+
 ### Changed — saas/00-domain-saas: real consumers, real owners (2026-09-30)
 - `.windsurf/rules/saas/00-domain-saas.md` (rules currency pass file 33, D-457): names `/fabrik-vision` and `/fabrik-epics` as its consumers instead of the retired Traycer docs; every § 4 row cites the pack that owns the answer (billing model → core/85, rate limiting → saas/95, audit → core/app-audit-log, export/erasure → saas/88, membership → saas/95); the wrong "metering owned by 95" row becomes an intake-owned quota-truth question; § 7 drops the banned usage-based pricing axis; programmatic SEO, AI-answer visibility and unit-economics defaults carry their sources.
 - `tests/test_domain_pack_epic_headings.py`: reads `/fabrik-epics`' overlay table and asserts each domain pack carries the heading the command walks, and that every `00-domain-*` pack has a row.
