@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T08:48:59.096775Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-4054c1a0",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide: emit an Alembic baseline in the saas-skeleton, or have core/25 name schema.sql as the pre-baseline path; saas/87 (currency pass 2026-09-30) frames it as interim",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "core/25-data-postgres mandates Alembic, but an emitted saas-skeleton ships no Alembic baseline (server/db/schema.sql is its only DDL path)"
+}

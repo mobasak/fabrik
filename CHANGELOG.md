@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — saas/87-abuse-detection: guards the scaffold's open signup door (2026-09-30)
+- `.windsurf/rules/saas/87-abuse-detection.md` (rules currency pass file 32, D-455): Layer 1 goes in a path-scoped middleware on the always-open `POST /auth/signup`; the IdP hooks cover only the (closed-as-emitted) passwordless door; limits key on `client_ip()`, IPv6 per /64 via a ported async query; quota granted once; fail-opens counted; fingerprinting gated on a lawful basis; globs now match the IdP files instead of `register/`/`signup/`. Unsourced statistics and the hand-kept domain list removed.
+- `tests/test_abuse_pack_activation.py`: emits a saas-skeleton and asserts the pack fires on `server/src/<pkg>/auth.py` and the IdP router, and not on unrelated modules (red on the old globs, green on the new).
+- `.windsurf/rules/CLAIMS.yaml`: six saas/87 rows; `docs/reference/research/2026-09-30-abuse-detection-currency-ledger.md`: the turn's 60 facts.
+
 ### Fixed — The file-worker scaffold's logger import hint and `make dev` now match the worker module (2026-09-30)
 - `src/fabrik/scaffold.py` `_scaffold_file_worker`: the emitted `worker/logger.py` docstring said `from <project_package>.logger import get_logger`, a module that does not exist. It now reads `from worker.logger import get_logger`, the import the shipped `worker/main.py` makes (W-32cbfecb).
 - The emitted Makefile's `dev` target ran `python worker/main.py`, which puts `worker/` on `sys.path`, so `main.py`'s `from worker.logger import …` failed with `ModuleNotFoundError`. It now runs `python -m worker.main`. The Dockerfile is unchanged: it sets `PYTHONPATH=/app`, so it already worked.
