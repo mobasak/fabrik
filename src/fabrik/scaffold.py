@@ -4138,6 +4138,11 @@ def _scaffold_saas_skeleton(
         f"\n"
         f"export default logger;\n"
     )
+    # SERVICE_NAME in .env.example, as python-api does: the template's copy carries none, and it
+    # documents the variable the pino logger above and the backend's structlog logger read (both
+    # fall back to this same project name; a deployed .env is built from the spec, not from here).
+    with (project_dir / ".env.example").open("a") as f:
+        f.write(f"\n# Service identity for structured logging\nSERVICE_NAME={name}\n")
 
     # Emit the multi-tenant FastAPI backend under server/ (Phase 1) and the
     # three-service compose (web + api + worker) that fronts it (Phase 6).
