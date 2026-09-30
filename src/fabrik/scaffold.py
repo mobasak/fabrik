@@ -4408,7 +4408,7 @@ let isShuttingDown = false;
 const server = http.createServer((req, res) => {
   const requestId = req.headers['x-request-id'] || randomUUID();
   res.setHeader('X-Request-ID', requestId);
-  // The path without its query string. Never `new URL(req.url, base)`: it throws on a target like
+  // The path without its query string or fragment. Never `new URL(req.url, base)`: it throws on a target like
   // `//a:b` (an uncaught throw here kills the process) and reads `//metrics` as a host.
   // An absolute-form target (RFC 9112 section 3.2.2, `http://host/metrics`) routes on its own path.
   let target = req.url || '/';
@@ -4420,7 +4420,7 @@ const server = http.createServer((req, res) => {
     const cut = rest.search(/[/?#]/);
     target = cut !== -1 && rest[cut] === '/' ? rest.slice(cut) : '/';
   }
-  const path = target.split('?', 1)[0];
+  const path = target.split(/[?#]/, 1)[0];
 
   asyncCtx.run({ traceId: requestId }, async () => {
     if (req.method === 'GET' && HEALTH_PATHS.has(path)) {

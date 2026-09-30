@@ -167,7 +167,21 @@ def test_absolute_form_targets_route_on_their_path(running_node_api, target, mar
     assert marker in _raw(port, target)
 
 
-@pytest.mark.parametrize("target", ["http://host?x=/metrics", "http://host?a=/api/health", "http://host#/health"])
+@pytest.mark.parametrize(
+    ("target", "marker"),
+    [
+        ("/api/health#x", b'"status":"ok"'),
+        ("https://h:1/api/health#x", b'"status":"ok"'),
+        ("/metrics#y", b"shim_up"),
+    ],
+)
+def test_a_fragment_after_the_path_still_routes_on_the_path(running_node_api, target, marker):
+    """Node's parser accepts `#` after a path (it answers 400 only for `#` straight after an authority)."""
+    _project, port, _proc = running_node_api
+    assert marker in _raw(port, target)
+
+
+@pytest.mark.parametrize("target", ["http://host?x=/metrics", "http://host?a=/api/health"])
 def test_a_slash_after_the_authority_query_is_not_the_path(running_node_api, target):
     _project, port, _proc = running_node_api
     reply = _raw(port, target)
