@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T07:22:51.737966Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d89b1c62",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "on each reply, verify decisions.py --merge-owner <repo> names its owner and ack; re-run the merge-owner count over /opt until 42 of 42",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "adoption"
+  ],
+  "title": "Fleet adoption of the three-agent worktree model: 39 repos read UNDECLARED on 2026-09-30 and were each mailed the adopt recipe (ack required, operator's D-444/D-445 words); 3 had adopted (fabrik-lib, trade-intelligence, tryton-crm)"
+}
