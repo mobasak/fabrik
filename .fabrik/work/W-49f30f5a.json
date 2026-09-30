@@ -1,0 +1,26 @@
+{
+  "block_digest": "75bfed2670ab7f2ba1ba0a40ec8a263459705f4b4cf4c91e9dfc188e0aed517a",
+  "blocked_by": [],
+  "created": "2026-09-30T00:08:31.351568Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "underivable",
+  "id": "W-49f30f5a",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "918f3ab4ab7e97f35743cf49f23804481a21ca48b6099ebdf4ff955466ada2fb"
+  ],
+  "next": "",
+  "note": "duplicate of W-7ca634e9",
+  "owner": "",
+  "priority": 2,
+  "question": "Should the hub's `libs/subagents` copy match fabrik-lib's current version of the module, or go back to the hub's last committed version?",
+  "status": "dropped",
+  "title": "Should the hub's `libs/subagents` copy match fabrik-lib's current version of the module, or go back to the hub's last committed version?"
+}

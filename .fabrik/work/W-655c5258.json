@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T00:03:33.974158Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-655c5258",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QSYT6M5E26GCFT87DTZ76P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: worktree model — item 2 LANDED as fabrik-lib D-336 (24eb8a24); item 3 confirmed: the post-commit hook is gone"
+}
