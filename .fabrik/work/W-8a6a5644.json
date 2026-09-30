@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T20:16:28.490582Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8a6a5644",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-plan-after-chat on the spec must turn each residual into a ticket acceptance line before the plan converges",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "title": "Merge-request loop spec (docs/superpowers/specs/2026-09-30-merge-request-loop-design.md) — six residuals routed by /fabrik-spec-review's scope-growth stop, to be folded into the plan's tickets: O34 the mail.py ack-done guard must also require the request head be an ancestor of the merge SHA (an empty commit naming the request passes today); O35 resume's catch-up merge must be exempt from (a)'s origin-ahead start refusal; O36 the request record's pid is the merge_request.py run's own pid + /proc start time, never the session's; invariant (3) still says 'skipped in (e)' after the O32 rewording; a path raced into (e) is reverted by a later 'git commit -a' (reply must warn); 'ack --disposition blocked' clears D-B without evidence (require a reason naming the refused step)"
+}
