@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "file 32 — core/tojlo-design-system.md to the 11-row bar (docs/reference/rules-currency-pass.md); then the roster order by fleet ACTIVE count",
+  "next": "file 33 \u2014 saas/00-domain-saas.md (manual activation, applies to all 17 saas-skeleton repos at planning), then mobile-app (4 repos), chrome-ext (2), by real audience not glob count",
   "note": "",
   "owner": "intel",
   "priority": 2,
@@ -19,5 +19,5 @@
   "tags": [
     "rules"
   ],
-  "title": "Rules currency pass: evaluate the 25 packs still missing currency_pass: (32 of 57 done, stopped 2026-09-24 after file 31)"
+  "title": "Rules currency pass: evaluate the 24 packs still missing currency_pass: (33 of 57 done; file 32 saas/87 landed 2026-09-30, D-455)"
 }
