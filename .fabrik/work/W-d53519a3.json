@@ -1,0 +1,26 @@
+{
+  "block_digest": "3725300b993991cca3bafa2afc4a528e4e3dc91c31ddf66e9c58cfc450c4ed91",
+  "blocked_by": [],
+  "created": "2026-09-30T10:45:52.771402Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-d53519a3",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "017811c28ab2e7b167320c1fd622656d1563a9dc800e5b182b317c0e48594203"
+  ],
+  "next": "",
+  "note": "duplicate of W-68d72b1f",
+  "owner": "",
+  "priority": 2,
+  "question": "Should I delete the five agent templates nothing uses: `templates/{docusaurus,file-api,file-worker,node-api}/AGENTS.md.j2` and `templates/saas-skeleton/AGENTS.md`?",
+  "status": "dropped",
+  "title": "Should I delete the five agent templates nothing uses: `templates/{docusaurus,file-api,file-worker,node-api}/AGENTS.md.j2` and `templates/saas-skeleton/AGENTS.md`?"
+}
