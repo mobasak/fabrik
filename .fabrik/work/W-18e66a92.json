@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T08:12:48.470384Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-18e66a92",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "teach the daily janitor to remove a DEAD session's harness worktree whose only change is untracked noise (.venv, synced files), keeping the branch; measure across /opt repos first",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "worktree"
+  ],
+  "title": "Dead sessions' harness worktrees (.claude/worktrees/agent-*) are never removed: 40 had accumulated over 23 days in the hub (36 removed by hand 2026-09-30, only '?? .venv' in each); scratch_sweep refuses them as wt-foreign and the daily janitor does not take them"
+}
