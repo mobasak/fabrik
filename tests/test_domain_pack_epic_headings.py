@@ -8,7 +8,8 @@ during a currency pass would stop the command with no gate turning red.
 This test reads the table from the command SOURCE (never a copy of it) and asserts each pack exists and
 carries its heading as a whole line. The cheap way to satisfy it without the outcome is to delete a row
 from the command's table; `test_every_domain_pack_is_in_the_table` closes that by requiring every
-`00-domain-*.md` pack on disk to have a row.
+`00-domain-*.md` pack on disk to have a row, and `test_every_table_row_parses` fails when any row
+(domain pack or not) stops matching the parser, so its heading would silently go unchecked.
 """
 
 from __future__ import annotations
@@ -27,8 +28,13 @@ def _rows() -> list[tuple[str, str]]:
     return ROW.findall(COMMAND.read_text(encoding="utf-8"))
 
 
-def test_table_is_found() -> None:
-    assert len(_rows()) >= 4, "the overlay-merge table in fabrik-epics.md moved or changed shape"
+def test_every_table_row_parses() -> None:
+    text = COMMAND.read_text(encoding="utf-8")
+    table_lines = [ln for ln in text.splitlines() if ln.startswith("| `.windsurf/rules/")]
+    assert table_lines, "the overlay-merge table in fabrik-epics.md moved or changed shape"
+    assert len(_rows()) == len(table_lines), (
+        "a table row no longer parses, so its heading goes unchecked"
+    )
 
 
 @pytest.mark.parametrize(("pack", "heading"), _rows())

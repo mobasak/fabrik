@@ -194,4 +194,4 @@ After the foundation epic, SaaS splits naturally into: **core workflow** (indepe
 
 ### Phase Mapping
 
-Map epics onto the launch phases defined in `saas/88-saas-launch-checklist.md` (**88 owns the phase contents**): Phase 1 must be covered by epics **before** launch · Phase 2 may be a dedicated post-launch epic — except any item 88 marks as blocking go-live from inside Phase 2 (§ Payment Routing's KDV line), which rides a Phase-1 epic · Phase 3 is deferred or out of scope for v1.
+Map epics onto the launch phases defined in `saas/88-saas-launch-checklist.md` (**88 owns the phase contents**): Phase 1 must be covered by epics **before** launch · Phase 2 may be a dedicated post-launch epic — except any item 88 marks as blocking go-live from inside Phase 2 (§ Teknokent Tax Compliance — the KDV confirmation, per § Payment Routing), which rides a Phase-1 epic · Phase 3 is deferred or out of scope for v1.
