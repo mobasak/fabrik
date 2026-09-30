@@ -8,7 +8,7 @@ currency_pass: 2026-09-30
 <!-- CONSUMER: Coding agents building registration/signup flows; planning (the launch checklist maps its phases to tickets)
      GOAL: layered anti-abuse for SaaS free tiers — verified email, per-IP account cap, disposable-email block, progressive unlock, then signals
      PLANNING USAGE: saas/88-saas-launch-checklist.md § Abuse Prevention cites this pack. Phase 1 items are launch-blocking.
-     AGENT USAGE: wire the controls into the scaffold's own signup doors (§ Where it goes). Phase 1 at launch, Phase 2 before public launch, Phase 3 reactively. -->
+     AGENT USAGE: guard the signup door the scaffold actually has open (§ Where it goes). Phase 1 at launch, Phase 2 before public launch, Phase 3 reactively. -->
 
 # Abuse Detection — SaaS Anti-Fraud Playbook
 
@@ -26,16 +26,23 @@ Free tiers attract abuse. A bad actor creates 100 accounts with disposable email
 
 ## Where It Goes — the scaffold's signup doors
 
-A saas-skeleton's identity provider is the vendored `fastapi-user-auth` module (`server/src/fastapi_user_auth/`, wired in `server/src/<pkg>/auth.py` by `build_auth_router(...)`). **Never add a second registration endpoint** — put the controls on the doors that already exist:
+A saas-skeleton's identity provider is the vendored `fastapi-user-auth` module (`server/src/fastapi_user_auth/`), mounted by `build_saas_auth_router()` in `server/src/<pkg>/auth.py`. **Never add a second registration endpoint.** Its two doors, as the scaffold emits them:
 
-| Door | Route | Hook for the controls |
+| Door | State as emitted | Where the controls go |
 |---|---|---|
-| Passwordless auto-signup (default: `passwordless_auto_signup=True`) | `POST /auth/passwordless/verify` | `on_signup_attempt` (refuse → `429`) and `on_signup_complete(uid)` (store metadata), passed to `build_auth_router` |
-| Password signup | `POST /auth/signup` | **none yet** — the router has no seam and no per-IP cap on this door. Until the module adds one, a project that enables it adds a path-scoped dependency and tests that it refuses; never claim Phase 1 on this door otherwise |
+| Password signup — `POST /auth/signup` → `201 {"user_id": …}` | **Always open.** No setting disables it, and it has no consumer hook and no per-IP bound | a pure ASGI middleware on this one path (below) |
+| Passwordless auto-signup — inside `POST /auth/passwordless/verify` | **Closed**: the scaffold passes no `pending_store`, so the module falls back to a store that never matches. It opens only once a `RedisPendingLoginStore` is injected | the `on_signup_attempt` / `on_signup_complete` hooks of `build_auth_router(...)` |
 
-Read the module README's § Consumer signup seams before wiring: both hooks **fail open** on an unexpected error (a bug in `on_signup_attempt` lets the signup through, unrecorded), a refusal has already spent the single-use code, and the hooks can double-fire under a create race, so make them idempotent.
+**The password door is the one to guard first — it is the open one.** The module offers no seam there yet (upstream request filed from this pack's turn), so the guard is a pure ASGI middleware added in `main.py` that acts only on `POST /auth/signup`:
 
-**The client IP is the module's `client_ip(request, settings.trusted_proxy_hops)` — never the raw `X-Forwarded-For` header and never its left-most entry.** Every proxy appends the peer it saw, so the left-most value is whatever the client sent; keying a limit on it lets one attacker mint unlimited distinct keys. On the fleet, Traefik is the only proxy (Cloudflare DNS is unproxied — `docs/infrastructure/vps-urls.md`), so `trusted_proxy_hops=1`. Putting a domain behind a CDN adds a hop — re-derive the count then, never raise it blindly. The hooks take no `Request`: bind the resolved IP in a request-scoped `ContextVar` and read it inside the hook.
+1. Buffer the JSON body and read `email`; resolve the client IP (next paragraph).
+2. Run the Layer 1 checks; refuse with `422` (disposable domain) or `429` (per-IP cap) **before** the router runs.
+3. Wrap `send`: when the router answers `201`, read `user_id` from the body and store `registration_ip` (and a fingerprint header, once Phase 2 collects one) on that user — without this write, the cap counts rows that never carry an IP and refuses nothing.
+4. Test end to end: the third signup from one IP inside 24h returns `429`, and a disposable address returns `422`. A mocked count proves nothing here.
+
+When a project opens the passwordless door, wire the same checks into the hooks, and read the module README's § Consumer signup seams first. `on_signup_attempt` takes **no arguments**: it receives neither the request nor the email, so bind both in a `ContextVar` from a pure ASGI middleware or an async dependency (a sync `def` dependency runs in a threadpool and its `.set()` never reaches the handler). Both hooks **fail open** on an unexpected error, a refusal has already spent the single-use code, and the hooks can double-fire under a create race — so every write they make must be idempotent. A disposable-domain refusal belongs at `POST /auth/passwordless/request` instead, before a code is minted and mailed.
+
+**The client IP is the module's `client_ip(request, settings.trusted_proxy_hops)` — never the raw `X-Forwarded-For` header and never its left-most entry.** Every proxy appends the peer it saw, so the left-most value is whatever the client sent; keying a limit on it lets one attacker mint unlimited distinct keys. On the fleet, Traefik is the only public proxy (Cloudflare DNS is unproxied — `docs/infrastructure/vps-urls.md`), so `trusted_proxy_hops=1`. Putting a domain behind a CDN adds a hop — re-derive the count then, never raise it blindly. In a pure ASGI middleware, build `Request(scope)` and pass it to `client_ip`.
 
 ---
 
@@ -49,10 +56,10 @@ Read the module README's § Consumer signup seams before wiring: both hooks **fa
 | **Per-IP account cap** | Max 2 new accounts per IP per rolling 24h (`ABUSE_MAX_REG_PER_IP`) | None for most users | $0 |
 | **Disposable email block** | Reject throwaway-inbox domains | None for real users | $0 |
 
-- Credits/quota are granted only **after** verification — never on registration alone.
+- Credits/quota are granted only **after** verification — never on registration alone. On the password door that grant site is `POST /auth/verify-email`, which has no hook either: grant from the same kind of path-scoped middleware on its success response, or from the first authenticated request of a verified user.
 - Store `registration_ip` (INET) and, once collected, `registration_fingerprint` (VARCHAR 64) on the user row.
-- **The cap is a blunt instrument.** An office, a university or a mobile carrier's CGNAT puts many real users behind one IPv4 address, and one IPv6 user controls a whole /64 — so an exact-address count over-blocks the first and under-counts the second. Count IPv6 by its /64 prefix, return a message that says what to do next, and keep the default low only while the free tier is worth farming.
-- **Normalise before comparing, never before storing.** Gmail ignores dots and a `+suffix` in the local part, so `a.b+1@gmail.com` and `ab@gmail.com` are one inbox: compare a normalised form when clustering accounts, and keep the address the user typed as the login.
+- **The cap is a blunt instrument.** An office, a university or a mobile carrier's CGNAT puts many real users behind one IPv4 address, and one IPv6 user controls a whole /64 — so an exact-address count over-blocks the first and under-counts the second. Count IPv6 by its /64 prefix (the query in § Adaptation Checklist), return a message that says what to do next, and keep the default low only while the free tier is worth farming.
+- **Never strip dots or a `+suffix` before storing.** Consumer Gmail (`gmail.com`) ignores dots and a `+suffix` in the local part, so `a.b+1@gmail.com` and `ab@gmail.com` are one inbox — but a Google Workspace domain does not ignore dots. Compare a normalised form when clustering accounts (dots only for `gmail.com`), and keep the address the user typed as the login.
 
 ### Layer 2: Progressive Resource Unlock
 
@@ -60,7 +67,7 @@ Read the module README's § Consumer signup seams before wiring: both hooks **fa
 |---|---|---|---|
 | **Progressive unlock** | 30% of the free-tier quota on verification, the remaining 70% 24h later | Low | $0 |
 
-**Why it works:** a farm that automates signup and verification in minutes has to wait a day for each batch's full quota, which removes most of its return; a real user who signs up today finds the rest there tomorrow. The split and delay are env-tunable in the module (`ABUSE_IMMEDIATE_FRACTION`, `ABUSE_DELAY_HOURS`).
+**Why it works:** a farm that automates signup and verification in minutes has to wait a day for each batch's full quota, which removes most of its return; a real user who signs up today finds the rest there tomorrow. The split and delay are env-tunable in the module (`ABUSE_IMMEDIATE_FRACTION`, `ABUSE_DELAY_HOURS`). Grant at most once per user: gate the immediate grant on `quota_unlocked_at IS NULL` in one conditional `UPDATE`, and queue the delayed row with `ON CONFLICT (user_id) DO NOTHING`.
 
 ### Layer 3: Behavioral Signals (flag, never block)
 
@@ -70,8 +77,8 @@ Read the module README's § Consumer signup seams before wiring: both hooks **fa
 | **Usage pattern analysis** | Accounts that burn quota within minutes of signup | None | $0 |
 | **Shared IP clustering** | IPs with 3+ accounts — flag, do not block (offices, universities) | None | $0 |
 
-- **A fingerprint is a clustering signal, not an identity.** The open-source FingerprintJS reports 40–60% accuracy with common collisions and IDs that last weeks; that is fine for "these five accounts look alike, review them" and wrong as a block key. Use FingerprintJS v5+ (MIT again since v5; v4 was BSL 1.1 — never pin a v4 release) or ThumbmarkJS (MIT).
-- **Collecting a fingerprint needs a legal basis first.** Fingerprinting reads the terminal, so ePrivacy Art. 5(3) applies — the same consent rule as cookies (EDPB Guidelines 2/2023, final v2.0 of 7 Oct 2024). Fraud prevention is a legitimate interest for the *processing* (GDPR Recital 47), but that does not answer the separate Art. 5(3) question, whose only consent-free route is "strictly necessary" for the service the user asked for — narrow and judged per member state. For EU users, gate collection on consent or get counsel's sign-off. KVKK has no fingerprint-specific guidance (its cookie guide excludes fingerprints), so treat the hash as personal data under the general law.
+- **A fingerprint is a clustering signal, not an identity.** The open-source FingerprintJS's own README puts its accuracy at 40–60%, with common collisions and IDs that last weeks; fine for "these five accounts look alike, review them", wrong as a block key. It is MIT-licensed again from its current major on; the major before it was BSL — never pin that one. ThumbmarkJS (MIT) is the maintained alternative. The signup bodies carry no fingerprint field, so send it as a request header and bind it in the middleware.
+- **Collecting a fingerprint needs a legal basis first.** Fingerprinting reads the terminal, so ePrivacy Art. 5(3) applies — the same consent rule as cookies (EDPB Guidelines 2/2023, final version adopted 7 Oct 2024). Fraud prevention is a legitimate interest for the *processing* (GDPR Recital 47), but that does not answer the separate Art. 5(3) question, whose only relevant consent-free route is "strictly necessary" for the service the user asked for — narrow and judged per member state. For EU users, gate collection on consent or get counsel's sign-off. KVKK's cookie guide does not address fingerprints, so treat the hash as personal data under the general law.
 - Background job (weekly): cluster same fingerprint + different emails; show the clusters in an admin "Suspicious accounts" panel for manual review.
 
 ### Layer 4: Phone Verification (last resort)
@@ -88,21 +95,21 @@ Read the module README's § Consumer signup seams before wiring: both hooks **fa
 
 ### Phase 1: Quick wins (at launch, $0)
 
-- [ ] Controls wired into the scaffold's signup doors (§ Where it goes), client IP from `client_ip()`
-- [ ] `registration_ip` (INET) stored on the user row
+- [ ] The open signup door guarded (§ Where it goes), client IP from `client_ip()`, with the end-to-end test
+- [ ] `registration_ip` (INET) stored on every new user row
 - [ ] Per-IP account cap (2 per IP per rolling 24h; IPv6 counted per /64)
 - [ ] Disposable-email blocklist checked on every signup
 - [ ] Verification required before quota/credits activate
 
 ### Phase 2: Smart detection (before public launch)
 
-- [ ] Progressive quota unlock (30% immediate, 70% after 24h)
+- [ ] Progressive quota unlock (30% immediate, 70% after 24h), granted at most once
 - [ ] Browser fingerprint collected — only where lawful (Layer 3)
 - [ ] Admin panel: suspicious accounts (IP clusters, fingerprint matches)
 
 ### Phase 3: Reactive (only if abuse is detected post-launch)
 
-- [ ] CAPTCHA on signup — Cloudflare Turnstile (free, unlimited, works on sites not proxied through Cloudflare) or hCaptcha's free tier
+- [ ] CAPTCHA on signup — Cloudflare Turnstile (free tier; works on sites not proxied through Cloudflare — check its current widget and hostname limits) or hCaptcha's free tier
 - [ ] Quota velocity alerting (accounts burning 100% of quota within 1h of creation)
 - [ ] Phone verification for the free tier only (Layer 4's preconditions first)
 
@@ -110,16 +117,24 @@ Read the module README's § Consumer signup seams before wiring: both hooks **fa
 
 ## Database Schema
 
-Add the columns through the project's migration path (`core/25-data-postgres.md`; a saas-skeleton that has no Alembic yet ships the idempotent `server/db/schema.sql`, where the module's statements go verbatim):
+`core/25-data-postgres.md` requires Alembic, but a saas-skeleton ships no Alembic baseline yet: until it has one, the idempotent `server/db/schema.sql` is its only DDL path, and the first baseline must absorb what was added there. Copy the module's `schema.sql` in whole — the block below is an excerpt — with the `delayed_grants.user_id` fix:
 
 ```sql
 ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_ip INET;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_fingerprint VARCHAR(64);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS quota_unlocked_at TIMESTAMPTZ;
-
 CREATE INDEX IF NOT EXISTS idx_users_registration_ip ON users(registration_ip);
-CREATE INDEX IF NOT EXISTS idx_users_registration_fingerprint ON users(registration_fingerprint)
-    WHERE registration_fingerprint IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
+
+-- delayed_grants: the module ships user_id BIGINT; a saas-skeleton's users.id is UUID
+CREATE TABLE IF NOT EXISTS delayed_grants (
+    id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id    UUID        NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    amount     INTEGER     NOT NULL,
+    release_at TIMESTAMPTZ NOT NULL,
+    granted    BOOLEAN     NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 ```
 
 `registration_ip` and `registration_fingerprint` are personal data: name the purpose (fraud prevention) and a retention period in the privacy policy, and null both columns when it lapses (the data-retention TTL of `saas/88-saas-launch-checklist.md`).
@@ -128,13 +143,13 @@ CREATE INDEX IF NOT EXISTS idx_users_registration_fingerprint ON users(registrat
 
 ## Disposable Email Domain Blocklist
 
-Source: https://github.com/disposable-email-domains/disposable-email-domains — the module ships a copy as `data/disposable-email-domains.txt`, loaded into a set once at import. The upstream list grows continuously, so a vendored copy goes stale: refresh it on a schedule and restart the service after each refresh. Never hand-maintain a short list in code.
+Source: https://github.com/disposable-email-domains/disposable-email-domains (CC0; bot commits add domains most days; it also ships an `allowlist.conf` of domains often mistaken for disposable). The module ships a copy as `data/disposable-email-domains.txt`, loaded into a set once at import — and a vendored copy goes stale fast: the module's copy of 2026-06-29 held 5,477 domains when upstream held about 9,200 (2026-09-30). Refresh it on a schedule (or depend on the `disposable-email-domains` PyPI package, which mirrors the list) and restart the service after each refresh. Never hand-maintain a short list in code.
 
 ---
 
 ## Monitoring Metrics
 
-Count every refusal and every fail-open as a Prometheus counter in `server/src/<pkg>/metrics.py` (per `core/55-observability.md`), e.g. `signup_refused_total{reason="ip_cap|disposable|..."}` and `abuse_check_failed_open_total` — the module fails open on a database error, so an unmonitored failure silently turns the cap off. Alert through Alertmanager. Starting thresholds (tune per product):
+Declare the counters on the private `REGISTRY` in `server/src/<pkg>/metrics.py` (per `core/55-observability.md` — name them without `_total`; the client appends it): e.g. `Counter("signup_refused", …, ["reason"], registry=REGISTRY)` and `Counter("abuse_check_failed_open", …, registry=REGISTRY)`. The fail-open counter only works if **your** code owns the failure path — the vendored `check_ip_rate_limit` returns `None` for both "allowed" and "database error", and the IdP swallows a hook's exception into a log line — which is why the checks are ported (§ Adaptation Checklist). Alert through Alertmanager. Starting thresholds (tune per product):
 
 | Metric | Healthy | Alert threshold |
 |---|---|---|
@@ -149,22 +164,31 @@ Count every refusal and every fail-open as a Prometheus counter in `server/src/<
 
 ## Reusable Module
 
-**Do not implement from scratch.** Vendor from `/opt/fabrik-lib/abuse-prevention/`:
+**Do not implement from scratch.** Vendor from `/opt/fabrik-lib/abuse-prevention/`, without its caches and tests:
 
 ```bash
-cp -r /opt/fabrik-lib/abuse-prevention server/libs/abuse_prevention
+rsync -a --exclude='.*cache' --exclude='__pycache__' --exclude='test_*.py' \
+  /opt/fabrik-lib/abuse-prevention/ server/libs/abuse_prevention/
 ```
 
-It provides `abuse_detection.py` (`check_ip_rate_limit`, `check_disposable_email`, `store_registration_metadata`), `progressive_unlock.py` (`split_quota`, `grant_immediate_quota`, `schedule_delayed_grant`, `release_due_grants`), `data/disposable-email-domains.txt` and `schema.sql`.
+Import it by its own directory, the way the scaffold imports `server/libs/audit_log` (`sys.path.insert` of that directory, then `import abuse_detection`) — the module README's `from libs.abuse_prevention import …` does not resolve in the scaffold. It provides `abuse_detection.py` (`check_ip_rate_limit`, `check_disposable_email`, `store_registration_metadata`), `progressive_unlock.py` (`split_quota`, `grant_immediate_quota`, `schedule_delayed_grant`, `release_due_grants`), `data/disposable-email-domains.txt` and `schema.sql`.
 
 ## Adaptation Checklist (after vendoring)
 
-1. Apply `schema.sql` through the migration path (§ Database Schema). ⚠️ Its `delayed_grants.user_id` is `BIGINT`; a saas-skeleton's `users.id` is `UUID` — change the column type before applying.
-2. The module takes a **synchronous** DB-API connection (psycopg); the scaffold's request path is async. Call it through `asyncio.to_thread(...)` with a psycopg connection, never directly inside an async hook, or port its two queries to the async session.
-3. Pass it the IP from `client_ip()` — the module README's own client-IP snippet takes the left-most `X-Forwarded-For` entry and is spoofable; do not copy it.
-4. Wire `check_disposable_email()` + `check_ip_rate_limit()` into `on_signup_attempt`, and `store_registration_metadata()` into `on_signup_complete` (§ Where it goes).
-5. Wire `split_quota()` + `schedule_delayed_grant()` if the project has a credit/quota system; run `release_due_grants()` from the worker's schedule.
-6. Fingerprint collection and the suspicious-accounts panel: Phase 2, lawful basis first.
+1. Apply the schema through `server/db/schema.sql` with the UUID `delayed_grants` (§ Database Schema).
+2. **Port the two database checks to the async session; use the module for the domain set and the quota split.** The module speaks synchronous DB-API (psycopg) while the scaffold's request path is async SQLAlchemy on asyncpg, and its checks hide their own failures. The ported count, with IPv6 per /64:
+
+   ```sql
+   SELECT count(*) FROM users
+   WHERE created_at > now() - interval '24 hours'
+     AND registration_ip <<= network(set_masklen(CAST(:ip AS inet),
+         CASE WHEN family(CAST(:ip AS inet)) = 6 THEN 64 ELSE 32 END))
+   ```
+
+   Wrap each ported query in a `try/except` that increments `abuse_check_failed_open` and allows the signup — a database hiccup must never block a real user, and must never go uncounted.
+3. Use `check_disposable_email()` as-is (pure, in-memory). Never copy the module README's client-IP snippet: it takes the left-most `X-Forwarded-For` entry and is spoofable.
+4. `split_quota()` + a delayed-grant insert with `ON CONFLICT (user_id) DO NOTHING` if the project has a credit/quota system; run the release from the worker's schedule, porting `release_due_grants()` to the async session the same way.
+5. Fingerprint collection and the suspicious-accounts panel: Phase 2, lawful basis first.
 
 ---
 
@@ -173,13 +197,14 @@ It provides `abuse_detection.py` (`check_ip_rate_limit`, `check_disposable_email
 | Pattern | Instead |
 |---|---|
 | Keying a limit on the raw `X-Forwarded-For` header or its left-most entry | `client_ip(request, settings.trusted_proxy_hops)` |
-| A second registration endpoint beside the IdP's | the `on_signup_attempt` / `on_signup_complete` seams |
-| Granting credits or quota on registration alone | grant on verification; progressive unlock |
+| A second registration endpoint beside the IdP's | a path-scoped middleware on `POST /auth/signup`; the hooks on the passwordless door |
+| Wiring only the passwordless hooks while `/auth/signup` stays open | guard the open door first |
+| Granting credits or quota on registration alone, or twice | grant on verification, once (`quota_unlocked_at`, `ON CONFLICT`) |
 | Blocking on a fingerprint match or a shared IP | flag for review; block only on the per-IP cap and the blocklist |
 | Collecting a fingerprint from EU users with no consent and no counsel sign-off | gate it on consent (Layer 3) |
 | A hand-kept short list of disposable domains in code | the upstream list, refreshed on a schedule |
 | Enabling SMS OTP with no country allow-list, fraud guard or send rate limit | Layer 4's preconditions |
-| An abuse check that fails open with no counter | `abuse_check_failed_open_total` + an alert |
+| An abuse check that fails open with no counter | own the failure path; `abuse_check_failed_open` + an alert |
 
 ## Related Rule Packs
 
@@ -191,8 +216,8 @@ It provides `abuse_detection.py` (`check_ip_rate_limit`, `check_disposable_email
 
 ## Done When
 
-- [ ] Every signup door the project enables carries the Phase 1 controls, with a test that the cap and the blocklist refuse
+- [ ] Every open signup door carries the Phase 1 controls, proven by the end-to-end test (third signup from one IP → `429`, disposable address → `422`)
 - [ ] The client IP comes from `client_ip()`, and `trusted_proxy_hops` matches the proxies actually in front
-- [ ] No credit or quota is granted before verification
+- [ ] No credit or quota is granted before verification, or more than once
 - [ ] Refusals and fail-opens are counted, and an alert fires on a sustained fail-open
 - [ ] Fingerprinting, if enabled, has its lawful basis recorded; IP and fingerprint columns have a retention period

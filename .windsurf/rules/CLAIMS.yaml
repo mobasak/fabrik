@@ -1925,6 +1925,54 @@ claims:
     window_days: 365
     last_verified: 2026-09-24
 
+  - id: fingerprintjs-oss-accuracy
+    pack: saas/87-abuse-detection.md
+    kind: practice
+    claim: "The open-source FingerprintJS library states 40-60% accuracy, with ID collisions 'quite common' and ID lifetime up to a few weeks (the paid Fingerprint Pro claims 99.5%); ThumbmarkJS is an MIT-licensed, maintained alternative"
+    verify: "https://github.com/fingerprintjs/fingerprintjs/blob/master/docs/comparison.md ; https://github.com/thumbmarkjs/thumbmarkjs (exa + brave, 2026-09-30; ledger fp-02, fp-03)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: turnstile-free-no-proxy
+    pack: saas/87-abuse-detection.md
+    kind: practice
+    claim: "Cloudflare Turnstile's free plan allows unlimited challenges within widget and hostname limits (20 widgets, 10 hostnames each) and works on sites not proxied through Cloudflare; hCaptcha's Basic plan is free"
+    verify: "https://developers.cloudflare.com/turnstile/plans/ ; https://www.hcaptcha.com/pricing (exa + brave, 2026-09-30; ledger fp-05..fp-07)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: sms-pumping-otp-risk
+    pack: saas/87-abuse-detection.md
+    kind: rationale
+    claim: "An SMS OTP input is itself an abuse target (SMS pumping / artificially inflated traffic); Twilio documents Fraud Guard, geo-permissions and rate limits as the mitigations. No source supports 'SMS OTP eliminates 99%+ of bot farms'"
+    verify: "https://www.twilio.com/docs/verify/preventing-toll-fraud (exa, 2026-09-30; ledger fp-18)"
+    window_days: 365
+    last_verified: 2026-09-30
+
+  - id: disposable-list-size-and-churn
+    pack: saas/87-abuse-detection.md
+    kind: practice
+    claim: "The disposable-email-domains blocklist (CC0) held about 9,200 domains on 2026-09-30, gains domains through bot commits most days, ships an allowlist.conf, and is mirrored by the MIT disposable-email-domains PyPI package; fabrik-lib abuse-prevention's copy held 5,477 (dated 2026-06-29)"
+    verify: "https://github.com/disposable-email-domains/disposable-email-domains/blob/main/disposable_email_blocklist.conf (line count) ; https://pypi.org/project/disposable-email-domains/ (WebFetch + exa, 2026-09-30; ledger de-01..de-05, lp-08)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: ipv6-per-64-rate-limit
+    pack: saas/87-abuse-detection.md
+    kind: practice
+    claim: "One IPv6 user controls a whole /64, so per-address limits are evaded; rate-limit IPv6 per /64 (Cloudflare does); CGNAT puts many users behind one IPv4. OWASP's cheat sheets recommend per-IP limits as a floor but do not mention /64 or CGNAT"
+    verify: "https://blog.cloudflare.com/detecting-cgn-to-reduce-collateral-damage/ ; https://cheatsheetseries.owasp.org/cheatsheets/Bot_Management_and_Anti-Automation_Cheat_Sheet.html (exa + brave + WebFetch, 2026-09-30; ledger de-08..de-10)"
+    window_days: 365
+    last_verified: 2026-09-30
+
+  - id: gmail-dots-plus-aliases
+    pack: saas/87-abuse-detection.md
+    kind: standard
+    claim: "Consumer Gmail ignores dots in the local part and delivers user+tag to the same inbox; Google Workspace and custom domains do not ignore dots"
+    verify: "https://support.google.com/mail/answer/7436150?hl=en (WebFetch + brave, 2026-09-30; ledger de-14)"
+    window_days: 365
+    last_verified: 2026-09-30
+
   - id: claude-code-total-cost-is-an-estimate
     pack: core/cost-budget.md
     kind: standard

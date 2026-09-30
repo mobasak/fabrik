@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T08:48:59.644004Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-bb20735b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reword version-free at saas/88's next touch, as saas/87 now does ('MIT again from its current major on')",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "saas/88-saas-launch-checklist carries the tool-version literal 'FingerprintJS — MIT-licensed again since v5' outside a marker span"
+}

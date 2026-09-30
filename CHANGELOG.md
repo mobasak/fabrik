@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — saas/87-abuse-detection: guards the scaffold's open signup door (2026-09-30)
+- `.windsurf/rules/saas/87-abuse-detection.md` (rules currency pass file 32, D-455): Layer 1 goes in a path-scoped middleware on the always-open `POST /auth/signup`; the IdP hooks cover only the (closed-as-emitted) passwordless door; limits key on `client_ip()`, IPv6 per /64 via a ported async query; quota granted once; fail-opens counted; fingerprinting gated on a lawful basis; globs now match the IdP files instead of `register/`/`signup/`. Unsourced statistics and the hand-kept domain list removed.
+- `tests/test_abuse_pack_activation.py`: emits a saas-skeleton and asserts the pack fires on `server/src/<pkg>/auth.py` and the IdP router, and not on unrelated modules (red on the old globs, green on the new).
+- `.windsurf/rules/CLAIMS.yaml`: six saas/87 rows; `docs/reference/research/2026-09-30-abuse-detection-currency-ledger.md`: the turn's 60 facts.
+
 ### Fixed — A worktree's symlinked `.venv` is ignored in every project (2026-09-30)
 - The synced `.claude/settings.json` symlinks `.venv` into every linked worktree (`symlinkDirectories`), and a project's own `.venv/` rule matches directories only, so a symlinked `.venv` was not ignored in 44 of the 45 git repos under /opt. Every new project worktree would have shown `?? .venv`. The synced "Fabrik-synced" .gitignore block (`scripts/fabrik_synced_manifest.py`) now carries a slashless `.venv`, and the sync's safety floor (`scripts/sync_enforcement_to_projects.py`) writes `.venv` too, while its check keeps `.venv/`. Known trade-off: the block overrides a project `!.venv` silently on every sync (0 of 45 repos have one); such a project adds each file with `git add -f`. Tests: `tests/test_synced_manifest.py`, `tests/test_sync_gitignore_safety.py` (each red on revert). Review: `docs/development/reviews/2026-09-30-synced-gitignore-venv-review.md`, 3 passes, confirmed 4 → 2 → 0.
 
