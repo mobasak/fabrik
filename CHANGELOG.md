@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — saas/00-domain-saas: real consumers, real owners (2026-09-30)
+- `.windsurf/rules/saas/00-domain-saas.md` (rules currency pass file 33, D-457): names `/fabrik-vision` and `/fabrik-epics` as its consumers instead of the retired Traycer docs; every § 4 row cites the pack that owns the answer (billing model → core/85, rate limiting → saas/95, audit → core/app-audit-log, export/erasure → saas/88, membership → saas/95); the wrong "metering owned by 95" row becomes an intake-owned quota-truth question; § 7 drops the banned usage-based pricing axis; programmatic SEO, AI-answer visibility and unit-economics defaults carry their sources.
+- `tests/test_domain_pack_epic_headings.py`: reads `/fabrik-epics`' overlay table and asserts each domain pack carries the heading the command walks, and that every `00-domain-*` pack has a row.
+- `.windsurf/rules/CLAIMS.yaml`: three saas/00 rows; `docs/reference/research/2026-09-30-domain-saas-currency-ledger.md`: the turn's 40 facts.
+
 ### Fixed — The scaffold hub-guard tests run against a temporary hub, never the real checkout (2026-09-30)
 - `tests/test_scaffold_fix.py`: four `TestScaffoldHubGuard` tests aimed `fix_project`/`_assert_not_hub` at the real `/opt/fabrik`, so a regressed guard would have rewritten the shared checkout, and on a machine without `/opt/fabrik` (CI) they ran against a missing path. They now use a `fake_hub` fixture: a temporary directory holding the hub marker, with `FABRIK_ROOT` pointed elsewhere. They also match the guard's own message instead of the word `hub`. With a broken marker check, `fix_project`'s unrelated "No project.yaml in …/hub" error had still passed that looser match. Mutation-checked: with the marker broken, all four fail.
 - The kilo-JSON and dry-run reference-doc tests now decide whether to assert from the root `fix_project` copies from (`scaffold.FABRIK_ROOT`), not a hard-coded `/opt/fabrik`. In a worktree, the gitignored `scripts/kilo_47_agents_final.json` exists only in the main checkout, so both tests used to fail there. When the file is absent, the kilo test now asserts that nothing was copied or reported, so it checks something in both places. The stack-guide and prebuilt tests read the same root. (W-a6d1dbf5)
