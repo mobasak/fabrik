@@ -119,6 +119,9 @@ def test_scaffold_facts_the_pack_warns_about(project: Path) -> None:
         f"the scaffold's languages changed ({sorted(translations)}): update § Localization"
     )
     assert (project / "static" / "i18n" / "tr.example.json").is_file()
+    assert not (project / "static" / "i18n" / "ar.json").exists(), (
+        "static/i18n/ar.json now exists: drop the pack's 'copy ar into static/i18n' step"
+    )
 
 
 def test_roster_assigns_the_verification_mcps() -> None:

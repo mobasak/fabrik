@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "fix in templates/mobile-app/ with the checks in tests/test_mobile_pack_scaffold_defaults.py (its 'warns' test turns red as each is fixed — then drop the matching note from mobile-app/80-mobile.md); found by the file-34 currency pass Fable second opinion, 2026-09-30",
+  "next": "fix in templates/mobile-app/ with the checks in tests/test_mobile_pack_scaffold_defaults.py (its 'warns' test turns red as each is fixed \u2014 then drop the matching note from mobile-app/80-mobile.md); found by the file-34 currency pass Fable second opinion, 2026-09-30",
   "note": "",
   "owner": "fleet",
   "priority": 2,
@@ -19,5 +19,5 @@
   "tags": [
     "rules"
   ],
-  "title": "mobile-app template drifts from its own rule pack: inert newArchEnabled: true in app.config.ts; a demo email+password login form with hard-coded English; languages en+ar with only tr.example.json though tr is day-1; Sentry.init without includeLocalVariables:false or a beforeSend scrubber; dead deps axios, react-query-kit, @tanstack/zod-form-adapter; sync_rn_locales.py usage text names adapters/"
+  "title": "mobile-app template drifts from its own rule pack: inert newArchEnabled: true in app.config.ts; a demo email+password login form with hard-coded English; languages en+ar with only tr.example.json though tr is day-1, and ar has no static/i18n source; Sentry.init without includeLocalVariables:false or a beforeSend scrubber; dead deps axios, react-query-kit, @tanstack/zod-form-adapter; sync_rn_locales.py usage text names adapters/"
 }
