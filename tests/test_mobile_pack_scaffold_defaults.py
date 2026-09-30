@@ -97,6 +97,29 @@ def test_scaffold_loads_translations_from_src_translations(project: Path) -> Non
     assert (project / "src" / "translations" / "en.json").is_file()
 
 
+_JSON_SOURCE = re.compile(r"""(?:from\s+|require\(\s*)['"]([^'"]+\.json)['"]""")
+
+
+def _json_sources(ts: str) -> list[str]:
+    """Every JSON module a TypeScript file loads, by `import ... from` or `require(...)`."""
+    return _JSON_SOURCE.findall(ts)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "import kit from '../../../static/i18n/en.json';",
+        "import kit from '@i18n-kit/en.json';",
+        'import kit from "@/static/i18n/en.json";',
+        "const kit = require('../../../static/i18n/en.json');",
+        "import kit from '@kit/en.json' with { type: 'json' };",
+    ],
+)
+def test_json_source_reader_sees_every_spelling(line: str) -> None:
+    sources = _json_sources("import en from '@/translations/en.json';\n" + line)
+    assert len(sources) == 2 and not sources[1].startswith("@/translations/")
+
+
 @requires_fabrik_env
 def test_scaffold_facts_the_pack_warns_about(project: Path) -> None:
     """Each assertion is a scaffold state the pack describes as a WORKAROUND; when the scaffold is
@@ -127,8 +150,10 @@ def test_scaffold_facts_the_pack_warns_about(project: Path) -> None:
         "update § Localization's 'two unrelated sets'"
     )
     resources = (project / "src" / "lib" / "i18n" / "resources.ts").read_text(encoding="utf-8")
-    assert "static/i18n" not in resources, (
-        "the app now loads static/i18n: update § Localization's 'which the app does not load'"
+    json_imports = _json_sources(resources)
+    assert json_imports, "resources.ts imports no JSON: re-read § Localization against it"
+    assert all(src.startswith("@/translations/") for src in json_imports), (
+        f"resources.ts now loads {json_imports}: update § Localization's 'which the app does not load'"
     )
 
 
