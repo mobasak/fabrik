@@ -440,6 +440,15 @@ def gitignore_block_text() -> str:
         # Linked-worktree metadata (multi-agent-per-repo adoption, design spec § Lifecycle
         # "Adoption") — Claude Code's own per-worktree state directory, never tracked.
         ".claude/worktrees/",
+        # The synced `.claude/settings.json` symlinks `.venv` into every linked worktree
+        # (`symlinkDirectories`), and a project's own `.venv/` rule matches directories only,
+        # so the symlink showed as `?? .venv` in 44 of 45 repos (probed 2026-09-30). No
+        # trailing slash: this matches the symlink and a real directory alike. ⚠️ ACCEPTED TRADEOFF:
+        # the block sits after a project's own rules, so it overrides a project `!.venv` (0 of 45
+        # repos have one, 2026-09-30). Unlike the safety floor's `.env.*` trade, which fires once
+        # with a warning, this one is SILENT and repeats on every sync, because the block is rewritten
+        # unconditionally; a project that tracks files under `.venv` adds each with `git add -f`.
+        ".venv",
         # `sync_enforcement_to_projects.py`'s `_backup_worktree_file` (renamed round 6,
         # class 6) writes a pruned worktree file's backup here, OUTSIDE the worktree
         # tree it came from — but the directory itself lands inside the MAIN checkout

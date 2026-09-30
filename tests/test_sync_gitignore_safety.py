@@ -299,3 +299,14 @@ def test_a_healthy_project_reports_nothing_uncovered(sync, tmp_path):
     repo = _floor_repo(tmp_path, "healthy", ".env\n.venv/\n__pycache__/\n")
 
     assert sync._uncovered_essentials(repo) == []
+
+
+def test_the_floor_ignores_a_symlinked_venv(sync, tmp_path: Path) -> None:
+    """The floor writes a slashless `.venv`, matching the synced block: a worktree's `.venv` is a
+    symlink (`symlinkDirectories`), which a `.venv/` rule never matches. git decides."""
+    (tmp_path / "r").mkdir()
+    repo = _repo(tmp_path / "r", sync._ESSENTIAL_IGNORES)
+    (tmp_path / "real").mkdir()
+    (repo / ".venv").symlink_to(tmp_path / "real")
+    r = subprocess.run(["git", "check-ignore", "-q", "--no-index", ".venv"], cwd=repo, check=False)
+    assert r.returncode == 0, "the safety floor does not ignore a symlinked .venv"

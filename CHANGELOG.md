@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — A worktree's symlinked `.venv` is ignored in every project (2026-09-30)
+- The synced `.claude/settings.json` symlinks `.venv` into every linked worktree (`symlinkDirectories`), and a project's own `.venv/` rule matches directories only, so a symlinked `.venv` was not ignored in 44 of the 45 git repos under /opt. Every new project worktree would have shown `?? .venv`. The synced "Fabrik-synced" .gitignore block (`scripts/fabrik_synced_manifest.py`) now carries a slashless `.venv`, and the sync's safety floor (`scripts/sync_enforcement_to_projects.py`) writes `.venv` too, while its check keeps `.venv/`. Known trade-off: the block overrides a project `!.venv` silently on every sync (0 of 45 repos have one); such a project adds each file with `git add -f`. Tests: `tests/test_synced_manifest.py`, `tests/test_sync_gitignore_safety.py` (each red on revert). Review: `docs/development/reviews/2026-09-30-synced-gitignore-venv-review.md`, 3 passes, confirmed 4 → 2 → 0.
+
 ### Fixed — Hub worktree cut-over, whole-plan validation fixes (2026-09-30)
 - `.claude/hooks/session_orient.py`: `MERGE OWNER: UNDECLARED` is matched as a whole token, so an owner named `UNDECLARED-team` is no longer read as undeclared; both move lines tell the mover to check that the gitignored `.worktreeinclude` set (`.env`, …) arrived and to copy any missing path in from the main checkout. Tests: `tests/test_session_orient_hook.py` (parity case and move-line grader, both red on revert).
 - `scripts/enforcement/check_doc_links.py`: the main checkout is resolved through `core.worktree` (a submodule's worktree), and a `../` ref that escapes the repo is re-resolved from the main checkout's copy of the source, so a sibling-repo link no longer reds a worktree's gate. Tests: `tests/enforcement/test_check_doc_links.py` (two cases, red on revert).

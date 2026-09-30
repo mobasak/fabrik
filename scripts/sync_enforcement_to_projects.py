@@ -80,7 +80,7 @@ _ESSENTIAL_IGNORES = """# Essential safety rules — restored by sync_enforcemen
 !.env.sample
 !.env.template
 !.env.dist
-.venv/
+.venv
 venv/
 __pycache__/
 *.pyc
@@ -93,6 +93,11 @@ __pycache__/
 # lost its `.env` protection, and in that state "a template briefly needs re-negating" is a far cheaper
 # failure than "a secret is one `git add -A` from GitHub". Loud warning + non-zero exit tell the operator
 # to look.
+# `.venv/` here is the CHECK (the directory a project must protect); the floor above WRITES a
+# slashless `.venv` so it also covers the worktree symlink `symlinkDirectories` creates. Checking
+# `.venv` instead would read every repo whose own rule is `.venv/` as unprotected and append the
+# whole floor to ~44 of them on the next sync. A floor written before 2026-09-30 keeps `.venv/`
+# (the marker check never rewrites it); the synced block's own `.venv` covers the symlink there.
 _ESSENTIAL_PATTERNS = (".env", ".venv/", "__pycache__/")
 
 # Idempotency marker — if this string is already in the file, the floor is present; never re-append.
@@ -170,7 +175,9 @@ def patched_gitignore(content: str, project_dir: Path) -> tuple[str, bool]:
         return new, False
 
     # Ask GIT (authoritative) whether the project ALREADY protects .env. Evaluating the CURRENT tree
-    # is correct: swapping the Fabrik block never changes .env protection either way.
+    # is correct: swapping the Fabrik block never changes .env protection either way. (The block now
+    # also carries `.venv`, so a repo with no `.venv` rule of its own is covered once the block lands;
+    # its FIRST sync may still append the floor, as it already would have without the block line.)
     repaired = not _git_covers_essentials(project_dir)
     if repaired:
         new = new.rstrip("\n") + "\n\n" + _ESSENTIAL_IGNORES

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 from unittest import mock
@@ -167,6 +168,25 @@ def test_gitignore_block_ignores_claude_settings_local() -> None:
     assert not any("settings.local.json" in p for p in synced_names), (
         "the carrier must be ignored, never distributed (no synced name list may carry it)"
     )
+
+
+def test_gitignore_block_ignores_a_symlinked_venv(tmp_path: Path) -> None:
+    """The synced `.claude/settings.json` symlinks `.venv` into every linked worktree
+    (`symlinkDirectories`). A project's own `.venv/` rule matches directories only, so the
+    symlink showed as `?? .venv` in 44 of 45 repos (probed 2026-09-30). git itself decides:
+    the block as a `.gitignore` must ignore both the worktree's symlink and a real directory."""
+
+    repo = tmp_path / "r"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    (repo / ".gitignore").write_text(m.gitignore_block_text(), encoding="utf-8")
+    (tmp_path / "real").mkdir()
+    (repo / ".venv").symlink_to(tmp_path / "real")
+    (repo / "sub").mkdir()
+    (repo / "sub" / ".venv").mkdir()
+    for path in (".venv", "sub/.venv"):
+        r = subprocess.run(["git", "check-ignore", "-q", "--no-index", path], cwd=repo)
+        assert r.returncode == 0, f"{path} is not ignored by the synced block"
 
 
 def test_vendored_module_gitignored_and_pycache_excluded(fake_fabrik: Path, tmp_path: Path) -> None:
