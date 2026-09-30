@@ -122,8 +122,13 @@ def test_scaffold_facts_the_pack_warns_about(project: Path) -> None:
         json.loads((project / "src" / "translations" / "en.json").read_text(encoding="utf-8"))
     )
     kit = set(json.loads((project / "static" / "i18n" / "en.json").read_text(encoding="utf-8")))
-    assert live != kit, (
-        "the two translation sets now share keys: update § Localization's 'two unrelated sets'"
+    assert not live & kit, (
+        f"the two translation sets now share keys {sorted(live & kit)}: "
+        "update § Localization's 'two unrelated sets'"
+    )
+    resources = (project / "src" / "lib" / "i18n" / "resources.ts").read_text(encoding="utf-8")
+    assert "static/i18n" not in resources, (
+        "the app now loads static/i18n: update § Localization's 'which the app does not load'"
     )
 
 
