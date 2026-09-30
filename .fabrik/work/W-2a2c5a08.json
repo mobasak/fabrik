@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T09:21:15.464401Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-2a2c5a08",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "HEARTBEAT_FILE = Path(os.environ.get('HEARTBEAT_FILE', '/app/.tmp/worker_heartbeat')) and set it in the Makefile dev target (or default to a repo-local .tmp when /app is absent); grader: scaffold a file-worker into tmp and run python -m worker.main with deps stubbed until it passes line 26",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "scaffold"
+  ],
+  "title": "file-worker template main.py creates /app/.tmp at import (templates/file-worker/worker/main.py:25-26), so even the fixed 'make dev' (python -m worker.main) crashes with PermissionError: '/app' on a host that is not a container (review W-32cbfecb pass 2)"
+}

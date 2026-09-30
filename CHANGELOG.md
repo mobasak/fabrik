@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The file-worker scaffold's logger import hint and `make dev` now match the worker module (2026-09-30)
+- `src/fabrik/scaffold.py` `_scaffold_file_worker`: the emitted `worker/logger.py` docstring said `from <project_package>.logger import get_logger`, a module that does not exist. It now reads `from worker.logger import get_logger`, the import the shipped `worker/main.py` makes (W-32cbfecb).
+- The emitted Makefile's `dev` target ran `python worker/main.py`, which puts `worker/` on `sys.path`, so `main.py`'s `from worker.logger import …` failed with `ModuleNotFoundError`. It now runs `python -m worker.main`. The Dockerfile is unchanged: it sets `PYTHONPATH=/app`, so it already worked.
+- Tests in `tests/test_scaffold_logging.py` pin the usage line to the real template's import and run a real scaffold to check `make dev` resolves `worker.logger`.
+
 ### Fixed — A worktree's symlinked `.venv` is ignored in every project (2026-09-30)
 - The synced `.claude/settings.json` symlinks `.venv` into every linked worktree (`symlinkDirectories`), and a project's own `.venv/` rule matches directories only, so a symlinked `.venv` was not ignored in 44 of the 45 git repos under /opt. Every new project worktree would have shown `?? .venv`. The synced "Fabrik-synced" .gitignore block (`scripts/fabrik_synced_manifest.py`) now carries a slashless `.venv`, and the sync's safety floor (`scripts/sync_enforcement_to_projects.py`) writes `.venv` too, while its check keeps `.venv/`. Known trade-off: the block overrides a project `!.venv` silently on every sync (0 of 45 repos have one); such a project adds each file with `git add -f`. Tests: `tests/test_synced_manifest.py`, `tests/test_sync_gitignore_safety.py` (each red on revert). Review: `docs/development/reviews/2026-09-30-synced-gitignore-venv-review.md`, 3 passes, confirmed 4 → 2 → 0.
 
