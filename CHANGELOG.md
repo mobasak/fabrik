@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — saas/00-domain-saas: real consumers, real owners (2026-09-30)
+- `.windsurf/rules/saas/00-domain-saas.md` (rules currency pass file 33, D-457): names `/fabrik-vision` and `/fabrik-epics` as its consumers instead of the retired Traycer docs; every § 4 row cites the pack that owns the answer (billing model → core/85, rate limiting → saas/95, audit → core/app-audit-log, export/erasure → saas/88, membership → saas/95); the wrong "metering owned by 95" row becomes an intake-owned quota-truth question; § 7 drops the banned usage-based pricing axis; programmatic SEO, AI-answer visibility and unit-economics defaults carry their sources.
+- `tests/test_domain_pack_epic_headings.py`: reads `/fabrik-epics`' overlay table and asserts each domain pack carries the heading the command walks, and that every `00-domain-*` pack has a row.
+- `.windsurf/rules/CLAIMS.yaml`: three saas/00 rows; `docs/reference/research/2026-09-30-domain-saas-currency-ledger.md`: the turn's 40 facts.
+
 ### Changed — saas/87-abuse-detection: guards the scaffold's open signup door (2026-09-30)
 - `.windsurf/rules/saas/87-abuse-detection.md` (rules currency pass file 32, D-455): Layer 1 goes in a path-scoped middleware on the always-open `POST /auth/signup`; the IdP hooks cover only the (closed-as-emitted) passwordless door; limits key on `client_ip()`, IPv6 per /64 via a ported async query; quota granted once; fail-opens counted; fingerprinting gated on a lawful basis; globs now match the IdP files instead of `register/`/`signup/`. Unsourced statistics and the hand-kept domain list removed.
 - `tests/test_abuse_pack_activation.py`: emits a saas-skeleton and asserts the pack fires on `server/src/<pkg>/auth.py` and the IdP router, and not on unrelated modules (red on the old globs, green on the new).
