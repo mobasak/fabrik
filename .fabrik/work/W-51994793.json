@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T08:48:59.360122Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-51994793",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fix at core/35's next currency turn: name the IdP's real routes (found by the saas/87 Fable second opinion, 2026-09-30)",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "core/35-security-auth § Rate Limiting names /auth/register; the vendored IdP's route is /auth/signup"
+}

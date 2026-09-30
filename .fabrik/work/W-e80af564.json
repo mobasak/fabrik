@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T09:01:42.368437Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e80af564",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one change on the template (sync trigger: full /fabrik-review) + the fragment (render from master)",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "title": "Mirror the hub CLAUDE.md fan-out + §1a fixes (ea18b923a and its review follow-up, D-456) into templates/governance/CLAUDE.md and commands/_fragments/subagents-core.md: both still say 'Fable (Opus when Fable refuses)' / 'Fable orchestrates' (D-334/D-456: the orchestrator is Opus or Fable, whichever the quota allows, and whichever newer model replaces them — the hub CLAUDE.md wording), the template keeps the file-loop pair unscoped (W-42dbd4f1) and §1a's bare >5 (W-bbe4ecbb); plus two pre-existing clauses in the same bullet, in the HUB CLAUDE.md (~:462, ~:474) AND its template copy: 'no file's logic read by two seats' vs the file-loop pair, and the dispatch_headroom example budgeting an Opus finder for file loops (D-344) — review-scoped round 1 O1/O2/O3/O8, 2026-09-30"
+}

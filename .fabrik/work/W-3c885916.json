@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T08:48:59.900102Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-3c885916",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "exclude harness/tool worktree copies (.kilo/worktrees, .claude/worktrees) from rules_match._tree_paths, with a test",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "select_rules/rules_match count paths inside .kilo/worktrees copies: trade-intelligence activates saas/87 only through .kilo/worktrees/berry-oatmeal/web/app/api/auth/signup"
+}

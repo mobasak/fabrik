@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T10:06:15.372784Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-9a96a381",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "only if a new malformed-row shape is found that both _table_body() and ROW miss together: add it to the red battery in the same change",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "tests/test_domain_pack_epic_headings.py: the scope-growth stop of the saas/00 /fabrik-review (2026-09-30) routed further row-counter edge shapes here — the check now counts every non-blank line between the overlay-table header and the next blank line"
+}
