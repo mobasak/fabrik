@@ -2220,3 +2220,59 @@ claims:
     verify: "https://fonts.google.com/specimen/Space+Grotesk ; https://fonts.google.com/specimen/JetBrains+Mono ; https://www.jetbrains.com/lp/mono/ (exa + WebSearch, 2026-09-24; ledger ut-15..ut-18)"
     window_days: 365
     last_verified: 2026-09-24
+
+  - id: eu-billing-outside-store-terms
+    pack: mobile-app/00-domain-mobile-app.md
+    kind: pricing
+    claim: "In the EU/EEA both stores allow store billing, link-out to web checkout, or an alternative in-app provider; Apple's terms change again on 1 October 2026 and Google Play's EEA terms changed on 30 June 2026, and both now leave a small developer a fee difference outside store billing — so the pack forces the three-way decision instead of ruling it out"
+    verify: "https://developer.apple.com/support/dma-and-apps-in-the-eu/ ; https://www.apple.com/newsroom/2026/08/apple-announces-changes-for-apps-in-the-european-union/ ; https://support.google.com/googleplay/android-developer/answer/16954621 (WebFetch + WebSearch/brave/exa, 2026-09-30; ledger sp-02, op-01)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: apple-guideline-4-8-login
+    pack: mobile-app/00-domain-mobile-app.md
+    kind: policy
+    claim: "App Store Guideline 4.8 requires an app whose primary account uses a third-party or social login to also offer a login option meeting three privacy criteria; Sign in with Apple satisfies it but is not itself mandated, and apps using only their own accounts are exempt"
+    verify: "https://developer.apple.com/app-store/review/guidelines/#login-services (WebFetch + exa, 2026-09-30; ledger sp-01, op-02)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: turkey-store-billing-both-stores
+    pack: mobile-app/00-domain-mobile-app.md
+    kind: policy
+    claim: "Turkey is outside Google Play's User Choice Billing and External Offers programs and outside Apple's EU terms, so store billing stays mandatory for digital goods on both stores"
+    verify: "https://support.google.com/googleplay/android-developer/answer/13821247 ; https://support.google.com/googleplay/android-developer/answer/14372887 (WebSearch + brave + exa, 2026-09-30; ledger sp-03)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: ota-and-code-push-scope
+    pack: mobile-app/00-domain-mobile-app.md
+    kind: practice
+    claim: "EAS Update ships JavaScript, styles and compatible assets only, never native code; Shorebird code push supports Flutter only, not React Native"
+    verify: "https://docs.expo.dev/eas-update/introduction/ ; https://docs.shorebird.dev/code-push/ (WebSearch + WebFetch, 2026-09-30; ledger sp-05, op-06)"
+    window_days: 365
+    last_verified: 2026-09-30
+
+  - id: partner-codes-store-asymmetry
+    pack: mobile-app/00-domain-mobile-app.md
+    kind: practice
+    claim: "App Store offer codes (including custom codes) can be created through the App Store Connect API; Google Play promo codes are Console-only with no Developer API resource; Apple prohibits fingerprinting under its privacy-manifest rules"
+    verify: "https://developer.apple.com/documentation/appstoreconnectapi/post-v1-subscriptionoffercodecustomcodes ; https://developer.android.com/google/play/billing/promo ; https://developer.apple.com/news/?id=z6fu1dcu (exa + WebSearch + brave, 2026-09-30; ledger pr-01, pr-02, op-07)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: ios-attribution-skan-aak
+    pack: mobile-app/00-domain-mobile-app.md
+    kind: practice
+    claim: "Apple has announced no deprecation timeline for SKAdNetwork; AdAttributionKit runs beside it with uneven adoption and is the only Apple attribution that covers installs from EU alternative marketplaces and web distribution; Android's Install Referrer is deterministic and iOS has no equivalent; Firebase Dynamic Links shut down on 25 August 2025"
+    verify: "https://developer.apple.com/support/apps-in-the-eu/ ; https://developer.apple.com/videos/play/wwdc2025/221/ ; https://firebase.google.com/support/dynamic-links-faq (brave + exa, 2026-09-30; ledger at-03..at-05)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: mobile-vendor-defaults
+    pack: mobile-app/00-domain-mobile-app.md
+    kind: practice
+    claim: "The named vendor defaults exist and fit their role: Tenjin (MMP with a free tier and usage pricing), ChottuLink (deferred deep-link routing with a free tier), RevenueCat (custom subscriber attributes carried in webhooks, no built-in referral feature), Expo Push (free, delivers via FCM and APNs)"
+    verify: "https://tenjin.com/pricing/ ; https://chottulink.com/pricing.html ; https://www.revenuecat.com/docs/customers/customer-attributes ; https://docs.expo.dev/push-notifications/sending-notifications/ (brave + exa + WebSearch, 2026-09-30; ledger at-01, at-02, at-06, pr-04)"
+    window_days: 180
+    last_verified: 2026-09-30

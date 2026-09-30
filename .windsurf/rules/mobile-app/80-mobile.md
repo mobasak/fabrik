@@ -16,7 +16,7 @@ Apply when working on React Native / TypeScript mobile projects. Skip for web fr
 
 Worldwide-shipping baseline. Compliance floor is GDPR + EU AI Act; other markets are regional addenda. i18n is built in from day 1, not retrofitted.
 
-**Two-faced scaffold:** the client (React Native app) builds via EAS and ships to stores. The backend (FastAPI on `postgres-main`, auth via `fabrik-lib/fastapi-user-auth`) deploys to VPS via `fabrik apply` with full registrar set — the same self-hosted Pattern-A stack as web (see `agents-fabrik.md § Supabase`; Supabase is retired as a default). This file covers the **client lane**. Backend rules: `10-python.md`, `30-ops.md`, `55-observability.md`. For planning-level decisions (architecture, monetization, distribution, attribution), see `00-domain-mobile-app.md`.
+**Two-faced scaffold:** the client (React Native app) builds via EAS and ships to stores. The backend (the repo's own `server/` FastAPI service — no database and no auth until you opt into `postgres-main` + `fabrik-lib/fastapi-user-auth`) deploys to VPS via `fabrik apply` — the same self-hosted Pattern-A stack as web (see `agents-fabrik.md § Supabase`; Supabase is retired as a default). This file covers the **client lane**. Backend rules: `10-python.md`, `30-ops.md`, `55-observability.md`. For planning-level decisions (architecture, monetization, distribution, attribution), see `00-domain-mobile-app.md`.
 
 ---
 

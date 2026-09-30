@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T11:51:43.184169Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-4227a201",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reword or drop the comment in the mobile-app template compose (and any sibling template carrying it), keep the memory limit",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "template"
+  ],
+  "title": "templates/mobile-app compose.yaml carries a stale comment about Coolify v4 beta limits_memory, though fabrik apply rejects coolify"
+}
