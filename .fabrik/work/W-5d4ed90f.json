@@ -13,7 +13,7 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "scripts/rivals_run.py:934 reuses the name 'cell' as str then Any|None — mypy reports it on HEAD (found by the W-6a157c25 review, outside its diff); rename the second"

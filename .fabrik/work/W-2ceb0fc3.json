@@ -13,7 +13,7 @@
   },
   "next": "after infra's hub-template pass (mail 01M3RQ7G) lands: run /claude-api prompt-audit scoped to the fleet-owned prompt templates, commit the report + diff on worktree-fleet, /fabrik-review-scoped, hand the branch to infra",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
   "status": "open",
   "tags": [

@@ -13,7 +13,7 @@
   },
   "next": "Resolve the owner by highest D-number (or the supersedes chain) in all three readers together, with a test on a newest-first ledger; until then the hub keeps exactly one MERGE OWNER row",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "decisions.py --merge-owner, docs_updater read_merge_owner and session_orient all take the LAST MERGE OWNER row in file order, but the hub ledger is newest-first, so a superseding owner row inserted at the top is ignored"

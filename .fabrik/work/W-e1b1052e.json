@@ -13,7 +13,7 @@
   },
   "next": "Route --adopt's id through decisions.py's reserve path (or --reserve-id) and add a collision test with a live reservation",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "docs_updater.py --adopt mints its MERGE OWNER row id with its own max+1 and ignores decisions.py reservations, so the adopt row can take an id a sibling worktree holds via --reserve-id"

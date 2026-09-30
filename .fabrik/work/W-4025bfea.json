@@ -13,7 +13,7 @@
   },
   "next": "drop, done and claim all refuse an awaiting-operator item, so a question re-asked in new words (W-e0e161b4 duplicated W-f9e2e6ec, 2026-09-25) can only be closed with answer, whose note is meant to hold the operator's words. Add a duplicate path, e.g. drop --duplicate-of <id> allowed on awaiting items, merging msg_digests into the kept item.",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "work.py has no verb to retire a duplicate awaiting-operator question"

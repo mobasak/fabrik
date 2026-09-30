@@ -13,7 +13,7 @@
   },
   "next": "add ignore=shutil.ignore_patterns over the same five cache patterns scaffold._TOOL_CACHES names (or a .dockerignore in the build context), with a planted-cache test",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "title": "drivers/watchdog.py:595 copies the fabrik-lib watchdog_sidecar source into each sidecar's docker build context with a bare shutil.copytree — no ignore, so __pycache__/.mypy_cache/.pytest_cache/.ruff_cache ride into every provisioned sidecar image (found by the scaffold tool-cache review, 2026-09-28)"

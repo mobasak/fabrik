@@ -13,7 +13,7 @@
   },
   "next": "decide in the spec whether a NEXT naming a new item releases the session's previous rule-2 claim (D3 is silent); measure the claims-per-session distribution after T08's adoption readings first",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "work.py rule 2 never releases a session's earlier NEXT-claimed item: a session naming a different item each turn holds live claims on all of them until its lease runs out"

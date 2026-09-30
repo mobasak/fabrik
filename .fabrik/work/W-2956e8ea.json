@@ -13,7 +13,7 @@
   },
   "next": "/fabrik-plan-after-chat docs/superpowers/specs/2026-09-24-audit-log-everywhere-design.md § 4 (waves) — each wave's live cutover is a production-data gate for the operator",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "title": "audit-log migration waves plan — the named follow-up of the executed audit-log-everywhere plan (archived 2026-09-24, D-410): pilot one low-risk database project, then cut the existing needs_database repos over to the <db>_app DSN in waves, one mail per repo; inventory fabrik-smoke-test, test-saas-log and translator first (plan I8/I9, line 508)"

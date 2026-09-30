@@ -13,7 +13,7 @@
   },
   "next": "CAUSE FOUND 2026-09-30 (operator): oauth_org_not_allowed = a PAYMENT issue on the account (mob, ob; ob unblocked the moment it was paid). docs/TROUBLESHOOTING.md § Claude Account Issues. What remains of THIS item: what wrote the active pointer to mob between 20:18 and 21:19 local on 2026-09-29 with no flip row.",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 1,
   "status": "open",
   "tags": [

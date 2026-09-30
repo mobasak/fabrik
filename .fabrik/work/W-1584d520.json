@@ -13,7 +13,7 @@
   },
   "next": "claude_rotate._cmd_tick returns at 'no quota reading, no flip decision possible' before any cap check, so an active account parked while every probe fails stays active; decide whether parking should force a flip-away with no reading (park review 2026-09-29, pass 2, seat A-sonnet)",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "Parked ACTIVE account with no quota reading at all is not flipped away"

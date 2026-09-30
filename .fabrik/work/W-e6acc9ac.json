@@ -13,7 +13,7 @@
   },
   "next": "Refuse --adopt when git-dir != git-common-dir (a linked worktree), with a test; the template already says 'in the main checkout'",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "title": "docs_updater.py --adopt, now always run with --single-window, no longer refuses a run from a linked worktree (the session-count guard was its only stop), so a worktree agent could mint the MERGE OWNER row on its branch"

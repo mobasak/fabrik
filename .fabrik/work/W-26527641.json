@@ -13,7 +13,7 @@
   },
   "next": "measure how many fleet repos gitignore 'node_modules/' AND symlink it into worktrees, then fix at the source that emits the rule (scaffold or the synced gitignore block) under /fabrik-review-scoped",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
   "status": "open",
   "tags": [

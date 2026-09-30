@@ -13,7 +13,7 @@
   },
   "next": "on each reply, verify decisions.py --merge-owner <repo> names its owner and ack; re-run the merge-owner count over /opt until 42 of 42",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "tags": [
