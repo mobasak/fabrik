@@ -39,10 +39,13 @@ ROW_RE = re.compile(r"^\|\s*(D-\d+)\s*\|", re.IGNORECASE)
 SUPERSEDES_RE = re.compile(r"supersedes\s+(D-\d+)", re.IGNORECASE)
 # The merge-owner row grammar, shared byte for byte with `docs_updater.py` and the fleet-synced
 # `.claude/hooks/session_orient.py` (pinned by tests/test_session_orient_hook.py). A changed owner
-# is a NEW row whose what-cell OPENS `supersedes D-NNN:` (this ledger's own law), so that prefix is
-# optional before the phrase; the un-adoption row is TOKEN-exact (`undeclared-team` is an owner,
-# `UNDECLARED.` is prose).
-_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+(?:\s*,\s*D-\d+)*\s*:[\s*]*)?"
+# is a NEW row whose what-cell OPENS a supersedes clause (this ledger's own law), so that prefix is
+# optional before the phrase, in every spelling the ledger's real rows use (`supersedes D-258.`,
+# `Supersedes D-446's scope:`, `SUPERSEDES D-235 ON THE MECHANISM:`, any case, `**` allowed); the
+# un-adoption row is TOKEN-exact (`undeclared-team` is an owner, `UNDECLARED.` is prose).
+# The prefix ends at the cell's FIRST `:` or `.` (the qualifier may hold neither), and the phrase
+# must follow it at once — so it cannot reach a `MERGE OWNER:` written later in the prose.
+_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*)?"
 MERGE_OWNER_RE = re.compile(
     r"^\**\s*" + _SUPERSEDES_PREFIX + r"MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I
 )

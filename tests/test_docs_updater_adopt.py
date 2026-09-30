@@ -221,6 +221,42 @@ class TestBC3ExistingMergeOwnerNeverRewritten:
         assert "gamma" not in idx_text.split("<!-- Merge owner:")[1].split("-->")[0]
 
 
+    def test_adopt_mints_a_new_owner_over_a_winning_undeclared_row(self, tmp_path, monkeypatch):
+        """W-076ff4a9, deliberate: an un-adopted repo (its highest-id MERGE OWNER row names
+        UNDECLARED) has no owner, so --adopt mints a NEW higher-id owner row — the ledger's own
+        supersession path (rows are never edited) and the adoption every repo owes (D-444)."""
+        root = tmp_path
+        plans = root / "docs" / "development" / "plans"
+        plans.mkdir(parents=True)
+        idx = root / "docs" / "development" / "PLANS.md"
+        idx.write_text(
+            "# Plans\n\n<!-- AUTO-GENERATED:PLANS:START -->\n<!-- AUTO-GENERATED:PLANS:END -->\n",
+            encoding="utf-8",
+        )
+        decisions = root / "docs" / "DECISIONS.md"
+        decisions.parent.mkdir(parents=True, exist_ok=True)
+        decisions.write_text(
+            "# Decisions\n\n"
+            "| id | when | who | what (the decision) | why | where |\n"
+            "|---|---|---|---|---|---|\n"
+            "| D-006 | 2026-01-02 | operator | supersedes D-005: MERGE OWNER: UNDECLARED — "
+            "un-adopted | because | here |\n"
+            "| D-005 | 2026-01-01 | infra (--adopt) | **MERGE OWNER: alpha** — the only "
+            "writer | because | here |\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", plans)
+        monkeypatch.setattr(du, "PLANS_INDEX", idx)
+        assert du.read_merge_owner() is None
+
+        rc = du.run_adopt(["gamma"], single_window=True)
+
+        assert rc == 0
+        assert du.read_merge_owner() == ("gamma", "D-007")
+        assert "<!-- Merge owner: gamma | source: D-007 -->" in idx.read_text(encoding="utf-8")
+
+
 class TestBC4SessionCountRefusal:
     """Given a fake proc tree with ONE claude process whose cwd is the repo and no
     --single-window, --adopt exits 2 with one stderr line naming the count and the

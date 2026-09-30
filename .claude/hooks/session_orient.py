@@ -216,9 +216,12 @@ def _memory_line(cwd: str) -> str:
 # our own. `docs_updater.py` states the permissiveness is deliberate ("stays permissive so
 # it can still READ a name minted before this tightening"), so a narrower copy here would be
 # a silent third dialect; the length cap belongs at RENDER time and lives in `_identity_line`.
-# W-076ff4a9: a changed owner is a NEW row whose what-cell OPENS `supersedes D-NNN:` (the ledger's
-# own law), so that prefix is optional before the phrase — shared byte for byte with both sources.
-_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+(?:\s*,\s*D-\d+)*\s*:[\s*]*)?"
+# W-076ff4a9: a changed owner is a NEW row whose what-cell OPENS a supersedes clause (the ledger's
+# own law, in any of its real spellings), so that prefix is optional before the phrase — shared
+# byte for byte with both sources.
+# The prefix ends at the cell's FIRST `:` or `.` (the qualifier may hold neither), and the phrase
+# must follow it at once — so it cannot reach a `MERGE OWNER:` written later in the prose.
+_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*)?"
 _MERGE_OWNER_RE = re.compile(
     r"^\**\s*"
     + _SUPERSEDES_PREFIX
@@ -226,51 +229,6 @@ _MERGE_OWNER_RE = re.compile(
     re.I,
 )
 _LEDGER_ROW_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
-_LEDGER_WINDOW_BYTES = 64 * 1024  # bounded like every other read here (see _MEMORY_READ_BYTES)
-# ⚠️ BOTH ENDS, because a HEAD-only read retires this key by ordinary use. The merge-owner row is
-# written ONCE at adoption and never moves, while new rows are appended — 6 of the 10 multi-row
-# ledgers put newest at the TOP, 0 at the bottom, 4 mixed — so the row SINKS out of a head window
-# or was never in a tail one. Executed: appending 30 rows to a copy of the fleet's only declared
-# ledger silenced it. Re-measured 2026-09-16 over 49 ledgers: largest 415.8 KB (the hub's own),
-# and 4 already exceed one window (fabrik 415.8 · fabrik-lib 366.7 · web-ecommerce-factory 261.3 ·
-# youtube 101.7). An earlier comment here said "largest 219 KB"; that was the size of a WORKTREE
-# COPY, quoted as a fleet maximum — the wrong denominator, and it is what made a head-only read
-# look safe.
-
-
-def _declared_merge_owner(cwd: str) -> str:
-    """The agent name this repo's LEDGER declares as merge owner, or "". The HIGHEST-id matching
-    row in the window wins, never the bottom-most (a changed owner is a NEW superseding row; row
-    position is a convention nothing reads), matching `docs_updater.py::read_merge_owner`.
-    Returns "" for an unadopted repo, a missing or unreadable ledger, and a decode/parse failure. ⚠️ It does NOT catch every exception: the
-    fail-open boundary for this hook is `_identity_line`'s own `except Exception`, and saying
-    so here rather than claiming a guarantee this function does not hold."""
-    try:
-        path = Path(cwd) / "docs" / "DECISIONS.md"
-        size = path.stat().st_size
-        with open(path, "rb") as fh:
-            head = fh.read(_LEDGER_WINDOW_BYTES)
-            if size > _LEDGER_WINDOW_BYTES:
-                fh.seek(-_LEDGER_WINDOW_BYTES, 2)
-                tail = fh.read(_LEDGER_WINDOW_BYTES)
-            else:
-                tail = b""
-    except (OSError, ValueError):
-        return ""
-    # ⚠️ Drop the trailing partial line of the head and the leading partial line of the tail.
-    # Without this a cut landing inside an owner name renders the TRUNCATED name as fact —
-    # executed: a row cut at byte 65,536 announced `alphab` for `alphabravocharliedelta`, and a
-    # cut inside a UTF-8 sequence announced `b` for `bob`. That is the loud-and-wrong side of
-    # the bound, not the quiet side an earlier comment here claimed.
-    head_txt = head.decode("utf-8", errors="replace")
-    if size > _LEDGER_WINDOW_BYTES:
-        head_txt = head_txt[: head_txt.rfind("\n") + 1]
-    tail_txt = tail.decode("utf-8", errors="replace")
-    nl = tail_txt.find("\n")
-    tail_txt = tail_txt[nl + 1 :] if nl != -1 else ""
-    return _owner_in(head_txt + tail_txt)
-
-
 # Cell decoding ported from `decisions.py::_rows` / `_code_span_ranges` / `_ESCAPABLE` (this hook
 # cannot import it); `tests/test_session_orient_hook.py` compares the result to the real
 # `decisions.py --merge-owner` over escaped-pipe, code-span and escaped-name ledgers.
@@ -382,24 +340,31 @@ def _row_id(cell: str) -> int:
     return int(m.group(1)) if m else -1
 
 
-# The WHOLE-ledger read the move line needs. `decisions.py --merge-owner` (the named source) reads
-# every row; the windowed `_declared_merge_owner` above does not, and the hub's ledger is
-# newest-FIRST and ~750 KB, so a head window would lose the hub's owner row within days. It is
-# re-implemented here, not shelled out: that subprocess measured 165 ms on the hub against a
-# ~55 ms hook, and `tests/test_session_orient_hook.py` pins this reader's answer to decisions.py's.
-# The phrase prefilter hands `_owner_in` only the lines that mention it at all, so the hub's ledger
-# costs one byte scan rather than a decode and split of every row (measured 6 ms -> under 1 ms).
+# The ONE ledger read both owner consumers use — the identity line and the move line (W-076ff4a9).
+# It reads the WHOLE ledger, as `decisions.py --merge-owner` (the named source) does: the owner is
+# the highest-id row WHEREVER it sits, so any window can hide the winner. An earlier head+tail 64 KB
+# window here returned a stale lower-id owner for a row in the middle of a >128 KB ledger (the hub's
+# measured 759 KB at 9c82f26af; 4 of 49 fleet ledgers exceeded one window on 2026-09-16). It is re-implemented here,
+# not shelled out: that subprocess measured 165 ms on the hub against a ~55 ms hook, and
+# `tests/test_session_orient_hook.py` pins this reader's answer to decisions.py's. The phrase
+# prefilter hands `_owner_in` only the lines that mention it at all, so the hub's ledger costs one
+# byte scan rather than a decode and split of every row (measured 6 ms -> under 1 ms).
+# The cap (16 MB, ~20x the largest ledger) only bounds a pathological file; past it the line the
+# cut lands in is dropped, so a cut inside an owner name can never render the TRUNCATED name.
 _LEDGER_MAX_BYTES = 16 * 1024 * 1024
 
 
 def _ledger_merge_owner(top: str) -> str:
-    """The merge owner the ledger at `<top>/docs/DECISIONS.md` declares (highest id wins), or ""."""
+    """The merge owner the ledger at `<top>/docs/DECISIONS.md` declares (highest id wins), or "".
+    Fails OPEN: a missing, unreadable or undecodable ledger answers "" like an unadopted repo."""
     try:
         path = Path(top) / "docs" / "DECISIONS.md"
         if not path.is_file():
             return ""
         with open(path, "rb") as fh:
-            raw = fh.read(_LEDGER_MAX_BYTES)
+            raw = fh.read(_LEDGER_MAX_BYTES + 1)
+        if len(raw) > _LEDGER_MAX_BYTES:  # over the cap: drop the line the cut lands in
+            raw = raw[: raw.rfind(b"\n", 0, _LEDGER_MAX_BYTES) + 1]
         low = raw.lower()  # ASCII-only lowering: every offset below indexes `raw` unchanged
         lines = []
         hit = low.find(b"merge owner")
@@ -637,7 +602,7 @@ def _identity_line(
             )
         if live is None:
             live = _count_sessions_sharing(os.path.realpath(cwd))
-        owner = _declared_merge_owner(cwd)[:32]  # the grammar is permissive by design; the
+        owner = _ledger_merge_owner(cwd)[:32]  # the grammar is permissive by design; the
         # cap belongs HERE, at render time, so the regex stays byte-identical to both sources
         if not owner and live < 2:
             return ""
