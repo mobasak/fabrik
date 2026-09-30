@@ -28,13 +28,26 @@ def _rows() -> list[tuple[str, str]]:
     return ROW.findall(COMMAND.read_text(encoding="utf-8"))
 
 
-def test_every_table_row_parses() -> None:
-    text = COMMAND.read_text(encoding="utf-8")
-    table_lines = [ln for ln in text.splitlines() if ln.startswith("| `.windsurf/rules/")]
-    assert table_lines, "the overlay-merge table in fabrik-epics.md moved or changed shape"
-    assert len(_rows()) == len(table_lines), (
-        "a table row no longer parses, so its heading goes unchecked"
+def _table_body() -> list[str]:
+    """Every line of the overlay table after its header and separator, found by STRUCTURE (the
+    header text, then contiguous `|` lines), never by the row parser's own anchor — a row with a
+    leading space or lost backticks must still be counted, so the parse check below can see it."""
+    lines = COMMAND.read_text(encoding="utf-8").splitlines()
+    start = next(
+        i for i, ln in enumerate(lines) if ln.replace(" ", "") == "|Loadedpack|Walkthissection|"
     )
+    body = []
+    for ln in lines[start + 2 :]:
+        if not ln.lstrip().startswith("|"):
+            break
+        body.append(ln)
+    return body
+
+
+def test_every_table_row_parses() -> None:
+    body = _table_body()
+    assert body, "the overlay-merge table in fabrik-epics.md moved or changed shape"
+    assert len(_rows()) == len(body), "a table row no longer parses, so its heading goes unchecked"
 
 
 @pytest.mark.parametrize(("pack", "heading"), _rows())
