@@ -198,7 +198,7 @@ def test_scaffold_matches_the_pack(project: Path) -> None:
     main = next((project / "server" / "src").glob("*/main.py")).read_text(encoding="utf-8")
     assert "/metrics" not in main, "server/ now serves /metrics: update § Two-Faced Architecture"
     pack = _pack()
-    assert "`entrypoints/popup/`" in pack and "`extension/src/locales/<lang>.json`" in pack
+    assert "`extension/src/entrypoints/popup/`" in pack and "`extension/src/locales/<lang>.json`" in pack
     assert "no `/metrics`" in pack
 
 

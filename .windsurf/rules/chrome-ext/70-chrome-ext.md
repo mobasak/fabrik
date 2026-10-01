@@ -104,14 +104,14 @@ Every chrome extension ships these surfaces; the project-specific views come fro
 
 | Surface | File | Purpose | Notes |
 |---|---|---|---|
-| **Popup** | `entrypoints/popup/` | Single primary action. Closes on focus loss. | 400px width constraint. Never leave system in half-finished state. |
-| **Options page** | `entrypoints/options/` | Full preferences and advanced configuration. | Always link to it from the popup. |
+| **Popup** | `extension/src/entrypoints/popup/` | Single primary action. Closes on focus loss. | 400px width constraint. Never leave system in half-finished state. |
+| **Options page** | `extension/src/entrypoints/options/` | Full preferences and advanced configuration. | Always link to it from the popup. |
 
 ### Optional Surfaces (declare only when needed)
 
 | Surface | File | Purpose | When to use |
 |---|---|---|---|
-| **Side panel** | `entrypoints/sidepanel/` | Persistent or multi-step work. | Only when `sidePanel` permission is declared. |
+| **Side panel** | `extension/src/entrypoints/sidepanel/` | Persistent or multi-step work. | Only when `sidePanel` permission is declared. |
 | **Content script overlay** | Injected via content script | UI overlaid on host page. | Mount with WXT `createShadowRootUi` (open shadow root); mind the `rem` caveat below. |
 
 ### Popup Screens (within the popup)
