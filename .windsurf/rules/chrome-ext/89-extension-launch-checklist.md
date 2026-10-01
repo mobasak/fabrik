@@ -5,8 +5,8 @@ description: Chrome extension launch checklist — the store channel (account, t
 trigger: glob
 currency_pass: 2026-10-02
 ---
-<!-- CONSUMER: /fabrik-release's EXTENSION path (both rings — it runs § 1-6 for a store release and § 7 for a developer-mode
-     release) and coding agents verifying a release. Code-time facts live in 70-chrome-ext.md; the channel decision is made at
+<!-- CONSUMER: /fabrik-release's EXTENSION path (§ 1-6 for a store release; § 7 is the gate set for its unlistable ring, which
+     the command is asked to point at — mail 01M3WTFXV99T20Q0ZYSTX8TB4E to infra) and coding agents verifying a release. Code-time facts live in 70-chrome-ext.md; the channel decision is made at
      intake (00-domain-chrome-ext.md Fork 2). tests/test_chrome_launch_pack.py pins the cites, the consumer and the no-version rule. -->
 
 # Chrome Extension Launch Checklist
@@ -102,9 +102,9 @@ seed it — before the dashboard is opened — derived from code you can cite, n
   rollout in progress. Smaller items ship each version to everyone.
 - **Verified uploads — opt in:** on the Package tab, after which every upload must be a `.crx` signed with your key —
   a compromised account then cannot push a malicious update. The private key is a secret, never in the repo.
-- Post-launch watch: dashboard stats and user reviews weekly; crash and error telemetry through the backend
-  (`core/55-observability.md` § Chrome Extension Telemetry); product analytics only as `70-chrome-ext.md` § Observability
-  allows — first-party, consent-gated, and declared on the privacy tab.
+- Post-launch watch, every channel: crash and error telemetry through the backend (`core/55-observability.md` § Chrome
+  Extension Telemetry); product analytics only as `70-chrome-ext.md` § Observability (Extension Side) allows — first-party, consent-gated,
+  and declared on the privacy tab. Store releases also: dashboard stats and user reviews weekly.
 - Every release: version raised, CHANGELOG entry, § 2–§ 4 re-run.
 - Keep the publishing account's recovery methods current; the account owns the listing.
 
@@ -121,8 +121,9 @@ For an extension the store will not approve (D-486; the channel's facts are `70-
   raised, a `wxt zip` from the pushed SHA.
 - **Stable ID:** the manifest `key` is pinned, its private key kept out of the repo, and the backend's CORS allow-list carries
   the exact `chrome-extension://<id>` (`70-chrome-ext.md` § Versioning & Updates).
-- **Updates:** the in-extension update checker is live and reads a hosted version manifest; the manifest is bumped only
-  after the new zip is reachable — Chrome never auto-updates an unpacked extension.
+- **Updates:** the in-extension update checker is live and reads the latest version — from the backend or a hosted version
+  manifest (`70-chrome-ext.md` § Versioning & Updates); that value is bumped only after the new zip is reachable — Chrome never
+  auto-updates an unpacked extension.
 - **Backend compatibility:** the backend still serves the previous extension version — updates are manual here, so old builds
   linger longer than on the store (`70-chrome-ext.md` § Versioning & Updates).
 - **Release artifact:** the zip is hosted (VPS static site or B2) with its SHA-256 published beside it.
@@ -135,5 +136,5 @@ For an extension the store will not approve (D-486; the channel's facts are `70-
 - **Gate 2:** the operator publishes the zip, its checksum, the guide and the version-manifest bump; no agent publishes.
 
 **Done When:** the unlistable reason recorded, § 2 passed, `key` pinned with the exact-ID CORS entry, the update checker
-reading a version manifest, the backend serving the previous version, the zip and its SHA-256 hosted, the install guide
+reading the latest version, the backend serving the previous version, the zip and its SHA-256 hosted, the install guide
 published.

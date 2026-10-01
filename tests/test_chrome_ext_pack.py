@@ -141,7 +141,7 @@ def test_no_version_literals() -> None:
         r"|\bChrome v?\d{2,3}\b|\(Chrome \d"  # Chrome 137, Chrome v137, (Chrome 121+)
         r"|[≥>]=?\s?\d+(?:\.\d+)?"  # >=1.59, ≥ 2
         r"|@\d+\.\d+"  # size-limit@11.0
-        r"|\b[a-z][\w./-]*[a-z] \d+\.\d+\b",  # wxt 0.19, @playwright/test 1.59
+        r"|\b[A-Za-z][\w./-]*[A-Za-z] \d+\.\d+\b",  # wxt 0.19, @playwright/test 1.59
         body,
     )
     assert not found, f"version literals in the pack: {found}"

@@ -109,7 +109,7 @@ def test_no_version_literals() -> None:
     body = _pack().split("\n---\n", 1)[1]
     found = re.findall(
         r"\bv\d+(?:\.\d+)?\b|\b\d+\.\d+\.\d+\b|\bChrome v?\d{2,3}\b|\(Chrome \d"
-        r"|[≥>]=?\s?\d+(?:\.\d+)?|@\d+\.\d+|\b[a-z][\w./-]*[a-z] \d+\.\d+\b",
+        r"|[≥>]=?\s?\d+(?:\.\d+)?|@\d+\.\d+|\b[A-Za-z][\w./-]*[A-Za-z] \d+\.\d+\b",
         body,
     )
     assert not found, f"version literals in the pack: {found}"
