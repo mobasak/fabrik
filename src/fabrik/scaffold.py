@@ -6144,7 +6144,8 @@ def _render_docusaurus_template(rel: str, name: str, versions: dict[str, str]) -
     """Render one ``templates/docusaurus`` file with ``{name, versions}``.
 
     The same files the template renderer emits, through the same whitespace rules (trim/lstrip
-    blocks), so both emitters write the same bytes. Autoescape is off (a Dockerfile, JSON and nginx
+    blocks), so both emitters write the same content — the scaffold keeps a final newline the
+    renderer drops, the one difference the parity test normalises. Autoescape is off (a Dockerfile, JSON and nginx
     config are not HTML) and an undefined variable raises instead of rendering empty (D-476).
     """
     env = Environment(
@@ -6408,6 +6409,17 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
     img_dir.mkdir(parents=True, exist_ok=True)
     (img_dir / ".gitkeep").write_text("")
 
+    # .dockerignore — written here so create_project's generic one (which drops `docs/` and `*.md`,
+    # i.e. the site's content) never applies: the builder runs `docusaurus build` over docs/, and
+    # without it the build fails "The docs folder does not exist" (D-476, Phase B review O2).
+    (project_dir / ".dockerignore").write_text(
+        "# Docusaurus build context: the docs ARE the source — never exclude docs/ or *.md.\n"
+        ".env\n.env.*\n*.pem\n*.key\n"
+        "node_modules/\nbuild/\n.docusaurus/\n.cache-loader/\n"
+        ".git/\n.gitignore\n.vscode/\n.idea/\n"
+        "npm-debug.log*\nyarn-debug.log*\n"
+    )
+
     # .env.example — the site needs no runtime environment: nginx serves the static build, and
     # `npm start` sets its own mode.
     (project_dir / ".env.example").write_text(f"# {name} Configuration\n")
@@ -6431,7 +6443,8 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
     # B36 + D-476: the Dockerfile, nginx.conf, the root redirect page and the Pagefind SearchBar are
     # rendered from templates/docusaurus — the same files, through the same whitespace rules, the
     # template renderer emits for a `source: type: template` spec, so both emitters write the same
-    # bytes. The Dockerfile chooses `npm ci` or `npm install` itself (no lockfile at scaffold time).
+    # content (up to a final newline). The Dockerfile chooses `npm ci` or `npm install` itself (no
+    # lockfile at scaffold time).
     for rel in ("Dockerfile", "nginx.conf", "src/pages/index.js", "src/theme/SearchBar/index.js"):
         out = project_dir / rel
         out.parent.mkdir(parents=True, exist_ok=True)

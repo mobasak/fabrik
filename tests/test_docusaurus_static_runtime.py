@@ -369,3 +369,16 @@ def test_spec_generator_health_path_is_the_slashed_intro() -> None:
 
     spec = generate_spec("my-docs", "docusaurus", "my-docs.vps1.ocoron.com")
     assert spec.health.path == "/docs/intro/"
+
+
+def test_scaffold_dockerignore_keeps_the_docs_in_the_build_context(scaffolded: Path) -> None:
+    # The generic .dockerignore drops `docs/` and `*.md` — a docusaurus site's content — and the
+    # builder then fails with "The docs folder does not exist" (Phase B review O2, reproduced by a
+    # real docker build). Secrets, node_modules and build output stay out.
+    rules = {
+        ln.strip()
+        for ln in (scaffolded / ".dockerignore").read_text().splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#")
+    }
+    assert not rules & {"docs/", "docs", "*.md", "src/", "static/"}, rules
+    assert {".env", "node_modules/", "build/", ".docusaurus/", ".git/"} <= rules, rules
