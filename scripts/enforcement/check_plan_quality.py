@@ -27,6 +27,7 @@ import re
 from pathlib import Path
 
 try:
+    from . import plan_appetite
     from .check_plans import PLAN_DIR_NAME_RE, TICKET_NAME_RE
     from .check_plans import check_file as _check_plans_naming
     from .validate_conventions import CheckResult, Severity
@@ -36,6 +37,7 @@ except (
     import sys as _sys
 
     _sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import plan_appetite  # type: ignore[no-redef]
     from check_plans import PLAN_DIR_NAME_RE, TICKET_NAME_RE  # type: ignore[no-redef]
     from check_plans import check_file as _check_plans_naming  # type: ignore[no-redef]
     from validate_conventions import CheckResult, Severity  # type: ignore[no-redef]
@@ -196,7 +198,32 @@ def _check_ticket(file_path: Path, content: str) -> list[CheckResult]:
                 fix_hint="Delete the Status: line; flip the Ticket Board row instead",
             )
         )
-    return results
+    m = TICKET_NAME_RE.match(file_path.name)
+    label = m.group(0).split("-", 1)[0] if m else file_path.stem
+    return results + _lane_rules(file_path, content, severity, label=label)
+
+
+def _lane_rules(
+    file_path: Path, content: str, severity: Severity, *, label: str = "plan"
+) -> list[CheckResult]:
+    """D11 (`Appetite:` per phase/ticket) and D10 (`Profile: small` needs a sized or converged
+    spec) — the shared rules in plan_appetite, for plans dated on or after its rollout date."""
+    plan_date = plan_appetite.plan_date_of(file_path)
+    if not plan_appetite.is_graded(plan_date):
+        return []
+    messages = plan_appetite.appetite_findings(content, plan_date, label=label)
+    spec_text = plan_appetite.spec_text_for(content, PLAN_DIR.parents[2])
+    messages += plan_appetite.small_profile_findings(content, spec_text)
+    return [
+        CheckResult(
+            check_name="plan_quality",
+            severity=severity,
+            message=msg,
+            file_path=str(file_path),
+            fix_hint="See spec 2026-10-02-fabrik-task-feature-lane D10/D11",
+        )
+        for msg in messages
+    ]
 
 
 def _check_modern(file_path: Path, content: str) -> list[CheckResult]:
@@ -228,7 +255,7 @@ def _check_modern(file_path: Path, content: str) -> list[CheckResult]:
             )
     if SPINE_MARKER_RE.search(scan):
         results += _check_spine_execution_pillars(scan, file_path)
-    return results
+    return results + _lane_rules(file_path, content, severity)
 
 
 # The three pillars /fabrik-plan-after-chat § Phase 3 mandates. A MONOLITH hangs them on its

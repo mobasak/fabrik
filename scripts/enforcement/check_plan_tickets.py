@@ -90,10 +90,12 @@ from pathlib import Path, PurePosixPath
 from typing import cast
 
 try:
+    from . import plan_appetite
     from .check_convergence import PROOF
     from .validate_conventions import CheckResult, Severity
 except ImportError:  # direct-script invocation (python scripts/enforcement/…py)
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from scripts.enforcement import plan_appetite
     from scripts.enforcement.check_convergence import PROOF
     from scripts.enforcement.validate_conventions import CheckResult, Severity
 
@@ -237,12 +239,9 @@ _DRAFT_LIKE = ("DRAFT", "PLANNED", "")
 # Phase 2, operator ruling 2026-09-06): the orchestrator codes every ticket itself in the main
 # checkout, so no cold coder ever reads a ticket — the READ budget (a cold-coder guard) is waived,
 # the set is capped at SMALL_PROFILE_MAX_TICKETS, and only the native-executed tiers are admitted.
-# Bold-tolerant like STATUS_RE; searched on the same blockquote-stripped scan.
-PROFILE_RE = re.compile(
-    r"^\s*(?:[-*>]\s+)?\*{0,2}Profile\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*\*{0,2}(small)\*{0,2}"
-    r"[^\S\n]*$",
-    re.I | re.M,
-)
+# Bold-tolerant like STATUS_RE; searched on the same blockquote-stripped scan. Defined ONCE in
+# plan_appetite (D10's Size-small rule keys on the same profile) and re-exported here.
+PROFILE_RE = plan_appetite.PROFILE_RE
 # Tilde fences are OUT of `_FENCE_RE`'s contract (fail-closed everywhere else); here a fenced
 # example must never ARM a waiver, so the header zone strips them too.
 _TILDE_FENCE_RE = re.compile(r"^[ \t]*~{3,}[^\n]*\n.*?^[ \t]*~{3,}[ \t]*$", re.M | re.S)
@@ -2474,6 +2473,20 @@ def check_plan_dir(
                 severity=Severity.PASS,
             )
         )
+
+    # --- D11 Appetite per ticket + D10 Size-small spec rule (plans dated on/after the rollout) ---
+    set_date = plan_appetite.plan_date_of(spine)
+    if plan_appetite.is_graded(set_date):
+        for tid, t in sorted(tickets.items()):
+            for msg in plan_appetite.appetite_findings(t.text, set_date, label=tid):
+                results.append(
+                    _err(msg, t.path, hint="Add `Appetite: <minutes>` to the ticket's field lines")
+                )
+        root = _repo_root(plan_dir) or external_root
+        if root is not None:
+            spec_text = plan_appetite.spec_text_for(status_scan, root)
+            for msg in plan_appetite.small_profile_findings(status_scan, spec_text):
+                results.append(_err(msg, spine, hint="Re-run /fabrik-spec to size the spec"))
 
     # --- Gate-context DRAFT downgrade (ALL findings, structural included) ---------------
     # DRAFT/PLANNED (or absent-status) = someone's mid-AUTHORING set on shared
