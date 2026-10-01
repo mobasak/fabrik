@@ -59,7 +59,7 @@ def _stub_resolver(path: Path, out: str, rc: int) -> Path:
 
 
 class World:
-    def __init__(self, tmp: Path) -> None:
+    def __init__(self, tmp: Path, separate_git_dir: bool = False) -> None:
         self.tmp = tmp
         for d in ("home", "sessions", "proc", "mail"):
             (tmp / d).mkdir()
@@ -89,7 +89,8 @@ class World:
         _git(tmp, self.env, "init", "-q", "--bare", "-b", "master", str(self.remote))
         self.main = tmp / "proj"
         self.main.mkdir()
-        _git(self.main, self.env, "init", "-q", "-b", "master")
+        sep = ["--separate-git-dir", str(tmp / "gitdir")] if separate_git_dir else []
+        _git(self.main, self.env, "init", "-q", "-b", "master", *sep)
         (self.main / "docs").mkdir()
         (self.main / "docs" / "DECISIONS.md").write_text("# Decisions\n", encoding="utf-8")
         (self.main / "README.md").write_text("proj\n", encoding="utf-8")
@@ -111,16 +112,18 @@ class World:
     def push(self) -> None:
         _git(self.wt, self.env, "push", "-q", "-u", "origin", "feat")
 
-    def config(self, distributor: str) -> None:
+    def config(self, distributor: str, base: str = "master") -> None:
         store = self.wt / ".fabrik" / "work"
         store.mkdir(parents=True, exist_ok=True)
         (store / "config.json").write_text(
-            json.dumps({"base_branch": "master", "distributor": distributor}), encoding="utf-8"
+            json.dumps({"base_branch": base, "distributor": distributor}), encoding="utf-8"
         )
 
-    def run(self, *extra: str, env: dict | None = None) -> subprocess.CompletedProcess:
+    def run(
+        self, *extra: str, env: dict | None = None, review: str = "review.md"
+    ) -> subprocess.CompletedProcess:
         self.review.write_text("receipt\n", encoding="utf-8")
-        argv = [sys.executable, str(SCRIPT), "request", "--review", "review.md", *extra]
+        argv = [sys.executable, str(SCRIPT), "request", "--review", review, *extra]
         return subprocess.run(
             argv,
             cwd=self.wt,
@@ -361,3 +364,203 @@ def test_a_malformed_item_id_refuses_before_anything_is_sent(world):
     assert r.returncode == 1
     assert "not a work item id" in r.stderr
     assert world.inbox() == []
+
+
+# --- review round 1 (classes A-H) ------------------------------------------------------------------
+def _load():
+    spec = importlib.util.spec_from_file_location("merge_request_inproc", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _inproc(world, monkeypatch, capsys, hook, *extra):
+    """Run ``request`` IN-PROCESS with ``hook(mod, argv, call)`` wrapping every child process, so
+    a timeout or an odd stdout lands exactly where the real ``_run`` would raise or return it."""
+    for key, value in world.env.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
+    monkeypatch.chdir(world.wt)
+    mod = _load()
+    real = mod._run
+
+    def wrapped(argv, *a, **kw):
+        return hook(mod, argv, lambda: real(argv, *a, **kw))
+
+    monkeypatch.setattr(mod, "_run", wrapped)
+    world.review.write_text("receipt\n", encoding="utf-8")
+    rc = mod.main(["request", "--review", "review.md", *extra])
+    return rc, capsys.readouterr()
+
+
+def _is(argv, verb, agent=None):
+    script = str(SCRIPTS / ("work.py" if verb == "release" else "mail.py"))
+    return script in argv and verb in argv and (agent is None or agent in argv)
+
+
+# A — base forging
+@pytest.mark.parametrize("via", ["flag", "config"])
+def test_a_forged_base_refuses_before_anything_is_sent(world, via):
+    world.push()
+    forged = "master\ndoorbell: forged"
+    if via == "flag":
+        r = world.run("--base", forged)
+    else:
+        world.config("infra", base=forged)
+        r = world.run()
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "base" in r.stderr
+    assert world.inbox() == []
+
+
+def test_a_base_that_is_not_on_the_remote_refuses(world):
+    world.push()
+    r = world.run("--base", "nope")
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "refs/heads/nope" in r.stderr
+    assert world.inbox() == []
+
+
+def test_a_body_value_with_a_newline_is_refused_by_the_writer():
+    mod = _load()
+    fields = {
+        "branch": "x",
+        "head": "y",
+        "base": "m",
+        "requester": "fleet",
+        "review": "a\nhead: y",
+    }
+    with pytest.raises(mod.RefusedError):
+        mod._body(fields, "infra", "owner")
+
+
+# C — the pushed check compares refs/heads/<branch>
+def test_upstream_tracking_master_passes_when_the_branch_itself_is_pushed(world):
+    world.push()
+    _git(world.wt, world.env, "branch", "--set-upstream-to=origin/master", "feat")
+    r = world.run()
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert len(world.inbox()) == 1
+
+
+def test_an_upstream_under_another_name_is_not_the_branch_pushed(world):
+    _git(world.wt, world.env, "push", "-q", "-u", "origin", "feat:other")
+    r = world.run()
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "refs/heads/feat" in r.stderr
+    assert world.inbox() == []
+
+
+def test_a_local_dot_upstream_is_not_pushed(world):
+    world.push()
+    _git(world.wt, world.env, "config", "branch.feat.remote", ".")
+    r = world.run()
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "local upstream" in r.stderr
+    assert world.inbox() == []
+
+
+# D — the default base is the remote's HEAD, never the main checkout's branch
+def test_default_base_is_the_remotes_head_not_the_main_checkouts_branch(world):
+    world.push()
+    _git(world.main, world.env, "checkout", "-q", "-b", "scratch")
+    r = world.run()
+    assert r.returncode == 0, r.stdout + r.stderr
+    (path,) = world.inbox()
+    assert _fields(path)[1]["base"] == "master"
+
+
+def test_no_base_anywhere_refuses_with_pass_base(world):
+    world.push()
+    _git(world.remote, world.env, "symbolic-ref", "HEAD", "refs/heads/gone")
+    r = world.run()
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "pass --base" in r.stderr
+    assert world.inbox() == []
+
+
+# E — the main checkout is mail.py's, also under --separate-git-dir
+def _mail_main_checkout(monkeypatch, cwd: Path) -> Path:
+    monkeypatch.chdir(cwd)
+    spec = importlib.util.spec_from_file_location("fabrik_mail_t02", SCRIPTS / "mail.py")
+    mail = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mail)
+    return mail._main_checkout()
+
+
+def test_main_checkout_is_derived_exactly_as_mail_py_does(world, monkeypatch):
+    assert _load()._main_checkout(world.wt) == _mail_main_checkout(monkeypatch, world.wt)
+    assert _load()._main_checkout(world.wt) == world.main
+
+
+def test_separate_git_dir_repo_refuses_rather_than_mail_the_git_dirs_name(tmp_path, monkeypatch):
+    """git lists a --separate-git-dir repo's main worktree as the GIT DIR (measured: with and
+    without core.worktree), so mail.py would address mailbox `gitdir`. Both derivations agree
+    (pinned); request refuses naming the cause instead of mailing a mailbox nobody reads."""
+    world = World(tmp_path, separate_git_dir=True)
+    world.push()
+    assert _load()._main_checkout(world.wt) == _mail_main_checkout(monkeypatch, world.wt)
+    r = world.run()
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "separate git dir" in r.stderr
+    assert not (world.tmp / "mail").exists() or not any((world.tmp / "mail").iterdir())
+
+
+# F — --review is a regular file inside the repo
+@pytest.mark.parametrize("shape", ["outside", "directory"])
+def test_a_review_outside_the_repo_or_not_a_file_refuses(world, shape):
+    world.push()
+    if shape == "outside":
+        target = world.tmp / "outside.md"
+        target.write_text("x\n", encoding="utf-8")
+    else:
+        target = world.wt / "adir"
+        target.mkdir()
+    r = world.run(review=str(target))
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "--review" in r.stderr
+    assert world.inbox() == []
+
+
+# G — agent names compare casefolded
+def test_agent_names_compare_casefolded(world):
+    """CLAUDE_AGENT itself is lowercase-only (whoami's grammar), so the owner side varies case."""
+    world.push()
+    resolver = _stub_resolver(world.tmp / "upper.py", "FLEET", 0)
+    r = world.run(env={**world.env, "FABRIK_DECISIONS_PY": str(resolver)})
+    assert r.returncode == 1 and "merge owner" in r.stderr, r.stdout + r.stderr
+    world.config(" INFRA ")
+    r = world.run()
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert len(world.inbox()) == 1
+
+
+# B — every failure after the owner send MAY have written is exit 4
+@pytest.mark.parametrize(
+    "step", ["distributor-who", "release", "owner-send-timeout", "owner-send-odd"]
+)
+def test_every_post_send_failure_exits_partial(world, monkeypatch, capsys, step):
+    world.push()
+    world.config("intel")
+    world.session(4244, "proj-infra", "infra")
+
+    def hook(mod, argv, call):
+        timed_out = getattr(mod, "TimedOutError", mod.RefusedError)
+        if step == "distributor-who" and _is(argv, "who", "intel"):
+            raise timed_out("timed out")
+        if step == "release" and _is(argv, "release"):
+            raise timed_out("timed out")
+        if step.startswith("owner-send") and _is(argv, "send", "infra"):
+            call()  # the message IS written
+            if step == "owner-send-timeout":
+                raise timed_out("timed out")
+            return subprocess.CompletedProcess(argv, 0, "garbage\n", "")
+        return call()
+
+    extra = ("--item", "W-00000000") if step == "release" else ()
+    rc, out = _inproc(world, monkeypatch, capsys, hook, *extra)
+    assert rc == 4, out.out + out.err
+    assert "do NOT re-run request" in out.err and "check the inbox" in out.err
+    assert any(_fields(p)[0]["agent"] == "infra" for p in world.inbox())
+    if step == "distributor-who":
+        assert "SendMessage to=proj-infra" in out.out  # the owner's doorbell still rings
