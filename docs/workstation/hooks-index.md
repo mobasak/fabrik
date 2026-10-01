@@ -215,4 +215,5 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/sysadmin/selfwatch_check.py`
 - `scripts/sysadmin/stop_mine.py`
 - `scripts/sysadmin/user_hook_gate.py`
+- `scripts/sysadmin/worktree_transcript_link.py`
 <!-- END related-scripts -->

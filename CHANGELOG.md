@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — A worktree session no longer vanishes from its repo window's session list (2026-10-01)
+- `scripts/sysadmin/worktree_transcript_link.py` (new) keeps a hardlink of a worktree-filed transcript under its repo-root key, so a VS Code window opened at the repo root lists the session again. Root cause: entering a worktree re-files the whole transcript under `<repo-key>--claude-worktrees-<name>`, and the extension lists sessions with `includeWorktrees: false` hard-coded (extension.js 2.1.280 `buildSessionList`). Every window reload therefore hid every worktree lane: wef1 and wef3 at web-ecommerce-factory on 2026-09-30, and 14 of 18 `/opt` worktree transcripts box-wide. The script runs as a user-level SessionStart + Stop hook and as `--sweep [--dry-run]`. It never overwrites a different file and never creates a key for a repo root that does not exist. The hook registration is held until session-recall stops double-ingesting a two-name transcript (mail 01M3TQKAR1). wef1 and wef3 were linked by hand on the operator's approval. (D-467)
+- `tests/test_worktree_transcript_link.py` (new): 21 cases over a throwaway store. Ten mutants are killed: no link, no session-id lookup of a moved transcript, overwrite on conflict, no fail-open, a key created for a missing repo root, an unescaped session id, no per-file sweep error, an error that exits 0, no missing-transcript check, and a dry run that writes.
+- `docs/workstation/session-recall.md`: the manual hardlink loop is replaced by the script, with the extension citation, the session-recall caveat and the 14-day auto-archive as a second way to leave the list.
+
 ### Changed — Plan 2026-09-30-plan-1-merge-request-loop EXECUTED and archived (D-468) (2026-10-01)
 
 Every ticket merged with its review clean; the whole-plan receipt is `docs/development/reviews/2026-09-30-plan-1-merge-request-loop-review.md`. The plan set moves to `docs/development/plans/archived/`, its lock is released, and every referrer is repointed.
