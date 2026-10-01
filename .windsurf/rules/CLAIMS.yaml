@@ -2348,3 +2348,75 @@ claims:
     verify: "https://taxsummaries.pwc.com/united-states/corporate/withholding-taxes ; https://developer.apple.com/help/app-store-connect/manage-tax-information/provide-tax-information/ (exa, 2026-09-30; ledger tx-06, op-11)"
     window_days: 365
     last_verified: 2026-09-30
+
+  - id: app-review-ipv6-nat64
+    pack: mobile-app/89-mobile-launch-checklist.md
+    kind: policy
+    claim: "App Review tests on an IPv6-only DNS64/NAT64 network; an IPv4-only remote backend stays reachable through NAT64, so no AAAA record or :: bind is needed; the app must not use IPv4 literals"
+    verify: "https://developer.apple.com/support/ipv6/ (WebFetch + exa, 2026-10-01; ledger ar-01)"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: account-deletion-both-stores
+    pack: mobile-app/89-mobile-launch-checklist.md
+    kind: policy
+    claim: "Apple 5.1.1(v): users can initiate whole-account deletion in the app and must be told an Apple subscription continues until they cancel it (the developer cannot cancel it); Google: in-app deletion plus a web deletion link entered in the Data safety form"
+    verify: "https://developer.apple.com/support/offering-account-deletion-in-your-app/ ; https://support.google.com/googleplay/android-developer/answer/13327111 (WebFetch + WebSearch, 2026-10-01; ledger ar-02, gp-02)"
+    window_days: 180
+    last_verified: 2026-10-01
+
+  - id: app-review-demo-access
+    pack: mobile-app/89-mobile-launch-checklist.md
+    kind: policy
+    claim: "App Review needs an active demo account or a full demo mode for account-based features; an email one-time-code sign-in needs a fixed-code review account or a demo mode"
+    verify: "https://developer.apple.com/app-store/review/guidelines/ (exa + WebSearch, 2026-10-01; ledger ar-03)"
+    window_days: 180
+    last_verified: 2026-10-01
+
+  - id: subscription-disclosure-3-1-2
+    pack: mobile-app/89-mobile-launch-checklist.md
+    kind: policy
+    claim: "Guideline 3.1.2 and Schedule 2 3.8(b): the purchase flow shows the subscription title, length and price with working links to the Terms of Use (EULA) and privacy policy, also in the App Store metadata"
+    verify: "https://developer.apple.com/support/downloads/terms/schedules/Schedule-2-and-3-English.pdf (exa + WebSearch, 2026-10-01; ledger ar-04)"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: play-vitals-bad-behavior-thresholds
+    pack: mobile-app/89-mobile-launch-checklist.md
+    kind: standard
+    claim: "Google Play's bad-behavior thresholds are a 1.09% user-perceived crash rate and 0.47% user-perceived ANR rate overall (8% per phone model) over 28 days; above them the app is less discoverable; Apple publishes no equivalent"
+    verify: "https://developer.android.com/topic/performance/vitals (exa, 2026-10-01; ledger gp-01)"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: store-listing-asset-specs
+    pack: mobile-app/89-mobile-launch-checklist.md
+    kind: standard
+    claim: "App Store: 6.9-inch iPhone screenshots (1260x2736, 1290x2796 or 1320x2868), 13-inch iPad when the app runs on iPad, 5.5-inch no longer required; Google Play: 512x512 icon, 1024x500 feature graphic required, 2-8 screenshots per device type, no promotional tile"
+    verify: "https://developer.apple.com/help/app-store-connect/reference/screenshot-specifications ; https://support.google.com/googleplay/android-developer/answer/9866151 (WebFetch, 2026-10-01; ledger ar-07, gp-07)"
+    window_days: 180
+    last_verified: 2026-10-01
+
+  - id: testflight-and-review-prompt
+    pack: mobile-app/89-mobile-launch-checklist.md
+    kind: standard
+    claim: "TestFlight: up to 100 internal testers without review, up to 10,000 external testers with Beta App Review on a version's first build, joined by email or public link; the iOS review prompt shows at most three times in 365 days"
+    verify: "https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/ ; https://developer.apple.com/documentation/storekit/requesting-app-store-reviews (brave + exa, 2026-10-01; ledger ar-05, ar-06)"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: teknokent-exempt-invoice-legal-basis
+    pack: mobile-app/89-mobile-launch-checklist.md
+    kind: standard
+    claim: "An invoice for a KDV-exempt sale states the exemption's legal basis (KDVK temporary article 20/1 for in-zone software); the Teknokent project code on it is practice and no description wording is mandated"
+    verify: "https://www.taxenglobal.com/wp-content/uploads/2022/09/7-tgbkdv.pdf (WebSearch + exa, 2026-10-01; ledger tk-01)"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: store-account-formalities-turkey
+    pack: mobile-app/89-mobile-launch-checklist.md
+    kind: practice
+    claim: "Apple's D&B lookup accepts Roman characters only and name mismatches fail enrolment; Apple organization enrolment needs a D-U-N-S legal entity and an enrolling person with legal authority; Google verifies a Turkish organization with a chamber-of-commerce or tax certificate plus a representative's photo ID"
+    verify: "https://developer.apple.com/forums/thread/61215 ; https://developer.apple.com/help/account/membership/program-enrollment/ ; https://support.google.com/googleplay/android-developer/answer/15633622 (exa + WebFetch, 2026-10-01; ledger tk-02, tk-03, tk-05)"
+    window_days: 365
+    last_verified: 2026-10-01
