@@ -83,7 +83,7 @@ def test_colours_used_as_text_take_their_text_slot() -> None:
     bare = re.compile(r"`--color-(?:" + "|".join(STATES) + r")`")
     for line in _body().splitlines():
         for m in bare.finditer(line):
-            assert line[m.end() :].startswith(" fill") or line[: m.start()].endswith("pill ("), (
+            assert re.match(r" fill\b", line[m.end() :]) or line[: m.start()].endswith("pill ("), (
                 f"a bare accent/state colour is a FILL; as text or an icon on a surface use its -text slot: {line!r}"
             )
     assert not re.search(r"#[0-9A-Fa-f]{3,8}\b|rgba?\(", _body()), "raw colour values in the pack"

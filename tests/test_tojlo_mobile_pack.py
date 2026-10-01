@@ -83,7 +83,7 @@ def test_slots_are_template_slots_and_bare_colours_are_fills() -> None:
         for m in bare.finditer(line):
             before, after = line[: m.start()], line[m.end() :]
             ok = (
-                after.startswith(" fill")
+                re.match(r" fill\b", after)
                 or before.endswith("**Fill:** ")
                 or re.search(r"(?:filled with the layer colour \(|slot names: )[^()]*$", before)
             )

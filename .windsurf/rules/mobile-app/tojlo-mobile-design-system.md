@@ -277,9 +277,9 @@ A floating action button (FAB) for the most common operator actions, scoped to t
 
 ### Behavior
 
-- **Single tap:** if the module has one primary creation action (MAIL → "Compose", CHAT → "New conversation"), execute it directly — navigate to the creation screen. For an embedded module (OPS, HUB, CHAT) that screen is the module's WebView opened at the vendor's create URL (EF4).
-- **Single tap (multi-action module):** if the module has 2-3 creation actions, open an **action sheet** with options. Example: OPS → "New order" / "New product" / "New supplier".
-- **Long press:** always opens the action sheet with all available quick actions for the active module.
+- **Single tap:** runs the module's primary action — the table's first column (MAIL → "Compose", OPS → "New order") — and opens its creation screen.
+- **Long press:** opens an **action sheet** with the primary and secondary actions. A module with no secondary action (MAIL) has no sheet; long press does what a tap does.
+- **Embedded modules (OPS, HUB, CHAT):** every action, from a tap or the sheet, opens the module's WebView at the vendor's create URL for that action (EF4) — there is no native creation screen.
 
 ### Per-Module Quick Actions
 
