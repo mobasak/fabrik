@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T20:45:05.748106Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-2809cce0",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add a charset/absolute-path validator to spec_loader Source.path (allow ~, /, [A-Za-z0-9._-]), keeping the deliberate unquoted ~ expansion; test the refusal; found by the docusaurus Finish review, pass 1, A4 (pre-existing class, the diff kept path unquoted on purpose)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "spec source.path is an unvalidated str yet deployer_ssh interpolates it unquoted into sudo commands (test -f, cat, cd && docker compose up, mkdir/mv/chown) — a metacharacter in a spec's source.path runs as root on the VPS (2026-10-01, owner: fleet)"
+}

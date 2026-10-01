@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T19:55:20.060187Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-57d1b007",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-01-plan-1-docusaurus-static-runtime.md",
+    "spec": ""
+  },
+  "next": "decide whether template-source docusaurus is supported at all; if yes, ship minimal docs/ + src/css/ in templates/docusaurus (or drop the openapi wiring from the config template); if no, refuse template: docusaurus in spec validation",
+  "note": "Also, if supported: ship templates/docusaurus/.dockerignore (and the dir excludes reference/development/operations/archive in docusaurus.config.js.j2) mirroring _scaffold_docusaurus \u2014 TemplateRenderer emits neither, so a template build would take .env/node_modules/build from a long-lived VPS tree into the builder context (Phase B closing pass C3). Also (Finish review pass 1, B1): compose.yaml.j2 hardcodes the healthcheck path /docs/intro/ (the baseline hardcoded :3000/) and ignores spec.health.path/disabled/test, unlike sibling templates; interpolate it when the template path is made to build (a health block without path defaults to /health \u2014 set the docusaurus default explicitly).",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "A template-sourced docusaurus deploy cannot build: the template ships no docs/, no src/css/ and no openapi plugin, so docusaurus.config.js and sidebars.js reference files TemplateRenderer never writes (2026-10-01, owner: fleet)"
+}

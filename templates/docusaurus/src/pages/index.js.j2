@@ -1,0 +1,9 @@
+{% raw %}// The site root redirects to the first doc page. It also makes `build/index.html` exist, which the
+// nginx fallback `try_files $uri $uri/ /index.html;` points at: without it nginx loops on a missing path.
+import React from 'react';
+import {Redirect} from '@docusaurus/router';
+
+export default function Home() {
+  return <Redirect to="/docs/intro" />;
+}
+{% endraw %}

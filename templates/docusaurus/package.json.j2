@@ -3,14 +3,13 @@
   "version": "0.0.1",
   "private": true,
   "engines": {
-    "node": ">=22.0.0",
+    "node": ">={{ versions.node_engines_floor }}",
     "npm": ">=10.0.0"
   },
   "scripts": {
     "docusaurus": "docusaurus",
     "start": "docusaurus start",
     "build": "docusaurus build",
-    "serve": "docusaurus serve",
     "clear": "docusaurus clear",
     "gate": "python3 scripts/final_gate.py"
   },
@@ -25,6 +24,7 @@
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.7.0",
     "@docusaurus/types": "3.7.0",
+    "pagefind": "^1.5.2",
     "typescript": "^5.4.5"
   },
   "browserslist": {

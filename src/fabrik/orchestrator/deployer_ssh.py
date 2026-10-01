@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
+import posixpath
 import re
 import shlex
 import subprocess
@@ -851,6 +852,13 @@ def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
     from fabrik.drivers.ssh import scp_to_vps
     from fabrik.drivers.ssh import ssh as _ssh
 
+    # A rendered key is a path RELATIVE to the app dir; an absolute one or a `..` part would write
+    # outside it as root, and an empty or `.` part names the app dir itself (`mv` then drops the
+    # file inside it under its tmp name and `chown` hits the directory). Refused before anything
+    # reaches the VPS — a leading `/` is an empty first part.
+    if any(part in ("", ".", "..") for part in filename.split("/")):
+        raise ValueError(f"refusing to write a filename outside {path}: {filename!r}")
+
     safe_name = filename.replace("/", "-")
     tmp_remote = f"/tmp/fabrik-{os.getpid()}-{safe_name}"  # nosec B108
 
@@ -865,15 +873,22 @@ def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
         except OSError:
             pass
 
+    # A rendered key may be nested (`src/theme/SearchBar/index.js`, D-476): `mv` does not create the
+    # destination directory, so make the parent first. Only the FILENAME part is shell-quoted: `path`
+    # is a hub value the callers also use unquoted (`cd {path}`), and quoting it would stop a `~`
+    # from expanding. A safe name quotes to itself, so a flat filename's command is unchanged.
+    parent = posixpath.dirname(filename)
+    dest = f"{path}/{shlex.quote(filename)}"
+    mkdir = f"sudo mkdir -p {path}/{shlex.quote(parent)} && " if parent else ""
     try:
         _ssh(
-            f"sudo mv {tmp_remote} {path}/{filename} && sudo chown root:root {path}/{filename}",
+            f"{mkdir}sudo mv {shlex.quote(tmp_remote)} {dest} && sudo chown root:root {dest}",
             timeout=10,
         )
     except Exception:
         # Clean up remote temp file so nothing lingers on VPS
         try:
-            _ssh(f"rm -f {tmp_remote}", timeout=5)
+            _ssh(f"rm -f {shlex.quote(tmp_remote)}", timeout=5)
         except Exception:  # noqa: BLE001, S110
             pass
         raise

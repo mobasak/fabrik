@@ -1,6 +1,21 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A fix that makes something work for the first time exposes what its failure was hiding (2026-10-02)
+
+The docusaurus scaffold had never produced a working image: its generic `.dockerignore` dropped `docs/`, so every
+build failed. Phase B's review fixed that, and the next pass found what the broken build had hidden: once images
+built, 18 hub-internal files the scaffold seeds under `docs/reference`, `docs/development` and `docs/archive` (AI
+vendor access notes, the /opt project catalog) would publish on a public site. Nothing had leaked only because
+nothing had ever deployed. When a fix turns a path from "always fails" to "works", review what that path now
+EXPOSES as a separate question, not just whether the fix holds. Two traps from the same run: a `git archive`
++ `git init` review pin is not a hub worktree, so `fabrik.config.FABRIK_ROOT` silently falls back to the live
+`/opt/fabrik` and any FABRIK_ROOT-keyed test grades the moving tree (mailed to infra, 01M3WMGRQ7); and Docker's
+`.dockerignore` DOES re-include a file under an excluded directory (`docs`, `!docs/intro.md`), unlike `.gitignore`
+— a seat's "Docker won't re-include it" was refuted only by running a real build. Lastly, an executed plan whose
+early ledger rows already sit on master is left unarchived: archiving must either edit those rows (sibling merge
+conflicts, per the 2026-10-01 entry) or break their links (D-484).
+
 ## The merge owner lands its own work before it merges anyone else's, and an archive never edits a ledger row (2026-10-01)
 
 The merge-request loop's first live hour refused two of three requests, and both refusals came from the merge

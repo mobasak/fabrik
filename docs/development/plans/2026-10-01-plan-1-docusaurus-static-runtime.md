@@ -1,6 +1,7 @@
 # Plan — docusaurus scaffold: static nginx runtime, Pagefind search, registry versions
 
-Status: CONVERGED (/fabrik-plan-review, 2026-10-01, 4 passes; D-476)
+Status: EXECUTED 2026-10-02 (CONVERGED by /fabrik-plan-review 2026-10-01, D-476; executed D-484)
+Whole-plan review: docs/development/reviews/2026-10-01-plan-1-docusaurus-static-runtime-review.md
 Profile: small
 **Owner:** —
 
@@ -172,7 +173,9 @@ Intake: 12 items — 9 IN, 3 OUT-OF-SCOPE (each named above), 0 ASK.
 Every selection below cites a digest row or the spec section that settled it. The nginx `-slim`/non-slim split
 follows the pack's serve stage (`:33`), not `10-python.md:254`, which governs Python service images.
 
-## Phase A — The version source and the template emitter
+## Phase A — The version source and the template emitter — ✅ EXECUTED 2026-10-01 (bc59fc559; review fixes b81a91b7e, 4ebb003c6, 7b7a66079)
+
+**Execution notes.** `/fabrik-review-scoped` (3 readers, Opus · Sonnet · Haiku, every candidate executed by the orchestrator): round 1 confirmed 7 (registry value types, non-UTF-8 registry, unquoted remote paths and the `..`/absolute refusal, a directory named `*.j2`, and five test escape variants), round 2 confirmed 2 inside the round-1 fixes (only the filename part is quoted, so a `~` app dir still expands; an unusable optional registry value is named, not dropped), round 3 confirmed 0. Recorded: every render and template-source deploy reads the registry (D-476's mirror); autoescape stays on for `.j2` (only interpolated values escape). Routed to Phase B: `templates/docusaurus/docusaurus.config.js.j2:33` reads `features.blog`, which no render context provides, so the template renderer raises on the docusaurus template today — Phase B gives the renderer a `features` default (inside File Scope, `template_renderer.py`) rather than editing that template.
 
 **Interfaces — Produces:**
 - `src/fabrik/version_registry.py`:
@@ -282,7 +285,9 @@ follows the pack's serve stage (`:33`), not `10-python.md:254`, which governs Py
   `sudo mv`; and for a flat key (`Dockerfile`) the command is unchanged
   (`src/fabrik/orchestrator/deployer_ssh.py:849-879`; the consumer loop `:471-475`).
 
-## Phase B — The docusaurus templates and the scaffold emitter
+## Phase B — The docusaurus templates and the scaffold emitter — ✅ EXECUTED 2026-10-01 (d82d145da; review fixes 89ec85677, d7ee53faa, 0b6de6dd8, acb9755ff, 0e3459b01)
+
+**Execution notes.** Step 12's suites passed 526; the six step-13 neuters went red. `/fabrik-review-scoped` (3 readers, Opus · Sonnet · Haiku, every candidate executed by the orchestrator) confirmed 4 → 3 → 4 and closed on its scope-growth stop (rounds 2 and 3 were inside its own fixes); the round-3 fix diff routes to the Finish `/fabrik-review`. What it found: the generic `.dockerignore` dropped `docs/`, so no docusaurus image ever built (reproduced by a real `docker build`; the scaffold now writes its own); once images built, 18 seeded hub files under `docs/reference`, `docs/development` and `docs/archive` — the AI vendor access notes and the /opt project catalog among them — would publish, so every governed `docs/` subtree except `guides/` and `user-guide/` is excluded from the site (D-481, D-482, pinned to `check_structure.py::VALID_DOCS_SUBDIRS`); the emitter wording is "same content up to a final newline"; and test escape variants (the `/assets/` 404 rule, a non-default engines floor, a Docker-faithful `.dockerignore` matcher, the suffix rules). Recorded, not built: a template-sourced docusaurus deploy cannot build and ships no `.dockerignore` (W-57d1b007); the seeded top-level project docs still publish (W-c2c2c35b).
 
 **Interfaces — Consumes:** `fabrik.version_registry.load_versions`, `VersionRegistryError` (Phase A); the
 renderer's recursive output keys and its `name`/`versions` context (Phase A).
@@ -443,7 +448,11 @@ trailing newlines); `_scaffold_docusaurus(project_dir, name, description, **kwar
 - **Given** `generate_spec("my-docs", "docusaurus", …)`, **When** its health path is read, **Then** it is
   `/docs/intro/` (`src/fabrik/spec_generator.py:112`; I11).
 
-## Phase C — Real build proof and Finish
+## Phase C — Real build proof and Finish — ✅ EXECUTED 2026-10-02 (f21aec8f7; Finish review fixes 7d987fcfb, a7d2fee56; receipt 271d51bfe; docs review a7fe899b0)
+
+**Execution notes.** Preflight: docker 29.1.3; `registry.npmjs.org/pagefind` 200 over IPv4 (the host's dual-stack lookup hangs; npm ran inside docker). `test_real_build_serves_the_static_site` passed with `FABRIK_REAL_DOCKER_BUILD=1` (1 passed in 78.24 s, no image or container left); dropping `absolute_redirect off` in a throwaway worktree turned the relative-301 row red (Location `http://127.0.0.1/docs/intro/`). The builder's output held 18 `assets/js` files, `styles.*.css`, `pagefind-component-ui.js/.css`, and a `build/docs` with no internal tree (the listing is in the receipt). Whole-plan `/fabrik-review`: 2 passes, 3 confirmed in pass 1 (an empty/`.` filename part, two graders reading the live hub, a matcher without `!`), all fixed, closing pass confirmed 0. `/fabrik-docs-review`: 2 rounds, 12 confirmed and fixed, closing round confirmed 0. Infra's two pack mails (01M3V92T8N, 01M3VAZQPV) are still open, so the templates follow the current pack.
+
+**Requirements coverage.** Every item under § What we already agreed shipped: the registry loader and recursive rendering (Phase A, bc59fc559), the two-stage Dockerfile, nginx.conf, root redirect, Pagefind SearchBar, package.json and port 80 (Phase B, d82d145da), and the validation set's real build (Phase C, f21aec8f7). One gap against part 6 (both emitters writing every file): the renderer writes every template the directory has, but the template ships no `docs/` or `src/css/`, so a template-sourced docusaurus project does not build — W-57d1b007. Recorded, not built here: W-c2c2c35b (seeded top-level docs publish), W-6eb61fa0 (renderer autoescape double-escapes env values), W-2809cce0 (source.path unvalidated in sudo commands).
 
 **Interfaces — Consumes:** the scaffolded project of Phase B. **Produces:** the review receipt
 `docs/development/reviews/2026-10-01-plan-1-docusaurus-static-runtime-review.md`; Status → EXECUTED.

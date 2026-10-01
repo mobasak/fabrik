@@ -85,9 +85,9 @@ class TestNewTypeDefaults:
     """Verify _TYPE_DEFAULTS entries for new scaffold types."""
 
     def test_docusaurus_health_path(self):
-        # B45: Docusaurus preset-classic has no auto-generated `/` route, so the
-        # health check targets the intro doc instead.
-        assert _TYPE_DEFAULTS["docusaurus"]["health_path"] == "/docs/intro"
+        # B45: `/` is a client-side redirect page, so the health check targets the intro doc —
+        # with its trailing slash, because nginx answers `/docs/intro` with a 301 (D-476).
+        assert _TYPE_DEFAULTS["docusaurus"]["health_path"] == "/docs/intro/"
 
     def test_chrome_extension_health_path(self):
         """G9: chrome-extension defaults to /health (FastAPI backend convention)."""
@@ -465,9 +465,9 @@ class TestGenerateSpec:
         assert spec.shape is not None and spec.shape.kind == "static"
 
     def test_docusaurus_health_path_is_docs_intro(self):
-        # B45: `/` 404s on a default Docusaurus build — health targets /docs/intro.
+        # B45 + D-476: health targets /docs/intro/ — nginx 301s the slash-less path.
         spec = generate_spec("my-docs", "docusaurus", "my-docs.vps1.ocoron.com")
-        assert spec.health.path == "/docs/intro"
+        assert spec.health.path == "/docs/intro/"
 
     def test_desktop_app_raises_value_error(self):
         """B3 regression: passing desktop-app to generate_spec must raise ``ValueError``,

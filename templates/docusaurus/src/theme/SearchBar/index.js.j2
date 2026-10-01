@@ -1,0 +1,20 @@
+{% raw %}// Pagefind search — the one sanctioned swizzle (core/42-docusaurus.md § Search). The Docker build runs
+// `npx -y pagefind --site build`, which writes /pagefind/ with the Component UI's script and stylesheet.
+// Under `npm start` that directory does not exist, so the dev server shows the trigger with no index.
+// The script and stylesheet go into the static <head> through Head, so no browser-only code runs here.
+import React from 'react';
+import Head from '@docusaurus/Head';
+
+export default function SearchBar() {
+  return (
+    <>
+      <Head>
+        <link rel="stylesheet" href="/pagefind/pagefind-component-ui.css" />
+        <script type="module" src="/pagefind/pagefind-component-ui.js"></script>
+      </Head>
+      <pagefind-modal-trigger></pagefind-modal-trigger>
+      <pagefind-modal></pagefind-modal>
+    </>
+  );
+}
+{% endraw %}
