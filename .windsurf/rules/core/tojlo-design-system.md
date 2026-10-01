@@ -1,14 +1,14 @@
 ---
-description: Tojlo design system — the Tojlo-branded overrides on top of ocoron-design-system.md: brand story, module naming, module-specific components, accent colour. Read for ANY GUI work in a Tojlo project (tojlo.com tenants); inherits everything else from the Ocoron pack.
+description: Tojlo design system — the Tojlo brand on top of ocoron-design-system.md: brand story, verbal identity, module naming, layer colour coding, module icons, Tojlo component patterns and product rules. Read for GUI work in a project whose docs/design-system.md declares the Tojlo house identity (D-051); inherits the structure from design-system-template.md and the values from the Ocoron pack.
+currency_pass: 2026-10-01
 ---
 <!-- CONSUMER: Coding agents building Tojlo-branded UI
      GOAL: Tojlo-specific overrides on top of Ocoron — brand story, module naming, module-specific components
-     TRAYCER USAGE: Injects as Context File for Tojlo project tickets only.
-     AGENT USAGE: Inherits everything from ocoron-design-system.md. Only accent color + module patterns differ. -->
+     AGENT USAGE: Structure from design-system-template.md, values from ocoron-design-system.md; this file adds the Tojlo brand and product rules. Mobile adds mobile-app/tojlo-mobile-design-system.md. -->
 
-# Tojlo Design System v1.1
+# Tojlo Design System v1.3
 
-> ⚠️ **A HOUSE identity (mobile), chosen — never defaulted** (operator ruling 2026-08-29): applies only when the project's `docs/design-system.md` declares it; other mobile projects get their identity from brand-identiy-creator per the ladder in `saas/60-saas-ui.md`.
+> ⚠️ **A HOUSE identity, chosen — never defaulted** (operator ruling 2026-08-29, D-051): applies only when the project's `docs/design-system.md` declares it; every other project gets its identity from brand-identiy-creator per the ladder in `saas/60-saas-ui.md`. A Tojlo mobile app also reads `mobile-app/tojlo-mobile-design-system.md` (Tojlo's mobile patterns), which loads only on the same declaration.
 
 > Single source of truth for the Tojlo brand and all Tojlo product surfaces.
 > **Tojlo inherits the Ocoron brand foundation and voice from `ocoron-design-system.md`, and the structure (components, states, motion, density, accessibility) from `design-system-template.md`.** This document specifies only overrides, additions, and Tojlo-specific patterns.
@@ -27,10 +27,10 @@ description: Tojlo design system — the Tojlo-branded overrides on top of ocoro
 
 **Visual System**
 - [Logo](#logo) · Geometry, monogram, lockups, color, sizing, motion, misuse, assets
-- [Color System](#color-system) · Tojlo Indigo override, semantic colors, layer coding
+- [Color System](#color-system) · the shared accent, layer coding
 - [Typography](#typography) · Module chrome type, KPI display
 - [Iconography](#iconography) · Lucide library, module icons, custom icons
-- [Motion Language](#motion-language) · Durations, easings, patterns, sound, haptics, reduced motion
+- [Motion Language](#motion-language) · the template's, plus Tojlo's route change
 - [Density Modes](#density-modes) · Comfortable, Compact, Spacious
 
 **Components**
@@ -57,54 +57,39 @@ description: Tojlo design system — the Tojlo-branded overrides on top of ocoro
 
 **Implementation**
 - [Spacing, Interaction, Scaffolds](#spacing-interaction-scaffolds)
-- [Tailwind Theme Extension](#tailwind-theme-extension-tojlo)
-- [CSS Custom Properties](#css-custom-properties-tojlo)
+- [CSS Custom Properties](#css-custom-properties-tojlo) · Ocoron's, no override
 - [White-Label Theming](#white-label-theming-future)
 - [Token Governance](#token-governance-and-contribution-process)
 - [Implementation Stack Summary](#implementation-stack-summary)
 
 **Governance**
-- [Rules for AI Agents](#rules-for-ai-agents-kilo--windsurf--traycer) · T1–T47
+- [Rules for AI Agents](#rules-for-ai-agents) · T1–T52
 - [Versioning](#versioning)
 
 ---
 
 ## Inheritance Contract
 
-Tojlo uses Ocoron's design system as its foundation. The following are **inherited unchanged** and must not be re-specified, re-defined, or overridden in Tojlo surfaces:
+Tojlo's structure is `core/design-system-template.md`'s and its values are `core/ocoron-design-system.md`'s (D-406 split the old Ocoron pack in two). Colours, contrast, motion and tokens are pointers in this file and come from those two packs. The sections from Density Modes through Accessibility are different: they are Tojlo's own rule sets, kept from before the split — their rule IDs (D, TBL, F, C, N, A, PR, O, ML, FMT, EX, ACC) collide with the template's and their content differs (Tojlo forbids table striping, for one). On a Tojlo project those sections apply where they state a rule, and the template supplies anything they do not address; a rule marked **Tojlo override** flags a known conflict with the template. The line-by-line dedup is W-68b6a454. Inherited unchanged, and not to be re-specified:
 
 - **Typography stack:** Space Grotesk (headings), Inter (body/UI), JetBrains Mono (code/data) — identical weights, scale, line-heights, letter-spacing.
 - **Spacing tokens:** `--space-xs` through `--space-2xl` — identical.
 - **Interaction tokens:** transition durations, easings, hover/press/focus — identical.
-- **Motion language:** duration scale, easing curves, canonical patterns, M1-M8 forbidden rules, reduced motion — identical.
+- **Motion language:** duration scale, easing curves, canonical patterns, M1-M8 forbidden rules, reduced motion — the template's, identical (§ Motion Language below adds two Tojlo items).
 - **Surface hierarchy:** `--surface-0` through `--surface-3` and `--border` — identical, both dark (default) and light variants.
 - **Text hierarchy:** `--text-primary`, `--text-body`, `--text-muted` — identical.
-- **Secondary semantic colors:** `--color-secondary`, `--color-danger`, `--color-success`, `--color-info`, `--color-purple` — Ocoron's values (`ocoron-design-system.md` § Colour tokens, where `secondary` is `warning` and `purple` is `ai`) win wherever this file's tables differ.
+- **Semantic colors:** `--color-warning`, `--color-danger`, `--color-success`, `--color-info`, `--color-ai`, each with its `-fg`, `-text` and `-muted` slots — Ocoron's values (`ocoron-design-system.md` § Colour tokens). The retired names `--color-secondary` and `--color-purple` are aliases of `--color-warning` and `--color-ai`.
 - **Component patterns:** cards, tags, pills, buttons (primary/secondary/danger), tab bar, progress bars, collapsible blocks, data hierarchy, KPI card, activity feed — identical.
 - **Iconography:** Lucide library, sizing, rules I1-I8 — identical.
-- **Density modes:** Comfortable/Compact/Spacious, rules D1-D5 — identical.
-- **Data tables:** anatomy, rules TBL1-TBL10 — identical.
-- **Forms:** layout, validation, save behavior, rules F1-F8 — identical.
-- **Search and command palette:** layout, keyboard, AI search — identical.
-- **Charts:** library, color rules, chart rules C1-C7 — identical.
-- **States:** loading, empty, error, permission denied, success, partial — identical.
-- **Notification system:** taxonomy, throttling, rules N1-N6 — identical.
-- **Activity and audit UX:** rules A1-A4 — identical.
-- **Permissions UX:** roles, surfacing, rules PR1-PR4 — identical.
-- **Onboarding:** first-run, hints, rules O1-O5 — identical.
-- **AI interaction patterns:** A1-A5 surfaces, confidence/citation, streaming, recovery — identical.
-- **Multilingual and RTL:** rules ML1-ML8 — identical.
-- **Date/time/currency/number formatting:** rules FMT1-FMT8 — identical.
-- **Print and export:** rules EX1-EX5 — identical.
-- **Accessibility:** rules ACC1-ACC8 — identical.
+- **Density, data tables, forms, search, charts, states, notifications, activity and audit, permissions, onboarding, AI interaction patterns, multilingual and RTL, formatting, print and export, accessibility:** the template's structure, plus this file's own section of each name where it states a Tojlo rule (see above).
 - **Voice and tone:** "The Engineer Who Ships." Precise, confident, grounded. Identical traits, identical tone spectrum.
 - **Writing rules:** lead with outcome, active voice, short paragraphs, specifics over adjectives, no rhetorical questions, describe AI specifically. Identical.
 - **Forbidden language table:** identical. The same forbidden words apply.
-- **AI-agent visual rules 1–10 and responsive rules 11–15:** identical.
+- **AI-agent visual and responsive rules:** the template's (`core/design-system-template.md` § Visual Rules and § Responsive Rules), identical.
 - **Responsive layout:** breakpoints (sm/md/lg/xl/2xl), mobile-first approach, layout grid, component responsive behavior, sidebar collapse, data table mobile patterns, RWD1–RWD10 — identical. Every Tojlo web page must be responsive from 375px to 2560px.
-- **Scaffold adaptation matrix** (saas-skeleton, static-site, chrome-extension, mobile-app, desktop-app, wordpress, docusaurus): identical, with only the accent token swapped.
+- **Scaffold adaptation matrix:** the template's (`core/design-system-template.md` § Scaffold Adaptation Matrix), identical — Tojlo shares Ocoron's accent, so nothing is swapped.
 
-If a rule is not listed in this document, the Ocoron design system rule applies.
+If a rule is not in this document, the template's (structure) or Ocoron's (values and voice) applies.
 
 ---
 
@@ -212,6 +197,8 @@ Canonical module list (from Unified Architecture v3):
 | Growth | **Tojlo REACH** | Outbound prospecting |
 | Growth | **Tojlo OUTREACH** | Cold email sequences |
 
+This pack reads the marketing line "twelve modules, one login" as every module except AUTH, which is the one login.
+
 **In UI chrome** (sidebars, tab bars, module switchers): set the module name in **Inter 500, uppercase, letter-spacing 1px, 11–13px**. The word "Tojlo" may be omitted in the chrome itself when the user is already inside the Tojlo Dashboard — display just `MAIL`, `HUB`, etc. Always include "Tojlo" in marketing, documentation, support, and external references.
 
 **In documentation and prose:** "Tojlo MAIL," "Tojlo HUB" — first reference always full. Subsequent references in the same paragraph may shorten to "MAIL" or "HUB" if context is unambiguous.
@@ -313,7 +300,7 @@ The voice is constant. The register adjusts by surface and stakes:
 | **Empty state headline** | Outcome-led sentence | ≤ 8 | "No leads yet. Connect WhatsApp to start." |
 | **Tooltip** | One sentence, action-oriented | ≤ 12 | "Approve this draft and Tojlo will send it now." |
 | **Inline form helper** | One short sentence; what to enter, why it matters | ≤ 14 | "We'll email this address when invoices are paid." |
-| **Toast / snackbar** | What happened + (optional) one undo or follow-up | ≤ 14 | "Draft sent. Undo." |
+| **Toast / snackbar** | What happened + (optional) one undo or follow-up | ≤ 14 | "Lead archived. Undo." |
 | **Error toast** | What broke + what to do | ≤ 18 | "M365 token expired. Reconnect in Settings → Integrations." |
 | **Confirmation dialog body** | Plain statement of consequence + revert path | ≤ 30 | "This will permanently delete 12 customer records. You cannot undo this. Type DELETE to confirm." |
 | **Onboarding step** | One sentence outcome + one sentence action | ≤ 24 | "Connect your inbox. Tojlo MAIL will start drafting replies within 5 minutes." |
@@ -507,23 +494,11 @@ Never check in alternate, modified, or "experimental" wordmark assets to product
 
 ### Primary Accent (Tojlo Override)
 
-| Token | Hex | Role |
-|---|---|---|
-| `--color-accent` | `#5B5BF7` | **Tojlo Indigo** — primary accent, CTAs, active states, links, primary buttons, progress bars, focus rings, brand highlights |
-| `--color-accent-hover` | `#7676FF` | Accent hover state |
-| `--color-accent-muted` | `rgba(91, 91, 247, 0.12)` | Accent backgrounds (tags, badges, subtle highlights, selected states) |
-
-**Rationale:** Indigo is the shared Ocoron accent (`#5B5BF7`). Tojlo inherits it unchanged. Sits cleanly next to ERPNext blue, Wati green, and M365 blue when modules are embedded.
+Tojlo Indigo is Ocoron's accent, unchanged: `--color-accent` and its `-hover`, `-fg`, `-text` and `-muted` slots take Ocoron's values for both modes (`core/ocoron-design-system.md` § Colour tokens). It sits cleanly next to ERPNext blue, Wati green and M365 blue when modules are embedded.
 
 ### Secondary Semantic Colors (Inherited from Ocoron, Unchanged)
 
-| Token | Hex | Role |
-|---|---|---|
-| `--color-secondary` | `#F5A623` | Warnings, premium/upgrade nudges |
-| `--color-danger` | `#FF4444` | Errors, destructive actions, critical alerts |
-| `--color-success` | `#27AE60` | Confirmations, completed states, positive deltas |
-| `--color-info` | `#2980B9` | Informational badges, tooltips, neutral status |
-| `--color-purple` | `#9B59B6` | Category coding, auxiliary status |
+Ocoron's state colours, unchanged — `--color-success`, `--color-warning`, `--color-danger`, `--color-info`, `--color-ai`, each with `-fg`, `-text` and `-muted` (`core/ocoron-design-system.md` § Colour tokens; its § Contrast table holds the computed ratios for both modes).
 
 ### Surface Hierarchy
 
@@ -533,11 +508,11 @@ Never check in alternate, modified, or "experimental" wordmark assets to product
 
 Tojlo Dashboard sidebars and module switchers may color-code modules by **layer**, not by individual module. This keeps the color system disciplined:
 
-| Layer | Indicator color | Token |
+| Layer | Indicator token | As text |
 |---|---|---|
-| Core | `#5B5BF7` (accent) | `--color-accent` |
-| Intelligence | `#9B59B6` | `--color-purple` |
-| Growth | `#F5A623` | `--color-secondary` |
+| Core | `--color-accent` | `--color-accent-text` |
+| Intelligence | `--color-ai` | `--color-ai-text` |
+| Growth | `--color-warning` | `--color-warning-text` |
 
 Use these as 3px left-rail indicators on sidebar items or as 9px micro-label dot tags. **Never** color the module icon itself — icons stay monochrome (`--text-primary` for active, `--text-muted` for inactive).
 
@@ -561,7 +536,7 @@ Letter-spacing: 1px
 Color: var(--text-primary) when active, var(--text-muted) when inactive
 ```
 
-This matches Ocoron's existing micro-label pattern, formalized for module display.
+This matches the template's micro-label pattern, formalized for module display. On a mobile surface the size is 13 — `80-mobile.md`'s floor, inside this section's 11–13 range.
 
 ### Numeric KPI Display
 
@@ -593,7 +568,7 @@ Tojlo uses **Lucide** as the primary icon library, with custom icons reserved fo
 - **Lucide React** for product UI (already used by shadcn/ui in the saas-skeleton scaffold).
 - **Stroke width:** 1.5px at 16px viewport, 2px at 24px viewport. Consistent across the product.
 - **Style:** Outline (no filled icons in core UI). Filled variants only for selected/active states where the outline+fill pair improves scanability (checkboxes, radio buttons, toggle confirmations).
-- **Color:** inherit from `currentColor`. Default `--text-body`. Active `--color-accent`. Disabled `--text-muted` at 40% opacity.
+- **Color:** inherit from `currentColor`. Default `--text-body`. Active `--color-accent-text` (an accent icon on a surface takes the `-text` slot). Disabled `--text-muted` at 40% opacity. Module icons are the exception: monochrome, `--text-primary` when active (§ Module Color Coding, I6).
 - **Stroke caps and joins:** rounded. No square or beveled caps anywhere.
 
 ### Sizing
@@ -660,95 +635,10 @@ I8. Icons must remain legible at minimum size (16px). Detail beyond what reads a
 
 ## Motion Language
 
-Motion in Tojlo is functional, never decorative. Every animation communicates one of: state change, attention direction, system status, or progress. Motion that does none of those is removed.
+Tojlo's motion is the template's — durations, easings, canonical patterns, the M1–M8 forbidden-motion rules, reduced motion, haptics (`core/design-system-template.md` § Motion Language) — and its sound cues are Ocoron's (`core/ocoron-design-system.md` § Sound). Tojlo adds:
 
-### Duration Scale
-
-| Token | Value | Use |
-|---|---|---|
-| `--motion-instant` | `0ms` | State swaps where motion would distract (toggle states, immediate value updates) |
-| `--motion-fast` | `100ms` | Hover, focus, small surface transitions |
-| `--motion-default` | `150ms` | Default. Most transitions. Inherited from Ocoron's `0.15s ease`. |
-| `--motion-slow` | `250ms` | Modal, drawer, sheet enters and exits |
-| `--motion-deliberate` | `400ms` | Onboarding step transitions, hero animations on first viewport entry |
-| `--motion-celebration` | `600ms` | Single-shot success animations (commission run completed, milestone reached) |
-
-### Easing
-
-| Token | Curve | Use |
-|---|---|---|
-| `--ease-default` | `cubic-bezier(0.16, 1, 0.3, 1)` | Almost everything. Soft enter, firm settle. |
-| `--ease-linear` | `linear` | Progress bars, indeterminate loaders only |
-| `--ease-spring` | `cubic-bezier(0.5, 1.5, 0.5, 1)` | Discrete success cues only (success toast, milestone badge) |
-| `--ease-emphasis` | `cubic-bezier(0.4, 0, 0.2, 1)` | When direction matters more than feel (drawer slides, sheet pulls) |
-
-Avoid stacking eases. One animation, one curve.
-
-### Canonical Motion Patterns
-
-**Toast / snackbar enter:** `translateY(8px) → 0`, opacity `0 → 1`, `--motion-default` `--ease-default`. Exit: reverse.
-
-**Modal enter:** scrim opacity `0 → 0.6` in `--motion-fast`, modal `translateY(8px) scale(0.98) → 0 1` in `--motion-default` `--ease-default`. Exit: reverse, both layers in parallel.
-
-**Drawer enter (right):** `translateX(100%) → 0`, `--motion-slow` `--ease-emphasis`. Exit: reverse. RTL: mirror to enter from left.
-
-**Sheet enter (bottom, mobile):** `translateY(100%) → 0`, `--motion-slow` `--ease-emphasis`.
-
-**Tab change:** instant content swap, no transition. Cross-fades on tab content read as lag.
-
-**Route change (within Dashboard):** instant content swap, with 80ms skeleton flash if data is still loading. No fade-on-route.
-
-**Skeleton shimmer:** `linear-gradient` translated `-100% → 100%` over `1500ms linear`, infinite. Only on initial load, never as a permanent state.
-
-**AI-thinking indicator:** three dots, each `opacity 0.3 → 1 → 0.3` staggered by 150ms, `--ease-default`. Used only while AI is actively processing a user-initiated action.
-
-**Success celebration (commission run, milestone):** check-mark stroke draw-on over `--motion-celebration` with `--ease-spring`, no confetti, no sound (sound is opt-in per user, see *Sound and Haptics*).
-
-**Error shake:** `translateX(-4px → 4px → -2px → 0)` over 250ms `--ease-default`. Triggered once per error. Never on inline-validation errors as the user types — only after submit.
-
-**Hover lift:** `translateY(-1px)` `--motion-fast` `--ease-default`. Applies to cards, buttons, list items.
-
-**Press feedback (mobile):** `translateY(1px) scale(0.98)` `--motion-fast` `--ease-default`, with haptic light impact where the device supports it.
-
-**Focus ring fade-in:** `opacity 0 → 1` `--motion-fast` `--ease-default`. Focus ring is 2px solid `--color-accent`, offset 2px, never animated beyond opacity.
-
-### Forbidden Motion (M-Rules)
-
-M1. No bounce on default transitions. `--ease-spring` is reserved for celebration only.
-M2. No motion longer than `--motion-deliberate` outside of celebrations.
-M3. No infinite animations except progress, loading, and AI-thinking indicators.
-M4. No parallax. No marquee scroll. No animated backgrounds.
-M5. No motion that delays user input. If the user can act, they can interrupt the animation; animations must not block input.
-M6. No fading out before fading in. State changes are direct: previous state out, next state in, in parallel where possible.
-M7. No animation triggered solely by scroll position (scroll-linked reveals are forbidden in product UI; allowed sparingly on marketing pages with `prefers-reduced-motion` fallback).
-M8. No celebration animation without a real milestone. Don't celebrate "form saved" — that's the system doing its job.
-
-### Reduced Motion
-
-Users with `prefers-reduced-motion: reduce` get:
-
-- All transitions reduced to `--motion-instant` (0ms) except progress and loading indicators (which retain their motion because they communicate active state).
-- Translate-based enters become opacity 0/1 swaps.
-- Skeleton shimmer becomes a static `--surface-3` block.
-- AI-thinking indicator becomes a single static `…` glyph.
-- Wordmark animations are replaced with fade only.
-- Confirmation: never gate functionality behind motion. The product must be fully usable in reduced-motion mode.
-
-### Sound and Haptics
-
-Sound is **opt-in per user**. Default is silent. When enabled:
-
-- Success: 80ms 880Hz soft attack, 120ms decay. Pleasant but unobtrusive.
-- Error: 60ms 220Hz, no decay tail. Brief, distinct from success.
-- Notification: 100ms two-tone chime (440Hz + 660Hz, simultaneous). Quiet enough to be background.
-- Volume: capped at 30% of system volume. Respects system mute.
-
-Haptics on mobile (where supported):
-
-- Light impact: button press, toggle.
-- Medium impact: confirmation, successful action.
-- Heavy impact: warning, destructive confirm.
-- Never use haptics for routine state changes — they fatigue.
+- **Route change (within the Dashboard):** instant content swap, with an 80ms skeleton flash if data is still loading. No fade-on-route.
+- **Success celebration** is reserved for real operator milestones — a commission run completed, a milestone reached (M8).
 
 ---
 
@@ -846,7 +736,7 @@ Used on the Dashboard activity rail and inside modules.
 ```
 Layout: 24px module icon + content + timestamp
 Module icon: monochrome, --text-muted by default
-Module label (above content): Inter 500, uppercase, 10px, letter-spacing 1.5px, color = layer indicator (accent / purple / secondary)
+Module label (above content): Inter 500, uppercase, 10px, letter-spacing 1.5px, color = the layer's `-text` slot (accent / ai / warning)
 Content: Inter 400, 14px, --text-body
 Timestamp: Inter 400, 12px, --text-muted
 Always name the module that produced the event ("Tojlo HUB completed weekly commission run").
@@ -920,7 +810,7 @@ Operators live in tables. Every Tojlo table is built from this spec.
 - **Selected:** `--color-accent-muted` background, 2px left border in `--color-accent`.
 - **Type:** Inter 400, 14px (Comfortable density), `--text-body`.
 - **Numeric cells:** JetBrains Mono 400, 13px, right-aligned. Decimals align on the decimal point (use `font-variant-numeric: tabular-nums`).
-- **Status cells:** use the pill pattern. Color-coded pills only for status that maps to one of the semantic colors (success / danger / info / secondary). Default status: neutral pill in `--surface-2` background, `--text-body` text.
+- **Status cells:** use the pill pattern. Color-coded pills only for status that maps to one of the semantic colors (success / danger / info / warning). Default status: neutral pill in `--surface-2` background, `--text-body` text.
 - **Truncation:** long text truncates with ellipsis. Hover reveals full content in a tooltip after 400ms.
 
 ### Selection
@@ -1111,11 +1001,11 @@ The palette returns five categories, in order:
 [icon] [primary label]    [secondary metadata]    [shortcut hint]
 ```
 
-- **Icon:** 16px, monochrome, `--text-muted`. Active row icon: `--color-accent`.
+- **Icon:** 16px, monochrome, `--text-muted`. Active row icon: `--color-accent-text`.
 - **Primary label:** Inter 400, 14px, `--text-primary`.
 - **Secondary metadata:** Inter 400, 13px, `--text-muted`. Right-aligned.
 - **Shortcut hint:** keyboard shortcut for the row's action, set in `kbd`-styled chips with JetBrains Mono 11px on `--surface-2`.
-- **Active row:** `--color-accent-muted` background.
+- **Active row:** `--color-accent-muted` background (Tojlo override of the template's `--surface-3`).
 
 ### Keyboard
 
@@ -1156,12 +1046,10 @@ Charts in Tojlo are restrained, scannable, and consistent — never decorative.
 
 ### Color
 
-- **Single-series:** `--color-accent` (Tojlo Indigo).
-- **Two-series comparison:** `--color-accent` and `--color-purple`. (Comparing this period vs last period: this in accent, last in purple at 50% opacity.)
-- **Categorical (≤ 6 categories):** in this order, do not skip — `--color-accent`, `--color-success`, `--color-secondary`, `--color-info`, `--color-purple`, `--color-danger`.
+- Charts use the template's slots (`core/design-system-template.md` § Charts and Data Visualization): categorical series `--viz-1` … `--viz-6` in order — Ocoron fills them, `--viz-1` being Tojlo Indigo — and semantic series `--color-success` / `--color-danger` / `--color-warning`.
+- **Two-series comparison:** this period in `--viz-1`, last period in `--viz-1` at 50% opacity.
 - **Categorical (> 6 categories):** group lower-frequency categories as "Other." Do not introduce new colors; if more than 6 lines are needed, the chart is wrong.
-- **Semantic:** time-series with positive-vs-negative states use `--color-success` and `--color-danger`. Status pies use the status pill colors.
-- **Negative space:** prefer negative space over decorative fills. Bar charts have transparent bars by default with 1px `--color-accent` borders, filled only on hover.
+- **Negative space:** prefer negative space over decorative fills. Bar charts have transparent bars by default with 1px `--viz-1` borders, filled only on hover.
 
 ### Type
 
@@ -1194,7 +1082,7 @@ Charts in Tojlo are restrained, scannable, and consistent — never decorative.
 | Trend over time, comparing 2 periods | Line, two series |
 | Distribution across categories, ≤ 6 categories | Vertical bar |
 | Distribution across many categories | Horizontal bar, sorted descending |
-| Composition of a whole, ≤ 4 slices | Donut (never pie) |
+| Composition of a whole, ≤ 4 slices | Donut (never pie) — Tojlo override, stricter than the template's 2–5 |
 | Composition of a whole, > 4 slices | Stacked horizontal bar |
 | Two-dimensional relationship | Scatter |
 | Geographic distribution | Choropleth or marker map (Tojlo TI only) |
@@ -1205,10 +1093,10 @@ Charts in Tojlo are restrained, scannable, and consistent — never decorative.
 
 C1. **No 3D charts.** Ever.
 C2. **No dual y-axes** unless absolutely necessary (and even then, document the necessity in a comment in the chart code). Dual y-axes mislead more often than they inform.
-C3. **No animation on initial render** for performance reasons; line draw-ins, bar grows, etc. are forbidden. Reduced-motion forbids them anyway; we apply the same standard to everyone.
+C3. **Tojlo override** (of the template's C7): **No animation on initial render** for performance reasons; line draw-ins, bar grows, etc. are forbidden. Reduced-motion forbids them anyway; we apply the same standard to everyone.
 C4. **No chart without a title.** Even tiny KPI chartlets need a label.
 C5. **No chart without a unit.** "23" means nothing. "23 leads" means something. "23%" means something else.
-C6. **No pie charts with more than 4 slices.** Use stacked bar.
+C6. **Tojlo override:** **No pie charts with more than 4 slices.** Use stacked bar.
 C7. **Tooltip values are tabular monospace.** Comparing two numbers in proportional type is unreadable.
 C8. **Drill-down is mandatory.** Every chart must let the user click into the underlying rows. A chart with no drill-down is decoration.
 
@@ -1249,7 +1137,7 @@ Different from "no data yet." Don't show the onboarding empty state.
 - **Title:** Inter 500, 16px, `--text-primary`. What broke, plain language.
 - **Description:** Inter 400, 14px, `--text-muted`. What the user can do. Include error code in monospace at the end if useful for support.
 - **Actions:** "Retry" primary button. "Contact support" secondary button if the error is unrecoverable.
-- **No stack traces** in production. Send those to Sentry; show users a humane message.
+- **No stack traces** in production. Send those to the error tracker (GlitchTip, `core/55-observability.md`); show users a humane message.
 
 ### Permission Denied
 
@@ -1273,7 +1161,7 @@ Display: success toast + check-mark celebration animation per *Motion Language*.
 
 When an operation completes but with caveats: "Sent 11 of 12 emails. Atlas Trading's address bounced; review and retry."
 
-- **Color:** `--color-secondary` accent, not `--color-success` or `--color-danger`.
+- **Color:** `--color-warning`, not `--color-success` or `--color-danger`.
 - **Action:** the actionable items (1 of 12, in this case) are listed inline with a "Resolve" button.
 - **No silent partial failures.** If 1 of 100 succeeded, that's a failure with one survivor. State it clearly.
 
@@ -1305,7 +1193,7 @@ Without discipline, notifications drown operators. Tojlo enforces a strict taxon
 - **In-app:** activity feed, bell badge, banner.
 - **Email:** Critical immediately; Actionable in daily digest by default, opt-in for immediate; Informational batched into weekly digest.
 - **Push (mobile, opt-in):** Critical and Actionable only.
-- **WhatsApp (opt-in via Tojlo CHAT):** Critical only, used as a last-resort channel for urgent items the operator must see.
+- **WhatsApp (opt-in via Tojlo CHAT):** Critical only, a last-resort channel for urgent items the operator must see. Outside a 24-hour customer-service window WhatsApp delivers only approved template messages, so each Critical alert is a pre-approved utility template.
 
 ### Activity Feed
 
@@ -1442,7 +1330,7 @@ Tojlo's product thesis depends on AI behaving predictably, transparently, and re
 2. **AI proposes; the operator approves.** AI never sends, signs, files, or executes a high-stakes action without explicit user approval. Approval can be a single click, but it must exist.
 3. **Show the source.** Every AI claim about data is grounded in records the user can click to verify. Citations are mandatory; if the model can't ground a claim, it says so instead of making one up.
 4. **Make it easy to override.** Every AI suggestion has Accept, Modify, and Dismiss as equally weighted actions. Modify is not a hidden affordance.
-5. **Recoverable by default.** Anything AI did is undoable for at least 5 minutes. Anything AI sent externally has a "Recall" affordance where technically possible.
+5. **Recoverable by default.** Anything AI did is undoable for at least 5 minutes. Anything AI sends externally is held for that window, because an external email cannot be recalled (§ Recovery and Override).
 6. **No black boxes.** Operators can ask "Why did Tojlo suggest this?" and get an answer drawn from the actual prompt context, not a generated rationalization.
 
 ### AI Surface Patterns
@@ -1466,7 +1354,7 @@ Used when AI proposes a value or action inline with existing content (e.g., sugg
 ```
 
 - **Container:** 1px `--color-accent-muted` border, `--surface-1` background, `--space-md` padding.
-- **Attribution row (top):** "Suggested by Tojlo [MODULE]" in Inter 500 uppercase 11px letter-spacing 1px, color `--color-accent`. Dismiss × button on the right.
+- **Attribution row (top):** "Suggested by Tojlo [MODULE]" in Inter 500 uppercase 11px letter-spacing 1px, color `--color-ai-text` (AI content, the template's slot). Dismiss × button on the right.
 - **Generated content:** Inter 400 14px `--text-body`, max 5 lines visible, "Show more" expander if longer.
 - **Confidence and source row:** below content. See *Confidence and Citation*.
 - **Action row (bottom):** Edit-and-send (primary), Send-as-is (secondary), Dismiss (tertiary). The default action is **Edit-and-send**, never Send-as-is. This is intentional: AI suggestions are starting points.
@@ -1477,7 +1365,7 @@ Used when AI produces a longer artifact — a report, a draft contract, a market
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│ Generated by Tojlo TI · 2026-05-18 14:02 · gpt-class-x          │
+│ Generated by Tojlo TI · 2026-05-18 14:02                        │
 │                                                                 │
 │ # Q2 Customer Activity Summary                                  │
 │                                                                 │
@@ -1490,7 +1378,7 @@ Used when AI produces a longer artifact — a report, a draft contract, a market
 └────────────────────────────────────────────────────────────────┘
 ```
 
-- **Header strip:** "Generated by Tojlo [MODULE]" + ISO timestamp + model identifier in Inter 400 12px `--text-muted`.
+- **Header strip:** "Generated by Tojlo [MODULE]" + ISO timestamp in Inter 400 12px `--text-muted` — no model identifier (T37: model identity is admin-only).
 - **Body:** rendered Markdown with Tojlo typography. Citations inline as superscript numbered links, hovering reveals the source record.
 - **Footer:** citation count, review-needed count (claims the model marked low-confidence), and action buttons.
 
@@ -1581,8 +1469,8 @@ Every AI claim about specific data must cite the record:
 
 ### Recovery and Override
 
-- **Undo window:** every AI action that mutates data has an undo window. Default 5 minutes. Surfaced as a non-blocking toast: "Tojlo MAIL sent draft to Kandil Glass. Undo (4:58)."
-- **Recall:** for emails sent to internal recipients, Tojlo MAIL offers a Microsoft Graph recall during the undo window. External emails cannot be recalled but are flagged for follow-up.
+- **Undo window:** every AI action that mutates data has an undo window. Default 5 minutes. Surfaced as a non-blocking toast. An email to an external recipient cannot be recalled, so an AI-sent external email is held for the window: "Tojlo MAIL will send the draft to Kandil Glass in 4:58 · Undo."
+- **Recall:** for internal recipients Tojlo MAIL may attempt a recall during the undo window, but it is best-effort: Microsoft Graph's `message: recall` exists only in the beta endpoint, which Microsoft does not support for production, and Exchange recalls only within the organization (or an allow-listed Exchange Online tenant), never to external recipients. External emails cannot be recalled and are flagged for follow-up. That is why an external AI send is held for the undo window (§ Recovery and Override, Undo window) instead of relying on recall.
 - **Override:** every AI tag, category, or suggestion can be overridden in one click. Overrides feed back into the model's tuning data.
 - **Audit:** every AI override is logged. If an operator overrides the same AI category 5+ times, the system surfaces a "Want to retrain Tojlo MAIL on this category?" prompt to the workspace admin.
 
@@ -1596,7 +1484,7 @@ When AI processes images (invoices via OCR, screenshots in customer chats):
 
 ### Enforcement
 
-AI behavior in Tojlo is governed by the consolidated Tojlo AI rules — see *Rules for AI Agents → Tojlo AI Rules* (T27–T35). Every AI surface in this section must satisfy those rules.
+AI behavior in Tojlo is governed by the consolidated Tojlo AI rules — see *Rules for AI Agents → Tojlo AI Rules* (T27–T37). Every AI surface in this section must satisfy those rules.
 
 Two additional implementation constraints worth calling out here:
 
@@ -1807,7 +1695,7 @@ Server-rendered PDFs for invoices, contracts, statements, audit logs. Use Puppet
 - **Brand consistency:** PDFs use the same print stylesheet — they're print rendered to a file.
 - **Filename:** `tojlo-{type}-{identifier}-{YYYYMMDD}.pdf`. Example: `tojlo-invoice-INV-2026-0481-20260518.pdf`.
 - **Metadata:** PDF metadata fields (title, author, subject) populated from the document. Author is always "Tojlo (by Ocoron)."
-- **Watermark:** none by default. Draft documents may carry a "DRAFT" watermark in `--color-secondary` at 30% opacity.
+- **Watermark:** none by default. Draft documents may carry a "DRAFT" watermark in `--color-warning` at 30% opacity.
 
 ### Export Rules
 
@@ -1825,27 +1713,7 @@ Tojlo aims for **WCAG 2.2 AA compliance** across all product surfaces, with AAA 
 
 ### Color Contrast (Tojlo Token Pairs)
 
-Verified contrast ratios for the canonical token pairings:
-
-| Foreground | Background | Ratio | Level | Use |
-|---|---|---|---|---|
-| `--text-primary` `#FFFFFF` | `--surface-0` `#0A0A0A` | 19.83:1 | AAA | Body text on page |
-| `--text-primary` `#FFFFFF` | `--surface-1` `#141414` | 18.13:1 | AAA | Body text on cards |
-| `--text-body` `#E0E0E0` | `--surface-0` `#0A0A0A` | 16.04:1 | AAA | Default body |
-| `--text-muted` `#888888` | `--surface-0` `#0A0A0A` | 5.74:1 | AA | Meta, timestamps |
-| `--text-muted` `#888888` | `--surface-1` `#141414` | 5.25:1 | AA | Meta on cards |
-| `--color-accent` `#5B5BF7` | `--surface-0` `#0A0A0A` | 5.41:1 | AA | Links, accent text |
-| `#0A0A0A` (dark text) | `--color-accent` `#5B5BF7` | 5.41:1 | AA | Primary button text |
-| `#FFFFFF` | `--color-accent` `#5B5BF7` | 4.06:1 | AA Large | Button text alt — only for ≥ 18px or bold ≥ 14px |
-| `--color-success` `#27AE60` | `--surface-0` `#0A0A0A` | 4.84:1 | AA | Success text |
-| `--color-danger` `#FF4444` | `--surface-0` `#0A0A0A` | 5.21:1 | AA | Error text |
-| `--color-secondary` `#F5A623` | `--surface-0` `#0A0A0A` | 9.31:1 | AAA | Warning text |
-
-**Light mode pairs** must be re-validated; the audit lives in `accessibility/contrast-light.md`.
-
-**Forbidden pairs (do not use):**
-- `--text-muted` on `--surface-3` (3.94:1 AA Large only — too risky for body text)
-- `--color-accent` `#5B5BF7` text on `--color-accent-muted` background (insufficient)
+Tojlo's token pairs are Ocoron's, so its contrast is Ocoron's computed table for both modes (`core/ocoron-design-system.md` § Contrast table), under the template's contract (`core/design-system-template.md` § Contrast contract — every ratio computed, never asserted). Text in the accent uses `--color-accent-text`; text on an accent fill uses `--color-accent-fg`.
 
 ### Keyboard Navigation
 
@@ -1890,131 +1758,13 @@ ACC8. **Touch targets ≥ 44px on touch devices** regardless of density.
 
 ## Spacing, Interaction, Scaffolds
 
-**Inherited from Ocoron unchanged.** The scaffold adaptation matrix (saas-skeleton, static-site, chrome-extension, mobile-app, desktop-app, wordpress, docusaurus) applies identically. The accent color `--color-accent` is `#5B5BF7` — same as Ocoron.
-
----
-
-## Tailwind Theme Extension (Tojlo)
-
-```js
-// tailwind.config.ts — extend section
-{
-  colors: {
-    accent: { DEFAULT: '#5B5BF7', hover: '#7676FF', muted: 'rgba(91,91,247,0.12)' },
-    // Inherited from Ocoron, unchanged:
-    secondary: '#F5A623',
-    danger: '#FF4444',
-    success: '#27AE60',
-    info: '#2980B9',
-    purple: '#9B59B6',
-    surface: { 0: '#0A0A0A', 1: '#141414', 2: '#1A1A1A', 3: '#222222' },
-    border: '#2A2A2A',
-    text: { primary: '#FFFFFF', body: '#E0E0E0', muted: '#888888' },
-  },
-  fontFamily: {
-    heading: ['Space Grotesk', 'sans-serif'],
-    body: ['Inter', 'sans-serif'],
-    mono: ['JetBrains Mono', 'monospace'],
-  },
-  borderRadius: {
-    card: '8px',
-    tag: '3px',
-    pill: '20px',
-    button: '6px',
-  },
-  spacing: {
-    xs: '4px', sm: '8px', md: '16px', lg: '24px', xl: '32px', '2xl': '48px',
-  },
-  transitionDuration: {
-    instant: '0ms',
-    fast: '100ms',
-    default: '150ms',
-    slow: '250ms',
-    deliberate: '400ms',
-    celebration: '600ms',
-  },
-  transitionTimingFunction: {
-    'ease-default': 'cubic-bezier(0.16, 1, 0.3, 1)',
-    'ease-linear': 'linear',
-    'ease-spring': 'cubic-bezier(0.5, 1.5, 0.5, 1)',
-    'ease-emphasis': 'cubic-bezier(0.4, 0, 0.2, 1)',
-  },
-}
-```
+**Inherited unchanged** from the template (`core/design-system-template.md` § Scaffold Adaptation Matrix and its spacing and interaction tokens); Tojlo shares Ocoron's accent, so no scaffold needs a Tojlo-specific token.
 
 ---
 
 ## CSS Custom Properties (Tojlo)
 
-```css
-:root {
-  /* Tojlo override — primary accent */
-  --color-accent: #5B5BF7;
-  --color-accent-hover: #7676FF;
-  --color-accent-muted: rgba(91, 91, 247, 0.12);
-
-  /* Inherited from Ocoron, unchanged */
-  --color-secondary: #F5A623;
-  --color-danger: #FF4444;
-  --color-success: #27AE60;
-  --color-info: #2980B9;
-  --color-purple: #9B59B6;
-
-  --surface-0: #0A0A0A;
-  --surface-1: #141414;
-  --surface-2: #1A1A1A;
-  --surface-3: #222222;
-  --border: #2A2A2A;
-
-  --text-primary: #FFFFFF;
-  --text-body: #E0E0E0;
-  --text-muted: #888888;
-
-  --font-heading: 'Space Grotesk', sans-serif;
-  --font-body: 'Inter', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
-
-  --radius-card: 8px;
-  --radius-tag: 3px;
-  --radius-pill: 20px;
-  --radius-button: 6px;
-
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 16px;
-  --space-lg: 24px;
-  --space-xl: 32px;
-  --space-2xl: 48px;
-
-  --transition-speed: 0.15s;
-  --transition-ease: ease;
-
-  /* Motion tokens — canonical values from § Motion Language */
-  --motion-instant: 0ms;
-  --motion-fast: 100ms;
-  --motion-default: 150ms;
-  --motion-slow: 250ms;
-  --motion-deliberate: 400ms;
-  --motion-celebration: 600ms;
-
-  /* Easing tokens — canonical values from § Motion Language */
-  --ease-default: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-linear: linear;
-  --ease-spring: cubic-bezier(0.5, 1.5, 0.5, 1);
-  --ease-emphasis: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-[data-theme="light"] {
-  --surface-0: #FAFAFA;
-  --surface-1: #FFFFFF;
-  --surface-2: #F5F5F5;
-  --surface-3: #EEEEEE;
-  --border: #E0E0E0;
-  --text-primary: #111111;
-  --text-body: #333333;
-  --text-muted: #999999;
-}
-```
+Tojlo's tokens are Ocoron's, with no override — the accent is shared (`core/ocoron-design-system.md` § CSS custom properties, both modes). Declare them as the template says for the scaffold in hand (`core/design-system-template.md` § Mapping to the scaffold's variables). Layer colour coding uses existing slots (§ Module Color Coding), so Tojlo adds no token.
 
 ---
 
@@ -2088,42 +1838,29 @@ G7. **No silent removals.** Every removal goes through deprecation first.
 
 ## Implementation Stack Summary
 
-Reference for engineers building Tojlo surfaces:
+Each Tojlo surface takes the stack of its scaffold type, owned by that type's packs (the Dashboard on saas-skeleton, Tojlo MAIL's Outlook add-in on office-extension, mobile on mobile-app). Tojlo's own choices on top:
 
-| Layer | Choice | Notes |
-|---|---|---|
-| Framework | Next.js 14 App Router | Inherited via Ocoron's saas-skeleton |
-| Component library | shadcn/ui | Themed with Tojlo tokens |
-| Styling | Tailwind CSS + CSS variables | Tokens defined in `globals.css` |
-| Charts | Recharts (default), Tremor (KPI chartlets) | Custom D3 only when nothing else fits |
-| Icons | Lucide React + custom module icons | See *Iconography* |
-| Animations | Framer Motion | Respects `prefers-reduced-motion` |
-| Tables | TanStack Table + TanStack Virtual | Virtualization > 200 rows |
-| Forms | React Hook Form + Zod | Validation per *Forms* spec |
-| Internationalization | next-intl + ICU MessageFormat | Per *Multilingual and RTL* |
-| Date / Time | `date-fns` + `date-fns-tz` + `Intl.DateTimeFormat` | UTC storage |
-| Numbers / Currency | `Intl.NumberFormat` | Per *Date, Time, Currency, and Number Formatting* |
-| Phone | `libphonenumber-js` | E.164 storage |
-| Auth | Self-hosted SSO — `fabrik-lib/fastapi-user-auth` (Tojlo AUTH) | SSO across all modules; app issues its own JWTs |
-| Database | `postgres-main` (PG16, shared) | Per Tojlo OPS / VAULT architecture |
-| Background jobs | n8n (Tojlo HUB) | For workflow execution |
-| Email | M365 + Microsoft Graph (Tojlo MAIL) | Operator's own M365 |
-| AI models | Gemini Flash (Tojlo MAIL OCR/translation), Claude / GPT class (Tojlo TI) | Model-agnostic surfaces |
-| Analytics | Self-hosted (Plausible or PostHog) | No third-party trackers in operator UI |
-| Monitoring | Sentry (errors), Vercel Analytics (perf), Tojlo native (audit) | Three-tier observability |
+| Concern | Tojlo choice |
+|---|---|
+| Auth | Self-hosted SSO — `fabrik-lib/fastapi-user-auth` (Tojlo AUTH); SSO across all modules |
+| Background jobs | n8n (Tojlo HUB) |
+| Email | M365 + Microsoft Graph (Tojlo MAIL), the operator's own M365 |
+| AI models | chosen per `ai/00-ai-model-selection.md`; surfaces stay model-agnostic |
+| Analytics | self-hosted only — no third-party trackers in operator UI |
+| Observability | the fleet's GlitchTip and Loki (`core/55-observability.md`) plus Tojlo's own audit log |
 
 ---
 
-## Rules for AI Agents (Kilo / Windsurf / Traycer)
+## Rules for AI Agents
 
-All 17 Ocoron AI-agent rules apply in full. Tojlo-specific rules below.
+Every rule in `core/ocoron-design-system.md` § Rules for coding agents applies in full. Tojlo-specific rules below.
 
 ### Tojlo Visual Rules
 
-T1. **The accent is `#5B5BF7`.** Inherited from Ocoron. Both brands share the same accent color.
-T2. **Module color coding is by layer only.** Core = accent, Intelligence = purple, Growth = secondary. Never invent a module-specific color.
+T1. **The accent is Ocoron's.** Both brands share `--color-accent` and its slots; take the values from `core/ocoron-design-system.md`, never a hex in code.
+T2. **Module color coding is by layer only.** Core = accent, Intelligence = ai, Growth = warning (§ Module Color Coding). Never invent a module-specific color.
 T3. **Module icons stay monochrome.** Color goes on the layer indicator (left rail or dot), never on the icon glyph itself.
-T4. **Module chrome type is Inter 500 uppercase 11px letter-spacing 1px.** No exceptions for sidebar / tab bar / breadcrumb.
+T4. **Module chrome type is Inter 500 uppercase, letter-spacing 1px — 11px on web, 13 on a mobile surface** (`80-mobile.md`'s floor). No other exceptions for sidebar / tab bar / breadcrumb.
 T5. **Embedded vendor chrome must be hidden** wherever the vendor allows it. The Tojlo top bar is the navigation source of truth for embedded modules.
 T6. **Endorsement lockup is mandatory** in product footer, marketing footer, login screen footer, and first-contact email signature. "Tojlo, by Ocoron." Always.
 T7. **Wordmark is always an SVG asset, never a text-font rendering.**
@@ -2196,6 +1933,7 @@ This document is versioned alongside Tojlo platform releases. Breaking changes (
 | v1.0 | 2026-05-18 | Initial release. Endorsed-brand model under Ocoron. Tojlo Indigo accent. Twelve-module canonical list. |
 | v1.1 | 2026-05-18 | Comprehensive expansion. Brand: Manifesto, anti-positioning, audience, customer promise, localized voice (TR/AR/RU/FA), voice across 22 surfaces, naming and capitalization rules. Visual: full logo construction spec, iconography, motion language, density modes. Components: data tables, forms, command palette, charts, six-state taxonomy, notifications, activity/audit, permissions, onboarding. AI: 5 surface patterns (A1–A5), confidence and citation, recovery and override, multimodal. Localization: multilingual and RTL, date/time/currency/number formatting. Output: email templates, print and export. Compliance: WCAG 2.2 AA matrix. Implementation: token governance, stack summary. Agent rules expanded from 13 to 47 (T1–T47). |
 | v1.2 | 2026-05-24 | Added: Responsive layout inherited from Ocoron (RWD1-RWD10). Motion/easing tokens added to CSS and Tailwind references. Responsive rules T48–T52. |
+| v1.3 | 2026-10-01 | Currency pass (D-480): house identity for every surface, not only mobile; retired slot names replaced; colour, contrast, motion, CSS and stack sections point to the template and Ocoron instead of restating stale values; Tailwind v3 snippet dropped (as D-406 did for Ocoron); recall and WhatsApp rules corrected. |
 
 ## Draft Persistence — nothing typed or AI-generated is EVER lost (fleet mandate 2026-08-13)
 

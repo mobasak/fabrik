@@ -167,7 +167,13 @@ def test_every_cited_section_exists() -> None:
         ]
         cited = m.group(2).strip()
         found += 1
-        if not any(h.startswith(cited) or cited.startswith(h) for h in heads):
+
+        # one must be a prefix of the other, ending at a word boundary ("Sound" does not match "Sounds and
+        # Haptics"; "Save Behavior" matches "Save Behavior — draft persistence …")
+        def _prefix(a: str, b: str) -> bool:
+            return bool(re.match(re.escape(a) + r"(?![A-Za-z])", b))
+
+        if not any(h and (_prefix(h, cited) or _prefix(cited, h)) for h in heads):
             missing.append(f"{m.group(1)} § {cited}")
     assert found >= 5, f"parsed only {found} cites"
     assert not missing, f"cited sections that do not exist: {missing}"

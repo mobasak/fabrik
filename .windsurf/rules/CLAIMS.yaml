@@ -2532,3 +2532,19 @@ claims:
     verify: "https://developer.apple.com/design/human-interface-guidelines/tab-bars ; https://m3.material.io/components/navigation-bar/guidelines (WebSearch + brave, 2026-10-01; ledger tw-04, tw-05)"
     window_days: 365
     last_verified: 2026-10-01
+
+  - id: graph-message-recall-beta
+    pack: core/tojlo-design-system.md
+    kind: version
+    claim: "Microsoft Graph's message: recall exists only in the beta endpoint, which Microsoft does not support for production, and Exchange Online recalls only within the organization or an allow-listed Exchange Online tenant, never to external recipients"
+    verify: "https://learn.microsoft.com/en-us/graph/api/message-recall?view=graph-rest-beta ; https://office365itpros.com/2023/02/17/message-recall-new-version/ (brave + exa, 2026-10-01; ledger oc-01, oc-03) — re-check whether recall reached v1.0"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: whatsapp-template-outside-24h
+    pack: core/tojlo-design-system.md
+    kind: policy
+    claim: "Outside a WhatsApp customer-service window (24 hours from the user's last message) a business can send only approved template messages; transactional alerts use the utility category"
+    verify: "https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages/ ; https://www.infobip.com/docs/whatsapp/compliance/template-compliance (exa + brave, 2026-10-01; ledger oc-04, oc-05)"
+    window_days: 365
+    last_verified: 2026-10-01
