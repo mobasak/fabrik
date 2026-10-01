@@ -126,7 +126,7 @@ on this box, so the log is the only place the signal survives.
 ## Limits
 
 - The transcripts are the source of truth; a session deleted by retention (`cleanupPeriodDays`, raised
-  to 3650 by D-233) before it was ever rendered is gone from here too — an existing render survives
+  to 3650 by D-233, effective in the fleet account dirs only from 2026-10-01, D-470) before it was ever rendered is gone from here too — an existing render survives
   (above). Nothing backs `~/.claude/projects/` up.
 - Subagent transcripts (`<session>/subagents/`) are not rendered — only the main conversation.
 - Renders are large (the two 300 MB transcripts → 6.7 and 7.9 MB of markdown); VS Code opens them, but
