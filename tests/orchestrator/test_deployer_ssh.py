@@ -1477,20 +1477,37 @@ class TestWriteFileToVpsPathNested:
             _write_file_to_vps_path("/opt/docs", filename, "content")
         return cmds
 
+    # Exact commands, not substrings: a mkdir of the FILE path, or `;` / `||` in place of `&&`,
+    # all still contain the expected fragments (the scoped review's escape variants S5-S7).
+    @staticmethod
+    def _tmp(filename: str) -> str:
+        import os
+
+        return f"/tmp/fabrik-{os.getpid()}-{filename.replace('/', '-')}"
+
     def test_nested_key_creates_the_remote_parent_before_the_move(self) -> None:
-        (cmd,) = self._run("src/theme/SearchBar/index.js")
-        mkdir = cmd.index("mkdir -p /opt/docs/src/theme/SearchBar")
-        assert mkdir < cmd.index("sudo mv"), cmd
+        key = "src/theme/SearchBar/index.js"
+        (cmd,) = self._run(key)
+        dest = f"/opt/docs/{key}"
+        assert cmd == (
+            "sudo mkdir -p /opt/docs/src/theme/SearchBar && "
+            f"sudo mv {self._tmp(key)} {dest} && sudo chown root:root {dest}"
+        ), cmd
 
     def test_flat_key_command_is_unchanged(self) -> None:
         (cmd,) = self._run("Dockerfile")
-        assert "mkdir" not in cmd
-        assert cmd.startswith("sudo mv ") and cmd.endswith("/opt/docs/Dockerfile"), cmd
+        assert cmd == (
+            f"sudo mv {self._tmp('Dockerfile')} /opt/docs/Dockerfile && "
+            "sudo chown root:root /opt/docs/Dockerfile"
+        ), cmd
 
     def test_a_nested_path_with_a_space_is_quoted(self) -> None:
         (cmd,) = self._run("a b/c.js")
-        assert "mkdir -p '/opt/docs/a b'" in cmd
-        assert cmd.rstrip().endswith("'/opt/docs/a b/c.js'"), cmd
+        assert cmd == (
+            "sudo mkdir -p '/opt/docs/a b' && "
+            f"sudo mv '{self._tmp('a b/c.js')}' '/opt/docs/a b/c.js' && "
+            "sudo chown root:root '/opt/docs/a b/c.js'"
+        ), cmd
 
     @pytest.mark.parametrize("bad", ["../x", "/abs/x", "a/../../x"])
     def test_an_escaping_filename_is_refused_before_any_remote_call(self, bad: str) -> None:

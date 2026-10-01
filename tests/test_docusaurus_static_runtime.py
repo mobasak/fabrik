@@ -90,8 +90,15 @@ def test_a_missing_or_empty_required_key_is_named(tmp_path: Path, key: str, shap
 
 def test_a_missing_registry_file_is_named(tmp_path: Path) -> None:
     missing = tmp_path / "nope.yaml"
-    with pytest.raises(VersionRegistryError, match="nope.yaml"):
+    with pytest.raises(VersionRegistryError, match=r"not found: .*nope\.yaml"):
         load_versions(missing)
+
+
+def test_an_unrelated_error_is_not_relabelled_as_a_registry_error() -> None:
+    # A narrow catch: a caller bug (a non-Path source) must surface as itself, never as
+    # "version registry unreadable" (the scoped review's escape variant S2).
+    with pytest.raises(AttributeError):
+        load_versions(42)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("bad", [["node_lts"], "24", None])
@@ -104,7 +111,7 @@ def test_a_non_mapping_versions_block_is_named(tmp_path: Path, bad: object) -> N
 def test_an_unparseable_registry_is_named(tmp_path: Path) -> None:
     path = tmp_path / "versions.yaml"
     path.write_text("versions: [unclosed\n")
-    with pytest.raises(VersionRegistryError, match="versions.yaml"):
+    with pytest.raises(VersionRegistryError, match=r"unreadable: .*versions\.yaml"):
         load_versions(path)
 
 
@@ -148,12 +155,16 @@ def test_renderer_writes_a_nested_template_to_disk(
 def test_a_nested_file_named_like_a_top_level_one_still_renders(
     tmp_path: Path, nested_templates: Path, registry: Path
 ) -> None:
+    (nested_templates / "t" / "Dockerfile.j2").write_text("FROM top\n")
     (nested_templates / "t" / "a" / "compose.yaml.j2").write_text("nested {{ name }}\n")
+    (nested_templates / "t" / "a" / "Dockerfile.j2").write_text("FROM nested\n")
     rendered = TemplateRenderer(templates_dir=nested_templates, output_dir=tmp_path / "out").render(
         _spec(tmp_path, "t"), dry_run=True
     )
     assert rendered["a/compose.yaml"].strip() == "nested nested-probe"
+    assert rendered["a/Dockerfile"].strip() == "FROM nested"
     assert rendered["compose.yaml"].strip() == "services: {}"
+    assert rendered["Dockerfile"].strip() == "FROM top"
 
 
 # ── round-1 review fixes (/fabrik-review-scoped, Phase A) ───────────────────
