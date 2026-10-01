@@ -425,7 +425,9 @@ def test_scaffold_dockerignore_keeps_every_build_input(scaffolded: Path) -> None
     assert [p for p in inputs if _ignored(rules, p)] == []
     # Secrets, dependencies, build output and local data stay out of the build context (C4).
     for path in (".env", ".env.local", "node_modules/x/index.js", "build/index.html", ".git/HEAD",
-                 "data/app.db", "backups/dump.sql", "logs/app.log"):  # fmt: skip
+                 "data/app.db", "backups/dump.sql", "logs/app.log",
+                 # root-level files: only the suffix rules catch these (closing pass 3, Sonnet)
+                 "local.db", "cache.sqlite", "debug.log"):  # fmt: skip
         assert _ignored(rules, path), path
 
 
