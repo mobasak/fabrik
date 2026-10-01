@@ -12,11 +12,11 @@
     "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
     "spec": ""
   },
-  "next": "/fabrik-execute-plan docs/development/plans/archived/2026-10-01-plan-1-docusaurus-static-runtime.md — it changes code, so it waits for your go",
+  "next": "/fabrik-execute-plan docs/development/plans/2026-10-01-plan-1-docusaurus-static-runtime.md — it changes code, so it waits for your go",
   "next_at": "2026-10-01T17:57:31.508552Z",
   "note": "superseded",
   "owner": "fleet",
   "priority": 2,
   "status": "dropped",
-  "title": "/fabrik-execute-plan docs/development/plans/archived/2026-10-01-plan-1-docusaurus-static-runtime.md — it changes code, so it waits for your go"
+  "title": "/fabrik-execute-plan docs/development/plans/2026-10-01-plan-1-docusaurus-static-runtime.md — it changes code, so it waits for your go"
 }

@@ -8,7 +8,7 @@
   "legacy": false,
   "links": {
     "decision": "",
-    "plan": "docs/development/plans/archived/2026-10-01-plan-1-docusaurus-static-runtime.md",
+    "plan": "docs/development/plans/2026-10-01-plan-1-docusaurus-static-runtime.md",
     "spec": ""
   },
   "next": "decide whether template-source docusaurus is supported at all; if yes, ship minimal docs/ + src/css/ in templates/docusaurus (or drop the openapi wiring from the config template); if no, refuse template: docusaurus in spec validation",

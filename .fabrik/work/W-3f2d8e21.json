@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-03T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "c393d3bed866fd77e14d9fdbe3fe04eed6f0ed96",
   "id": "W-3f2d8e21",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:eee2e77fa876",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "The docusaurus scaffold emits the runtime its own rule pack bans (2026-09-03, owner: fleet)"
 }

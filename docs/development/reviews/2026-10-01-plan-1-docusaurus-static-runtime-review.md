@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = f21aec8f73b0beca767c894e3c9c48cdeb9180f1; range tip f21aec8f73b0beca767c894e3c9c48cdeb9180f1; `git diff 14f24fd23..HEAD -- src/fabrik/version_registry.py src/fabrik/template_renderer.py src/fabrik/scaffold.py src/fabrik/spec_generator.py src/fabrik/orchestrator/deployer_ssh.py templates/docusaurus/Dockerfile.j2 templates/docusaurus/compose.yaml.j2 templates/docusaurus/defaults.yaml templates/docusaurus/package.json.j2 templates/docusaurus/nginx.conf.j2 templates/docusaurus/src/pages/index.js.j2 templates/docusaurus/src/theme/SearchBar/index.js.j2 templates/docusaurus/README.md tests/test_docusaurus_static_runtime.py tests/orchestrator/test_deployer_ssh.py tests/test_scaffold.py tests/test_spec_generator.py` md5 b740407c7abb67d10c408177c555115b (62333 bytes)
 **Command:** /fabrik-review · **Changed:** `src/fabrik/version_registry.py`, `src/fabrik/template_renderer.py`, `src/fabrik/scaffold.py`, `src/fabrik/spec_generator.py`, `src/fabrik/orchestrator/deployer_ssh.py`, `templates/docusaurus/Dockerfile.j2`, `templates/docusaurus/compose.yaml.j2`, `templates/docusaurus/defaults.yaml`, `templates/docusaurus/package.json.j2`, `templates/docusaurus/nginx.conf.j2`, `templates/docusaurus/src/pages/index.js.j2`, `templates/docusaurus/src/theme/SearchBar/index.js.j2`, `templates/docusaurus/README.md`, `tests/test_docusaurus_static_runtime.py`, `tests/orchestrator/test_deployer_ssh.py`, `tests/test_scaffold.py`, `tests/test_spec_generator.py`
-**Plan:** `docs/development/plans/archived/2026-10-01-plan-1-docusaurus-static-runtime.md`
+**Plan:** `docs/development/plans/2026-10-01-plan-1-docusaurus-static-runtime.md`
 
 ## Coverage Checklist
 
