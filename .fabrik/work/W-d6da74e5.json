@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T08:24:38.386105Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-d6da74e5",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-01-docusaurus-static-runtime-design.md"
+  },
+  "next": "after the docusaurus spec lands its versions loader, render each template's FROM lines from .windsurf/rules/versions.yaml, one runtime-compatibility test per template",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Six templates hardcode node:22-bookworm-slim / python:3.12-slim-bookworm instead of the version registry (desktop-app, file-api, node-api, saas-skeleton, file-worker, scaffold.py:5690)"
+}
