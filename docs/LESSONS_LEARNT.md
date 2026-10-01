@@ -1,6 +1,17 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## The merge owner lands its own work before it merges anyone else's, and an archive never edits a ledger row (2026-10-01)
+
+The merge-request loop's first live hour refused two of three requests, and both refusals came from the merge
+owner's own side, not the requester's. The first: the owner held an uncommitted edit to a file the requester's
+branch also changed, and the preflight refuses any dirty non-ledger path, so nothing moved. The second: the owner's
+plan-archive commit repointed a path inside an existing `docs/DECISIONS.md` row, and every open branch that inserted
+rows beside it now met a conflict that is not a pure insertion. The script's refusals were correct both times. The
+practice is the lesson. Commit and land your own work before running `merge_request.py merge`. When archiving a
+plan, leave existing ledger rows untouched (a row is immutable; a moved path is said in the new row), because an
+edited row turns every sibling's ledger insertion into a hand merge.
+
 ## A path filter must read with --no-renames, and a merge test must build its branch in a linked worktree (2026-09-29)
 
 Git's rename detection hides a deleted source path: `--name-only` lists only the destination of a move, so a
