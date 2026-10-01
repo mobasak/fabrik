@@ -49,7 +49,7 @@ Verify injected env with `docker inspect` (`sudo docker inspect zitadel --format
 ## Health / metrics (non-standard paths — NOT behind Authelia)
 
 - Liveness `/debug/healthz` · **readiness `/debug/ready`** (DB-checked — returns non-200 when `postgres-main` is
-  unreachable) · metrics `/debug/metrics` (Prometheus, enabled by default via `ZITADEL_METRICS_TYPE: otel`).
+  unreachable) · metrics `/debug/metrics` (Prometheus) — served only when a prometheus exporter is registered; the live deploy answered 404 without an explicit setting, so the spec names it with `ZITADEL_INSTRUMENTATION_METRIC_EXPORTER_TYPE: prometheus` (W-ef6ecf90).
 - ⚠️ These `/debug/*` paths do **not** match the fabrik Authelia-bypass list (`/health`,`/healthz`,`/metrics`,
   `/api/health`) — but Zitadel is NOT behind Authelia (no authelia registrar), so Gatus/Prometheus probe them
   directly. **Do not add an Authelia bypass** for these.

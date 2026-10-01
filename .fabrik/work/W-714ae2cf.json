@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T22:29:09.818465Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-714ae2cf",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read the drift alert's expression and the registrar state for each of the four, decide spec vs live, and fix the side that is wrong",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet",
+    "monitoring"
+  ],
+  "title": "FabrikRegistrarDrift fires for 4 resources: tryton-crm backrest, zitadel backrest + postgres, site-provisioner postgres (kaizen 2026-10-02)"
+}

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the Zitadel spec enables the metrics endpoint its scrape job reads (2026-10-02)
+`specs/services/zitadel.yaml` registered a Prometheus scrape of `/debug/metrics` (`shape.exposes_metrics`, `monitoring.metrics_path`) but never named Zitadel's exporter, and the live endpoint answered Go's bare `404 page not found` (no exporter registered, `internal/api/api.go:378-383` at v4.17.1) while `/debug/healthz` and `/debug/ready` answered 200 — the `fabrik-zitadel` target has been down since 2026-08-29 and its critical `ServiceUnhealthy` alert firing for 747 hours. The spec now sets `ZITADEL_INSTRUMENTATION_METRIC_EXPORTER_TYPE: prometheus` and its comment no longer claims metrics are default-on. That setting registers the exporter whatever the legacy `Metrics.Type` resolves to; why the running container had none is unverified, because v4.17.1's source would turn it on through that legacy setting and reading the container's config is a production read. `tests/test_zitadel_spec.py` pins it (red against the pre-fix spec). Takes effect on the next `fabrik apply specs/services/zitadel.yaml` (operator). Found by the fleet kaizen pass; W-ef6ecf90.
+
 ### Changed — The hub's main checkout committed to zero on the operator's order (2026-10-01)
 Week-old generated files (PORTS sync stamp, PROJECT_CATALOG, capability-defects, kaizen collector rows), 24 work items, two one-character ledger normalisations and a partial `libs/subagents` re-vendor (select.py now identical to fabrik-lib; agent.py still behind — routed to intel) committed as they stood. `arch/` (a 20 MB copy of hub scripts), `err.txt` and `out.txt` gitignored and kept on disk. Nothing deleted.
 
