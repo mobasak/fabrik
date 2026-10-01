@@ -1,0 +1,26 @@
+{
+  "block_digest": "885fcb1dd9776513dbaa1b5f3dbbefed2a9d190314d17073d8151f226b179dd2",
+  "blocked_by": [],
+  "created": "2026-10-01T11:48:40.572363Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "underivable",
+  "id": "W-264e4e87",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "41fb46f0fa15a50849b06562b8686e250ca745d78004ab6ac7392d2fc5e5c8e1"
+  ],
+  "next": "",
+  "note": "in each repo the agent which is not on worktree must be merge owner and coordinator. (D-471)",
+  "owner": "",
+  "priority": 2,
+  "question": "Should fabrik-lib-sentinel also be fabrik-lib's coordinator, the agent that hands out work items to dev1 and dev2?",
+  "status": "done",
+  "title": "Should fabrik-lib-sentinel also be fabrik-lib's coordinator, the agent that hands out work items to dev1 and dev2?"
+}
