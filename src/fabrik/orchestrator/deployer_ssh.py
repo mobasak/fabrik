@@ -872,11 +872,12 @@ def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
             pass
 
     # A rendered key may be nested (`src/theme/SearchBar/index.js`, D-476): `mv` does not create the
-    # destination directory, so make the parent first. Every remote path is shell-quoted; a safe name
-    # quotes to itself, so a flat filename's command is unchanged.
+    # destination directory, so make the parent first. Only the FILENAME part is shell-quoted: `path`
+    # is a hub value the callers also use unquoted (`cd {path}`), and quoting it would stop a `~`
+    # from expanding. A safe name quotes to itself, so a flat filename's command is unchanged.
     parent = posixpath.dirname(filename)
-    dest = shlex.quote(f"{path}/{filename}")
-    mkdir = f"sudo mkdir -p {shlex.quote(f'{path}/{parent}')} && " if parent else ""
+    dest = f"{path}/{shlex.quote(filename)}"
+    mkdir = f"sudo mkdir -p {path}/{shlex.quote(parent)} && " if parent else ""
     try:
         _ssh(
             f"{mkdir}sudo mv {shlex.quote(tmp_remote)} {dest} && sudo chown root:root {dest}",

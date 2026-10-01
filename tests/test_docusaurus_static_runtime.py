@@ -69,6 +69,15 @@ def test_load_versions_returns_the_map_as_strings(registry: Path) -> None:
     assert all(isinstance(v, str) and v for v in got.values())
 
 
+def test_an_unusable_value_on_any_key_is_named_not_dropped(tmp_path: Path) -> None:
+    # A non-required key holding a float would otherwise vanish and render empty in a template
+    # that reads it (closing pass N2); a null or blank one is simply absent.
+    with pytest.raises(VersionRegistryError, match="meilisearch_major"):
+        load_versions(_registry(tmp_path, {**GOOD, "meilisearch_major": 1.10}))
+    got = load_versions(_registry(tmp_path, {**GOOD, "unset": None, "blank": " "}))
+    assert "unset" not in got and "blank" not in got
+
+
 def test_load_versions_coerces_a_numeric_value_to_str(tmp_path: Path) -> None:
     path = _registry(tmp_path, {**GOOD, "node_lts": 24})
     assert load_versions(path)["node_lts"] == "24"

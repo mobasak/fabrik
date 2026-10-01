@@ -1502,12 +1502,29 @@ class TestWriteFileToVpsPathNested:
         ), cmd
 
     def test_a_nested_path_with_a_space_is_quoted(self) -> None:
+        # Only the FILENAME part is quoted: the app dir is a hub value the same caller also uses
+        # unquoted (`cd {path}`), so quoting it would stop a `~` from expanding (closing pass N1).
         (cmd,) = self._run("a b/c.js")
         assert cmd == (
-            "sudo mkdir -p '/opt/docs/a b' && "
-            f"sudo mv '{self._tmp('a b/c.js')}' '/opt/docs/a b/c.js' && "
-            "sudo chown root:root '/opt/docs/a b/c.js'"
+            "sudo mkdir -p /opt/docs/'a b' && "
+            f"sudo mv '{self._tmp('a b/c.js')}' /opt/docs/'a b/c.js' && "
+            "sudo chown root:root /opt/docs/'a b/c.js'"
         ), cmd
+
+    def test_a_tilde_app_dir_is_left_for_the_shell_to_expand(self) -> None:
+        from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
+
+        cmds: list[str] = []
+        with (
+            patch("fabrik.drivers.ssh.scp_to_vps"),
+            patch(
+                "fabrik.drivers.ssh.ssh", side_effect=lambda cmd, timeout=10: cmds.append(cmd) or ""
+            ),
+        ):
+            _write_file_to_vps_path("~/apps/foo", ".env", "content")
+        assert cmds == [
+            f"sudo mv {self._tmp('.env')} ~/apps/foo/.env && sudo chown root:root ~/apps/foo/.env"
+        ], cmds
 
     @pytest.mark.parametrize("bad", ["../x", "/abs/x", "a/../../x"])
     def test_an_escaping_filename_is_refused_before_any_remote_call(self, bad: str) -> None:

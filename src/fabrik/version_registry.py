@@ -54,8 +54,14 @@ def load_versions(path: Path | None = None) -> dict[str, str]:
             raise VersionRegistryError(
                 f"version registry {source} lacks a string value for `{key}` (got {value!r})"
             )
-    return {
-        str(k): str(v).strip()
-        for k, v in versions.items()
-        if isinstance(v, (str, int)) and not isinstance(v, bool) and str(v).strip()
-    }
+    out: dict[str, str] = {}
+    for k, v in versions.items():
+        if v is None or (isinstance(v, str) and not v.strip()):
+            continue  # an unset or blank optional key is simply absent
+        if isinstance(v, bool) or not isinstance(v, (str, int)):
+            # Named, never dropped: a template reading this key would otherwise render empty.
+            raise VersionRegistryError(
+                f"version registry {source} has a non-string value for `{k}` ({v!r})"
+            )
+        out[str(k)] = str(v).strip()
+    return out
