@@ -285,6 +285,8 @@ def test_merge_lands_one_merge_commit_and_keeps_sibling_ledger_wip(world):
     replies = world.replies(msg_id)
     assert set(replies) == {"fleet", "intel"}
     assert new in replies["fleet"] and "outcome: merged" in replies["fleet"]
+    assert "no owner tests ran (no .fabrik/merge-tests, no touched tests/)" in replies["intel"]
+    assert "not carried" not in replies["fleet"]
     assert f"merge-sha: {new}" in world.archived(msg_id)
     assert "disposition: done" in world.archived(msg_id)
     assert world.record(msg_id)["phase"] == "replied"
@@ -331,6 +333,21 @@ def _red_owner_test(world):
     return world.branch({"x.txt": "x\n"}), "owner tests red"
 
 
+def _dirty_ledger_carry_conflicts(world):
+    head = world.branch({"CHANGELOG.md": CHANGELOG.replace("- old\n", "- old B\n")})
+    world.write("CHANGELOG.md", CHANGELOG.replace("- old\n", "- old W\n"))  # uncommitted WIP
+    return head, "edits an existing line"
+
+
+def _branch_mints_a_colliding_d_id(world):
+    head = world.branch(
+        {"docs/DECISIONS.md": DECISIONS.replace("| D-1 |", "| D-3 | branch |\n| D-1 |")}
+    )
+    world.write("docs/DECISIONS.md", DECISIONS.replace("| D-1 |", "| D-3 | base |\n| D-1 |"))
+    world.commit_main("base row", "docs/DECISIONS.md")
+    return head, "D-3 collides"
+
+
 @pytest.mark.parametrize(
     "setup",
     [
@@ -340,6 +357,8 @@ def _red_owner_test(world):
         _staged_only,
         _ledger_edits_existing_line,
         _red_owner_test,
+        _dirty_ledger_carry_conflicts,
+        _branch_mints_a_colliding_d_id,
     ],
 )
 def test_preflight_refusal_leaves_everything_byte_identical(world, setup):
@@ -465,23 +484,24 @@ def test_merge_picks_only_the_owners_request_and_claims_before_building(world):
     assert own_id in _git(world.main, "log", "-1", "--format=%B", "master")
 
 
-def _strand(world, pid: int, start) -> str:
+def _strand(world, pid: int, start, *, phase: str = "claimed", claim: bool = True) -> str:
     head = world.branch({"x.txt": "x\n"})
     msg_id = world.send(head)
-    res = subprocess.run(
-        [sys.executable, str(MAIL), "claim", msg_id, "--repo", "proj"],
-        cwd=world.main,
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=False,
-    )
-    assert res.returncode == 0, res.stderr
+    if claim:
+        res = subprocess.run(
+            [sys.executable, str(MAIL), "claim", msg_id, "--repo", "proj"],
+            cwd=world.main,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        assert res.returncode == 0, res.stderr
     records = world.main / ".git" / "fabrik-merge"
     records.mkdir(exist_ok=True)
     rec = {
         "id": msg_id,
-        "phase": "claimed",
+        "phase": phase,
         "branch": "feat",
         "head": head,
         "base": "master",
@@ -554,8 +574,10 @@ def test_a_path_raced_before_the_carry_keeps_the_edit_with_its_index_at_the_merg
     assert world.read("README.md") == "owner raced edit\n"
     staged = _git(world.main, "ls-files", "-s", "README.md").split()[1]
     assert staged == _git(world.main, "rev-parse", "master:README.md")
-    reply = world.replies(msg_id)["fleet"]
-    assert "README.md" in reply and "git commit -a" in reply
+    for agent in ("fleet", "intel"):  # requester AND coordinator see it, under its own heading
+        reply = world.replies(msg_id)[agent]
+        listed = reply.split("not carried:", 1)[1]
+        assert "README.md" in listed and "git commit -a" in listed
 
 
 # --- V7: head already in base → no second merge ---------------------------------------------
@@ -612,10 +634,11 @@ def test_the_bases_merge_tests_run_never_the_branchs(world):
     world.commit_main("owner tests", ".fabrik/merge-tests")
     _git(world.wt, "merge", "-q", "--ff-only", "master")  # the branch starts from that base
     head = world.branch({".fabrik/merge-tests": "exit 1\n", "x.txt": "x\n"})
-    world.send(head)
+    msg_id = world.send(head)
 
     assert world.run("merge") == 0
     assert marker.read_text() == "base"
+    assert "tests: .fabrik/merge-tests (base copy): green" in world.replies(msg_id)["fleet"]
 
 
 # --- (b): pure-insertion ledger conflicts resolve, newest D-row first -----------------------
@@ -668,3 +691,192 @@ def test_owner_tests_see_the_merged_src_first_and_the_fabrik_lib_link(world):
     assert world.run("merge") == 0
     assert probe.read_text() == "True True proj"
     assert world.scratch_left() == []
+
+
+# --- review round 1 ---------------------------------------------------------------------------
+def _second_branch(world, rel: str) -> str:
+    """A second requester branch off the initial commit, pushed."""
+    wt2 = world.tmp / "wt2"
+    root = _git(world.main, "rev-list", "--max-parents=0", "master")
+    _git(world.main, "worktree", "add", "-q", "-b", "feat2", str(wt2), root)
+    world.write(rel, "second\n", root=wt2)
+    _git(wt2, "add", "--", rel)
+    _git(wt2, "commit", "-q", "-m", "second branch")
+    _git(wt2, "push", "-q", "origin", "feat2")
+    return _git(wt2, "rev-parse", "HEAD")
+
+
+def _reject_push_with(world, rel: str, text: str):
+    pushed: list[str] = []
+
+    def race(name):
+        if name == "before-push" and not pushed:
+            pushed.append(world.push_from_elsewhere(rel, text))
+
+    return race
+
+
+# 1 — a refused catch-up never wedges the owner
+def test_a_refused_catch_up_is_parked_and_never_blocks_the_inbox(world, capsys):
+    msg_id = world.send(world.branch({"README.md": "branch readme\n"}))
+    assert world.run("merge", phase=_reject_push_with(world, "README.md", "elsewhere\n")) == 4
+    capsys.readouterr()
+
+    assert world.run("resume", msg_id) == 4  # origin and local diverge in README.md
+
+    err = capsys.readouterr().err
+    rec = world.record(msg_id)
+    assert rec["phase"] == "catchup-refused" and rec["merge_sha"]
+    assert "diverged in README.md" in err and f"merge_request.py resume {msg_id}" in err
+    assert "rebase on" not in rec["reason"]
+    rec_path = world.main / ".git" / "fabrik-merge" / f"{msg_id}.json"
+    rec.update(pid=_dead_pid(), start="1")
+    rec_path.write_text(json.dumps(rec), encoding="utf-8")
+    other = world.send(_second_branch(world, "z.txt"), branch="feat2")
+
+    world.run("merge")
+
+    assert other not in world.inbox() and "disposition:" in world.archived(other)
+    assert world.record(msg_id)["phase"] == "catchup-refused"
+    assert "skipping" in capsys.readouterr().err
+    assert world.run("resume", msg_id) == 4  # only an explicit resume retries it
+
+
+# 3 — the body's branch is a branch name, never a refspec or an option
+@pytest.mark.parametrize("bad", ["-upload-pack=x", "a..b", "x:refs/heads/master"])
+def test_a_malformed_branch_field_refuses_before_any_fetch(world, bad):
+    msg_id = world.send(world.branch({"x.txt": "x\n"}), branch=bad)
+    old = world.base()
+
+    assert world.run("merge") == 1
+    assert world.base() == old and "disposition: blocked" in world.archived(msg_id)
+
+
+# 4 — after the CAS, every failure is PARTIAL (4), never a refusal (1)
+def test_a_reply_timeout_after_the_cas_is_partial(world, monkeypatch):
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    real = world.mod._mail_cli
+
+    def flaky(ctx, *args, **kw):
+        if args[0] == "send":
+            raise world.mod.TimedOutError("mail.py send timed out")
+        return real(ctx, *args, **kw)
+
+    monkeypatch.setattr(world.mod, "_mail_cli", flaky)
+    assert world.run("merge") == 4
+    assert world.origin() == world.base() == world.record(msg_id)["merge_sha"]
+
+
+def test_a_failed_catch_up_fetch_on_resume_is_partial(world):
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    assert world.run("merge", phase=_reject_push_with(world, "y.txt", "y\n")) == 4
+    _git(world.main, "remote", "set-url", "origin", str(world.tmp / "gone.git"))
+
+    assert world.run("resume", msg_id) == 4
+
+
+# 5 — each path is re-hashed immediately before it is written
+def test_a_path_edited_after_the_carry_snapshot_is_never_overwritten(world, monkeypatch):
+    msg_id = world.send(world.branch({"README.md": "branch readme\n"}))
+    armed: list[bool] = []
+    real = world.mod._snapshot
+
+    def snapshot(cwd, paths):
+        out = real(cwd, paths)
+        if armed and armed.pop():
+            world.write("README.md", "edited inside the carry\n")
+        return out
+
+    monkeypatch.setattr(world.mod, "_snapshot", snapshot)
+    assert (
+        world.run("merge", phase=lambda n: armed.append(True) if n == "before-carry" else None) == 0
+    )
+    assert world.read("README.md") == "edited inside the carry\n"
+    assert "README.md" in world.replies(msg_id)["fleet"].split("not carried:", 1)[1]
+
+
+# 6 — the record exists before the claim
+@pytest.mark.parametrize("claimed", [True, False])
+def test_a_claiming_record_is_continued_or_reclaimed(world, claimed):
+    msg_id = _strand(world, _dead_pid(), "1", phase="claiming", claim=claimed)
+
+    assert world.run("merge") == 0
+
+    assert world.record(msg_id)["phase"] == "replied" and msg_id not in world.inbox()
+    assert _git(world.main, "rev-parse", "master^2") == world.record(msg_id)["head"]
+
+
+def test_the_record_is_written_before_mail_claim_runs(world, monkeypatch):
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    real = world.mod._mail_cli
+    seen: list[str] = []
+
+    def spy(ctx, *args, **kw):
+        if args[0] == "claim":
+            seen.append(world.record(msg_id)["phase"])
+        return real(ctx, *args, **kw)
+
+    monkeypatch.setattr(world.mod, "_mail_cli", spy)
+    assert world.run("merge") == 0
+    assert seen == ["claiming"]
+
+
+# 7 — an unreadable record never blocks the run
+def test_an_unreadable_record_is_skipped_with_a_warning(world, capsys):
+    records = world.main / ".git" / "fabrik-merge"
+    records.mkdir()
+    (records / "01BADBADBADBADBADBADBADBAD.json").write_text("{not json", encoding="utf-8")
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+
+    assert world.run("merge") == 0
+    assert world.record(msg_id)["phase"] == "replied"
+    assert "unreadable" in capsys.readouterr().err
+
+
+# 8 — a stale throwaway worktree is removed and pruned
+def test_a_stale_throwaway_worktree_is_removed(world):
+    stale = world.tmp / "scratch" / "fabrik-merge-stale" / "proj"
+    _git(world.main, "worktree", "add", "-q", "--detach", str(stale), "master")
+    before = world.worktrees()
+    assert f"worktree {stale}" in before
+
+    assert world.run("merge") == 0
+
+    assert f"worktree {stale}" not in world.worktrees() and world.scratch_left() == []
+
+
+# 9 — a checkout that moved onto base after the preflight is preflighted again
+def test_a_main_checkout_switched_onto_base_after_preflight_goes_back(world):
+    _git(world.main, "checkout", "-q", "-b", "side")
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    builds: list[str] = []
+
+    def phase(name):
+        if name == "after-build":
+            builds.append(name)
+        if name == "before-cas" and len(builds) == 1:
+            _git(world.main, "checkout", "-q", "master")
+
+    assert world.run("merge", phase=phase) == 0
+    assert len(builds) == 2
+    assert world.read("x.txt") == "x\n"
+    assert _git(world.main, "status", "--porcelain", "--untracked-files=no") == ""
+    assert world.record(msg_id)["phase"] == "replied"
+
+
+# 10 — a D-id collision in the carry is not carried, the WIP stays
+def test_a_d_id_collision_in_the_carry_is_listed_and_the_wip_kept(world):
+    head = world.branch(
+        {"docs/DECISIONS.md": DECISIONS.replace("| D-1 |", "| D-5 | branch |\n| D-1 |")}
+    )
+    wip = DECISIONS + "| D-5 | owner wip |\n"
+    world.write("docs/DECISIONS.md", wip)
+    msg_id = world.send(head)
+
+    assert world.run("merge") == 0
+
+    assert world.read("docs/DECISIONS.md") == wip
+    staged = _git(world.main, "ls-files", "-s", "docs/DECISIONS.md").split()[1]
+    assert staged == _git(world.main, "rev-parse", "master:docs/DECISIONS.md")
+    listed = world.replies(msg_id)["fleet"].split("not carried:", 1)[1]
+    assert "docs/DECISIONS.md" in listed and "D-5" in listed

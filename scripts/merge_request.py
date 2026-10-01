@@ -511,6 +511,14 @@ def on_phase(name: str) -> None:
     del name
 
 
+class ConflictError(RefusedError):
+    """A build conflict the auto-resolve may not settle; ``paths`` names where."""
+
+    def __init__(self, paths: list[str], message: str) -> None:
+        super().__init__(message)
+        self.paths = paths
+
+
 class MergePartialError(Exception):
     """The merge is committed locally but a later step (push, reply, ack) did not finish: exit 4,
     finish with ``resume <id>``."""
@@ -658,8 +666,16 @@ def _save(ctx: _Ctx, rec: dict) -> None:
     ctx.records.mkdir(parents=True, exist_ok=True)
     path = ctx.records / f"{rec['id']}.json"
     tmp = ctx.records / f".{rec['id']}.json.{os.getpid()}.tmp"
-    tmp.write_text(json.dumps(rec, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(rec, indent=1, sort_keys=True) + "\n")
+        fh.flush()
+        os.fsync(fh.fileno())  # the bytes are on disk BEFORE the rename publishes them
     os.replace(tmp, path)
+    dir_fd = os.open(ctx.records, os.O_RDONLY)
+    try:
+        os.fsync(dir_fd)
+    finally:
+        os.close(dir_fd)
 
 
 def _load(ctx: _Ctx, msg_id: str) -> dict | None:
@@ -890,7 +906,9 @@ def _build(ctx: _Ctx, wt: Path, other: str, message: str, base: str) -> str:
             raise RefusedError(f"git merge failed: {res.stderr.strip() or res.stdout.strip()}")
         others = sorted(p for p in conflicted if p not in LEDGERS)
         if others:
-            raise RefusedError(f"conflict in {', '.join(others)} — rebase on {base} and resend")
+            raise ConflictError(
+                others, f"conflict in {', '.join(others)} — rebase on {base} and resend"
+            )
         for path in conflicted:
             stages: dict[str, str] = {}
             for entry in _gitc(wt, "ls-files", "-u", "-z", "--", path).split("\0"):
@@ -899,13 +917,40 @@ def _build(ctx: _Ctx, wt: Path, other: str, message: str, base: str) -> str:
                     _, sha, stage = meta.split()
                     stages[stage] = sha
             if "2" not in stages or "3" not in stages:
-                raise RefusedError(f"{path}: deleted on one side — rebase on {base} and resend")
+                raise ConflictError(
+                    [path], f"{path}: deleted on one side — rebase on {base} and resend"
+                )
             orig = _blob(wt, stages["1"]) if "1" in stages else ""
-            text = _merge3(path, _blob(wt, stages["2"]), orig, _blob(wt, stages["3"]), base)
+            try:
+                text = _merge3(path, _blob(wt, stages["2"]), orig, _blob(wt, stages["3"]), base)
+            except RefusedError as exc:
+                raise ConflictError([path], str(exc)) from exc
             (wt / path).write_bytes(_encode(text))
             _gitc(wt, "add", "--", path)
         _gitc(wt, "commit", "--no-edit", "-q", timeout=TOOL_TIMEOUT_S)
-    return _gitc(wt, "rev-parse", "HEAD").strip()
+    new = _gitc(wt, "rev-parse", "HEAD").strip()
+    # O9: a merge that makes two DECISIONS rows share an id is refused; ids already duplicated
+    # on the base are not this request's doing.
+    clash = _dup_ids(_show(wt, new, DECISIONS)) - _dup_ids(_show(wt, f"{new}^1", DECISIONS))
+    if clash:
+        ids = ", ".join(f"D-{n}" for n in sorted(clash, key=int))
+        raise RefusedError(f"{ids} collides in {DECISIONS} — re-mint and resend")
+    return new
+
+
+def _show(cwd: Path, commit: str, path: str) -> str:
+    """``path`` at ``commit``, or "" when it is absent there."""
+    res = _run_bytes(["git", "show", f"{commit}:{path}"], GIT_TIMEOUT_S, cwd=cwd)
+    return _decode(res.stdout) if res.returncode == 0 else ""
+
+
+def _dup_ids(text: str) -> set[str]:
+    """The ``| D-NNN |`` ids that open more than one DECISIONS row."""
+    seen: set[str] = set()
+    dups: set[str] = set()
+    for n in _D_ROW_RE.findall(text):
+        (dups if n in seen else seen).add(n)
+    return dups
 
 
 def _main_on(ctx: _Ctx, base: str) -> bool:
@@ -925,13 +970,17 @@ def _refuse_linked_base(ctx: _Ctx, base: str) -> None:
             raise RefusedError(f"{base} is checked out in the linked worktree {where} — refused")
 
 
-def _preflight(ctx: _Ctx, base: str, old: str, new: str) -> tuple[list[tuple[str, str]], dict]:
+def _preflight(
+    ctx: _Ctx, base: str, old: str, new: str
+) -> tuple[list[tuple[str, str]], dict, bool]:
     """(a): snapshot every merged path in the main checkout and refuse — nothing changed — on an
     untracked collision, a dirty non-ledger path, a dirty path the merge deletes or renames, a
-    staged difference from HEAD, or a dirty ledger whose 3-way carry conflicts."""
+    staged difference from HEAD, or a dirty ledger whose 3-way carry conflicts (a pure insertion
+    resolves; an edit of an existing line refuses here, BEFORE the CAS). Returns (merged paths,
+    snapshot, whether the main checkout was on base — only then is it preflighted)."""
     merged = _merged_paths(ctx.main, old, new)
     if not _main_on(ctx, base):
-        return merged, {}
+        return merged, {}, False
     paths = [p for _, p in merged]
     snap = _snapshot(ctx.main, paths)
     old_b = _tree_blobs(ctx.main, old, paths)
@@ -962,7 +1011,7 @@ def _preflight(ctx: _Ctx, base: str, old: str, new: str) -> tuple[list[tuple[str
             raise RefusedError(f"{path} is dirty in the main checkout in a way no carry can merge")
         current = _decode((ctx.main / path).read_bytes())
         _merge3(path, current, _blob(ctx.main, head), _blob(ctx.main, new_b[path]), base)
-    return merged, snap
+    return merged, snap, True
 
 
 def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -> str:
@@ -986,7 +1035,7 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
             and p.endswith(".py")
         ]
         if not touched:
-            return "no owner tests: no .fabrik/merge-tests on base and no tests/ file touched"
+            return "no owner tests ran (no .fabrik/merge-tests, no touched tests/)"
         argv, label = (
             [sys.executable, "-m", "pytest", "-q", *touched],
             f"pytest {' '.join(touched)}",
@@ -1000,11 +1049,11 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
 
 def _merge_into_base(
     ctx: _Ctx, rec: dict, other: str, message: str, *, catch_up: bool
-) -> tuple[str, str, dict, str]:
+) -> tuple[str, str, dict, str, bool]:
     """(a)-(d) for one merge of ``other`` into the local base: build, preflight, tests, re-hash,
-    CAS — rebuilt IN FULL up to MAX_REBUILDS times when a merged path changed or the base moved.
-    Returns (old, new, snapshot, tests summary); refuses with nothing outside the throwaway
-    changed."""
+    CAS — rebuilt IN FULL up to MAX_REBUILDS times when a merged path changed, the base moved,
+    or the main checkout moved onto or off the base after the preflight (O8). Returns (old, new,
+    snapshot, tests summary, preflighted); refuses with nothing outside the throwaway changed."""
     base = rec["base"]
     last = ""
     for attempt in range(MAX_REBUILDS + 1):
@@ -1014,14 +1063,15 @@ def _merge_into_base(
         with _throwaway(ctx, rec, old) as wt:
             new = _build(ctx, wt, other, message, base)
             on_phase("after-build")
-            merged, snap = _preflight(ctx, base, old, new)
+            merged, snap, on_base = _preflight(ctx, base, old, new)
             tests = _owner_tests(ctx, wt, old, merged)
             if not catch_up:
                 rec.update(phase="built", building=new)
                 _save(ctx, rec)
             on_phase("before-cas")
-            if not _main_on(ctx, base) and snap:
-                last = "the main checkout left the base"
+            if _main_on(ctx, base) != on_base:
+                last = "the main checkout moved onto or off the base after the preflight"
+                ctx.notes.append(f"(d) attempt {attempt + 1}: {last} — back to (a)")
                 continue
             if _snapshot(ctx.main, list(snap)) != snap:
                 last = "a merged path changed in the main checkout after the snapshot"
@@ -1033,7 +1083,7 @@ def _merge_into_base(
                 cwd=ctx.main,
             )
             if res.returncode == 0:
-                return old, new, snap, tests
+                return old, new, snap, tests, on_base
             last = f"the local base {base} moved during the build"
             ctx.notes.append(f"(d) attempt {attempt + 1}: {last} — rebuilding")
     raise RefusedError(f"(d) {last} on {MAX_REBUILDS + 1} builds — refused, base untouched")
@@ -1044,11 +1094,14 @@ def _carry(
     ctx: _Ctx, base: str, old: str, new: str, snap: dict | None
 ) -> tuple[list[str], list[str]]:
     """Bring the main checkout's merged paths from ``old`` to ``new``, IDEMPOTENTLY: a path whose
-    index already holds ``new`` (or HEAD's blob) is done; a path whose working copy changed since
-    the snapshot (``snap``; None on a resume without one) keeps the owner's edit with its index
-    reset to the merge. Returns (carried paths, warnings)."""
+    index already holds ``new`` (or HEAD's blob) is done. A path is NOT CARRIED — the owner's
+    copy kept, its index entry realigned to the merge, and the path listed for the reply — when
+    its working copy changed since the (a) snapshot (``snap``; None on a resume without one) or
+    since the carry's own hash (re-taken per path IMMEDIATELY before writing it), when its
+    ledger 3-way carry conflicts or makes a DECISIONS id collide, or when it is dirty with no
+    snapshot to judge it. Returns (carried paths, not-carried lines)."""
     if not _main_on(ctx, base):
-        return [], [f"carry skipped: the main checkout is not on {base}"]
+        return [], [f"(every merged path): the main checkout is not on {base} — nothing carried"]
     merged = _merged_paths(ctx.main, old, new)
     paths = [p for _, p in merged]
     head = _gitc(ctx.main, "rev-parse", "HEAD").strip()
@@ -1056,58 +1109,73 @@ def _carry(
     old_b = _tree_blobs(ctx.main, old, paths)
     new_b = _tree_blobs(ctx.main, new, paths)
     head_b = new_b if head == new else _tree_blobs(ctx.main, head, paths)
-    checkout: list[str] = []
-    deletes: list[str] = []
-    writes: dict[str, str] = {}
+    carried: list[str] = []
     reset: list[str] = []
-    warnings: list[str] = []
+    skipped: list[str] = []
+
+    def keep(path: str, why: str) -> None:
+        skipped.append(
+            f"{path}: {why} — your copy is kept and its index entry is the merge; a later "
+            "`git commit -a` would revert the merge there"
+        )
+
     for _, path in merged:
         wt, idx = now[path]
         if idx == new_b.get(path) or (idx == head_b.get(path) and head != new):
             continue  # already carried, or consistent with a later base
         if idx != old_b.get(path):
-            warnings.append(f"{path}: the index holds a staged change — left as is")
+            skipped.append(f"{path}: the index holds a staged change — left as is, index untouched")
             continue
         reset.append(path)
         if snap is not None and path in snap and wt != snap[path][0]:
-            warnings.append(
-                f"{path}: edited in the main checkout after the snapshot — your edit is kept and "
-                "its index entry is the merge; a later `git commit -a` would revert the merge there"
-            )
+            keep(path, "edited in the main checkout after the snapshot")
             continue
+        text = None
         if wt == old_b.get(path):
-            (checkout if path in new_b else deletes).append(path)
+            pass  # clean: checked out (or removed) below
         elif path in LEDGERS and isinstance(wt, str) and wt != "dir" and path in new_b:
             try:
                 current = _decode((ctx.main / path).read_bytes())
-                writes[path] = _merge3(
+                text = _merge3(
                     path, current, _blob(ctx.main, old_b[path]), _blob(ctx.main, new_b[path]), ""
                 )
             except RefusedError as exc:
-                warnings.append(f"{path}: kept as is, index at the merge ({exc})")
+                keep(path, f"its 3-way carry conflicts ({exc})")
+                continue
+            if path == DECISIONS:
+                clash = _dup_ids(text) - _dup_ids(current) - _dup_ids(_blob(ctx.main, new_b[path]))
+                if clash:
+                    ids = ", ".join(f"D-{n}" for n in sorted(clash, key=int))
+                    keep(path, f"{ids} collides between your WIP and the merge — re-mint yours")
+                    continue
         else:
-            warnings.append(
-                f"{path}: dirty in the main checkout — kept as is, index at the merge; a later "
-                "`git commit -a` would revert the merge there"
-            )
-    if checkout:
-        _gitc(ctx.main, "checkout", new, "--", *checkout)
-    for path in deletes:
-        with contextlib.suppress(FileNotFoundError):
-            (ctx.main / path).unlink()
-        parent = (ctx.main / path).parent
-        while parent != ctx.main and parent.is_dir() and not any(parent.iterdir()):
-            parent.rmdir()  # a directory the merge emptied goes with its last file
-            parent = parent.parent
-    for path, text in writes.items():
+            keep(path, "dirty in the main checkout")
+            continue
+        # O4: re-hash THIS path immediately before writing it. The residual window is the few
+        # syscalls between this hash and the write below; an editor saving inside it is not
+        # detectable without a lock the owner's editor does not take.
+        if _worktree_hashes(ctx.main, [path]).get(path) != wt:
+            keep(path, "edited in the main checkout during the carry")
+            continue
         target = ctx.main / path
-        tmp = target.with_name(f".{target.name}.fabrik-merge.{os.getpid()}")
-        tmp.write_bytes(_encode(text))
-        shutil.copymode(target, tmp)
-        os.replace(tmp, target)
+        if text is not None:
+            tmp = target.with_name(f".{target.name}.fabrik-merge.{os.getpid()}")
+            tmp.write_bytes(_encode(text))
+            shutil.copymode(target, tmp)
+            os.replace(tmp, target)
+        elif path in new_b:
+            _gitc(ctx.main, "checkout", new, "--", path)
+        else:
+            with contextlib.suppress(FileNotFoundError):
+                target.unlink()
+            parent = target.parent
+            while parent != ctx.main and parent.is_dir() and not any(parent.iterdir()):
+                parent.rmdir()  # a directory the merge emptied goes with its last file
+                parent = parent.parent
+        carried.append(path)
     if reset:
         _gitc(ctx.main, "reset", "-q", new, "--", *reset)
-    return sorted(set(checkout) | set(deletes) | set(writes)), warnings
+    return sorted(carried), skipped
 
 
 # --- (f) push, (g) sync, (h) reply + ack ---------------------------------------------------
@@ -1216,12 +1284,16 @@ def _reply_body(rec: dict) -> str:
         f"branch: {rec.get('branch', '?')}",
         f"outcome: {rec['outcome']}",
     ]
+    skipped = rec.get("not_carried", [])
     if rec["outcome"] == "merged":
         lines += [f"merge: {rec['merge_sha']}", f"base: {rec['base']}"]
+        if skipped:
+            lines.append(f"carry: {len(skipped)} path(s) NOT carried into the main checkout")
     else:
         lines += [f"reason: {rec.get('reason', '?')}"]
     lines += [f"evidence: {e}" for e in rec.get("evidence", [])]
-    lines += [f"WARNING: {w}" for w in rec.get("warnings", [])]
+    if skipped:
+        lines += ["", "not carried:"] + [f"- WARNING: {w}" for w in skipped]
     item = rec.get("item") or "none"
     lines += ["", f"item: {item}"]
     if rec["outcome"] == "merged" and item != "none":
@@ -1322,10 +1394,13 @@ def _validate_request(rec: dict) -> None:
     item = rec.get("item") or "none"
     if item != "none" and not ITEM_RE.fullmatch(item):
         raise RefusedError(f"the request item {item!r} is not a work item id")
-    base = rec["base"]
-    res = _run(["git", "check-ref-format", "--branch", base], GIT_TIMEOUT_S)
-    if base.startswith("-") or res.returncode != 0 or res.stdout.strip() != base:
-        raise RefusedError(f"the request base {base!r} is not a branch name")
+    # O2: both names reach git argv (a fetch refspec, a ref) — a leading '-' is an option, a ':'
+    # or '..' a refspec; only a name `git check-ref-format --branch` echoes back unchanged passes.
+    for key in ("base", "branch"):
+        name = rec[key]
+        res = _run(["git", "check-ref-format", "--branch", name], GIT_TIMEOUT_S)
+        if name.startswith("-") or res.returncode != 0 or res.stdout.strip() != name:
+            raise RefusedError(f"the request {key} {name!r} is not a branch name")
 
 
 def _ensure_head(ctx: _Ctx, rec: dict, remote: str) -> None:
@@ -1378,7 +1453,7 @@ def _merge_request_steps(ctx: _Ctx, rec: dict, remote: str) -> None:
                 f"({local[:12]}) — the owner pulls first"
             )
         step = "(a)-(d) build, preflight, tests, CAS"
-        old, new, snap, tests = _merge_into_base(
+        old, new, snap, tests, on_base = _merge_into_base(
             ctx, rec, rec["head"], _merge_message(ctx, rec), catch_up=False
         )
     except RefusedError as exc:
@@ -1387,7 +1462,14 @@ def _merge_request_steps(ctx: _Ctx, rec: dict, remote: str) -> None:
         )
         _save(ctx, rec)
         return
-    rec.update(phase="merged", merge_sha=new, old_base=old, snapshot=snap, carried_to=old)
+    rec.update(
+        phase="merged",
+        merge_sha=new,
+        old_base=old,
+        snapshot=snap,
+        carried_to=old,
+        preflighted=on_base,
+    )
     rec.pop("building", None)
     rec.setdefault("evidence", []).extend(
         [f"merge commit {new} on {rec['base']} ({old[:12]} → {new[:12]})", f"tests: {tests}"]
@@ -1401,13 +1483,21 @@ def _carry_step(ctx: _Ctx, rec: dict) -> None:
     on_phase("before-carry")
     base_tip = _rev(ctx.main, HEADS + rec["base"])
     start = rec.get("carried_to") or rec["old_base"]
-    snap = rec.get("snapshot") if start == rec["old_base"] else None
+    own = start == rec["old_base"]
+    snap = rec.get("snapshot") if own else None
     if base_tip and start != base_tip:
-        carried, warnings = _carry(ctx, rec["base"], start, base_tip, snap)
-        rec.setdefault("warnings", []).extend(warnings)
-        rec.setdefault("evidence", []).append(
-            f"carry: {len(carried)} path(s) into the main checkout"
-        )
+        if own and rec.get("preflighted") is False:
+            # O8: the main checkout was not on base at the preflight — never carry into it.
+            skipped = [
+                f"(every merged path): the main checkout was not on {rec['base']} at the "
+                "preflight — nothing carried; check `git status` there"
+            ]
+        else:
+            carried, skipped = _carry(ctx, rec["base"], start, base_tip, snap)
+            rec.setdefault("evidence", []).append(
+                f"carry: {len(carried)} path(s) into the main checkout"
+            )
+        rec.setdefault("not_carried", []).extend(skipped)
     rec.update(phase="carried", carried_to=base_tip)
     _save(ctx, rec)
 
@@ -1421,37 +1511,50 @@ def _catch_up(ctx: _Ctx, rec: dict, remote: str) -> None:
     if _is_ancestor(ctx.main, origin, local):
         return
     message = f"merge({ctx.owner}): catch up {remote}/{rec['base']} after request {rec['id']}"
-    old, new, snap, tests = _merge_into_base(ctx, rec, origin, message, catch_up=True)
+    old, new, snap, tests, on_base = _merge_into_base(ctx, rec, origin, message, catch_up=True)
     rec.setdefault("evidence", []).append(
-        f"catch-up merge {new} of {remote}/{rec['base']} ({tests})"
+        f"catch-up merge {new} of {remote}/{rec['base']} (tests: {tests})"
     )
     rec.update(carried_to=old)
     _save(ctx, rec)
-    _, warnings = _carry(ctx, rec["base"], old, new, snap)
-    rec.setdefault("warnings", []).extend(warnings)
+    if on_base:
+        _, skipped = _carry(ctx, rec["base"], old, new, snap)
+    else:
+        skipped = [f"(catch-up paths): the main checkout was not on {rec['base']} — not carried"]
+    rec.setdefault("not_carried", []).extend(skipped)
     rec.update(carried_to=new)
     _save(ctx, rec)
 
 
-def _drive(ctx: _Ctx, rec: dict, *, resuming: bool) -> int:
-    """Run one claimed request from its recorded phase to ``replied``."""
-    remote = "origin"
-    try:
-        remote = _remote_name(ctx.main, rec["base"]) if rec.get("base") else remote
-    except RefusedError as exc:
-        if rec["phase"] not in ("claimed", "built"):
-            raise
-        rec.update(phase="refused", outcome="refused", reason=f"(a) preflight: {exc}")
-        _save(ctx, rec)
-    if rec["phase"] in ("claimed", "built"):
-        stale = rec.pop("worktree", None)
-        if stale:
-            _remove_throwaway(ctx, Path(stale))
-        _merge_request_steps(ctx, rec, remote)  # a start: the origin-ahead refusal applies
-    if rec["phase"] == "refused":
-        _reply_and_ack(ctx, rec)
-        print(f"merge_request: REFUSED {rec['id']} — {rec['reason']}", file=sys.stderr)
-        return EXIT_REFUSED
+_STEPS_LEFT = {
+    "merged": "carry, push, sync, reply, ack",
+    "carried": "push, sync, reply, ack",
+    "pushed": "sync, reply, ack",
+    "synced": "reply, ack",
+}
+
+
+def _catch_up_refused(ctx: _Ctx, rec: dict, remote: str, exc: RefusedError) -> str:
+    """The OWNER's instruction for a refused catch-up — never the requester's 'rebase and
+    resend': the request is merged locally; origin and local base diverged."""
+    base = rec["base"]
+    resume_cmd = f"`merge_request.py resume {rec['id']}`"
+    if isinstance(exc, ConflictError):
+        return (
+            f"origin and local {base} diverged in {', '.join(exc.paths)}; merge {remote}/{base} "
+            f"into {base} by hand, then {resume_cmd}"
+        )
+    why = " ".join(str(exc).split())
+    return (
+        f"the catch-up merge of {remote}/{base} into {base} refused ({why}); merge "
+        f"{remote}/{base} into {base} by hand, then {resume_cmd}"
+    )
+
+
+def _after_cas(ctx: _Ctx, rec: dict, remote: str, resuming: bool) -> None:
+    """(e)-(h): every step after the CAS. The merge is committed; nothing here undoes it."""
+    if rec["phase"] == "catchup-refused":
+        rec["phase"] = "carried"  # only an explicit resume reaches here: retry the catch-up
     if rec["phase"] == "merged":
         _carry_step(ctx, rec)
     if rec["phase"] == "carried" and rec.get("carried_to") != _rev(ctx.main, HEADS + rec["base"]):
@@ -1460,7 +1563,12 @@ def _drive(ctx: _Ctx, rec: dict, *, resuming: bool) -> int:
         on_phase("before-push")
         ok, detail = _push(ctx, rec, remote)
         if not ok and resuming:
-            _catch_up(ctx, rec, remote)
+            try:
+                _catch_up(ctx, rec, remote)
+            except RefusedError as exc:
+                rec.update(phase="catchup-refused", reason=_catch_up_refused(ctx, rec, remote, exc))
+                _save(ctx, rec)
+                raise MergePartialError(rec["reason"]) from exc
             ok, detail = _push(ctx, rec, remote)
         if not ok:
             raise MergePartialError(
@@ -1478,18 +1586,46 @@ def _drive(ctx: _Ctx, rec: dict, *, resuming: bool) -> int:
     if rec["phase"] == "synced":
         rec["outcome"] = "merged"
         _reply_and_ack(ctx, rec)
+
+
+def _drive(ctx: _Ctx, rec: dict, *, resuming: bool) -> int:
+    """Run one claimed request from its recorded phase to ``replied``."""
+    remote = "origin"
+    try:
+        remote = _remote_name(ctx.main, rec["base"]) if rec.get("base") else remote
+    except RefusedError as exc:
+        if rec["phase"] not in ("claimed", "built"):
+            raise MergePartialError(f"{exc} — {_STEPS_LEFT.get(rec['phase'], '')} left") from exc
+        rec.update(phase="refused", outcome="refused", reason=f"(a) preflight: {exc}")
+        _save(ctx, rec)
+    if rec["phase"] in ("claimed", "built"):
+        _merge_request_steps(ctx, rec, remote)  # a start: the origin-ahead refusal applies
+    if rec["phase"] == "refused":
+        _reply_and_ack(ctx, rec)
+        print(f"merge_request: REFUSED {rec['id']} — {rec['reason']}", file=sys.stderr)
+        return EXIT_REFUSED
+    try:
+        _after_cas(ctx, rec, remote, resuming)
+    except RefusedError as exc:
+        # O3: once the CAS has succeeded, every failure (a push or a mail timeout, a git error)
+        # is PARTIAL — the merge stays committed and the remaining steps are named.
+        left = _STEPS_LEFT.get(rec["phase"], "the remaining steps")
+        raise MergePartialError(
+            f"{' '.join(str(exc).split())} — the merge {rec.get('merge_sha')} is committed "
+            f"locally; left: {left}; finish with `merge_request.py resume {rec['id']}`"
+        ) from exc
     for note in ctx.notes:
         print(f"merge_request: {note}", file=sys.stderr)
     print(f"merged {rec['id']} as {rec.get('merge_sha')}")
-    for warning in rec.get("warnings", []):
-        print(f"merge_request: WARNING — {warning}", file=sys.stderr)
+    for line in rec.get("not_carried", []):
+        print(f"merge_request: NOT CARRIED — {line}", file=sys.stderr)
     return EXIT_OK
 
 
-def _new_record(ctx: _Ctx, msg_id: str, fields: dict) -> dict:
+def _new_record(ctx: _Ctx, msg_id: str, fields: dict, phase: str = "claimed") -> dict:
     rec = {
         "id": msg_id,
-        "phase": "claimed",
+        "phase": phase,
         **{k: fields.get(k, "") for k in ("branch", "head", "base", "item", "requester", "review")},
         **_claimer(),
     }
@@ -1497,17 +1633,61 @@ def _new_record(ctx: _Ctx, msg_id: str, fields: dict) -> dict:
     return rec
 
 
-def _claim(ctx: _Ctx, msg_id: str) -> dict:
-    """``mail.py claim`` (the addressee check and the inbox→archive rename are mail.py's), then
-    the record — the request leaves the inbox BEFORE anything is built."""
-    res = _mail_cli(ctx, "claim", msg_id, "--repo", ctx.mailbox)
+def _mail_claim(ctx: _Ctx, rec: dict) -> dict:
+    """``mail.py claim`` for a ``claiming`` record (the addressee check and the inbox→archive
+    rename are mail.py's); a refusal removes the record — nothing was claimed."""
+    res = _mail_cli(ctx, "claim", rec["id"], "--repo", ctx.mailbox)
     if res.returncode != 0:
+        (ctx.records / f"{rec['id']}.json").unlink(missing_ok=True)
         raise RefusedError(
-            f"mail.py claim {msg_id} refused: {res.stderr.strip() or res.returncode}"
+            f"mail.py claim {rec['id']} refused: {res.stderr.strip() or res.returncode}"
         )
-    archived = Path(res.stdout.strip().splitlines()[0])
-    _, fields = _split_message(archived.read_text(encoding="utf-8", errors="replace"))
-    return _new_record(ctx, msg_id, fields)
+    rec["phase"] = "claimed"
+    _save(ctx, rec)
+    return rec
+
+
+def _claim(ctx: _Ctx, msg_id: str) -> dict:
+    """O5: the record is written (phase ``claiming``) BEFORE ``mail.py claim`` runs, so a crash
+    between the two leaves a record a resume can finish; the request leaves the inbox before
+    anything is built."""
+    inbox = _mail_root() / ctx.mailbox / "inbox" / f"{msg_id}.md"
+    try:
+        text = inbox.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        raise RefusedError(f"{msg_id} is no longer in the inbox: {exc}") from exc
+    _, fields = _split_message(text)
+    return _mail_claim(ctx, _new_record(ctx, msg_id, fields, phase="claiming"))
+
+
+def _continue_claiming(ctx: _Ctx, rec: dict) -> dict | None:
+    """A ``claiming`` record: its message in the archive → the claim landed, continue; still in
+    the inbox → claim it again; in neither → nothing to do, the record is removed."""
+    box = _mail_root() / ctx.mailbox
+    if (box / "archive" / f"{rec['id']}.md").is_file():
+        rec["phase"] = "claimed"
+        _save(ctx, rec)
+        return rec
+    if (box / "inbox" / f"{rec['id']}.md").is_file():
+        return _mail_claim(ctx, rec)
+    print(
+        f"merge_request: {rec['id']} is in neither inbox nor archive — record removed",
+        file=sys.stderr,
+    )
+    (ctx.records / f"{rec['id']}.json").unlink(missing_ok=True)
+    return None
+
+
+def _sweep_throwaways(ctx: _Ctx) -> None:
+    """O7: under the lock no throwaway is live, so every registered ``fabrik-merge-*/<repo>``
+    worktree a crashed run left is removed and pruned — whatever phase its record holds."""
+    out = _run(["git", "worktree", "list", "--porcelain"], GIT_TIMEOUT_S, cwd=ctx.main).stdout
+    for line in out.splitlines():
+        if line.startswith("worktree "):
+            path = Path(line[len("worktree ") :])
+            if path.parent.name.startswith("fabrik-merge-") and path != ctx.main:
+                _remove_throwaway(ctx, path)
+    _run(["git", "worktree", "prune"], GIT_TIMEOUT_S, cwd=ctx.main)
 
 
 def _context(cwd: Path) -> _Ctx:
@@ -1529,8 +1709,21 @@ def _resume_stranded(ctx: _Ctx) -> int:
     if not ctx.records.is_dir():
         return rc
     for path in sorted(ctx.records.glob("*.json")):
-        rec = _load(ctx, path.stem)
-        if rec is None or not _stranded(rec):
+        try:
+            rec = _load(ctx, path.stem)  # O6: an unreadable record never blocks the run
+            if rec is None or not isinstance(rec.get("id"), str) or "phase" not in rec:
+                raise RefusedError(f"record {path.name} is unreadable: not a merge record")
+        except RefusedError as exc:
+            print(f"merge_request: WARNING — {exc}; skipped", file=sys.stderr)
+            continue
+        if not _stranded(rec):
+            continue
+        if rec["phase"] == "catchup-refused":
+            print(
+                f"merge_request: skipping {rec['id']} (catch-up refused: {rec.get('reason')}); "
+                f"only `merge_request.py resume {rec['id']}` retries it",
+                file=sys.stderr,
+            )
             continue
         print(
             f"merge_request: resuming stranded request {rec['id']} from {rec['phase']}",
@@ -1538,7 +1731,16 @@ def _resume_stranded(ctx: _Ctx) -> int:
         )
         rec.update(_claimer())
         _save(ctx, rec)
-        rc = max(rc, _drive(ctx, rec, resuming=True))
+        try:
+            if rec["phase"] == "claiming" and _continue_claiming(ctx, rec) is None:
+                continue
+            rc = max(rc, _drive(ctx, rec, resuming=True))
+        except MergePartialError as exc:
+            print(f"merge_request: PARTIAL — {exc}", file=sys.stderr)
+            rc = EXIT_PARTIAL  # reported; the inbox is still served
+        except RefusedError as exc:
+            print(f"merge_request: REFUSED {rec['id']} — {exc}", file=sys.stderr)
+            rc = max(rc, EXIT_REFUSED)
     return rc
 
 
@@ -1561,19 +1763,23 @@ def merge(args: argparse.Namespace) -> int:
     refuses a merge SHA that is not in base, does not name the request, or lacks its head."""
     ctx = _context(Path.cwd())
     with _merge_lock(ctx.common):
-        rc = _resume_stranded(ctx)
-        waiting = _owner_requests(ctx)
-        if args.id:
-            waiting = [fm for fm in waiting if fm.get("id") == args.id]
+        _sweep_throwaways(ctx)
+        try:
+            rc = _resume_stranded(ctx)
+            waiting = _owner_requests(ctx)
+            if args.id:
+                waiting = [fm for fm in waiting if fm.get("id") == args.id]
+                if not waiting:
+                    raise RefusedError(
+                        f"no merge-request {args.id} addressed to {ctx.owner} in the inbox"
+                    )
             if not waiting:
-                raise RefusedError(
-                    f"no merge-request {args.id} addressed to {ctx.owner} in the inbox"
-                )
-        if not waiting:
-            print(f"no merge-request waiting for {ctx.owner} in {ctx.mailbox}")
-            return rc
-        rec = _claim(ctx, waiting[0]["id"])
-        return max(rc, _drive(ctx, rec, resuming=False))
+                print(f"no merge-request waiting for {ctx.owner} in {ctx.mailbox}")
+                return rc
+            rec = _claim(ctx, waiting[0]["id"])
+            return max(rc, _drive(ctx, rec, resuming=False))
+        finally:
+            _sweep_throwaways(ctx)
 
 
 def resume(args: argparse.Namespace) -> int:
@@ -1584,29 +1790,39 @@ def resume(args: argparse.Namespace) -> int:
     finished by a catch-up merge of origin's base, exempt from the origin-ahead start refusal."""
     ctx = _context(Path.cwd())
     with _merge_lock(ctx.common):
-        rec = _load(ctx, args.id)
-        if rec is None:
-            box = _mail_root() / ctx.mailbox
-            if (box / "inbox" / f"{args.id}.md").is_file():
-                rec = _claim(ctx, args.id)
-            else:
-                path = box / "archive" / f"{args.id}.md"
-                try:
-                    text = path.read_text(encoding="utf-8", errors="replace")
-                except OSError as exc:
-                    raise RefusedError(f"no request {args.id} in {ctx.mailbox}: {exc}") from exc
-                fm, fields = _split_message(text)
-                if fm.get("kind") != "merge-request" or _norm(fm.get("agent") or "") != _norm(
-                    ctx.owner
-                ):
-                    raise RefusedError(f"{args.id} is not a merge-request addressed to {ctx.owner}")
-                rec = _new_record(ctx, args.id, fields)
-        if rec.get("phase") in DONE_PHASES:
-            print(f"{args.id} is already replied ({rec.get('outcome', '?')})")
-            return EXIT_OK
+        _sweep_throwaways(ctx)
+        try:
+            return _resume_locked(ctx, args.id)
+        finally:
+            _sweep_throwaways(ctx)
+
+
+def _resume_locked(ctx: _Ctx, msg_id: str) -> int:
+    rec = _load(ctx, msg_id)
+    if rec is not None and rec.get("phase") == "claiming":
         rec.update(_claimer())
-        _save(ctx, rec)
-        return _drive(ctx, rec, resuming=True)
+        rec = _continue_claiming(ctx, rec)
+    if rec is None:
+        box = _mail_root() / ctx.mailbox
+        if (box / "inbox" / f"{msg_id}.md").is_file():
+            rec = _claim(ctx, msg_id)
+        else:
+            path = box / "archive" / f"{msg_id}.md"
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError as exc:
+                raise RefusedError(f"no request {msg_id} in {ctx.mailbox}: {exc}") from exc
+            fm, fields = _split_message(text)
+            addressee = _norm(fm.get("agent") or "")
+            if fm.get("kind") != "merge-request" or addressee != _norm(ctx.owner):
+                raise RefusedError(f"{msg_id} is not a merge-request addressed to {ctx.owner}")
+            rec = _new_record(ctx, msg_id, fields)
+    if rec.get("phase") in DONE_PHASES:
+        print(f"{msg_id} is already replied ({rec.get('outcome', '?')})")
+        return EXIT_OK
+    rec.update(_claimer())
+    _save(ctx, rec)
+    return _drive(ctx, rec, resuming=True)
 
 
 def main(argv: list[str] | None = None) -> int:
