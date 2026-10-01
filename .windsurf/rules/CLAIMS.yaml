@@ -2681,3 +2681,31 @@ claims:
     verify: "https://developer.chrome.com/docs/extensions/develop/concepts/permission-warnings (exa + WebFetch, 2026-10-02; ledger rs-11)"
     window_days: 180
     last_verified: 2026-10-02
+  - id: soniox-tts-multilingual-faithful
+    pack: ai/10-speech-audio.md
+    kind: practice
+    claim: "Soniox offers TTS in which every voice speaks 60+ languages, switches language mid-sentence, does not invent or drop words, clones voices from a short clip, and can run in an EU region on request"
+    verify: "https://soniox.com/text-to-speech ; https://soniox.com/europe (exa + brave + WebFetch, 2026-10-02; ledger tt-01, op-02)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: tts-noncommercial-weights
+    pack: ai/10-speech-audio.md
+    kind: practice
+    claim: "Coqui XTTS weights are under the non-commercial Coqui Public Model License, and F5-TTS and Meta MusicGen weights are CC-BY-NC; none may back a paid product"
+    verify: "https://huggingface.co/coqui/XTTS-v2 ; https://github.com/SWivid/F5-TTS ; https://huggingface.co/facebook/musicgen-large (WebFetch + brave, 2026-10-02; ledger tt-03, tt-07, tt-15)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: chatterbox-mit-multilingual
+    pack: ai/10-speech-audio.md
+    kind: practice
+    claim: "Chatterbox (Resemble AI) is MIT-licensed in code and weights, covers 23 languages including Turkish, clones voices zero-shot and watermarks every output"
+    verify: "https://huggingface.co/ResembleAI/chatterbox ; https://github.com/resemble-ai/chatterbox (exa + brave + WebFetch, 2026-10-02; ledger tt-05, oc-01)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: dedicated-stt-vs-llm
+    pack: ai/10-speech-audio.md
+    kind: practice
+    claim: "The best dedicated speech-to-text models match or beat general LLMs on word error rate at a fraction of the cost and many times the speed"
+    verify: "https://artificialanalysis.ai/speech-to-text (exa + WebFetch + firecrawl, 2026-10-02; ledger st-03, op-04)"
+    window_days: 180
+    last_verified: 2026-10-02

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — ai/10-speech-audio: the self-hosted TTS fallback is Chatterbox, and every model carries its commercial limit (2026-10-02)
+- `.windsurf/rules/ai/10-speech-audio.md` (rules currency pass file 44, D-494): XTTS (non-commercial weights) replaced by Chatterbox (MIT) as the self-hosted fallback; a licence-trap paragraph; Play.ht and the Kilo route removed; Scribe, OpenAI transcription, diarization and the speech-detect gate added; music entries carry their licence limits.
+- `tests/test_speech_audio_pack.py`: pins the machinery markers, the freshness stamp, the licence rule, the cites and the no-version rule.
+- `.windsurf/rules/CLAIMS.yaml`: four rows; `docs/reference/research/2026-10-02-speech-audio-currency-ledger.md`: the turn's 33 facts.
+
 ### Changed — chrome-ext/89-extension-launch-checklist: gates a developer-mode release and states today's store facts (2026-10-02)
 - `.windsurf/rules/chrome-ext/89-extension-launch-checklist.md` (rules currency pass file 43, D-493): § 7 is the developer-mode release /fabrik-release's unlistable ring runs (key, update checker, checksum, install guide, force-install variant, Gate 2); § 1 adds the trader declaration and the two-slot cap; § 3–§ 6 carry the current listing, privacy-tab, review and rollout facts; three dead cites fixed; the `manifest.json` glob dropped.
 - `tests/test_chrome_launch_pack.py`: pins the cites, § 7, the trader gate, the release command's rings, the globs and the no-version rule; `tests/test_chrome_ext_pack.py`: the cite parser reads lowercase cites too.
