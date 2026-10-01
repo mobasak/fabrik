@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T20:45:03.275690Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-6eb61fa0",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "set autoescape=False (or select_autoescape on html/xml only) in template_renderer.py, prove a compose env value with quote and ampersand round-trips, check every template for a value that relied on escaping; found by the docusaurus Finish review, pass 1, A2 (pre-existing, outside that diff)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "TemplateRenderer autoescapes every *.j2 template (select_autoescape on the j2 suffix, since 0db807b36), so env_escape's shell escaping is HTML-escaped again: a compose env value a\"b&c renders a\\&#34;b&amp;c in every template-source deploy (2026-10-01, owner: fleet)"
+}

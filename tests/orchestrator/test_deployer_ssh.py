@@ -1526,7 +1526,7 @@ class TestWriteFileToVpsPathNested:
             f"sudo mv {self._tmp('.env')} ~/apps/foo/.env && sudo chown root:root ~/apps/foo/.env"
         ], cmds
 
-    @pytest.mark.parametrize("bad", ["../x", "/abs/x", "a/../../x"])
+    @pytest.mark.parametrize("bad", ["../x", "/abs/x", "a/../../x", "", ".", "a/./b", "a//b", "a/"])
     def test_an_escaping_filename_is_refused_before_any_remote_call(self, bad: str) -> None:
         from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
 

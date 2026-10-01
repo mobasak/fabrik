@@ -853,8 +853,10 @@ def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
     from fabrik.drivers.ssh import ssh as _ssh
 
     # A rendered key is a path RELATIVE to the app dir; an absolute one or a `..` part would write
-    # outside it as root. Refused before anything reaches the VPS.
-    if filename.startswith("/") or ".." in filename.split("/"):
+    # outside it as root, and an empty or `.` part names the app dir itself (`mv` then drops the
+    # file inside it under its tmp name and `chown` hits the directory). Refused before anything
+    # reaches the VPS — a leading `/` is an empty first part.
+    if any(part in ("", ".", "..") for part in filename.split("/")):
         raise ValueError(f"refusing to write a filename outside {path}: {filename!r}")
 
     safe_name = filename.replace("/", "-")
