@@ -84,8 +84,8 @@ def test_slots_are_template_slots_and_bare_colours_are_fills() -> None:
             before, after = line[: m.start()], line[m.end() :]
             ok = (
                 after.startswith(" fill")
-                or re.search(r"\bfill(?:ed)?\b[^.;]*$", before, re.I)
-                or "slot names" in before
+                or before.endswith("**Fill:** ")
+                or re.search(r"(?:filled with the layer colour \(|slot names: )[^()]*$", before)
             )
             assert ok, (
                 f"a bare accent/state colour is a FILL; as text or an icon use its -text slot: {line!r}"
@@ -95,11 +95,12 @@ def test_slots_are_template_slots_and_bare_colours_are_fills() -> None:
 def test_no_type_below_the_mobile_floor() -> None:
     _, body = _parts()
     # "body font 500, 15" and "body font 500, uppercase, 13" both carry a size
-    sizes = [
-        int(n)
-        for n in re.findall(r"(?:body|mono|heading) font \d{3}(?:, uppercase)?, (\d+)\b", body)
-    ]
+    sizes = [int(n) for n in re.findall(r"\b\w+ font \d{3}(?:, uppercase)?, (\d+)\b", body)]
     assert len(sizes) >= 10, f"parsed only {len(sizes)} type sizes"
+    roles = set(re.findall(r"\b(\w+) font \d{3}", body))
+    assert roles <= {"body", "mono", "heading"}, (
+        f"font roles the template does not define: {sorted(roles)}"
+    )
     assert min(sizes) >= 13, f"type below the 13 floor: {sorted({n for n in sizes if n < 13})}"
 
 
@@ -107,7 +108,7 @@ def test_every_module_named_is_canonical() -> None:
     _, body = _parts()
     canonical = set(re.findall(r"\*\*Tojlo ([A-Z]+)\*\*", TOJLO.read_text(encoding="utf-8")))
     assert len(canonical) >= 10, f"parsed only {len(canonical)} canonical modules"
-    named = set(re.findall(r"^\| \*\*([A-Z]+)\*\* \|", body, re.M))
+    named = set(re.findall(r"^\| (?:\*\*)?([A-Z]{2,})(?:\*\*)? \|", body, re.M)) - {"ID"}
     assert named, "the pack's module tables name no modules"
     assert named <= canonical, (
         f"modules not in core Tojlo's canonical list: {sorted(named - canonical)}"
