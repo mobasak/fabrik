@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The merge owner is also the coordinator in every repo (2026-10-01)
+Operator ruling (D-471, superseding D-395's intel clause): the one agent in a repo's main checkout is both merge owner and work distributor. The hub's `.fabrik/work/config.json` distributor moves from intel to infra; the operating-model, work-tracking and both charters say so. `work.py init` already defaulted the distributor to the merge owner, so no code changed.
+
 ### Fixed — Tests run in a hub worktree now import that worktree's own code (2026-10-01)
 
 Every hub worktree shares `/opt/fabrik/.venv`, whose editable install points at `/opt/fabrik/src`, so a test run inside `.claude/worktrees/<name>` imported the main checkout's `fabrik` and graded master, not the branch (W-83ff5917). The root `conftest.py` now puts its own tree's `src` first on `sys.path` and on `PYTHONPATH` for every child that inherits the environment; in the main checkout it changes nothing. `tests/test_conftest_imports_own_tree.py` fails in a worktree without the fix and passes with it. Two related gaps are filed: children spawned with a hand-written `env=` (W-dc1d5a50) and scaffold tests that cannot find `fabrik-lib` from a worktree (W-4ddbfbe9).

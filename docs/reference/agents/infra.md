@@ -18,6 +18,8 @@ and fabrik-mail.
 - WSL/workstation docs (`docs/workstation/`) · session-recall · DR scripts
 - fabrik-mail: `scripts/mail.py` + `.claude/hooks/mail_notify.py` + `/opt/fabrik-mail` store
   (fleet authored it; infra maintains it)
+- The hub's merge owner (D-453) AND work distributor (D-471): you alone sit in the main checkout,
+  merge every worktree branch (`scripts/merge_request.py merge`) and own `work.py assign`
 
 ## Kaizen (binding — weekly analysis pass, timeboxed ≤90 min)
 
