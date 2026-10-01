@@ -4,9 +4,6 @@ services:
     container_name: {{ spec.id }}-docs
     platform: linux/amd64  # MANDATORY - VPS is x86_64
     restart: unless-stopped
-    environment:
-      - NODE_ENV=${NODE_ENV:-production}
-      - PORT=${PORT:-3000}
     networks:
       - fabrik
     deploy:
@@ -20,9 +17,9 @@ services:
       - "traefik.http.routers.{{ spec.id }}.entrypoints=websecure"
       - "traefik.http.routers.{{ spec.id }}.tls=true"
       - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
-      - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=3000"
+      - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=80"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      test: ["CMD", "curl", "-f", "http://localhost:80/docs/intro/"]
       interval: {{ health.interval if health else '10s' }}
       timeout: {{ health.timeout if health else '5s' }}
       retries: {{ health.retries if health else 3 }}

@@ -21,6 +21,8 @@ docs.product.com/
 ## Stack
 
 - **Docusaurus 3.x** — Static site generator
+- **Pagefind** — search: the Docker build runs `npx -y pagefind --site build`, and the swizzled
+  `src/theme/SearchBar/index.js` mounts Pagefind's Component UI in the navbar (no search server)
 - **docusaurus-plugin-openapi-docs** — Generates MDX from OpenAPI spec
 - **docusaurus-theme-openapi-docs** — Interactive API explorer
 
@@ -61,9 +63,13 @@ theme:
 
 ## Deployment
 
-Deployed as static site via:
-- `fabrik apply` (SSH + Docker Compose, served by Traefik)
-- Or Cloudflare Pages (faster, recommended)
+Deployed with `fabrik apply` (SSH + Docker Compose, routed by Traefik) as a two-stage image: a Node
+builder (`npm run build` + Pagefind) and an nginx server that serves the static `build/` on port 80 —
+no Node runtime in production. `nginx.conf` sets `absolute_redirect off` (relative redirects behind
+Traefik's TLS edge), gzip, and an immutable cache header on the content-hashed `/assets/`. The
+healthcheck hits `/docs/intro/`; `/` is a client-side redirect page. Base images (`node:<lts>-<codename>-slim`,
+`nginx:mainline-<codename>`) and `engines.node` come from `.windsurf/rules/versions.yaml` at scaffold or
+render time.
 
 ## Related
 

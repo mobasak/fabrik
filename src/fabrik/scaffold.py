@@ -28,9 +28,11 @@ from pathlib import Path
 from types import ModuleType
 
 import yaml
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from fabrik.config import FABRIK_ROOT
 from fabrik.spec_generator import SPEC_ENABLED_TYPES, generate_and_save_spec
+from fabrik.version_registry import load_versions
 
 logger = logging.getLogger(__name__)
 
@@ -6138,6 +6140,24 @@ def _scaffold_desktop_app(project_dir: Path, name: str, description: str, **kwar
     )
 
 
+def _render_docusaurus_template(rel: str, name: str, versions: dict[str, str]) -> str:
+    """Render one ``templates/docusaurus`` file with ``{name, versions}``.
+
+    The same files the template renderer emits, through the same whitespace rules (trim/lstrip
+    blocks), so both emitters write the same bytes. Autoescape is off (a Dockerfile, JSON and nginx
+    config are not HTML) and an undefined variable raises instead of rendering empty (D-476).
+    """
+    env = Environment(
+        loader=FileSystemLoader(str(DOCUSAURUS_TEMPLATE_DIR)),
+        autoescape=False,  # noqa: S701 — not HTML: Dockerfile, JSON, nginx and JS output
+        undefined=StrictUndefined,
+        keep_trailing_newline=True,
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    return env.get_template(rel).render(name=name, versions=versions)
+
+
 def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
     """Create Docusaurus documentation site from templates/docusaurus/.
 
@@ -6148,9 +6168,12 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
     """
     import json
 
-    # Generate package.json from template ({{ name }} substitution)
-    pkg_text = (DOCUSAURUS_TEMPLATE_DIR / "package.json.j2").read_text()
-    pkg_text = pkg_text.replace("{{ name }}", name)
+    # Base-image and engine versions come from the hub registry; a missing key raises here by name,
+    # before anything is written (D-472, D-476).
+    versions = load_versions()
+
+    # package.json from its template, rendered with the registry's engines floor.
+    pkg_text = _render_docusaurus_template("package.json.j2", name, versions)
     pkg = json.loads(pkg_text)
     pkg["description"] = description
     (project_dir / "package.json").write_text(json.dumps(pkg, indent=2) + "\n")
@@ -6385,8 +6408,9 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
     img_dir.mkdir(parents=True, exist_ok=True)
     (img_dir / ".gitkeep").write_text("")
 
-    # .env.example
-    (project_dir / ".env.example").write_text(f"# {name} Configuration\nNODE_ENV=development\n")
+    # .env.example — the site needs no runtime environment: nginx serves the static build, and
+    # `npm start` sets its own mode.
+    (project_dir / ".env.example").write_text(f"# {name} Configuration\n")
 
     # .gitignore (Docusaurus-appropriate)
     (project_dir / ".gitignore").write_text(
@@ -6404,37 +6428,23 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
         "yarn-debug.log*\n"
     )
 
-    # B36: render Dockerfile from the shipped Dockerfile.j2 template.
-    # The scaffolder previously generated ``compose.yaml``, ``package.json``,
-    # ``docusaurus.config.js`` and the docs tree but \u2014 as discovered by
-    # proof-run on 2026-04-28 \u2014 silently skipped the Dockerfile, so Coolify's
-    # buildpack failed at:
-    #   failed to read dockerfile: open Dockerfile: no such file or directory
-    # The .j2 here has no actual Jinja vars; it's a literal Dockerfile that
-    # needs ``npm ci`` swapped for ``npm install`` (no lockfile is generated
-    # at scaffold time \u2014 same pattern as ``_scaffold_node_api``,
-    # ``_scaffold_file_api``, ``_scaffold_saas_skeleton``).
-    dockerfile_src = DOCUSAURUS_TEMPLATE_DIR / "Dockerfile.j2"
-    if dockerfile_src.exists():
-        dockerfile = dockerfile_src.read_text().replace("RUN npm ci", "RUN npm install")
-        (project_dir / "Dockerfile").write_text(dockerfile)
+    # B36 + D-476: the Dockerfile, nginx.conf, the root redirect page and the Pagefind SearchBar are
+    # rendered from templates/docusaurus — the same files, through the same whitespace rules, the
+    # template renderer emits for a `source: type: template` spec, so both emitters write the same
+    # bytes. The Dockerfile chooses `npm ci` or `npm install` itself (no lockfile at scaffold time).
+    for rel in ("Dockerfile", "nginx.conf", "src/pages/index.js", "src/theme/SearchBar/index.js"):
+        out = project_dir / rel
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(_render_docusaurus_template(f"{rel}.j2", name, versions))
 
-    # B20+B45: Coolify-correct compose for git-source deploys. Docusaurus
-    # serves its built static site on port 3000 by default
-    # (``docusaurus serve`` or the production server output of
-    # ``docusaurus build``). Healthcheck hits ``/docs/intro`` instead of
-    # ``/`` because Docusaurus's preset-classic does NOT auto-generate a
-    # root landing page \u2014 ``/`` returns 404 (404.html), while
-    # ``/docs/intro`` is the first guaranteed-200 page (the scaffolder
-    # always emits ``docs/intro.md``). Surfaced by proof-run on
-    # 2026-04-28: container ran fine, ``docusaurus serve`` reported
-    # success, but the healthcheck looped 404 for the entire start
-    # period and Coolify marked the app exited:unhealthy.
+    # B20+B45: compose for the static nginx runtime on port 80. The healthcheck hits `/docs/intro/`
+    # (the first guaranteed page — the scaffolder always emits docs/intro.md) WITH its trailing slash:
+    # nginx answers the slash-less path with a 301, and the root `/` is a client-side redirect page.
     _write_canonical_compose(
         project_dir,
         name,
-        port=3000,
-        healthcheck_path="/docs/intro",
+        port=80,
+        healthcheck_path="/docs/intro/",
     )
 
 

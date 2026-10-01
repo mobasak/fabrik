@@ -138,6 +138,11 @@ class TemplateRenderer:
             "domain": spec.domain,
             "id": spec.id,
             "name": spec.id,
+            # docusaurus.config.js.j2 reads `features.blog` and `openapi.spec_file`; no spec carries
+            # either, and attribute access on an undefined name raises, so empty mappings let the
+            # template's own `default(...)` filters and falsy checks apply.
+            "features": {},
+            "openapi": {},
             "companion_services": spec.companion_services,
             # Base-image versions come from the registry, never a template literal. A missing key
             # raises here by name — before anything renders (D-472, D-476).
