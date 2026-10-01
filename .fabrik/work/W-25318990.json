@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T22:33:02.856720Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-25318990",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-02-fabrik-task-feature-lane-design.md"
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "Lane spec rev 2 residuals for the plan: who may change .fabrik/lane.json (start echoes the commit that set it; report counts per-repo pins); require --surface on spec-review/plan-review starts and join D10 on a spec-path prefix; D11's close-recorded phase count must not reuse the existing 'phases' field name"
+}
