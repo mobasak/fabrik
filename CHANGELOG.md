@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — The Stop hook holds a merge owner while a merge request waits (2026-10-01)
+
+A seventh Stop cause in `.claude/hooks/final_gate_stop.py` (plan 2026-09-30-plan-1-merge-request-loop T04, spec § The delta 6). It fires only in a repo's main checkout, found by a `.git` walk with no subprocess when nothing waits, and only for the session that resolves to the merge owner — the caller resolver runs first, the owner resolver only when a request names the caller or a record exists. It blocks while an unclaimed `merge-request` addressed to the owner waits in the repo inbox (parsed with `mail.py::_parse`'s own rejections) or a `fabrik-merge/<id>.json` record is short of `replied` and stranded, naming `merge_request.py merge`, `resume <id>`, or the hand merge a parked record needs. Non-regular files, unparseable files and records whose id is not their file stem are skipped one by one; a `GIT_DIR`/`GIT_COMMON_DIR`/`GIT_WORK_TREE` environment, a linked worktree, an UNDECLARED repo, another agent and any resolver failure are silent. CAP 3 with warn-through on its own seventh counter slot; a six-field counter file still reads. Tests: `tests/test_stop_hook_merge_requests.py`.
+
 ### Changed — Hub contract: finished worktree work is a merge request (2026-10-01)
 
 The hub `CLAUDE.md` § EXIT now carries the same finish duty as the project template: in a linked worktree, finished work is `python3 scripts/merge_request.py request --review <the closing run record or review receipt> [--item <W-id>]` plus the `SendMessage` lines it prints, and infra (the hub's merge owner) merges it; the ad-hoc merge-to-base default applies to the main checkout only (plan 2026-09-30-plan-1-merge-request-loop T05b). The template's `--review` placeholder now uses the script's own word order. `tests/test_governance_template_split.py` pins the hub duty's linked-worktree lead-in and the `--review` order in both files, each with a failing mutant.

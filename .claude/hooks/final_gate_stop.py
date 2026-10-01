@@ -36,6 +36,7 @@ import json
 import math
 import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -464,14 +465,15 @@ def _counter_path(sid: str) -> Path:
     return Path(tempfile.gettempdir()) / f"fabrik-gate-stop-{_safe_sid(sid)}.attempts"
 
 
-_COUNTER_SLOTS = 6
+_COUNTER_SLOTS = 7
 
 
-def _read_counters(counter: Path) -> tuple[int, int, int, int, int, int]:
-    """(gate, commit, stall, push, run, review) attempts — tolerates older short files.
+def _read_counters(counter: Path) -> tuple[int, int, int, int, int, int, int]:
+    """(gate, commit, stall, push, run, review, merge) attempts — tolerates older short files.
 
     Each cause owns its OWN slot: exhausting one cause's cap must never starve
-    another's (the alternating-cause escape, 2026-08-07).
+    another's (the alternating-cause escape, 2026-08-07). A file written before a slot existed
+    pads it with 0, so a 6-field counter from before the merge-request cause reads cleanly.
     """
     try:
         raw = counter.read_text().strip()
@@ -479,9 +481,9 @@ def _read_counters(counter: Path) -> tuple[int, int, int, int, int, int]:
         vals = [int(p) for p in parts[:_COUNTER_SLOTS]]
         while len(vals) < _COUNTER_SLOTS:
             vals.append(0)
-        return vals[0], vals[1], vals[2], vals[3], vals[4], vals[5]
+        return vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6]
     except Exception:
-        return 0, 0, 0, 0, 0, 0
+        return 0, 0, 0, 0, 0, 0, 0
 
 
 # --- FIFTH cause: an in-flight COMMAND RUN RECORD ----------------------------
@@ -1421,6 +1423,233 @@ def decide_review(code_files: int, attempts: int, cap: int = CAP) -> tuple[str, 
     if attempts > cap:
         return "allow_warn_review", 0
     return "block_review", attempts
+
+
+# --- SEVENTH cause: a MERGE OWNER with a waiting request (D-B, D-C) -----------------------------
+# Spec 2026-09-30-merge-request-loop § The delta 6 and 8. Fires only in a repo's MAIN checkout, only
+# for the session that resolves to the repo's merge owner, and only while (a) an unclaimed
+# `merge-request` addressed to that owner (`ack: required` — the coordinator's `ack: no` copy is
+# never one `merge` would take, `merge_request.py::_owner_requests`) sits in
+# `$FABRIK_MAIL_ROOT/<repo>/inbox`, or (b) a `<git common dir>/fabrik-merge/<id>.json` record is
+# short of `replied` and STRANDED by `scripts/merge_request.py::_stranded`'s rule. Like the FIFTH
+# cause this hook imports no script: the two resolvers are RUN, each under a timeout, and only once
+# the cheap filesystem look (no subprocess, not even git) found something — the CALLER first, and
+# the OWNER only when a record is stranded or a request is addressed to that caller; a missing
+# script, a timeout, exit 3 (UNDECLARED) or an empty caller is silence. Cobra note (D-253): the cheapest way past this cause is for the owner
+# to `mail.py claim` (or `ack blocked`) the request by hand without merging it — the file leaves the
+# inbox and no record is written, so this cause goes silent; that path is CHEAPER than the merge and
+# this hook cannot see it. Its counter-measures live elsewhere: `ack done` refuses a merge SHA not
+# in base (spec § Contract deltas), and D-C's reply duty leaves the requester and the coordinator
+# with no merge SHA to close the item on. A claim made through `merge_request.py` writes a record
+# first, which this cause reads as stranded once its process is gone.
+_MERGE_OWNER_ARGV: tuple[str, ...] = (
+    sys.executable,
+    "/opt/fabrik/scripts/decisions.py",
+    "--merge-owner",
+)
+_WHOAMI_ARGV: tuple[str, ...] = (sys.executable, "scripts/whoami_agent.py", "--who")
+_RESOLVER_TIMEOUT_S = 5.0
+_MERGE_DONE_PHASES = ("replied",)  # `merge_request.py::DONE_PHASES`
+_MAIL_HEADER_BYTES = 4096
+# A mail id as `scripts/mail.py::_ulid` mints it (Crockford base32, upper case) — and no wider: the
+# id is pasted into the block text as a command argument, so anything else is skipped, never echoed.
+_MAIL_ID_RE = re.compile(r"[0-9A-Z]{1,64}")
+
+
+def _regular(path: Path) -> bool:
+    """A regular file — never a FIFO, socket or device, whose ``open`` can block the Stop."""
+    try:
+        return stat.S_ISREG(os.stat(path).st_mode)
+    except OSError:
+        return False
+
+
+def _mail_header(path: Path) -> dict[str, str]:
+    """The leading ``---`` frontmatter of one message, from a BOUNDED read, with
+    ``scripts/mail.py::_parse``'s rejections mirrored: a file ``_parse`` refuses (``list_msgs``
+    quarantines it, so ``merge_request.py merge`` never sees it) is {} here — not waiting."""
+    if not _regular(path):
+        return {}
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            head = fh.read(_MAIL_HEADER_BYTES)
+    except OSError:
+        return {}
+    if not head.startswith("---\n"):
+        return {}
+    end = head.find("\n---", 4)
+    if end == -1:
+        return {}
+    fields: dict[str, str] = {}
+    for line in head[4:end].splitlines():
+        if not line.strip():
+            continue
+        if ":" not in line:
+            return {}  # a bare line: `_parse` returns None
+        k, _, v = line.partition(":")
+        if not k.strip():
+            return {}  # ": value" — no key
+        fields[k.strip()] = v.strip()
+    if not fields.get("id", "").strip() or not fields.get("kind", "").strip():
+        return {}  # id/kind must be present AND non-empty
+    return fields
+
+
+def _merge_proc_start(pid: int) -> str | None:
+    """Field 22 of ``/proc/<pid>/stat`` split after the LAST ``)`` (``merge_request._proc_start``)."""
+    try:
+        text = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    rest = text[text.rfind(")") + 1 :].split()
+    return rest[19] if len(rest) > 19 else None
+
+
+def _merge_record_stranded(rec: dict) -> bool:
+    """``merge_request._stranded`` verbatim: short of ``replied`` and its process gone (dead, or a
+    reused pid whose start time differs)."""
+    if rec.get("phase") in _MERGE_DONE_PHASES:
+        return False
+    pid, start = rec.get("pid"), rec.get("start")
+    if isinstance(pid, int) and pid > 0 and start is not None:
+        return _merge_proc_start(pid) != start
+    return True
+
+
+def _resolve_line(argv: tuple[str, ...], root: Path, env: dict[str, str]) -> str | None:
+    """First stdout line of a resolver that exited 0; None on any failure (fail-open)."""
+    try:
+        res = subprocess.run(
+            list(argv),
+            cwd=str(root),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=_RESOLVER_TIMEOUT_S,
+        )
+    except Exception:
+        return None
+    if res.returncode != 0:
+        return None
+    lines = (res.stdout or "").strip().splitlines()
+    return lines[0].strip() if lines and lines[0].strip() else None
+
+
+def _phase(rec: dict) -> str:
+    """The record's phase for the block text — a plain word, else ``?`` (never echoed raw)."""
+    ph = rec.get("phase")
+    return ph if isinstance(ph, str) and re.fullmatch(r"[a-z][a-z-]{0,31}", ph) else "?"
+
+
+def _main_checkout_git(root: Path) -> tuple[Path, Path] | None:
+    """(toplevel, git dir) when ``root`` sits in a MAIN checkout; None otherwise. A filesystem
+    walk to the first ``.git`` — no subprocess on the per-Stop path: a ``.git`` DIRECTORY is a
+    main checkout (its git dir IS the common dir), a ``.git`` FILE is a linked worktree, a
+    submodule or a separate git dir — all silent here. Where git's own discovery would answer
+    differently, this is silent too: a ``GIT_DIR``/``GIT_COMMON_DIR``/``GIT_WORK_TREE`` in the
+    environment, or a ``.git`` directory git rejects (no regular ``HEAD`` file)."""
+    if any(v in os.environ for v in ("GIT_DIR", "GIT_COMMON_DIR", "GIT_WORK_TREE")):
+        return None
+    for d in (root, *root.parents):
+        dot = d / ".git"
+        if dot.is_dir():
+            return (d, dot) if _regular(dot / "HEAD") else None
+        if dot.exists():
+            return None
+    return None
+
+
+def _merge_owner_duty(root: Path, sid: str) -> str | None:
+    """The block text when THIS session is the merge owner and a request waits; None otherwise.
+
+    Never raises: every doubt (no git, a linked worktree, no inbox, a resolver failure, a caller
+    who is not the owner) is silence, as every other cause's error path; one bad inbox file or
+    record skips only itself."""
+    try:
+        found = _main_checkout_git(root)
+        if found is None:
+            return None
+        top, common = found
+        mail_root = Path(os.environ.get("FABRIK_MAIL_ROOT") or "/opt/fabrik-mail")
+        inbox = mail_root / top.name / "inbox"
+        requests: list[dict[str, str]] = []
+        if inbox.is_dir():
+            for f in sorted(inbox.glob("*.md")):
+                try:
+                    if f.name.startswith("."):
+                        continue
+                    fm = _mail_header(f)
+                    if (
+                        fm.get("kind") == "merge-request"
+                        and fm.get("ack") == "required"
+                        and _MAIL_ID_RE.fullmatch(fm.get("id", ""))
+                    ):
+                        requests.append(fm)
+                except Exception:
+                    continue
+        parked: list[dict] = []
+        stranded: list[dict] = []
+        records = common / "fabrik-merge"
+        if records.is_dir():
+            for path in sorted(records.glob("*.json")):
+                try:
+                    if not _regular(path):
+                        continue
+                    rec = json.loads(path.read_text(encoding="utf-8"))
+                    if not isinstance(rec, dict):
+                        continue
+                    rid = rec.get("id")
+                    if not (
+                        isinstance(rid, str) and rid == path.stem and _MAIL_ID_RE.fullmatch(rid)
+                    ):
+                        continue
+                    if "phase" not in rec or not _merge_record_stranded(rec):
+                        continue
+                    (parked if rec["phase"] == "catchup-refused" else stranded).append(rec)
+                except Exception:
+                    continue  # unreadable: `merge_request.py` warns about it, never this hook
+        if not (requests or parked or stranded):
+            return None  # the cheap look found nothing: no resolver runs
+        caller = _resolve_line(_WHOAMI_ARGV, top, {**os.environ, "CLAUDE_CODE_SESSION_ID": sid})
+        if not caller:
+            return None
+        key = caller.strip().casefold()
+        if not (parked or stranded):
+            # Only requests: unless one is addressed to the caller, the owner never matters.
+            if key not in {(fm.get("agent") or "").strip().casefold() for fm in requests}:
+                return None
+        owner = _resolve_line((*_MERGE_OWNER_ARGV, str(top)), top, dict(os.environ))
+        if not owner or owner == "UNDECLARED" or owner.strip().casefold() != key:
+            return None
+        mine = [fm for fm in requests if (fm.get("agent") or "").strip().casefold() == key]
+        if not (mine or parked or stranded):
+            return None
+        out: list[str] = [
+            f"You are this repo's merge owner ({owner}) and a merge request is owed an answer "
+            "(D-B act, D-C answer: every request ends merged or refused, before other work)."
+        ]
+        for rec in parked:
+            why = " ".join(str(rec.get("reason") or "").split())
+            out.append(
+                f"Request {rec['id']} is PARKED at catchup-refused: merge the remote base into "
+                f"the local base by hand, then `python3 scripts/merge_request.py resume "
+                f"{rec['id']}`" + (f" — {why}" if why else "") + "."
+            )
+        for rec in stranded:
+            out.append(
+                f"Request {rec['id']} is STRANDED at phase {_phase(rec)} (its merge run is "
+                f"gone): `python3 scripts/merge_request.py resume {rec['id']}`."
+            )
+        if mine:
+            ids = ", ".join(fm["id"] for fm in mine)
+            out.append(
+                f"{len(mine)} unclaimed merge-request(s) wait in the {top.name} inbox ({ids}): "
+                "run `python3 scripts/merge_request.py merge` until none remain"
+                + (" (after the parked request above is resolved)." if parked else ".")
+            )
+        return " ".join(out)
+    except Exception:
+        return None
 
 
 def decide_stall(stalled: bool, attempts: int, cap: int = CAP) -> tuple[str, int]:
@@ -3035,7 +3264,7 @@ def main(argv: list[str]) -> int:
             the in-flight COMMAND RUN RECORD. Independent counter slots, same
             reset-when-false + warn-through shape."""
             counter = _counter_path(sid)
-            g, c, s_att, p_att, r_att, v_att = _read_counters(counter)
+            g, c, s_att, p_att, r_att, v_att, m_att = _read_counters(counter)
             run = _run_record(sid)
             run_active = bool(run) and (run or {}).get("state") == "running"
             # FLOORED, not the lifetime set — see `_baseline_floor`
@@ -3045,7 +3274,8 @@ def main(argv: list[str]) -> int:
             p_action, p_att = decide_stall(bool(ahead), p_att)
             if p_action == "block_stall":
                 counter.write_text(
-                    f"{g},{c},{s_att if stall else 0},{p_att},{r_att if run_active else 0},{v_att}"
+                    f"{g},{c},{s_att if stall else 0},{p_att},{r_att if run_active else 0},{v_att},"
+                    f"{m_att}"
                 )
                 if _has_upstream(root):
                     reason = (
@@ -3104,7 +3334,7 @@ def main(argv: list[str]) -> int:
                 # narrated nothing can still be abandoning /fabrik-review at round 3.
                 r_action, r_att = decide_stall(run_active, r_att)
                 if r_action == "block_stall":
-                    counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att}")
+                    counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att},{m_att}")
                     _kaizen(
                         "stop_block",
                         ev_sid,
@@ -3160,7 +3390,7 @@ def main(argv: list[str]) -> int:
                 _unreviewed = len(_unreviewed_files)
                 v_action, v_att = decide_review(_unreviewed, v_att)
                 if v_action == "block_review":
-                    counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att}")
+                    counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att},{m_att}")
                     _kaizen(
                         "stop_block",
                         ev_sid,
@@ -3206,16 +3436,57 @@ def main(argv: list[str]) -> int:
                         outcome="warned_through",
                         attempt=CAP,
                     )
-                if g == 0 and c == 0 and p_att == 0 and r_att == 0 and v_att == 0:
+                # SEVENTH cause — the merge owner's waiting request (D-B act, D-C answer; spec
+                # 2026-09-30-merge-request-loop § The delta 6). Last, so every cause the owner
+                # itself owes speaks first; its own slot, carried through every other write.
+                _merge_reason = _merge_owner_duty(root, sid)
+                m_action, m_att = decide_stall(_merge_reason is not None, m_att)
+                if m_action == "block_stall":
+                    counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att},{m_att}")
+                    _kaizen(
+                        "stop_block",
+                        ev_sid,
+                        cause="merge-request",
+                        outcome="blocked",
+                        attempt=m_att,
+                    )
+                    sys.stdout.write(
+                        json.dumps(
+                            {
+                                "decision": "block",
+                                "reason": f"MERGE REQUEST WAITING (attempt {m_att}/{CAP}). "
+                                + str(_merge_reason),
+                            }
+                        )
+                        + "\n"
+                    )
+                    return 0
+                if m_action == "allow_warn_stall":
+                    sys.stderr.write(
+                        f"A merge request still waits for this merge owner after {CAP} blocked "
+                        "stops — stopping anyway. It is still owed: python3 "
+                        "scripts/merge_request.py merge\n"
+                    )
+                    warned.append("merge-request")
+                    _kaizen(
+                        "stop_block",
+                        ev_sid,
+                        cause="merge-request",
+                        outcome="warned_through",
+                        attempt=CAP,
+                    )
+                if not any((g, c, p_att, r_att, v_att, m_att)):
                     counter.unlink(missing_ok=True)
                 else:
-                    counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att}")
+                    counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att},{m_att}")
                 # The ONE pass-through: every enforcement cause declined to block, so
                 # this Stop really ends the turn.
                 _store_decision(_ta, sid, judged, _repo)
                 _kaizen_pass(ev_sid, transcript_p, waived, warned, decision_ground)
                 return 0
-            counter.write_text(f"{g},{c},{s_att},{p_att},{r_att if run_active else 0},{v_att}")
+            counter.write_text(
+                f"{g},{c},{s_att},{p_att},{r_att if run_active else 0},{v_att},{m_att}"
+            )
             kind, snippet = stall  # type: ignore[misc]
             if kind == "final-block-incomplete":
                 _missing = snippet.split("missing:", 1)[-1].strip()
@@ -3336,6 +3607,7 @@ def main(argv: list[str]) -> int:
             push_attempts,
             run_attempts,
             review_attempts,
+            merge_attempts,
         ) = _read_counters(counter)
 
         action, gate_attempts, commit_attempts = decide(
@@ -3373,7 +3645,8 @@ def main(argv: list[str]) -> int:
             # gate/commit causes resolved (or capped) → reset their counters, then
             # the push law + promise-guard still have the last word on THIS stop.
             counter.write_text(
-                f"0,0,{stall_attempts},{push_attempts},{run_attempts},{review_attempts}"
+                f"0,0,{stall_attempts},{push_attempts},{run_attempts},{review_attempts},"
+                f"{merge_attempts}"
             )
             return _stall_gate()
 
@@ -3389,7 +3662,7 @@ def main(argv: list[str]) -> int:
             # (indeterminate) and would reset this streak on every unrelated gate/commit
             # block, restarting the 3-attempt ladder in the trapping direction
             f"{push_attempts if _ahead_of_upstream(root, set(_this_sessions_edits(authored_map, _baseline_floor(sid)))) else 0},"
-            f"{run_attempts if _run_live else 0},{review_attempts}"
+            f"{run_attempts if _run_live else 0},{review_attempts},{merge_attempts}"
         )
         if action == "block_commit":
             listed = ", ".join(sorted(own_uncommitted)[:8])

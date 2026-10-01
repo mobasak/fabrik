@@ -399,7 +399,7 @@ def test_baseline_survives_resume_but_not_fresh_start(fake_project: Path) -> Non
 def test_counters_read_legacy_three_slot(tmp_path: Path) -> None:
     ctr = tmp_path / "c.attempts"
     ctr.write_text("1,2,0")
-    assert hook._read_counters(ctr) == (1, 2, 0, 0, 0, 0)
+    assert hook._read_counters(ctr) == (1, 2, 0, 0, 0, 0, 0)
 
 
 def _run_stop_with_transcript(
@@ -1335,14 +1335,15 @@ def test_prior_turn_dispatch_does_not_exempt_and_prior_promise_not_inherited(
 def test_counter_format_round_trips(tmp_path: Path) -> None:
     c = tmp_path / "ctr"
     for raw, expect in [
-        ("3", (3, 0, 0, 0, 0, 0)),
-        ("3,1", (3, 1, 0, 0, 0, 0)),
-        ("3,1,2", (3, 1, 2, 0, 0, 0)),
-        ("", (0, 0, 0, 0, 0, 0)),
-        ("x,y", (0, 0, 0, 0, 0, 0)),
-        ("1,2,3,4", (1, 2, 3, 4, 0, 0)),
-        ("1,2,3,4,5", (1, 2, 3, 4, 5, 0)),
-        ("1,2,3,4,5,6", (1, 2, 3, 4, 5, 6)),
+        ("3", (3, 0, 0, 0, 0, 0, 0)),
+        ("3,1", (3, 1, 0, 0, 0, 0, 0)),
+        ("3,1,2", (3, 1, 2, 0, 0, 0, 0)),
+        ("", (0, 0, 0, 0, 0, 0, 0)),
+        ("x,y", (0, 0, 0, 0, 0, 0, 0)),
+        ("1,2,3,4", (1, 2, 3, 4, 0, 0, 0)),
+        ("1,2,3,4,5", (1, 2, 3, 4, 5, 0, 0)),
+        ("1,2,3,4,5,6", (1, 2, 3, 4, 5, 6, 0)),
+        ("1,2,3,4,5,6,7", (1, 2, 3, 4, 5, 6, 7)),
     ]:
         c.write_text(raw)
         assert hook._read_counters(c) == expect, raw
@@ -1536,9 +1537,9 @@ def test_run_record_cause_uses_the_shared_anti_trap_idiom() -> None:
 def test_counter_file_gains_a_fifth_slot_tolerating_older_files(tmp_path: Path) -> None:
     ctr = tmp_path / "c.attempts"
     ctr.write_text("1,2,3")  # a 3-slot file written before the 5th/6th causes existed
-    assert hook._read_counters(ctr) == (1, 2, 3, 0, 0, 0)
+    assert hook._read_counters(ctr) == (1, 2, 3, 0, 0, 0, 0)
     ctr.write_text("1,2,3,4,5")
-    assert hook._read_counters(ctr) == (1, 2, 3, 4, 5, 0)
+    assert hook._read_counters(ctr) == (1, 2, 3, 4, 5, 0, 0)
 
 
 # --- F-R2: freshness must be POSITIVELY PROVEN, or the record fails open ------
