@@ -189,13 +189,14 @@ follows the pack's serve stage (`:33`), not `10-python.md:254`, which governs Py
 - `TemplateRenderer.render(...)`: context gains `"versions": load_versions()` and `"name": spec.id`; every
   `*.j2` under the template dir renders recursively; the output key is the POSIX path relative to the template
   dir minus `.j2` (`src/pages/index.js.j2` → `"src/pages/index.js"`); writes create parent directories.
-- `src/fabrik/orchestrator/deployer_ssh.py::_write_file_to_vps_path(path, filename, content)` (`:849-870`) — the
+- `src/fabrik/orchestrator/deployer_ssh.py::_write_file_to_vps_path(path, filename, content)` (`:849-879`) — the
   deploy-time consumer of those keys (`_deploy_template` writes every rendered key with it, `:471-475`): when
   `filename` contains `/`, the remote command first runs `sudo mkdir -p {path}/{dirname(filename)}`, so a nested
   key lands on the VPS instead of failing the `sudo mv` into a missing directory. A flat filename's command is
   unchanged.
 - **Mirror (named, accepted):** every template render now reads `versions.yaml`, and `fabrik apply` of every
-  `source: type: template` spec renders (`deployer_ssh.py:452`, also `deploy_validator.py:100`), so a registry
+  `source: type: template` spec renders (`deployer_ssh.py:452`; `src/fabrik/deploy_validator.py:100-101` only calls
+  `template_exists` and never reads the registry), so a registry
   missing one of the three keys fails every template render AND every template-source deploy (python-api
   included), not only docusaurus — a hub without its registry is broken, and failing loud with the key's name
   beats rendering `FROM node:--slim` (`spec § The delta` part 1). Output keys of the other eight templates do not
@@ -225,8 +226,9 @@ follows the pack's serve stage (`:33`), not `10-python.md:254`, which governs Py
    - in the write loop (`:211-219`) call `file_path.parent.mkdir(parents=True, exist_ok=True)` before `open`.
 3b. Edit `src/fabrik/orchestrator/deployer_ssh.py::_write_file_to_vps_path` per the Interfaces: prefix the
    remote command with `sudo mkdir -p {path}/{posixpath.dirname(filename)} && ` when `"/" in filename`. Its
-   test goes in `tests/orchestrator/test_deployer_ssh.py` beside the existing `_write_file_to_vps` cases, with
-   `fabrik.drivers.ssh.ssh` and `scp_to_vps` patched (no VPS is reached).
+   test is a NEW direct test of `_write_file_to_vps_path` in `tests/orchestrator/test_deployer_ssh.py` (every
+   existing reference there patches the writer away), with `fabrik.drivers.ssh.ssh` and `scp_to_vps` patched
+   (no VPS is reached).
    Leave the Jinja environment (`:43-48`) unchanged: autoescape stays on for `.j2` (it escapes only variable
    output — E3). The variables the docusaurus templates render cannot carry an HTML-special character: the
    registry values are digits and codenames, and `name` is the spec id, which `Spec.id` constrains to
@@ -244,7 +246,8 @@ follows the pack's serve stage (`:33`), not `10-python.md:254`, which governs Py
 6. Gate: `.venv/bin/ruff check src/fabrik/version_registry.py src/fabrik/template_renderer.py
    src/fabrik/orchestrator/deployer_ssh.py tests/test_docusaurus_static_runtime.py
    tests/orchestrator/test_deployer_ssh.py` clean; `PYTHONPATH=<worktree>/src .venv/bin/python -m pytest
-   tests/orchestrator/test_deployer_ssh.py -q` green; `.venv/bin/mypy src/fabrik/version_registry.py` clean;
+   tests/orchestrator/test_deployer_ssh.py -q` green; `.venv/bin/mypy src/fabrik/version_registry.py src/fabrik/template_renderer.py
+   src/fabrik/orchestrator/deployer_ssh.py` clean;
    `python scripts/final_gate.py --lean --json` → `"status":"success"`.
 7. Docs: `CHANGELOG.md` `### Changed — docusaurus static runtime, phase A: version registry loader + nested
    template rendering (2026-10-XX)`; `INDEX.md` rows for `src/fabrik/version_registry.py` and
@@ -267,7 +270,7 @@ follows the pack's serve stage (`:33`), not `10-python.md:254`, which governs Py
   it raises `VersionRegistryError` naming the file — never a `KeyError` or `TypeError` from deeper code.
 - **Given** a registry missing `node_lts`, **When** `TemplateRenderer.render` renders any template, **Then** it
   raises `VersionRegistryError` naming `node_lts`, and no `<output>/<id>/` directory exists afterwards (the
-  renderer's constructor already creates `output_dir` itself, `src/fabrik/template_renderer.py:38-39`, so the
+  renderer's constructor already creates `output_dir` itself, `src/fabrik/template_renderer.py:39-40`, so the
   assertion is on the per-spec directory) (`spec § Validation` 3, renderer half).
 - **Given** a template dir with a nested `a/b/x.txt.j2`, **When** `render(dry_run=True)` runs, **Then** the
   result holds key `a/b/x.txt` with the registry's `node_lts` and the spec id rendered into it
@@ -277,7 +280,7 @@ follows the pack's serve stage (`:33`), not `10-python.md:254`, which governs Py
 - **Given** a rendered key `src/theme/SearchBar/index.js`, **When** `_write_file_to_vps_path("/opt/docs", key, …)`
   runs with the ssh calls patched, **Then** the remote command creates `/opt/docs/src/theme/SearchBar` before the
   `sudo mv`; and for a flat key (`Dockerfile`) the command is unchanged
-  (`src/fabrik/orchestrator/deployer_ssh.py:849-870`; the consumer loop `:471-475`).
+  (`src/fabrik/orchestrator/deployer_ssh.py:849-879`; the consumer loop `:471-475`).
 
 ## Phase B — The docusaurus templates and the scaffold emitter
 
@@ -674,6 +677,7 @@ rewrote the Constraints Digest so `check_rule_grounding` can read it (19 finding
 | Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) |
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (`rules`) + sonnet×1 (`prose`) · all axes | found: 17, new: 16, confirmed: 15, fixed: 15, unexecuted: 0, edits: 24 | method: citation — full partitioned pass; every candidate executed by the orchestrator: O1 (the remote `mv` of a nested key has no `mkdir`, `deployer_ssh.py:849-870`), O3 (FABRIK_ROOT follows the CWD, E9), O4 (`"RUN npm ci" in` the new line → False), O5, O6, O10, O11 (78 lock files re-counted) re-run; O2, O7, O8, O9, O12 and S2–S4 read; S1 = O6 (duplicate); S5 RECORDED — measured (the scaffold `.gitignore` excludes `node_modules/`, so a VPS build context from a git checkout never holds one; a local `docker build` in a dev checkout is the only exposure, pre-existing and outside the spec) | ff6ade45… → 90c3c103… |
+| Pass 2 | opus×1 (round-1 owner of `rules`) + sonnet×1 (round-1 owner of `prose`) · delta over pass 1's fix (306 added / 79 removed) + one hop | found: 6, new: 6, confirmed: 5, fixed: 5, unexecuted: 0, edits: 7 | method: re-derivation — O1–O12 and S1–S4 all NOW_FALSE (S5 stands RECORDED); every new anchor re-read and E6, E9 and the rubric block re-run (E9 identical, 78 lock files, rubric MATCHED 56/56 lines equal). Confirmed, all own-fix (round 1): the step-6 `mypy` line missed two of the phase's three Python files; `deploy_validator.py:100` named as a render site (it only calls `template_exists`); `template_renderer.py:38-39` → `:39-40`; the core/30-ops verdict cited `scaffold.py:1053-1085`, which holds no labels (→ `:931-1082`, labels `:1008-1024`); step 3b said "beside the existing cases" while no direct writer test exists (0 `scp_to_vps` hits). RECORDED — measured (wording; fixed in passing): the writer's extent `:849-870` → `:849-879` | 585f382f… → 92e74b6d… |
 
 ## Coverage Checklist
 
@@ -684,7 +688,8 @@ UNCHECKED and is adjudicated by `/fabrik-plan-review`.
 |---|---|
 | FLOOR core/35-security-auth — secrets, auth, config via env | CLEAN — hunted File Scope for auth, secret and config surfaces: none (no env var, no credential, no settings object is added) |
 | FLOOR core/25-data-postgres — database, sessions, backing services | CLEAN — no database, session or backing service in File Scope |
-| FLOOR core/30-ops — compose invariants (no `ports:`, `container_name`, memory limit, Traefik, public = no middleware), immutable releases | FIXED r1 — the scaffolded compose's writer-owned `PORT=80`/`LOG_LEVEL=INFO` stated in Phase B row 3 (O6); `container_name`, platform, memory limit, `fabrik` network, no `ports:`, no middleware verified in `_write_canonical_compose` (`src/fabrik/scaffold.py:1053-1085`) |
+| FLOOR core/30-ops — compose invariants (no `ports:`, `container_name`, memory limit, Traefik, public = no middleware), immutable releases | FIXED r1 — the scaffolded compose's writer-owned `PORT=80`/`LOG_LEVEL=INFO` stated in Phase B row 3 (O6); `container_name`, platform, memory limit, `fabrik` network, no `ports:`, no middleware verified in `_write_canonical_compose` (`src/fabrik/scaffold.py:931-1082`; the Traefik labels are built at
+`:1008-1024` and carry no `middlewares` label) |
 | FLOOR 12-Factor — all twelve axes against what the plan steps | FIXED r1 — factor V restated for template-source specs, which re-render at every apply (O2); II/VII/XI verified against the Dockerfile and the stock nginx image |
 | MATCHED core/10-python — no deps-file edits, pinned base image, no file logging | CLEAN — no deps-file edit; `jinja2` is already imported by `template_renderer.py:13-14` (resolved via `uv.lock`, not a direct `pyproject.toml` entry — unchanged by this plan); no logging added |
 | MATCHED core/40-documentation — heading levels, fenced code, the docs the change makes stale | CLEAN — the plan's headings step `##`→`###` and its code is fenced; the README step is a doc edit |
