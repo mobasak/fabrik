@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-09-30-plan-1-merge-request-loop",
+  "plan": "docs/development/plans/archived/2026-09-30-plan-1-merge-request-loop",
   "owned_paths": [
     ".claude/hooks/final_gate_stop.py",
     ".pre-commit-config.yaml",
@@ -22,7 +22,7 @@
   ],
   "branch": "master",
   "started_at": "2026-09-30T21:58:00+00:00",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "8d9876021f2514afd4a12e5ef0f08ddb3d41b32c",
   "baseline_gate": {
     "status": "success",

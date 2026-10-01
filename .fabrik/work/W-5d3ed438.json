@@ -8,7 +8,7 @@
   "legacy": false,
   "links": {
     "decision": "",
-    "plan": "docs/development/plans/2026-09-30-plan-1-merge-request-loop",
+    "plan": "docs/development/plans/archived/2026-09-30-plan-1-merge-request-loop",
     "spec": ""
   },
   "next": "decide the declaration grammar (uppercase MERGE OWNER: as the only declaration signal on bare rows too, and allow the bold-wrapped label) in decisions.py/docs_updater.py/session_orient.py with the shared-fixture parity test; found by the wave-1 review of plan 2026-09-30-plan-1-merge-request-loop, pass 3",

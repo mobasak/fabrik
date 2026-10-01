@@ -8,7 +8,7 @@
   "legacy": false,
   "links": {
     "decision": "",
-    "plan": "docs/development/plans/2026-09-30-plan-1-merge-request-loop",
+    "plan": "docs/development/plans/archived/2026-09-30-plan-1-merge-request-loop",
     "spec": ""
   },
   "next": "one rule in decisions.py:582-599, docs_updater.py:1192-1214 and .claude/hooks/session_orient.py: highest D-id wins, an optional 'supersedes D-NNN[, D-NNN]:' prefix accepted; extend the tests/test_session_orient_hook.py:875 parity test; full /fabrik-review (synced + hook); precondition of plan 2026-09-30-plan-1-merge-request-loop T02",

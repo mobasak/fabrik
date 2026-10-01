@@ -1,6 +1,6 @@
 # Plan — the merge-request loop: finished work reaches base safely and at once, in every repo
 
-Status: IN-PROGRESS
+Status: EXECUTED
 **Owner:** infra
 Spec: docs/superpowers/specs/2026-09-30-merge-request-loop-design.md
 Date: 2026-09-30
