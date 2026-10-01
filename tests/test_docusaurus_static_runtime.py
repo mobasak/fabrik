@@ -27,6 +27,10 @@ from fabrik.spec_loader import load_spec
 from fabrik.template_renderer import TemplateRenderer
 from fabrik.version_registry import REQUIRED_KEYS, VersionRegistryError, load_versions
 
+# The tree this test file ships in: a grader of the sync manifest or check_structure.py reads
+# THESE copies, never FABRIK_ROOT, which falls back to the live hub outside a hub worktree.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 GOOD = {"node_lts": "24", "debian_codename": "trixie", "node_engines_floor": "22", "other": "x"}
 
 
@@ -387,11 +391,15 @@ def test_spec_generator_health_path_is_the_slashed_intro() -> None:
 def _ignored(rules: list[str], path: str) -> bool:
     """Whether a .dockerignore rule set excludes ``path``, read as Docker reads it: each rule is
     cleaned (`./docs` is `docs`) and anchored at the context root, `*` and `?` stay inside one
-    segment, `**/` is zero or more directories, `[...]` is a character class, and a rule that
-    matches a parent directory excludes everything below it."""
+    segment, `**/` is zero or more directories, `[...]` is a character class, a rule that
+    matches a parent directory excludes everything below it, a `!` rule re-includes, and the
+    LAST matching rule decides."""
     parts = path.split("/")
-    for rule in rules:
-        body = posixpath.normpath(rule.strip()).strip("/")
+    excluded = False
+    for raw in rules:
+        rule = raw.strip()
+        negate = rule.startswith("!")
+        body = posixpath.normpath(rule.lstrip("!").strip()).strip("/")
         tokens = re.split(r"(\*\*/|\*\*|\*|\?|\[[^\]]*\])", body)
         pattern = "".join(
             "(?:.*/)?"
@@ -409,8 +417,8 @@ def _ignored(rules: list[str], path: str) -> bool:
             if tok
         )
         if any(re.fullmatch(pattern, "/".join(parts[:n])) for n in range(1, len(parts) + 1)):
-            return True
-    return False
+            excluded = not negate
+    return excluded
 
 
 def test_scaffold_dockerignore_keeps_every_build_input(scaffolded: Path) -> None:
@@ -448,6 +456,9 @@ def test_matcher_reads_the_spellings_the_guard_must_catch() -> None:
     assert _ignored(["*.md"], "README.md") and not _ignored(["*.md"], "docs/intro.md")
     assert _ignored(["**/package.json"], "package.json") and _ignored(["**/*.md"], "README.md")
     assert not _ignored(["*.md"], "src/pages/index.js")
+    # A `!` rule re-includes and the last matching rule wins, as in Docker (Finish review C4).
+    assert not _ignored(["docs", "!docs/intro.md"], "docs/intro.md")
+    assert _ignored(["!docs/intro.md", "docs"], "docs/intro.md")
 
 
 def test_scaffold_does_not_publish_the_internal_docs_trees(scaffolded: Path) -> None:
@@ -476,14 +487,10 @@ def test_every_synced_docs_subtree_is_unpublished() -> None:
     # docs/ subtree the governance sync writes must be unpublished as well.
     import importlib.util
 
-    from fabrik.scaffold import (
-        _DOCUSAURUS_UNPUBLISHED_DIRS,
-        _DOCUSAURUS_UNPUBLISHED_DOCS,
-        FABRIK_ROOT,
-    )
+    from fabrik.scaffold import _DOCUSAURUS_UNPUBLISHED_DIRS, _DOCUSAURUS_UNPUBLISHED_DOCS
 
     spec = importlib.util.spec_from_file_location(
-        "manifest", FABRIK_ROOT / "scripts" / "fabrik_synced_manifest.py"
+        "manifest", REPO_ROOT / "scripts" / "fabrik_synced_manifest.py"
     )
     assert spec and spec.loader
     manifest = importlib.util.module_from_spec(spec)
@@ -516,10 +523,10 @@ def test_every_governed_docs_subtree_is_published_or_not_by_decision() -> None:
     # a new subtree fails here until someone decides which (closing pass 3, item 1).
     import importlib.util
 
-    from fabrik.scaffold import _DOCUSAURUS_UNPUBLISHED_DIRS, FABRIK_ROOT
+    from fabrik.scaffold import _DOCUSAURUS_UNPUBLISHED_DIRS
 
     spec = importlib.util.spec_from_file_location(
-        "check_structure", FABRIK_ROOT / "scripts" / "enforcement" / "check_structure.py"
+        "check_structure", REPO_ROOT / "scripts" / "enforcement" / "check_structure.py"
     )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
