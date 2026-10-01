@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T12:38:48.182575Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0993bb62",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Measured 2026-10-01 at tryton-crm: mail.py claim/ack run by agent-2 and agent-3 from their worktrees wrote W-040bed19, W-82615436, W-20f4f8ea, W-323ef411, W-90c38e18, W-e4b43431 as untracked files in /opt/tryton-crm/.fabrik/work (the one store; work.py init refuses a second store in another working tree). Their creators cannot commit them from a worktree, so they sit as untracked noise in the merge owner's tree until agent-1 commits them by hand. Decide: write the item into the CALLER's working tree (committed on its branch, merged like any file) or have the merge owner's merge carry them; grade it.",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "A worktree agent's work items land in the main checkout's store, where only the merge owner can commit them"
+}
