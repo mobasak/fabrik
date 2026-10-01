@@ -228,7 +228,6 @@
 - [api-quota](/opt/fabrik-lib/api-quota/README.md) (owner: external:fabrik-lib): fabrik-lib/api-quota — Track Upstream Quota + Rotate Across Many API Keys
 - [api-smoke-test](/opt/fabrik-lib/api-smoke-test/README.md) (owner: external:fabrik-lib): api-smoke-test
 - [app-audit-log](/opt/fabrik-lib/app-audit-log/README.md) (owner: external:fabrik-lib): app-audit-log
-- [arch](#) (owner: external:fabrik-lib): vendor /opt/fabrik-lib/arch/
 - [async-http-client](/opt/fabrik-lib/async-http-client/README.md) (owner: external:fabrik-lib): fabrik-lib/async-http-client — Pooled AsyncClient + Asyncio Circuit Breaker
 - [authored-list](/opt/fabrik-lib/authored-list/README.md) (owner: external:fabrik-lib): authored-list
 - [backups](#) (owner: external:fabrik-lib): vendor /opt/fabrik-lib/backups/
@@ -258,6 +257,7 @@
 - [i18n](/opt/fabrik-lib/i18n/README.md) (owner: external:fabrik-lib): fabrik-lib/i18n — Reusable i18n Module
 - [info-tooltip](/opt/fabrik-lib/info-tooltip/README.md) (owner: external:fabrik-lib): info-tooltip
 - [job-queue](/opt/fabrik-lib/job-queue/README.md) (owner: external:fabrik-lib): job-queue
+- [legal-content](/opt/fabrik-lib/legal-content/README.md) (owner: external:fabrik-lib): legal-content
 - [legal-pages](/opt/fabrik-lib/legal-pages/README.md) (owner: external:fabrik-lib): legal-pages
 - [llm-dispatch](/opt/fabrik-lib/llm-dispatch/README.md) (owner: external:fabrik-lib): llm-dispatch
 - [llm-visibility-probe](/opt/fabrik-lib/llm-visibility-probe/README.md) (owner: external:fabrik-lib): llm-visibility-probe
@@ -358,7 +358,7 @@
 - [mobile-app/89-mobile-launch-checklist.md](../.windsurf/rules/mobile-app/89-mobile-launch-checklist.md) (owner: infra): Mobile app launch checklist — Turkish LLC, store compliance, Teknokent tax, staged rollout, beta testing, post-launch
 - [mobile-app/ocoron-mobile-design-system.md](../.windsurf/rules/mobile-app/ocoron-mobile-design-system.md) (owner: infra): Ocoron Mobile Design System — component patterns, navigation, interaction specs for React Native
 - [mobile-app/tojlo-mobile-design-system.md](../.windsurf/rules/mobile-app/tojlo-mobile-design-system.md) (owner: infra): Tojlo Mobile Design System — module-aware mobile component patterns extending ocoron-mobile-design-system.md
-- [saas/00-domain-saas.md](../.windsurf/rules/saas/00-domain-saas.md) (owner: infra): SaaS domain — PLANNING layer. Vision-intake dimensions (ICP, moat, pricing axis, GTM, COGS-per-tenant vs the single-VPS ceiling, risk register, dated kill criteria) + epic-decomposition directives. Business formation, not code discipline — 60/85/87/88/95 own every code-time fact.
+- [saas/00-domain-saas.md](../.windsurf/rules/saas/00-domain-saas.md) (owner: infra): SaaS domain — PLANNING layer. Vision-intake dimensions (ICP, moat, pricing axis, GTM, COGS-per-tenant vs the single-VPS ceiling, risk register, dated kill criteria) + epic-decomposition directives. Business formation, not code discipline — 35/55/60/85/87/88/95/app-audit-log own every code-time fact.
 - [saas/60-saas-ui.md](../.windsurf/rules/saas/60-saas-ui.md) (owner: infra): SaaS UI patterns — navigation, components, dashboards, performance, billing UI, tenant UI, i18n
 - [saas/87-abuse-detection.md](../.windsurf/rules/saas/87-abuse-detection.md) (owner: infra): Abuse detection discipline — registration gating, progressive unlock, fingerprinting, disposable email blocking for SaaS free tiers
 - [saas/88-saas-launch-checklist.md](../.windsurf/rules/saas/88-saas-launch-checklist.md) (owner: infra): SaaS product completeness — launch-blocking checklist, legal pages, payment routing, KVKK/GDPR, abuse prevention, onboarding, tenant settings, Teknokent tax
