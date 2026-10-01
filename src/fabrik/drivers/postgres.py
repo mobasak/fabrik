@@ -1818,10 +1818,12 @@ def _load_remote_allocations() -> dict[str, Any]:
     A FAILED read (SSH down, file unreadable) raises ``RuntimeError``; it is never
     read as an empty registry, because every writer here does read-modify-write and
     would then replace the whole registry with its one entry. Only a file that does
-    not exist reads as empty (the remote ``test -e`` prints nothing, exit 0).
+    not exist reads as empty (the remote ``test -e`` prints nothing, exit 0). The test
+    runs INSIDE one ``sudo sh -c``: a bare ``if sudo test -e`` would read a refused
+    sudo as a missing file, because an ``if`` with no ``else`` exits 0.
     """
     path = shlex.quote(ALLOCATIONS_PATH)
-    raw = ssh(f"if sudo test -e {path}; then sudo cat {path}; fi")
+    raw = ssh(f"sudo sh -c {shlex.quote(f'if test -e {path}; then cat {path}; fi')}")
     if not raw.strip():
         return {"version": 1, "allocations": {}}
     return json.loads(raw)
