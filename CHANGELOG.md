@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — core/tojlo-design-system: points at the template and Ocoron instead of restating their values (2026-10-01)
+- `.windsurf/rules/core/tojlo-design-system.md` (rules currency pass file 40, D-480): colour, contrast, motion, CSS and implementation-stack sections become pointers to `core/design-system-template.md` and `core/ocoron-design-system.md`; the Tailwind v3 snippet is dropped; retired slot names replaced; the active-icon contradiction resolved; 13 as the mobile floor; the identity covers every surface with a pointer to the Tojlo mobile pack; recall and WhatsApp rules corrected. The structural sections' dedup is deferred (W-68b6a454).
+- `tests/test_tojlo_brand_pack.py`: pins description-only loading, template slots, hex only in the logo and email sections, cited sections, canonical module names and contiguous T-rules.
+- `tests/test_tojlo_mobile_pack.py`, `tests/test_mobile_components_pack.py`: the cite check matches headings on a word boundary, so "§ Sounds" no longer passes against "Sound".
+- `.windsurf/rules/CLAIMS.yaml`: two rows; `docs/reference/research/2026-10-01-tojlo-brand-currency-ledger.md`: the turn's 34 facts.
+
 ### Changed — mobile-app/tojlo-mobile-design-system: loads only for a declared Tojlo project (2026-10-01)
 - `.windsurf/rules/mobile-app/tojlo-mobile-design-system.md` (rules currency pass file 39, D-478): description-only activation instead of a glob on every mobile repo; Ocoron's current slot names and the template's slot roles; the active module icon monochrome; 13 as the type floor; 37 inherited rules; the native stack header and WebView back handling for embedded modules; the FAB stays in place on scroll; push grouped by iOS thread and Android channel, quiet hours left to the OS with time-sensitive alerts only.
 - `tests/test_tojlo_mobile_pack.py`: pins description-only activation, slots and their roles, the 13 floor, canonical module names, rule IDs, cited sections and the scaffold's files and add-steps.
