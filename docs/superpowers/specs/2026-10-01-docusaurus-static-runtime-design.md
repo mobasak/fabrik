@@ -10,6 +10,16 @@ Work item: W-3f2d8e21 (mail 01M1G4PYGTQQGMXKK91VDKZGQJ). Beat: fleet (scaffoldin
 Research ledger: `docs/reference/research/2026-10-01-docusaurus-static-runtime-ledger.md` (38 rows,
 every fact fetched 2026-10-01).
 
+## RESUME
+
+Paused 2026-10-01 at the operator's request (computer restart), after `/fabrik-spec-review` reached TERMINAL
+at round 4 (§ Review record). Open rows: none — confirmed 17 → 2 → 0 → 0, every slice verified.
+Next act, in order: (1) flip `Status: DRAFT` → `Status: CONVERGED (/fabrik-spec-review, 2026-10-01, 4
+passes; D-<id>)` and delete this block; (2) mint the decision row with `python3 scripts/decisions.py
+--reserve-id .`, staged in the same commit (the five items of § Decisions taken); (3) run
+`check_spec_convergence` on a flipped scratch copy; (4) commit, push; (5) close `/fabrik-spec-review` then
+`/fabrik-spec` by name; (6) present the ask↔spec table for design approval.
+
 ## Personas
 
 - **PRIMARY — the operator scaffolding a docs site.** No operator quote names this persona for this item;
