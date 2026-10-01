@@ -1,0 +1,26 @@
+{
+  "block_digest": "d352ec774d3b83f93c7416778e090ade44ec5b2980e8319a5131b9bbcbf178f6",
+  "blocked_by": [],
+  "created": "2026-10-01T13:55:19.100228Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-3c7c92de",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "3cceadcb25208d8725b9c590120c2319a56accfb9cd462a7090d8b7076637877"
+  ],
+  "next": "",
+  "note": "ok approved (operator, 2026-10-01 — design approval of docs/superpowers/specs/2026-10-01-docusaurus-static-runtime-design.md, D-472)",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve the reviewed design for the docusaurus scaffold's static nginx runtime with Pagefind search (`docs/superpowers/specs/2026-10-01-docusaurus-static-runtime-design.md`), so I can plan the build?",
+  "status": "done",
+  "title": "Do you approve the reviewed design for the docusaurus scaffold's static nginx runtime with Pagefind search (`docs/superpowers/specs/2026-10-01-docusaurus-static-runtime-design.md`), so I can plan the build?"
+}
