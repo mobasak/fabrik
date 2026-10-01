@@ -6164,7 +6164,7 @@ def _render_docusaurus_template(rel: str, name: str, versions: dict[str, str]) -
     renderer drops, the one difference the parity test normalises. Autoescape is off (a Dockerfile, JSON and nginx
     config are not HTML) and an undefined variable raises instead of rendering empty (D-476).
     """
-    env = Environment(
+    env = Environment(  # nosec B701 — not HTML: Dockerfile, JSON, nginx and JS output (D-476)
         loader=FileSystemLoader(str(DOCUSAURUS_TEMPLATE_DIR)),
         autoescape=False,  # noqa: S701 — not HTML: Dockerfile, JSON, nginx and JS output
         undefined=StrictUndefined,

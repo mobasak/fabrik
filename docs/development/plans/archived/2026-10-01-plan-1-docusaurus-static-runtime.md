@@ -1,6 +1,7 @@
 # Plan — docusaurus scaffold: static nginx runtime, Pagefind search, registry versions
 
-Status: IN-PROGRESS (CONVERGED by /fabrik-plan-review, 2026-10-01, 4 passes; D-476)
+Status: EXECUTED 2026-10-02 (CONVERGED by /fabrik-plan-review 2026-10-01, D-476; executed D-484)
+Whole-plan review: docs/development/reviews/2026-10-01-plan-1-docusaurus-static-runtime-review.md
 Profile: small
 **Owner:** —
 
@@ -447,7 +448,11 @@ trailing newlines); `_scaffold_docusaurus(project_dir, name, description, **kwar
 - **Given** `generate_spec("my-docs", "docusaurus", …)`, **When** its health path is read, **Then** it is
   `/docs/intro/` (`src/fabrik/spec_generator.py:112`; I11).
 
-## Phase C — Real build proof and Finish
+## Phase C — Real build proof and Finish — ✅ EXECUTED 2026-10-02 (f21aec8f7; Finish review fixes 7d987fcfb, a7d2fee56; receipt 271d51bfe; docs review a7fe899b0)
+
+**Execution notes.** Preflight: docker 29.1.3; `registry.npmjs.org/pagefind` 200 over IPv4 (the host's dual-stack lookup hangs; npm ran inside docker). `test_real_build_serves_the_static_site` passed with `FABRIK_REAL_DOCKER_BUILD=1` (1 passed in 78.24 s, no image or container left); dropping `absolute_redirect off` in a throwaway worktree turned the relative-301 row red (Location `http://127.0.0.1/docs/intro/`). The builder's output held 18 `assets/js` files, `styles.*.css`, `pagefind-component-ui.js/.css`, and a `build/docs` with no internal tree (the listing is in the receipt). Whole-plan `/fabrik-review`: 2 passes, 3 confirmed in pass 1 (an empty/`.` filename part, two graders reading the live hub, a matcher without `!`), all fixed, closing pass confirmed 0. `/fabrik-docs-review`: 2 rounds, 12 confirmed and fixed, closing round confirmed 0. Infra's two pack mails (01M3V92T8N, 01M3VAZQPV) are still open, so the templates follow the current pack.
+
+**Requirements coverage.** Every item under § What we already agreed shipped: the registry loader and recursive rendering (Phase A, bc59fc559), the two-stage Dockerfile, nginx.conf, root redirect, Pagefind SearchBar, package.json and port 80 (Phase B, d82d145da), and the validation set's real build (Phase C, f21aec8f7). One gap against part 6 (both emitters writing every file): the renderer writes every template the directory has, but the template ships no `docs/` or `src/css/`, so a template-sourced docusaurus project does not build — W-57d1b007. Recorded, not built here: W-c2c2c35b (seeded top-level docs publish), W-6eb61fa0 (renderer autoescape double-escapes env values), W-2809cce0 (source.path unvalidated in sudo commands).
 
 **Interfaces — Consumes:** the scaffolded project of Phase B. **Produces:** the review receipt
 `docs/development/reviews/2026-10-01-plan-1-docusaurus-static-runtime-review.md`; Status → EXECUTED.
@@ -521,7 +526,7 @@ trailing newlines); `_scaffold_docusaurus(project_dir, name, description, **kwar
 - tests/test_scaffold.py
 - tests/test_spec_generator.py
 - tests/orchestrator/test_deployer_ssh.py
-- docs/development/plans/2026-10-01-plan-1-docusaurus-static-runtime.md
+- docs/development/plans/archived/2026-10-01-plan-1-docusaurus-static-runtime.md
 - docs/development/reviews/2026-10-01-plan-1-docusaurus-static-runtime-review.md
 
 The governance files (`CHANGELOG.md`, `INDEX.md`, `docs/README.md`, `docs/FEATURES.md`, `docs/LESSONS_LEARNT.md`,
@@ -714,7 +719,7 @@ UNCHECKED and is adjudicated by `/fabrik-plan-review`.
 The rubric this plan's reviews inject into every seat brief, run on the plan's own `## File Scope (owned paths)`:
 
 ```bash
-python3 scripts/review_rubric.py --changed src/fabrik/version_registry.py src/fabrik/template_renderer.py src/fabrik/scaffold.py src/fabrik/spec_generator.py src/fabrik/orchestrator/deployer_ssh.py templates/docusaurus/Dockerfile.j2 templates/docusaurus/compose.yaml.j2 templates/docusaurus/defaults.yaml templates/docusaurus/package.json.j2 templates/docusaurus/nginx.conf.j2 templates/docusaurus/src/pages/index.js.j2 templates/docusaurus/src/theme/SearchBar/index.js.j2 templates/docusaurus/README.md tests/test_docusaurus_static_runtime.py tests/test_scaffold.py tests/test_spec_generator.py tests/orchestrator/test_deployer_ssh.py docs/development/plans/2026-10-01-plan-1-docusaurus-static-runtime.md docs/development/reviews/2026-10-01-plan-1-docusaurus-static-runtime-review.md
+python3 scripts/review_rubric.py --changed src/fabrik/version_registry.py src/fabrik/template_renderer.py src/fabrik/scaffold.py src/fabrik/spec_generator.py src/fabrik/orchestrator/deployer_ssh.py templates/docusaurus/Dockerfile.j2 templates/docusaurus/compose.yaml.j2 templates/docusaurus/defaults.yaml templates/docusaurus/package.json.j2 templates/docusaurus/nginx.conf.j2 templates/docusaurus/src/pages/index.js.j2 templates/docusaurus/src/theme/SearchBar/index.js.j2 templates/docusaurus/README.md tests/test_docusaurus_static_runtime.py tests/test_scaffold.py tests/test_spec_generator.py tests/orchestrator/test_deployer_ssh.py docs/development/plans/archived/2026-10-01-plan-1-docusaurus-static-runtime.md docs/development/reviews/2026-10-01-plan-1-docusaurus-static-runtime-review.md
 ```
 
 ```text
@@ -829,7 +834,7 @@ python3 scripts/review_rubric.py --changed src/fabrik/version_registry.py src/fa
 **Factor XII — Admin processes. NEVER migrate from app startup.**
 **BANNED: `alembic upgrade head` in FastAPI's `lifespan`, in an `@app.on_event("startup")`, or as an import side-effect.** With more than one replica (or a restart storm) two containers run `upgrade head` **concurrently** → they race the Alembic version table → duplicate DDL → **wedged deploy**. Migrations are a **one-off admin process against the deployed release**: `docker compose run --rm <svc> alembic upgrade head` (see `30-ops.md` § Release & Admin Processes).
 
-### core/40-documentation.md  (hit: docs/development/plans/2026-10-01-plan-1-docusaurus-static-runtime.md, docs/development/reviews/2026-10-01-plan-1-docusaurus-static-runtime-review.md, templates/docusaurus/README.md)
+### core/40-documentation.md  (hit: docs/development/plans/archived/2026-10-01-plan-1-docusaurus-static-runtime.md, docs/development/reviews/2026-10-01-plan-1-docusaurus-static-runtime-review.md, templates/docusaurus/README.md)
 - > **⚠️ `docs/OPERATIONS.md` + `docs/DEPLOYMENT.md` are FLEET-AI INTERFACES, not just docs (D-065).**
 - **Tier-1 (author → verify → converge; the author leg is NATIVE while the pool is OFF, D-181 — `scripts/doc_reconcile.py`'s pool author cannot dispatch):** for each **mechanically-detectable** doc whose Doc-Sync trigger fired (`docs/QUICKSTART.md` · `docs/CONFIGURATION.md` · `docs/data-contract.md` · `docs/SERVICES.md` · `docs/OPERATIONS.md` — the reliable-signal subset), `scripts/doc_reconcile.py` dispatches a cheap OpenRouter-pool author (`libs.subagents`, `pick_models("docs")`) to emit a **minimal structured patch**, **verifies it before applying** (a symbol cross-check catches invented endpoints; the orchestrator injects a higher-assurance native-Claude verify), and loops to a zero-edit round. Runs per phase in `/fabrik-execute-plan`; never blocks (fail-safe). The other docs (CHANGELOG, INDEX, FEATURES, RESILIENCE, PORTS, the READMEs, `db/schema.sql`, …) have no reliable mechanical content-signal → they rely on the touch-on-change backstop below + your own edit (force-update, not force-correct).
 - The SSOT is the type-aware registry (`scripts/enforcement/_doc_registry.py::PROJECT_DOCS`) — this table is its project-facing rendering, kept in step, never a second truth. `/fabrik-plan-after-chat` (the plan set's spine + tickets — the ticket-format authority) injects these rows per ticket as its `Docs:` line.
