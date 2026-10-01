@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — chrome-ext/89-extension-launch-checklist: gates a developer-mode release and states today's store facts (2026-10-02)
+- `.windsurf/rules/chrome-ext/89-extension-launch-checklist.md` (rules currency pass file 43, D-493): § 7 is the developer-mode release /fabrik-release's unlistable ring runs (key, update checker, checksum, install guide, force-install variant, Gate 2); § 1 adds the trader declaration and the two-slot cap; § 3–§ 6 carry the current listing, privacy-tab, review and rollout facts; three dead cites fixed; the `manifest.json` glob dropped.
+- `tests/test_chrome_launch_pack.py`: pins the cites, § 7, the trader gate, the release command's rings, the globs and the no-version rule; `tests/test_chrome_ext_pack.py`: the cite parser reads lowercase cites too.
+- `.windsurf/rules/CLAIMS.yaml`: eight rows; `docs/reference/research/2026-10-02-chrome-launch-currency-ledger.md`: the turn's 27 facts.
+
 ### Changed — chrome-ext/70-chrome-ext: developer-mode install is a first-class channel, and the pack matches the scaffold (2026-10-02)
 - `.windsurf/rules/chrome-ext/70-chrome-ext.md` (rules currency pass file 42, D-486): § Distribution Model states what developer mode lifts (store review) and what it does not (the MV3 platform rules), the toggle, the policy that can forbid it, no auto-update, the manifest `key` and the release kit; the backend is the same-repo `server/`, the login route is `/auth/login`, strings live in `extension/src/locales`, the design section points at the template, and no version numbers remain.
 - `tests/test_chrome_ext_pack.py`: pins the scaffold facts, every cited section, the developer-mode facts, the auth route and the no-version rule.

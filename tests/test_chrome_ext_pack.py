@@ -107,7 +107,7 @@ def _cites(text: str) -> list[tuple[str, str]]:
     pack. A `§` inside a code span (`agents-fabrik.md § Supabase`) is not read — the bound is stated."""
     cites: list[tuple[str, str]] = []
     prev_end, prev_target = -1, ""
-    for m in re.finditer(r"§ (?=[A-Z0-9])", text):
+    for m in re.finditer(r"§ (?=[A-Za-z0-9])", text):
         line_start = text.rfind("\n", 0, m.start()) + 1
         if text[line_start : m.start()].count("`") % 2:
             continue
@@ -198,7 +198,10 @@ def test_scaffold_matches_the_pack(project: Path) -> None:
     main = next((project / "server" / "src").glob("*/main.py")).read_text(encoding="utf-8")
     assert "/metrics" not in main, "server/ now serves /metrics: update § Two-Faced Architecture"
     pack = _pack()
-    assert "`extension/src/entrypoints/popup/`" in pack and "`extension/src/locales/<lang>.json`" in pack
+    assert (
+        "`extension/src/entrypoints/popup/`" in pack
+        and "`extension/src/locales/<lang>.json`" in pack
+    )
     assert "no `/metrics`" in pack
 
 
