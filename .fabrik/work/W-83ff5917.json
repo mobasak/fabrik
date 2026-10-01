@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-30T08:51:27.854721Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "a9f4dee2aa1eaaaf97c15f29b8f54f0f590b04f2",
   "id": "W-83ff5917",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 0,
-  "status": "open",
+  "status": "done",
   "title": "In a hub worktree the shared .venv's editable install imports fabrik from the MAIN checkout (/opt/fabrik/src), so pytest and gate legs in .claude/worktrees/{fleet,intel} grade master's code, not the branch — red-first/green claims there are vacuous without PYTHONPATH=<worktree>/src (fleet, 2026-09-30, proven on W-32cbfecb)"
 }
