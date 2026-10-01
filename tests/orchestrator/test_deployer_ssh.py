@@ -1457,3 +1457,32 @@ class TestTargetVpsRouting:
         finally:
             mod._write_file_to_vps = real_write
             os.environ.pop("FABRIK_VPS_SSH_HOST", None)
+
+
+class TestWriteFileToVpsPathNested:
+    """A rendered key with a slash (`src/theme/SearchBar/index.js`) needs its remote parent dir:
+    the writer `sudo mv`s into `{path}/{filename}`, and `mv` fails on a missing directory
+    (plan 2026-10-01-plan-1-docusaurus-static-runtime, Phase A step 3b; D-476)."""
+
+    def _run(self, filename: str) -> list[str]:
+        from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
+
+        cmds: list[str] = []
+        with (
+            patch("fabrik.drivers.ssh.scp_to_vps"),
+            patch(
+                "fabrik.drivers.ssh.ssh", side_effect=lambda cmd, timeout=10: cmds.append(cmd) or ""
+            ),
+        ):
+            _write_file_to_vps_path("/opt/docs", filename, "content")
+        return cmds
+
+    def test_nested_key_creates_the_remote_parent_before_the_move(self) -> None:
+        (cmd,) = self._run("src/theme/SearchBar/index.js")
+        mkdir = cmd.index("mkdir -p /opt/docs/src/theme/SearchBar")
+        assert mkdir < cmd.index("sudo mv"), cmd
+
+    def test_flat_key_command_is_unchanged(self) -> None:
+        (cmd,) = self._run("Dockerfile")
+        assert "mkdir" not in cmd
+        assert cmd.startswith("sudo mv ") and cmd.endswith("/opt/docs/Dockerfile"), cmd

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — docusaurus static runtime, phase A: the version registry is readable by code, and templates render nested files (2026-10-01)
+New `src/fabrik/version_registry.py`: `load_versions()` returns `.windsurf/rules/versions.yaml`'s `versions` map (anchored to the code's own tree, `PROJECT_ROOT`) and raises `VersionRegistryError` naming the key when `node_lts`, `debian_codename` or `node_engines_floor` is absent, null or blank — never a silent `FROM node:--slim`. `TemplateRenderer` adds `versions` and `name` (the spec id — package.json no longer renders `"-docs"`) to its context, renders `*.j2` recursively (output key = relative path minus `.j2`; the top-level skip compares the relative path) and creates parent directories on write. `deployer_ssh._write_file_to_vps_path` runs `sudo mkdir -p` for a nested filename before its `sudo mv`, so `fabrik apply` of a template-source spec can land nested files. Mirror: every template render and template-source deploy now reads the registry, and a registry missing a required key fails them by name. Tests: `tests/test_docusaurus_static_runtime.py` (21), two in `tests/orchestrator/test_deployer_ssh.py`; five mutants red-on-revert. Plan `docs/development/plans/2026-10-01-plan-1-docusaurus-static-runtime.md` (D-475, D-476).
+
 ### Changed — Agents no longer ask before editing `.md` and memory files (2026-10-01)
 On the operator's word (D-477): `/opt` added to every account's `permissions.additionalDirectories` (worktrees under `.claude/worktrees/` were outside the workspace) and `autoMemoryDirectory` set to the real memory path in 145 repo/worktree local settings (memory was written through the protected `~/.claude-fleet/active` link). Backups in `backups/perm-*`. A worktree created later still needs its `settings.local.json`.
 

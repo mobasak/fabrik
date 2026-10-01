@@ -14,6 +14,7 @@ import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
 
 from fabrik.spec_loader import Spec
+from fabrik.version_registry import load_versions
 
 
 class TemplateRenderer:
@@ -136,7 +137,11 @@ class TemplateRenderer:
             "infrastructure": spec.infrastructure,
             "domain": spec.domain,
             "id": spec.id,
+            "name": spec.id,
             "companion_services": spec.companion_services,
+            # Base-image versions come from the registry, never a template literal. A missing key
+            # raises here by name — before anything renders (D-472, D-476).
+            "versions": load_versions(),
         }
 
         # Rendered files
@@ -156,13 +161,15 @@ class TemplateRenderer:
             )
             rendered["Dockerfile"] = dockerfile_content
 
-        # Render any additional .j2 files in template
-        for j2_file in template_path.glob("*.j2"):
-            if j2_file.name in ("compose.yaml.j2", "Dockerfile.j2"):
+        # Render every other .j2 file in the template, nested ones included: the output key is its
+        # path relative to the template dir minus `.j2` (`src/pages/index.js.j2` -> `src/pages/index.js`).
+        # The skip compares the RELATIVE path, so a nested `a/compose.yaml.j2` still renders.
+        for j2_file in sorted(template_path.rglob("*.j2")):
+            rel = j2_file.relative_to(template_path)
+            if rel.as_posix() in ("compose.yaml.j2", "Dockerfile.j2"):
                 continue
-            output_name = j2_file.stem  # Remove .j2 extension
-            content = self.jinja.get_template(f"{spec.template}/{j2_file.name}").render(**context)
-            rendered[output_name] = content
+            content = self.jinja.get_template(f"{spec.template}/{rel.as_posix()}").render(**context)
+            rendered[rel.with_suffix("").as_posix()] = content
 
         # Generate .env.example
         env_example_lines = ["# Required environment variables"]
@@ -214,6 +221,7 @@ class TemplateRenderer:
         output_paths = {}
         for filename, content in rendered.items():
             file_path = app_dir / filename
+            file_path.parent.mkdir(parents=True, exist_ok=True)
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
             output_paths[filename] = str(file_path)

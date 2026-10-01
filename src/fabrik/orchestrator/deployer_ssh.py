@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
+import posixpath
 import re
 import shlex
 import subprocess
@@ -865,9 +866,13 @@ def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
         except OSError:
             pass
 
+    # A rendered key may be nested (`src/theme/SearchBar/index.js`, D-476): `mv` does not create the
+    # destination directory, so make the parent first. A flat filename's command is unchanged.
+    parent = posixpath.dirname(filename)
+    mkdir = f"sudo mkdir -p {path}/{parent} && " if parent else ""
     try:
         _ssh(
-            f"sudo mv {tmp_remote} {path}/{filename} && sudo chown root:root {path}/{filename}",
+            f"{mkdir}sudo mv {tmp_remote} {path}/{filename} && sudo chown root:root {path}/{filename}",
             timeout=10,
         )
     except Exception:
