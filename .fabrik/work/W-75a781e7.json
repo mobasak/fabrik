@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "file 37 \u2014 mobile-app/89-mobile-launch-checklist.md; its routed lines: Law 5746 (-> 4691), the 128px icon and 440x280 tile, 'Sign in with Apple mandatory', 'PBL 8.0', the Traycer Done-When heading; then the mobile design systems, chrome-ext (2), by real audience not glob count",
+  "next": "file 38 \u2014 mobile-app/ocoron-mobile-design-system.md (with W-3c597077: the whole pack against the emitted mobile-app scaffold \u2014 Uniwind @theme tokens, keyboard-controller, react-form); then tojlo-mobile-design-system, chrome-ext (3), ai/*, desktop (2), core/90-bootstrap, core/tojlo, by real audience not glob count",
   "note": "",
   "owner": "intel",
   "priority": 2,
@@ -19,5 +19,5 @@
   "tags": [
     "rules"
   ],
-  "title": "Rules currency pass: evaluate the 20 packs still missing currency_pass: (37 of 57 done; file 36 mobile-app/81-mobile-billing landed 2026-10-01, D-465)"
+  "title": "Rules currency pass: evaluate the 19 packs still missing currency_pass: (38 of 57 done; file 37 mobile-app/89-mobile-launch-checklist landed 2026-10-01, D-469)"
 }
