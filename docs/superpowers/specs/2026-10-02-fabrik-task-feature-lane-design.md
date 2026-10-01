@@ -1,6 +1,6 @@
 # /fabrik-task carries feature-sized work; the spec chain is for modules — design
 
-Status: CONVERGED (D-487, /fabrik-spec-review 2026-10-02 — design APPROVED D-488)
+Status: CONVERGED (D-487, /fabrik-spec-review 2026-10-02 — awaiting the operator's design approval; D-488 withdrawn by D-489)
 Profile: delta — on `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md` (D-293, D-314, D-315). Every Intake item maps to code that exists today (`scripts/command_run.py::_task_size_gate`, `commands/_sources/fabrik-task.md`, the two CLAUDE.md lane tables, `commands/_sources/fabrik-plan-after-chat.md` § Profile: small); one new consumer is named (Volkan's `/task` port, D-319), so `## Personas` is written in full.
 Owner: infra · Intake: mail 01M3WJMFWAXHT81W0ETCFZTNV6 (web-ecommerce-factory, supersedes 01M3WJ6B) · W-e053ba60
 
