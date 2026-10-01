@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T12:37:44.075748Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3f0f5311",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Measured 2026-10-01 in /fabrik-review wf_b0eab1c9-f54: the operator sent a tryton-crm question mid-turn; the docs-sonnet finder seat treated it as 'the only user voice in this task' and answered it instead of reviewing its slice (swept nothing, returned a plausible ledger-shaped result), and the code-sonnet seat flagged the same mismatch under MACHINERY. The seat had to be re-dispatched by hand. Find where .claude/workflows/fabrik-review-loop.js (or the harness) injects the relayed request into seat briefs, and make a seat's brief state that a relayed request unrelated to its slice is out of scope; add a grader.",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Workflow seats receive the operator's mid-turn message as their 'relayed request' and can abandon their slice"
+}
