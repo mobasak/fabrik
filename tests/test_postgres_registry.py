@@ -321,55 +321,6 @@ class TestAuditPostgresDrift:
             patch.object(pg_driver, "ssh", side_effect=RuntimeError("registry unreachable")),
         ):
             result = audit_postgres(_spec("translator"))
-        # With RuntimeError swallowed by list_allocations (returns empty),
-        # the result is "drift" (DB present + empty registry) — that IS the
-        # correct behaviour. The fallback path applies when the read itself
-        # raises uncaught. Verify by patching the driver function instead.
-        assert result.status in ("present", "drift")
-
-
-# ---------------------------------------------------------------------------
-# create_database heals an orphan on the "already exists" path (W-714ae2cf)
-# ---------------------------------------------------------------------------
-
-
-class TestCreateDatabaseHealsOrphan:
-    def _run(self, payload: dict, *, dry_run: bool = False):
-        written: list[str] = []
-
-        def fake_ssh(cmd, *, dry_run: bool = False):
-            if "cat " in cmd:
-                return json.dumps(payload)
-            written.append(cmd)
-            return ""
-
-        with (
-            patch.object(pg_driver, "_run_sql", return_value="1"),
-            patch.object(pg_driver, "ssh", side_effect=fake_ssh),
-        ):
-            result = pg_driver.create_database(
-                "zitadel", db_user="zitadel", spec_id="zitadel", owner="fabrik", dry_run=dry_run
-            )
-        return result, [c for c in written if "tee " in c]
-
-    def test_existing_db_missing_from_registry_is_registered(self):
-        result, tee_calls = self._run(SEED_PAYLOAD)
-        assert result["status"] == "exists"
-        assert any('"zitadel":' in c and '"spec_id": "zitadel"' in c for c in tee_calls), tee_calls
-
-    def test_existing_registry_entry_is_left_untouched(self):
-        payload = json.loads(json.dumps(SEED_PAYLOAD))
-        payload["allocations"]["zitadel"] = {
-            "owner": "manual",
-            "spec_id": None,
-            "user": "postgres",
-            "notes": "hand-made",
-        }
-        result, tee_calls = self._run(payload)
-        assert result["status"] == "exists"
-        assert tee_calls == []
-
-    def test_dry_run_on_existing_db_writes_nothing(self):
-        result, tee_calls = self._run(SEED_PAYLOAD, dry_run=True)
-        assert result["status"] == "exists"
-        assert tee_calls == []
+        # list_allocations raises on a failed read (it never reads as an empty
+        # registry), audit catches it and falls back: present, not a false drift.
+        assert result.status == "present"

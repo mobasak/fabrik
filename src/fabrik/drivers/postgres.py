@@ -339,27 +339,6 @@ def create_database(
     )
     if check.strip() == "1":
         logger.info("PostgreSQL database already exists: %s", db_name)
-        if not dry_run:
-            # A DB created before the registry existed (or whose registration
-            # failed) would otherwise stay an orphan that audit_postgres reports
-            # as drift forever. Register it only when it has NO entry, so a
-            # seed/manual/infrastructure entry is never overwritten.
-            try:
-                register_allocation(
-                    db_name,
-                    spec_id=spec_id,
-                    user=db_user or "postgres",
-                    owner=owner,
-                    notes=notes,
-                    dry_run=False,
-                    if_absent=True,
-                )
-            except Exception as exc:  # noqa: BLE001 — registry failure is non-fatal
-                logger.warning(
-                    "postgres allocations: heal of existing %s failed (%s); registry skipped",
-                    db_name,
-                    exc,
-                )
         return {"status": "exists", "database": db_name}
 
     if dry_run:
@@ -1894,7 +1873,6 @@ def register_allocation(
     owner: str = "fabrik",
     notes: str = "",
     dry_run: bool = False,
-    if_absent: bool = False,
 ) -> dict[str, Any]:
     """Insert / update an entry in the allocation registry.
 
@@ -1917,9 +1895,6 @@ def register_allocation(
             ``infra.postgres: false`` overrides and historical context.
         dry_run: Skip the actual VPS write. Local merge still happens
             so the caller's logs reflect the intended payload.
-        if_absent: Leave an existing entry untouched and write nothing. The
-            membership test runs inside the lock, so a concurrent writer's
-            entry is never overwritten by a heal.
 
     Returns:
         The merged registry payload (post-update).
@@ -1935,8 +1910,6 @@ def register_allocation(
     with file_lock("postgres-allocations", timeout_seconds=15.0):
         payload = _load_remote_allocations()
         allocations = payload.setdefault("allocations", {})
-        if if_absent and db_name in allocations:
-            return payload
         allocations[db_name] = {
             "owner": owner,
             "spec_id": spec_id,
