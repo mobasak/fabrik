@@ -12,9 +12,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "superseded: the Empire plan and spec were archived 2026-07-12 (709b12fb4, goal drifted to the capability catalog); a 2026-07-26 daily_refresh auto-commit (958309ca8) put a stray copy back at the live plans path, which is what made it look open",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "Empire operating-model plan: CONVERGED 2026-06-30, re-scoped by the operator 2026-07-12, no build commits since — decide whether the re-scoped plan is still wanted or superseded"
 }
