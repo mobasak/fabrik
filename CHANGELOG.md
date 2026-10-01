@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Worktree sessions stay listed in their repo's VS Code window (2026-10-01)
+`install_user_hooks.py` registers D-467's `worktree_transcript_link.py` on SessionStart and Stop in every account, now that session-recall indexes a two-name transcript once (its 3721fe7 + 1f91540). Measured cost 0.02 s per turn. `/fabrik-review` (2 passes) fixed a stale registration count in `hooks-index.md`; receipt `docs/development/reviews/2026-10-01-link-hook-registration-review.md`.
+
 ### Changed — The merge owner is also the coordinator in every repo (2026-10-01)
 Operator ruling (D-471, superseding D-395's intel clause): the one agent in a repo's main checkout is both merge owner and work distributor. The hub's `.fabrik/work/config.json` distributor moves from intel to infra; the operating-model, work-tracking and both charters say so. `work.py init` already defaulted the distributor to the merge owner, so no code changed.
 
