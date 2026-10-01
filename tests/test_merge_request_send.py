@@ -460,6 +460,20 @@ def test_a_local_dot_upstream_is_not_pushed(world):
     assert world.inbox() == []
 
 
+@pytest.mark.parametrize(
+    "key", ["branch.feat.pushRemote", "remote.pushDefault", "branch.feat.remote"]
+)
+def test_a_dot_push_remote_names_the_config_key_that_set_it(world, key):
+    """O16: the refusal names the key that produced `.` and that key's remedy."""
+    world.push()
+    _git(world.wt, world.env, "config", key, ".")
+    r = world.run()
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert key in r.stderr
+    assert f"git config --unset {key}" in r.stderr
+    assert world.inbox() == []
+
+
 # D — the default base is the remote's HEAD, never the main checkout's branch
 def test_default_base_is_the_remotes_head_not_the_main_checkouts_branch(world):
     world.push()
@@ -565,7 +579,8 @@ def test_agent_names_compare_casefolded(world):
 
 # B — every failure after the owner send MAY have written is exit 4
 @pytest.mark.parametrize(
-    "step", ["distributor-who", "release", "owner-send-timeout", "owner-send-odd"]
+    "step",
+    ["distributor-who", "copy-send-timeout", "release", "owner-send-timeout", "owner-send-odd"],
 )
 def test_every_post_send_failure_exits_partial(world, monkeypatch, capsys, step):
     world.push()
@@ -578,6 +593,9 @@ def test_every_post_send_failure_exits_partial(world, monkeypatch, capsys, step)
             raise timed_out("timed out")
         if step == "release" and _is(argv, "release"):
             raise timed_out("timed out")
+        if step == "copy-send-timeout" and _is(argv, "send", "intel"):
+            call()  # the copy IS written
+            raise timed_out("timed out")
         if step.startswith("owner-send") and _is(argv, "send", "infra"):
             call()  # the message IS written
             if step == "owner-send-timeout":
@@ -585,7 +603,7 @@ def test_every_post_send_failure_exits_partial(world, monkeypatch, capsys, step)
             return subprocess.CompletedProcess(argv, 0, "garbage\n", "")
         return call()
 
-    extra = () if step == "distributor-who" else ("--item", "W-00000000")
+    extra = () if step in ("distributor-who", "copy-send-timeout") else ("--item", "W-00000000")
     rc, out = _inproc(world, monkeypatch, capsys, hook, *extra)
     assert rc == 4, out.out + out.err
     assert "do NOT re-run request" in out.err and "check the inbox" in out.err
@@ -593,6 +611,8 @@ def test_every_post_send_failure_exits_partial(world, monkeypatch, capsys, step)
     # O12: the partial message lists EVERY step left undone at that point
     undone = {
         "distributor-who": ["send the distributor copy (intel)"],
+        # O15: a copy that MAY have landed is confirmed, never re-sent (a re-send duplicates it)
+        "copy-send-timeout": ["confirm the distributor copy to intel landed (check the inbox)"],
         "release": ["release W-00000000"],
         "owner-send-timeout": [
             "confirm the owner message landed",
@@ -604,5 +624,7 @@ def test_every_post_send_failure_exits_partial(world, monkeypatch, capsys, step)
     assert "not done:" in out.err
     for step_left in undone[step]:
         assert step_left in out.err, out.err
+    if step == "copy-send-timeout":
+        assert "send the distributor copy" not in out.err, out.err
     if step == "distributor-who":
         assert "SendMessage to=proj-infra" in out.out  # the owner's doorbell still rings

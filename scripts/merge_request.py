@@ -182,13 +182,16 @@ def _remote_name(cwd: Path, branch: str) -> str:
         remote = _run(["git", "config", key], GIT_TIMEOUT_S, cwd=cwd).stdout.strip()
         if remote:
             break
-    remote = remote or "origin"
     if remote == ".":
+        # Name the key that produced `.`: a `push -u` remedy rewrites branch.<b>.remote only, so
+        # a `.` in pushRemote or pushDefault would refuse the next run identically.
+        kind = "local upstream" if key == f"branch.{branch}.remote" else "local push remote"
         raise RefusedError(
-            f"branch {branch!r} has a local upstream (remote '.') — that is not pushed; "
-            f"git push -u origin {branch}, then request"
+            f"branch {branch!r} has a {kind} — {key} is '.', which is not pushed; fix that key "
+            f"(git config --unset {key}, or git config {key} <the real push remote>), push "
+            f"{branch} there, then request"
         )
-    return remote
+    return remote or "origin"
 
 
 def _remote_refs(cwd: Path, remote: str) -> tuple[dict[str, str], str]:
@@ -423,15 +426,25 @@ def request(args: argparse.Namespace) -> int:
     # From here the owner's request IS written: every failure is PARTIAL, never a refusal.
     rc = 0
     if copy:
+        sending = False
         try:
             names = _who(distributor, cwd)
-            copy_path = _send(
-                mailbox, distributor, _body(fields(names), distributor, "copy"), True, cwd
-            )
+            copy_body = _body(fields(names), distributor, "copy")
+            sending = True
+            copy_path = _send(mailbox, distributor, copy_body, True, cwd)
             print(copy_path)
             ring(names, copy_path.stem)
         except Exception as exc:
-            _partial(f"the distributor copy to {distributor}", exc, mailbox, [copy_step])
+            # Mirrors the owner-send rule: a timeout or an exit 0 without a path MAY have written
+            # the copy, so the remedy is to confirm it — a re-send would duplicate it. Only a
+            # failure before the send, or mail.py's clean refusal (nothing written), re-sends.
+            maybe_written = sending and isinstance(exc, (TimedOutError, PartialError))
+            step = (
+                f"confirm the distributor copy to {distributor} landed (check the inbox)"
+                if maybe_written
+                else copy_step
+            )
+            _partial(f"the distributor copy to {distributor}", exc, mailbox, [step])
             rc = EXIT_PARTIAL  # the release below still runs and reports itself
     if args.item:
         try:
