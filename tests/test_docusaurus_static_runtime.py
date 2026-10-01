@@ -271,6 +271,9 @@ def _nginx_rows(text: str) -> None:
     assets = text[text.index("location /assets/") : text.index("location / {")]
     assert 'add_header Cache-Control "public, max-age=31536000, immutable";' in assets
     assert text.count("immutable") == 1, "the immutable header must live in /assets/ only"
+    # A missing hashed asset must 404, never fall through to index.html under a 1-year immutable
+    # header (the Phase B review's escape variant S1).
+    assert "try_files $uri =404;" in assets
 
 
 def _nested_rows(files: dict[str, str]) -> None:
@@ -382,3 +385,29 @@ def test_scaffold_dockerignore_keeps_the_docs_in_the_build_context(scaffolded: P
     }
     assert not rules & {"docs/", "docs", "*.md", "src/", "static/"}, rules
     assert {".env", "node_modules/", "build/", ".docusaurus/", ".git/"} <= rules, rules
+
+
+def test_engines_floor_follows_the_registry_through_both_emitters(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A literal ">=22" in package.json.j2 passes while the registry happens to say "22"; a
+    # different floor proves the value is rendered, not hard-coded (Phase B review S2).
+    import json
+
+    from fabrik.scaffold import create_project
+
+    monkeypatch.setattr(
+        version_registry, "VERSIONS_FILE", _registry(tmp_path, {**GOOD, "node_engines_floor": "18"})
+    )
+    project = create_project(
+        name="docs-floor",
+        description="x",
+        base=tmp_path,
+        project_type="docusaurus",
+        generate_spec=False,
+    )
+    assert json.loads((project / "package.json").read_text())["engines"]["node"] == ">=18"
+    rendered = TemplateRenderer(output_dir=tmp_path / "out").render(
+        _spec(tmp_path, "docusaurus", spec_id="docs-floor"), dry_run=True
+    )
+    assert json.loads(rendered["package.json"])["engines"]["node"] == ">=18"
