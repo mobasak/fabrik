@@ -2569,3 +2569,59 @@ claims:
     verify: "https://developer.chrome.com/docs/webstore/program-policies/trader-disclosure ; https://developer.chrome.com/docs/webstore/program-policies/trader-verification-faq (brave + exa, 2026-10-01; ledger oc-05, op-02)"
     window_days: 365
     last_verified: 2026-10-01
+  - id: chrome-devmode-toggle-gates-unpacked
+    pack: chrome-ext/70-chrome-ext.md
+    kind: platform
+    claim: "Unpacked extensions loaded from chrome://extensions run only while the Developer-mode switch is on; turning it off disables them"
+    verify: "https://groups.google.com/a/chromium.org/g/chromium-extensions/c/cTdMVtxxooY (WebSearch + exa, 2026-10-02; ledger dm-01)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: chrome-devmode-policy
+    pack: chrome-ext/70-chrome-ext.md
+    kind: platform
+    claim: "The ExtensionDeveloperModeSettings policy lets an admin forbid developer mode on the extensions page; when it is unset, DeveloperToolsAvailability decides"
+    verify: "https://raw.githubusercontent.com/chromium/chromium/main/components/policy/resources/templates/policy_definitions/Extensions/ExtensionDeveloperModeSettings.yaml ; https://chromeenterprise.google/policies/extension-developer-mode-settings/ (WebFetch + firecrawl, 2026-10-02; ledger dm-04)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: mv3-webrequestblocking-policy-only
+    pack: chrome-ext/70-chrome-ext.md
+    kind: platform
+    claim: "In Manifest V3, blocking webRequest (webRequestBlocking) is available only to policy-installed extensions; an unpacked extension cannot use it"
+    verify: "https://developer.chrome.com/docs/extensions/reference/api/webRequest (WebFetch, 2026-10-02; ledger dm-05)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: chrome-unpacked-no-autoupdate
+    pack: chrome-ext/70-chrome-ext.md
+    kind: platform
+    claim: "Chrome never auto-updates an unpacked extension, whatever update_url says; a manifest key keeps its ID stable across machines"
+    verify: "https://raw.githubusercontent.com/chromium/chromium/main/extensions/common/manifest.h ; https://developer.chrome.com/docs/extensions/reference/manifest/key (WebFetch, 2026-10-02; ledger dm-08, dm-09)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: chrome-offstore-crx-linux-only
+    pack: chrome-ext/70-chrome-ext.md
+    kind: platform
+    claim: "Chrome installs extensions hosted outside the Chrome Web Store only on Linux; Windows and macOS refuse an off-store CRX unless policy installs it"
+    verify: "https://developer.chrome.com/docs/extensions/how-to/distribute/install-extensions (WebFetch, 2026-10-02; ledger dm-10)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: chrome-forcelist-managed-only
+    pack: chrome-ext/70-chrome-ext.md
+    kind: platform
+    claim: "Off-store force-install through ExtensionInstallForcelist needs a managed browser: Windows joined to AD or Azure AD or enrolled in Chrome Enterprise Core; macOS MDM-managed, MCX-joined or enrolled in Chrome Enterprise Core"
+    verify: "https://raw.githubusercontent.com/chromium/chromium/main/components/policy/resources/templates/policy_definitions/Extensions/ExtensionInstallForcelist.yaml ; https://chromeenterprise.google/policies/extension-install-forcelist/ (WebFetch + firecrawl, 2026-10-02; ledger dm-12, op-03)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: sentry-extension-isolated-client
+    pack: chrome-ext/70-chrome-ext.md
+    kind: platform
+    claim: "In a browser extension Sentry must not use the global Sentry.init; use an isolated BrowserClient and Scope with the global-state integrations filtered out"
+    verify: "https://docs.sentry.io/platforms/javascript/best-practices/shared-environments/ (exa + WebFetch, 2026-10-02; ledger tl-05, op-02)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: glitchtip-no-sessions
+    pack: chrome-ext/70-chrome-ext.md
+    kind: platform
+    claim: "GlitchTip accepts @sentry/browser events but does not support sessions; with the current SDK, session tracking is disabled by removing browserSessionIntegration"
+    verify: "https://glitchtip.com/sdkdocs/javascript ; https://docs.sentry.io/platforms/javascript/migration/v8-to-v9.md (exa, 2026-10-02; ledger tl-06, oc-02)"
+    window_days: 365
+    last_verified: 2026-10-02
