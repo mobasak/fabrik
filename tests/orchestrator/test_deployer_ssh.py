@@ -1486,3 +1486,21 @@ class TestWriteFileToVpsPathNested:
         (cmd,) = self._run("Dockerfile")
         assert "mkdir" not in cmd
         assert cmd.startswith("sudo mv ") and cmd.endswith("/opt/docs/Dockerfile"), cmd
+
+    def test_a_nested_path_with_a_space_is_quoted(self) -> None:
+        (cmd,) = self._run("a b/c.js")
+        assert "mkdir -p '/opt/docs/a b'" in cmd
+        assert cmd.rstrip().endswith("'/opt/docs/a b/c.js'"), cmd
+
+    @pytest.mark.parametrize("bad", ["../x", "/abs/x", "a/../../x"])
+    def test_an_escaping_filename_is_refused_before_any_remote_call(self, bad: str) -> None:
+        from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
+
+        with (
+            patch("fabrik.drivers.ssh.scp_to_vps") as scp,
+            patch("fabrik.drivers.ssh.ssh") as ssh,
+            pytest.raises(ValueError, match="filename"),
+        ):
+            _write_file_to_vps_path("/opt/docs", bad, "content")
+        scp.assert_not_called()
+        ssh.assert_not_called()

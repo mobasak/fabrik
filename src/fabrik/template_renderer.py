@@ -166,7 +166,7 @@ class TemplateRenderer:
         # The skip compares the RELATIVE path, so a nested `a/compose.yaml.j2` still renders.
         for j2_file in sorted(template_path.rglob("*.j2")):
             rel = j2_file.relative_to(template_path)
-            if rel.as_posix() in ("compose.yaml.j2", "Dockerfile.j2"):
+            if not j2_file.is_file() or rel.as_posix() in ("compose.yaml.j2", "Dockerfile.j2"):
                 continue
             content = self.jinja.get_template(f"{spec.template}/{rel.as_posix()}").render(**context)
             rendered[rel.with_suffix("").as_posix()] = content

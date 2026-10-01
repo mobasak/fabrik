@@ -154,3 +154,33 @@ def test_a_nested_file_named_like_a_top_level_one_still_renders(
     )
     assert rendered["a/compose.yaml"].strip() == "nested nested-probe"
     assert rendered["compose.yaml"].strip() == "services: {}"
+
+
+# ── round-1 review fixes (/fabrik-review-scoped, Phase A) ───────────────────
+
+
+@pytest.mark.parametrize("key", REQUIRED_KEYS)
+@pytest.mark.parametrize(
+    "bad", [24.0, True, ["24"], {"v": 24}], ids=["float", "bool", "list", "dict"]
+)
+def test_a_required_key_of_the_wrong_type_is_named(tmp_path: Path, key: str, bad: object) -> None:
+    # A float, bool, list or dict would render as `24.0`, `True`, `['24']` into an image tag.
+    with pytest.raises(VersionRegistryError, match=key):
+        load_versions(_registry(tmp_path, {**GOOD, key: bad}))
+
+
+def test_a_non_utf8_registry_is_named(tmp_path: Path) -> None:
+    path = tmp_path / "versions.yaml"
+    path.write_bytes(b"versions:\n  node_lts: \xff\xfe\n")
+    with pytest.raises(VersionRegistryError, match="versions.yaml"):
+        load_versions(path)
+
+
+def test_a_directory_named_like_a_template_is_not_rendered(
+    tmp_path: Path, nested_templates: Path, registry: Path
+) -> None:
+    (nested_templates / "t" / "dir.j2").mkdir()
+    rendered = TemplateRenderer(templates_dir=nested_templates, output_dir=tmp_path / "out").render(
+        _spec(tmp_path, "t"), dry_run=True
+    )
+    assert "dir" not in rendered

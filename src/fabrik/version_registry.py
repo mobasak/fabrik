@@ -41,13 +41,21 @@ def load_versions(path: Path | None = None) -> dict[str, str]:
         raw = yaml.safe_load(source.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
         raise VersionRegistryError(f"version registry not found: {source}") from exc
-    except (OSError, yaml.YAMLError) as exc:
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
         raise VersionRegistryError(f"version registry unreadable: {source}: {exc}") from exc
     versions = raw.get("versions") if isinstance(raw, dict) else None
     if not isinstance(versions, dict):
         raise VersionRegistryError(f"version registry has no `versions` mapping: {source}")
-    out = {str(k): str(v).strip() for k, v in versions.items() if v is not None and str(v).strip()}
     for key in REQUIRED_KEYS:
-        if not out.get(key):
-            raise VersionRegistryError(f"version registry {source} lacks a value for `{key}`")
-    return out
+        value = versions.get(key)
+        # Only a string or a plain int renders as a version: a float drops its trailing zero
+        # (22.10 -> "22.1"), and a bool, list or dict renders as `True` / `['24']` in an image tag.
+        if isinstance(value, bool) or not isinstance(value, (str, int)) or not str(value).strip():
+            raise VersionRegistryError(
+                f"version registry {source} lacks a string value for `{key}` (got {value!r})"
+            )
+    return {
+        str(k): str(v).strip()
+        for k, v in versions.items()
+        if isinstance(v, (str, int)) and not isinstance(v, bool) and str(v).strip()
+    }

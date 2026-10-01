@@ -852,6 +852,11 @@ def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
     from fabrik.drivers.ssh import scp_to_vps
     from fabrik.drivers.ssh import ssh as _ssh
 
+    # A rendered key is a path RELATIVE to the app dir; an absolute one or a `..` part would write
+    # outside it as root. Refused before anything reaches the VPS.
+    if filename.startswith("/") or ".." in filename.split("/"):
+        raise ValueError(f"refusing to write a filename outside {path}: {filename!r}")
+
     safe_name = filename.replace("/", "-")
     tmp_remote = f"/tmp/fabrik-{os.getpid()}-{safe_name}"  # nosec B108
 
@@ -867,18 +872,20 @@ def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
             pass
 
     # A rendered key may be nested (`src/theme/SearchBar/index.js`, D-476): `mv` does not create the
-    # destination directory, so make the parent first. A flat filename's command is unchanged.
+    # destination directory, so make the parent first. Every remote path is shell-quoted; a safe name
+    # quotes to itself, so a flat filename's command is unchanged.
     parent = posixpath.dirname(filename)
-    mkdir = f"sudo mkdir -p {path}/{parent} && " if parent else ""
+    dest = shlex.quote(f"{path}/{filename}")
+    mkdir = f"sudo mkdir -p {shlex.quote(f'{path}/{parent}')} && " if parent else ""
     try:
         _ssh(
-            f"{mkdir}sudo mv {tmp_remote} {path}/{filename} && sudo chown root:root {path}/{filename}",
+            f"{mkdir}sudo mv {shlex.quote(tmp_remote)} {dest} && sudo chown root:root {dest}",
             timeout=10,
         )
     except Exception:
         # Clean up remote temp file so nothing lingers on VPS
         try:
-            _ssh(f"rm -f {tmp_remote}", timeout=5)
+            _ssh(f"rm -f {shlex.quote(tmp_remote)}", timeout=5)
         except Exception:  # noqa: BLE001, S110
             pass
         raise
