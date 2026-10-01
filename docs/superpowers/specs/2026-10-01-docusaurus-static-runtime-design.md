@@ -1,6 +1,6 @@
 # Docusaurus scaffold: a static nginx runtime with Pagefind search
 
-Status: DRAFT
+Status: CONVERGED (/fabrik-spec-review, 2026-10-01, 4 passes; D-472)
 Profile: delta — every intake item maps to code that exists today: the docusaurus emitters in
 `src/fabrik/scaffold.py::_scaffold_docusaurus` (:6141-6438) and `src/fabrik/template_renderer.py`
 (:114-165), and the templates under `templates/docusaurus/`. Personas, Rejected alternatives, Lifecycle,
@@ -9,16 +9,6 @@ the constraints digest and the fabrik-lib verdict are kept short; the delta adds
 Work item: W-3f2d8e21 (mail 01M1G4PYGTQQGMXKK91VDKZGQJ). Beat: fleet (scaffolding).
 Research ledger: `docs/reference/research/2026-10-01-docusaurus-static-runtime-ledger.md` (38 rows,
 every fact fetched 2026-10-01).
-
-## RESUME
-
-Paused 2026-10-01 at the operator's request (computer restart), after `/fabrik-spec-review` reached TERMINAL
-at round 4 (§ Review record). Open rows: none — confirmed 17 → 2 → 0 → 0, every slice verified.
-Next act, in order: (1) flip `Status: DRAFT` → `Status: CONVERGED (/fabrik-spec-review, 2026-10-01, 4
-passes; D-<id>)` and delete this block; (2) mint the decision row with `python3 scripts/decisions.py
---reserve-id .`, staged in the same commit (the five items of § Decisions taken); (3) run
-`check_spec_convergence` on a flipped scratch copy; (4) commit, push; (5) close `/fabrik-spec-review` then
-`/fabrik-spec` by name; (6) present the ask↔spec table for design approval.
 
 ## Personas
 
@@ -313,7 +303,7 @@ Every assertion below is proven red against today's emitter before the fix.
 - Existing docusaurus projects: none catalogued. The four fixture specs are read by no test, so nothing
   re-renders them; their `PORT: '3000'` env is inert under nginx and is left alone. `fabrik-test-docusaurus`
   builds from its own GitHub repo, so this change never reaches it unless that repo is re-scaffolded.
-These become one `docs/DECISIONS.md` row at convergence.
+Recorded as D-472.
 
 ## Open / blocking unknowns
 
