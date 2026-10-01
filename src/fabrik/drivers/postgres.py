@@ -1814,16 +1814,16 @@ def _load_remote_allocations() -> dict[str, Any]:
     ``{"version": 1, "allocations": {}}`` when the file is missing or empty
     (first-run on a fresh VPS). Raises ``json.JSONDecodeError`` on a corrupted
     file — caller decides whether to abort or overwrite.
+
+    A FAILED read (SSH down, file unreadable) raises ``RuntimeError``; it is never
+    read as an empty registry, because every writer here does read-modify-write and
+    would then replace the whole registry with its one entry. Only a file that does
+    not exist reads as empty (the remote ``test -e`` prints nothing, exit 0). The test
+    runs INSIDE one ``sudo sh -c``: a bare ``if sudo test -e`` would read a refused
+    sudo as a missing file, because an ``if`` with no ``else`` exits 0.
     """
-    try:
-        raw = ssh(f"sudo cat {shlex.quote(ALLOCATIONS_PATH)}")
-    except RuntimeError as e:
-        logger.warning(
-            "postgres allocations: cat %s failed (%s) — assuming empty registry",
-            ALLOCATIONS_PATH,
-            e,
-        )
-        return {"version": 1, "allocations": {}}
+    path = shlex.quote(ALLOCATIONS_PATH)
+    raw = ssh(f"sudo sh -c {shlex.quote(f'if test -e {path}; then cat {path}; fi')}")
     if not raw.strip():
         return {"version": 1, "allocations": {}}
     return json.loads(raw)

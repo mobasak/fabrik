@@ -27,6 +27,8 @@ What we DO test:
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -83,11 +85,66 @@ class TestListAllocations:
             result = pg_driver.list_allocations()
             assert result == {"version": 1, "allocations": {}}
 
-    def test_missing_file_returns_empty_shape(self):
-        # SSH failure → empty default
-        with patch.object(pg_driver, "ssh", side_effect=RuntimeError("cat: no such file")):
-            result = pg_driver.list_allocations()
-            assert result == {"version": 1, "allocations": {}}
+    def test_failed_read_raises_instead_of_reading_empty(self):
+        # A failed read is not an empty registry: a writer would replace every entry.
+        with (
+            patch.object(pg_driver, "ssh", side_effect=RuntimeError("ssh: connection refused")),
+            pytest.raises(RuntimeError),
+        ):
+            pg_driver.list_allocations()
+
+    def test_failed_read_makes_register_write_nothing(self):
+        calls: list[str] = []
+
+        def fake_ssh(cmd, *, dry_run: bool = False):
+            calls.append(cmd)
+            if "cat " in cmd:
+                raise RuntimeError("ssh: connection refused")
+            return ""
+
+        with patch.object(pg_driver, "ssh", side_effect=fake_ssh), pytest.raises(RuntimeError):
+            pg_driver.register_allocation("new_service", spec_id="new-service")
+        assert not [c for c in calls if "tee " in c]
+
+
+class TestLoaderRemoteCommand:
+    """Run the loader's REAL shell command under bash with a stub ``sudo`` on PATH,
+    raising on a non-zero exit the way ``fabrik.drivers.ssh.ssh`` does."""
+
+    def _load(self, tmp_path, *, sudo_works: bool, target):
+        bindir = tmp_path / "bin"
+        bindir.mkdir()
+        stub = bindir / "sudo"
+        stub.write_text('#!/bin/sh\nexec "$@"\n' if sudo_works else "#!/bin/sh\necho refused >&2\nexit 1\n")
+        stub.chmod(0o755)
+        env = {**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}"}
+
+        def run_like_ssh(cmd, *, dry_run: bool = False):
+            r = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, env=env, check=False)
+            if r.returncode != 0:
+                raise RuntimeError(f"rc={r.returncode}: {r.stderr}")
+            return r.stdout.strip()
+
+        with (
+            patch.object(pg_driver, "ALLOCATIONS_PATH", str(target)),
+            patch.object(pg_driver, "ssh", side_effect=run_like_ssh),
+        ):
+            return pg_driver.list_allocations()
+
+    def test_missing_file_reads_as_empty_registry(self, tmp_path):
+        result = self._load(tmp_path, sudo_works=True, target=tmp_path / "absent.json")
+        assert result == {"version": 1, "allocations": {}}
+
+    def test_present_file_is_parsed(self, tmp_path):
+        target = tmp_path / "allocations.json"
+        target.write_text(json.dumps(SEED_PAYLOAD))
+        assert "translator" in self._load(tmp_path, sudo_works=True, target=target)["allocations"]
+
+    def test_refused_sudo_raises_instead_of_reading_empty(self, tmp_path):
+        target = tmp_path / "allocations.json"
+        target.write_text(json.dumps(SEED_PAYLOAD))
+        with pytest.raises(RuntimeError):
+            self._load(tmp_path, sudo_works=False, target=target)
 
 
 # ---------------------------------------------------------------------------
@@ -306,8 +363,6 @@ class TestAuditPostgresDrift:
             patch.object(pg_driver, "ssh", side_effect=RuntimeError("registry unreachable")),
         ):
             result = audit_postgres(_spec("translator"))
-        # With RuntimeError swallowed by list_allocations (returns empty),
-        # the result is "drift" (DB present + empty registry) — that IS the
-        # correct behaviour. The fallback path applies when the read itself
-        # raises uncaught. Verify by patching the driver function instead.
-        assert result.status in ("present", "drift")
+        # list_allocations raises on a failed read (it never reads as an empty
+        # registry), audit catches it and falls back: present, not a false drift.
+        assert result.status == "present"

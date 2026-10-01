@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "read the drift alert's expression and the registrar state for each of the four, decide spec vs live, and fix the side that is wrong",
+  "next": "/fabrik-spec (Profile: delta) for healing orphan entries in the postgres allocation registry \u2014 the /fabrik-task run UPGRADED (seat) 2026-10-02. Approach A: heal in create_database's exists path, with the membership test inside file_lock (built at 48dc71495, reverted at ea99ee94f; two existing tests \u2014 tests/drivers/test_postgres.py:100 and tests/test_backrest_postgres_plan.py:151 \u2014 must stub the registry). Approach B: an audit-driven reconcile recording owner=manual (needs a verb). Approach C: a one-shot operator register for the live orphans. Open facts: create_database has two callers (infrastructure.py:770, orchestrator/__init__.py:318); audit_postgres derives db_name from sid.replace('-','_') (audit.py:140) while the registrar uses depends.postgres or the name \u2014 check site-provisioner; the heal does not register a Backrest plan. The backrest paper-backup half is W-5c4ad6a6. Landed meanwhile: a failed registry read raises instead of reading empty (ea99ee94f, f9475148a).",
   "note": "",
   "owner": "",
   "priority": 2,
