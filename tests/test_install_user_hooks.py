@@ -23,7 +23,7 @@ spec.loader.exec_module(iuh)
 def _home(tmp_path: Path, dirs=("ob", "can")) -> Path:
     (tmp_path / ".claude").mkdir()
     (tmp_path / ".claude" / "settings.json").write_text(
-        json.dumps({"hooks": {"Stop": []}, "permissions": {"defaultMode": "auto"}})
+        json.dumps({"hooks": {"Notification": []}, "permissions": {"defaultMode": "auto"}})
     )
     for d in dirs:
         (tmp_path / ".claude-fleet" / d).mkdir(parents=True)
@@ -71,7 +71,7 @@ def test_install_is_idempotent_and_preserves_other_hooks(tmp_path, monkeypatch):
     after = (home / ".claude" / "settings.json").read_text()
     assert before == after, "a second run must change nothing"
     d = json.loads(after)
-    assert d["hooks"]["Stop"] == [] and d["permissions"]["defaultMode"] == "auto", (
+    assert d["hooks"]["Notification"] == [] and d["permissions"]["defaultMode"] == "auto", (
         "other keys untouched"
     )
 
@@ -291,6 +291,32 @@ def test_check_finds_missing_scratch_sweep_entry_and_install_adds_it(tmp_path, m
         e
         for e in d["hooks"]["SessionStart"]
         if not any("scratch_sweep.py" in h.get("command", "") for h in e.get("hooks", []))
+    ]
+    p.write_text(json.dumps(d))
+    assert iuh.run(["--check"]) == 1
+
+
+def test_worktree_transcript_link_is_registered_on_session_start_and_stop(tmp_path, monkeypatch):
+    """D-467: keep a worktree session listed in its repo window. SessionStart links a resumed
+    lane; Stop links one that entered a worktree mid-session, before the window can be reloaded.
+    Held until session-recall stopped double-ingesting a two-name transcript (3721fe7)."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    assert iuh.run([]) == 0
+    for f in (home / ".claude" / "settings.json", home / ".claude-fleet" / "ob" / "settings.json"):
+        got = _has(f)
+        for ev in ("SessionStart", "Stop"):
+            assert any("worktree_transcript_link.py" in c for c in got.get(ev, [])), (
+                f"{f} {ev}: {got}"
+            )
+    p = home / ".claude" / "settings.json"
+    d = json.loads(p.read_text())
+    d["hooks"]["Stop"] = [
+        e
+        for e in d["hooks"]["Stop"]
+        if not any(
+            "worktree_transcript_link.py" in h.get("command", "") for h in e.get("hooks", [])
+        )
     ]
     p.write_text(json.dumps(d))
     assert iuh.run(["--check"]) == 1
