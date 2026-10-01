@@ -2484,3 +2484,51 @@ claims:
     verify: "https://reactnative.dev/docs/textinput (WebFetch + exa, 2026-10-01; ledger rn-01)"
     window_days: 365
     last_verified: 2026-10-01
+
+  - id: ios-interruption-levels
+    pack: mobile-app/tojlo-mobile-design-system.md
+    kind: policy
+    claim: "Apple's notification interruption levels are Passive, Active, Time Sensitive and Critical; Time Sensitive overrides scheduled delivery and breaks through Focus; Critical is for urgent health-and-safety information and also overrides the Ring/Silent switch; Time Sensitive must never carry marketing"
+    verify: "https://developer.apple.com/design/human-interface-guidelines/managing-notifications (firecrawl + WebSearch, 2026-10-01; ledger pu-07)"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: expo-push-thread-channel-interruption
+    pack: mobile-app/tojlo-mobile-design-system.md
+    kind: practice
+    claim: "Expo's push message carries channelId (Android), threadId (iOS grouping) and interruptionLevel; Android channels are created with setNotificationChannelAsync, and once created only the user controls their behaviour"
+    verify: "https://docs.expo.dev/push-notifications/sending-notifications/ ; https://developer.android.com/develop/ui/views/notifications/channels (exa + WebFetch, 2026-10-01; ledger pu-04, pu-06)"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: android-notification-auto-grouping
+    pack: mobile-app/tojlo-mobile-design-system.md
+    kind: standard
+    claim: "Android groups an app's notifications automatically once it posts four or more without a group; iOS groups notifications that share an APNs thread-id"
+    verify: "https://developer.android.com/develop/ui/views/notifications/group ; https://developer.apple.com/documentation/usernotifications/unnotificationcontent/threadidentifier (brave + exa, 2026-10-01; ledger pu-01, pu-03)"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: webview-pull-to-refresh-ios-only
+    pack: mobile-app/tojlo-mobile-design-system.md
+    kind: version
+    claim: "react-native-webview documents pullToRefreshEnabled for iOS only; an Android implementation was merged upstream but is not the documented behaviour"
+    verify: "https://github.com/react-native-webview/react-native-webview/blob/master/docs/Reference.md (exa, 2026-10-01; ledger tw-07) — re-check the Platform column"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: material-fab-stays-on-scroll
+    pack: mobile-app/tojlo-mobile-design-system.md
+    kind: standard
+    claim: "Material: a regular FAB is 56dp and remains in place on scroll — only an extended FAB collapses on scroll — and a screen shows at most one FAB; Apple's guidelines have no FAB pattern"
+    verify: "https://m3.material.io/components/floating-action-button/guidelines (firecrawl + WebSearch, 2026-10-01; ledger fb-01, fb-03, fb-04, fb-05)"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: tab-bar-three-to-five-labelled
+    pack: mobile-app/tojlo-mobile-design-system.md
+    kind: standard
+    claim: "Apple advises three to five tabs and shows at most five in a compact tab bar; Material's navigation bar holds three to five destinations, each with a label"
+    verify: "https://developer.apple.com/design/human-interface-guidelines/tab-bars ; https://m3.material.io/components/navigation-bar/guidelines (WebSearch + brave, 2026-10-01; ledger tw-04, tw-05)"
+    window_days: 365
+    last_verified: 2026-10-01
