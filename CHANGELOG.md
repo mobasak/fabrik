@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `--adopt` no longer stamps owner tags into every backlog table and bullet (2026-10-01)
+`docs_updater.py --adopt` stamped round-robin owner tags into every row of a project's STRATEGIC_BACKLOG.md, content tables and prose bullets included, and over owners already recorded (181 stamps at iterative_image_editor). It now stamps only work-item rows — an empty Owner/Tag cell or an Item cell — and never a bullet; `work.py migrate-backlog` shares the Item lookup. Fleet measure: 1002 → 114 stamps across 26 backlogs, idempotent. D-474; ef6347493; receipt `docs/development/reviews/2026-10-01-adopt-backlog-stamping-review.md`.
+
 ### Added — Worktree sessions stay listed in their repo's VS Code window (2026-10-01)
 `install_user_hooks.py` registers D-467's `worktree_transcript_link.py` on SessionStart and Stop in every account, now that session-recall indexes a two-name transcript once (its 3721fe7 + 1f91540). Measured cost 0.02 s per turn. `/fabrik-review` (2 passes) fixed a stale registration count in `hooks-index.md`; receipt `docs/development/reviews/2026-10-01-link-hook-registration-review.md`.
 
