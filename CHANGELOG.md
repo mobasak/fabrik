@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Agents no longer ask before editing `.md` and memory files (2026-10-01)
+On the operator's word (D-477): `/opt` added to every account's `permissions.additionalDirectories` (worktrees under `.claude/worktrees/` were outside the workspace) and `autoMemoryDirectory` set to the real memory path in 145 repo/worktree local settings (memory was written through the protected `~/.claude-fleet/active` link). Backups in `backups/perm-*`. A worktree created later still needs its `settings.local.json`.
+
 ### Fixed — `--adopt` no longer stamps owner tags into every backlog table and bullet (2026-10-01)
 `docs_updater.py --adopt` stamped round-robin owner tags into every row of a project's STRATEGIC_BACKLOG.md, content tables and prose bullets included, and over owners already recorded (181 stamps at iterative_image_editor). It now stamps only work-item rows — an empty Owner/Tag cell or an Item cell — and never a bullet; `work.py migrate-backlog` shares the Item lookup. Fleet measure: 1002 → 114 stamps across 26 backlogs, idempotent. D-474; ef6347493; receipt `docs/development/reviews/2026-10-01-adopt-backlog-stamping-review.md`.
 
