@@ -284,7 +284,9 @@ follows the pack's serve stage (`:33`), not `10-python.md:254`, which governs Py
   `sudo mv`; and for a flat key (`Dockerfile`) the command is unchanged
   (`src/fabrik/orchestrator/deployer_ssh.py:849-879`; the consumer loop `:471-475`).
 
-## Phase B — The docusaurus templates and the scaffold emitter
+## Phase B — The docusaurus templates and the scaffold emitter — ✅ EXECUTED 2026-10-01 (d82d145da; review fixes 89ec85677, d7ee53faa, 0b6de6dd8, acb9755ff, 0e3459b01)
+
+**Execution notes.** Step 12's suites passed 526; the six step-13 neuters went red. `/fabrik-review-scoped` (3 readers, Opus · Sonnet · Haiku, every candidate executed by the orchestrator) confirmed 4 → 3 → 4 and closed on its scope-growth stop (rounds 2 and 3 were inside its own fixes); the round-3 fix diff routes to the Finish `/fabrik-review`. What it found: the generic `.dockerignore` dropped `docs/`, so no docusaurus image ever built (reproduced by a real `docker build`; the scaffold now writes its own); once images built, 18 seeded hub files under `docs/reference`, `docs/development` and `docs/archive` — the AI vendor access notes and the /opt project catalog among them — would publish, so every governed `docs/` subtree except `guides/` and `user-guide/` is excluded from the site (D-481, D-482, pinned to `check_structure.py::VALID_DOCS_SUBDIRS`); the emitter wording is "same content up to a final newline"; and test escape variants (the `/assets/` 404 rule, a non-default engines floor, a Docker-faithful `.dockerignore` matcher, the suffix rules). Recorded, not built: a template-sourced docusaurus deploy cannot build and ships no `.dockerignore` (W-57d1b007); the seeded top-level project docs still publish (W-c2c2c35b).
 
 **Interfaces — Consumes:** `fabrik.version_registry.load_versions`, `VersionRegistryError` (Phase A); the
 renderer's recursive output keys and its `name`/`versions` context (Phase A).
