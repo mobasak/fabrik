@@ -24,7 +24,7 @@ Specific to a React Native / Expo client with the repo's own `server/` FastAPI b
 - **Phase 3:** Production launch — staged rollout, monitoring, OTA readiness.
 - **Phase 4:** Post-launch (first 30 days) — optimization, retention, scale.
 
-Phase 0-1 items belong in the first release's epics; Phase 2-4 in later ones. At release, `/fabrik-release` checks Phases 0-3 (Phase 0 items are attested by the operator — an agent cannot verify a D-U-N-S number or a filed tax form) and carries Phase 4 forward as post-launch work, not as gates.
+Phase 0-1 items belong in the first release's epics; Phase 2-4 in later ones. At release, `/fabrik-release` gives every Phase 0-3 checklist item a verdict with evidence. Phase 0 facts live outside the repo (a D-U-N-S number, a store enrolment, a filed tax form), so their evidence is the row in the project's `docs/DECISIONS.md` where the operator recorded each one — record them as they happen. Phase 4 holds post-launch follow-ups, written as plain bullets: they are not release gates.
 
 ---
 
@@ -116,7 +116,8 @@ The rules are `81-mobile-billing.md` § Teknokent Tax Treatment; confirm each wi
 
 ### Billing Integration
 
-- [ ] The billing gates pass (`81-mobile-billing.md` § Billing Launch Gates): products configured on both stores, Restore Purchases, the entitlement webhook live, no forbidden external billing links, a supported Play Billing Library and StoreKit 2 through a current RevenueCat SDK.
+- [ ] The billing gates pass (`81-mobile-billing.md` § Billing Launch Gates): products configured on both stores, Restore Purchases, the entitlement webhook live, no forbidden external billing links, small-developer rates and W-8BEN-E in place.
+- [ ] A supported Play Billing Library and StoreKit 2, through a current RevenueCat SDK (`81-mobile-billing.md` § Store API Versions).
 
 ---
 
@@ -178,25 +179,25 @@ Before authorizing production release, validate:
 
 ### Retention & Churn Analysis
 
-- [ ] **RevenueCat cohort charts** — monitor free trial → paid conversion rate and first-renewal drop-off. High churn = re-evaluate onboarding + paywall value proposition.
-- [ ] **Retention** — track D1/D7/D30 against a published benchmark for your category, naming the source; published ranges vary widely by category, so no single number is a target.
-- [ ] **Turkish market involuntary churn** — monitor specifically. Turkish bank cards occasionally fail on recurring international billing.
+- **RevenueCat cohort charts** — monitor free trial → paid conversion rate and first-renewal drop-off. High churn = re-evaluate onboarding + paywall value proposition.
+- **Retention** — track D1/D7/D30 against a published benchmark for your category, naming the source; published ranges vary widely by category, so no single number is a target.
+- **Turkish market involuntary churn** — monitor specifically. Turkish bank cards occasionally fail on recurring international billing.
 
 ### ASO Iteration
 
-- [ ] **Google Play Store Listing Experiments** — A/B test icon, screenshots, short description against live traffic. Test one variable at a time.
-- [ ] **Review response** — respond to all 1-3 star reviews within 24 hours. Address specific technical issues. Mention if a fix was pushed via EAS Update.
+- **Google Play Store Listing Experiments** — A/B test icon, screenshots, short description against live traffic. Test one variable at a time.
+- **Review response** — respond to all 1-3 star reviews within 24 hours. Address specific technical issues. Mention if a fix was pushed via EAS Update.
 
 ### Paid User Acquisition (when ready)
 
-- [ ] Deploy paid UA (Apple Search Ads, Meta) only after organic CAC and ARPU are known — the decision and its timing are `00-domain-mobile-app.md` §4 and §9.
-- [ ] **MMP** (default Tenjin) maps ad spend to RevenueCat subscription events for ROAS.
-- [ ] iOS: SKAdNetwork attribution configured (AdAttributionKit too if the app ships through an EU alternative marketplace).
+- Deploy paid UA (Apple Search Ads, Meta) only after organic CAC and ARPU are known — the decision and its timing are `00-domain-mobile-app.md` §4 and §9.
+- **MMP** (default Tenjin) maps ad spend to RevenueCat subscription events for ROAS.
+- iOS: SKAdNetwork attribution configured (AdAttributionKit too if the app ships through an EU alternative marketplace).
 
 ### Performance Drift
 
-- [ ] **Bundle size budget** — CI/CD check in EAS pipeline warns if JS bundle exceeds threshold. Bundle drift degrades cold start time.
-- [ ] **Cold start <2 seconds** — lazy-load non-initial route screens. Minimize synchronous operations on main thread.
+- **Bundle size budget** — CI/CD check in EAS pipeline warns if JS bundle exceeds threshold. Bundle drift degrades cold start time.
+- **Cold start <2 seconds** — lazy-load non-initial route screens. Minimize synchronous operations on main thread.
 
 ---
 
@@ -233,7 +234,7 @@ Before authorizing production release, validate:
 
 ---
 
-## Done When (`/fabrik-release` checks each; Phase 0 is operator-attested)
+## Done When (`/fabrik-release` checks each; Phase 0's evidence is the operator's `docs/DECISIONS.md` row)
 
 ### Phase 0
 

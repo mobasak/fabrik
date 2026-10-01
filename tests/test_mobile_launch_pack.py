@@ -71,7 +71,13 @@ def test_forced_upgrade_gate_names_the_real_app_config_contract(project: Path) -
     config = (project / "server" / "src" / "mobile_config" / "config.py").read_text(
         encoding="utf-8"
     )
-    keys = set(re.findall(r'^\s+"(\w+)":', config, re.M)) | set(
+    to_dict = next(
+        n
+        for n in ast.walk(ast.parse(config))
+        if isinstance(n, ast.FunctionDef) and n.name == "to_dict"
+    )
+    returned = next(n.value for n in ast.walk(to_dict) if isinstance(n, ast.Return))
+    keys = {k.value for k in returned.keys if isinstance(k, ast.Constant)} | set(
         re.findall(r'payload\["(\w+)"\]', route)
     )
     gate = _gate("Forced upgrade gate")
@@ -121,18 +127,32 @@ def test_every_cited_section_exists() -> None:
     missing = []
     found = 0
     for m in _CITE.finditer(_pack()):
-        for section in re.findall(r"§ ([^§+]+)", m.group(2)):
-            section = re.sub(r"\s+(?:and|or)$", "", section.split(",")[0].strip())
-            if not section[:1].isupper():
-                continue
-            found += 1
-            target = next(RULES.rglob(m.group(1)), None)
-            heads = [
-                ln.lstrip("#").strip()
-                for ln in (target.read_text(encoding="utf-8").splitlines() if target else [])
-                if ln.startswith("#")
-            ]
-            if not any(h.startswith(section) for h in heads):
-                missing.append(f"{m.group(1)} § {section}")
+        targets = list(RULES.rglob(m.group(1)))
+        assert len(targets) == 1, (
+            f"{m.group(1)} resolves to {len(targets)} packs: make the cite a path"
+        )
+        heads = [
+            ln.lstrip("#").strip()
+            for ln in targets[0].read_text(encoding="utf-8").splitlines()
+            if ln.startswith("#")
+        ]
+        for group in re.findall(r"§ ([^§+]+)", m.group(2)):
+            for part in group.split(","):
+                section = re.sub(r"\s+(?:and|or)$", "", part.strip())
+                if not section[
+                    :1
+                ].isupper():  # headings are capitalised; lowercase is the prose resuming
+                    break
+                found += 1
+                if not any(h.startswith(section) for h in heads):
+                    missing.append(f"{m.group(1)} § {section}")
     assert found >= 6, f"the cite parser found only {found} cites: check _CITE"
     assert not missing, f"cited sections not found: {missing}"
+
+
+def test_phase_4_holds_no_release_gates() -> None:
+    """`/fabrik-release` gives every checklist item a verdict, so a post-launch item written as `- [ ]` blocks every
+    release. Phase 4 is follow-up work: plain bullets only."""
+    phase4 = _pack().split("## Phase 4:", 1)[1].split("\n## ", 1)[0]
+    assert "- [ ] " not in phase4, "a Phase 4 item is written as a release gate"
+    assert phase4.count("\n- ") >= 8
