@@ -11,7 +11,7 @@ shape:
   needs_database: true        # own `zitadel` DB on postgres-main (PostgreSQL 14-18); registrar provisions it + injects DATABASE_URL
   has_search_feature: false
   needs_cache: false          # NOT redis — Zitadel manages its own caches
-  exposes_metrics: true       # /debug/metrics → prometheus registrar (needs domain, set above); OFF unless env enables it (below)
+  exposes_metrics: true       # /debug/metrics → prometheus registrar (needs domain, set above); served only when an exporter is registered (set below)
 expose:
   http: true
 source:
@@ -36,8 +36,9 @@ env:
   ZITADEL_EXTERNALSECURE: "true"       # advertise https to clients
   ZITADEL_TLS_ENABLED: "false"         # Zitadel serves plain HTTP internally; Traefik does HTTPS (--tlsMode external)
   ZITADEL_PORT: "8080"
-  # /debug/metrics is served only with a prometheus exporter: v4.17.1's cmd/defaults.yaml ships
-  # Instrumentation.Metric.Exporter.Type "none", so without this the scrape job 404s (W-ef6ecf90).
+  # /debug/metrics 404s unless a prometheus exporter is registered (internal/api/api.go:378-383 at v4.17.1).
+  # Live it 404'd with no explicit setting (W-ef6ecf90); naming the type here registers the exporter and
+  # skips the legacy Metrics.Type shim (backend/v3/instrumentation/metric.go:44-50).
   ZITADEL_INSTRUMENTATION_METRIC_EXPORTER_TYPE: prometheus
   # --- database: DSN-only (the registrar injects a single DATABASE_URL, never decomposed keys) ---
   ZITADEL_DATABASE_POSTGRES_DSN: ${DATABASE_URL}   # registrar-injected DSN for the role that OWNS the `zitadel` DB
@@ -76,11 +77,11 @@ resources:
 health:
   disabled: true              # FROM-scratch image has no shell/wget for a compose HEALTHCHECK (honored by the Phase-0
                               # emitter fix). `disabled` omits ONLY the compose healthcheck.
-  path: /debug/ready          # the gatus registrar reads health.path (infrastructure.py:762, even when disabled) →
+  path: /debug/ready          # the gatus registrar reads health.path (infrastructure.py:1130, even when disabled) →
                               # Gatus probes https://auth.ocoron.com/debug/ready (DB-checked). Without this it defaults
                               # to /health, which Zitadel does not serve (404 → permanent false-DOWN).
 monitoring:
-  metrics_path: /debug/metrics  # the prometheus registrar reads monitoring.metrics_path (infrastructure.py:979) →
+  metrics_path: /debug/metrics  # the prometheus registrar reads monitoring.metrics_path (infrastructure.py:1349) →
                                 # scrapes /debug/metrics. Without this it defaults to /metrics (404 → zero series).
 volumes: []
 companion_services: []
