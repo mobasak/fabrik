@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The hub's main checkout committed to zero on the operator's order (2026-10-01)
+Week-old generated files (PORTS sync stamp, PROJECT_CATALOG, capability-defects, kaizen collector rows), 24 work items, two one-character ledger normalisations and a partial `libs/subagents` re-vendor (select.py now identical to fabrik-lib; agent.py still behind — routed to intel) committed as they stood. `arch/` (a 20 MB copy of hub scripts), `err.txt` and `out.txt` gitignored and kept on disk. Nothing deleted.
+
 ### Added — `scratch_sweep.py --include-unmerged` clears dead agent worktrees without losing a byte (2026-10-01)
 The "898 changes in source control" were stale agent worktrees no sweep could remove: measured with `--foreign-older-than 7d --include-harness`, web-ecommerce-factory 0 of 52 removable, trade-intelligence 0 of 26, seo 0 of 28. Under the new flag a clean unmerged tree (`wt-unmerged`) and a tree holding nothing but rebuildable files (`wt-sync-only`) are removed — the folder goes, no commit is lost — and the same dry runs read 18, 15 and 8. "Rebuildable" is proven per file (D-479): synced copies matching the sync ledger's md5 or found in a hub commit on their source path, copies byte-identical to the main checkout, symlinks, the worktree's own settings, and ignored tool caches — never a name alone (`dist/`, `test-results/` stay data). The sweep's test suite no longer shares the box's real lock with a live sweep (each test gets its own HOME). Reviewed: `docs/development/reviews/2026-10-01-scratch-sweep-include-unmerged-review.md` (3 passes, 4 confirmed fixed).
 
@@ -581,13 +584,13 @@ New read-only verb (plan 2026-09-30-plan-1-merge-request-loop T01b, spec § The 
 - `scripts/final_gate.py::run_cmd` returns `RC_TIMEOUT` (124) on a timeout instead of 1. A warn-only check that ran out of time under load read as "registered warn_only=True but exited 1 — its contract changed" and turned every session's gate red at random (mail 01M37YR2KDNCE8V5YTRDHRB7D6). It is now a `<name> (NOT RUN — timed out)` skip row, counted in `skipped_checks`, whose ⚠ names the exact command the gate ran. A blocking check's timeout still fails, and `ruff check --fix` no longer reads a timeout as "issues found".
 - The change moved `final_gate.py`'s lines, so every live `final_gate.py:N` citation was remapped to the same code (both CLAUDE.md contracts, three enforcement scripts, three tests, four docs). A new grader holds the GATE row's cites to the constructs they name.
 
-### Removed — The unused duplicate `postgres-main` compose, and a ruling that `PORTS.md` is the hub's registry (2026-09-24)
-- **`apps/postgres-main/compose.yaml` is gone (D-379).** It was a second tracked compose for the shared `postgres-main` container, with a different image and no memory limit; nothing referenced it, and the live container runs from `infra/vps1/postgres/compose.yaml`. Fleet mail 01M34JT9QNJFPBEQBDMQGV0CBT, item 1.
-- **Decision D-380: `PORTS.md` is the hub's port registry**, and a project's synced copy is read-only. Recorded now; the scaffolder and Doc Sync Matrix changes follow as their own reviewed change. Fleet mail 01M335ERZMNPVHZN8PQACQR5GC.
-
 ### Added — plan: stop-and-compaction enforcement, CONVERGED (D-381) (2026-09-24)
 
 - `docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction/`: eight tickets from the approved spec (D-371, D-377). `/fabrik-plan-review` ran four passes on the review-loop workflow, 21 → 5 → 3 → 0 confirmed, closed under the scope-growth stop. The review established that every merge on a governance-sync path distributes fleet-wide through the post-commit hook, so V1 (backtest + judged sample) runs inside T03 before its commit ships the hook.
+
+### Removed — The unused duplicate `postgres-main` compose, and a ruling that `PORTS.md` is the hub's registry (2026-09-24)
+- **`apps/postgres-main/compose.yaml` is gone (D-379).** It was a second tracked compose for the shared `postgres-main` container, with a different image and no memory limit; nothing referenced it, and the live container runs from `infra/vps1/postgres/compose.yaml`. Fleet mail 01M34JT9QNJFPBEQBDMQGV0CBT, item 1.
+- **Decision D-380: `PORTS.md` is the hub's port registry**, and a project's synced copy is read-only. Recorded now; the scaffolder and Doc Sync Matrix changes follow as their own reviewed change. Fleet mail 01M335ERZMNPVHZN8PQACQR5GC.
 
 ### Changed — The hub's watchdog Tier-D approval window defaults to 300 s again, matching fabrik-lib (2026-09-23)
 - **A spec that does not set `watchdog.code_fix_window_sec` now renders `WATCHDOG_APPROVAL_WINDOW_SEC=300`, not 1800.** Operator ruling D-378, superseding the 2026-07-05 bump (2c5b56e1a): the hub default had contradicted fabrik-lib's own default and its D-236 ruling. Both the `WatchdogConfig` default and the driver's raw-dict fallback moved, and `test_driver_defaults_match_pydantic` goes red if they drift apart. Explicit values in specs are unchanged. Mail 01M37F6Z1PC7Y5R92EA5CN3EPH.

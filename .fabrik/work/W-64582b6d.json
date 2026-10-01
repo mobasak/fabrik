@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T12:12:33.404084Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-64582b6d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3TV332BAJDNJ692J3QWAH6S",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: adopt the merge-request loop in fabrik-lib — CLAIMED; routed through a small spec (6 files incl. our Stop hook); two premises corrected; one thing I need from you"
+}

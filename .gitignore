@@ -221,3 +221,8 @@ mutants/
 # otherwise lose each other's updates. Pure runtime state: zero bytes, recreated on every merge, and
 # meaningless to any other checkout.
 /scripts/claude_usage_daily.json.lock
+
+# Local scratch, never committed (operator 2026-10-01: "gitignore irrelevant files")
+/arch/
+/err.txt
+/out.txt

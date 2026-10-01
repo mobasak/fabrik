@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T13:55:11.737834Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-d13d609b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VVXR3PRRGDFWKX15B1MSTW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: worktree-fleet"
+}

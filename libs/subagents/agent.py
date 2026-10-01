@@ -3265,15 +3265,22 @@ def fanout(
     single-shot reader writes nothing, so path scoping is meaningless and the sentinel is used.)
 
     What it does:
-      1. Model selection under the ≤$1.5 cap (Phase-A ranking). **``prefer`` defaults to ``"quality"``,
+      1. Model selection by ``pick_models``, UNCAPPED on price by default: the always-on ≤$1.5/Mtok
+         SELECTION cap was removed 2026-07-19. ``fanout`` itself takes no price parameter; a caller who
+         needs a budget selects models with ``pick_models(task_type, n, max_cost_per_mtok=…)`` and
+         dispatches them through ``run_agents``, which gives up what fanout adds (among it the family
+         reorder, auto-recording, cap-recovery and fallback retries, and the ``SUBAGENT_CREDIT_FLOOR``
+         start gate). (Separately, on an OpenRouter dispatch ``loop._apply_max_price`` sets a per-request
+         provider ``max_price`` on a statically-priced model unless the caller set one; it bounds
+         overpay, it does not choose models, and an unpriced model gets none.) **``prefer`` defaults to ``"quality"``,
          and fanout ENFORCES family diversity itself**: it draws a generous ``pick_models`` pool and
          reorders it distinct-family-FIRST, so the first ``min(draw, #families)`` units always get
          DISTINCT vendor families — the whole point of a recall fan-out (different families catch
          different bugs). This holds regardless of the ranking SOURCE: the vendored ``_TABLE`` is only
          family-diverse in its top-3, and an active synced ranking doc (``SUBAGENT_SELECTION_DOC``)
          orders by empirical value with NO family notion — fanout's own reorder makes the guarantee real
-         in both. (The concrete top models differ per ``task_type``: judgment → v4-pro/m3/glm-4.5-air;
-         code → v4-flash/qwen3-coder-next/glm-4.7-flash — always 3 families, different vendors.)
+         in both. (The concrete top models differ per ``task_type`` — read ``select.TASK_MODEL_TABLE``,
+         never a copy here, which goes stale the day the roster moves.)
          ``prefer="value"`` instead takes ``pick_models``' cheapest-first order VERBATIM (no diversity
          reorder) — for cost-optimised BULK work where per-unit diversity doesn't matter. If fewer
          distinct models than units, models CYCLE distinct-first (never a crash, never a needless repeat
@@ -3492,7 +3499,7 @@ def fanout(
     if not models:
         raise ValueError(
             f"fanout: pick_models({task_type!r}) returned no models "
-            "(empty ranking/table, or every candidate excluded by `exclude`/`max_cost_per_mtok`)"
+            "(the ranking and the vendored table have no entry for this task_type)"
         )
 
     specs: list[AgentSpec] = []
