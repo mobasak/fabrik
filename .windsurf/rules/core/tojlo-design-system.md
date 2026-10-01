@@ -70,32 +70,18 @@ currency_pass: 2026-10-01
 
 ## Inheritance Contract
 
-Tojlo's structure is `core/design-system-template.md`'s and its values are `core/ocoron-design-system.md`'s (D-406 split the old Ocoron pack in two). The following are **inherited unchanged** and must not be re-specified, re-defined, or overridden in Tojlo surfaces. Several sections below (Data Tables through Accessibility) still restate parts of that structure with Tojlo's product rules woven in: where a restated value differs from the template or from Ocoron, theirs wins — unless the rule is marked **Tojlo override**, which is a deliberate Tojlo choice and stands — and the Tojlo-specific rules in those sections stand.
+Tojlo's structure is `core/design-system-template.md`'s and its values are `core/ocoron-design-system.md`'s (D-406 split the old Ocoron pack in two). Colours, contrast, motion and tokens are pointers in this file and come from those two packs. The sections from Density Modes through Accessibility are different: they are Tojlo's own rule sets, kept from before the split — their rule IDs (D, TBL, F, C, N, A, PR, O, ML, FMT, EX, ACC) collide with the template's and their content differs (Tojlo forbids table striping, for one). On a Tojlo project those sections apply where they state a rule, and the template supplies anything they do not address; a rule marked **Tojlo override** flags a known conflict with the template. The line-by-line dedup is W-68b6a454. Inherited unchanged, and not to be re-specified:
 
 - **Typography stack:** Space Grotesk (headings), Inter (body/UI), JetBrains Mono (code/data) — identical weights, scale, line-heights, letter-spacing.
 - **Spacing tokens:** `--space-xs` through `--space-2xl` — identical.
 - **Interaction tokens:** transition durations, easings, hover/press/focus — identical.
-- **Motion language:** duration scale, easing curves, canonical patterns, M1-M8 forbidden rules, reduced motion — identical.
+- **Motion language:** duration scale, easing curves, canonical patterns, M1-M8 forbidden rules, reduced motion — the template's, identical (§ Motion Language below adds two Tojlo items).
 - **Surface hierarchy:** `--surface-0` through `--surface-3` and `--border` — identical, both dark (default) and light variants.
 - **Text hierarchy:** `--text-primary`, `--text-body`, `--text-muted` — identical.
 - **Semantic colors:** `--color-warning`, `--color-danger`, `--color-success`, `--color-info`, `--color-ai`, each with its `-fg`, `-text` and `-muted` slots — Ocoron's values (`ocoron-design-system.md` § Colour tokens). The retired names `--color-secondary` and `--color-purple` are aliases of `--color-warning` and `--color-ai`.
 - **Component patterns:** cards, tags, pills, buttons (primary/secondary/danger), tab bar, progress bars, collapsible blocks, data hierarchy, KPI card, activity feed — identical.
 - **Iconography:** Lucide library, sizing, rules I1-I8 — identical.
-- **Density modes:** Comfortable/Compact/Spacious, rules D1-D5 — identical.
-- **Data tables:** anatomy, rules TBL1-TBL10 — identical.
-- **Forms:** layout, validation, save behavior, rules F1-F8 — identical.
-- **Search and command palette:** layout, keyboard, AI search — identical.
-- **Charts:** library, color rules, chart rules C1-C7 — identical.
-- **States:** loading, empty, error, permission denied, success, partial — identical.
-- **Notification system:** taxonomy, throttling, rules N1-N6 — identical.
-- **Activity and audit UX:** rules A1-A4 — identical.
-- **Permissions UX:** roles, surfacing, rules PR1-PR4 — identical.
-- **Onboarding:** first-run, hints, rules O1-O5 — identical.
-- **AI interaction patterns:** A1-A5 surfaces, confidence/citation, streaming, recovery — identical.
-- **Multilingual and RTL:** rules ML1-ML8 — identical.
-- **Date/time/currency/number formatting:** rules FMT1-FMT8 — identical.
-- **Print and export:** rules EX1-EX5 — identical.
-- **Accessibility:** rules ACC1-ACC8 — identical.
+- **Density, data tables, forms, search, charts, states, notifications, activity and audit, permissions, onboarding, AI interaction patterns, multilingual and RTL, formatting, print and export, accessibility:** the template's structure, plus this file's own section of each name where it states a Tojlo rule (see above).
 - **Voice and tone:** "The Engineer Who Ships." Precise, confident, grounded. Identical traits, identical tone spectrum.
 - **Writing rules:** lead with outcome, active voice, short paragraphs, specifics over adjectives, no rhetorical questions, describe AI specifically. Identical.
 - **Forbidden language table:** identical. The same forbidden words apply.
@@ -103,7 +89,7 @@ Tojlo's structure is `core/design-system-template.md`'s and its values are `core
 - **Responsive layout:** breakpoints (sm/md/lg/xl/2xl), mobile-first approach, layout grid, component responsive behavior, sidebar collapse, data table mobile patterns, RWD1–RWD10 — identical. Every Tojlo web page must be responsive from 375px to 2560px.
 - **Scaffold adaptation matrix:** the template's (`core/design-system-template.md` § Scaffold Adaptation Matrix), identical — Tojlo shares Ocoron's accent, so nothing is swapped.
 
-If a rule is not listed in this document, the Ocoron design system rule applies.
+If a rule is not in this document, the template's (structure) or Ocoron's (values and voice) applies.
 
 ---
 
@@ -1483,8 +1469,8 @@ Every AI claim about specific data must cite the record:
 
 ### Recovery and Override
 
-- **Undo window:** every AI action that mutates data has an undo window. Default 5 minutes. Surfaced as a non-blocking toast: "Tojlo MAIL sent draft to Kandil Glass. Undo (4:58)."
-- **Recall:** for internal recipients Tojlo MAIL may attempt a recall during the undo window, but it is best-effort: Microsoft Graph's `message: recall` exists only in the beta endpoint, which Microsoft does not support for production, and Exchange recalls only within the organization (or an allow-listed Exchange Online tenant), never to external recipients. External emails cannot be recalled and are flagged for follow-up. Where an undo must be guaranteed, hold the send for the undo window instead of relying on recall.
+- **Undo window:** every AI action that mutates data has an undo window. Default 5 minutes. Surfaced as a non-blocking toast. An email to an external recipient cannot be recalled, so an AI-sent external email is held for the window: "Tojlo MAIL will send the draft to Kandil Glass in 4:58 · Undo."
+- **Recall:** for internal recipients Tojlo MAIL may attempt a recall during the undo window, but it is best-effort: Microsoft Graph's `message: recall` exists only in the beta endpoint, which Microsoft does not support for production, and Exchange recalls only within the organization (or an allow-listed Exchange Online tenant), never to external recipients. External emails cannot be recalled and are flagged for follow-up. That is why an external AI send is held for the undo window (§ Recovery and Override, Undo window) instead of relying on recall.
 - **Override:** every AI tag, category, or suggestion can be overridden in one click. Overrides feed back into the model's tuning data.
 - **Audit:** every AI override is logged. If an operator overrides the same AI category 5+ times, the system surfaces a "Want to retrain Tojlo MAIL on this category?" prompt to the workspace admin.
 

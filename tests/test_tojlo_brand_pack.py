@@ -76,6 +76,11 @@ def test_hex_only_in_logo_and_email() -> None:
                     f"hex {hexval} in § {title}: token values are Ocoron's — name the slot instead"
                 )
     assert found, "no hex at all — the logo colour variants should still carry theirs"
+    for line in body.splitlines():
+        if re.search(r"#[0-9A-Fa-f]{6}\b", line):
+            assert not re.search(r"`--color-[a-z-]+`", line), (
+                f"a colour slot paired with a hex value — a token table; the values are Ocoron's: {line!r}"
+            )
 
 
 _CITE = re.compile(r"`(?:[a-z0-9-]+/)?([a-z0-9-]+\.md)`\s*§ ([A-Z][^.;:,()`—]*)")
