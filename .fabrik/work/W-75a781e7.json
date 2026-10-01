@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "file 40 \u2014 core/tojlo-design-system.md: its retired slot names (--color-purple, --color-secondary) and stale hex (accent-hover, info) against core/ocoron, the \"Twelve modules\" copy against its 13-row list (ledger lg-14 of D-478), its Iconography-vs-Module-Color-Coding active-icon contradiction, its 11px chrome type vs the 13 mobile floor, a pointer to mobile-app/tojlo-mobile-design-system.md (D-478 op-03), and the Traycer comment. Then chrome-ext (3), ai/*, desktop (2), core/90-bootstrap, by real audience not glob count",
+  "next": "file 41 \u2014 chrome-ext/00-domain-chrome-ext.md, then chrome-ext/70-chrome-ext.md and 89-extension-launch-checklist.md (the MV3 facts against the live Chrome docs, emit a chrome-extension scaffold to ground them), then ai/* (10), desktop (2), core/90-bootstrap, by real audience not glob count",
   "note": "",
   "owner": "intel",
   "priority": 2,
@@ -19,5 +19,5 @@
   "tags": [
     "rules"
   ],
-  "title": "Rules currency pass: evaluate the 17 packs still missing currency_pass: (40 of 57 done; file 39 mobile-app/tojlo-mobile-design-system landed 2026-10-01, D-478)"
+  "title": "Rules currency pass: evaluate the 16 packs still missing currency_pass: (41 of 57 done; file 40 core/tojlo-design-system landed 2026-10-01, D-480)"
 }

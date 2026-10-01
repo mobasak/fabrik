@@ -2,15 +2,15 @@
 activation: manual
 description: Chrome-extension domain — PLANNING layer. Vision-intake dimensions (ICP, the permission-ceiling fork, monetization with ZERO platform tax, browser scope, platform-dependency risk, kill criteria) + epic-decomposition directives. Business formation, not code discipline — 70-chrome-ext.md owns every code-time fact.
 trigger: manual
+currency_pass: 2026-10-01
 ---
-<!-- CONSUMER: the mega-epic planner (vision intake + epic decomposition). Loaded BY PATH from
-     docs/traycer/mega-epic-breakdown/00-trigger-*.md and 02-epic-decomposition-*.md.
-     ⚠️ NOT glob-activated ON PURPOSE — "who is the ICP?" and "what is the kill criteria?" are vision-intake
-        questions, not something to inject into an agent mid-edit in a content script.
-     ⚠️ THE ONE RULE: this file FORCES A DECISION; it NEVER states an implementation. No value (listing-asset
-        sizes, permission names, manifest keys, bundle budgets, review times) may be copied in from
-        70-chrome-ext.md — a second copy drifts, and that is exactly why docs/traycer/**/domain-modules/ was
-        deleted 2026-07-13. Cite 70; never restate it. -->
+<!-- ⚠️ NOT glob-activated ON PURPOSE: "who is the ICP?" and "what is the kill criteria?" are vision-intake questions,
+     not something to inject into an agent mid-edit in a content script. Consumers load it BY PATH: /fabrik-vision (intake)
+     and /fabrik-epics (decomposition — it walks `### Mandatory Epic Coverage` by name; tests/test_domain_pack_epic_headings.py
+     pins it). Do not re-add a glob. -->
+<!-- ⚠️ THE ONE RULE: this file FORCES A DECISION; it NEVER states an implementation. No value (listing-asset sizes,
+     permission names, manifest keys, bundle budgets, review times, fees) may be copied in from 70/89 or a vendor page —
+     a second copy drifts. Cite the pack; never restate it. tests/test_chrome_domain_pack.py pins the cites and the rule. -->
 
 # Chrome Extension Domain — Planning Layer (vision intake + epic decomposition)
 
@@ -23,13 +23,13 @@ A dimension belongs at intake **only if** getting it wrong is **irreversible** o
 ## The 3 Forks (do NOT inherit SaaS or mobile defaults here)
 
 **1. Monetization is the INVERSE of mobile — there is no store billing at all, and no platform tax.**
-Google **shut down Chrome Web Store Payments on 1 Feb 2021**; paid extensions, in-store IAP and CWS free trials no longer exist. An extension therefore **cannot** bill through its store — external billing is not a choice, it is the only path. The upside is large and easy to miss: **the store takes 0%.** You keep 100% of revenue minus your payment processor's fee — where a mobile app would surrender a double-digit cut off the top. **Do not plan an extension's economics off mobile's assumptions, and never wait for a store-billing feature that is not coming back.**
+Google **shut down Chrome Web Store Payments on 1 Feb 2021**; paid extensions, in-store IAP and CWS free trials no longer exist. An extension therefore **cannot** bill through its store — external billing is not a choice, it is the only path. The upside is large and easy to miss: **the store takes no cut.** You keep all of the revenue minus your payment processor's fee — where a mobile app would surrender a double-digit cut off the top. **Do not plan an extension's economics off mobile's assumptions, and never wait for a store-billing feature that is not coming back.**
 → Provider choice and routing are owned by `core/85-payments-billing.md` § Payment Providers; the launch gate by `saas/88-saas-launch-checklist.md` § Payment Routing.
 → **The paywall lives in the BACKEND, never in the client.** A client-side entitlement check in an extension is trivially bypassed — the browser hands the user your source. Gate on the server, per `core/35-security-auth.md`.
 
 **2. The distribution channel sets a PERMISSION CEILING, and that ceiling constrains the PRODUCT.**
-This is not a launch detail — it is a product decision made at intake. The Chrome Web Store rejects broad host access and `debugger`-class permissions; developer-mode install accepts anything. So **an extension whose core value requires a permission the store won't approve cannot be a store product at all** — its audience is capped at users willing to install unpacked, or an enterprise fleet. Decide the channel **before** you scope the feature, or you will build a product you cannot ship to the audience you costed.
-→ Channels, their exact costs, permission ceilings, listing assets and auto-update behaviour are owned by **`70-chrome-ext.md` § Distribution Model**. Read them there; do not restate them here.
+This is not a launch detail — it is a product decision made at intake. The Chrome Web Store admits only the narrowest permissions that serve the extension's one stated purpose, and it reviews broad host access and sensitive permissions longer and harder; developer-mode install and a self-hosted enterprise force-install pass no store review at all. So **an extension whose core value needs access the store will not accept for that purpose — passive reading of every page the user visits, say — may not be a store product at all**: its audience is then the users willing to install unpacked, or an enterprise fleet. Decide the channel **before** you scope the feature, or you will build a product you cannot ship to the audience you costed.
+→ Channels, their exact costs, permission ceilings, listing assets and auto-update behaviour are owned by **`70-chrome-ext.md` § Distribution Model** and **`70-chrome-ext.md` § Permissions Discipline**. Read them there; do not restate them here.
 
 **3. Platform dependency is existential — and there is no appeal you control.**
 Google can reject, delist, or remove the extension, and a store rejection can invalidate the whole distribution assumption *after* the build. Treat this as a top-line risk with a named fallback channel (§8), not a footnote.
@@ -46,26 +46,26 @@ Google can reject, delist, or remove the extension, and a store rejection can in
 
 ### 2. Monetization Model
 
-**Force:** free / freemium / paid / license-key-for-teams · where the paywall sits · what the free tier may do.
+**Force:** free / freemium / paid / license-key-for-teams · where the paywall sits · what the free tier may do · **who publishes** — every Chrome Web Store publisher declares itself a trader or a non-trader under the EU Digital Services Act, and a trader's legal name, address and phone number are shown publicly on the listing ([Chrome Web Store trader policy](https://developer.chrome.com/docs/webstore/program-policies/trader-disclosure)); the test is acting for a business purpose, not charging — a monetized extension is a trader, and so is a free one a business publishes for its trade — so decide which entity publishes and whose address goes public.
 **Default:** freemium with a **backend-enforced** entitlement. Zero platform tax means pricing has more room than mobile — but the processor fee and your infra COGS are still real.
 **Why now:** the entitlement check shapes the auth model and the backend schema (Epic 1). Retrofitting a paywall onto an extension that shipped with no user identity is a rewrite.
 
 ### 3. Distribution Channel + Permission Ceiling
 
 **Force:** which channel (see Fork 2), and — the actual question — **does the product's core value survive that channel's permission ceiling?**
-**Default:** Chrome Web Store for anything consumer. If the core feature needs a permission the store rejects, that is a **product** decision to escalate at intake, not a packaging problem to solve at launch.
+**Default:** Chrome Web Store for anything consumer. If the core feature needs access the store will not accept for the extension's stated purpose (Fork 2), that is a **product** decision to escalate at intake, not a packaging problem to solve at launch.
 **Why now:** the ceiling constrains the feature set. Discovering it at submission means rebuilding or re-audiencing.
 
 ### 4. Browser Scope
 
 **Force:** Chrome-only, or Chrome + Firefox/Edge?
-**Default:** build Chrome-first but keep the toolchain cross-browser-capable (the pack's default build tool already is — see `70` § Build Tooling). Ship other browsers only when a real audience is proven.
+**Default:** build Chrome-first but keep the toolchain cross-browser-capable (the pack's default build tool already is — see `70-chrome-ext.md` § Build Tooling). Ship other browsers only when a real audience is proven.
 **Why now:** cross-browser is cheap if assumed from commit #1 and expensive as a retrofit; but shipping to empty stores is waste. Decide, don't drift.
 
 ### 5. Backend Dependency
 
 **Force:** what the backend must own — auth, entitlement, AI/LLM calls, any API key.
-**Default:** **the backend is always Epic 1.** The extension is useless without it, and every secret must live there: an extension bundle is **readable by anyone who installs it**, so an API key shipped in the client is a published API key.
+**Default:** **the backend is always Epic 1**, and it is the scaffold's own `server/` FastAPI service, in the same repo as `extension/` — not a second project. It ships with no database and no auth routes on the server (the extension's token and refresh plumbing is already emitted); intake decides whether the product needs `needs_database` and `has_bearer_api`, the spec's `shape:` block carries the flip, and the auth model follows `70-chrome-ext.md` § Auth (Extension ↔ Backend). The extension is useless without the backend, and every secret must live there: an extension bundle is **readable by anyone who installs it**, so an API key shipped in the client is a published API key.
 **Why now:** it is the dependency root of every other epic.
 
 ### 6. Onboarding & Activation
@@ -100,7 +100,7 @@ Google can reject, delist, or remove the extension, and a store rejection can in
 
 ### Vision Summary Gate
 
-Confirm the Vision Summary **only when every dimension above is resolved or logged as an Open Question.** Decisions → `Technology Decisions` + `Value Streams`. Unresolved → `Open Questions` (blocks confirmation). Scaffold signal: `chrome-extension` (client) **+** `python-api` (backend) = multi-epic.
+Confirm the Vision Summary **only when every dimension above is resolved or logged as an Open Question.** Decisions → `Technology Decisions` + `Value Streams`. Unresolved → `Open Questions` (blocks confirmation). Scaffold signal: **one** `chrome-extension` project — the scaffold emits the extension (`extension/`) and its backend (`server/`) in one repo; the work is still multi-epic. A second scaffold only for a separate surface, such as a landing page.
 
 ---
 
@@ -110,15 +110,15 @@ Confirm the Vision Summary **only when every dimension above is resolved or logg
 
 | Dimension | Epic boundary rule |
 |---|---|
-| §5 Backend + Auth | **Foundation epic (Epic 1) — ALWAYS FIRST.** FastAPI + auth + entitlement + shape/registrars/health. The extension is useless without it, and every secret lives here. |
+| §5 Backend + Auth | **Foundation epic (Epic 1) — ALWAYS FIRST.** The scaffold's `server/` service: auth, entitlement, the shape flags it needs (and so the registrars they fire), health. The extension is useless without it, and every secret lives here. |
 | §2 Monetization | Own epic, or explicitly assigned. **Backend-enforced entitlement must exist before any paywalled feature** — a client-side gate is not a gate. |
 | §3 Distribution + permissions | **Not a "polish" epic.** The permission strategy is designed in Epic 1–2 (the ceiling constrains the feature set); the listing/packaging work is its own epic. |
 | §6 Onboarding | Belongs to the epic that owns the first-run surface. **Never deferred past v1** — extensions get uninstalled in minutes. |
-| §7 Analytics | Instrumentation rides in each epic's tickets, not a separate epic. |
+| Analytics (§6's activation event) | Instrumentation rides in each epic's tickets, not a separate epic. |
 
 ### Parallel Lane Opportunities
 
-After the backend epic: **extension core** (surfaces + messaging) · **monetization/paywall** (independent once auth exists) · **landing page + store listing** (fully independent — different scaffold) · **AI/extraction pipeline** (independent behind the API contract).
+After the backend epic: **extension core** (surfaces + messaging) · **monetization/paywall** (independent once auth exists) · **landing page** (fully independent — a different scaffold) · **store listing** (this project's own work, per `89-extension-launch-checklist.md` § 3. Store listing assets) · **AI/extraction pipeline** (independent behind the API contract).
 
 ### Anti-Patterns
 
@@ -130,4 +130,4 @@ After the backend epic: **extension core** (surfaces + messaging) · **monetizat
 
 ### Code-time facts live in `70-chrome-ext.md`
 
-Surfaces, MV3 constraints, permissions discipline, state management, auth storage, framework/build tooling, bundle budgets, testing, i18n, the design system, banned patterns, and the full **§ Distribution Model** (channel costs, listing assets, permission ceilings, auto-update, what Chrome blocks) are **owned by `70-chrome-ext.md`**. Cite it; never restate it here.
+Surfaces, MV3 constraints, permissions discipline, state management, auth and its storage, framework/build tooling, bundle budgets, testing, i18n, the design system, banned patterns, and the full **§ Distribution Model** (channel costs, listing assets, permission ceilings, auto-update, what Chrome blocks) are **owned by `70-chrome-ext.md`**. Cite it; never restate it here.

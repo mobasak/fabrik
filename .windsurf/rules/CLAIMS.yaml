@@ -2548,3 +2548,24 @@ claims:
     verify: "https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages/ ; https://www.infobip.com/docs/whatsapp/compliance/template-compliance (exa + brave, 2026-10-01; ledger oc-04, oc-05)"
     window_days: 365
     last_verified: 2026-10-01
+  - id: cws-payments-ended-2021
+    pack: chrome-ext/00-domain-chrome-ext.md
+    kind: policy
+    claim: "Chrome Web Store payments are gone: no new paid items since 21 Sep 2020, no free trials since 1 Dec 2020, and from 1 Feb 2021 existing items and in-app purchases can no longer charge through the store, so an extension bills through its own processor and the store takes no cut"
+    verify: "https://github.com/GoogleChrome/developer.chrome.com/blob/main/site/en/docs/webstore/cws-payments-deprecation/index.md (brave + exa, 2026-10-01; the developer.chrome.com URL returned 404; ledger oc-01, op-07)"
+    window_days: 365
+    last_verified: 2026-10-01
+  - id: cws-narrowest-permissions-review
+    pack: chrome-ext/00-domain-chrome-ext.md
+    kind: policy
+    claim: "The Chrome Web Store requires the narrowest permissions necessary for the extension's stated purpose and reviews broad host permissions and sensitive execution permissions longer; it is a longer review and a justification, not a blanket rejection"
+    verify: "https://developer.chrome.com/docs/webstore/program-policies/permissions ; https://developer.chrome.com/docs/webstore/review-process (brave + exa, 2026-10-01; ledger oc-03, oc-04)"
+    window_days: 180
+    last_verified: 2026-10-01
+  - id: cws-trader-declaration-dsa
+    pack: chrome-ext/00-domain-chrome-ext.md
+    kind: policy
+    claim: "Every Chrome Web Store publisher declares itself a trader or a non-trader under the EU Digital Services Act (enforced from 17 Feb 2024); a trader's legal name, address and SMS-verified phone number are shown publicly on the listing"
+    verify: "https://developer.chrome.com/docs/webstore/program-policies/trader-disclosure ; https://developer.chrome.com/docs/webstore/program-policies/trader-verification-faq (brave + exa, 2026-10-01; ledger oc-05, op-02)"
+    window_days: 365
+    last_verified: 2026-10-01
