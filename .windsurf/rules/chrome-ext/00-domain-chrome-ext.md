@@ -46,7 +46,7 @@ Google can reject, delist, or remove the extension, and a store rejection can in
 
 ### 2. Monetization Model
 
-**Force:** free / freemium / paid / license-key-for-teams · where the paywall sits · what the free tier may do · **who publishes** — every Chrome Web Store publisher declares itself a trader or a non-trader under the EU Digital Services Act, and a trader's legal name, address and phone number are shown publicly on the listing ([Chrome Web Store trader policy](https://developer.chrome.com/docs/webstore/program-policies/trader-disclosure)); a monetized extension is a trader, so decide which entity publishes and whose address goes public.
+**Force:** free / freemium / paid / license-key-for-teams · where the paywall sits · what the free tier may do · **who publishes** — every Chrome Web Store publisher declares itself a trader or a non-trader under the EU Digital Services Act, and a trader's legal name, address and phone number are shown publicly on the listing ([Chrome Web Store trader policy](https://developer.chrome.com/docs/webstore/program-policies/trader-disclosure)); the test is acting for a business purpose, not charging — a monetized extension is a trader, and so is a free one a business publishes for its trade — so decide which entity publishes and whose address goes public.
 **Default:** freemium with a **backend-enforced** entitlement. Zero platform tax means pricing has more room than mobile — but the processor fee and your infra COGS are still real.
 **Why now:** the entitlement check shapes the auth model and the backend schema (Epic 1). Retrofitting a paywall onto an extension that shipped with no user identity is a rewrite.
 

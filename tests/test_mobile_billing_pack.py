@@ -17,12 +17,12 @@ it before the state write; the order check below reads the call sequence, not th
 from __future__ import annotations
 
 import ast
-import os
 import re
 from pathlib import Path
 
 import pytest
 
+from fabrik import config as fabrik_config
 from fabrik.scaffold import create_project
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -138,7 +138,11 @@ def test_client_sample_uses_one_key_per_platform_and_does_not_await_configure() 
 @pytest.fixture(scope="module")
 def project(tmp_path_factory: pytest.TempPathFactory) -> Path:
     base = tmp_path_factory.mktemp("mobile-billing")
-    os.environ.setdefault("FABRIK_ROOT", str(ROOT))
+    # fabrik.config binds FABRIK_ROOT at import, so setting it here would change nothing:
+    # assert the scaffolder reads THIS tree's templates instead of grading another one
+    assert fabrik_config.FABRIK_ROOT.resolve() == ROOT, (
+        f"the scaffolder reads {fabrik_config.FABRIK_ROOT}, not {ROOT}: run with FABRIK_ROOT={ROOT}"
+    )
     create_project(
         "mobilebilling", "probe", base=base, project_type="mobile-app", generate_spec=False
     )

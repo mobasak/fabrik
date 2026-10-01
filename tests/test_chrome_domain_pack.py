@@ -20,12 +20,12 @@ which the check cannot name-match; the pack uses that form only where the senten
 
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 
 import pytest
 
+from fabrik import config as fabrik_config
 from fabrik.scaffold import create_project
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,7 +41,11 @@ requires_fabrik_env = pytest.mark.skipif(
 @pytest.fixture(scope="module")
 def project(tmp_path_factory: pytest.TempPathFactory) -> Path:
     base = tmp_path_factory.mktemp("chrome-domain")
-    os.environ.setdefault("FABRIK_ROOT", str(ROOT))
+    # fabrik.config binds FABRIK_ROOT at import, so setting it here would change nothing:
+    # assert the scaffolder reads THIS tree's templates instead of grading another one
+    assert fabrik_config.FABRIK_ROOT.resolve() == ROOT, (
+        f"the scaffolder reads {fabrik_config.FABRIK_ROOT}, not {ROOT}: run with FABRIK_ROOT={ROOT}"
+    )
     create_project(
         "chromedomain", "probe", base=base, project_type="chrome-extension", generate_spec=False
     )
@@ -117,8 +121,9 @@ def test_every_dimension_reference_names_its_dimension() -> None:
     pack = _pack()
     dims = {int(m.group(1)): m.group(2) for m in re.finditer(r"^### (\d+)\. (.+)$", pack, re.M)}
     assert len(dims) >= 10, f"found {len(dims)} numbered dimensions: check the heading pattern"
-    refs = re.findall(r"§(\d+)\s+([A-Z][a-z]+)", pack)
-    assert len(refs) >= 4, f"found only {len(refs)} §N references: check the pattern"
+    # "§5 Backend" and "(§6's activation event)" both name their dimension
+    refs = re.findall(r"§(\d+)(?:'s)?\s+([A-Za-z]+)", pack)
+    assert len(refs) >= 5, f"found only {len(refs)} §N references: check the pattern"
     wrong = [
         f"§{n} {word} (dimension {n} is {dims.get(int(n), 'missing')})"
         for n, word in refs

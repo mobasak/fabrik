@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Changed — chrome-ext/00-domain-chrome-ext: plans for the one-repo scaffold and states the store's permission rule truthfully (2026-10-01)
 - `.windsurf/rules/chrome-ext/00-domain-chrome-ext.md` (rules currency pass file 41, D-483): the backend is the scaffold's own `server/` beside `extension/`, not a separate python-api project; the permission ceiling is the store's narrowest-permission rule with a longer review for broad access, not a rejected-permission list; §2 forces who publishes (the EU trader declaration); the epic table's analytics row points at §6; consumers are /fabrik-vision and /fabrik-epics.
 - `tests/test_chrome_domain_pack.py`: pins the scaffold backend, every cited sibling section, every `§N` dimension reference and the no-price/no-rate rule.
+- `tests/test_mobile_domain_pack.py`, `test_mobile_launch_pack.py`, `test_mobile_billing_pack.py`, `test_mobile_components_pack.py`, `test_tojlo_mobile_pack.py`: the scaffold fixture asserts it reads this tree's templates — its `FABRIK_ROOT` setdefault ran after `fabrik.config` had already bound the root.
 - `.windsurf/rules/CLAIMS.yaml`: three rows; `docs/reference/research/2026-10-01-chrome-domain-currency-ledger.md`: the turn's 20 facts.
 
 ### Changed — core/tojlo-design-system: points at the template and Ocoron instead of restating their values (2026-10-01)
