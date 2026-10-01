@@ -835,7 +835,7 @@ def test_an_unreadable_record_is_skipped_with_a_warning(world, capsys):
 
 # 8 — a stale throwaway worktree is removed and pruned
 def test_a_stale_throwaway_worktree_is_removed(world):
-    stale = world.tmp / "scratch" / "fabrik-merge-stale" / "proj"
+    stale = world.tmp / "scratch" / "fabrik-merge-ab12cd34" / "proj"  # mkdtemp's own shape
     _git(world.main, "worktree", "add", "-q", "--detach", str(stale), "master")
     before = world.worktrees()
     assert f"worktree {stale}" in before
@@ -843,6 +843,27 @@ def test_a_stale_throwaway_worktree_is_removed(world):
     assert world.run("merge") == 0
 
     assert f"worktree {stale}" not in world.worktrees() and world.scratch_left() == []
+
+
+# O12 — the sweep touches only what this tool created, under its own temp root
+@pytest.mark.parametrize(
+    "where",
+    [
+        "elsewhere/fabrik-merge-ab12cd34/proj",  # right name, outside the temp root
+        "scratch/fabrik-merge-mine/proj",  # under the root, not mkdtemp's name
+        "scratch/fabrik-merge-ab12cd34/other",  # mkdtemp's dir, not <repo basename>
+        "scratch/x/fabrik-merge-ab12cd34/proj",  # nested below the root, not directly under
+    ],
+)
+def test_the_sweep_never_touches_a_worktree_it_did_not_create(world, where):
+    keep = world.tmp / where
+    _git(world.main, "worktree", "add", "-q", "--detach", str(keep), "master")
+    (keep.parent / "sibling-data.txt").write_text("not ours\n", encoding="utf-8")
+
+    assert world.run("merge") == 0
+
+    assert f"worktree {keep}" in world.worktrees()
+    assert (keep / "README.md").is_file() and (keep.parent / "sibling-data.txt").is_file()
 
 
 # 9 — a checkout that moved onto base after the preflight is preflighted again
@@ -880,3 +901,69 @@ def test_a_d_id_collision_in_the_carry_is_listed_and_the_wip_kept(world):
     assert staged == _git(world.main, "rev-parse", "master:docs/DECISIONS.md")
     listed = world.replies(msg_id)["fleet"].split("not carried:", 1)[1]
     assert "docs/DECISIONS.md" in listed and "D-5" in listed
+
+
+# --- closing pass -----------------------------------------------------------------------------
+# O11 — while a record is parked at catchup-refused, the inbox waits untouched
+def test_a_parked_catch_up_holds_the_inbox_untouched(world, capsys):
+    parked = _strand(world, _dead_pid(), "1", phase="catchup-refused")
+    first = world.send(_second_branch(world, "z.txt"), branch="feat2")
+    second = world.send(world.branch({"y.txt": "y\n"}))
+    old = world.base()
+
+    assert world.run("merge") == 4
+
+    assert {first, second} <= set(world.inbox())
+    for msg_id in (first, second):
+        assert world.replies(msg_id) == {}
+    assert world.base() == old
+    err = capsys.readouterr().err
+    assert parked in err and f"merge_request.py resume {parked}" in err and "by hand" in err
+
+
+# O13 — a carry failure after the catch-up CAS is reported as what it is
+def test_a_carry_failure_after_the_catch_up_cas_is_not_called_a_refused_catch_up(
+    world, monkeypatch, capsys
+):
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    assert world.run("merge", phase=_reject_push_with(world, "y.txt", "y\n")) == 4
+    capsys.readouterr()
+    real = world.mod._carry
+    calls: list[int] = []
+
+    def carry(ctx, base, old, new, snap):
+        calls.append(1)
+        if "catch up" in _git(world.main, "log", "-1", "--format=%s", new):
+            raise world.mod.RefusedError("git checkout failed: disk full")
+        return real(ctx, base, old, new, snap)
+
+    monkeypatch.setattr(world.mod, "_carry", carry)
+
+    assert world.run("resume", msg_id) == 4
+
+    err = capsys.readouterr().err
+    rec = world.record(msg_id)
+    assert rec["phase"] != "catchup-refused"
+    assert "by hand" not in err and "catch-up merge" in err and "committed" in err
+    assert "y.txt" in err and "disk full" in err  # the paths not carried, and why
+    assert "catch up" in _git(world.main, "log", "-1", "--format=%s", "master")
+
+
+# O14 — with no snapshot (a resume of a head already in base) a dirty ledger is 3-way merged
+def test_a_dirty_ledger_with_no_snapshot_is_three_way_merged_keeping_the_wip(world):
+    head = world.branch(
+        {"CHANGELOG.md": CHANGELOG.replace("## [Unreleased]\n\n", "## [Unreleased]\n\n### Added — b\n\n")}
+    )
+    msg_id = world.send(head)
+    old = world.base()
+    tree = _git(world.main, "rev-parse", f"{head}^{{tree}}")
+    msg = f"merge(infra): feat — request {msg_id}, item none"
+    merge = _git(world.main, "commit-tree", "-p", old, "-p", head, "-m", msg, tree)
+    _git(world.main, "update-ref", "refs/heads/master", merge, old)  # index and files stay at old
+    world.write("CHANGELOG.md", CHANGELOG + "- owner wip\n")
+
+    assert world.run("resume", msg_id) == 0
+
+    text = world.read("CHANGELOG.md")
+    assert "### Added — b" in text and text.endswith("- owner wip\n")
+    assert _added(world, "CHANGELOG.md") == ["- owner wip"]
