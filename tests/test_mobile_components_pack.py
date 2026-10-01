@@ -112,6 +112,10 @@ def test_scaffold_names_are_what_the_scaffold_ships(project: Path) -> None:
         "the Modal wrapper's default snap point changed: update § Bottom Sheet"
     )
     assert "60% snap point" in body
+    assert "enableDynamicSizing={false}" in modal and "rgba(0, 0, 0, 0.4)" in modal, (
+        "the Modal wrapper no longer forces dynamic sizing off or draws a 0.4 scrim: update § Bottom Sheet"
+    )
+    assert "forces `enableDynamicSizing={false}`" in body and "scrim at 0.4" in body
     listing = (project / "src" / "components" / "ui" / "list.tsx").read_text(encoding="utf-8")
     assert "ActivityIndicator" in listing, (
         "EmptyList no longer shows a spinner: drop LI5's replace-it note"

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — mobile-app/ocoron-mobile-design-system: the mobile component patterns, for every mobile project (2026-10-01)
+- `.windsurf/rules/mobile-app/ocoron-mobile-design-system.md` (rules currency pass file 38, D-473): now titled Mobile Component Patterns and scoped to every mobile-app project, with Ocoron's fonts only on a declared project; names the template's slots and font roles in their roles (`-text`, `-fg`, `--border-control`); destructive action-sheet options first; the native stack header (`headerLargeTitleEnabled`); bottom-sheet back handling and predictive back; `ReanimatedSwipeable` with accessibility actions; undo only for reversible deletes; the scaffold's real components, defaults and missing packages.
+- `.windsurf/rules/mobile-app/80-mobile.md`: two lines say the component patterns are for every mobile project.
+- `tests/test_mobile_components_pack.py`: pins slots and their roles, the scaffold's files, packages, add-steps and Modal defaults, the rule IDs the Tojlo pack inherits, font roles and every cited section.
+- `.windsurf/rules/CLAIMS.yaml`: eight rows; `docs/reference/research/2026-10-01-mobile-components-currency-ledger.md`: the turn's 54 facts.
+
 ### Changed — mobile-app/89-mobile-launch-checklist: gates on what the stores require and the scaffold ships (2026-10-01)
 - `.windsurf/rules/mobile-app/89-mobile-launch-checklist.md` (rules currency pass file 37, D-469): false gates removed — the IPv6 AAAA/`::` demand, "cancel RevenueCat" on deletion, mandatory Sign in with Apple, the 99.5% penalty claim, stale Play listing specs, `min_required_version` and `app.json`; Teknokent and fee items now point to 81. Added Google's web deletion link, Sign-in-with-Apple token revocation, App Store privacy details and reviewer sign-in for passwordless apps; Phase 0's evidence is the operator's `docs/DECISIONS.md` row and Phase 4 is plain-bullet follow-ups, not release gates.
 - `tests/test_mobile_launch_pack.py`: pins the `/app-config` contract, the EAS update channels, `app.config.ts`, every cited sibling section, and that Phase 4 holds no release gates.
