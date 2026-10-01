@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The Stop hook's withdrawn-edit filter no longer counts wip-backup snapshots (2026-10-01)
+
+Live, the W-20a8e9f1 filter still named three withdrawn files, because `git log --all` also walks `refs/wip/*`, where `scripts/wip_backup.sh` keeps automatic whole-tree safety snapshots that had caught them. `_withdrawn_edits` now excludes the script's own three names (`refs/wip/autobackup`, `refs/wip/bak-*`, `refs/wip/wt-*`) from `--all`; any other `refs/wip` ref, a stash and a real branch still keep a file named. The test builds snapshots under all three names and proves the branch is seen through `--all` alone.
+
 ### Fixed — The Stop hook stops naming edits that left nothing behind (2026-10-01)
 
 The sixth Stop cause (UNREVIEWED SPONTANEOUS WORK) named files a session had edited and then withdrawn — restored to HEAD, or created and deleted — and re-blocked on every turn, since no later review window can cover an old edit (W-20a8e9f1). `_withdrawn_edits` in `.claude/hooks/final_gate_stop.py` now drops such a name, but only at the repository's top level and only when git shows no working-tree, index or ignored-file change for it (renames keep both paths; an ignored directory covers its files; pathspecs are literal) and no commit on any ref or reflog touched it since the edit window opened — so committing, stashing or moving work to another branch never escapes the review. Any git failure drops nothing. One check serves every name. Tests: `tests/test_stop_hook_withdrawn_edits.py` (13).

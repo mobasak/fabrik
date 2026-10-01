@@ -187,3 +187,24 @@ def test_a_name_starting_with_a_colon_is_a_path_not_pathspec_magic(tmp_path: Pat
     root = _repo(tmp_path)
     (root / ":x.py").write_text("c = 1\n")
     assert _names(root, [":x.py"], time.time() - 3600) == [":x.py"]
+
+
+def test_a_wip_backup_snapshot_is_not_the_sessions_commit(tmp_path: Path) -> None:
+    """wip_backup.sh snapshots the whole tree into its own refs/wip names; that is not anyone's
+    work, so a withdrawn file a snapshot happened to catch is still dropped. A ref under any
+    OTHER refs/wip name, like a real branch, still counts."""
+    root = _repo(tmp_path)
+    floor = time.time() - 3600
+    (root / "kept.py").write_text("x = 5\n")
+    _git(root, "stash")  # build a snapshot commit, then park it where wip_backup.sh does
+    for ref in ("refs/wip/autobackup", "refs/wip/bak-20261001T000000Z", "refs/wip/wt-x-1a2b3c4d"):
+        _git(root, "update-ref", ref, "refs/stash")
+    _git(root, "stash", "drop")
+    _git(root, "reflog", "expire", "--expire=now", "--all")
+    assert _names(root, ["kept.py"], floor) == []
+    _git(root, "update-ref", "refs/wip/parked", "refs/wip/autobackup")  # not the script's name
+    assert _names(root, ["kept.py"], floor) == ["kept.py"]
+    _git(root, "update-ref", "-d", "refs/wip/parked")
+    _git(root, "branch", "side", "refs/wip/autobackup")  # a real branch holding the same work
+    _git(root, "reflog", "expire", "--expire=now", "--all")  # reachable through --all alone
+    assert _names(root, ["kept.py"], floor) == ["kept.py"]

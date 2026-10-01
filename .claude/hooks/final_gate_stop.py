@@ -1216,7 +1216,9 @@ def _withdrawn_edits(root: Path, names: list[str], floor: float) -> set[str]:
     would make the file equal HEAD and dodge the review, the cheapest way past this cause (D-253)
     being exactly the act it must still judge. The residue it cannot see: a commit whose committer
     date is set BEFORE the floor (a deliberate backdate), and a commit by ANOTHER session on the
-    same path, which over-blocks (names a file this session withdrew) rather than under-blocks.
+    same path, which over-blocks (names a file this session withdrew) rather than under-blocks,
+    and work hand-parked under wip_backup.sh's own snapshot names (excluded below) — a
+    deliberate ref write the backup script, not an agent, owns.
     Cost: three git calls, only when the cause already has names. Any git failure drops nothing —
     the cause keeps its pre-change behaviour rather than disarming. Pathspecs are literal, and a
     directory git reports in place of its files (`!! build/`) covers every name under it."""
@@ -1257,6 +1259,16 @@ def _withdrawn_edits(root: Path, names: list[str], floor: float) -> set[str]:
             deadline,
             "--literal-pathspecs",
             "log",
+            # wip_backup.sh's automatic safety snapshots of the WHOLE tree are not anyone's work:
+            # counted, every withdrawn file they ever caught stayed named (the live run that
+            # motivated this change named three files only a snapshot held). Only the script's
+            # own three names are excluded. `--exclude` scopes the next `--all` and never
+            # `--reflog`, which needs no exclude: the script writes these refs with a plain
+            # `update-ref`, and core.logAllRefUpdates (`true` here) logs heads, remotes, notes and
+            # HEAD only; set to `always` it would log these refs too, which over-blocks, never under.
+            "--exclude=refs/wip/autobackup",
+            "--exclude=refs/wip/bak-*",
+            "--exclude=refs/wip/wt-*",
             "--all",
             "--reflog",
             "--diff-merges=first-parent",  # a stash is a merge commit; list its paths too
