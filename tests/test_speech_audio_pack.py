@@ -137,8 +137,15 @@ def test_no_version_literals() -> None:
 
 def test_choice_is_recorded_where_ai00_says() -> None:
     """ai/00's selection workflow records the choice in project.yaml; this pack must not send agents elsewhere."""
+    instruction = "project.yaml (`ai_category`, `ai_subcategory`, `ai_tools`)"
     for key in ("ai_category", "ai_subcategory", "ai_tools"):
         assert key in INDEX.read_text(encoding="utf-8"), (
             f"ai/00 no longer names {key}: re-align this pack"
         )
-        assert key in _pack(), f"the pack no longer tells agents to record {key} in project.yaml"
+    header = _pack().split("# 1. Speech & Audio AI", 1)[0]
+    assert instruction in header, (
+        "the header no longer tells agents to record the choice in project.yaml"
+    )
+    assert "DECISIONS.md" not in header, (
+        "the header sends the vendor choice somewhere other than project.yaml"
+    )
