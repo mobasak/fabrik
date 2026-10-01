@@ -300,7 +300,7 @@ The voice is constant. The register adjusts by surface and stakes:
 | **Empty state headline** | Outcome-led sentence | ≤ 8 | "No leads yet. Connect WhatsApp to start." |
 | **Tooltip** | One sentence, action-oriented | ≤ 12 | "Approve this draft and Tojlo will send it now." |
 | **Inline form helper** | One short sentence; what to enter, why it matters | ≤ 14 | "We'll email this address when invoices are paid." |
-| **Toast / snackbar** | What happened + (optional) one undo or follow-up | ≤ 14 | "Draft sent. Undo." |
+| **Toast / snackbar** | What happened + (optional) one undo or follow-up | ≤ 14 | "Lead archived. Undo." |
 | **Error toast** | What broke + what to do | ≤ 18 | "M365 token expired. Reconnect in Settings → Integrations." |
 | **Confirmation dialog body** | Plain statement of consequence + revert path | ≤ 30 | "This will permanently delete 12 customer records. You cannot undo this. Type DELETE to confirm." |
 | **Onboarding step** | One sentence outcome + one sentence action | ≤ 24 | "Connect your inbox. Tojlo MAIL will start drafting replies within 5 minutes." |
@@ -1330,7 +1330,7 @@ Tojlo's product thesis depends on AI behaving predictably, transparently, and re
 2. **AI proposes; the operator approves.** AI never sends, signs, files, or executes a high-stakes action without explicit user approval. Approval can be a single click, but it must exist.
 3. **Show the source.** Every AI claim about data is grounded in records the user can click to verify. Citations are mandatory; if the model can't ground a claim, it says so instead of making one up.
 4. **Make it easy to override.** Every AI suggestion has Accept, Modify, and Dismiss as equally weighted actions. Modify is not a hidden affordance.
-5. **Recoverable by default.** Anything AI did is undoable for at least 5 minutes. Anything AI sent externally has a "Recall" affordance where technically possible.
+5. **Recoverable by default.** Anything AI did is undoable for at least 5 minutes. Anything AI sends externally is held for that window, because an external email cannot be recalled (§ Recovery and Override).
 6. **No black boxes.** Operators can ask "Why did Tojlo suggest this?" and get an answer drawn from the actual prompt context, not a generated rationalization.
 
 ### AI Surface Patterns
