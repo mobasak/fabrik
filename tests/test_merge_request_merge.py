@@ -655,6 +655,23 @@ def test_a_pure_insertion_decisions_conflict_resolves_newest_first(world):
     assert rows == ["| D-3 | base |", "| D-2 | branch |", "| D-1 | first |"]
 
 
+
+def test_a_resolved_ledger_conflict_commits_the_request_message_without_git_comments(world):
+    """V9 (2026-10-01): a ledger conflict resolved in (b) committed with `--no-edit`, which reuses
+    git's MERGE_MSG — its `# Conflicts:` comment block landed in the merge commit on master."""
+    head = world.branch(
+        {"docs/DECISIONS.md": DECISIONS.replace("| D-1 |", "| D-2 | branch |\n| D-1 |")}
+    )
+    world.write("docs/DECISIONS.md", DECISIONS.replace("| D-1 |", "| D-3 | base |\n| D-1 |"))
+    world.commit_main("base row", "docs/DECISIONS.md")
+    msg_id = world.send(head)
+
+    assert world.run("merge") == 0
+    body = _git(world.main, "log", "-1", "--format=%B", "master")
+    assert msg_id in body
+    assert not [ln for ln in body.splitlines() if ln.startswith("#")], body
+
+
 # --- (g): the hub's governance sync runs when a merged path matches the filter -------------
 def test_the_hub_sync_runs_when_a_merged_path_matches_the_filter(world, monkeypatch):
     world.write(

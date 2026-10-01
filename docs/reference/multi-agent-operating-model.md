@@ -127,8 +127,9 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
 - **Ledgers and ids across branches** (D-448) — each agent writes its own ledger rows
   (`CHANGELOG.md`, `docs/DECISIONS.md`, `docs/STRATEGIC_BACKLOG.md`) on its own branch; two
   branches that both prepend a row to the same table always conflict at merge — `rerere` only
-  replays a resolution it has already recorded, so it helps with nothing new here — and agent-1
-  resolves the conflict BY HAND, keeping both sides (§ Merge protocol, below). Decision ids: mint
+  replays a resolution it has already recorded, so it helps with nothing new here — and
+  `merge_request.py merge` keeps both sides when the conflict is a pure insertion, refusing any
+  other (§ Merge protocol, below). Decision ids: mint
   with `python3 scripts/decisions.py --reserve-id .`, never `--next-id` alone — a flocked
   reservation keyed by the git common dir (so every worktree of a repo shares one file), and
   `--next-id` SKIPS a live reservation rather than reissuing it; a reservation is held until its id
@@ -142,22 +143,39 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
 
 ## Merge protocol — the merge owner only (§ Merge)
 
-Agent-1 merges finished branches into the base branch **one at a time, in `epic_order` phase order**
-(`python3 scripts/epic_order.py` prints the phases), rebase-first, `--no-ff`. This is INTEGRATION, not
-DISTRIBUTION: the merge owner decides merge order, never which agent owns which work item — that is
-`work.py assign`, the distributor's verb (§ Ownership surfaces, above).
+Finished work in a linked worktree is a MERGE REQUEST, and the merge owner merges it through ONE
+script, `scripts/merge_request.py` (spec `docs/superpowers/specs/2026-09-30-merge-request-loop-design.md`).
+This is INTEGRATION, not DISTRIBUTION: the merge owner decides merge order, never which agent owns
+which work item — that is `work.py assign`, the distributor's verb (§ Ownership surfaces, above).
 
 ```bash
-# 1. the reporting agent, INSIDE its worktree (git refuses to rebase a branch checked out elsewhere):
-git rebase master && git push          # push.autoSetupRemote makes the first push plain
-# 2. agent-1, in the main checkout:
-git merge --no-ff worktree-<name>      # one branch, one merge commit; verify (tests) on the result
-# 3. agent-1 messages the other windows: "merged epic N — rebase"
+# 1. the finishing agent, INSIDE its worktree, on a branch pushed as itself:
+python3 scripts/merge_request.py request --review <closing run record or review receipt> [--item W-xxxxxxxx]
+#    → one `merge-request` mail (ack: required) to the merge owner, an `ack: no` copy to the
+#      distributor when it is neither the owner nor the requester, and one `SendMessage to=<name>: …` doorbell line
+#      per live recipient session (`mail.py who <agent>`) — send each with the native SendMessage tool
+#    A branch cut before the script existed runs the main checkout's copy by absolute path
+#    (`python3 <main checkout>/scripts/merge_request.py request …`): it finds mail.py, work.py and
+#    whoami_agent.py beside itself, never in the branch. `--item` releases your claim on that item.
+# 2. the merge owner, in the main checkout:
+python3 scripts/merge_request.py merge [<id>]   # the oldest request addressed to it, or <id>
+python3 scripts/merge_request.py resume <id>    # a request left short of `replied` (exit 4)
 ```
 
-`rerere.enabled` replays a resolved conflict the next time the same hunks meet, which keeps the
-owner's load linear in the number of epics. `/fabrik-execute-plan`'s § Finish (c) is the agent-side
-half: a named agent's window merges nothing and removes nothing — push the branch and report.
+`merge` holds `<git common dir>/fabrik-merge.lock`, resumes any stranded record in
+`<git common dir>/fabrik-merge/` first, claims the request, and runs (a) a preflight in a throwaway
+worktree with a snapshot of every merged path, (b) pure-insertion ledger conflicts only, (c) the
+owner's tests (`.fabrik/merge-tests`, read from base), (d) a CAS of the local base (up to three
+rebuilds), (e) the carry into the main checkout — sibling WIP, untracked and staged files are never
+overwritten; a path that changed is kept and listed in the reply — (f) a fast-forward push, (g) the
+hub's governance sync, and (h) the reply to requester and distributor, then `mail.py ack done
+--merge-sha`. A refusal acks `blocked` with the refused step; the requester fixes and sends a new
+request. Mail is the durable record; the doorbell only wakes an idle session (best effort, D-463).
+The Stop hook holds the owner's turn while a request waits unclaimed or a record is stranded
+(`docs/workstation/hooks-index.md`). To keep a plan's epic order, merge by id in
+`python3 scripts/epic_order.py` phase order. `/fabrik-execute-plan`'s § Finish (c) is the agent-side
+half: a named agent's window merges nothing and removes nothing — push the branch and send the
+request.
 
 ## Locks — `.fabrik/plan-locks/`, per working tree (§ Live locks, D-117)
 
