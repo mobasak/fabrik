@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — mobile-app/89-mobile-launch-checklist: gates on what the stores require and the scaffold ships (2026-10-01)
 - `.windsurf/rules/mobile-app/89-mobile-launch-checklist.md` (rules currency pass file 37, D-469): false gates removed — the IPv6 AAAA/`::` demand, "cancel RevenueCat" on deletion, mandatory Sign in with Apple, the 99.5% penalty claim, stale Play listing specs, `min_required_version` and `app.json`; Teknokent and fee items now point to 81. Added Google's web deletion link, Sign-in-with-Apple token revocation, App Store privacy details and reviewer sign-in for passwordless apps; Phase 0's evidence is the operator's `docs/DECISIONS.md` row and Phase 4 is plain-bullet follow-ups, not release gates.
-- `tests/test_mobile_launch_pack.py`: pins the `/app-config` contract, the EAS update channels, `app.config.ts`, and every cited sibling section.
+- `tests/test_mobile_launch_pack.py`: pins the `/app-config` contract, the EAS update channels, `app.config.ts`, every cited sibling section, and that Phase 4 holds no release gates.
 - `.windsurf/rules/CLAIMS.yaml`: nine 89-mobile-launch rows; `docs/reference/research/2026-10-01-mobile-launch-currency-ledger.md`: the turn's 41 facts.
 
 ### Changed — mobile-app/81-mobile-billing: a safe webhook, today's fees, the launch checklist handed to 89 (2026-10-01)
