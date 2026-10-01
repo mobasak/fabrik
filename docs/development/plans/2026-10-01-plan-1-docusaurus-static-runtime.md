@@ -1,6 +1,6 @@
 # Plan — docusaurus scaffold: static nginx runtime, Pagefind search, registry versions
 
-Status: CONVERGED (/fabrik-plan-review, 2026-10-01, 4 passes; D-476)
+Status: IN-PROGRESS (CONVERGED by /fabrik-plan-review, 2026-10-01, 4 passes; D-476)
 Profile: small
 **Owner:** —
 
@@ -172,7 +172,9 @@ Intake: 12 items — 9 IN, 3 OUT-OF-SCOPE (each named above), 0 ASK.
 Every selection below cites a digest row or the spec section that settled it. The nginx `-slim`/non-slim split
 follows the pack's serve stage (`:33`), not `10-python.md:254`, which governs Python service images.
 
-## Phase A — The version source and the template emitter
+## Phase A — The version source and the template emitter — ✅ EXECUTED 2026-10-01 (bc59fc559; review fixes b81a91b7e, 4ebb003c6, 7b7a66079)
+
+**Execution notes.** `/fabrik-review-scoped` (3 readers, Opus · Sonnet · Haiku, every candidate executed by the orchestrator): round 1 confirmed 7 (registry value types, non-UTF-8 registry, unquoted remote paths and the `..`/absolute refusal, a directory named `*.j2`, and five test escape variants), round 2 confirmed 2 inside the round-1 fixes (only the filename part is quoted, so a `~` app dir still expands; an unusable optional registry value is named, not dropped), round 3 confirmed 0. Recorded: every render and template-source deploy reads the registry (D-476's mirror); autoescape stays on for `.j2` (only interpolated values escape). Routed to Phase B: `templates/docusaurus/docusaurus.config.js.j2:33` reads `features.blog`, which no render context provides, so the template renderer raises on the docusaurus template today — Phase B gives the renderer a `features` default (inside File Scope, `template_renderer.py`) rather than editing that template.
 
 **Interfaces — Produces:**
 - `src/fabrik/version_registry.py`:
