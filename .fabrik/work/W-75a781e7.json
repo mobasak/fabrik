@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "file 43 \u2014 chrome-ext/89-extension-launch-checklist.md: add the EU trader/non-trader declaration step (D-483 ledger lg-07), the promo-tile size and the description limit the planning and code packs no longer copy (D-486 ledger op-08), a developer-mode release checklist beside the store one (D-486: wxt zip, install guide, version manifest, manifest key, update checker), and the store facts against the live Chrome docs. Then ai/* (10), desktop (2), core/90-bootstrap",
+  "next": "file 44 \u2014 the ai/* packs (10): ai/10-speech-audio, 20-vision, 25-3d-generation, 30-language, 40-multimodal, 50-agentic, 60-code, 70-data-predictive, 80-specialized-domains, 90-long-context \u2014 model names and prices are the drift class (route model choice to ai/00-ai-model-selection.md; keep the model-routing/gateway blocks per W-b58d0f90's pending operator answer). Then desktop (2), core/90-bootstrap",
   "note": "",
   "owner": "intel",
   "priority": 2,
@@ -19,5 +19,5 @@
   "tags": [
     "rules"
   ],
-  "title": "Rules currency pass: evaluate the 14 packs still missing currency_pass: (43 of 57 done; file 42 chrome-ext/70-chrome-ext landed 2026-10-02, D-486)"
+  "title": "Rules currency pass: evaluate the 13 packs still missing currency_pass: (44 of 57 done; file 43 chrome-ext/89-extension-launch-checklist landed 2026-10-02, D-493)"
 }
