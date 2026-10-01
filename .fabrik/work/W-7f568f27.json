@@ -1,0 +1,26 @@
+{
+  "block_digest": "d003146e6cbebcdffb5107c62436cdc9a9d12427a4c209f1c9a1d70fcf200be3",
+  "blocked_by": [],
+  "created": "2026-10-01T22:39:01.840145Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-7f568f27",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "4cd09e30e3a7cef4e1bbc726893c614ff19b8dd039fd463dd5456dba196613f6"
+  ],
+  "next": "",
+  "note": "operator: check the rules, else decide. Rules decide: backup is mandatory (CLAUDE.md:307 hard stop, :426), so no apply without it; the backup itself is blocked on a vps1 write permission",
+  "owner": "",
+  "priority": 2,
+  "question": "How should the Zitadel deploy get past the blocked `.env` backup on vps1?",
+  "status": "done",
+  "title": "How should the Zitadel deploy get past the blocked `.env` backup on vps1?"
+}
