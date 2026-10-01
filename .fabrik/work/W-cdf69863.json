@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T08:24:38.481337Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-cdf69863",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-01-docusaurus-static-runtime-design.md"
+  },
+  "next": "bump the template's Docusaurus pins with a real npm build test of a scaffolded site",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Docusaurus scaffold pins @docusaurus/core 3.7.0; current is 3.10.2 (2026-07-10)"
+}
