@@ -150,7 +150,7 @@ The RN client is a **Pattern-A client** (same model as web): it talks to a **sel
 
 ### Design system (mobile)
 
-- Token SLOTS, both colour modes, the contrast contract, motion and states come from `core/design-system-template.md`; the VALUES come from the design system the ladder in `saas/60-saas-ui.md` resolves — a house brand only when the project declares it (Ocoron: values in `core/ocoron-design-system.md`, mobile deltas in `mobile-app/ocoron-mobile-design-system.md`; Tojlo likewise). Never copy hex values or a spacing scale into this pack or into components.
+- Token SLOTS, both colour modes, the contrast contract, motion and states come from `core/design-system-template.md`; the VALUES come from the design system the ladder in `saas/60-saas-ui.md` resolves — a house brand only when the project declares it (Ocoron: values in `core/ocoron-design-system.md`; Tojlo likewise). The component patterns — list items, sheets, search, header, onboarding, forms — are `mobile-app/ocoron-mobile-design-system.md`'s, for every mobile project whatever its brand. Never copy hex values or a spacing scale into this pack or into components.
 - Map the tokens into the styling engine's theme (Uniwind: `@theme` variables in `src/global.css`) — no raw hex values in components.
 - **Both dark and light mode are mandatory**: follow the OS with a manual override in Settings, persisted in MMKV — the scaffold's `src/lib/hooks/use-selected-theme.tsx` does this with `Uniwind.setTheme('light' | 'dark' | 'system')`.
 - Font size floor: 13px on any mobile surface; touch-target and motion rules per the template.
@@ -355,7 +355,8 @@ If the app makes any AI-driven recommendation, score, match, classification, or 
 - `55-observability.md` — backend structlog + GlitchTip; client Sentry RN SDK
 - `58-resilience.md` — backend external call resilience (timeout/retry/CB)
 - `design-system-template.md` — token slots, motion, accessibility, states
-- `core/ocoron-design-system.md` + `ocoron-mobile-design-system.md` (and the Tojlo pair) — a house brand's values and mobile deltas, only for a project that declares it
+- `ocoron-mobile-design-system.md` — the mobile component patterns (list items, sheets, search, header, onboarding, forms), for every mobile project
+- `core/ocoron-design-system.md` (and the Tojlo packs) — a house brand's values and Tojlo's module patterns, only for a project that declares it
 - `00-domain-mobile-app.md` — planning-level decisions (17 dimensions, attribution stack, distribution)
 
 ---

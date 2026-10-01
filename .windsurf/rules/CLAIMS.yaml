@@ -2420,3 +2420,67 @@ claims:
     verify: "https://developer.apple.com/forums/thread/61215 ; https://developer.apple.com/help/account/membership/program-enrollment/ ; https://support.google.com/googleplay/android-developer/answer/15633622 (exa + WebFetch, 2026-10-01; ledger tk-02, tk-03, tk-05)"
     window_days: 365
     last_verified: 2026-10-01
+
+  - id: ios-input-zoom-is-webkit
+    pack: mobile-app/ocoron-mobile-design-system.md
+    kind: standard
+    claim: "The iOS zoom-on-focus for input text below 16px is a Safari/WKWebView behaviour (react-native-web in iOS Safari); a native React Native TextInput does not zoom"
+    verify: "https://css-tricks.com/16px-or-larger-text-prevents-ios-form-zoom/ (WebSearch + exa, 2026-10-01; ledger ios-01)"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: ios-action-sheet-destructive-top
+    pack: mobile-app/ocoron-mobile-design-system.md
+    kind: standard
+    claim: "Apple's action-sheet guidance puts destructive-style buttons at the top and Cancel at the bottom, and says an action sheet should not scroll"
+    verify: "https://developer.apple.com/design/human-interface-guidelines/action-sheets (brave + WebSearch, 2026-10-01; ledger ios-02)"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: mobile-touch-target-floors
+    pack: mobile-app/ocoron-mobile-design-system.md
+    kind: standard
+    claim: "Material's minimum touch target is 48x48dp and iOS's is 44x44pt; WCAG 2.2 SC 2.5.8 (AA) sets 24x24 CSS px and SC 2.5.5 (AAA) 44x44 — Apple's 44pt is consistently cited but was not fetched from a live Apple page"
+    verify: "https://m3.material.io/foundations/designing/structure ; https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html (exa + brave, 2026-10-01; ledger and-01, ios-03) — re-verify the Apple figure on a current HIG page"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: mobile-header-platform-heights
+    pack: mobile-app/ocoron-mobile-design-system.md
+    kind: standard
+    claim: "The iOS navigation bar is 44pt; Material's small and center-aligned top app bars are 64dp, with the small bar's title leading-aligned; 56dp is the older Material/AppCompat height"
+    verify: "https://reactnavigation.org/docs/native-stack-navigator/ ; https://stackoverflow.com/questions/72016402 (brave + exa + WebSearch, 2026-10-01; ledger ios-04, and-02) — the 64dp token is secondary-sourced; read the small top app bar's container-height on m3.material.io"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: native-stack-large-title-option
+    pack: mobile-app/ocoron-mobile-design-system.md
+    kind: version
+    claim: "React Navigation 8 renamed the native stack's headerLargeTitle to headerLargeTitleEnabled (iOS only); the large title collapses only when the screen's scroll view fills it and sets contentInsetAdjustmentBehavior='automatic'"
+    verify: "https://reactnavigation.org/docs/8.x/upgrading-from-7.x/ ; https://docs.expo.dev/router/advanced/stack/ (WebFetch + brave + exa, 2026-10-01; ledger oc-01)"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: android-predictive-back-default
+    pack: mobile-app/ocoron-mobile-design-system.md
+    kind: deprecation
+    claim: "Apps targeting Android 16 (API 36) get predictive back by default on Android 16 devices, and onBackPressed / KEYCODE_BACK are no longer dispatched; Expo's android.predictiveBackGestureEnabled opts in earlier and is documented as default false"
+    verify: "https://developer.android.com/about/versions/16/behavior-changes-16 ; https://docs.expo.dev/versions/latest/config/app/ (WebSearch + exa, 2026-10-01; ledger and-03) — Expo's PR says new projects from SDK 54 get it on; check the config docs"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: gorhom-sheet-android-back
+    pack: mobile-app/ocoron-mobile-design-system.md
+    kind: practice
+    claim: "@gorhom/bottom-sheet does not close on the Android back button by itself (an open feature request); the app registers a BackHandler listener while the sheet is open"
+    verify: "https://github.com/gorhom/react-native-bottom-sheet/issues/1110 (exa + brave + WebSearch, 2026-10-01; ledger rn-04) — re-check the issue state"
+    window_days: 365
+    last_verified: 2026-10-01
+
+  - id: rn-textinput-autocomplete-submit
+    pack: mobile-app/ocoron-mobile-design-system.md
+    kind: deprecation
+    claim: "React Native TextInput's autoComplete works on iOS and Android and textContentType (iOS-only) wins when both are set; blurOnSubmit is deprecated for submitBehavior"
+    verify: "https://reactnative.dev/docs/textinput (WebFetch + exa, 2026-10-01; ledger rn-01)"
+    window_days: 365
+    last_verified: 2026-10-01
