@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "file 41 \u2014 chrome-ext/00-domain-chrome-ext.md, then chrome-ext/70-chrome-ext.md and 89-extension-launch-checklist.md (the MV3 facts against the live Chrome docs, emit a chrome-extension scaffold to ground them), then ai/* (10), desktop (2), core/90-bootstrap, by real audience not glob count",
+  "next": "file 42 \u2014 chrome-ext/70-chrome-ext.md: \u00a7 Distribution Model still says the store makes debugger and broad host access 'unavailable' (the store's rule is narrowest permission for one purpose, broad access reviewed longer \u2014 D-483 ledger oc-03), \u00a7 Epic Decomposition still names the 'mega-epic planner' (70:347; the consumers are /fabrik-vision and /fabrik-epics), the MV3/WXT/crxjs facts against the live Chrome docs, emit a chrome-extension scaffold to ground them. Then 89-extension-launch-checklist.md (add the trader declaration step, D-483 ledger lg-07), ai/* (10), desktop (2), core/90-bootstrap",
   "note": "",
   "owner": "intel",
   "priority": 2,
@@ -19,5 +19,5 @@
   "tags": [
     "rules"
   ],
-  "title": "Rules currency pass: evaluate the 16 packs still missing currency_pass: (41 of 57 done; file 40 core/tojlo-design-system landed 2026-10-01, D-480)"
+  "title": "Rules currency pass: evaluate the 15 packs still missing currency_pass: (42 of 57 done; file 41 chrome-ext/00-domain-chrome-ext landed 2026-10-01, D-483)"
 }
