@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T11:51:38.819987Z",
+  "creator": "intel",
+  "evidence": "d3b7ba1e5be137ecced5c73c98f92989d789acc3",
+  "id": "W-cd1d49ef",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "at 81's currency-pass turn: re-ground the EU rows live (ledger sp-02, op-01 in docs/reference/research/2026-09-30-mobile-domain-currency-ledger.md) and rewrite § Store Fee Enrollment",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "rules-currency"
+  ],
+  "title": "81-mobile-billing.md § Store Fee Enrollment states the old EU terms (81:169 '10% + 5% CTC = 15%'); Apple's EU terms change on 2026-10-01 (IAP 26%/15% SBP, link-out 15%/10%, alt provider 20%/10%, CTC 5% only for alt distribution) and Google Play EEA changed 2026-06-30"
+}

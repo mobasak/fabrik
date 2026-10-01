@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T10:46:44.548698Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-3c597077",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "at each pack's currency turn: review the whole pack against the emitted mobile-app scaffold (Uniwind @theme tokens, keyboard-controller, react-form)",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "mobile-app/ocoron-mobile-design-system.md and tojlo-mobile-design-system.md predate the Uniwind scaffold: file 34 aligned their unistyles and core-KeyboardAvoidingView lines (and 00-domain-mobile-app's), the rest of each pack is unreviewed against the scaffold"
+}
