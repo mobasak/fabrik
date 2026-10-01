@@ -136,7 +136,13 @@ def _prefix(short: str, long: str) -> bool:
 def test_no_version_literals() -> None:
     body = _pack().split("\n---\n", 1)[1]  # the frontmatter's date is not a version
     found = re.findall(
-        r"\bv\d+\.\d+|\b\d+\.\d+\.\d+\b|\bChrome \d{2,3}\b|[≥>]=?\s?\d+\.\d+|\(Chrome \d", body
+        r"\bv\d+(?:\.\d+)?\b"  # v1.2, v137
+        r"|\b\d+\.\d+\.\d+\b"  # 1.2.3
+        r"|\bChrome v?\d{2,3}\b|\(Chrome \d"  # Chrome 137, Chrome v137, (Chrome 121+)
+        r"|[≥>]=?\s?\d+(?:\.\d+)?"  # >=1.59, ≥ 2
+        r"|@\d+\.\d+"  # size-limit@11.0
+        r"|\b[a-z][\w./-]*[a-z] \d+\.\d+\b",  # wxt 0.19, @playwright/test 1.59
+        body,
     )
     assert not found, f"version literals in the pack: {found}"
 

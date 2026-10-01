@@ -37,7 +37,7 @@ Pick the channel by audience **and by the permissions the product needs**. The C
 Public/consumer products: broad reach, zero install friction, automatic updates.
 
 - **Permission rule:** the store admits only the narrowest permissions that serve the extension's single stated purpose. Broad host access (`<all_urls>`, `*://*/*`) and sensitive permissions (`debugger`, `tabs`, `cookies`, `webRequest`, …) are not banned, but each needs a justification and triggers a longer in-depth review — and a permission the stated purpose does not need is rejected.
-- **Costs and assets:** a one-time developer fee, review that usually takes a few days and can take weeks, and the listing assets — all owned by `89-extension-launch-checklist.md` § 1. Developer account (one-time), § 3. Store listing assets and § 5. Review expectations & traps.
+- **Costs and assets:** a one-time developer fee, review that usually takes a few days and can take weeks, and the listing assets — all owned by `89-extension-launch-checklist.md` § 1. Developer account (one-time), § 3. Store listing assets and § 5. Review expectations & traps. Submit by walking that checklist whole: `89-extension-launch-checklist.md` § 4. Privacy practices tab — single purpose, a justification per permission, the data-use certification, the privacy-policy URL — is the most common rejection.
 - **Auto-update:** the store updates installed copies automatically after each approved version.
 
 ### Developer-mode install (unpacked) — user-installed, off-store
