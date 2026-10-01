@@ -7,6 +7,7 @@ files with `versions` and `name` in its context.
 
 from __future__ import annotations
 
+import posixpath
 import re
 from pathlib import Path
 
@@ -376,20 +377,27 @@ def test_spec_generator_health_path_is_the_slashed_intro() -> None:
 
 
 def _ignored(rules: list[str], path: str) -> bool:
-    """Whether a .dockerignore rule set excludes ``path`` — `*` and `?` stay inside one segment,
-    `**` spans segments, and a rule that matches a parent directory excludes everything below it."""
+    """Whether a .dockerignore rule set excludes ``path``, read as Docker reads it: each rule is
+    cleaned (`./docs` is `docs`) and anchored at the context root, `*` and `?` stay inside one
+    segment, `**/` is zero or more directories, `[...]` is a character class, and a rule that
+    matches a parent directory excludes everything below it."""
     parts = path.split("/")
     for rule in rules:
-        body = rule.strip("/")
+        body = posixpath.normpath(rule.strip()).strip("/")
+        tokens = re.split(r"(\*\*/|\*\*|\*|\?|\[[^\]]*\])", body)
         pattern = "".join(
-            ".*"
+            "(?:.*/)?"
+            if tok == "**/"
+            else ".*"
             if tok == "**"
             else "[^/]*"
             if tok == "*"
             else "[^/]"
             if tok == "?"
+            else tok
+            if tok.startswith("[") and tok.endswith("]")
             else re.escape(tok)
-            for tok in re.split(r"(\*\*|\*|\?)", body)
+            for tok in tokens
             if tok
         )
         if any(re.fullmatch(pattern, "/".join(parts[:n])) for n in range(1, len(parts) + 1)):
@@ -423,10 +431,12 @@ def test_scaffold_dockerignore_keeps_every_build_input(scaffolded: Path) -> None
 
 def test_matcher_reads_the_spellings_the_guard_must_catch() -> None:
     # The guard above is only as good as `_ignored`: each spelling of "drop the docs" must match.
-    for rule in ("docs", "/docs", "docs/", "docs/**", "docs/*", "**/*.md", "**/intro.md"):
+    for rule in ("docs", "/docs", "./docs", "docs/", "docs/**", "docs/*", "**/docs", "[d]ocs",
+                 "**/*.md", "**/intro.md"):  # fmt: skip
         assert _ignored([rule], "docs/intro.md"), rule
     # Docker anchors a pattern at the context root: `*.md` drops README.md, not docs/intro.md.
     assert _ignored(["*.md"], "README.md") and not _ignored(["*.md"], "docs/intro.md")
+    assert _ignored(["**/package.json"], "package.json") and _ignored(["**/*.md"], "README.md")
     assert not _ignored(["*.md"], "src/pages/index.js")
 
 
@@ -456,7 +466,11 @@ def test_every_synced_docs_subtree_is_unpublished() -> None:
     # docs/ subtree the governance sync writes must be unpublished as well.
     import importlib.util
 
-    from fabrik.scaffold import _DOCUSAURUS_UNPUBLISHED_DIRS, FABRIK_ROOT
+    from fabrik.scaffold import (
+        _DOCUSAURUS_UNPUBLISHED_DIRS,
+        _DOCUSAURUS_UNPUBLISHED_DOCS,
+        FABRIK_ROOT,
+    )
 
     spec = importlib.util.spec_from_file_location(
         "manifest", FABRIK_ROOT / "scripts" / "fabrik_synced_manifest.py"
@@ -464,12 +478,49 @@ def test_every_synced_docs_subtree_is_unpublished() -> None:
     assert spec and spec.loader
     manifest = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(manifest)
-    dests = set(
-        re.findall(r"""['"]docs/([^'"]+)/[^'"]*['"]""", Path(manifest.__file__).read_text())
+    # Every docs/ DESTINATION the sync writes: the second half of each (source, dest) pair, and each
+    # plain path in a directory list — read from the manifest's own module-level collections, so a
+    # hub-side source path such as docs/PROJECT_CATALOG.md is never mistaken for a destination.
+    dests: set[str] = set()
+    for value in vars(manifest).values():
+        if not isinstance(value, (list, tuple, set, frozenset)):
+            continue
+        for item in value:
+            dest = item[1] if isinstance(item, tuple) and len(item) == 2 else item
+            if isinstance(dest, str) and dest.startswith("docs/"):
+                dests.add(dest.removeprefix("docs/"))
+    nested = {d.split("/", 1)[0] for d in dests if "/" in d}
+    top_files = {d for d in dests if "/" not in d}
+    assert "reference" in nested and "DECISIONS.md" in top_files, dests
+    assert nested <= set(_DOCUSAURUS_UNPUBLISHED_DIRS), nested - set(_DOCUSAURUS_UNPUBLISHED_DIRS)
+    # A top-level docs/*.md the sync writes must be unpublished by name (closing pass 3, item 3).
+    assert top_files <= set(_DOCUSAURUS_UNPUBLISHED_DOCS), top_files - set(
+        _DOCUSAURUS_UNPUBLISHED_DOCS
     )
-    tops = {d.split("/", 1)[0] for d in dests}
-    assert tops, "the manifest names no docs/ subtree — the parse is wrong"
-    assert tops <= set(_DOCUSAURUS_UNPUBLISHED_DIRS), tops - set(_DOCUSAURUS_UNPUBLISHED_DIRS)
+
+
+def test_every_governed_docs_subtree_is_published_or_not_by_decision() -> None:
+    # The pipeline writes into docs/ subtrees the sync never names (specs and plans under
+    # superpowers/, box notes under workstation/). check_structure.py lists every subtree the
+    # governance allows, so each is either unpublished or one of the site's own content homes —
+    # a new subtree fails here until someone decides which (closing pass 3, item 1).
+    import importlib.util
+
+    from fabrik.scaffold import _DOCUSAURUS_UNPUBLISHED_DIRS, FABRIK_ROOT
+
+    spec = importlib.util.spec_from_file_location(
+        "check_structure", FABRIK_ROOT / "scripts" / "enforcement" / "check_structure.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    published = {"guides", "user-guide"}
+    governed = set(module.VALID_DOCS_SUBDIRS)
+    assert "superpowers" in governed, governed
+    assert governed - published == set(_DOCUSAURUS_UNPUBLISHED_DIRS), (
+        governed - published - set(_DOCUSAURUS_UNPUBLISHED_DIRS),
+        set(_DOCUSAURUS_UNPUBLISHED_DIRS) - governed,
+    )
 
 
 def test_engines_floor_follows_the_registry_through_both_emitters(

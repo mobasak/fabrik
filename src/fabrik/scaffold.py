@@ -327,12 +327,16 @@ _DOCUSAURUS_UNPUBLISHED_DOCS: tuple[str, ...] = (
 # (SHARED_DIRS; scripts/fabrik_synced_manifest.py): reference/kilo carries the operator's AI vendor
 # access notes, reference/opt-project-catalog.md every /opt project and its dev URL. A file-name
 # list cannot hold them — the sync adds files after the scaffold — so the subtree is excluded
-# (rendered as `<dir>/**`, relative to docs/). A site's own pages go anywhere else in docs/.
+# (rendered as `<dir>/**`, relative to docs/). The pipeline writes specs and plans under
+# superpowers/ and development/, and workstation/ holds box-local notes. A site's own pages go
+# anywhere else in docs/ — guides/ and user-guide/ are the governed homes for them.
 _DOCUSAURUS_UNPUBLISHED_DIRS: tuple[str, ...] = (
     "reference",
     "development",
     "operations",
     "archive",
+    "superpowers",
+    "workstation",
 )
 
 
