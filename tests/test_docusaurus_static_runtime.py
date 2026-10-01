@@ -2,13 +2,21 @@
 
 Plan: docs/development/plans/2026-10-01-plan-1-docusaurus-static-runtime.md (D-475, D-476).
 Phase A rows: the registry loader fails by key name, and `TemplateRenderer` renders nested `*.j2`
-files with `versions` and `name` in its context.
+files with `versions` and `name` in its context. Phase B rows: both emitters produce the nginx static
+runtime. Phase C: one opt-in real build (`FABRIK_REAL_DOCKER_BUILD=1`).
 """
 
 from __future__ import annotations
 
+import os
 import posixpath
 import re
+import shutil
+import subprocess
+import time
+import urllib.error
+import urllib.request
+import uuid
 from pathlib import Path
 
 import pytest
@@ -549,3 +557,102 @@ def test_engines_floor_follows_the_registry_through_both_emitters(
         _spec(tmp_path, "docusaurus", spec_id="docs-floor"), dry_run=True
     )
     assert json.loads(rendered["package.json"])["engines"]["node"] == ">=18"
+
+
+# ── Phase C: one real build, opt-in (FABRIK_REAL_DOCKER_BUILD=1) ────────────
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args: object, **kwargs: object) -> None:  # type: ignore[override]
+        return None
+
+
+def _get(url: str, headers: dict[str, str] | None = None) -> tuple[int, dict[str, str], bytes]:
+    opener = urllib.request.build_opener(_NoRedirect)
+    req = urllib.request.Request(url, headers=headers or {})
+    try:
+        with opener.open(req, timeout=10) as resp:
+            return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read()
+    except urllib.error.HTTPError as err:
+        return err.code, {k.lower(): v for k, v in err.headers.items()}, err.read()
+
+
+def _docker(*args: str, timeout: int = 120) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["docker", *args], capture_output=True, text=True, timeout=timeout, check=False
+    )
+
+
+@pytest.mark.skipif(
+    os.environ.get("FABRIK_REAL_DOCKER_BUILD") != "1",
+    reason="opt-in: set FABRIK_REAL_DOCKER_BUILD=1 to build and run a scaffolded docusaurus image",
+)
+def test_real_build_serves_the_static_site(tmp_path: Path) -> None:
+    from fabrik.scaffold import create_project
+
+    if shutil.which("docker") is None:
+        pytest.fail("FABRIK_REAL_DOCKER_BUILD=1 but docker is not installed")
+    project = create_project(
+        name="docs-real",
+        description="x",
+        base=tmp_path,
+        project_type="docusaurus",
+        generate_spec=False,
+    )
+    assert not (project / "package-lock.json").exists()
+    tag = f"fabrik-docusaurus-probe:{uuid.uuid4().hex[:12]}"
+    name = f"fabrik-docusaurus-probe-{uuid.uuid4().hex[:8]}"
+    try:
+        build = _docker("build", "-t", tag, str(project), timeout=900)
+        assert build.returncode == 0, build.stdout[-3000:] + build.stderr[-3000:]
+        run = _docker("run", "-d", "--rm", "--name", name, "-p", "127.0.0.1::80", tag)
+        assert run.returncode == 0, run.stderr
+        port = _docker("port", name, "80").stdout.strip().splitlines()[0].rsplit(":", 1)[1]
+        base = f"http://127.0.0.1:{port}"
+        deadline = time.monotonic() + 60
+        while True:
+            try:
+                status, _, _ = _get(f"{base}/docs/intro/")
+                if status == 200:
+                    break
+            except OSError:
+                pass
+            assert time.monotonic() < deadline, "the container never served /docs/intro/"
+            time.sleep(1)
+
+        status, headers, body = _get(f"{base}/docs/intro/")
+        assert status == 200
+        assert "immutable" not in headers.get("cache-control", "")
+        html = body.decode()
+        assert "pagefind-modal-trigger" in html
+        assert 'type="module"' in html and "/pagefind/pagefind-component-ui.js" in html
+
+        status, headers, _ = _get(f"{base}/docs/intro")
+        assert status == 301 and headers["location"] == "/docs/intro/", (status, headers)
+
+        status, _, _ = _get(f"{base}/pagefind/pagefind-component-ui.js")
+        assert status == 200
+
+        # The internal docs trees never reach the site (D-481): the sitemap Docusaurus writes names
+        # every published page, and none sits under an unpublished tree.
+        status, _, sitemap = _get(f"{base}/sitemap.xml")
+        assert status == 200 and b"/docs/intro" in sitemap, sitemap[:500]
+        for tree in (
+            b"/docs/reference/",
+            b"/docs/development/",
+            b"/docs/operations/",
+            b"/docs/archive/",
+        ):
+            assert tree not in sitemap, tree
+
+        status, _, _ = _get(f"{base}/no/such/page")
+        assert status == 200  # the pack's fallback serves index.html, never a 500
+
+        asset = next(m for m in re.findall(r'src="(/assets/js/[^"]+\.js)"', html))
+        status, headers, _ = _get(f"{base}{asset}", {"Accept-Encoding": "gzip"})
+        assert status == 200
+        assert headers.get("cache-control") == "public, max-age=31536000, immutable", headers
+        assert headers.get("content-encoding") == "gzip", headers
+    finally:
+        _docker("rm", "-f", name)
+        _docker("rmi", "-f", tag)
