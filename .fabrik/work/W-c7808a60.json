@@ -1,0 +1,26 @@
+{
+  "block_digest": "fec31b8be0948e0521266213078f6b676eeef66bc736506853657b1b929d630d",
+  "blocked_by": [],
+  "created": "2026-10-01T21:03:59.626327Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-c7808a60",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "ae01cf344c598e84f16e6fb03ff297438850f65dbd3d54b95d925fdd5ea18044"
+  ],
+  "next": "",
+  "note": "operator: 'ok good' — option A approved (D-485)",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve this design: a required `where:` field naming the area of the suggested change, routed to that area's owner?",
+  "status": "done",
+  "title": "Do you approve this design: a required `where:` field naming the area of the suggested change, routed to that area's owner?"
+}
