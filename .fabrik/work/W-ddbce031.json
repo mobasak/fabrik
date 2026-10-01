@@ -1,0 +1,26 @@
+{
+  "block_digest": "641027a89bcf67b000bde237f90e4888b6b8cb2ddda95c00e5eb068ae3405939",
+  "blocked_by": [],
+  "created": "2026-10-01T19:49:07.333041Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-ddbce031",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "1031ad3110146470312ed719122d62cdb96e0d66304a5efc902fc837b5f9444d"
+  ],
+  "next": "",
+  "note": "operator: 'allowed do not cause data loss' / 'you can run it' — zero-repos.sh run on 40 repos",
+  "owner": "",
+  "priority": 2,
+  "question": "Will you run the script above, or add the permission rule so I can run it?",
+  "status": "done",
+  "title": "Will you run the script above, or add the permission rule so I can run it?"
+}

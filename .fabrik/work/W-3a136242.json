@@ -1,0 +1,26 @@
+{
+  "block_digest": "3a8413b096078544bbbafe62bfa61990ba813a27887e937241fc272078577829",
+  "blocked_by": [],
+  "created": "2026-10-01T19:45:43.646132Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-3a136242",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "701acf89c370a4cdd6f62fa3e3c0b17701d03e8348db29c657c322ce4029f3a0"
+  ],
+  "next": "",
+  "note": "operator: 'allowed do not cause data loss' / 'you can run it' — zero-repos.sh run on 40 repos",
+  "owner": "",
+  "priority": 2,
+  "question": "Will you allow me to commit and push inside the other `/opt` project repos that have no agent open, so the fabrik window reaches 0?",
+  "status": "done",
+  "title": "Will you allow me to commit and push inside the other `/opt` project repos that have no agent open, so the fabrik window reaches 0?"
+}
