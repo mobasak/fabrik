@@ -1,0 +1,670 @@
+"""Behavior-contract tests for `merge_request.py merge` and `resume` (plan 2026-09-30-plan-1 T03).
+
+Spec: docs/superpowers/specs/2026-09-30-merge-request-loop-design.md § The delta 5, § Data-safety
+invariants, § Validation V4-V7d; W-8a6a5644 residuals O35, O36.
+
+Everything is a FIXTURE under tmp_path: a bare repo is the remote, the main checkout and the
+requester's LINKED worktree are real git repos, the mail store is ``FABRIK_MAIL_ROOT``, the owner
+resolver is a stub (``FABRIK_DECISIONS_PY``), the scratch parent of every throwaway worktree is a
+private temp dir, and the hub sync is replaced by a marker writer. The verbs run IN-PROCESS so the
+``on_phase`` seam can be replaced at the exact point a test needs (never an environment variable).
+"""
+
+from __future__ import annotations
+
+import fcntl
+import importlib.util
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+import pytest
+
+SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
+SCRIPT = SCRIPTS / "merge_request.py"
+MAIL = SCRIPTS / "mail.py"
+
+CHANGELOG = "# Changelog\n\n## [Unreleased]\n\n### Added — base entry\n\n## [0.1]\n- old\n"
+DECISIONS = "# Decisions\n\n| D-1 | first |\n\n## tail\n"
+
+
+def _git(cwd: Path, *args: str, check: bool = True) -> str:
+    res = subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        stdin=subprocess.DEVNULL,
+        check=False,
+    )
+    if check:
+        assert res.returncode == 0, f"git {args}: {res.stderr}"
+    return res.stdout.strip()
+
+
+def _load_module():
+    spec = importlib.util.spec_from_file_location("merge_request_t03", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class World:
+    """A remote, a main checkout on master (the owner's), and a requester worktree on ``feat``."""
+
+    def __init__(self, tmp: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.tmp = tmp
+        self.mp = monkeypatch
+        self.mod = _load_module()
+        for d in ("home", "mail", "scratch"):
+            (tmp / d).mkdir()
+        hooks = tmp / "opt" / "proj" / ".claude" / "hooks"
+        hooks.mkdir(parents=True)
+        (hooks / "mail_notify.py").write_text("# fixture\n", encoding="utf-8")
+        resolver = tmp / "resolver.py"
+        resolver.write_text("print('infra')\n", encoding="utf-8")
+        env = {
+            "HOME": str(tmp / "home"),
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@example.invalid",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@example.invalid",
+            "FABRIK_MAIL_ROOT": str(tmp / "mail"),
+            "FABRIK_OPT_ROOT": str(tmp / "opt"),
+            "FABRIK_SESSIONS_ROOT": str(tmp / "home" / "sessions"),
+            "AGENT_IDENTITY_FILE": str(tmp / "agent-identity.jsonl"),
+            "COMMAND_RUN_DIR": str(tmp / "home" / "command-runs"),
+            "CLAUDE_AGENT": "infra",
+            "CLAUDE_CODE_SESSION_ID": "sid-owner",
+            "FABRIK_DECISIONS_PY": str(resolver),
+        }
+        for key, value in env.items():
+            monkeypatch.setenv(key, value)
+        for key in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR"):
+            monkeypatch.delenv(key, raising=False)
+        monkeypatch.setattr(tempfile, "tempdir", str(tmp / "scratch"))
+        self.sync_marker = tmp / "synced"
+        monkeypatch.setattr(
+            self.mod,
+            "SYNC_ARGV",
+            [sys.executable, "-c", f"open({str(self.sync_marker)!r}, 'a').write('x')"],
+        )
+        self.remote = tmp / "remote.git"
+        _git(tmp, "init", "-q", "--bare", "-b", "master", str(self.remote))
+        self.main = tmp / "proj"
+        self.main.mkdir()
+        _git(self.main, "init", "-q", "-b", "master")
+        self.write("README.md", "proj\n")
+        self.write("notes.txt", "notes\n")
+        self.write("CHANGELOG.md", CHANGELOG)
+        self.write("docs/DECISIONS.md", DECISIONS)
+        self.write("docs/LESSONS_LEARNT.md", "# Lessons\n")
+        self.commit_main("init", "README.md", "notes.txt", "CHANGELOG.md", "docs")
+        _git(self.main, "remote", "add", "origin", str(self.remote))
+        _git(self.main, "push", "-q", "origin", "master")
+        _git(self.main, "branch", "-q", "--set-upstream-to=origin/master")
+        cfg = self.main / ".fabrik" / "work" / "config.json"
+        cfg.parent.mkdir(parents=True)
+        cfg.write_text(json.dumps({"distributor": "intel"}), encoding="utf-8")
+        self.wt = tmp / "wt"
+        _git(self.main, "worktree", "add", "-q", "-b", "feat", str(self.wt))
+        monkeypatch.chdir(self.main)
+
+    # --- file and git helpers -------------------------------------------------------------------
+    def write(self, rel: str, text: str, root: Path | None = None) -> None:
+        path = (root or self.main) / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    def read(self, rel: str) -> str:
+        return (self.main / rel).read_text(encoding="utf-8")
+
+    def commit_main(self, msg: str, *paths: str) -> str:
+        _git(self.main, "add", "--", *paths)
+        _git(self.main, "commit", "-q", "-m", msg)
+        return _git(self.main, "rev-parse", "HEAD")
+
+    def branch(self, files: dict[str, str | None], msg: str = "branch work") -> str:
+        """Commit ``files`` on ``feat`` (None deletes) and push it; returns the head."""
+        for rel, text in files.items():
+            if text is None:
+                _git(self.wt, "rm", "-q", "--", rel)
+            else:
+                self.write(rel, text, root=self.wt)
+                _git(self.wt, "add", "--", rel)
+        _git(self.wt, "commit", "-q", "-m", msg)
+        _git(self.wt, "push", "-q", "origin", "feat")
+        return _git(self.wt, "rev-parse", "HEAD")
+
+    def push_from_elsewhere(self, rel: str, text: str) -> str:
+        """Another machine moves origin's master."""
+        other = self.tmp / f"other-{len(list(self.tmp.glob('other-*')))}"
+        _git(self.tmp, "clone", "-q", str(self.remote), str(other))
+        self.write(rel, text, root=other)
+        _git(other, "add", "--", rel)
+        _git(other, "commit", "-q", "-m", f"elsewhere {rel}")
+        _git(other, "push", "-q", "origin", "master")
+        return _git(other, "rev-parse", "HEAD")
+
+    def base(self) -> str:
+        return _git(self.main, "rev-parse", "refs/heads/master")
+
+    def origin(self) -> str:
+        return _git(self.main, "ls-remote", str(self.remote), "refs/heads/master").split()[0]
+
+    # --- mail helpers ---------------------------------------------------------------------------
+    def send(
+        self,
+        head: str,
+        *,
+        agent: str | None = "infra",
+        ack: str | None = None,
+        item: str = "none",
+        branch: str = "feat",
+    ) -> str:
+        body = (
+            f"branch: {branch}\nhead: {head}\nbase: master\nitem: {item}\n"
+            f"review: {self.tmp / 'review.md'}\ndoorbell: none\nsent: 2026-10-01T00:00:00Z\n"
+            "requester: fleet\n\nWHAT — merge request.\n"
+        )
+        argv = [sys.executable, str(MAIL), "send", "--to", "proj", "--kind", "merge-request"]
+        argv += ["--to-agent", agent] if agent else []
+        argv += ["--ack", ack] if ack else []
+        res = subprocess.run(
+            argv, cwd=self.main, input=body, capture_output=True, text=True, timeout=60, check=False
+        )
+        assert res.returncode == 0, res.stderr
+        return Path(res.stdout.strip().splitlines()[-1]).stem
+
+    def inbox(self) -> list[str]:
+        box = self.tmp / "mail" / "proj" / "inbox"
+        return sorted(p.stem for p in box.glob("*.md")) if box.is_dir() else []
+
+    def archived(self, msg_id: str) -> str:
+        return (self.tmp / "mail" / "proj" / "archive" / f"{msg_id}.md").read_text(encoding="utf-8")
+
+    def replies(self, msg_id: str) -> dict[str, str]:
+        """{addressee: body} of every reply threaded on ``msg_id``."""
+        out: dict[str, str] = {}
+        for path in (self.tmp / "mail" / "proj" / "inbox").glob("*.md"):
+            text = path.read_text(encoding="utf-8")
+            head = text.split("\n---", 1)[0]
+            if "kind: reply" in head and f"re: {msg_id}" in head:
+                agent = next(
+                    ln[len("agent: ") :] for ln in head.splitlines() if ln.startswith("agent: ")
+                )
+                out[agent] = text
+        return out
+
+    def record(self, msg_id: str) -> dict:
+        return json.loads((self.main / ".git" / "fabrik-merge" / f"{msg_id}.json").read_text())
+
+    # --- running the verbs ----------------------------------------------------------------------
+    def run(self, *argv: str, phase=None) -> int:
+        self.mp.setattr(self.mod, "on_phase", phase or (lambda name: None))
+        return self.mod.main(list(argv))
+
+    def state(self) -> dict:
+        """Origin, local refs and the main checkout byte-for-byte (work-item files excluded)."""
+        files: dict[str, bytes] = {}
+        for root, dirs, names in os.walk(self.main):
+            rel_root = Path(root).relative_to(self.main)
+            if rel_root.parts[:1] == (".git",):
+                dirs[:] = []
+                continue
+            for name in names:
+                rel = rel_root / name
+                if rel.parts[:2] == (".fabrik", "work") and name.startswith("W-"):
+                    continue
+                files[str(rel)] = (Path(root) / name).read_bytes()
+        return {
+            "files": files,
+            "index": _git(self.main, "ls-files", "-s"),
+            "status": _git(self.main, "status", "--porcelain"),
+            "refs": _git(self.main, "for-each-ref", "refs/heads"),
+            "origin": self.origin(),
+        }
+
+    def worktrees(self) -> list[str]:
+        """The registered worktree paths (a HEAD line moves with a merge; the set must not)."""
+        out = _git(self.main, "worktree", "list", "--porcelain")
+        return [ln for ln in out.splitlines() if ln.startswith("worktree ")]
+
+    def scratch_left(self) -> list[str]:
+        return sorted(p.name for p in (self.tmp / "scratch").iterdir())
+
+
+@pytest.fixture()
+def world(tmp_path, monkeypatch):
+    return World(tmp_path, monkeypatch)
+
+
+def _added(world: World, rel: str) -> list[str]:
+    """Lines the main checkout's working copy adds over HEAD for ``rel``."""
+    diff = _git(world.main, "diff", "-U0", "HEAD", "--", rel)
+    return [ln[1:] for ln in diff.splitlines() if ln.startswith("+") and not ln.startswith("+++")]
+
+
+# --- V4: the happy path over sibling ledger WIP ----------------------------------------------
+def test_merge_lands_one_merge_commit_and_keeps_sibling_ledger_wip(world):
+    head = world.branch(
+        {
+            "CHANGELOG.md": CHANGELOG.replace(
+                "## [Unreleased]\n\n", "## [Unreleased]\n\n### Added — branch entry\n\n"
+            ),
+            "docs/DECISIONS.md": DECISIONS.replace("| D-1 |", "| D-2 | branch |\n| D-1 |"),
+        }
+    )
+    world.write("CHANGELOG.md", CHANGELOG + "- wip sibling\n")
+    world.write("docs/DECISIONS.md", DECISIONS + "sibling wip row\n")
+    msg_id = world.send(head, item="W-0123abcd")
+    old, trees = world.base(), world.worktrees()
+
+    assert world.run("merge") == 0
+
+    new = world.base()
+    assert _git(world.main, "rev-parse", f"{new}^1", f"{new}^2").split() == [old, head]
+    message = _git(world.main, "log", "-1", "--format=%B", new)
+    assert f"request {msg_id}, item W-0123abcd" in message
+    assert world.origin() == new
+    # sibling WIP byte-for-byte on top of the merged content; nothing staged
+    assert (
+        world.read("CHANGELOG.md")
+        == _git(world.main, "show", "HEAD:CHANGELOG.md") + "\n- wip sibling\n"
+    )
+    assert "### Added — branch entry" in world.read("CHANGELOG.md")
+    assert _added(world, "CHANGELOG.md") == ["- wip sibling"]
+    assert _added(world, "docs/DECISIONS.md") == ["sibling wip row"]
+    assert _git(world.main, "diff", "--cached", "--name-only") == ""
+    replies = world.replies(msg_id)
+    assert set(replies) == {"fleet", "intel"}
+    assert new in replies["fleet"] and "outcome: merged" in replies["fleet"]
+    assert f"merge-sha: {new}" in world.archived(msg_id)
+    assert "disposition: done" in world.archived(msg_id)
+    assert world.record(msg_id)["phase"] == "replied"
+    assert world.worktrees() == trees and world.scratch_left() == []
+    assert not world.sync_marker.exists()  # not the hub: (g) owes nothing
+
+
+# --- V5: every preflight refusal leaves origin, base and the main checkout byte-identical ----
+def _untracked(world):
+    world.write("new.txt", "mine\n")
+    return world.branch({"new.txt": "theirs\n"}), "untracked"
+
+
+def _dirty_non_ledger(world):
+    head = world.branch({"README.md": "branch readme\n"})
+    world.write("README.md", "owner wip\n")
+    return head, "not a ledger"
+
+
+def _dirty_deleted(world):
+    head = world.branch({"docs/LESSONS_LEARNT.md": None})
+    world.write("docs/LESSONS_LEARNT.md", "# Lessons\nowner wip\n")
+    return head, "deletes it"
+
+
+def _staged_only(world):
+    head = world.branch({"README.md": "branch readme\n"})
+    world.write("README.md", "staged\n")
+    _git(world.main, "add", "README.md")
+    world.write("README.md", "proj\n")  # working copy equals HEAD; only the index differs
+    return head, "staged differently"
+
+
+def _ledger_edits_existing_line(world):
+    head = world.branch({"CHANGELOG.md": CHANGELOG.replace("- old\n", "- old B\n")})
+    world.write("CHANGELOG.md", CHANGELOG.replace("- old\n", "- old A\n"))
+    world.commit_main("base edits the line", "CHANGELOG.md")
+    return head, "edits an existing line"
+
+
+def _red_owner_test(world):
+    world.write(".fabrik/merge-tests", 'python3 -c "import sys; sys.exit(3)"\n')
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    return world.branch({"x.txt": "x\n"}), "owner tests red"
+
+
+@pytest.mark.parametrize(
+    "setup",
+    [
+        _untracked,
+        _dirty_non_ledger,
+        _dirty_deleted,
+        _staged_only,
+        _ledger_edits_existing_line,
+        _red_owner_test,
+    ],
+)
+def test_preflight_refusal_leaves_everything_byte_identical(world, setup):
+    head, why = setup(world)
+    msg_id = world.send(head)
+    before, trees = world.state(), world.worktrees()
+
+    assert world.run("merge") == 1
+
+    assert world.state() == before
+    assert world.worktrees() == trees and world.scratch_left() == []
+    archived = world.archived(msg_id)
+    assert "disposition: blocked" in archived and why in archived
+    assert "outcome: refused" in world.replies(msg_id)["fleet"]
+
+
+def test_origin_ahead_at_start_refuses(world):
+    head = world.branch({"x.txt": "x\n"})
+    world.push_from_elsewhere("y.txt", "y\n")
+    msg_id = world.send(head)
+    before = world.state()
+
+    assert world.run("merge") == 1
+
+    assert world.state() == before
+    assert "ahead of the local base" in world.archived(msg_id)
+
+
+# --- V6: a base that moves during the build rebuilds in full, then refuses ---------------------
+def _counting_tests(world) -> Path:
+    counter = world.tmp / "test-runs"
+    world.write(".fabrik/merge-tests", f"python3 -c \"open({str(counter)!r}, 'a').write('x')\"\n")
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    return counter
+
+
+def test_base_moved_once_rebuilds_with_fresh_tests_and_merges(world):
+    counter = _counting_tests(world)
+    head = world.branch({"x.txt": "x\n"})
+    msg_id = world.send(head)
+    calls: list[str] = []
+
+    def phase(name):
+        if name == "after-build":
+            calls.append(name)
+            if len(calls) == 1:
+                world.write("bump.txt", "bump\n")
+                world.commit_main("pipeline commit", "bump.txt")
+
+    assert world.run("merge", phase=phase) == 0
+    assert len(calls) == 2 and counter.read_text() == "xx"
+    assert _git(world.main, "rev-parse", "master^2") == head
+    assert world.record(msg_id)["phase"] == "replied"
+
+
+def test_base_moving_every_build_refuses_after_three_rebuilds(world):
+    counter = _counting_tests(world)
+    head = world.branch({"x.txt": "x\n"})
+    msg_id = world.send(head)
+    calls: list[str] = []
+
+    def phase(name):
+        if name == "after-build":
+            calls.append(name)
+            world.write(f"bump{len(calls)}.txt", "bump\n")
+            world.commit_main("pipeline commit", f"bump{len(calls)}.txt")
+
+    assert world.run("merge", phase=phase) == 1
+    assert len(calls) == 4 and counter.read_text() == "xxxx"
+    assert _git(world.main, "log", "--format=%H", "-F", f"--grep=request {msg_id}", "master") == ""
+    assert _git(world.main, "log", "-1", "--format=%s", "master") == "pipeline commit"
+    assert "disposition: blocked" in world.archived(msg_id)
+
+
+# --- V7d / O35: a rejected push is finished by resume through a catch-up merge -----------------
+def test_rejected_push_is_finished_by_resume_with_a_catch_up_merge(world):
+    head = world.branch({"x.txt": "x\n"})
+    world.write("notes.txt", "owner unstaged wip\n")
+    msg_id = world.send(head)
+    pushed: list[str] = []
+
+    def race(name):
+        if name == "before-push" and not pushed:
+            pushed.append(world.push_from_elsewhere("y.txt", "y\n"))
+
+    assert world.run("merge", phase=race) == 4
+    merge_sha = world.record(msg_id)["merge_sha"]
+    assert world.origin() == pushed[0]  # the push was rejected; the merge is committed locally
+    assert world.record(msg_id)["phase"] == "carried"
+    assert "disposition" not in world.archived(msg_id)
+
+    assert world.run("resume", msg_id) == 0
+
+    assert world.origin() == world.base()
+    for sha in (merge_sha, pushed[0]):
+        subprocess.run(
+            ["git", "merge-base", "--is-ancestor", sha, "master"], cwd=world.main, check=True
+        )
+    assert world.read("notes.txt") == "owner unstaged wip\n"  # the WIP is intact
+    assert (
+        world.read("y.txt") == "y\n" and _git(world.main, "diff", "--cached", "--name-only") == ""
+    )
+    assert _git(world.main, "stash", "list") == ""
+    assert not (world.main / ".git" / "rebase-merge").exists()
+    assert f"merge-sha: {merge_sha}" in world.archived(msg_id)
+
+
+# --- V7: picking, stranded records, the lock ------------------------------------------------
+def test_merge_picks_only_the_owners_request_and_claims_before_building(world):
+    head = world.branch({"x.txt": "x\n"})
+    copy_id = world.send(head, agent="intel", ack="no")
+    stray_id = world.send(head, agent=None)
+    own_id = world.send(head)
+    seen: list[list[str]] = []
+
+    def phase(name):
+        if name == "after-build":
+            seen.append(world.inbox())
+
+    assert world.run("merge", phase=phase) == 0
+    assert own_id not in seen[0] and {copy_id, stray_id} <= set(seen[0])
+    assert {copy_id, stray_id} <= set(world.inbox()) and own_id not in world.inbox()
+    assert own_id in _git(world.main, "log", "-1", "--format=%B", "master")
+
+
+def _strand(world, pid: int, start) -> str:
+    head = world.branch({"x.txt": "x\n"})
+    msg_id = world.send(head)
+    res = subprocess.run(
+        [sys.executable, str(MAIL), "claim", msg_id, "--repo", "proj"],
+        cwd=world.main,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert res.returncode == 0, res.stderr
+    records = world.main / ".git" / "fabrik-merge"
+    records.mkdir(exist_ok=True)
+    rec = {
+        "id": msg_id,
+        "phase": "claimed",
+        "branch": "feat",
+        "head": head,
+        "base": "master",
+        "item": "none",
+        "requester": "fleet",
+        "review": "",
+        "session": "sid-dead",
+        "pid": pid,
+        "start": start,
+    }
+    (records / f"{msg_id}.json").write_text(json.dumps(rec), encoding="utf-8")
+    return msg_id
+
+
+def _dead_pid() -> int:
+    proc = subprocess.Popen(["true"])
+    proc.wait()
+    return proc.pid
+
+
+@pytest.mark.parametrize("who", ["dead", "reused"])
+def test_stranded_record_is_resumed_first(world, who):
+    pid, start = (_dead_pid(), "123") if who == "dead" else (os.getpid(), "0")
+    msg_id = _strand(world, pid, start)
+
+    assert world.run("merge") == 0
+
+    rec = world.record(msg_id)
+    assert rec["phase"] == "replied" and rec["pid"] == os.getpid()
+    assert _git(world.main, "rev-parse", "master^2") == rec["head"]
+
+
+def test_a_record_naming_the_live_run_itself_is_not_stranded(world):
+    msg_id = _strand(world, os.getpid(), world.mod._proc_start(os.getpid()))
+    old = world.base()
+
+    assert world.run("merge") == 0
+
+    assert world.record(msg_id)["phase"] == "claimed" and world.base() == old
+
+
+@pytest.mark.parametrize("verb", ["merge", "resume"])
+def test_a_held_merge_lock_stops_a_second_run_before_anything(world, verb):
+    head = world.branch({"x.txt": "x\n"})
+    msg_id = world.send(head)
+    trees = world.worktrees()
+    fd = os.open(world.main / ".git" / "fabrik-merge.lock", os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        argv = ["merge"] if verb == "merge" else ["resume", msg_id]
+        assert world.run(*argv) == 1
+    finally:
+        os.close(fd)
+    assert world.inbox() == [msg_id]
+    assert not (world.main / ".git" / "fabrik-merge").exists()
+    assert world.worktrees() == trees and world.scratch_left() == []
+
+
+# --- (e): a path edited between the CAS and the carry keeps the edit -----------------------
+def test_a_path_raced_before_the_carry_keeps_the_edit_with_its_index_at_the_merge(world):
+    head = world.branch({"README.md": "branch readme\n"})
+    msg_id = world.send(head)
+
+    def race(name):
+        if name == "before-carry":
+            world.write("README.md", "owner raced edit\n")
+
+    assert world.run("merge", phase=race) == 0
+
+    assert world.read("README.md") == "owner raced edit\n"
+    staged = _git(world.main, "ls-files", "-s", "README.md").split()[1]
+    assert staged == _git(world.main, "rev-parse", "master:README.md")
+    reply = world.replies(msg_id)["fleet"]
+    assert "README.md" in reply and "git commit -a" in reply
+
+
+# --- V7: head already in base → no second merge ---------------------------------------------
+def test_resume_of_a_request_already_in_base_names_the_existing_merge(world):
+    head = world.branch({"x.txt": "x\n"})
+    msg_id = world.send(head)
+    _git(
+        world.main,
+        "merge",
+        "-q",
+        "--no-ff",
+        "-m",
+        f"merge(infra): feat — request {msg_id}, item none",
+        head,
+    )
+    existing = world.base()
+    world.write("later.txt", "later\n")
+    tip = world.commit_main("a later base commit", "later.txt")  # base moved past the merge
+
+    assert world.run("resume", msg_id) == 0
+
+    assert world.base() == tip == world.origin()  # no second merge commit
+    assert existing in world.replies(msg_id)["fleet"]
+    assert f"merge-sha: {existing}" in world.archived(msg_id)
+
+
+# --- V7c / V7d: re-hash before the CAS; the base's merge-tests --------------------------------
+def test_a_path_edited_before_the_cas_returns_the_run_to_the_preflight(world):
+    head = world.branch(
+        {
+            "CHANGELOG.md": CHANGELOG.replace(
+                "## [Unreleased]\n\n", "## [Unreleased]\n\n### Added — b\n\n"
+            )
+        }
+    )
+    msg_id = world.send(head)
+    builds: list[str] = []
+
+    def phase(name):
+        if name == "after-build":
+            builds.append(name)
+        if name == "before-cas" and len(builds) == 1:
+            world.write("CHANGELOG.md", CHANGELOG + "- raced wip\n")
+
+    assert world.run("merge", phase=phase) == 0
+    assert len(builds) == 2  # back to (a) with a fresh snapshot, never a write over the edit
+    assert _added(world, "CHANGELOG.md") == ["- raced wip"]
+    assert world.record(msg_id)["phase"] == "replied"
+
+
+def test_the_bases_merge_tests_run_never_the_branchs(world):
+    marker = world.tmp / "which-tests"
+    world.write(".fabrik/merge-tests", f"python3 -c \"open({str(marker)!r}, 'w').write('base')\"\n")
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    _git(world.wt, "merge", "-q", "--ff-only", "master")  # the branch starts from that base
+    head = world.branch({".fabrik/merge-tests": "exit 1\n", "x.txt": "x\n"})
+    world.send(head)
+
+    assert world.run("merge") == 0
+    assert marker.read_text() == "base"
+
+
+# --- (b): pure-insertion ledger conflicts resolve, newest D-row first -----------------------
+def test_a_pure_insertion_decisions_conflict_resolves_newest_first(world):
+    head = world.branch(
+        {"docs/DECISIONS.md": DECISIONS.replace("| D-1 |", "| D-2 | branch |\n| D-1 |")}
+    )
+    world.write("docs/DECISIONS.md", DECISIONS.replace("| D-1 |", "| D-3 | base |\n| D-1 |"))
+    world.commit_main("base row", "docs/DECISIONS.md")
+    world.send(head)
+
+    assert world.run("merge") == 0
+    rows = [ln for ln in world.read("docs/DECISIONS.md").splitlines() if ln.startswith("| D-")]
+    assert rows == ["| D-3 | base |", "| D-2 | branch |", "| D-1 | first |"]
+
+
+# --- (g): the hub's governance sync runs when a merged path matches the filter -------------
+def test_the_hub_sync_runs_when_a_merged_path_matches_the_filter(world, monkeypatch):
+    world.write(
+        ".pre-commit-config.yaml",
+        "repos:\n  - repo: local\n    hooks:\n      - id: governance-sync\n"
+        "        files: '(^scripts/mail\\.py$|^templates/governance/)'\n"
+        "      - id: other\n        files: '^x'\n",
+    )
+    world.commit_main("hooks", ".pre-commit-config.yaml")
+    monkeypatch.setattr(world.mod, "HUB_CHECKOUT", world.main)
+    head = world.branch({"scripts/mail.py": "# mail\n"})
+    msg_id = world.send(head)
+
+    assert world.run("merge") == 0
+    assert world.sync_marker.read_text() == "x"
+    assert "sync: ran for 1" in world.replies(msg_id)["fleet"]
+
+
+# --- (c): the owner's tests import the MERGED tree and reach ../fabrik-lib -------------------
+def test_owner_tests_see_the_merged_src_first_and_the_fabrik_lib_link(world):
+    (world.tmp / "fabrik-lib").mkdir()
+    probe = world.tmp / "probe"
+    script = (
+        "import os, pathlib; "
+        "first = os.environ['PYTHONPATH'].split(os.pathsep)[0]; "
+        f"pathlib.Path({str(probe)!r}).write_text(' '.join(["
+        "str(first == os.path.join(os.getcwd(), 'src')), "
+        "str(os.path.isdir('../fabrik-lib')), os.path.basename(os.getcwd())]))"
+    )
+    world.write(".fabrik/merge-tests", f'python3 -c "{script}"\n')
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    world.send(world.branch({"x.txt": "x\n"}))
+
+    assert world.run("merge") == 0
+    assert probe.read_text() == "True True proj"
+    assert world.scratch_left() == []
