@@ -17,12 +17,12 @@ an omission, so the review owns that.
 from __future__ import annotations
 
 import json
-import os
 import re
 from pathlib import Path
 
 import pytest
 
+from fabrik import config as fabrik_config
 from fabrik.scaffold import create_project
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,7 +54,11 @@ requires_fabrik_env = pytest.mark.skipif(
 @pytest.fixture(scope="module")
 def project(tmp_path_factory: pytest.TempPathFactory) -> Path:
     base = tmp_path_factory.mktemp("mobile-components")
-    os.environ.setdefault("FABRIK_ROOT", str(ROOT))
+    # fabrik.config binds FABRIK_ROOT at import, so setting it here would change nothing:
+    # assert the scaffolder reads THIS tree's templates instead of grading another one
+    assert fabrik_config.FABRIK_ROOT.resolve() == ROOT, (
+        f"the scaffolder reads {fabrik_config.FABRIK_ROOT}, not {ROOT}: run with FABRIK_ROOT={ROOT}"
+    )
     create_project(
         "mobilecomponents", "probe", base=base, project_type="mobile-app", generate_spec=False
     )
@@ -83,7 +87,7 @@ def test_colours_used_as_text_take_their_text_slot() -> None:
     bare = re.compile(r"`--color-(?:" + "|".join(STATES) + r")`")
     for line in _body().splitlines():
         for m in bare.finditer(line):
-            assert line[m.end() :].startswith(" fill") or line[: m.start()].endswith("pill ("), (
+            assert re.match(r" fill\b", line[m.end() :]) or line[: m.start()].endswith("pill ("), (
                 f"a bare accent/state colour is a FILL; as text or an icon on a surface use its -text slot: {line!r}"
             )
     assert not re.search(r"#[0-9A-Fa-f]{3,8}\b|rgba?\(", _body()), "raw colour values in the pack"
@@ -167,7 +171,13 @@ def test_every_cited_section_exists() -> None:
         ]
         cited = m.group(2).strip()
         found += 1
-        if not any(h.startswith(cited) or cited.startswith(h) for h in heads):
+
+        # one must be a prefix of the other, ending at a word boundary ("Sound" does not match "Sounds and
+        # Haptics"; "Save Behavior" matches "Save Behavior — draft persistence …")
+        def _prefix(a: str, b: str) -> bool:
+            return bool(re.match(re.escape(a) + r"(?![A-Za-z])", b))
+
+        if not any(h and (_prefix(h, cited) or _prefix(cited, h)) for h in heads):
             missing.append(f"{m.group(1)} § {cited}")
     assert found >= 5, f"parsed only {found} cites"
     assert not missing, f"cited sections that do not exist: {missing}"

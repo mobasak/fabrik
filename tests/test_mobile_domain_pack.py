@@ -16,12 +16,12 @@ review is what catches the rest.
 
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 
 import pytest
 
+from fabrik import config as fabrik_config
 from fabrik.scaffold import create_project
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,7 +37,11 @@ requires_fabrik_env = pytest.mark.skipif(
 @pytest.fixture(scope="module")
 def project(tmp_path_factory: pytest.TempPathFactory) -> Path:
     base = tmp_path_factory.mktemp("mobile-domain")
-    os.environ.setdefault("FABRIK_ROOT", str(ROOT))
+    # fabrik.config binds FABRIK_ROOT at import, so setting it here would change nothing:
+    # assert the scaffolder reads THIS tree's templates instead of grading another one
+    assert fabrik_config.FABRIK_ROOT.resolve() == ROOT, (
+        f"the scaffolder reads {fabrik_config.FABRIK_ROOT}, not {ROOT}: run with FABRIK_ROOT={ROOT}"
+    )
     create_project(
         "mobiledomain", "probe", base=base, project_type="mobile-app", generate_spec=False
     )

@@ -1,0 +1,26 @@
+{
+  "block_digest": "e85f5c26ec91ec3ac5c8aa151fa8e7f79de2bf093e815cfb94bf538641795b97",
+  "blocked_by": [],
+  "created": "2026-10-01T20:21:15.956140Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-7eda7b6c",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "dcb1193b6b9604a744b6c92be832b60300e073a46998e5510b4f3b3a35b548c3"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May I create private GitHub repos for the 13 projects that have no remote, push them, and push candle, supplement-tracker-advisor and proposal-creator?",
+  "status": "awaiting-operator",
+  "title": "May I create private GitHub repos for the 13 projects that have no remote, push them, and push candle, supplement-tracker-advisor and proposal-creator?"
+}

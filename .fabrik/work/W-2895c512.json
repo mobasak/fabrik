@@ -1,0 +1,26 @@
+{
+  "block_digest": "c260c8de0cf04603a1653ff8aae338836bfdf61fe1646c70fa8744dfbde5a513",
+  "blocked_by": [],
+  "created": "2026-10-01T22:08:53.234590Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-2895c512",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "1f42b9a14a73cf20b52c4e4c992c8705a37c9b028de2dd47676b8f5764753ed5"
+  ],
+  "next": "",
+  "note": "operator: 'well done, your proposal will do this 100%' — option A approved (D-488)",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve this design for widening `/fabrik-task`, so it can go to planning and be built?",
+  "status": "done",
+  "title": "Do you approve this design for widening `/fabrik-task`, so it can go to planning and be built?"
+}

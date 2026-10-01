@@ -41,6 +41,7 @@ from __future__ import annotations
 import argparse
 import fcntl
 import glob as globmod
+import hashlib
 import json
 import os
 import re
@@ -70,9 +71,12 @@ REFUSAL_SET = """NEVER TOUCHES (hard-coded; this text is printed by --help and b
     the REPO-WIDE `git worktree prune` and would drop other sessions' registrations too
   * a worktree holding IGNORED files outside the cache allowlist (wt-ignored-data), or a directory
     git does not register (wt-orphan-dir)
-  * a worktree whose dirt is ENTIRELY the governance sync's own output (wt-sync-only) — nothing
-    was authored there, but `git worktree remove` still refuses while untracked files are present
-    and this tool never passes --force, so the row informs rather than promising removal
+  * a worktree whose dirt is ENTIRELY the governance sync's own output (wt-sync-only), and a clean
+    worktree whose branch is not merged (wt-unmerged), unless --include-unmerged: then the FOLDER
+    goes and no commit is lost — an unmerged branch is always kept, and any other is offered only
+    to git's own `branch -d`, which refuses an unmerged one; a sync-only tree is removed with
+    --force only after its state is re-read at removal time — any authored file, a stash naming
+    its branch, or ignored data keeps it
   * anything holding a BACKUP SHAPE — *.bak, *.original, *pristine* (case-insensitive),
     before.txt/after.txt, .keep — the entry's OWN NAME included, unless --include-backups
   * a root-level entry of the scratch root, unless --unowned-older-than DAYS
@@ -1034,6 +1038,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--include-backups", action="store_true", help="let a backup-holding entry be removed"
     )
     ap.add_argument(
+        "--include-unmerged",
+        action="store_true",
+        help=(
+            "also remove a clean worktree whose branch is unmerged (wt-unmerged) or whose only "
+            "dirt is the sync's output (wt-sync-only) — no commit is lost: an unmerged branch is "
+            "kept, a merged one goes only through git's own `branch -d`"
+        ),
+    )
+    ap.add_argument(
         "--strict-proc",
         action="store_true",
         help="turn a same-uid /proc gap into probe-error (default: report it)",
@@ -1071,6 +1084,8 @@ def _allowed_classes(args: argparse.Namespace) -> set[str]:
         allowed |= {"holds-backups", "dead-holds-backups"}
     if args.unowned_older_than is not None:
         allowed.add("unowned")
+    if getattr(args, "include_unmerged", False):
+        allowed |= {"wt-unmerged", "wt-sync-only"}
     return allowed
 
 
@@ -1088,6 +1103,10 @@ def _apply_command(argv: list[str], args: argparse.Namespace | None = None) -> s
             extra.append("--strict-proc")
         if args.unowned_older_than is not None:
             extra += ["--unowned-older-than", str(args.unowned_older_than)]
+        if getattr(args, "foreign_older_than", None):
+            extra += ["--foreign-older-than", str(args.foreign_older_than)]
+        if getattr(args, "include_unmerged", False):
+            extra.append("--include-unmerged")
     return "python3 /opt/fabrik/scripts/scratch_sweep.py " + " ".join(argv + extra + ["--apply"])
 
 
@@ -1597,7 +1616,7 @@ def _is_sync_materialised(worktree: Path, rel: str) -> bool:
             check=False,
         )
         if proc.returncode == 0:
-            return mine == proc.stdout
+            return mine == proc.stdout or _in_hub_history(rel_src, mine)
     except (OSError, ValueError):
         pass
     try:
@@ -1606,7 +1625,130 @@ def _is_sync_materialised(worktree: Path, rel: str) -> bool:
         return False
 
 
-def _ignored_data(repo_wt: Path) -> list[str]:
+_HISTORY_SEEN: dict[tuple[str, str], bool] = {}
+
+
+def _in_hub_history(rel_src: str, data: bytes) -> bool:
+    """Do these exact bytes appear in a hub COMMIT of the sync source `rel_src`?
+
+    The sync ships `git show HEAD:<src>`, so every copy it ever wrote is a committed version of its
+    source; a worktree last synced weeks ago holds an older one, which HEAD-only comparison read as
+    authored (measured 2026-10-01: CLAUDE.md, scripts/final_gate.py and scripts/enforcement/ kept 8
+    of 52 wef worktrees). A COMMIT on that path is required, never mere object presence — an
+    unreachable blob can be pruned, and then this copy would be the last one.
+    """
+    proc = subprocess.run(
+        ["git", "hash-object", "--stdin"], input=data, capture_output=True, check=False
+    )
+    blob = proc.stdout.decode().strip()
+    if proc.returncode != 0 or not blob:
+        return False
+    key = (rel_src, blob)
+    if key not in _HISTORY_SEEN:
+        found = subprocess.run(
+            ["git", "log", "-1", "--format=%H", f"--find-object={blob}", "--", rel_src],
+            cwd="/opt/fabrik",
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        _HISTORY_SEEN[key] = found.returncode == 0 and bool(found.stdout.strip())
+    return _HISTORY_SEEN[key]
+
+
+# A worktree's own local settings — written per worktree (e.g. `autoMemoryDirectory`), never work.
+LOCAL_SETTINGS = ".claude/settings.local.json"
+# The governance sync's per-worktree ledger: path -> md5 of the bytes it wrote there
+# (`sync_enforcement_to_projects.py::_WORKTREE_LEDGER_REL`). A file still matching its entry is
+# exactly what the sync wrote; the hub's CURRENT bytes are the wrong test, because the sync moves on
+# and every older worktree then reads its synced copies as authored (measured 2026-10-01: wef 31 of
+# 52 worktrees held only such copies and build output).
+SYNC_LEDGER = ".fabrik/worktree-synced.lock"
+# Build output and caches judged by PATH COMPONENT anywhere in the tree — `sites/x/node_modules`
+# slipped past CACHE_ALLOWLIST's prefix match. ONLY for an IGNORED path: the repo's own ignore rules
+# are the proof that a `dist/` is build output; an untracked, unignored `dist/` is someone's
+# directory with a familiar name, and the name alone once let `--force` delete it (review R1-S1).
+# TOOL CACHES only, the class D-184's allowlist already accepted: an OUTPUT directory (`dist`,
+# `test-results`) is where a report or the one trace of a failing run lands, so the name is no
+# proof even when ignored (review R2-S1) — such a tree stays `wt-ignored-data` for a human.
+REBUILD_DIRS = frozenset(
+    {
+        ".venv",
+        "node_modules",
+        "__pycache__",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".mypy_cache",
+        ".astro",
+    }
+)
+
+
+def _sync_ledger(wt: Path) -> dict[str, str]:
+    try:
+        data = json.loads((wt / SYNC_LEDGER).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _rebuildable(
+    wt: Path,
+    rel: str,
+    main_path: Path | None,
+    ledger: dict[str, str] | None = None,
+    *,
+    ignored: bool = False,
+) -> bool:
+    """True when `rel` in worktree `wt` is NOT anyone's work, file by file.
+
+    An IGNORED build output or cache (REBUILD_DIRS, any path component), any symlink (removal
+    unlinks it, never its target), the worktree's own local settings, the sync ledger, a file still matching its sync-ledger md5,
+    or a regular file byte-identical to the main checkout's file at the same path — what
+    `.worktreeinclude` copied in at creation. A collapsed directory entry (`dir/`) is rebuildable
+    only when every file under it is; an empty one is not.
+    """
+    rel = rel.strip().strip('"')
+    if ignored and (
+        rel.startswith(CACHE_ALLOWLIST) or REBUILD_DIRS & set(rel.rstrip("/").split("/"))
+    ):
+        return True
+    if rel in (LOCAL_SETTINGS, SYNC_LEDGER):
+        return True
+    if (wt / rel.rstrip("/")).is_symlink():
+        return True  # removal unlinks it; `worktree remove --force` never follows into the target
+    if rel.endswith("/"):
+        rc, out = _git(wt, "ls-files", "--others", "--exclude-standard", "--ignored", "--", rel)
+        rc2, out2 = _git(wt, "ls-files", "--others", "--exclude-standard", "--", rel)
+        if rc != 0 or rc2 != 0:
+            return False
+        ign = [(f, True) for f in out.splitlines() if f.strip()]
+        unign = [(f, False) for f in out2.splitlines() if f.strip()]
+        if not ign and not unign:
+            return False
+        ledger = _sync_ledger(wt)
+        return all(_rebuildable(wt, f, main_path, ledger, ignored=i) for f, i in ign + unign)
+    mine = wt / rel
+    if mine.is_symlink() or not mine.is_file():
+        return False
+    try:
+        data = mine.read_bytes()
+    except OSError:
+        return False
+    want = (_sync_ledger(wt) if ledger is None else ledger).get(rel)
+    if isinstance(want, str) and hashlib.md5(data, usedforsecurity=False).hexdigest() == want:
+        return True
+    if _is_sync_materialised(wt, rel):  # a current or older committed version of its hub source
+        return True
+    if main_path is None or not (main_path / rel).is_file():
+        return False
+    try:
+        return data == (main_path / rel).read_bytes()
+    except OSError:
+        return False
+
+
+def _ignored_data(repo_wt: Path, main_path: Path | None = None) -> list[str]:
     """Ignored paths that are DATA, not rebuildable cache.
 
     `git worktree remove` deletes ignored files silently even WITHOUT `--force` (measured), so a
@@ -1621,8 +1763,11 @@ def _ignored_data(repo_wt: Path) -> list[str]:
         if not line.startswith("!!"):
             continue
         path = line[2:].strip()
-        if not any(path.startswith(c) or f"/{c}" in path for c in CACHE_ALLOWLIST):
-            hits.append(path)
+        if any(path.startswith(c) or f"/{c}" in path for c in CACHE_ALLOWLIST):
+            continue
+        if main_path is not None and _rebuildable(repo_wt, path, main_path, ignored=True):
+            continue  # a creation copy identical to the main checkout's — not data (D-478)
+        hits.append(path)
     return hits
 
 
@@ -1857,6 +2002,7 @@ def _worktree_chain(
     rc, status = _git(path, "status", "--porcelain")
     if rc == 0 and status.strip():
         all_names = [ln[3:] for ln in status.splitlines()]
+        untracked = {ln[3:] for ln in status.splitlines() if ln.startswith("??")}
         # T12.23 (01M23JK2R, reported by wef3): the governance sync MATERIALISES manifest-owned
         # files into a worktree, so a worktree nobody has touched reads dirty. Those paths are not
         # "uncommitted work" by any session — nothing authored them.
@@ -1869,19 +2015,20 @@ def _worktree_chain(
         # informative row for a wrong one plus a refusal at runtime. It gets its OWN verdict:
         # nothing authored here, and still not ours to delete.
         sync_only = _sync_materialised_paths(path, all_names)
-        authored = [n for n in all_names if n not in sync_only]
+        rebuildable = {
+            n
+            for n in all_names
+            if n in untracked and n not in sync_only and _rebuildable(path, n, main_path)
+        }
+        authored = [n for n in all_names if n not in sync_only and n not in rebuildable]
+        sync_only |= rebuildable
         if authored:
             shown = ", ".join(authored[:5]) + ("…" if len(authored) > 5 else "")
             return "wt-dirty", f"uncommitted work ({len(authored)}): {shown}", ""
-        if sync_only:
-            shown = ", ".join(sorted(sync_only)[:5]) + ("…" if len(sync_only) > 5 else "")
-            return (
-                "wt-sync-only",
-                f"nothing authored — all {len(sync_only)} dirty path(s) are the governance sync's "
-                f"own output ({shown}); NOT removable while `git worktree remove` refuses "
-                f"untracked files, so remove it by hand with --force if you mean to",
-                "",
-            )
+    else:
+        sync_only = set()
+    # The sync-only verdict waits until the stash and ignored-data checks have run: removing such a
+    # tree needs --force, and --force also deletes ignored files and orphans a stash's branch work.
     if branch in stashed:
         return (
             "wt-dirty",
@@ -1890,12 +2037,22 @@ def _worktree_chain(
         )
     if detached_stash:
         return "wt-dirty", "a `(no branch)` stash exists and cannot be attributed to a branch", ""
-    ignored = _ignored_data(path)
+    ignored = _ignored_data(path, main_path)
     if ignored:
         shown = ", ".join(ignored[:5]) + ("…" if len(ignored) > 5 else "")
         return (
             "wt-ignored-data",
             f"ignored DATA git would delete anyway ({len(ignored)}): {shown}",
+            "",
+        )
+    if sync_only:
+        shown = ", ".join(sorted(sync_only)[:5]) + ("…" if len(sync_only) > 5 else "")
+        return (
+            "wt-sync-only",
+            f"nothing authored — all {len(sync_only)} dirty path(s) are the governance sync's "
+            f"output or creation copies identical to the main checkout ({shown}); removable only "
+            f"under --include-unmerged (with --force, re-checked at removal); git's own `branch -d` then "
+            f"drops the branch only if it is merged",
             "",
         )
     rc_anc, _ = _git(main_path, "merge-base", "--is-ancestor", branch, target)
@@ -1936,6 +2093,31 @@ def _orphan_worktree_dirs(repo: Path, registered: set[str]) -> list[Row]:
     return rows
 
 
+def _not_sync_only_now(path: Path, branch: str, repo: Path) -> str:
+    """Why a `wt-sync-only` tree may NOT be force-removed now ('' when it still may).
+
+    `--force` deletes untracked AND ignored files, so the classification is re-earned at removal
+    time: a file authored since the dry run, a stash naming the branch, or ignored data keeps it.
+    """
+    rc, status = _git(path, "status", "--porcelain")
+    if rc != 0:
+        return "its status is unreadable"
+    names = [ln[3:] for ln in status.splitlines()]
+    untracked = {ln[3:] for ln in status.splitlines() if ln.startswith("??")}
+    synced = _sync_materialised_paths(path, names)
+    authored = [
+        n for n in names if n not in synced and not (n in untracked and _rebuildable(path, n, repo))
+    ]
+    if authored:
+        return f"{len(authored)} authored path(s) appeared ({authored[0]})"
+    stashed, detached = _stash_branches(repo)
+    if branch in stashed or detached:
+        return "a stash now names its branch"
+    if _ignored_data(path, repo):
+        return "it now holds ignored data"
+    return ""
+
+
 def apply_worktrees(repo: Path, rows: list[Row], allowed: set[str], out=sys.stdout) -> int:
     """`git worktree remove` (never `--force`) then `git branch -d` (never `-D`).
 
@@ -1958,7 +2140,15 @@ def apply_worktrees(repo: Path, rows: list[Row], allowed: set[str], out=sys.stdo
             print(f"PRUNED {r.path} (stale registration)", file=out)
             removed += 1
             continue
-        rc, msg = _git(repo, "worktree", "remove", r.path)
+        branch = branches.get(r.path, "")
+        force: list[str] = []
+        if r.cls == "wt-sync-only":
+            why = _not_sync_only_now(Path(r.path), branch, repo)
+            if why:
+                print(f"REFUSED {r.path} — {why} since it was classified", file=out)
+                continue
+            force = ["--force"]
+        rc, msg = _git(repo, "worktree", "remove", *force, r.path)
         if rc != 0:
             print(
                 f"REFUSED {r.path} — git: {msg.strip().splitlines()[0] if msg.strip() else rc}",
@@ -1967,9 +2157,11 @@ def apply_worktrees(repo: Path, rows: list[Row], allowed: set[str], out=sys.stdo
             continue
         removed += 1
         print(f"REMOVED {r.path} ({r.cls}, {r.reason})", file=out)
-        branch = branches.get(r.path, "")
         if not branch:
             print("  branch kept — git registered no branch for it", file=out)
+            continue
+        if r.cls == "wt-unmerged":
+            print(f"  branch {branch} kept — unmerged, its commits stay reachable", file=out)
             continue
         rc_b, msg_b = _git(repo, "branch", "-d", branch)
         if rc_b != 0 and msg_b.strip():

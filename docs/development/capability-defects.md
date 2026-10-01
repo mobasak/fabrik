@@ -5,7 +5,7 @@
 
 ## Mechanical fixes
 
-- _(none)_
+- [dry-run] would write stub: docs/reference/capabilities/backups.md
 
 ## Doc drift (flagged — NOT auto-rewritten)
 
@@ -15,4 +15,14 @@
 
 | Capability | Kind | Defect | Recommended action |
 |---|---|---|---|
-| _(none)_ | | | |
+| `compose_updater` | driver | retired | RETIRE-DECISION — carries a deprecation marker; confirm removal or un-deprecate. |
+| `coolify` | driver | retired | RETIRE-DECISION — carries a deprecation marker; confirm removal or un-deprecate. |
+| `supabase` | driver | retired | RETIRE-DECISION — carries a deprecation marker; confirm removal or un-deprecate. |
+| `scripts/enforcement/check_review_coverage.py` | script | retired | RETIRE-DECISION — carries a deprecation marker; confirm removal or un-deprecate. |
+| `scripts/fabrik_synced_manifest.py` | script | retired | RETIRE-DECISION — carries a deprecation marker; confirm removal or un-deprecate. |
+| `scripts/kilo_cost_tracker.py` | script | retired | RETIRE-DECISION — carries a deprecation marker; confirm removal or un-deprecate. |
+| `scripts/kilo_model_sync.py` | script | retired | RETIRE-DECISION — carries a deprecation marker; confirm removal or un-deprecate. |
+| `scripts/kilo_model_sync_startup.sh` | script | retired | RETIRE-DECISION — carries a deprecation marker; confirm removal or un-deprecate. |
+| `scripts/sync_enforcement_to_projects.py` | script | retired | RETIRE-DECISION — carries a deprecation marker; confirm removal or un-deprecate. |
+| `scripts/sysadmin/weekly_catchup.sh` | script | retired | RETIRE-DECISION — carries a deprecation marker; confirm removal or un-deprecate. |
+| `backups` | lib-module | incomplete | REVISE — missing its README/doc; add one so agents can use it. |

@@ -1,50 +1,41 @@
 ---
-activation: glob
-globs: ["**/metro.config.*", "**/react-native.config.*", "**/app.json", "**/eas.json"]
-description: Tojlo Mobile Design System — module-aware mobile component patterns extending ocoron-mobile-design-system.md
-trigger: glob
+description: Tojlo Mobile Design System — the Tojlo-specific mobile patterns (module switcher, module-aware tab bar, module cards, activity feed, embedded module frame, quick actions, onboarding, push grouping) on top of mobile-app/ocoron-mobile-design-system.md. Read for mobile UI in a Tojlo project — one whose docs/design-system.md declares the Tojlo house identity (D-051); never for any other mobile app.
+currency_pass: 2026-10-01
 ---
-<!-- CONSUMER: Coding agents building Tojlo React Native mobile UI
-     GOAL: Module-aware mobile patterns — module switcher, module cards, operator dashboards, embedded frames
-     TRAYCER USAGE: Injects as Context File for Tojlo mobile client-lane UI tickets.
-     AGENT USAGE: Use alongside ocoron-mobile-design-system.md and tojlo-design-system.md. This file specifies Tojlo mobile deltas only. -->
+<!-- CONSUMER: coding agents building React Native UI in a Tojlo-declared mobile project
+     GOAL: the Tojlo mobile deltas — module switching, module-aware chrome, embedded vendor modules, push grouping
+     AGENT USAGE: read beside core/tojlo-design-system.md (the brand) and mobile-app/ocoron-mobile-design-system.md (the component patterns). -->
 
 # Tojlo Mobile Design System
 
-> Mobile-specific component patterns for the Tojlo B2B operating system. Extends `ocoron-mobile-design-system.md` — all generic mobile patterns (list items, bottom sheets, action sheets, search, navigation headers, onboarding, form inputs) are inherited unchanged. This file adds **Tojlo-specific mobile patterns** for modules, operator dashboards, and embedded frames.
+> The Tojlo mobile patterns. **A house identity, chosen — never defaulted** (D-051): this file applies only when the project's `docs/design-system.md` declares Tojlo, which is why it loads by description, not by file glob. Every generic mobile pattern — list items, bottom and action sheets, search, navigation header, onboarding, forms — is `mobile-app/ocoron-mobile-design-system.md`'s (titled Mobile Component Patterns) and applies unchanged; this file adds what only a Tojlo app has.
 
 **Inheritance chain:**
-1. `ocoron-design-system.md` — all tokens (colors, typography, spacing, motion)
-2. `tojlo-design-system.md` — Tojlo brand, module naming, module color coding, verbal identity
-3. `ocoron-mobile-design-system.md` — generic mobile component patterns (LI1-LI6, BS1-BS5, AS1-AS5, SR1-SR5, NH1-NH4, ON1-ON6, MF1-MF6)
-4. **This file** — Tojlo-specific mobile overrides and additions
+1. `core/design-system-template.md` — the token slots and their roles (both modes, contrast, motion)
+2. `core/ocoron-design-system.md` — the values Tojlo inherits (colours, fonts)
+3. `core/tojlo-design-system.md` — the Tojlo brand: module naming, layer colour coding, module icons, voice
+4. `mobile-app/ocoron-mobile-design-system.md` — the mobile component patterns (LI1-LI6, BS1-BS5, AS1-AS5, SR1-SR5, NH1-NH4, ON1-ON6, MF1-MF6)
+5. **This file** — the Tojlo mobile additions
+
+**Type and colour** follow the components pack's rules: font roles (heading, body, mono — Tojlo's are Ocoron's), sizes in pt/dp that follow the OS text size, and no type below 13 on a mobile surface (`80-mobile.md` § Styling; core Tojlo allows 11–13 for module chrome, so mobile uses 13). An accent, state or layer colour used AS TEXT or an icon on a surface is its `-text` slot; text or an icon ON a fill is its `-fg` slot. Tojlo's layer colours use Ocoron's current slot names: Core `--color-accent`, Intelligence `--color-ai`, Growth `--color-warning` (`core/tojlo-design-system.md` § Module Color Coding still writes the retired `--color-purple` and `--color-secondary`, which `core/ocoron-design-system.md` maps to these).
 
 ---
 
 ## Inherited Unchanged from `ocoron-mobile-design-system.md`
 
-All 32 rules (LI1-LI6, BS1-BS5, AS1-AS5, SR1-SR5, NH1-NH4, ON1-ON6, MF1-MF6) apply without modification. The following sections are **identical** and must not be re-specified:
+All 37 rules (LI1-LI6, BS1-BS5, AS1-AS5, SR1-SR5, NH1-NH4, ON1-ON6, MF1-MF6) apply without modification, and these sections are not re-specified here: List Item Anatomy, Bottom Sheet, Action Sheet, Mobile Search, Navigation Header, Mobile Form Inputs. Both dark and light mode are mandatory (`80-mobile.md` § Styling — OS-following with a manual override persisted in MMKV).
 
-- List Item Anatomy (structure, heights, section headers, swipe actions)
-- Bottom Sheet (structure, sizes, animation)
-- Action Sheet (structure, animation)
-- Mobile Search (structure, animation)
-- Navigation Header (structure, large title scroll-collapse)
-- Mobile Form Inputs (sizing, pickers, keyboard configuration)
-
-Both dark and light mode are mandatory — inherited from `80-mobile.md` (OS detection via `Appearance.getColorScheme()` + manual toggle + MMKV persistence).
-
-If a pattern is not listed in this document, the Ocoron mobile design system rule applies.
+If a pattern is not in this document, the components pack's rule applies.
 
 ---
 
 ## 1. Module Switcher (Mobile)
 
-The primary navigation mechanism for switching between Tojlo's 12 modules on mobile. Replaces the web sidebar's module list.
+The primary way to switch between Tojlo's modules on mobile. Replaces the web sidebar's module list. It lists every module of the canonical list in `core/tojlo-design-system.md` § Module Naming except AUTH (a backend service) and the Dashboard (the home screen).
 
 ### Trigger
 
-- Accessed via the **bottom tab bar** leftmost tab (grid icon, labeled "Modules") OR via long-press on the current module name in the navigation header.
+- The **bottom tab bar's** first tab (grid icon, labelled "Modules"), OR a long-press on the current module name in the navigation header.
 
 ### Structure
 
@@ -66,52 +57,51 @@ The primary navigation mechanism for switching between Tojlo's 12 modules on mob
 └────────────────────────────────────┘
 ```
 
-- Appears as a **bottom sheet (medium)** — snaps to 50%, expandable to 90%
-- **Grid layout:** 3 columns, 80px per cell, 12px gap
-- **Each cell:** module icon (24px, monochrome, `--text-body`) centered above module name (Inter 500, uppercase, 10px, letter-spacing 1px)
-- **Layer indicator:** 3px colored dot below the module name — Core = `--color-accent`, Intelligence = `--color-purple`, Growth = `--color-secondary`
-- **Active module:** icon uses `--color-accent`, name uses `--text-primary`, cell has `--color-accent-muted` background
-- **Inactive module:** icon and name use `--text-muted`
-- **Disabled module** (not provisioned for tenant): icon at 30% opacity, name `--text-muted`, non-tappable. No tooltip on mobile — long-press shows "Contact admin to enable [MODULE]" toast
+- A **bottom sheet (medium)** — snaps to 50%, expandable to 90% (components pack § 2)
+- **Grid layout:** 3 columns, 80 per cell, 12 gap
+- **Each cell:** the module's icon (24, monochrome — `core/tojlo-design-system.md` § Module Icons) centred above its name (body font 500, uppercase, 13, letter-spacing 1)
+- **Layer indicator:** a 3 dot below the name, filled with the layer colour (Core `--color-accent`, Intelligence `--color-ai`, Growth `--color-warning`)
+- **Active module:** icon and name in `--text-primary`, cell on a `--color-accent-muted` fill — the icon stays monochrome (MS3)
+- **Inactive module:** icon and name in `--text-muted`
+- **Disabled module** (not provisioned for the tenant): icon at 30% opacity, name `--text-muted`, not tappable; a long-press shows a "Contact admin to enable [MODULE]" toast
 
 ### Animation
 
-- Sheet enters per BS rules (`--motion-slow`, `--ease-emphasis`)
-- Module selection: cell press feedback (`scale(0.95)`, light haptic), dismiss sheet, navigate to module root screen
+- The sheet enters per the components pack's bottom-sheet rules (`--motion-slow`, `--ease-emphasis`)
+- Selecting a module: press feedback (`scale(0.95)`, light haptic), dismiss the sheet, navigate to the module's root screen
 
 ### Module Switcher Rules
 
 - **MS1:** The module switcher is always a bottom sheet, never a full-screen page. Operators should feel they are *switching context*, not *leaving* the app.
-- **MS2:** Module order follows the canonical list from `tojlo-design-system.md` § Module Naming. Never reorder by usage frequency — consistency builds muscle memory.
-- **MS3:** Module icons are monochrome. Color goes on the layer dot only — never on the icon glyph (inherited from Tojlo T3).
+- **MS2:** Module order follows the canonical list in `core/tojlo-design-system.md` § Module Naming. Never reorder by usage frequency — consistency builds muscle memory.
+- **MS3:** Module icons are monochrome. Colour goes on the layer dot only — never on the icon glyph (`core/tojlo-design-system.md` § Module Color Coding).
 - **MS4:** Selecting a module navigates to that module's root screen and sets it as the active context for the bottom tab bar.
 
 ---
 
 ## 2. Module-Aware Bottom Tab Bar
 
-The persistent bottom navigation for Tojlo mobile. Tabs change based on the active module.
+The persistent bottom navigation for Tojlo mobile; tabs change with the active module. Built on expo-router's `Tabs` (the scaffold's `src/app/(app)/_layout.tsx`), whose tab-bar library sets the bar's height and safe-area inset — do not hard-code them; read the height with `useBottomTabBarHeight()` where a component must sit above the bar.
 
 ### Structure
 
 ```
 ┌────────────────────────────────────────────────┐
-│ [Modules]  [Tab 1]  [Tab 2]  [Tab 3]  [More]  │  48px + safe area
+│ [Modules]  [Tab 1]  [Tab 2]  [Tab 3]  [More]  │  platform height + safe area
 └────────────────────────────────────────────────┘
 ```
 
-- **Height:** 48px content + safe area inset bottom
 - **Background:** `--surface-1`
 - **Border top:** 1px `--border`
 - **Fixed first tab:** "Modules" (grid icon) — opens the module switcher sheet. Always present regardless of active module.
 - **Tabs 1-3:** module-specific primary screens (e.g., OPS → Orders / Inventory / Suppliers). Defined per module.
 - **Fixed last tab:** "More" (ellipsis icon) — opens an action sheet with: Settings, Profile, Notifications, Help. Always present.
-- **Active tab:** icon + label in `--color-accent`. Inactive: `--text-muted`.
-- **Labels:** Inter 500, 11px, below icon. Always visible (no icon-only tabs — operators need labels for discoverability).
+- **Active tab:** icon and label in `--color-accent-text`. Inactive: `--text-muted`.
+- **Labels:** always shown, under the icon (TB2).
 
 ### Per-Module Tab Configurations
 
-Modules follow the canonical list from `tojlo-design-system.md` § Module Naming. Not all modules have mobile tabs — AUTH is a backend service, Dashboard is the home screen.
+Modules follow the canonical list in `core/tojlo-design-system.md` § Module Naming.
 
 | Module | Tab 1 | Tab 2 | Tab 3 |
 |---|---|---|---|
@@ -129,16 +119,16 @@ Modules follow the canonical list from `tojlo-design-system.md` § Module Naming
 
 ### Tab Bar Rules
 
-- **TB1:** Maximum 5 tabs total (Modules + 3 module tabs + More). Never 6+.
-- **TB2:** Tab labels are always visible — no icon-only tabs. B2B operators are not daily consumer app users; they need explicit labels.
-- **TB3:** The "Modules" tab always shows a badge with the count of modules that have pending attention items (unread messages, overdue tasks, failed workflows). Badge uses `--color-danger` background, white text, max "9+".
+- **TB1:** Maximum 5 tabs total (Modules + 3 module tabs + More). Never 6+ — Material caps its navigation bar at five, and Apple recommends three to five on iPhone, folding the rest into a More tab.
+- **TB2:** Tab labels are always visible — no icon-only tabs. Material requires a label on every destination; B2B operators need them for discoverability.
+- **TB3:** The "Modules" tab shows a badge with the count of modules that have pending attention items (unread messages, overdue tasks, failed workflows), max "9+" — `tabBarBadge`, styled through `tabBarBadgeStyle` with a `--color-danger` fill and `--color-danger-fg` text.
 - **TB4:** Switching modules via the module switcher updates tabs 1-3 immediately. No loading state for the tab bar itself — only the content area loads.
 
 ---
 
 ## 3. Module Card (Mobile)
 
-Adaptation of the web Module Card for mobile dashboard grids. Used on the Tojlo Home screen.
+Adaptation of the web Module Card (`core/tojlo-design-system.md` § Module Card) for the mobile home screen.
 
 ### Structure
 
@@ -151,20 +141,20 @@ Adaptation of the web Module Card for mobile dashboard grids. Used on the Tojlo 
 └─────────────────────────────────────┘
 ```
 
-- Uses the inherited list item anatomy (two-line, 64px) with these overrides:
-- **Leading:** 3px layer-color dot (not a module icon — too small at list-item scale)
-- **Title:** module name, Inter 500, uppercase, 11px, letter-spacing 1px, `--text-primary`
-- **Subtitle:** primary KPI (JetBrains Mono 400, 15px, `--text-primary`) + KPI label (Inter 400, 12px, `--text-muted`)
-- **Trailing:** status pill (Active/Syncing/Error) using inherited pill pattern + chevron
+- Uses the inherited list item anatomy (two-line, 64) with these overrides:
+- **Leading:** a 3 dot filled with the layer colour (not a module icon — too small at list-item scale)
+- **Title:** module name, body font 500, uppercase, 13, letter-spacing 1, `--text-primary`
+- **Subtitle:** primary KPI (mono font 400, 15, `--text-primary`) + KPI label (body font 400, 13, `--text-muted`)
+- **Trailing:** status pill (Active/Syncing/Error) using the inherited pill pattern + chevron
 - **Press:** navigates to module root (same as module switcher selection)
 
 ### Dashboard Grid (Home Screen)
 
 ```
 ┌────────────────────────────────────┐
-│ ← Tojlo                     [🔔]  │  ← large title header
+│ Tojlo                        [🔔]  │  ← large title header
 │                                    │
-│ Good morning, Özgür                │  ← greeting (Inter 400, 16px)
+│ Good morning, [first name]         │  ← greeting
 │                                    │
 │ ┌────────────────────────────────┐ │
 │ │ ● MAIL               Active › │ │  ← module card
@@ -173,10 +163,6 @@ Adaptation of the web Module Card for mobile dashboard grids. Used on the Tojlo 
 │ ┌────────────────────────────────┐ │
 │ │ ● OPS                Active › │ │
 │ │ 4 orders pending  ○ 2 overdue │ │
-│ └────────────────────────────────┘ │
-│ ┌────────────────────────────────┐ │
-│ │ ● HUB               Syncing › │ │
-│ │ 3 runs today ○ 1 failed       │ │
 │ └────────────────────────────────┘ │
 │                                    │
 │ Activity                           │  ← section header
@@ -187,31 +173,31 @@ Adaptation of the web Module Card for mobile dashboard grids. Used on the Tojlo 
 ```
 
 - **Single column** layout — module cards stack vertically
-- **Greeting:** personalized, Inter 400, 16px, `--text-body`. Time-aware: "Good morning" / "Good afternoon" / "Good evening"
-- **Module cards:** only show modules with pending attention (unread, overdue, failed). Quiet modules are collapsed into a "X modules — all clear" summary row at the bottom
-- **Activity section:** below module cards, uses the inherited list item anatomy with module attribution (see § Activity Feed)
+- **Greeting:** personalized, body font 400, 16, `--text-body`. Time-aware: "Good morning" / "Good afternoon" / "Good evening"
+- **Module cards:** only modules with pending attention (unread, overdue, failed). Quiet modules collapse into an "X modules — all clear" summary row at the bottom
+- **Activity section:** below the module cards, using the inherited list item anatomy with module attribution (§ 4)
 
 ### Module Card Rules
 
-- **MC1:** Module cards on the home screen show only modules with actionable status. Never show 12 cards — operators see what needs attention.
-- **MC2:** KPI values use JetBrains Mono for numeric alignment. Never Inter for numbers in module cards.
-- **MC3:** Status pills follow the semantic color system: Active = `--color-success`, Syncing = `--color-info`, Error = `--color-danger`, Inactive = `--text-muted`.
+- **MC1:** Module cards on the home screen show only modules with actionable status. Never show every module — operators see what needs attention.
+- **MC2:** KPI values use the mono font for numeric alignment. Never the body font for numbers in module cards.
+- **MC3:** Status pills follow the semantic slots: Active = success, Syncing = info, Error = danger (each pill a `--color-<state>-muted` fill with `--color-<state>-text` text), Inactive = `--text-muted`.
 - **MC4:** Tapping a module card navigates to the module root AND sets the bottom tab bar to that module's tabs.
 
 ---
 
 ## 4. Activity Feed (Mobile)
 
-Adaptation of the web Activity Feed for mobile. Module attribution is mandatory — every entry names the module that produced the event.
+Adaptation of the web Activity Feed Item (`core/tojlo-design-system.md` § Activity Feed Item) for mobile. Module attribution is mandatory — every entry names the module that produced the event.
 
 ### Structure
 
-Uses the inherited list item anatomy (two-line, 64px) with these specifics:
+Uses the inherited list item anatomy (two-line, 64) with these specifics:
 
-- **Leading:** module icon (20px, monochrome, `--text-muted`)
-- **Title line 1:** module label (Inter 500, uppercase, 10px, letter-spacing 1.5px, layer color) + event description (Inter 400, 14px, `--text-body`)
-- **Title line 2:** detail text (Inter 400, 13px, `--text-muted`)
-- **Trailing:** relative timestamp (Inter 400, 12px, `--text-muted`)
+- **Leading:** module icon (20, monochrome, `--text-muted`)
+- **Line 1:** module label (body font 500, uppercase, 13, letter-spacing 1.5, the layer colour's `-text` slot) + event description (body font 400, 14, `--text-body`)
+- **Line 2:** detail text (body font 400, 13, `--text-muted`)
+- **Trailing:** relative timestamp (body font 400, 13, `--text-muted`)
 
 ### Examples
 
@@ -228,22 +214,22 @@ Uses the inherited list item anatomy (two-line, 64px) with these specifics:
 
 ### Activity Feed Rules
 
-- **AF1:** Every activity entry MUST name the source module. "Workflow completed" alone is forbidden — "Tojlo HUB: Workflow completed" is required (inherited from Tojlo T19).
-- **AF2:** Module label uses the layer color (Core = accent, Intelligence = purple, Growth = secondary) — not `--text-muted`.
-- **AF3:** Activity feed is the "catch-all" surface. If a notification was missed, the activity feed has it. It is the permanent record.
+- **AF1:** Every activity entry MUST name the source module. "Workflow completed" alone is forbidden — the module label (`HUB`) or "Tojlo HUB:" in prose is required (`core/tojlo-design-system.md` § Activity Feed Item).
+- **AF2:** The module label uses its layer colour as text — `--color-accent-text`, `--color-ai-text` or `--color-warning-text` — not `--text-muted`.
+- **AF3:** The activity feed is the catch-all surface. If a notification was missed, the activity feed has it. It is the permanent record.
 - **AF4:** Tapping an activity entry navigates to the relevant record in the relevant module.
 
 ---
 
 ## 5. Embedded Module Frame (Mobile)
 
-When Tojlo embeds a third-party module (ERPNext for OPS, n8n for HUB, Wati for CHAT), the mobile app wraps it in a WebView with a Tojlo chrome header.
+When Tojlo embeds a third-party module (ERPNext for OPS, n8n for HUB, Wati for CHAT — `core/tojlo-design-system.md` § Module Naming), the app shows it in a `react-native-webview` `WebView` under the native stack header. The scaffold does not ship it: `npx expo install react-native-webview`.
 
 ### Structure
 
 ```
 ┌────────────────────────────────────┐
-│ ← OPS                   [⋮] [×]   │  ← Tojlo chrome header (44px)
+│ ← OPS                   [⋮] [×]   │  ← the native stack header
 ├────────────────────────────────────┤
 │                                    │
 │  [WebView: ERPNext content]        │  ← full-bleed WebView
@@ -252,47 +238,48 @@ When Tojlo embeds a third-party module (ERPNext for OPS, n8n for HUB, Wati for C
 └────────────────────────────────────┘
 ```
 
-- **Chrome header:** 44px, `--surface-1` background, 1px `--border` bottom
-  - Left: back arrow + module name (Inter 500, uppercase, 11px)
-  - Right: overflow (⋮) → action sheet (Refresh, Open in browser, Report issue) + close (×)
+- **Header:** the screen's native stack header (components pack § 5), configured through Stack `options` — never a hand-rolled bar
+  - `headerLeft`: a back button that runs EF2, then the module name (body font 500, uppercase, 13)
+  - `headerRight`: overflow (⋮) → action sheet (Refresh, Open in browser, Report issue) + close (×)
 - **WebView:** full-bleed, no padding. Renders the vendor's mobile-responsive web UI
-- **Loading:** show skeleton shimmer in the WebView area while loading. Never a blank white/black screen
-- **Error:** if WebView fails to load, show the standard error state (icon + "Failed to load [MODULE]" + "Retry" button) instead of the WebView
+- **Loading:** a skeleton shimmer in the WebView area while loading. Never a blank white or black screen
+- **Error:** if the WebView fails to load, show the standard error state (icon + "Failed to load [MODULE]" + "Retry" button) instead of the WebView
 
 ### Embedded Frame Rules
 
-- **EF1:** The Tojlo chrome header is always visible above the WebView. The vendor's own navigation bar must be hidden via CSS injection or URL parameters where the vendor allows it (inherited from Tojlo T5).
-- **EF2:** Back button in the chrome header navigates within the WebView history first. Only when WebView history is exhausted does it pop the native stack screen.
-- **EF3:** Pull-to-refresh on the WebView reloads the embedded content. Standard pull-to-refresh indicator.
+- **EF1:** The Tojlo header is always visible above the WebView. Hide the vendor's own navigation bar with `injectedJavaScript` (its before-content variant is experimental on Android) or URL parameters where the vendor offers them — `core/tojlo-design-system.md` § Embedded Module Frame.
+- **EF2:** Back navigates within the WebView first: track `canGoBack` from `onNavigationStateChange` and call the WebView's `goBack()`; only when its history is exhausted does it pop the native stack screen. A custom `headerLeft` does not stop the iOS swipe-back gesture, so set `gestureEnabled: false` while the WebView can go back, and handle Android back the same way through `BackHandler`.
+- **EF3:** Pull-to-refresh reloads the embedded content. `pullToRefreshEnabled` is documented for iOS only; on Android offer Refresh in the overflow sheet.
 - **EF4:** Deep links into embedded modules open the WebView at the correct URL path. Never show the module root and make the user navigate.
-- **EF5:** Status bar text in the chrome header reflects connection state: "Connected" (hidden, default), "Syncing..." (shown, `--color-info`), "Offline" (shown, `--color-danger`).
+- **EF5:** A connection line in the header reflects state: "Connected" (hidden, the default), "Syncing..." (shown, `--color-info-text`), "Offline" (shown, `--color-danger-text`).
 
 ---
 
 ## 6. Operator Quick Actions (Mobile)
 
-A floating action button (FAB) for the most common operator actions, scoped to the active module.
+A floating action button (FAB) for the most common operator actions, scoped to the active module. The FAB is Material's pattern; Apple's guidelines have none, so on iOS it is a house choice kept for one muscle memory across platforms — one per screen, as Material asks.
 
 ### Structure
 
 ```
                               ┌─────┐
-                              │  +  │  ← FAB, 56px circle
+                              │  +  │  ← FAB, 56
                               └─────┘
-                         16px from bottom, 16px from right
+                         16 above the tab bar, 16 from the edge
 ```
 
-- **Size:** 56px circle
-- **Background:** `--color-accent`
-- **Icon:** Lucide Plus, 24px, white
-- **Shadow:** `0 4px 12px rgba(0,0,0,0.3)` — one of the few places shadow is used (FABs need elevation to separate from content)
-- **Position:** fixed, 16px from right edge, 16px above bottom tab bar
+- **Size:** 56, a rounded square — Material's current FAB shape (the circle was the older one)
+- **Fill:** `--color-accent`
+- **Icon:** Lucide `Plus` (core Tojlo's icon library — `lucide-react-native`, not in the scaffold; its `react-native-svg` dependency is), 24, `--color-accent-fg`
+- **Elevation:** no shadow in dark mode — the accent fill on the surfaces is the separation (`design-system-template.md` § Visual Rules — no shadows in dark mode); in light mode the brand's subtle shadow through the `boxShadow` style (New Architecture, both platforms)
+- **Position:** fixed, 16 from the trailing edge, 16 above the bottom tab bar
+- **Accessibility:** `accessibilityRole="button"` and an `accessibilityLabel` naming the action ("New order")
 
 ### Behavior
 
-- **Single tap:** if the module has one primary creation action (MAIL → "Compose", CHAT → "New conversation"), execute it directly — navigate to the creation screen.
-- **Single tap (multi-action module):** if the module has 2-3 creation actions, open an **action sheet** with options. Example: OPS → "New order" / "New product" / "New supplier".
-- **Long press:** always opens the action sheet with all available quick actions for the active module.
+- **Single tap:** runs the module's primary action — the table's first column (MAIL → "Compose", OPS → "New order") — and opens its creation screen.
+- **Long press:** opens an **action sheet** with the primary and secondary actions. A module with no secondary action (MAIL) has no sheet; long press does what a tap does.
+- **Embedded modules (OPS, HUB, CHAT):** every action, from a tap or the sheet, opens the module's WebView at the vendor's create URL for that action (EF4) — there is no native creation screen.
 
 ### Per-Module Quick Actions
 
@@ -307,11 +294,13 @@ A floating action button (FAB) for the most common operator actions, scoped to t
 | **REACH** | New prospect | New sequence |
 | **OUTREACH** | New campaign | New template |
 
+A module with no row here (PORTAL, WEB, MARKETS) has no FAB.
+
 ### FAB Rules
 
-- **FAB1:** FAB is visible only on module root screens and list screens. Hide on detail screens, forms, and settings.
-- **FAB2:** FAB hides on scroll-down (content is more important), shows on scroll-up or scroll-stop.
-- **FAB3:** FAB must not overlap the bottom tab bar. Position it 16px above the tab bar's top edge.
+- **FAB1:** The FAB is visible only on module root screens and list screens. Hide it on detail screens, forms, and settings.
+- **FAB2:** The FAB stays in place on scroll — Material's rule for a regular FAB; only an extended FAB (icon + label) may collapse to the icon on scroll.
+- **FAB3:** The FAB must not overlap the bottom tab bar. Position it 16 above the tab bar's top edge, using `useBottomTabBarHeight()`.
 - **FAB4:** If the user lacks permission to create records in the active module, hide the FAB entirely — don't show a disabled button.
 
 ---
@@ -325,56 +314,44 @@ Extends `ocoron-mobile-design-system.md` § Swipeable Onboarding with Tojlo-spec
 1. **Welcome** — Tojlo wordmark + "The B2B Operating System" tagline. No illustration needed — the wordmark is the visual.
 2. **Value prop 1** — "Twelve modules. One login." + brief description of the unified platform.
 3. **Value prop 2** — "AI in every workflow." + brief description of Tojlo TI.
-4. **Module selection** — "Which modules do you use?" Grid of 12 module icons with checkboxes. Pre-select the modules provisioned for this tenant. This is informational (personalization), not gating — all provisioned modules are accessible regardless.
+4. **Module selection** — "Which modules do you use?" Grid of module icons with checkboxes. Pre-select the modules provisioned for this tenant. This is informational (personalization), not gating — all provisioned modules are accessible regardless.
 5. **Get started** — "Your workspace is ready." + "Open Dashboard" CTA button.
 
 ### Onboarding Overrides
 
-- Page 1 uses the Tojlo wordmark (SVG asset, not text font) centered at 80px width
-- Page 4 (module selection) uses the module switcher grid layout (3 columns, 80px cells) but with checkboxes
+- Page 1 uses the Tojlo wordmark (SVG asset, not text font) centred at 80 wide
+- Page 4 (module selection) uses the module switcher grid layout (3 columns, 80 cells) but with checkboxes
 - Final CTA reads "Open Dashboard" (not "Get started") — domain-specific
-- Footer on every page: "Tojlo, by Ocoron" in Inter 400, 12px, `--text-muted`
+- Footer on every page: "Tojlo, by Ocoron" in body font 400, 13, `--text-muted`
 - All inherited ON1-ON6 rules apply (skippable, max 5 pages, no auto-advance)
 
 ---
 
 ## 8. Push Notification Grouping
 
-Tojlo groups push notifications by module to prevent notification fatigue from 12 modules.
+Tojlo groups push notifications by module so the modules do not feel like separate apps. Push uses `expo-notifications`, which the scaffold does not ship (`npx expo install expo-notifications`).
 
 ### Grouping Rules
 
-- **Thread ID:** each module gets a unique notification thread/group ID. OS groups notifications per module.
-- **Summary:** when 3+ notifications from the same module are pending, collapse into a summary: "Tojlo MAIL — 5 new messages"
-- **Icon:** Tojlo monogram (T mark) for all push notifications. Module name in the notification title provides context.
+- **iOS — one stack per module:** send each module's notifications with its own `threadId` (Expo's push message; APNs `thread-id`), and iOS groups each thread by itself.
+- **Android — one channel per module:** send with the module's `channelId` (created with `setNotificationChannelAsync`). A channel is the user's settings switch (PN2), not a visual stack: Android bundles all of the app's notifications together once four or more arrive, and Expo's push message has no per-module group key.
+- **Summary:** when 3+ notifications from the same module are pending, the server replaces them with one summary — "Tojlo MAIL — 5 new messages" — sent with `collapseId` (both platforms) or Android's `tag` set to the module; it is never an OS group
+- **Icon:** the Tojlo monogram (T mark) for all push notifications. The module name in the title provides context.
 - **Title format:** "Tojlo [MODULE]: [event summary]" — e.g., "Tojlo OPS: New order received"
-- **Body:** one-line detail. Deep link payload routes to the relevant record.
+- **Body:** one-line detail. The deep-link payload routes to the relevant record.
 
 ### Push Rules
 
 - **PN1:** Never send push notifications from more than 3 modules within a 1-minute window. Queue and stagger. Operators will disable notifications entirely if they feel bombarded.
-- **PN2:** Module-level notification preferences: operators can mute individual modules in Settings → Notifications. Muting a module suppresses push but keeps in-app activity feed entries.
-- **PN3:** "Quiet hours" setting: suppress all push notifications during configured hours (default: 22:00-08:00 user-local). Critical alerts (system down, payment failed) bypass quiet hours.
-- **PN4:** Push notification title always includes the module name (inherited from Tojlo T19). "[MODULE]: [event]" — never just "[event]".
-
----
-
-## Scaffold Adaptation Note
-
-This file extends `ocoron-mobile-design-system.md` for the Tojlo product specifically. The inheritance chain is:
-
-```
-ocoron-design-system.md (tokens)
-  └── tojlo-design-system.md (brand + module overrides)
-  └── ocoron-mobile-design-system.md (generic mobile patterns)
-        └── tojlo-mobile-design-system.md (this file — Tojlo mobile specifics)
-```
+- **PN2:** Per-module mute in Settings → Notifications: muting a module suppresses its push but keeps its in-app activity feed entries. One Android channel per module makes the OS's own per-channel switch match this setting.
+- **PN3:** Quiet hours belong to the OS first — Focus on iOS, Do Not Disturb on Android, both set by the user. An in-app quiet-hours setting (default 22:00-08:00 user-local) may suppress further. An event that needs immediate action (a system outage, a failed payment, an account-security issue) is sent at the `time-sensitive` interruption level (iOS; Apple's bar is an event happening now or within the hour), which breaks through Focus only if the user allows it; never `critical`, which Apple reserves for health and safety, and never `time-sensitive` for marketing.
+- **PN4:** The push title always includes the module name. "[MODULE]: [event]" — never just "[event]".
 
 ---
 
 ## Rules Summary (Quick Reference)
 
-All Ocoron mobile rules (LI1-LI6, BS1-BS5, AS1-AS5, SR1-SR5, NH1-NH4, ON1-ON6, MF1-MF6) are inherited. Tojlo adds:
+All 37 components-pack rules (LI1-LI6, BS1-BS5, AS1-AS5, SR1-SR5, NH1-NH4, ON1-ON6, MF1-MF6) are inherited. Tojlo adds:
 
 | ID | Rule |
 |---|---|
@@ -387,32 +364,32 @@ All Ocoron mobile rules (LI1-LI6, BS1-BS5, AS1-AS5, SR1-SR5, NH1-NH4, ON1-ON6, M
 | TB3 | Modules tab badge shows pending attention count |
 | TB4 | Module switch updates tabs immediately |
 | MC1 | Home shows only modules with actionable status |
-| MC2 | KPI values use JetBrains Mono |
-| MC3 | Status pills follow semantic color system |
+| MC2 | KPI values use the mono font |
+| MC3 | Status pills follow the semantic slots |
 | MC4 | Module card tap navigates + sets tab bar |
 | AF1 | Every activity entry names the source module |
-| AF2 | Module label uses layer color |
+| AF2 | Module label uses the layer colour as text |
 | AF3 | Activity feed is the permanent record |
 | AF4 | Activity tap navigates to relevant record |
-| EF1 | Tojlo chrome header always visible above WebView |
+| EF1 | Tojlo header always visible above WebView |
 | EF2 | Back navigates WebView history first, then native stack |
-| EF3 | Pull-to-refresh reloads embedded content |
+| EF3 | Pull-to-refresh reloads embedded content (iOS; Refresh in the sheet on Android) |
 | EF4 | Deep links open correct WebView URL path |
-| EF5 | Status bar reflects connection state |
+| EF5 | Header connection line reflects state |
 | FAB1 | FAB on root/list screens only |
-| FAB2 | FAB hides on scroll-down, shows on scroll-up |
+| FAB2 | FAB stays in place on scroll |
 | FAB3 | FAB above tab bar, never overlapping |
 | FAB4 | Hide FAB if user lacks create permission |
 | PN1 | Max 3 modules pushing within 1 minute |
-| PN2 | Per-module mute in notification settings |
-| PN3 | Quiet hours with critical alert bypass |
+| PN2 | Per-module mute, one Android channel per module |
+| PN3 | OS Focus/DND first; time-sensitive at most, never critical |
 | PN4 | Push title always includes module name |
 
 ## Draft Persistence — nothing typed or AI-generated is EVER lost (fleet mandate 2026-08-13)
 
 Every form/wizard/editor/AI-populated surface persists its full working state **continuously on
-change** (debounce ≤1s + flush on blur/hide/background) to MMKV/AsyncStorage (drafts only — tokens stay in secure storage); **restore is automatic and
-silent** on every return path (refresh, Back, reopened tab/app, crash, days-old session) — the
+change** (debounce ≤1s + flush on blur/hide/background) to MMKV (the scaffold's `src/lib/storage.tsx`; drafts only — tokens stay in `expo-secure-store`); **restore is automatic and
+silent** on every return path (Back, reopened app, crash, days-old session) — the
 user continues down to the last letter typed. The draft clears on exactly ONE event: successful
 creation/submission of the entity (or explicit user discard). Canonical detail:
 `core/design-system-template.md` § Save Behavior.
