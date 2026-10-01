@@ -107,7 +107,7 @@ def _cites(text: str) -> list[tuple[str, str]]:
     pack. A `§` inside a code span (`agents-fabrik.md § Supabase`) is not read — the bound is stated."""
     cites: list[tuple[str, str]] = []
     prev_end, prev_target = -1, ""
-    for m in re.finditer(r"§ (?=[A-Z0-9])", text):
+    for m in re.finditer(r"§ (?=[A-Za-z0-9])", text):
         line_start = text.rfind("\n", 0, m.start()) + 1
         if text[line_start : m.start()].count("`") % 2:
             continue
@@ -141,7 +141,7 @@ def test_no_version_literals() -> None:
         r"|\bChrome v?\d{2,3}\b|\(Chrome \d"  # Chrome 137, Chrome v137, (Chrome 121+)
         r"|[≥>]=?\s?\d+(?:\.\d+)?"  # >=1.59, ≥ 2
         r"|@\d+\.\d+"  # size-limit@11.0
-        r"|\b[a-z][\w./-]*[a-z] \d+\.\d+\b",  # wxt 0.19, @playwright/test 1.59
+        r"|\b[A-Za-z][\w./-]*[A-Za-z] \d+\.\d+\b",  # wxt 0.19, @playwright/test 1.59
         body,
     )
     assert not found, f"version literals in the pack: {found}"
@@ -198,7 +198,10 @@ def test_scaffold_matches_the_pack(project: Path) -> None:
     main = next((project / "server" / "src").glob("*/main.py")).read_text(encoding="utf-8")
     assert "/metrics" not in main, "server/ now serves /metrics: update § Two-Faced Architecture"
     pack = _pack()
-    assert "`extension/src/entrypoints/popup/`" in pack and "`extension/src/locales/<lang>.json`" in pack
+    assert (
+        "`extension/src/entrypoints/popup/`" in pack
+        and "`extension/src/locales/<lang>.json`" in pack
+    )
     assert "no `/metrics`" in pack
 
 

@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "file 42 \u2014 chrome-ext/70-chrome-ext.md: \u00a7 Distribution Model still says the store makes debugger and broad host access 'unavailable' (the store's rule is narrowest permission for one purpose, broad access reviewed longer \u2014 D-483 ledger oc-03), \u00a7 Epic Decomposition still names the 'mega-epic planner' (70:347; the consumers are /fabrik-vision and /fabrik-epics), the MV3/WXT/crxjs facts against the live Chrome docs, emit a chrome-extension scaffold to ground them. Then 89-extension-launch-checklist.md (add the trader declaration step, D-483 ledger lg-07), ai/* (10), desktop (2), core/90-bootstrap",
+  "next": "file 43 \u2014 chrome-ext/89-extension-launch-checklist.md: add the EU trader/non-trader declaration step (D-483 ledger lg-07), the promo-tile size and the description limit the planning and code packs no longer copy (D-486 ledger op-08), a developer-mode release checklist beside the store one (D-486: wxt zip, install guide, version manifest, manifest key, update checker), and the store facts against the live Chrome docs. Then ai/* (10), desktop (2), core/90-bootstrap",
   "note": "",
   "owner": "intel",
   "priority": 2,
@@ -19,5 +19,5 @@
   "tags": [
     "rules"
   ],
-  "title": "Rules currency pass: evaluate the 15 packs still missing currency_pass: (42 of 57 done; file 41 chrome-ext/00-domain-chrome-ext landed 2026-10-01, D-483)"
+  "title": "Rules currency pass: evaluate the 14 packs still missing currency_pass: (43 of 57 done; file 42 chrome-ext/70-chrome-ext landed 2026-10-02, D-486)"
 }

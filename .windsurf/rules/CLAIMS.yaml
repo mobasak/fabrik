@@ -2625,3 +2625,59 @@ claims:
     verify: "https://glitchtip.com/sdkdocs/javascript ; https://docs.sentry.io/platforms/javascript/migration/v8-to-v9.md (exa, 2026-10-02; ledger tl-06, oc-02)"
     window_days: 365
     last_verified: 2026-10-02
+  - id: cws-fee-and-invited-members
+    pack: chrome-ext/89-extension-launch-checklist.md
+    kind: policy
+    claim: "Creating a Chrome Web Store publisher costs a one-time registration fee; members invited to an existing publisher with a role join at no cost"
+    verify: "https://developer.chrome.com/docs/extensions/whats-new ; https://developer.chrome.com/docs/webstore/register (exa + WebFetch, 2026-10-02; ledger rs-01)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: cws-2sv-required
+    pack: chrome-ext/89-extension-launch-checklist.md
+    kind: policy
+    claim: "2-Step Verification is required on a Chrome Web Store developer account before it can publish or update an extension"
+    verify: "https://developer.chrome.com/docs/webstore/program-policies/two-step-verification (exa + brave, 2026-10-02; ledger rs-02)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: cws-two-extension-slots
+    pack: chrome-ext/89-extension-launch-checklist.md
+    kind: policy
+    claim: "A new Chrome Web Store publisher may publish at most two extensions (themes uncapped); an increase is offered at the limit and may be refused"
+    verify: "https://developer.chrome.com/docs/webstore/publish ; https://developer.chrome.com/blog/cws-review-updates-2026 (WebFetch + exa, 2026-10-02; ledger oc-01, op-01)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: cws-listing-images
+    pack: chrome-ext/89-extension-launch-checklist.md
+    kind: policy
+    claim: "A store listing needs a 128x128 icon, one to five 1280x800 or 640x400 screenshots and a 440x280 small promo tile; the marquee is optional; the manifest description is at most 132 characters"
+    verify: "https://developer.chrome.com/docs/webstore/images (exa + WebFetch, 2026-10-02; ledger rs-05)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: cws-privacy-tab-five-answers
+    pack: chrome-ext/89-extension-launch-checklist.md
+    kind: policy
+    claim: "The dashboard privacy tab asks for a single purpose, a justification per permission, a remote-code declaration, data usage with the Limited Use certifications, and a privacy policy link"
+    verify: "https://developer.chrome.com/docs/webstore/cws-dashboard-privacy (exa + WebFetch, 2026-10-02; ledger rs-07)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: cws-review-time
+    pack: chrome-ext/89-extension-launch-checklist.md
+    kind: policy
+    claim: "Chrome Web Store review usually completes within a few days and can take weeks; every submission gets the same review; only a declarativeNetRequest-static-ruleset-only update can skip review"
+    verify: "https://developer.chrome.com/docs/webstore/review-process ; https://developer.chrome.com/docs/webstore/skip-review (exa + WebFetch, 2026-10-02; ledger rs-08, op-02)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: cws-partial-rollout
+    pack: chrome-ext/89-extension-launch-checklist.md
+    kind: policy
+    claim: "Partial rollout is available only to items with more than 10,000 seven-day active users; a new version stops a rollout in progress"
+    verify: "https://developer.chrome.com/docs/webstore/update (exa + WebFetch, 2026-10-02; ledger rs-09)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: cws-new-permission-disables
+    pack: chrome-ext/89-extension-launch-checklist.md
+    kind: policy
+    claim: "An update that adds a permission triggering a warning disables the extension for existing users until each accepts it"
+    verify: "https://developer.chrome.com/docs/extensions/develop/concepts/permission-warnings (exa + WebFetch, 2026-10-02; ledger rs-11)"
+    window_days: 180
+    last_verified: 2026-10-02
