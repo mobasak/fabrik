@@ -182,7 +182,9 @@ moved onto the three-agent model today (W-d89b1c62), every one of them would re-
 before the local base moves, so a refused request leaves origin, the local base and the main checkout byte-identical;
 (2) the local base moves only by CAS after the tests pass, origin only by fast-forward push after that; (3) the main
 checkout's untracked, dirty, staged and deleted-while-dirty files are never overwritten — any such collision refuses in
-(a), and a path that changes after (a) is skipped in (e), never written; (4) only pure-insertion ledger conflicts are
+(a), and a path that changes after (a) is never written in (e) — the owner's working copy is kept, its index entry
+realigned to the merge, and the path listed in the reply with the warning that a later `git commit -a` would revert the
+merge there; (4) only pure-insertion ledger conflicts are
 auto-resolved; (5) no stash, no `--force`, no `git add -A`, no whole-index reset; (6) one merge run per repo at a time
 (the merge lock), every claimed request recorded with its phase, and a stranded one resumed from that phase, so no
 request is merged twice or lost.

@@ -42,7 +42,7 @@ the spec section it implements and restates nothing that section settles.
 | T04 | The Stop hook holds a merge owner with a waiting request | T03 | ⛓️ | ✅ | squash of worktree-agent-a5dabb83737b0534f |
 | T05a | The project contract: finished work is a request | T02 | ⛓️ | ✅ | squash of worktree-agent-a3dfba32a61067560 |
 | T05b | The hub contract: the same finish duty | T05a | ⛓️ | ✅ | squash of worktree-agent-ac9bf02c69b237079 |
-| T06 | Integration: landing docs, distribution, fabrik-lib, the live run, receipt | T03, T04, T05b | ⛓️ | ⬜ | |
+| T06 | Integration: landing docs, distribution, fabrik-lib, the live run, receipt | T03, T04, T05b | ⛓️ | ✅ | the orchestrator, in the main checkout |
 
 ## Merge Order
 

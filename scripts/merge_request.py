@@ -946,7 +946,9 @@ def _build(ctx: _Ctx, wt: Path, other: str, message: str, base: str) -> str:
                 raise ConflictError([path], str(exc)) from exc
             (wt / path).write_bytes(_encode(text))
             _gitc(wt, "add", "--", path)
-        _gitc(wt, "commit", "--no-edit", "-q", timeout=TOOL_TIMEOUT_S)
+        # The request's own message, never `--no-edit`: that reuses git's MERGE_MSG, whose
+        # `# Conflicts:` comment block `commit` keeps verbatim when no editor runs (V9).
+        _gitc(wt, "commit", "-q", "-m", message, timeout=TOOL_TIMEOUT_S)
     new = _gitc(wt, "rev-parse", "HEAD").strip()
     # O9: a merge that makes two DECISIONS rows share an id is refused; ids already duplicated
     # on the base are not this request's doing.
