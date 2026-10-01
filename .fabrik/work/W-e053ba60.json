@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: Resize the /fabrik-task lane so a feature addition fits it; reserve the spec chain for MODULES. SUPERSEDES my request 01M3WJ6B (same subject; this is the measured, adjudicated version). Operator, 2026-10-01: \"fabrik-task must cover more work. this is very limited\" / \"for a feature addition fab"
 }
