@@ -154,7 +154,7 @@ du -sh /var/lib/docker/containers/*
 
 **Symptom:** `docker compose ps` shows the container as `Up (healthy)` (pre-2026-05-30 the same was visible in the Coolify UI), but the orchestrator rolls the deploy back with a 404. Curl-ing the live URL works.
 
-**Cause (historical):** Pre-2026-04-28, the verifier read `spec["healthcheck"]["path"]` but the spec generator emitted `health.path`. The silent fallback was `/health`. For any scaffold type whose healthcheck wasn't `/health` (`saas-skeleton`, `static-site`, `node-api`, `file-api` all use `/api/health`; `docusaurus` uses `/docs/intro`), the verifier always probed `/health` and 404'd. Fixed in B23 (see `CHANGELOG.md [Unreleased]` and Lesson 32).
+**Cause (historical):** Pre-2026-04-28, the verifier read `spec["healthcheck"]["path"]` but the spec generator emitted `health.path`. The silent fallback was `/health`. For any scaffold type whose healthcheck wasn't `/health` (`saas-skeleton`, `static-site`, `node-api`, `file-api` all use `/api/health`; `docusaurus` uses `/docs/intro/`), the verifier always probed `/health` and 404'd. Fixed in B23 (see `CHANGELOG.md [Unreleased]` and Lesson 32).
 
 **If you still see this:** verify the spec on disk matches the verifier's read site:
 

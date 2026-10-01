@@ -304,7 +304,7 @@ Every `fabrik apply` writes `.fabrik/state/<id>.json` — see [Deploy State Stor
 
 ### Technical Details
 
-- **Orchestrator:** `src/fabrik/orchestrator/` — `deployer.py` (state machine), `infrastructure.py` (registrar dispatch), `rollback.py` (reverse cleanup), `secrets.py`, `verifier.py`
+- **Orchestrator:** `src/fabrik/orchestrator/` — `deployer_ssh.py` (SSH + Docker Compose deploys), `infrastructure.py` (registrar dispatch), `rollback.py` (reverse cleanup), `secrets.py`, `verifier.py`
 - **Drivers:** `src/fabrik/drivers/` — 20+ integrations (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus, cloudflare, dns, ssh, r2, supabase, etc.) plus archived legacy `coolify` driver for `fabrik status`/`logs` against pre-2026-05-30 services
 - **Spec loader:** `src/fabrik/spec_loader.py` — YAML parsing, shape validation, template merging
 - **State:** `src/fabrik/state.py` — 8-field manifest written after each successful apply
@@ -493,7 +493,7 @@ fabrik scaffold my-project --type python-api
 
 **Output trailer:** Every successful scaffold ends with a `# Next: cd /opt/<name>; open Traycer …` hint pointing at the Traycer-managed workflow (T1-02 G-B4).
 
-**Project Types:** `python-api`, `python-api-gpu`, `saas-skeleton`, `node-api`, `file-api`, `file-worker`, `wordpress`, `docusaurus`, `chrome-extension`, `mobile-app`, `desktop-app`, `static-site`
+**Project Types:** `python-api`, `python-api-gpu`, `saas-skeleton`, `node-api`, `file-api`, `file-worker`, `wordpress`, `docusaurus`, `chrome-extension`, `office-extension`, `mobile-app`, `desktop-app`, `static-site`
 
 </details>
 

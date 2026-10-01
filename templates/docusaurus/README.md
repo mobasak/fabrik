@@ -29,37 +29,19 @@ docs.product.com/
 ## Usage
 
 ```bash
-# Create docs site for a SaaS product
-fabrik new my-product-docs --template=docusaurus
+# Create a docs site for a SaaS product (writes /opt/my-product-docs and its spec)
+fabrik scaffold my-product-docs --type docusaurus
 
-# Edit spec
-vim sites/my-product-docs.yaml
+# Review the spec
+vim specs/services/my-product-docs.yaml
 
-# Deploy
-fabrik apply sites/my-product-docs.yaml
+# Deploy (from the hub)
+fabrik apply specs/services/my-product-docs.yaml
 ```
 
-## Spec Options
+## Site options
 
-```yaml
-name: my-product-docs
-template: docusaurus
-domain: docs.myproduct.com
-
-openapi:
-  spec_url: https://api.myproduct.com/openapi.json
-  # Or local file
-  spec_file: ./openapi.yaml
-
-features:
-  blog: false  # Optional changelog
-  search: true
-  versioning: false  # Enable for multi-version docs
-
-theme:
-  primary_color: "#2563eb"
-  logo: ./static/logo.svg
-```
+The deploy spec carries no docusaurus-specific keys: blog, OpenAPI docs, theme and navbar are set in `docusaurus.config.js` (and the OpenAPI spec file it points at, `./openapi.yaml` by default). Search is Pagefind, built into every image.
 
 ## Deployment
 
