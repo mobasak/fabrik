@@ -395,6 +395,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/kilo-benchmarks/tests/test_golden_parity.py": "no-write: test fixture — exercises capture_golden.py's FABRIK_ROOT handling via `cg.FABRIK_ROOT`, not its own",
     "scripts/kilo-benchmarks/tests/test_pool_eval_pause.py": "no-write: test fixture — synthesises a FABRIK_ROOT= line for a subprocess probe, not its own literal",
     "scripts/kilo-benchmarks/update_gateway_counts.py": "no-write: `FABRIK_ROOT = SCRIPT_DIR.parent.parent` — already worktree-relative",
+    "scripts/merge_request.py": "no-write: `DEFAULT_DECISIONS_PY` is the hub's absolute owner resolver it EXECUTES (D-466) and `HUB_CHECKOUT` is an identity compare gating the governance sync; its writes go under the repo's git common dir or the target main checkout",
     "scripts/rivals_run.py": "no-write: `HUB_LIBS = Path('/opt/fabrik/libs')` is a READ-side import path for the vendored subagents beat; its own report output is written relative to the target repo",
     "scripts/scratch_sweep.py": "no-write: sweeps/removes only untracked scratch paths (CLAUDE.md § EXIT) — the literal is a comparison base for classifying paths, not a write root",
     "scripts/sysadmin/liveness_audit.py": "no-write: the matched text is a quoted STRING describing a symptom found in ANOTHER script (this audit tool's own finding text), not its own literal",
