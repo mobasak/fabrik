@@ -7,6 +7,7 @@ files with `versions` and `name` in its context.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -374,17 +375,101 @@ def test_spec_generator_health_path_is_the_slashed_intro() -> None:
     assert spec.health.path == "/docs/intro/"
 
 
-def test_scaffold_dockerignore_keeps_the_docs_in_the_build_context(scaffolded: Path) -> None:
+def _ignored(rules: list[str], path: str) -> bool:
+    """Whether a .dockerignore rule set excludes ``path`` — `*` and `?` stay inside one segment,
+    `**` spans segments, and a rule that matches a parent directory excludes everything below it."""
+    parts = path.split("/")
+    for rule in rules:
+        body = rule.strip("/")
+        pattern = "".join(
+            ".*"
+            if tok == "**"
+            else "[^/]*"
+            if tok == "*"
+            else "[^/]"
+            if tok == "?"
+            else re.escape(tok)
+            for tok in re.split(r"(\*\*|\*|\?)", body)
+            if tok
+        )
+        if any(re.fullmatch(pattern, "/".join(parts[:n])) for n in range(1, len(parts) + 1)):
+            return True
+    return False
+
+
+def test_scaffold_dockerignore_keeps_every_build_input(scaffolded: Path) -> None:
     # The generic .dockerignore drops `docs/` and `*.md` — a docusaurus site's content — and the
     # builder then fails with "The docs folder does not exist" (Phase B review O2, reproduced by a
-    # real docker build). Secrets, node_modules and build output stay out.
-    rules = {
+    # real docker build). Every file the build reads is checked against every rule, so any spelling
+    # of that exclusion (`/docs`, `docs/**`, `**/*.md`, `src`) fails here (closing pass C2).
+    rules = [
         ln.strip()
         for ln in (scaffolded / ".dockerignore").read_text().splitlines()
         if ln.strip() and not ln.lstrip().startswith("#")
-    }
-    assert not rules & {"docs/", "docs", "*.md", "src/", "static/"}, rules
-    assert {".env", "node_modules/", "build/", ".docusaurus/", ".git/"} <= rules, rules
+    ]
+    inputs = [
+        f.relative_to(scaffolded).as_posix()
+        for top in ("docs", "src", "static")
+        for f in (scaffolded / top).rglob("*")
+        if f.is_file()
+    ] + ["docusaurus.config.js", "sidebars.js", "package.json", "nginx.conf"]
+    assert any(p.startswith("docs/") for p in inputs) and any(p.startswith("src/") for p in inputs)
+    assert [p for p in inputs if _ignored(rules, p)] == []
+    # Secrets, dependencies, build output and local data stay out of the build context (C4).
+    for path in (".env", ".env.local", "node_modules/x/index.js", "build/index.html", ".git/HEAD",
+                 "data/app.db", "backups/dump.sql", "logs/app.log"):  # fmt: skip
+        assert _ignored(rules, path), path
+
+
+def test_matcher_reads_the_spellings_the_guard_must_catch() -> None:
+    # The guard above is only as good as `_ignored`: each spelling of "drop the docs" must match.
+    for rule in ("docs", "/docs", "docs/", "docs/**", "docs/*", "**/*.md", "**/intro.md"):
+        assert _ignored([rule], "docs/intro.md"), rule
+    # Docker anchors a pattern at the context root: `*.md` drops README.md, not docs/intro.md.
+    assert _ignored(["*.md"], "README.md") and not _ignored(["*.md"], "docs/intro.md")
+    assert not _ignored(["*.md"], "src/pages/index.js")
+
+
+def test_scaffold_does_not_publish_the_internal_docs_trees(scaffolded: Path) -> None:
+    # The scaffold and the governance sync fill docs/reference, docs/development, docs/operations
+    # and docs/archive with internal Fabrik material (the operator's AI vendor access notes, the
+    # /opt project catalog with every dev URL). Docusaurus publishes the whole docs/ tree, so each
+    # of those files must fall under a content-docs exclude (closing pass C1).
+    from fabrik.scaffold import _DOCUSAURUS_UNPUBLISHED_DIRS
+
+    cfg = (scaffolded / "docusaurus.config.js").read_text()
+    start = cfg.index("exclude: [")
+    excludes = re.findall(r"'([^']+)'", cfg[start : cfg.index("]", start)])
+    for d in _DOCUSAURUS_UNPUBLISHED_DIRS:
+        assert f"{d}/**" in excludes, d
+    nested = [
+        f.relative_to(scaffolded / "docs").as_posix()
+        for f in (scaffolded / "docs").rglob("*.md")
+        if f.parent != scaffolded / "docs"
+    ]
+    assert "reference/kilo/AI_VENDOR_ACCESS.md" in nested, nested
+    assert [p for p in nested if p.split("/", 1)[0] not in _DOCUSAURUS_UNPUBLISHED_DIRS] == []
+
+
+def test_every_synced_docs_subtree_is_unpublished() -> None:
+    # The sync adds files after the scaffold, so the scaffold's own tree is not the whole list: every
+    # docs/ subtree the governance sync writes must be unpublished as well.
+    import importlib.util
+
+    from fabrik.scaffold import _DOCUSAURUS_UNPUBLISHED_DIRS, FABRIK_ROOT
+
+    spec = importlib.util.spec_from_file_location(
+        "manifest", FABRIK_ROOT / "scripts" / "fabrik_synced_manifest.py"
+    )
+    assert spec and spec.loader
+    manifest = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(manifest)
+    dests = set(
+        re.findall(r"""['"]docs/([^'"]+)/[^'"]*['"]""", Path(manifest.__file__).read_text())
+    )
+    tops = {d.split("/", 1)[0] for d in dests}
+    assert tops, "the manifest names no docs/ subtree — the parse is wrong"
+    assert tops <= set(_DOCUSAURUS_UNPUBLISHED_DIRS), tops - set(_DOCUSAURUS_UNPUBLISHED_DIRS)
 
 
 def test_engines_floor_follows_the_registry_through_both_emitters(

@@ -323,6 +323,18 @@ _DOCUSAURUS_UNPUBLISHED_DOCS: tuple[str, ...] = (
     "data-contract.md",
 )
 
+# Whole docs/ SUBTREES the scaffold and the governance sync fill with internal Fabrik material
+# (SHARED_DIRS; scripts/fabrik_synced_manifest.py): reference/kilo carries the operator's AI vendor
+# access notes, reference/opt-project-catalog.md every /opt project and its dev URL. A file-name
+# list cannot hold them — the sync adds files after the scaffold — so the subtree is excluded
+# (rendered as `<dir>/**`, relative to docs/). A site's own pages go anywhere else in docs/.
+_DOCUSAURUS_UNPUBLISHED_DIRS: tuple[str, ...] = (
+    "reference",
+    "development",
+    "operations",
+    "archive",
+)
+
 
 def _load_doc_registry() -> ModuleType | None:
     """Import the canonical doc registry HUB-SIDE. scaffold runs on the hub, so the
@@ -6182,7 +6194,9 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
     # Internal governance/strategy docs are seeded into docs/ but must NOT publish to the
     # world-readable site (see _DOCUSAURUS_UNPUBLISHED_DOCS). Rendered into the content-docs
     # `exclude` below, AFTER Docusaurus's own defaults so partial/test excludes are preserved.
-    _gov_excludes = "".join(f"            '**/{d}',\n" for d in _DOCUSAURUS_UNPUBLISHED_DOCS)
+    _gov_excludes = "".join(
+        f"            '**/{d}',\n" for d in _DOCUSAURUS_UNPUBLISHED_DOCS
+    ) + "".join(f"            '{d}/**',\n" for d in _DOCUSAURUS_UNPUBLISHED_DIRS)
 
     # Generate docusaurus.config.js (preserves full template contract including
     # OpenAPI plugin/theme, docItemComponent, and apiSidebar navbar item).
@@ -6418,6 +6432,8 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
         "node_modules/\nbuild/\n.docusaurus/\n.cache-loader/\n"
         ".git/\n.gitignore\n.vscode/\n.idea/\n"
         "npm-debug.log*\nyarn-debug.log*\n"
+        "# Local data and logs on a long-lived deploy tree: never part of the build.\n"
+        "data/\ndb/\nbackups/\nlogs/\noutput/\n.tmp/\n*.log\n*.db\n*.sqlite\n"
     )
 
     # .env.example — the site needs no runtime environment: nginx serves the static build, and

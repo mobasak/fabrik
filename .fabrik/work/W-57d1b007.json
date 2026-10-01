@@ -12,7 +12,7 @@
     "spec": ""
   },
   "next": "decide whether template-source docusaurus is supported at all; if yes, ship minimal docs/ + src/css/ in templates/docusaurus (or drop the openapi wiring from the config template); if no, refuse template: docusaurus in spec validation",
-  "note": "",
+  "note": "Also, if supported: ship templates/docusaurus/.dockerignore (and the dir excludes reference/development/operations/archive in docusaurus.config.js.j2) mirroring _scaffold_docusaurus \u2014 TemplateRenderer emits neither, so a template build would take .env/node_modules/build from a long-lived VPS tree into the builder context (Phase B closing pass C3).",
   "owner": "",
   "priority": 2,
   "status": "open",
