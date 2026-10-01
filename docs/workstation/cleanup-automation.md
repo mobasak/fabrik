@@ -172,7 +172,7 @@ registers under `<repo>/.tmp` (fabrik-lib has one) is classified like any other 
 by the ordinary guards; it is never swept as a spool. And because `git worktree remove` deletes
 ignored files even without `--force`, a worktree holding ignored DATA outside the cache allowlist is
 `wt-ignored-data` and is never removed — which is what keeps § D's spools safe on that path too.
-- **`wt-sync-only`** (added 2026-09-15) — every dirty path in the worktree is the governance sync's own materialised output, byte-identical to what the sync would write. Nothing was authored there. ⚠️ It is still NOT removable: `git worktree remove` refuses while untracked files are present and `--apply` never passes `--force`, so this verdict informs rather than promising a removal git would refuse. Remove it by hand with `--force` if you mean to.
+- **`wt-sync-only`** (added 2026-09-15, widened 2026-10-01) — nothing in the worktree is anyone's work: every untracked or ignored path is the governance sync's output (the current hub bytes, an OLDER version found in a hub commit on its sync-source path, or a file still matching its md5 in the worktree's own `.fabrik/worktree-synced.lock`), a creation copy byte-identical to the main checkout's file, the worktree's own `.claude/settings.local.json`, any symlink (removal unlinks it, never its target), or an IGNORED tool cache by path component (`.venv`, `node_modules`, `__pycache__`, `.pytest_cache`, `.ruff_cache`, `.mypy_cache`, `.astro`). Never an output directory such as `dist/` or `test-results/`, ignored or not: that is where a report or the one trace of a failing run lands, so such a tree stays `wt-ignored-data` for a human. A TRACKED edit is never judged this way — it stays `wt-dirty`. Removable only under `--include-unmerged`, and then with `--force`: the state is re-read at removal time and any authored path, a stash naming its branch, or ignored data refuses it.
 
 **What it never touches** (hard-coded, printed by `--help` and by every apply run): repo files, except
 a worktree it classified removable · transcripts and `~/.claude*/state`, beyond the one lock file it
@@ -217,6 +217,15 @@ sessions' registrations as a side effect; and a non-positive DURATION is refused
 read as "every tree qualifies". Measured on the hub the day it shipped: at `1d`, all 13 rows that had
 been `wt-foreign` resolved to `wt-dirty` — each holding an uncommitted `.venv` — and **zero** became
 removable. That is the flag working, not failing: the blanket verdict had been hiding the real reason.
+
+**`--include-unmerged` — the stale-worktree flag (2026-10-01).** Even with `--foreign-older-than`, a
+dead agent's tree almost never reached `wt-removable`: its branch was never merged, or its only dirt
+was synced copies and build output. Measured that day, with `--foreign-older-than 7d
+--include-harness`: web-ecommerce-factory 0 of 52 removable, trade-intelligence 0 of 26, seo 0 of 28.
+With the flag, `wt-unmerged` (clean, branch not merged) and `wt-sync-only` become removable — the
+FOLDER goes and no commit is lost — an unmerged branch is always kept, and any other is offered
+only to git's own `branch -d`, which refuses an unmerged one — and the same dry runs read 18, 15 and 8. Real data still refuses: `.tmp/`,
+SQLite WALs, `data/`, `.env` that differs from the main checkout, any authored file.
 
 **Test seams** (env vars, all with production defaults): `SCRATCH_SWEEP_ROOT` · `SCRATCH_SWEEP_NOW`
 · `SCRATCH_SWEEP_SESSIONS_DIRS` · `SCRATCH_SWEEP_TRANSCRIPT_DIRS` · `SCRATCH_SWEEP_BTIME` ·

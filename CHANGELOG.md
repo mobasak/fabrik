@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `scratch_sweep.py --include-unmerged` clears dead agent worktrees without losing a byte (2026-10-01)
+The "898 changes in source control" were stale agent worktrees no sweep could remove: measured with `--foreign-older-than 7d --include-harness`, web-ecommerce-factory 0 of 52 removable, trade-intelligence 0 of 26, seo 0 of 28. Under the new flag a clean unmerged tree (`wt-unmerged`) and a tree holding nothing but rebuildable files (`wt-sync-only`) are removed — the folder goes, no commit is lost — and the same dry runs read 18, 15 and 8. "Rebuildable" is proven per file (D-479): synced copies matching the sync ledger's md5 or found in a hub commit on their source path, copies byte-identical to the main checkout, symlinks, the worktree's own settings, and ignored tool caches — never a name alone (`dist/`, `test-results/` stay data). The sweep's test suite no longer shares the box's real lock with a live sweep (each test gets its own HOME). Reviewed: `docs/development/reviews/2026-10-01-scratch-sweep-include-unmerged-review.md` (3 passes, 4 confirmed fixed).
+
 ### Changed — Agents no longer ask before editing `.md` and memory files (2026-10-01)
 On the operator's word (D-477): `/opt` added to every account's `permissions.additionalDirectories` (worktrees under `.claude/worktrees/` were outside the workspace) and `autoMemoryDirectory` set to the real memory path in 145 repo/worktree local settings (memory was written through the protected `~/.claude-fleet/active` link). Backups in `backups/perm-*`. A worktree created later still needs its `settings.local.json`.
 

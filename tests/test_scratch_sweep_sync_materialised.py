@@ -176,17 +176,20 @@ def test_the_comparison_reads_the_hubs_committed_bytes(sweep, tmp_path: Path) ->
     assert sweep._is_sync_materialised(tmp_path, rel) is False
 
 
-def test_a_sync_only_worktree_is_not_promoted_to_removable(sweep) -> None:
-    """The finding that made the first cut worse than useless: `git worktree remove` REFUSES while
-    any untracked file is present ("contains modified or untracked files, use --force"), and
-    `apply_worktrees` never passes `--force` — deliberately. Dropping the sync paths from the dirty
-    list would have promoted the worktree to `wt-removable` and then been refused at runtime, i.e.
-    a wrong row plus a failure in place of a correct informative one. It gets its own verdict."""
+def test_a_sync_only_worktree_is_removable_only_under_include_unmerged(sweep) -> None:
+    """`git worktree remove` REFUSES while any untracked file is present, so a sync-only tree is
+    never in the DEFAULT removable set — a wrong row plus a runtime refusal. `--include-unmerged`
+    opts in: the tree is then force-removed after its state is re-read at removal time (the branch
+    is never deleted unless git's own `-d` finds it merged)."""
+    import types
+
     assert "wt-sync-only" not in sweep.REMOVABLE
-    src = Path(sweep.__file__).read_text(encoding="utf-8")
-    assert "wt-sync-only" in src
-    block = src.split("sync_only = _sync_materialised_paths")[1][:900]
-    assert "NOT removable" in block, "the row must say it is not removable, or it implies it is"
+    off = types.SimpleNamespace(
+        include_harness=False, include_backups=False, unowned_older_than=None
+    )
+    on = types.SimpleNamespace(**vars(off), include_unmerged=True)
+    assert "wt-sync-only" not in sweep._allowed_classes(off)
+    assert "wt-sync-only" in sweep._allowed_classes(on)
 
 
 def test_the_manifest_import_can_actually_resolve(sweep, tmp_path: Path) -> None:
