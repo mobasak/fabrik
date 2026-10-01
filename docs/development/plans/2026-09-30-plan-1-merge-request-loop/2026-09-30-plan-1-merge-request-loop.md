@@ -36,7 +36,7 @@ the spec section it implements and restates nothing that section settles.
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
 | T01a | mail.py: the merge-request kind and its two guards | — | ⚡ | ✅ | squash of worktree-agent-a0f022cef8b9742f7 |
-| T01b | mail.py who: the live sessions of an agent in this repo | T01a | ⛓️ | 🔵 | |
+| T01b | mail.py who: the live sessions of an agent in this repo | T01a | ⛓️ | ✅ | squash of worktree-agent-ab7de460d874e3c85 |
 | T02 | merge_request.py request: finishing work sends one request | T01b | ⛓️ | ⬜ | |
 | T03 | merge_request.py merge and resume: the one data-safe merge path | T02 | ⛓️ | ⬜ | |
 | T04 | The Stop hook holds a merge owner with a waiting request | T03 | ⛓️ | ⬜ | |

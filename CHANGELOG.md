@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `mail.py who <agent>`: the doorbell lookup (2026-10-01)
+
+New read-only verb (plan 2026-09-30-plan-1-merge-request-loop T01b, spec § The delta 4 / V3) that prints the live session name(s) of an agent in the caller's repo, one per line. An entry in `~/.claude/sessions/<pid>.json` counts when its pid still runs claude (argv[0] or argv[1] names it) and started no later than the entry's mtime plus 600 s, so a recycled pid never rings; its agent matches (a valid `CLAUDE_AGENT` in `/proc/<pid>/environ` decides, otherwise the last `whoami_agent.py` binding); and its absolute cwd resolves to the caller's git common dir, compared by realpath. Entries are read through one non-blocking descriptor capped at 64 KB, so a FIFO, a procfs symlink or an oversized or deeply nested entry is skipped and never aborts the verb; names are refused only for control or line-separator characters or over 128 characters. An unreadable or absent registry prints nothing and exits 0; roots overridable with `FABRIK_SESSIONS_ROOT` / `FABRIK_PROC_ROOT`. Live check: `who infra|fleet|intel` printed exactly the three hub sessions.
+
 ### Added — `merge-request` mail kind with addressee and merge-SHA guards (2026-10-01)
 
 `scripts/mail.py`: new `merge-request` kind (`ack: required`). `claim` and `ack` of one are refused unless the caller resolves (via `whoami_agent.resolve_agent_name`, fail-closed) to its `agent:` — also when the message sits in a crashed ack's stale `.resolving.*` window. `ack --disposition done` needs `--merge-sha` that is an ancestor of base, names the request id, and has the request head in its history (O34); `blocked` and `wontfix` need `--reason`. The merge SHA and the reason are written onto the ack line. Tests: `tests/test_mail_merge_request.py` (T01a, plan 2026-09-30-plan-1-merge-request-loop).

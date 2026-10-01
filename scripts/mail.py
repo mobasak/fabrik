@@ -18,6 +18,7 @@ One neutral-path file mailbox per repo at ``$FABRIK_MAIL_ROOT/<repo>/{inbox,arch
     digest [--days N]
     sweep [--days N] [--repo <repo>]   # archive stale ack:no mail; obligations never swept
     claim <id> [--repo <repo>]
+    who <agent>   # read-only: the live session name(s) of <agent> in THIS repo, one per line
     should-reply <id> [--repo <repo>]   # advisory loop-safety pre-check (ALLOW 0 / HOLD 3)
 
 Protocol invariants (the conventions doc, docs/reference/fabrik-mail.md, is canonical):
@@ -35,11 +36,15 @@ import argparse
 import contextlib
 import importlib.util
 import io
+import json
 import os
 import re as _re
+import stat
 import subprocess
 import sys
 import time
+import unicodedata
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
@@ -1227,20 +1232,302 @@ _MERGE_REQUEST = "merge-request"
 _SHA_RE = _re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
 
 
-def _caller_agent() -> str:
-    """The caller's agent name, resolved as ``command_run.py`` does: a GUARDED import of the
-    sibling ``whoami_agent.resolve_agent_name`` (CLAUDE_AGENT first, else this session's identity
-    binding). "" when unknown — never raises; the merge-request guard refuses "" (fail closed)."""
+def _whoami() -> ModuleType | None:
+    """The sibling ``whoami_agent`` module via the GUARDED import ``command_run.py`` uses, or None
+    when it cannot load — never raises. The one import site for ``_caller_agent`` and ``who``."""
     try:
         here = str(Path(__file__).resolve().parent)
         if here not in sys.path:
             sys.path.insert(0, here)
-        from whoami_agent import resolve_agent_name  # noqa: PLC0415
+        import whoami_agent  # noqa: PLC0415
 
-        name = resolve_agent_name()
-        return name if isinstance(name, str) else ""
+        return whoami_agent
     except (Exception, SystemExit):  # SystemExit is BaseException — same reasoning as command_run
+        return None
+
+
+def _caller_agent() -> str:
+    """The caller's agent name, resolved as ``command_run.py`` does: the sibling
+    ``whoami_agent.resolve_agent_name`` (CLAUDE_AGENT first, else this session's identity
+    binding). "" when unknown — never raises; the merge-request guard refuses "" (fail closed)."""
+    try:
+        mod = _whoami()
+        name = mod.resolve_agent_name() if mod is not None else ""
+        return name if isinstance(name, str) else ""
+    except (Exception, SystemExit):
         return ""
+
+
+# --- who: the doorbell lookup (spec 2026-09-30-merge-request-loop § The delta 4) ---------------
+# READ-ONLY. Both roots are env-overridable and read at CALL time, so a fixture never touches the
+# real registry or the real /proc.
+_WHO_GIT_TIMEOUT_S = 10
+# Repo-LOCATING git vars. Inherited, `git -C <entry cwd>` would answer for the CALLER's repo and
+# every registry entry would match — so every `who` git call runs without them.
+_GIT_LOCATOR_VARS = frozenset({"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"})
+
+
+def _sessions_root() -> Path:
+    """``$FABRIK_SESSIONS_ROOT`` else ``~/.claude/sessions`` (Path.home()-keyed, like the whoami
+    store — a pinned account's config dir shares it)."""
+    raw = os.environ.get("FABRIK_SESSIONS_ROOT")
+    return Path(raw) if raw else Path.home() / ".claude" / "sessions"
+
+
+def _proc_root() -> Path:
+    """``$FABRIK_PROC_ROOT`` else ``/proc``."""
+    return Path(os.environ.get("FABRIK_PROC_ROOT") or "/proc")
+
+
+def _git_common_dir(cwd: str | None = None) -> str | None:
+    """realpath of ``git rev-parse --path-format=absolute --git-common-dir`` run in ``cwd`` (this
+    process's cwd when None); None on ANY failure, and a None never matches."""
+    cmd = ["git"] + (["-C", cwd] if cwd is not None else [])
+    cmd += ["rev-parse", "--path-format=absolute", "--git-common-dir"]
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_LOCATOR_VARS}
+    try:
+        res = subprocess.run(  # noqa: S603 — fixed argv, no shell
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=_WHO_GIT_TIMEOUT_S,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    out = res.stdout.strip()
+    if res.returncode != 0 or not out:
+        return None
+    return os.path.realpath(out)
+
+
+_WHO_MAX_ENTRY = 64 * 1024  # a registry entry is a few hundred bytes; anything bigger is not one
+_WHO_NAME_MAX = 128
+# Each printed line becomes a SendMessage target downstream (merge_request.py), so one entry must
+# never print as two lines: a name is refused when it holds a Cc control (\n \r \x85 …), a Zl/Zp
+# separator (U+2028/U+2029), or anything else str.splitlines() breaks on. Cf format characters that
+# break nothing (ZWJ U+200D in emoji sequences, soft hyphen U+00AD) are real names and stay.
+_WHO_LINE_BREAKING = frozenset({"Cc", "Zl", "Zp"})
+# A LOCAL copy of whoami_agent._NAME_RE, so the env path survives that module failing to import
+# (tests/test_mail_who.py pins the two patterns equal).
+_AGENT_NAME_RE = _re.compile(r"[a-z0-9-]{1,32}")
+# How far a live session's computed start may run past its registry file's mtime. The start is
+# CURRENT btime + ticks, so a forward wall-clock step after the session wrote its entry (WSL2
+# resume resync, NTP) moves it later; this slack absorbs that. A step beyond the slack is a KNOWN
+# RESIDUAL: those sessions stop ringing until they rewrite their entry — the doorbell is best
+# effort, and the durable mail plus the owner's Stop cause carry delivery. The pid-reuse defence
+# no longer rests on time alone: the pid must also still run a claude binary (_proc_is_claude).
+_WHO_START_SLACK_S = 600
+
+
+def _proc_agent(pid: str) -> str:
+    """``CLAUDE_AGENT`` from ``<proc root>/<pid>/environ`` (NUL-separated ``KEY=VALUE``); ""
+    when unreadable (another user's process, or gone)."""
+    try:
+        path = _proc_root() / pid / "environ"
+        if not path.is_file():
+            return ""
+        raw = path.read_bytes()
+    except OSError:
+        return ""
+    for item in raw.split(b"\0"):
+        key, sep, val = item.partition(b"=")
+        if sep and key == b"CLAUDE_AGENT":
+            return val.decode("utf-8", errors="replace").strip()
+    return ""
+
+
+def _proc_started_at(pid: str) -> float | None:
+    """The epoch second ``<proc root>/<pid>`` started: btime (``<proc root>/stat``) + field 22 of
+    ``<proc root>/<pid>/stat`` in clock ticks. None when either is unreadable.
+
+    Not ``whoami_agent._pid_start``: that one hardcodes ``/proc`` and returns raw ticks, and this
+    reader must honour the proc-root override. btime is whole seconds, rounded DOWN, so the
+    estimate is never later than the true start and an original session is never read as reborn.
+    """
+    try:
+        root = _proc_root()
+        btime = None
+        for line in (root / "stat").read_text(encoding="utf-8", errors="replace").splitlines():
+            if line.startswith("btime "):
+                btime = int(line.split()[1])
+                break
+        if btime is None:
+            return None
+        raw = (root / pid / "stat").read_text(encoding="utf-8", errors="replace")
+        ticks = int(raw[raw.rindex(")") + 1 :].split()[19])  # comm may hold spaces and ')'
+        return btime + ticks / os.sysconf("SC_CLK_TCK")
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _read_capped(
+    path: Path, cap: int, *, prefix: bool = False
+) -> tuple[bytes, os.stat_result] | None:
+    """(content, fstat) of a REGULAR file read through ONE descriptor, or None when it is not a
+    regular file or holds more than ``cap`` bytes — or, with ``prefix=True``, its first ``cap``
+    bytes instead of None (for a file only its head matters, such as a long cmdline).
+
+    ⚠️ The cap is enforced by the READ, never by ``st_size``: procfs/sysfs pseudo-files are
+    S_ISREG with st_size 0, so a ``<pid>.json`` symlinked to /proc/self/pagemap passed a stat cap
+    and was read unbounded. O_NONBLOCK makes opening a FIFO return at once (fstat then refuses
+    it), and fstat on the open fd closes the stat-then-open TOCTOU window.
+    """
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            return None
+        chunks: list[bytes] = []
+        got = 0
+        while got <= cap:
+            chunk = os.read(fd, cap + 1 - got)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            got += len(chunk)
+        data = b"".join(chunks)
+        if got <= cap:
+            return data, st
+        return (data[:cap], st) if prefix else None
+    finally:
+        os.close(fd)
+
+
+def _proc_is_claude(pid: str) -> bool:
+    """True when the basename of argv[0] OR argv[1] in ``<proc root>/<pid>/cmdline`` names claude.
+
+    Grounded on this box: a VS Code session runs
+    ``…/anthropic.claude-code-<ver>-linux-x64/resources/native-binary/claude`` (argv[0]); an npm
+    install runs ``node …/claude-code/cli.js`` (argv[1]). A pid recycled into any other program
+    fails this whatever its start time says. Only the first 4 KB is read — a long argv (a big
+    system prompt) is a PREFIX, never a refusal.
+    """
+    got = _read_capped(_proc_root() / pid / "cmdline", 4096, prefix=True)
+    if got is None:
+        return False
+    argv = [a.decode("utf-8", errors="replace") for a in got[0].split(b"\0")[:2]]
+    names = [os.path.basename(argv[0])]
+    if len(argv) > 1:
+        # argv[1]'s basename AND its parent dir: the npm form's basename is `cli.js`, and only
+        # its directory (`claude-code`) names claude.
+        names += [os.path.basename(argv[1]), os.path.basename(os.path.dirname(argv[1]))]
+    return any("claude" in n.lower() for n in names)
+
+
+def _display_name(raw: object) -> str | None:
+    """The registry ``name`` as ONE printable line: ends stripped, then refused when empty, longer
+    than _WHO_NAME_MAX, splitting into more than one line, or holding a _WHO_LINE_BREAKING
+    character."""
+    if not isinstance(raw, str):
+        return None
+    name = raw.strip()
+    if not name or len(name) > _WHO_NAME_MAX:
+        return None
+    if len(name.splitlines()) != 1:
+        return None
+    if any(unicodedata.category(ch) in _WHO_LINE_BREAKING for ch in name):
+        return None
+    return name
+
+
+def _bound_agents(mod: ModuleType) -> dict[str, str]:
+    """session id → agent name from the whoami binding store, the LAST valid row per session
+    winning (``resolve_agent_name``'s order). {} when the store is unavailable."""
+    try:
+        out: dict[str, str] = {}
+        for row in mod._rows(mod.store_path()):
+            name = str(row.get("name") or "")
+            if mod._NAME_RE.fullmatch(name):
+                out[str(row["session_id"])] = name
+        return out
+    except Exception:
+        return {}
+
+
+def _who_entry(entry: Path, bound: Callable[[], dict[str, str]]) -> tuple[str, str, str] | None:
+    """(agent, display name, absolute cwd) of ONE live registry entry, or None when any probe
+    fails — the caller still owes the common-dir check. Every probe of the entry lives here, and
+    the caller wraps the whole call in one per-entry skip."""
+    pid = entry.stem
+    if entry.suffix != ".json" or not pid.isdigit():
+        return None
+    # Regular file, bounded BY THE READ, one descriptor (a FIFO, a procfs symlink, a runaway file).
+    got = _read_capped(entry, _WHO_MAX_ENTRY)
+    if got is None:
+        return None
+    raw, st = got
+    data = json.loads(raw.decode("utf-8", errors="replace"))
+    if not isinstance(data, dict):
+        return None
+    name, cwd, sid = _display_name(data.get("name")), data.get("cwd"), data.get("sessionId")
+    if name is None:
+        return None
+    # A RELATIVE cwd would resolve against the CALLER's cwd under `git -C` and match falsely.
+    if not isinstance(cwd, str) or not os.path.isabs(cwd):
+        return None
+    # LIVENESS + PID REUSE: a dead pid has no readable start time; a recycled pid runs some other
+    # program (not a claude binary) or started well after the entry was written. An unknown start
+    # cannot prove identity, so it is skipped (best-effort doorbell: a missed ring costs speed; a
+    # false ring reaches the wrong session). The slack and its residual: _WHO_START_SLACK_S.
+    born = _proc_started_at(pid)
+    if born is None or born > st.st_mtime + _WHO_START_SLACK_S or not _proc_is_claude(pid):
+        return None
+    # Precedence mirrors whoami_agent.resolve_agent_name: a VALID env name alone decides; the
+    # binding is consulted only when the env carries none. An invalid env value is no identity.
+    env = _proc_agent(pid)
+    if _AGENT_NAME_RE.fullmatch(env):
+        return env, name, cwd
+    if isinstance(sid, str) and sid:
+        bound_to = bound().get(sid, "")
+        if bound_to:
+            return bound_to, name, cwd
+    return None
+
+
+def who_sessions(agent: str) -> list[str]:
+    """The live session name(s) of ``agent`` whose cwd shares the caller's git common dir.
+
+    A registry entry ``<sessions root>/<pid>.json`` counts when its pid is alive under the proc
+    root, still runs a claude binary and started no later than the entry's mtime plus
+    _WHO_START_SLACK_S (a recycled pid never rings), its agent — the valid ``CLAUDE_AGENT`` in its
+    environ, else the last binding row for its ``sessionId`` — equals ``agent``, and ``git -C
+    <cwd>`` (an absolute cwd) resolves to the caller's common dir, realpath-compared, never a
+    string prefix (``/opt/fabrik-lib`` is not ``/opt/fabrik``). Names that are not one printable
+    line are skipped. Sorted and deduplicated; [] on any unreadable input. If ``whoami_agent``
+    cannot load, only the binding source is lost. Read-only: it writes no state (importing
+    ``whoami_agent`` may leave a ``.pyc``).
+    """
+    agent = agent.strip()
+    if not agent:
+        return []
+    mod = _whoami()
+    mine = _git_common_dir()
+    if mine is None:
+        return []
+    try:
+        entries = sorted(_sessions_root().iterdir())
+    except OSError:
+        return []
+    cache: list[dict[str, str]] = []  # the binding store, read once and only when needed
+
+    def bound() -> dict[str, str]:
+        if not cache:
+            cache.append(_bound_agents(mod) if mod is not None else {})
+        return cache[0]
+
+    names: set[str] = set()
+    for entry in entries:
+        try:
+            hit = _who_entry(entry, bound)
+        # one unreadable entry never aborts the verb; RecursionError: '[' * 60000 is under the cap
+        except (OSError, ValueError, RecursionError):
+            continue
+        if hit is not None and hit[0] == agent and _git_common_dir(hit[2]) == mine:
+            names.add(hit[1])
+    return sorted(names)
 
 
 def _merge_request_at(*paths: Path) -> tuple[dict, str] | None:
@@ -2089,6 +2376,11 @@ def main(argv: list[str] | None = None) -> int:
     p_dig = sub.add_parser("digest", help="report unacked + quarantined traffic")
     p_dig.add_argument("--days", type=int, default=3)
 
+    p_who = sub.add_parser(
+        "who", help="read-only: the live session name(s) of an agent in THIS repo, one per line"
+    )
+    p_who.add_argument("agent")
+
     p_sr = sub.add_parser(
         "should-reply", help="advisory loop-safety pre-check: ALLOW (exit 0) / HOLD (exit 3)"
     )
@@ -2225,6 +2517,9 @@ def main(argv: list[str] | None = None) -> int:
             _note_mail_requeue(args.id, repo)
         elif args.cmd == "digest":
             _deliver_digest(digest(days=args.days))
+        elif args.cmd == "who":
+            for name in who_sessions(args.agent):
+                print(name)
         elif args.cmd == "should-reply":
             repo = args.repo or _current_repo()
             try:
