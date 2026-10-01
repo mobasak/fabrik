@@ -24,7 +24,10 @@ python3 scripts/command_run.py start --command fabrik-execute-plan --phases <pla
 
 {{include:delegated-reads}}
 
-`step --phase <N> --title "<the plan's phase title>"` on entering each phase. **The `/fabrik-review` at a
+`step --phase <N> --title "<the plan's phase title>" --appetite <the phase's Appetite: minutes>` on
+entering each phase (spec § The delta D11) — `command_run.py line`'s pinned `RUN:` line then reads
+`elapsed <m>/<appetite>` in the phase marker for the life of the phase, so burn against budget is visible
+on every reply, not just the title. **The `/fabrik-review` at a
 phase boundary opens its OWN nested record — the storage parks this run in the record's `stack` and the child's `done` restores it (01M280CV7)** — so a green phase gate
 never reads as "the plan is done" — and every close NAMES its own run, so a retried `done` from the
 nested review can never end the plan by accident (it is refused). Close this run with
@@ -397,6 +400,12 @@ acquire scope lock (.fabrik/plan-locks/<id>.json) — RESUME your own plan's sta
 verify OWNED paths clean (same-plan RESUME: dirty = the step-7 MESSY case -> BLOCKED for operator ruling; never adopt/reset)
 
 for each PHASE in dependency order:
+
+    step --phase <N> --title "<phase title>" --appetite <the phase's Appetite: minutes> (D11) —
+    `command_run.py line` now shows `elapsed <m>/<appetite>`; past 2× it prints a standing order to
+    stop and re-plan the rest of THIS phase with /fabrik-plan-after-chat, recorded over_appetite —
+    an order and a recorded verdict, never a forced cancel (dispatcher mode's own "Dispatch timeout"
+    bullet, § Dispatcher Mode, is unchanged by this)
 
     if Subagent Mandates table says "parallel":
         dispatch subagents per §Subagent Strategy below

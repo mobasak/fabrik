@@ -16,6 +16,21 @@ Converge this plan to a fixed point — do not stop after one pass. **Fixed poin
 both before the closing round, or the flip fails after the loop.)
 (This command is fully autonomous — `/fabrik-plan-after-chat` auto-invokes it and it runs itself to `CONVERGED` with no approval gate, unlike `/fabrik-spec-review`.)
 
+**Small-spec exception (spec § The delta D10).** When the plan's cited spec carries `Size: small` on its
+own line, this run starts with `--surface "<plan path> + <spec path>"` — naming BOTH documents, because
+the review grades the spec's sections together with the plan in ONE joint loop, never a separate pass
+over the spec. ⚠️ **Flip order is fixed:** `check_stage_artifacts.py::_check_plan_spec_freshness` refuses a
+plan's new CONVERGED flip while its cited spec is not CONVERGED — flip the SPEC to CONVERGED first (or in
+the same commit as the plan), then the plan; flipping the plan alone fails the gate after the loop. Once
+both read `Status: CONVERGED`, mint the approval row in `docs/DECISIONS.md` here — the duty
+`fabrik-plan-after-chat.md:55` hands to `/fabrik-spec-review` for full-size work, which this `Size: small`
+spec skipped — and END at the operator's design-approval gate, exactly as `fabrik-spec-review.md:280-294`
+does today: present the ask↔spec comparison + the Pass Ledger, then the `DECISION NEEDED (ground: gate)`
+block asking for design approval. **Do NOT auto-invoke `/fabrik-execute-plan`** for a `Size: small` run —
+the design-approval gate replaces the auto-handoff this command otherwise owns for a fully-autonomous run.
+A spec with no `Size: small` line keeps today's behaviour unchanged: no joint loop, no gate, full
+autonomy.
+
 {{include:grounding-artifact}}
 ## Phase 0 — Establish scope
 
