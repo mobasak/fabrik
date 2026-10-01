@@ -345,15 +345,15 @@ def create_database(
             # as drift forever. Register it only when it has NO entry, so a
             # seed/manual/infrastructure entry is never overwritten.
             try:
-                if db_name not in list_allocations().get("allocations", {}):
-                    register_allocation(
-                        db_name,
-                        spec_id=spec_id,
-                        user=db_user or "postgres",
-                        owner=owner,
-                        notes=notes,
-                        dry_run=False,
-                    )
+                register_allocation(
+                    db_name,
+                    spec_id=spec_id,
+                    user=db_user or "postgres",
+                    owner=owner,
+                    notes=notes,
+                    dry_run=False,
+                    if_absent=True,
+                )
             except Exception as exc:  # noqa: BLE001 — registry failure is non-fatal
                 logger.warning(
                     "postgres allocations: heal of existing %s failed (%s); registry skipped",
@@ -1835,16 +1835,14 @@ def _load_remote_allocations() -> dict[str, Any]:
     ``{"version": 1, "allocations": {}}`` when the file is missing or empty
     (first-run on a fresh VPS). Raises ``json.JSONDecodeError`` on a corrupted
     file — caller decides whether to abort or overwrite.
+
+    A FAILED read (SSH down, file unreadable) raises ``RuntimeError``; it is never
+    read as an empty registry, because every writer here does read-modify-write and
+    would then replace the whole registry with its one entry. Only a file that does
+    not exist reads as empty (the remote ``test -e`` prints nothing, exit 0).
     """
-    try:
-        raw = ssh(f"sudo cat {shlex.quote(ALLOCATIONS_PATH)}")
-    except RuntimeError as e:
-        logger.warning(
-            "postgres allocations: cat %s failed (%s) — assuming empty registry",
-            ALLOCATIONS_PATH,
-            e,
-        )
-        return {"version": 1, "allocations": {}}
+    path = shlex.quote(ALLOCATIONS_PATH)
+    raw = ssh(f"if sudo test -e {path}; then sudo cat {path}; fi")
     if not raw.strip():
         return {"version": 1, "allocations": {}}
     return json.loads(raw)
@@ -1896,6 +1894,7 @@ def register_allocation(
     owner: str = "fabrik",
     notes: str = "",
     dry_run: bool = False,
+    if_absent: bool = False,
 ) -> dict[str, Any]:
     """Insert / update an entry in the allocation registry.
 
@@ -1918,6 +1917,9 @@ def register_allocation(
             ``infra.postgres: false`` overrides and historical context.
         dry_run: Skip the actual VPS write. Local merge still happens
             so the caller's logs reflect the intended payload.
+        if_absent: Leave an existing entry untouched and write nothing. The
+            membership test runs inside the lock, so a concurrent writer's
+            entry is never overwritten by a heal.
 
     Returns:
         The merged registry payload (post-update).
@@ -1933,6 +1935,8 @@ def register_allocation(
     with file_lock("postgres-allocations", timeout_seconds=15.0):
         payload = _load_remote_allocations()
         allocations = payload.setdefault("allocations", {})
+        if if_absent and db_name in allocations:
+            return payload
         allocations[db_name] = {
             "owner": owner,
             "spec_id": spec_id,

@@ -83,11 +83,26 @@ class TestListAllocations:
             result = pg_driver.list_allocations()
             assert result == {"version": 1, "allocations": {}}
 
-    def test_missing_file_returns_empty_shape(self):
-        # SSH failure → empty default
-        with patch.object(pg_driver, "ssh", side_effect=RuntimeError("cat: no such file")):
-            result = pg_driver.list_allocations()
-            assert result == {"version": 1, "allocations": {}}
+    def test_failed_read_raises_instead_of_reading_empty(self):
+        # A failed read is not an empty registry: a writer would replace every entry.
+        with (
+            patch.object(pg_driver, "ssh", side_effect=RuntimeError("ssh: connection refused")),
+            pytest.raises(RuntimeError),
+        ):
+            pg_driver.list_allocations()
+
+    def test_failed_read_makes_register_write_nothing(self):
+        calls: list[str] = []
+
+        def fake_ssh(cmd, *, dry_run: bool = False):
+            calls.append(cmd)
+            if "cat " in cmd:
+                raise RuntimeError("ssh: connection refused")
+            return ""
+
+        with patch.object(pg_driver, "ssh", side_effect=fake_ssh), pytest.raises(RuntimeError):
+            pg_driver.register_allocation("new_service", spec_id="new-service")
+        assert not [c for c in calls if "tee " in c]
 
 
 # ---------------------------------------------------------------------------
