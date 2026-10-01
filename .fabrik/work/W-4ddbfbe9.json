@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T08:19:20.407691Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4ddbfbe9",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "resolve fabrik-lib from the main checkout (git common dir's parent) or an env override, red-first in a worktree",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "tests"
+  ],
+  "title": "Scaffold tests fail in any hub worktree: FABRIK_LIB_DIR = FABRIK_ROOT.parent / 'fabrik-lib' (src/fabrik/scaffold.py:244) resolves to .claude/worktrees/fabrik-lib, which does not exist (FileNotFoundError: Cannot fold the audit log)"
+}

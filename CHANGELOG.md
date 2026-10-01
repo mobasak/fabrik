@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Tests run in a hub worktree now import that worktree's own code (2026-10-01)
+
+Every hub worktree shares `/opt/fabrik/.venv`, whose editable install points at `/opt/fabrik/src`, so a test run inside `.claude/worktrees/<name>` imported the main checkout's `fabrik` and graded master, not the branch (W-83ff5917). The root `conftest.py` now puts its own tree's `src` first on `sys.path` and on `PYTHONPATH` for every child that inherits the environment; in the main checkout it changes nothing. `tests/test_conftest_imports_own_tree.py` fails in a worktree without the fix and passes with it. Two related gaps are filed: children spawned with a hand-written `env=` (W-dc1d5a50) and scaffold tests that cannot find `fabrik-lib` from a worktree (W-4ddbfbe9).
+
 ### Fixed — The Stop hook's withdrawn-edit filter no longer counts wip-backup snapshots (2026-10-01)
 
 Live, the W-20a8e9f1 filter still named three withdrawn files, because `git log --all` also walks `refs/wip/*`, where `scripts/wip_backup.sh` keeps automatic whole-tree safety snapshots that had caught them. `_withdrawn_edits` now excludes the script's own three names (`refs/wip/autobackup`, `refs/wip/bak-*`, `refs/wip/wt-*`) from `--all`; any other `refs/wip` ref, a stash and a real branch still keep a file named. The test builds snapshots under all three names and proves the branch is seen through `--all` alone.
