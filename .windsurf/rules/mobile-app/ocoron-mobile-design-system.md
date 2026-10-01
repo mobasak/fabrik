@@ -56,7 +56,7 @@ The fundamental mobile UI unit. Every data list, settings screen, and feed uses 
 
 ### Swipe Actions
 
-Built with `ReanimatedSwipeable` (`react-native-gesture-handler/ReanimatedSwipeable` — the older `Swipeable` is deprecated). Directions are for a left-to-right layout; mirror them under RTL (the scaffold ships Arabic).
+Built with `ReanimatedSwipeable` (`react-native-gesture-handler/ReanimatedSwipeable` — the older `Swipeable` is deprecated). Directions are for a left-to-right layout. The render props name PHYSICAL sides and do not flip under RTL (the scaffold ships Arabic): when `I18nManager.isRTL`, pass the destructive trailing action to `renderLeftActions` and the leading one to `renderRightActions`, and swap the thresholds.
 
 - **Trailing actions** (the row slides left, `renderRightActions`): destructive (delete/archive) — `--color-danger` fill, icon in `--color-danger-fg`
 - **Leading actions** (the row slides right, `renderLeftActions`): the primary action (pin/mark read) — `--color-accent` fill, icon in `--color-accent-fg`
@@ -180,7 +180,7 @@ Full-screen search replacing the command palette. Triggered by search icon in ta
 └────────────────────────────────────┘
 ```
 
-- **Full-screen screen** on `--surface-0`
+- **A full-screen route** pushed onto the stack, on `--surface-0` — not an overlay
 - **Top bar:** back arrow (←, `--color-accent-text`) + search input (auto-focused, full width) + clear (X) button when input has text
 - **Input:** body font 400, 16, `--surface-1` background, 40 high, radius `--radius-button`, 1px `--border-control` boundary
 - **Results:** list items (§ 1), grouped by category with section headers

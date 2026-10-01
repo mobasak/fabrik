@@ -78,10 +78,12 @@ def test_every_slot_is_a_template_slot() -> None:
 
 
 def test_colours_used_as_text_take_their_text_slot() -> None:
+    # A bare accent/state slot must BE the fill it names: written "`--color-x` fill" or as a pill's colour,
+    # "pill (`--color-x`)". A "fill" elsewhere on the line ("as text, never a fill") does not count.
     bare = re.compile(r"`--color-(?:" + "|".join(STATES) + r")`")
     for line in _body().splitlines():
-        if bare.search(line):
-            assert re.search(r"\b(?:fill|pill)\b", line), (
+        for m in bare.finditer(line):
+            assert line[m.end() :].startswith(" fill") or line[: m.start()].endswith("pill ("), (
                 f"a bare accent/state colour is a FILL; as text or an icon on a surface use its -text slot: {line!r}"
             )
     assert not re.search(r"#[0-9A-Fa-f]{3,8}\b|rgba?\(", _body()), "raw colour values in the pack"
