@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — chrome-ext/00-domain-chrome-ext: plans for the one-repo scaffold and states the store's permission rule truthfully (2026-10-01)
+- `.windsurf/rules/chrome-ext/00-domain-chrome-ext.md` (rules currency pass file 41, D-483): the backend is the scaffold's own `server/` beside `extension/`, not a separate python-api project; the permission ceiling is the store's narrowest-permission rule with a longer review for broad access, not a rejected-permission list; §2 forces who publishes (the EU trader declaration); the epic table's analytics row points at §6; consumers are /fabrik-vision and /fabrik-epics.
+- `tests/test_chrome_domain_pack.py`: pins the scaffold backend, every cited sibling section, every `§N` dimension reference and the no-price/no-rate rule.
+- `.windsurf/rules/CLAIMS.yaml`: three rows; `docs/reference/research/2026-10-01-chrome-domain-currency-ledger.md`: the turn's 20 facts.
+
 ### Changed — core/tojlo-design-system: points at the template and Ocoron instead of restating their values (2026-10-01)
 - `.windsurf/rules/core/tojlo-design-system.md` (rules currency pass file 40, D-480): colour, contrast, motion, CSS and implementation-stack sections become pointers to `core/design-system-template.md` and `core/ocoron-design-system.md`; the Tailwind v3 snippet is dropped; retired slot names replaced; the active-icon contradiction resolved; 13 as the mobile floor; the identity covers every surface with a pointer to the Tojlo mobile pack; recall and WhatsApp rules corrected. The structural sections' dedup is deferred (W-68b6a454).
 - `tests/test_tojlo_brand_pack.py`: pins description-only loading, template slots, hex only in the logo and email sections, cited sections, canonical module names and contiguous T-rules.
