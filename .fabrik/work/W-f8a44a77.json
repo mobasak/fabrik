@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T21:52:52.645534Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-f8a44a77",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VX3A1NESDS9Y15WTG5EENB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "# mobile-app scaffold: Ocoron tokens are the default theme, stale against the brand pack, and every scaffold copies two template trees it does not use"
+}

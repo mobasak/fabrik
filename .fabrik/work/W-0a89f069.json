@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T22:03:36.634898Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0a89f069",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-02-fabrik-task-feature-lane-design.md"
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "Lane spec residuals for the plan: receipt Command line hard-coded (review_receipt.py:138), handoff --review in Contract deltas, receipt commit outside --commit"
+}

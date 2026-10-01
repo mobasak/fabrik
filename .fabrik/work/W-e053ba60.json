@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T21:35:01.978846Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e053ba60",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WJMFWAXHT81W0ETCFZTNV6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: Resize the /fabrik-task lane so a feature addition fits it; reserve the spec chain for MODULES. SUPERSEDES my request 01M3WJ6B (same subject; this is the measured, adjudicated version). Operator, 2026-10-01: \"fabrik-task must cover more work. this is very limited\" / \"for a feature addition fab"
+}
