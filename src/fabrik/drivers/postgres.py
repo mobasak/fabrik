@@ -339,6 +339,27 @@ def create_database(
     )
     if check.strip() == "1":
         logger.info("PostgreSQL database already exists: %s", db_name)
+        if not dry_run:
+            # A DB created before the registry existed (or whose registration
+            # failed) would otherwise stay an orphan that audit_postgres reports
+            # as drift forever. Register it only when it has NO entry, so a
+            # seed/manual/infrastructure entry is never overwritten.
+            try:
+                if db_name not in list_allocations().get("allocations", {}):
+                    register_allocation(
+                        db_name,
+                        spec_id=spec_id,
+                        user=db_user or "postgres",
+                        owner=owner,
+                        notes=notes,
+                        dry_run=False,
+                    )
+            except Exception as exc:  # noqa: BLE001 — registry failure is non-fatal
+                logger.warning(
+                    "postgres allocations: heal of existing %s failed (%s); registry skipped",
+                    db_name,
+                    exc,
+                )
         return {"status": "exists", "database": db_name}
 
     if dry_run:
