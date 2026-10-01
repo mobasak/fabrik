@@ -46,7 +46,8 @@ def project(tmp_path: Path) -> Path:
     (tmp_path / "scripts" / "docs_updater.py").write_bytes(UPDATER.read_bytes())
     (tmp_path / "docs" / "development" / "plans" / "2026-09-14-plan-1-probe.md").write_text(PLAN)
     (tmp_path / "docs" / "STRATEGIC_BACKLOG.md").write_text(
-        "# Strategic backlog\n\n- [ ] **[?]** a row that wants an owner\n"
+        # a work-item table row (W-77e00147: bullets are never stamp targets)
+        "# Strategic backlog\n\n| Effort | Item |\n| :--- | :--- |\n| **M** | a row that wants an owner |\n"
     )
     (tmp_path / "docs" / "development" / "plans" / "README.md").write_text("# Plans\n")
     for argv in (["git", "init", "-q"], ["git", "add", "-A"]):

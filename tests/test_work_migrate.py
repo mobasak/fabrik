@@ -1073,3 +1073,18 @@ def test_migrate_backlog_then_render_matches_an_independent_reader_on_the_hub_ba
     before = len(items)
     _ok(["migrate-backlog"], env, repo)
     assert len(_backlog_items(repo)) == before
+
+
+def test_a_lowercase_item_header_gives_the_title_from_the_item_column(tmp_path):
+    """W-77e00147 review code-S3: migrate-backlog finds the Item column the way --adopt
+    does (case-insensitively), so a row's title comes from `item`, not the Owner cell."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _backlog(
+        repo,
+        "# Strategic backlog\n\n| Owner | Effort | item |\n| :--- | :--- | :--- |\n"
+        "| `[infra]` | M | Lowercase-header work row |\n",
+    )
+    _ok(["migrate-backlog"], env, repo)
+    titles = [it["title"] for it in _backlog_items(repo)]
+    assert any("Lowercase-header work row" in t for t in titles), titles

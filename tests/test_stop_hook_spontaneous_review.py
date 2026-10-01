@@ -308,8 +308,9 @@ def test_the_ledger_floor_is_wired_at_the_sixth_causes_call_site():
     # `ruff format` reflowed the arguments onto one line minutes later — a grader a formatter
     # can break is testing the formatter. Normalise, then assert the ARGUMENTS, which is the
     # actual claim: `main` hands the composed reader the REAL baseline.
-    flat = re.sub(r"\s+", " ", src)
-    assert flat.count("_unreviewed_spontaneous_files(_rec, authored_map, _floor, sid)") == 1
+    flat = re.sub(r"\(\s+", "(", re.sub(r"\s+\)", ")", re.sub(r"\s+", " ", src)))
+    # W-20a8e9f1 added `root`, so the reader can drop edits that left nothing behind.
+    assert flat.count("_unreviewed_spontaneous_files(_rec, authored_map, _floor, sid, root)") == 1
     assert src.count("_this_sessions_edits(authored_map, _floor)") == 0, (
         "the unfloored call is gone"
     )

@@ -1,9 +1,13 @@
 {
   "alt_block_digests": [
-    "75bfed2670ab7f2ba1ba0a40ec8a263459705f4b4cf4c91e9dfc188e0aed517a"
+    "75bfed2670ab7f2ba1ba0a40ec8a263459705f4b4cf4c91e9dfc188e0aed517a",
+    "aa373f113bbdc8dc5ce56340e136ee84e8f5dca674ff73e53d8ac39f02f9e04e",
+    "8f62a2079cdfb4e2f9b83791f6698410fe16931798d648fac8e01f120ac03ab7"
   ],
   "alt_ids": [
-    "W-49f30f5a"
+    "W-49f30f5a",
+    "W-bc1051bb",
+    "W-bfeff87b"
   ],
   "block_digest": "57eebdd7bfc116a6ee5943be3ba3af76977d5a754d38e4bc7f9ede943b591915",
   "blocked_by": [],
@@ -21,13 +25,15 @@
   },
   "msg_digests": [
     "2fb421251e3749159cd56ef143447382482e12167a02f7dd00dc3b7e1eaa5fdf",
-    "918f3ab4ab7e97f35743cf49f23804481a21ca48b6099ebdf4ff955466ada2fb"
+    "918f3ab4ab7e97f35743cf49f23804481a21ca48b6099ebdf4ff955466ada2fb",
+    "86d76c022103a0dfcb7ea08292322b1735272b28e3f3526da8e86148d8027064",
+    "253e03d77e26b9d9658a06b4d31e05fcb29a21b35a5533cd19ccd860744f2dd9"
   ],
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-01: we have paused using openrouter subagents; we currently only use native subagents",
   "owner": "",
   "priority": 2,
   "question": "Should the hub's `libs/subagents` copy follow fabrik-lib's canonical module (commit the re-vendored files), or go back to the hub's last committed version?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Should the hub's `libs/subagents` copy follow fabrik-lib's canonical module (commit the re-vendored files), or go back to the hub's last committed version?"
 }

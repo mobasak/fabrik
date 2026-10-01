@@ -220,7 +220,6 @@ class TestBC3ExistingMergeOwnerNeverRewritten:
         assert "<!-- Merge owner: alpha | source: D-005 -->" in idx_text
         assert "gamma" not in idx_text.split("<!-- Merge owner:")[1].split("-->")[0]
 
-
     def test_adopt_mints_a_new_owner_over_a_winning_undeclared_row(self, tmp_path, monkeypatch):
         """W-076ff4a9, deliberate: an un-adopted repo (its highest-id MERGE OWNER row names
         UNDECLARED) has no owner, so --adopt mints a NEW higher-id owner row — the ledger's own
@@ -871,9 +870,10 @@ class TestT02bBC1ThreeShapesRoundRobin:
 
         assert "| **M** | `[alpha]` | A hub-shaped untagged item | because | now |" in lines
         assert "| **M** | [beta] A project-shaped untagged item | because | now |" in lines
-        assert "- [alpha] A plain bullet row" in lines
-        assert "- [ ] [beta] An unchecked checkbox bullet row" in lines
-        assert "- [x] [alpha] A checked checkbox bullet row" in lines
+        # bullets are never stamped (W-77e00147): a bullet's shape cannot tell an item from prose
+        assert "- A plain bullet row" in lines
+        assert "- [ ] An unchecked checkbox bullet row" in lines
+        assert "- [x] A checked checkbox bullet row" in lines
 
         # the legend table (already carrying real tags) is untouched
         assert "| `[infra]` | infra | command corpus |" in lines
@@ -981,14 +981,28 @@ class TestT02bClassifyBacklogRowDirect:
         line = "| **M** | A project-shaped untagged item | because | now |"
         assert du.classify_backlog_row(line, header) == "table-item"
 
-    def test_plain_bullet_is_bullet(self):
-        assert du.classify_backlog_row("- A plain bullet row", None) == "bullet"
+    # W-77e00147: a bullet is never a stamp target — its shape cannot tell an item from prose
+    def test_plain_bullet_is_skip(self):
+        assert du.classify_backlog_row("- A plain bullet row", None) == "skip"
 
-    def test_unchecked_checkbox_bullet_is_bullet(self):
-        assert du.classify_backlog_row("- [ ] An unchecked bullet", None) == "bullet"
+    def test_unchecked_checkbox_bullet_is_skip(self):
+        assert du.classify_backlog_row("- [ ] An unchecked bullet", None) == "skip"
 
-    def test_checked_checkbox_bullet_is_bullet(self):
-        assert du.classify_backlog_row("- [x] A checked bullet", None) == "bullet"
+    def test_checked_checkbox_bullet_is_skip(self):
+        assert du.classify_backlog_row("- [x] A checked bullet", None) == "skip"
+
+    def test_a_table_with_neither_an_item_nor_an_owner_column_is_skip(self):
+        header = ["Stage", "Tool", "Reach", "$/min"]
+        assert (
+            du.classify_backlog_row("| Script | Claude via OpenRouter | all | 0.01 |", header)
+            == "skip"
+        )
+
+    def test_a_longer_owner_header_is_table_tag(self):
+        header = ["#", "Item", "Gate", "Owner (lane, § Agent assignments)"]
+        assert (
+            du.classify_backlog_row("| 2 | Responsive catalog | spec |  |", header) == "table-tag"
+        )
 
     def test_already_tagged_table_row_is_skip(self):
         header = ["Effort", "Tag", "Item", "Why", "Ready When"]
@@ -1020,7 +1034,7 @@ class TestT02bClassifyBacklogRowDirect:
     def test_checkbox_x_is_never_read_as_a_name_tag(self):
         # the r1 pipeline error this guards: `[x]` must never register as "already
         # tagged" (which would silently skip a row that still needs a real tag).
-        assert du.classify_backlog_row("- [x] needs a real tag still", None) == "bullet"
+        assert du.classify_backlog_row("- [x] needs a real tag still", None) == "skip"
 
     def test_struck_through_bullet_is_skip(self):
         # D1 (acceptance review r1): a bullet whose content is struck through must
@@ -1070,7 +1084,8 @@ class TestT02bClassifyBacklogRowDirect:
         # D3: the widened already-tagged regex must still treat every checkbox
         # spelling (`[x]`, `[ ]`, `[X]`) as checkbox syntax, never a name — a
         # regression here would silently skip a row that still needs a real tag.
-        assert du.classify_backlog_row(line, None) == "bullet"
+        # (W-77e00147: bullets are no longer stamp targets at all, so every spelling is skip.)
+        assert du.classify_backlog_row(line, None) == "skip"
 
     def test_hub_shaped_owner_header_is_table_tag(self):
         # D5 (acceptance review r1): the hub's REAL "Now" table header names its
@@ -1116,12 +1131,13 @@ class TestT02bD6RoundRobinAcrossInterleavedShapes:
     def test_alpha_beta_alpha_beta_across_shape_boundaries(self):
         new_text, report = du._tag_backlog_rows(self._INTERLEAVED_FIXTURE, ["alpha", "beta"])
 
-        assert [name for (_excerpt, name, _kind) in report] == ["alpha", "beta", "alpha", "beta"]
+        # the counter is shared across the table shapes; bullets are skipped (W-77e00147)
+        assert [name for (_excerpt, name, _kind) in report] == ["alpha", "beta"]
 
         lines = new_text.splitlines()
-        assert "- [alpha] first bullet row" in lines
-        assert "| **M** | [beta] a project-shaped row | because | now |" in lines
-        assert "- [alpha] second bullet row" in lines
+        assert "- first bullet row" in lines
+        assert "| **M** | [alpha] a project-shaped row | because | now |" in lines
+        assert "- second bullet row" in lines
         assert "| **M** | `[beta]` | a hub-shaped row | because | now |" in lines
 
 
@@ -1201,8 +1217,8 @@ class TestT02bR2Defect1AnchoredTagPosition:
         # tests the position probe on content the marker regex does NOT consume,
         # proven separately just below for the double-bracket case.
         line = f"- {content}"
-        expected = "skip" if is_tag else "bullet"
-        assert du.classify_backlog_row(line, None) == expected
+        # W-77e00147: a bullet is skip whether or not it opens with a tag
+        assert du.classify_backlog_row(line, None) == "skip"
 
     @pytest.mark.parametrize(
         "token", ["[x]", "[ ]", "[X]", "[WIP]"], ids=["lower-x", "empty", "upper-X", "wip"]
@@ -1213,9 +1229,9 @@ class TestT02bR2Defect1AnchoredTagPosition:
         # own tag position in the remaining content — exactly where DEFECT-1's
         # false-positive class lived.
         line = f"- [ ] {token} still needs a real tag"
-        assert du.classify_backlog_row(line, None) == "bullet"
+        assert du.classify_backlog_row(line, None) == "skip"  # W-77e00147: bullets never stamped
 
-    def test_bullet_with_key_string_prose_still_gets_tagged(self):
+    def test_bullet_with_key_string_prose_is_left_untouched(self):
         # the ONE regression test the review asked for: a bullet whose PROSE
         # contains `[key: string]` after an UNTAGGED head must still be tagged —
         # the pre-fix whole-line search read `[key: string]` anywhere in the row
@@ -1223,10 +1239,9 @@ class TestT02bR2Defect1AnchoredTagPosition:
         text = "- A note about the `[key: string]` type hint\n"
         new_text, report = du._tag_backlog_rows(text, ["alpha"])
 
-        assert new_text == "- [alpha] A note about the `[key: string]` type hint\n"
-        assert len(report) == 1
-        _excerpt, name, kind = report[0]
-        assert (name, kind) == ("alpha", "backlog-row")
+        # W-77e00147: bullets are never stamped, prose bracket or not
+        assert new_text == text
+        assert report == []
 
 
 class TestT03CheckAdvisory:
@@ -1260,9 +1275,15 @@ class TestT03CheckAdvisory:
             _decisions_no_merge_owner(decisions)
         backlog = root / "docs" / "STRATEGIC_BACKLOG.md"
         if backlog_tagged:
-            backlog.write_text("- [alpha] Already tagged item\n", encoding="utf-8")
+            backlog.write_text(  # a work-item table (W-77e00147: bullets are never stamp targets)
+                "| Effort | Item |\n| :--- | :--- |\n| **M** | [alpha] Already tagged item |\n",
+                encoding="utf-8",
+            )
         else:
-            backlog.write_text("- An untagged backlog item\n", encoding="utf-8")
+            backlog.write_text(
+                "| Effort | Item |\n| :--- | :--- |\n| **M** | An untagged backlog item |\n",
+                encoding="utf-8",
+            )
         if hub:
             scripts = root / "scripts"
             scripts.mkdir(parents=True, exist_ok=True)
@@ -1508,3 +1529,102 @@ class TestT03GateWiring:
         _, passed_plain, message_plain = fg.run_optional_check(str(script), "Stub Check Plain")
         assert passed_plain
         assert "ADVISORY: probe" not in message_plain, message_plain
+
+
+_STRUCTURE_ONLY_FIXTURE = """# Strategic Backlog
+
+| Stage | Tool | Reach | $/min |
+|---|---|---|---|
+| Script | Claude via OpenRouter | all | 0.01 |
+
+| # | Item | Gate | Owner (lane, § Agent assignments) |
+|---|---|---|---|
+| 1 | Product name generator | spec | iie2 (lane B) |
+| 2 | Responsive catalog | spec |  |
+
+| Effort | Why | Item |
+|---|---|---|
+| **M** | because | An item not in the second column |
+
+- **Edit small, commit immediately.** A protocol rule, not a work item
+  - a nested detail bullet
+"""
+
+
+class TestAdoptStampsOnlyWorkItemStructure:
+    """W-77e00147 (iterative_image_editor, mail 01M3VR0800): --adopt stamped round-robin
+    tags into every table row and bullet of STRATEGIC_BACKLOG.md — content tables, prose
+    bullets, and rows whose `Owner (lane, …)` column already named an owner. A row is now
+    stamped only where structure says it is a work item."""
+
+    def _run(self, tmp_path, monkeypatch):
+        root = _backlog_repo(tmp_path, fixture=_STRUCTURE_ONLY_FIXTURE)
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", root / "docs" / "development" / "plans")
+        monkeypatch.setattr(du, "PLANS_INDEX", root / "docs" / "development" / "PLANS.md")
+        assert du.run_adopt(["alpha", "beta"], single_window=True) == 0
+        return (root / "docs" / "STRATEGIC_BACKLOG.md").read_text(encoding="utf-8").splitlines()
+
+    def test_a_content_table_with_no_item_or_owner_column_is_untouched(self, tmp_path, monkeypatch):
+        assert "| Script | Claude via OpenRouter | all | 0.01 |" in self._run(tmp_path, monkeypatch)
+
+    def test_an_owner_column_with_a_longer_header_is_honoured(self, tmp_path, monkeypatch):
+        lines = self._run(tmp_path, monkeypatch)
+        assert "| 1 | Product name generator | spec | iie2 (lane B) |" in lines
+        assert "| 2 | Responsive catalog | spec | `[alpha]` |" in lines
+
+    def test_the_item_cell_is_found_by_its_header_not_its_position(self, tmp_path, monkeypatch):
+        lines = self._run(tmp_path, monkeypatch)
+        assert "| **M** | because | [beta] An item not in the second column |" in lines
+
+    def test_bullets_are_never_stamped(self, tmp_path, monkeypatch):
+        lines = self._run(tmp_path, monkeypatch)
+        assert "- **Edit small, commit immediately.** A protocol rule, not a work item" in lines
+        assert "  - a nested detail bullet" in lines
+
+
+def test_an_empty_owner_cell_beside_an_item_that_already_names_its_owner_is_skip():
+    """W-77e00147: an Item that already opens with `[alpha]` names its owner; stamping a
+    round-robin name into the empty Owner cell beside it would contradict that."""
+    header = ["Effort", "Owner", "Item"]
+    assert du.classify_backlog_row("| M |  | [alpha] already owned item |", header) == "skip"
+    assert du.classify_backlog_row("| M |  | an unowned item |", header) == "table-tag"
+
+
+@pytest.mark.parametrize("header", ["Owners", "Tags", "owners (lane)"])
+def test_a_plural_owner_header_is_the_owner_cell(header):
+    """W-77e00147 review code-S1: `Owners`/`Tags` name the owner column too."""
+    names = ["Effort", header, "Item"]
+    assert du.classify_backlog_row("| M |  | an unowned item |", names) == "table-tag"
+
+
+def test_a_struck_row_in_an_owner_table_without_an_item_column_is_skip():
+    """W-77e00147 review code-S4: with no Item column the strike is found in any cell, not
+    blindly in column 1 (which may be the Owner cell)."""
+    names = ["Effort", "Owner", "What"]
+    assert du.classify_backlog_row("| M |  | ~~done long ago~~ |", names) == "skip"
+
+
+@pytest.mark.parametrize(
+    "header,is_owner",
+    [
+        ("Owner", True),
+        ("Owners", True),
+        ("Tags", True),
+        ("Owner (lane, § Agent assignments)", True),
+        ("owner:", True),
+        ("Tag/Owner", True),
+        ("Owner/Lead", False),  # by decision: a compound cannot be told from a description column
+        ("Owner — lane", False),
+        ("Tag-line", False),
+        ("Tags / Owners", True),
+        ("Tag Type", False),
+        ("Owner Org", False),
+        ("Owner Decision", False),
+        ("Ownership", False),
+    ],
+)
+def test_only_a_header_that_is_an_owner_cell_counts(header, is_owner):
+    """W-77e00147 closing review: a classification column that merely STARTS with Tag/Owner
+    (`Tag Type`, `Owner Org`) is not the owner cell — reading it as one skipped every row."""
+    assert (du._backlog_tag_header_index([header]) is not None) is is_owner

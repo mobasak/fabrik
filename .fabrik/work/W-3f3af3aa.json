@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T09:13:50.311004Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3f3af3aa",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "cp both canonical files over libs/subagents/, verify diff -q, /fabrik-review-scoped, commit, push",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "vendor"
+  ],
+  "title": "libs/subagents vendor refresh (intel's disposition 2026-10-01): replace the main checkout's uncommitted agent.py + select.py with fresh copies of /opt/fabrik-lib/subagents/subagents/{agent.py,select.py}, diff -q rc 0 each, commit as a vendor refresh; the uncommitted agent.py is OLDER than canonical — never commit it as-is (D-137)"
+}

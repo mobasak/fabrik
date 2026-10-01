@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T09:07:49.532564Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-61380819",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "list in /tmp/claude-1000/-opt-fabrik/dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e/scratchpad/failed34.keep; split by cause (ledger rows absent W-62281917, worktree-location, real regressions), fix the regressions at their commits",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "tests"
+  ],
+  "title": "The hub's full test suite is red at HEAD 78928c977: 23 tests fail in a clean worktree (34 in the main checkout, where sibling WIP adds 11) — incl. test_check_decisions_unique, test_decisions_table_shape, test_pack_reachability x3, test_check_command_corpus x4, test_check_doc_stubs x4, test_epic_order x3, test_gate_check_canaries x3, test_health_summary x3, test_quota_dashboard x3, test_state"
+}

@@ -6,20 +6,20 @@
   "accounts": 4,
   "spend_usd": 800.0,
   "tokens": 18118193468,
-  "built_at": "2026-10-01T06:01:32+03:00",
+  "built_at": "2026-10-01T12:35:00+03:00",
   "per_model_spend": {
     "window_start": "2026-09-02",
     "window_end": "2026-10-01",
     "spend_usd": 799.1397849462363,
     "accounts": 4,
-    "base_rate_per_mtok": 0.0014326768932830358,
+    "base_rate_per_mtok": 0.001417165462754992,
     "tiers": {
       "opus": {
         "weight": 5.0,
-        "tokens": 75599350914,
-        "share": 0.7097017591538811,
-        "rate_per_mtok": 0.007163384466415179,
-        "cost_usd": 541.5472160084178,
+        "tokens": 76770481417,
+        "share": 0.7119350690369226,
+        "rate_per_mtok": 0.00708582731377496,
+        "cost_usd": 543.9823741162317,
         "models": [
           "claude-opus-5",
           "claude-opus-5-5",
@@ -28,10 +28,10 @@
       },
       "fable": {
         "weight": 10.0,
-        "tokens": 14929215333,
-        "share": 0.14015054701554439,
-        "rate_per_mtok": 0.014326768932830358,
-        "cost_usd": 213.88741842435903,
+        "tokens": 14930839339,
+        "share": 0.1384619184273646,
+        "rate_per_mtok": 0.01417165462754992,
+        "cost_usd": 211.59469841174374,
         "models": [
           "claude-fable-5-1",
           "claude-fable-5"
@@ -39,10 +39,10 @@
       },
       "sonnet": {
         "weight": 2.0,
-        "tokens": 14511798176,
-        "share": 0.13623197249020344,
-        "rate_per_mtok": 0.0028653537865660716,
-        "cost_usd": 41.58143585348421,
+        "tokens": 14607103893,
+        "share": 0.1354597408606277,
+        "rate_per_mtok": 0.002834330925509984,
+        "cost_usd": 41.40136629606718,
         "models": [
           "claude-sonnet-5",
           "claude-sonnet-4-6"
@@ -50,10 +50,10 @@
       },
       "haiku": {
         "weight": 1.0,
-        "tokens": 1482340275,
-        "share": 0.01391572134037103,
-        "rate_per_mtok": 0.0014326768932830358,
-        "cost_usd": 2.123714659975321,
+        "tokens": 1525119105,
+        "share": 0.014143271675085119,
+        "rate_per_mtok": 0.001417165462754992,
+        "cost_usd": 2.1613461221938044,
         "models": [
           "claude-haiku-4-5-20251001"
         ]
@@ -61,13 +61,13 @@
     },
     "models": {
       "claude-opus-5": 57765345781,
-      "claude-fable-5-1": 14913124488,
+      "claude-fable-5-1": 14914748494,
       "claude-opus-4-8": 229281765,
-      "claude-haiku-4-5-20251001": 1482340275,
-      "claude-sonnet-5": 14472740020,
+      "claude-haiku-4-5-20251001": 1525119105,
+      "claude-sonnet-5": 14568045737,
       "claude-fable-5": 16090845,
       "claude-sonnet-4-6": 39058156,
-      "claude-opus-5-5": 17604723368
+      "claude-opus-5-5": 18775853871
     },
     "daily": [
       {
@@ -1623,13 +1623,13 @@
       },
       {
         "date": "2026-10-01",
-        "tokens": 1629686507,
-        "cost_usd": 10.692192869099093,
+        "tokens": 2940525563,
+        "cost_usd": 19.228625687166332,
         "by_tier": {
-          "haiku": 37597767,
-          "sonnet": 179283061,
-          "opus": 1412226656,
-          "fable": 579023
+          "haiku": 80376597,
+          "sonnet": 274588778,
+          "opus": 2583357159,
+          "fable": 2203029
         }
       }
     ],

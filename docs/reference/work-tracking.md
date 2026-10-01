@@ -131,12 +131,11 @@ named or not, can claim, release, finish and answer ANY item, regardless of who 
 
 `config.json`'s `distributor` field names the one agent `assign` is reserved to; `init` sets it from
 `--distributor`, or from the merge owner (`docs/reference/multi-agent-operating-model.md:80-86`) when
-omitted. This is a **second** role beside the merge owner, not the same one: the merge owner
-integrates branches into the base branch (§ Merge protocol there); the distributor sets item owners
-and priorities (`work.py assign`) so a worker's `ready --mine` and a claim never collide over who
-should be doing what. The two may be the same agent or different ones — `init` merely defaults to the
-former when nothing else is named. In the hub, intel is the distributor (D-395), which is the
-dispatcher lane `docs/reference/agents/intel.md` used to record as deferred. Assigning is not
+omitted. It is the **same agent** as the merge owner in every repo — the one agent in the main
+checkout (D-471): the merge owner integrates branches into the base branch (§ Merge protocol there)
+and, as distributor, sets item owners and priorities (`work.py assign`) so a worker's `ready --mine`
+and a claim never collide over who should be doing what. Never pass `--distributor` naming anyone
+else; in the hub that agent is infra (D-471 superseded D-395's intel). Assigning is not
 the default way work moves: an idle worker claims from `ready` itself, and the distributor assigns
 the items self-service would get wrong (tagged for a serialising act, or a queue not yet triaged) —
 `docs/reference/multi-agent-operating-model.md` § Claim or assign.

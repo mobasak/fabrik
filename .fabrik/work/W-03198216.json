@@ -1,0 +1,26 @@
+{
+  "block_digest": "5d012dd67ecbea705e42309f5f3b1a0854d73566c82589a625113e09c47d2227",
+  "blocked_by": [],
+  "created": "2026-09-30T10:49:03.356436Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-03198216",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "956273dda2adc5260cce264ef30a7e888eef6b2acee120e3ba21bc9f38b0f7e8"
+  ],
+  "next": "",
+  "note": "Applied on the operator's go 'wire yourself and proceed' (D-477): /opt in additionalDirectories + autoMemoryDirectory in every repo/worktree.",
+  "owner": "",
+  "priority": 2,
+  "question": "Will you run the one-line `autoMemoryDirectory` trial from my previous message and tell me whether a new hub window still asks when it saves a memory?",
+  "status": "done",
+  "title": "Will you run the one-line `autoMemoryDirectory` trial from my previous message and tell me whether a new hub window still asks when it saves a memory?"
+}

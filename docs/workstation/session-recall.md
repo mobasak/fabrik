@@ -123,9 +123,8 @@ python3 /opt/fabrik/scripts/sysadmin/worktree_transcript_link.py --sweep        
 ```
 
 The script is also a user-level hook (SessionStart + Stop, every window, every repo) that keeps the
-link current for a live session (D-467). **Its registration is held** until session-recall stops
-double-ingesting a transcript that has two names (fabrik-mail 01M3TQKAR1, § the caveat below); the
-pending step is `install_user_hooks.py` with the script added to its `ENTRIES`.
+link current for a live session (D-467), registered by `install_user_hooks.py`'s `ENTRIES` since
+2026-10-01, once session-recall stopped double-ingesting a two-name transcript (§ the note below).
 
 **Why this recurs, measured in the extension (2.1.280, 2026-10-01).** The picker's list is built by
 `buildSessionList` with `{dir: this.cwd, includeWorktrees: false}`. The flag is hard-coded, and no
@@ -136,10 +135,11 @@ web-ecommerce-factory window ended its three sessions in one second (every backg
 the reopened window listed only the third. Counted the next day, 14 of the 18 worktree transcripts in `/opt`
 repos had no repo-root name.
 
-⚠️ **Caveat: session-recall indexes per path.** A transcript with two names has each appended chunk
-ingested once per name (`ingest/reindex.py` keeps `index_state` per `file_path`, numbers turns per
-session). A `--full` reindex heals it. A linked session that never grows again, such as one whose
-window already closed, is safe.
+**Two names, one index entry.** session-recall's walk keeps ONE path per inode (`ingest/reindex.py`
+`_one_name_per_inode`, session-recall 3721fe7 + 1f91540, finding 01M3TQKAR1): the name with the most
+lines ingested, then the `--claude-worktrees-` name, then the sorted-first. A session doubled before
+that fix is healed by the next plain run. Never reach for `--full` to heal anything: it reclaims the
+index rows of transcripts already gone from disk, which are the only copy of those sessions.
 
 **A second way a session leaves the list:** `claudeCode.archiveInactiveSessions` (default 14 days)
 moves an inactive session to the picker's Archived view. That one is a setting, not a filing.

@@ -1170,7 +1170,11 @@ def _unreviewed_spontaneous(
 
 
 def _unreviewed_spontaneous_files(
-    rec: object, authored: dict[str, int], session_floor: float, sid: str | None = None
+    rec: object,
+    authored: dict[str, int],
+    session_floor: float,
+    sid: str | None = None,
+    root: Path | None = None,
 ) -> list[str]:
     """The same question as `_unreviewed_spontaneous`, answered with the FILE LIST.
 
@@ -1185,7 +1189,104 @@ def _unreviewed_spontaneous_files(
     windows += _first_review_base_case(rec, floor)
     named = _surface_reviewed(rec, authored, sid)  # once per stop, not once per file
     scoped = {f: ts for f, ts in _this_sessions_edits(authored, floor).items() if f not in named}
-    return _unreviewed_code_file_names(scoped, windows)
+    names = _unreviewed_code_file_names(scoped, windows)
+    if names and root is not None:
+        withdrawn = _withdrawn_edits(root, names, floor)  # ONE call for every name (two git runs)
+        names = [f for f in names if f not in withdrawn]
+    return names
+
+
+def _withdrawn_edits(root: Path, names: list[str], floor: float) -> set[str]:
+    """The named files whose edits left NOTHING behind — W-20a8e9f1.
+
+    A session that edits a file and then restores it (or creates one and deletes it) has no change
+    to review, yet the transcript still records the edit, so no later review window could ever
+    cover it and the block repeated on every stop. A name is dropped only when ALL of these hold:
+
+    * `root` is the repository's top level (`rev-parse --show-toplevel`), so the repo-relative
+      names and git's repo-relative output are the same strings; anywhere else nothing is dropped;
+    * `status --porcelain=v1 -z --untracked-files=all --ignored=matching` does not list it — so it
+      is unchanged in the worktree AND the index, a deleted TRACKED file (` D`) and an edited
+      gitignored file (`!!`) both stay, and a rename or copy keeps BOTH its paths (the origin is
+      the NUL field after an `R`/`C` entry, never an entry of its own);
+    * no commit reachable from ANY ref or reflog (`log --all --reflog -z`, so a stash, another
+      branch and a commit reset away are all seen) touched it since the edit-window floor.
+
+    That last test is the MIRROR: without it, committing — or stashing, or moving to a branch —
+    would make the file equal HEAD and dodge the review, the cheapest way past this cause (D-253)
+    being exactly the act it must still judge. The residue it cannot see: a commit whose committer
+    date is set BEFORE the floor (a deliberate backdate), and a commit by ANOTHER session on the
+    same path, which over-blocks (names a file this session withdrew) rather than under-blocks,
+    and work hand-parked under wip_backup.sh's own snapshot names (excluded below) — a
+    deliberate ref write the backup script, not an agent, owns.
+    Cost: three git calls, only when the cause already has names. Any git failure drops nothing —
+    the cause keeps its pre-change behaviour rather than disarming. Pathspecs are literal, and a
+    directory git reports in place of its files (`!! build/`) covers every name under it."""
+    deadline = time.monotonic() + 5.0
+    try:
+        top = _git_by(root, deadline, "rev-parse", "--show-toplevel")
+        if top.returncode != 0 or Path(top.stdout.strip()).resolve() != root.resolve():
+            return set()
+        st = _git_by(
+            root,
+            deadline,
+            "--literal-pathspecs",  # a name starting with ':' is a path, never pathspec magic
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--ignored=matching",
+            "--",
+            *names,
+        )
+        if st.returncode != 0:
+            return set()
+        changed: set[str] = set()
+        fields = st.stdout.split("\0")
+        i = 0
+        while i < len(fields):
+            entry = fields[i]
+            i += 1
+            if len(entry) < 4:
+                continue
+            changed.add(entry[3:])
+            if entry[0] in "RC" or entry[1] in "RC":  # the origin path rides the next field
+                if i < len(fields):
+                    changed.add(fields[i])
+                i += 1
+        lg = _git_by(
+            root,
+            deadline,
+            "--literal-pathspecs",
+            "log",
+            # wip_backup.sh's automatic safety snapshots of the WHOLE tree are not anyone's work:
+            # counted, every withdrawn file they ever caught stayed named (the live run that
+            # motivated this change named three files only a snapshot held). Only the script's
+            # own three names are excluded. `--exclude` scopes the next `--all` and never
+            # `--reflog`, which needs no exclude: the script writes these refs with a plain
+            # `update-ref`, and core.logAllRefUpdates (`true` here) logs heads, remotes, notes and
+            # HEAD only; set to `always` it would log these refs too, which over-blocks, never under.
+            "--exclude=refs/wip/autobackup",
+            "--exclude=refs/wip/bak-*",
+            "--exclude=refs/wip/wt-*",
+            "--all",
+            "--reflog",
+            "--diff-merges=first-parent",  # a stash is a merge commit; list its paths too
+            f"--since=@{int(floor)}",
+            "--format=",
+            "--name-only",
+            "-z",
+            "--",
+            *names,
+        )
+        if lg.returncode != 0:
+            return set()
+        committed = {p.strip("\n") for p in lg.stdout.split("\0") if p.strip("\n")}
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return set()
+    # An ignored (or collapsed) DIRECTORY is reported as `dir/`, never as the files inside it.
+    dirs = tuple(p for p in changed if p.endswith("/"))
+    return {f for f in names if f not in changed and f not in committed and not f.startswith(dirs)}
 
 
 def _first_review_base_case(rec: object, floor: float) -> list[tuple[float, float]]:
@@ -3386,7 +3487,9 @@ def main(argv: list[str]) -> int:
                 # `f(f(x))` exceeds `f(x)` by the call gap — microseconds here, and always in the
                 # SAFE direction (a higher floor drops more, never fewer, ancient edits).
                 _floor = _baseline_floor(sid)
-                _unreviewed_files = _unreviewed_spontaneous_files(_rec, authored_map, _floor, sid)
+                _unreviewed_files = _unreviewed_spontaneous_files(
+                    _rec, authored_map, _floor, sid, root
+                )
                 _unreviewed = len(_unreviewed_files)
                 v_action, v_att = decide_review(_unreviewed, v_att)
                 if v_action == "block_review":

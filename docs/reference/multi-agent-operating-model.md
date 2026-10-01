@@ -107,23 +107,23 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
 - **Adoption** — `python scripts/docs_updater.py --adopt <name>[,<name>…]`, run ONCE by agent-1 in
   the main checkout (refuses below 2 live sessions unless `--single-window`; D-154, D-155): seeds the
   PLANS markers, stamps `**Owner:**` on every open unowned plan round-robin, tags every untagged
-  `STRATEGIC_BACKLOG.md` row in its own shape (a hub row's `Owner`/`Tag` cell · a project row's `Item`
-  cell · a bullet's text after its checkbox), appends the `MERGE OWNER: <first name>` ledger row (the
+  work-item row of `STRATEGIC_BACKLOG.md` in its own shape (the cell under a header opening
+  `Owner`/`Tag` when it is empty — an occupied one, or an `Item` that already opens with a tag, is
+  left alone · else the `Item` cell; never a bullet or a table with neither column — W-77e00147),
+  appends the `MERGE OWNER: <first name>` ledger row (the
   row with the HIGHEST D-id whose `what` cell opens with `MERGE OWNER:`, optionally after a
   `supersedes D-NNN:` prefix (then the phrase must be exact uppercase), wins wherever it sits in the file, and a winning `MERGE OWNER:
   UNDECLARED` row means nobody owns the repo — `python3 scripts/decisions.py --merge-owner .` reads
   it; a changed owner is a NEW row opening `supersedes D-NNN: MERGE OWNER: <name>`), and delegates the epic half to
   `epic_order.py --assign` where that hub-only script is present. The PLANS block's second header line
   then prints `<!-- Merge owner: <name> | source: D-NNN -->`.
-- **The distributor** (`docs/reference/work-tracking.md`) is a SECOND, separate role beside the merge
-  owner — merging integrates branches into the base branch, distributing sets who owns which work-item
-  (`work.py assign`). `work.py init --distributor <agent>` records it in the repo's own
-  `.fabrik/work/config.json`; without `--distributor`, `init` asks
-  `python3 scripts/decisions.py --merge-owner .` and defaults to that answer, so a repo that never
-  names the two separately gets one agent doing both. The two are independent fields and can diverge —
-  the hub records intel as its distributor (D-395) while the hub's cut-over (plan
-  `2026-09-29-plan-1-hub-worktree-cutover`, T07) recorded infra as merge owner with the `MERGE
-  OWNER: infra` row D-453, so `--merge-owner` reads `infra` (§ Hub vs project below).
+- **The distributor — the coordinator** (`docs/reference/work-tracking.md`) is the SAME agent as the
+  merge owner, in every repo (D-471, operator: *"in each repo the agent which is not on worktree must
+  be merge owner and coordinator"*): the one agent in the main checkout merges branches into the base
+  branch AND sets who owns which work item (`work.py assign`). `work.py init` records it in the repo's
+  own `.fabrik/work/config.json`, defaulting to `python3 scripts/decisions.py --merge-owner .`;
+  never pass a different `--distributor`. The two are still two fields, so a changed merge owner
+  means changing `distributor` with it (the hub moved it from intel to infra under D-471).
 - **Ledgers and ids across branches** (D-448) — each agent writes its own ledger rows
   (`CHANGELOG.md`, `docs/DECISIONS.md`, `docs/STRATEGIC_BACKLOG.md`) on its own branch; two
   branches that both prepend a row to the same table always conflict at merge — `rerere` only
@@ -263,9 +263,9 @@ Projects adopted first; the hub runs the same model now, cut over by
 hazards were closed. **infra is agent-1**, the merge owner, alone in `/opt/fabrik` — recorded as a
 `MERGE OWNER: infra` ledger row (D-453) by the cut-over plan's own last ticket (T07), so
 `python3 scripts/decisions.py --merge-owner .` reads `infra`. Fleet and intel work in
-`.claude/worktrees/fleet` and `.claude/worktrees/intel`; intel stays the distributor unchanged
-(D-395, `.fabrik/work/config.json`) — the merge-owner and distributor roles are independent fields
-and diverge here on purpose (§ Ownership surfaces, above).
+`.claude/worktrees/fleet` and `.claude/worktrees/intel`; infra is also the distributor
+(`.fabrik/work/config.json`, D-471, superseding D-395's intel), so one agent holds both roles
+here as in every repo (§ Ownership surfaces, above).
 
 **Two acts stay main-checkout-only, both closed hazards the hub carried that projects never did:**
 - **The corpus render.** `commands/assemble_commands.py` PRUNES every installed command/skill absent

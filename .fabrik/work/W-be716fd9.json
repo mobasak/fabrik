@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T08:01:08.594023Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-be716fd9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3V7K65K9R675TSVGK1KHK48",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "session-recall's mailbox is unworked (89 unread since 2026-08-17); finding 01M3TQKAR1 blocks D-467's hook, and session-recall is infra's beat"
+}
