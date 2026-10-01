@@ -575,3 +575,27 @@ def test_deleting_a_retired_vendored_dir_is_not_reported_as_drift(tmp_path) -> N
         "the RETIRED dir was reported as drift — the gate contradicts the retirement's own "
         f"sanctioned action and no sync can ever clear it:\n{out.stdout}"
     )
+
+
+def test_merge_request_is_a_synced_core_script_and_a_sync_trigger() -> None:
+    """Plan 2026-09-30-plan-1 T02: `merge_request.py` ships with the contract that names it — in
+    CORE_SCRIPTS (the Python list synced from scripts/, never RUN_SCRIPTS' bash wrappers), and its
+    path matches the governance-sync `files:` regex the post-commit wrapper reads back, so a commit
+    touching only the script distributes."""
+    import re
+
+    import yaml
+
+    assert "merge_request.py" in m.CORE_SCRIPTS
+    assert "merge_request.py" not in m.RUN_SCRIPTS
+    cfg_path = Path(__file__).resolve().parents[1] / ".pre-commit-config.yaml"
+    cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    filters = [
+        hook["files"]
+        for repo in cfg.get("repos", [])
+        for hook in repo.get("hooks", [])
+        if hook.get("id") == "governance-sync"
+    ]
+    assert len(filters) == 1
+    assert re.search(filters[0], "scripts/merge_request.py")
+    assert not re.search(filters[0], "scripts/merge_request_py")  # the dot stays escaped

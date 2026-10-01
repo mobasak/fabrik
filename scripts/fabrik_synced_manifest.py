@@ -49,6 +49,7 @@ CORE_SCRIPTS = [
     "rules_match.py",  # the ONE path<->pack glob matcher; select_rules + review_rubric both import it
     "release_cut.py",  # /fabrik-release version cut: [Unreleased] -> semver section + tag + GitHub Release
     "mail.py",  # fabrik-mail sender/store — fleet-consumed by /fabrik-upstream (send/list/read/claim/ack/requeue/digest/should-reply)
+    "merge_request.py",  # MERGE-REQUEST LOOP: `request` from a linked worktree mails the merge owner (+ the distributor) through mail.py — travels with mail.py, which it shells out to (plan 2026-09-30-plan-1 T02)
     "rivals_run.py",  # /fabrik-rivals driver — SYNCED so EVERY repo runs the scan itself. It
     # resolves the engine local-first then falls back to the hub's vendored copy (a READ, which the
     # cross-repo hard stop does not govern — that rule is about create/edit/COMMIT). Keys reach every
