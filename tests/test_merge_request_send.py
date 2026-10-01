@@ -256,7 +256,7 @@ def test_distributor_distinct_from_owner_gets_an_ack_no_copy(world):
         assert body["head"] == head
         assert body["base"] == "master"
         assert body["item"] == "none"
-        assert body["review"] == "review.md"
+        assert body["review"] == str(world.review.resolve())
         assert body["doorbell"] == "none"
         assert body["requester"] == "fleet"
         assert body["sent"].endswith("Z")
@@ -506,20 +506,48 @@ def test_separate_git_dir_repo_refuses_rather_than_mail_the_git_dirs_name(tmp_pa
     assert not (world.tmp / "mail").exists() or not any((world.tmp / "mail").iterdir())
 
 
-# F — --review is a regular file inside the repo
-@pytest.mark.parametrize("shape", ["outside", "directory"])
-def test_a_review_outside_the_repo_or_not_a_file_refuses(world, shape):
+# F — --review is an existing regular file ANYWHERE (spec § The delta 1: a run record lives outside
+# the repo), stored as its absolute realpath
+def test_a_run_record_outside_the_repo_is_accepted_and_stored_absolute(world):
     world.push()
-    if shape == "outside":
-        target = world.tmp / "outside.md"
-        target.write_text("x\n", encoding="utf-8")
-    else:
-        target = world.wt / "adir"
+    record = world.tmp / "home" / "command-runs" / "run-1234.json"
+    record.parent.mkdir(parents=True)
+    record.write_text('{"status": "done"}\n', encoding="utf-8")
+    r = world.run(review=str(record))
+    assert r.returncode == 0, r.stdout + r.stderr
+    (path,) = world.inbox()
+    assert _fields(path)[1]["review"] == str(record.resolve())
+
+
+@pytest.mark.parametrize("shape", ["directory", "missing"])
+def test_a_review_that_is_not_an_existing_regular_file_refuses(world, shape):
+    world.push()
+    target = world.wt / ("adir" if shape == "directory" else "nope.md")
+    if shape == "directory":
         target.mkdir()
     r = world.run(review=str(target))
     assert r.returncode == 1, r.stdout + r.stderr
     assert "--review" in r.stderr
     assert world.inbox() == []
+
+
+# O14 — the remote checked is the one the branch PUSHES to
+@pytest.mark.parametrize("how", ["pushRemote", "pushDefault"])
+def test_a_triangular_setup_pushed_as_itself_passes(world, how):
+    """Fetch from `origin` (the upstream), push to `fork`: the branch is pushed only to fork."""
+    fork = world.tmp / "fork.git"
+    _git(world.tmp, world.env, "init", "-q", "--bare", "-b", "master", str(fork))
+    _git(world.wt, world.env, "remote", "add", "fork", str(fork))
+    _git(world.wt, world.env, "push", "-q", "fork", "master", "feat")
+    _git(world.wt, world.env, "config", "branch.feat.remote", "origin")
+    _git(world.wt, world.env, "config", "branch.feat.merge", "refs/heads/master")
+    if how == "pushRemote":
+        _git(world.wt, world.env, "config", "branch.feat.pushRemote", "fork")
+    else:
+        _git(world.wt, world.env, "config", "remote.pushDefault", "fork")
+    r = world.run()
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert len(world.inbox()) == 1
 
 
 # G — agent names compare casefolded
@@ -557,10 +585,24 @@ def test_every_post_send_failure_exits_partial(world, monkeypatch, capsys, step)
             return subprocess.CompletedProcess(argv, 0, "garbage\n", "")
         return call()
 
-    extra = ("--item", "W-00000000") if step == "release" else ()
+    extra = () if step == "distributor-who" else ("--item", "W-00000000")
     rc, out = _inproc(world, monkeypatch, capsys, hook, *extra)
     assert rc == 4, out.out + out.err
     assert "do NOT re-run request" in out.err and "check the inbox" in out.err
     assert any(_fields(p)[0]["agent"] == "infra" for p in world.inbox())
+    # O12: the partial message lists EVERY step left undone at that point
+    undone = {
+        "distributor-who": ["send the distributor copy (intel)"],
+        "release": ["release W-00000000"],
+        "owner-send-timeout": [
+            "confirm the owner message landed",
+            "send the distributor copy (intel)",
+            "release W-00000000",
+        ],
+    }
+    undone["owner-send-odd"] = undone["owner-send-timeout"]
+    assert "not done:" in out.err
+    for step_left in undone[step]:
+        assert step_left in out.err, out.err
     if step == "distributor-who":
         assert "SendMessage to=proj-infra" in out.out  # the owner's doorbell still rings

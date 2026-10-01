@@ -12,10 +12,12 @@ and each failure refuses with exit 1:
   * the caller's agent is unresolvable (``whoami_agent.resolve_agent_name``: CLAUDE_AGENT, else this
     session's binding) — a request names who asked;
   * outside a linked worktree, or on a detached HEAD;
-  * ``--review`` (the closing run record or review receipt) is not a regular file inside the
-    worktree or the main checkout (stored repo-relative in the body);
-  * the branch is not pushed AS ITSELF: ``refs/heads/<branch>`` on the remote
-    (``branch.<b>.remote``, else ``origin``; a local ``.`` upstream is refused) must equal HEAD.
+  * ``--review`` (the closing run record or review receipt — spec § The delta 1, "verified to
+    exist") is not a single-line path to an existing regular file; it may live ANYWHERE (a run
+    record sits outside the repo) and is stored as its absolute realpath;
+  * the branch is not pushed AS ITSELF: ``refs/heads/<branch>`` on the push remote
+    (``branch.<b>.pushRemote``, else ``remote.pushDefault``, else ``branch.<b>.remote``, else
+    ``origin``; a local ``.`` is refused) must equal HEAD.
     ``branch.<b>.merge`` is ignored — a branch cut from origin/master tracks master. An unreachable
     remote refuses with the git error;
   * the base — ``--base``, else config ``base_branch``, else the remote's HEAD (``ls-remote
@@ -47,7 +49,9 @@ caller's live claim on that work item is released (``work.py release <id>``) AFT
 Exit codes: 0 sent · 1 refused (nothing sent) · 2 usage · 4 PARTIAL — the owner's request MAY
 already be written (its send timed out or answered oddly) or WAS sent and a later step failed (the
 distributor's ``who`` or copy, the ``--item`` release). On 4: do NOT re-run ``request`` (a second
-request would follow); check the inbox and finish the named step by hand.
+request would follow); check the inbox and finish by hand every step stderr lists after
+``not done:`` — after an owner-send partial that is confirming the message landed, the distributor
+copy and the ``--item`` release, none of which ran.
 """
 
 from __future__ import annotations
@@ -170,8 +174,15 @@ def _work_config(toplevel: Path) -> dict:
 
 
 def _remote_name(cwd: Path, branch: str) -> str:
-    res = _run(["git", "config", f"branch.{branch}.remote"], GIT_TIMEOUT_S, cwd=cwd)
-    remote = res.stdout.strip() or "origin"
+    """The remote ``git push`` would push this branch to: ``branch.<b>.pushRemote``, else
+    ``remote.pushDefault``, else ``branch.<b>.remote``, else ``origin`` — a triangular setup
+    (fetch from upstream, push to a fork) is checked where the branch actually went."""
+    remote = ""
+    for key in (f"branch.{branch}.pushRemote", "remote.pushDefault", f"branch.{branch}.remote"):
+        remote = _run(["git", "config", key], GIT_TIMEOUT_S, cwd=cwd).stdout.strip()
+        if remote:
+            break
+    remote = remote or "origin"
     if remote == ".":
         raise RefusedError(
             f"branch {branch!r} has a local upstream (remote '.') — that is not pushed; "
@@ -313,25 +324,26 @@ def _send(repo: str, agent: str, body: str, ack_no: bool, cwd: Path) -> Path:
     return Path(path)
 
 
-def _review_value(raw: str, cwd: Path, roots: list[Path]) -> str:
-    """``--review`` as a repo-relative path: a regular file inside the worktree or main checkout."""
+def _review_value(raw: str, cwd: Path) -> str:
+    """``--review`` as an ABSOLUTE realpath: an existing regular file ANYWHERE (spec § The delta
+    1 — a command run record lives outside the repo). The loop is same-machine and the owner
+    reads it before the worktree is removed, so the absolute path stays valid for its reader."""
     if not _one_line(raw):
         raise RefusedError("--review is one path on one line (it becomes a body field)")
     path = (cwd / raw).resolve()
     if not path.is_file():
-        raise RefusedError(f"--review {raw} is not a regular file (the closing record or receipt)")
-    for root in roots:
-        try:
-            return str(path.relative_to(root.resolve()))
-        except ValueError:
-            continue
-    raise RefusedError(f"--review {raw} resolves outside the worktree and the main checkout")
+        raise RefusedError(f"--review {raw} is not an existing regular file (run record/receipt)")
+    if not _one_line(str(path)):
+        raise RefusedError(f"--review {raw} resolves to a path with a line break")
+    return str(path)
 
 
-def _partial(step: str, exc: BaseException, mailbox: str) -> None:
+def _partial(step: str, exc: BaseException, mailbox: str, undone: list[str]) -> None:
+    """Exit-4 stderr: what failed, and EVERY step left undone, so the operator finishes by hand."""
     print(
         f"merge_request: PARTIAL — {step} failed ({exc}); the owner's request may already be in "
-        f"{mailbox}'s inbox — do NOT re-run request; check the inbox and finish this step by hand",
+        f"{mailbox}'s inbox — do NOT re-run request; check the inbox. not done: "
+        + "; ".join(undone),
         file=sys.stderr,
     )
 
@@ -358,7 +370,7 @@ def request(args: argparse.Namespace) -> int:
         raise RefusedError("detached HEAD — a request names a branch")
     head = _git("rev-parse", "HEAD", cwd=cwd)
     config = _work_config(toplevel)
-    review = _review_value(args.review, cwd, [toplevel, main])
+    review = _review_value(args.review, cwd)
     remote = _remote_name(cwd, branch)
     refs, remote_head = _remote_refs(cwd, remote)
     _check_pushed(remote, refs, branch, head)
@@ -394,13 +406,16 @@ def request(args: argparse.Namespace) -> int:
     # Strictly BEFORE the owner send: any failure is a refusal, nothing sent.
     owner_names = _who(owner, cwd)
     owner_body = _body(fields(owner_names), owner, "owner")
+    copy_step = f"send the distributor copy ({distributor})"
+    release_step = f"release {args.item}"
     try:
         path = _send(mailbox, owner, owner_body, False, cwd)
-    except TimedOutError as exc:
-        _partial("the owner send", exc, mailbox)
-        return EXIT_PARTIAL
-    except PartialError as exc:
-        _partial("the owner send", exc, mailbox)
+    except (TimedOutError, PartialError) as exc:
+        # The message id is unknown, so nothing after it runs: every later step is left listed.
+        undone = ["confirm the owner message landed (check the inbox)"]
+        undone += [copy_step] if copy else []
+        undone += [release_step] if args.item else []
+        _partial("the owner send", exc, mailbox, undone)
         return EXIT_PARTIAL
     print(path)
     ring(owner_names, path.stem)
@@ -416,8 +431,8 @@ def request(args: argparse.Namespace) -> int:
             print(copy_path)
             ring(names, copy_path.stem)
         except Exception as exc:
-            _partial(f"the distributor copy to {distributor}", exc, mailbox)
-            rc = EXIT_PARTIAL
+            _partial(f"the distributor copy to {distributor}", exc, mailbox, [copy_step])
+            rc = EXIT_PARTIAL  # the release below still runs and reports itself
     if args.item:
         try:
             res = _run(
@@ -427,7 +442,7 @@ def request(args: argparse.Namespace) -> int:
                 raise RefusedError(res.stderr.strip() or res.stdout.strip() or str(res.returncode))
             print(res.stdout.strip())
         except Exception as exc:
-            _partial(f"`work.py release {args.item}`", exc, mailbox)
+            _partial(f"`work.py release {args.item}`", exc, mailbox, [release_step])
             rc = EXIT_PARTIAL
     return rc
 
