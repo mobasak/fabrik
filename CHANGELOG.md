@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — chrome-ext/70-chrome-ext: developer-mode install is a first-class channel, and the pack matches the scaffold (2026-10-02)
+- `.windsurf/rules/chrome-ext/70-chrome-ext.md` (rules currency pass file 42, D-486): § Distribution Model states what developer mode lifts (store review) and what it does not (the MV3 platform rules), the toggle, the policy that can forbid it, no auto-update, the manifest `key` and the release kit; the backend is the same-repo `server/`, the login route is `/auth/login`, strings live in `extension/src/locales`, the design section points at the template, and no version numbers remain.
+- `tests/test_chrome_ext_pack.py`: pins the scaffold facts, every cited section, the developer-mode facts, the auth route and the no-version rule.
+- `.windsurf/rules/CLAIMS.yaml`: eight rows; `docs/reference/research/2026-10-02-chrome-ext-currency-ledger.md`: the turn's 52 facts.
+
 ### Changed — chrome-ext/00-domain-chrome-ext: plans for the one-repo scaffold and states the store's permission rule truthfully (2026-10-01)
 - `.windsurf/rules/chrome-ext/00-domain-chrome-ext.md` (rules currency pass file 41, D-483): the backend is the scaffold's own `server/` beside `extension/`, not a separate python-api project; the permission ceiling is the store's narrowest-permission rule with a longer review for broad access, not a rejected-permission list; §2 forces who publishes (the EU trader declaration); the epic table's analytics row points at §6; consumers are /fabrik-vision and /fabrik-epics.
 - `tests/test_chrome_domain_pack.py`: pins the scaffold backend, every cited sibling section, every `§N` dimension reference and the no-price/no-rate rule.
