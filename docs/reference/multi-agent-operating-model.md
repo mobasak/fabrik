@@ -107,8 +107,10 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
 - **Adoption** — `python scripts/docs_updater.py --adopt <name>[,<name>…]`, run ONCE by agent-1 in
   the main checkout (refuses below 2 live sessions unless `--single-window`; D-154, D-155): seeds the
   PLANS markers, stamps `**Owner:**` on every open unowned plan round-robin, tags every untagged
-  `STRATEGIC_BACKLOG.md` row in its own shape (a hub row's `Owner`/`Tag` cell · a project row's `Item`
-  cell · a bullet's text after its checkbox), appends the `MERGE OWNER: <first name>` ledger row (the
+  work-item row of `STRATEGIC_BACKLOG.md` in its own shape (the cell under a header opening
+  `Owner`/`Tag` when it is empty — an occupied one, or an `Item` that already opens with a tag, is
+  left alone · else the `Item` cell; never a bullet or a table with neither column — W-77e00147),
+  appends the `MERGE OWNER: <first name>` ledger row (the
   row with the HIGHEST D-id whose `what` cell opens with `MERGE OWNER:`, optionally after a
   `supersedes D-NNN:` prefix (then the phrase must be exact uppercase), wins wherever it sits in the file, and a winning `MERGE OWNER:
   UNDECLARED` row means nobody owns the repo — `python3 scripts/decisions.py --merge-owner .` reads

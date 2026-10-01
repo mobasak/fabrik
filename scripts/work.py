@@ -2202,11 +2202,10 @@ def _scan_backlog_rows(text: str) -> list[dict]:
                         owner, full_tag = _table_cell_owner(
                             cells[tag_idx] if tag_idx < len(cells) else "", du
                         )
-                        item_idx = (
-                            names.index(du._BACKLOG_ITEM_HEADER)
-                            if du._BACKLOG_ITEM_HEADER in names
-                            else 1
-                        )
+                        # the same Item lookup --adopt uses (case-insensitive, W-77e00147)
+                        item_idx = du._backlog_item_header_index(names)
+                        if item_idx is None:
+                            item_idx = 1
                         title_src = cells[item_idx] if item_idx < len(cells) else line
                         start(
                             "table",
