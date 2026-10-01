@@ -7,7 +7,8 @@ currency_pass: 2026-10-02
 ---
 <!-- CONSUMER: coding agents building speech or audio features (the globs fire on speech/audio/voice paths).
      GOAL: pick the right speech tool, respect each model's licence, never use a general LLM for plain transcription.
-     Model choice across categories is ai/00-ai-model-selection.md; record a project's vendor choice in docs/DECISIONS.md. -->
+     Model choice across categories is ai/00-ai-model-selection.md; record a project's choice and the rejected alternative in
+     project.yaml (`ai_category`, `ai_subcategory`, `ai_tools`), as ai/00's selection workflow says. -->
 
 # 1. Speech & Audio AI
 

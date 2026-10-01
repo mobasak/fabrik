@@ -4,7 +4,7 @@ The pack is glob-activated on every speech/audio/voice path. Five things it stat
 
 1. The two machinery-owned blocks (GATEWAY_COUNTS, OPENROUTER_ROUTES): `update_gateway_counts.py` and
    `category_export_markdown.py` rewrite the text between their markers, so both marker pairs must survive an edit.
-2. `Last content verification:` — `scripts/check_ai_pack_freshness.py` reads it; the pack must stay parseable and fresh.
+2. `Last content verification:` — `scripts/check_ai_pack_freshness.py` reads it; the stamp must stay parseable.
 3. The licence rule: no model whose weights are non-commercial (Coqui XTTS, F5-TTS, MusicGen) may be named as a Fabrik default;
    the pack once made XTTS the self-hosted TTS fallback and called it Apache 2.0.
 4. Its cites: `ai/00-ai-model-selection.md` § Selection MDs, and fabrik-lib's `speech-detect/` module.
@@ -20,7 +20,6 @@ from __future__ import annotations
 import importlib.util
 import os
 import re
-from datetime import date
 from pathlib import Path
 
 import pytest
@@ -62,8 +61,10 @@ def test_freshness_check_reads_the_stamp() -> None:
     spec = importlib.util.spec_from_file_location("freshchk_speech", FRESH)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    status, age, _msg = mod.check_pack(PACK, date.today())
-    assert status == "fresh", f"check_ai_pack_freshness.py reads the pack as {status!r}: {_msg}"
+    # the freshness policy is warn-only past its window, so the pin is that the stamp PARSES on the script's own
+    # (UTC) clock, never that it is fresh — a calendar date must not turn a warning into a red
+    status, _age, _msg = mod.check_pack(PACK, mod._today())
+    assert status != "unstamped", f"check_ai_pack_freshness.py cannot read the stamp: {_msg}"
 
 
 @pytest.mark.parametrize("model", NON_COMMERCIAL)
@@ -109,7 +110,14 @@ def test_no_retired_routes() -> None:
     for marker in ("<!-- GATEWAY_COUNTS:START", "<!-- OPENROUTER_ROUTES:START"):
         body = body.split(marker, 1)[0] + body.split(marker, 1)[1].split(":END -->", 1)[1]
     assert "Play.ht" not in body, "Play.ht's API was shut down"
-    assert not re.search(r"Kilo\s*/|cheaper of Kilo", body), "the Kilo gateway is retired"
+    assert not re.search(r"Kilo\s*/|/\s*Kilo|cheaper of Kilo|via Kilo|through Kilo", body), (
+        "the Kilo gateway is retired; the pack routes through it"
+    )
+    for sentence in re.split(r"(?<=[.;])\s+", body):
+        if "Kilo" in sentence:
+            assert "retired" in sentence, (
+                f"the Kilo gateway is retired; this names it as a route: {sentence!r}"
+            )
 
 
 def test_no_version_literals() -> None:
@@ -125,3 +133,12 @@ def test_no_version_literals() -> None:
         body,
     )
     assert not found, f"version literals in the pack: {found}"
+
+
+def test_choice_is_recorded_where_ai00_says() -> None:
+    """ai/00's selection workflow records the choice in project.yaml; this pack must not send agents elsewhere."""
+    for key in ("ai_category", "ai_subcategory", "ai_tools"):
+        assert key in INDEX.read_text(encoding="utf-8"), (
+            f"ai/00 no longer names {key}: re-align this pack"
+        )
+        assert key in _pack(), f"the pack no longer tells agents to record {key} in project.yaml"
