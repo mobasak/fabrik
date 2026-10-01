@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 4d9392bec786c5d6b3b3414795b090d4cb7b1d06; range tip 4d9392bec786c5d6b3b3414795b090d4cb7b1d06; `git diff 0798f1c8d..HEAD -- .claude/hooks/final_gate_stop.py tests/test_stop_hook_merge_requests.py tests/test_final_gate_stop_hook.py tests/test_stop_hook_spontaneous_review.py CLAUDE.md templates/governance/CLAUDE.md tests/test_governance_template_split.py` md5 5e0e84919a9b7be86555215d4a299503 (50454 bytes)
 **Command:** /fabrik-review · **Changed:** `.claude/hooks/final_gate_stop.py`, `tests/test_stop_hook_merge_requests.py`, `tests/test_final_gate_stop_hook.py`, `tests/test_stop_hook_spontaneous_review.py`, `CLAUDE.md`, `templates/governance/CLAUDE.md`, `tests/test_governance_template_split.py`
-**Plan:** `docs/development/plans/2026-09-30-plan-1-merge-request-loop/2026-09-30-plan-1-merge-request-loop.md`
+**Plan:** `docs/development/plans/archived/2026-09-30-plan-1-merge-request-loop/2026-09-30-plan-1-merge-request-loop.md`
 
 ## Coverage Checklist
 

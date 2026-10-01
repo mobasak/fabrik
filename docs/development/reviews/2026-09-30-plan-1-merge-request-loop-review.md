@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 72a14d0873c33bc6da5abc1e958aaff128c949ac; range tip 72a14d0873c33bc6da5abc1e958aaff128c949ac; `git diff 81db46b93..HEAD -- docs/reference/multi-agent-operating-model.md docs/reference/fabrik-mail.md docs/workstation/hooks-index.md docs/superpowers/specs/2026-09-30-merge-request-loop-design.md .claude/hooks/session_orient.py scripts/merge_request.py tests/test_merge_request_merge.py` md5 bef070e308310eb545c29dc36a296401 (36522 bytes)
 **Command:** /fabrik-review · **Changed:** `docs/reference/multi-agent-operating-model.md`, `docs/reference/fabrik-mail.md`, `docs/workstation/hooks-index.md`, `docs/superpowers/specs/2026-09-30-merge-request-loop-design.md`, `.claude/hooks/session_orient.py`, `scripts/merge_request.py`, `tests/test_merge_request_merge.py`
-**Plan:** `docs/development/plans/2026-09-30-plan-1-merge-request-loop/2026-09-30-plan-1-merge-request-loop.md`
+**Plan:** `docs/development/plans/archived/2026-09-30-plan-1-merge-request-loop/2026-09-30-plan-1-merge-request-loop.md`
 
 ## Coverage Checklist
 

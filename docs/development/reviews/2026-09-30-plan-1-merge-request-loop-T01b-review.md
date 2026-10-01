@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = a06c15615e9473210f148e023ee3959d355f061f; range tip a06c15615e9473210f148e023ee3959d355f061f; `git diff 4e387afd43e6da7d424960ddbee566f674aa52a7..HEAD -- scripts/mail.py tests/test_mail_who.py` md5 ad37ba05e7a086caa57862a7e87bb16d (33759 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/mail.py`, `tests/test_mail_who.py`
-**Plan:** `docs/development/plans/2026-09-30-plan-1-merge-request-loop/2026-09-30-plan-1-merge-request-loop.md`
+**Plan:** `docs/development/plans/archived/2026-09-30-plan-1-merge-request-loop/2026-09-30-plan-1-merge-request-loop.md`
 
 ## Coverage Checklist
 

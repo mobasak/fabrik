@@ -8,7 +8,7 @@
   "legacy": false,
   "links": {
     "decision": "",
-    "plan": "docs/development/plans/2026-09-30-plan-1-merge-request-loop",
+    "plan": "docs/development/plans/archived/2026-09-30-plan-1-merge-request-loop",
     "spec": ""
   },
   "next": "reproduce in a scratch worktree, make the test (or the digest's hub attribution) independent of the checkout directory name; matters for merge_request.py, whose owner tests run in a throwaway worktree (plan 2026-09-30-plan-1-merge-request-loop T03)",

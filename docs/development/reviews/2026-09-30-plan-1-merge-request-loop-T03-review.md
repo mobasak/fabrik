@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = a4f58612b844aba471fbc233dc641e02665deddb; range tip a4f58612b844aba471fbc233dc641e02665deddb; `git diff db4637dc0d6f3e7b2932936d44eef0c148572989..HEAD -- scripts/merge_request.py tests/test_merge_request_merge.py templates/governance/CLAUDE.md tests/test_governance_template_split.py` md5 f0ed3477925eb05713b8be27053e323e (115622 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/merge_request.py`, `tests/test_merge_request_merge.py`, `templates/governance/CLAUDE.md`, `tests/test_governance_template_split.py`
-**Plan:** `docs/development/plans/2026-09-30-plan-1-merge-request-loop/2026-09-30-plan-1-merge-request-loop.md`
+**Plan:** `docs/development/plans/archived/2026-09-30-plan-1-merge-request-loop/2026-09-30-plan-1-merge-request-loop.md`
 
 ## Coverage Checklist
 

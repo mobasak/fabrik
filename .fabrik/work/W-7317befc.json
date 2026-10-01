@@ -8,7 +8,7 @@
   "legacy": false,
   "links": {
     "decision": "",
-    "plan": "docs/development/plans/2026-09-30-plan-1-merge-request-loop",
+    "plan": "docs/development/plans/archived/2026-09-30-plan-1-merge-request-loop",
     "spec": ""
   },
   "next": "derive the main checkout from core.worktree when set, else refuse loudly instead of falling back to a wrong mailbox; merge_request.py already refuses that case (T02 r1). Found by the T02 coder, wave 3 of plan 2026-09-30-plan-1-merge-request-loop",
