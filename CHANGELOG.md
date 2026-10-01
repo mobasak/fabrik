@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Hub contract: finished worktree work is a merge request (2026-10-01)
+
+The hub `CLAUDE.md` § EXIT now carries the same finish duty as the project template: in a linked worktree, finished work is `python3 scripts/merge_request.py request --review <the closing run record or review receipt> [--item <W-id>]` plus the `SendMessage` lines it prints, and infra (the hub's merge owner) merges it; the ad-hoc merge-to-base default applies to the main checkout only (plan 2026-09-30-plan-1-merge-request-loop T05b). The template's `--review` placeholder now uses the script's own word order. `tests/test_governance_template_split.py` pins the hub duty's linked-worktree lead-in and the `--review` order in both files, each with a failing mutant.
+
 ### Changed — Template § EXIT: finished worktree work is a merge request (2026-10-01)
 
 In a linked worktree, `templates/governance/CLAUDE.md` § EXIT now says finished work means running `python3 scripts/merge_request.py request --review <receipt|run record> [--item <W-id>]` and sending the `SendMessage` lines it prints; a pushed branch without a request is unfinished, and an exit 4 is never re-run. In a repo with no declared merge owner the duty is advice only. The ad-hoc merge-to-base default now applies to the MAIN checkout only: a worktree agent never merges, it requests (plan 2026-09-30-plan-1-merge-request-loop T05a). `tests/test_governance_template_split.py` pins the verb and the scoping (with failing mutants) and every UNIVERSAL anchor outside the index.

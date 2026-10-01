@@ -1644,6 +1644,7 @@ def _check_template_exit_finish_duty(text: str) -> None:
     the duty reads as advice; the ad-hoc merge-to-base default binds the MAIN checkout only."""
     flat = re.sub(r"\s+", " ", _template_exit_item(text))
     assert "python3 scripts/merge_request.py request --review" in flat, "finish verb missing"
+    assert "--review <the closing run record or review receipt>" in flat, "--review value drifted"
     assert "[--item <W-id>]" in flat, "the --item option is not named"
     assert "send the `SendMessage` lines it prints" in flat, "the doorbell duty is missing"
     assert "a pushed branch without a request is unfinished" in flat, "finish != push lost"
@@ -1681,6 +1682,11 @@ _T05A_MUTANTS = (
     ("verb-dropped", "python3 scripts/merge_request.py request --review", "python3 scripts/x.py"),
     ("scope-dropped", "a worktree agent never merges", "a worktree agent may merge"),
     ("main-scope-dropped", "in the MAIN checkout", "anywhere"),
+    (
+        "review-order-reversed",
+        "the closing run record or review receipt",
+        "the closing review receipt or run record",
+    ),
 )
 
 
@@ -1694,3 +1700,59 @@ def test_each_exit_finish_mutant_reds_its_check(old: str, new: str) -> None:
     mutated = re.sub(r"\s+", " ", text).replace(old, new)
     with pytest.raises(AssertionError):
         _check_template_exit_finish_duty(mutated)
+
+
+# ── T05b (plan 2026-09-30-plan-1-merge-request-loop): the hub's own § EXIT mirrors the template ──
+
+
+def _check_hub_exit_finish_duty(text: str) -> None:
+    """Spec § The delta 3, hub copy: a hub worktree agent (fleet, intel) finishes by REQUESTING the
+    merge from infra, the hub's merge owner; the ad-hoc merge-to-base default binds the MAIN
+    checkout only. The hub declares its owner, so the template's delta-8 advice clause is not owed;
+    the UNIVERSAL anchors are pinned by `_check_universal_anchors`."""
+    flat = re.sub(r"\s+", " ", _template_exit_item(text))
+    lead = "**In a linked worktree, finished work is a merge request:**"
+    verb = "python3 scripts/merge_request.py request --review"
+    assert lead in flat, "the duty's linked-worktree lead-in is missing or broadened"
+    assert verb in flat, "finish verb missing"
+    assert flat.index(lead) < flat.index(verb), "the lead-in no longer scopes the finish verb"
+    assert "--review <the closing run record or review receipt>" in flat, "--review value drifted"
+    assert "[--item <W-id>]" in flat, "the --item option is not named"
+    assert "send the `SendMessage` lines it prints" in flat, "the doorbell duty is missing"
+    assert "a pushed branch without a request is unfinished" in flat, "finish != push lost"
+    assert "infra (the merge owner) merges it" in flat, "the hub's merge owner is not named"
+    assert "never re-run" in flat, "the exit-4 partial-send rule is missing"
+    adhoc = flat.split("**Ad-hoc branch/worktree work**", 1)
+    assert len(adhoc) == 2, "the ad-hoc clause moved"
+    scope, _default = adhoc[1].split("the DEFAULT is merge to base locally", 1)
+    assert "in the MAIN checkout" in scope, "the merge default is not scoped to the main checkout"
+    assert "a worktree agent never merges" in scope, "a worktree agent is not barred from merging"
+
+
+def test_the_hubs_exit_names_the_merge_request_as_the_worktree_finish() -> None:
+    hub = _hub_text()
+    _check_hub_exit_finish_duty(hub)
+    _check_universal_anchors(hub)
+
+
+_T05B_MUTANTS = (
+    ("verb-dropped", "python3 scripts/merge_request.py request --review", "python3 scripts/x.py"),
+    ("owner-dropped", "infra (the merge owner) merges it", "someone merges it"),
+    (
+        "lead-in-broadened",
+        "In a linked worktree, finished work is a merge request:",
+        "In the MAIN checkout too, finished work is a merge request:",
+    ),
+    ("scope-dropped", "a worktree agent never merges", "a worktree agent may merge"),
+    ("main-scope-dropped", "in the MAIN checkout", "anywhere"),
+)
+
+
+@pytest.mark.parametrize(
+    ("old", "new"), [m[1:] for m in _T05B_MUTANTS], ids=[m[0] for m in _T05B_MUTANTS]
+)
+def test_each_hub_exit_finish_mutant_reds_its_check(old: str, new: str) -> None:
+    flat = re.sub(r"\s+", " ", _hub_text())
+    assert re.sub(r"\s+", " ", _template_exit_item(_hub_text())).count(old) == 1, f"stale: {old!r}"
+    with pytest.raises(AssertionError):
+        _check_hub_exit_finish_duty(flat.replace(old, new))

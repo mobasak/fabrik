@@ -240,8 +240,8 @@ Every "fix X" / "handle Y" request runs this sequence — each verb CHECKABLE, n
    (`<repo>/.claude/worktrees/`) is listed only unless `--include-harness` and already removable. It never touches
    transcripts, `~/.claude/state` (beyond its own lock), docker, another live session's scratch, or `tasks/`; a
    DEAD session's scratch is the daily janitor's. **In a linked worktree, finished work is a merge request:** when
-   the branch's work is finished, run `python3 scripts/merge_request.py request --review <the closing review
-   receipt or run record> [--item <W-id>]` and send the `SendMessage` lines it prints — a pushed branch without a
+   the branch's work is finished, run `python3 scripts/merge_request.py request --review <the closing run
+   record or review receipt> [--item <W-id>]` and send the `SendMessage` lines it prints — a pushed branch without a
    request is unfinished, the merge owner merges it, and on exit 4 (a partial send) never re-run it; in a repo with
    no declared merge owner it refuses with the adopt command, so this duty reads as advice there. **Ad-hoc
    branch/worktree work** (non-plan, in the MAIN checkout only — a worktree agent never merges, it requests): unless
