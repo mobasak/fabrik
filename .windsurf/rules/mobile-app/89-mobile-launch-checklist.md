@@ -36,6 +36,7 @@ Traycer must ensure every Phase 0-1 item maps to a ticket during planning. Phase
 - [ ] **Google Play Console** registered as **Organization** (not Personal) — bypasses the 14-day / 12-tester closed testing mandate (reduced from 20 in Dec 2024). Requires D-U-N-S + authorized representative ID + address matching Vergi Levhası.
 - [ ] **Apple Developer Program** enrolled as **Organization** ($99/yr). Requires D-U-N-S + Account Holder with legal authority to bind the LLC.
   - Virtual offices without verifiable utility bills are heavily scrutinized. Ensure the D-U-N-S profile address is fully verifiable.
+- [ ] **App Store Connect payment details** — Turkish bank cards may be rejected for the program fee; use a card from a multi-currency provider if so.
 
 ### Small Business Program Enrollment (15% Fee)
 
@@ -91,6 +92,7 @@ Both stores offer 15% commission (vs 30%) for the first $1M/year. **Neither is a
 
 **Both stores:**
 - [ ] Localized listings for `en` and `tr`. Turkish metadata must use local search terms, not direct translations of English ASO keywords.
+- [ ] Age rating accurate — an app with user-generated content or chat is never rated 4+ / PEGI 3.
 
 ### Privacy Compliance
 

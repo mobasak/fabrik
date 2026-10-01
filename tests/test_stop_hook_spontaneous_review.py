@@ -62,7 +62,7 @@ def test_counters_extend_compatibly():
         f.write("1,2,3,4,5")
         p = Path(f.name)
     vals = fgs._read_counters(p)
-    assert vals == (1, 2, 3, 4, 5, 0), vals
+    assert vals == (1, 2, 3, 4, 5, 0, 0), vals
     p.unlink()
 
 

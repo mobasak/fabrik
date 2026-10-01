@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T11:51:43.184169Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-4227a201",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reword or drop the generator comment at src/fabrik/scaffold.py:1067, keep the memory limit it explains, and re-emit one scaffold to confirm",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "template"
+  ],
+  "title": "src/fabrik/scaffold.py:1067 (the shared compose generator, every scaffold type) emits a stale comment about Coolify v4 beta limits_memory, though fabrik apply rejects coolify"
+}

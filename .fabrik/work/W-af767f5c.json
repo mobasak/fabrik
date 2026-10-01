@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T10:46:44.101698Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-af767f5c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "unify on one key set and one path (the i18n-kit format in src/translations/, or the reverse), make sync_rn_locales.py and validate_i18n.py target it, with a test; then drop the 'two unrelated sets' warning from mobile-app/80-mobile.md \u00a7 Localization",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "mobile-app scaffold carries two unrelated translation sets: the app loads src/translations/ (starter-kit keys, en+ar) while static/i18n/ holds the i18n-kit key set the app never loads, and scripts/sync_rn_locales.py writes a third path (src/locales/)"
+}

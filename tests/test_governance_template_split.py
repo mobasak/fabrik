@@ -1626,3 +1626,133 @@ def test_each_hub_contract_mutant_reds_its_check(old: str, new: str, check) -> N
     assert text.count(old) == 1, f"stale mutant — its span is not in the hub once: {old!r}"
     with pytest.raises(AssertionError):
         check(text.replace(old, new))
+
+
+# ── T05a (plan 2026-09-30-plan-1-merge-request-loop): finished worktree work is a merge request ──
+
+
+def _template_exit_item(text: str) -> str:
+    """§ Completion Contract item 5 (EXIT), from its marker to the next `## ` heading."""
+    start = "5. **EXIT** —"
+    assert text.count(start) == 1, "§ EXIT item marker drifted"
+    return text.split(start, 1)[1].split("\n## ", 1)[0]
+
+
+def _check_template_exit_finish_duty(text: str) -> None:
+    """Spec § The delta 3: in a linked worktree, "finished" means the agent ran
+    `merge_request.py request` and sent the doorbell it printed; delta 8: in an undeclared repo
+    the duty reads as advice; the ad-hoc merge-to-base default binds the MAIN checkout only."""
+    flat = re.sub(r"\s+", " ", _template_exit_item(text))
+    assert "python3 scripts/merge_request.py request --review" in flat, "finish verb missing"
+    assert "--review <the closing run record or review receipt>" in flat, "--review value drifted"
+    assert "[--item <W-id>]" in flat, "the --item option is not named"
+    assert "send the `SendMessage` lines it prints" in flat, "the doorbell duty is missing"
+    assert "a pushed branch without a request is unfinished" in flat, "finish != push lost"
+    assert "never re-run" in flat, "the exit-4 partial-send rule is missing"
+    assert "reads as advice there" in flat, "the undeclared-repo clause (delta 8) is missing"
+    adhoc = flat.split("**Ad-hoc branch/worktree work**", 1)
+    assert len(adhoc) == 2, "the ad-hoc clause moved"
+    scope, default = adhoc[1].split("the DEFAULT is merge to base locally", 1)
+    assert "in the MAIN checkout" in scope, "the merge default is not scoped to the main checkout"
+    assert "a worktree agent never merges" in scope, "a worktree agent is not barred from merging"
+
+
+def test_the_templates_exit_names_the_merge_request_as_the_worktree_finish() -> None:
+    _check_template_exit_finish_duty((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"))
+
+
+def test_every_universal_anchor_survives_in_the_templates_rules_outside_its_index() -> None:
+    """Spec § Constraints: the § EXIT edit keeps every UNIVERSAL anchor verbatim. The anchor list
+    is parsed from the hub's canonical bullets; each must appear in the template OUTSIDE its own
+    condensed index line, which always carries every anchor and so would prove nothing."""
+    hub = _hub_text()
+    section = hub.split("## UNIVERSAL governance markers", 1)[1].split("\n## ", 1)[0]
+    anchors = re.findall(r"^- `[a-z-]+` — anchor \*\*(.+?)\*\* — ", section, re.MULTILINE)
+    assert len(anchors) >= 14, f"the anchor list parsed short: {anchors}"
+    tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    start = "## UNIVERSAL governance markers"
+    assert tpl.count(start) == 1, "the template's § UNIVERSAL heading drifted"
+    before, rest = tpl.split(start, 1)
+    body = before + "\n## " + rest.split("\n## ", 1)[1]
+    missing = [a for a in anchors if a not in body]
+    assert not missing, f"UNIVERSAL anchors no longer carried by a template rule: {missing}"
+
+
+_T05A_MUTANTS = (
+    ("verb-dropped", "python3 scripts/merge_request.py request --review", "python3 scripts/x.py"),
+    ("scope-dropped", "a worktree agent never merges", "a worktree agent may merge"),
+    ("main-scope-dropped", "in the MAIN checkout", "anywhere"),
+    (
+        "review-order-reversed",
+        "the closing run record or review receipt",
+        "the closing review receipt or run record",
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("old", "new"), [m[1:] for m in _T05A_MUTANTS], ids=[m[0] for m in _T05A_MUTANTS]
+)
+def test_each_exit_finish_mutant_reds_its_check(old: str, new: str) -> None:
+    text = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    flat_exit = re.sub(r"\s+", " ", _template_exit_item(text))
+    assert flat_exit.count(old) == 1, f"stale mutant: {old!r}"
+    mutated = re.sub(r"\s+", " ", text).replace(old, new)
+    with pytest.raises(AssertionError):
+        _check_template_exit_finish_duty(mutated)
+
+
+# ── T05b (plan 2026-09-30-plan-1-merge-request-loop): the hub's own § EXIT mirrors the template ──
+
+
+def _check_hub_exit_finish_duty(text: str) -> None:
+    """Spec § The delta 3, hub copy: a hub worktree agent (fleet, intel) finishes by REQUESTING the
+    merge from infra, the hub's merge owner; the ad-hoc merge-to-base default binds the MAIN
+    checkout only. The hub declares its owner, so the template's delta-8 advice clause is not owed;
+    the UNIVERSAL anchors are pinned by `_check_universal_anchors`."""
+    flat = re.sub(r"\s+", " ", _template_exit_item(text))
+    lead = "**In a linked worktree, finished work is a merge request:**"
+    verb = "python3 scripts/merge_request.py request --review"
+    assert lead in flat, "the duty's linked-worktree lead-in is missing or broadened"
+    assert verb in flat, "finish verb missing"
+    assert flat.index(lead) < flat.index(verb), "the lead-in no longer scopes the finish verb"
+    assert "--review <the closing run record or review receipt>" in flat, "--review value drifted"
+    assert "[--item <W-id>]" in flat, "the --item option is not named"
+    assert "send the `SendMessage` lines it prints" in flat, "the doorbell duty is missing"
+    assert "a pushed branch without a request is unfinished" in flat, "finish != push lost"
+    assert "infra (the merge owner) merges it" in flat, "the hub's merge owner is not named"
+    assert "never re-run" in flat, "the exit-4 partial-send rule is missing"
+    adhoc = flat.split("**Ad-hoc branch/worktree work**", 1)
+    assert len(adhoc) == 2, "the ad-hoc clause moved"
+    scope, _default = adhoc[1].split("the DEFAULT is merge to base locally", 1)
+    assert "in the MAIN checkout" in scope, "the merge default is not scoped to the main checkout"
+    assert "a worktree agent never merges" in scope, "a worktree agent is not barred from merging"
+
+
+def test_the_hubs_exit_names_the_merge_request_as_the_worktree_finish() -> None:
+    hub = _hub_text()
+    _check_hub_exit_finish_duty(hub)
+    _check_universal_anchors(hub)
+
+
+_T05B_MUTANTS = (
+    ("verb-dropped", "python3 scripts/merge_request.py request --review", "python3 scripts/x.py"),
+    ("owner-dropped", "infra (the merge owner) merges it", "someone merges it"),
+    (
+        "lead-in-broadened",
+        "In a linked worktree, finished work is a merge request:",
+        "In the MAIN checkout too, finished work is a merge request:",
+    ),
+    ("scope-dropped", "a worktree agent never merges", "a worktree agent may merge"),
+    ("main-scope-dropped", "in the MAIN checkout", "anywhere"),
+)
+
+
+@pytest.mark.parametrize(
+    ("old", "new"), [m[1:] for m in _T05B_MUTANTS], ids=[m[0] for m in _T05B_MUTANTS]
+)
+def test_each_hub_exit_finish_mutant_reds_its_check(old: str, new: str) -> None:
+    flat = re.sub(r"\s+", " ", _hub_text())
+    assert re.sub(r"\s+", " ", _template_exit_item(_hub_text())).count(old) == 1, f"stale: {old!r}"
+    with pytest.raises(AssertionError):
+        _check_hub_exit_finish_duty(flat.replace(old, new))

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T11:51:46.980262Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-7e75d679",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "change the cite to '§8 Distribution, Updates & API Versioning' and re-render from master",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "corpus"
+  ],
+  "title": "commands/_sources/fabrik-release.md:106 cites mobile-app/00-domain-mobile-app.md '§ updates', which is no heading — the section is '#### 8. Distribution, Updates & API Versioning'"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T10:46:44.758448Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-38b00674",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "widen _LOOSE to the mobile/web toolchain names (React Native, Expo SDK, NDK, CMake, JDK, Tailwind, NativeWind) with a false-positive measurement over the corpus, per the currency-pass bar row 6",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "rules_render_versions.py _LOOSE sweep sees only Python/SQLAlchemy/FastAPI/TypeScript/pydantic/Node/Debian/Postgres/Redis shapes: it reported 0 on 80-mobile while the pack carried React Native, Expo SDK, NDK, CMake, JDK and library-major literals"
+}

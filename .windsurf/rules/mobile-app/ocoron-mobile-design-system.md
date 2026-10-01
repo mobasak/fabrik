@@ -13,7 +13,7 @@ trigger: glob
 
 > Mobile-specific component patterns and interaction specs. Extends `ocoron-design-system.md` (the brand tokens — colors, typography) and `design-system-template.md` (the structural ones — spacing, motion). This file defines **how** those tokens manifest on mobile surfaces.
 
-**Applies to:** React Native projects using `react-native-unistyles` for theming. Both dark and light mode are mandatory (see `80-mobile.md` § Styling for detection + toggle + persistence mechanism). See `80-mobile.md` for architecture rules, `design-system-template.md` for the token slots, and `ocoron-design-system.md` for the Ocoron values.
+**Applies to:** React Native projects that declare the Ocoron identity, styled through the scaffold's Uniwind engine (`react-native-unistyles` only where zero-re-render theming is a hard requirement — `80-mobile.md` § Styling). Both dark and light mode are mandatory (see `80-mobile.md` § Styling for detection + toggle + persistence mechanism). See `80-mobile.md` for architecture rules, `design-system-template.md` for the token slots, and `ocoron-design-system.md` for the Ocoron values.
 
 ---
 
@@ -313,14 +313,14 @@ Adapts `design-system-template.md` § Forms and Inline Editing for touch interac
 
 ### Keyboard Avoidance
 
-- Use `KeyboardAvoidingView` with `behavior="padding"` (iOS) / `behavior="height"` (Android)
+- Use `react-native-keyboard-controller`'s `KeyboardAvoidingView` / `KeyboardAwareScrollView` (`80-mobile.md` § Platform-Aware Patterns — the core component misbehaves under Android edge-to-edge)
 - Submit button must remain visible above the keyboard at all times
 - Tapping outside any input dismisses the keyboard (`keyboardShouldPersistTaps="handled"`)
 
 ### Mobile Form Rules
 
 - **MF1:** Never use a custom date/time picker when the native platform one exists. Users know their platform's picker — custom pickers add friction.
-- **MF2:** Form submit button must be above the keyboard, never hidden behind it. Use `KeyboardAvoidingView` or sticky footer.
+- **MF2:** Form submit button must be above the keyboard, never hidden behind it. Use `react-native-keyboard-controller`'s `KeyboardAvoidingView` or a sticky footer.
 - **MF3:** Tapping outside an input dismisses the keyboard. Never trap keyboard focus.
 - **MF4:** Long forms (>5 fields) use sections with sticky section headers, not one infinite scroll.
 - **MF5:** Numeric inputs (amount, quantity) use `keyboardType="decimal-pad"` — never the full keyboard for numbers.

@@ -747,11 +747,13 @@ def test_a_merge_owner_row_below_the_head_window_is_still_found(tmp_path: Path) 
     assert "DECLARES merge owner `deepowner`" in out
 
 
-def test_a_window_cut_never_renders_a_truncated_owner_name(tmp_path: Path) -> None:
+def test_a_byte_cap_cut_never_renders_a_truncated_owner_name(tmp_path: Path) -> None:
     # A cut landing INSIDE the owner name used to render the truncated name as fact
     # (`alphab` for `alphabravocharliedelta`) — the loud-and-wrong side of a bounded read.
-    # The row is placed so the 64 KB head cut falls 6 characters into the NAME, and the file
-    # is wider than TWO windows so the tail cannot reach back and supply the row intact.
+    # The row is placed so a 64 KB cut falls 6 characters into the NAME. The hook now reads the
+    # WHOLE ledger (W-076ff4a9: a head+tail window hid a mid-file winner), so the full name is
+    # rendered; the remaining bound is `_LEDGER_MAX_BYTES`, exercised here by lowering it onto
+    # the same cut, where the cut line must be DROPPED rather than read as `alphab`.
     proj = tmp_path / "opt" / "cutledger"
     (proj / "docs" / "development").mkdir(parents=True)
     hdr = "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
@@ -773,7 +775,16 @@ def test_a_window_cut_never_renders_a_truncated_owner_name(tmp_path: Path) -> No
     rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
     assert rc == 0
     assert "`alphab`" not in out, "a truncated name was rendered as the declared owner"
-    assert "`alphabravocharliedelta`" not in out, "a row in neither window must not be claimed"
+    assert "DECLARES merge owner `alphabravocharliedelta`" in out, "a mid-file row must be read"
+
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("session_orient_cut", HOOK)
+    assert spec and spec.loader
+    hook = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(hook)
+    hook._LEDGER_MAX_BYTES = 64 * 1024  # the cut now lands 6 characters into the name
+    assert hook._ledger_merge_owner(str(proj)) == ""
 
 
 def test_the_last_merge_owner_row_wins(tmp_path: Path) -> None:
@@ -872,18 +883,36 @@ def test_the_merge_owner_grammar_tracks_its_sources_and_names_its_one_divergence
     # the copy is pinned here (the precedent command_run.py set for its axis list).
     # ⚠️ The pin asserts the CAPTURE verbatim — INCLUDING the quantifier, which an earlier cut
     # stopped one character short of, leaving it structurally blind to the only position where
-    # the three actually differed. The one deliberate divergence is the UNDECLARED lookahead,
-    # which the hook alone carries and which is asserted HERE so it cannot be dropped silently.
+    # the three actually differed. The one deliberate divergence is the UNDECLARED lookahead
+    # inside the hook's owner regex, asserted HERE so it cannot be dropped silently; the
+    # un-adoption TOKEN regex and the `supersedes D-NNN:` prefix (W-076ff4a9) are shared by all
+    # three readers byte for byte.
     hook = (FABRIK / ".claude/hooks/session_orient.py").read_text(encoding="utf-8")
     du = (FABRIK / "scripts/docs_updater.py").read_text(encoding="utf-8")
     dec = (FABRIK / "scripts/decisions.py").read_text(encoding="utf-8")
     bs = chr(92)
     capture = "([A-Za-z0-9][A-Za-z0-9_.@-]*)"
+    # the optional supersedes prefix a changed owner's NEW row opens with
+    prefix = r'_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*(?=(?-i:MERGE OWNER:)))?"'
     phrase = "MERGE OWNER:" + bs + "s*"
+    # the formatter wraps a long `re.compile(...)` over lines, so the USE is matched with all
+    # whitespace removed; the pattern literals themselves hold no spaces to lose
+    flat = {n: "".join(src.split()) for n, src in (("hook", hook), ("du", du), ("dec", dec))}
+    for name, src in (("hook", hook), ("docs_updater", du), ("decisions.py", dec)):
+        assert prefix in src, f"{name}'s supersedes prefix drifted"
+    uses = r'MERGE_OWNER_RE=re.compile(r"^\**\s*"+_SUPERSEDES_PREFIX+r"MERGEOWNER:'
+    for name, src in flat.items():
+        assert uses in src, f"{name}'s owner regex does not use the prefix"
     assert phrase + capture in du, "docs_updater's MERGE_OWNER_RE drifted"
     assert phrase + capture in dec, "decisions.py's MERGE_OWNER_RE drifted"
     # token-exact, so `undeclared-team` stays an owner as decisions.py reads it; a trailing full stop
     # is punctuation (`UNDECLARED.` is an un-adoption row), a dot before a name character is not
+    token = "UNDECLARED(?![A-Za-z0-9_@-]|" + bs + ".[A-Za-z0-9_@-])"
+    undeclared = '_UNDECLARED_RE = re.compile(r"^' + bs + "**" + bs + 's*" + _SUPERSEDES_PREFIX'
+    undeclared += ' + r"MERGE OWNER:' + bs + "s*" + token + '", re.I'
+    undeclared = "".join(undeclared.split())
+    for name, src in flat.items():
+        assert undeclared in src, f"{name}'s un-adoption token regex drifted"
     lookahead = "(?!UNDECLARED(?![A-Za-z0-9_@-]|\\.[A-Za-z0-9_@-]))"
     assert phrase + lookahead + capture in hook, "the hook's grammar drifted from its sources"
     assert lookahead not in du and lookahead not in dec, (
@@ -1084,7 +1113,7 @@ def test_live_whoami_bindings_are_listed_and_a_dead_pid_is_not(tmp_path: Path) -
 
 def test_the_move_line_owner_agrees_with_decisions_py_on_a_deep_ledger(tmp_path: Path) -> None:
     # The hook reads the owner in-process (a `decisions.py --merge-owner` subprocess costs as much
-    # as the whole hook — measured). Its answer must be decisions.py's: the WHOLE ledger, last row
+    # as the whole hook — measured). Its answer must be decisions.py's: the WHOLE ledger, highest id
     # wins, so an owner row sunk far below a 64 KB window still counts (the hub ledger is
     # newest-first and ~750 KB).
     repo = _git_repo(tmp_path / "opt" / "deep", None)
@@ -1144,9 +1173,18 @@ _ALICE = "| D-001 | d | a | MERGE OWNER: alice | y | z |\n"
         "owner-named-undeclared-team",
     ],
 )
-def test_the_owner_reader_agrees_with_decisions_py(tmp_path: Path, rows: str) -> None:
+def test_the_owner_reader_agrees_with_decisions_py(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rows: str
+) -> None:
     repo = _git_repo(tmp_path / "opt" / "parity", None)
     (repo / "docs/DECISIONS.md").write_text(_HDR + rows, encoding="utf-8")
+    # docs_updater decodes the same GFM escapes (W-076ff4a9 ported `_ledger_cells`), so it is held
+    # to the same answer over the same escaped-pipe / code-span / escaped-name ledgers
+    monkeypatch.syspath_prepend(str(FABRIK / "scripts"))
+    import docs_updater as du
+
+    monkeypatch.setattr(du, "PROJECT_ROOT", repo)
+    got = du.read_merge_owner()
     ref = subprocess.run(
         [sys.executable, str(FABRIK / "scripts/decisions.py"), "--merge-owner", str(repo)],
         capture_output=True,
@@ -1154,8 +1192,9 @@ def test_the_owner_reader_agrees_with_decisions_py(tmp_path: Path, rows: str) ->
         timeout=60,
     )
     want = ref.stdout.strip()
-    # decisions.py prints `UNDECLARED` for "none" — rc 3 with no row, rc 0 for an un-adoption row
+    # decisions.py prints `UNDECLARED` at rc 3 for "none" — no row, or an un-adoption row winning
     want = "" if want == "UNDECLARED" else want
+    assert (got[0] if got else "") == want, "docs_updater.read_merge_owner"
     rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), {"CLAUDE_AGENT": "zed"})
     assert rc == 0 and "ORIENT" in out
     move = [ln for ln in out.splitlines() if "EnterWorktree" in ln]
@@ -1179,8 +1218,9 @@ def test_the_owner_reader_agrees_with_decisions_py(tmp_path: Path, rows: str) ->
 def test_a_full_stop_after_undeclared_is_punctuation_not_a_name(
     tmp_path: Path, row: str, owner: str
 ) -> None:
-    """The one deliberate divergence from decisions.py (which captures `UNDECLARED.`): a human's
-    un-adoption row ending in a full stop must not read as an owner called `UNDECLARED.`."""
+    """A human's un-adoption row ending in a full stop must not read as an owner called
+    `UNDECLARED.` (decisions.py once captured it as one; since W-076ff4a9 all three readers share
+    the token regex, which the parity test below executes)."""
     repo = _git_repo(tmp_path / "opt" / "stop", None)
     (repo / "docs/DECISIONS.md").write_text(
         _HDR + _ALICE + f"| D-002 | d | a | {row} | y | z |\n", encoding="utf-8"
@@ -1193,6 +1233,125 @@ def test_a_full_stop_after_undeclared_is_punctuation_not_a_name(
     else:
         assert move == [], out
         assert "docs_updater.py --adopt" in out
+
+
+# --- W-076ff4a9: ONE selection rule in three readers -----------------------------------------
+# The ledger's header says row POSITION is a convention nothing reads, and a changed decision is a
+# NEW row whose what-cell OPENS `supersedes D-NNN:`. So the merge owner is the highest-id matching
+# row, wherever it sits; all three readers are executed over the same fixtures and must agree.
+
+_A1 = "| D-001 | x | op | MERGE OWNER: alpha | y | z |\n"
+_BIG_FILL = "".join(
+    f"| D-{i:04d} | 2026-09-16 | w | routine row | y | z |\n" for i in range(100, 3100)
+)
+
+
+def _row2(what: str, rid: str = "D-002") -> str:
+    return f"| {rid} | x | op | {what} | y | z |\n"
+
+
+# Every opening spelling the hub ledger's real superseding rows use (a grep of docs/DECISIONS.md
+# for what-cells opening `supersedes`, 2026-10-01: 39 of 463 rows): `:` or `.` closes the clause,
+# `**` may wrap it, any case, and a qualifier may sit between the id and the close.
+_SUPERSEDES_SPELLINGS = [
+    "**supersedes D-001:** MERGE OWNER: beta",
+    "**supersedes D-001.** MERGE OWNER: beta",
+    "**supersedes D-001's scope:** MERGE OWNER: beta",
+    "**Supersedes D-001 on its WHY clause:** MERGE OWNER: beta",
+    "**SUPERSEDES D-001 ON THE MECHANISM:** MERGE OWNER: beta",
+    "supersedes D-001 (delegation clause only): MERGE OWNER: beta",
+    "**Supersedes D-001 (2) and (5).** MERGE OWNER: beta",
+    "**Supersedes D-000, D-001 and D-003:** MERGE OWNER: beta",
+    "supersedes D-001: **MERGE OWNER: beta**",
+]
+
+_BIG_OWNER = _A1 + _BIG_FILL + _row2("MERGE OWNER: beta", "D-9000") + _BIG_FILL
+_BIG_UNDECLARED = _A1 + _BIG_FILL + _row2("MERGE OWNER: UNDECLARED", "D-9000") + _BIG_FILL
+
+_OWNER_CASES = [
+    ("higher-id-above", _row2("MERGE OWNER: beta") + _A1, "beta"),
+    ("higher-id-below", _A1 + _row2("MERGE OWNER: beta", "D-010"), "beta"),
+    ("undeclared-highest-id", _row2("MERGE OWNER: UNDECLARED — un-adopted") + _A1, ""),
+    ("undeclared-via-supersedes", _row2("SUPERSEDES D-001. MERGE OWNER: UNDECLARED.") + _A1, ""),
+    (
+        "undeclared-lower-id-is-history",
+        _row2("MERGE OWNER: alpha", "D-003") + _row2("MERGE OWNER: UNDECLARED"),
+        "alpha",
+    ),
+    # an escaped pipe in an EARLIER cell of the winning row: GFM makes it content, so the what
+    # cell is still column 4 (a plain `|` split read `op` there and fell back to alpha)
+    ("escaped-pipe-winner", "| D-002 | x \\| y | op | MERGE OWNER: beta | y | z |\n" + _A1, "beta"),
+    # the phrase MID-prose is never an owner row, supersedes clause or not: alpha stands
+    ("mid-prose-after-colon", _row2("supersedes D-001: the old MERGE OWNER: beta") + _A1, "alpha"),
+    ("mid-prose-in-qualifier", _row2("supersedes D-001 on the MERGE OWNER: beta") + _A1, "alpha"),
+    ("mid-prose-no-supersedes", _row2("we noted MERGE OWNER: beta") + _A1, "alpha"),
+    # after a supersedes clause the phrase must be the exact uppercase `MERGE OWNER:` — a prose
+    # sentence that merely starts `Merge owner:` is not a declaration (`rotated` is no owner)
+    (
+        "prose-merge-owner-after-supersedes",
+        _row2("**Supersedes D-001.** Merge owner: rotated weekly by the on-call") + _A1,
+        "alpha",
+    ),
+    (
+        "lowercase-supersedes-uppercase-phrase",
+        _row2("supersedes d-001: MERGE OWNER: beta") + _A1,
+        "beta",
+    ),
+    ("uppercase-supersedes-full-stop", _row2("SUPERSEDES D-001. MERGE OWNER: beta") + _A1, "beta"),
+    # a bare row keeps its case-insensitivity: nothing that parsed before stops parsing
+    ("bare-row-lowercase-phrase", _row2("merge owner: beta") + _A1, "beta"),
+    # a >128 KB ledger whose winning row sits in the MIDDLE, outside any 64 KB head/tail window
+    ("big-ledger-mid-owner", _BIG_OWNER, "beta"),
+    ("big-ledger-mid-undeclared", _BIG_UNDECLARED, ""),
+] + [(f"supersedes-{i}", _row2(w) + _A1, "beta") for i, w in enumerate(_SUPERSEDES_SPELLINGS)]
+
+
+def test_the_big_fixtures_really_exceed_both_windows() -> None:
+    for rows in (_BIG_OWNER, _BIG_UNDECLARED):
+        size = len((_HDR + rows).encode())
+        mid = (_HDR + rows).encode().index(b"| D-9000 |")
+        assert size > 2 * 64 * 1024 and 64 * 1024 < mid < size - 64 * 1024, (size, mid)
+
+
+@pytest.mark.parametrize(
+    ("rows", "owner"), [c[1:] for c in _OWNER_CASES], ids=[c[0] for c in _OWNER_CASES]
+)
+def test_the_three_owner_readers_pick_the_highest_id_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rows: str, owner: str
+) -> None:
+    import importlib.util
+
+    repo = tmp_path / "opt" / "parityrepo"
+    (repo / "docs").mkdir(parents=True)
+    (repo / "docs/DECISIONS.md").write_text(_HDR + rows, encoding="utf-8")
+
+    spec = importlib.util.spec_from_file_location("session_orient_w076", HOOK)
+    assert spec and spec.loader
+    hook = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(hook)
+    monkeypatch.syspath_prepend(str(FABRIK / "scripts"))
+    import docs_updater as du
+
+    assert Path(du.__file__).resolve() == (FABRIK / "scripts/docs_updater.py").resolve()
+    monkeypatch.setattr(du, "PROJECT_ROOT", repo)
+
+    ref = subprocess.run(
+        [sys.executable, str(FABRIK / "scripts/decisions.py"), "--merge-owner", str(repo)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert (ref.returncode, ref.stdout.strip()) == ((0, owner) if owner else (3, "UNDECLARED"))
+    got = du.read_merge_owner()
+    assert (got[0] if got else "") == owner, "docs_updater.read_merge_owner"
+    assert hook._ledger_merge_owner(str(repo)) == owner, "hook move-line reader"
+    # the identity line's reader, observed through the hook's real output (no CLAUDE_AGENT set)
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}))
+    assert rc == 0 and "ORIENT" in out
+    if owner:
+        assert f"DECLARES merge owner `{owner}`" in out, "hook identity line"
+    else:
+        assert "DECLARES merge owner" not in out, "hook identity line"
 
 
 def _instruction_lines(out: str) -> list[str]:

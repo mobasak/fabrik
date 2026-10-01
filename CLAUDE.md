@@ -260,7 +260,11 @@ Every "fix X" / "handle Y" request runs this sequence — each verb CHECKABLE, n
    before this process) is never removed; a harness worktree (`<repo>/.claude/worktrees/`) is listed only unless
    `--include-harness` and already removable. It never touches transcripts, `~/.claude/state` (beyond its own
    lock), docker, another live session's scratch, or `tasks/`; a DEAD session's scratch is the daily janitor's.
-   **Ad-hoc branch/worktree work** (non-plan): unless the operator named the disposition this turn, the DEFAULT
+   **In a linked worktree, finished work is a merge request:** when the branch's work is finished, run `python3
+   scripts/merge_request.py request --review <the closing run record or review receipt> [--item <W-id>]` and send
+   the `SendMessage` lines it prints — a pushed branch without a request is unfinished, infra (the merge owner)
+   merges it, and on exit 4 (a partial send) never re-run it. **Ad-hoc branch/worktree work** (non-plan, in the
+   MAIN checkout only — a worktree agent never merges, it requests): unless the operator named the disposition this turn, the DEFAULT
    is merge to base locally **then push base**; PRESENT only the genuine choices — keep the branch as-is ·
    discard (only a branch/worktree THIS run created) — when merging is genuinely arguable. On merge: resolve
    base as the MAIN checkout's branch — `MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')` — pin

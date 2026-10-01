@@ -1949,6 +1949,86 @@ claims:
     window_days: 365
     last_verified: 2026-09-30
 
+  - id: rn-new-architecture-only
+    pack: mobile-app/80-mobile.md
+    kind: version
+    claim: "React Native runs only on the New Architecture: RN 0.82 removed the opt-out and RN 0.85 removed the legacy bridge code; Expo SDK 55 removed the newArchEnabled option (a leftover key is ignored); Expo SDK 57 (30 June 2026, RN 0.86) is the current stable and SDK 58 is in beta"
+    verify: "https://docs.expo.dev/guides/new-architecture/ ; https://expo.dev/changelog/sdk-57 (exa + brave + WebSearch, 2026-09-30; ledger pf-01, pf-03..pf-05)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: expo-router-decoupled
+    pack: mobile-app/80-mobile.md
+    kind: deprecation
+    claim: "Since Expo SDK 56 expo-router no longer depends on React Navigation: importing @react-navigation/* in app code is a Metro bundler error; a codemod rewrites imports; EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK=1 only silences the check; Expo's templates ship experiments.typedRoutes on"
+    verify: "https://docs.expo.dev/router/migrate/sdk-55-to-56/ ; https://docs.expo.dev/router/reference/typed-routes/ (brave + WebSearch + WebFetch, 2026-09-30; ledger pf-06..pf-08)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: rn-android-toolchain
+    pack: mobile-app/80-mobile.md
+    kind: version
+    claim: "Current React Native requests NDK 27.1.12297006, JDK 17 and CMake 3.30.5 (overridable with CMAKE_VERSION); Google Play requires 16 KB page-size support for new apps and updates targeting Android 15+ from 1 Nov 2025"
+    verify: "https://github.com/facebook/react-native/blob/main/packages/react-native/ReactAndroid/build.gradle.kts ; https://android-developers.googleblog.com/2025/05/prepare-play-apps-for-devices-with-16kb-page-size.html (exa + brave, 2026-09-30; ledger pf-09, pf-10)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: rn-edge-to-edge-keyboard
+    pack: mobile-app/80-mobile.md
+    kind: practice
+    claim: "Android 16 targets cannot opt out of edge-to-edge and Expo SDK 54 made it the default; Expo recommends react-native-keyboard-controller over the core KeyboardAvoidingView under edge-to-edge"
+    verify: "https://expo.dev/changelog/sdk-54 ; https://expo.dev/blog/edge-to-edge-display-now-streamlined-for-android (WebSearch + brave, 2026-09-30; ledger pf-11, pf-12)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: rn-library-apis
+    pack: mobile-app/80-mobile.md
+    kind: version
+    claim: "react-native-mmkv's current API: createMMKV() and .remove(key), Info.plist AppGroupIdentifier, needs react-native-nitro-modules; @testing-library/react-native v14 is stable and async (codemod rntl-v14-async-functions); FlashList's current major is New-Architecture-only without estimatedItemSize; Hey API enables validation with validator on the @hey-api/sdk plugin"
+    verify: "https://github.com/mrousavy/react-native-mmkv ; https://oss.callstack.com/react-native-testing-library/docs/start/migration-v14 ; https://shopify.github.io/flash-list/docs/v2-migration/ ; https://fastapi.tiangolo.com/advanced/generate-clients/ (exa + brave + WebFetch, 2026-09-30; ledger lb-01..lb-03, lb-09, lb-10)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: rn-styling-engines
+    pack: mobile-app/80-mobile.md
+    kind: practice
+    claim: "Uniwind is an MIT build-time Tailwind compiler from the Unistyles team whose free tier re-renders on theme change (Uniwind Pro is paid, proprietary, zero-re-render); react-native-unistyles v3 is New-Architecture-only with a C++/JSI core; NativeWind's stable line targets Tailwind v3 and its Tailwind-v4 line is a release candidate; React Native Reusables is MIT with Uniwind or NativeWind starters"
+    verify: "https://github.com/uni-stack/uniwind ; https://www.unistyl.es/v3/start/getting-started/ ; https://www.nativewind.dev/v5 ; https://github.com/founded-labs/react-native-reusables (exa + brave + WebSearch, 2026-09-30; ledger lb-04..lb-07)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: apple-login-and-deletion
+    pack: mobile-app/80-mobile.md
+    kind: standard
+    claim: "Apple 4.8: a third-party/social primary login must be paired with an equivalent login service limiting data to name and email, allowing a private email and collecting no ad interactions without consent; 5.1.1(v): account creation requires in-app deletion; privacy manifests are enforced from 1 May 2024 for newly added listed SDKs; Google Play requires in-app deletion plus a web deletion link"
+    verify: "https://developer.apple.com/app-store/review/guidelines/ ; https://developer.apple.com/news/?id=pvszzano ; https://support.google.com/googleplay/android-developer/answer/13327111 (WebFetch + exa + brave, 2026-09-30; ledger st-01..st-03, st-06)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: ai-decision-transparency-scope
+    pack: mobile-app/80-mobile.md
+    kind: standard
+    claim: "GDPR Art. 22 binds solely-automated decisions with legal or similarly significant effects; AI Act Art. 50 transparency duties apply from 2 Aug 2026 to chatbots, generated content and deepfakes, while recommendation systems are minimal-risk; KVKK Art. 11(1)(g) grants a right to object to a detrimental result of exclusively automated analysis, and KVKK published a generative-AI guide on 24 Nov 2025"
+    verify: "https://digital-strategy.ec.europa.eu/en/faqs/transparency-obligations-under-article-50-ai-act ; https://www.dataguidance.com/news/turkey-kvkk-publishes-guide-generative-ai-and-personal (exa + brave, 2026-09-30; ledger st-07, st-10)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: kvkk-cross-border-7499
+    pack: mobile-app/80-mobile.md
+    kind: standard
+    claim: "Since Law 7499 took effect on 1 June 2024, a KVKK transfer abroad needs an adequacy decision, an appropriate safeguard such as the Board's standard contract (notified to the Authority within 5 business days of signing) or an incidental-transfer ground"
+    verify: "https://www.esenyelpartners.com/cross-border-data-transfer-under-kvkk/ ; the official KVKK translation of Law 6698 as amended (brave + exa, 2026-09-30; ledger st-09)"
+    window_days: 365
+    last_verified: 2026-09-30
+
+  - id: mobile-dated-deadlines
+    pack: mobile-app/80-mobile.md
+    kind: deprecation
+    claim: "Firebase Dynamic Links shut down on 25 Aug 2025 (links return 404); the FTC's amended COPPA Rule took effect 23 June 2025 with a compliance date of 22 April 2026"
+    verify: "https://firebase.google.com/support/dynamic-links-faq ; https://www.federalregister.gov/documents/2025/04/22/2025-05904/childrens-online-privacy-protection-rule (WebSearch + exa, 2026-09-30; ledger pf-16, st-12)"
+    window_days: 365
+    last_verified: 2026-09-30
+
   - id: fingerprintjs-oss-accuracy
     pack: saas/87-abuse-detection.md
     kind: practice
@@ -2140,3 +2220,131 @@ claims:
     verify: "https://fonts.google.com/specimen/Space+Grotesk ; https://fonts.google.com/specimen/JetBrains+Mono ; https://www.jetbrains.com/lp/mono/ (exa + WebSearch, 2026-09-24; ledger ut-15..ut-18)"
     window_days: 365
     last_verified: 2026-09-24
+
+  - id: eu-billing-outside-store-terms
+    pack: mobile-app/00-domain-mobile-app.md
+    kind: pricing
+    claim: "In the EU/EEA both stores allow store billing, link-out to web checkout, or an alternative in-app provider; Apple's terms change again on 1 October 2026 and Google Play's EEA terms changed on 30 June 2026, and both now leave a small developer a fee difference outside store billing — so the pack forces the three-way decision instead of ruling it out"
+    verify: "https://developer.apple.com/support/dma-and-apps-in-the-eu/ ; https://www.apple.com/newsroom/2026/08/apple-announces-changes-for-apps-in-the-european-union/ ; https://support.google.com/googleplay/android-developer/answer/16954621 (WebFetch + WebSearch/brave/exa, 2026-09-30; ledger sp-02, sp-06, op-01)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: apple-guideline-4-8-login
+    pack: mobile-app/00-domain-mobile-app.md
+    kind: policy
+    claim: "App Store Guideline 4.8 requires an app whose primary account uses a third-party or social login to also offer a login option meeting three privacy criteria; Sign in with Apple satisfies it but is not itself mandated, and apps using only their own accounts are exempt"
+    verify: "https://developer.apple.com/app-store/review/guidelines/#login-services (WebFetch + exa, 2026-09-30; ledger sp-01, op-02)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: turkey-store-billing-both-stores
+    pack: mobile-app/00-domain-mobile-app.md
+    kind: policy
+    claim: "Turkey is outside Google Play's User Choice Billing and External Offers programs and outside Apple's EU terms, so store billing stays mandatory for digital goods on both stores"
+    verify: "https://support.google.com/googleplay/android-developer/answer/13821247 ; https://support.google.com/googleplay/android-developer/answer/14372887 (WebSearch + brave + exa, 2026-09-30; ledger sp-03, sp-07)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: ota-and-code-push-scope
+    pack: mobile-app/00-domain-mobile-app.md
+    kind: practice
+    claim: "EAS Update ships JavaScript, styles and compatible assets only, never native code; Shorebird code push supports Flutter only, not React Native"
+    verify: "https://docs.expo.dev/eas-update/introduction/ ; https://docs.shorebird.dev/code-push/ (WebSearch + WebFetch, 2026-09-30; ledger sp-05, sp-08, op-06)"
+    window_days: 365
+    last_verified: 2026-09-30
+
+  - id: partner-codes-store-asymmetry
+    pack: mobile-app/00-domain-mobile-app.md
+    kind: practice
+    claim: "App Store offer codes (including custom codes) can be created through the App Store Connect API; Google Play promo codes are Console-only with no Developer API resource; Apple prohibits fingerprinting under its privacy-manifest rules"
+    verify: "https://developer.apple.com/documentation/appstoreconnectapi/post-v1-subscriptionoffercodecustomcodes ; https://developer.android.com/google/play/billing/promo ; https://developer.apple.com/news/?id=z6fu1dcu (exa + WebSearch + brave, 2026-09-30; ledger pr-01, pr-02, op-07)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: ios-attribution-skan-aak
+    pack: mobile-app/00-domain-mobile-app.md
+    kind: practice
+    claim: "Apple has announced no deprecation timeline for SKAdNetwork; AdAttributionKit runs beside it with uneven adoption and is the only Apple attribution that covers installs from EU alternative marketplaces and web distribution; Android's Install Referrer is deterministic and iOS has no equivalent; Firebase Dynamic Links shut down on 25 August 2025"
+    verify: "https://developer.apple.com/support/apps-in-the-eu/ ; https://www.appsflyer.com/glossary/install-referrer/ ; https://firebase.google.com/support/dynamic-links-faq (brave + exa, 2026-09-30; ledger at-03..at-05)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: mobile-vendor-defaults
+    pack: mobile-app/00-domain-mobile-app.md
+    kind: practice
+    claim: "The named vendor defaults exist and fit their role: Tenjin (MMP with a free tier and usage pricing), ChottuLink (deferred deep-link routing with a free tier), RevenueCat (custom subscriber attributes carried in webhooks, no built-in referral feature), Expo Push (free, delivers via FCM and APNs)"
+    verify: "https://tenjin.com/pricing/ ; https://chottulink.com/pricing.html ; https://www.revenuecat.com/docs/customers/customer-attributes ; https://docs.expo.dev/push-notifications/sending-notifications/ (brave + exa + WebSearch, 2026-09-30; ledger at-01, at-02, at-06, pr-04)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: turkey-play-billing-mandatory-2026
+    pack: mobile-app/81-mobile-billing.md
+    kind: policy
+    claim: "Google Play Billing is mandatory for digital goods sold to users in Turkey (outside User Choice Billing; External Offers is EEA-only); Rekabet Kurumu's Play Billing investigation opened 7 August 2025 had no decision by September 2026; Google dates its rest-of-world billing-choice rollout 30 September 2027 and names no date for Turkey"
+    verify: "https://www.rekabet.gov.tr/en/Guncel ; https://support.google.com/googleplay/android-developer/answer/12570971 (exa + WebSearch, 2026-09-30; ledger fs-05, op-06)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: google-play-fee-model-2026
+    pack: mobile-app/81-mobile-billing.md
+    kind: pricing
+    claim: "Legacy Google Play fee: auto-renewing subscriptions 15% regardless of enrolment, other transactions 15% on the first $1M only after enrolment; from 30 June 2026 (US/UK/EEA), 30 September 2026 (AU/JP), 31 December 2026 (KR), 30 September 2027 (rest of world): 10% on the first $1M and all subscriptions, 20-25% otherwise, plus a 5% billing fee only with Play Billing"
+    verify: "https://support.google.com/googleplay/android-developer/answer/112622 ; https://developer.android.com/blog/posts/expanded-billing-choice-and-lower-fees-on-google-play (exa + WebSearch, 2026-09-30; ledger fs-01, fs-02)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: apple-sbp-and-eu-terms-2026
+    pack: mobile-app/81-mobile-billing.md
+    kind: pricing
+    claim: "Apple SBP: 15% on the first $1M, rate starts 15 days after the end of the fiscal month of approval; non-SBP subscriptions drop to 15% after a subscriber's first paid year; EU from 1 October 2026: IAP 26% (15% SBP), link-out 15% (10% SBP), alternative in-app provider 20% (10% SBP), alternative distribution 5% CTC"
+    verify: "https://developer.apple.com/app-store/small-business-program/ ; https://developer.apple.com/support/apps-in-the-eu/ (exa + WebFetch, 2026-09-30; ledger fs-03, op-05)"
+    window_days: 90
+    last_verified: 2026-09-30
+
+  - id: us-link-out-status-2026
+    pack: mobile-app/81-mobile-billing.md
+    kind: policy
+    claim: "In the US, iOS apps may link out to web checkout with no Apple commission under the Epic v. Apple injunction (in force, under Supreme Court review), and Android apps may use link-outs or alternative billing under the Epic v. Google remedies"
+    verify: "news roundup, no primary URL returned — re-verify against the court docket before relying on it (WebSearch, 2026-09-30; ledger fs-04)"
+    window_days: 60
+    last_verified: 2026-09-30
+
+  - id: revenuecat-webhook-contract
+    pack: mobile-app/81-mobile-billing.md
+    kind: practice
+    claim: "RevenueCat sends the Authorization value exactly as configured; delivery is at-least-once with up to 5 retries and may be out of order; RevenueCat recommends deduping on the event id and re-reading the customer; TRANSFER carries transferred_from/transferred_to; REST v2 limits vary per endpoint and are reported in RevenueCat-Rate-Limit-* headers with Retry-After on 429"
+    verify: "https://www.revenuecat.com/docs/integrations/webhooks ; https://www.revenuecat.com/docs/integrations/webhooks/event-types-and-fields ; https://www.revenuecat.com/docs/api-v2 (exa + WebSearch, 2026-09-30; ledger rc-02, rc-03, op-02, op-03)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: revenuecat-sdk-and-pricing
+    pack: mobile-app/81-mobile-billing.md
+    kind: practice
+    claim: "react-native-purchases: configure() is synchronous and takes one public key per platform (appl_/goog_); real purchases need a development build; RevenueCat is free under $2,500 monthly tracked revenue, then 1% of that month's tracked revenue"
+    verify: "https://www.revenuecat.com/docs/getting-started/configuring-sdk ; https://www.revenuecat.com/docs/getting-started/installation/expo ; https://www.revenuecat.com/pricing (exa + WebFetch, 2026-09-30; ledger rc-01, rc-04, op-04)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: store-sdk-floors
+    pack: mobile-app/81-mobile-billing.md
+    kind: deprecation
+    claim: "Google refunds purchases not acknowledged within three days; Google retires one Play Billing Library major a year (31 August, extension to 1 November); Apple deprecated the original In-App Purchase API from iOS 18; Apple raises the required Xcode/SDK for submissions each spring"
+    verify: "https://developer.android.com/google/play/billing/lifecycle/subscriptions ; https://developer.android.com/google/play/billing/deprecation-faq ; https://developer.apple.com/documentation/storekit/choosing-a-storekit-api-for-in-app-purchases ; https://developer.apple.com/news/?id=ueeok6yw (exa + WebSearch, 2026-09-30; ledger rc-05..rc-08)"
+    window_days: 365
+    last_verified: 2026-09-30
+
+  - id: teknokent-4691-kdv-20
+    pack: mobile-app/81-mobile-billing.md
+    kind: standard
+    claim: "The Teknokent corporate-tax exemption is Law 4691 temporary article 2 (until 31 December 2028), not Law 5746; mobile application software produced in the zone is KDV-exempt under KDVK temporary article 20/1; for serially sold apps rulings exempt only the intangible-right share; app ad revenue is outside the exemption; export sales are 0% KDV under KDVK 11/1-a"
+    verify: "https://www.lexpera.com.tr/mevzuat/ozelgeler/38418978-125-4691-2022-2-132688-sayili-ozelge-1 ; https://www.muhasebetr.com/yazarlarimiz/ilkerboz/011/ ; https://gib.gov.tr/mevzuat/kanun/435/ozelge/38808 (exa + brave, 2026-09-30; ledger tx-01..tx-03, op-10)"
+    window_days: 180
+    last_verified: 2026-09-30
+
+  - id: us-withholding-w8bene-stores
+    pack: mobile-app/81-mobile-billing.md
+    kind: standard
+    claim: "Without a W-8BEN-E, Google withholds on US-user earnings (up to 30%) while Apple treats App Store proceeds as sales and generally withholds nothing; with it, the treaty rate depends on classification — business profits (Article 7, no US PE) can be 0%, copyright royalties 10%"
+    verify: "https://taxsummaries.pwc.com/united-states/corporate/withholding-taxes ; https://developer.apple.com/help/app-store-connect/manage-tax-information/provide-tax-information/ (exa, 2026-09-30; ledger tx-06, op-11)"
+    window_days: 365
+    last_verified: 2026-09-30
