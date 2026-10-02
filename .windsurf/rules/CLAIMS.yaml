@@ -2870,3 +2870,59 @@ claims:
     verify: "https://openrouter.ai/docs/api_reference/embeddings ; https://openrouter.ai/collections/embedding-models ; https://huggingface.co/Qwen/Qwen3-Embedding-8B (exa + WebFetch + brave, 2026-10-02; ledger em-10, em-11, em-12)"
     window_days: 90
     last_verified: 2026-10-02
+  - id: claude-input-modalities
+    pack: ai/40-multimodal.md
+    kind: platform
+    claim: "Claude accepts text, image and PDF input only: the Models API capability object lists image_input and pdf_input with no audio or video key, and the OpenAI-compatible endpoint ignores and strips audio input"
+    verify: "https://platform.claude.com/docs/en/api/models ; https://platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-sdk ; https://platform.claude.com/docs/en/models/overview (exa + WebSearch + firecrawl + brave, 2026-10-02; ledger v1-01, v1-07, v1-08, v2-01, v2-02)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: claude-code-pdf-read
+    pack: ai/40-multimodal.md
+    kind: platform
+    claim: "Claude Code's Read tool reads a short PDF whole and a PDF over 10 pages in ranges of up to 20 pages, and refuses a PDF over 100 pages or 20 MB"
+    verify: "https://code.claude.com/docs/en/tools-reference ; https://code.claude.com/docs/en/errors (exa, 2026-10-02; ledger v1-11, v1-12)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: gemini-av-understanding
+    pack: ai/40-multimodal.md
+    kind: platform
+    claim: "Every Gemini model processes video; by default frames are sampled at 1 FPS, video costs about 100 tokens a second at low media resolution (300 at high) and audio 32 tokens a second; a 1M-context model takes up to 3 hours of video at low resolution or 1 at high; public YouTube URLs are accepted"
+    verify: "https://ai.google.dev/gemini-api/docs/video-understanding ; https://ai.google.dev/gemini-api/docs/audio (WebFetch + firecrawl, 2026-10-02; ledger v1-15..v1-19, v2-06..v2-10)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: gemini-av-prices
+    pack: ai/40-multimodal.md
+    kind: pricing
+    claim: "Gemini's Flash-Lite tiers are its cheapest video and audio input (about $0.25-0.30 per million tokens); the current Flash tier is $0.75 per million input tokens through 2026-12-31 and $1.50 from 2027-01-01"
+    verify: "https://ai.google.dev/gemini-api/docs/pricing (exa + WebFetch, 2026-10-02; ledger v1-20, v1-21, v2-13)"
+    window_days: 60
+    last_verified: 2026-10-02
+  - id: openrouter-av-input
+    pack: ai/40-multimodal.md
+    kind: platform
+    claim: "OpenRouter accepts audio as base64 input_audio content (no URLs) and video as video_url content (a URL or a base64 data URL); Google AI Studio takes only YouTube links and Vertex only base64"
+    verify: "https://openrouter.ai/docs/guides/overview/multimodal/audio ; https://openrouter.ai/docs/guides/overview/multimodal/videos (firecrawl, 2026-10-02; ledger v2-27, v2-28, v2-29)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: openai-gpt4o-retirement
+    pack: ai/40-multimodal.md
+    kind: deprecation
+    claim: "OpenAI shuts down gpt-4o-2024-05-13 and gpt-4-turbo on 2026-10-23 and its gpt-4o audio and realtime models on 2027-01-20; its flagship takes text and image input, and no OpenAI model takes video"
+    verify: "https://developers.openai.com/api/docs/deprecations ; https://developers.openai.com/api/docs/models/gpt-5.6-sol (exa + WebFetch, 2026-10-02; ledger v1-27..v1-30; the no-video half re-verified by the Fable second opinion, op-10: OpenAI's models page and 0 of 85 video-input models on OpenRouter)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: document-parser-prices
+    pack: ai/40-multimodal.md
+    kind: pricing
+    claim: "Mistral lists OCR at about $4 per 1,000 pages; OpenRouter's file-parser plugin hands a PDF to a model that reads files natively unless an engine is set, falls back to its mistral-ocr engine otherwise, and bills that engine per page to the OpenRouter account; LlamaParse is 1,000 credits for $1.25 at 1 to 45 credits a page; Docling is MIT-licensed"
+    verify: "https://mistral.ai/pricing/api/ ; https://openrouter.ai/docs/guides/overview/multimodal/pdfs ; https://www.llamaindex.ai/pricing ; https://github.com/docling-project/docling (firecrawl + brave + WebFetch, 2026-10-02; ledger v2-18..v2-21, op-07, rv-01)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: qwen-open-multimodal-licence
+    pack: ai/40-multimodal.md
+    kind: policy
+    claim: "Qwen's open vision-language models and its open omni model ship Apache-2.0 weights; its later omni generation is API-only; LLaVA checkpoints carry their base model's licence"
+    verify: "https://github.com/QwenLM/Qwen3-VL ; https://huggingface.co/Qwen/Qwen3.8-27B ; https://github.com/QwenLM/Qwen3-Omni ; https://qwen.ai/blog?id=qwen3.5-omni ; https://github.com/haotian-liu/LLaVA (exa + WebFetch, 2026-10-02; ledger v1-33..v1-39)"
+    window_days: 180
+    last_verified: 2026-10-02
