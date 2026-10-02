@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the /fabrik-task lane replay fixture, pinned before any gate code (2026-10-02)
+`scripts/lane_replay_capture.py` captures, read-only, the `-M -C` name-status of the 1038 commits the feature-lane spec measured (the hub's 300 ending `c84f0b0b7`, 200 each from web-ecommerce-factory, trade-intelligence and seo, tojlo-mail's 137, the wef1 commit `0e89dcb67`) into `tests/fixtures/lane_replay.json`, each with its pinned verdict and the rule text; `--check` re-derives every row and refuses a merge commit. A hub commit whose only paths are governance-sync `.md` files is `lane: full-review`. The 21 `/fabrik-task` feedback rows sit in `tests/fixtures/lane_replay_tasks.json`. Plan 2026-10-02-plan-1, T01; wave-1 review `docs/development/reviews/2026-10-02-plan-1-fabrik-task-feature-lane-T01-review.md`.
+
 ### Fixed — a failed read of the postgres allocation registry no longer reads as an empty registry (2026-10-02)
 `_load_remote_allocations` (`src/fabrik/drivers/postgres.py`) turned any failed SSH read into an empty registry, and every writer (`register_allocation`, `unregister_allocation`) does read-modify-write — so one flaky read during a create, a drop or the shared-analytics registration replaced `allocations.json` with a single entry. The existence test now runs inside one `sudo sh -c`: a missing file still reads empty, while an SSH failure, an unreadable file or a refused `sudo` raises, and all five callers already treat that as a non-fatal skip. `tests/test_postgres_registry.py` runs the real remote command under bash with a stub `sudo`. Found while healing orphan registry entries for W-714ae2cf; that heal itself went to the spec chain.
 
