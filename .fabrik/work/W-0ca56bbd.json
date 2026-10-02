@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T06:02:04.879873Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-0ca56bbd",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-496",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "probe BFL and Recraft balances with the keys (no values printed), then reconcile docs/reference/kilo/AI_VENDOR_ACCESS.md:31-32, docs/reference/ai-media-generation-provider-map.md:22,62 and .windsurf/rules/ai/00-ai-model-selection.md:112 to one truth",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "Vendor-access catalog and reach map disagree on image keys: AI_VENDOR_ACCESS says BFL deprecated/unset (the hub .env holds a BFL_API_KEY) and Recraft 'small credits' vs the map's 0 credits; ai/00:112 still says 'Owned BFL_API_KEY'"
+}
