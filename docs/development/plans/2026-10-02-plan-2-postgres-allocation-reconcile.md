@@ -321,7 +321,7 @@ run, so its `FabrikRegistrarDrift` can resolve; `FabrikAuditStale` is what names
 - R4. Confirm `FabrikAuditStale` is not firing (a clean run pushed the last-success timestamp).
 
 ### Behavior Contract — Phase C
-- **Given** the rule file, **When** it is loaded, **Then** `FabrikRegistryHealFailed` (`max by (spec_id, db) (fabrik_registry_heal_failed) > 0`, `for: 2h`) and `FabrikAuditStale` (`(time() - fabrik_audit_last_success_timestamp_seconds > 10800) or absent(fabrik_audit_last_success_timestamp_seconds)`) exist in the `fabrik-registrar-drift` group, and `promtool check rules` passes (C1; `configs/prometheus/rules/fabrik-drift.yml:9`; `spec § The delta` D5)
+- **Given** the rule file, **When** it is loaded, **Then** `FabrikRegistryHealFailed` (`max by (spec_id, db) (fabrik_registry_heal_failed) > 0`, `for: 2h`) and `FabrikAuditStale` (`(time() - max(fabrik_audit_last_success_timestamp_seconds) > 10800) or absent(fabrik_audit_last_success_timestamp_seconds)`) exist in the `fabrik-registrar-drift` group, and `promtool check rules` passes (C1; `configs/prometheus/rules/fabrik-drift.yml:9`; `spec § The delta` D5)
 - **Given** the promtool rule test, **When** it runs, **Then** `FabrikAuditStale` fires both when the timestamp is older than 3 h and when it is absent, and `FabrikRegistryHealFailed` fires after 2 h of failure even when the `reason` label changes mid-window (C2; `configs/prometheus/rules/fabrik-drift.yml:13`)
 
 ## File Scope (owned paths)
