@@ -671,10 +671,11 @@ def test_scope_growth_fragment_names_the_lane_variant() -> None:
     assert SCOPE_GROWTH_FRAGMENT.exists(), f"{SCOPE_GROWTH_FRAGMENT} does not exist"
     text = _norm(SCOPE_GROWTH_FRAGMENT.read_text(encoding="utf-8"))
     sentence = (
-        "**Nested under a `fabrik-task` run** (the receipt's header carries `**Lane:** "
-        "fabrik-task`), the own-fix bar drops to round 1, not round 3 — the FIRST own-fix-only "
-        "round stops the hunt — but the exit is unchanged: it still closes only on a round "
-        "that CONFIRMS zero (D8; D-355)."
+        "**Nested under a `fabrik-task` run at lane v2** (the receipt's header carries "
+        "`**Lane:** fabrik-task`), the own-fix bar drops to ONE round, not two of three — the "
+        "FIRST own-fix-only round after round 1's full pass (so round 2 at the earliest) stops "
+        "the hunt — but the exit is unchanged: it still closes only on a round that CONFIRMS "
+        "zero (D8; D-355)."
     )
     _assert_governs(text, sentence, "the fabrik-task lane variant and its confirmed-zero exit")
 

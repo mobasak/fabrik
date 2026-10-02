@@ -231,9 +231,9 @@ shapes.** Write `Appetite: <minutes>` on its own header line for every phase (mo
 (spine+ticket set) — state a number you actually expect THAT phase/ticket to take, never a placeholder.
 `scripts/enforcement/check_plan_tickets.py` and `check_plan_quality.py` refuse a plan carrying none, for
 plans dated on or after the rollout (older plans are not re-graded). `/fabrik-execute-plan` passes it at
-`step --phase N --appetite <m>` and prints `elapsed <m>/<appetite> min` at the phase marker; past 2×
+`step --phase N --appetite <m>` and prints `elapsed <m>/<appetite>` at the phase marker; past 2×
 elapsed it prints the standing order to stop and re-plan the rest of the phase with
-`/fabrik-plan-after-chat`, and the close records `phases: <n>` / `over_appetite_phases: <k>` — an order and
+`/fabrik-plan-after-chat`, and the close records `phase_marks: <n>` / `over_appetite_phases: <k>` — an order and
 a recorded verdict, never a forced cancel.
 
 **⚠️ SHAPE DECISION FIRST — monolith or spine+tickets.** Emit the **spine+ticket plan SET** when ANY

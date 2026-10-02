@@ -118,7 +118,7 @@ an UPGRADE, which would strand the run.
 ```bash
 mkdir -p <scratchpad>/fabrik-task/<sid>/<started_at> \
   && <your § EXIT commit: pathspecs, trailers via -F, private-index for shared-append files> \
-  && git rev-parse -q --verify HEAD > <scratchpad>/fabrik-task/<sid>/<started_at>/commit.sha || exit 1
+  && git rev-parse -q --verify HEAD >> <scratchpad>/fabrik-task/<sid>/<started_at>/commit.sha || exit 1
 ```
 
 6. § EXIT's push ladder (never `--force`), then close — the capture file, not a post-ladder `HEAD`
@@ -126,7 +126,7 @@ mkdir -p <scratchpad>/fabrik-task/<sid>/<started_at> \
 
 ```bash
 python3 scripts/command_run.py done --command fabrik-task \
-  --commit "$(cat <scratchpad>/fabrik-task/<sid>/<started_at>/commit.sha)" \
+  --commit $(cat <scratchpad>/fabrik-task/<sid>/<started_at>/commit.sha) \
   --evidence "<what proves the terminal condition>" --feedback "<the four fields>"
 ```
 

@@ -146,7 +146,7 @@ T6_CLAIMS = (
     "the rows that can never fail — `WARN_ONLY_CHECKS`, `:336-349` — carrying each one's own text",
     "only a leg that ran to completion is the bare `pytest`",
     "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
-    "a `status: \"setup-error\"` envelope (`:2944-2960` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys",
+    'a `status: "setup-error"` envelope (`:2944-2960` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
     "FROM THE REPO ROOT",
     # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
     # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
@@ -394,8 +394,7 @@ def _delim_row():
     Deliberately function-scoped: at module scope a rename of that script or of its private
     `_DELIM` aborts COLLECTION of this whole file — all 17 tests — instead of reddening only the
     4 that call it. Measured both ways: a renamed script and a renamed symbol each red exactly 4."""
-    return _load("check_governance_tables",
-                 "scripts/enforcement/check_governance_tables.py")._DELIM
+    return _load("check_governance_tables", "scripts/enforcement/check_governance_tables.py")._DELIM
 
 
 def _step0_body(text: str, end: str = _STEP0_END) -> str:
@@ -485,7 +484,9 @@ def test_the_heavy_surface_list_names_a_governance_sync_path() -> None:
     hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
     para = [ln for ln in hub.split("\n") if ln.lstrip().startswith("1a. **SELF-REVIEW")]
     assert len(para) == 1, f"§ 1a's opening line moved or split ({len(para)} matches)"
-    assert "a governance-sync path" in para[0], "§ 1a's heavy-surface list omits a governance-sync path"
+    assert "a governance-sync path" in para[0], (
+        "§ 1a's heavy-surface list omits a governance-sync path"
+    )
     # The UNIVERSAL marker in the same paragraph is load-bearing and must not be reworded.
     assert "EVERY code-changing chunk of work gets a review-family pass" in para[0]
 
@@ -516,10 +517,14 @@ def test_the_lane_tables_verdicts_match_the_size_gates_own_routing() -> None:
     never read by any grader, so flipping row 6's verdict to `/fabrik-spec` (which kills the lane
     outright) passed, and so did widening row 5 from 3 files to 30 while `_TASK_MAX_FILES` stayed 3.
 
-    This binds the table to the gate's own constants, so contract and code cannot drift apart."""
+    This binds the table to the gate's own constants, so contract and code cannot drift apart.
+
+    ⚠️ D12 (plan 2026-10-02-plan-1, T08): the V1 rows — today's gate, `_task_size_gate`'s v1 arm —
+    live in the FLEET TEMPLATE until the day-7 flip; the hub's table describes lane v2 and is
+    bound to `task_lane` by `test_the_hubs_lane_table_matches_lane_v2` below."""
     cr = _load("command_run", "scripts/command_run.py")
-    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
-    rows = {r[0]: r for r in _lane_table(hub)[1:]}
+    tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    rows = {r[0]: r for r in _lane_table(tpl, _STEP0_END_TPL)[1:]}
     assert len(rows) == 8, sorted(rows)
     assert f"more than {cr._TASK_MAX_FILES} DECLARED files" in rows["5"][1]
     assert "DECLARE the code surface ONLY" in rows["5"][1]
@@ -532,8 +537,12 @@ def test_the_lane_tables_verdicts_match_the_size_gates_own_routing() -> None:
     # read as the occurrence count and was refuted by execution: four occurrences of two paths
     # start at rc 0 (docs review, 2026-09-19). Both halves pinned; the first cut pinned only the
     # flag name, so the wrong quantity survived.
-    assert "DISTINCT `--file` paths" in rows["5"][1], "row 5's executable basis is --file, not --declare"
-    assert "normalised repo-root-relative" in rows["5"][1], "row 5 must say WHICH count: distinct, normalised"
+    assert "DISTINCT `--file` paths" in rows["5"][1], (
+        "row 5's executable basis is --file, not --declare"
+    )
+    assert "normalised repo-root-relative" in rows["5"][1], (
+        "row 5 must say WHICH count: distinct, normalised"
+    )
     assert "excluded at CLOSE, not at start" in rows["5"][1], (
         "row 5 must say WHEN the exclusion applies — it is close-only, and the first cut of\n"
         "this row claimed the --file count itself was already the code surface"
@@ -553,17 +562,27 @@ def test_the_lane_tables_verdicts_match_the_size_gates_own_routing() -> None:
     assert "`start` refuses the lane for it" in rows["4b"][2]
     # ⚠️ the VALUE, not just the key: a bare `f"`{key}="` prefix let `mechanism=yes` become
     # `mechanism=no` — teaching the OPPOSITE declaration — in five rows at once.
-    for n, kv in (("1b", "heavy=yes"), ("2", "mechanism=yes"), ("3", "oneway=yes"),
-                  ("4", "tradeoffs=yes"), ("4b", "decision=no")):
+    for n, kv in (
+        ("1b", "heavy=yes"),
+        ("2", "mechanism=yes"),
+        ("3", "oneway=yes"),
+        ("4", "tradeoffs=yes"),
+        ("4b", "decision=no"),
+    ):
         assert f"`{kv}`" in rows[n][1], (n, kv)
     # the question each row ASKS, not only its label — two rows' prose were swapped wholesale and
     # every grader stayed green, leaving a table that contradicted its own annotations.
-    for n, noun in (("1", "governance-sync"), ("1b", "heavy surface"), ("2", "NEW MECHANISM"),
-                    ("3", "ONE-WAY"), ("4", "TRADE-OFF"), ("4b", "pure fix")):
+    for n, noun in (
+        ("1", "governance-sync"),
+        ("1b", "heavy surface"),
+        ("2", "NEW MECHANISM"),
+        ("3", "ONE-WAY"),
+        ("4", "TRADE-OFF"),
+        ("4b", "pure fix"),
+    ):
         assert noun in rows[n][1], (n, noun)
     assert ".pre-commit-config.yaml" in rows["1"][1]
-    for n, phrase in (("1b", "operator-named work"), ("1b", "D-137"),
-                      ("3", "expensive to unwind")):
+    for n, phrase in (("1b", "operator-named work"), ("3", "expensive to unwind")):
         assert phrase in rows[n][1], (n, phrase)
     assert "PUBLIC CONTRACT" in rows["1"][1], "row 1's QUESTION, not just its parenthetical"
     # the six design fields, which `commands/_sources/fabrik-task.md` also names: a silent
@@ -578,8 +597,14 @@ def test_the_lane_tables_verdicts_match_the_size_gates_own_routing() -> None:
     assert "no trade-off to settle first" in rows["6"][1]
     assert "settled BEFORE building" in rows["4"][1]
     assert "is this lane's ordinary case, not a trigger" in rows["4"][1]
-    for conj in ("one reversible decision", f"≤{cr._TASK_MAX_FILES} files", "no sync path",
-                 "no heavy surface", "any mechanism reversible", "no trade-off"):
+    for conj in (
+        "one reversible decision",
+        f"≤{cr._TASK_MAX_FILES} files",
+        "no sync path",
+        "no heavy surface",
+        "any mechanism reversible",
+        "no trade-off",
+    ):
         assert conj in rows["6"][1], conj
     # DERIVED from the table, never a second hand-kept copy of the same five strings: the old
     # closing line compared the constant against a literal it also wrote down, so it could only
@@ -596,8 +621,10 @@ def test_the_lane_table_states_the_precedence_the_gate_actually_evaluates() -> N
     surface class. The spec carries the reconciling sentence; the first cut of this table dropped
     it, and three mis-routes were executed against the live parser before it came back."""
     cr = _load("command_run", "scripts/command_run.py")
-    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
-    step0 = _step0_body(hub)
+    # D12: the v1 order is the TEMPLATE's until the day-7 flip; the hub's v2 order is graded in
+    # `test_the_hubs_lane_table_matches_lane_v2`.
+    hub = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    step0 = _step0_body(hub, _STEP0_END_TPL)
     assert hasattr(cr, "_task_size_gate"), "the cited symbol must exist — `_task_size` never did"
     assert "_task_size_gate" in step0, "the precedence claim must cite the function implementing it"
     # The ORDER, read out of the gate itself. `lane = (...)` fires in `if/elif` order, so the
@@ -606,18 +633,31 @@ def test_the_lane_table_states_the_precedence_the_gate_actually_evaluates() -> N
     labels = [m.split()[0] for m in re.findall(r'lane = \(f?"([^"]+)"', src)]
     # `mechanism` is absent by ruling (D-315): declared and recorded, never a refusal arm.
     assert labels == ["files", "oneway", "tradeoffs", "sync", "heavy", "decision=no"], labels
-    row_of = {"files": "5", "oneway": "3", "tradeoffs": "4",
-              "sync": "1", "heavy": "1b", "decision=no": "4b"}
-    from_gate = [{row_of[x] for x in labels[:3]}, {row_of[x] for x in labels[3:5]},
-                 {row_of[x] for x in labels[5:]}]
+    row_of = {
+        "files": "5",
+        "oneway": "3",
+        "tradeoffs": "4",
+        "sync": "1",
+        "heavy": "1b",
+        "decision=no": "4b",
+    }
+    from_gate = [
+        {row_of[x] for x in labels[:3]},
+        {row_of[x] for x in labels[3:5]},
+        {row_of[x] for x in labels[5:]},
+    ]
     # ⚠️ DERIVED FROM THE TABLE, not from `labels` again: the first cut computed both sides from
     # the same list, so once the labels assertion passed this one could not fail — a second
     # binding that bound nothing. Now the table's own verdict cells are the other side.
-    rows = {r[0]: r for r in _lane_table(hub)[1:]}
+    rows = {r[0]: r for r in _lane_table(hub, _STEP0_END_TPL)[1:]}
     from_table = [
         {n for n, r in rows.items() if "spec chain" in r[2]},
         {n for n, r in rows.items() if "**not this lane:**" in r[2]},
-        {n for n, r in rows.items() if "/fabrik-review-scoped`" in r[2] and "not this lane" not in r[2]},
+        {
+            n
+            for n, r in rows.items()
+            if "/fabrik-review-scoped`" in r[2] and "not this lane" not in r[2]
+        },
     ]
     assert from_gate == from_table, (from_gate, from_table)
     assert "Rows 3, 4 and 5 take PRECEDENCE over rows 1 and 1b" in step0
@@ -645,6 +685,64 @@ def test_the_lane_table_states_the_precedence_the_gate_actually_evaluates() -> N
     assert "`Profile: small` then lightens execution" in step0
 
 
+def test_the_hubs_lane_table_matches_lane_v2() -> None:
+    """T08 (plan 2026-10-02-plan-1): the hub's table describes lane v2, bound to `task_lane`'s own
+    constants and `admit`'s route order — rows 1 and 1b keep the lane with the full review (D2, D7),
+    row 5 is the module tests (D1), row 6 names the full-review boundary and the declaration
+    refusal, and the six declared keys are `task_lane._V2_KEYS`."""
+    tl = _load("task_lane", "scripts/task_lane.py")
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    step0 = _step0_body(hub)
+    rows = {r[0]: r for r in _lane_table(hub)[1:]}
+    for n in ("1", "1b"):
+        assert "**`/fabrik-task` with the full `/fabrik-review`**" in rows[n][2], n
+        assert "not this lane" not in rows[n][2], n
+    assert "commits ONCE, after that review" in rows["1"][2]
+    assert "D-137" in rows["1b"][1] and "operator-named work" in rows["1b"][1]
+    assert f"`--appetite` over {tl._APPETITE_MAX} minutes" in rows["5"][1]
+    assert f"more than {tl._MAX_NEW_SOURCE} new source files" in rows["5"][1]
+    assert f"more than {tl._MAX_BEHAVIOURS} Behaviours" in rows["5"][1]
+    assert "`specs/services/`" in rows["5"][1] and "*.schema.json" in rows["5"][1]
+    assert "spec chain" in rows["5"][2]
+    assert f"more than {tl._FULL_REVIEW_FILES} files" in rows["6"][2]
+    assert "or `done` is refused" in rows["6"][2]
+    assert "no module test tripped" in rows["6"][1]
+    assert "trips no module test" in rows["2"][1]
+    taught = {k for r in rows.values() for k in re.findall(r"`([a-z]+)=[a-z]+`", r[1])}
+    assert set(tl._V2_KEYS) == taught, (set(tl._V2_KEYS), taught)
+    assert "names a `--declare` KEY `start` requires — all six, every run" in step0
+    # the route order the precedence sentence states, read out of `admit` itself
+    src = inspect.getsource(tl.admit)
+    order = [
+        src.index(x) for x in ('"chain: contract"', '"chain: appetite"', 'f"chain: {deciding[0]}"')
+    ]
+    assert order == sorted(order), "admit's route order changed — re-state it in step 0"
+    assert "reports the contract test first, then the appetite, then oneway and tradeoffs" in step0
+    assert "`scripts/task_lane.py::admit`" in step0
+    assert "The hub runs lane v2" in step0
+    # D7 D-O3: admit routes decision=no on a full-review surface to right-now + the full review,
+    # never into the lane — the table's 4b sentence must say exactly that.
+    v = tl.admit(
+        {
+            "decision": "no",
+            "heavy": "yes",
+            "mechanism": "no",
+            "oneway": "no",
+            "tradeoffs": "no",
+            "consumers": "internal",
+        },
+        ["src/a.py"],
+        sync_hits=set(),
+        appetite=None,
+        why=None,
+        version=2,
+    )
+    assert v.route == "right-now + /fabrik-review", v
+    assert (
+        "a change that trips 4b AND row 1 or 1b is right-now + the full `/fabrik-review`" in step0
+    )
+
+
 def test_the_lane_table_renders_as_a_table_for_every_gfm_reader() -> None:
     """GFM validity, decided by an actual renderer instead of a hand-rolled approximation.
 
@@ -657,8 +755,10 @@ def test_the_lane_table_renders_as_a_table_for_every_gfm_reader() -> None:
     This asserts the thing that actually matters — the verdict row reaches a table CELL — against
     the renderer, which by construction cannot disagree with GFM about what GFM does."""
     markdown_it = pytest.importorskip("markdown_it", reason="renderer needed to grade GFM validity")
-    html = markdown_it.MarkdownIt("gfm-like").enable("table").render(
-        _step0_body((FABRIK / "CLAUDE.md").read_text(encoding="utf-8"))
+    html = (
+        markdown_it.MarkdownIt("gfm-like")
+        .enable("table")
+        .render(_step0_body((FABRIK / "CLAUDE.md").read_text(encoding="utf-8")))
     )
     assert re.search(r"<td>\s*one reversible decision", html), (
         "the lane table's verdict row did not render inside a table cell — the table is "
@@ -681,6 +781,12 @@ _TEMPLATE_OUTCOME_II_OLD = "a new mechanism, schema, auth, >5 files"
 _TEMPLATE_ROW_DIVERGENCES = {
     "1": "/opt/fabrik/.pre-commit-config.yaml",
     "1b": "copied from fabrik-lib rather than imported",
+    # D12 HOLD-BACK (plan 2026-10-02-plan-1, T08): the hub runs lane v2 for seven days while the
+    # template keeps today's v1 rows; the day-7 flip commit (its work item) rewrites the template
+    # and DELETES these three entries. The marker is each row's v1 wording.
+    "2": "fits row 5's file bound",
+    "5": "more than 3 DECLARED files",
+    "6": "≤3 files, no sync path",
 }
 
 
@@ -712,8 +818,8 @@ def test_the_templates_mirrored_prose_matches_the_hubs() -> None:
     tpl_s = _step0_body((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"), _STEP0_END_TPL)
     for lead in ("**No code surface at all**", "**Tripwire:**"):
         assert lead in tpl_s, f"the template lost a mirrored paragraph: {lead}"
-        h = hub_s[hub_s.index(lead):].split("\n", 1)[0]
-        t = tpl_s[tpl_s.index(lead):].split("\n", 1)[0]
+        h = hub_s[hub_s.index(lead) :].split("\n", 1)[0]
+        t = tpl_s[tpl_s.index(lead) :].split("\n", 1)[0]
         # the hub names `docs/CAPABILITIES.md`, which exists in 1 of 45 repos; the template says
         # "docs or ledgers only" instead. That is the only sanctioned difference in these two.
         if lead == "**No code surface at all**":
@@ -733,8 +839,10 @@ def test_the_templates_mirrored_prose_matches_the_hubs() -> None:
 def test_the_template_renders_its_lane_table_for_every_gfm_reader() -> None:
     """The mirror is worthless if it renders as a paragraph in ~46 repos."""
     markdown_it = pytest.importorskip("markdown_it", reason="renderer needed to grade GFM validity")
-    html = markdown_it.MarkdownIt("gfm-like").enable("table").render(
-        _step0_body((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"), _STEP0_END_TPL)
+    html = (
+        markdown_it.MarkdownIt("gfm-like")
+        .enable("table")
+        .render(_step0_body((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"), _STEP0_END_TPL))
     )
     assert re.search(r"<td>\s*one reversible decision", html), (
         "the template's lane table did not render inside a table cell — it would be invisible "
@@ -822,6 +930,7 @@ def test_the_gate_rows_line_citations_land_on_what_they_name() -> None:
         assert gate[int(cite[1:]) - 1].startswith(construct), (
             f"final_gate.py{cite} no longer holds {construct!r}"
         )
+
 
 # ── T02a: the DECISION block lives in § FINAL OUTPUT, plus # Compact instructions ────────────
 # docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction/T02a-hub-claude-md.md, implementing
@@ -1010,8 +1119,7 @@ def test_the_bar_paragraph_keeps_every_restored_and_new_rule() -> None:
     assert "written unfenced" in para, "O1: the unfenced-writing rule is missing"
     assert _CLOSED_GATE_CLASS_LIST in para, "O6: the closed gate-class list is missing or drifted"
     assert (
-        "is named `destructive`, since discarding a branch/worktree is the destructive act"
-        in para
+        "is named `destructive`, since discarding a branch/worktree is the destructive act" in para
     ), "O3 (round 2): the ad-hoc-branch disposition names no list token"
     assert "an `(a)/(b)` options menu is never legitimate" in para, (
         "O2 (round 2): the (a)/(b) options-menu ban is missing"
@@ -1097,7 +1205,9 @@ def test_compact_instructions_heading_exists_with_its_five_lines() -> None:
     # extending-a-sentence-unanchors-its-pinned-span).
     normalised = re.sub(r"\s+", " ", body)
     assert "never summarise a pending operator question as settled" in normalised.lower()
-    assert "Context is never a reason to stop, and a fresh session is never the remedy" in normalised
+    assert (
+        "Context is never a reason to stop, and a fresh session is never the remedy" in normalised
+    )
     assert "D-374" in body, "the sentence must cite D-374"
 
 
@@ -1190,7 +1300,9 @@ def _rewrite_hub_id(text: str, rewrite: tuple[str, str]) -> str:
     once first — a rewrite that silently matches zero (or more than one) span is a rewrite that
     proves nothing, the same failure mode `_TEMPLATE_ROW_DIVERGENCES` guards against."""
     old, new = rewrite
-    assert text.count(old) == 1, f"expected exactly one {old!r} in the hub text, found {text.count(old)}"
+    assert text.count(old) == 1, (
+        f"expected exactly one {old!r} in the hub text, found {text.count(old)}"
+    )
     return text.replace(old, new)
 
 

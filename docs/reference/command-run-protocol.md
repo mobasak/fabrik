@@ -373,7 +373,7 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   paths outside `declared.files` ∪ the Doc Sync Matrix destinations parsed from `CLAUDE.md` at close
   time (plus `docs/CAPABILITIES.md` and five HARDCODED ledger files — `CHANGELOG.md`, `INDEX.md`,
   `docs/DECISIONS.md`, `docs/STRATEGIC_BACKLOG.md`, `docs/LESSONS_LEARNT.md` — unioned in
-  unconditionally, so a repo whose `CLAUDE.md` carries no matrix still excludes them), UNION every committed path the governance-sync filter matches.
+  unconditionally, so a repo whose `CLAUDE.md` carries no matrix still excludes them), UNION every committed path the governance-sync filter matches. At lane v2 (a `gate: 2` record) it is instead the committed paths, across every `--commit`, that are neither excluded nor named in the design note's APPROACH/MIRROR or a `--design-amend` — the same set `done` refuses — and the sync-filter union is not added. If `task_lane.py` fails to import, `start` warns and runs v1; a `gate: 2` record's `done` then refuses (its measurement cannot run) and `blocked`/`handoff` close as `unmeasurable=no-git`.
   One grammar, read on its first token: `0` · `<n> · commit=<sha> · paths=<first three>` ·
   `unmeasurable=<no-commit|no-git|sync_test-unavailable>` — ⚠️ the non-zero order is `commit=`
   then `paths=`, which is the CODE's, diverging from the spec's stated order (`command_run.py::_task_field`).
