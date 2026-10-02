@@ -17,7 +17,9 @@ false with no other gate red:
 7. No retired route or model (Kilo, Traycer, OpenAI's o-series and GPT-4 line) and no version number in any shape — the
    detector is the one `tests/test_vision_pack.py` defines — and every cited pack, item and fabrik-lib module exists.
 
-Guards read structure (one bullet at a time, emphasis stripped, whole words) so a restyled line keeps its meaning. The
+Guards read structure (one bullet at a time, emphasis stripped, whole words) so a restyled line keeps its meaning — a
+re-wrap, a dropped bold, a label arrow or colon — and each guard pins the clause that carries the rule's force, not only
+its subject, so a reversed verb fails. The
 cheapest way past (2) is a framework offered in prose outside the bullets the parser reads; the review reads the rest.
 The cheapest way past (7) is a version in words; the detector catches the shapes agents copy.
 """
@@ -110,7 +112,7 @@ def test_workflow_first_and_the_claude_loop() -> None:
     )
     loops = _bullet("Fabrik defaults", "Agent loops")
     # the default is what the bullet OPENS with, not a later mention
-    assert re.match(r"Agent loops\s*:?\s*→\s*Claude through claude -p", loops), (
+    assert re.match(r"Agent loops\s*(?::\s*→?|→)\s*Claude through claude -p", loops), (
         f"the agent-loop default changed: {loops[:70]!r}"
     )
     for needle in ("llm-dispatch", "run_agentic", "start_session", "json_schema", "§ Claude"):
@@ -147,7 +149,7 @@ def test_reasoning_is_effort() -> None:
         "the reasoning rule lost its CLI knob or the thinking-budget rejection"
     )
     # the haiku rung is the reverse of the others: extended thinking only, and no effort
-    assert re.search(r"haiku rung is the reverse", effort) and re.search(r"effort does not apply", effort), (
+    assert re.search(r"haiku rung(?: is)?\s*[:—-]?\s*the reverse", effort) and re.search(r"effort does not apply", effort), (
         "the reasoning rule no longer says the haiku rung thinks differently"
     )
     assert "effort=" in effort and "prompt cache" in effort, "the reasoning rule lost its per-call knob or the cache warning"
@@ -167,19 +169,28 @@ def test_auth_boundary() -> None:
     assert re.search(r"on behalf of their users", auth) and re.search(r"decision before it is built", auth), (
         "the auth boundary lost the terms' prohibition or its interim rule"
     )
-    item = re.search(r"\bW-[0-9a-f]{8}\b", auth)
-    assert item and (ROOT / ".fabrik" / "work" / f"{item.group(0)}.json").is_file(), (
-        "the open operator item the auth boundary cites is missing"
-    )
+    assert re.search(r"\b(?:never|not) (?:as )?a default\b", auth), "the interim rule no longer says it is never a default"
+    items = re.findall(r"\bW-[0-9a-f]{8}\b", auth)
+    assert items, "the auth boundary no longer cites the open operator item"
+    for item in items:
+        assert (ROOT / ".fabrik" / "work" / f"{item}.json").is_file(), f"the auth boundary cites a missing item: {item}"
     assert re.search(r"paused on 2026-06-15", auth), "the paused credit change is no longer dated"
 
 
 def test_dollar_caps_trap_and_framework_gate() -> None:
     anti = _paragraph("Anti-pattern")
-    assert re.search(r"per-call dollar caps on the operational diagnose loop", anti), "the anti-pattern is gone"
+    assert re.search(
+        r"Anti-pattern:\s*(?:putting|adding|setting|placing) (?:a )?per-call dollar caps? on the operational diagnose loop", anti
+    ), "the anti-pattern is gone or no longer forbids the caps"
+    assert re.search(r"\bIt must run\b", anti) and not re.search(r"must not run", anti), (
+        "the anti-pattern no longer says the diagnose loop must run"
+    )
     assert "max_turns" in anti and "core/cost-budget.md" in anti, "the anti-pattern lost its bound or its cite"
     trap = _paragraph("Licence trap")
     assert "AutoGPT" in trap and "Polyform Shield" in trap, "the licence trap no longer names AutoGPT's platform licence"
+    assert re.search(r"\bnot (?:an? )?open[- ]source\b|rather than open[- ]source", trap), (
+        "the licence trap no longer says the platform licence is not open source"
+    )
     for bullet in _bullets("Fabrik defaults"):
         assert not re.search(r"\bAutoGPT\b", bullet), f"AutoGPT is offered: {bullet[:70]!r}"
     frameworks = _bullet("Subcategories", "Agent frameworks")

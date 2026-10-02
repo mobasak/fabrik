@@ -52,7 +52,8 @@ Last content verification: 2026-10-02
   Anthropic's terms say subscription OAuth is for ordinary, individual use of Claude Code and its own apps; developers
   building products or services, including with the Agent SDK, should use an API key, and Anthropic does not permit
   routing requests through Free, Pro or Max credentials on behalf of their users, reserving the right to enforce that
-  without notice. The operator's own operations and automation are the ordinary use the terms name. Until the operator
+  without notice. The operator's own development and automation through the unmodified CLI is the closest fit to that
+  ordinary use; how far it stretches is part of W-ee2156db. Until the operator
   rules on W-ee2156db, a new `claude -p` call that answers another user's request is the operator's decision before it
   is built, never a default. `claude -p` draws from the plan's usage limits today; a planned move to a separate monthly
   credit was paused on 2026-06-15.
