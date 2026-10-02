@@ -13,6 +13,17 @@ Behavior Contract (ticket T05b):
      <= 5 code files, and hands it straight to `/fabrik-plan-after-chat` (spec sec:The-delta D10).
   3. `/fabrik-plan-after-chat`'s approval-row step mints no approval row for a `Size: small` spec, and its
      emit rule requires `Appetite: <minutes>` on every phase/ticket (spec sec:The-delta D10, D11).
+
+Round 1 review fix (findings T05b-S1, T05b-S2 — both CONFIRMED, orchestrator rulings applied):
+  S1. Phase 5's self-review closing bullet ('... /fabrik-spec-review convergence runs BEFORE the user
+      approves') was an UNCONDITIONAL claim, directly contradicted by Phase 6's own `Size: small` exception
+      two lines later (which skips that call entirely). Fixed: the bullet is now conditional on
+      full-profile, and names the `Size: small` exception explicitly.
+  S2. The DOWNGRADE bullet named `--resume <seed>` without ever instructing the agent to WRITE that seed
+      file to disk first — `command_run.py`'s real `handoff` implementation REFUSES (rc 1) a `--resume`
+      path that is not already a regular file carrying a `## RESUME` heading (`:4746-4756`). Fixed: the
+      bullet now orders writing the seed file FIRST (path, `## RESUME` heading, refusal id, brief) and
+      only then running `handoff --resume` against it.
 """
 
 from __future__ import annotations
@@ -201,3 +212,60 @@ def test_fabrik_plan_after_chat_appetite_applies_to_both_shapes_every_profile():
     assert "check_plan_tickets.py" in appetite_para
     assert "check_plan_quality.py" in appetite_para
     assert "over_appetite_phases" in appetite_para
+
+
+# ---------------------------------------------------------------------------
+# Round-1 review fix — T05b-S1: Phase 5's closing bullet must be CONDITIONAL on size
+# ---------------------------------------------------------------------------
+
+
+def test_fabrik_spec_phase5_closing_handoff_sentence_is_conditional_on_size():
+    """T05b-S1 (CONFIRMED): the un-edited bullet claimed UNCONDITIONALLY that
+    `/fabrik-spec-review` convergence runs before user approval, directly contradicted by Phase 6's
+    own `Size: small` exception two lines later. The fixed sentence must scope the claim to a
+    full-profile spec and name the `Size: small` exception in the same breath, so a cold reader
+    cannot invoke `/fabrik-spec-review` and then invoke `/fabrik-plan-after-chat` too."""
+    phase5 = _spec_phase5()
+    closing = _section(phase5, r"After the self-review, go straight to Phase 6", r"^## Phase 6")
+    assert "for a full-profile spec" in closing
+    assert "Exception — a `Size: small` spec" in closing
+    assert "/fabrik-plan-after-chat" in closing
+
+
+def test_fabrik_spec_phase5_closing_sentence_never_claims_review_runs_unconditionally():
+    """A regression guard for the exact contradiction the refuter found: the OLD text had no
+    qualifier at all before 'the independent `/fabrik-spec-review` convergence runs BEFORE the
+    user' — that bare unconditional phrase must not reappear."""
+    phase5 = _spec_phase5()
+    normalized = re.sub(r"\s+", " ", phase5)
+    assert "go straight to Phase 6 — the independent `/fabrik-spec-review`" not in normalized
+
+
+# ---------------------------------------------------------------------------
+# Round-1 review fix — T05b-S2: the DOWNGRADE bullet must order WRITING the seed file first
+# ---------------------------------------------------------------------------
+
+
+def test_fabrik_spec_phase0_downgrade_instructs_writing_seed_file_before_handoff():
+    """T05b-S2 (CONFIRMED): `command_run.py`'s real `handoff` implementation REFUSES (rc 1) a
+    `--resume` path that does not already exist as a regular file carrying a `## RESUME` heading
+    (`command_run.py:4746-4756`) — the bullet must instruct WRITING that file (path, `## RESUME`
+    heading, refusal id, the brief) before the handoff command, not just name the command."""
+    phase0 = _spec_phase0()
+    assert "WRITE the seed file to disk FIRST" in phase0
+    assert "command_run.py:4746-4756" in phase0
+    write_idx = phase0.index("WRITE the seed file to disk FIRST")
+    handoff_idx = phase0.index("python3 scripts/command_run.py handoff")
+    assert write_idx < handoff_idx, "the write instruction must precede the handoff command"
+
+
+def test_fabrik_spec_phase0_downgrade_write_instruction_names_resume_heading_and_refusal_id():
+    """The written seed must carry the exact `## RESUME` heading + restart + refusal id — not a
+    vague 'write something' — or a cold agent still cannot build a file `handoff` accepts."""
+    phase0 = _spec_phase0()
+    write_sentence = _section(
+        phase0, r"WRITE the seed file to disk FIRST", r"Only THEN close this run"
+    )
+    assert "## RESUME" in write_sentence
+    assert "/fabrik-task --from-downgrade <refusal id>" in write_sentence
+    assert "refusal id" in write_sentence

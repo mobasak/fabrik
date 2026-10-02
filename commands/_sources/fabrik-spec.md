@@ -18,12 +18,16 @@ Turn a rough idea into an **approved design spec** — *what* to build, *why*, a
   lane-refusal ledger (`lane-refusals.jsonl`, beside the run-record state dir) whose declared `--file` list
   overlaps this brief's surface — not only this session's refusals; the spec may run in a new window. When
   the brief in fact settles **one reversible decision with no open trade-off**, this work never needed a
-  design: close this run immediately with
-  `python3 scripts/command_run.py handoff --command fabrik-spec --resume <seed> --reason "DOWNGRADE: <refusal id> — <why no design is needed>" --feedback …`
-  (`--resume` is REQUIRED — the parser refuses `handoff` without it) naming a seed whose own `## RESUME`
-  block names `/fabrik-task --from-downgrade <refusal id>` as the restart, and hand the operator to that
-  restart instead of writing a spec. No matching refusal, or one that no longer holds (the brief DOES carry
-  a one-way decision or an open trade-off) → proceed to the rest of Phase 0 unchanged.
+  design: **WRITE the seed file to disk FIRST** — a scratch path carrying a `## RESUME` heading that names
+  `/fabrik-task --from-downgrade <refusal id>` as the restart, plus the refusal id, the one-line reason,
+  and the brief's own surface (the `--file` list this spec never got to design). `handoff --resume` REFUSES
+  (rc 1) a path that is not already a regular file, or that carries no `## RESUME` heading
+  (`command_run.py:4746-4756`) — so the file must exist BEFORE the command below runs, never named as a
+  placeholder for the command to fill in. Only THEN close this run with
+  `python3 scripts/command_run.py handoff --command fabrik-spec --resume <that seed path> --reason "DOWNGRADE: <refusal id> — <why no design is needed>" --feedback …`
+  naming that same seed, and hand the operator to the `/fabrik-task --from-downgrade <refusal id>` restart
+  instead of writing a spec. No matching refusal, or one that no longer holds (the brief DOES carry a
+  one-way decision or an open trade-off) → proceed to the rest of Phase 0 unchanged.
 - Explore project context first: files, recent commits, existing `specs/`/`docs/`, `AFCL.md`.
 - **Epic-file intake (spec § Chain consolidation (d)):** when the argument is a file under
   `docs/development/epics/` (an already-decomposed epic, not a from-scratch idea), this run's
@@ -408,8 +412,11 @@ interfaces — for each you can state *what it does / how you use it / what it d
   internal consistency (architecture matches features); scope (single buildable spec or decompose);
   ambiguity (pick one interpretation, make it explicit); and — Fabrik-specific — did any capability skip the
   vendor ladder? is any external claim ungrounded or from memory? Fix all before proceeding.
-- After the self-review, go straight to Phase 6 — the independent `/fabrik-spec-review` convergence runs BEFORE the user
-  approves, so the user approves a hardened (CONVERGED) spec, never an unverified DRAFT.
+- After the self-review, go straight to Phase 6 — for a full-profile spec, the independent
+  `/fabrik-spec-review` convergence runs BEFORE the user approves, so the user approves a hardened
+  (CONVERGED) spec, never an unverified DRAFT. **Exception — a `Size: small` spec (above):** Phase 6 skips
+  that call entirely and hands the DRAFT straight to `/fabrik-plan-after-chat` instead, whose own
+  `/fabrik-plan-review` grades it (Phase 6's own exception, below, states this) — never both.
 
 ## Phase 6 — Converge (MANDATORY), then hand off
 
