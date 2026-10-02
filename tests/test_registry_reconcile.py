@@ -16,6 +16,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import yaml
 
 from fabrik import registry_reconcile as rr
 from fabrik.audit import AuditResult
@@ -491,3 +492,36 @@ class TestCron:
         assert body.count('fabrik_audit_drift_total{spec_id="zitadel",registrar="postgres"}') == 1
         assert "\nfabrik_audit_spec_errors 1\n" in body
         assert seen == [False]
+
+
+# ---------------------------------------------------------------------------
+# Phase C — the alert rules (C1). C2, the promtool rule unit test, is
+# tests/fixtures/fabrik-drift-rules-test.yml, run with prom/prometheus:v3.2.1.
+# ---------------------------------------------------------------------------
+
+
+class TestDriftRules:
+    def _rules(self) -> dict[str, dict]:
+        doc = yaml.safe_load((REPO / "configs/prometheus/rules/fabrik-drift.yml").read_text())
+        (group,) = [g for g in doc["groups"] if g["name"] == "fabrik-registrar-drift"]
+        return {r["alert"]: r for r in group["rules"]}
+
+    def test_heal_failed_rule_aggregates_over_reason(self):
+        rule = self._rules()["FabrikRegistryHealFailed"]
+        assert rule["expr"] == "max by (spec_id, db) (fabrik_registry_heal_failed) > 0"
+        assert rule["for"] == "2h"
+        assert rule["labels"] == {"severity": "warning", "alert_class": "registrar_drift"}
+
+    def test_audit_stale_rule_covers_age_and_absence(self):
+        rule = self._rules()["FabrikAuditStale"]
+        assert rule["expr"] == (
+            "(time() - fabrik_audit_last_success_timestamp_seconds > 10800)"
+            " or absent(fabrik_audit_last_success_timestamp_seconds)"
+        )
+        assert rule["for"] == "5m"
+        assert rule["labels"] == {"severity": "warning", "alert_class": "registrar_drift"}
+
+    def test_promtool_fixture_names_both_rules(self):
+        fixture = yaml.safe_load((REPO / "tests/fixtures/fabrik-drift-rules-test.yml").read_text())
+        names = {t["alertname"] for case in fixture["tests"] for t in case["alert_rule_test"]}
+        assert names == {"FabrikRegistryHealFailed", "FabrikAuditStale"}

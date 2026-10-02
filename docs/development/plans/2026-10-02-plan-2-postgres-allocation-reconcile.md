@@ -165,7 +165,7 @@ Appetite: 35
 - **Given** a spec with `depends.postgres: other_db`, **When** `audit_postgres` runs, **Then** it checks `other_db`, not the snake-cased id (A3; `src/fabrik/audit.py:140`; `spec § The delta` D1)
 - **Given** a spec whose `depends.postgres` is not a valid identifier, **When** `audit_postgres` runs, **Then** it returns `unknown` and runs no SQL (A4; `src/fabrik/audit.py:150`)
 
-## Phase B — The reconcile and the cron
+## Phase B — The reconcile and the cron — ✅ EXECUTED 2026-10-02 (cfd9d3cbd, review fixes b56c41c05; /fabrik-review-scoped closed 2 rounds 8→0)
 
 Appetite: 70
 
