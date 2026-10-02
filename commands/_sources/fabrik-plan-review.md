@@ -21,15 +21,24 @@ own line, this run starts with `--surface "<plan path> + <spec path>"` — namin
 the review grades the spec's sections together with the plan in ONE joint loop, never a separate pass
 over the spec. ⚠️ **Flip order is fixed:** `check_stage_artifacts.py::_check_plan_spec_freshness` refuses a
 plan's new CONVERGED flip while its cited spec is not CONVERGED — flip the SPEC to CONVERGED first (or in
-the same commit as the plan), then the plan; flipping the plan alone fails the gate after the loop. Once
-both read `Status: CONVERGED`, mint the approval row in `docs/DECISIONS.md` here — the duty
-`fabrik-plan-after-chat.md:55` hands to `/fabrik-spec-review` for full-size work, which this `Size: small`
-spec skipped — and END at the operator's design-approval gate, exactly as `fabrik-spec-review.md:280-294`
-does today: present the ask↔spec comparison + the Pass Ledger, then the `DECISION NEEDED (ground: gate)`
-block asking for design approval. **Do NOT auto-invoke `/fabrik-execute-plan`** for a `Size: small` run —
-the design-approval gate replaces the auto-handoff this command otherwise owns for a fully-autonomous run.
-A spec with no `Size: small` line keeps today's behaviour unchanged: no joint loop, no gate, full
-autonomy.
+the same commit as the plan), then the plan; flipping the plan alone fails the gate after the loop.
+⚠️ **Escape hatch:** if the converging plan outgrows the spec's own `Size: small` estimate (D-169's rule:
+more than ~400 code lines OR more than 5 code files, tests excluded), remove the `Size: small` line from
+the spec and send it to `/fabrik-spec-review` first — the joint loop does not continue past that point.
+
+Once both documents read `Status: CONVERGED`, this run ends at the operator's design-approval gate —
+present exactly what `/fabrik-spec-review` presents (`fabrik-spec-review.md:280-294`), in the same order:
+(1) the ask↔spec comparison table, built from the spec's own `## Intake Inventory` section (the A0a
+enumeration `/fabrik-spec` already wrote when it authored this spec — this loop never re-runs that step
+and never fabricates rows); (2) the converged spec + a short summary of what hardened; (3) the full Pass
+Ledger; then **end the turn** with the `DECISION NEEDED (ground: gate)` block asking for design approval.
+**Do NOT mint the approval row here, and do NOT auto-invoke `/fabrik-execute-plan`** — exactly as
+`/fabrik-spec-review` does today, this loop ends with BOTH documents CONVERGED and no approval row yet;
+only on the operator's explicit approval, in a LATER turn, does that approving turn's session mint the
+`docs/DECISIONS.md` approval row — the duty `fabrik-plan-after-chat.md:55` hands to `/fabrik-spec-review`
+for full-size work, which this `Size: small` spec skipped. If the operator asks for changes instead,
+re-open the loop on their feedback, same as `/fabrik-spec-review`. A spec with no `Size: small` line keeps
+today's behaviour unchanged: no joint loop, no gate, full autonomy.
 
 {{include:grounding-artifact}}
 ## Phase 0 — Establish scope
