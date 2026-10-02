@@ -77,8 +77,20 @@
       "commit": "98987b5b0"
     },
     "T03b": {
+      "state": "merged",
+      "commit": "458ff2b50"
+    },
+    "T04": {
       "state": "dispatched",
-      "base_commit": "98987b5b0"
+      "base_commit": "458ff2b50"
+    },
+    "T06": {
+      "state": "dispatched",
+      "base_commit": "458ff2b50"
+    },
+    "T07": {
+      "state": "dispatched",
+      "base_commit": "458ff2b50"
     }
   }
 }
