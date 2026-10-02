@@ -3,7 +3,7 @@
 **Status:** CONVERGED on the D-252 scope-growth stop
 **Surface:** `git rev-parse HEAD` = a96b715285ec2461a6cd20ef37e09f5e09759de8; range tip a96b715285ec2461a6cd20ef37e09f5e09759de8; `git diff 20ff0b995..HEAD -- scripts/task_lane.py tests/test_task_lane_admission.py tests/test_lane_replay.py` md5 d49339ed3dd1340a9540206c6ece1046 (32721 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/task_lane.py`, `tests/test_task_lane_admission.py`, `tests/test_lane_replay.py`
-**Plan:** `docs/development/plans/2026-10-02-plan-1-fabrik-task-feature-lane/2026-10-02-plan-1-fabrik-task-feature-lane.md`
+**Plan:** `docs/development/plans/archived/2026-10-02-plan-1-fabrik-task-feature-lane/2026-10-02-plan-1-fabrik-task-feature-lane.md`
 
 ## Coverage Checklist
 

@@ -3,7 +3,7 @@
 **Status:** CONVERGED on the D-252 scope-growth stop
 **Surface:** `git rev-parse HEAD` = 45d949c8cf516d48471128a4c54d5a66b608b501; range tip 45d949c8cf516d48471128a4c54d5a66b608b501; `git diff 20ff0b995..HEAD -- commands/_sources/fabrik-plan-review.md commands/_sources/fabrik-execute-plan.md tests/test_plan_review_small_gate.py` md5 235b36458399b7b3a23d65101601f28f (8783 bytes)
 **Command:** /fabrik-review · **Changed:** `commands/_sources/fabrik-plan-review.md`, `commands/_sources/fabrik-execute-plan.md`, `tests/test_plan_review_small_gate.py`
-**Plan:** `docs/development/plans/2026-10-02-plan-1-fabrik-task-feature-lane/2026-10-02-plan-1-fabrik-task-feature-lane.md`
+**Plan:** `docs/development/plans/archived/2026-10-02-plan-1-fabrik-task-feature-lane/2026-10-02-plan-1-fabrik-task-feature-lane.md`
 
 ## Coverage Checklist
 

@@ -3,7 +3,7 @@
 **Status:** CONVERGED (2026-10-02)
 **Surface:** `git rev-parse HEAD` = 723643d44654d75323a53f0ad52a0e96e8d4b01f; range tip 723643d44654d75323a53f0ad52a0e96e8d4b01f; `git diff 7fe2b666e..HEAD -- scripts/task_lane.py scripts/review_receipt.py tests/test_task_lane_receipt.py tests/test_review_receipt.py` md5 d4108426cd1a6d307bfbddccbca27d31 (51136 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/task_lane.py`, `scripts/review_receipt.py`, `tests/test_task_lane_receipt.py`, `tests/test_review_receipt.py`
-**Plan:** `docs/development/plans/2026-10-02-plan-1-fabrik-task-feature-lane/2026-10-02-plan-1-fabrik-task-feature-lane.md`
+**Plan:** `docs/development/plans/archived/2026-10-02-plan-1-fabrik-task-feature-lane/2026-10-02-plan-1-fabrik-task-feature-lane.md`
 
 ## Coverage Checklist
 

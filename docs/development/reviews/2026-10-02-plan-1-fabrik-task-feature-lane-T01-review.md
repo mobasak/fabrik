@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 9f59effc3b0239725fd7dc0ad4b1e5618a02df53; range tip 9f59effc3b0239725fd7dc0ad4b1e5618a02df53; `git diff 3bdf06320..HEAD -- scripts/lane_replay_capture.py tests/fixtures/lane_replay.json tests/fixtures/lane_replay_tasks.json tests/test_lane_replay_capture.py scripts/enforcement/plan_appetite.py scripts/enforcement/check_plan_tickets.py scripts/enforcement/check_plan_quality.py tests/test_plan_appetite_size.py commands/_sources/fabrik-spec.md commands/_sources/fabrik-plan-after-chat.md tests/test_spec_plan_lane_text.py` md5 a10fec460f871db0ae4f537bab5024ab (529000 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/lane_replay_capture.py`, `tests/fixtures/lane_replay.json`, `tests/fixtures/lane_replay_tasks.json`, `tests/test_lane_replay_capture.py`, `scripts/enforcement/plan_appetite.py`, `scripts/enforcement/check_plan_tickets.py`, `scripts/enforcement/check_plan_quality.py`, `tests/test_plan_appetite_size.py`, `commands/_sources/fabrik-spec.md`, `commands/_sources/fabrik-plan-after-chat.md`, `tests/test_spec_plan_lane_text.py`
-**Plan:** `docs/development/plans/2026-10-02-plan-1-fabrik-task-feature-lane/2026-10-02-plan-1-fabrik-task-feature-lane.md`
+**Plan:** `docs/development/plans/archived/2026-10-02-plan-1-fabrik-task-feature-lane/2026-10-02-plan-1-fabrik-task-feature-lane.md`
 
 ## Coverage Checklist
 

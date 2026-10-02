@@ -1,6 +1,7 @@
 # Plan — /fabrik-task carries feature-sized work; the spec chain is for modules
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-10-02
+Whole-plan review: docs/development/reviews/2026-10-02-plan-1-fabrik-task-feature-lane-review.md
 **Owner:** infra
 Spec: docs/superpowers/specs/2026-10-02-fabrik-task-feature-lane-design.md
 Date: 2026-10-02
@@ -215,6 +216,26 @@ text (T07) read the field names fixed below; the integration last (T08). No two 
 - tests/test_task_lane_receipt.py
 - tests/test_task_lane_review_stop.py
 
+## Requirements coverage
+
+Every item of § What we already agreed, against the commit that delivers it (step 3 of § Finish):
+
+| Agreed | Delivered |
+|---|---|
+| The module test replaces the file count (D1); heavy surfaces in the lane with the full review (D2) | `task_lane.admit` (T02 6ebc08db0) wired at `start` (T08 42c188805); the D7 module fixes 326cc438b |
+| Multi-commit closes, Behaviours ≤ 7, undeclared-path refusal with `--design-amend` (D3); appetite (D4); independent slices (D6) | `measure_close` (T03a 98987b5b0), the close wiring and `step --design-amend` (T08 42c188805); the command text (T07 c8243863a) |
+| Sync paths enter the hub lane (D7) | the hub lane table and the one-commit rule (T08 42c188805, D-504) |
+| The in-lane review stops at the first own-fix-only round (D8) | `scope_growth_rounds` and the receipt marker (T04 81dac1943); the round advisory (T08 42c188805) |
+| `--why`, the refusal ledger and DOWNGRADE (D9) | `admit`/`record_refusal` (T02), the ledger and `from_downgrade` (T08), the DOWNGRADE text (T05b 85173dee9), the report join (T06 82990cd2b) |
+| `Size: small` at spec time, plan-review holding the gate (D10) | the plan graders (T05a 26d8bfebb), the spec and plan text (T05b, T05c 815f85cb7), `size` on the row (T08) |
+| `Appetite:` per plan phase (D11) | the graders (T05a), the execute-plan text (T05c), `step --appetite` and `phase_marks` (T08) |
+| Fixture-first, staged rollout behind `.fabrik/lane.json` (D12) | the replay fixture (T01 863cb7213), the switch and its graders (T08), the hub enable commit 3a803b44b alone |
+| ONE pure module; `command_run.py` touched only by T08 | `scripts/task_lane.py` imports no `command_run.py`; T08 is the only ticket in `command_run.py`'s history in this plan |
+| The rollout constant in `plan_appetite.py` | `LANE_ROLLOUT_DATE` (T05a) |
+| `--surface` refusal at v2 only; a v2 record is stamped `gate: 2` | T08 42c188805 (graded both ways in `tests/test_command_run_lane_v2.py`) |
+| The routed residuals W-0a89f069 and W-25318990 | T03b 458ff2b50 (the receipt's real command), T03a/T08 (`handoff --review`, the receipt outside `--commit`), T02/T08 (the switch commit echoed), T06 (pins, `phase_marks`), T08 (`--surface`) — both items closed with this plan |
+| NOT in this plan: the template rows and the `_LANE_DEFAULT` flip | the day-7 work item W-6b257bdd, gated on D12's criterion (D-504) |
+
 ## Evidence
 
 Closing re-derivation (Pass 4), verbatim, at base 579096eb1:
@@ -226,7 +247,7 @@ rollup True 47
 filescope True
 dead gates []
 touched tests not in own gate []
-✓ [plan_tickets] /opt/fabrik/docs/development/plans/2026-10-02-plan-1-fabrik-task-feature-lane: graded 11 ticket(s), 42 Touches path(s), 40 Context-Files entry(ies); READ budget measured against /opt/fabrik; 0 finding(s)
+✓ [plan_tickets] /opt/fabrik/docs/development/plans/archived/2026-10-02-plan-1-fabrik-task-feature-lane: graded 11 ticket(s), 42 Touches path(s), 40 Context-Files entry(ies); READ budget measured against /opt/fabrik; 0 finding(s)
 ```
 
 Grounding: every cite below re-resolved at 579096eb1 by `sed -n`.

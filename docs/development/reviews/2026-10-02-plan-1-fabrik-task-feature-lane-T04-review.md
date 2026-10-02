@@ -3,7 +3,7 @@
 **Status:** CONVERGED (2026-10-02)
 **Surface:** `git rev-parse HEAD` = cc4e76d305f4b1544a1f6404f07afe8cc620cc25; range tip cc4e76d305f4b1544a1f6404f07afe8cc620cc25; `git diff 1f07e8f43..HEAD -- scripts/enforcement/check_review_coverage.py scripts/task_lane.py tests/test_task_lane_review_stop.py scripts/command_feedback_report.py tests/test_command_feedback_report_lane.py commands/_sources/fabrik-task.md commands/_fragments/scope-growth-exit.md docs/reference/command-run-protocol.md docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md tests/test_fabrik_task_source.py` md5 414dd1bfcd103dd73c6939ee7b25f5f9 (132633 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/enforcement/check_review_coverage.py`, `scripts/task_lane.py`, `tests/test_task_lane_review_stop.py`, `scripts/command_feedback_report.py`, `tests/test_command_feedback_report_lane.py`, `commands/_sources/fabrik-task.md`, `commands/_fragments/scope-growth-exit.md`, `docs/reference/command-run-protocol.md`, `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md`, `tests/test_fabrik_task_source.py`
-**Plan:** `docs/development/plans/2026-10-02-plan-1-fabrik-task-feature-lane/2026-10-02-plan-1-fabrik-task-feature-lane.md`
+**Plan:** `docs/development/plans/archived/2026-10-02-plan-1-fabrik-task-feature-lane/2026-10-02-plan-1-fabrik-task-feature-lane.md`
 
 ## Coverage Checklist
 

@@ -36,6 +36,6 @@ Docs: INDEX.md, CLAUDE.md
 
 ## Context Files
 - docs/superpowers/specs/2026-10-02-fabrik-task-feature-lane-design.md
-- docs/development/plans/2026-10-02-plan-1-fabrik-task-feature-lane/2026-10-02-plan-1-fabrik-task-feature-lane.md
+- docs/development/plans/archived/2026-10-02-plan-1-fabrik-task-feature-lane/2026-10-02-plan-1-fabrik-task-feature-lane.md
 - scripts/task_lane.py
 - INDEX.md

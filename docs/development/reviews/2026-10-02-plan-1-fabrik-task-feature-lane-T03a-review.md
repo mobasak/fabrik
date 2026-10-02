@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 08a9f19753712b2d83476ffef64f93b377d58b51; range tip 08a9f19753712b2d83476ffef64f93b377d58b51; `git diff 81f1784d9..HEAD -- scripts/task_lane.py tests/test_task_lane_close.py` md5 cc0d255e92770426ce3dc4163db62c65 (22775 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/task_lane.py`, `tests/test_task_lane_close.py`
-**Plan:** `docs/development/plans/2026-10-02-plan-1-fabrik-task-feature-lane/2026-10-02-plan-1-fabrik-task-feature-lane.md`
+**Plan:** `docs/development/plans/archived/2026-10-02-plan-1-fabrik-task-feature-lane/2026-10-02-plan-1-fabrik-task-feature-lane.md`
 
 ## Coverage Checklist
 
