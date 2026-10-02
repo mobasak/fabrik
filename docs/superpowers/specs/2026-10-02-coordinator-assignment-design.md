@@ -1,6 +1,6 @@
 # Coordinator proactive assignment — no window idles while work exists
 
-Status: DRAFT
+Status: CONVERGED
 Profile: delta — every item changes an engine that exists today: the work store (`scripts/work.py`), the Stop hook (`.claude/hooks/final_gate_stop.py`) and the multi-agent model docs.
 
 Work item: W-83021827 · Decision: D-512 · Owner: infra (the hub's merge owner and coordinator, D-471)
@@ -206,3 +206,18 @@ None: no service, no port, no `shape:` flag. Hub scripts and a fleet-synced hook
 | I8 | waiting mail ("waiting tasks"; 53 mails need an answer) | IN | D2 — `mail` items are store items (6 open today) and route by addressee |
 | I9 | duplicated awaiting-operator items (3 copies of one question) | IN | D2 step 1 |
 | I10 | every repo, not only the hub (D-471: "in each repo the agent which is not on worktree must be merge owner and coordinator") | IN | D0 roster; D7 template sentence; Lifecycle adoption; V5 one-window repos |
+
+## Pass Ledger
+
+Review: `/fabrik-spec-review`, 2026-10-02/03, after `/fabrik-plan-review`'s joint round 1 (24 candidates, 21 confirmed) dropped `Size: small` (41e280990). Seats (shape: agent-tool — the box allowed 3 seats, `dispatch_headroom.py` `box_cap: 3`, so one finder per slice and the orchestrator executed every confirmed claim): A = Opus on § The delta, Contract deltas, Decisions taken, Validation; B = Sonnet on every other section; C = Sonnet researcher on the cited sources. Every later pass re-used the SAME seats over their own slices.
+
+| Pass | seats · axes re-checked (A0–E) | counters | method | spec md5 (start → end) |
+|-----:|---|---|---|---|
+| Pass 1 | opus×1 + sonnet×2 (A, B, C) · all axes, full pass | found: 23, new: 23, confirmed: 19, fixed: 19, unexecuted: 0, edits: 1 | method: execution — scratch repos, `/proc` reads, live re-fetch of all 7 URLs | 7a4a7e08 → b0ff91a9 |
+| Pass 2 | opus×1 + sonnet×2 (A, B, C) · round-1 ledgers over the fix + one hop | found: 6, new: 6, confirmed: 3, fixed: 6, unexecuted: 0, edits: 1 | method: re-verification — ledger per ID, scratch merge with claim-through-main ordering | b0ff91a9 → 5ed24b32 |
+| Pass 3 | opus×1 + sonnet×1 (A, B; C's rows unchanged) · round-2 ledgers + one hop | found: 7, new: 7, confirmed: 6, fixed: 7, unexecuted: 0, edits: 1 | method: re-verification — `decisions.py --merge-owner` over 37 repos, marker-age probe | 5ed24b32 → 75956697 |
+| Pass 4 | opus×1 + sonnet×1 (A, B) · round-3 ledgers + one hop | found: 3, new: 3, confirmed: 2 (own-fix: 2), fixed: 3, unexecuted: 0, edits: 1 | method: re-verification — backdated-marker probe; scope-growth stop reached (2 of last 3 rounds at ≥ 2/3 own-fix) | 75956697 → 6a14790e |
+| Pass 5 | opus×1 + sonnet×1 (A, B) · VERIFY of the fixed set only | found: 2, new: 2, **confirmed: 0**, fixed: 0, unexecuted: 0, edits: 0 | method: re-verification — both fixes NOW_FALSE; 2 own-fix residues RECORDED — measured onto plan-3's RESUME block (the plan rewrite carries them) | 6a14790e → 6a14790e |
+
+**Hardened:** presence is a live `claude` process in the worktree (whoami bindings and recent claims were wrong both ways); the main checkout's store is the store of record and a worker claims through it; D3 binds on OWNED items only; triage never writes an item with a live claim or a Closed one (marker file of any age); the coordinator is the `distributor`, falling back to the merge owner, and adoption writes `distributor`; D4 is a ninth cause with its own counter slot; the counter mirror names every write, unpack and the delete guard; the session's own quota band (Fable-aware) gates both causes and a missing posture stands them down; store numbers re-derived and anchored to a3bd668a1; all 7 external sources re-fetched live with every quote verbatim.
+

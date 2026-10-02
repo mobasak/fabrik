@@ -10,6 +10,7 @@ Work item: W-83021827 · Decision: D-512
 ## RESUME
 
 - **Successor:** `/fabrik-spec-review docs/superpowers/specs/2026-10-02-coordinator-assignment-design.md` (full review; the spec lost `Size: small` at 41e280990), then `/fabrik-plan-after-chat` rewrites this plan from the converged spec, then `/fabrik-plan-review`.
+- **Recorded at the spec review's scope-growth stop (own-fix, round 5) — the rewrite carries both:** (1) D1 must state `queue`'s first line `coordinator: none — set distributor in .fabrik/work/config.json` for the no-coordinator case that D0, V3 and Lifecycle cite; (2) D0 Closed's `_prune_markers` cite (`scripts/work.py:1100-1107`) has a second deletion arm, the writing tree's own crash residue (`_is_residue`, `:1049-1062`) — a residue marker reads Closed until that tree's next locked write.
 - **Open rows:** the round-1 classes still open — cross-tree-visibility, worker-presence, counter-slot-writes, shared-cause-slot, resolver-cost, roster-definition, beat-routing, band-unknown, exemption-escape, citation-drift, spec-numbers, status-format, contract-coverage. The spec-side fixes are in 41e280990 and are graded by the spec review; the plan-side ones are listed in the ON HOLD note above.
 
 ## What this plan is
