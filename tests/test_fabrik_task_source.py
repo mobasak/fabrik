@@ -131,44 +131,123 @@ def _run_lines(text: str) -> list[str]:
     return out
 
 
+_HARD = "\x00"  # a sentinel for a true STRUCTURAL start — never appears in real markdown
+
+
 def _norm(text: str) -> str:
-    """Whitespace-collapsed text, with each line's leading blockquote marker (`>`) stripped
-    first — `scope-growth-exit.md` wraps every line in `> `, which would otherwise land INSIDE a
-    sentence this plan wrapped across source lines. T07's content checks read SENTENCES, never
-    isolated keywords (a bare substring is satisfied by its own negation, Addendum)."""
+    """Blockquote markers (`>`) stripped per line, then whitespace-collapsed to single
+    spaces — EXCEPT that a `_HARD` sentinel is inserted at every real structural start (the
+    very beginning, a line right after a blank line, or a line opening a heading/bullet/
+    numbered item/table row) BEFORE collapsing, so it survives as a literal character
+    `_asserted` can key on. A plain mid-paragraph line WRAP (no blank line, no marker) is NOT
+    marked — it collapses to an ordinary space, keeping a sentence this plan wrapped across
+    source lines as ONE sentence (T07's original note; T07 review O8 added the sentinel so a
+    genuine paragraph/heading/bullet/row start is still told apart from that wrap once
+    everything is single-spaced)."""
     stripped = "\n".join(re.sub(r"^\s*>\s*", "", line) for line in text.splitlines())
-    return re.sub(r"\s+", " ", stripped)
+    lines = stripped.splitlines()
+    marked = [
+        (_HARD + line)
+        if (
+            i == 0
+            or re.match(r"[-*]\s|\d+\.\s|#|\|", line) is not None
+            or (i > 0 and lines[i - 1].strip() == "")
+        )
+        else line
+        for i, line in enumerate(lines)
+    ]
+    return re.sub(r"\s+", " ", "\n".join(marked))
 
 
-# T07 review round 1 (O8): a bare `in text` / unanchored `re.search` is satisfied by its own
-# negation — "NOT <the exact governing sentence>" still CONTAINS that sentence verbatim, so a
-# substring check reads it as present. `_asserted` additionally refuses a match whose preceding
-# ~80 chars carry a negation marker, which is where a prefix-wrap lands.
+# T07 review round 1 (O8, ruling): a bare `in text` / unanchored `re.search` is satisfied by
+# its own negation — "It is false that: <the exact sentence>" still CONTAINS that sentence
+# verbatim, so a substring check reads it as present, and a suffix glued BEFORE the sentence's
+# own terminator (", which is not true.") changes nothing a loose check reads. The ruling:
+# anchor each governing sentence on sentence boundaries at BOTH ends — it must start at a line
+# start, after a bullet/row marker, or after a terminator (`.`/`;`) plus whitespace, and it
+# must run to ITS OWN terminator, so no clause can be glued before or after it within its
+# sentence. `false`/`untrue`/`incorrect` join the negation words.
 _NEGATION = re.compile(
-    r"\b(not|never|n't|without|no longer|neither|nor|isn't|doesn't|drop(?:s|ped)?|"
-    r"remove(?:s|d)?|lack(?:s|ing)?|fail(?:s|ed)?\s+to|refuses?\s+to\s+(?:name|state))\b",
+    r"\b(not|never|n't|without|no longer|neither|nor|isn't|doesn't|false|untrue|incorrect|"
+    r"drop(?:s|ped)?|remove(?:s|d)?|lack(?:s|ing)?|fail(?:s|ed)?\s+to|"
+    r"refuses?\s+to\s+(?:name|state))\b",
     re.I,
 )
 
 
-def _asserted(text: str, pattern: str, *, window: int = 80) -> bool:
-    """True iff `pattern` matches `text` with no negation marker in the CURRENT clause
-    immediately before the match. False on no match OR a negated/weakened match — the two
-    failure modes a bare substring/`re.search` check cannot tell apart (T07 review O8).
+def _boundaries(text: str) -> tuple[set[int], set[int]]:
+    """(true-terminator indices, hard-start indices) in `text`. A terminator is a literal
+    `.`/`;` OUTSIDE a backtick span and outside parens — a period inside a backtick-quoted
+    filename (`design.md`) or a semicolon inside a parenthetical aside is not a sentence end."""
+    terms: set[int] = set()
+    backtick = False
+    depth = 0
+    for i, ch in enumerate(text):
+        if ch == "`":
+            backtick = not backtick
+        elif not backtick and ch == "(":
+            depth += 1
+        elif not backtick and ch == ")":
+            depth = max(0, depth - 1)
+        elif not backtick and depth == 0 and ch in ".;":
+            terms.add(i)
+    hards = {m.start() for m in re.finditer(re.escape(_HARD), text)}
+    return terms, hards
 
-    The `window` characters before the match are truncated at the LAST `;`, `.` or em-dash
-    (`—`) inside them, so a negation word that belongs to the PRIOR clause/sentence (e.g.
-    "…never refusing); the remedy is …", or "…not round 3 — the FIRST…") never flags the
-    clause that follows it — only a negation with nothing but whitespace/markup between it
-    and the match (the "NOT <exact sentence>" wrap, or "— NOT <exact sentence>") does."""
-    m = re.search(pattern, text)
-    if not m:
-        return False
-    before = text[max(0, m.start() - window) : m.start()]
-    boundary = max(before.rfind(";"), before.rfind("."), before.rfind("—"))
-    if boundary != -1:
-        before = before[boundary + 1 :]
-    return _NEGATION.search(before) is None
+
+def _starts(text: str, terms: set[int], hards: set[int]) -> set[int]:
+    """Every legitimate sentence/clause START position: the document start, right after a
+    `_HARD` sentinel, or right after a terminator plus any run of spaces."""
+    starts = {0}
+    for b in (*hards, *terms):
+        j = b + 1
+        while j < len(text) and text[j] == " ":
+            j += 1
+        starts.add(j)
+    return starts
+
+
+def _reaches_boundary(text: str, pos: int, terms: set[int], hards: set[int]) -> bool:
+    """Does `pos` (a match's end) land AT its own terminator or a hard start, so nothing is
+    glued between the matched content and where its sentence/clause really ends? A run of
+    bare table syntax (` `, `\\t`, `|`) immediately after `pos` is skipped first — the closing
+    `|` of a table cell sits between the content and the next row's `_HARD` start."""
+    if (pos - 1) in terms or pos in terms or pos in hards or pos >= len(text):
+        return True
+    j = pos
+    while j < len(text) and text[j] in " \t|":
+        j += 1
+    return j >= len(text) or j in hards
+
+
+def _asserted(text: str, pattern: str) -> bool:
+    """True iff `pattern` matches `text` starting at a legitimate boundary (`_starts`) with no
+    `_NEGATION` word in the gap between that boundary and the match (catches "It is false
+    that: <sentence>" — the gap is non-empty and carries "false"), AND ending at the
+    sentence's OWN terminator or a hard start (`_reaches_boundary` — catches a clause glued in
+    before the terminator, since the literal text no longer matches at all once one is: the
+    pattern must therefore be written to include, or stop exactly at, that terminator).
+
+    ⚠️ RESIDUAL (reviewer judgement, never mechanical): a SEPARATE sentence placed immediately
+    AFTER the matched one that negates it in prose ("<sentence>. This claim is not true.") is
+    INVISIBLE here — the matched sentence is byte-identical and properly terminated, and
+    judging whether a later, grammatically independent sentence negates an earlier one is a
+    reading-comprehension task, not a regex. A human (or review) pass must still read the
+    surrounding paragraph for that case."""
+    terms, hards = _boundaries(text)
+    starts = _starts(text, terms, hards)
+    for m in re.finditer(pattern, text):
+        s, e = m.span()
+        cands = [b for b in starts if b <= s]
+        if not cands:
+            continue
+        gap = text[max(cands) : s]
+        if _NEGATION.search(gap) is not None:
+            continue
+        if not _reaches_boundary(text, e, terms, hards):
+            continue
+        return True
+    return False
 
 
 def test_source_size_and_single_include() -> None:
