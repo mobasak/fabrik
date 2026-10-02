@@ -70,7 +70,7 @@ def test_routing_names_no_dead_or_restricted_provider() -> None:
     table = [
         ln
         for ln in _section(_pack(), "1").splitlines()
-        if ln.startswith("| ") and "Asset type" not in ln and not ln.startswith("| :--")
+        if ln.startswith("| ") and "Asset type" not in ln and not re.match(r"\|\s*:?-+:?\s*\|", ln)
     ]
     assert len(table) >= 6, f"the routing table lost rows: {len(table)}"
     for row in table:
@@ -79,6 +79,9 @@ def test_routing_names_no_dead_or_restricted_provider() -> None:
         primary = row.split("|")[2]
         # § 0 and § 5 forbid self-hosting as a starting move: a primary is a commercial vendor API or says it is
         # hosted — anything else (an open model however its self-host route is worded) fails closed
+        assert "self-host" not in primary.lower(), (
+            f"a primary is a self-host route, against § 0 and § 5: {row}"
+        )
         if not any(v in primary for v in VENDOR_APIS):
             assert "hosted" in primary, (
                 f"a primary is neither a vendor API nor hosted, against § 0 and § 5: {row}"
@@ -104,8 +107,8 @@ def test_licence_trap_and_exclusions_hold() -> None:
     # each exclusion is one bullet; read the whole bullet, so a reworded or re-punctuated sentence still counts
     bullets = [_flat(b) for b in _section(_pack(), "2").split("\n- ")[1:]]
     heads = [(b.lstrip("*_ "), b) for b in bullets]
-    csm = next((b for h, b in heads if h.startswith("CSM")), "")
-    luma = next((b for h, b in heads if h.startswith("Luma Genie")), "")
+    csm = next((b for _h, b in heads if "CSM" in b), "")
+    luma = next((b for _h, b in heads if "Luma Genie" in b), "")
     assert "shut down" in csm, "the exclusions no longer say CSM's API shut down"
     assert "sunset" in luma, "the exclusions no longer say Luma Genie was sunset"
 
