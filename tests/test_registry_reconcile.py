@@ -173,7 +173,9 @@ class TestReconcile:
         }
         for dry_run in (True, False):
             heals, reg, owner_lookup = _reconcile(audits, claims={}, dry_run=dry_run)
-            assert [(h.outcome, h.reason) for h in heals] == [("failed", "db-name-missing")]
+            assert [(h.db, h.outcome, h.reason) for h in heals] == [
+                ("", "failed", "db-name-missing")
+            ]
             assert reg.writes == []
             owner_lookup.assert_not_called()
 

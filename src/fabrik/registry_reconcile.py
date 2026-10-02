@@ -109,7 +109,8 @@ def reconcile_postgres(
             continue
         db = actual.get("db_name")
         if not isinstance(db, str) or not db:
-            heal = HealResult(spec_id, str(db), "failed", "db-name-missing")
+            # An empty label, never str(None): db="None" would read as a real database.
+            heal = HealResult(spec_id, "", "failed", "db-name-missing")
         else:
             heal = _heal(spec_id, db, claims, claims_complete, dry_run)
         logger.info(
