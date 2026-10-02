@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "file 47 \u2014 the remaining ai/* packs (7): ai/30-language, 30-language, 40-multimodal, 50-agentic, 60-code, 70-data-predictive, 80-specialized-domains, 90-long-context \u2014 model names and prices are the drift class (route model choice to ai/00-ai-model-selection.md; keep the model-routing/gateway blocks per W-b58d0f90's pending operator answer). Then desktop (2), core/90-bootstrap",
+  "next": "file 47 \u2014 the remaining ai/* packs (7): ai/30-language, 40-multimodal, 50-agentic, 60-code, 70-data-predictive, 80-specialized-domains, 90-long-context \u2014 model names and prices are the drift class (route model choice to ai/00-ai-model-selection.md; keep the model-routing/gateway blocks per W-b58d0f90's pending operator answer). Then desktop (2), core/90-bootstrap",
   "note": "",
   "owner": "intel",
   "priority": 2,
