@@ -261,6 +261,15 @@ Generalises the Authelia weekly cron to all 10 audited registrars at hourly cade
 
 **Roundtrip-verified live 2026-05-16:** synthetic drift fired Telegram in 11 minutes; resolution (`fabrik_audit_drift_total=0`) cleared the alert within 90 seconds via Alertmanager `send_resolved: true`.
 
+**Registry reconcile (plan-2, D-498/D-500).** After the audit loop the same run calls `src/fabrik/registry_reconcile.py`: each postgres result of `drift` with the database present and no `allocations.json` entry is registered additively, in-lock, never overwriting or deleting. The mode is `FABRIK_REGISTRY_RECONCILE` on the cron line — `report` (default) dry-runs, `apply` writes, `off` skips (`docs/CONFIGURATION.md` § Scheduled audits). A database two specs claim is `shared` and never written; a run in which a spec failed to load or audit, or a database spec's name failed to resolve, fails every candidate as `claims-unresolved`; no owner role in `pg_database`, no write. A registered spec is re-audited in the same run, so its drift series clears in that push. The push is now a `PUT`, which replaces the whole `fabrik-audit` group each run, and carries:
+
+- `fabrik_registry_heal_total{spec_id,db,outcome}` — one per candidate: `registered`, `already-present`, `would-register`, `shared` or `failed`;
+- `fabrik_registry_heal_failed{spec_id,db,reason}` — one per failed heal (`claims-unresolved`, `owner-unresolved`, or the exception class);
+- `fabrik_audit_spec_errors` — specs skipped this run because they failed to load or audit;
+- `fabrik_audit_last_success_timestamp_seconds` — only on a run with no spec error and no reconcile crash.
+
+Two alerts in the same rule file and route: **`FabrikRegistryHealFailed`** (`max by (spec_id, db) (fabrik_registry_heal_failed) > 0` for 2h — aggregated over `reason` so a changing cause keeps the window) and **`FabrikAuditStale`** (`(time() - fabrik_audit_last_success_timestamp_seconds > 10800) or absent(...)` for 5m). Because a run without the timestamp deletes the series, `FabrikAuditStale` fires within minutes of any run with a spec error, not only after 3h; under `POST` such a spec kept its last drift value, under `PUT` its drift series is absent for that run, which is why the stale alert exists. The rules are unit-tested with `promtool test rules tests/fixtures/fabrik-drift-rules-test.yml` (image `prom/prometheus:v3.2.1`).
+
 **Pairs with:**
 
 - `fabrik audit-registrars` (T2-02 G-G2) — operator-invoked on-demand version of the same audit.

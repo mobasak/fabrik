@@ -833,6 +833,8 @@ Net code surface this added (committed):
 
 Audit via `fabrik audit-registrars`; cross-references live `pg_database` and emits `drift` for orphan DBs or stale registry entries.
 
+**Writers:** `create_database` registers a database it creates; the hourly drift cron (`scripts/audit_all_registrars.py`) registers an orphan it finds — a database present in `pg_database` with no entry — through `register_allocation_if_absent` when the cron line sets `FABRIK_REGISTRY_RECONCILE=apply` (default `report` writes nothing; D-500). The cron's entries carry `owner: "fabrik"`, the role read from `pg_database`, and `notes: "registered by the hourly reconcile <date>"`. It never overwrites or deletes an entry, and refuses a database two specs claim (`main`) or a run where a spec failed to load or audit. Every writer reads, checks and writes under one host-local `file_lock`; a writer on another host is not serialised.
+
 ### Live Postgres state (verified 2026-05-31 afternoon)
 
 | Database | Size | Owner / consumer | DB user |
