@@ -1,6 +1,8 @@
 # Plan — postgres allocation registry reconciled by the hourly audit (W-714ae2cf, D-498)
 
-Status: CONVERGED (/fabrik-plan-review 2026-10-02, 4 passes; spec graded together, Size: small)
+Status: EXECUTED 2026-10-02 (Phase A 96ca25289 + aec09c11a · Phase B cfd9d3cbd + b56c41c05 · Phase C 5758386fc, 891c7f1ee, a534d273d, eb6d5799e, 363452091 · Finish fix b06e5bbdf; scoped reviews A 5→0, B 8→0, C 9→2→0; Finish /fabrik-review 1→0; final_gate --check success)
+Whole-plan review: docs/development/reviews/2026-10-02-plan-2-postgres-allocation-reconcile-review.md
+Requirements coverage: every Interfaces.Produces line shipped — `_register` / `register_allocation_if_absent` (src/fabrik/drivers/postgres.py), `audit_postgres` by `_db_name_for_spec` + `_validate_identifier` (src/fabrik/audit.py), `registry_reconcile.py` (`HealResult`, `mode()`, `claims()`, `reconcile_postgres`), the cron wiring with `PUT` and the four series (scripts/audit_all_registrars.py), both rules + the promtool fixture, the docs, and the infra ladder-row mail (01M3YEY98R). Deviations, each from a review finding: CONFIGURATION documents `FABRIK_REGISTRY_RECONCILE` in § Scheduled audits (a cron-line variable), not the alerting table; `FabrikAuditStale` takes `max()` of the timestamp (one alert identity); the rollout gains R0 (rule sync at the merge, before the `PUT` push's first run); a missing `db_name` is `failed db-name-missing` with an empty label. Rollout R0-R4 is left to the operator. Not archived: D-484 (the D-498 and D-500 rows cite this path).
 Profile: small
 **Owner:** fleet
 
@@ -250,7 +252,7 @@ Appetite: 70
 - **Given** a stale entry (entry, no database) or a `missing` result, **When** the reconcile runs, **Then** it writes nothing and returns no result for it (B6; `src/fabrik/audit.py:197-203`; `spec § The delta` D3)
 - **Given** two specs that resolve to the same orphan database — including when one of them audits `unknown` — **When** the reconcile runs in `apply` mode, **Then** the orphan gets outcome `shared`, naming the other, and nothing is written; when a spec's `depends.postgres` is not a string, `claims()` lists its id in `unresolved` without raising; and when `claims_complete` is false, every candidate gets `failed claims-unresolved` and nothing is written (B7; `src/fabrik/orchestrator/infrastructure.py:500`; `spec § The delta` D3)
 
-## Phase C — Alerts, docs and Finish
+## Phase C — Alerts, docs and Finish — ✅ EXECUTED 2026-10-02 (5758386fc, 891c7f1ee, a534d273d; review fixes eb6d5799e, 363452091; /fabrik-review-scoped 9→2→0; Finish /fabrik-review 1→0, b06e5bbdf)
 
 Appetite: 45
 
