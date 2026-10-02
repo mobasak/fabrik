@@ -185,8 +185,8 @@ Appetite: 70
     1. the claim map comes from the specs, never from audit outcomes: `claims(specs) -> tuple[dict[str, list[str]],
        list[str]]` returns (the map `_db_name_for_spec(spec.model_dump())` → spec ids over every loaded spec whose postgres
        registrar applies, whatever its audit returned — an `unknown` or skipped sibling still counts; the ids whose name
-       failed to resolve, never raising). When any database spec failed to load
-       or to resolve its name this run, every candidate gets `failed`, reason `claims-unresolved`, and nothing is written
+       failed to resolve, never raising). When `claims_complete` is false (a spec failed to load or audit, or a database
+       spec failed to resolve its name), every candidate gets `failed`, reason `claims-unresolved`, and nothing is written
        — the provisioner raises rather than guess in the same case (`orchestrator/infrastructure.py:506-508`). Otherwise
        a `db` with two or more claimants gets `shared` (reason: the other spec ids, comma-joined) and nothing is written
        (`orchestrator/infrastructure.py:500-547`);

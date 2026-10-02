@@ -147,7 +147,7 @@ D3. **The reconcile.** A new module, `src/fabrik/registry_reconcile.py`, exposes
     that claim it (from `claims(specs)`, below) and `claims_complete` says no spec failed to load or audit and no name
     failed to resolve. For each spec whose `postgres` result is `drift` with
     `actual.found is True` and `actual.in_registry is False` (the orphan quadrant, `audit.py:197-202`), with
-    `db = actual.db_name`: a run in which any spec failed to load, or any database spec failed to resolve its name → `failed`, reason
+    `db = actual.db_name`: when `claims_complete` is false (a spec failed to load or audit, or a database spec failed to resolve its name) → `failed`, reason
     `claims-unresolved`, for every candidate (the provisioner raises rather than guess in that case,
     `orchestrator/infrastructure.py:506-508`); a database two or more specs claim → `shared` (below), the claims counted
     from every loaded database spec's name rule, never from audit outcomes, so an `unknown` sibling still counts; in `report` mode → `would-register`;
