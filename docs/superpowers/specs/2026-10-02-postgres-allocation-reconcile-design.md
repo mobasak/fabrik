@@ -18,7 +18,8 @@ Research ledger: `docs/reference/research/2026-10-02-postgres-allocation-reconci
   postgres databases exist"*. They want a registry that cannot silently drift, and a red signal when it does. Their loop,
   counted: (1) a database exists that the registry lacks, by any of the three causes; (2) within an hour the reconcile
   registers it, or (3) if it cannot, an alert names the database and the reason. **Step budget: 0 operator steps on the
-  healthy path, 1 (read the alert) on the failure path.** Today the healthy path costs a re-apply per orphan (a Gate-2 deploy)
+  healthy path once the one-time opt-in is done (the operator sets `apply` after reading a report run, D4), 1 (read
+  the alert) on the failure path.** Today the healthy path costs a re-apply per orphan (a Gate-2 deploy)
   and the failure path costs an investigation, because the drift alert says only "drift".
 - **The hourly audit cron (automated)** — `scripts/audit_all_registrars.py`, run from the hub crontab (`0 * * * *`,
   `/opt/fabrik/src`, log `/var/log/fabrik-audit-all.log`). **New duty: it is the registry's reconciler** — it registers
@@ -144,7 +145,10 @@ D3. **The reconcile.** A new module, `src/fabrik/registry_reconcile.py`, exposes
     `reconcile_postgres(audits, *, dry_run: bool) -> list[HealResult]`, where `audits` maps each spec id to the
     `audit_all` result the cron already computed. For each spec whose `postgres` result is `drift` with
     `actual.found is True` and `actual.in_registry is False` (the orphan quadrant, `audit.py:197-202`), with
-    `db = actual.db_name`: a database two or more specs claim → `shared` (below); in `report` mode → `would-register`;
+    `db = actual.db_name`: a run in which any database spec failed to load or resolve its name → `failed`, reason
+    `claims-unresolved`, for every candidate (the provisioner raises rather than guess in that case,
+    `orchestrator/infrastructure.py:504-506`); a database two or more specs claim → `shared` (below), the claims counted
+    from every loaded database spec's name rule, never from audit outcomes, so an `unknown` sibling still counts; in `report` mode → `would-register`;
     otherwise `user = _db_owner(db)` (`postgres.py:572`) — `None` (the database is gone, or its owner fails validation) →
     `failed`, reason `owner-unresolved`, no write — then `register_allocation_if_absent(db, spec_id=..., user=user,
     owner="fabrik", notes="registered by the hourly reconcile <UTC date>")` → `registered` or `already-present`; any
@@ -193,8 +197,9 @@ D5. **Surface every outcome.** Each run's push carries, besides the two existing
       (ledger obs-5).
     Each heal also writes one log line naming the database and the outcome (self-healing.md:96).
 
-D6. **The two live orphans.** No special-casing. After the merge, the first hourly run on the hub (`/opt/fabrik/src`, the
-    main checkout) registers `zitadel` and `site_provisioner` if they are still orphans. D1 also moves the audit of 9 of
+D6. **The two live orphans.** No special-casing. After the operator turns on `apply` (Validation, rollout step 3), the
+    next hourly run on the hub (`/opt/fabrik/src`, the main checkout) registers `zitadel` and `site_provisioner` if they are
+    still orphans. D1 also moves the audit of 9 of
     the 23 database-backed specs onto the database they really use (the specs that pin `depends.postgres`, counted by the
     plan's probe), so the first run can find more orphans than these two: any of those 9 whose database exists without an
     entry. With the default `report`, the first runs after the merge write nothing; the operator reads one of them and then
@@ -226,7 +231,7 @@ registry read the audit already makes. The reconcile adds about 1 s per orphan t
 - Rollout, in order: (1) merge — the cron now runs in the default `report` mode; (2) read one run's `would-register` and
   `shared` lines in `/var/log/fabrik-audit-all.log` (or run it by hand) — the fire-rate measurement FIX DIRECTIVE 5
   requires before the mechanism writes; `zitadel` and `site_provisioner` are expected, any of the 9 re-named specs may
-  appear, and `main` must read `shared`; (3) the operator adds `FABRIK_REGISTRY_RECONCILE=apply` to the crontab line and the
+  appear, and `main`, if it appears, reads `shared`; (3) the operator adds `FABRIK_REGISTRY_RECONCILE=apply` to the crontab line and the
   next hourly run heals; (4) confirm `fabrik_audit_drift_total{registrar="postgres"}` is 0 for `zitadel` and
   `site-provisioner`; (5) sync the rules with `scripts/sync_prometheus_to_vps.sh` and confirm both new rules load.
 

@@ -145,7 +145,8 @@ Appetite: 35
    name and accepting a bad identifier).
 2. Edit `src/fabrik/drivers/postgres.py` per the Interfaces: extract `_register`, keep `register_allocation`'s contract,
    add `register_allocation_if_absent`.
-3. Edit `audit_postgres` per the Interfaces; keep `_spec_to_dict` (`audit.py:67-74`) as the adapter.
+3. Edit `audit_postgres` per the Interfaces; keep `_spec_to_dict` (`audit.py:67-74`) as the adapter, and resolve and
+   validate the name only AFTER the `n/a` return (`audit.py:139-142`), so a non-applicable spec stays `n/a`.
 4. Run green: `cd /opt/fabrik/.claude/worktrees/fleet && PYTHONPATH=$PWD/src .venv/bin/python -m pytest
    tests/test_postgres_registry.py tests/test_app_role_driver.py tests/test_backrest_postgres_plan.py
    tests/drivers/test_postgres.py tests/test_audit.py -q -p no:cacheprovider` → all pass; and the import check
@@ -177,11 +178,16 @@ Appetite: 70
   - `def mode() -> Literal["apply", "report", "off"]` — reads `os.getenv("FABRIK_REGISTRY_RECONCILE", "report")`; any
     other value → `"report"` with one warning log. **The default is `report`**: nothing writes until the operator sets
     `apply` on the crontab line (rollout R2).
-  - `def reconcile_postgres(audits: dict[str, dict[str, AuditResult]], *, dry_run: bool) -> list[HealResult]` — `audits`
-    maps spec id → `audit_all` result. For each spec id whose `postgres` result is `drift` with `actual["found"] is True`
+  - `def reconcile_postgres(audits: dict[str, dict[str, AuditResult]], claims: dict[str, list[str]], *, claims_complete:
+    bool, dry_run: bool) -> list[HealResult]` — `audits` maps spec id → `audit_all` result; `claims` and
+    `claims_complete` come from the script (below). For each spec id whose `postgres` result is `drift` with `actual["found"] is True`
     and `actual["in_registry"] is False` (`audit.py:197-202`), with `db = actual["db_name"]`:
-    1. when two or more spec ids carry a postgres result whose `actual["db_name"]` equals `db`, each gets `shared`
-       (reason: the other spec ids, comma-joined) and nothing is written — the provisioner's refuse-on-shared posture
+    1. the claim map comes from the specs, never from audit outcomes: `claims(specs) -> dict[str, list[str]]` maps
+       `_db_name_for_spec(spec.model_dump())` → spec ids over every loaded spec whose postgres registrar applies,
+       whatever its audit returned (an `unknown` or skipped sibling still counts). When any database spec failed to load
+       or to resolve its name this run, every candidate gets `failed`, reason `claims-unresolved`, and nothing is written
+       — the provisioner raises rather than guess in the same case (`orchestrator/infrastructure.py:504-506`). Otherwise
+       a `db` with two or more claimants gets `shared` (reason: the other spec ids, comma-joined) and nothing is written
        (`orchestrator/infrastructure.py:500-547`);
     2. else `dry_run` → `would-register`;
     3. else `user = _db_owner(db, POSTGRES_CONTAINER)` (`postgres.py:572`, `:62`); `None` (the database is gone, or its
@@ -193,8 +199,10 @@ Appetite: 70
     One log line per result. It reads only the audit results the cron computed, plus `_db_owner`.
 - `scripts/audit_all_registrars.py`:
   - `main` (`:129-181`) keeps a `specs: dict[str, Spec]` beside `results` and builds `audits = dict(results)`; after the
-    audit loop, `m = registry_reconcile.mode()`; when `m != "off"`, `heals = reconcile_postgres(audits, dry_run=(m ==
-    "report"))`, then re-run `audit_all(specs[sid])` only for `registered` results and replace them in `results`.
+    audit loop it computes the claim map with `registry_reconcile.claims(specs.values())` and `claims_complete` (no spec
+    failed to load and no database spec's name failed to resolve); `m = registry_reconcile.mode()`; when `m != "off"`,
+    `heals = reconcile_postgres(audits, claims, claims_complete=..., dry_run=(m == "report"))`, then re-run
+    `audit_all(specs[sid])` only for `registered` results and replace them in `results`.
   - `_render_metrics(results, heals, *, success: bool, spec_errors: int)` (`:72-102`) keeps both existing gauges and adds
     `fabrik_registry_heal_total{spec_id,db,outcome} 1` per heal, `fabrik_registry_heal_failed{spec_id,db,reason} 1` per
     failed heal, `fabrik_audit_spec_errors <error_count>` every run, and `fabrik_audit_last_success_timestamp_seconds
@@ -238,7 +246,7 @@ Appetite: 70
 - **Given** a registry write raises, or the owner lookup returns nothing, **When** the reconcile runs, **Then** the outcome is `failed` with the reason, nothing is written, a `fabrik_registry_heal_failed` sample is rendered and the run still renders its other series (B4; `spec § The delta` D5)
 - **Given** a run with no spec errors whose reconcile raises nothing, **When** the cron pushes, **Then** it uses `PUT` and the payload carries `fabrik_audit_last_success_timestamp_seconds`; a run with a spec error, or whose reconcile raises, renders no timestamp and renders `fabrik_audit_spec_errors` (B5; `scripts/audit_all_registrars.py:119`)
 - **Given** a stale entry (entry, no database) or a `missing` result, **When** the reconcile runs, **Then** it writes nothing and returns no result for it (B6; `src/fabrik/audit.py:197-203`; `spec § The delta` D3)
-- **Given** two specs whose postgres audit names the same orphan database, **When** the reconcile runs in `apply` mode, **Then** both get outcome `shared`, naming each other, and nothing is written (B7; `src/fabrik/orchestrator/infrastructure.py:500`; `spec § The delta` D3)
+- **Given** two specs that resolve to the same orphan database — including when one of them audits `unknown` — **When** the reconcile runs in `apply` mode, **Then** the orphan gets outcome `shared`, naming the other, and nothing is written; and when any database spec failed to load or resolve, every candidate gets `failed claims-unresolved` and nothing is written (B7; `src/fabrik/orchestrator/infrastructure.py:500`; `spec § The delta` D3)
 
 ## Phase C — Alerts, docs and Finish
 
@@ -252,7 +260,8 @@ Appetite: 45
   - `FabrikAuditStale`: `expr: (time() - fabrik_audit_last_success_timestamp_seconds > 10800) or
     absent(fabrik_audit_last_success_timestamp_seconds)`, `for: 5m`, `severity: warning`, `alert_class: registrar_drift`,
     annotation pointing at `/var/log/fabrik-audit-all.log` and `fabrik_audit_spec_errors`. The `absent(...)` arm covers a
-    pushed run that carried no timestamp (a `PUT` deletes the series) and the time before the first success.
+    pushed run that carried no timestamp (a `PUT` deletes the series) and the time before the first success — so a run
+    with a spec error raises this alert within minutes, not after 3 h; the health-monitoring doc (step 4) says so.
 - Docs (the `spec § Documentation landing sites`): `docs/reference/health-monitoring.md` § Hourly Per-Registrar Drift
   Alert (`:250-268`); `docs/infrastructure/vps-complete-inventory.md` § Postgres allocation registry (`:815-835`);
   `docs/CONFIGURATION.md` (the `FABRIK_` reference table, `:935`); `.env.example` (§ Fabrik Internal, `:252-289`);
@@ -269,7 +278,8 @@ Appetite: 45
 2. **Write the failing tests first** in `tests/test_registry_reconcile.py` (rows C1-C2): load the rule file with
    `yaml.safe_load` and assert both new alerts exist with the named `expr` and `for`; and a promtool rule unit test file
    `tests/fixtures/fabrik-drift-rules-test.yml` covering the stale-by-age case, the absent case and a heal failure whose
-   `reason` changes mid-window, run by C3's docker command. Confirm red.
+   `reason` changes mid-window, run by C3's docker command (each `exp_alerts` entry lists its `exp_annotations`, which
+   promtool compares). Confirm red.
 3. Add the two rules per the Interfaces. Run green; then `docker run --rm -v "$PWD/configs/prometheus/rules:/r:ro" -v
    "$PWD/tests/fixtures:/t:ro" --entrypoint promtool prom/prometheus:v3.2.1 check rules /r/fabrik-drift.yml` →
    `SUCCESS: 3 rules found`, and the same image with `test rules /t/fabrik-drift-rules-test.yml` → `SUCCESS`.
@@ -295,7 +305,8 @@ hourly cron writes nothing until R2, so the order R1 → R2 is enforced by the c
 - R1. Read the next hourly cron run's lines in `/var/log/fabrik-audit-all.log` (or run it by hand from the main checkout:
   `PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_all_registrars.py`). Read every
   `would-register` and `shared` line — expected: `zitadel` and `site_provisioner`; any of the 9 specs Phase A re-names may
-  also appear (each is read and its spec checked before R2); `main` must read `shared` (`spec § Validation` step 2).
+  also appear (each is read and its spec checked before R2); `main`, if it appears at all (only when that database
+  exists unregistered), reads `shared`, because four specs claim it (`spec § Validation` step 2).
 - R2. Add `FABRIK_REGISTRY_RECONCILE=apply` to the audit line of the hub crontab; the next hourly run heals; read the log
   for the `registered` lines.
 - R3. Confirm `fabrik_audit_drift_total{registrar="postgres"}` is 0 for `zitadel` and `site-provisioner` (Prometheus).
@@ -434,6 +445,7 @@ both). The spec is `Size: small`, so its sections are graded here with the plan 
 | Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) · spec md5 (start → end) |
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (`rules`, 58 claims) + sonnet×1 (`prose`, 23 claims) · all axes, plus two orchestrator probes | found: 24, new: 24, confirmed: 23, fixed: 23, unexecuted: 0, edits: 31 | method: citation — full partitioned pass; every candidate executed by the orchestrator or by its seat's probe. Orchestrator probes: the name-rule move hits 9 of 23 postgres-applicable specs, 4 onto one database `main` (→ outcome `shared`). Rules: the `apply` default would write before the report pass (→ default `report`); a `PUT` without the timestamp deletes it so `FabrikAuditStale` could never fire (→ `or absent(...)`, promtool-proven); `_db_owner` `None` fell back to `db` (→ `failed owner-unresolved`); `registered` vs `already-present` was unknowable (→ `register_allocation_if_absent -> bool`, B2 tested on the real lock path); a changing `reason` reset `for: 2h` (→ `max by (spec_id, db)`); `PUT` drops a skipped spec's drift series (→ `fabrik_audit_spec_errors`, no timestamp on a spec error); `depends.postgres` has no pattern before SQL (→ `_validate_identifier`); the pusher grep, the header-check path and coverage, the writer lines, signature/date/series wording, the import-cycle reasoning, the self-healing scope (MATCHED via `**/health*` → row proposed to infra). Prose: B6 script path, A5 watched the wrong row, B1 patched names on the wrong module, the shared-append recipe's section, the site-provisioner spellings. Refuted 1: listing `INDEX.md`/`CHANGELOG.md` in File Scope (governance files are excluded by the plan grammar). | df375e0a1b89c80e8b659e1df6a31e24 → 91abe075c42a0903005f2476af829d62 · 7d45177e4fe9cb2aac559fa124b5f5bb → fedc2db3e83527c8f7d6f84563f8fe2d |
+| Pass 2 | opus×1 (round-1 owner of `rules`, 30 claims re-executed) + sonnet×1 (round-1 owner of `prose`, 9 claims) · the round-1 fix hunks + one hop | found: 4, new: 4, confirmed: 4, fixed: 4, unexecuted: 0, edits: 9 | method: re-derivation — all 21 round-1 candidates re-verified closed against the pin; promtool re-run on the corrected rules (6 cases, SUCCESS; orchestrator's own 3-case run SUCCESS, `check rules` → `SUCCESS: 3 rules found`); the 9/23 name-move probe re-run independently (identical). Confirmed, all inside round-1 fix text: N1 the `shared` claim map counted only audit outcomes, so an `unknown` or skipped sibling made a shared database look singly claimed (→ claims from every loaded database spec's name rule; any load/resolve failure → `failed claims-unresolved`); N2 spec D6 still said the first run registers (→ after the operator turns on `apply`); R1's unconditional "`main` must read `shared`" (→ conditional); the spec Personas' 0-step budget ignored the one-time opt-in. Recorded and folded: the name is resolved after the `n/a` return; the stale alert's `absent` arm also means a spec error (doc step); the promtool fixture sets `exp_annotations`. | 5287d516473890980855530c4d4fa7f4 → cfc00b95f94f51d75b77b2d56c12c11e · fedc2db3e83527c8f7d6f84563f8fe2d → a449286da9e9b5a144bc244234471287 |
 
 ## Coverage Checklist
 
