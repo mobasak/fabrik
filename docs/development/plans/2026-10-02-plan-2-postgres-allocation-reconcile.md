@@ -13,7 +13,7 @@ D-498. Estimated diff: ≈230 code lines in 5 code files, tests excluded (`spec 
 
 Three inline phases (the orchestrator codes each itself in the worktree; no coder is dispatched):
 
-- **A — registry primitives:** `register_allocation(if_absent=True)` decided inside the lock, and `audit_postgres` reading
+- **A — registry primitives:** `register_allocation_if_absent(...)` decided inside the lock, and `audit_postgres` reading
   the registrar's name rule from the existing helper.
 - **B — the reconcile and the cron:** a new `src/fabrik/registry_reconcile.py`, wired into
   `scripts/audit_all_registrars.py` with the mode switch, the three new series and the `PUT` push.
@@ -54,12 +54,13 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 ## Global Constraints (every phase inherits these)
 
 - The reconcile never deletes, renames or creates a database, and never touches an entry whose database is missing
-  (`spec § The delta` D3). It writes only through `register_allocation(..., if_absent=True)`.
+  (`spec § The delta` D3). It writes only through `register_allocation_if_absent(...)`, only for a database exactly one
+  spec claims, and only with an owner role read from `pg_database`.
 - No new dependency: `PyYAML`, `fabrik.drivers.postgres` and `fabrik.audit` are already importable; `pyproject.toml`
   and `uv.lock` are not touched (`core/10-python.md`).
-- Config by env var only: `FABRIK_REGISTRY_RECONCILE` read with `os.getenv("FABRIK_REGISTRY_RECONCILE", "apply")`
-  (`.windsurf/rules/core/35-security-auth.md:267`); unknown values are treated as `report` (fail safe: never write on
-  a typo) and logged.
+- Config by env var only: `FABRIK_REGISTRY_RECONCILE` read with `os.getenv("FABRIK_REGISTRY_RECONCILE", "report")`
+  (`.windsurf/rules/core/35-security-auth.md:267`); the default and any unknown value are `report` (fail safe: never
+  write on a typo or before the operator opts in) and an unknown value is logged.
 - 12-Factor on this surface: **III** one granular env var, no grouped config; **IV** the registry and `postgres-main`
   are reached through the existing driver, unchanged; **XI** the script logs to stdout through `logging` as today (cron
   redirects it); **XII** the reconcile is an admin process running from the deployed hub release (`/opt/fabrik/src`),
@@ -71,8 +72,9 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 - Seats never mutate git state (read-only git only); never read `~/.claude*`; never run `fabrik apply`, never SSH, never
   push metrics. The shared `.venv` imports `fabrik` from `/opt/fabrik/src` — every test run exports
   `PYTHONPATH=/opt/fabrik/.claude/worktrees/fleet/src`.
-- **Operator-gated steps are never executed by an agent:** the rollout's report pass, the first `apply` run (it happens
-  through the hub cron after infra merges) and `scripts/sync_prometheus_to_vps.sh` (Phase C, R1-R4).
+- **Operator-gated steps are never executed by an agent:** reading the first report run, adding
+  `FABRIK_REGISTRY_RECONCILE=apply` to the hub crontab, and `scripts/sync_prometheus_to_vps.sh` (Phase C, R1-R4). The
+  default `report` makes the code enforce that nothing writes before the operator's R2.
 
 ## Context Ledger
 
@@ -81,7 +83,7 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | `.windsurf/rules/core/10-python.md` (MATCHED) | no deps-file edit; `uv` is the package manager | `core/10-python.md` |
 | `.windsurf/rules/core/35-security-auth.md` (FLOOR) | config via env vars only | `core/35-security-auth.md:267` |
 | `.windsurf/rules/core/25-data-postgres.md` (FLOOR) | own database = a database on `postgres-main` | `core/25-data-postgres.md:26` |
-| `.windsurf/rules/core/self-healing.md` | no silent action; scope is a service's runtime ladder | `self-healing.md:73`, `:96`, `:64` |
+| `.windsurf/rules/core/self-healing.md` (MATCHED via `**/health*`) | no silent action; a new self-healing response gets its ladder row first — proposed to infra, the pack owner (Phase C step 1) | `self-healing.md:73`, `:96`, `:64` |
 | `.windsurf/rules/core/58-resilience.md` | count a fail-open | `58-resilience.md:408-410` |
 | `.windsurf/rules/core/45-testing-strategy.md` | watched-fail-first | `45-testing-strategy.md:22` |
 | `fabrik-lib` | none — no module covers hub control-plane reconciliation | `spec § fabrik-lib verdict` |
@@ -105,105 +107,138 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 
 ## Phase A — Registry primitives
 
-Appetite: 30
+Appetite: 35
 
 **Interfaces — Produces:**
-- `src/fabrik/drivers/postgres.py::register_allocation(db_name, *, spec_id, user="postgres", owner="fabrik", notes="",
-  dry_run=False, if_absent=False) -> dict[str, Any]` (today `:1870-1923`). With `if_absent=True`, after
-  `_load_remote_allocations()` and inside `file_lock("postgres-allocations")`, an existing `allocations[db_name]` is left
-  untouched and nothing is written; the returned payload is the one read. Every existing caller (`:359`, `:453`, `:2139`)
-  passes nothing new, so its behaviour is unchanged.
+- `src/fabrik/drivers/postgres.py` (today `register_allocation` is `:1870-1923`):
+  - a private `_register(db_name, entry: dict, *, if_absent: bool, dry_run: bool) -> tuple[dict[str, Any], bool]` holding
+    today's body — `file_lock("postgres-allocations")`, `_load_remote_allocations()`, then, when `if_absent` and
+    `db_name` is already in `allocations`, return `(payload, False)` with nothing written; otherwise set the entry, write
+    unless `dry_run`, and return `(payload, True)`;
+  - `register_allocation(db_name, *, spec_id, user="postgres", owner="fabrik", notes="", dry_run=False) -> dict[str, Any]`
+    keeps its signature and return value and calls `_register(..., if_absent=False, ...)[0]`; its three callers
+    (`:359`, `:453`, `:2139`) are unchanged;
+  - new `register_allocation_if_absent(db_name, *, spec_id, user, owner, notes) -> bool` — `True` when it wrote, `False`
+    when an entry already existed (decided inside the lock, so a concurrent writer's entry is never overwritten).
 - `src/fabrik/audit.py::audit_postgres(spec)` (`:137-224`): the database name comes from
-  `fabrik.app_role_check._db_name_for_spec(_spec_to_dict(spec))` instead of `sid.replace("-", "_")` (`:140`). A
-  `SpecResolutionError` returns `AuditResult(status="unknown", detail=<the error>)`. The result's `actual` keeps its keys
-  (`db_name`, `found`, `registry_entry`, `in_registry` — `:180-183`), which Phase B reads.
-- **Mirror (named):** a spec that sets `depends.postgres` is now audited under that name. Today it is audited under the
-  snake-cased id, so its drift row can change from `missing` to `present` or `drift` — the correct reading. `audit.py`
-  gains an import of `fabrik.app_role_check`; that module is already imported by `orchestrator/infrastructure.py`, so no
-  new import cycle (verify with the import step below).
+  `fabrik.app_role_check._db_name_for_spec(_spec_to_dict(spec))` instead of `sid.replace("-", "_")` (`:140`), then
+  `fabrik.drivers.postgres._validate_identifier(db_name, "database")` before the SQL at `:150-153` (because
+  `Depends.postgres` carries no pattern, `src/fabrik/spec_loader.py:183`; the `nosec` comment is reworded to name the
+  validation). A `SpecResolutionError` or a `ValueError` from validation returns
+  `AuditResult(status="unknown", detail=<the error>)`. The result's `actual` keeps its keys (`db_name`, `found`,
+  `registry_entry`, `in_registry` — `:180-183`), which Phase B reads.
+- **Mirror (named):** a spec that sets `depends.postgres` is now audited under that name. **9 of the 23
+  postgres-applicable specs move** (probe in Evidence § Phase A): `ai-model-catalog`, `compliance-ops`, `exam-coach`,
+  `gmail-account-creator` → `main`; `calendar-orchestration-engine` → `calendar_engine`; `evolution-api` → `evolution`;
+  `fabrik-citation-verifier` → `citation_verifier`; `tryton-crm` → `tryton`; `youtube` → `youtube_pipeline`. Each row can
+  move in either direction: to `present` or `drift` when the named database exists, or to `missing` when it does not
+  (a live database still under the derived name — the registrar's rename guard, `orchestrator/infrastructure.py:729-740`,
+  keeps that case possible). Rollout R1 reads every one. `audit.py` gains a module-level import of
+  `fabrik.app_role_check`; no cycle (the orchestrator imports that module lazily, inside functions — `:512`, `:1076`;
+  verified by the import step below).
 
 **Consumes:** nothing.
 
-1. **Write the failing tests first** in `tests/test_postgres_registry.py` (rows A1-A3 below), using the file's existing
-   `ssh` fake pattern (`tests/test_postgres_registry.py:64-68`, `SEED_PAYLOAD` `:44-60`). Run them and confirm they fail
-   for the right reason (`TypeError: unexpected keyword argument 'if_absent'`; the audit test reading the wrong name).
-2. Edit `register_allocation` per the Interfaces: add the keyword, document it in the docstring, and add the two-line
-   in-lock check after `allocations = payload.setdefault("allocations", {})`.
+1. **Write the failing tests first** in `tests/test_postgres_registry.py` (rows A1-A4 below, in order), using the file's
+   existing `ssh` fake pattern (`tests/test_postgres_registry.py:64-68`, `SEED_PAYLOAD` `:44-60`). Run them and confirm
+   they fail for the right reason (`AttributeError: ... register_allocation_if_absent`; the audit tests reading the wrong
+   name and accepting a bad identifier).
+2. Edit `src/fabrik/drivers/postgres.py` per the Interfaces: extract `_register`, keep `register_allocation`'s contract,
+   add `register_allocation_if_absent`.
 3. Edit `audit_postgres` per the Interfaces; keep `_spec_to_dict` (`audit.py:67-74`) as the adapter.
 4. Run green: `cd /opt/fabrik/.claude/worktrees/fleet && PYTHONPATH=$PWD/src .venv/bin/python -m pytest
    tests/test_postgres_registry.py tests/test_app_role_driver.py tests/test_backrest_postgres_plan.py
    tests/drivers/test_postgres.py tests/test_audit.py -q -p no:cacheprovider` → all pass; and the import check
-   `PYTHONPATH=$PWD/src .venv/bin/python -c "import fabrik.audit, fabrik.orchestrator.infrastructure"` → exit 0.
-5. Prove red on revert in a throwaway worktree (`git worktree add --detach <scratch>/pa HEAD`, copy the two edited files
-   and the test, neuter the in-lock check, watch A2 fail, remove the worktree).
+   `PYTHONPATH=$PWD/src .venv/bin/python -c "import fabrik.audit, fabrik.orchestrator.infrastructure, fabrik.cli"` → exit 0.
+5. Prove red on revert in a throwaway worktree (`git worktree add --detach <scratch>/pa HEAD`, copy the edited files and
+   the test, neuter the in-lock `if_absent` branch of `_register`, watch row A1 fail; restore it, drop the
+   `_validate_identifier` call, watch row A4 fail; remove the worktree).
 6. `python scripts/enforcement/check_doc_sync.py` (no doc row is keyed by this phase).
 7. **`/fabrik-review-scoped`** on Phase A's surface (`src/fabrik/drivers/postgres.py`, `src/fabrik/audit.py`,
    `tests/test_postgres_registry.py`), run to its closing pass confirming 0 — BLOCKING before Phase B.
 8. Commit Phase A (explicit paths + provenance trailers, `Agent-Phase: A`), push.
 
 ### Behavior Contract — Phase A
-- **Given** an existing entry for a database, **When** `register_allocation(db, ..., if_absent=True)` runs, **Then** no write is made and the entry is unchanged (`src/fabrik/drivers/postgres.py:1870`; `spec § The delta` D2)
-- **Given** no entry for a database, **When** `register_allocation(db, ..., if_absent=True)` runs, **Then** the entry is written with the given fields (`src/fabrik/drivers/postgres.py:1870`)
-- **Given** a spec with `depends.postgres: other_db`, **When** `audit_postgres` runs, **Then** it checks `other_db`, not the snake-cased id (`src/fabrik/audit.py:140`; `spec § The delta` D1)
+- **Given** an existing entry for a database, **When** `register_allocation_if_absent(db, ...)` runs, **Then** it returns `False`, makes no write and the entry is unchanged (A1; `src/fabrik/drivers/postgres.py:1870`; `spec § The delta` D2)
+- **Given** no entry for a database, **When** `register_allocation_if_absent(db, ...)` runs, **Then** it returns `True` and the entry is written with the given fields (A2; `src/fabrik/drivers/postgres.py:1870`)
+- **Given** a spec with `depends.postgres: other_db`, **When** `audit_postgres` runs, **Then** it checks `other_db`, not the snake-cased id (A3; `src/fabrik/audit.py:140`; `spec § The delta` D1)
+- **Given** a spec whose `depends.postgres` is not a valid identifier, **When** `audit_postgres` runs, **Then** it returns `unknown` and runs no SQL (A4; `src/fabrik/audit.py:150`)
 
 ## Phase B — The reconcile and the cron
 
-Appetite: 60
+Appetite: 70
 
 **Interfaces — Produces:**
-- `src/fabrik/registry_reconcile.py` (new, `# AFTER-EDIT: docs/reference/health-monitoring.md` in its first 25 lines):
+- `src/fabrik/registry_reconcile.py` (new; a `# AFTER-EDIT: docs/reference/health-monitoring.md` comment in its first 25
+  lines, checked by `grep -n "AFTER-EDIT" src/fabrik/registry_reconcile.py` because `check_script_headers.py` grades only
+  `scripts/**`):
   - `@dataclass HealResult: spec_id: str; db: str; outcome: Literal["registered", "already-present", "would-register",
-    "failed"]; reason: str = ""`.
-  - `def mode() -> Literal["apply", "report", "off"]` — reads `FABRIK_REGISTRY_RECONCILE`; anything else → `"report"`
-    with one warning log.
-  - `def reconcile_postgres(audits: dict[str, dict[str, AuditResult]], *, dry_run: bool) -> list[HealResult]` — for each
-    spec id whose `postgres` result is `drift` with `actual["found"] is True` and `actual["in_registry"] is False`
-    (`audit.py:197-202`): `dry_run` → `would-register`; otherwise
-    `user = _db_owner(db, POSTGRES_CONTAINER) or db` (`postgres.py:572`, `:62`) and
-    `register_allocation(db, spec_id=spec_id, user=user, owner="fabrik", notes=f"registered by the hourly reconcile
-    {date.today().isoformat()}", if_absent=True)`; a returned payload whose entry for `db` is not the one it wrote →
-    `already-present`; any exception → `failed` with `type(exc).__name__` as `reason`. One log line per result. It reads
-    the audit results the cron already computed — it never re-probes `pg_database` itself beyond `_db_owner`.
+    "shared", "failed"]; reason: str = ""`.
+  - `def mode() -> Literal["apply", "report", "off"]` — reads `os.getenv("FABRIK_REGISTRY_RECONCILE", "report")`; any
+    other value → `"report"` with one warning log. **The default is `report`**: nothing writes until the operator sets
+    `apply` on the crontab line (rollout R2).
+  - `def reconcile_postgres(audits: dict[str, dict[str, AuditResult]], *, dry_run: bool) -> list[HealResult]` — `audits`
+    maps spec id → `audit_all` result. For each spec id whose `postgres` result is `drift` with `actual["found"] is True`
+    and `actual["in_registry"] is False` (`audit.py:197-202`), with `db = actual["db_name"]`:
+    1. when two or more spec ids carry a postgres result whose `actual["db_name"]` equals `db`, each gets `shared`
+       (reason: the other spec ids, comma-joined) and nothing is written — the provisioner's refuse-on-shared posture
+       (`orchestrator/infrastructure.py:500-547`);
+    2. else `dry_run` → `would-register`;
+    3. else `user = _db_owner(db, POSTGRES_CONTAINER)` (`postgres.py:572`, `:62`); `None` (the database is gone, or its
+       owner fails validation) → `failed`, reason `owner-unresolved`, no write;
+    4. else `register_allocation_if_absent(db, spec_id=spec_id, user=user, owner="fabrik", notes="registered by the hourly
+       reconcile " + datetime.now(UTC).date().isoformat())` → `registered` when it returns `True`, `already-present` when
+       `False`;
+    5. any exception in 3-4 → `failed`, reason `type(exc).__name__`.
+    One log line per result. It reads only the audit results the cron computed, plus `_db_owner`.
 - `scripts/audit_all_registrars.py`:
-  - `main` (`:129-181`): after the audit loop, `m = registry_reconcile.mode()`; when `m != "off"`, call
-    `reconcile_postgres(audits, dry_run=(m == "report"))`, then re-run `audit_all` only for specs with a `registered`
-    result and replace their entries in `results` before rendering.
-  - `_render_metrics(results, heals, *, success: bool)` (`:72-102`) appends `fabrik_registry_heal_total{spec_id,db,outcome}
-    1` per heal, `fabrik_registry_heal_failed{spec_id,db,reason} 1` per failed heal, and
-    `fabrik_audit_last_success_timestamp_seconds <unix time>` only when `success` (the audit loop finished, the reconcile
-    raised nothing uncaught). The push happens after rendering, so a failed push leaves the previous group in place and
-    the timestamp ages — `FabrikAuditStale` fires.
+  - `main` (`:129-181`) keeps a `specs: dict[str, Spec]` beside `results` and builds `audits = dict(results)`; after the
+    audit loop, `m = registry_reconcile.mode()`; when `m != "off"`, `heals = reconcile_postgres(audits, dry_run=(m ==
+    "report"))`, then re-run `audit_all(specs[sid])` only for `registered` results and replace them in `results`.
+  - `_render_metrics(results, heals, *, success: bool, spec_errors: int)` (`:72-102`) keeps both existing gauges and adds
+    `fabrik_registry_heal_total{spec_id,db,outcome} 1` per heal, `fabrik_registry_heal_failed{spec_id,db,reason} 1` per
+    failed heal, `fabrik_audit_spec_errors <error_count>` every run, and `fabrik_audit_last_success_timestamp_seconds
+    <unix time>` only when `success` = the audit loop had `error_count == 0` and the reconcile raised nothing uncaught.
   - `_push_to_gateway` (`:105-126`): the remote curl gains `-X PUT` (`:119`), replacing the whole `fabrik-audit` group each
     run (`spec § The delta` D5; ledger obs-8).
-- **Mirror (named):** `PUT` replaces every series in the group; the script is the group's only pusher (verified with
-  `grep -rn 'metrics/job/fabrik-audit'`), so no other producer's series is lost. A run that crashes before the push
-  changes nothing in the pushgateway, as today.
+- **Mirror (named):** `PUT` replaces every series in the group. (a) The script is the group's only pusher inside this repo
+  (`PUSHGATEWAY_JOB = "fabrik-audit"`, `scripts/audit_all_registrars.py:63`, is the only definition — Evidence § Phase B);
+  a pusher outside the repo is beyond that grep. (b) A spec skipped by a load or audit error loses its
+  `fabrik_audit_drift_total` series for that run (under `POST` it kept its last value), so a firing `FabrikRegistrarDrift`
+  for it can resolve; the run therefore pushes `fabrik_audit_spec_errors` and withholds the last-success timestamp, and
+  `FabrikAuditStale` names it. (c) A run that crashes before the push changes nothing in the pushgateway, as today; a run
+  that pushes without the timestamp deletes the timestamp series, which Phase C's rule covers with `absent(...)`.
 
-**Consumes:** Phase A's `register_allocation(if_absent=True)` and `audit_postgres`'s `actual` keys.
+**Consumes:** Phase A's `register_allocation_if_absent` and `audit_postgres`'s `actual` keys.
 
-1. **Write the failing tests first** in a new `tests/test_registry_reconcile.py` (rows B1-B6 below). Load the script
-   with `importlib.util.spec_from_file_location("audit_all_registrars", <repo>/scripts/audit_all_registrars.py)`; patch
-   `register_allocation`, `_db_owner`, `audit_all` and `subprocess.run` (the push) — no SSH, no network. Confirm red
-   (`ModuleNotFoundError: fabrik.registry_reconcile`, then each missing behaviour).
+1. **Write the failing tests first** in a new `tests/test_registry_reconcile.py` (rows B1-B7 below). Two patch sets, each
+   on the module that owns the name: the reconcile's unit tests import `fabrik.registry_reconcile` normally and patch
+   `_db_owner` there and `ssh` on `fabrik.drivers.postgres` (the real `register_allocation_if_absent` runs against the
+   file's `ssh` fake, so the in-lock path is exercised); the script's wiring tests load it with
+   `importlib.util.spec_from_file_location("audit_all_registrars", <repo>/scripts/audit_all_registrars.py)` and patch
+   `audit_all`, `load_spec`, `subprocess.run` (the push) and `registry_reconcile.mode` / `registry_reconcile.reconcile_postgres`
+   on that module. No SSH, no network. Confirm red (`ModuleNotFoundError: fabrik.registry_reconcile`, then each missing
+   behaviour).
 2. Create `src/fabrik/registry_reconcile.py` per the Interfaces.
-3. Edit `scripts/audit_all_registrars.py` per the Interfaces; keep its exit codes (`:44-45`) and its existing two gauges.
+3. Edit `scripts/audit_all_registrars.py` per the Interfaces; keep its exit codes (`:44-45`).
 4. Run green: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_registry_reconcile.py tests/test_postgres_registry.py
    -q -p no:cacheprovider` → all pass. Lint: `.venv/bin/ruff check src/fabrik/registry_reconcile.py
    scripts/audit_all_registrars.py tests/test_registry_reconcile.py` → clean.
-5. Prove red on revert in a throwaway worktree for B2 (neuter `if_absent=True` in the reconcile's call) and B5 (drop
-   `-X PUT`), each watched failing, then remove the worktree.
-6. `python scripts/enforcement/check_doc_sync.py`; `python scripts/check_script_headers.py` (the new module's header).
+5. Prove red on revert in a throwaway worktree for B2 (call `register_allocation` instead of
+   `register_allocation_if_absent` in the reconcile) and B5 (drop `-X PUT`), each watched failing, then remove the worktree.
+6. `python scripts/enforcement/check_doc_sync.py`; `grep -n "AFTER-EDIT" src/fabrik/registry_reconcile.py` → one line.
 7. **`/fabrik-review-scoped`** on Phase B's surface (`src/fabrik/registry_reconcile.py`, `scripts/audit_all_registrars.py`,
    `tests/test_registry_reconcile.py`), run to its closing pass confirming 0 — BLOCKING before Phase C.
 8. Commit Phase B (`Agent-Phase: B`), push.
 
 ### Behavior Contract — Phase B
-- **Given** a spec whose database exists with no registry entry, **When** the reconcile runs in `apply` mode, **Then** it registers the database with the owner role read from `pg_database` and outcome `registered` (`src/fabrik/drivers/postgres.py:572`; `spec § The delta` D3)
-- **Given** an entry appears between the audit and the write, **When** the reconcile runs, **Then** the entry is left untouched and the outcome is `already-present` (`src/fabrik/drivers/postgres.py:1870`)
-- **Given** `FABRIK_REGISTRY_RECONCILE=report` (or an unknown value), **When** the cron runs, **Then** nothing is written and each orphan reports `would-register`; with `off` the reconcile does not run (`spec § The delta` D4)
-- **Given** a registry write raises, **When** the reconcile runs, **Then** the outcome is `failed` with the exception class as reason, a `fabrik_registry_heal_failed` sample is pushed and the run still pushes its other series (`spec § The delta` D5)
-- **Given** a successful run, **When** the cron pushes, **Then** it uses `PUT` and the payload carries `fabrik_audit_last_success_timestamp_seconds`; a run whose push fails carries no new timestamp (`scripts/audit_all_registrars.py:119`)
-- **Given** a stale entry (entry, no database) or a `missing` result, **When** the reconcile runs, **Then** it writes nothing and returns no result for it (`src/fabrik/audit.py:197-203`; `spec § The delta` D3)
+- **Given** a spec whose database exists with no registry entry, **When** the reconcile runs in `apply` mode, **Then** it registers the database with the owner role read from `pg_database` and outcome `registered` (B1; `src/fabrik/drivers/postgres.py:572`; `spec § The delta` D3)
+- **Given** an entry exists by the time of the locked write, **When** the reconcile runs, **Then** the entry is left untouched and the outcome is `already-present` (B2; `src/fabrik/drivers/postgres.py:1870`)
+- **Given** `FABRIK_REGISTRY_RECONCILE` unset, `report` or an unknown value, **When** the cron runs, **Then** nothing is written and each orphan reports `would-register`; with `off` the reconcile does not run (B3; `spec § The delta` D4)
+- **Given** a registry write raises, or the owner lookup returns nothing, **When** the reconcile runs, **Then** the outcome is `failed` with the reason, nothing is written, a `fabrik_registry_heal_failed` sample is rendered and the run still renders its other series (B4; `spec § The delta` D5)
+- **Given** a run with no spec errors whose reconcile raises nothing, **When** the cron pushes, **Then** it uses `PUT` and the payload carries `fabrik_audit_last_success_timestamp_seconds`; a run with a spec error, or whose reconcile raises, renders no timestamp and renders `fabrik_audit_spec_errors` (B5; `scripts/audit_all_registrars.py:119`)
+- **Given** a stale entry (entry, no database) or a `missing` result, **When** the reconcile runs, **Then** it writes nothing and returns no result for it (B6; `src/fabrik/audit.py:197-203`; `spec § The delta` D3)
+- **Given** two specs whose postgres audit names the same orphan database, **When** the reconcile runs in `apply` mode, **Then** both get outcome `shared`, naming each other, and nothing is written (B7; `src/fabrik/orchestrator/infrastructure.py:500`; `spec § The delta` D3)
 
 ## Phase C — Alerts, docs and Finish
 
@@ -211,27 +246,38 @@ Appetite: 45
 
 **Interfaces — Produces:**
 - `configs/prometheus/rules/fabrik-drift.yml` gains, in the existing group (`:9-12`):
-  - `FabrikRegistryHealFailed`: `expr: fabrik_registry_heal_failed > 0`, `for: 2h`, `severity: warning`,
-    `alert_class: registrar_drift`, annotation naming `{{ $labels.db }}` and `{{ $labels.reason }}`;
-  - `FabrikAuditStale`: `expr: time() - fabrik_audit_last_success_timestamp_seconds > 10800`, `for: 5m`, `severity:
-    warning`, `alert_class: registrar_drift`, annotation pointing at `/var/log/fabrik-audit-all.log`.
+  - `FabrikRegistryHealFailed`: `expr: max by (spec_id, db) (fabrik_registry_heal_failed) > 0` (aggregated so a changing
+    `reason` label does not reset the window), `for: 2h`, `severity: warning`, `alert_class: registrar_drift`, annotation
+    naming `{{ $labels.db }}`;
+  - `FabrikAuditStale`: `expr: (time() - fabrik_audit_last_success_timestamp_seconds > 10800) or
+    absent(fabrik_audit_last_success_timestamp_seconds)`, `for: 5m`, `severity: warning`, `alert_class: registrar_drift`,
+    annotation pointing at `/var/log/fabrik-audit-all.log` and `fabrik_audit_spec_errors`. The `absent(...)` arm covers a
+    pushed run that carried no timestamp (a `PUT` deletes the series) and the time before the first success.
 - Docs (the `spec § Documentation landing sites`): `docs/reference/health-monitoring.md` § Hourly Per-Registrar Drift
   Alert (`:250-268`); `docs/infrastructure/vps-complete-inventory.md` § Postgres allocation registry (`:815-835`);
   `docs/CONFIGURATION.md` (the `FABRIK_` reference table, `:935`); `.env.example` (§ Fabrik Internal, `:252-289`);
-  `INDEX.md` rows for the new module and test; `CHANGELOG.md`.
+  `INDEX.md` rows for the new module and test; `CHANGELOG.md` (both governance files: orchestrator-applied, outside File
+  Scope by the plan grammar).
 
-**Consumes:** Phase B's three series and `FABRIK_REGISTRY_RECONCILE`.
+**Consumes:** Phase B's series and `FABRIK_REGISTRY_RECONCILE`.
 
-1. Probe the toolchain: `docker --version` → present (`which promtool` → not found on the hub, so `promtool` runs from the
-   image vps1 runs, `configs/monitoring-compose.yaml:47`).
-2. **Write the failing test first** in `tests/test_registry_reconcile.py` (row C1): load the rule file with
-   `yaml.safe_load` and assert both new alerts exist with the named `expr` and `for`. Confirm red.
-3. Add the two rules per the Interfaces. Run green; then `docker run --rm -v "$PWD/configs/prometheus/rules:/r:ro"
-   --entrypoint promtool prom/prometheus:v3.2.1 check rules /r/fabrik-drift.yml` → `SUCCESS: 3 rules found`.
-4. The doc edits per the Interfaces; `INDEX.md` and `CHANGELOG.md` through the shared-append recipe of `CLAUDE.md`
-   § EXIT. Then `python scripts/enforcement/check_doc_sync.py`, `python scripts/render_doc_script_links.py --check`.
-5. **`/fabrik-review-scoped`** on Phase C's surface (the rule file, the four docs, the test), run to its closing pass
-   confirming 0.
+1. Propose the ladder row to the pack owner (`self-healing.md:64`: "add the row to this pack first"): `python
+   scripts/mail.py send --to fabrik --to-agent infra --kind request` with the D-035 contract, proposing the row
+   "registry drift → hourly additive reconcile → `FabrikRegistryHealFailed`" for `.windsurf/rules/core/self-healing.md`
+   (a fleet-synced surface this plan does not edit). Probe the toolchain: `docker --version` → present (`which promtool`
+   → not found on the hub, so `promtool` runs from the image vps1 runs, `configs/monitoring-compose.yaml:47`).
+2. **Write the failing tests first** in `tests/test_registry_reconcile.py` (rows C1-C2): load the rule file with
+   `yaml.safe_load` and assert both new alerts exist with the named `expr` and `for`; and a promtool rule unit test file
+   `tests/fixtures/fabrik-drift-rules-test.yml` covering the stale-by-age case, the absent case and a heal failure whose
+   `reason` changes mid-window, run by C3's docker command. Confirm red.
+3. Add the two rules per the Interfaces. Run green; then `docker run --rm -v "$PWD/configs/prometheus/rules:/r:ro" -v
+   "$PWD/tests/fixtures:/t:ro" --entrypoint promtool prom/prometheus:v3.2.1 check rules /r/fabrik-drift.yml` →
+   `SUCCESS: 3 rules found`, and the same image with `test rules /t/fabrik-drift-rules-test.yml` → `SUCCESS`.
+4. The doc edits per the Interfaces; `INDEX.md` and `CHANGELOG.md` through the shared-append private-index recipe of
+   `CLAUDE.md` § Behavior (the shared-repo bullet). Then `python scripts/enforcement/check_doc_sync.py`, `python
+   scripts/render_doc_script_links.py --check`.
+5. **`/fabrik-review-scoped`** on Phase C's surface (the rule file, the promtool fixture, the four docs, the test), run to
+   its closing pass confirming 0.
 6. **Finish — the heavy `/fabrik-review`** over the whole-plan diff (`git diff <phase-A base>..HEAD`): the D7 floor — at
    least one Opus authoritative seat plus one Sonnet and one Haiku seat per independent failure-class group, sized by
    `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <groups>` and stamped with
@@ -244,17 +290,23 @@ Appetite: 45
 8. Commit Phase C (`Agent-Phase: C`), push, then `python3 scripts/merge_request.py request --review <the receipt>
    --item W-714ae2cf` and send the printed `SendMessage` line.
 
-**Rollout — OPERATOR-GATED, never executed by an agent (after infra merges into master):**
-- R1. On the hub, from the main checkout: `FABRIK_REGISTRY_RECONCILE=report PYTHONPATH=/opt/fabrik/src
-  /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_all_registrars.py` and read every `would-register` line —
-  expected: `zitadel` and `site_provisioner` only; anything else is read before R2 (`spec § Validation` step 2).
-- R2. Let the next hourly cron run (`apply`) heal; read `/var/log/fabrik-audit-all.log` for the two `registered` lines.
+**Rollout — OPERATOR-GATED, never executed by an agent (after infra merges into master).** With the default `report`, the
+hourly cron writes nothing until R2, so the order R1 → R2 is enforced by the code, not by timing.
+- R1. Read the next hourly cron run's lines in `/var/log/fabrik-audit-all.log` (or run it by hand from the main checkout:
+  `PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_all_registrars.py`). Read every
+  `would-register` and `shared` line — expected: `zitadel` and `site_provisioner`; any of the 9 specs Phase A re-names may
+  also appear (each is read and its spec checked before R2); `main` must read `shared` (`spec § Validation` step 2).
+- R2. Add `FABRIK_REGISTRY_RECONCILE=apply` to the audit line of the hub crontab; the next hourly run heals; read the log
+  for the `registered` lines.
 - R3. Confirm `fabrik_audit_drift_total{registrar="postgres"}` is 0 for `zitadel` and `site-provisioner` (Prometheus).
+  The metric's `spec_id` label is the spec id (`site-provisioner`); R1's log lines name the database
+  (`site_provisioner`) — the same service.
 - R4. Sync the rules: `scripts/sync_prometheus_to_vps.sh`; confirm `FabrikRegistryHealFailed` and `FabrikAuditStale`
   load (Prometheus rules page) and `FabrikAuditStale` is not firing.
 
 ### Behavior Contract — Phase C
-- **Given** the rule file, **When** it is loaded, **Then** `FabrikRegistryHealFailed` (`fabrik_registry_heal_failed > 0`, `for: 2h`) and `FabrikAuditStale` (`time() - fabrik_audit_last_success_timestamp_seconds > 10800`) exist in the `fabrik-registrar-drift` group, and `promtool check rules` passes (`configs/prometheus/rules/fabrik-drift.yml:9`; `spec § The delta` D5)
+- **Given** the rule file, **When** it is loaded, **Then** `FabrikRegistryHealFailed` (`max by (spec_id, db) (fabrik_registry_heal_failed) > 0`, `for: 2h`) and `FabrikAuditStale` (`(time() - fabrik_audit_last_success_timestamp_seconds > 10800) or absent(fabrik_audit_last_success_timestamp_seconds)`) exist in the `fabrik-registrar-drift` group, and `promtool check rules` passes (C1; `configs/prometheus/rules/fabrik-drift.yml:9`; `spec § The delta` D5)
+- **Given** the promtool rule test, **When** it runs, **Then** `FabrikAuditStale` fires both when the timestamp is older than 3 h and when it is absent, and `FabrikRegistryHealFailed` fires after 2 h of failure even when the `reason` label changes mid-window (C2; `configs/prometheus/rules/fabrik-drift.yml:13`)
 
 ## File Scope (owned paths)
 
@@ -265,6 +317,7 @@ Appetite: 45
 - configs/prometheus/rules/fabrik-drift.yml
 - tests/test_postgres_registry.py
 - tests/test_registry_reconcile.py
+- tests/fixtures/fabrik-drift-rules-test.yml
 - docs/reference/health-monitoring.md
 - docs/infrastructure/vps-complete-inventory.md
 - docs/CONFIGURATION.md
@@ -286,6 +339,23 @@ src/fabrik/drivers/postgres.py:1870   (def)
 src/fabrik/drivers/postgres.py:2139
 ```
 
+The audit names Phase A moves, executed by the orchestrator during round 1 of `/fabrik-plan-review`
+(`<scratchpad>/pr/probe_names.py`: every spec loaded, `audit.py`'s old rule vs `_db_name_for_spec(spec.model_dump())`):
+
+```text
+$ FABRIK_SCAFFOLD_OFFLINE=1 .venv/bin/python probe_names.py
+CHANGED ai-model-catalog.yaml: ai_model_catalog -> main
+CHANGED calendar-orchestration-engine.yaml: calendar_orchestration_engine -> calendar_engine
+CHANGED compliance-ops.yaml: compliance_ops -> main
+CHANGED evolution-api.yaml: evolution_api -> evolution
+CHANGED exam-coach.yaml: exam_coach -> main
+CHANGED fabrik-citation-verifier.yaml: fabrik_citation_verifier -> citation_verifier
+CHANGED gmail-account-creator.yaml: gmail_account_creator -> main
+CHANGED tryton-crm.yaml: tryton_crm -> tryton
+CHANGED youtube.yaml: youtube -> youtube_pipeline
+specs=72 postgres-applicable=23 name-changes=9 errors=0
+```
+
 **Phase B.** The orphan quadrant and the `actual` keys the reconcile reads: `src/fabrik/audit.py:180-183`, `:197-203`.
 The push is a `POST` today: `scripts/audit_all_registrars.py:119`. The owner lookup: `src/fabrik/drivers/postgres.py:572`
 (`_db_owner(db_name, container)`), container constant `:62`. No test covers the script today.
@@ -294,8 +364,12 @@ The push is a `POST` today: `scripts/audit_all_registrars.py:119`. The owner loo
 $ grep -rln "audit_all_registrars" tests/
 tests/test_hub_write_root.py        (a path-convention table, not a behaviour test)
 tests/test_kaizen_shrink_audit.py   (fixture string only)
-$ grep -rn "metrics/job/fabrik-audit\|job/fabrik-audit" --include=*.py --include=*.sh .
-./scripts/audit_all_registrars.py:19 / :119   (the only pusher)
+$ grep -rn "fabrik-audit" --include=*.py --include=*.sh scripts src
+scripts/audit_all_registrars.py:16    (docstring: /tmp/fabrik-audit-metrics.txt)
+scripts/audit_all_registrars.py:19    (docstring: metrics/job/fabrik-audit)
+scripts/audit_all_registrars.py:62    METRICS_OUT_FILE = Path("/tmp/fabrik-audit-metrics.txt")
+scripts/audit_all_registrars.py:63    PUSHGATEWAY_JOB = "fabrik-audit"   (:119 builds the URL from it)
+(no other definition in scripts/ or src/; a pusher outside this repo is beyond the grep)
 ```
 
 Pushgateway semantics, raw README (ledger obs-8):
@@ -335,18 +409,31 @@ local .env.example
   re-read every cited line it relies on. Two findings changed the spec: the existing name helper (D1 now reuses
   `_db_name_for_spec`) and the `POST` push (D5 now switches to `PUT`).
 - (a) Coverage: I1-I6 map to Phases A-C and the rollout; I7-I11 have named destinations.
-- (b) Signatures: `register_allocation(..., if_absent: bool = False)` (A) is what B calls; `HealResult` and
-  `reconcile_postgres(audits, *, dry_run)` (B) are what the script calls; the three series names (B) are what C's rules
-  read: `fabrik_registry_heal_failed`, `fabrik_audit_last_success_timestamp_seconds`, `fabrik_registry_heal_total`.
+- (b) Signatures: `register_allocation_if_absent(db, *, spec_id, user, owner, notes) -> bool` (A) is what B calls;
+  `HealResult` and `reconcile_postgres(audits, *, dry_run)` (B) are what the script calls; the series B renders are what
+  C's rules read: `fabrik_registry_heal_failed`, `fabrik_audit_last_success_timestamp_seconds` (plus
+  `fabrik_registry_heal_total` and `fabrik_audit_spec_errors`, read by people, not rules).
 - Not yet at a fixed point: `/fabrik-plan-review` runs next.
 
 ## Residual unknowns
 
 - **Resolved:** the name rule (existing helper); the push semantics (`PUT`); promtool (from the image via docker); the
-  rule deploy path (`sync_prometheus_to_vps.sh`); the only pusher to the group.
+  rule deploy path (`sync_prometheus_to_vps.sh`); the only definition of the pushed job inside this repo.
 - **Open — the fire rate of the first `apply` run.** Resolution: rollout R1 lists every `would-register` before any write.
 - **Open — the push path's own health** (pushgateway or Alertmanager down): out of scope (`spec § Open / blocking
   unknowns`); `FabrikAuditStale` covers a dead cron only.
+
+## Pass Ledger
+
+`/fabrik-plan-review`, 2026-10-02. Native seats only (D-181), partitioned by section (D-212, D-218): `rules` (Opus — Global
+Constraints, Context Ledger, Constraints Digest, every Interfaces block, every Behavior Contract, Evidence, File Scope,
+Coverage Checklist; spec The delta, Validation, Constraints digest, What exists today) and `prose` (Sonnet — the rest of
+both). The spec is `Size: small`, so its sections are graded here with the plan (`/fabrik-spec` § Phase 5).
+`dispatch_headroom.py --slices opus=1,sonnet=1` → `SEATS: 2`, stamped.
+
+| Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) · spec md5 (start → end) |
+|-----:|---|---|---|---|
+| Pass 1 | opus×1 (`rules`, 58 claims) + sonnet×1 (`prose`, 23 claims) · all axes, plus two orchestrator probes | found: 24, new: 24, confirmed: 23, fixed: 23, unexecuted: 0, edits: 31 | method: citation — full partitioned pass; every candidate executed by the orchestrator or by its seat's probe. Orchestrator probes: the name-rule move hits 9 of 23 postgres-applicable specs, 4 onto one database `main` (→ outcome `shared`). Rules: the `apply` default would write before the report pass (→ default `report`); a `PUT` without the timestamp deletes it so `FabrikAuditStale` could never fire (→ `or absent(...)`, promtool-proven); `_db_owner` `None` fell back to `db` (→ `failed owner-unresolved`); `registered` vs `already-present` was unknowable (→ `register_allocation_if_absent -> bool`, B2 tested on the real lock path); a changing `reason` reset `for: 2h` (→ `max by (spec_id, db)`); `PUT` drops a skipped spec's drift series (→ `fabrik_audit_spec_errors`, no timestamp on a spec error); `depends.postgres` has no pattern before SQL (→ `_validate_identifier`); the pusher grep, the header-check path and coverage, the writer lines, signature/date/series wording, the import-cycle reasoning, the self-healing scope (MATCHED via `**/health*` → row proposed to infra). Prose: B6 script path, A5 watched the wrong row, B1 patched names on the wrong module, the shared-append recipe's section, the site-provisioner spellings. Refuted 1: listing `INDEX.md`/`CHANGELOG.md` in File Scope (governance files are excluded by the plan grammar). | df375e0a1b89c80e8b659e1df6a31e24 → 91abe075c42a0903005f2476af829d62 · 7d45177e4fe9cb2aac559fa124b5f5bb → fedc2db3e83527c8f7d6f84563f8fe2d |
 
 ## Coverage Checklist
 
@@ -370,6 +457,7 @@ surface-specific classes. Every row starts UNCHECKED and is adjudicated by `/fab
 | fail-open vs fail-closed on every gate/guard (unknown mode value, unreadable registry, owner lookup failure) | UNCHECKED |
 | cost/quota/limit accounting edges (seats sized and stamped; per-run SSH reads) | UNCHECKED |
 | boundary/sentinel/prefix collisions (empty or non-string depends.postgres, missing found/in_registry keys, db names with hyphens) | UNCHECKED |
+| one database claimed by several specs (`main`) and the name-rule move of 9 specs | UNCHECKED |
 | behavior-without-a-test | UNCHECKED |
 
 The rubric this plan's reviews inject into every seat brief, run on the plan's own `## File Scope (owned paths)`:
