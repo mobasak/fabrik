@@ -64,9 +64,8 @@
       "commit": "85173dee9"
     },
     "T05c": {
-      "state": "reviewed",
-      "branch": "worktree-agent-a90fb4ec43ca7029e",
-      "note": "merges in T08's window (sequencing ruling); W-afe28a4a test rewrite at e904e4602"
+      "state": "merged",
+      "commit": "815f85cb7"
     },
     "T02": {
       "state": "merged",
@@ -81,16 +80,21 @@
       "commit": "458ff2b50"
     },
     "T04": {
-      "state": "dispatched",
-      "base_commit": "458ff2b50"
+      "state": "merged",
+      "commit": "81dac1943"
     },
     "T06": {
-      "state": "dispatched",
-      "base_commit": "458ff2b50"
+      "state": "merged",
+      "commit": "82990cd2b"
     },
     "T07": {
-      "state": "dispatched",
-      "base_commit": "458ff2b50"
+      "state": "merged",
+      "commit": "c8243863a"
+    },
+    "T08": {
+      "state": "in-review",
+      "branch": "lane-t08b",
+      "note": "D7 whole-plan validation runs over master + lane-t08b before T08 merges"
     }
   }
 }
