@@ -2475,18 +2475,16 @@ def check_plan_dir(
         )
 
     # --- D11 Appetite per ticket + D10 Size-small spec rule (plans dated on/after the rollout) ---
-    set_date = plan_appetite.plan_date_of(spine)
-    if plan_appetite.is_graded(set_date):
-        for tid, t in sorted(tickets.items()):
-            for msg in plan_appetite.appetite_findings(t.text, set_date, label=tid):
-                results.append(
-                    _err(msg, t.path, hint="Add `Appetite: <minutes>` to the ticket's field lines")
-                )
-        root = _repo_root(plan_dir) or external_root
-        if root is not None:
-            spec_text = plan_appetite.spec_text_for(status_scan, root)
-            for msg in plan_appetite.small_profile_findings(status_scan, spec_text):
-                results.append(_err(msg, spine, hint="Re-run /fabrik-spec to size the spec"))
+    # ONE entry point shared with check_plan_quality (same text, same verdict); it is a no-op for
+    # sets dated before plan_appetite.LANE_ROLLOUT_DATE.
+    lane_root = _repo_root(plan_dir) or external_root
+    for _tid, t in sorted(tickets.items()):
+        for msg in plan_appetite.lane_findings(t.text, t.path, lane_root):
+            results.append(
+                _err(msg, t.path, hint="Add `Appetite: <minutes>` to the ticket's field lines")
+            )
+    for msg in plan_appetite.lane_findings(spine_text, spine, lane_root):
+        results.append(_err(msg, spine, hint="Converge the spec, or have /fabrik-spec size it"))
 
     # --- Gate-context DRAFT downgrade (ALL findings, structural included) ---------------
     # DRAFT/PLANNED (or absent-status) = someone's mid-AUTHORING set on shared

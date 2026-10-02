@@ -337,3 +337,173 @@ def test_check_plan_quality_refuses_small_profile_on_an_unsized_draft_spec(plans
         plans_env, f"{PLANS}/2026-10-02-plan-2-mono.md", _monolith(profile="Profile: small\n")
     )
     assert not [r for r in cpq_mod.check_file(old) if "Size: small" in r.message]
+
+
+# --- review round 1 (T05a-O1..O10) ------------------------------------------------------------
+
+_SMALL_PLAN = "# P\n\nStatus: DRAFT\nProfile: small\nSpec: docs/superpowers/specs/s.md\n\n## Phase A\n\nAppetite: 30\n"
+
+
+def test_o1_check_plan_tickets_does_not_regrade_small_profile_on_an_older_set(
+    tmp_path: Path,
+) -> None:
+    plan_dir = _set(tmp_path, "2026-10-02", "Appetite: 60\n", profile="Profile: small\n")
+    _write(tmp_path, SPEC_REL, _spec("DRAFT"))
+    msgs = _messages(cpt_mod.check_plan_dir(plan_dir, context="cli"))
+    assert not [m for m in msgs if "Size: small" in m or "Appetite" in m]
+
+
+def test_o2_plan_date_of_reads_any_leading_date() -> None:
+    assert pa.plan_date_of(Path(f"{PLANS}/2026-10-05-widget.md")) == "2026-10-05"
+
+
+def test_o2_check_plan_quality_grades_a_legacy_named_monolith(plans_env: Path) -> None:
+    p = _write(plans_env, f"{PLANS}/2026-10-05-widget.md", _monolith("", "Appetite: 60\n"))
+    assert [r for r in cpq_mod.check_file(p) if "Appetite" in r.message]
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        "Status: PROPOSED\n",
+        "",
+        "Status: LOCKED\n",
+        "Status: PLANNED\n",
+        "> **Status:** DRAFT\n",
+        "| Field | Value |\n|---|---|\n| Status | DRAFT |\n",
+    ],
+    ids=["proposed", "no-status", "locked", "planned", "blockquoted-draft", "table-draft"],
+)
+def test_o3_o7_unconverged_or_unreadable_spec_status_is_refused(header: str) -> None:
+    spec = f"# s\n\n{header}\n## Goal\n"
+    assert len(pa.small_profile_findings(_SMALL_PLAN, spec)) == 1
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        "Status: CONVERGED\n",
+        "**Status:** CONVERGED (D-1)\n",
+        "> **Status:** CONVERGED\n",
+        "| Field | Value |\n|---|---|\n| Status | CONVERGED |\n",
+    ],
+    ids=["plain", "bold", "blockquoted", "table"],
+)
+def test_o7_converged_spec_in_every_form_passes(header: str) -> None:
+    assert pa.small_profile_findings(_SMALL_PLAN, f"# s\n\n{header}\n## Goal\n") == []
+
+
+def test_o4_check_plan_quality_grades_a_pillarless_post_rollout_monolith(plans_env: Path) -> None:
+    text = (
+        "# P\n\nStatus: DRAFT\nProfile: small\nSpec: docs/superpowers/specs/2026-10-03-widget-design.md\n\n"
+        "## Phase A\n\nStep 1.\n"
+    )
+    _write(plans_env, SPEC_REL, _spec("DRAFT"))
+    p = _write(plans_env, f"{PLANS}/2026-10-05-plan-2-x.md", text)
+    msgs = [r.message for r in cpq_mod.check_file(p)]
+    assert any("Appetite" in m for m in msgs)
+    assert any("Size: small" in m for m in msgs)
+
+
+def test_o5_ticket_is_graded_by_its_field_line_not_its_phase_subheadings() -> None:
+    t = "# T01 - x\n\nDepends: none\nAppetite: 60\n\n## Scope\n\n### Phase 1 — red\nw\n### Phase 2 — green\nc\n"
+    assert pa.appetite_findings(t, "2026-10-03", label="T01", ticket=True) == []
+    assert (
+        len(
+            pa.appetite_findings(
+                t.replace("Appetite: 60\n", ""), "2026-10-03", label="T01", ticket=True
+            )
+        )
+        == 1
+    )
+
+
+def test_o5_check_plan_tickets_ticket_with_phase_subheadings_passes(tmp_path: Path) -> None:
+    plan_dir = _set(tmp_path, "2026-10-03", "Appetite: 60\n")
+    t = plan_dir / "T01-widget-schema.md"
+    t.write_text(t.read_text() + "\n### Phase 1 — red\nwrite tests\n", encoding="utf-8")
+    assert not [
+        m for m in _messages(cpt_mod.check_plan_dir(plan_dir, context="cli")) if "Appetite" in m
+    ]
+
+
+def test_o5_phase_out_heading_is_not_a_phase() -> None:
+    h = "# Plan\n\n## Phase-out of the old API (background)\n\ncontext\n\n## Phase 1\n\nAppetite: 30\n"
+    assert pa.appetite_findings(h, "2026-10-03") == []
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "> **Spec:** docs/superpowers/specs/s.md",
+        "Spec (source of truth): `docs/superpowers/specs/s.md` (CONVERGED)",
+        "**Spec:** docs/superpowers/specs/s.md",
+        "**Spec:** [design](../../superpowers/specs/s.md)",
+    ],
+    ids=["blockquoted", "parenthesised", "bold", "relative-link"],
+)
+def test_o6_spec_field_forms_resolve(tmp_path: Path, field: str) -> None:
+    _write(tmp_path, "docs/superpowers/specs/s.md", "# s\n\nStatus: DRAFT\n")
+    plan = f"# Plan\n\nStatus: DRAFT\nProfile: small\n{field}\n\n## Phase A\n"
+    plan_dir = tmp_path / "docs/development/plans"
+    assert pa.spec_text_for(plan, tmp_path, plan_dir) == "# s\n\nStatus: DRAFT\n"
+
+
+def test_o8_size_small_in_spec_body_does_not_count() -> None:
+    spec = "# s\n\nStatus: DRAFT\n\n## Goal\n\nSize: small\n"
+    assert len(pa.small_profile_findings(_SMALL_PLAN, spec)) == 1
+
+
+def test_o8_spec_field_outside_the_header_is_not_read(tmp_path: Path) -> None:
+    _write(tmp_path, "docs/superpowers/specs/s.md", "# s\n\nStatus: DRAFT\n")
+    plan = "# Plan\n\nStatus: DRAFT\n\n## Notes\n\nSpec: docs/superpowers/specs/s.md\n"
+    assert pa.spec_text_for(plan, tmp_path) is None
+
+
+def test_o8_profile_small_outside_the_header_does_not_arm_the_rule() -> None:
+    plan = "# P\n\nStatus: DRAFT\n\n## Global Constraints\n\nProfile: small\n"
+    assert pa.small_profile_findings(plan, _spec("DRAFT")) == []
+
+
+def test_o8_appetite_inside_an_unclosed_fence_does_not_count() -> None:
+    t = "# T01\n\nDepends: none\n```\nAppetite: 60\n"
+    assert len(pa.appetite_findings(t, "2026-10-03", label="T01", ticket=True)) == 1
+
+
+def test_o8_appetite_with_trailing_junk_is_refused() -> None:
+    t = "# T01\n\nAppetite: 60abc\n"
+    assert len(pa.appetite_findings(t, "2026-10-03", label="T01", ticket=True)) == 1
+
+
+@pytest.mark.parametrize("value", ["small-to-medium", "small? no — large", "smallish"])
+def test_o9_size_must_be_small_as_the_whole_value(value: str) -> None:
+    spec = f"# s\n\nStatus: DRAFT\nSize: {value}\n\n## Goal\n"
+    assert len(pa.small_profile_findings(_SMALL_PLAN, spec)) == 1
+
+
+@pytest.mark.parametrize("value", ["small", "small   ", "small (≈300 lines, 4 files)", "**small**"])
+def test_o9_size_small_value_forms_pass(value: str) -> None:
+    spec = f"# s\n\nStatus: DRAFT\nSize: {value}\n\n## Goal\n"
+    assert pa.small_profile_findings(_SMALL_PLAN, spec) == []
+
+
+def test_o10_blockquoted_profile_does_not_arm_the_rule() -> None:
+    plan = _SMALL_PLAN.replace("Profile: small", "> Profile: small")
+    assert pa.small_profile_findings(plan, _spec("DRAFT")) == []
+
+
+def test_o10_both_graders_agree_on_a_blockquoted_profile(plans_env: Path) -> None:
+    plan_dir = _set(plans_env, "2026-10-03", "Appetite: 60\n", profile="> Profile: small\n")
+    _write(plans_env, SPEC_REL, _spec("DRAFT"))
+    spine = plan_dir / f"{plan_dir.name}.md"
+    cpt = [
+        m for m in _messages(cpt_mod.check_plan_dir(plan_dir, context="cli")) if "Size: small" in m
+    ]
+    cpq = [r for r in cpq_mod.check_file(spine) if "Size: small" in r.message]
+    assert cpt == [] and cpq == []
+
+
+def test_o5_ticket_with_level_two_phase_headings_is_graded_once() -> None:
+    t = "# T01 - x\n\nAppetite: 60\n\n## Phase 1 — red\n\nw\n\n## Phase 2 — green\n\nc\n"
+    assert pa.appetite_findings(t, "2026-10-03", label="T01", ticket=True) == []
+    assert pa.lane_findings(t, Path(f"{PLANS}/2026-10-03-plan-1-w/T01-x.md"), None) == []

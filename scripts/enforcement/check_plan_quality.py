@@ -198,22 +198,14 @@ def _check_ticket(file_path: Path, content: str) -> list[CheckResult]:
                 fix_hint="Delete the Status: line; flip the Ticket Board row instead",
             )
         )
-    m = TICKET_NAME_RE.match(file_path.name)
-    label = m.group(0).split("-", 1)[0] if m else file_path.stem
-    return results + _lane_rules(file_path, content, severity, label=label)
+    return results + _lane_rules(file_path, content, severity)
 
 
-def _lane_rules(
-    file_path: Path, content: str, severity: Severity, *, label: str = "plan"
-) -> list[CheckResult]:
-    """D11 (`Appetite:` per phase/ticket) and D10 (`Profile: small` needs a sized or converged
-    spec) — the shared rules in plan_appetite, for plans dated on or after its rollout date."""
-    plan_date = plan_appetite.plan_date_of(file_path)
-    if not plan_appetite.is_graded(plan_date):
-        return []
-    messages = plan_appetite.appetite_findings(content, plan_date, label=label)
-    spec_text = plan_appetite.spec_text_for(content, PLAN_DIR.parents[2])
-    messages += plan_appetite.small_profile_findings(content, spec_text)
+def _lane_rules(file_path: Path, content: str, severity: Severity) -> list[CheckResult]:
+    """D11 (`Appetite:` per phase/ticket) and D10 (`Profile: small` needs a converged or sized
+    spec) — plan_appetite.lane_findings, the ONE entry point check_plan_tickets also calls; a
+    no-op for plans dated before its rollout date. Called on EVERY classification branch."""
+    messages = plan_appetite.lane_findings(content, file_path, PLAN_DIR.parents[2])
     return [
         CheckResult(
             check_name="plan_quality",
@@ -447,8 +439,14 @@ def check_file(file_path: Path) -> list[CheckResult]:
         # quieter (a pillar-less CONVERGED spine must not grandfather to WARN).
         return _check_modern(file_path, content)
 
-    # Precedence 3: grandfather.
-    return [
+    # Precedence 3: grandfather — but a plan dated on or after the lane rollout still owes the
+    # D10/D11 rules (a pillar-less post-rollout plan must not escape them); advisory while the
+    # plan is draft-like (DRAFT/PLANNED or no status), the same downgrade _check_modern applies.
+    gm = MODERN_STATUS_RE.search(_BLOCKQUOTE_RE.sub("", scan))
+    lane_severity = (
+        Severity.WARN if (not gm or gm.group(1).upper() in ("DRAFT", "PLANNED")) else Severity.ERROR
+    )
+    return _lane_rules(file_path, content, lane_severity) + [
         CheckResult(
             check_name="plan_quality",
             severity=Severity.WARN,
