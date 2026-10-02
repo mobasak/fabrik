@@ -1,6 +1,6 @@
 # Plan — backrest coverage: protect what a service persists, never a path that does not exist (W-5c4ad6a6)
 
-Status: CONVERGED (/fabrik-plan-review 2026-10-03 on the D-518 revision: passes 15→6→0 confirmed; spec flipped with it) — awaiting the operator's design approval
+Status: CONVERGED (/fabrik-plan-review 2026-10-03 on the D-518 revision: passes 15→6→0 confirmed; spec flipped with it) — APPROVED by the operator 2026-10-03 (D-520)
 Profile: small
 **Owner:** fleet
 
