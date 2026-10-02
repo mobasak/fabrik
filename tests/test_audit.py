@@ -262,6 +262,19 @@ class TestAuditBackrest:
         assert r.status == "unknown"
         assert "bad" in r.detail
 
+    def test_the_compose_project_is_the_spec_name_like_the_registrar(self, monkeypatch, tmp_path):
+        import json
+
+        (tmp_path / ".fabrik" / "state").mkdir(parents=True)
+        (tmp_path / ".fabrik" / "state" / "test-svc.json").write_text(
+            json.dumps({"target_vps": "vps3"})
+        )
+        monkeypatch.setattr("fabrik.config.FABRIK_ROOT", tmp_path)
+        spec = {**_spec_dict(shape={"has_persistent_data": True}), "name": "test-app"}
+        _, calls = self._run(spec)
+        assert calls[0]["name"] == "test-app"  # the deployer's /opt/<name> compose project
+        assert calls[0]["target_host"] == "vps3"  # the state file stays keyed by id
+
     def test_b6_the_database_is_checked_only_when_postgres_runs(self):
         shape = {"has_persistent_data": True, "needs_database": True}
         _, calls = self._run(_spec_dict(shape=shape))

@@ -341,16 +341,19 @@ def audit_backrest(spec: Any) -> AuditResult:
 
     hub = os.getenv("FABRIK_AUDIT_VPS", "vps")
     target = _backrest_target(spec, sid, hub)
+    # the compose project the deployer created: /opt/<spec name> (deployer_ssh.py, ctx.spec["name"]),
+    # name-first as the registrar reads it — `sid` is id-first and keys only the state file
+    project = str(_spec_to_dict(spec).get("name") or sid)
     db = None
     if resolved.get("postgres", (False, ""))[0]:
         try:
             db = _db_name_for_spec(_spec_to_dict(spec))
         except ValueError:
             db = None
-    expected = {"target_host": target, "database": db}
+    expected = {"project": project, "target_host": target, "database": db}
     try:
         status, findings, actual = backrest.coverage_findings(
-            sid, db, target_host=target, hub_host=hub
+            project, db, target_host=target, hub_host=hub
         )
     except Exception as e:  # noqa: BLE001 — a check that cannot run is unknown, never a guess
         return AuditResult(
