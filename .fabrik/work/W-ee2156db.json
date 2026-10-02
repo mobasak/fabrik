@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T18:20:39.720494Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-ee2156db",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-510",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "ask the operator: keep the subscription lane for the operator's own services and automation, or move user-facing product features to an API key; evidence: docs/reference/research/2026-10-02-agentic-currency-ledger.md rows a1-19, a1-20, a1-22, a2-29; ai/00 owns the rule",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "Operator ruling needed: does ai/00's rule that deployed services call claude -p on the Max subscription fit Anthropic's live terms (OAuth for ordinary individual use; products serving other users should use an API key)? Found in the ai/50-agentic currency pass, 2026-10-02"
+}
