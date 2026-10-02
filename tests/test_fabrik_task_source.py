@@ -5,8 +5,9 @@ Three facts about the source, each mechanically decidable (spec
 ticket T03 Behavior Contract), plus (T07, plan 2026-10-02-plan-1) the Revision-2 prose content:
 
 1. SIZE + INCLUDES — the source is at most `SIZE_CAP` bytes (D-296 raised it to 8980 above C2's
-   original 8,847; T07 raises it again to 10362 for D3/D6/D7/D8's required prose — a pending D-row,
-   see the comment above `SIZE_CAP`) and its only `{{include:}}` is `run-record`. The include half
+   original 8,847; T07 raises it again to 11672 for D3/D6/D7/D8's required prose plus the v1/v2
+   scope tags and the O7 fix review round 1 found missing — a pending D-row, see the comment
+   above `SIZE_CAP`) and its only `{{include:}}` is `run-record`. The include half
    is C2's cobra counter (cobra 8): the cheapest way to satisfy a source-byte cap is to move the
    prose into a fragment, so a second include is refused whatever the byte count says.
 2. RENDER — the source renders: a temp-dir `render()` (never the installed corpus — the renderer
@@ -51,9 +52,12 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # D-296: re-based above C2's 8,847 for T03's correctness fixes. May FALL, never rise, without a row.
 # T07 (plan 2026-10-02-plan-1) re-bases again for D3/D6/D7/D8's required prose (Behaviours list,
 # multi-commit build, --design-amend, the review flavour by surface, the close refusal, the four
-# new UPGRADE tokens) — a D-row is owed from the dispatching session citing this ratchet (the
-# subagent brief forbids minting it); until then this comment is the citation.
-SIZE_CAP = 10362
+# new UPGRADE tokens), then again after review round 1 for the v1/v2 scope tags every one of
+# those needed (D2/D7's full-review-by-surface and D1's module tests apply at lane v2 ONLY; v1
+# keeps today's gate, so the text has to say which) plus the O7 contradiction fix — a D-row is
+# owed from the dispatching session citing this ratchet (the subagent brief forbids minting it);
+# until then this comment is the citation.
+SIZE_CAP = 11672
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -136,14 +140,46 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", stripped)
 
 
+# T07 review round 1 (O8): a bare `in text` / unanchored `re.search` is satisfied by its own
+# negation — "NOT <the exact governing sentence>" still CONTAINS that sentence verbatim, so a
+# substring check reads it as present. `_asserted` additionally refuses a match whose preceding
+# ~80 chars carry a negation marker, which is where a prefix-wrap lands.
+_NEGATION = re.compile(
+    r"\b(not|never|n't|without|no longer|neither|nor|isn't|doesn't|drop(?:s|ped)?|"
+    r"remove(?:s|d)?|lack(?:s|ing)?|fail(?:s|ed)?\s+to|refuses?\s+to\s+(?:name|state))\b",
+    re.I,
+)
+
+
+def _asserted(text: str, pattern: str, *, window: int = 80) -> bool:
+    """True iff `pattern` matches `text` with no negation marker in the CURRENT clause
+    immediately before the match. False on no match OR a negated/weakened match — the two
+    failure modes a bare substring/`re.search` check cannot tell apart (T07 review O8).
+
+    The `window` characters before the match are truncated at the LAST `;`, `.` or em-dash
+    (`—`) inside them, so a negation word that belongs to the PRIOR clause/sentence (e.g.
+    "…never refusing); the remedy is …", or "…not round 3 — the FIRST…") never flags the
+    clause that follows it — only a negation with nothing but whitespace/markup between it
+    and the match (the "NOT <exact sentence>" wrap, or "— NOT <exact sentence>") does."""
+    m = re.search(pattern, text)
+    if not m:
+        return False
+    before = text[max(0, m.start() - window) : m.start()]
+    boundary = max(before.rfind(";"), before.rfind("."), before.rfind("—"))
+    if boundary != -1:
+        before = before[boundary + 1 :]
+    return _NEGATION.search(before) is None
+
+
 def test_source_size_and_single_include() -> None:
     """The byte ceiling, and `run-record` as the only include.
 
-    ⚠️ The cap is 10362 B, NOT the spec's C2 figure of 8,847 nor D-296's 8980 (the latter stood
+    ⚠️ The cap is 11672 B, NOT the spec's C2 figure of 8,847 nor D-296's 8980 (the latter stood
     until T07, plan 2026-10-02-plan-1, which gained the Behaviours cap, multi-commit build,
-    `--design-amend`, the review flavour by surface, the close refusal and the four new UPGRADE
-    tokens — all REQUIRED prose, not padding; see the `SIZE_CAP` comment above for the pending
-    D-row). Before T07: the three HIGH findings of T03's delta round cost more bytes than the
+    `--design-amend`, the review flavour by surface, the close refusal, the four new UPGRADE
+    tokens, and (review round 1) the v1/v2 scope tags every one of those needed plus the O7
+    contradiction fix — all REQUIRED prose, not padding; see the `SIZE_CAP` comment above for
+    the pending D-row). Before T07: the three HIGH findings of T03's delta round cost more bytes than the
     compression that funded them: a polarity-INVERTED cobra counter (it fired on the honest run and
     was silent on the padded one), a pointer 42 of 43 repos could not follow, and a capture window
     that recorded a SIBLING's commit as this run's measurement — plus closing a fail-open on the
@@ -275,102 +311,164 @@ def test_the_printed_phase_count_matches_the_headings() -> None:
 # keyword is satisfied by its own negation (Addendum; the T05c review found 15 such). ───────────
 
 
-def test_design_note_names_behaviours_cap_and_the_design_amend_remedy() -> None:
-    """Behavior Contract row 1 (part): the Behaviours cap and the undeclared-path remedy.
+def _not_prefix(sentence: str) -> str:
+    """The cheapest negation mutant: wrap the exact governing sentence in a NOT-clause while
+    keeping it byte-identical — the shape a bare substring/`re.search` check cannot distinguish
+    from the real thing (T07 review O8)."""
+    return f"This is NOT true: {sentence} — the rest of the paragraph is unaffected."
 
-    Mutant: drop "REFUSES" (e.g. to "records") or the cap "7" — the sentence this anchors no
-    longer reads, so the match fails. Verified red on the pre-T07 blob (`git show HEAD:…`, which
-    carries neither sentence) and green on the working tree."""
+
+def test_design_note_names_behaviours_cap_and_the_design_amend_remedy() -> None:
+    """Behavior Contract row 1 (part): the Behaviours cap (v2 UPGRADE), the v2 undeclared-path
+    REFUSAL (v1 only records), and the `--design-amend` remedy.
+
+    Mutant table (negation — `_not_prefix` wraps the exact sentence in "This is NOT true: …",
+    which a bare substring check cannot tell from the real text): all three assertions below
+    FAIL on their own mutant and PASS on the real source."""
     text = _norm(_source_text())
-    assert re.search(
-        r"Add a `## Behaviours` list — each naming its test, at most 7 "
-        r"\(an 8th is the `behaviours` UPGRADE\)",
-        text,
-    ), "the design note no longer caps Behaviours at 7 with the 8th as an UPGRADE"
-    assert re.search(
-        r"a committed path missing from both REFUSES `done` at close; the remedy is "
-        r"`step --phase 2 --design-amend <path>`, append-only",
-        text,
-    ), "the design note no longer REFUSES done on an undeclared path, or drops --design-amend"
+    cap = (
+        "Add a `## Behaviours` list — each naming its test, at most 7 (an 8th is the "
+        "`behaviours` UPGRADE, *(v2)*)"
+    )
+    refuse = (
+        "*(v2)* a committed path missing from both REFUSES `done` at close (v1 only RECORDS it, "
+        "never refusing)"
+    )
+    amend = (
+        "the remedy is `step --phase 2 --design-amend <path>` *(v2)*, append-only — it never "
+        "overwrites a recorded field"
+    )
+    for sentence, why in (
+        (cap, "the Behaviours cap"),
+        (refuse, "the v2 REFUSAL"),
+        (amend, "the --design-amend remedy"),
+    ):
+        pat = re.escape(sentence)
+        assert _asserted(text, pat), f"the design note no longer states {why}: {sentence!r}"
+        assert not _asserted(_not_prefix(sentence), pat), (
+            f"negation mutant wrongly passed for {why}"
+        )
     assert "`design_amends`" in text, "an amendment is no longer counted as `design_amends`"
 
 
 def test_build_and_review_sections_name_multicommit_sync_commit_and_full_review() -> None:
-    """Behavior Contract row 1 (part): multi-commit build, the sync-path single commit (D7), and
-    the review flavour by surface incl. the D8 nested stop.
-
-    Mutant: change "ONCE" to "once more" or drop "not the third" — each assertion below reads the
-    governing clause whole, not a keyword, so a weakened rewording fails it."""
+    """Behavior Contract row 1 (part): the v1-single/v2-multi commit build, the sync-path single
+    commit (D7), and the review flavour by surface (v1 always scoped; v2 by surface) incl. the
+    D8 nested stop."""
     text = _norm(_source_text())
-    assert re.search(
-        r"`done --commit sha1,sha2,…` measures each in order; a sync-path run \(D7\) commits "
-        r"ONCE, after phase 4, in the main checkout",
-        text,
-    ), "the build section no longer documents the multi-commit build or the sync single-commit rule"
-    assert re.search(
-        r"Invoke the review phase 0 already picked — `/fabrik-review-scoped`, or the full "
-        r"`/fabrik-review` for a sync, heavy, migration or >5-file surface \(D2, D7\)",
-        text,
-    ), "phase 4 no longer selects the review flavour by surface"
-    assert re.search(
-        r"its own scope-growth stop fires at the FIRST own-fix-only round, not the third \(D8\), "
-        r"still closing only on a confirmed-zero pass",
-        text,
-    ), "phase 4 no longer names the D8 nested stop and its confirmed-zero exit"
+    multicommit = (
+        "One commit carries it at v1; *(v2)* several may, SPACE-separated — `done --commit shaA "
+        "shaB …` measures each in order; a sync-path run (D7) commits ONCE, after phase 4, in the "
+        "main checkout"
+    )
+    review = (
+        "Invoke the review phase 0 already picked — at v1 always `/fabrik-review-scoped` (a v1 "
+        "sync/heavy surface never reaches the lane — it routes right-now instead); *(v2)* "
+        "`/fabrik-review-scoped`, or the full `/fabrik-review` for a sync, heavy, migration or "
+        ">5-file surface (D2, D7) — unchanged, never from memory; nested here, its own "
+        "scope-growth stop fires at the FIRST own-fix-only round, not the third (D8), still "
+        "closing only on a confirmed-zero pass."
+    )
+    for sentence, why in (
+        (multicommit, "the multi-commit/sync-once rule"),
+        (review, "the review flavour by surface"),
+    ):
+        pat = re.escape(sentence)
+        assert _asserted(text, pat), f"the source no longer states {why}: {sentence!r}"
+        assert not _asserted(_not_prefix(sentence), pat), (
+            f"negation mutant wrongly passed for {why}"
+        )
+    # the comma-joined form this ticket's review found and REMOVED — never resurfaces
+    assert "sha1,sha2" not in text, (
+        'a comma-joined --commit example returned (nargs="+" is SPACE-separated)'
+    )
 
 
 def test_close_section_refuses_undeclared_and_close_time_contract_hits() -> None:
-    """Behavior Contract row 1 (part): the close REFUSES rather than merely records.
-
-    Mutant: swap "REFUSES" for "records" (the pre-D3 behaviour) — the assertion is keyed on the
-    verb, not just the words "oversized_mini" or "contract", which both texts would carry."""
+    """Behavior Contract row 1 (part): the v2 close REFUSES (v1 still only records)."""
     text = _norm(_source_text())
-    assert re.search(
-        r"A committed path missing from APPROACH/MIRROR/an amendment\s*"
-        r"REFUSES `done` \(phase 2's remedy above\); `blocked`/`handoff` record it as "
-        r"`oversized_mini` instead",
-        text,
-    ), (
-        "the close no longer REFUSES an undeclared path on `done` (or no longer records it on blocked/handoff)"
+    undeclared = (
+        "*(v2)* a committed path missing from APPROACH/MIRROR/an amendment REFUSES `done` "
+        "(phase 2's remedy above); `blocked`/`handoff` record it as `oversized_mini` instead, "
+        "never refusing a sanctioned halt."
     )
-    assert re.search(
-        r"A contract or new-source hit found only here REFUSES `done` and `handoff` too, until "
-        r"`--review <a full /fabrik-review receipt>` names one — `blocked` needs none",
-        text,
-    ), "the close no longer refuses done/handoff on a close-time contract or new-source hit"
+    contract = (
+        "*(v2)* a contract or new-source hit found only here REFUSES `done` and `handoff` too, "
+        "until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none."
+    )
+    v1_records = "At v1 an undeclared path is RECORDED as `oversized_mini`, never refused."
+    for sentence, why in (
+        (undeclared, "the v2 undeclared-path REFUSAL"),
+        (contract, "the v2 contract/new-source REFUSAL"),
+        (v1_records, "the v1 record-only behaviour"),
+    ):
+        pat = re.escape(sentence)
+        assert _asserted(text, pat), f"the close section no longer states {why}: {sentence!r}"
+        assert not _asserted(_not_prefix(sentence), pat), (
+            f"negation mutant wrongly passed for {why}"
+        )
 
 
 def test_upgrade_section_gains_the_four_close_raised_tokens() -> None:
     """Behavior Contract row 1 (part): the UPGRADE token list gains `contract`, `new-source`,
-    `behaviours`, `appetite`, distinguished from the six agent-typed ones."""
+    `behaviours`, `appetite` (tagged v2), and the close raises them WHETHER OR NOT typed by hand
+    — ONE consistent rule, never "never typed by hand" (T07 review O7: the lead sentence used to
+    cite "a contract path" as a hand-typed example while the close paragraph claimed the close-
+    raised four are "never typed by hand" — self-contradicting; fixed to the single rule below)."""
     text = _norm(_source_text())
-    assert re.search(
-        r"lead with `files` · `oneway` · `tradeoffs` · `seat` · `sync` · `heavy` · `contract` · "
-        r"`new-source` · `behaviours` · `appetite`, then a dash and the detail",
-        text,
-    ), "the UPGRADE token list no longer carries all ten tokens in order"
-    assert re.search(
-        r"The last four the CLOSE raises itself, from the commit, never typed by hand: "
-        r"`contract`/`new-source` REFUSE `done`/`handoff` until `--review <receipt>` names one; "
-        r"`behaviours`/`appetite` are findings only",
-        text,
-    ), "the source no longer distinguishes the close-raised tokens from the agent-typed ones"
+    token_list = (
+        "lead with `files` · `oneway` · `tradeoffs` · `seat` · `sync` · `heavy` (v1 and v2) · "
+        "*(v2)* `contract` · `new-source` · `behaviours` · `appetite`, then a dash and the detail."
+    )
+    close_raised = (
+        "*(v2)* The last four — `contract` · `new-source` · `behaviours` · `appetite` — the "
+        "close ALSO raises itself, from the commit, WHETHER OR NOT you typed them: "
+        "`contract`/`new-source` REFUSE `done`/ `handoff` until `--review <receipt>` names one; "
+        "`behaviours`/`appetite` are findings only."
+    )
+    for sentence, why in (
+        (token_list, "the ten-token list"),
+        (close_raised, "the close-raised rule"),
+    ):
+        pat = re.escape(sentence)
+        assert _asserted(text, pat), f"the UPGRADE section no longer states {why}: {sentence!r}"
+        assert not _asserted(_not_prefix(sentence), pat), (
+            f"negation mutant wrongly passed for {why}"
+        )
+    # O7's contradiction, as an executable refusal: "never typed by hand" must NOT recur anywhere
+    # near the four close-raised tokens — the single rule is "whether or not you typed them".
+    assert "never typed by hand" not in text, (
+        "O7's contradiction returned — the close-raised tokens are no longer described with the "
+        "single 'whether or not you typed them' rule"
+    )
+    assert "a contract path" not in _norm(
+        text[: text.index("UPGRADE — the one-way ratchet")]
+        if "UPGRADE — the one-way ratchet" in text
+        else text
+    ), "the lead sentence resumed citing a contract path as something typed by hand pre-commit"
 
 
 def test_independent_slices_are_several_task_runs() -> None:
     """Spec § The delta D6, named in this ticket's Scope."""
     text = _norm(_source_text())
-    assert re.search(
-        r"A feature splitting into independently shippable slices is several of these runs, "
-        r"never one bundling them \(D6\)",
-        text,
-    ), "the source no longer states that independent slices are several /fabrik-task runs"
+    sentence = (
+        "A feature splitting into independently shippable slices is several of these runs, "
+        "never one bundling them (D6)."
+    )
+    pat = re.escape(sentence)
+    assert _asserted(text, pat), f"the source no longer states D6: {sentence!r}"
+    assert not _asserted(_not_prefix(sentence), pat), "negation mutant wrongly passed for D6"
 
 
 def test_protocol_doc_documents_every_flag_and_feedback_field_this_ticket_scopes() -> None:
     """Behavior Contract row 2: every flag and feedback field named in T07's Scope is documented
-    in `docs/reference/command-run-protocol.md` — one assertion per token, each read in the
-    sentence that introduces it so a dropped clause (not just a deleted word) is caught."""
+    in `docs/reference/command-run-protocol.md`, matching T08's actual writer at `e6944534f`
+    (`scripts/command_run.py`, read via `git show`, never checked out) — grounded, not guessed:
+    `--commit`/`--review` are SPACE-separated (`nargs="+"`); `step --appetite` is accepted on ANY
+    command at lane v2, refused if non-positive regardless of version, ignored-with-note at v1;
+    `phase_marks`/`over_appetite_phases` are counts as strings; `size` is the bare word `small`;
+    `over_appetite` is `yes`/`no`; `from_downgrade` is written on a v2 task close OR a
+    `/fabrik-spec` DOWNGRADE handoff; the `start` line matches the exact printed format."""
     assert PROTOCOL_DOC.exists(), f"{PROTOCOL_DOC} does not exist"
     text = _norm(PROTOCOL_DOC.read_text(encoding="utf-8"))
     for needle, why in [
@@ -384,25 +482,62 @@ def test_protocol_doc_documents_every_flag_and_feedback_field_this_ticket_scopes
         ),
         ('`--why "<reason>"` (required with `oneway=yes`/`tradeoffs=yes`', "`--why`"),
         ("`--from-downgrade <refusal id>`", "`--from-downgrade`"),
-        ("A v2 start stamps `gate: 2` on the record", "the `gate: 2` stamp"),
         (
-            "`--design-amend <path>` (`fabrik-task` only) APPENDS one path to the design's "
-            "declared surface",
+            "A v2 start prints `lane: v2 (switch <sha\\|uncommitted>) · review: <scoped\\|full> · "
+            "appetite: <n> min`",
+            "the exact v2 `start` print line",
+        ),
+        (
+            "lane v2 — REFUSED on any other command or an unstamped record) APPENDS one path to "
+            "the design's declared surface",
             "`step --design-amend`",
         ),
-        ("`--appetite <min>` (`fabrik-execute-plan` phase steps, D11)", "`step --appetite`"),
         (
-            "it names THIS run's commit(s), read from the capture file written the instant the "
-            "commit returns, and the close re-measures each commit's diff IN ORDER",
-            "`done --commit` accepting a multi-commit list",
+            "`--appetite <min>` is accepted on `step` for ANY command, not `fabrik-task`-only "
+            "(D11): a non-positive value is REFUSED regardless of lane version",
+            "`step --appetite` on any command, refused if non-positive",
+        ),
+        (
+            "at lane v1 it is accepted and IGNORED with a stderr note",
+            "`step --appetite` ignored-with-note at v1",
+        ),
+        (
+            "`--commit` is the `fabrik-task` lane's flag on the three close verbs "
+            '(`nargs="+"` — SPACE-separated, never comma-joined)',
+            "`done --commit` SPACE-separated, never comma-joined",
+        ),
+        (
+            "at lane v1 more than one is REFUSED (pass ONE)",
+            "the v1 one-commit rule",
         ),
         (
             "`--review <receipt>` is REQUIRED on `done`/`handoff` when the re-measure finds a "
             "contract or new-source hit",
             "`done`/`handoff --review`",
         ),
+        (
+            "the close ALSO raises `contract`/`new-source`/`behaviours`/`appetite` itself, "
+            "straight from the commit, WHETHER OR NOT the agent typed them",
+            "the close-raised tokens, consistent with O7's single rule",
+        ),
+        (
+            "`size` (the bare word `small` on a `/fabrik-spec` close",
+            "`size` as the bare word `small`",
+        ),
+        (
+            "written EITHER on a v2 `fabrik-task` close started `--from-downgrade <id>`, OR on a "
+            "`/fabrik-spec` `handoff` whose `--reason` opens `DOWNGRADE: LR-xxxxxxxx`",
+            "`from_downgrade`'s two write sites",
+        ),
+        ("`over_appetite` (`yes`/`no`)", "`over_appetite` as yes/no"),
+        (
+            "`phase_marks`/`over_appetite_phases` (both COUNTS, as strings",
+            "`phase_marks`/`over_appetite_phases` as string counts",
+        ),
     ]:
-        assert needle in text, f"the protocol doc no longer documents {why}: {needle!r} not found"
+        pat = re.escape(needle)
+        assert _asserted(text, pat), f"the protocol doc no longer documents {why}: {needle!r}"
+        assert not _asserted(_not_prefix(needle), pat), f"negation mutant wrongly passed for {why}"
     for field in (
         "`parent`",
         "`size`",
@@ -415,6 +550,7 @@ def test_protocol_doc_documents_every_flag_and_feedback_field_this_ticket_scopes
         "`phase_marks`",
     ):
         assert field in text, f"the protocol doc's feedback-field list drops {field}"
+    assert "sha>[,<sha>" not in text, "a comma-joined --commit/--review example returned"
 
 
 def test_scope_growth_fragment_names_the_lane_variant() -> None:
@@ -422,28 +558,44 @@ def test_scope_growth_fragment_names_the_lane_variant() -> None:
     of the scope-growth stop and that the review still closes only on a confirmed-zero pass."""
     assert SCOPE_GROWTH_FRAGMENT.exists(), f"{SCOPE_GROWTH_FRAGMENT} does not exist"
     text = _norm(SCOPE_GROWTH_FRAGMENT.read_text(encoding="utf-8"))
-    assert re.search(
-        r"Nested under a `fabrik-task` run.*the own-fix bar drops to round 1, not round 3 — "
-        r"the FIRST own-fix-only round stops the hunt",
-        text,
-    ), "the fragment no longer names the fabrik-task lane variant of the scope-growth stop"
-    assert re.search(
-        r"the exit is unchanged: it still closes only on a round that CONFIRMS zero \(D8; D-355\)",
-        text,
-    ), (
-        "the fragment no longer states that the lane variant still closes only on a confirmed-zero pass"
+    variant = (
+        "the own-fix bar drops to round 1, not round 3 — the FIRST own-fix-only round stops "
+        "the hunt"
     )
+    confirmed_zero = (
+        "the exit is unchanged: it still closes only on a round that CONFIRMS zero (D8; D-355)."
+    )
+    for sentence, why in (
+        (variant, "the lane variant"),
+        (confirmed_zero, "the confirmed-zero exit"),
+    ):
+        pat = re.escape(sentence)
+        assert _asserted(text, pat), f"the fragment no longer states {why}: {sentence!r}"
+        assert not _asserted(_not_prefix(sentence), pat), (
+            f"negation mutant wrongly passed for {why}"
+        )
 
 
 def test_old_lane_spec_carries_a_superseded_in_part_banner() -> None:
     """Behavior Contract row 4 (spec § Documentation landing sites): the 2026-09-17 lane spec's
     header carries a SUPERSEDED-IN-PART banner pointing at the 2026-10-02 spec. Read in the first
-    15 lines only — a banner buried in the body is not a HEADER banner."""
+    15 lines only — a banner buried in the body is not a HEADER banner.
+
+    Mutant (T07 review O8, the concrete case): `"> NOT **SUPERSEDED-IN-PART** by …"` still
+    CONTAINS the substring "SUPERSEDED-IN-PART" verbatim — a bare `in head` check (the pre-fix
+    shape of this test) would wrongly pass it. `_asserted`'s negation window catches the "NOT"."""
     assert OLD_LANE_SPEC.exists(), f"{OLD_LANE_SPEC} does not exist"
     head = _norm("\n".join(OLD_LANE_SPEC.read_text(encoding="utf-8").splitlines()[:15]))
-    assert "SUPERSEDED-IN-PART" in head, (
+    banner = re.escape("**SUPERSEDED-IN-PART**")
+    pointer = re.escape("2026-10-02-fabrik-task-feature-lane-design.md")
+    assert _asserted(head, banner), (
         "the old lane spec's header carries no SUPERSEDED-IN-PART banner"
     )
-    assert "2026-10-02-fabrik-task-feature-lane-design.md" in head, (
+    assert _asserted(head, pointer), (
         "the SUPERSEDED-IN-PART banner does not point at the superseding spec"
+    )
+    mutant = head.replace("**SUPERSEDED-IN-PART**", "NOT **SUPERSEDED-IN-PART**", 1)
+    assert not _asserted(mutant, banner), (
+        "negation mutant wrongly passed: 'NOT **SUPERSEDED-IN-PART**' still reads as the banner "
+        "under a bare substring check — O8's exact finding"
     )

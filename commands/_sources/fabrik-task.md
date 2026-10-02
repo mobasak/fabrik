@@ -9,6 +9,14 @@ feedback and the decision-ledger rule keep their own text. New here: the SIZE ga
 commit, and the UPGRADE ratchet. A feature splitting into independently shippable slices is
 several of these runs, never one bundling them (D6).
 
+**Two lane versions share this text** (`.fabrik/lane.json`; `start` prints which). **Lane v1**
+(every repo until it opts in) is today's file-count gate — the frontmatter's SKIP clause, the
+`--declare` paste below, and `command-run-protocol.md:52`'s `start` row. **Lane v2** replaces the
+file count with the module tests and adds every *(v2)*-tagged mechanism below: the `consumers=`
+key, `--appetite`/`--why`/`--from-downgrade`, `--design-amend`, the undeclared-path REFUSAL, the
+space-separated multi-commit close, `--review`, and the Behaviours UPGRADE's four close-raised
+tokens.
+
 {{include:run-record}}
 {{include:orient}}
 
@@ -29,6 +37,8 @@ python3 scripts/command_run.py start --command fabrik-task --phases 5 \
   --file "<path 1>" --file "<path 2>" \
   --declare decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=no
 ```
+
+*(v2)* a sixth key is REQUIRED: `,consumers=internal` (or `external`) — v1 ignores it if typed.
 
 `--file` is repeatable, ONE quoted repo path each. A path that does not exist yet is accepted on
 purpose: **declare the grader you are about to write.** Declare the CODE surface ONLY — the close
@@ -66,10 +76,11 @@ python3 scripts/command_run.py step --phase 2 --title "design: <that path>" \
 design outlives the scratch. A refusal discards the whole `step`: fix the file and
 re-run, or the record stays at phase 1. It lands ONCE — a second `--design` is ignored with a NOTE
 while everything else reads like success. Add a `## Behaviours` list — each naming its test, at
-most 7 (an 8th is the `behaviours` UPGRADE) — and name every path the build will touch in APPROACH
-or MIRROR (backticked): a committed path missing from both REFUSES `done` at close; the remedy is
-`step --phase 2 --design-amend <path>`, append-only — it never overwrites a recorded field — and
-counted on the close as `design_amends`. MIRROR is mandatory (`CLAUDE.md` § Behavior). The fields
+most 7 (an 8th is the `behaviours` UPGRADE, *(v2)*) — and name every path the build will touch in
+APPROACH or MIRROR (backticked): *(v2)* a committed path missing from both REFUSES `done` at close
+(v1 only RECORDS it, never refusing); the remedy is `step --phase 2 --design-amend <path>` *(v2)*,
+append-only — it never overwrites a recorded field — and counted on the close as `design_amends`.
+MIRROR is mandatory (`CLAUDE.md` § Behavior). The fields
 are the D-row's draft: APPROACH+DECISION+MIRROR → *what*, PROBLEM → *why*, the declared files →
 *where*; OUT and TERMINAL stay in the record. ⚠️ A literal `|` is written `&#124;` — a backslash
 escape makes `check_decisions_unique.py` read a 7-cell row.
@@ -79,15 +90,17 @@ escape makes `check_decisions_unique.py` read a 7-cell row.
 **Plan locks first** — no CLI reads them: each `*.json` in `.fabrik/plan-locks/` with `status: active`.
 A declared path inside another lock's `owned_paths` is a STOP; so is an ACTIVE lock whose `owned_paths` is empty or absent — that matches nothing and passes everything. Then the change and its grader, red-first per FIX
 DIRECTIVE 4; a shared-append file goes through § EXIT's private-index recipe, never the working file.
-One or more commits carry it — `done --commit sha1,sha2,…` measures each in order; a sync-path run
-(D7) commits ONCE, after phase 4, in the main checkout (several only inside a worktree).
+One commit carries it at v1; *(v2)* several may, SPACE-separated — `done --commit shaA shaB …`
+measures each in order; a sync-path run (D7) commits ONCE, after phase 4, in the main checkout
+(`done` refuses more outside a worktree; `blocked`/`handoff` only note it).
 
 ## Phase 4 — REVIEW
 
-Invoke the review phase 0 already picked — `/fabrik-review-scoped`, or the full `/fabrik-review` for
-a sync, heavy, migration or >5-file surface (D2, D7) — unchanged, never from memory; nested here,
-its own scope-growth stop fires at the FIRST own-fix-only round, not the third (D8), still closing
-only on a confirmed-zero pass. Give its seat briefs
+Invoke the review phase 0 already picked — at v1 always `/fabrik-review-scoped` (a v1 sync/heavy
+surface never reaches the lane — it routes right-now instead); *(v2)* `/fabrik-review-scoped`, or
+the full `/fabrik-review` for a sync, heavy, migration or >5-file surface (D2, D7) — unchanged,
+never from memory; nested here, its own scope-growth stop fires at the FIRST own-fix-only round,
+not the third (D8), still closing only on a confirmed-zero pass. Give its seat briefs
 the phase-2 `design.md` path and the phase-0 declaration, plus three questions: *does the change ESCAPE the declared files? did it add a mechanism the declaration said `no` to?
 can you name a second approach the declaration said did not exist?* A `yes` to the first or third is that seat's UPGRADE verdict — take it; a `yes` to the second corrects the D-row (name the mechanism there), never the lane (D-315). A declared file left UNTOUCHED is padding
 (a guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in the D-row — never
@@ -117,20 +130,23 @@ python3 scripts/command_run.py done --command fabrik-task \
   --evidence "<what proves the terminal condition>" --feedback "<the four fields>"
 ```
 
-The close re-measures every commit. A committed path missing from APPROACH/MIRROR/an amendment
-REFUSES `done` (phase 2's remedy above); `blocked`/`handoff` record it as `oversized_mini` instead,
-never refusing a sanctioned halt. A contract or new-source hit found only here REFUSES `done` and
-`handoff` too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none.
+The close re-measures every commit. At v1 an undeclared path is RECORDED as `oversized_mini`,
+never refused. *(v2)* a committed path missing from APPROACH/MIRROR/an amendment REFUSES `done`
+(phase 2's remedy above); `blocked`/`handoff` record it as `oversized_mini` instead, never refusing
+a sanctioned halt. *(v2)* a contract or new-source hit found only here REFUSES `done` and `handoff`
+too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none.
 
 ## UPGRADE — the one-way ratchet, available from phase 1
 
-A module-test crossing — a contract path, a decision turned one-way, a trade-off that appeared, or a
-phase-4 seat's verdict (a mechanism found mid-run is not a crossing: the D-row names it — D-315) —
+A module-test crossing — a decision turned one-way, a trade-off that appeared, a sync/heavy surface
+noticed mid-build, or a phase-4 seat's verdict (a mechanism found mid-run is not a crossing: the
+D-row names it — D-315) —
 **first materialises the seed** (the
 phase-2 `design.md` plus a `## RESUME` block naming the test crossed; before the design exists, that
 block alone), then closes. ⚠️ **`UPGRADE:` must BEGIN the value, and the record takes the FIRST WHITESPACE TOKEN after it** —
-lead with `files` · `oneway` · `tradeoffs` · `seat` · `sync` · `heavy` · `contract` · `new-source` ·
-`behaviours` · `appetite`, then a dash and the detail. Nothing downgrades mid-run:
+lead with `files` · `oneway` · `tradeoffs` · `seat` · `sync` · `heavy` (v1 and v2) · *(v2)*
+`contract` · `new-source` · `behaviours` · `appetite`, then a dash and the detail. Nothing
+downgrades mid-run:
 
 - **To the spec chain** (`files`, `oneway`, `tradeoffs`, `seat`) — the build stops and
   `/fabrik-spec` opens seeded with that file, by your hand:
@@ -148,5 +164,8 @@ python3 scripts/command_run.py handoff --command fabrik-task \
   not `handoff`: nothing stays open. ⚠️ A `sync` claim the close cannot verify from the commit's paths
   is REFUSED — if no sync path survived into the commit it was `heavy`, or none.
 
-The last four the CLOSE raises itself, from the commit, never typed by hand: `contract`/`new-source`
-REFUSE `done`/`handoff` until `--review <receipt>` names one; `behaviours`/`appetite` are findings only.
+*(v2)* The last four — `contract` · `new-source` · `behaviours` · `appetite` — the close ALSO raises
+itself, from the commit, WHETHER OR NOT you typed them: `contract`/`new-source` REFUSE `done`/
+`handoff` until `--review <receipt>` names one; `behaviours`/`appetite` are findings only. Typing
+one early only pins which proof text the row records — the close's own re-measure, never your
+text, decides whether `--review` is owed.
