@@ -2709,3 +2709,59 @@ claims:
     verify: "https://artificialanalysis.ai/speech-to-text (exa + WebFetch + firecrawl, 2026-10-02; ledger st-03, op-04)"
     window_days: 180
     last_verified: 2026-10-02
+  - id: claude-vision-understanding-only
+    pack: ai/20-vision.md
+    kind: platform
+    claim: "Claude is an image understanding model only: it reads JPEG, PNG, WebP and GIF (first frame) and cannot generate or edit images; `claude -p` reads an image through its Read tool headless"
+    verify: "https://platform.claude.com/docs/en/build-with-claude/vision ; https://code.claude.com/docs/en/tools-reference (exa + WebFetch, 2026-10-02; local claude -p probe; ledger ig-08, iu-01, iu-08, oc-01)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: claude-vision-limits
+    pack: ai/20-vision.md
+    kind: platform
+    claim: "Anthropic documents Claude's vision limits: approximate coordinates and counts, errors on very small, rotated or low-quality images, no naming of people, no AI-image detection, not for medical scans; past 20 images in a request (earlier turns and tool results count) an image over 2000 px a side is rejected; models before the high-resolution tier read images at a lower long-edge ceiling"
+    verify: "https://platform.claude.com/docs/en/build-with-claude/vision (WebFetch + brave, 2026-10-02; ledger iu-02, iu-07, op-05, op-06)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: recraft-vector-and-styles
+    pack: ai/20-vision.md
+    kind: practice
+    claim: "Recraft's API returns native SVG from its vector models and holds brand styles by style id"
+    verify: "https://www.recraft.ai/docs/api-reference/endpoints (exa + brave, 2026-10-02; ledger ig-02)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: image-gen-tier-prices
+    pack: ai/20-vision.md
+    kind: pricing
+    claim: "Recraft's current model costs about $0.035 a raster image and $0.08 a vector, its Flash tier about $0.007; FLUX's small klein model starts near $0.014 an image and its pro tier near $0.03 a megapixel"
+    verify: "https://www.recraft.ai/docs/api-reference/pricing ; https://docs.bfl.ml/quick_start/pricing (exa + WebFetch, 2026-10-02; ledger ig-03, ig-06)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: flux-open-weight-licences
+    pack: ai/20-vision.md
+    kind: policy
+    claim: "FLUX's small klein weights are Apache-2.0, while its larger klein, dev and Kontext dev weights carry the FLUX Non-Commercial License; BFL no longer hosts the schnell model"
+    verify: "https://docs.bfl.ml/flux_2/flux2_overview ; https://docs.bfl.ml/quick_start/pricing (exa + WebFetch, 2026-10-02; ledger ig-04, ig-05)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: detection-pose-licences
+    pack: ai/20-vision.md
+    kind: policy
+    claim: "Ultralytics YOLO is AGPL-3.0 for code and trained models, so closed-source commercial use needs its paid Enterprise License; OpenPose is licensed for noncommercial research only; MediaPipe is Apache-2.0 and its Object Detector task detects the 80 COCO classes in images, video and live streams"
+    verify: "https://www.ultralytics.com/license ; https://github.com/CMU-Perceptual-Computing-Lab/openpose ; https://github.com/google-ai-edge/mediapipe ; https://ai.google.dev/edge/mediapipe/solutions/vision/object_detector/python (WebSearch + brave + WebFetch, 2026-10-02; ledger iu-09, iu-11, iu-12, oc-02)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: managed-ocr-prices
+    pack: ai/20-vision.md
+    kind: pricing
+    claim: "Google Cloud Vision text detection and AWS Textract Detect Document Text both cost about $1.50 per 1,000 pages at low volume; Textract's tables and forms cost more per page"
+    verify: "https://cloud.google.com/vision/pricing ; https://aws.amazon.com/textract/pricing/ (WebFetch + exa + brave, 2026-10-02; ledger iu-13, iu-14)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: doc-ocr-specialists-lead
+    pack: ai/20-vision.md
+    kind: practice
+    claim: "On the OmniDocBench document-OCR leaderboard small dedicated parsers lead general vision-language models, and no Claude model is listed"
+    verify: "https://github.com/opendatalab/OmniDocBench (WebFetch + WebSearch + brave, 2026-10-02; ledger iu-19)"
+    window_days: 120
+    last_verified: 2026-10-02
