@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-plan-review holds the small-spec gate; /fabrik-execute-plan passes each phase's appetite (2026-10-02)
+
+`commands/_sources/fabrik-plan-review.md` (plan 2026-10-02-plan-1, T05c; spec D10): a plan built from a spec carrying `Size: small` grades the spec and the plan in ONE joint loop with `--surface` naming both, mints its CONVERGED flip rows, and holds the design-approval gate the small spec skipped; a plan that outgrows the estimate sends the spec back to `/fabrik-spec-review`. `commands/_sources/fabrik-execute-plan.md` (D11): each phase starts `step --appetite <the phase's Appetite:>` (a ticket's in dispatcher mode, omitted when none is declared), so `line` shows `elapsed <m>/<appetite>` and, past 2×, the order to re-plan the rest of that phase — an order and a recorded `over_appetite_phases`, never a forced cancel. The grader anchors each governing sentence and refuses its negation (W-afe28a4a).
+
 ### Changed — /fabrik-task's own text and the run-record protocol for lane v2 (2026-10-02)
 
 `commands/_sources/fabrik-task.md` (plan 2026-10-02-plan-1, T07) gains, each tagged lane v2 with its v1 behaviour beside it: the design note's `## Behaviours` list (at most 7), the multi-commit build (`--commit A B`; one commit for a sync-path run in the main checkout), `--design-amend` as the answer to an undeclared-path refusal, the review flavour by surface, the four close-raised UPGRADE tokens (`contract`, `new-source`, `behaviours`, `appetite`) and independent slices as separate runs; the SIZE paste line carries `consumers=`. `commands/_fragments/scope-growth-exit.md` states the in-lane stop. `docs/reference/command-run-protocol.md` documents every new flag and feedback field as T08 writes them. The 2026-09-17 lane spec carries a SUPERSEDED-IN-PART banner. The grader anchors each governing sentence at both boundaries, so negations fail.
