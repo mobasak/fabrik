@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T21:40:37.647323Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-efe1b6b5",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure how often backrest reads unknown after the coverage audit ships, then add a 24h rule on fabrik_audit_status{registrar=\"backrest\",status=\"unknown\"}",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "No alert fires on a long-lived backrest audit 'unknown': configs/prometheus/rules/fabrik-drift.yml has no rule on fabrik_audit_status, so a structurally broken probe (jq, sudo, Backrest container name) disables the coverage check silently — Opus 5.5 critique of W-5c4ad6a6"
+}

@@ -1,0 +1,26 @@
+{
+  "block_digest": "5a8c83c383280d41437bdeda4e2b13c3a95d13ed6b11411a23df38db6e446216",
+  "blocked_by": [],
+  "created": "2026-10-02T21:26:30.733653Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-04fecade",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "e97173cb5f2dce98c0b5a4e88397e439e250b557f8e4a969d02e967125211c3e"
+  ],
+  "next": "",
+  "note": "revise",
+  "owner": "",
+  "priority": 2,
+  "question": "Should I revise the backrest design as above (check-and-warn only, plus the fixes both critics agree on), then re-run the plan review before asking for approval again?",
+  "status": "done",
+  "title": "Should I revise the backrest design as above (check-and-warn only, plus the fixes both critics agree on), then re-run the plan review before asking for approval again?"
+}

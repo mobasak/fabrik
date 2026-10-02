@@ -1,23 +1,23 @@
 # Plan — backrest coverage: protect what a service persists, never a path that does not exist (W-5c4ad6a6)
 
-Status: CONVERGED (/fabrik-plan-review 2026-10-02: passes 16→7→0 confirmed; spec flipped with it) — awaiting the operator's design approval
+Status: DRAFT (revised 2026-10-03 on the operator's ruling D-518 — check-and-warn only, after the Opus 5.5 and Fable 5.1 critiques; re-review owed)
 Profile: small
 **Owner:** fleet
 
 Spec: `docs/superpowers/specs/2026-10-02-backrest-paper-backups-design.md` (DRAFT, `Size: small`, `Profile: delta` —
 `/fabrik-plan-review` grades its sections together with this plan and flips both). Research ledger:
 `docs/reference/research/2026-10-02-backrest-paper-backups-ledger.md` (37 rows). Work item: W-5c4ad6a6. Estimated diff:
-≈270 code lines in 3 code files, tests excluded (`spec § Size`; re-derived at plan-review pass 2: `drivers/backrest.py`
-≈160, `orchestrator/infrastructure.py` ≈45, `audit.py` ≈70 replacing ≈60 — within `Profile: small`'s ≤ ~400).
+≈210 code lines in 3 code files, tests excluded (`spec § Size`; re-derived for the revision: `drivers/backrest.py`
+≈110, `orchestrator/infrastructure.py` ≈30, `audit.py` ≈70 replacing ≈60 — within `Profile: small`'s ≤ ~400).
 
 ## What this plan is
 
 Three inline phases (the orchestrator codes each itself in the worktree; no coder is dispatched):
 
-- **A — discovery and coverage in the driver:** `discover_persistence`, `read_plans`, `coverage`, `visible` in
-  `src/fabrik/drivers/backrest.py`, with their tests.
-- **B — the registrar, the audit and the rollback guard:** `_provision_backrest` and `audit_backrest` both run the spec's
-  table through Phase A's functions; the registrar records a resource only for a plan it created.
+- **A — discovery, trust and coverage in the driver:** `discover_persistence`, `read_plans`, `visible`, `trusted`,
+  `coverage` in `src/fabrik/drivers/backrest.py`, with their tests. Read-only functions only.
+- **B — the registrar warns, the audit reports:** `_provision_backrest` stops writing plans and logs the check;
+  `audit_backrest` reports the spec's table. Neither writes, edits or deletes a plan.
 - **C — docs, the infra proposal and Finish:** the doc landing sites, the mail to infra about the `30-ops` checklist line,
   the heavy `/fabrik-review` over the whole-plan diff, and the rollout steps the operator runs.
 
@@ -33,13 +33,16 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | I3 | DB-only services (zitadel) | IN | Phase A discovery (database path) + Phase B |
 | I4 | `FabrikRegistrarDrift` fires for tryton-crm and zitadel | IN | Phase B audit + rollout V3-V4 |
 | I5 | heal the live paper plans | IN | Rollout V4 — OPERATOR-GATED |
-| I6 | every scaffold type and spokes | IN | Phase B (the `not visible to Backrest` branch) |
+| I6 | every scaffold type and spokes | IN | Phase B (checks run on the target VPS; an uncovered path is reported, never planned) |
 | I7 | never delete a live plan without the operator's go | IN | Global Constraints; no code path deletes |
-| I8 | rollback removes a plan it did not create | IN | Phase B (B5) |
+| I8 | rollback removes a plan it did not create | IN | moot — the registrar records no resource (B5) |
 | I9 | an empty or stale snapshot alert | OUT-OF-SCOPE | W-43904006 |
 | I10 | the four test specs with nothing to persist | OUT-OF-SCOPE | the audit names them (B4's shape-mismatch row); their owners fix the flag |
 | I12 | `refresh_infrastructure` never sets `ctx.target_vps`, so a refresh runs every registrar against vps1 (pre-existing; found at plan-review pass 2) | OUT-OF-SCOPE | W-c5b9397b |
 | I11 | the `30-ops` checklist line (fleet-synced, infra's beat) | IN | Phase C step 1 — a proposal to infra, never an edit here |
+| I13 | operator: *"revise"* — check-and-warn only, plus the fixes both critiques agree on (D-518) | IN | Phases A-B, rollout V0 |
+| I14 | services that mount volumes with `has_persistent_data` false (job-agent, seo) | OUT-OF-SCOPE | W-c60d5708 |
+| I15 | no alert on a long-lived backrest `unknown` | OUT-OF-SCOPE | W-efe1b6b5 |
 
 ## What we already agreed (citations, not restatement)
 
@@ -54,13 +57,15 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 
 ## Global Constraints (every phase inherits these)
 
-- **The code this plan adds never deletes or edits a backup plan.** The registrar only adds `<name>-data` for uncovered,
-  visible paths and only when no `<name>-data` exists; the audit is read-only; removing a paper plan is rollout V4, run on
-  the operator's go (`spec § The delta` D5). `fabrik destroy` keeps removing the service's own `<name>-data`
-  (`orchestrator/destroyer.py:213-226`, unchanged) and rollback removes only a plan this run created (B5).
-- **A plan is never written with zero paths, and never for a path Backrest cannot stat** (ledger brk-4, brk-5).
-- **Secrets stay on the VPS:** `read_plans` extracts `id`, `paths` and `excludes` with `jq` on the VPS; the repo
-  section of `config.json` (B2 credentials, `drivers/backrest.py:22-25`) never crosses SSH or reaches a log.
+- **No code this plan adds writes, edits or deletes a backup plan** (D-518). The registrar's `add_backup_plan` call goes;
+  it warns instead. Removing a paper plan is rollout V4, run on the operator's go (`spec § The delta` D5). `fabrik destroy`
+  keeps removing a legacy `<name>-data` (`orchestrator/destroyer.py:213-226`, unchanged).
+- **A plan is trusted only when Backrest can run it over the path** (`spec § Chosen approach`): every plan path visible,
+  schedule not disabled, no `iexcludes`, no `backup_flags`, no exclude that can match. A doubt reads uncovered — a warning,
+  never a false `present`.
+- **Secrets stay on the VPS:** `read_plans` extracts `id`, `paths`, `excludes`, `iexcludes`, `backup_flags` and
+  `schedule.disabled` with `jq` on the VPS; the repo section of `config.json` (B2 credentials, `drivers/backrest.py:22-25`)
+  never crosses SSH or reaches a log.
 - **Discovery is read-only and its exit status is honest:** each probe runs under `bash -o pipefail` with zero
   containers handled as its own branch, and the output is parsed in Python (the class closed in W-c6d27660, 9b6137382);
   a failed probe returns `None` and is `unknown`, never a confident `present` or `drift`.
@@ -107,131 +112,121 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | "Mandate: config via env vars only (`os.getenv("KEY", "default")`)" | `.windsurf/rules/core/35-security-auth.md:267` | Config |
 | "**Watched-fail-first** (for tests this change adds or modifies" | `.windsurf/rules/core/45-testing-strategy.md:22` | Red first |
 
-## Phase A — Discovery and coverage in the driver
+## Phase A — Discovery, trust and coverage in the driver
 
-Appetite: 45
+Appetite: 40
 
 **Interfaces — Produces** (all in `src/fabrik/drivers/backrest.py`, after the per-database section that ends at `:370`;
-`spec § Chosen approach` and `spec § The delta` D1-D2 are the behaviour):
+`spec § Chosen approach` and `spec § The delta` D1-D2 are the behaviour; every function is read-only):
 - `Persistence` — a frozen dataclass: `containers: int`, `paths: list[str]`, `db_name: str | None`.
 - `discover_persistence(name: str, db_name: str | None) -> Persistence | None` — one `ssh` call (the module's `ssh`,
   `drivers/backrest.py:49`) running a `bash -o pipefail -c` script: container ids by
   `docker ps -aq --filter label=com.docker.compose.project=<name>`, else by docker's own name filters
-  `--filter name=^<name>$ --filter name=^<name>-` (same-key filters are OR'ed; no `grep` in the pipeline); no ids → print
-  `NOCONTAINERS` and exit 0; else `docker inspect --format` one `"<Type>\t<Source>"` line per mount, keeping `volume`
-  lines and `bind` lines whose Source is under `/opt/<name>/` and passes `test -d`. Parsed in Python into sorted unique
-  paths; `/opt/backups/postgres/<db_name>/` is NOT added here (the database is checked by D2's rule in Phase B). `name`
-  is validated with `^[a-z0-9][a-z0-9-]{0,62}$` (the deployer's `_NAME_RE`, `orchestrator/deployer_ssh.py:31`) and a
-  given `db_name` with `_validate_db_name` (`drivers/backrest.py:307-315`) before either reaches a shell — an invalid
-  `name` raises `ValueError`, an invalid `db_name` is dropped (returned as `None`) with a warning. `None` when the SSH call
-  raises.
-- `read_plans() -> list[dict] | None` — `sudo jq -c '[.plans[]? | {id, paths: (.paths // []), excludes: (.excludes // [])}]'
+  `--filter name=^<name>$ --filter name=^<name>-` (same-key filters are OR'ed; no `grep`); no ids → print `NOCONTAINERS`
+  and exit 0; else `docker inspect --format` one `"<Type>\t<Source>\t<RW>"` line per mount, keeping `volume` lines and
+  `bind` lines that are writable and pass `test -d`. Parsed in Python into sorted unique paths. `name` is validated with
+  `^[a-z0-9][a-z0-9-]{0,62}$` (the deployer's `_NAME_RE`, `orchestrator/deployer_ssh.py:31`) and a given `db_name` with
+  `_validate_db_name` (`drivers/backrest.py:307-315`) before either reaches a shell — an invalid `name` raises
+  `ValueError`, an invalid `db_name` is dropped (returned as `None`) with a warning. `None` when the SSH call raises.
+- `read_plans() -> list[dict] | None` — `sudo jq -c '[.plans[]? | {id, paths: (.paths // []), excludes: (.excludes // []),
+  iexcludes: (.iexcludes // []), backup_flags: (.backup_flags // []), disabled: (.schedule.disabled // false)}]'
   /opt/backrest/config/config.json` over `ssh`; parsed with `json.loads`; `None` on any failure.
-- `coverage(paths: list[str], plans: list[dict]) -> dict[str, str | None]` — pure: trailing slashes stripped on both
-  sides; a path is covered by the first plan (by id) that lists it or a parent of it (`p == q` or
-  `p.startswith(q + "/")`) and none of whose excludes match the path or an ancestor below the plan root, component-wise:
-  `**` spans any number of components, `*`/`?`/`[]` match within one component (`fnmatch.fnmatchcase` per component), a
-  pattern without `/` matches any single component name, and a pattern not starting with `/` matches at any depth (as if
-  it began with `**/`). `None` when no plan covers it.
 - `visible(paths: list[str]) -> set[str] | None` — one `ssh` call: the Backrest container resolved with the module's
   pattern `^backrest(-|$)` (`drivers/backrest.py:152`) behind an explicit empty-name guard that exits non-zero, then
   `test -e` per path inside it; returns the visible subset (empty set for an empty input, no SSH); `None` on failure.
-- `extend_backup_plan(plan_id: str, add_paths: list[str]) -> dict` — under the same `run_locked("backrest-config", …)`
-  flock and backup/validate/replace/restart steps as `_build_add_script` (`drivers/backrest.py:109-155`), a `jq` update that
-  sets the plan's `paths` to the sorted union of its paths and `add_paths`; never removes a path; `{"status": "extended" |
-  "unchanged" | "not_found", "plan": plan_id}`; `ValueError` on an empty `add_paths`.
-- `POSTGRES_CLUSTER_PLAN = "postgres-dumps"` — the whole-cluster dump plan id
-  (`docs/infrastructure/vps-complete-inventory.md:556`).
+- `trusted(plan: dict, vis: set[str]) -> bool` — pure: every plan path in `vis`, not `disabled`, empty `iexcludes`,
+  empty `backup_flags`.
+- `coverage(paths: list[str], plans: list[dict], vis: set[str]) -> dict[str, str | None]` — pure: trailing slashes
+  stripped; a path is covered by the first trusted plan (by id) that lists it or a parent of it (`p == q` or
+  `p.startswith(q + "/")`) and none of whose excludes can match it — an exclude matches when its LAST `/`-component
+  `fnmatch.fnmatchcase`-matches any component of the path below the plan root, and any exclude containing `[` matches.
+  `None` when no trusted plan covers it.
 
 **Consumes:** nothing.
 
 1. **Write the failing tests first** in `tests/test_backrest_coverage.py` (new; rows A1-A6), patching
    `fabrik.drivers.backrest.ssh` with a fake that returns recorded `docker inspect`/`jq`/`test -e` outputs (the
-   `patch.object(backrest, ...)` pattern of `tests/drivers/test_backrest.py:127-140`). Confirm each fails with `AttributeError` for the right name.
-2. Add the four functions per the Interfaces; export them in `__all__` (`drivers/backrest.py:396-408`).
+   `patch.object(backrest, ...)` pattern of `tests/drivers/test_backrest.py:127-140`). Confirm each fails with
+   `AttributeError` for the right name.
+2. Add the functions per the Interfaces; export them in `__all__` (`drivers/backrest.py:396-408`).
 3. Run green: `cd /opt/fabrik/.claude/worktrees/fleet && PYTHONPATH=$PWD/src .venv/bin/python -m pytest
    tests/test_backrest_coverage.py tests/drivers/test_backrest.py tests/test_backrest_postgres_plan.py -q -p no:cacheprovider`.
 4. Prove red on revert in a throwaway worktree (`git worktree add --detach <scratch>/pa HEAD`, copy the edited files):
-   neuter the trailing-slash in `coverage`'s prefix test → A1's sibling-prefix row fails; drop the exclude check → A1's
-   exclude row fails; remove the worktree.
+   drop the `"/"` in `coverage`'s prefix test → A1's sibling-prefix case fails; let `trusted` ignore `backup_flags` →
+   A2 fails; remove the worktree.
 5. **`/fabrik-review-scoped`** on Phase A's surface (`src/fabrik/drivers/backrest.py`, `tests/test_backrest_coverage.py`),
    run to its closing pass confirming 0 — BLOCKING before Phase B.
 6. Commit Phase A (explicit paths + provenance trailers, `Agent-Phase: A`), push.
 
 ### Behavior Contract — Phase A
-- **Given** plans `docker-volumes` (`/var/lib/docker/volumes`, excluding `**/prom-data`) and `opt-configs` (`/opt/`, excluding `cache`), **When** `coverage` runs over `/var/lib/docker/volumes/x_y/_data`, `/var/lib/docker/volumes/prom-data/_data`, `/opt/a/data`, `/opt/a/cache/sub`, `/opt/ab` and `/srv/z`, **Then** it maps them to `docker-volumes`, `None`, `opt-configs`, `None`, `opt-configs` and `None`, and `/opt/a/x/cache` is NOT excluded by a pattern `/opt/*/cache` (A1; `spec § Chosen approach`, coverage)
-- **Given** the probe prints a volume mount, a bind directory under `/opt/<name>/` and nothing for the socket and file binds the script filtered, **When** `discover_persistence(name, "db")` runs, **Then** it returns `Persistence(containers>0, [the volume Mountpoint, /opt/<name>/data], "db")` (A2; `spec § The delta` D1)
-- **Given** the probe prints `NOCONTAINERS`, **When** `discover_persistence` runs, **Then** it returns `Persistence(0, [], db)`, and the script sent over SSH starts with `bash -o pipefail` and carries both the label filter and the name fallback (A3; `spec § Chosen approach`)
-- **Given** the SSH call raises, **When** `discover_persistence`, `read_plans` or `visible` runs, **Then** each returns `None`; **Given** a hyphenated name `tryton-crm`, **Then** validation passes, and an invalid name raises `ValueError` before any SSH call (A4; `spec § The delta` D1-D2)
-- **Given** a `config.json` with a repo section carrying credentials, **When** `read_plans` runs, **Then** the command sent over SSH selects only `id`, `paths` and `excludes`, and the parsed result holds nothing else (A5; `drivers/backrest.py:22-25`)
-- **Given** a plan `svc-data` with paths `[/a]`, **When** `extend_backup_plan("svc-data", ["/b"])` runs, **Then** the locked script sets its paths to `[/a, /b]` and never drops `/a`, a repeat returns `unchanged`, an unknown id returns `not_found`, and an empty `add_paths` raises `ValueError` (A6; `drivers/backrest.py:109-155`)
+- **Given** trusted plans `docker-volumes` (`/var/lib/docker/volumes`, excluding `prom-data`) and `opt-configs` (`/opt/`, excluding `**/cache`), all paths visible, **When** `coverage` runs over `/var/lib/docker/volumes/x_y/_data`, `/var/lib/docker/volumes/prom-data/_data`, `/opt/a/data`, `/opt/a/cache/sub`, `/opt/ab/x` and `/srv/z`, **Then** it maps them to `docker-volumes`, `None`, `opt-configs`, `None`, `opt-configs` and `None`; and a plan listing `/opt/a` never covers `/opt/ab` (A1; `spec § Chosen approach`, coverage)
+- **Given** a plan that covers a path by prefix but carries `iexcludes`, or `backup_flags`, or a disabled schedule, or one path that is not visible, or an exclude containing `[`, **When** `trusted`/`coverage` run, **Then** that path is `None` in each case (A2; `spec § Chosen approach`, trust)
+- **Given** the probe prints a volume mount, a writable bind directory outside `/opt/<name>/` and nothing for the read-only, file and socket binds the script filtered, **When** `discover_persistence(name, "db")` runs, **Then** it returns `Persistence(containers>0, [the volume Mountpoint, the bind dir], "db")` (A3; `spec § The delta` D1)
+- **Given** the probe prints `NOCONTAINERS`, **When** `discover_persistence` runs, **Then** it returns `Persistence(0, [], db)`, and the script sent over SSH starts with `bash -o pipefail` and carries the label filter and both name filters (A4; `spec § Chosen approach`)
+- **Given** the SSH call raises, **When** `discover_persistence`, `read_plans` or `visible` runs, **Then** each returns `None`; **Given** a hyphenated name `tryton-crm`, **Then** validation passes, and an invalid name raises `ValueError` before any SSH call (A5; `spec § The delta` D1-D2)
+- **Given** a `config.json` with a repo section carrying credentials, **When** `read_plans` runs, **Then** the command sent over SSH selects only the six plan fields, and the parsed result holds nothing else (A6; `drivers/backrest.py:22-25`)
 
-## Phase B — The registrar, the audit and the rollback guard
+## Phase B — The registrar warns, the audit reports
 
-Appetite: 50
+Appetite: 45
 
 **Interfaces — Produces:**
 - `src/fabrik/orchestrator/infrastructure.py::_provision_backrest(name, spec, ctx, dry_run, *, with_database: bool)` —
   today `(name, ctx, dry_run)` at `:1137-1147`; the call at `:634-635` passes `spec` (bound `spec = ctx.spec` at `:596`)
   and `with_database=should_run["postgres"]`. Under `dry_run`: log and return, no SSH. Otherwise, inside
-  `deployer_ssh._target_vps_env(ctx)` (`orchestrator/deployer_ssh.py:116-140`): `db = _db_name_for_spec(spec)` when
-  `with_database` (a `ValueError` → warn, `db = None`); `found = discover_persistence(name, db)`; `plans = read_plans()`;
-  either `None` → `_nonfatal` warning, return. `found.containers == 0` → warn ("not running"), return. No paths →
-  warn (shape mismatch), return. `uncovered = [p for p, q in coverage(found.paths, plans).items() if q is None]`; none →
-  log `covered by <ids>`, return. `vis = visible(uncovered + <the existing `<name>-data` paths, if any>)`; `None` → warn, return. An existing
-  `<name>-data` with a path not in `vis` is a paper plan → warn (remove it first, rollout V4), return. Uncovered paths not
-  in `vis` → warn naming each. The visible uncovered ones, if any → `extend_backup_plan(f"{name}-data", …)` when that plan
-  exists, else `add_backup_plan(f"{name}-data", sorted(…), excludes=())`; `ctx.add_resource("backrest",
-  plan_id, ...)` **only when the result's status is `created`**. The database is the audit's to judge (the postgres
-  registrar owns per-database plans).
-- `src/fabrik/audit.py::audit_backrest(spec)` (`:331-390`) — the spec's right column, through the Phase A functions inside
-  the same env swap (a `SimpleNamespace(target_vps=...)` passed to `_target_vps_env`, the target resolved as `fabrik
-  destroy` does without the CLI flag: `<FABRIK_ROOT>/.fabrik/state/<id>.json` `target_vps` (anchored at `fabrik.config.FABRIK_ROOT`, never the working
-  directory — `cli.py:960-961` reads it relative to the cwd), then the spec field, then `vps1` — `cli.py:955-970`; the driver calls follow `FABRIK_VPS_SSH_HOST`, default `vps`, `drivers/ssh.py:31`). Order: any
-  probe `None` → `unknown`; collect findings: a `<sid>-data` plan whose paths are not all visible → `paper plan <id>:
-  remove it`; zero containers → status `missing` ("not running on <host>") unless a paper plan was found (then `drift`);
-  containers but no path and the database not engaged → shape mismatch; each uncovered path → `unprotected` (naming
-  whether Backrest can stat it); each covered path not visible → `<path> missing`; the database → covered when
-  `/opt/backups/postgres/<db>/` is visible and covered, or `POSTGRES_CLUSTER_PLAN` is in `plans`, else `database <db> not
-  covered`. Any finding → `drift` with every finding in `detail` and `actual`; none → `present` with
-  `actual={"covered_by": {path: plan_id}}`. `_missing_host_paths` (`audit.py:314-328`) is removed.
-- **Mirror (named):** tests that patch only `add_backup_plan` and assert a `backrest` resource or call now need the Phase A
-  functions patched: `tests/orchestrator/test_infrastructure.py::test_dry_run_passes_through_to_every_driver`
-  (`:380-420` — becomes "no backrest driver call under dry run"), `::test_resource_tracking_populates_ctx` (`:443-488`),
-  `TestSoftFailures::test_each_driver_failure_is_swallowed` (`:500-530` — its `add_backup_plan` case must reach the
-  driver, so the Phase A fakes return an uncovered visible path), and
-  `tests/orchestrator/test_e2e_rollback.py` (`:215-226`, `:305-312`, `:336-342` — the rollback-order assertion keeps
-  `backrest` only because the fakes make the registrar create the plan). `TestAuditBackrest` (`tests/test_audit.py:215-305`)
-  is rewritten to the new rows. Consumers: the cron maps any status generically (`scripts/audit_all_registrars.py:85-107`),
-  `fabrik audit-registrars` renders any status (`src/fabrik/cli.py:1430-1446`), and the post-deploy postcondition fails
-  only on `missing` (`src/fabrik/verify.py:239-276`) — after a deploy that now means discovery could not find the
-  containers, which fails loudly (`spec § Contract deltas`).
+  `deployer_ssh._target_vps_env(ctx)` (`orchestrator/deployer_ssh.py:116-140`), it runs the same check as the audit
+  (one shared helper, `audit.backrest_findings(...)`, below) and logs each finding as a warning, or `covered by <ids>`.
+  It calls no plan-writing driver function (`add_backup_plan` is no longer imported here) and records no resource. A
+  probe failure is a `_nonfatal` warning.
+- `src/fabrik/audit.py::backrest_findings(name, spec, *, with_database) -> tuple[str, list[str], dict]` — the shared
+  check, returning `(status, findings, actual)`: any probe `None` → `("unknown", …)`; collect findings: a plan tied to the
+  spec — `<sid>-data` or `postgres-<db>` — with a path not visible → `paper plan <id>: remove it`; zero containers →
+  status `missing` ("not running on <host>") unless a paper plan was found (then `drift`); containers but no path and the
+  database not engaged → shape mismatch; each path `coverage` maps to `None` → `unprotected: <path>`; the database →
+  covered when `/opt/backups/postgres/<db>/` or a `postgres-main` volume path (from `discover_persistence("postgres-main",
+  None)`) is covered, else `database <db> not covered`. Any finding → `drift`; none → `present` with
+  `actual={"covered_by": {path: plan_id}}`.
+- `src/fabrik/audit.py::audit_backrest(spec)` (`:331-390`) — calls `backrest_findings` inside the same env swap (a
+  `SimpleNamespace(target_vps=...)` passed to `_target_vps_env`, the target resolved as `fabrik destroy` does without the
+  CLI flag: `<FABRIK_ROOT>/.fabrik/state/<id>.json` `target_vps` (anchored at `fabrik.config.FABRIK_ROOT`, never the
+  working directory — `cli.py:960-961` reads it relative to the cwd), then the spec field, then `vps1` —
+  `cli.py:955-970`; the driver calls follow `FABRIK_VPS_SSH_HOST`, default `vps`, `drivers/ssh.py:31`) and wraps the
+  result in `AuditResult`. `_missing_host_paths` (`audit.py:314-328`) is removed.
+- **Mirror (named):** tests that patch `add_backup_plan` and assert a `backrest` resource or call now assert the opposite
+  — no plan write, no resource: `tests/orchestrator/test_infrastructure.py::test_dry_run_passes_through_to_every_driver`
+  (`:380-420` — "no backrest driver call under dry run"), `::test_resource_tracking_populates_ctx` (`:443-488` — no
+  `backrest` resource), `TestSoftFailures::test_each_driver_failure_is_swallowed` (`:500-530` — its `add_backup_plan`
+  case is replaced by a failing `discover_persistence`), and `tests/orchestrator/test_e2e_rollback.py` (`:215-226`,
+  `:305-312`, `:336-342` — the expected resources and the rollback order lose `backrest`). `TestAuditBackrest`
+  (`tests/test_audit.py:215-305`) is rewritten to the new rows. Consumers: the cron maps any status generically
+  (`scripts/audit_all_registrars.py:85-107`), `fabrik audit-registrars` renders any status (`src/fabrik/cli.py:1430-1446`),
+  and the post-deploy postcondition fails only on `missing` (`src/fabrik/verify.py:239-276`) — after a deploy that now
+  means discovery could not find the containers, which fails loudly (`spec § Contract deltas`).
 
-**Consumes:** Phase A's four functions.
+**Consumes:** Phase A's functions.
 
 1. **Write the failing tests first:** rows B1-B4 and B6 in `tests/test_audit.py` (`TestAuditBackrest` rewritten) and B5,
-   B7, B8 in `tests/orchestrator/test_infrastructure.py` (new tests beside `TestProvisionDispatch`, `:344`), patching the Phase A
+   B7 in `tests/orchestrator/test_infrastructure.py` (new tests beside `TestProvisionDispatch`, `:344`), patching the Phase A
    functions. Confirm red against today's code.
-2. Edit `_provision_backrest` and its call per the Interfaces.
-3. Edit `audit_backrest` per the Interfaces; remove `_missing_host_paths`.
+2. Add `backrest_findings`; rewrite `audit_backrest` on it; remove `_missing_host_paths`.
+3. Rewrite `_provision_backrest` and its call per the Interfaces.
 4. Update the named mirror tests (`tests/orchestrator/test_infrastructure.py`, `tests/orchestrator/test_e2e_rollback.py`).
 5. Run green: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_audit.py tests/orchestrator/
    tests/test_backrest_coverage.py tests/drivers/test_backrest.py -q -p no:cacheprovider`.
-6. Prove red on revert in a throwaway worktree: restore `add_resource` on `exists` → B5 fails; make the registrar skip the
-   `visible` check → B2's invisible row fails; drop the env swap → B7 fails; remove the worktree.
+6. Prove red on revert in a throwaway worktree: restore the `add_backup_plan` call → B5 fails; drop the env swap → B7
+   fails; make the database rule accept a `postgres-dumps` id → B6 fails; remove the worktree.
 7. **`/fabrik-review-scoped`** on Phase B's surface (`src/fabrik/orchestrator/infrastructure.py`, `src/fabrik/audit.py`,
    the three test files), run to its closing pass confirming 0.
 8. Commit Phase B (`Agent-Phase: B`), push.
 
 ### Behavior Contract — Phase B
-- **Given** a service whose every discovered path is covered and visible, **When** the registrar runs, **Then** it calls no `add_backup_plan` and records no resource, and **When** the audit runs, **Then** it returns `present` with each path's covering plan (B1; `spec § Chosen approach`)
-- **Given** two uncovered paths, one Backrest can stat and one it cannot, and no `<name>-data` plan, **When** the registrar runs, **Then** it calls `add_backup_plan("<name>-data", [the visible path], excludes=())` once and warns naming the other, and the audit returns `drift` naming the invisible path (B2; `spec § The delta` D3)
-- **Given** a `<sid>-data` plan whose path Backrest cannot stat, **When** the registrar runs, **Then** it writes nothing, and **When** the audit runs, **Then** it returns `drift` with `paper plan <sid>-data: remove it` alongside any other finding (B3; `spec § The delta` D5)
-- **Given** zero containers, or containers with no persistent path and no database, or `visible` returning `None`, **When** the audit runs, **Then** it returns `missing`, `drift` (shape mismatch) and `unknown` respectively, and the registrar writes nothing in each case (B4; `spec § Chosen approach`)
-- **Given** `add_backup_plan` returns `exists`, **When** the registrar runs, **Then** no `backrest` resource is recorded, so a later rollback cannot remove a plan this run did not create (B5; `src/fabrik/orchestrator/rollback.py:153-154`)
-- **Given** a database with neither a visible per-database dump directory nor a `postgres-dumps` plan, **When** the audit runs, **Then** it returns `drift` naming the database; with `postgres-dumps` present it is covered (B6; `spec § Chosen approach`, database)
+- **Given** a service whose every discovered path is covered by a trusted plan, **When** the audit runs, **Then** it returns `present` with each path's covering plan, and the registrar logs `covered by` and writes nothing (B1; `spec § Chosen approach`)
+- **Given** a path no trusted plan covers, **When** the audit runs, **Then** it returns `drift` with `unprotected: <path>`, and the registrar logs the same as a warning (B2; `spec § The delta` D3-D4)
+- **Given** a `<sid>-data` or a `postgres-<db>` plan with a path Backrest cannot stat, **When** the audit runs, **Then** it returns `drift` with `paper plan <id>: remove it` alongside any other finding (B3; `spec § The delta` D5)
+- **Given** zero containers, or containers with no persistent path and no database, or a probe returning `None`, **When** the audit runs, **Then** it returns `missing`, `drift` (shape mismatch) and `unknown` respectively (B4; `spec § Chosen approach`)
+- **Given** any branch of the registrar, including an uncovered path, **When** it runs, **Then** no plan-writing driver function is called and no `backrest` resource is recorded (B5; `spec § The delta` D3)
+- **Given** a database whose dump directory and `postgres-main` volume are both uncovered while a plan named `postgres-dumps` exists, **When** the audit runs, **Then** it returns `drift` naming the database; with the `postgres-main` volume covered by a trusted plan it is covered (B6; `spec § Chosen approach`, database)
 - **Given** a context whose `target_vps` the test sets to `vps2` (the `_ctx` helper leaves it at `vps1`, `src/fabrik/orchestrator/context.py:50`), **When** the registrar runs, **Then** every backrest SSH call happens with `FABRIK_VPS_SSH_HOST=vps2` and the variable is restored afterwards (B7; `orchestrator/deployer_ssh.py:116-140`)
-- **Given** a healthy `<name>-data` (every path visible) and a new uncovered visible path, **When** the registrar runs, **Then** it calls `extend_backup_plan("<name>-data", [the new path])` and never `add_backup_plan`; with a paper `<name>-data` it calls neither (B8; `spec § Chosen approach`)
 
 ## Phase C — Docs, the infra proposal and Finish
 
@@ -239,9 +234,9 @@ Appetite: 40
 
 **Interfaces — Produces:**
 - Docs (`spec § Documentation landing sites`): `docs/reference/modules/drivers.md` § Backrest (`:158-170`, and the module
-  table row `:33`) gains the four functions and the rule "a per-service plan only for an uncovered, visible path";
-  `docs/infrastructure/vps-complete-inventory.md` § Backups (`:550-566`) gains one paragraph: per-service plans are
-  created only for paths no host plan covers, and the audit names paper plans; `INDEX.md` row for
+  table row `:33`) gains the read-only functions and the rule "the registrar warns, it never writes a plan";
+  `docs/infrastructure/vps-complete-inventory.md` § Backups (`:550-566`) gains one paragraph: the registrar no longer
+  creates per-service plans, and the audit names uncovered paths and paper plans; `INDEX.md` row for
   `tests/test_backrest_coverage.py`; `CHANGELOG.md` (both governance files: orchestrator-applied, outside File Scope by
   the plan grammar).
 
@@ -265,19 +260,24 @@ Appetite: 40
 6. Commit Phase C (`Agent-Phase: C`), push, then `python3 scripts/merge_request.py request --review <the receipt>
    --item W-5c4ad6a6` and send the printed `SendMessage` line.
 
-**Rollout — OPERATOR-GATED, never executed by an agent (after infra merges into master).**
+**Rollout — OPERATOR-GATED, never executed by an agent.**
+- V0. Before infra merges: the operator runs or approves one read-only probe of vps1 — `sudo jq -c '[.plans[] | {id,
+  paths, excludes, iexcludes, backup_flags, schedule}]' /opt/backrest/config/config.json` and `docker inspect` of the
+  Backrest container's `.Mounts` — because the first hourly run after the merge already alerts. Any host plan that would
+  read untrusted is settled before the merge, not discovered by a page.
 - V3. Read the next hourly cron run's backrest lines in `/var/log/fabrik-audit-all.log` (or run it by hand from the main
   checkout: `PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_all_registrars.py`). Expected:
   tryton-crm and zitadel read `paper plan <id>-data: remove it` with their real paths covered (`docker-volumes`; the
-  database by its `postgres-<db>` dump directory or the `postgres-dumps` plan); every other persistent spec reads `present`, `unprotected`, a missing dump directory, or
-  the shape mismatch — each line read before V4.
+  database by its `postgres-<db>` dump directory or the `postgres-main` volume); every other persistent spec reads
+  `present`, `unprotected`, `database … not covered`, a `postgres-<db>` paper plan, or the shape mismatch — each line read
+  before V4.
 - V4. On the operator's go, remove each paper plan V3 listed (`python -c "from fabrik.drivers.backrest import
   remove_backup_plan; remove_backup_plan('<id>')"` from the main checkout — the driver writes a timestamped `.bak` first,
   `drivers/backrest.py:157-182`). The next hourly run reads `present` for both and `FabrikRegistrarDrift` resolves for the
   backrest registrar.
 
 ### Behavior Contract — Phase C
-- **Given** the merged change, **When** `check_doc_sync.py` and `render_doc_script_links.py --check` run, **Then** both pass and `docs/reference/modules/drivers.md` names the four functions (C1; `spec § Documentation landing sites`)
+- **Given** the merged change, **When** `check_doc_sync.py` and `render_doc_script_links.py --check` run, **Then** both pass and `docs/reference/modules/drivers.md` names the read-only functions (C1; `spec § Documentation landing sites`)
 
 ## File Scope (owned paths)
 
@@ -333,20 +333,23 @@ is a local of `provision()` there.
 
 - Grounding: the spec's three research seats (ledger, 37 rows) and the orchestrator's own reads of every cited line; the
   judge panel re-verified the spec's anchors independently (all three).
-- (a) Coverage: I1-I8 and I11 map to Phases A-C and the rollout; I9, I10 and I12 have named destinations.
-- (b) Signatures: `Persistence`, `discover_persistence`, `read_plans`, `coverage`, `visible`, `extend_backup_plan`,
-  `POSTGRES_CLUSTER_PLAN` (A) are what B calls in both the registrar and the audit; the registrar's new signature is called from one site
-  (`:634-635`); `visible` is `-> set[str] | None` in both spec D2 and Phase A.
-- Fixed point: `/fabrik-plan-review` closed at pass 3 (confirmed 0) — see the Pass Ledger.
+- Revision (D-518): two independent design critiques (Opus 5.5, Fable 5.1); the agreed findings drove the rewrite of
+  Phases A-B (no plan writes; trust rule; database rule; bind discovery; pre-merge probe V0).
+- (a) Coverage: I1-I8, I11 and I13 map to Phases A-C and the rollout; I9, I10, I12, I14 and I15 have named destinations.
+- (b) Signatures: `Persistence`, `discover_persistence`, `read_plans`, `visible`, `trusted`, `coverage` (A) are what
+  `audit.backrest_findings` (B) calls; the registrar and `audit_backrest` both call `backrest_findings`; the registrar's
+  new signature is called from one site (`:634-635`).
+- Not yet at a fixed point: `/fabrik-plan-review` re-runs on the revision.
 
 ## Residual unknowns
 
-- **Open — vps1's live plan list and Backrest binds.** A read-only probe this session was refused (production reads);
-  rollout V3 reads them through the code this plan adds, and a missing host plan reads `drift`, never `present`.
+- **Open — vps1's live plan list, plan flags and Backrest binds.** A read-only probe this session was refused (production
+  reads); rollout V0, operator-gated and before the merge, settles it.
 - **Open — a future compose with a custom `name:`.** The name fallback catches its containers; a miss reads `missing`,
   which fails the post-deploy postcondition loudly.
-- **Open — whether vps1 carries the per-database dump patch** (`docs/operations/deployment.md:512-545`). V3 shows it; the
-  `postgres-dumps` plan covers every database either way.
+- **Open — whether vps1 carries the per-database dump patch** (`docs/operations/deployment.md:512-545`). V0 shows it;
+  without it a database is still covered through the `postgres-main` volume, and a `postgres-<db>` plan over an absent
+  directory reads as a paper plan.
 - **Resolved:** what Backrest does with a missing path (ledger brk-5, brk-7); where the registrar's SSH goes today (vps1 —
   `orchestrator/deployer_ssh.py:156-170`, `orchestrator/__init__.py:174-180`; B7 moves the backrest calls to `target_vps`);
   every consumer of the audit status (Phase B Mirror); compose project names (0 of 39 `/opt/*/compose*` set `name:`).
@@ -364,28 +367,29 @@ Coverage Checklist; spec The delta, Validation, Constraints digest, What exists 
 | Pass 1 | opus×1 (`rules`, 50 citations) + sonnet×1 (`prose`, 24) · all axes | found: 16, new: 16, confirmed: 15, fixed: 15, unexecuted: 0, edits: 2 files | method: citation — full partitioned pass; the orchestrator executed R1 (`deployer_ssh.py:156-170` restores the hub host before `provision()`), R8 (`verify.py:239-276` fails only on `missing`), R9 (the four tests) and the per-database dump step (`deployment.md:512-545`). Confirmed: registrars run hub-side (R1); bind files vs directories (R2); a per-service plan's own excludes (R3); fnmatch vs restic excludes (R4); `visible` `None` (R5); undeployed specs would drift (R6); the dump directory is a manual patch (R7); consumers and tests unnamed (R8, R9); a hyphen-rejecting validator (R10 = P1); pipeline masking in the fallback (R11); an existing plan swallowing new paths (R12); wording (R13); types (R14); the mail body (P2). | 2bda359a3c0257c93adc0799019ba9a5 → d2b0621dde481a6efc8418749e8c2039 · a66034b2cd405d4f3e9c4c3f54dd8fd4 → c29afd45a507fa17397beb819869e98e |
 | Pass 2 | the same two seats over their own ledgers + one hop of the fix diff (a73f6dc72) | found: 7, new: 7, confirmed: 6, fixed: 6, unexecuted: 0, edits: 2 files | method: re-derivation — all 16 round-1 claims NOW_FALSE (reference implementation of the exclude rule run on every case; BC A1 holds). Confirmed, all inside round-1 fix text: relative patterns with `/` (N1), a healthy plan blocking new paths (N2 → `extend_backup_plan`, A6, B8), the audit's host order (N4), docker's own name filters (N5, executed against the local docker), B7's context (N6), the size estimate (Q1 → ≈270). N3 (refresh never sets `target_vps`) is pre-existing → W-c5b9397b. **Scope-growth stop:** pass 2 was all own-fix, so pass 3 re-verifies only this set. | d2b0621dde481a6efc8418749e8c2039 → f2976aafc87be759c19fc02647e04e57 · c29afd45a507fa17397beb819869e98e → 52f4364df7f5d852fcdf0fffe4cf9988 |
 | Pass 3 | the same two seats · ONLY the round-2 fixed set | found: 2, new: 2, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — N1, N2, N4, N5, N6, Q1 all NOW_FALSE (exclude reference implementation re-run; docker name filters executed, empty match rc 0). Two own-fix findings RECORDED, not re-armed (`term-edit` § Scope-growth stop): the state-file path must be anchored at `FABRIK_ROOT`, and the Self-audit omitted I12 and `extend_backup_plan` — both folded at the flip below. | f2976aafc87be759c19fc02647e04e57 → f2976aafc87be759c19fc02647e04e57 · 52f4364df7f5d852fcdf0fffe4cf9988 → 52f4364df7f5d852fcdf0fffe4cf9988 |
+| Revision | operator ruling D-518 after two design critiques (Opus 5.5, Fable 5.1) · design re-opened | — | method: revision — Status back to DRAFT; Phases A-B rewritten for check-and-warn only; the Coverage Checklist reset to UNCHECKED; passes 1-3 and the flip below are history for the superseded write-path design. | b7c51e6ca text → this revision |
 | Flip | orchestrator · the CONVERGED flip gates | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 6 | method: gate — Status flipped on plan and spec; the 14 Coverage Checklist rows adjudicated from passes 1-3; the two pass-3 recorded folds applied (the `FABRIK_ROOT` anchor; the Self-audit lists); I12's destination W-c5b9397b. Gates run after these edits: `check_convergence`, `check_plan_quality`, `check_rule_grounding`, `check_spec_convergence` (outputs in the commit). | f2976aafc87be759c19fc02647e04e57 → (this commit) · 52f4364df7f5d852fcdf0fffe4cf9988 → Status line only |
 
 ## Coverage Checklist
 
-Every row adjudicated by `/fabrik-plan-review` (passes 1-3).
+Every row starts UNCHECKED for the revision and is adjudicated by `/fabrik-plan-review`.
 
 | Class | Verdict |
 |---|---|
-| FLOOR core/35-security-auth — secrets, auth, config via env | CLEAN — no env var, no secret; `read_plans` selects `id/paths/excludes` on the VPS and never moves the repo section (rules #A5; seat probe on a fake config) |
-| FLOOR core/25-data-postgres — database, backups | FIXED r1 — database coverage by its per-database dump directory or the `postgres-dumps` plan (R7); the postgres registrar keeps owning per-database plans |
-| FLOOR core/30-ops — volume backup rule, admin processes | FIXED r1 — the design is the pack's own rule made executable (`30-ops.md:222-223`); the audit runs from the hub release |
-| FLOOR 12-Factor — all twelve axes against what the plan steps | CLEAN — IV, XI, XII stated in Global Constraints; the rest not engaged |
-| MATCHED core/10-python — no deps-file edits, no file logging | CLEAN — stdlib only (`fnmatch`, `json`, `shlex`); no logfile |
-| MATCHED core/40-documentation — heading levels, the docs the change makes stale | CLEAN — two doc landing sites; Phase C step 2 runs `check_doc_sync` and `render_doc_script_links --check` |
-| MATCHED core/45-testing-strategy — one test per behaviour, watched-fail-first | FIXED r1-r2 — rows A1-A6, B1-B8, C1; red-on-revert steps per phase; B7 sets `ctx.target_vps` itself (N6) |
-| MATCHED ai/50-agentic — not engaged (no LLM) | CLEAN — matched by glob only; no LLM or agent loop |
-| Production-write safety: no delete, no zero-path plan, no plan for an invisible path | FIXED r1-r2 — never deletes or edits a plan except an additive extend of a healthy own plan (N2); zero-path and invisible paths never written (R5); the per-service plan carries no excludes (R3) |
-| Secret handling: `read_plans` never moves the repo section off the VPS | CLEAN — verified by the rules seat's jq probe |
-| fail-open vs fail-closed on every probe (discovery, plans, visibility) | FIXED r1-r2 — every probe `None` → `unknown`; pipefail + a zero-container branch; docker's own name filters (R11, N5) |
-| boundary/sentinel/prefix collisions (`/opt/a` vs `/opt/ab`, trailing slashes, exclude globs) | FIXED r1-r2 — trailing slashes stripped; component-wise restic exclude semantics incl. any-depth relative patterns (R4, N1), proven on a reference implementation |
-| rollback and destroy only touch what this run created | FIXED r1 — `add_resource` only on `created` (B5); destroy unchanged (own `<name>-data`) |
-| behavior-without-a-test | FIXED r1-r2 — B6 (database), B7 (target host), B8 (extend), A6 added |
+| FLOOR core/35-security-auth — secrets, auth, config via env | UNCHECKED |
+| FLOOR core/25-data-postgres — database, backups | UNCHECKED |
+| FLOOR core/30-ops — volume backup rule, admin processes | UNCHECKED |
+| FLOOR 12-Factor — all twelve axes against what the plan steps | UNCHECKED |
+| MATCHED core/10-python — no deps-file edits, no file logging | UNCHECKED |
+| MATCHED core/40-documentation — heading levels, the docs the change makes stale | UNCHECKED |
+| MATCHED core/45-testing-strategy — one test per behaviour, watched-fail-first | UNCHECKED |
+| MATCHED ai/50-agentic — not engaged (no LLM) | UNCHECKED |
+| Production-write safety: no code writes, edits or deletes a plan | UNCHECKED |
+| Secret handling: `read_plans` never moves the repo section off the VPS | UNCHECKED |
+| fail-open vs fail-closed on every probe (discovery, plans, visibility) | UNCHECKED |
+| boundary/sentinel/prefix collisions (`/opt/a` vs `/opt/ab`, trailing slashes, exclude globs) | UNCHECKED |
+| rollback and destroy: the registrar records no resource | UNCHECKED |
+| behavior-without-a-test | UNCHECKED |
 
 The rubric this plan's reviews inject into every seat brief, run on the plan's own `## File Scope (owned paths)`:
 
