@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T06:55:06.253157Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-78d2a2df",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide whether the hourly audit should report unclaimed databases (report only — adoption is a person's call); measure the count on vps1 first",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Postgres databases that no spec claims are invisible: the per-spec audit never lists pg_database, so an unregistered hand-made or restored DB with no spec raises nothing (split from the W-714ae2cf reconcile spec, intake I8)"
+}

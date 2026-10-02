@@ -1908,19 +1908,53 @@ def register_allocation(
             spec_id,
             owner,
         )
+    entry = {"owner": owner, "spec_id": spec_id, "user": user, "notes": notes}
+    return _register(db_name, entry, if_absent=False, dry_run=dry_run)[0]
 
+
+def register_allocation_if_absent(
+    db_name: str,
+    *,
+    spec_id: str | None,
+    user: str,
+    owner: str,
+    notes: str,
+) -> bool:
+    """Register ``db_name`` only when the registry has no entry for it.
+
+    The read, the check and the write share one ``file_lock`` hold, so a
+    seed or manual entry, or one written by another writer on this host
+    sharing the lock dir, is never overwritten. The lock is host-local:
+    a writer on another host is not serialised (same limit as
+    ``register_allocation``). Returns ``True`` when it wrote, ``False``
+    when an entry already existed. Raises ``ValueError`` on a name that
+    is not a safe identifier, before touching the registry.
+    """
+    _validate_identifier(db_name, "database")
+    entry = {"owner": owner, "spec_id": spec_id, "user": user, "notes": notes}
+    wrote = _register(db_name, entry, if_absent=True, dry_run=False)[1]
+    logger.info(
+        "postgres allocation %s: db=%s spec=%s",
+        "registered" if wrote else "already present, left unchanged",
+        db_name,
+        spec_id,
+    )
+    return wrote
+
+
+def _register(
+    db_name: str, entry: dict[str, Any], *, if_absent: bool, dry_run: bool
+) -> tuple[dict[str, Any], bool]:
+    """Read-modify-write one registry entry under the lock; ``(payload, wrote)``."""
     with file_lock("postgres-allocations", timeout_seconds=15.0):
         payload = _load_remote_allocations()
         allocations = payload.setdefault("allocations", {})
-        allocations[db_name] = {
-            "owner": owner,
-            "spec_id": spec_id,
-            "user": user,
-            "notes": notes,
-        }
+        if if_absent and db_name in allocations:
+            return payload, False
+        allocations[db_name] = entry
         if not dry_run:
             _write_remote_allocations(payload)
-        return payload
+        return payload, True
 
 
 def unregister_allocation(db_name: str, *, dry_run: bool = False) -> dict[str, Any]:

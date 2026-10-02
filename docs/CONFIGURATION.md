@@ -568,6 +568,21 @@ PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audi
 
 **Removing:** `crontab -e` and delete the line. The script itself stays in place for ad-hoc runs.
 
+**`FABRIK_REGISTRY_RECONCILE` — the hourly drift cron's registry reconcile** (`scripts/audit_all_registrars.py`, `src/fabrik/registry_reconcile.py`; D-500). Set on the cron line's env prefix, never in `.env` (cron sources no dotenv):
+
+| Value | Effect |
+|---|---|
+| unset / `report` (default) | Dry run: nothing is written. Each unregistered postgres database is logged and pushed with the outcome it would get — `would-register`, or `shared` / `failed` (`claims-unresolved`, `db-name-missing`) for the refusals that are decided before any write. |
+| `apply` | Registers each unregistered database in `allocations.json` on vps1, in-lock, never overwriting an entry; owner role read from `pg_database` (none found: `failed owner-unresolved`). The same refusals as `report` apply. |
+| `off` | The reconcile does not run. |
+| anything else | Treated as `report`, with a warning. |
+
+After rollout step R2 of plan-2 (rules synced at R0, one `report` run read at R1), the audit line becomes:
+
+```cron
+0 * * * * FABRIK_REGISTRY_RECONCILE=apply PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_all_registrars.py >> /var/log/fabrik-audit-all.log 2>&1
+```
+
 WSL cron quirk: ensure `systemctl is-active cron` returns `active` after a WSL restart. Some fresh WSL installs don't autostart cron; if cron is `inactive` after reboot, run `sudo service cron start` and consider enabling on boot via `sudo systemctl enable cron`.
 
 ### Preplan workflow (T3-01)

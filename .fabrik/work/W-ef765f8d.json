@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T06:52:06.179167Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-ef765f8d",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "rebase reconcile-all's deployed-set on the SSH deploy model (specs with a live container, or the project registry) or retire the verb and the audit hint; found by the /fabrik-spec judge panel for W-714ae2cf",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "fabrik reconcile-all is dead: it lists deployed apps via the retired CoolifyClient (cli.py:1540-1545; Coolify decommissioned 2026-05-30), so it exits 1 or skips every spec; audit-registrars still recommends it (cli.py:1457)"
+}

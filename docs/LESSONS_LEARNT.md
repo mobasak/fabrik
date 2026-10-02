@@ -9,6 +9,20 @@ Plan 2026-10-02-plan-1 (the /fabrik-task lane v2, 11 tickets) surfaced four proc
 - **The documented multi-commit close could not work.** `fabrik-task.md` captured with `>` (only the last commit survived) and passed `"$(cat …)"` quoted (several SHAs as one argument). Prose tests matched the text; only a test that pushes the documented form through bash and the real parser caught it.
 - **A whole-plan review is where the integration defects live.** Eleven ticket reviews converged; the D7 pass over T08's wiring still confirmed 40, among them a gate-2 `done` that accepted an unreviewed contract hit whenever its measurement raised.
 
+## Switching a push from POST to PUT moves an alert's silence onto a different rule (2026-10-02)
+
+The postgres allocation reconcile (plan-2, D-500) changed the hourly audit's pushgateway push from `POST` to `PUT` so
+a run replaces the whole group. That fixed stale series, but it also meant a spec skipped by a load error loses its
+`fabrik_audit_drift_total` series for that run, so its firing `FabrikRegistrarDrift` resolves. The plan named that
+mirror and shipped `FabrikAuditStale` to catch it, yet its rollout synced the rules LAST (R4) while the `PUT` went
+live at the merge's first hourly run, so there was a window with nothing watching; Phase B's review moved the rule
+sync to R0. When a change removes a signal and adds its replacement, check that both reach production in the same
+step, not just that both exist in the repo. Three smaller traps from the same run: an `or` of two PromQL branches
+whose label sets differ changes the alert's identity at every transition (`max()` on the age branch fixed it);
+`docker run -v <missing host path>` creates that path root-owned, so a seat scratch directory passed as a mount
+target became unwritable to every seat (pre-create it); and a seat running even a read-only `git status` inside
+the orchestrator's worktree holds its `index.lock` long enough to fail the orchestrator's commit.
+
 ## A fix that makes something work for the first time exposes what its failure was hiding (2026-10-02)
 
 The docusaurus scaffold had never produced a working image: its generic `.dockerignore` dropped `docs/`, so every

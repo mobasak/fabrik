@@ -1,0 +1,25 @@
+{
+  "plan": "docs/development/plans/2026-10-02-plan-2-postgres-allocation-reconcile.md",
+  "owned_paths": [
+    "src/fabrik/drivers/postgres.py",
+    "src/fabrik/audit.py",
+    "src/fabrik/registry_reconcile.py",
+    "scripts/audit_all_registrars.py",
+    "configs/prometheus/rules/fabrik-drift.yml",
+    "tests/test_postgres_registry.py",
+    "tests/test_registry_reconcile.py",
+    "tests/fixtures/fabrik-drift-rules-test.yml",
+    "docs/reference/health-monitoring.md",
+    "docs/infrastructure/vps-complete-inventory.md",
+    "docs/CONFIGURATION.md",
+    ".env.example",
+    "docs/superpowers/specs/2026-10-02-postgres-allocation-reconcile-design.md",
+    "docs/development/reviews/2026-10-02-plan-2-postgres-allocation-reconcile-review.md"
+  ],
+  "branch": "worktree-fleet",
+  "started_at": "2026-10-02T13:27:26+00:00",
+  "status": "released",
+  "baseline_commit": "780807237fb7dba0190eb1a5bad39bf1c72a8bab",
+  "completed_at": "2026-10-02T15:44:37+00:00",
+  "final_commit": "d1d7a4271923a3159a4e58bdca4d0ae247b7f29e"
+}
