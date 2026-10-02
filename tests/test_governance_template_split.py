@@ -519,43 +519,26 @@ def test_the_lane_tables_verdicts_match_the_size_gates_own_routing() -> None:
 
     This binds the table to the gate's own constants, so contract and code cannot drift apart.
 
-    ⚠️ D12 (plan 2026-10-02-plan-1, T08): the V1 rows — today's gate, `_task_size_gate`'s v1 arm —
-    live in the FLEET TEMPLATE until the day-7 flip; the hub's table describes lane v2 and is
-    bound to `task_lane` by `test_the_hubs_lane_table_matches_lane_v2` below."""
-    cr = _load("command_run", "scripts/command_run.py")
+    Lane v2 is every repo's default since D-507 (operator ruling 2026-10-02, superseding D12's
+    hub-only week), so the FLEET TEMPLATE's rows are bound to `task_lane` exactly as the hub's are
+    (`test_the_hubs_lane_table_matches_lane_v2`); the v1 arm survives only behind a repo's own
+    `{"version": 1}` pin and is graded by `tests/test_command_run_fabrik_task.py`."""
+    tl = _load("task_lane", "scripts/task_lane.py")
     tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
     rows = {r[0]: r for r in _lane_table(tpl, _STEP0_END_TPL)[1:]}
     assert len(rows) == 8, sorted(rows)
-    assert f"more than {cr._TASK_MAX_FILES} DECLARED files" in rows["5"][1]
-    assert "DECLARE the code surface ONLY" in rows["5"][1]
-    # round 3 added this caveat and shipped NO grader for it, so inverting it back to "never
-    # declare one" passed — re-introducing the exact defect the caveat exists to close.
-    assert "is neither excluded nor free" in rows["5"][1]
-    assert "the close scores it undeclared" in rows["5"][1]
-    # The basis is `--file`, and the COUNT is of DISTINCT normalised paths — the gate dedupes
-    # (`src/a.py`, `./src/a.py` and the absolute spelling are one file), so "the `--file` count"
-    # read as the occurrence count and was refuted by execution: four occurrences of two paths
-    # start at rc 0 (docs review, 2026-09-19). Both halves pinned; the first cut pinned only the
-    # flag name, so the wrong quantity survived.
-    assert "DISTINCT `--file` paths" in rows["5"][1], (
-        "row 5's executable basis is --file, not --declare"
-    )
-    assert "normalised repo-root-relative" in rows["5"][1], (
-        "row 5 must say WHICH count: distinct, normalised"
-    )
-    assert "excluded at CLOSE, not at start" in rows["5"][1], (
-        "row 5 must say WHEN the exclusion applies — it is close-only, and the first cut of\n"
-        "this row claimed the --file count itself was already the code surface"
-    )
+    assert f"`--appetite` over {tl._APPETITE_MAX} minutes" in rows["5"][1]
+    assert "declared `consumers=external`" in rows["5"][1]
+    assert "Re-checked at CLOSE over every committed path" in rows["5"][1]
     assert "`/fabrik-task`" in rows["6"][2] and "/fabrik-spec" not in rows["6"][2]
     for n in ("3", "4", "5"):
         assert "spec chain" in rows[n][2], n
     assert "the lane, unless another row fires" in rows["2"][2]  # D-315: row 2 no longer refuses
     for n in ("1", "1b"):
-        assert "**not this lane:**" in rows[n][2] and "spec chain" not in rows[n][2], n
+        assert "**`/fabrik-task` with the full `/fabrik-review`**" in rows[n][2], n
         # the FULL review, never the scoped one: these two rows govern a public contract for ~46
         # repos, and downgrading the verdict passed every guard until this line existed.
-        assert "the full `/fabrik-review`" in rows[n][2], n
+        assert "spec chain" not in rows[n][2] and "scoped" not in rows[n][2], n
     assert "right-now" in rows["4b"][2] and "spec chain" not in rows["4b"][2]
     # `command_run.py` provably REFUSES the lane for decision=no; the cell said so and nothing
     # stopped it saying the opposite.
@@ -589,7 +572,6 @@ def test_the_lane_tables_verdicts_match_the_size_gates_own_routing() -> None:
     # divergence here breaks a cross-file contract with nothing to catch it.
     for field in ("PROBLEM", "APPROACH", "DECISION", "MIRROR", "OUT", "TERMINAL"):
         assert field in rows["6"][2], field
-    assert "right-now +" in rows["1"][2], "row 1's verdict names a LANE, not just a review"
     assert "the § Binding block lives there" in rows["3"][2]
     # D-298's re-cut, pinned on phrases that exist ONLY in the new wording: "no trade-off" is a
     # prefix of "no trade-off to settle first" and "TRADE-OFF" matches "TRADE-OFFS", so the pins
@@ -599,18 +581,17 @@ def test_the_lane_tables_verdicts_match_the_size_gates_own_routing() -> None:
     assert "is this lane's ordinary case, not a trigger" in rows["4"][1]
     for conj in (
         "one reversible decision",
-        f"≤{cr._TASK_MAX_FILES} files",
-        "no sync path",
-        "no heavy surface",
+        "no module test tripped",
         "any mechanism reversible",
         "no trade-off",
     ):
         assert conj in rows["6"][1], conj
+    assert f"more than {tl._FULL_REVIEW_FILES} files" in rows["6"][2]
     # DERIVED from the table, never a second hand-kept copy of the same five strings: the old
     # closing line compared the constant against a literal it also wrote down, so it could only
     # fail when someone edited the constant — never when the table drifted from it.
     taught = {k for r in rows.values() for k in re.findall(r"`([a-z]+)=[a-z]+`", r[1])}
-    assert set(cr._TASK_DECLARE_KEYS) == taught, (set(cr._TASK_DECLARE_KEYS), taught)
+    assert set(tl._V2_KEYS) == taught, (set(tl._V2_KEYS), taught)
 
 
 def test_the_lane_table_states_the_precedence_the_gate_actually_evaluates() -> None:
@@ -621,50 +602,39 @@ def test_the_lane_table_states_the_precedence_the_gate_actually_evaluates() -> N
     surface class. The spec carries the reconciling sentence; the first cut of this table dropped
     it, and three mis-routes were executed against the live parser before it came back."""
     cr = _load("command_run", "scripts/command_run.py")
-    # D12: the v1 order is the TEMPLATE's until the day-7 flip; the hub's v2 order is graded in
-    # `test_the_hubs_lane_table_matches_lane_v2`.
+    tl = _load("task_lane", "scripts/task_lane.py")
+    # D-507: the template states lane v2's order, read out of `task_lane.admit`.
     hub = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
     step0 = _step0_body(hub, _STEP0_END_TPL)
     assert hasattr(cr, "_task_size_gate"), "the cited symbol must exist — `_task_size` never did"
     assert "_task_size_gate" in step0, "the precedence claim must cite the function implementing it"
-    # The ORDER, read out of the gate itself. `lane = (...)` fires in `if/elif` order, so the
-    # sequence of its labels IS the precedence, and a reordering of the gate reds this test.
-    src = inspect.getsource(cr._task_size_gate)
-    labels = [m.split()[0] for m in re.findall(r'lane = \(f?"([^"]+)"', src)]
-    # `mechanism` is absent by ruling (D-315): declared and recorded, never a refusal arm.
-    assert labels == ["files", "oneway", "tradeoffs", "sync", "heavy", "decision=no"], labels
-    row_of = {
-        "files": "5",
-        "oneway": "3",
-        "tradeoffs": "4",
-        "sync": "1",
-        "heavy": "1b",
-        "decision=no": "4b",
-    }
-    from_gate = [
-        {row_of[x] for x in labels[:3]},
-        {row_of[x] for x in labels[3:5]},
-        {row_of[x] for x in labels[5:]},
+    assert "`scripts/task_lane.py::admit`" in step0
+    # The ORDER, read out of `admit` itself: the chain arms fire in source order.
+    src = inspect.getsource(tl.admit)
+    order = [
+        src.index(x) for x in ('"chain: contract"', '"chain: appetite"', 'f"chain: {deciding[0]}"')
     ]
+    assert order == sorted(order), "admit's route order changed — re-state it in step 0"
+    # chain tier: module tests (5), oneway (3), tradeoffs (4); the lane-with-full-review tier:
+    # sync (1), heavy (1b); right-now: decision=no (4b).
+    from_gate = [{"3", "4", "5"}, {"1", "1b"}, {"4b"}]
     # ⚠️ DERIVED FROM THE TABLE, not from `labels` again: the first cut computed both sides from
     # the same list, so once the labels assertion passed this one could not fail — a second
     # binding that bound nothing. Now the table's own verdict cells are the other side.
     rows = {r[0]: r for r in _lane_table(hub, _STEP0_END_TPL)[1:]}
     from_table = [
         {n for n, r in rows.items() if "spec chain" in r[2]},
-        {n for n, r in rows.items() if "**not this lane:**" in r[2]},
-        {
-            n
-            for n, r in rows.items()
-            if "/fabrik-review-scoped`" in r[2] and "not this lane" not in r[2]
-        },
+        {n for n, r in rows.items() if "with the full `/fabrik-review`**" in r[2]},
+        {n for n, r in rows.items() if "/fabrik-review-scoped`" in r[2] and "right-now" in r[2]},
     ]
     assert from_gate == from_table, (from_gate, from_table)
     assert "Rows 3, 4 and 5 take PRECEDENCE over rows 1 and 1b" in step0
     assert "which in turn take precedence over row 4b" in step0
-    # the tier-1 caveat: the gate checks the file count FIRST, so a refusal naming `files > 3`
-    # can still be hiding a row-3/4 trigger. Deleting this clause passed every other guard.
-    assert "except INSIDE the spec-chain tier, where the gate reports the file count first" in step0
+    # the tier-1 caveat: the gate reports the contract test FIRST, so a refusal naming one can
+    # still be hiding a row-3/4 trigger. Deleting this clause passed every other guard.
+    assert (
+        "except INSIDE the spec-chain tier, where the gate reports the contract test first" in step0
+    )
     assert "any of 3, 4 or 5 is spec-chain work" in step0, (
         "the precedence sentence must state its VERDICT, not only which rows outrank which"
     )
@@ -681,8 +651,14 @@ def test_the_lane_table_states_the_precedence_the_gate_actually_evaluates() -> N
     # every run needs all five declare keys; "any one of them" passed and costs a round trip.
     # the qualifier was pinned; the claim it qualifies was not, so "a KEY `start` requires"
     # could become "accepts optionally" and leave the sentence self-contradictory.
-    assert "names a `--declare` KEY `start` requires — all five, every run" in step0
+    assert "names a `--declare` KEY `start` requires — all six, every run" in step0
     assert "`Profile: small` then lightens execution" in step0
+    assert "Every repo runs lane v2 unless it pins" in step0
+    # a v1-pinned project reads this table too: the paragraph must say what its gate does instead
+    assert "A pinned repo runs the v1 gate instead (more than 3 declared files" in step0
+    # § 1a's `>5` sizes the REVIEW, never the lane — mirrored from the hub for the fleet
+    para = [ln for ln in hub.split("\n") if ln.lstrip().startswith("1a. **SELF-REVIEW")]
+    assert len(para) == 1 and "which LANE a change takes is row 5" in para[0]
 
 
 def test_the_hubs_lane_table_matches_lane_v2() -> None:
@@ -719,7 +695,7 @@ def test_the_hubs_lane_table_matches_lane_v2() -> None:
     assert order == sorted(order), "admit's route order changed — re-state it in step 0"
     assert "reports the contract test first, then the appetite, then oneway and tradeoffs" in step0
     assert "`scripts/task_lane.py::admit`" in step0
-    assert "The hub runs lane v2" in step0
+    assert "Every repo runs lane v2 unless it pins" in step0
     # D7 D-O3: admit routes decision=no on a full-review surface to right-now + the full review,
     # never into the lane — the table's 4b sentence must say exactly that.
     v = tl.admit(
@@ -781,12 +757,6 @@ _TEMPLATE_OUTCOME_II_OLD = "a new mechanism, schema, auth, >5 files"
 _TEMPLATE_ROW_DIVERGENCES = {
     "1": "/opt/fabrik/.pre-commit-config.yaml",
     "1b": "copied from fabrik-lib rather than imported",
-    # D12 HOLD-BACK (plan 2026-10-02-plan-1, T08): the hub runs lane v2 for seven days while the
-    # template keeps today's v1 rows; the day-7 flip commit (its work item) rewrites the template
-    # and DELETES these three entries. The marker is each row's v1 wording.
-    "2": "fits row 5's file bound",
-    "5": "more than 3 DECLARED files",
-    "6": "≤3 files, no sync path",
 }
 
 

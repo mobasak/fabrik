@@ -280,9 +280,10 @@ def _switch(repo: Path, text: str) -> None:
 
 
 def test_no_switch_file_returns_the_default(tmp_path):
+    """Every repo runs lane v2 unless it pins v1 (operator ruling 2026-10-02, D-507)."""
     tl = _module()
-    assert tl._LANE_DEFAULT == 1
-    assert tl.lane_version(_repo(tmp_path)) == (1, None, None)
+    assert tl._LANE_DEFAULT == 2
+    assert tl.lane_version(_repo(tmp_path)) == (2, None, None)
 
 
 def test_a_committed_version_2_returns_2_and_the_commit_that_set_it(tmp_path):
@@ -304,12 +305,12 @@ def test_a_committed_version_2_returns_2_and_the_commit_that_set_it(tmp_path):
 @pytest.mark.parametrize(
     "text", ["{not json", '{"version": 3}', '{"version": "2"}', "[2]", '{"version": true}']
 )
-def test_an_invalid_switch_returns_1_with_a_warning_naming_the_file(tmp_path, text):
+def test_an_invalid_switch_returns_the_default_with_a_warning_naming_the_file(tmp_path, text):
     tl = _module()
     repo = _repo(tmp_path)
     _switch(repo, text)
     version, commit, warning = tl.lane_version(repo)
-    assert (version, commit) == (1, None)
+    assert (version, commit) == (tl._LANE_DEFAULT, None) == (2, None)
     assert warning and ".fabrik/lane.json" in warning
 
 

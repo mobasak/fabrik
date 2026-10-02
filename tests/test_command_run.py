@@ -5102,7 +5102,18 @@ def test_the_own_fix_note_covers_every_command_the_stop_can_fire_on(run_dir, tmp
     # a review command the stop CAN fire on must be told the flag exists
     for cmd in ("fabrik-spec-review", "fabrik-plan-review", "fabrik-docs-review", "fabrik-review"):
         sid = f"probe-note-{cmd}"
-        run("start", "--command", cmd, "--phases", "2", "--terminal", "x", session=sid)
+        run(
+            "start",
+            "--command",
+            cmd,
+            "--phases",
+            "2",
+            "--terminal",
+            "x",
+            "--surface",
+            "s.md",
+            session=sid,
+        )
         # the NOTE goes to STDERR — stdout carries only the ROUND line, and a grader reading
         # the wrong stream here would be green for the wrong reason
         r = run("round", "--findings", "3", "--confirmed", "2", session=sid)
@@ -5140,7 +5151,17 @@ def test_the_derived_new_count_cannot_state_what_the_explicit_one_refuses(run_di
             timeout=120,
         )
 
-    run("start", "--command", "fabrik-spec-review", "--phases", "2", "--terminal", "x")
+    run(
+        "start",
+        "--command",
+        "fabrik-spec-review",
+        "--phases",
+        "2",
+        "--terminal",
+        "x",
+        "--surface",
+        "s.md",
+    )
     out = run("round", "--findings", "0", "--confirmed", "0", "--classes-new", "a,b,c").stdout
     assert "classes open: a, b, c" in out, out
     rec = json.loads(next(run_dir.glob("*.json")).read_text())

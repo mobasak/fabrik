@@ -183,7 +183,7 @@ Three shapes are NOT yours to apply here, and each has a destination:
   frozen here, and **"the whole queue is lock-blocked" IS a legitimate, recordable outcome** exactly
   like an empty one — but only once the target is named. Mail it and close.
 - a verdict that wants a NEW mechanism, a gate, a hook, or a schema → not a command edit: it is
-  `/fabrik-task` work when the mechanism is reversible, fits the lane's ≤3 DECLARED files and settles no trade-off (the
+  `/fabrik-task` work when the mechanism is reversible, trips none of the lane's module tests and settles no trade-off (the
   D-row names it — D-315) — say so, finish this run's remaining rows first (a route is not an
   abort), close it, then OPEN `/fabrik-task` yourself in the same session, never a mail (own-session work is dispatched, not narrated in a `NEXT:` line — `CLAUDE.md`
   § FINAL OUTPUT); else SPEC/PLAN work (`/fabrik-spec` → `/fabrik-plan-after-chat`) — say so and

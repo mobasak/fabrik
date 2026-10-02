@@ -4,7 +4,7 @@ What it is, how agents choose it over the spec chain, and where each repo stands
 themselves live in three places and are not restated here: the lane table in `CLAUDE.md` § Orient
 step 0 (which lane a change takes), `commands/_sources/fabrik-task.md` (how a run goes) and
 `docs/reference/command-run-protocol.md` (every flag and row field). Design:
-`docs/superpowers/specs/2026-10-02-fabrik-task-feature-lane-design.md`; ledger D-491, D-492, D-504.
+`docs/superpowers/specs/2026-10-02-fabrik-task-feature-lane-design.md`; ledger D-491, D-492, D-504, D-507.
 
 ## What the lane is
 
@@ -18,9 +18,10 @@ decision's row in `docs/DECISIONS.md` is the durable artifact; there is no spec 
 The agent applies the lane table to the smallest change that discharges the ask, then runs
 `command_run.py start --command fabrik-task …`. **The start IS the gate:** it either opens a record
 or refuses, naming the lane the work belongs in. The agent does not argue with a refusal; it takes
-the named lane. What decides depends on the repo's lane version:
+the named lane. Every repo runs lane v2; a repo that commits `{"version": 1}` in its own
+`.fabrik/lane.json` keeps the old gate. What decides, per version:
 
-| | Lane v1 (default) | Lane v2 (opted in) |
+| | Lane v1 (pinned) | Lane v2 (default) |
 |---|---|---|
 | Goes to the spec chain | more than 3 declared files; a ONE-WAY decision; a trade-off to settle first | a contract path (`specs/services/`, `openapi*`, `*.schema.json`) or `consumers=external`; a ONE-WAY decision; a trade-off to settle first (with `--why`, ledgered); an appetite over 240 min |
 | Sync path or heavy surface (auth, schema, migrations, gates) | refused to right-now + the full `/fabrik-review` | admitted (when there is a decision), and phase 4 runs the full `/fabrik-review` |
@@ -32,26 +33,17 @@ An admitted `start` prints which version applied — `lane: v1`, or `lane: v2 (s
 
 ## Where each repo stands (2026-10-02)
 
-- **The hub (`/opt/fabrik`)** runs **v2** since 3a803b44b (`.fabrik/lane.json` = `{"version": 2}`).
-  Its `CLAUDE.md` lane table describes v2.
-- **Every synced project** has the new code (`scripts/task_lane.py` ships with
-  `scripts/command_run.py`) but no switch, so it runs **v1** — exactly as before. Its `CLAUDE.md`
-  lane rows (from `templates/governance/CLAUDE.md`) still describe v1.
-- **fabrik-lib** is sync-excluded: its `scripts/command_run.py` predates the lane module, so it
-  runs v1 until it adopts the new files (a mail at the flip).
+- **Every synced project and the hub run v2** (D-507): `scripts/task_lane.py` defaults to 2
+  and the template's lane rows (`templates/governance/CLAUDE.md` § Orient step 0) describe v2;
+  the governance sync carries both. The hub's own `.fabrik/lane.json` (3a803b44b) still pins 2.
+- **A repo can stay on v1** by committing `{"version": 1}` as `.fabrik/lane.json`. The file is
+  never synced, so the pin is that repo's own decision; an unreadable file falls back to the
+  default with a warning on `start`.
+- **fabrik-lib** is sync-excluded: its `scripts/command_run.py` predates the lane module and has
+  no `task_lane.py`, so it runs the old gate until it adopts the files — requested by mail.
 
-## Rollout
-
-The hub runs v2 for seven days first (spec D12). On or after 2026-10-09 work item W-6b257bdd reads
-`python3 scripts/command_feedback_report.py --lane --since 7` and the refusal ledger
-(`~/.claude/state/lane-refusals.jsonl`). If the week shows no refusal the replay fixture did not
-predict, ONE commit flips `task_lane._LANE_DEFAULT` to 2 and rewrites the template's lane rows, so
-every project moves to v2 on the next sync; fabrik-lib and Volkan's port are mailed the rule text.
-A project can stay on v1 by committing `{"version": 1}`.
-
-Opting a single repo in before the flip is possible (commit `.fabrik/lane.json` `{"version": 2}`
-ALONE), but not advised: its `CLAUDE.md` rows would still describe v1, so its agents would read one
-rule while the gate enforces another.
+The hub-only week the spec planned (D12) was dropped by operator ruling on 2026-10-02: the lane
+was built for every repo.
 
 ## What a running session sees
 
@@ -59,8 +51,9 @@ rule while the gate enforces another.
   and `~/.claude/skills`. A session reads a command's body when the command runs, so new runs get the
   new text, and the skill list a session shows (the descriptions the router selects on) refreshed
   in an open session after the render, observed 2026-10-02 — no reload needed for commands.
-- **`CLAUDE.md`** is loaded at session start: hub windows opened before the change keep the old lane
-  table until reloaded.
+- **`CLAUDE.md`** is loaded at session start: a window opened before the governance sync rewrote
+  its repo's `CLAUDE.md` keeps the old lane table until reloaded. The `start` gate itself reads the
+  new rules at once, so an old window is refused or admitted by v2 even before its reload.
 - **The quota dashboard's Commands tab** (`scripts/sysadmin/quota_dashboard.py`) reads the command
   sources live; it needs no restart.
 

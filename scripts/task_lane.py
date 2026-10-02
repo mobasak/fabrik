@@ -8,7 +8,7 @@ list, the governance-sync hits, the appetite, ``--why``, the lane version, the r
 path — and this module only decides.
 
 - ``lane_version(root)`` — the repo-owned switch ``.fabrik/lane.json`` (``{"version": 1|2}``),
-  else ``_LANE_DEFAULT``. Never a synced file: turning it on distributes nothing (D12).
+  else ``_LANE_DEFAULT`` (2 — every repo, D-507). Never a synced file: a pin distributes nothing (D12).
 - ``admit(...)`` — the ``start`` verdict. Version 1 is today's gate verbatim (files > 3,
   oneway, tradeoffs → chain; sync, heavy → right-now + full review; decision=no → right-now +
   scoped review). Version 2 replaces ONLY the file-count arm with the module tests: contract
@@ -53,9 +53,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-# D12: the shipped gate. The day-7 rollout commit flips it to 2; until then a repo opts in with
-# its own `.fabrik/lane.json`.
-_LANE_DEFAULT = 1
+# The shipped gate: lane v2 in every repo (operator ruling 2026-10-02, D-507, superseding D12's
+# hub-only week); a repo pins v1 with its own `.fabrik/lane.json` `{"version": 1}`.
+_LANE_DEFAULT = 2
 LANE_FILE = ".fabrik/lane.json"
 _KNOWN_VERSIONS = (1, 2)
 

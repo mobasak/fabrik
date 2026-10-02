@@ -10,7 +10,7 @@ commit, and the UPGRADE ratchet. A feature splitting into independently shippabl
 several of these runs, never one bundling them (D6).
 
 **Two lane versions share this text** (`.fabrik/lane.json`; `start` prints which). **Lane v1**
-(every repo until it opts in) is today's file-count gate — the `--declare` paste below and
+(a repo pinning `{"version": 1}`) is the old file-count gate —
 `command-run-protocol.md:52`'s `start` row. **Lane v2** replaces the
 file count with the module tests and adds every *(v2)*-tagged mechanism below: the `consumers=`
 key, `--appetite`/`--why`/`--from-downgrade`, `--design-amend`, the undeclared-path REFUSAL, the
@@ -35,10 +35,10 @@ python3 scripts/command_run.py start --command fabrik-task --phases 5 \
   --terminal "<the one-line condition that ends this run>" \
   --surface "<the subject, one phrase>" \
   --file "<path 1>" --file "<path 2>" \
-  --declare decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=no
+  --declare decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=no,consumers=internal
 ```
 
-*(v2)* a sixth key is REQUIRED: `,consumers=internal` (or `external`) — v1 ignores it if typed.
+*(v2)* `consumers=external` when another repo reads the change; v1 ignores the key.
 
 `--file` is repeatable, ONE quoted repo path each. A path that does not exist yet is accepted on
 purpose: **declare the grader you are about to write.** Declare the CODE surface ONLY — the close

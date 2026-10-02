@@ -69,10 +69,42 @@ def _ledger(run_dir: Path) -> list[dict]:
     return [json.loads(ln) for ln in p.read_text(encoding="utf-8").splitlines() if ln]
 
 
-def test_without_a_switch_the_start_is_v1_and_stamps_nothing(run_dir: Path, tmp_path: Path) -> None:
-    """Row 1 (D12 OFF state). No `.fabrik/lane.json`: a 4-file start is today's `files > 3`
-    refusal, a 1-file start opens a record with no `gate` key and prints `lane: v1`."""
+def test_without_a_switch_the_start_is_v2_and_names_the_default(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """No `.fabrik/lane.json` is lane v2 (D-507): a 4-file start is admitted, stamped `gate: 2`,
+    and `start` names the switch `default` rather than an uncommitted one."""
     repo = _repo(tmp_path, lane=None)
+    four = _files("src/a.py", "src/b.py", "src/c.py", "src/d.py")
+    r = _cr(run_dir, *_start(*four, "--declare", _V2), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "lane: v2 (switch default) · review: scoped" in r.stdout
+    d = _rec(run_dir)["declared"]
+    assert (d["gate"], d["lane_switch"]) == (2, "default")
+
+
+def test_an_invalid_committed_switch_is_labelled_invalid_not_uncommitted(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """A committed but unreadable `.fabrik/lane.json` falls back to the default with a warning,
+    and `start` names the switch `invalid` — `uncommitted` would send the reader hunting for
+    pending edits that do not exist (review of D-507, A-S-2)."""
+    repo = _repo(tmp_path, lane=None)
+    (repo / ".fabrik").mkdir()
+    (repo / ".fabrik" / "lane.json").write_text('{"version": 3}', encoding="utf-8")
+    _git(repo, "add", ".fabrik/lane.json")
+    _git(repo, "commit", "-qm", "a bad switch")
+    r = _cr(run_dir, *_start("--file", "src/a.py", "--declare", _V2), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "lane: v2 (switch invalid) · review: scoped" in r.stdout
+    assert ".fabrik/lane.json: version 3 is not one of" in r.stderr
+    assert _rec(run_dir)["declared"]["lane_switch"] == "invalid"
+
+
+def test_a_v1_pin_keeps_the_v1_gate_and_stamps_nothing(run_dir: Path, tmp_path: Path) -> None:
+    """A repo that pins `{"version": 1}`: a 4-file start is the v1 `files > 3` refusal, a
+    1-file start opens a record with no `gate` key and prints `lane: v1`."""
+    repo = _repo(tmp_path, lane=1)
     four = _files("src/a.py", "src/b.py", "src/c.py", "src/d.py")
     r = _cr(run_dir, *_start(*four, "--declare", _V2), cwd=repo)
     assert r.returncode == 1, r.stdout + r.stderr
@@ -85,8 +117,8 @@ def test_without_a_switch_the_start_is_v1_and_stamps_nothing(run_dir: Path, tmp_
 
 
 def test_v1_ignores_the_v2_flags_with_a_note(run_dir: Path, tmp_path: Path) -> None:
-    """Command text naming `--appetite` must keep working in a repo that has not opted in."""
-    repo = _repo(tmp_path, lane=None)
+    """Command text naming `--appetite` must keep working in a repo that pins v1."""
+    repo = _repo(tmp_path, lane=1)
     r = _cr(
         run_dir,
         *_start("--file", "src/a.py", "--declare", _V2, "--appetite", "60"),
@@ -354,7 +386,7 @@ def test_v2_the_row_carries_from_downgrade_and_the_evidence_upgrade_token(
 
 def test_review_and_several_commits_are_refused_on_a_v1_run(run_dir: Path, tmp_path: Path) -> None:
     """The unstamped close stays today's: one commit, no receipt."""
-    repo = _repo(tmp_path, lane=None)
+    repo = _repo(tmp_path, lane=1)
     r = _cr(run_dir, *_start("--file", "src/a.py", "--declare", _V2), cwd=repo)
     assert r.returncode == 0, r.stdout + r.stderr
     a = _edit_commit(repo, "src/a.py", "x = 2\n")
@@ -440,8 +472,8 @@ def test_v2_a_plan_phase_appetite_marks_and_counts_the_overrun(
 def test_v1_step_appetite_is_ignored_and_the_row_keeps_its_shape(
     run_dir: Path, tmp_path: Path
 ) -> None:
-    """Row 1 (D12 OFF state) for D11: no switch, so `--appetite` is noted and nothing is marked."""
-    repo = _repo(tmp_path, lane=None)
+    """Row 1 (a v1 pin) for D11: lane v1, so `--appetite` is noted and nothing is marked."""
+    repo = _repo(tmp_path, lane=1)
     _cr(run_dir, "start", "--command", "fabrik-execute-plan", "--phases", "3", cwd=repo)
     r = _cr(run_dir, "step", "--phase", "1", "--title", "one", "--appetite", "30", cwd=repo)
     assert r.returncode == 0
@@ -547,8 +579,8 @@ def test_v2_a_review_nested_under_a_task_stops_at_its_first_own_fix_round(
 
 
 def test_v1_a_nested_review_keeps_the_ordinary_window(run_dir: Path, tmp_path: Path) -> None:
-    """Row 1 (D12 OFF state) for D8."""
-    repo = _repo(tmp_path, lane=None)
+    """Row 1 (a v1 pin) for D8."""
+    repo = _repo(tmp_path, lane=1)
     r = _cr(run_dir, *_start("--file", "src/a.py", "--declare", _V2), cwd=repo)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "SCOPE GROWTH" not in _review_rounds(run_dir, repo)
@@ -566,7 +598,7 @@ def test_v2_spec_and_plan_review_need_a_surface(
     assert f"REFUSED — {command}: --surface <the spec or plan path> is required" in r.stdout
     r = _cr(run_dir, "start", "--command", command, "--phases", "3", "--surface", "x.md", cwd=repo)
     assert r.returncode == 0, r.stdout + r.stderr
-    v1 = _repo(tmp_path / "v1", lane=None)
+    v1 = _repo(tmp_path / "v1", lane=1)
     other = tmp_path / "v1-state" / "command-runs"
     other.mkdir(parents=True)
     r = _cr(other, "start", "--command", command, "--phases", "3", cwd=v1)
@@ -809,7 +841,7 @@ def test_a_present_but_broken_task_lane_says_so_and_runs_v1(run_dir: Path, tmp_p
 
 def test_v1_admits_exactly_three_files(run_dir: Path, tmp_path: Path) -> None:
     """D7 A-H9: the v1 file cap's boundary — three files start, four are refused (above)."""
-    repo = _repo(tmp_path, lane=None)
+    repo = _repo(tmp_path, lane=1)
     r = _cr(
         run_dir, *_start(*_files("src/a.py", "src/b.py", "src/c.py"), "--declare", _V2), cwd=repo
     )

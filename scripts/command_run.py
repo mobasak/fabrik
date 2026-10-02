@@ -2618,7 +2618,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     # Lane v2 (D1, D4, D9; `task_lane.admit`). Read only when `.fabrik/lane.json` says version 2;
     # at v1 they are accepted and ignored with a note, so command text that names them works
-    # unchanged in a repo that has not opted in.
+    # unchanged in a repo that pins v1.
     p.add_argument(
         "--appetite",
         type=int,
@@ -3117,8 +3117,8 @@ _LANE_WARNED: list[bool] = []
 
 
 def _lane_version_at(rec: dict[str, Any]) -> int:
-    """The lane version of the repo a record runs in — 1 when the module, the repo root or a
-    readable switch is missing (D12's OFF state)."""
+    """The lane version of the repo a record runs in — `task_lane.lane_version`'s answer (no switch
+    file: the default, 2 — D-507); 1 when the module or the repo root is missing."""
     tl = _lane_module()
     root = rec.get("repo_root")
     if tl is None or not isinstance(root, str) or not root:
@@ -3298,7 +3298,8 @@ def _task_admit_v2(
     declared["review_reason"] = v.reason
     declared["appetite"] = appetite if appetite is not None else tl.APPETITE_DEFAULT
     declared["sync_hits"] = sorted(sync_hits)
-    declared["lane_switch"] = switch or ""
+    # no switch file at all is the default, not an uncommitted switch (D-507)
+    declared["lane_switch"] = switch or ("" if (root / tl.LANE_FILE).is_file() else "default")
     if why:
         declared["why"] = why
     if getattr(args, "from_downgrade", None):
@@ -3459,15 +3460,26 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
     for k in _TASK_DECLARE_KEYS:
         declared[k] = answers[k]
 
-    # The repo's lane switch (`.fabrik/lane.json`, D12). No file — or no module — is version 1:
-    # the routing below is today's gate, byte for byte, and nothing new is stamped.
+    # The repo's lane switch (`.fabrik/lane.json`). No file is `task_lane._LANE_DEFAULT` (2, D-507);
+    # no module, or a v1 pin, is version 1: the routing below is the v1 gate and nothing new is stamped.
     tl = _lane_module()
     version, switch, warn = (1, None, None) if tl is None else tl.lane_version(root)
     if warn:
         sys.stderr.write(f"[command_run] {warn}\n")
     if version == 2:
         hits = {r for r in rels if pat.search(r)} if sync_hit and pat is not None else set()
-        return _task_admit_v2(tl, args, sid, root, rels, answers, declared, hits, switch)
+        # an unreadable or invalid switch file is labelled `invalid`, never `uncommitted`
+        return _task_admit_v2(
+            tl,
+            args,
+            sid,
+            root,
+            rels,
+            answers,
+            declared,
+            hits,
+            switch or ("invalid" if warn else None),
+        )
     ignored = [
         f"--{a.replace('_', '-')}"
         for a in ("appetite", "why", "from_downgrade")
@@ -4550,8 +4562,8 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         if _ap is not None and _ap <= 0:
             return _refuse(f"REFUSED — step --appetite {_ap} must be a positive number of minutes")
         if _ap is not None and _lane_version_at(rec) != 2:
-            # D12 OFF state: the plan text that passes `--appetite` must keep working in a repo
-            # that has not opted in — accepted, ignored, said.
+            # A v1 pin: the plan text that passes `--appetite` must keep working in a repo that
+            # pins lane v1 — accepted, ignored, said.
             sys.stderr.write("[command_run] note: --appetite ignored — this repo runs lane v1\n")
             _ap = None
         _marks = rec.get("phase_marks")
@@ -5562,8 +5574,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "account": str(rec.get("account") or ""),
             **{k: _cap_field(_usage_fields.get(k, "")) for k in (*_USAGE_FIELDS, "cost")},
             "cost_usd": _cost_usd(_usage_fields.get("cost", "")),
-            # `fabrik-task` ONLY — an empty dict everywhere else, so every other command's row
-            # stays byte-identical in all ~46 repos this file is synced to.
+            # `fabrik-task`'s close measure, plus the lane-v2 fields above (a nested close's
+            # `parent`, the spec `size`, the phase marks) for ANY command at lane v2 — every repo
+            # by default (D-507); empty in a repo pinned to v1, whose rows keep their shape.
             **_task_fields,
             **_tok,
         }

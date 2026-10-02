@@ -339,7 +339,7 @@ def test_lane_an_invalid_lane_json_is_a_pin_with_its_warning(tmp_path: Path) -> 
     led = tmp_path / "led"
     led.mkdir()
     pinned = _doc(led, [_row("fabrik-task", repo=str(repo))], [])["pins"]["pinned"]
-    assert len(pinned) == 1 and pinned[0]["version"] == 1
+    assert len(pinned) == 1 and pinned[0]["version"] == 2  # the default (D-507)
     assert "lane.json" in pinned[0]["warning"]
 
 

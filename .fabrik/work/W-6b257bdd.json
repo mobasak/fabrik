@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "on or after 2026-10-09: python3 scripts/command_feedback_report.py --lane --since 7 (a day count; the hub enabled v2 on 2026-10-02), then decide the flip by D12's criterion",
-  "note": "",
+  "note": "superseded by D-507: the operator ruled lane v2 for every repo now, so there is no day-7 evaluation to run",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "lane-v2"
   ],
