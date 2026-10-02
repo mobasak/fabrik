@@ -127,8 +127,9 @@ def test_remove_aro_wake_target_no_match_is_noop(monkeypatch):
 
 
 def test_reload_prometheus_uses_bare_container_name_pattern():
-    """Coolify-era pattern `^alertmanager-` no-matched today's bare container
-    names. The fix uses `^alertmanager(-|$)` — both shapes match.
+    """The reload targets the prometheus container by `^prometheus(-|$)`, which matches
+    both the bare name and a legacy `-suffix` (the Coolify-era prefix-only pattern
+    no-matched bare names); nothing routes through alertmanager any more (W-a1a359c8).
     """
     # Look at the source text so the test fails loudly if a future edit
     # reverts to the broken Coolify-prefix-only regex.

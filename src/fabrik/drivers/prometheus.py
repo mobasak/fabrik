@@ -197,10 +197,12 @@ def _reload_prometheus() -> bool:
     # name AND any legacy `<name>-<suffix>` form (the Coolify-era prefix-only
     # pattern no-matched the bare names — verified live 2026-06-08).
     try:
+        # An empty name must fail here, not run `docker exec wget ...`.
         ssh(
-            f"sudo docker exec $(sudo docker ps --format '{{{{.Names}}}}' "
-            f"| grep -E '^prometheus(-|$)' | head -1) "
-            f"wget -qO- --post-data='' {shlex.quote(PROMETHEUS_RELOAD_URL)}",
+            f"PC=$(sudo docker ps --format '{{{{.Names}}}}' "
+            f"| grep -E '^prometheus(-|$)' | head -1) && [ -n \"$PC\" ] && "
+            f"sudo docker exec \"$PC\" wget -qO- --post-data='' "
+            f"{shlex.quote(PROMETHEUS_RELOAD_URL)}",
             timeout=15,
         )
         logger.info("Prometheus hot-reload succeeded")
@@ -212,7 +214,7 @@ def _reload_prometheus() -> bool:
         ssh(
             "PROM_CONTAINER=$(sudo docker ps --format '{{.Names}}' "
             "| grep -E '^prometheus(-|$)' | head -1) && "
-            'sudo docker restart "$PROM_CONTAINER"',
+            '[ -n "$PROM_CONTAINER" ] && sudo docker restart "$PROM_CONTAINER"',
             timeout=30,
         )
         logger.info("Prometheus container restarted")

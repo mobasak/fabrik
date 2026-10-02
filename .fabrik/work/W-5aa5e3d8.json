@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T17:47:01.559006Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5aa5e3d8",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "restart only when the reload could not be DELIVERED (exec/network failure), never when Prometheus answered and refused the config; validate with promtool check config before the write, with a test for the refused-config case",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "drivers/prometheus._reload_prometheus restarts the prometheus container on ANY hot-reload failure, including /-/reload refusing an invalid config (HTTP 500): restarting into a config that will not load takes Prometheus down instead of keeping the last good config in memory (found by the W-a1a359c8 review, reload-O6; predates the fix — the old route always restarted)"
+}
