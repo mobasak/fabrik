@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_review_receipt.py, commands/_sources/fabrik-review.md, commands/_sources/fabrik-execute-plan.md, scripts/enforcement/check_review_coverage.py, scripts/fabrik_synced_manifest.py | none
+# AFTER-EDIT: tests/test_review_receipt.py, tests/test_task_lane_receipt.py, scripts/task_lane.py (check_review_receipt reads the Command and Surface lines), commands/_sources/fabrik-review.md, commands/_sources/fabrik-execute-plan.md, scripts/enforcement/check_review_coverage.py, scripts/fabrik_synced_manifest.py | none
 """Review-artifact skeleton — `--init` emits the grammar `check_review_coverage.py` grades.
 
 Why a generator: the artifact's mechanical half (the pasted rubric header, the `Surface:` hash
@@ -13,6 +13,13 @@ that would satisfy the gate if left alone is spelled `UNCHECKED` — a lazy flip
     python scripts/review_receipt.py --init --changed <paths…> [--out <file> | --scope <slug>]
                                      [--title <h1>] [--plan <path>] [--range A..B]
                                      [--project-root <repo>]
+                                     [--command /fabrik-review|/fabrik-review-scoped] [--lane]
+
+`--command` names the review on the `**Command:**` line (default `/fabrik-review`; only the two
+review-family commands are accepted). `--lane` adds the exact line `**Lane:** fabrik-task`: the
+receipt is a `/fabrik-task` phase-4 review, the marker the in-lane scope-growth stop keys on
+(spec 2026-10-02 D8; `check_review_coverage.py` gains that reader in plan T04). A `/fabrik-task` close that owes a FULL review
+(`task_lane.check_review_receipt`, check (c)) accepts only `/fabrik-review`.
 
 The `Surface:` anchor covers the tracked diff (`git diff HEAD` or `--range`) PLUS the content
 of every UNTRACKED changed path — a review's changed set is routinely new files, which `git
@@ -36,6 +43,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REVIEWS_DIR = Path("docs/development/reviews")
+COMMANDS = ("/fabrik-review", "/fabrik-review-scoped")
+LANE_LINE = "**Lane:** fabrik-task"
 _DATED = re.compile(r"^\d{4}-\d{2}-\d{2}-")
 # One law, both writers: the gate's own predicate for "a rubric was RUN" — imported from the
 # synced gate when it is beside us (every synced repo carries scripts/enforcement/), the literal
@@ -123,7 +132,16 @@ def _rubric(root: Path, changed: list[str]) -> str:
     return r.stdout.rstrip("\n")
 
 
-def render(*, title: str, changed: list[str], surface: str, rubric: str, plan: str | None) -> str:
+def render(
+    *,
+    title: str,
+    changed: list[str],
+    surface: str,
+    rubric: str,
+    plan: str | None,
+    command: str = COMMANDS[0],
+    lane: bool = False,
+) -> str:
     cmd = f"$ python scripts/review_rubric.py --changed {' '.join(changed)}"
     hunt_rows = "\n".join(
         f"| Hunt: `{p}` — every changed hunk, its enclosing function, its callers | UNCHECKED |"
@@ -131,12 +149,13 @@ def render(*, title: str, changed: list[str], surface: str, rubric: str, plan: s
     )
     standing = "\n".join(f"| {row} | UNCHECKED |" for row in STANDING_ROWS)
     plan_line = f"**Plan:** `{plan}`\n" if plan else ""
+    lane_line = f"{LANE_LINE}\n" if lane else ""
     return f"""# {title}
 
 **Status:** IN-PROGRESS
 **Surface:** {surface}
-**Command:** /fabrik-review · **Changed:** {", ".join(f"`{p}`" for p in changed)}
-{plan_line}
+**Command:** {command} · **Changed:** {", ".join(f"`{p}`" for p in changed)}
+{lane_line}{plan_line}
 ## Coverage Checklist
 
 Rubric invocation (verbatim output — the gate reads the generated header, never a prose mention):
@@ -230,6 +249,17 @@ def main(argv: list[str] | None = None) -> int:
         "--range", dest="rng", help="A..B diff range for the Surface hash (default HEAD)"
     )
     ap.add_argument("--project-root", type=Path, default=Path.cwd())
+    ap.add_argument(
+        "--command",
+        choices=COMMANDS,
+        default=COMMANDS[0],
+        help="the review command on the **Command:** line (default /fabrik-review)",
+    )
+    ap.add_argument(
+        "--lane",
+        action="store_true",
+        help=f"write `{LANE_LINE}` — a /fabrik-task phase-4 review",
+    )
     a = ap.parse_args(argv)
     root = a.project_root.resolve()
     if a.out is None:
@@ -255,7 +285,15 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     rubric = _rubric(root, a.changed)
     title = a.title or f"Review — {a.scope or out.stem.removesuffix('-review')}"
-    text = render(title=title, changed=a.changed, surface=surface, rubric=rubric, plan=a.plan)
+    text = render(
+        title=title,
+        changed=a.changed,
+        surface=surface,
+        rubric=rubric,
+        plan=a.plan,
+        command=a.command,
+        lane=a.lane,
+    )
     out.parent.mkdir(parents=True, exist_ok=True)
     try:
         with out.open("x", encoding="utf-8") as fh:  # exclusive: three sessions share this tree

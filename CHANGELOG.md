@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — fabrik-task lane T03b: the review-receipt check and receipt --command/--lane (2026-10-02)
+
+- `scripts/task_lane.py::check_review_receipt` (plan 2026-10-02-plan-1, T03b) checks a `done`/`handoff --review` receipt on four counts: (a) it is a file under the repo, (b) it is closed — every header-zone Status line CONVERGED, or the unnegated D-252 scope-growth wording, and the co-shipped `check_review_coverage.py` passes in an isolated, env-scrubbed subprocess, (c) its Command line names the review the lane owes, (d) its Surface names a commit that resolves and contains the run's work. Reasons accumulate; a hung or unlaunchable checker and an ambiguous short SHA refuse.
+- `scripts/review_receipt.py --init` takes `--command` (the receipt records the real review command instead of a hard-coded `/fabrik-review`) and `--lane` (writes the `**Lane:** fabrik-task` marker).
+- Wave review converged 10 -> 1 -> 0 (`docs/development/reviews/2026-10-02-plan-1-fabrik-task-feature-lane-T03b-review.md`).
+
 ### Added — `task_lane.measure_close`: the /fabrik-task lane's close measurement (2026-10-02)
 A stamped record is measured per commit in order with rename carry-over (membership only from a declared old path; `R100`/`C075` read by their first letter): the contract test runs over every committed path and old path before the caller's exclusions, new-source counts only added or copied non-test files that survive to the end, more than 7 Behaviours or 2x the appetite raise their UPGRADE tokens, more than 800 added lines is a `change:` finding, and a path named in neither the design nor a `--design-amend` refuses `done` (recorded for `blocked`/`handoff`; the run's own receipt is exempt). A sync-path run commits once unless it runs in a linked worktree. An unstamped record keeps today's close. Not wired into `command_run.py` until T08. Plan 2026-10-02-plan-1, T03a; review `docs/development/reviews/2026-10-02-plan-1-fabrik-task-feature-lane-T03a-review.md`.
 

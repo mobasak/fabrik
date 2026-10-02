@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_task_lane_admission.py · tests/test_task_lane_close.py · tests/test_lane_replay.py · tests/fixtures/lane_replay.json (re-capture with scripts/lane_replay_capture.py, whose expected_verdict delegates to classify_commit, then --check) · scripts/command_run.py (the `_task_size_gate` caller, T08)
+# AFTER-EDIT: tests/test_task_lane_admission.py · tests/test_task_lane_close.py · tests/test_task_lane_receipt.py · scripts/review_receipt.py (the receipt grammar check_review_receipt reads) ·tests/test_lane_replay.py · tests/fixtures/lane_replay.json (re-capture with scripts/lane_replay_capture.py, whose expected_verdict delegates to classify_commit, then --check) · scripts/command_run.py (the `_task_size_gate` caller, T08)
 """The /fabrik-task lane rules — admission and close (plan 2026-10-02-plan-1 T02, T03a; spec D1-D4, D7, D9, D12).
 
 PURE: no import of ``command_run.py``, no environment reads that change an answer. The caller
@@ -21,6 +21,8 @@ path — and this module only decides.
 - ``measure_close(rec, commits, ...)`` — the close (T03a; D1 close column, D3, D4, § Lifecycle):
   per commit in the given order with rename carry-over; contract and new-source re-checked over
   every committed path before any exclusion; an undeclared path refuses ``done``.
+- ``check_review_receipt(path, commits, root=)`` — the full-review receipt a close-time contract
+  or new-source hit owes (T03b; D1 checks (a)-(d)).
 - ``contract_hit`` / ``is_new_source`` / ``is_migration`` — the path helpers every rule shares,
   so admission, the replay and the close (T03a) cannot disagree.
 
@@ -41,6 +43,7 @@ import posixpath
 import re
 import secrets
 import subprocess
+import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -691,3 +694,239 @@ def measure_close(
         over_appetite=over,
         findings=findings,
     )
+
+
+# ── the close's review receipt (D1 checks (a)-(d), T03b) ─────────────────────────────────
+
+REVIEWS_DIR = "docs/development/reviews/"
+_RECEIPT_COMMAND = "/fabrik-review"
+_CHECKER_TIMEOUT = 300
+# The header zone — the checker's own (`check_review_coverage._in_progress`): the first 10 raw
+# lines, normalised (`_normalized`) and fence-stripped (`_strip_fences`). Every header field
+# below is read THERE, as a line-start field, so a body-deep, blockquoted or fenced copy never
+# satisfies a check (round-1 O1, O4).
+_HEADER_LINES = 10
+_COMMAND_FIELD = re.compile(r"^\*\*Command:\*\* (.*)$", re.M)
+_SURFACE_FIELD = re.compile(r"^\*\*Surface:\*\*(.*)$", re.M)
+# `review_receipt.py --range A..B` writes `… = <HEAD>; range tip <sha>; `git diff …`` on the
+# Surface line (review_receipt.py `_surface`); an unresolvable endpoint is written `?`.
+_RANGE_TIP = re.compile(r"; range tip ([^\s;]+)")
+# Every Status line, case-insensitive, the colon inside or outside the bold (`**Status:**`,
+# `**Status**:`, `Status:`); the value is read with EVERY `*` removed, not only the ends — an
+# end-only strip leaves `**CONVERGED**-ish` as `CONVERGED**-ish` (O7).
+_STATUS_LINE = re.compile(r"^\**Status\**:\**[ \t]*(.*?)[ \t]*$", re.M | re.I)
+_CLOSED_STATUS = "CONVERGED"
+# CONVERGED followed only by whitespace, `(` or the end — a POSITIVE look-ahead, because a
+# negative one (`(?![\w-])`) still admitted `CONVERGED/partial` and `CONVERGED*…` (O7).
+_CLOSED_WORD = re.compile(r"CONVERGED(?=\s|\(|$)", re.I)
+# ONE checker for both halves of (b) — the copy shipped BESIDE this module, never
+# `<root>/scripts/enforcement/check_review_coverage.py`: the lane run being closed can commit
+# an edit to the root copy (`raise SystemExit(0)` turns the grammar half into a constant
+# pass), and two copies could grade one receipt with two versions (round-1 O5, S1). Imported
+# lazily (185 KB) for its header-zone readers; its grammar runs as the (b) subprocess.
+_LOCAL_CHECKER = Path(__file__).resolve().parent / "enforcement" / "check_review_coverage.py"
+_crc_cache: list[Any] = []
+
+
+def _crc() -> Any:
+    """The co-shipped ``check_review_coverage`` module, loaded once; raises when it cannot load
+    (the callers refuse — fail closed)."""
+    if not _crc_cache:
+        import importlib.util  # noqa: PLC0415 — only a receipt check pays for the 185 KB module
+
+        spec = importlib.util.spec_from_file_location("_task_lane_crc", _LOCAL_CHECKER)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"cannot load {_LOCAL_CHECKER}")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _crc_cache.append(mod)
+    return _crc_cache[0]
+
+
+def _header_zone(crc: Any, text: str) -> str:
+    return str(
+        crc._strip_fences("".join(crc._normalized(text).splitlines(keepends=True)[:_HEADER_LINES]))
+    )
+
+
+def _status_refusals(crc: Any, zone: str) -> list[str]:
+    """The refusal tails for the header Status lines — empty when EVERY one is CLOSED.
+
+    CLOSED is ``CONVERGED`` (any case, bold markers stripped), or a CONVERGED line carrying the
+    D-252 scope-growth-stop declaration the checker itself parses — its ``SCOPE_GROWTH_EXIT``
+    window, with no ``_EXIT_NEGATION`` in either group. ``IN-PROGRESS``, ``BLOCKED``, any other
+    value and a missing line refuse; a second Status line is read too, because the checker
+    exempts the whole grammar when ANY header line is ``IN-PROGRESS`` (O1).
+    """
+    found = list(_STATUS_LINE.finditer(zone))
+    if not found:
+        return [f"carries no **Status:** line in its first {_HEADER_LINES} lines"]
+    out: list[str] = []
+    for m in found:
+        value = m.group(1).replace("*", "").strip()
+        if value.upper() == _CLOSED_STATUS:
+            continue
+        exit_ = crc.SCOPE_GROWTH_EXIT.search(m.group(0))
+        if (
+            _CLOSED_WORD.match(value) is not None
+            and exit_ is not None
+            and not crc._EXIT_NEGATION.search(exit_.group(1))
+            and not crc._EXIT_NEGATION.search(exit_.group(2))
+        ):
+            continue
+        out.append(
+            f"is **Status:** {value!r} — only {_CLOSED_STATUS} (or the D-252 scope-growth-stop "
+            "declaration) closes a review; an unfinished review is not a review"
+        )
+    return out
+
+
+def _checker_env() -> dict[str, str]:
+    """The (b) subprocess's environment: ``_git``'s scrub, ``GIT_OPTIONAL_LOCKS=0``, and every
+    ``PYTHON*`` variable removed but ``PYTHONIOENCODING`` — with ``-I`` on the command line, no
+    caller-side ``PYTHONPATH``/``sitecustomize`` can change the verdict (O6)."""
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in _GIT_ENV_OVERRIDES and (not k.startswith("PYTHON") or k == "PYTHONIOENCODING")
+    }
+    env["GIT_OPTIONAL_LOCKS"] = "0"
+    return env
+
+
+def _resolve_commit(root: Path, rev: str) -> str | None:
+    """``rev`` as a full commit SHA, or ``None`` (unknown, AMBIGUOUS, not a commit — never a
+    guess). Read-only: ``_git`` scrubs the repository-moving environment and turns optional
+    locks off."""
+    if not rev or rev.startswith("-"):
+        return None
+    r = _git(root, "rev-parse", "--verify", "--quiet", "--end-of-options", f"{rev}^{{commit}}")
+    if r is None or r.returncode != 0:
+        return None
+    sha = r.stdout.decode("ascii", "replace").strip()
+    return sha or None
+
+
+def check_review_receipt(path: Path, commits: list[str], *, root: Path) -> list[str]:
+    """The refusal reasons for a ``--review <receipt>`` on a ``done``/``handoff`` close that owes
+    the full review (``CloseVerdict.needs_full_review``); empty when all four hold. Reasons
+    ACCUMULATE — every failing check appends its own, each opening with its check's letter (a
+    missing file adds a ``not a file`` reason and stops there, since nothing else is readable):
+
+    (a) the path — normalised as ``measure_close`` normalises the receipt (``_norm_path``),
+        joined to the RESOLVED ``root`` and resolved itself (symlinks followed) — lies under the
+        resolved ``<root>/docs/development/reviews/``;
+    (b) the co-shipped checker (``_LOCAL_CHECKER``, never the root's copy) run as
+        ``python -I <checker> --root <root> <receipt>`` in a scrubbed environment exits 0 — a
+        missing, crashing, unlaunchable or timed-out checker refuses (fail closed) — AND every
+        header Status line is CLOSED (``_status_refusals``);
+    (c) the header zone holds exactly one line-start ``**Command:**`` field, and its token — the
+        text up to the next `` · `` — is exactly ``/fabrik-review`` (``/fabrik-review-scoped``
+        shares the prefix and is refused);
+    (d) the header zone holds exactly one ``**Surface:**`` field, its ``range tip`` (written by
+        ``review_receipt.py --range``) and the LAST of ``commits`` both resolve with ``git
+        rev-parse`` to the same full SHA — a short SHA is compared in full, an ambiguous one
+        refuses.
+
+    (d) is TIP-ONLY, as the spec words it: the range's base is not checked, so a receipt over
+    ``<last>~1..<last>`` passes for a run with earlier commits.
+
+    THE CHEAPEST WAY TO SATISFY THIS CHECK WITHOUT THE OUTCOME (D-253): ``review_receipt.py
+    --init --range <base>..<last>`` and never run the review — the skeleton's
+    ``Status: IN-PROGRESS`` is exempt from ``check_review_coverage.py``, so its exit 0 alone
+    would pass an unreviewed file; the Status half of (b) is the counter-measure, and running
+    the CO-SHIPPED checker keeps the lane's own commits from editing the grader. What is left
+    is flipping the Status to CONVERGED on a ledger the checker accepts — which costs the
+    checker's own closing-round grammar (a re-derivation pass naming its finder seats), the
+    work itself or a lie no text check can see.
+    """
+    root = Path(root).resolve()
+    # Spelled like a declared path (`_norm_path`, as `measure_close` spells the receipt), then
+    # RESOLVED — symlinks followed — so a link under reviews/ pointing elsewhere is judged by
+    # where it lands.
+    rel = _norm_path(os.fspath(path).replace(os.sep, "/"))
+    receipt = (root / rel).resolve()
+    reviews = (root / REVIEWS_DIR).resolve()
+    reasons: list[str] = []
+    if not receipt.is_relative_to(reviews) or receipt == reviews:
+        reasons.append(f"(a) the receipt {path} resolves to {receipt}, not under {reviews}/")
+    try:
+        text = receipt.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        reasons.append(f"--review {path}: not a file under {root} ({exc.__class__.__name__})")
+        return reasons
+
+    # (b) the co-shipped checker, run as a subprocess and trusted only on exit 0.
+    if not _LOCAL_CHECKER.is_file():
+        reasons.append(
+            f"(b) {_LOCAL_CHECKER} is missing — the receipt cannot be graded (fail closed)"
+        )
+    else:
+        try:
+            r = subprocess.run(
+                [sys.executable, "-I", str(_LOCAL_CHECKER), "--root", str(root), str(receipt)],
+                cwd=root,
+                env=_checker_env(),
+                capture_output=True,
+                text=True,
+                timeout=_CHECKER_TIMEOUT,
+                check=False,
+            )
+            rc: int | None = r.returncode
+            tail = (r.stdout + r.stderr).strip().splitlines()[-1:] or [""]
+        except (OSError, subprocess.SubprocessError) as exc:
+            rc, tail = None, [exc.__class__.__name__]
+        if rc != 0:
+            reasons.append(
+                f"(b) {_LOCAL_CHECKER.name} refused the receipt (rc={rc}): {tail[0][:300]}"
+            )
+
+    # The header zone every field below is read in; an unreadable one refuses (b), (c), (d).
+    try:
+        crc = _crc()
+        zone: str | None = _header_zone(crc, text)
+    except Exception as exc:  # noqa: BLE001 — any load failure refuses (fail closed)
+        crc, zone = None, None
+        unread = f"the header cannot be read ({exc.__class__.__name__}: {exc})"
+        reasons.extend(f"({c}) {unread}" for c in "bcd")
+    if zone is None:
+        return reasons
+
+    # (b) also: the review FINISHED.
+    reasons.extend(f"(b) the receipt {s}" for s in _status_refusals(crc, zone))
+
+    # (c) one header Command field; its token compared whole.
+    commands = _COMMAND_FIELD.findall(zone)
+    token = commands[0].split(" · ", 1)[0].strip() if len(commands) == 1 else None
+    if len(commands) != 1:
+        reasons.append(
+            f"(c) the receipt's header holds {len(commands)} **Command:** line(s), not exactly one"
+        )
+    elif token != _RECEIPT_COMMAND:
+        reasons.append(
+            f"(c) the receipt's **Command:** is {token!r}, not exactly {_RECEIPT_COMMAND!r} "
+            "— a contract or new-source hit owes the full review"
+        )
+
+    # (d) one header Surface field; its range tip is the run's last commit.
+    surfaces = _SURFACE_FIELD.findall(zone)
+    m = _RANGE_TIP.search(surfaces[0]) if len(surfaces) == 1 else None
+    if not commits:
+        reasons.append("(d) no --commit was given, so the receipt's range tip has nothing to match")
+    elif len(surfaces) != 1:
+        reasons.append(
+            f"(d) the receipt's header holds {len(surfaces)} **Surface:** line(s), not exactly one"
+        )
+    elif m is None:
+        reasons.append(
+            "(d) the receipt's **Surface:** line carries no range tip — make it with "
+            "`review_receipt.py --range <base>..<last commit>`"
+        )
+    else:
+        tip, last = _resolve_commit(root, m.group(1)), _resolve_commit(root, commits[-1])
+        if tip is None or last is None or tip != last:
+            reasons.append(
+                f"(d) the receipt's range tip {m.group(1)} (→ {tip}) is not the last --commit "
+                f"{commits[-1]} (→ {last})"
+            )
+    return reasons
