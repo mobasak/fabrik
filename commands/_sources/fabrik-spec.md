@@ -425,6 +425,8 @@ NOT invoke `/fabrik-spec-review`; hand the DRAFT straight to `/fabrik-plan-after
 Its own `/fabrik-plan-review` grades this spec's sections together with the plan, flips both to
 `CONVERGED`, and holds the operator's approval gate there — never twice. Everything else in this phase
 (the MANDATORY call, the comparison table, the approval gate below) is the full-profile path, unchanged.
+The two independent design critiques (the `design-critique` step) run at the command holding the approval
+gate — `/fabrik-spec-review`, or `/fabrik-plan-review` for a `Size: small` spec — never a second pair here.
 
 **MANDATORY final step (full-profile specs only) — immediately invoke `/fabrik-spec-review <spec path>` (via the Skill tool) and run
 it to a fixed point in THIS turn. Do not just name it — call it.** Phase 5's self-review is the light inline

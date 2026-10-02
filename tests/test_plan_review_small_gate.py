@@ -194,7 +194,7 @@ def test_plan_review_small_spec_exception_presents_in_spec_reviews_own_order() -
     assert_affirmed(
         section,
         "this run ends at the operator's design-approval gate — present exactly what "
-        "`/fabrik-spec-review` presents (`fabrik-spec-review.md:280-294`), in the same order",
+        "`/fabrik-spec-review` presents (`fabrik-spec-review.md:280-296`), in the same order",
     )
     assert_affirmed(
         section,

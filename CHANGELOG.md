@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Two independent design critiques before every design-approval decision (2026-10-03)
+
+Operator ruling D-517: the command holding a design-approval gate first dispatches two author-blind critiques in parallel — the latest Opus and the latest Fable — and adjudicates every concern beside the DECISION block. One fragment, `commands/_fragments/design-critique.md`, included at /fabrik-spec-review's approval gate, /fabrik-plan-review's `Size: small` gate and /fabrik-task phase 2 (before the design is recorded); /fabrik-spec points at those gates. Graded by `tests/test_design_critique_fragment.py`; full /fabrik-review CONVERGED (`docs/development/reviews/2026-10-03-design-critique-review.md`).
+
 ### Fixed — the seat budget charges a native seat the CPU it actually uses (2026-10-02)
 
 `scripts/sysadmin/dispatch_headroom.py` reserved a whole CPU core for every native seat and subtracted sibling sessions' stamped seats on top of a load average that already carried their work, so a busy box read `SEATS: 0`–`3` while 20+ GB of memory sat free. Measured over 3,114 seat transcripts, a seat's tools run a median 9 % (p90 28 %) of its life, so a read-only seat now costs 0.3 of a core (heavy: 1.0), siblings are charged in GB and cores at that read-only cost, and memory alone decides the 3-seat floor (CPU contention slows, memory exhaustion kills). The reason line prints the CPU arithmetic. `.windsurf/rules/core/62-using-subagents.md` and `docs/workstation/claude-account-rotation.md` state the new rule and drop a stale `CommitLimit` formula. Full review: `docs/development/reviews/2026-10-02-seat-budget-cpu-review.md` (D-511).

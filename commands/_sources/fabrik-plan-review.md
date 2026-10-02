@@ -27,7 +27,7 @@ more than ~400 code lines OR more than 5 code files, tests excluded), remove the
 the spec and send it to `/fabrik-spec-review` first — the joint loop does not continue past that point.
 
 Once both documents read `Status: CONVERGED`, this run ends at the operator's design-approval gate —
-present exactly what `/fabrik-spec-review` presents (`fabrik-spec-review.md:280-294`), in the same order:
+present exactly what `/fabrik-spec-review` presents (`fabrik-spec-review.md:280-296`), in the same order:
 (1) the ask↔spec comparison table, built from the spec's own `## Intake Inventory` section (the A0a
 enumeration `/fabrik-spec` already wrote when it authored this spec — this loop never re-runs that step
 and never fabricates rows); (2) the converged spec + a short summary of what hardened; (3) the full Pass
@@ -38,7 +38,10 @@ only on the operator's explicit approval, in a LATER turn, does that approving t
 `docs/DECISIONS.md` approval row — the duty `fabrik-plan-after-chat.md:55` hands to `/fabrik-spec-review`
 for full-size work, which this `Size: small` spec skipped. If the operator asks for changes instead,
 re-open the loop on their feedback, same as `/fabrik-spec-review`. A spec with no `Size: small` line keeps
-today's behaviour unchanged: no joint loop, no gate, full autonomy.
+today's behaviour unchanged: no joint loop, no gate, full autonomy. **Only a `Size: small` spec's gate owes the
+step below** — a plan review without that gate dispatches no critiques.
+
+{{include:design-critique}}
 
 {{include:grounding-artifact}}
 ## Phase 0 — Establish scope

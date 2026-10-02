@@ -55,6 +55,8 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # new UPGRADE tokens), then again after review round 1 for the v1/v2 scope tags every one of
 # those needed (D2/D7's full-review-by-surface and D1's module tests apply at lane v2 ONLY; v1
 # keeps today's gate, so the text has to say which) plus the O7 contradiction fix — D-501.
+# D-517 (operator ruling 2026-10-03, two independent design critiques before design approval) added the
+# phase-2 `design-critique` include inside this cap — the cap did not move.
 SIZE_CAP = 11672
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
@@ -249,7 +251,7 @@ def _asserted(text: str, pattern: str) -> bool:
 
 
 def test_source_size_and_single_include() -> None:
-    """The byte ceiling, and `run-record` as the only include.
+    """The byte ceiling, and `run-record` + `orient` + `design-critique` as the only includes.
 
     ⚠️ The cap is 11672 B, NOT the spec's C2 figure of 8,847 nor D-296's 8980 (the latter stood
     until T07, plan 2026-10-02-plan-1, which gained the Behaviours cap, multi-commit build,
@@ -271,9 +273,10 @@ def test_source_size_and_single_include() -> None:
         f"(D-296) by {len(data) - SIZE_CAP} B"
     )
     includes = set(_INCLUDE_RE.findall(data.decode("utf-8")))
-    assert includes == {"run-record", "orient"}, (
+    assert includes == {"run-record", "orient", "design-critique"}, (
         f"includes are {sorted(includes)}; C2 allows exactly ['run-record'] plus `orient` "
-        "(D-342 — the four executed opening lines every command carries, 19 B in the source) — "
+        "(D-342 — the four executed opening lines every command carries, 19 B in the source) "
+        "and `design-critique` (D-517 — the operator's two critiques before BUILD) — "
         "`close-feedback` is auto-appended by the assembler and `term-coverage`/`term-edit` "
         "are the weight this cap exists to keep out"
     )

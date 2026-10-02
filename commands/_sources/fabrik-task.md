@@ -65,7 +65,11 @@ the packs it prints.
 ## Phase 2 — DESIGN, where it will be minted
 
 Write six fields — **PROBLEM · APPROACH · DECISION (reversible?) · MIRROR · OUT · TERMINAL** — to
-`<scratchpad>/fabrik-task/<sid>/<started_at>/design.md`, then put them in the record:
+`<scratchpad>/fabrik-task/<sid>/<started_at>/design.md`.
+
+{{include:design-critique}}
+
+Then record them:
 
 ```bash
 python3 scripts/command_run.py step --phase 2 --title "design: <that path>" \
