@@ -6,20 +6,38 @@ the only grader available is the text itself — the same text-assertion style
 `test_check_command_corpus.py` uses for `fabrik-deploy-plan.md`/`fabrik-deploy.md` (its
 `test_the_deploy_triad_reads_the_frozen_contract_before_the_deploy_not_after`).
 
-Round-1 review (15 CONFIRMED, O3 refuted) found that whole-file substring assertions are too weak:
-a clause can be satisfied by the WRONG section (O4), by a negated sentence (O5/O7), or by a
-weakened rewrite that still contains the pinned substring (O6/O8). Every assertion below is
-therefore SECTION-SCOPED — extracted from exactly the block the Behavior Contract row names — and
-every affirmative assertion that admits a plausible negation/weakening carries a paired "the
-regressed wording is ABSENT" assertion.
+Round 1 (15 CONFIRMED, O3 refuted) found that whole-file substring assertions are too weak: a
+clause can be satisfied by the WRONG section (O4), by a negated sentence (O5/O7), or by a weakened
+rewrite that still contains the pinned substring (O6/O8). Round 1's own fix — ad hoc
+`assert X not in text` pairs for the four worst offenders — was itself too weak (W-afe28a4a): a
+SHORT affirmative pin (`"pass the TICKET's own"`) is still a literal substring of its own negation
+(`"do NOT pass the TICKET's own"`), and a one-phrase `not in` guard only catches the ONE wording it
+names, not `never`/`don't`/a capitalised `NOT`/an appended "or anywhere" qualifier.
+
+`assert_affirmed()` replaces every bare `in`/`not in` pair in this file with ONE check: the
+governing sentence, anchored on its own leading verb and subject so an insertion ANYWHERE inside it
+breaks the literal match outright, PLUS a scan of the clause housing it (extended to the nearest
+`.`/`;`/`—`/`:` on each side, excluding the pinned span itself) for a negation or weakening token.
+A sentence that is ITSELF negative ("**Do NOT mint the approval row here**") is the affirmed
+content, not a corruption — only text OUTSIDE the pinned span is scanned.
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 SOURCES = REPO / "commands" / "_sources"
+
+# Case-insensitive negation tokens (word-bounded where that makes sense) + the two multi-word/
+# suffix forms that cannot be: a contraction's "n't" and the two-word "instead of".
+_NEGATION_RE = re.compile(r"\b(not|never|no|skip|skips|without)\b|n't|instead of", re.IGNORECASE)
+# A weakening qualifier that broadens a precise trigger without negating it outright.
+_WEAKENING_RE = re.compile(r"\banywhere\b", re.IGNORECASE)
+# Clause boundaries for this prose: sentence/semicolon/em-dash breaks, plus the colon this
+# command's terse pseudocode uses in place of punctuation ("for each PHASE in dependency order:").
+_CLAUSE_BOUNDARY_CHARS = ".;—:"
 
 
 def _raw(name: str) -> str:
@@ -41,6 +59,50 @@ def _section(text: str, start: str, end: str) -> str:
     i = text.index(start)
     j = text.index(end, i + len(start))
     return text[i:j]
+
+
+def _clause_window(section: str, start: int, end: int) -> tuple[int, int]:
+    """Expand `[start, end)` outward to the nearest clause-boundary character on each side."""
+    cs = start
+    while cs > 0 and section[cs - 1] not in _CLAUSE_BOUNDARY_CHARS:
+        cs -= 1
+    ce = end
+    while ce < len(section) and section[ce] not in _CLAUSE_BOUNDARY_CHARS:
+        ce += 1
+    return cs, ce
+
+
+def assert_affirmed(section: str, sentence: str) -> None:
+    """Assert `sentence` stands, verbatim and UNNEGATED, as the governing text of its clause.
+
+    Two checks close the gap every prior round's bare `in`/`not in` pair left open (O5-O9, O12-O16,
+    the W-afe28a4a remainder):
+
+    1. `sentence` is present character-for-character, anchored on its own leading verb and
+       subject — an insertion ANYWHERE inside it (a prepended "do NOT", an appended "or anywhere
+       else", a swapped verb like "skips" for "ends at") breaks the match outright, not just a
+       sub-phrase of it.
+    2. The clause housing `sentence` — `sentence` itself, extended outward to the nearest
+       `.`/`;`/`—`/`:` on each side — carries no negation token (not/never/no/skip(s)/without/n't/
+       "instead of", case-insensitive) and no weakening qualifier ("anywhere") OUTSIDE `sentence`'s
+       own span. A negation INSIDE the pinned text (a sentence that is itself "Do NOT mint …") is
+       the affirmed content, not a corruption, so only the surrounding context is scanned.
+    """
+    assert sentence in section, f"governing sentence not found verbatim: {sentence!r}"
+    start = section.index(sentence)
+    end = start + len(sentence)
+    cs, ce = _clause_window(section, start, end)
+    surrounding = section[cs:start] + section[end:ce]
+    neg = _NEGATION_RE.search(surrounding)
+    assert neg is None, (
+        f"negation token {neg.group()!r} found around the pinned sentence "
+        f"(clause: {section[cs:ce]!r})"
+    )
+    weak = _WEAKENING_RE.search(surrounding)
+    assert weak is None, (
+        f"weakening token {weak.group()!r} found around the pinned sentence "
+        f"(clause: {section[cs:ce]!r})"
+    )
 
 
 def _plan_review_small_spec_section() -> str:
@@ -71,24 +133,26 @@ def _execute_plan_loop_section() -> str:
 
 
 def test_plan_review_small_spec_exception_names_the_joint_surface() -> None:
-    """Row 1: `--surface` names BOTH the plan path AND the spec path (O5: a `--surface` naming only
-    the plan, with the spec path merely "read as context", must fail)."""
+    """Row 1: `--surface` names BOTH the plan path AND the spec path, and the `Size: small` trigger
+    is pinned on its own line (O5/O8/O14: a `--surface` naming only the plan, a trigger weakened to
+    "anywhere in its body", or an "or anywhere else" append must all fail)."""
     section = _plan_review_small_spec_section()
-    assert "carries `Size: small` on its own line" in section
-    assert '--surface "<plan path> + <spec path>"' in section
-    # O5 regression guard: a --surface that drops the spec path from the flag's own value.
-    assert '--surface "<plan path>"' not in section
-    # O8 regression guard: a weakened trigger ("anywhere in its body") must not stand in for the
-    # own-line requirement a plan_appetite.py-style grader would actually check.
-    assert "mentions `Size: small` anywhere in its body" not in section
+    assert_affirmed(
+        section,
+        "When the plan's cited spec carries `Size: small` on its own line, this run starts with "
+        '`--surface "<plan path> + <spec path>"`',
+    )
 
 
 def test_plan_review_small_spec_exception_runs_one_joint_loop() -> None:
     """Row 1: the spec's sections are graded WITH the plan in one loop — never a first, separate
     pass over the spec (O6: "after a separate first pass over the spec" must fail)."""
     section = _plan_review_small_spec_section()
-    assert "in ONE joint loop, never a separate pass" in section
-    assert "after a separate first pass" not in section
+    assert_affirmed(
+        section,
+        "the review grades the spec's sections together with the plan in ONE joint loop, never a "
+        "separate pass over the spec",
+    )
 
 
 def test_plan_review_small_spec_exception_flips_the_spec_before_the_plan() -> None:
@@ -96,62 +160,84 @@ def test_plan_review_small_spec_exception_flips_the_spec_before_the_plan() -> No
     CONVERGED flip while its cited spec is not CONVERGED — so the exception must flip the SPEC to
     CONVERGED first (or in the same commit), then the plan."""
     section = _plan_review_small_spec_section()
-    assert "_check_plan_spec_freshness" in section
-    assert "flip the SPEC to CONVERGED first" in section
-    assert "then the plan" in section
+    assert_affirmed(
+        section,
+        "`check_stage_artifacts.py::_check_plan_spec_freshness` refuses a plan's new CONVERGED "
+        "flip while its cited spec is not CONVERGED",
+    )
+    assert_affirmed(
+        section,
+        "flip the SPEC to CONVERGED first (or in the same commit as the plan), then the plan",
+    )
+
+
+def test_plan_review_small_spec_exception_has_an_estimate_escape_hatch() -> None:
+    """O10 (orchestrator ruling): spec § D10 says a plan larger than the spec's `Size: small`
+    estimate sends the spec BACK to `/fabrik-spec-review` first (O16: "never send it to
+    `/fabrik-spec-review` first" must fail — the bare citation substring survives that negation)."""
+    section = _plan_review_small_spec_section()
+    assert_affirmed(
+        section,
+        "if the converging plan outgrows the spec's own `Size: small` estimate (D-169's rule: more "
+        "than ~400 code lines OR more than 5 code files, tests excluded), remove the `Size: small` "
+        "line from the spec and send it to `/fabrik-spec-review` first",
+    )
 
 
 def test_plan_review_small_spec_exception_presents_in_spec_reviews_own_order() -> None:
     """S4/O12 (orchestrator ruling): present exactly what `/fabrik-spec-review` presents — the
     ask↔spec table (built from the spec's own `## Intake Inventory`, never fabricated), the
     converged spec + a summary of what hardened, and the full Pass Ledger — never dropping the
-    middle item."""
+    middle item, and never ENDING the run some other way (O16: "skips the operator's
+    design-approval gate" must fail)."""
     section = _plan_review_small_spec_section()
-    assert "fabrik-spec-review.md:280-294" in section
-    assert "## Intake Inventory" in section
-    assert "the converged spec + a short summary of what hardened" in section
-    assert "the full Pass Ledger" in section
+    assert_affirmed(
+        section,
+        "this run ends at the operator's design-approval gate — present exactly what "
+        "`/fabrik-spec-review` presents (`fabrik-spec-review.md:280-294`), in the same order",
+    )
+    assert_affirmed(
+        section,
+        "(1) the ask↔spec comparison table, built from the spec's own `## Intake Inventory` "
+        "section (the A0a enumeration `/fabrik-spec` already wrote when it authored this spec — "
+        "this loop never re-runs that step and never fabricates rows)",
+    )
+    assert_affirmed(section, "(2) the converged spec + a short summary of what hardened")
+    assert_affirmed(
+        section,
+        "(3) the full Pass Ledger; then **end the turn** with the `DECISION NEEDED (ground: gate)` "
+        "block asking for design approval",
+    )
 
 
 def test_plan_review_small_spec_exception_does_not_mint_the_approval_row_in_the_loop() -> None:
     """O2 (orchestrator ruling): the approval row is minted ONLY on the operator's explicit
     approval, in a later turn — exactly as `/fabrik-spec-review` does. The loop itself must say it
-    does NOT mint the row (O7: a bare "mint the approval row" substring is satisfied by its own
-    negation, so both the affirmative deferral and the absence of the old wording are asserted)."""
+    does NOT mint the row, and that prohibition must be the sentence's OWN wording (O7: a bare
+    "mint the approval row" substring is satisfied by its own negation elsewhere)."""
     section = _plan_review_small_spec_section()
-    assert "Do NOT mint the approval row here" in section
-    assert "no approval row yet" in section
-    assert "LATER turn" in section
-    assert "mint the `docs/DECISIONS.md` approval row" in section
-    # O7 regression guard: the pre-fix wording that minted the row INSIDE the loop, before gate.
-    assert "mint the approval row in `docs/DECISIONS.md` here" not in section
-
-
-def test_plan_review_small_spec_exception_ends_at_the_gate_not_the_auto_handoff() -> None:
-    """Row 1: the run ends at the operator's design-approval gate instead of auto-chaining to
-    `/fabrik-execute-plan` — the auto-handoff this command otherwise owns for a fully-autonomous
-    run."""
-    section = _plan_review_small_spec_section()
-    assert "design-approval gate" in section
-    assert "do NOT auto-invoke `/fabrik-execute-plan`" in section.replace("Do NOT", "do NOT")
-
-
-def test_plan_review_small_spec_exception_has_an_estimate_escape_hatch() -> None:
-    """O10 (orchestrator ruling): spec § D10 says a plan larger than the spec's `Size: small`
-    estimate sends the spec BACK to `/fabrik-spec-review` first — the joint loop is not an
-    unconditional substitute for the full review."""
-    section = _plan_review_small_spec_section()
-    assert "Escape hatch" in section
-    assert "outgrows the spec's own `Size: small` estimate" in section
-    assert "/fabrik-spec-review` first" in section
+    assert_affirmed(
+        section,
+        "**Do NOT mint the approval row here, and do NOT auto-invoke `/fabrik-execute-plan`** — "
+        "exactly as `/fabrik-spec-review` does today, this loop ends with BOTH documents CONVERGED "
+        "and no approval row yet",
+    )
+    assert_affirmed(
+        section,
+        "only on the operator's explicit approval, in a LATER turn, does that approving turn's "
+        "session mint the `docs/DECISIONS.md` approval row",
+    )
 
 
 def test_plan_review_full_size_spec_is_unaffected() -> None:
     """Row 1 else-branch: a spec with no `Size: small` line keeps today's fully-autonomous flip —
     no joint loop, no gate."""
     section = _plan_review_small_spec_section()
-    assert "A spec with no `Size: small` line keeps" in section
-    assert "no joint loop, no gate, full autonomy" in section
+    assert_affirmed(
+        section,
+        "A spec with no `Size: small` line keeps today's behaviour unchanged: no joint loop, no "
+        "gate, full autonomy.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -164,28 +250,44 @@ def test_execute_plan_loop_passes_appetite_on_phase_open() -> None:
     note above it — O4's mutant deleted the loop's own line and left every assertion green because
     the header carries the same substrings), passes `step --appetite <minutes>`."""
     loop = _execute_plan_loop_section()
-    assert "step --phase" in loop
-    assert "--appetite <the phase's Appetite: minutes>" in loop
+    assert_affirmed(
+        loop,
+        'for each PHASE in dependency order: step --phase <N> --title "<phase title>" --appetite '
+        "<the phase's Appetite: minutes>",
+    )
 
 
 def test_execute_plan_loop_phase_marker_reads_elapsed_over_appetite() -> None:
     """Row 2: the phase marker (`command_run.py line`'s pinned `RUN:` line) reads
     `elapsed <m>/<appetite>`, read from the Execution Loop block itself."""
     loop = _execute_plan_loop_section()
-    assert "elapsed <m>/<appetite>" in loop
-    assert "command_run.py line" in loop
+    assert_affirmed(loop, "`command_run.py line` shows `elapsed <m>/<appetite>`")
+
+
+def test_execute_plan_loop_omits_appetite_when_the_phase_declares_none() -> None:
+    """O11 (orchestrator ruling): a phase with no `Appetite:` line (pre-rollout plan) omits
+    `--appetite` rather than inventing a value, and this is T08-landed per the run-record note."""
+    loop = _execute_plan_loop_section()
+    assert_affirmed(
+        loop,
+        "T08-landed per the run-record note above — omit --appetite when the phase declares none",
+    )
 
 
 def test_execute_plan_loop_names_the_2x_standing_order_never_a_forced_cancel() -> None:
     """O8 (orchestrator ruling): D11 is an order + a recorded verdict at 2× budget, NEVER a forced
     cancel — a regression to "past 1x it cancels the phase" must fail."""
     loop = _execute_plan_loop_section()
-    assert "past 2×" in loop
-    assert "prints a standing order to stop and re-plan the rest of THIS phase" in loop
-    assert "never a forced cancel" in loop
-    # O8 regression guard: a forced-cancel rewrite, or a 1x threshold.
-    assert "past 1×" not in loop
-    assert "cancels the phase" not in loop
+    assert_affirmed(
+        loop,
+        "past 2× it prints a standing order to stop and re-plan the rest of THIS phase with "
+        "/fabrik-plan-after-chat",
+    )
+    assert_affirmed(
+        loop,
+        'an order and a recorded verdict, never a forced cancel (dispatcher mode\'s own "Dispatch '
+        'timeout" bullet, § Dispatcher Mode, is unchanged by this)',
+    )
 
 
 def test_execute_plan_loop_records_over_appetite_phases_not_over_appetite() -> None:
@@ -193,56 +295,61 @@ def test_execute_plan_loop_records_over_appetite_phases_not_over_appetite() -> N
     spine's own field name, per D11 and `plan_appetite.py:25`'s comment) and `phase_marks` — never
     the bare `over_appetite` token, which is the UNRELATED `/fabrik-task` close field."""
     loop = _execute_plan_loop_section()
-    assert "over_appetite_phases" in loop
-    assert "phase_marks" in loop
-    # O9 regression guard: the bare token (minus its "_phases" suffix) must not stand alone.
-    assert "records over_appetite —" not in loop
-    assert "recorded over_appetite —" not in loop
-
-
-def test_execute_plan_loop_omits_appetite_when_the_phase_declares_none() -> None:
-    """O11 (orchestrator ruling): a phase with no `Appetite:` line (pre-rollout plan) omits
-    `--appetite` rather than inventing a value."""
-    loop = _execute_plan_loop_section()
-    assert "omit --appetite when the phase declares none" in loop
+    assert_affirmed(
+        loop,
+        "the close records the overrun in `over_appetite_phases` (count) and this phase's own "
+        "`phase_marks` entry",
+    )
 
 
 def test_execute_plan_loop_dispatcher_coder_timeout_is_untouched() -> None:
     """The ticket's DO-NOT: dispatcher mode's own "Dispatch timeout" bullet (today
     `fabrik-execute-plan.md:527-529`) keeps its exact wording."""
     text = _norm("fabrik-execute-plan.md")
-    assert (
-        "**Dispatch timeout:** a coder with no result within 2× the ticket's plan-time estimate"
-        in text
+    assert_affirmed(
+        text,
+        "**Dispatch timeout:** a coder with no result within 2× the ticket's plan-time estimate "
+        "(no estimate stated → use 30 min as the estimate, i.e. a 60-minute timeout) → the D6 "
+        "salvage procedure; 2 consecutive timeouts on one ticket → \U0001f534.",
     )
-    assert "2 consecutive timeouts on one ticket → \U0001f534." in text
 
 
 def test_execute_plan_header_note_names_the_t08_landing_window() -> None:
     """S1/S2/S3/O1 (orchestrator ruling): `--appetite` on `step`, the `elapsed` segment on `line`,
-    and the close recording are T08's mechanics, landing in the SAME merge window as T05c — the
-    text must say so, not present them as already true of today's `command_run.py`."""
+    and the close recording are T08's mechanics, landing in the SAME merge window as T05c (O15:
+    "NOT in the SAME merge window" must fail — the bare "SAME merge window" substring survives
+    that negation)."""
     note = _execute_plan_run_record_note()
-    assert "are T08's" in note
-    assert "SAME merge window" in note
+    assert_affirmed(
+        note,
+        "`--appetite` on `step`, the `elapsed <m>/<appetite>` segment on `line`, and the "
+        "`over_appetite_phases`/`phase_marks` recording on `done` are T08's — they land in the "
+        "SAME merge window as this change, so this text never runs ahead of the code it describes",
+    )
 
 
 def test_execute_plan_header_note_has_a_dispatcher_mode_appetite_fallback() -> None:
     """O11 (orchestrator ruling): in DISPATCHER MODE the Appetite sits on the ticket, not the
-    phase — the header note must say the executor passes the TICKET's own Appetite there."""
+    phase — the header note must say the executor passes the TICKET's own Appetite there (O13: "do
+    NOT"/"never"/"don't pass the TICKET's own" must all fail — a lowercase-only guard on one
+    phrasing is not enough)."""
     note = _execute_plan_run_record_note()
-    assert "DISPATCHER MODE" in note
-    assert "pass the TICKET's own" in note
-    assert "Appetite" in note
-    assert "when the phase declares no `Appetite:` line" in note
-    # O13 regression guard: the bare affirmative substring is satisfied by its own negation —
-    # pair it with the absence of the negated form, same pattern as the approval-row test above.
-    assert "do not pass the TICKET's own" not in note
+    assert_affirmed(
+        note,
+        "Omit `--appetite` when the phase declares no `Appetite:` line (a plan dated before the "
+        "rollout is not re-graded and may carry none)",
+    )
+    assert_affirmed(
+        note,
+        "in DISPATCHER MODE (§ Dispatcher Mode below) pass the TICKET's own `Appetite:` instead, "
+        "since a spine declares none",
+    )
 
 
 def test_execute_plan_loop_and_header_note_are_distinct_sections() -> None:
     """Sanity guard for `_section()` itself: the two helpers must not resolve to the same slice —
-    O4's whole-file mutant was invisible precisely because nothing distinguished them."""
+    O4's whole-file mutant was invisible precisely because nothing distinguished them. (Structural,
+    not a prose assertion — `assert_affirmed` does not apply.)"""
     assert _execute_plan_run_record_note() != _execute_plan_loop_section()
     assert "for each PHASE in dependency order" in _execute_plan_loop_section()
     assert "for each PHASE in dependency order" not in _execute_plan_run_record_note()
