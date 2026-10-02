@@ -123,9 +123,16 @@ def test_llm_and_translation_go_to_claude_first() -> None:
     )
     # until fabrik-lib reorders mt-router, DeepL fires right after Claude whenever its key is set: the pack must say
     # how to honor the ruling, or "DeepL last" is contradicted by the module it routes through
-    assert re.search(r'\bcall(?:ing)?\s+`?mt_router\.configure\(deepl_api_key=""\)`?\s+after\s+import', translation), (
+    # the clause that names the call must instruct it — a call verb and "after import" in either order — and must not
+    # negate it; a mention as an aside or a "do not bother" fails
+    optout = [c for c in re.split(r"(?<=[.;])\s+", translation) if 'configure(deepl_api_key="")' in c]
+    assert optout, "the DeepL opt-out for mt-router is gone"
+    assert re.search(r"\bcall", optout[0]) and re.search(r"\bafter\s+import\b", optout[0]), (
         "the pack no longer tells agents to drop mt-router's DeepL tier"
     )
+    assert not re.search(
+        r"\b(?:not|never|no|don't|do not|needn't|nothing|unnecessary|unrelated|trivia|optional)\b", optout[0], re.I
+    ), f"the DeepL opt-out is negated or made optional: {optout[0]}"
     assert "decision ledger" in translation and "project.yaml" in translation, (
         "the bake-off result no longer says where it is recorded"
     )
