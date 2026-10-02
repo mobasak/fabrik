@@ -1,6 +1,6 @@
 # Plan — postgres allocation registry reconciled by the hourly audit (W-714ae2cf, D-498)
 
-Status: DRAFT
+Status: CONVERGED (/fabrik-plan-review 2026-10-02, 4 passes; spec graded together, Size: small)
 Profile: small
 **Owner:** fleet
 
@@ -92,18 +92,18 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 
 ## Constraints Digest (verbatim rows from the MUST-READ packs)
 
-| Rule | Verbatim | Source |
+| Verbatim | file:line | Rule |
 |---|---|---|
-| No silent swallow | "Silent swallow is data loss; you've removed the only signal a watchdog could see." | `.windsurf/rules/core/self-healing.md:73` |
-| No silent action | "Each step emits a Prometheus counter + a structlog row carrying the resource name (no silent action)." | `.windsurf/rules/core/self-healing.md:96` |
-| Count fail-open | "Say it out loud, and COUNT it." | `.windsurf/rules/core/58-resilience.md:408` |
-| Config | "Mandate: config via env vars only (`os.getenv(\"KEY\", \"default\")`)" | `.windsurf/rules/core/35-security-auth.md:267` |
-| Shared server | "\"Own database\" means a DATABASE on `postgres-main`, never a database SERVER" | `.windsurf/rules/core/25-data-postgres.md:26` |
-| Red first | "**Watched-fail-first** (for tests this change adds or modifies" | `.windsurf/rules/core/45-testing-strategy.md:22` |
-| Package manager | "**`uv`** is the mandated Python package manager. Never use raw `pip`, `pip install`, `poetry`, or `pipenv`." | `.windsurf/rules/core/10-python.md:22` |
-| Logs to stdout | "The app writes structured events, unbuffered, to `stdout` and **nothing else**." | `.windsurf/rules/core/55-observability.md:72` |
-| Doc headings | "**No skipped heading levels** — `##` to `###`, never `##` to `####`" | `.windsurf/rules/core/40-documentation.md:241` |
-| Admin processes | "one-off admin processes should be run in an identical environment as the regular long-running processes of the app" | `.windsurf/rules/core/30-ops.md:430` |
+| "Silent swallow is data loss; you've removed the only signal a watchdog could see." | `.windsurf/rules/core/self-healing.md:73` | No silent swallow |
+| "Each step emits a Prometheus counter + a structlog row carrying the resource name (no silent action)." | `.windsurf/rules/core/self-healing.md:96` | No silent action |
+| "Say it out loud, and COUNT it." | `.windsurf/rules/core/58-resilience.md:408` | Count fail-open |
+| "Mandate: config via env vars only (`os.getenv("KEY", "default")`)" | `.windsurf/rules/core/35-security-auth.md:267` | Config |
+| ""Own database" means a DATABASE on `postgres-main`, never a database SERVER" | `.windsurf/rules/core/25-data-postgres.md:26` | Shared server |
+| "**Watched-fail-first** (for tests this change adds or modifies" | `.windsurf/rules/core/45-testing-strategy.md:22` | Red first |
+| "**`uv`** is the mandated Python package manager. Never use raw `pip`, `pip install`, `poetry`, or `pipenv`." | `.windsurf/rules/core/10-python.md:22` | Package manager |
+| "The app writes structured events, unbuffered, to `stdout` and **nothing else**." | `.windsurf/rules/core/55-observability.md:72` | Logs to stdout |
+| "**No skipped heading levels** — `##` to `###`, never `##` to `####`" | `.windsurf/rules/core/40-documentation.md:241` | Doc headings |
+| "one-off admin processes should be run in an identical environment as the regular long-running processes of the app" | `.windsurf/rules/core/30-ops.md:430` | Admin processes |
 
 ## Phase A — Registry primitives
 
@@ -449,6 +449,8 @@ both). The spec is `Size: small`, so its sections are graded here with the plan 
 | Pass 1 | opus×1 (`rules`, 58 claims) + sonnet×1 (`prose`, 23 claims) · all axes, plus two orchestrator probes | found: 24, new: 24, confirmed: 23, fixed: 23, unexecuted: 0, edits: 31 | method: citation — full partitioned pass; every candidate executed by the orchestrator or by its seat's probe. Orchestrator probes: the name-rule move hits 9 of 23 postgres-applicable specs, 4 onto one database `main` (→ outcome `shared`). Rules: the `apply` default would write before the report pass (→ default `report`); a `PUT` without the timestamp deletes it so `FabrikAuditStale` could never fire (→ `or absent(...)`, promtool-proven); `_db_owner` `None` fell back to `db` (→ `failed owner-unresolved`); `registered` vs `already-present` was unknowable (→ `register_allocation_if_absent -> bool`, B2 tested on the real lock path); a changing `reason` reset `for: 2h` (→ `max by (spec_id, db)`); `PUT` drops a skipped spec's drift series (→ `fabrik_audit_spec_errors`, no timestamp on a spec error); `depends.postgres` has no pattern before SQL (→ `_validate_identifier`); the pusher grep, the header-check path and coverage, the writer lines, signature/date/series wording, the import-cycle reasoning, the self-healing scope (MATCHED via `**/health*` → row proposed to infra). Prose: B6 script path, A5 watched the wrong row, B1 patched names on the wrong module, the shared-append recipe's section, the site-provisioner spellings. Refuted 1: listing `INDEX.md`/`CHANGELOG.md` in File Scope (governance files are excluded by the plan grammar). | df375e0a1b89c80e8b659e1df6a31e24 → 91abe075c42a0903005f2476af829d62 · 7d45177e4fe9cb2aac559fa124b5f5bb → fedc2db3e83527c8f7d6f84563f8fe2d |
 | Pass 2 | opus×1 (round-1 owner of `rules`, 30 claims re-executed) + sonnet×1 (round-1 owner of `prose`, 9 claims) · the round-1 fix hunks + one hop | found: 4, new: 4, confirmed: 4, fixed: 4, unexecuted: 0, edits: 9 | method: re-derivation — all 21 round-1 candidates re-verified closed against the pin; promtool re-run on the corrected rules (6 cases, SUCCESS; orchestrator's own 3-case run SUCCESS, `check rules` → `SUCCESS: 3 rules found`); the 9/23 name-move probe re-run independently (identical). Confirmed, all inside round-1 fix text: N1 the `shared` claim map counted only audit outcomes, so an `unknown` or skipped sibling made a shared database look singly claimed (→ claims from every loaded database spec's name rule; any load/resolve failure → `failed claims-unresolved`); N2 spec D6 still said the first run registers (→ after the operator turns on `apply`); R1's unconditional "`main` must read `shared`" (→ conditional); the spec Personas' 0-step budget ignored the one-time opt-in. Recorded and folded: the name is resolved after the `n/a` return; the stale alert's `absent` arm also means a spec error (doc step); the promtool fixture sets `exp_annotations`. | 5287d516473890980855530c4d4fa7f4 → cfc00b95f94f51d75b77b2d56c12c11e · fedc2db3e83527c8f7d6f84563f8fe2d → a449286da9e9b5a144bc244234471287 |
 | Pass 3 | opus×1 (owner of `rules`, 12 claims re-executed) + sonnet×1 (owner of `prose`, 6 claims) · the round-2 fix hunks + one hop | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0, edits: 7 | method: re-derivation — the claim map executed over the live specs by both seats and the orchestrator (20 databases, `main` → 4 spec ids, 0 load and 0 resolve failures, so `claims_complete` is true today); all six round-2 closures re-verified. Confirmed, all inside round-2 fix text: C3-1 the old `reconcile_postgres` signature survived in spec D3 and the plan Self-audit; C3-2 `claims()` had no channel for an unresolved name (→ returns `(map, unresolved)`; `claims_complete = error_count == 0 and not unresolved`; B7 covers a non-string `depends.postgres`; spec: "any spec failed to load"); C3-3 the `infrastructure.py` anchor is `:506-508`. **Scope-growth stop:** Passes 2 and 3 were both all own-fix (4/4, 3/3), so the named set is fixed here and the next pass re-verifies only that set; a further own-fix defect is recorded, not re-armed. | 88257bf53723283202fabc87bee06a3d → 71fe2f5df1d6912e108d876bc88efcb0 · a449286da9e9b5a144bc244234471287 → b516d477ca963a2493568cd02d406956 |
+| Pass 4 | opus×1 (owner of `rules`, 10 claims re-executed) + sonnet×1 (owner of `prose`, 4 claims) · ONLY the round-3 fixed set, under the scope-growth stop | found: 2, new: 2, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — all three round-3 fixes re-verified closed: the signature agrees at all four sites, `claims()` returns `(map, unresolved)` with `claims_complete = error_count == 0 and not unresolved`, and the `infrastructure.py:506-508` anchor matches the live file; the pydantic probe shows a non-string `depends.postgres` fails at `load_spec`. Two further own-fix findings are RECORDED — measured, not counted and not re-arming the stop (`term-edit` § Scope-growth stop): B7's non-string case must be built with `Spec.model_construct` plus the load-error case that really happens, and the trigger wording should name "load or audit" — routed to W-2b456a18 for Phase B's executor. Standing-clean classes not re-read: citations, safety, push-lifecycle, name-rule, alert-rules, pillars. | 6db0ec4b8390c466c5ebc7aae18470c9 → 6db0ec4b8390c466c5ebc7aae18470c9 · b516d477ca963a2493568cd02d406956 → b516d477ca963a2493568cd02d406956 |
+| Flip | orchestrator · the CONVERGED flip gates | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 3 | method: gate — Status flipped on plan and spec; the 17 Coverage Checklist rows adjudicated from Passes 1-4; the Constraints Digest columns reordered to `| Verbatim | file:line | Rule |` and six backslash escapes removed so `check_rule_grounding` can read it (content unchanged — the reorder script asserts the 10 (rule, quote, source) triples are identical before and after). `check_convergence` rc 0 with no finding for this plan; `check_plan_quality` rc 0; `check_rule_grounding` 0 findings for this plan (unbudgeted audit); `check_spec_convergence` rc 0 with no finding for the spec. | 6db0ec4b8390c466c5ebc7aae18470c9 → 8f22ca7f71b70d81f378892d60ef7b49 · b516d477ca963a2493568cd02d406956 → Status line only |
 
 ## Coverage Checklist
 
@@ -457,23 +459,23 @@ surface-specific classes. Every row starts UNCHECKED and is adjudicated by `/fab
 
 | Class | Verdict |
 |---|---|
-| FLOOR core/35-security-auth — secrets, auth, config via env | UNCHECKED |
-| FLOOR core/25-data-postgres — database, sessions, backing services | UNCHECKED |
-| FLOOR core/30-ops — compose invariants, immutable releases, admin processes | UNCHECKED |
-| FLOOR 12-Factor — all twelve axes against what the plan steps | UNCHECKED |
-| MATCHED core/10-python — no deps-file edits, no file logging | UNCHECKED |
-| MATCHED core/40-documentation — heading levels, fenced code, the docs the change makes stale | UNCHECKED |
-| MATCHED core/45-testing-strategy — one test per behaviour, watched-fail-first, class-proof guards | UNCHECKED |
-| MATCHED core/55-observability — metrics, alert thresholds, no logfiles | UNCHECKED |
-| MATCHED core/58-resilience — counted fail-open, no silent swallow | UNCHECKED |
-| MATCHED core/self-healing — no silent action; ladder scope (a service's runtime failure classes) | UNCHECKED |
-| Production-write safety: the reconcile's only write is additive, in-lock, never overwrite or delete | UNCHECKED |
-| Metric lifecycle in the pushgateway (POST vs PUT, stale series, last-success staleness) | UNCHECKED |
-| fail-open vs fail-closed on every gate/guard (unknown mode value, unreadable registry, owner lookup failure) | UNCHECKED |
-| cost/quota/limit accounting edges (seats sized and stamped; per-run SSH reads) | UNCHECKED |
-| boundary/sentinel/prefix collisions (empty or non-string depends.postgres, missing found/in_registry keys, db names with hyphens) | UNCHECKED |
-| one database claimed by several specs (`main`) and the name-rule move of 9 specs | UNCHECKED |
-| behavior-without-a-test | UNCHECKED |
+| FLOOR core/35-security-auth — secrets, auth, config via env | FIXED r1 — one env var read with `os.getenv(..., "report")`, fail-safe default and unknown value (rules #1); no secret or credential added |
+| FLOOR core/25-data-postgres — database, sessions, backing services | FIXED r1 — reads `postgres-main` through the existing driver; the database name is validated before SQL because `depends.postgres` has no pattern (rules #10) |
+| FLOOR core/30-ops — compose invariants, immutable releases, admin processes | CLEAN — no compose or container change; the reconcile is an admin process run from the deployed hub release (`/opt/fabrik/src`) |
+| FLOOR 12-Factor — all twelve axes against what the plan steps | CLEAN — III (one granular env var), IV (driver unchanged), XI (stdout logging as today), XII (hub admin process) stated in Global Constraints; the rest not engaged |
+| MATCHED core/10-python — no deps-file edits, no file logging | FIXED r1 — no deps-file edit, no logfile; the date is `datetime.now(UTC)`, not naive (rules #14) |
+| MATCHED core/40-documentation — heading levels, fenced code, the docs the change makes stale | FIXED r1 — doc landing sites aligned with the plan, `agents-fabrik.md` left out as a sync trigger whose sentence stays true (rules #15); headings step `##` to `###`, code fenced |
+| MATCHED core/45-testing-strategy — one test per behaviour, watched-fail-first, class-proof guards | FIXED r1-r3 — rows numbered A1-A4, B1-B7, C1-C2; A5 watches the right row (prose #2); B2 runs the real lock path (rules #7); B7 refinements routed to W-2b456a18 (Pass 4, recorded) |
+| MATCHED core/55-observability — metrics, alert thresholds, no logfiles | FIXED r1 — staleness via a last-success timestamp with `absent(...)`, failure series aggregated `max by (spec_id, db)`, promtool unit-tested (rules #2, #8) |
+| MATCHED core/58-resilience — counted fail-open, no silent swallow | FIXED r1-r2 — an unresolved owner, a failed write and an unresolvable claim are each counted and surfaced, never swallowed (rules #4; round 2 N1) |
+| MATCHED core/self-healing — no silent action; ladder scope (a service's runtime failure classes) | FIXED r1 — the pack MATCHES via `**/health*`; the new response's ladder row is proposed to infra (Phase C step 1); every heal logs and counts (rules #17) |
+| Production-write safety: the reconcile's only write is additive, in-lock, never overwrite or delete | FIXED r1-r3 — default `report`; `register_allocation_if_absent` in-lock; owner from `pg_database` or no write; `shared` and `claims-unresolved` refuse (rules #1, #4, #7; N1; C3-2) |
+| Metric lifecycle in the pushgateway (POST vs PUT, stale series, last-success staleness) | FIXED r1 — `PUT` replaces the group (obs-8); a skipped spec withholds the timestamp and pushes `fabrik_audit_spec_errors` (rules #9); `absent(...)` covers a deleted timestamp (rules #2) |
+| fail-open vs fail-closed on every gate/guard (unknown mode value, unreadable registry, owner lookup failure) | FIXED r1-r2 — unknown mode becomes `report`; a failed registry read raises (ea99ee94f, f9475148a); owner lookup `None` writes nothing; unresolvable claims write nothing |
+| cost/quota/limit accounting edges (seats sized and stamped; per-run SSH reads) | CLEAN — every round's seats sized by `dispatch_headroom.py` (2) and stamped; the reconcile adds one `_db_owner` query per orphan only |
+| boundary/sentinel/prefix collisions (empty or non-string depends.postgres, missing found/in_registry keys, db names with hyphens) | FIXED r1 — identifier validated before SQL (rules #10); a non-string value fails at `load_spec` (Pass 4 probe); name resolved after the `n/a` return (round 2 R-b) |
+| one database claimed by several specs (`main`) and the name-rule move of 9 specs | FIXED r1-r2 — `main` x4 becomes `shared` from a spec-derived claim map (orchestrator probe; N1); the 9 moves listed in Phase A's Mirror and Evidence, read in rollout R1 |
+| behavior-without-a-test | FIXED r1-r2 — rows added for owner-unresolved (B4), shared and claims-unresolved (B7), spec errors (B5), the promtool cases (C2) |
 
 The rubric this plan's reviews inject into every seat brief, run on the plan's own `## File Scope (owned paths)`:
 

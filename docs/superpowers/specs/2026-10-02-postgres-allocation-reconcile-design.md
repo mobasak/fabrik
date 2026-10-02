@@ -1,6 +1,6 @@
 # Postgres allocation registry: an hourly reconcile that registers what specs claim
 
-Status: DRAFT
+Status: CONVERGED (/fabrik-plan-review 2026-10-02 with plan-2, Size: small — awaiting design approval)
 Size: small (≈230 lines, 5 files)
 Profile: delta — every intake item maps to code that exists today: the registry writer
 (`src/fabrik/drivers/postgres.py::register_allocation`), the per-spec audit (`src/fabrik/audit.py::audit_postgres`), the
