@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_task_lane_admission.py · tests/test_lane_replay.py · tests/fixtures/lane_replay.json (re-capture with scripts/lane_replay_capture.py, whose expected_verdict delegates to classify_commit, then --check) · scripts/command_run.py (the `_task_size_gate` caller, T08)
-"""The /fabrik-task lane rules — admission half (plan 2026-10-02-plan-1 T02; spec D1, D2, D4, D7, D9, D12).
+# AFTER-EDIT: tests/test_task_lane_admission.py · tests/test_task_lane_close.py · tests/test_lane_replay.py · tests/fixtures/lane_replay.json (re-capture with scripts/lane_replay_capture.py, whose expected_verdict delegates to classify_commit, then --check) · scripts/command_run.py (the `_task_size_gate` caller, T08)
+"""The /fabrik-task lane rules — admission and close (plan 2026-10-02-plan-1 T02, T03a; spec D1-D4, D7, D9, D12).
 
 PURE: no import of ``command_run.py``, no environment reads that change an answer. The caller
 (``command_run.py``, T08) computes the facts — the declared answers, the normalised ``--file``
@@ -18,6 +18,9 @@ path — and this module only decides.
 - ``classify_commit(...)`` — the same tests applied to one commit's ``--name-status -M -C``
   rows; graded against T01's pinned replay (``tests/test_lane_replay.py``).
 - ``record_refusal(ledger, row)`` — one JSON line per chain-routed start (D9).
+- ``measure_close(rec, commits, ...)`` — the close (T03a; D1 close column, D3, D4, § Lifecycle):
+  per commit in the given order with rename carry-over; contract and new-source re-checked over
+  every committed path before any exclusion; an undeclared path refuses ``done``.
 - ``contract_hit`` / ``is_new_source`` / ``is_migration`` — the path helpers every rule shares,
   so admission, the replay and the close (T03a) cannot disagree.
 
@@ -34,11 +37,13 @@ from __future__ import annotations
 
 import json
 import os
+import posixpath
 import re
 import secrets
 import subprocess
 import time
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -57,6 +62,12 @@ _MAX_NEW_SOURCE = 2
 # D1/D4: the appetite default and the one-session bound, in minutes.
 APPETITE_DEFAULT = 240
 _APPETITE_MAX = 240
+# D3.1: at most this many Behaviours in the design note; one more is an UPGRADE.
+_MAX_BEHAVIOURS = 7
+# D3.4: more added lines than this is a `change:` finding, never a refusal.
+_LOC_FINDING = 800
+# D4: past this multiple of the appetite the close records `over_appetite`.
+_APPETITE_BREAKER = 2
 
 # The dependency-segment, migration-segment and contract-basename tests are case-INSENSITIVE:
 # a case-insensitive filesystem (macOS) serves `Vendor/` and `Migrations/` as the same
@@ -180,12 +191,20 @@ def is_test(path: str) -> bool:
     return any(d in _TEST_DIRS for d in dirs) or _TEST_BASENAME.fullmatch(base) is not None
 
 
+def status_letter(status: str) -> str:
+    """The status LETTER of a ``--name-status -M -C`` row. A rename or copy carries its
+    similarity score (``R100``, ``C075``); every rule in this module reads the status through
+    this one helper, so a raw row and a letter-only row get the same verdict (T03a-O3)."""
+    return status.strip()[:1]
+
+
 def is_new_source(status: str, path: str) -> bool:
-    """A NEW source file: status ``A`` or ``C`` (a copy is a new file), not a test, not ``.md``
-    and not in the measurement's exclusion set (which holds ``.fabrik/work/``, never the rest of
-    ``.fabrik/`` — the pinned measurement rule is canonical; spec D1)."""
+    """A NEW source file: status ``A`` or ``C`` (a copy is a new file; a score such as ``C075``
+    is read by its letter), not a test, not ``.md`` and not in the measurement's exclusion set
+    (which holds ``.fabrik/work/``, never the rest of ``.fabrik/`` — the pinned measurement rule
+    is canonical; spec D1)."""
     return (
-        status in ("A", "C")
+        status_letter(status) in ("A", "C")
         and not path.endswith(".md")
         and not is_test(path)
         and not _measure_excluded(path)
@@ -417,3 +436,258 @@ def classify_commit(
     if len({p for p in paths if counted(p)}) > _FULL_REVIEW_FILES:
         return "lane: full-review"
     return "lane"
+
+
+# ── the close (D1 close column, D3, D4, D7, § Lifecycle) ──────────────────────────────────
+
+_CLOSE_VERBS = ("done", "blocked", "handoff")
+# The order `upgrade` lists its tokens in; the feedback row's single `upgrade` is the first.
+_UPGRADE_ORDER = ("contract", "new-source", "behaviours", "appetite")
+
+Rows = list[tuple[str, str, str | None]]
+
+
+@dataclass(kw_only=True)
+class LaneRecord:
+    """What the close needs from a ``fabrik-task`` run record — T08 builds it.
+
+    ``stamped`` — the record carries ``gate: 2`` (a v2 start); ``files`` the ``--file`` list;
+    ``design_paths`` the backticked paths of the design note's APPROACH and MIRROR;
+    ``amendments`` one path per ``step --phase 2 --design-amend <path>``, in order (all three
+    are normalised here, ``_norm_path``); ``behaviours`` the design note's ``## Behaviours``
+    count; ``appetite`` minutes; ``started_at`` epoch seconds — REQUIRED, so a record with no
+    start time cannot be built and never reads as over its appetite (T03a-O5); ``consumers`` the
+    declared answer; ``sync_hits`` the declared paths the governance-sync regex matched at
+    ``start``; ``in_worktree`` the run commits in a linked worktree, where a sync-path run may
+    commit several times because distribution waits for the merge (spec D7, T03a-O4).
+    """
+
+    started_at: float
+    stamped: bool = False
+    files: list[str] = field(default_factory=list)
+    design_paths: list[str] = field(default_factory=list)
+    amendments: list[str] = field(default_factory=list)
+    behaviours: int = 0
+    appetite: int = APPETITE_DEFAULT
+    consumers: str = "internal"
+    sync_hits: set[str] = field(default_factory=set)
+    in_worktree: bool = False
+
+
+@dataclass(frozen=True)
+class CloseVerdict:
+    """The close's verdict. ``refused`` is the one refusal line (``None`` = the close may
+    proceed); ``needs_full_review`` is a close-time contract or new-source hit, which owes a
+    full ``/fabrik-review`` receipt on ``done`` and ``handoff`` (the caller checks it, T03b/T08);
+    ``upgrade`` every token the close raised, in ``_UPGRADE_ORDER``; ``design_amends`` the
+    number of DISTINCT amended paths, equal to ``len(amended_paths)``; ``oversized_mini`` the
+    undeclared committed paths; ``findings`` the lines to print (``UPGRADE: …``, ``change: …``,
+    ``sync: …``).
+    """
+
+    refused: str | None
+    needs_full_review: bool
+    upgrade: list[str]
+    design_amends: int
+    amended_paths: list[str]
+    oversized_mini: list[str]
+    loc_added: int
+    over_appetite: bool
+    findings: list[str]
+
+
+def _norm_path(path: str) -> str:
+    """A declared path as the committed rows spell it: whitespace stripped, a leading ``./``
+    dropped, then posix-normalised (``a//b`` → ``a/b``) — applied alike to ``files``,
+    ``design_paths`` and ``amendments`` (T03a-O10)."""
+    p = path.strip()
+    while p.startswith("./"):
+        p = p[2:]
+    return posixpath.normpath(p) if p else p
+
+
+def _norm_all(paths: list[str]) -> list[str]:
+    return [q for q in dict.fromkeys(_norm_path(p) for p in paths) if q]
+
+
+def _undeclared(
+    commits: list[Rows], declared: set[str], inherit: set[str], exempt: Callable[[str], bool]
+) -> list[str]:
+    """The undeclared committed paths, walking ``commits`` in order (D3.2). ``declared`` passes
+    the check; ``exempt`` (the caller's exclusions, the receipt) also passes it but grants
+    NOTHING. A RENAME's new path inherits membership only from an old path in ``inherit`` — the
+    paths the run itself declared — and keeps it in every later commit, so an edit of the
+    renamed file stays declared; an excluded or receipt old path cannot launder an undeclared
+    source file (T03a-O1). The old path is judged on its own membership. A COPY's new path is
+    judged ALONE: its source survives, so inheriting would let ``cp declared.py x.py`` ship an
+    undeclared file inside a declared surface (``command_run.py:3519-3541``)."""
+    declared, inherit = set(declared), set(inherit)
+    out: list[str] = []
+    for rows in commits:
+        for status, path, old in rows:
+            ok = path in declared or exempt(path)
+            if old is not None and status_letter(status) == "R":
+                if old in inherit:
+                    ok = True
+                    declared.add(path)
+                    inherit.add(path)
+                if not (old in declared or exempt(old)):
+                    out.append(old)
+            if not ok:
+                out.append(path)
+    return list(dict.fromkeys(out))
+
+
+def _surviving_new_sources(commits: list[Rows]) -> list[str]:
+    """The new source files that EXIST after the last commit (T03a-O6): added (``A``/``C``,
+    ``is_new_source``), not deleted later; a rename moves a counted path to its new name (and
+    keeps counting it only while the new name is still a source file); the same path added
+    twice counts once."""
+    alive: dict[str, None] = {}
+    for rows in commits:
+        for status, path, old in rows:
+            letter = status_letter(status)
+            if letter == "D":
+                alive.pop(path, None)
+            elif letter == "R" and old is not None:
+                if old in alive:
+                    del alive[old]
+                    if is_new_source("A", path):
+                        alive[path] = None
+            elif is_new_source(status, path):
+                alive[path] = None
+    return list(alive)
+
+
+def measure_close(
+    rec: LaneRecord,
+    commits: list[Rows],
+    *,
+    excluded: Callable[[str], bool],
+    verb: str,
+    now: float,
+    loc_added: int,
+    receipt: str | None,
+) -> CloseVerdict:
+    """Measure a ``fabrik-task`` close. ``commits`` holds one list of ``(status, path, old_path)``
+    rows per ``--commit`` SHA, in the order given, each produced with ``--name-status -M -C``
+    (raw scores such as ``R100`` are read by their letter, ``status_letter``); ``excluded`` is
+    the caller's exclusion set (the ledgers, ``docs/CAPABILITIES.md``, the Doc Sync
+    destinations); ``receipt`` the ``--review`` path, exempt from the declaration check only, on
+    both the stamped and the unstamped close (T03a-S1).
+
+    UNSTAMPED (no ``gate: 2`` — a record opened before v2, § Lifecycle): today's close — the LAST
+    commit only, undeclared paths against ``files`` (never ``design_paths``) recorded as
+    ``oversized_mini``, never refused, no upgrade. The caller still unions its own sync-regex
+    hits into ``oversized_mini``, as today.
+
+    STAMPED:
+    - contract (D1) — ``contract_hit`` over every committed path, old and new, BEFORE
+      ``excluded``: a Doc Sync destination cannot hide one;
+    - new-source (D1) — more than 2 new source files that still exist after the last commit;
+    - behaviours (D3.1) — more than 7; appetite (D4) — elapsed strictly past 2x the appetite;
+    - every committed path not ``excluded``, not the receipt, must be in ``design_paths`` or
+      ``amendments`` (D3.3): ``done`` is REFUSED naming each; ``blocked``/``handoff`` record it;
+    - a run whose ``sync_hits`` is non-empty commits once in the main checkout (D7): more than
+      one commit refuses ``done`` unless ``in_worktree``; ``blocked``/``handoff`` get a
+      ``sync:`` finding instead, so a sanctioned halt is never trapped;
+    - ``loc_added`` over 800 is a ``change:`` finding, never a refusal (D3.4).
+
+    THE CHEAPEST WAY TO SATISFY THIS CLOSE WITHOUT THE OUTCOME (D-253): name every path the
+    build might touch in the design note up front, or answer each refusal with a late
+    ``--design-amend``. The first is the plan the lane otherwise never writes, so it produces the
+    outcome; the second is COUNTED — ``design_amends`` and ``amended_paths`` go on the feedback
+    row, so an amendment is never free. ``excluded`` is the caller's: widening it hides paths
+    from the declaration check, which is why the contract test runs before it and why an
+    excluded path never lends its membership to a rename. ``in_worktree`` is the caller's too:
+    a main-checkout run that claims it skips the one-commit rule, so T08 derives it from git
+    (a linked worktree's git dir differs from its common dir), never from a flag.
+    """
+    if verb not in _CLOSE_VERBS:
+        raise ValueError(f"verb must be one of {_CLOSE_VERBS} (got {verb!r})")
+    files = _norm_all(rec.files)
+    amended = _norm_all(rec.amendments)
+    # The receipt is spelled by the operator like a declared path, so it is normalised the
+    # same way, once, for both the stamped and the unstamped close (T03a-O11).
+    receipt = _norm_path(receipt) or None if receipt is not None else None
+
+    def _exempt(p: str) -> bool:
+        return excluded(p) or (receipt is not None and p == receipt)
+
+    if not rec.stamped:
+        last = commits[-1:]
+        return CloseVerdict(
+            refused=None,
+            needs_full_review=False,
+            upgrade=[],
+            design_amends=0,
+            amended_paths=[],
+            oversized_mini=_undeclared(last, set(files), set(files), _exempt),
+            loc_added=loc_added,
+            over_appetite=False,
+            findings=[],
+        )
+
+    rows = [row for c in commits for row in c]
+    raised: dict[str, str] = {}
+    findings: list[str] = []
+    refusals: list[str] = []
+
+    hits = [p for _s, path, old in rows for p in (path, old) if p is not None and contract_hit(p)]
+    if hits:
+        raised["contract"] = ", ".join(dict.fromkeys(hits))
+    new = _surviving_new_sources(commits)
+    if len(new) > _MAX_NEW_SOURCE:
+        raised["new-source"] = f"{len(new)} new source files > {_MAX_NEW_SOURCE}: {', '.join(new)}"
+    if rec.behaviours > _MAX_BEHAVIOURS:
+        raised["behaviours"] = f"{rec.behaviours} Behaviours > {_MAX_BEHAVIOURS}"
+    elapsed = now - rec.started_at
+    over = rec.appetite > 0 and elapsed > _APPETITE_BREAKER * rec.appetite * 60
+    if over:
+        raised["appetite"] = (
+            f"elapsed {int(elapsed // 60)}/{rec.appetite} min, past "
+            f"{_APPETITE_BREAKER}x the appetite"
+        )
+    upgrade = [t for t in _UPGRADE_ORDER if t in raised]
+    needs_full = "contract" in raised or "new-source" in raised
+    for t in upgrade:
+        tail = (
+            " — done and handoff need --review <a full /fabrik-review receipt>"
+            if t in ("contract", "new-source")
+            else ""
+        )
+        findings.append(f"UPGRADE: {t} — {raised[t]}{tail}")
+
+    declared = set(_norm_all(rec.design_paths)) | set(amended)
+    undeclared = _undeclared(commits, declared, declared | set(files), _exempt)
+    if undeclared and verb == "done":
+        refusals.append(
+            "REFUSED — fabrik-task: committed path(s) not named in the design note's APPROACH "
+            f"or MIRROR: {', '.join(undeclared)} — add each with "
+            "`step --phase 2 --design-amend <path>`, or close with `blocked`"
+        )
+    if rec.sync_hits and len(commits) > 1 and not rec.in_worktree:
+        line = (
+            f"a sync-path run commits once (D7); --commit lists {len(commits)} commits "
+            f"(sync: {', '.join(sorted(rec.sync_hits))})"
+        )
+        if verb == "done":
+            refusals.append(f"REFUSED — fabrik-task: {line}")
+        else:
+            findings.append(f"sync: {line}")
+    if loc_added > _LOC_FINDING:
+        findings.append(
+            f"change: loc_added {loc_added} > {_LOC_FINDING} — a feature this size may be a module"
+        )
+
+    return CloseVerdict(
+        refused="; ".join(refusals) if refusals else None,
+        needs_full_review=needs_full,
+        upgrade=upgrade,
+        design_amends=len(amended),
+        amended_paths=amended,
+        oversized_mini=undeclared,
+        loc_added=loc_added,
+        over_appetite=over,
+        findings=findings,
+    )
