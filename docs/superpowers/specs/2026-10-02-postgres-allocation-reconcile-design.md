@@ -118,15 +118,20 @@ Second open point carried to approval: judge 3 asked whether a healed database s
 | Owner lookup | `postgres.py::_db_owner` (`:572`) | `pg_get_userbyid(datdba)` for one database |
 | Registrar name rule | `orchestrator/infrastructure.py:722-727` | `depends.postgres` if set, else `spec.id.replace('-', '_')` |
 | Audit name rule | `audit.py:140` | `spec.id.replace('-', '_')` only — differs from the registrar when `depends.postgres` is set |
+| Shared name rule | `app_role_check.py:782-804` (`_db_name_for_spec`) | the registrar's rule, already used by `infrastructure.py:512`, `:537`; refuses a non-string `depends.postgres` |
 | Audit | `audit.py::audit_postgres` (`:137-224`) | four quadrants: present · drift (orphan DB) · drift (stale entry) · missing |
-| Cron | `scripts/audit_all_registrars.py` (`main` `:129-181`) | `audit_all` per spec → `fabrik_audit_drift_total` + `fabrik_audit_status` → pushgateway job `fabrik-audit`; no last-success series |
+| Cron | `scripts/audit_all_registrars.py` (`main` `:129-181`) | `audit_all` per spec → `fabrik_audit_drift_total` + `fabrik_audit_status` → pushgateway job `fabrik-audit` by `POST` (`:119`); no last-success series |
 | Alert | `configs/prometheus/rules/fabrik-drift.yml` | `FabrikRegistrarDrift: fabrik_audit_drift_total > 0, for: 10m`; reaches vps1 via `scripts/sync_prometheus_to_vps.sh` |
 
 ## The delta
 
-D1. **One database-name rule.** `audit.py` gains `postgres_db_name(spec) -> str` (`depends.postgres` if set, else the
-    snake-cased id) and both `audit_postgres` and the registrar (`infrastructure.py:722-727`) call it. Without this, a
-    spec that pins `depends.postgres` is audited under a name it never created, and its orphan is never found.
+D1. **One database-name rule.** `audit_postgres` stops deriving the name itself (`audit.py:140`) and calls the existing
+    `fabrik.app_role_check._db_name_for_spec(_spec_to_dict(spec))` (`src/fabrik/app_role_check.py:782-804`), which already
+    mirrors the registrar's rule (`depends.postgres` if set, else the name or id snake-cased) and refuses a non-string
+    `depends.postgres`. Without this, a spec that pins `depends.postgres` is audited under a name it never created, and
+    its orphan is never found. A `SpecResolutionError` from the helper becomes an `unknown` audit result naming the cause.
+    The registrar's own inline copy (`infrastructure.py:722-727`) is unchanged; the helper's docstring already names it
+    as the rule it mirrors.
 
 D2. **Register only if absent, decided inside the lock.** `register_allocation` gains `if_absent: bool = False`: under the
     lock, after the read, an existing entry is left untouched and nothing is written. The reconcile always passes
@@ -158,6 +163,10 @@ D5. **Surface every outcome.** The push gains three series, each emitted every r
       (a one-word cause, ledger rec-7);
     - `fabrik_audit_last_success_timestamp_seconds` — set only when the audit pass, the reconcile and the push all complete
       (ledger obs-1).
+    The push switches from `POST` (curl's default with `--data-binary`, `scripts/audit_all_registrars.py:119`) to `PUT`:
+    a `POST` replaces only the metric names present in the new push, so a heal-failed sample that stops being sent
+    would keep its last value forever; a `PUT` replaces the whole `fabrik-audit` group each run (ledger obs-8). The
+    script is the group's only pusher (`grep -rn 'metrics/job/fabrik-audit'` → `audit_all_registrars.py` only).
     And `fabrik-drift.yml` gains two rules:
     - `FabrikRegistryHealFailed: fabrik_registry_heal_failed > 0` with `for: 2h` (two hourly runs failing before it pages;
       ledger obs-2), annotated with the database and the reason;
@@ -187,7 +196,10 @@ registry read the audit already makes. The reconcile adds about 1 s per orphan t
   and pushes `would-register`; `off` does nothing; a failed write yields `failed` with its reason and the heal-failed series;
   the stale-entry quadrant and an unclaimed database are never touched; the last-success series is absent when the push
   fails; the shared name rule returns `depends.postgres` when set.
-- The alert rules pass `promtool check rules configs/prometheus/rules/fabrik-drift.yml`.
+- The alert rules pass `promtool check rules`, run from the image vps1 runs (`configs/monitoring-compose.yaml:47`,
+  `prom/prometheus:v3.2.1`): `docker run --rm -v "$PWD/configs/prometheus/rules:/r:ro" --entrypoint promtool
+  prom/prometheus:v3.2.1 check rules /r/fabrik-drift.yml`. `promtool` is not installed on the hub (`which promtool` →
+  not found); docker is.
 - Rollout, in order: (1) merge; (2) on the hub, run `FABRIK_REGISTRY_RECONCILE=report` once by hand and read every
   `would-register` line — the fire-rate measurement FIX DIRECTIVE 5 requires before the mechanism writes; (3) let the next
   hourly `apply` run heal; (4) confirm `fabrik_audit_drift_total{registrar="postgres"}` is 0 for `zitadel` and
