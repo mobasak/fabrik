@@ -53,16 +53,18 @@ explicitly — Rodin, for one, falls back to an older generation when the tier i
 | :-- | :-- | :-- | :-- |
 | Printable STL / 3MF | **Meshy** | Hi3D (formerly Hitem3D) | A print pipeline in the API: free printability analysis, a repair step that returns watertight output, multi-colour 3MF |
 | Game asset (rig-ready) | **Tripo** | Sloyd (T-pose out, rig elsewhere) | Native quad Smart Mesh and auto-rig through the API |
-| E-commerce / AR GLB | **Rodin** | Meshy | Photoreal PBR — 2K by default, 4K to 12K from higher tiers and its add-on |
-| Hard-surface hero prop | **Rodin** | TRELLIS (hosted) | PBR plus Bang! part segmentation |
+| E-commerce / AR GLB | **Rodin** | Meshy | Photoreal PBR — 2K by default; the 4K to 12K tiers need Rodin's own key |
+| Hard-surface hero prop | **Rodin** | TRELLIS (hosted) | PBR plus Bang! part segmentation — Bang! needs Rodin's own key |
 | Arch / real-estate viz | **TRELLIS** (hosted: fal or 3D AI Studio) | Rodin | O-Voxel handles complex, non-manifold topology |
 | Bulk / no vendor lock-in | **TRELLIS** (hosted: fal or 3D AI Studio) | Step1X-3D (self-host, Apache-2.0, only per § 5) | Open weights you can take in-house later — read the licence trap first |
 
-**Reachability.** Check `/opt/fabrik/docs/reference/kilo/AI_VENDOR_ACCESS.md` before designing around a provider. fal
-and WaveSpeed, whose keys the fleet holds, host Rodin, Meshy, Tripo, Hi3D and TRELLIS today — but a hosted route exposes
-only the generate call. Meshy's printability, repair and multi-colour steps, Rodin's Bang! and named tiers, and Tripo's
-auto-rig need the vendor's own key; Rodin's own API is on its Business plan only (about $120 a month) and charges at
-submission. The reach map's "via Higgsfield" route is app-only: Higgsfield's developer API has no 3D.
+**Reachability.** The fleet holds fal and WaveSpeed keys (`/opt/fabrik/docs/reference/kilo/AI_VENDOR_ACCESS.md`), but
+that catalog does not yet list their 3D models — read the provider's own catalog before wiring a route. When checked on
+2026-10-02, fal hosted Rodin, Meshy, Tripo, Hi3D and TRELLIS (`https://fal.ai/3d-models`) and WaveSpeed hosted Rodin,
+Meshy and Tripo — but a hosted route exposes only the generate call. Meshy's printability, repair and multi-colour
+steps, Rodin's Bang! and named tiers, and Tripo's auto-rig need the vendor's own key; Rodin's own API is on its Business
+plan only (about $120 a month) and charges at submission. The reach map's "via Higgsfield" route is app-only:
+Higgsfield's developer API has no 3D.
 
 **Aggregator fallback:** 3D AI Studio's pay-as-you-go API reaches Tripo, Hi3D, TRELLIS and Hunyuan 3D from one key (no
 Meshy or Rodin endpoint) — use it to avoid lock-in and to A/B those engines without separate subscriptions.

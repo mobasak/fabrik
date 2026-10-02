@@ -5,7 +5,7 @@ The pack is glob-activated on every 3D-asset path. Seven things it states can go
 1. `Last content verification:` — `scripts/check_ai_pack_freshness.py` reads it; the pack once carried "Last reviewed:"
    and read as unstamped.
 2. The routing table names no dead API (CSM, Luma Genie), no weights a licence restricts (Hunyuan3D, Stability's
-   SF3D or SPAR3D) and no self-host primary (§ 0 and § 5 forbid self-hosting first); hosted routes are said to expose
+   SF3D or SPAR3D) and no open model as a primary unless hosted (§ 0 and § 5 forbid self-hosting first); hosted routes are said to expose
    generate only. The pack once made Hunyuan3D the bulk fallback and TRELLIS self-host the primary.
 3. The licence trap names TRELLIS's non-commercial nvdiffrast dependency, Hunyuan3D's territory exclusion and Stability's
    revenue cap; the exclusions say CSM and Luma Genie are gone.
@@ -76,10 +76,12 @@ def test_routing_names_no_dead_or_restricted_provider() -> None:
         for name in NOT_IN_ROUTING:
             assert name not in row, f"{name} is dead or licence-restricted and is routed to: {row}"
         primary = row.split("|")[2]
-        # § 0 and § 5 forbid self-hosting as a starting move, so no primary may be a self-host route
-        assert "self-host" not in primary, (
-            f"a primary is a self-host route, against § 0 and § 5: {row}"
-        )
+        # § 0 and § 5 forbid self-hosting as a starting move: a primary is a vendor API or a HOSTED open model, so an
+        # open model named as a primary must say "hosted" — however a self-host route is worded, it lacks that word
+        if any(m in primary for m in ("TRELLIS", "Step1X", "Hunyuan", "TripoSG")):
+            assert "hosted" in primary, (
+                f"an open model is a primary without a hosted route, against § 0 and § 5: {row}"
+            )
     reach = _flat(_section(_pack(), "1"))
     assert "only the generate call" in reach, (
         "the reachability note no longer says hosted routes expose generate only"
@@ -98,22 +100,22 @@ def test_licence_trap_and_exclusions_hold() -> None:
         "USD 1M",
     ):
         assert needle in trap, f"the licence trap no longer names {needle!r}"
-    exclusions = _flat(_section(_pack(), "2"))
-    assert re.search(r"CSM[^.]*shut down", exclusions), (
-        "the exclusions no longer say CSM's API shut down"
-    )
-    assert re.search(r"Luma Genie[^.]*sunset", exclusions), (
-        "the exclusions no longer say Luma Genie was sunset"
-    )
+    # each exclusion is one bullet; read the whole bullet, so a reworded or re-punctuated sentence still counts
+    bullets = [_flat(b) for b in _section(_pack(), "2").split("\n- ")[1:]]
+    csm = next((b for b in bullets if b.startswith("**CSM")), "")
+    luma = next((b for b in bullets if b.startswith("**Luma Genie")), "")
+    assert "shut down" in csm, "the exclusions no longer say CSM's API shut down"
+    assert "sunset" in luma, "the exclusions no longer say Luma Genie was sunset"
 
 
 def test_gate_fails_closed_and_claude_reads_the_renders() -> None:
     gate = _flat(_section(_pack(), "3"))
+    plain = gate.replace("`", "")  # code styling is not meaning: `Read` tool reads as Read tool
     assert "never a pass-by-default" in gate, (
         "the gate no longer fails closed on an unvalidatable generation"
     )
     for needle in ("run_agentic", "Read tool", "control question"):
-        assert needle in gate, (
+        assert needle in plain, (
             f"the render check no longer says {needle!r}, as 20-vision's route requires"
         )
     assert "is_volume" in gate and "the slicer never decides" in gate, (
@@ -129,10 +131,13 @@ def test_gate_fails_closed_and_claude_reads_the_renders() -> None:
 
 def test_reroll_cap_is_one_number() -> None:
     header = _pack().split("# 3D Generation Pipeline Rules", 1)[0]
-    caps = set(re.findall(r"cap re-rolls at (\d+)", header)) | set(
-        re.findall(r"Re-roll cap: (\d+) attempts", _section(_pack(), "4"))
+    in_header = re.findall(r"cap re-rolls at (\d+)", header)
+    in_body = re.findall(r"Re-roll cap: (\d+) attempts", _section(_pack(), "4"))
+    # each side must state its number once; a side that drops it is a missing cap, not an agreement
+    assert len(in_header) == 1 and len(in_body) == 1, (
+        f"a re-roll cap is missing: header {in_header}, § 4 {in_body}"
     )
-    assert len(caps) == 1, f"the re-roll cap disagrees between the header and § 4: {sorted(caps)}"
+    assert in_header == in_body, f"the re-roll cap disagrees: {in_header} vs {in_body}"
 
 
 def test_cad_boundary_routes_to_claude_or_zoo() -> None:
@@ -176,7 +181,8 @@ def test_paths_resolve() -> None:
 
 def test_no_retired_routes_or_versions() -> None:
     body = _pack().split("\n---\n", 1)[1]
-    lowered = body.replace("docs/reference/kilo/", "docs/reference/").lower()
+    # retired names are refused in the frontmatter too: its description is what an agent browsing packs reads
+    lowered = _pack().replace("docs/reference/kilo/", "docs/reference/").lower()
     for gone in ("traycer", "kilo"):
         assert gone not in lowered, f"{gone} is retired and still named"
     version_re = _load("vision_pack_test", ROOT / "tests" / "test_vision_pack.py").VERSION_RE

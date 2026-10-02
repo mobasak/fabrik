@@ -2803,7 +2803,7 @@ claims:
   - id: open-3d-licences
     pack: ai/25-3d-generation.md
     kind: policy
-    claim: "TRELLIS's code and weights are MIT but its install pulls in NVIDIA's non-commercial nvdiffrast; Tencent's Hunyuan3D licence excludes the EU, UK and South Korea and caps monthly users; Stability's SF3D and SPAR3D are free only below USD 1M revenue and delight their output"
+    claim: "TRELLIS's code and weights are MIT but its install pulls in NVIDIA's non-commercial nvdiffrast; Tencent's Hunyuan3D licence excludes the EU, UK and South Korea and caps monthly users; Stability's SF3D and SPAR3D are free only below USD 1M revenue"
     verify: "https://github.com/microsoft/TRELLIS.2 ; https://raw.githubusercontent.com/NVlabs/nvdiffrast/main/LICENSE.txt ; https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2.1/main/LICENSE ; https://huggingface.co/stabilityai/stable-fast-3d (exa + WebFetch, 2026-10-02; ledger om-02, om-03, om-06, om-10, om-12, om-13)"
     window_days: 180
     last_verified: 2026-10-02
@@ -2824,7 +2824,7 @@ claims:
   - id: hosted-3d-routes
     pack: ai/25-3d-generation.md
     kind: platform
-    claim: "fal and WaveSpeed host Rodin, Meshy, Tripo and TRELLIS generation on keys the fleet holds, exposing the generate call only; 3D AI Studio's API reaches Tripo, Hi3D, TRELLIS and Hunyuan 3D but not Meshy or Rodin"
+    claim: "fal hosts Rodin, Meshy, Tripo, Hi3D and TRELLIS generation and WaveSpeed hosts Rodin, Meshy and Tripo, on keys the fleet holds, exposing the generate call only; 3D AI Studio's API reaches Tripo, Hi3D, TRELLIS and Hunyuan 3D but not Meshy or Rodin"
     verify: "https://fal.ai/3d-models ; https://docs.3daistudio.com/api-reference (WebFetch + exa, 2026-10-02; ledger op-01, op-03)"
     window_days: 90
     last_verified: 2026-10-02
