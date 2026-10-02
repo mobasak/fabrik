@@ -1709,9 +1709,10 @@ def _stages_text(doc: dict) -> str:
 #
 # THE CHEAPEST WAY TO MOVE THESE NUMBERS WITHOUT THE OUTCOME (D-253): (1) the task-to-spec ratio
 # rises by labelling ordinary spec runs as downgrades — so a spec run is excluded only when its
-# handoff row carries the `from_downgrade` id `/fabrik-spec` writes on a `DOWNGRADE:` handoff, or
-# (no spec row carrying it) a task row carrying that id is matched to it, one spec per task; and
-# specs are counted DISTINCT, so closing one spec twice cannot double the denominator; (2) the
+# handoff row carries the exact `from_downgrade` id `command_run.py` writes on the `/fabrik-spec`
+# `DOWNGRADE:` handoff (no inference from timing or session: a task whose id no spec row carries
+# is counted as `unjoined_downgrades`, never matched to an ordinary handoff); and specs are
+# counted DISTINCT, so closing one spec twice cannot double the denominator; (2) the
 # refused share falls by never starting `/fabrik-task` at all — so the share is printed beside its
 # denominator, and a zero-start agent shows `—/0`, never 0%; (3) the in-lane review median falls by closing a nested
 # review as `fabrik-review-scoped` — so only `fabrik-review` rows count, and the scoped ones are
@@ -1826,56 +1827,30 @@ def _spec_key(i: int, r: dict) -> tuple[str, str]:
 
 
 def _downgraded_specs(rows: list[dict]) -> set[int]:
-    """Indices of the `/fabrik-spec` `handoff` rows a DOWNGRADE produced.
-
-    (1) EXACT: a handoff row carrying `from_downgrade` (written when its `--reason` opens
-    `DOWNGRADE: <id>`) is a downgrade. (2) INFERRED, only for a task whose id no spec row carries:
-    the task is matched to an id-less handoff in the same repo that closed at or before the task
-    STARTED (`ts - wall_s`). The match is a MAXIMUM matching (augmenting paths) over tasks in
-    ascending start order, candidates tried same-session first then newest — so a preference
-    never takes a spec another task can only use."""
-    specs = [
-        (i, r)
+    """Indices of the `/fabrik-spec` `handoff` rows a DOWNGRADE produced — EXACT only: the row
+    carries the `from_downgrade` id `command_run.py` writes on the DOWNGRADE handoff (it refuses a
+    non-`LR-xxxxxxxx` id at `start`). An id-less handoff is an ordinary one and is never inferred
+    to be a downgrade; the task it might have restarted is counted by `_unjoined_downgrades`."""
+    return {
+        i
         for i, r in enumerate(rows)
-        if r.get("command") == "fabrik-spec" and _s(r, "state") == "handoff"
-    ]
-    exact = {i for i, r in specs if _s(r, "from_downgrade")}
-    carried = {_s(r, "from_downgrade") for i, r in specs if i in exact}
-    pool = [(i, r) for i, r in specs if i not in exact and _num(r.get("ts")) is not None]
-    tasks = []
-    for t in rows:
-        tid, t_ts = _s(t, "from_downgrade"), _num(t.get("ts"))
-        if t.get("command") != "fabrik-task" or not tid or tid in carried or t_ts is None:
-            continue
-        tasks.append((t_ts - max(_num(t.get("wall_s")) or 0.0, 0.0), t))
-    tasks.sort(key=lambda st: st[0])
-    cands = [
-        [
-            i
-            for i, r in sorted(
-                pool,
-                key=lambda ir: (_s(ir[1], "sid") == _s(t, "sid"), _num(ir[1].get("ts")) or 0.0),
-                reverse=True,
-            )
-            if _same_repo(r, t) and (_num(r.get("ts")) or 0.0) <= start
-        ]
-        for start, t in tasks
-    ]
-    owner: dict[int, int] = {}
+        if r.get("command") == "fabrik-spec"
+        and _s(r, "state") == "handoff"
+        and _s(r, "from_downgrade")
+    }
 
-    def augment(k: int, seen: set[int]) -> bool:
-        for i in cands[k]:
-            if i in seen:
-                continue
-            seen.add(i)
-            if i not in owner or augment(owner[i], seen):
-                owner[i] = k
-                return True
-        return False
 
-    for k in range(len(tasks)):
-        augment(k, set())
-    return exact | set(owner)
+def _unjoined_downgrades(rows: list[dict]) -> int:
+    """`/fabrik-task` rows carrying a `from_downgrade` id that no `/fabrik-spec` DOWNGRADE handoff
+    row carries — downgraded, but joined to no spec run, so they exclude nothing from the ratio."""
+    carried = {_s(rows[i], "from_downgrade") for i in _downgraded_specs(rows)}
+    return sum(
+        1
+        for r in rows
+        if r.get("command") == "fabrik-task"
+        and _s(r, "from_downgrade")
+        and _s(r, "from_downgrade") not in carried
+    )
 
 
 def _lane_pins(repos: list[str]) -> list[dict] | None:
@@ -2001,6 +1976,7 @@ def lane(
             "task": len(tasks),
             "spec": specs,
             "downgraded_spec": down_specs,
+            "unjoined_downgrades": _unjoined_downgrades(rows),
             "ratio": round(len(tasks) / denom, 2) if denom > 0 else None,
         },
         "task": {
@@ -2056,6 +2032,13 @@ def _lane_text(doc: dict) -> str:
     lines.append(
         f"task-to-spec: {tts['task']} task / {denom} spec = {ratio} "
         f"({tts['downgraded_spec']} downgraded /fabrik-spec {run} excluded of {tts['spec']})"
+        + (
+            f"; {tts['unjoined_downgrades']} downgraded /fabrik-task "
+            f"{'run joins' if tts['unjoined_downgrades'] == 1 else 'runs join'} no /fabrik-spec "
+            "handoff (exact id only)"
+            if tts["unjoined_downgrades"]
+            else ""
+        )
     )
     med = "—" if t["median_min"] is None else t["median_min"]
     toks = " · ".join(f"{k} {v}" for k, v in t["upgrade_tokens"].items())

@@ -252,9 +252,9 @@ def test_check_rederives_the_same_rows_and_fails_on_any_difference(
         ([("M", "web/x.schema.json", None)], "project", "chain: contract"),
         ([("M", "api/OpenAPI.yaml", None)], "project", "chain: contract"),
         ([("M", "web/X.Schema.JSON", None)], "project", "chain: contract"),
-        ([("M", "api/openapi.yml", None)], "project", "lane"),
+        ([("M", "api/openapi.yml", None)], "project", "chain: contract"),
         ([("M", "x.schema.json.bak", None)], "project", "lane"),
-        ([("M", "apps/x/specs/services/y.yaml", None)], "project", "lane"),
+        ([("M", "apps/x/specs/services/y.yaml", None)], "project", "chain: contract"),
         ([("M", "node_modules/p/openapi.json", None)], "project", "lane"),
         ([("M", "a/.venv/b/x.schema.json", None)], "project", "lane"),
         ([("M", "vendor/openapi.yaml", None)], "project", "lane"),
@@ -365,3 +365,17 @@ def test_task_rows_keep_the_historical_handoff_verdicts() -> None:
     ]
     wef1 = [r for r in rows if r["repo"] == "wef1"]
     assert [r["expected"] for r in wef1] == ["lane"]
+
+
+# ── T08-D7 C-O7: a missing or unreadable fixture is the documented failure, never a traceback ──
+
+
+@pytest.mark.parametrize("kind", ["missing", "directory"])
+def test_c_o7_check_reports_an_unreadable_fixture_and_exits_1(tmp_path, capsys, kind) -> None:
+    mod = _load()
+    path = tmp_path / "fx.json"
+    if kind == "directory":
+        path.mkdir()
+    assert mod.check(path) == 1
+    out = capsys.readouterr().out
+    assert "fixture and re-derivation differ — unreadable" in out, out

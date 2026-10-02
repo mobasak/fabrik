@@ -40,6 +40,7 @@ feedback report read it.
 from __future__ import annotations
 
 import json
+import math
 import os
 import posixpath
 import re
@@ -78,7 +79,7 @@ _APPETITE_BREAKER = 2
 # a case-insensitive filesystem (macOS) serves `Vendor/` and `Migrations/` as the same
 # directories (T02-O16). The test-path rule below stays case-sensitive.
 _DEPENDENCY_SEGMENTS = frozenset({"node_modules", ".venv", "vendor"})
-_CONTRACT_BASENAME = re.compile(r"openapi.*\.(json|yaml)|.*\.schema\.json", re.IGNORECASE)
+_CONTRACT_BASENAME = re.compile(r"openapi.*\.(json|ya?ml)|.*\.schema\.json", re.IGNORECASE)
 _MIGRATION = re.compile(r"(^|/)(migrations|alembic/versions)/", re.IGNORECASE)
 # T02-O3: a test is any path with a `tests`/`test`/`__tests__` directory segment at any depth,
 # or a basename `test_*`, `*_test.*`, `*.test.*` or `*.spec.*`.
@@ -162,12 +163,14 @@ def _in_dependency_dir(path: str) -> bool:
 
 
 def contract_hit(path: str) -> bool:
-    """Is ``path`` read outside this repo? ``specs/services/`` at the repo ROOT, or a basename
-    fully matching ``openapi*.json``/``openapi*.yaml``/``*.schema.json`` case-insensitively at
-    any depth — never under a ``node_modules``/``.venv``/``vendor`` path SEGMENT (spec D1)."""
+    """Is ``path`` read outside this repo? A file under a ``specs/services/`` segment pair at
+    any depth, or a basename fully matching ``openapi*.json``/``openapi*.yaml``/``openapi*.yml``/
+    ``*.schema.json`` case-insensitively at any depth — never under a
+    ``node_modules``/``.venv``/``vendor`` path SEGMENT (spec D1)."""
     if _in_dependency_dir(path):
         return False
-    if path.startswith("specs/services/"):
+    dirs = _segments(path)[:-1]
+    if any(dirs[i : i + 2] == ["specs", "services"] for i in range(len(dirs) - 1)):
         return True
     return _CONTRACT_BASENAME.fullmatch(path.rsplit("/", 1)[-1]) is not None
 
@@ -207,12 +210,14 @@ def is_new_source(status: str, path: str) -> bool:
     """A NEW source file: status ``A`` or ``C`` (a copy is a new file; a score such as ``C075``
     is read by its letter), not a test, not ``.md`` and not in the measurement's exclusion set
     (which holds ``.fabrik/work/``, never the rest of ``.fabrik/`` — the pinned measurement rule
-    is canonical; spec D1)."""
+    is canonical; spec D1), and never under a dependency directory (``node_modules``/``.venv``/
+    ``vendor``, as ``contract_hit`` and ``is_migration``). ``.md`` matches in any case."""
     return (
         status_letter(status) in ("A", "C")
-        and not path.endswith(".md")
+        and not path.lower().endswith(".md")
         and not is_test(path)
         and not _measure_excluded(path)
+        and not _in_dependency_dir(path)
     )
 
 
@@ -261,12 +266,12 @@ def lane_version(root: Path) -> tuple[int, str | None, str | None]:
     string or boolean version → ``_LANE_DEFAULT`` with a warning naming the file.
     """
     path = Path(root) / LANE_FILE
-    if not path.is_file():
-        return _LANE_DEFAULT, None, None
     try:
+        if not path.is_file():
+            return _LANE_DEFAULT, None, None
         content = path.read_bytes()
         data = json.loads(content.decode("utf-8"))
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RecursionError) as exc:
         return (
             _LANE_DEFAULT,
             None,
@@ -371,7 +376,7 @@ def admit(
                 + " and ".join(f"{k}=yes" for k in deciding)
                 + ' — "<what cannot be undone>" or "<approach A> vs <approach B>"',
             )
-        return Verdict(f"chain: {deciding[0]}", "scoped", deciding[0])
+        return Verdict(f"chain: {deciding[0]}", "scoped", ", ".join(deciding))
 
     # (3) heavy surfaces keep the lane and select the full review (D2, D7).
     full = []
@@ -512,6 +517,13 @@ class LaneRecord:
     sync_hits: set[str] = field(default_factory=set)
     in_worktree: bool = False
 
+    def __post_init__(self) -> None:
+        # The annotation is not enforced at runtime: refuse ``None``, a string, a bool (an
+        # ``int`` subclass) and a non-finite float, so no record reads as over its appetite.
+        t = self.started_at
+        if type(t) not in (int, float) or not math.isfinite(t):
+            raise TypeError(f"LaneRecord.started_at must be a finite int or float (got {t!r})")
+
 
 @dataclass(frozen=True)
 class CloseVerdict:
@@ -635,8 +647,9 @@ def measure_close(
     THE CHEAPEST WAY TO SATISFY THIS CLOSE WITHOUT THE OUTCOME (D-253): name every path the
     build might touch in the design note up front, or answer each refusal with a late
     ``--design-amend``. The first is the plan the lane otherwise never writes, so it produces the
-    outcome; the second is COUNTED — ``design_amends`` and ``amended_paths`` go on the feedback
-    row, so an amendment is never free. ``excluded`` is the caller's: widening it hides paths
+    outcome; the second is COUNTED — the feedback row carries ``design_amends``, the count, so an
+    amendment is never free; ``amended_paths`` is the ``CloseVerdict``'s own detail, never a
+    feedback field. ``excluded`` is the caller's: widening it hides paths
     from the declaration check, which is why the contract test runs before it and why an
     excluded path never lends its membership to a rename. ``in_worktree`` is the caller's too:
     a main-checkout run that claims it skips the one-commit rule, so T08 derives it from git

@@ -103,14 +103,20 @@ def test_lane_attributes_an_agentless_refusal_through_its_session(tmp_path: Path
 
 def test_lane_task_to_spec_ratio_excludes_the_downgraded_spec_run(tmp_path: Path) -> None:
     rows = [
-        _row("fabrik-spec", ts=T0, state="handoff", sid="s1"),  # the DOWNGRADE handoff
+        _row("fabrik-spec", ts=T0, state="handoff", sid="s1", from_downgrade="LR-a"),  # DOWNGRADE
         _row("fabrik-spec", ts=T0 - 50, state="done", sid="s2"),
         _row("fabrik-spec", ts=T0 - 40, state="done", sid="s3"),
         _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-a", sid="s1"),
         _row("fabrik-task", ts=T0 + 990, sid="s4"),
     ]
     doc = _doc(tmp_path, rows, [_refusal("LR-a")])
-    assert doc["task_to_spec"] == {"task": 2, "spec": 3, "downgraded_spec": 1, "ratio": 1.0}
+    assert doc["task_to_spec"] == {
+        "task": 2,
+        "spec": 3,
+        "downgraded_spec": 1,
+        "unjoined_downgrades": 0,
+        "ratio": 1.0,
+    }
     text = _lane(tmp_path, rows, [_refusal("LR-a")]).stdout
     assert (
         "task-to-spec: 2 task / 2 spec = 1.0 (1 downgraded /fabrik-spec run excluded of 3)"
@@ -118,23 +124,25 @@ def test_lane_task_to_spec_ratio_excludes_the_downgraded_spec_run(tmp_path: Path
     )
 
 
-def test_lane_a_spec_handoff_after_the_task_started_is_not_its_downgrade(tmp_path: Path) -> None:
+def test_lane_an_id_less_handoff_never_joins_whatever_its_timing_or_repo(tmp_path: Path) -> None:
     rows = [
-        _row("fabrik-spec", ts=T0 + 800, state="handoff"),  # after the task STARTED (T0+600)
-        _row("fabrik-spec", ts=T0, state="handoff", repo="/opt/other"),  # another repo
+        _row("fabrik-spec", ts=T0 + 800, state="handoff"),
+        _row("fabrik-spec", ts=T0, state="handoff"),  # before the task started, same session
+        _row("fabrik-spec", ts=T0, state="handoff", repo="/opt/other"),
         _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-a"),
     ]
-    doc = _doc(tmp_path, rows, [])
-    assert doc["task_to_spec"]["downgraded_spec"] == 0
+    tts = _doc(tmp_path, rows, [])["task_to_spec"]
+    assert (tts["downgraded_spec"], tts["unjoined_downgrades"]) == (0, 1)
 
 
 def test_lane_one_spec_handoff_is_excluded_once_for_two_downgraded_tasks(tmp_path: Path) -> None:
     rows = [
-        _row("fabrik-spec", ts=T0, state="handoff"),
+        _row("fabrik-spec", ts=T0, state="handoff", from_downgrade="LR-a"),
         _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-a"),
         _row("fabrik-task", ts=T0 + 1900, wall=300, from_downgrade="LR-b"),
     ]
-    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == 1
+    tts = _doc(tmp_path, rows, [])["task_to_spec"]
+    assert (tts["downgraded_spec"], tts["unjoined_downgrades"]) == (1, 1)
 
 
 # ── Behaviour 2: task median, UPGRADE share with its token split, downgrade-then-upgrade ──
@@ -405,15 +413,16 @@ def test_lane_a_missing_refusal_ledger_and_corrupt_lines_never_crash(tmp_path: P
 
 
 def test_lane_exact_from_downgrade_on_the_spec_row_joins_first(tmp_path: Path) -> None:
-    """T06-O3: the spec handoff row carrying the id is the downgrade, whatever its timing; the
-    id-less handoff stays for the task whose id no spec row carries."""
+    """T06-O3, T08-D7 C-O2: the spec handoff row carrying the id is the downgrade, whatever its
+    timing; the id-less handoff is NOT given to the task whose id no spec row carries."""
     rows = [
         _row("fabrik-spec", ts=T0 + 800, state="handoff", surface="a", from_downgrade="LR-a"),
         _row("fabrik-spec", ts=T0, state="handoff", surface="b"),
         _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-a"),
         _row("fabrik-task", ts=T0 + 1000, wall=300, from_downgrade="LR-b"),
     ]
-    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == 2
+    tts = _doc(tmp_path, rows, [])["task_to_spec"]
+    assert (tts["downgraded_spec"], tts["unjoined_downgrades"]) == (1, 1)
 
 
 def test_lane_an_id_carrying_spec_is_never_inferred_for_another_task(tmp_path: Path) -> None:
@@ -423,24 +432,13 @@ def test_lane_an_id_carrying_spec_is_never_inferred_for_another_task(tmp_path: P
         _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-c"),
     ]
     tts = _doc(tmp_path, rows, [])["task_to_spec"]
-    assert (tts["spec"], tts["downgraded_spec"]) == (2, 1)
-
-
-def test_lane_p3_a_same_session_preference_never_steals_a_spec(tmp_path: Path) -> None:
-    """T06-O3/P3: Y (listed first, same session as A) must not take A, which X can only use."""
-    rows = [
-        _row("fabrik-task", ts=T0 + 700, wall=100, sid="s1", from_downgrade="LR-y"),  # start +600
-        _row("fabrik-spec", ts=T0, state="handoff", sid="s1", surface="A"),
-        _row("fabrik-spec", ts=T0 + 500, state="handoff", sid="s2", surface="B"),
-        _row("fabrik-task", ts=T0 + 400, wall=100, sid="s2", from_downgrade="LR-x"),  # start +300
-    ]
-    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == 2
+    assert (tts["spec"], tts["downgraded_spec"], tts["unjoined_downgrades"]) == (2, 1, 1)
 
 
 def test_lane_two_specs_two_tasks_each_spec_claimed_once(tmp_path: Path) -> None:
     rows = [
-        _row("fabrik-spec", ts=T0, state="handoff", surface="A"),
-        _row("fabrik-spec", ts=T0 + 10, state="handoff", surface="B"),
+        _row("fabrik-spec", ts=T0, state="handoff", surface="A", from_downgrade="LR-a"),
+        _row("fabrik-spec", ts=T0 + 10, state="handoff", surface="B", from_downgrade="LR-b"),
         _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-a"),
         _row("fabrik-task", ts=T0 + 950, wall=300, from_downgrade="LR-b"),
     ]
@@ -448,33 +446,19 @@ def test_lane_two_specs_two_tasks_each_spec_claimed_once(tmp_path: Path) -> None
 
 
 def test_lane_a_done_spec_is_never_a_downgrade(tmp_path: Path) -> None:
-    """Only the handoff filter excludes the done row: it closed before the task started."""
+    """Only a HANDOFF row carries a downgrade: a done row with the id is no downgrade."""
     rows = [
-        _row("fabrik-spec", ts=T0, state="done", surface="A"),
-        _row("fabrik-spec", ts=T0 + 800, state="handoff", surface="B"),  # after the start
+        _row("fabrik-spec", ts=T0, state="done", surface="A", from_downgrade="LR-a"),
         _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-a"),
     ]
-    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == 0
-
-
-@pytest.mark.parametrize(
-    ("spec_ts", "wall", "joined"),
-    [(T0 + 600, 300, 1), (T0 + 601, 300, 0), (T0 + 900, 0, 1), (T0 + 901, 0, 0)],
-)
-def test_lane_spec_closed_exactly_at_the_task_start_joins(
-    tmp_path: Path, spec_ts: float, wall: float, joined: int
-) -> None:
-    rows = [
-        _row("fabrik-spec", ts=spec_ts, state="handoff"),
-        _row("fabrik-task", ts=T0 + 900, wall=wall, from_downgrade="LR-a"),
-    ]
-    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == joined
+    tts = _doc(tmp_path, rows, [])["task_to_spec"]
+    assert (tts["downgraded_spec"], tts["unjoined_downgrades"]) == (0, 1)
 
 
 def test_lane_counts_distinct_specs_not_spec_rows(tmp_path: Path) -> None:
     """T06-O1: a handoff and a done close of ONE spec are one spec, in both ratio terms."""
     rows = [
-        _row("fabrik-spec", ts=T0, state="handoff", surface=SPEC),
+        _row("fabrik-spec", ts=T0, state="handoff", surface=SPEC, from_downgrade="LR-a"),
         _row(
             "fabrik-spec", ts=T0 + 5, state="done", surface=SPEC, repo="/opt/x/.claude/worktrees/w"
         ),
@@ -514,16 +498,6 @@ def test_lane_worktree_paths_collapse_to_their_main_checkout(tmp_path: Path) -> 
         _row("fabrik-task", repo="/opt/xy"),
     ]
     assert _doc(tmp_path, rows, [])["pins"]["repos"] == 2
-
-
-def test_lane_same_repo_needs_a_slash_boundary(tmp_path: Path) -> None:
-    rows = [
-        _row("fabrik-spec", ts=T0, state="handoff", repo="/opt/xy"),
-        _row("fabrik-spec", ts=T0, state="handoff", repo="/opt/x/sub"),
-        _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-a", repo="/opt/x"),
-        _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-b", repo="/opt/x"),
-    ]
-    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == 1
 
 
 def test_lane_v1_task_rows_leave_the_lane_denominator(tmp_path: Path) -> None:
@@ -626,39 +600,7 @@ def test_lane_a_task_with_an_exact_spec_infers_nothing_more(tmp_path: Path) -> N
     assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == 1
 
 
-def test_lane_a_preference_yields_to_a_task_with_one_candidate(tmp_path: Path) -> None:
-    """T06-O3: X starts first and prefers B (same session), but Y can only use B — X takes A."""
-    rows = [
-        _row("fabrik-spec", ts=T0, state="handoff", sid="s9", repo="/opt/x/a"),
-        _row("fabrik-spec", ts=T0, state="handoff", sid="s1", repo="/opt/x/b"),
-        _row("fabrik-task", ts=T0 + 400, wall=300, sid="s1", repo="/opt/x", from_downgrade="LR-x"),
-        _row(
-            "fabrik-task", ts=T0 + 900, wall=300, sid="s2", repo="/opt/x/b", from_downgrade="LR-y"
-        ),
-    ]
-    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == 2
-
-
 # ── closing pass (T06-O9, O11, O13) ──
-
-
-def test_lane_one_task_with_two_eligible_specs_claims_one(tmp_path: Path) -> None:
-    """T06-O9: a task is matched to ONE spec, never to every eligible candidate."""
-    rows = [
-        _row("fabrik-spec", ts=T0, state="handoff", surface="a"),
-        _row("fabrik-spec", ts=T0 + 100, state="handoff", surface="b"),
-        _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-a"),
-    ]
-    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == 1
-
-
-def test_lane_a_negative_wall_never_moves_the_task_start_later(tmp_path: Path) -> None:
-    """T06-O11: `wall_s` < 0 is clamped, so the start stays at `ts` and a later spec is no match."""
-    rows = [
-        _row("fabrik-spec", ts=T0 + 1000, state="handoff"),
-        _row("fabrik-task", ts=T0 + 900, wall=-300, from_downgrade="LR-a"),
-    ]
-    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == 0
 
 
 def test_lane_a_negative_wall_is_untimed_not_a_median_value(tmp_path: Path) -> None:
@@ -679,3 +621,21 @@ def test_lane_undated_feedback_rows_are_disclosed(tmp_path: Path) -> None:
     assert (doc["coverage"]["feedback_rows"], doc["coverage"]["undated_rows"]) == (1, 2)
     head = _lane(tmp_path, rows, []).stdout.splitlines()[0]
     assert "1 feedback rows [+2 undated], 0 refusal rows" in head
+
+
+# ── T08-D7 C-O2: the downgrade join is EXACT — an id-less handoff never joins a task ──
+
+
+def test_c_o2_an_id_less_handoff_is_never_a_downgrade_and_the_task_is_unjoined(
+    tmp_path: Path,
+) -> None:
+    rows = [
+        _row("fabrik-spec", ts=T0, state="handoff", surface="a"),  # an ordinary handoff
+        _row("fabrik-spec", ts=T0, state="handoff", surface="b", from_downgrade="LR-b"),
+        _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-a"),
+        _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-b"),
+    ]
+    tts = _doc(tmp_path, rows, [])["task_to_spec"]
+    assert (tts["spec"], tts["downgraded_spec"], tts["unjoined_downgrades"]) == (2, 1, 1)
+    text = _lane(tmp_path, rows, []).stdout
+    assert "1 downgraded /fabrik-task run joins no /fabrik-spec handoff" in text, text

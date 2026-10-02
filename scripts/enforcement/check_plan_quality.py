@@ -205,7 +205,10 @@ def _lane_rules(file_path: Path, content: str, severity: Severity) -> list[Check
     """D11 (`Appetite:` per phase/ticket) and D10 (`Profile: small` needs a converged or sized
     spec) — plan_appetite.lane_findings, the ONE entry point check_plan_tickets also calls; a
     no-op for plans dated before its rollout date. Called on EVERY classification branch."""
-    messages = plan_appetite.lane_findings(content, file_path, PLAN_DIR.parents[2])
+    # The spec resolves against the PLAN FILE's own repo (the `docs/development/plans/` above
+    # it), as check_plan_tickets does; the cwd-bound PLAN_DIR is only the fallback.
+    root = plan_appetite.repo_root_of(file_path) or PLAN_DIR.parents[2]
+    messages = plan_appetite.lane_findings(content, file_path, root)
     return [
         CheckResult(
             check_name="plan_quality",

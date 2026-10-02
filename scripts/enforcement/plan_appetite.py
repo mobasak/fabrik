@@ -17,7 +17,10 @@ Both graders (``check_plan_tickets.py`` for sets, ``check_plan_quality.py`` per 
 so they cannot disagree, and neither grader imports the other. ``PROFILE_RE`` lives here and
 ``check_plan_tickets`` re-exports it, so the profile both rules key on is one regex. The spec
 CITATION is read from the raw header (a ``> **Spec:**`` line is a real citation form), while
-``Profile:`` and ``Appetite:`` are read from ``lane_scan`` text (a quoted one is an example).
+``Profile:`` (``is_small_profile``, which ``check_plan_tickets`` also calls for its waiver) and a
+ticket's ``Appetite:`` are read from the blockquote-stripped HEADER ZONE (``header_zone``: cut at
+the first heading, then fences stripped) and a phase's ``Appetite:`` from ``lane_scan`` text — a
+quoted one is an example.
 
 COBRA (you get the behavior you measure): the cheapest way to satisfy the Appetite rule
 without the outcome is a uniformly huge number (``Appetite: 9999``) — it passes the
@@ -85,7 +88,7 @@ _SPEC_MIDLINE_RE = re.compile(
 )
 _PATHLIKE_RE = re.compile(r"\S*/\S*\.md\b")
 _LINK_TARGET_RE = re.compile(r"\]\(\s*([^)\s]+?\.md)(?:#[^)\s]*)?\s*\)")
-_PATH_RE = re.compile(r"(?<![\w./-])((?:\.{1,2}/)*[\w.-]+(?:/[\w.-]+)*\.md)\b")
+_PATH_RE = re.compile(r"(?<![\w./-])((?:/|(?:\.{1,2}/)*)[\w.-]+(?:/[\w.-]+)*\.md)\b")
 _SPINE_MARKER_RE = re.compile(r"^##\s+Ticket Board\b", re.I | re.M)
 # A monolith phase is `## Phase <id>` — any non-empty token after `Phase ` (`## Phase 1`,
 # `## Phase A`, `## Phase Three — build`); `## Phase-out of X` and `## Phases` are not phases,
@@ -116,9 +119,33 @@ def lane_scan(text: str) -> str:
 
 
 def header_zone(text: str) -> str:
-    """Everything before the first `##` heading, fences removed — where header fields live."""
+    """Everything before the first `##` heading, fences removed — where header fields live.
+
+    ORDER MATTERS: the zone is CUT first, then fences are stripped inside it. Stripping first let
+    a fence opened in the header and closed past `## Ticket Board` swallow that heading, so the
+    zone ran on into the body; cut first, the opener dangles inside the zone and absorbs to its
+    end (fail-closed). The same rule makes a fenced `## example` heading END the zone. This is
+    the ONE header zone both plan graders read (``check_plan_tickets`` via ``is_small_profile``).
+    """
     m = _FIRST_SECTION_RE.search(text)
     return strip_fences(text[: m.start()] if m else text)
+
+
+def is_small_profile(text: str) -> bool:
+    """Does this plan's HEADER declare `Profile: small`? Blockquoted lines are examples, never
+    the declaration. The ONE reading of the profile: ``check_plan_tickets`` (the READ-budget
+    waiver) and the D10 rule here cannot disagree on a plan (T08-D7 C-O6)."""
+    return PROFILE_RE.search(_BLOCKQUOTE_LINE_RE.sub("", header_zone(text))) is not None
+
+
+def repo_root_of(path: Path) -> Path | None:
+    """The repo a plan file lives in: the directory holding the innermost
+    `docs/development/plans/` above it (a monolith, a set member, an archived set) — or None
+    when the path is not under that layout. Read from the FILE, never from the cwd."""
+    for d in Path(path).parents:
+        if d.name == "plans" and d.parent.name == "development" and d.parent.parent.name == "docs":
+            return d.parent.parent.parent
+    return None
 
 
 def plan_date_of(path: Path) -> str | None:
@@ -156,17 +183,18 @@ def appetite_findings(
 ) -> list[str]:
     """D11: the Appetite refusals for one plan file, empty when it complies or predates the rollout.
 
-    A TICKET (`ticket=True`) is graded by its own `Appetite:` field line only, whatever its
-    sub-headings say. A spine (`## Ticket Board`) owes none itself. A monolith with
+    A TICKET (`ticket=True`) is graded by its own `Appetite:` field line only — its header
+    zone, before the first `##` heading — whatever its body or sub-headings say. A spine
+    (`## Ticket Board`) owes none itself. A monolith with
     `## Phase <id>` headings owes one per phase, each finding naming the phase; a phase-less
     monolith owes one, named by `label`.
     """
     if not is_graded(plan_date):
         return []
-    scan = lane_scan(plan_text)
     if ticket:
-        found = _unit_finding(label, scan)
+        found = _unit_finding(label, _BLOCKQUOTE_LINE_RE.sub("", header_zone(plan_text)))
         return [found] if found else []
+    scan = lane_scan(plan_text)
     if _SPINE_MARKER_RE.search(scan):
         return []
     phases = list(_PHASE_HEADING_RE.finditer(scan))
@@ -198,7 +226,7 @@ def small_profile_findings(
     FAIL-CLOSED on the spec too: `spec_text` None (no citation, or a citation to a file that
     does not exist) is refused, `missing` naming why.
     """
-    if not PROFILE_RE.search(header_zone(lane_scan(plan_text))):
+    if not is_small_profile(plan_text):
         return []
     if spec_text is None:
         why = missing or "its spec could not be read"
@@ -226,10 +254,9 @@ def spec_text_for(plan_text: str, root: Path, plan_dir: Path | None = None) -> s
     return resolve_spec(plan_text, root, plan_dir)[0]
 
 
-def resolve_spec(
-    plan_text: str, root: Path, plan_dir: Path | None = None
-) -> tuple[str | None, str | None]:
-    """`(spec text, None)`, or `(None, why it could not be read)` — the D10 reader."""
+def spec_citations(plan_text: str) -> list[str]:
+    """The spec paths a plan's header `Spec:` field cites, in order, each once — a markdown
+    link's target is also a bare path inside the same value, and is still ONE citation."""
     zone = header_zone(plan_text)
     m = _SPEC_FIELD_RE.search(zone)
     if m is None:
@@ -237,10 +264,38 @@ def resolve_spec(
             (x for x in _SPEC_MIDLINE_RE.finditer(zone) if _PATHLIKE_RE.search(x.group("val"))),
             None,
         )
-    cites = _LINK_TARGET_RE.findall(m.group("val")) + _PATH_RE.findall(m.group("val")) if m else []
+    if m is None:
+        return []
+    return list(
+        dict.fromkeys(_LINK_TARGET_RE.findall(m.group("val")) + _PATH_RE.findall(m.group("val")))
+    )
+
+
+def _inside(cite: str, root: Path) -> str | None:
+    """An ABSOLUTE cite relativised to `root` (as written or resolved), or None outside it."""
+    target = Path(os.path.normpath(cite))
+    for base in dict.fromkeys((Path(os.path.normpath(root)), Path(root).resolve())):
+        try:
+            return target.relative_to(base).as_posix()
+        except ValueError:
+            continue
+    return None
+
+
+def resolve_spec(
+    plan_text: str, root: Path, plan_dir: Path | None = None
+) -> tuple[str | None, str | None]:
+    """`(spec text, None)`, or `(None, why it could not be read)` — the D10 reader. An absolute
+    cite inside `root` reads as its repo-relative path; one outside `root` is never read."""
+    cites = spec_citations(plan_text)
     if not cites:
         return None, "no spec citation in a header `Spec:` field"
     for cite in cites:
+        if cite.startswith("/"):
+            rel = _inside(cite, root)
+            if rel is None:
+                continue
+            cite = rel
         bases = [root] if cite.startswith("docs/") else [*([plan_dir] if plan_dir else []), root]
         for base in bases:
             try:

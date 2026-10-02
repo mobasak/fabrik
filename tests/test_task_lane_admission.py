@@ -86,6 +86,8 @@ def test_four_files_are_admitted_with_the_scoped_review():
         "web/X.Schema.JSON",
         "myvendor/openapi.yaml",
         "node_modules_old/x.schema.json",
+        "api/openapi.yml",
+        "apps/x/specs/services/y.yaml",
     ],
 )
 def test_a_contract_path_routes_to_the_chain(path):
@@ -104,8 +106,6 @@ def test_a_contract_path_routes_to_the_chain(path):
         ".venv/lib/specs/services/x.yaml",
         "vendor/openapi.json",
         "a/vendor/b/openapi-v1.yaml",
-        "api/openapi.yml",
-        "apps/x/specs/services/y.yaml",
         "x.schema.json.bak",
         "myvendor/readme.txt",
         "node_modules_old/index.js",
@@ -640,3 +640,74 @@ def test_check_refuses_a_fixture_whose_rule_text_is_stale(tmp_path, capsys):
         cap.capture = cap_capture
     assert called
     assert "rule" in capsys.readouterr().out
+
+
+# ── T08-D7: the whole-plan review's admission findings ───────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "path", ["node_modules/pkg/index.js", "web/.venv/lib/x.py", "a/Vendor/b/c.go"]
+)
+def test_b_s1_a_new_file_under_a_dependency_directory_is_not_new_source(path):
+    assert not _module().is_new_source("A", path)
+
+
+@pytest.mark.parametrize("path", ["docs/GUIDE.MD", "notes/Plan.Md", "README.mD"])
+def test_b_s2_the_md_exclusion_is_case_insensitive(path):
+    assert not _module().is_new_source("A", path)
+
+
+def test_b_h1_oneway_and_tradeoffs_together_name_both_reasons():
+    v = _admit(["src/a.py"], why="A vs B", oneway="yes", tradeoffs="yes")
+    assert v.route == "chain: oneway", v
+    assert v.reason == "oneway, tradeoffs", v
+
+
+def test_b_o1_a_permission_denied_switch_directory_falls_back_with_a_warning(tmp_path):
+    tl = _module()
+    repo = _repo(tmp_path)
+    _switch(repo, '{"version": 2}\n')
+    fabrik = repo / ".fabrik"
+    fabrik.chmod(0)
+    try:
+        version, commit, warning = tl.lane_version(repo)
+    finally:
+        fabrik.chmod(0o755)
+    assert (version, commit) == (tl._LANE_DEFAULT, None)
+    assert warning and ".fabrik/lane.json" in warning
+
+
+def test_b_o1_a_deeply_nested_switch_falls_back_with_a_warning(tmp_path):
+    tl = _module()
+    repo = _repo(tmp_path)
+    _switch(repo, '{"version": ' + "[" * 200_000 + "]" * 200_000 + "}")
+    version, commit, warning = tl.lane_version(repo)
+    assert (version, commit) == (tl._LANE_DEFAULT, None)
+    assert warning and ".fabrik/lane.json" in warning
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "api/openapi.yml",
+        "api/OpenAPI-v2.YML",
+        "apps/x/specs/services/y.yaml",
+        "a/b/specs/services/c/d.yaml",
+    ],
+)
+def test_d_o6_yml_and_nested_specs_services_are_contract_hits(path):
+    assert _module().contract_hit(path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "node_modules/x/openapi.yml",
+        "apps/vendor/specs/services/y.yaml",
+        "myspecs/services/y.yaml",
+        "specs/servicesx/y.yaml",
+        "apps/specs/services",
+    ],
+)
+def test_d_o6_dependency_and_lookalike_specs_services_are_not_hits(path):
+    assert not _module().contract_hit(path)
