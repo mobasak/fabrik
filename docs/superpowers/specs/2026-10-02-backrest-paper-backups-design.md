@@ -203,7 +203,7 @@ persistent spec.
 | I8 | rollback removes a plan it did not create (found while grounding) | IN | D3 + Validation 2 |
 | I9 | Backrest's own Prometheus metrics / empty-snapshot detection (restic `summary.total_files_processed`, cov-5) | OUT-OF-SCOPE | W-43904006 (backlog: alert on an empty or stale Backrest snapshot) |
 | I10 | the four test specs with `has_persistent_data` and nothing to persist | OUT-OF-SCOPE | the audit's shape-mismatch drift names them; correcting their flags is a spec edit for their owners when deployed |
-| I11 | the Apprise hook URL still carries a Coolify-era name (`vps-complete-inventory.md:661`) | OUT-OF-SCOPE | already tracked there (Issue 1) |
+| I11 | the Apprise hook URL's Coolify-era name (`vps-complete-inventory.md:661`) | OUT-OF-SCOPE | already resolved — Issue 1, RESOLVED 2026-07-12 (`vps-complete-inventory.md:687`); the driver's hook targets `apprise:8000` (`drivers/backrest.py:93-104`) |
 
 ## Constraints digest
 
