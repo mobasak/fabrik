@@ -1,5 +1,5 @@
 ---
-description: One small change, one decision, one commit — the lane between a right-now fix and the spec chain. Six phases on ONE run record: SIZE (the start IS the gate), MEASURE, DESIGN, BUILD, REVIEW, CLOSE — the D-row is the durable artifact. TRIGGER — EN: "one small change with one decision", "fix + decide", "small change, one call to make"; TR: "küçük bir değişiklik, tek karar", "düzelt ve karar ver". SKIP — /fabrik-spec's own triggers, and anything the SIZE gate refuses: more than 3 files, a ONE-WAY decision, real trade-offs, a governance-sync or heavy surface, or no decision at all — each names its own lane (a new mechanism is declared and recorded, never a refusal on its own — D-315). Stage: utility.
+description: One small change, one decision, one commit — the lane between a right-now fix and the spec chain. Six phases on ONE run record: SIZE (the start IS the gate), MEASURE, DESIGN, BUILD, REVIEW, CLOSE — the D-row is the durable artifact. TRIGGER — EN: "one small change with one decision", "fix + decide", "small change, one call to make"; TR: "küçük bir değişiklik, tek karar", "düzelt ve karar ver". SKIP — /fabrik-spec's own triggers, and what the SIZE gate refuses: a ONE-WAY decision, real trade-offs, no decision at all; at lane v2 also a contract path, consumers=external or an appetite over 240 min; at lane v1 also more than 3 files or a sync/heavy surface — each names its own lane (a new mechanism is recorded, never refused — D-315). Stage: utility.
 argument-hint: "[the ask in one line — sized against the SMALLEST change that discharges it, before drafting]"
 ---
 
@@ -10,8 +10,8 @@ commit, and the UPGRADE ratchet. A feature splitting into independently shippabl
 several of these runs, never one bundling them (D6).
 
 **Two lane versions share this text** (`.fabrik/lane.json`; `start` prints which). **Lane v1**
-(every repo until it opts in) is today's file-count gate — the frontmatter's SKIP clause, the
-`--declare` paste below, and `command-run-protocol.md:52`'s `start` row. **Lane v2** replaces the
+(every repo until it opts in) is today's file-count gate — the `--declare` paste below and
+`command-run-protocol.md:52`'s `start` row. **Lane v2** replaces the
 file count with the module tests and adds every *(v2)*-tagged mechanism below: the `consumers=`
 key, `--appetite`/`--why`/`--from-downgrade`, `--design-amend`, the undeclared-path REFUSAL, the
 space-separated multi-commit close, `--review`, and the Behaviours UPGRADE's four close-raised
@@ -72,8 +72,8 @@ python3 scripts/command_run.py step --phase 2 --title "design: <that path>" \
   --design <scratchpad>/fabrik-task/<sid>/<started_at>/design.md
 ```
 
-`--design` stores that file's TEXT whole, at any length (no cap — D-314) — so the
-design outlives the scratch. A refusal discards the whole `step`: fix the file and
+`--design` stores that file's TEXT whole (no cap — D-314), so the
+design outlives the scratch. A refusal discards the `step`: fix the file and
 re-run, or the record stays at phase 1. It lands ONCE — a second `--design` is ignored with a NOTE
 while everything else reads like success. Add a `## Behaviours` list — each naming its test, at
 most 7 (an 8th is the `behaviours` UPGRADE, *(v2)*) — and name every path the build will touch in

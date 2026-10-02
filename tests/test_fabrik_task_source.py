@@ -529,11 +529,15 @@ def test_upgrade_section_gains_the_four_close_raised_tokens() -> None:
         "O7's contradiction returned — the close-raised tokens are no longer described with the "
         "single 'whether or not you typed them' rule"
     )
-    assert "a contract path" not in _norm(
-        text[: text.index("UPGRADE — the one-way ratchet")]
-        if "UPGRADE — the one-way ratchet" in text
-        else text
-    ), "the lead sentence resumed citing a contract path as something typed by hand pre-commit"
+    # The UPGRADE section's OWN text (its heading to the next `## `) — the slice used to be the
+    # text BEFORE the heading, which read the frontmatter instead and passed only while nothing
+    # there said "a contract path".
+    start = text.index("UPGRADE — the one-way ratchet")
+    nxt = text.find("\n## ", start)
+    upgrade = text[start : nxt if nxt != -1 else len(text)]
+    assert "a contract path" not in _norm(upgrade), (
+        "the lead sentence resumed citing a contract path as something typed by hand pre-commit"
+    )
 
 
 def test_independent_slices_are_several_task_runs() -> None:
@@ -706,3 +710,26 @@ def test_old_lane_spec_carries_a_superseded_in_part_banner() -> None:
         "negation mutant wrongly passed: 'NOT **SUPERSEDED-IN-PART**' still reads as the banner "
         "under a bare substring check — O8's exact finding"
     )
+
+
+def test_the_description_skip_clause_names_both_lane_versions() -> None:
+    """The `description:` is what the prompt router selects on and the quota dashboard's Commands
+    tab displays. Since the hub runs lane v2 (3a803b44b), its SKIP clause must not present the v1 file cap
+    and sync/heavy refusal as unconditional: it names the v2 module tests and scopes the old rules
+    to lane v1 — and the old unconditional clause is refused."""
+    head = _source_text().split("\n---", 1)[0]
+    value = re.search(r"^description:\s*(.+)$", head, flags=re.M).group(1)
+    skip = value.split("SKIP —", 1)[1].split("Stage:", 1)[0]
+    # each version's rules sit INSIDE its own "at lane vN" clause — a v2 module test stated
+    # unconditionally, or the v1 sync/heavy refusal restored before the scopes, both fail
+    assert re.search(
+        r"at lane v2[^;]*a contract path[^;]*consumers=external[^;]*appetite over 240 min", skip
+    ), "lane v2's module tests must sit inside its own clause"
+    assert re.search(r"at lane v1[^.;]*more than 3 files[^.;]*sync/heavy", skip), (
+        "the file cap and the sync/heavy refusal must be scoped to lane v1"
+    )
+    shared = skip.split("at lane v2", 1)[0]
+    for scoped in ("a contract path", "consumers=external", "more than 3 files", "sync/heavy"):
+        assert scoped not in shared, f"{scoped!r} is stated before any lane-version scope"
+    old = "anything the SIZE gate refuses: more than 3 files"
+    assert old not in skip, "the SKIP clause still states the v1 file cap as unconditional"

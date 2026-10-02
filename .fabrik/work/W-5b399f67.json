@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T15:58:11.880237Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5b399f67",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-506",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make admit's contract-chain reason list every trigger that fired; add a case to tests/test_task_lane*.py",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "task_lane.admit's chain reason names only the contract path when consumers=external also fires (review of D-506)"
+}

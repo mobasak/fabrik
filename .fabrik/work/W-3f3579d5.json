@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T15:58:12.020061Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3f3579d5",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-506",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "accept an em-dash after SKIP in _SKIP_RE and add a dashboard test for it",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "quota_dashboard _SKIP_RE (scripts/sysadmin/quota_dashboard.py:1452) needs 'SKIP:' with a colon, so a description written 'SKIP —' (fabrik-task.md) shows its SKIP text in the Commands tab's when column"
+}

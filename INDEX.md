@@ -856,6 +856,7 @@ docs/
 │   ├── external-services-registry.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
 │   ├── fabrik-mail.md
+│   ├── fabrik-task-lane.md
 │   ├── fabrik-vultr.md
 │   ├── fixtures
 │   │   └── glitchtip-webhook.json
@@ -1061,6 +1062,7 @@ docs/
 | [fabrik-mail.md](docs/reference/fabrik-mail.md) | fabrik-mail conventions — the hub↔project AI mail protocol: mailbox layout, message format, the tmp-then-O_EXCL publish + atomic-rename-claim + reply-closure rules, ack-per-kind table, digest predicate, trust model, the Layer-2 socket=notification/file=truth composition, and the operator-relayed fabrik-lib provisioning request (item 6). |
 | [nvidia-build.md](docs/reference/nvidia-build.md) | NVIDIA Build free inference endpoints (`NVIDIA_API_KEY`, integrate.api.nvidia.com/v1): the live-probed 83-model catalog by category, which models are subagent-shaped, and the verdict that the pool is OpenRouter-only by construction today (direct calls + the OpenRouter-overlap set are the usable paths; wiring options recorded). |
 | [command-run-protocol.md](docs/reference/command-run-protocol.md) | COMMAND RUN-RECORD protocol — the pinned `RUN:` line, the persistent class ledger + non-convergence detector (the 30-round fix), and the Stop hook's fifth cause (a `running` record blocks the stop; missing/corrupt/stale fails OPEN) |
+| [fabrik-task-lane.md](docs/reference/fabrik-task-lane.md) | The /fabrik-task lane, for the operator: how agents choose task or spec (lane v1 vs v2), where each repo stands, the day-7 rollout, what a running session sees, and the `--lane` report |
 | [agent-machinery-map.md](docs/reference/agent-machinery-map.md) | Everything that acts on a repo's coding agent, grouped by when it acts — context, turns, inheritance, the surroundings — with each mechanism's touchpoint and owning doc (operator inventory, 2026-09-07) |
 | [stack.md](docs/archive/stack.md) | Coolify-era stack overview (archived 2026-07-20; live truth: agents-fabrik.md + PROJECT_CATALOG) |
 | [roadmap.md](docs/archive/roadmap.md) | Original 8-phase build plan (archived — 7/8 phases shipped; superseded by `CHANGELOG.md` + the live docs) |
