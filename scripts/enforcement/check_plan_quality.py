@@ -27,6 +27,7 @@ import re
 from pathlib import Path
 
 try:
+    from . import plan_appetite
     from .check_plans import PLAN_DIR_NAME_RE, TICKET_NAME_RE
     from .check_plans import check_file as _check_plans_naming
     from .validate_conventions import CheckResult, Severity
@@ -36,6 +37,7 @@ except (
     import sys as _sys
 
     _sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import plan_appetite  # type: ignore[no-redef]
     from check_plans import PLAN_DIR_NAME_RE, TICKET_NAME_RE  # type: ignore[no-redef]
     from check_plans import check_file as _check_plans_naming  # type: ignore[no-redef]
     from validate_conventions import CheckResult, Severity  # type: ignore[no-redef]
@@ -196,7 +198,24 @@ def _check_ticket(file_path: Path, content: str) -> list[CheckResult]:
                 fix_hint="Delete the Status: line; flip the Ticket Board row instead",
             )
         )
-    return results
+    return results + _lane_rules(file_path, content, severity)
+
+
+def _lane_rules(file_path: Path, content: str, severity: Severity) -> list[CheckResult]:
+    """D11 (`Appetite:` per phase/ticket) and D10 (`Profile: small` needs a converged or sized
+    spec) — plan_appetite.lane_findings, the ONE entry point check_plan_tickets also calls; a
+    no-op for plans dated before its rollout date. Called on EVERY classification branch."""
+    messages = plan_appetite.lane_findings(content, file_path, PLAN_DIR.parents[2])
+    return [
+        CheckResult(
+            check_name="plan_quality",
+            severity=severity,
+            message=msg,
+            file_path=str(file_path),
+            fix_hint="See spec 2026-10-02-fabrik-task-feature-lane D10/D11",
+        )
+        for msg in messages
+    ]
 
 
 def _check_modern(file_path: Path, content: str) -> list[CheckResult]:
@@ -228,7 +247,7 @@ def _check_modern(file_path: Path, content: str) -> list[CheckResult]:
             )
     if SPINE_MARKER_RE.search(scan):
         results += _check_spine_execution_pillars(scan, file_path)
-    return results
+    return results + _lane_rules(file_path, content, severity)
 
 
 # The three pillars /fabrik-plan-after-chat § Phase 3 mandates. A MONOLITH hangs them on its
@@ -420,8 +439,14 @@ def check_file(file_path: Path) -> list[CheckResult]:
         # quieter (a pillar-less CONVERGED spine must not grandfather to WARN).
         return _check_modern(file_path, content)
 
-    # Precedence 3: grandfather.
-    return [
+    # Precedence 3: grandfather — but a plan dated on or after the lane rollout still owes the
+    # D10/D11 rules (a pillar-less post-rollout plan must not escape them); advisory while the
+    # plan is draft-like (DRAFT/PLANNED or no status), the same downgrade _check_modern applies.
+    gm = MODERN_STATUS_RE.search(_BLOCKQUOTE_RE.sub("", scan))
+    lane_severity = (
+        Severity.WARN if (not gm or gm.group(1).upper() in ("DRAFT", "PLANNED")) else Severity.ERROR
+    )
+    return _lane_rules(file_path, content, lane_severity) + [
         CheckResult(
             check_name="plan_quality",
             severity=Severity.WARN,

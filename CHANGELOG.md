@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — plan graders: `Appetite:` per phase or ticket, and the Size-small spec rule (2026-10-02)
+New `scripts/enforcement/plan_appetite.py` (`LANE_ROLLOUT_DATE = "2026-10-03"`, the shared `PROFILE_RE`, and `lane_findings`, the one entry point `check_plan_tickets.py` and `check_plan_quality.py` both call on blockquote-stripped text). A plan dated on or after the rollout needs `Appetite: <positive integer minutes>` in every `## Phase <id>` of a monolith or in every ticket of a set; a `Profile: small` plan is refused unless its spec reads CONVERGED or carries `Size: small` — fail-closed when the spec's status or the spec itself cannot be read. Older plans are never re-graded (747 subjects re-graded, 0 changed). Plan 2026-10-02-plan-1, T05a (spec D10, D11).
+
 ### Added — the /fabrik-task lane replay fixture, pinned before any gate code (2026-10-02)
 `scripts/lane_replay_capture.py` captures, read-only, the `-M -C` name-status of the 1038 commits the feature-lane spec measured (the hub's 300 ending `c84f0b0b7`, 200 each from web-ecommerce-factory, trade-intelligence and seo, tojlo-mail's 137, the wef1 commit `0e89dcb67`) into `tests/fixtures/lane_replay.json`, each with its pinned verdict and the rule text; `--check` re-derives every row and refuses a merge commit. A hub commit whose only paths are governance-sync `.md` files is `lane: full-review`. The 21 `/fabrik-task` feedback rows sit in `tests/fixtures/lane_replay_tasks.json`. Plan 2026-10-02-plan-1, T01; wave-1 review `docs/development/reviews/2026-10-02-plan-1-fabrik-task-feature-lane-T01-review.md`.
 
