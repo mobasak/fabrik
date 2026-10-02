@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "file 46 \u2014 the remaining ai/* packs (8): ai/25-3d-generation, 30-language, 40-multimodal, 50-agentic, 60-code, 70-data-predictive, 80-specialized-domains, 90-long-context \u2014 model names and prices are the drift class (route model choice to ai/00-ai-model-selection.md; keep the model-routing/gateway blocks per W-b58d0f90's pending operator answer). Then desktop (2), core/90-bootstrap",
+  "next": "file 47 \u2014 the remaining ai/* packs (7): ai/30-language, 40-multimodal, 50-agentic, 60-code, 70-data-predictive, 80-specialized-domains, 90-long-context \u2014 model names and prices are the drift class (route model choice to ai/00-ai-model-selection.md; keep the model-routing/gateway blocks per W-b58d0f90's pending operator answer). Then desktop (2), core/90-bootstrap",
   "note": "",
   "owner": "intel",
   "priority": 2,
@@ -19,5 +19,5 @@
   "tags": [
     "rules"
   ],
-  "title": "Rules currency pass: evaluate the 11 packs still missing currency_pass: (46 of 57 done; file 45 ai/20-vision landed 2026-10-02, D-496)"
+  "title": "Rules currency pass: evaluate the 10 packs still missing currency_pass: (47 of 57 done; file 46 ai/25-3d-generation landed 2026-10-02, D-503)"
 }

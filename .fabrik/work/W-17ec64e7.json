@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T15:25:15.676182Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-17ec64e7",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-505",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "edit .windsurf/rules/ai/00-ai-model-selection.md:130 to the current DeepL entry (one-time 1M developer allowance; Growth plan) \u2014 source: support.deepl.com DeepL-API-plans, ledger tr-01/tr-02 in docs/reference/research/2026-10-02-language-currency-ledger.md; at :88 put context-taking engines (another LLM, Qwen-MT) before DeepL, citing D-505; also swap qwen-mt-turbo for the flash tier at ai/00:88,156 and AI_VENDOR_ACCESS.md:35,47, and fix the DeepL row at AI_VENDOR_ACCESS.md:50",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "ai/00's vendor-access table says DeepL has a free tier of 500K chars/month for new accounts; DeepL closed API Free and Pro to new customers (new accounts get a one-time 1M characters, then the Growth plan); and ai/00:88 still names DeepL as the translation alternative, which the operator ruled out as not context-aware enough (D-505); ai/00:88,156 and AI_VENDOR_ACCESS.md:35,47 still name qwen-mt-turbo (frozen; flash replaces it) and AI_VENDOR_ACCESS.md:50 the closed DeepL Free tier"
+}

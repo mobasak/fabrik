@@ -2828,3 +2828,45 @@ claims:
     verify: "https://fal.ai/3d-models ; https://docs.3daistudio.com/api-reference (WebFetch + exa, 2026-10-02; ledger op-01, op-03)"
     window_days: 90
     last_verified: 2026-10-02
+  - id: llm-translation-wmt
+    pack: ai/30-language.md
+    kind: practice
+    claim: "In the human evaluation of the WMT shared task of 2025, frontier LLMs were competitive with dedicated MT, with the winner varying by language pair"
+    verify: "https://aclanthology.org/2025.wmt-1.22.pdf ; https://aclanthology.org/volumes/2025.wmt-1 (exa + brave + firecrawl, 2026-10-02; ledger tr-12, op-02)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: deepl-plans-changed
+    pack: ai/30-language.md
+    kind: pricing
+    claim: "DeepL's API Free and Pro plans are closed to new customers: a new account gets a one-time 1 million characters, then the Growth plan; its next-gen model is opt-in with model_type=quality_optimized and listed for the paid plans"
+    verify: "https://support.deepl.com/hc/en-us/articles/360021200939-DeepL-API-plans ; https://developers.deepl.com/docs/translate/understanding-model-types (exa + brave, 2026-10-02; ledger tr-01, tr-02, tr-03)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: managed-mt-prices
+    pack: ai/30-language.md
+    kind: pricing
+    claim: "Azure AI Translator costs about $10 per million characters with 2 million a month free on its free resource; Google Cloud Translation about $20 per million after 500,000 free a month; Qwen-MT's turbo tier is no longer updated in favour of its flash tier"
+    verify: "https://azure.microsoft.com/en-us/pricing/details/translator/ ; https://cloud.google.com/translate/pricing ; https://www.alibabacloud.com/help/en/model-studio/model-pricing ; https://www.alibabacloud.com/help/en/model-studio/machine-translation (WebFetch + exa + brave, 2026-10-02; ledger tr-06, tr-07, tr-08, op-05)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: meta-mt-noncommercial
+    pack: ai/30-language.md
+    kind: policy
+    claim: "Meta's NLLB and SeamlessM4T translation weights are CC-BY-NC-4.0, and NLLB's card calls it a research model not released for production"
+    verify: "https://huggingface.co/facebook/nllb-200-distilled-600M ; https://huggingface.co/facebook/seamless-m4t-v2-large (exa + WebFetch, 2026-10-02; ledger tr-09, tr-10)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: anthropic-no-embeddings
+    pack: ai/30-language.md
+    kind: platform
+    claim: "Anthropic does not offer its own embedding model; its docs point to Voyage AI, now part of MongoDB with its API unchanged"
+    verify: "https://platform.claude.com/docs/en/build-with-claude/embeddings ; https://www.mongodb.com/company/blog/news/redefining-database-ai-why-mongodb-acquired-voyage-ai (WebFetch + exa + brave, 2026-10-02; ledger tr-15, em-07, em-08)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: embedding-routes
+    pack: ai/30-language.md
+    kind: platform
+    claim: "OpenRouter serves embeddings through an OpenAI-compatible /embeddings endpoint, including Qwen3-Embedding (Apache-2.0 weights) at about $0.01 per million tokens"
+    verify: "https://openrouter.ai/docs/api_reference/embeddings ; https://openrouter.ai/collections/embedding-models ; https://huggingface.co/Qwen/Qwen3-Embedding-8B (exa + WebFetch + brave, 2026-10-02; ledger em-10, em-11, em-12)"
+    window_days: 90
+    last_verified: 2026-10-02
