@@ -64,13 +64,17 @@
       "commit": "85173dee9"
     },
     "T05c": {
-      "state": "in-review",
+      "state": "reviewed",
       "branch": "worktree-agent-a90fb4ec43ca7029e",
-      "base_commit": "3bdf06320"
+      "note": "merges in T08's window (sequencing ruling); W-afe28a4a test rewrite at e904e4602"
     },
     "T02": {
+      "state": "merged",
+      "commit": "6ebc08db0"
+    },
+    "T03a": {
       "state": "dispatched",
-      "base_commit": "85173dee9"
+      "base_commit": "6ebc08db0"
     }
   }
 }
