@@ -1,6 +1,8 @@
 # Coordinator proactive assignment — no window idles while work exists
 
-Status: CONVERGED
+Status: DRAFT
+
+> **Re-opened 2026-10-03 (D-519) by the two independent design critiques (D-517), before design approval.** Converged on its text (D-516), the design does not work on this box: `_is_ready` counts `backlog` as ready work, so D4's floor is met vacuously (fleet owns 65 backlog items) while D3 pushes workers onto backlog; agent charters exist in 1 of the `/opt` repos, so beat routing is empty elsewhere; a one-window repo gets no top-up; and both causes fire only at a Stop, so nothing wakes an idle coordinator once its workers drain. The rework is pending the operator's direction.
 Profile: delta — every item changes an engine that exists today: the work store (`scripts/work.py`), the Stop hook (`.claude/hooks/final_gate_stop.py`) and the multi-agent model docs.
 
 Work item: W-83021827 · Decision: D-512 · Owner: infra (the hub's merge owner and coordinator, D-471)
