@@ -555,3 +555,30 @@ class TestAuditReconcileRoundtrip:
         assert post_missing == [], (
             f"Expected zero missing after reconcile; still missing: {post_missing}"
         )
+
+
+class TestResolveContainerCache:
+    """W-c6d27660: a FAILED docker-ps probe (an ssh blip) is not cached, so the next call retries;
+    a successful probe that finds no container is cached, so an absent container costs one probe."""
+
+    def test_failed_probe_is_retried_not_cached(self, monkeypatch):
+        audit._CONTAINER_CACHE.clear()
+        answers = iter([(False, "ssh: connect timed out"), (True, "postgres-main")])
+        monkeypatch.setattr(audit, "_ssh_check", lambda cmd, **_kw: next(answers))
+        assert audit._resolve_container("postgres-main") is None
+        assert audit._resolve_container("postgres-main") == "postgres-main"
+        audit._CONTAINER_CACHE.clear()
+
+    def test_absent_container_is_probed_once(self, monkeypatch):
+        audit._CONTAINER_CACHE.clear()
+        calls: list[str] = []
+
+        def probe(cmd, **_kw):
+            calls.append(cmd)
+            return (True, "")
+
+        monkeypatch.setattr(audit, "_ssh_check", probe)
+        assert audit._resolve_container("backrest") is None
+        assert audit._resolve_container("backrest") is None
+        assert len(calls) == 1
+        audit._CONTAINER_CACHE.clear()

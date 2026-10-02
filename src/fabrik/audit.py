@@ -120,13 +120,18 @@ def _resolve_container(prefix: str) -> str | None:
     # Coolify redeploy.
     #
     # Cached per-process so audit_all's 9-call sweep does at most one
-    # docker-ps round-trip per distinct prefix.
+    # docker-ps round-trip per distinct prefix. Only an ANSWERED probe is
+    # cached (a name, or "" for a container that is not running): a FAILED
+    # probe — an ssh blip — is retried next call, or one transient failure on
+    # the first lookup would blind every later audit of the run (W-c6d27660).
     if prefix in _CONTAINER_CACHE:
         return _CONTAINER_CACHE[prefix] or None
     ok, out = _ssh_check(
         f"sudo docker ps --format '{{{{.Names}}}}' | grep -E '^{prefix}(-|$)' | head -1"
     )
-    name = out.strip() if ok else ""
+    if not ok:
+        return None
+    name = out.strip()
     _CONTAINER_CACHE[prefix] = name
     return name or None
 
