@@ -20,7 +20,9 @@ SCRIPT = ROOT / "scripts" / "command_feedback_report.py"
 T0 = time.time() - 3600
 
 
-def _row(cmd: str, *, ts: float = T0, wall: float = 600.0, **kw) -> dict:
+def _row(cmd: str, *, ts: float = T0, wall: float = 600.0, v1: bool = False, **kw) -> dict:
+    """A feedback row. A `fabrik-task` row is a v2 close (it carries the `over_appetite` key every
+    v2 close writes) unless `v1=True`."""
     base = {
         "ts": ts,
         "sid": "s1",
@@ -32,6 +34,8 @@ def _row(cmd: str, *, ts: float = T0, wall: float = 600.0, **kw) -> dict:
         "agent": "infra",
         "surface": "",
     }
+    if cmd == "fabrik-task" and not v1:
+        base["over_appetite"] = "no"
     base.update(kw)
     return base
 
@@ -154,11 +158,12 @@ def test_lane_task_median_upgrade_share_and_downgrade_then_upgrade(tmp_path: Pat
     assert t["rows"] == 4
     assert t["median_min"] == 25  # (1200 + 1800) / 2 s
     assert t["upgraded"] == 3
-    assert t["upgrade_tokens"] == {"behaviours": 1, "contract": 1, "new-source": 1}
+    assert t["upgrade_tokens"] == {"behaviours": 1, "contract": 1, "new-source": 1, "sync": 1}
     assert (t["from_downgrade"], t["downgrade_then_upgrade"]) == (2, 1)
     text = _lane(tmp_path, rows, []).stdout
     assert (
-        "task: median 25 min of 4 · UPGRADE 3/4 (75%) [behaviours 1 · contract 1 · new-source 1]"
+        "task: median 25 min of 4 · UPGRADE 3/4 (75%) [behaviours 1 · contract 1 · new-source 1"
+        " · sync 1]"
         " · downgraded-then-upgraded 1/2 (50%)" in text.splitlines()
     )
 
@@ -380,7 +385,9 @@ def test_lane_since_windows_both_ledgers(tmp_path: Path) -> None:
 def test_lane_a_missing_refusal_ledger_and_corrupt_lines_never_crash(tmp_path: Path) -> None:
     ledger = tmp_path / "command-feedback.jsonl"
     _write(ledger, [_row("fabrik-task", wall="NaN", upgrades=7, from_downgrade=None)])
-    (tmp_path / "lane-refusals.jsonl").write_text('not json\n[1]\n{"id": "LR-q"}\n')
+    (tmp_path / "lane-refusals.jsonl").write_text(
+        f'not json\n[1]\n{{"id": "LR-q", "ts": {time.time()!r}}}\n'
+    )
     p = subprocess.run(
         [sys.executable, str(SCRIPT), "--ledger", str(ledger), "--lane", "--json"],
         capture_output=True,
@@ -392,3 +399,241 @@ def test_lane_a_missing_refusal_ledger_and_corrupt_lines_never_crash(tmp_path: P
     assert doc["coverage"]["refusal_rows"] == 1
     assert doc["task"]["rows"] == 1 and doc["task"]["timed"] == 0
     assert doc["agents"]["?"]["refused"] == 1
+
+
+# ── review round 1 (T06-O1..O12, S1..S3) ──
+
+
+def test_lane_exact_from_downgrade_on_the_spec_row_joins_first(tmp_path: Path) -> None:
+    """T06-O3: the spec handoff row carrying the id is the downgrade, whatever its timing; the
+    id-less handoff stays for the task whose id no spec row carries."""
+    rows = [
+        _row("fabrik-spec", ts=T0 + 800, state="handoff", surface="a", from_downgrade="LR-a"),
+        _row("fabrik-spec", ts=T0, state="handoff", surface="b"),
+        _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-a"),
+        _row("fabrik-task", ts=T0 + 1000, wall=300, from_downgrade="LR-b"),
+    ]
+    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == 2
+
+
+def test_lane_an_id_carrying_spec_is_never_inferred_for_another_task(tmp_path: Path) -> None:
+    rows = [
+        _row("fabrik-spec", ts=T0, state="handoff", surface="a", from_downgrade="LR-z"),
+        _row("fabrik-spec", ts=T0, state="done", surface="c"),
+        _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-c"),
+    ]
+    tts = _doc(tmp_path, rows, [])["task_to_spec"]
+    assert (tts["spec"], tts["downgraded_spec"]) == (2, 1)
+
+
+def test_lane_p3_a_same_session_preference_never_steals_a_spec(tmp_path: Path) -> None:
+    """T06-O3/P3: Y (listed first, same session as A) must not take A, which X can only use."""
+    rows = [
+        _row("fabrik-task", ts=T0 + 700, wall=100, sid="s1", from_downgrade="LR-y"),  # start +600
+        _row("fabrik-spec", ts=T0, state="handoff", sid="s1", surface="A"),
+        _row("fabrik-spec", ts=T0 + 500, state="handoff", sid="s2", surface="B"),
+        _row("fabrik-task", ts=T0 + 400, wall=100, sid="s2", from_downgrade="LR-x"),  # start +300
+    ]
+    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == 2
+
+
+def test_lane_two_specs_two_tasks_each_spec_claimed_once(tmp_path: Path) -> None:
+    rows = [
+        _row("fabrik-spec", ts=T0, state="handoff", surface="A"),
+        _row("fabrik-spec", ts=T0 + 10, state="handoff", surface="B"),
+        _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-a"),
+        _row("fabrik-task", ts=T0 + 950, wall=300, from_downgrade="LR-b"),
+    ]
+    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == 2
+
+
+def test_lane_a_done_spec_is_never_a_downgrade(tmp_path: Path) -> None:
+    """Only the handoff filter excludes the done row: it closed before the task started."""
+    rows = [
+        _row("fabrik-spec", ts=T0, state="done", surface="A"),
+        _row("fabrik-spec", ts=T0 + 800, state="handoff", surface="B"),  # after the start
+        _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-a"),
+    ]
+    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == 0
+
+
+@pytest.mark.parametrize(
+    ("spec_ts", "wall", "joined"),
+    [(T0 + 600, 300, 1), (T0 + 601, 300, 0), (T0 + 900, 0, 1), (T0 + 901, 0, 0)],
+)
+def test_lane_spec_closed_exactly_at_the_task_start_joins(
+    tmp_path: Path, spec_ts: float, wall: float, joined: int
+) -> None:
+    rows = [
+        _row("fabrik-spec", ts=spec_ts, state="handoff"),
+        _row("fabrik-task", ts=T0 + 900, wall=wall, from_downgrade="LR-a"),
+    ]
+    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == joined
+
+
+def test_lane_counts_distinct_specs_not_spec_rows(tmp_path: Path) -> None:
+    """T06-O1: a handoff and a done close of ONE spec are one spec, in both ratio terms."""
+    rows = [
+        _row("fabrik-spec", ts=T0, state="handoff", surface=SPEC),
+        _row(
+            "fabrik-spec", ts=T0 + 5, state="done", surface=SPEC, repo="/opt/x/.claude/worktrees/w"
+        ),
+        _row("fabrik-spec", ts=T0, state="done", surface="other"),
+        _row("fabrik-spec", ts=T0, state="done"),
+        _row("fabrik-spec", ts=T0, state="done"),
+        _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-a"),
+    ]
+    tts = _doc(tmp_path, rows, [])["task_to_spec"]
+    assert (tts["spec"], tts["downgraded_spec"], tts["ratio"]) == (4, 1, 0.33)
+
+
+def test_lane_small_specs_count_distinct_specs(tmp_path: Path) -> None:
+    """T06-O4: a small spec closed twice is one small spec, sent back once."""
+    rows = [
+        _row("fabrik-spec", ts=T0, state="handoff", size="small", surface=SPEC),
+        _row("fabrik-spec", ts=T0 + 5, size="small", surface=SPEC),
+        _row("fabrik-spec-review", ts=T0 + 10, surface=SPEC),
+    ]
+    assert _doc(tmp_path, rows, [])["small_specs"] == {"rows": 1, "unkeyed": 0, "sent_back": 1}
+
+
+def test_lane_spec_review_at_the_same_instant_is_not_after(tmp_path: Path) -> None:
+    rows = [
+        _row("fabrik-spec", ts=T0, size="small", surface=SPEC),
+        _row("fabrik-spec-review", ts=T0, surface=SPEC),
+    ]
+    assert _doc(tmp_path, rows, [])["small_specs"]["sent_back"] == 0
+
+
+def test_lane_worktree_paths_collapse_to_their_main_checkout(tmp_path: Path) -> None:
+    """T06-O2: three worktrees of one repo are one repo."""
+    rows = [
+        _row("fabrik-task", repo="/opt/x"),
+        _row("fabrik-task", repo="/opt/x/.claude/worktrees/a"),
+        _row("fabrik-task", repo="/opt/x/.claude/worktrees/b/"),
+        _row("fabrik-task", repo="/opt/xy"),
+    ]
+    assert _doc(tmp_path, rows, [])["pins"]["repos"] == 2
+
+
+def test_lane_same_repo_needs_a_slash_boundary(tmp_path: Path) -> None:
+    rows = [
+        _row("fabrik-spec", ts=T0, state="handoff", repo="/opt/xy"),
+        _row("fabrik-spec", ts=T0, state="handoff", repo="/opt/x/sub"),
+        _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-a", repo="/opt/x"),
+        _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-b", repo="/opt/x"),
+    ]
+    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == 1
+
+
+def test_lane_v1_task_rows_leave_the_lane_denominator(tmp_path: Path) -> None:
+    """T06-O5: a task closed before v2 carries no `over_appetite` key and is no lane start."""
+    rows = [_row("fabrik-task"), _row("fabrik-task", v1=True), _row("fabrik-task", v1=True)]
+    doc = _doc(tmp_path, rows, [_refusal("LR-a", agent="infra")])
+    assert doc["agents"]["infra"] == {"starts": 2, "refused": 1, "downgraded": 0}
+    assert doc["coverage"]["v1_task_rows"] == 2
+    assert "2 v1 fabrik-task rows excluded from lane starts" in _lane(tmp_path, rows, []).stdout
+
+
+def test_lane_defaults_to_a_thirty_day_window_and_says_so(tmp_path: Path) -> None:
+    """T06-O6."""
+    old = time.time() - 31 * 86400
+    rows = [_row("fabrik-task"), _row("fabrik-task", ts=old)]
+    doc = _doc(tmp_path, rows, [_refusal("LR-a", ts=old)])
+    assert doc["coverage"]["window_days"] == 30
+    assert (doc["coverage"]["feedback_rows"], doc["coverage"]["refusal_rows"]) == (1, 0)
+    head = _lane(tmp_path, rows, []).stdout.splitlines()[0]
+    assert head.startswith("lane report — last 30 days — 1 feedback rows")
+    assert _doc(tmp_path, rows, [], "--since", "40")["coverage"]["window_days"] == 40
+
+
+@pytest.mark.parametrize("flag", ["--rows", "--commit"])
+def test_lane_refuses_rows_and_commit_naming_the_flag(tmp_path: Path, flag: str) -> None:
+    """T06-O7."""
+    p = _lane(tmp_path, [_row("fabrik-task")], [], flag, "x")
+    assert p.returncode == 2
+    last = p.stderr.strip().splitlines()[-1]
+    assert flag in last and "--lane" in last
+    other = "--commit" if flag == "--rows" else "--rows"
+    assert other not in last
+
+
+def test_lane_token_tally_falls_back_to_the_single_upgrade(tmp_path: Path) -> None:
+    """T06-O8: every upgraded row has at least one token, so the share and the dict agree."""
+    rows = [
+        _row("fabrik-task", upgrade="sync"),
+        _row("fabrik-task", upgrade="contract", upgrades=""),
+        _row("fabrik-task", upgrade="contract", upgrades="contract appetite"),
+        _row("fabrik-task"),
+    ]
+    t = _doc(tmp_path, rows, [])["task"]
+    assert t["upgraded"] == 3
+    assert t["upgrade_tokens"] == {"appetite": 1, "contract": 2, "sync": 1}
+
+
+def test_lane_undated_refusals_are_disclosed_not_dropped_silently(tmp_path: Path) -> None:
+    """T06-O12."""
+    refusals = [_refusal("LR-a"), {"id": "LR-b"}, {"id": "LR-c", "ts": "soon"}]
+    doc = _doc(tmp_path, [_row("fabrik-task")], refusals)
+    assert (doc["coverage"]["refusal_rows"], doc["coverage"]["undated_refusals"]) == (1, 2)
+    assert "1 refusal rows [+2 undated]" in _lane(tmp_path, [], refusals).stdout
+
+
+@pytest.mark.parametrize(
+    ("marks", "over", "counted"),
+    [("3", "3", True), ("3", "4", False), (True, 0, False), (3, False, False), (2, 1, True)],
+)
+def test_lane_appetite_boundaries(
+    tmp_path: Path, marks: object, over: object, counted: bool
+) -> None:
+    """op == pm is readable; a bool is never a count (T06-S1, S2, O9)."""
+    rows = [_row("fabrik-execute-plan", phase_marks=marks, over_appetite_phases=over)]
+    a = _doc(tmp_path, rows, [])["over_appetite"]
+    assert (a["rows"], a["unreadable"]) == ((1, 0) if counted else (0, 1))
+
+
+def test_lane_a_failed_task_lane_import_warns_once(tmp_path: Path) -> None:
+    """T06-S3: the failure is cached — one warning, however many times the loader is asked."""
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / SCRIPT.name).write_bytes(SCRIPT.read_bytes())
+    (scripts / "task_lane.py").write_text("raise ImportError('broken')\n")
+    code = (
+        "import importlib.util, sys\n"
+        f"spec = importlib.util.spec_from_file_location('r', {str(scripts / SCRIPT.name)!r})\n"
+        "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+        "print(m._task_lane(), m._task_lane(), m._task_lane())\n"
+    )
+    p = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60)
+    assert p.stdout.strip() == "None None None", p.stderr
+    assert p.stderr.count("task_lane unavailable") == 1
+
+
+def test_lane_a_refusal_is_downgraded_by_its_spec_handoff_alone(tmp_path: Path) -> None:
+    """The `/fabrik-spec` DOWNGRADE handoff carries the id even before the task closes."""
+    rows = [_row("fabrik-spec", state="handoff", from_downgrade="LR-a"), _row("fabrik-review")]
+    doc = _doc(tmp_path, rows, [_refusal("LR-a", agent="infra"), _refusal("LR-b", agent="infra")])
+    assert doc["agents"]["infra"] == {"starts": 2, "refused": 2, "downgraded": 1}
+
+
+def test_lane_a_task_with_an_exact_spec_infers_nothing_more(tmp_path: Path) -> None:
+    """T06-O3: once a spec row carries the task's id, the task claims no second, id-less spec."""
+    rows = [
+        _row("fabrik-spec", ts=T0, state="handoff", surface="a", from_downgrade="LR-a"),
+        _row("fabrik-spec", ts=T0, state="handoff", surface="b"),
+        _row("fabrik-task", ts=T0 + 900, wall=300, from_downgrade="LR-a"),
+    ]
+    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == 1
+
+
+def test_lane_a_preference_yields_to_a_task_with_one_candidate(tmp_path: Path) -> None:
+    """T06-O3: X starts first and prefers B (same session), but Y can only use B — X takes A."""
+    rows = [
+        _row("fabrik-spec", ts=T0, state="handoff", sid="s9", repo="/opt/x/a"),
+        _row("fabrik-spec", ts=T0, state="handoff", sid="s1", repo="/opt/x/b"),
+        _row("fabrik-task", ts=T0 + 400, wall=300, sid="s1", repo="/opt/x", from_downgrade="LR-x"),
+        _row(
+            "fabrik-task", ts=T0 + 900, wall=300, sid="s2", repo="/opt/x/b", from_downgrade="LR-y"
+        ),
+    ]
+    assert _doc(tmp_path, rows, [])["task_to_spec"]["downgraded_spec"] == 2
