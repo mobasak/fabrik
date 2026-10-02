@@ -123,7 +123,9 @@ def test_llm_and_translation_go_to_claude_first() -> None:
     )
     # until fabrik-lib reorders mt-router, DeepL fires right after Claude whenever its key is set: the pack must say
     # how to honor the ruling, or "DeepL last" is contradicted by the module it routes through
-    assert 'configure(deepl_api_key="")' in translation, "the DeepL opt-out for mt-router is gone"
+    assert re.search(r'\bcall(?:ing)?\s+`?mt_router\.configure\(deepl_api_key=""\)`?\s+after\s+import', translation), (
+        "the pack no longer tells agents to drop mt-router's DeepL tier"
+    )
     assert "decision ledger" in translation and "project.yaml" in translation, (
         "the bake-off result no longer says where it is recorded"
     )
