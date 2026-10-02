@@ -7,7 +7,8 @@ Profile: small
 Spec: `docs/superpowers/specs/2026-10-02-backrest-paper-backups-design.md` (DRAFT, `Size: small`, `Profile: delta` —
 `/fabrik-plan-review` grades its sections together with this plan and flips both). Research ledger:
 `docs/reference/research/2026-10-02-backrest-paper-backups-ledger.md` (37 rows). Work item: W-5c4ad6a6. Estimated diff:
-≈180 code lines in 3 code files, tests excluded (`spec § Size`).
+≈270 code lines in 3 code files, tests excluded (`spec § Size`; re-derived at plan-review pass 2: `drivers/backrest.py`
+≈160, `orchestrator/infrastructure.py` ≈45, `audit.py` ≈70 replacing ≈60 — within `Profile: small`'s ≤ ~400).
 
 ## What this plan is
 
@@ -37,6 +38,7 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | I8 | rollback removes a plan it did not create | IN | Phase B (B5) |
 | I9 | an empty or stale snapshot alert | OUT-OF-SCOPE | W-43904006 |
 | I10 | the four test specs with nothing to persist | OUT-OF-SCOPE | the audit names them (B4's shape-mismatch row); their owners fix the flag |
+| I12 | `refresh_infrastructure` never sets `ctx.target_vps`, so a refresh runs every registrar against vps1 (pre-existing; found at plan-review pass 2) | OUT-OF-SCOPE | W-item filed with this plan's convergence commit |
 | I11 | the `30-ops` checklist line (fleet-synced, infra's beat) | IN | Phase C step 1 — a proposal to infra, never an edit here |
 
 ## What we already agreed (citations, not restatement)
@@ -114,7 +116,8 @@ Appetite: 45
 - `Persistence` — a frozen dataclass: `containers: int`, `paths: list[str]`, `db_name: str | None`.
 - `discover_persistence(name: str, db_name: str | None) -> Persistence | None` — one `ssh` call (the module's `ssh`,
   `drivers/backrest.py:49`) running a `bash -o pipefail -c` script: container ids by
-  `docker ps -aq --filter label=com.docker.compose.project=<name>`, else by name `^<name>(-|$)`; no ids → print
+  `docker ps -aq --filter label=com.docker.compose.project=<name>`, else by docker's own name filters
+  `--filter name=^<name>$ --filter name=^<name>-` (same-key filters are OR'ed; no `grep` in the pipeline); no ids → print
   `NOCONTAINERS` and exit 0; else `docker inspect --format` one `"<Type>\t<Source>"` line per mount, keeping `volume`
   lines and `bind` lines whose Source is under `/opt/<name>/` and passes `test -d`. Parsed in Python into sorted unique
   paths; `/opt/backups/postgres/<db_name>/` is NOT added here (the database is checked by D2's rule in Phase B). `name`
@@ -128,16 +131,21 @@ Appetite: 45
   sides; a path is covered by the first plan (by id) that lists it or a parent of it (`p == q` or
   `p.startswith(q + "/")`) and none of whose excludes match the path or an ancestor below the plan root, component-wise:
   `**` spans any number of components, `*`/`?`/`[]` match within one component (`fnmatch.fnmatchcase` per component), a
-  pattern without `/` matches any single component name. `None` when no plan covers it.
+  pattern without `/` matches any single component name, and a pattern not starting with `/` matches at any depth (as if
+  it began with `**/`). `None` when no plan covers it.
 - `visible(paths: list[str]) -> set[str] | None` — one `ssh` call: the Backrest container resolved with the module's
   pattern `^backrest(-|$)` (`drivers/backrest.py:152`) behind an explicit empty-name guard that exits non-zero, then
   `test -e` per path inside it; returns the visible subset (empty set for an empty input, no SSH); `None` on failure.
+- `extend_backup_plan(plan_id: str, add_paths: list[str]) -> dict` — under the same `run_locked("backrest-config", …)`
+  flock and backup/validate/replace/restart steps as `_build_add_script` (`drivers/backrest.py:109-155`), a `jq` update that
+  sets the plan's `paths` to the sorted union of its paths and `add_paths`; never removes a path; `{"status": "extended" |
+  "unchanged" | "not_found", "plan": plan_id}`; `ValueError` on an empty `add_paths`.
 - `POSTGRES_CLUSTER_PLAN = "postgres-dumps"` — the whole-cluster dump plan id
   (`docs/infrastructure/vps-complete-inventory.md:556`).
 
 **Consumes:** nothing.
 
-1. **Write the failing tests first** in `tests/test_backrest_coverage.py` (new; rows A1-A5), patching
+1. **Write the failing tests first** in `tests/test_backrest_coverage.py` (new; rows A1-A6), patching
    `fabrik.drivers.backrest.ssh` with a fake that returns recorded `docker inspect`/`jq`/`test -e` outputs (the
    `patch.object(backrest, ...)` pattern of `tests/drivers/test_backrest.py:127-140`). Confirm each fails with `AttributeError` for the right name.
 2. Add the four functions per the Interfaces; export them in `__all__` (`drivers/backrest.py:396-408`).
@@ -156,6 +164,7 @@ Appetite: 45
 - **Given** the probe prints `NOCONTAINERS`, **When** `discover_persistence` runs, **Then** it returns `Persistence(0, [], db)`, and the script sent over SSH starts with `bash -o pipefail` and carries both the label filter and the name fallback (A3; `spec § Chosen approach`)
 - **Given** the SSH call raises, **When** `discover_persistence`, `read_plans` or `visible` runs, **Then** each returns `None`; **Given** a hyphenated name `tryton-crm`, **Then** validation passes, and an invalid name raises `ValueError` before any SSH call (A4; `spec § The delta` D1-D2)
 - **Given** a `config.json` with a repo section carrying credentials, **When** `read_plans` runs, **Then** the command sent over SSH selects only `id`, `paths` and `excludes`, and the parsed result holds nothing else (A5; `drivers/backrest.py:22-25`)
+- **Given** a plan `svc-data` with paths `[/a]`, **When** `extend_backup_plan("svc-data", ["/b"])` runs, **Then** the locked script sets its paths to `[/a, /b]` and never drops `/a`, a repeat returns `unchanged`, an unknown id returns `not_found`, and an empty `add_paths` raises `ValueError` (A6; `drivers/backrest.py:109-155`)
 
 ## Phase B — The registrar, the audit and the rollback guard
 
@@ -169,13 +178,16 @@ Appetite: 50
   `with_database` (a `ValueError` → warn, `db = None`); `found = discover_persistence(name, db)`; `plans = read_plans()`;
   either `None` → `_nonfatal` warning, return. `found.containers == 0` → warn ("not running"), return. No paths →
   warn (shape mismatch), return. `uncovered = [p for p, q in coverage(found.paths, plans).items() if q is None]`; none →
-  log `covered by <ids>`, return. A plan `<name>-data` already in `plans` → warn (the paper plan must be removed first,
-  rollout V4), return. `vis = visible(uncovered)`; `None` → warn, return; paths not in `vis` → warn naming each; the
-  visible ones, if any → `add_backup_plan(f"{name}-data", sorted(vis), excludes=())`; `ctx.add_resource("backrest",
+  log `covered by <ids>`, return. `vis = visible(uncovered + <the existing `<name>-data` paths, if any>)`; `None` → warn, return. An existing
+  `<name>-data` with a path not in `vis` is a paper plan → warn (remove it first, rollout V4), return. Uncovered paths not
+  in `vis` → warn naming each. The visible uncovered ones, if any → `extend_backup_plan(f"{name}-data", …)` when that plan
+  exists, else `add_backup_plan(f"{name}-data", sorted(…), excludes=())`; `ctx.add_resource("backrest",
   plan_id, ...)` **only when the result's status is `created`**. The database is the audit's to judge (the postgres
   registrar owns per-database plans).
 - `src/fabrik/audit.py::audit_backrest(spec)` (`:331-390`) — the spec's right column, through the Phase A functions inside
-  the same env swap (a `SimpleNamespace(target_vps=<the spec's target_vps>)` passed to `_target_vps_env`). Order: any
+  the same env swap (a `SimpleNamespace(target_vps=...)` passed to `_target_vps_env`, the target resolved as `fabrik
+  destroy` does without the CLI flag: `.fabrik/state/<id>.json` `target_vps`, then the spec field, then `vps1` —
+  `cli.py:955-970`; the driver calls follow `FABRIK_VPS_SSH_HOST`, default `vps`, `drivers/ssh.py:31`). Order: any
   probe `None` → `unknown`; collect findings: a `<sid>-data` plan whose paths are not all visible → `paper plan <id>:
   remove it`; zero containers → status `missing` ("not running on <host>") unless a paper plan was found (then `drift`);
   containers but no path and the database not engaged → shape mismatch; each uncovered path → `unprotected` (naming
@@ -198,7 +210,7 @@ Appetite: 50
 **Consumes:** Phase A's four functions.
 
 1. **Write the failing tests first:** rows B1-B4 and B6 in `tests/test_audit.py` (`TestAuditBackrest` rewritten) and B5,
-   B7 in `tests/orchestrator/test_infrastructure.py` (new tests beside `TestProvisionDispatch`, `:344`), patching the Phase A
+   B7, B8 in `tests/orchestrator/test_infrastructure.py` (new tests beside `TestProvisionDispatch`, `:344`), patching the Phase A
    functions. Confirm red against today's code.
 2. Edit `_provision_backrest` and its call per the Interfaces.
 3. Edit `audit_backrest` per the Interfaces; remove `_missing_host_paths`.
@@ -218,7 +230,8 @@ Appetite: 50
 - **Given** zero containers, or containers with no persistent path and no database, or `visible` returning `None`, **When** the audit runs, **Then** it returns `missing`, `drift` (shape mismatch) and `unknown` respectively, and the registrar writes nothing in each case (B4; `spec § Chosen approach`)
 - **Given** `add_backup_plan` returns `exists`, **When** the registrar runs, **Then** no `backrest` resource is recorded, so a later rollback cannot remove a plan this run did not create (B5; `src/fabrik/orchestrator/rollback.py:153-154`)
 - **Given** a database with neither a visible per-database dump directory nor a `postgres-dumps` plan, **When** the audit runs, **Then** it returns `drift` naming the database; with `postgres-dumps` present it is covered (B6; `spec § Chosen approach`, database)
-- **Given** a spec with `target_vps: vps2`, **When** the registrar runs, **Then** every backrest SSH call happens with `FABRIK_VPS_SSH_HOST=vps2` and the variable is restored afterwards (B7; `orchestrator/deployer_ssh.py:116-140`)
+- **Given** a context whose `target_vps` the test sets to `vps2` (the `_ctx` helper leaves it at `vps1`, `src/fabrik/orchestrator/context.py:50`), **When** the registrar runs, **Then** every backrest SSH call happens with `FABRIK_VPS_SSH_HOST=vps2` and the variable is restored afterwards (B7; `orchestrator/deployer_ssh.py:116-140`)
+- **Given** a healthy `<name>-data` (every path visible) and a new uncovered visible path, **When** the registrar runs, **Then** it calls `extend_backup_plan("<name>-data", [the new path])` and never `add_backup_plan`; with a paper `<name>-data` it calls neither (B8; `spec § Chosen approach`)
 
 ## Phase C — Docs, the infra proposal and Finish
 

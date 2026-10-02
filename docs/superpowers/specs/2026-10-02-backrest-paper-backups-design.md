@@ -1,7 +1,7 @@
 # Backrest coverage: protect what a service actually persists, never a path that does not exist
 
 Status: DRAFT
-Size: small (≈180 lines, 3 files)
+Size: small (≈270 lines, 3 files)
 Profile: delta — every intake item maps to code that exists today: the backrest registrar
 (`src/fabrik/orchestrator/infrastructure.py::_provision_backrest`), the plan driver (`src/fabrik/drivers/backrest.py`), the
 per-spec audit (`src/fabrik/audit.py::audit_backrest`) and the rollback handler (`src/fabrik/orchestrator/rollback.py`).
@@ -79,7 +79,8 @@ today the registrar runs hub-side after `deploy()` restores the hub host (`orche
 **Coverage.** Paths are compared with trailing slashes stripped. A path is covered by a plan when the plan lists it or a
 parent of it, and none of the plan's exclude patterns can exclude it. An exclude counts against a path when it matches
 the path or any ancestor below the plan's root, component by component, the way restic reads it: `**` spans any number of
-components, `*` stays inside one component, and a pattern without a `/` matches any single component name. The check is
+components, `*` stays inside one component, a pattern without a `/` matches any single component name, and a
+pattern that does not start with `/` matches at any depth (as if it began with `**/`), as restic reads it. The check is
 deliberately conservative: when in doubt the path reads uncovered, which can cost an extra per-service plan, never a
 false `present`. (The hub's `docker-volumes` plan excludes whole volumes such as Prometheus and Loki data,
 `docs/operations/hub-restore-inventory.md:93-112`; a service volume excluded there reads uncovered and gets its own plan.)
@@ -110,7 +111,7 @@ Then:
 | zero containers on the host | nothing | `missing` — "not running on <host>" (an undeployed spec is not drift) |
 | containers, no persistent path, database not engaged | nothing; warns `has_persistent_data set but no persistence found` | `drift` — names the shape mismatch |
 | every path covered and visible, database covered | nothing (logs `covered by <plan ids>`) | `present`, each path's covering plan in `actual` |
-| a path uncovered, Backrest can stat it | creates `<name>-data` with exactly the uncovered visible paths and NO excludes (as the per-database plans do, `drivers/backrest.py:357-367`), so its own excludes can never drop its roots; if a `<name>-data` plan already exists, writes nothing and warns that the paper plan must go first (rollout V4) | `drift` until a plan covers it, then `present` |
+| a path uncovered, Backrest can stat it | creates `<name>-data` with exactly the uncovered visible paths and NO excludes (as the per-database plans do, `drivers/backrest.py:357-367`), so its own excludes can never drop its roots; if a healthy `<name>-data` already exists (every path visible), adds the new paths to it — additive only, never removing a path; if it is a paper plan, writes nothing and warns that it must go first (rollout V4) | `drift` until a plan covers it, then `present` |
 | a path uncovered, Backrest cannot stat it (e.g. a spoke without the volumes bind) | writes nothing; warns naming the path and the bind it needs | `drift` — "unprotected: <path> (not visible to Backrest)" |
 | a covered path Backrest cannot stat | nothing | `drift` — "<path> missing" |
 | database neither per-database dump nor whole-cluster plan | nothing (the postgres registrar owns per-database plans) | `drift` — "database <db> not covered" |
@@ -163,9 +164,12 @@ state is dumped, never copied as files (vol-3). One discovery function serves th
   resolved by `^backrest(-|$)` behind an explicit empty-name guard, because Backrest's `os.Stat` is what decides, brk-5).
 - **D3 — registrar** (`infrastructure.py::_provision_backrest`): the table's middle column, inside the env swap to
   `target_vps`. A plan is never written with zero paths (brk-4); `ctx.add_resource("backrest", …)` only when the driver
-  returned `created`. Under `dry_run` it makes no SSH call.
+  returned `created`. Under `dry_run` it makes no SSH call. A healthy existing `<name>-data` gains new paths through a
+  driver op that only appends paths under the same flock (`extend_backup_plan`).
 - **D4 — audit** (`audit.py::audit_backrest`): the table's right column, through the same D1/D2 calls inside the same env
-  swap. `missing` now means "not running on the host", not "no `<sid>-data` plan"; `_missing_host_paths`
+  swap; the host is `fabrik destroy`'s order without the CLI flag — `.fabrik/state/<id>.json` `target_vps`, then the
+  spec field, then `vps1` (`cli.py:955-970`). The driver calls follow `FABRIK_VPS_SSH_HOST` (default `vps`,
+  `drivers/ssh.py:31`), not `FABRIK_AUDIT_VPS`. `missing` now means "not running on the host", not "no `<sid>-data` plan"; `_missing_host_paths`
   (`audit.py:314-328`) is replaced by `visible`.
 - **D5 — heal the live paper plans**: after D4 ships, the audit's report lists every paper plan. Removing them is a
   delete of production backup config, so it is an operator-gated rollout step (Validation 4) using the existing
