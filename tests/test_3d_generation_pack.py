@@ -35,6 +35,7 @@ PACK = RULES / "ai" / "25-3d-generation.md"
 INDEX = RULES / "ai" / "00-ai-model-selection.md"
 FRESH = ROOT / "scripts" / "check_ai_pack_freshness.py"
 NOT_IN_ROUTING = ("CSM", "Luma", "Genie", "Hunyuan", "SF3D", "SPAR3D")
+VENDOR_APIS = ("**Meshy**", "**Tripo**", "**Rodin**")  # the commercial APIs § 5 defaults to
 
 
 def _load(name: str, path: Path):
@@ -69,18 +70,18 @@ def test_routing_names_no_dead_or_restricted_provider() -> None:
     table = [
         ln
         for ln in _section(_pack(), "1").splitlines()
-        if ln.startswith("| ") and "Asset type" not in ln
+        if ln.startswith("| ") and "Asset type" not in ln and not ln.startswith("| :--")
     ]
     assert len(table) >= 6, f"the routing table lost rows: {len(table)}"
     for row in table:
         for name in NOT_IN_ROUTING:
             assert name not in row, f"{name} is dead or licence-restricted and is routed to: {row}"
         primary = row.split("|")[2]
-        # § 0 and § 5 forbid self-hosting as a starting move: a primary is a vendor API or a HOSTED open model, so an
-        # open model named as a primary must say "hosted" — however a self-host route is worded, it lacks that word
-        if any(m in primary for m in ("TRELLIS", "Step1X", "Hunyuan", "TripoSG")):
+        # § 0 and § 5 forbid self-hosting as a starting move: a primary is a commercial vendor API or says it is
+        # hosted — anything else (an open model however its self-host route is worded) fails closed
+        if not any(v in primary for v in VENDOR_APIS):
             assert "hosted" in primary, (
-                f"an open model is a primary without a hosted route, against § 0 and § 5: {row}"
+                f"a primary is neither a vendor API nor hosted, against § 0 and § 5: {row}"
             )
     reach = _flat(_section(_pack(), "1"))
     assert "only the generate call" in reach, (
@@ -102,15 +103,17 @@ def test_licence_trap_and_exclusions_hold() -> None:
         assert needle in trap, f"the licence trap no longer names {needle!r}"
     # each exclusion is one bullet; read the whole bullet, so a reworded or re-punctuated sentence still counts
     bullets = [_flat(b) for b in _section(_pack(), "2").split("\n- ")[1:]]
-    csm = next((b for b in bullets if b.startswith("**CSM")), "")
-    luma = next((b for b in bullets if b.startswith("**Luma Genie")), "")
+    heads = [(b.lstrip("*_ "), b) for b in bullets]
+    csm = next((b for h, b in heads if h.startswith("CSM")), "")
+    luma = next((b for h, b in heads if h.startswith("Luma Genie")), "")
     assert "shut down" in csm, "the exclusions no longer say CSM's API shut down"
     assert "sunset" in luma, "the exclusions no longer say Luma Genie was sunset"
 
 
 def test_gate_fails_closed_and_claude_reads_the_renders() -> None:
     gate = _flat(_section(_pack(), "3"))
-    plain = gate.replace("`", "")  # code styling is not meaning: `Read` tool reads as Read tool
+    # emphasis is not meaning: `Read`, *Read*, _Read_ and Read are one word; an underscore inside a word stays
+    plain = re.sub(r"[`*]|(?<!\w)_|_(?!\w)", "", gate)
     assert "never a pass-by-default" in gate, (
         "the gate no longer fails closed on an unvalidatable generation"
     )
@@ -184,7 +187,8 @@ def test_no_retired_routes_or_versions() -> None:
     # retired names are refused in the frontmatter too: its description is what an agent browsing packs reads
     lowered = _pack().replace("docs/reference/kilo/", "docs/reference/").lower()
     for gone in ("traycer", "kilo"):
-        assert gone not in lowered, f"{gone} is retired and still named"
+        # a whole word: "Kilo/OpenRouter" is the retired gateway, "kilobytes" is not
+        assert not re.search(rf"\b{gone}\b", lowered), f"{gone} is retired and still named"
     version_re = _load("vision_pack_test", ROOT / "tests" / "test_vision_pack.py").VERSION_RE
     stripped = re.sub(r"Apache-?2\.0|A?GPL-\d\.\d|CC-BY(?:-[A-Z]+)* \d\.\d", "", body)
     found = version_re.findall(stripped)
