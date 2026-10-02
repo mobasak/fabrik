@@ -3,8 +3,8 @@
 
 Every receipt here is a REAL one: written by ``scripts/review_receipt.py --init --range`` in a
 throwaway git repo, mechanically completed the way ``tests/test_review_receipt.py`` completes it,
-and graded by a copy of the real ``check_review_coverage.py`` placed where the function looks for
-it (``<root>/scripts/enforcement/``). One test per Behavior Contract row and per boundary; each
+and graded by the real ``check_review_coverage.py`` shipped beside ``task_lane.py`` (never the
+fixture repo's own copy — round-1 ruling O5/S1). One test per Behavior Contract row and per boundary; each
 broken receipt differs from the valid one in ONE respect and must be refused with that check's
 reason alone.
 """
@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import importlib.util
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -24,7 +23,6 @@ from tests.test_review_receipt import _complete
 
 ROOT = Path(__file__).resolve().parents[1]
 RECEIPT_SCRIPT = ROOT / "scripts" / "review_receipt.py"
-CHECKER = ROOT / "scripts" / "enforcement" / "check_review_coverage.py"
 REL = "docs/development/reviews/2026-10-02-widget-review.md"
 
 
@@ -85,8 +83,6 @@ def repo(tmp_path: Path) -> Repo:
     (r / "app.py").write_text("x = 3\n", encoding="utf-8")
     _git(r, "commit", "-q", "-am", "last")
     last = _git(r, "rev-parse", "HEAD")
-    (r / "scripts" / "enforcement").mkdir(parents=True)
-    shutil.copy2(CHECKER, r / "scripts" / "enforcement" / "check_review_coverage.py")
     out = r / REL
     made = subprocess.run(
         [
@@ -189,16 +185,87 @@ def test_a_receipt_failing_the_coverage_checker_is_refused_by_check_b_alone(repo
     _only(_check(repo, REL, [repo.last]), "b")
 
 
-def test_a_missing_checker_is_a_refusal_never_a_pass(repo: Repo) -> None:
-    (repo.root / "scripts" / "enforcement" / "check_review_coverage.py").unlink()
-    _only(_check(repo, REL, [repo.last]), "b")
+def _swap_checker(monkeypatch, path: Path) -> None:
+    """Point the (b) SUBPROCESS at ``path``; the Status reader keeps the real module, loaded
+    first so its cache already holds it."""
+    tl = _module()
+    tl._crc()
+    monkeypatch.setattr(tl, "_LOCAL_CHECKER", path)
 
 
-def test_a_checker_that_crashes_is_a_refusal(repo: Repo) -> None:
-    (repo.root / "scripts" / "enforcement" / "check_review_coverage.py").write_text(
-        "raise SystemExit(3)\n", encoding="utf-8"
+def _unchecked(repo: Repo) -> None:
+    broken = repo.text().replace(
+        "| CLEAN (hunted app.py:1 and new.py:1 with their callers, nothing found) |",
+        "| UNCHECKED |",
+        1,
     )
+    assert broken != repo.text()
+    repo.write(broken)
+
+
+def test_a_missing_checker_is_a_refusal_never_a_pass(
+    repo: Repo, monkeypatch, tmp_path: Path
+) -> None:
+    _swap_checker(monkeypatch, tmp_path / "absent" / "check_review_coverage.py")
     _only(_check(repo, REL, [repo.last]), "b")
+
+
+def test_a_checker_that_crashes_is_a_refusal(repo: Repo, monkeypatch, tmp_path: Path) -> None:
+    stub = tmp_path / "check_review_coverage.py"
+    stub.write_text("raise SystemExit(3)\n", encoding="utf-8")
+    _swap_checker(monkeypatch, stub)
+    _only(_check(repo, REL, [repo.last]), "b")
+
+
+def test_a_checker_that_times_out_is_a_refusal(repo: Repo, monkeypatch, tmp_path: Path) -> None:
+    """A hung checker (rc=None) refuses — it never reads as a pass (O2)."""
+    stub = tmp_path / "check_review_coverage.py"
+    stub.write_text("import time\ntime.sleep(30)\n", encoding="utf-8")
+    _swap_checker(monkeypatch, stub)
+    monkeypatch.setattr(_module(), "_CHECKER_TIMEOUT", 1)
+    reasons = _check(repo, REL, [repo.last])
+    _only(reasons, "b")
+    assert "rc=None" in reasons[0] and "TimeoutExpired" in reasons[0], reasons
+
+
+def test_an_unlaunchable_checker_is_a_refusal(repo: Repo, monkeypatch) -> None:
+    """The interpreter cannot be started (OSError, rc=None) — refused, never passed (O2)."""
+    _module()._crc()
+    monkeypatch.setattr(sys, "executable", "/nonexistent/python3")
+    reasons = _check(repo, REL, [repo.last])
+    _only(reasons, "b")
+    assert "rc=None" in reasons[0], reasons
+
+
+def test_the_repos_own_checker_copy_is_never_run(repo: Repo) -> None:
+    """The lane run's commits can edit ``<root>/scripts/enforcement/check_review_coverage.py``;
+    a stub there that always exits 0 must not pass an unadjudicated receipt (O5, S1)."""
+    own = repo.root / "scripts" / "enforcement" / "check_review_coverage.py"
+    own.parent.mkdir(parents=True)
+    own.write_text("raise SystemExit(0)\n", encoding="utf-8")
+    _unchecked(repo)
+    _only(_check(repo, REL, [repo.last]), "b")
+
+
+def test_the_callers_python_environment_cannot_change_the_verdict(
+    repo: Repo, monkeypatch, tmp_path: Path
+) -> None:
+    """A PYTHONPATH sitecustomize that forces exit 0 must not reach the checker (O6)."""
+    site = tmp_path / "site"
+    site.mkdir()
+    (site / "sitecustomize.py").write_text(
+        "import atexit, os\natexit.register(lambda: os._exit(0))\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("PYTHONPATH", str(site))
+    _unchecked(repo)
+    _only(_check(repo, REL, [repo.last]), "b")
+
+
+def test_a_relative_root_is_resolved(repo: Repo, monkeypatch) -> None:
+    """``root=Path('repo')`` from the parent directory: every half reads the same tree (O3)."""
+    monkeypatch.chdir(repo.root.parent)
+    tl = _module()
+    assert tl.check_review_receipt(Path(REL), [repo.last], root=Path(repo.root.name)) == []
 
 
 # ── (b) the header Status is CLOSED — a review that has not finished is not a review ──────
@@ -292,19 +359,81 @@ def test_the_d252_scope_growth_wording_is_a_closed_status(repo: Repo) -> None:
 
 
 def test_an_unloadable_status_reader_is_a_refusal(repo: Repo, monkeypatch, tmp_path: Path) -> None:
-    """The Status half reuses the co-shipped checker's header-zone readers; if that module
-    cannot load, the status is unread and the receipt is refused — never passed."""
+    """The header fields are read with the co-shipped checker's header-zone readers; if that
+    module cannot load, (b)'s Status, (c) and (d) are each refused — never passed."""
     tl = _module()
-    monkeypatch.setattr(tl, "_LOCAL_CHECKER", tmp_path / "absent.py")
-    monkeypatch.setattr(tl, "_crc_cache", [])
+
+    def _broken():
+        raise ImportError("no reader")
+
+    monkeypatch.setattr(tl, "_crc", _broken)
     reasons = _check(repo, REL, [repo.last])
-    _only(reasons, "b")
-    assert "Status cannot be read" in reasons[0], reasons
+    assert [r[:4] for r in reasons] == ["(b) ", "(c) ", "(d) "], reasons
+    assert all("header cannot be read" in r for r in reasons), reasons
 
 
 def test_a_negated_d252_wording_is_refused(repo: Repo) -> None:
     _status(repo, "**Status:** CONVERGED — this did not close on the D-252 scope-growth stop")
     _status_refused(_check(repo, REL, [repo.last]))
+
+
+def test_a_second_in_progress_status_line_is_refused(repo: Repo) -> None:
+    """``CONVERGED`` then ``IN-PROGRESS`` in the header: the checker exempts the whole grammar on
+    the second line (exit 0 over an UNCHECKED row), so EVERY Status line must be closed (O1)."""
+    _unchecked(repo)
+    _status(repo, f"{STATUS}\n**Status:** IN-PROGRESS")
+    reasons = _check(repo, REL, [repo.last])
+    _status_refused(reasons)
+    assert any("IN-PROGRESS" in r for r in reasons), reasons
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "**Status:** **CONVERGED**",
+        "**Status**: CONVERGED",
+        "**status:** converged",
+        "Status: CONVERGED",
+    ],
+)
+def test_the_bold_colon_and_case_forms_of_converged_pass(repo: Repo, line: str) -> None:
+    """The Status reader normalises bold markers, the colon outside the bold, and case (O7)."""
+    _status(repo, line)
+    assert _check(repo, REL, [repo.last]) == []
+
+
+def test_a_hyphen_suffixed_converged_with_d252_wording_is_refused(repo: Repo) -> None:
+    """``CONVERGED-ish … on the D-252 scope-growth stop`` is not CONVERGED: a ``\\b`` match
+    admits the hyphen (O7)."""
+    _status(repo, "**Status:** CONVERGED-ish (2026-10-02) on the D-252 scope-growth stop")
+    _status_refused(_check(repo, REL, [repo.last]))
+
+
+# ── (c)/(d) read the HEADER ZONE only (O4) ─────────────────────────────────────────────────
+
+
+def test_a_blockquoted_scoped_command_is_not_rescued_by_a_body_line(repo: Repo) -> None:
+    text = repo.text()
+    line = next(ln for ln in text.splitlines() if ln.startswith("**Command:** "))
+    scoped = "> " + line.replace("/fabrik-review ·", "/fabrik-review-scoped ·", 1)
+    repo.write(text.replace(line, scoped, 1) + "\n**Command:** /fabrik-review\n")
+    _only(_check(repo, REL, [repo.last]), "c")
+
+
+def test_a_second_command_line_in_the_header_is_refused(repo: Repo) -> None:
+    text = repo.text()
+    line = next(ln for ln in text.splitlines() if ln.startswith("**Command:** "))
+    repo.write(text.replace(line, f"{line}\n**Command:** /fabrik-review-scoped · x", 1))
+    reasons = _check(repo, REL, [repo.last])
+    assert any(r.startswith("(c) ") for r in reasons), reasons
+
+
+def test_a_body_surface_line_does_not_carry_the_range_tip(repo: Repo) -> None:
+    text = repo.text()
+    line = next(ln for ln in text.splitlines() if ln.startswith("**Surface:**"))
+    bare = line.replace(f"; range tip {repo.last}", "")
+    repo.write(text.replace(line, bare, 1) + f"\n{line}\n")
+    _only(_check(repo, REL, [repo.last]), "d")
 
 
 # ── (a) follows symlinks ───────────────────────────────────────────────────────────────────
@@ -423,3 +552,38 @@ def test_check_d_writes_no_git_index(repo: Repo) -> None:
     (repo.root / "app.py").touch()  # a stat-dirty file a refreshing command would re-stat
     assert _check(repo, REL, [repo.last]) == []
     assert index.stat().st_mtime == 1_000_000 and index.read_bytes() == before
+
+
+# ── reasons accumulate (S2) and an ambiguous short SHA (S3) ────────────────────────────────
+
+
+def test_a_missing_receipt_outside_reviews_keeps_its_a_reason(repo: Repo) -> None:
+    reasons = _check(repo, "docs/development/outside-missing-review.md", [repo.last])
+    assert any(r.startswith("(a) ") for r in reasons), reasons
+    assert any("not a file" in r for r in reasons), reasons
+
+
+def _ambiguous_prefix(repo: Repo) -> tuple[str, str, str]:
+    """Make dangling commits on HEAD's tree until two share a 4+-hex prefix (bounded)."""
+    tree = _git(repo.root, "rev-parse", "HEAD^{tree}")
+    seen: dict[str, str] = {}
+    for i in range(4000):
+        sha = _git(repo.root, "commit-tree", tree, "-m", f"probe {i}")
+        if sha[:4] in seen:
+            other = seen[sha[:4]]
+            n = 4
+            while sha[: n + 1] == other[: n + 1]:
+                n += 1
+            return sha[:n], sha, other
+        seen[sha[:4]] = sha
+    pytest.fail("no 4-hex prefix collision in 4000 commits")
+
+
+def test_an_ambiguous_short_sha_is_refused_never_guessed(repo: Repo) -> None:
+    prefix, a, b = _ambiguous_prefix(repo)
+    tl = _module()
+    assert tl._resolve_commit(repo.root, prefix) is None
+    assert tl._resolve_commit(repo.root, a) == a and tl._resolve_commit(repo.root, b) == b
+    reasons = _check(repo, REL, [prefix])
+    _only(reasons, "d")
+    assert prefix in reasons[0] and "None" in reasons[0], reasons
