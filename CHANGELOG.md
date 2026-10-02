@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Jev decision-model use cases mapped onto the hub's infra, researched with fabrik-lib's deep-research engine (2026-10-03)
+
+New `docs/reference/jev-decision-model-map.md` sorts what the evidence says about TypeSafe's Jev into seven proven use-case classes and eight constraints (it cannot abstain, calibration varies by task and wording, it is not a security boundary, it is hosted only). It then maps 14 of the hub's and fabrik-lib's closed-answer decision points against them: two pilots (the Stop hook's stall detector, which already has a labelled set, and the skill router's Tier 2, switched off for latency), six FIT rows, two CONDITIONAL rows and four NO rows. The evidence is 103 engine cards from three briefs run twice, ten direct reads, a 90-item OpenRouter price test and a read-only inventory that found 44 decision points, all filed in `docs/reference/research/2026-10-03-jev-use-cases-ledger.md`, which `check_research_ledger.py` passes with no row refused. No pilot is armed: both wait on two operator rulings, on sending hub text to an external decision API and on the channel.
+
 ### Changed — ai/60-code: Claude Code in VS Code as the dev stack (operator ruling); code-writing features on ai/50's loop, isolated, with the repository untrusted (2026-10-02)
 
 `.windsurf/rules/ai/60-code.md` listed Windsurf Cascade and the Kilo CLI as the dev stack and gave no isolation or trust rule. Now Fabrik's own development is Claude Code (the VS Code extension and the CLI), per the operator; code-writing features run on ai/50's `run_agentic` loop with editing granted through `allowed_tools`; generated code never runs on the host; the repository is untrusted input (OWASP's Rule of Two). ai/50's bound rule gains the same `allowed_tools` grant. New `tests/test_code_pack.py` (43 mutants, each red); 6 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-02-code-currency-ledger.md`; D-514.
