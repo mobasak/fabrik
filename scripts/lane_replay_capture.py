@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/fixtures/lane_replay.json (re-capture it, then --check) · tests/test_lane_replay_capture.py
+# AFTER-EDIT: tests/fixtures/lane_replay.json (re-capture it, then --check) · tests/test_lane_replay_capture.py · scripts/task_lane.py (expected_verdict delegates to classify_commit)
 """Capture the /fabrik-task lane replay fixture — read-only git, re-derivable (plan T01, spec D12 (1)).
 
 WHAT IT WRITES — ``tests/fixtures/lane_replay.json``: one row per commit the lane spec measured
@@ -9,18 +9,22 @@ its ``-M -C`` name-status rows ``[letter, path, old_path]`` (paths interned per 
 500 KB large-file limit — read it with ``load()``) and its EXPECTED verdict from the closed
 set ``lane`` · ``lane: full-review`` · ``chain: contract`` · ``chain: new-source``. The header
 records every source's END commit, the governance-sync regex and the commit it was read at, and
-the verdict rule as text, so ``scripts/task_lane.py::classify_commit`` (T02) implements the same
-rule and ``--check`` re-derives the same rows.
+the verdict rule as text (``scripts/task_lane.py::classify_commit`` is its implementation), and
+``--check`` re-derives the same rows.
 
 HOW — ``git -C <repo> log --no-merges -n <N> --name-status -M -C -z <end>``; nothing is written to
 any repo. ``--check <fixture>`` re-runs the capture against the header's recorded ends and exits 1
 on ANY difference (rows, verdicts, counts, the regex).
 
-THE CHEAPEST WAY TO SATISFY ``--check`` WITHOUT THE OUTCOME (D-253): re-capture after changing the
-verdict rule here, so the fixture silently pins whatever the new rule says. The counter is that the
-rule lives in one function (``expected_verdict``) graded case by case in
-``tests/test_lane_replay_capture.py``, and T02's replay test compares an INDEPENDENT classifier to
-the pinned verdicts — a rule drift here reds there.
+THE VERDICT RULE is ``scripts/task_lane.py::classify_commit``; ``expected_verdict`` delegates to it
+(T02-O20), so the capture and the lane can never disagree on the same rows.
+
+THE CHEAPEST WAY TO SATISFY ``--check`` WITHOUT THE OUTCOME (D-253): change the rule in
+``task_lane.py`` and re-capture, so the fixture silently pins whatever the new rule says. The
+counter: the fixture is COMMITTED, so a rule change reds ``tests/test_lane_replay.py`` until a
+re-capture is committed beside it, and that commit's fixture diff names every verdict that moved;
+the rule is also graded case by case, independently of any capture, in
+``tests/test_lane_replay_capture.py`` and ``tests/test_task_lane_admission.py``.
 
 Usage:
   python scripts/lane_replay_capture.py --out tests/fixtures/lane_replay.json
@@ -31,6 +35,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -38,6 +43,27 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
+
+def _task_lane() -> Any:
+    """``scripts/task_lane.py``, loaded beside this file (``sys.modules`` first, so a test that
+    already loaded it shares the one object)."""
+    if "task_lane" in sys.modules:
+        return sys.modules["task_lane"]
+    spec = importlib.util.spec_from_file_location(
+        "task_lane", Path(__file__).resolve().parent / "task_lane.py"
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError("lane_replay_capture: cannot load scripts/task_lane.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["task_lane"] = mod
+    try:
+        spec.loader.exec_module(mod)
+    except BaseException:
+        del sys.modules["task_lane"]
+        raise
+    return mod
+
 
 HUB_END = "c84f0b0b79e62e230e71c6e99eadd6e7c8d1f8f6"
 WEF1_SHA = "0e89dcb67641ca0131e7b9d0b8177ee44671154c"
@@ -52,45 +78,28 @@ DEFAULT_PROJECTS = (
 
 VERDICTS = ("lane", "lane: full-review", "chain: contract", "chain: new-source")
 
-# the measurement's exclusion set (the five ledgers, docs/CAPABILITIES.md, four prefixes)
-EXCLUDE_EXACT = frozenset(
-    {
-        "CHANGELOG.md",
-        "INDEX.md",
-        "docs/DECISIONS.md",
-        "docs/STRATEGIC_BACKLOG.md",
-        "docs/LESSONS_LEARNT.md",
-        "docs/CAPABILITIES.md",
-    }
-)
-EXCLUDE_PREFIX = (
-    "docs/reference/",
-    "docs/workstation/",
-    "docs/development/reviews/",
-    ".fabrik/work/",
-)
-DEPENDENCY_SEGMENTS = frozenset({"node_modules", ".venv", "vendor"})
-CONTRACT_BASENAME = re.compile(r"openapi.*\.(json|yaml)|.*\.schema\.json", re.IGNORECASE)
-MIGRATION = re.compile(r"(^|/)(migrations|alembic/versions)/")
-MAX_COUNTED_FILES = 5
-MAX_NEW_SOURCE = 2
-
 RULE = (
-    "Rows are [status letter, path, old_path] from `git log -M -C --name-status`; every path test "
-    "reads the row's NEW path. First match wins: "
-    "(1) chain: contract — any row whose path starts with `specs/services/` at the repo root, or "
+    "Rows are [status letter, path, old_path] from `git log -M -C --name-status`. The verdict is "
+    "scripts/task_lane.py::classify_commit — this text describes it, the code is the one "
+    "implementation. The contract, sync and migration tests read BOTH the row's NEW path and, "
+    "for a rename or copy, its OLD path; the docs-only, new-source and count tests read the NEW "
+    "path. First match wins: "
+    "(1) chain: contract — any path that starts with `specs/services/` at the repo root, or "
     "whose basename fully matches `openapi*.json`, `openapi*.yaml` or `*.schema.json` "
     "case-insensitively at any depth (not `.yml`, not `x.schema.json.bak`), never when any path "
-    "SEGMENT is `node_modules`, `.venv` or `vendor`; tested over every row BEFORE any exclusion. "
-    "(2) docs-only — every path ends `.md` or starts `.fabrik/` (or the commit has no rows): "
+    "SEGMENT is `node_modules`, `.venv` or `vendor` (segments matched case-insensitively); "
+    "tested over every row BEFORE any exclusion. "
+    "(2) docs-only — every NEW path ends `.md` or starts `.fabrik/` (or the commit has no rows): "
     "lane: full-review when it is a hub commit with any path matching the governance-sync regex "
-    "(the sync test runs BEFORE this docs-only short-circuit), else lane. "
-    "(3) chain: new-source — more than 2 rows with status A or C whose path is not excluded, not "
-    "under `tests/`, has no basename starting `test_`, and does not end `.md`. "
+    "(the sync test runs BEFORE this docs-only short-circuit; an empty regex matches nothing), "
+    "else lane. "
+    "(3) chain: new-source — more than 2 rows with status A or C whose path is not excluded, is "
+    "not a test (a `tests`, `test` or `__tests__` directory segment at any depth, or a basename "
+    "`test_*`, `*_test.*`, `*.test.*` or `*.spec.*`), and does not end `.md`. "
     "(4) lane: full-review — a hub commit with any path matching the governance-sync regex "
     "(header `sync_regex`; project commits never test it), or any path with a migration segment "
-    "(`migrations/` or `alembic/versions/` at any depth, outside the dependency segments), or more "
-    "than 5 distinct counted paths. "
+    "(`migrations/` or `alembic/versions/` at any depth, case-insensitively, outside the "
+    "dependency segments), or more than 5 distinct counted NEW paths. "
     "(5) lane. Excluded (never counted): CHANGELOG.md, INDEX.md, docs/DECISIONS.md, "
     "docs/STRATEGIC_BACKLOG.md, docs/LESSONS_LEARNT.md, docs/CAPABILITIES.md, and anything under "
     "docs/reference/, docs/workstation/, docs/development/reviews/, .fabrik/work/."
@@ -99,57 +108,14 @@ RULE = (
 # ── the verdict rule ─────────────────────────────────────────────────────────────────────
 
 
-def _in_dependency_dir(path: str) -> bool:
-    return any(seg in DEPENDENCY_SEGMENTS for seg in path.split("/"))
-
-
-def _is_contract(path: str) -> bool:
-    if _in_dependency_dir(path):
-        return False
-    if path.startswith("specs/services/"):
-        return True
-    return CONTRACT_BASENAME.fullmatch(path.rsplit("/", 1)[-1]) is not None
-
-
-def _is_migration(path: str) -> bool:
-    return not _in_dependency_dir(path) and MIGRATION.search(path) is not None
-
-
-def _is_excluded(path: str) -> bool:
-    return path in EXCLUDE_EXACT or path.startswith(EXCLUDE_PREFIX)
-
-
-def _is_test(path: str) -> bool:
-    return path.startswith("tests/") or path.rsplit("/", 1)[-1].startswith("test_")
-
-
 def expected_verdict(rows: list, *, kind: str, sync_regex: str) -> str:
-    """The pinned verdict for one commit's name-status rows (the RULE text above)."""
-    paths = [r[1] for r in rows]
-    if any(_is_contract(p) for p in paths):
-        return "chain: contract"
-    sync = re.compile(sync_regex)
-    sync_hit = kind == "hub" and any(sync.search(p) for p in paths)
-    if all(p.endswith(".md") or p.startswith(".fabrik/") for p in paths):
-        # the sync test precedes the docs-only short-circuit (T01-S2): a governance `.md` is synced
-        return "lane: full-review" if sync_hit else "lane"
-    new_source = sum(
-        1
-        for status, path, _old in rows
-        if status in ("A", "C")
-        and not _is_excluded(path)
-        and not _is_test(path)
-        and not path.endswith(".md")
+    """The pinned verdict for one commit's name-status rows: DELEGATED to
+    ``task_lane.classify_commit`` so there is exactly one implementation (T02-O20)."""
+    return str(
+        _task_lane().classify_commit(
+            [(r[0], r[1], r[2]) for r in rows], repo_kind=kind, sync_regex=sync_regex
+        )
     )
-    if new_source > MAX_NEW_SOURCE:
-        return "chain: new-source"
-    if sync_hit:
-        return "lane: full-review"
-    if any(_is_migration(p) for p in paths):
-        return "lane: full-review"
-    if len({p for p in paths if not _is_excluded(p)}) > MAX_COUNTED_FILES:
-        return "lane: full-review"
-    return "lane"
 
 
 # ── read-only git ────────────────────────────────────────────────────────────────────────
@@ -415,6 +381,8 @@ def check(path: Path) -> int:
     problems: list[str] = []
     if fresh["header"]["sync_regex"] != recorded["header"].get("sync_regex"):
         problems.append("sync_regex differs from the regex at the recorded commit")
+    if recorded["header"].get("rule") != RULE:
+        problems.append("rule text differs from RULE (the header describes a stale verdict rule)")
     for key in ("commits", "extras"):
         old, new = recorded.get(key, []), fresh[key]
         if len(old) != len(new):

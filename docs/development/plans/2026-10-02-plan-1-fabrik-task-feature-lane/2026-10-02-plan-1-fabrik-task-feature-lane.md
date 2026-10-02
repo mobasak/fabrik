@@ -28,7 +28,7 @@ A spec-fed delta plan: each ticket cites the spec section it implements and rest
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
 | T01 | The replay fixture, pinned before any gate code | — | ⚡ | ✅ | squash of worktree-agent-ad5af92a95a1b16fa |
-| T02 | task_lane.py admission: the module test, the switch, the refusal ledger, the replay | T01 | ⛓️ | 🔵 | |
+| T02 | task_lane.py admission: the module test, the switch, the refusal ledger, the replay | T01 | ⛓️ | ✅ | squash of worktree-agent-a7202d6507f63bf60 |
 | T03a | task_lane.py close: the per-commit measurement and its refusals | T02 | ⛓️ | ⬜ | |
 | T03b | The close's review receipt: the real command, the lane marker, checks (a)–(d) | T03a | ⛓️ | ⬜ | |
 | T04 | The in-lane review stops hunting at the first own-fix-only round | T03b | ⛓️ | ⬜ | |
