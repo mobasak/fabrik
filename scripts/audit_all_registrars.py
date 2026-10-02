@@ -221,6 +221,10 @@ def main() -> int:
             logger.warning("skip %s: load failed (%s)", path.name, exc)
             error_count += 1
             continue
+        if spec.id in specs:
+            logger.warning("skip %s: duplicate spec id %s", path.name, spec.id)
+            error_count += 1
+            continue
         try:
             per_registrar = audit_all(spec)
         except Exception as exc:  # noqa: BLE001
@@ -242,9 +246,15 @@ def main() -> int:
     )
 
     heals, reconcile_ok = _reconcile(results, specs, error_count)
-    if any(h.outcome == "registered" for h in heals):
-        registered = {h.spec_id for h in heals if h.outcome == "registered"}
-        results = [(sid, audit_all(specs[sid]) if sid in registered else r) for sid, r in results]
+    registered = {h.spec_id for h in heals if h.outcome == "registered"}
+    for i, (sid, _old) in enumerate(results):
+        if sid not in registered:
+            continue
+        try:
+            results[i] = (sid, audit_all(specs[sid]))
+        except Exception as exc:  # noqa: BLE001 — keep the pre-heal result, withhold the timestamp
+            logger.warning("re-audit of %s after registration failed (%s)", sid, exc)
+            reconcile_ok = False
 
     METRICS_OUT_FILE.write_text(
         _render_metrics(

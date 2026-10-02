@@ -31,7 +31,7 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | I2 | *"register existing unregistered databases"* | IN | Phase B (the reconcile) |
 | I3 | *"retry failed registrations"* | IN | Phase B (every hourly run retries; A's in-lock check keeps it idempotent) |
 | I4 | *"surface the failure"* | IN | Phase B (series) + Phase C (rules) |
-| I5 | *"then register zitadel and site_provisioner through it"* | IN | Phase C, operator-run rollout steps R1-R4 |
+| I5 | *"then register zitadel and site_provisioner through it"* | IN | Phase C, operator-run rollout steps R0-R4 |
 | I6 | *"why there is orphan postgres databases exist"* | IN | `spec § Why this exists` (answered there; no code) |
 | I7 | the backrest half of the drift alert | OUT-OF-SCOPE | W-5c4ad6a6 |
 | I8 | databases no spec claims | OUT-OF-SCOPE | W-78d2a2df |
@@ -73,7 +73,7 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
   push metrics. The shared `.venv` imports `fabrik` from `/opt/fabrik/src` — every test run exports
   `PYTHONPATH=/opt/fabrik/.claude/worktrees/fleet/src`.
 - **Operator-gated steps are never executed by an agent:** reading the first report run, adding
-  `FABRIK_REGISTRY_RECONCILE=apply` to the hub crontab, and `scripts/sync_prometheus_to_vps.sh` (Phase C, R1-R4). The
+  `FABRIK_REGISTRY_RECONCILE=apply` to the hub crontab, and `scripts/sync_prometheus_to_vps.sh` (Phase C, R0-R4). The
   default `report` makes the code enforce that nothing writes before the operator's R2.
 
 ## Context Ledger
@@ -303,7 +303,11 @@ Appetite: 45
    --item W-714ae2cf` and send the printed `SendMessage` line.
 
 **Rollout — OPERATOR-GATED, never executed by an agent (after infra merges into master).** With the default `report`, the
-hourly cron writes nothing until R2, so the order R1 → R2 is enforced by the code, not by timing.
+hourly cron writes nothing until R2, so the order R1 → R2 is enforced by the code, not by timing. The `PUT` push, in
+contrast, is live from the merge's first hourly run, and under `PUT` a skipped spec's drift series is absent from that
+run, so its `FabrikRegistrarDrift` can resolve; `FabrikAuditStale` is what names that run, so R0 comes first.
+- R0. At the merge, before the next hourly run: sync the rules (`scripts/sync_prometheus_to_vps.sh`) and confirm
+  `FabrikRegistryHealFailed` and `FabrikAuditStale` load (Prometheus rules page).
 - R1. Read the next hourly cron run's lines in `/var/log/fabrik-audit-all.log` (or run it by hand from the main checkout:
   `PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_all_registrars.py`). Read every
   `would-register` and `shared` line — expected: `zitadel` and `site_provisioner`; any of the 9 specs Phase A re-names may
@@ -314,8 +318,7 @@ hourly cron writes nothing until R2, so the order R1 → R2 is enforced by the c
 - R3. Confirm `fabrik_audit_drift_total{registrar="postgres"}` is 0 for `zitadel` and `site-provisioner` (Prometheus).
   The metric's `spec_id` label is the spec id (`site-provisioner`); R1's log lines name the database
   (`site_provisioner`) — the same service.
-- R4. Sync the rules: `scripts/sync_prometheus_to_vps.sh`; confirm `FabrikRegistryHealFailed` and `FabrikAuditStale`
-  load (Prometheus rules page) and `FabrikAuditStale` is not firing.
+- R4. Confirm `FabrikAuditStale` is not firing (a clean run pushed the last-success timestamp).
 
 ### Behavior Contract — Phase C
 - **Given** the rule file, **When** it is loaded, **Then** `FabrikRegistryHealFailed` (`max by (spec_id, db) (fabrik_registry_heal_failed) > 0`, `for: 2h`) and `FabrikAuditStale` (`(time() - fabrik_audit_last_success_timestamp_seconds > 10800) or absent(fabrik_audit_last_success_timestamp_seconds)`) exist in the `fabrik-registrar-drift` group, and `promtool check rules` passes (C1; `configs/prometheus/rules/fabrik-drift.yml:9`; `spec § The delta` D5)

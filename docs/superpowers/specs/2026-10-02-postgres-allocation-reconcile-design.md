@@ -230,12 +230,14 @@ registry read the audit already makes. The reconcile adds about 1 s per orphan t
   prom/prometheus:v3.2.1 check rules /r/fabrik-drift.yml`. `promtool` is not installed on the hub (`which promtool` →
   not found); docker is. A promtool rule unit test (`promtool test rules`) proves `FabrikAuditStale` fires both on age and
   on absence, and `FabrikRegistryHealFailed` fires after 2 h even when `reason` changes mid-window.
-- Rollout, in order: (1) merge — the cron now runs in the default `report` mode; (2) read one run's `would-register` and
+- Rollout, in order: (1) merge, and before the next hourly run sync the rules with `scripts/sync_prometheus_to_vps.sh`
+  and confirm both new rules load — the `PUT` push is live from that run, so `FabrikAuditStale` must already exist to
+  name a run that skipped a spec; the cron runs in the default `report` mode; (2) read one run's `would-register` and
   `shared` lines in `/var/log/fabrik-audit-all.log` (or run it by hand) — the fire-rate measurement FIX DIRECTIVE 5
   requires before the mechanism writes; `zitadel` and `site_provisioner` are expected, any of the 9 re-named specs may
   appear, and `main`, if it appears, reads `shared`; (3) the operator adds `FABRIK_REGISTRY_RECONCILE=apply` to the crontab line and the
   next hourly run heals; (4) confirm `fabrik_audit_drift_total{registrar="postgres"}` is 0 for `zitadel` and
-  `site-provisioner`; (5) sync the rules with `scripts/sync_prometheus_to_vps.sh` and confirm both new rules load.
+  `site-provisioner`; (5) confirm `FabrikAuditStale` is not firing.
 
 ## Decisions taken
 

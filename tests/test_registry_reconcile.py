@@ -135,6 +135,15 @@ class TestReconcile:
                 )
             },
             "na": {"postgres": AuditResult(status="n/a")},
+            # drift rows that each fail exactly one candidate condition
+            "drift-unread": {
+                "postgres": AuditResult(status="drift", actual={"db_name": "u", "found": True})
+            },
+            "drift-gone": {
+                "postgres": AuditResult(
+                    status="drift", actual={"db_name": "g", "found": False, "in_registry": False}
+                )
+            },
             "unread": {
                 "postgres": AuditResult(
                     status="present", actual={"db_name": "unread", "found": True}
@@ -145,6 +154,26 @@ class TestReconcile:
         assert heals == []
         assert reg.writes == []
         owner_lookup.assert_not_called()
+
+    def test_invalid_database_name_is_refused_before_the_owner_query(self):
+        heals, reg, owner_lookup = _reconcile({"x": _orphan("bad-name;")})
+        assert [(h.outcome, h.reason) for h in heals] == [("failed", "ValueError")]
+        assert reg.writes == []
+        owner_lookup.assert_not_called()
+
+    def test_missing_database_name_is_failed_not_the_string_none(self):
+        audits = {
+            "x": {
+                "postgres": AuditResult(
+                    status="drift", actual={"found": True, "in_registry": False}
+                )
+            }
+        }
+        for dry_run in (True, False):
+            heals, reg, owner_lookup = _reconcile(audits, claims={}, dry_run=dry_run)
+            assert [(h.outcome, h.reason) for h in heals] == [("failed", "db-name-missing")]
+            assert reg.writes == []
+            owner_lookup.assert_not_called()
 
     def test_shared_database_is_refused_naming_the_other_claimants(self):
         # B7 — `main` claimed by two specs, one of which audited `unknown`.
@@ -198,6 +227,13 @@ class TestClaims:
         assert claim_map == {"zitadel": ["zitadel"]}
 
 
+class TestClaimsNeverRaises:
+    def test_an_object_that_is_not_a_spec_is_unresolved(self):
+        claim_map, unresolved = rr.claims(["not-a-spec"])
+        assert claim_map == {}
+        assert unresolved == ["not-a-spec"]
+
+
 class TestMode:
     @pytest.mark.parametrize(
         ("value", "expected"),
@@ -236,7 +272,9 @@ def _load_script():
 class _Cron:
     """Run the script's ``main`` over fake specs; capture the pushed payload and curl argv."""
 
-    def __init__(self, tmp_path, monkeypatch, *, specs: dict, mode: str, reconcile=None):
+    def __init__(
+        self, tmp_path, monkeypatch, *, specs: dict, mode: str, reconcile=None, audit=None
+    ):
         self.mod = _load_script()
         self.pushed: list[tuple[list[str], str]] = []
         specs_dir = tmp_path / "specs"
@@ -268,7 +306,7 @@ class _Cron:
             )
 
         monkeypatch.setattr(self.mod, "load_spec", fake_load)
-        monkeypatch.setattr(self.mod, "audit_all", fake_audit_all)
+        monkeypatch.setattr(self.mod, "audit_all", audit or fake_audit_all)
         monkeypatch.setattr(self.mod.subprocess, "run", fake_run)
         monkeypatch.setattr(self.mod.shutil, "which", lambda _n: "/usr/bin/ssh")
         if reconcile is not None:
@@ -399,3 +437,57 @@ class TestCron:
         _, body, _ = cron.run()
         assert calls == []
         assert "fabrik_registry_heal_total{" not in body
+
+    def test_unresolved_name_makes_the_claim_map_incomplete(self, tmp_path, monkeypatch):
+        # A spec that loads and audits (error_count 0) but whose name fails to resolve.
+        seen: list[bool] = []
+        cron = _Cron(
+            tmp_path,
+            monkeypatch,
+            specs={"zitadel": _spec_obj("zitadel")},
+            mode="apply",
+            reconcile=lambda a, c, *, claims_complete, dry_run: seen.append(claims_complete) or [],
+        )
+        monkeypatch.setattr(cron.mod.registry_reconcile, "claims", lambda specs: ({}, ["bad"]))
+        cron.run()
+        assert seen == [False]
+
+    def test_reaudit_crash_still_pushes_without_the_timestamp(self, tmp_path, monkeypatch):
+        calls: list[str] = []
+
+        def audit(spec):
+            calls.append(spec.id)
+            if len(calls) > 1:
+                raise RuntimeError("audit exploded on re-audit")
+            return _orphan(spec.id)
+
+        heal = [rr.HealResult("zitadel", "zitadel", "registered")]
+        cron = _Cron(
+            tmp_path,
+            monkeypatch,
+            specs={"zitadel": _spec_obj("zitadel")},
+            mode="apply",
+            reconcile=lambda *a, **k: heal,
+            audit=audit,
+        )
+        rc, body, _ = cron.run()
+        assert rc == 0
+        assert calls == ["zitadel", "zitadel"]
+        assert 'outcome="registered"} 1' in body
+        assert 'fabrik_audit_drift_total{spec_id="zitadel",registrar="postgres"} 1' in body
+        assert "fabrik_audit_last_success_timestamp_seconds" not in body
+
+    def test_duplicate_spec_id_is_a_spec_error_not_a_duplicate_series(self, tmp_path, monkeypatch):
+        seen: list[bool] = []
+        specs = {"zitadel": _spec_obj("zitadel"), "zitadel-copy": _spec_obj("zitadel")}
+        cron = _Cron(
+            tmp_path,
+            monkeypatch,
+            specs=specs,
+            mode="apply",
+            reconcile=lambda a, c, *, claims_complete, dry_run: seen.append(claims_complete) or [],
+        )
+        _, body, _ = cron.run()
+        assert body.count('fabrik_audit_drift_total{spec_id="zitadel",registrar="postgres"}') == 1
+        assert "\nfabrik_audit_spec_errors 1\n" in body
+        assert seen == [False]

@@ -77,8 +77,9 @@ def claims(specs: Iterable[Any]) -> tuple[dict[str, list[str]], list[str]]:
     claim_map: dict[str, list[str]] = {}
     unresolved: list[str] = []
     for spec in specs:
-        sid = _spec_id(spec)
+        sid = str(getattr(spec, "id", None) or spec)
         try:
+            sid = _spec_id(spec) or sid
             if not _resolved_for(spec).get("postgres", (False, ""))[0]:
                 continue
             db = _db_name_for_spec(_spec_to_dict(spec))
@@ -106,7 +107,11 @@ def reconcile_postgres(
         actual = result.actual or {}
         if actual.get("found") is not True or actual.get("in_registry") is not False:
             continue
-        heal = _heal(spec_id, str(actual.get("db_name")), claims, claims_complete, dry_run)
+        db = actual.get("db_name")
+        if not isinstance(db, str) or not db:
+            heal = HealResult(spec_id, str(db), "failed", "db-name-missing")
+        else:
+            heal = _heal(spec_id, db, claims, claims_complete, dry_run)
         logger.info(
             "registry reconcile: spec=%s db=%s outcome=%s%s",
             heal.spec_id,
