@@ -135,10 +135,11 @@ def test_reload_prometheus_uses_bare_container_name_pattern():
     from inspect import getsource
 
     src = getsource(prom._reload_prometheus)
-    assert "'^alertmanager(-|$)'" in src or '"^alertmanager(-|$)"' in src
+    # Both the hot-reload and the restart fallback target the prometheus container
+    # (W-a1a359c8: the alertmanager route no longer resolves `prometheus`).
     assert "'^prometheus(-|$)'" in src or '"^prometheus(-|$)"' in src
-    assert "'^alertmanager-'" not in src  # no bare prefix-only
-    assert "'^prometheus-'" not in src
+    assert "alertmanager" not in src
+    assert "'^prometheus-'" not in src  # no bare prefix-only
 
 
 def test_write_config_mirrors_to_git_after_vps_write(monkeypatch, tmp_path):

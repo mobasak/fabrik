@@ -77,11 +77,13 @@ try:
 except Exception:  # noqa: BLE001 — defensive: tests can monkeypatch
     _LOCAL_PROMETHEUS_CONFIG_PATH = None
 
-PROMETHEUS_RELOAD_URL = "http://prometheus:9090/-/reload"
-"""Lifecycle endpoint for hot-reload. Reachable from the VPS host via
-the ``coolify`` Docker network alias; we curl it from inside the
-``alertmanager`` container which sits on the same network. (The VPS
-host itself does NOT join the monitoring network.)"""
+PROMETHEUS_RELOAD_URL = "http://localhost:9090/-/reload"
+"""Lifecycle endpoint for hot-reload, called from INSIDE the prometheus
+container (its own loopback). The VPS host does not join the monitoring
+network, and the old route — wget from the ``alertmanager`` container to
+``prometheus:9090`` — stopped resolving (``bad address``, probed live
+2026-10-02, W-a1a359c8), which silently turned every reload into a
+container restart."""
 
 DEFAULT_METRICS_PATH = "/metrics"
 """Standard Prometheus convention. Override per-call if the service
@@ -187,18 +189,17 @@ def _reload_prometheus() -> bool:
     "the new target won't show up until next restart", not "the deploy
     is broken".
     """
-    # Hot-reload first (fast, no scrape-gap). Run from inside alertmanager
-    # since it shares the monitoring Docker network and has curl.
+    # Hot-reload first (fast, no scrape-gap), from INSIDE the prometheus
+    # container against its own loopback — no other container's DNS involved
+    # (the old route via a sidecar container stopped resolving `prometheus`,
+    # W-a1a359c8).
     # Container name pattern: `^<name>(-|$)` matches both the canonical bare
-    # name (e.g. `alertmanager` — what's live since the Coolify migration)
-    # AND any legacy `<name>-<suffix>` form. The old pattern `^alertmanager-`
-    # silently no-matched the bare names and `_reload_prometheus` always
-    # fell through to "non-fatal" — verified live 2026-06-08 during the vps4
-    # drill follow-up cleanup.
+    # name AND any legacy `<name>-<suffix>` form (the Coolify-era prefix-only
+    # pattern no-matched the bare names — verified live 2026-06-08).
     try:
         ssh(
             f"sudo docker exec $(sudo docker ps --format '{{{{.Names}}}}' "
-            f"| grep -E '^alertmanager(-|$)' | head -1) "
+            f"| grep -E '^prometheus(-|$)' | head -1) "
             f"wget -qO- --post-data='' {shlex.quote(PROMETHEUS_RELOAD_URL)}",
             timeout=15,
         )

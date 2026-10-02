@@ -136,14 +136,16 @@ for rel in "${changed[@]}"; do
          sudo install -m 644 -o root -g root '${tmpdir}/${rel}' '${REMOTE_DIR}/${rel}'"
 done
 
-# Reload via POST /-/reload. The driver's `_reload_prometheus()` does this too
-# (with a container-restart fallback); we mirror the happy-path call here.
-# Run from inside alertmanager since it shares the monitoring net + has wget.
-# Container name pattern `^alertmanager(-|$)` matches both bare-name (post-
-# Coolify) and any legacy `-suffix` shape — same fix as PR1 c48f3c0.
+# Reload via POST /-/reload from INSIDE the prometheus container, against its
+# own loopback. The driver's `_reload_prometheus()` does the same (with a
+# container-restart fallback); we mirror the happy-path call here. The old
+# route — wget from alertmanager to prometheus:9090 — stopped resolving
+# (`bad address`, probed live 2026-10-02, W-a1a359c8), so every push reported
+# a failed reload. Container name pattern `^prometheus(-|$)` matches the bare
+# name and any legacy `-suffix` shape.
 echo "reloading prometheus..."
-reload_rc=$(ssh "${SSH_HOST}" "AM=\$(sudo docker ps --format '{{.Names}}' | grep -E '^alertmanager(-|\$)' | head -1); \
-    [[ -n \"\${AM}\" ]] && sudo docker exec \"\${AM}\" wget -qO- --post-data='' http://prometheus:9090/-/reload >/dev/null 2>&1 && echo OK || echo FAIL")
+reload_rc=$(ssh "${SSH_HOST}" "PC=\$(sudo docker ps --format '{{.Names}}' | grep -E '^prometheus(-|\$)' | head -1); \
+    [[ -n \"\${PC}\" ]] && sudo docker exec \"\${PC}\" wget -qO- --post-data='' http://localhost:9090/-/reload >/dev/null 2>&1 && echo OK || echo FAIL")
 if [[ "${reload_rc}" == "OK" ]]; then
     echo "done — ${#changed[@]} file(s) pushed, prometheus reloaded"
 else
