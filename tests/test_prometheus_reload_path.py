@@ -10,7 +10,9 @@ Both halves are tested by EXECUTING the remote shell command the code builds, un
 `docker` binaries that model vps1: `docker ps` lists the configured containers; `docker exec <c> wget <url>`
 succeeds only for c == "prometheus" and a localhost:9090 URL (anything else is the `bad address` failure, and an
 empty or unknown container name is docker's "No such container"); `docker restart <c>` succeeds only for a
-running container. Every docker call is logged, so a test can assert what never ran.
+running container. Every docker call is logged, so a test can assert what never ran. `CONFIG_VALID=0` models a
+written config Prometheus will not load: `/-/reload` answers HTTP 500 and `promtool check config` fails
+(W-5aa5e3d8: restarting into that config takes Prometheus down instead of keeping the last good one).
 """
 
 from __future__ import annotations
@@ -30,7 +32,14 @@ case "$1" in
   exec)
     c="$2"
     if [[ -z "$c" ]] || [[ " $CONTAINERS " != *" $c "* ]]; then echo "No such container: '$c'" >&2; exit 1; fi
-    if [[ "$c" == prometheus ]] && [[ "$*" == *"http://localhost:9090/-/reload"* ]]; then exit 0; fi
+    if [[ "$*" == *"promtool check config /etc/prometheus/prometheus.yml"* ]]; then
+      if [[ "${CONFIG_VALID:-1}" == 0 ]]; then echo "FAILED: parsing YAML file /etc/prometheus/prometheus.yml" >&2; exit 1; fi
+      echo "SUCCESS: /etc/prometheus/prometheus.yml is valid prometheus config file syntax"; exit 0
+    fi
+    if [[ "$c" == prometheus ]] && [[ "$*" == *"http://localhost:9090/-/reload"* ]]; then
+      if [[ "${CONFIG_VALID:-1}" == 0 ]]; then echo "wget: server returned error: HTTP/1.1 500 Internal Server Error" >&2; exit 1; fi
+      exit 0
+    fi
     echo "wget: bad address 'prometheus:9090'" >&2; exit 1 ;;
   restart)
     c="$2"
@@ -67,8 +76,11 @@ def _remote(cmd: str, env: dict) -> subprocess.CompletedProcess:
 
 
 class TestDriverReload:
-    def _reload(self, monkeypatch, tmp_path, containers: str) -> tuple[bool, list[str], str]:
+    def _reload(
+        self, monkeypatch, tmp_path, containers: str, config_valid: str = "1"
+    ) -> tuple[bool, list[str], str]:
         env, log = _vps1(tmp_path, containers)
+        env["CONFIG_VALID"] = config_valid
         sent: list[str] = []
 
         def fake_ssh(cmd, *, timeout=60, **_kw):
@@ -111,7 +123,21 @@ class TestDriverReload:
 
         monkeypatch.setattr(prom, "ssh", fake_ssh)
         assert prom._reload_prometheus() is True
-        assert "restart prometheus" in log.read_text()
+        docker = log.read_text()
+        assert "restart prometheus" in docker
+        # the config was validated before the restart, never after
+        assert docker.index("promtool check config") < docker.index("restart prometheus")
+
+    def test_invalid_config_is_never_restarted_into(self, monkeypatch, tmp_path):
+        """/-/reload refuses an invalid config and the running Prometheus keeps its last good one;
+        a restart would drop it and crash-loop on the bad file (W-5aa5e3d8)."""
+        ok, sent, docker = self._reload(
+            monkeypatch, tmp_path, "alertmanager prometheus", config_valid="0"
+        )
+        assert ok is False
+        assert len(sent) == 2  # hot-reload refused, then the guarded restart leg
+        assert "promtool check config" in docker
+        assert "restart" not in docker
 
 
 class TestSyncScriptReload:

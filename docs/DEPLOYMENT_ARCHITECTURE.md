@@ -178,7 +178,7 @@ Deployed once when bootstrapping the VPS; not touched by normal `fabrik apply` o
 
 | File | Deploys | Current state |
 |---|---|---|
-| `specs/infrastructure/monitoring-stack.yaml` | Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor (all in monitoring stack compose) + Prometheus standalone (`/opt/prometheus/compose.yaml`). Config: `/opt/monitoring/configs/prometheus/prometheus.yml`. Reload: hot-reload via `POST /-/reload` from inside the prometheus container, fallback to `docker restart <the prometheus container>` (`drivers/prometheus.py::_reload_prometheus`). | ✅ deployed |
+| `specs/infrastructure/monitoring-stack.yaml` | Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor (all in monitoring stack compose) + Prometheus standalone (`/opt/prometheus/compose.yaml`). Config: `/opt/monitoring/configs/prometheus/prometheus.yml`. Reload: hot-reload via `POST /-/reload` from inside the prometheus container, fallback to `docker restart <the prometheus container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8) (`drivers/prometheus.py::_reload_prometheus`). | ✅ deployed |
 | `specs/infrastructure/authelia.yaml` | Authelia (SSO/2FA forward-auth) | ✅ deployed |
 | `specs/infrastructure/apprise.yaml` | Apprise (notifications gateway) | ✅ deployed |
 | `specs/infrastructure/browserless.yaml` | Browserless (headless Chrome) | ✅ deployed |
@@ -275,7 +275,7 @@ Local copies of VPS-side config files. **Source of truth is on the VPS** (Docker
 | `configs/alertmanager/alertmanager.yml` | `/opt/monitoring/configs/alertmanager/alertmanager.yml` | Volume-mounted from host. Edit locally → `scp` → `docker restart alertmanager`. |
 | `configs/alertmanager/alertmanager.yml.example` | — | Template with `__PLACEHOLDERS__`; render into the real file with secrets from `.env`. |
 | `configs/prometheus/prometheus.yml` | `/opt/monitoring/configs/prometheus/prometheus.yml` | Same pattern as Alertmanager. |
-| `configs/prometheus/rules/alerts.yml` | `/opt/monitoring/configs/prometheus/rules/alerts.yml` | Contains alert rules. Edit → hot-reload via `POST /-/reload` (wget inside the prometheus container against localhost:9090 — the alertmanager route stopped resolving `prometheus`, 2026-10-02). On failure the driver (`drivers/prometheus.py::_reload_prometheus`) falls back to `docker restart <the ^prometheus(-|$) container>`; `scripts/sync_prometheus_to_vps.sh` has no fallback — it prints a WARN and exits 1. |
+| `configs/prometheus/rules/alerts.yml` | `/opt/monitoring/configs/prometheus/rules/alerts.yml` | Contains alert rules. Edit → hot-reload via `POST /-/reload` (wget inside the prometheus container against localhost:9090 — the alertmanager route stopped resolving `prometheus`, 2026-10-02). On failure the driver (`drivers/prometheus.py::_reload_prometheus`) falls back to `docker restart <the ^prometheus(-|$) container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8); `scripts/sync_prometheus_to_vps.sh` has no fallback — it prints a WARN and exits 1. |
 | `configs/loki/loki-config.yaml` | Loki volume | Rarely edited. |
 | `configs/promtail/promtail-config.yaml` | Promtail volume | Rarely edited. |
 | `configs/n8n/workflows/*.json` | n8n UI imports | Seed workflows after n8n redeploy. |
@@ -383,7 +383,7 @@ Files that live **on the VPS only**, outside the Fabrik repo. Grouped by service
 |---|---|---|
 | `/opt/monitoring/compose.yaml` | Main monitoring stack (Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor). | `cd /opt/monitoring && sudo docker compose up -d`. |
 | `/opt/prometheus/compose.yaml` | Prometheus standalone. Intentionally separated — scrape targets need the `fabrik` network attachment which compose stacks don't always preserve. | `cd /opt/prometheus && sudo docker compose up -d`. |
-| `/opt/monitoring/configs/prometheus/prometheus.yml` | Scrape targets + alerting config. Retention: `--storage.tsdb.retention.time=30d --storage.tsdb.retention.size=5GB`. | Edit → hot-reload via `POST /-/reload` (wget inside the prometheus container against localhost:9090 — the alertmanager route stopped resolving `prometheus`, 2026-10-02). On failure the driver (`drivers/prometheus.py::_reload_prometheus`) falls back to `docker restart <the ^prometheus(-|$) container>`; `scripts/sync_prometheus_to_vps.sh` has no fallback — it prints a WARN and exits 1. |
+| `/opt/monitoring/configs/prometheus/prometheus.yml` | Scrape targets + alerting config. Retention: `--storage.tsdb.retention.time=30d --storage.tsdb.retention.size=5GB`. | Edit → hot-reload via `POST /-/reload` (wget inside the prometheus container against localhost:9090 — the alertmanager route stopped resolving `prometheus`, 2026-10-02). On failure the driver (`drivers/prometheus.py::_reload_prometheus`) falls back to `docker restart <the ^prometheus(-|$) container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8); `scripts/sync_prometheus_to_vps.sh` has no fallback — it prints a WARN and exits 1. |
 | `/opt/monitoring/configs/prometheus/rules/alerts.yml` | Alert rules (ContainerDown, HighCPU, HighMemory, OOMKilled, etc.) | Same pattern. |
 | `/opt/monitoring/configs/alertmanager/alertmanager.yml` | Routes, receivers (Telegram), inhibit rules. **Secret-bearing** (Telegram bot token). | Edit → `sudo docker restart alertmanager`. |
 | `/opt/monitoring/configs/gatus/` | Gatus blackbox monitoring. Per-service files in `apps/` subdir (one YAML per project). **Git-versioned** (whitelisted in `drivers/locks.py::git_commit_config()`). `_base.yaml` for global alerting → Apprise. | Edit → Gatus auto-reloads on file change. |
@@ -821,7 +821,7 @@ Every invariant below has been validated against live VPS behavior. Cross-refere
 | 15 | Authelia: never SIGHUP (exits) — always `docker restart authelia` after config changes |
 | 16 | Authelia `^/api/` bypass is conditional on `shape.has_bearer_api: true`, not always added |
 | 17 | Gatus uses per-service YAML files in `/opt/monitoring/configs/gatus/apps/`, not a single config |
-| 18 | Prometheus reload: hot-reload via `POST /-/reload` lifecycle endpoint (wget inside the prometheus container against localhost:9090 — the alertmanager route stopped resolving `prometheus`, 2026-10-02), fallback to `docker restart` if hot-reload fails |
+| 18 | Prometheus reload: hot-reload via `POST /-/reload` lifecycle endpoint (wget inside the prometheus container against localhost:9090 — the alertmanager route stopped resolving `prometheus`, 2026-10-02), fallback to `docker restart` if hot-reload fails and the config passes `promtool check config` (W-5aa5e3d8) |
 | 19 | Postgres registrar creates DB only — does NOT inject `DATABASE_URL` |
 | 20 | Redis registrar acquires a DB index (`acquire_db_index()`) AND injects `REDIS_URL` via `deployer.inject_env()` |
 | 21 | Backrest config edits serialized via `run_locked("backrest-config", ...)` |

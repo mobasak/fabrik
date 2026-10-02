@@ -78,6 +78,8 @@ except Exception:  # noqa: BLE001 — defensive: tests can monkeypatch
     _LOCAL_PROMETHEUS_CONFIG_PATH = None
 
 PROMETHEUS_RELOAD_URL = "http://localhost:9090/-/reload"
+# The config path INSIDE the container (configs/monitoring-compose.yaml `--config.file`).
+PROMETHEUS_CONTAINER_CONFIG = "/etc/prometheus/prometheus.yml"
 """Lifecycle endpoint for hot-reload, called from INSIDE the prometheus
 container (its own loopback). The VPS host does not join the monitoring
 network, and the old route — wget from the ``alertmanager`` container to
@@ -182,7 +184,7 @@ def _write_config(data: dict[str, Any]) -> None:
 
 
 def _reload_prometheus() -> bool:
-    """Hot-reload Prometheus; fall back to container restart on failure.
+    """Hot-reload Prometheus; on failure, restart the container only if its config passes promtool.
 
     Returns True if either path succeeded. We always succeed-or-warn
     because the config is already written — a reload failure means
@@ -210,17 +212,29 @@ def _reload_prometheus() -> bool:
     except Exception as e:  # noqa: BLE001 — bounded fallback
         logger.info("Prometheus hot-reload failed (%s); trying container restart", e)
 
+    # Restart only into a config that loads: when /-/reload refused an INVALID config the
+    # running Prometheus still serves its last good one, and a restart would drop it and
+    # crash-loop on the bad file (W-5aa5e3d8). promtool ships in the prometheus image and
+    # also validates the referenced rule files.
     try:
         ssh(
             "PROM_CONTAINER=$(sudo docker ps --format '{{.Names}}' "
             "| grep -E '^prometheus(-|$)' | head -1) && "
-            '[ -n "$PROM_CONTAINER" ] && sudo docker restart "$PROM_CONTAINER"',
+            '[ -n "$PROM_CONTAINER" ] && '
+            'sudo docker exec "$PROM_CONTAINER" promtool check config '
+            f"{shlex.quote(PROMETHEUS_CONTAINER_CONFIG)} && "
+            'sudo docker restart "$PROM_CONTAINER"',
             timeout=30,
         )
         logger.info("Prometheus container restarted")
         return True
     except Exception as e:  # noqa: BLE001
-        logger.warning("Prometheus reload AND restart both failed (non-fatal): %s", e)
+        logger.warning(
+            "Prometheus hot-reload failed and the restart was skipped or failed — no container, "
+            "or the config fails promtool (the running Prometheus keeps its last good config) "
+            "(non-fatal): %s",
+            e,
+        )
         return False
 
 
