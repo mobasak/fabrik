@@ -301,3 +301,71 @@ def test_the_residual_grammar_example_sits_under_a_heading_that_says_example(rep
     text = out.read_text(encoding="utf-8")
     assert text.count("### Verdict grammar — an EXAMPLE, never rows") == 1
     assert text.index("### Verdict grammar") < text.index("| F12 | RECORDED — unexecuted")
+
+
+# ── --command and --lane (plan T03b, W-0a89f069; spec D1 (c), D8) ──────────────────────────
+
+
+def _header(text: str, key: str) -> list[str]:
+    return [ln for ln in text.splitlines() if ln.startswith(f"**{key}:**")]
+
+
+def test_command_and_lane_write_the_scoped_command_line_and_the_exact_lane_line(
+    repo: Path,
+) -> None:
+    out = repo / "r-review.md"
+    r = _init(
+        repo, "--out", str(out), "--changed", "app.py",
+        "--command", "/fabrik-review-scoped", "--lane", "--plan", "docs/plan.md",
+    )  # fmt: skip
+    assert r.returncode == 0, r.stderr
+    text = out.read_text(encoding="utf-8")
+    # the WHOLE line, so a reworded or negated line cannot satisfy it
+    assert _header(text, "Command") == [
+        "**Command:** /fabrik-review-scoped · **Changed:** `app.py`"
+    ]
+    assert _header(text, "Lane") == ["**Lane:** fabrik-task"]
+    assert text.splitlines().count("**Lane:** fabrik-task") == 1
+    # the marker sits in the header block, directly under the Command line (above the Plan line)
+    lines = text.splitlines()
+    assert lines[lines.index("**Lane:** fabrik-task") - 1].startswith("**Command:** ")
+    assert lines[lines.index("**Lane:** fabrik-task") + 1] == "**Plan:** `docs/plan.md`"
+    # and the marked receipt is still the grammar the gate grades (T04 writes its receipts so)
+    assert crc.check_file(out) == []
+    out.write_text(_complete(text), encoding="utf-8")
+    assert crc.check_file(out) == [], crc.check_file(out)
+
+
+def test_an_unknown_command_is_refused_and_nothing_is_written(repo: Path) -> None:
+    out = repo / "r-review.md"
+    r = _init(repo, "--out", str(out), "--changed", "app.py", "--command", "/fabrik-other")
+    assert r.returncode == 2, (r.returncode, r.stderr)
+    assert "argument --command: invalid choice: '/fabrik-other'" in r.stderr, r.stderr
+    assert not out.exists()
+
+
+def test_a_prefix_of_an_allowed_command_is_refused(repo: Path) -> None:
+    """argparse abbreviates OPTIONS, never choice VALUES — pinned so a widened check cannot slip."""
+    out = repo / "r-review.md"
+    r = _init(repo, "--out", str(out), "--changed", "app.py", "--command", "/fabrik-rev")
+    assert r.returncode == 2, (r.returncode, r.stderr)
+    assert "argument --command: invalid choice: '/fabrik-rev'" in r.stderr, r.stderr
+    assert not out.exists()
+
+
+def test_without_command_or_lane_the_header_is_todays(repo: Path) -> None:
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py").returncode == 0
+    text = out.read_text(encoding="utf-8")
+    assert _header(text, "Command") == ["**Command:** /fabrik-review · **Changed:** `app.py`"]
+    assert _header(text, "Lane") == []
+    assert "fabrik-task" not in text
+
+
+def test_command_alone_writes_no_lane_line(repo: Path) -> None:
+    out = repo / "r-review.md"
+    r = _init(repo, "--out", str(out), "--changed", "app.py", "--command", "/fabrik-review")
+    assert r.returncode == 0, r.stderr
+    text = out.read_text(encoding="utf-8")
+    assert _header(text, "Command") == ["**Command:** /fabrik-review · **Changed:** `app.py`"]
+    assert _header(text, "Lane") == []
