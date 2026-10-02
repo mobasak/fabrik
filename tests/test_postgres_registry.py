@@ -26,6 +26,7 @@ What we DO test:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
@@ -419,6 +420,50 @@ class TestRegisterAllocationIfAbsent:
         assert '"user": "zitadel"' in tee[0]
         assert '"translator": {' in tee[0]  # siblings preserved
 
+    def test_read_check_and_write_run_under_one_lock_acquisition(self):
+        # The membership check must sit between the read and the write inside ONE
+        # file_lock hold, or a writer between them is overwritten.
+        state = {"held": False, "acquired": 0}
+        held_at: list[tuple[str, bool]] = []
+
+        @contextlib.contextmanager
+        def tracking_lock(name, **_kw):
+            state["held"], state["acquired"] = True, state["acquired"] + 1
+            try:
+                yield
+            finally:
+                state["held"] = False
+
+        def fake_ssh(cmd, *, dry_run: bool = False):
+            held_at.append(("read" if "cat " in cmd else "write", state["held"]))
+            return json.dumps(SEED_PAYLOAD) if "cat " in cmd else ""
+
+        for db, expect_write in (("site_provisioner", False), ("zitadel", True)):
+            held_at.clear()
+            state["acquired"] = 0
+            with (
+                patch.object(pg_driver, "file_lock", tracking_lock),
+                patch.object(pg_driver, "ssh", side_effect=fake_ssh),
+            ):
+                pg_driver.register_allocation_if_absent(
+                    db, spec_id=db, user=db, owner="fabrik", notes=""
+                )
+            assert state["acquired"] == 1, db
+            assert held_at and all(held for _, held in held_at), (db, held_at)
+            assert any(kind == "write" for kind, _ in held_at) is expect_write, db
+
+    def test_invalid_identifier_is_refused_before_any_registry_access(self):
+        # The reconcile's write entry point validates the key it persists.
+        calls: list[str] = []
+        with (
+            patch.object(pg_driver, "ssh", side_effect=lambda cmd, **_kw: calls.append(cmd)),
+            pytest.raises(ValueError),
+        ):
+            pg_driver.register_allocation_if_absent(
+                "x'; --", spec_id="x", user="x", owner="fabrik", notes=""
+            )
+        assert calls == []
+
 
 class TestAuditPostgresDbName:
     def _run(self, spec: dict):
@@ -446,6 +491,14 @@ class TestAuditPostgresDbName:
         assert "site_provisioner" in commands[0]
         assert "evolution_api" not in commands[0]
         assert result.status == "present"
+
+    def test_spec_name_wins_over_id_like_the_registrar(self):
+        # The registrar provisions `name or id` (orchestrator/infrastructure.py); the
+        # audit must check the same database when a spec's name differs from its id.
+        spec = {**_spec("translator-svc"), "name": "site-provisioner"}
+        result, commands = self._run(spec)
+        assert result.actual["db_name"] == "site_provisioner"
+        assert "translator_svc" not in commands[0]
 
     def test_invalid_identifier_is_unknown_and_runs_no_sql(self):
         # A4 — depends.postgres carries no pattern; validate before any SQL.

@@ -1922,12 +1922,24 @@ def register_allocation_if_absent(
 ) -> bool:
     """Register ``db_name`` only when the registry has no entry for it.
 
-    The check runs inside the registry lock, so an entry written by a
-    concurrent writer (or a seed/manual entry) is never overwritten.
-    Returns ``True`` when it wrote, ``False`` when an entry already existed.
+    The read, the check and the write share one ``file_lock`` hold, so a
+    seed or manual entry, or one written by another writer on this host
+    sharing the lock dir, is never overwritten. The lock is host-local:
+    a writer on another host is not serialised (same limit as
+    ``register_allocation``). Returns ``True`` when it wrote, ``False``
+    when an entry already existed. Raises ``ValueError`` on a name that
+    is not a safe identifier, before touching the registry.
     """
+    _validate_identifier(db_name, "database")
     entry = {"owner": owner, "spec_id": spec_id, "user": user, "notes": notes}
-    return _register(db_name, entry, if_absent=True, dry_run=False)[1]
+    wrote = _register(db_name, entry, if_absent=True, dry_run=False)[1]
+    logger.info(
+        "postgres allocation %s: db=%s spec=%s",
+        "registered" if wrote else "already present, left unchanged",
+        db_name,
+        spec_id,
+    )
+    return wrote
 
 
 def _register(
