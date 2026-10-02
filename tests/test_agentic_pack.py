@@ -182,8 +182,12 @@ def test_dollar_caps_trap_and_framework_gate() -> None:
     assert re.search(
         r"Anti-pattern:\s*(?:putting|adding|setting|placing) (?:a )?per-call dollar caps? on the operational diagnose loop", anti
     ), "the anti-pattern is gone or no longer forbids the caps"
-    assert re.search(r"\bIt must run\b", anti) and not re.search(r"must not run", anti), (
+    # the loop's obligation to run, in any usual modal; a negated one fails
+    assert re.search(r"\bIt (?:must|has to|needs to|is required to) run\b", anti), (
         "the anti-pattern no longer says the diagnose loop must run"
+    )
+    assert not re.search(r"\b(?:must|has to|needs to|need) (?:not|never) run\b|\bneedn't run\b|\bmust never run\b", anti), (
+        "the anti-pattern now says the diagnose loop need not run"
     )
     assert "max_turns" in anti and "core/cost-budget.md" in anti, "the anti-pattern lost its bound or its cite"
     trap = _paragraph("Licence trap")
