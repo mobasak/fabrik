@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_task_lane_admission.py · tests/test_task_lane_close.py · tests/test_task_lane_receipt.py · scripts/review_receipt.py (the receipt grammar check_review_receipt reads) ·tests/test_lane_replay.py · tests/fixtures/lane_replay.json (re-capture with scripts/lane_replay_capture.py, whose expected_verdict delegates to classify_commit, then --check) · scripts/command_run.py (the `_task_size_gate` caller, T08)
+# AFTER-EDIT: tests/test_task_lane_admission.py · tests/test_task_lane_close.py · tests/test_task_lane_receipt.py · tests/test_task_lane_review_stop.py · scripts/review_receipt.py (the receipt grammar check_review_receipt reads) ·tests/test_lane_replay.py · tests/fixtures/lane_replay.json (re-capture with scripts/lane_replay_capture.py, whose expected_verdict delegates to classify_commit, then --check) · scripts/command_run.py (the `_task_size_gate` caller, T08)
 """The /fabrik-task lane rules — admission and close (plan 2026-10-02-plan-1 T02, T03a; spec D1-D4, D7, D9, D12).
 
 PURE: no import of ``command_run.py``, no environment reads that change an answer. The caller
@@ -23,6 +23,8 @@ path — and this module only decides.
   every committed path before any exclusion; an undeclared path refuses ``done``.
 - ``check_review_receipt(path, commits, root=)`` — the full-review receipt a close-time contract
   or new-source hit owes (T03b; D1 checks (a)-(d)).
+- ``scope_growth_rounds(stack)`` — the in-lane review's scope-growth stop (T04; D8): ``(1, 1)``
+  when the record's immediate parent is a ``fabrik-task`` run, else today's ``(3, 2)``.
 - ``contract_hit`` / ``is_new_source`` / ``is_migration`` — the path helpers every rule shares,
   so admission, the replay and the close (T03a) cannot disagree.
 
@@ -439,6 +441,40 @@ def classify_commit(
     if len({p for p in paths if counted(p)}) > _FULL_REVIEW_FILES:
         return "lane: full-review"
     return "lane"
+
+
+# ── the in-lane review's scope-growth stop (D8, T04) ──────────────────────────────────────
+
+_TASK_COMMAND = "fabrik-task"
+# Today's (window, qualify) — the twins of `command_run.py::SCOPE_GROWTH_ROUNDS` and
+# `SCOPE_GROWTH_QUALIFY`, pinned by `tests/test_task_lane_review_stop.py` (this module never
+# imports `command_run.py`, so the test parses the source).
+_SCOPE_GROWTH_DEFAULT = (3, 2)
+# Nested under a /fabrik-task run: the FIRST own-fix-only delta round stops the hunting. The
+# qualify half is `check_review_coverage.py::_LANE_OWN_FIX_ROUNDS_FOR_STOP`'s twin.
+_SCOPE_GROWTH_LANE = (1, 1)
+
+
+def scope_growth_rounds(stack: list[dict[str, Any]]) -> tuple[int, int]:
+    """``(rounds, qualify)`` for the review whose record stack is ``stack`` (D8).
+
+    ``(1, 1)`` when the LAST entry — the immediate parent ``command_run.py`` parked when this
+    review started — is a record whose ``command`` is exactly ``fabrik-task`` (the record stores
+    the name with its slash stripped); else today's ``(3, 2)``. Only the immediate parent counts:
+    a ``fabrik-task`` deeper in the stack means this review was started by something else inside
+    the lane (e.g. a plan phase), which keeps the ordinary rule.
+
+    The review still CLOSES only on a confirmed-zero pass (D-355); this shortens the hunting, never
+    the close. THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (D-253): run an ordinary full
+    review nested under a throwaway ``/fabrik-task`` start to get the one-round stop. The counter
+    is that the lane's own start gate and close measure the change (``admit``, ``measure_close``),
+    and the kill criterion (a post-merge fix citing an in-lane review stopped by the one-round
+    stop reverts D8) is read from the feedback row's ``parent`` field.
+    """
+    last = stack[-1] if stack else None
+    if isinstance(last, dict) and last.get("command") == _TASK_COMMAND:
+        return _SCOPE_GROWTH_LANE
+    return _SCOPE_GROWTH_DEFAULT
 
 
 # ── the close (D1 close column, D3, D4, D7, § Lifecycle) ──────────────────────────────────

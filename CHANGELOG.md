@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — The in-lane review stops hunting at its first own-fix-only round (2026-10-02)
+
+`task_lane.scope_growth_rounds(stack)` returns `(1, 1)` when a review's record is nested directly under a `/fabrik-task` run, else today's `(3, 2)` (plan 2026-10-02-plan-1, T04; spec D8, V8). `check_review_coverage.py` grants the declared D-252 scope-growth stop on ONE confirming own-fix round only for a receipt whose header carries the exact line `**Lane:** fabrik-task` (`_LANE_OWN_FIX_ROUNDS_FOR_STOP = 1`); the `unexecuted:` check still reads the ordinary two-round window, and the review still closes only on a confirmed-zero pass (D-355). Wave review over T04, T06 and T07: `docs/development/reviews/2026-10-02-plan-1-fabrik-task-feature-lane-T04-review.md`.
+
 ### Added — fabrik-task lane T03b: the review-receipt check and receipt --command/--lane (2026-10-02)
 
 - `scripts/task_lane.py::check_review_receipt` (plan 2026-10-02-plan-1, T03b) checks a `done`/`handoff --review` receipt on four counts: (a) it is a file under the repo, (b) it is closed — every header-zone Status line CONVERGED, or the unnegated D-252 scope-growth wording, and the co-shipped `check_review_coverage.py` passes in an isolated, env-scrubbed subprocess, (c) its Command line names the review the lane owes, (d) its Surface names a commit that resolves and contains the run's work. Reasons accumulate; a hung or unlaunchable checker and an ambiguous short SHA refuse.
