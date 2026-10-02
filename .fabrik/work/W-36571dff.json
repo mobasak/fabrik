@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T17:41:17.477059Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-36571dff",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-spec for Phase 11-2: per verb, rebase on the SSH deploy model or retire it (and every doc and hint that recommends it, e.g. cli.py:1457 audit-registrars -> reconcile-all); spec-chain because it changes the public CLI contract of several verbs",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Phase 11-2 — the CLI verbs still bound to the retired Coolify API (fabrik status, logs, reconcile-all, registry --sync; plus health_app/deploy/portability/compose_updater imports, docs/DEPLOYMENT_ARCHITECTURE.md:137) are broken: retire or rebase each on the SSH+Compose deploy model. Supersedes the reconcile-all-only W-ef765f8d"
+}

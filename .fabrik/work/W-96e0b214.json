@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T16:58:13.304603Z",
+  "creator": "fleet",
+  "evidence": "a51e83ce47b4fd11fe9785d86f62e805896ad655",
+  "id": "W-96e0b214",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-02-plan-2-postgres-allocation-reconcile.md",
+    "spec": ""
+  },
+  "next": "at or after 20:09 2026-10-02: tail /var/log/fabrik-audit-all.log, ssh vps cat allocations.json, query Prometheus for the drift series and the ALERTS series",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "done",
+  "tags": [
+    "fleet"
+  ],
+  "title": "plan-2 rollout R3/R4 after the first apply-mode hourly audit (20:00 2026-10-02): /var/log/fabrik-audit-all.log shows registered for site_provisioner, tryton, zitadel; allocations.json on vps1 holds the three; fabrik_audit_drift_total{registrar=postgres} is 0 for zitadel, site-provisioner, tryton-crm; FabrikAuditStale not firing"
+}

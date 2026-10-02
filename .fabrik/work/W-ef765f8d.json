@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "rebase reconcile-all's deployed-set on the SSH deploy model (specs with a live container, or the project registry) or retire the verb and the audit hint; found by the /fabrik-spec judge panel for W-714ae2cf",
-  "note": "",
+  "note": "folded into W-36571dff (Phase 11-2, every Coolify-bound CLI verb), which needs the spec chain",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "fleet"
   ],
