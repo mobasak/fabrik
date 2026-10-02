@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — ai/30-language: Claude first for language work and translation, DeepL last, embeddings defer to core/65 (2026-10-02)
+
+`.windsurf/rules/ai/30-language.md` pinned Claude models by version, defaulted translation to DeepL against ai/00, offered Supabase for pgvector, listed GPT-4 and Cohere's legacy summarize endpoint, and carried a summarization glob the matcher never fired. Now LLM work, summarization and translation go to Claude through `claude -p`; translation runs through fabrik-lib's `mt-router` (pass context or `MT_CLAUDE_PLAIN=1`), a pair leaves Claude only on a recorded bake-off, and DeepL comes last on the operator's ruling that it is not context-aware enough. Embeddings defer to core/65's binding roster. New `tests/test_language_pack.py` (26 mutants, each red); 6 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-02-language-currency-ledger.md`; D-505.
+
 ### Changed — ai/25-3d-generation: hosted 3D routes first, no licence-restricted default, Claude checks the renders (2026-10-02)
 
 `.windsurf/rules/ai/25-3d-generation.md` routed to two dead APIs' worth of stale facts (CSM shut down, Luma Genie sunset, a false SF3D exclusion), made Hunyuan3D (EU/UK/South Korea excluded) the bulk fallback, missed TRELLIS's non-commercial nvdiffrast dependency, put self-host primaries against its own rules, marked Rodin add-key though fal and WaveSpeed host it, and pointed projects at a hub-only registry path. Now hosted routes come first with the vendor key for vendor-only steps; the gate lets trimesh decide watertightness and sends what code cannot see to Claude on renders (ai/20); the CAD boundary uses Claude-written CadQuery for simple parts and Zoo for complex ones; the freshness stamp parses. New `tests/test_3d_generation_pack.py` (31 mutants, each red); 9 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-02-3d-generation-currency-ledger.md`; D-503.
