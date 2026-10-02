@@ -84,9 +84,9 @@ RULE = (
     "implementation. The contract, sync and migration tests read BOTH the row's NEW path and, "
     "for a rename or copy, its OLD path; the docs-only, new-source and count tests read the NEW "
     "path. First match wins: "
-    "(1) chain: contract — any path that starts with `specs/services/` at the repo root, or "
-    "whose basename fully matches `openapi*.json`, `openapi*.yaml` or `*.schema.json` "
-    "case-insensitively at any depth (not `.yml`, not `x.schema.json.bak`), never when any path "
+    "(1) chain: contract — any path with a `specs/services/` segment pair at any depth, or "
+    "whose basename fully matches `openapi*.json`, `openapi*.yaml`, `openapi*.yml` or "
+    "`*.schema.json` case-insensitively at any depth (not `x.schema.json.bak`), never when any path "
     "SEGMENT is `node_modules`, `.venv` or `vendor` (segments matched case-insensitively); "
     "tested over every row BEFORE any exclusion. "
     "(2) docs-only — every NEW path ends `.md` or starts `.fabrik/` (or the commit has no rows): "
@@ -95,7 +95,8 @@ RULE = (
     "else lane. "
     "(3) chain: new-source — more than 2 rows with status A or C whose path is not excluded, is "
     "not a test (a `tests`, `test` or `__tests__` directory segment at any depth, or a basename "
-    "`test_*`, `*_test.*`, `*.test.*` or `*.spec.*`), and does not end `.md`. "
+    "`test_*`, `*_test.*`, `*.test.*` or `*.spec.*`), does not end `.md` in any case, and has "
+    "no dependency segment. "
     "(4) lane: full-review — a hub commit with any path matching the governance-sync regex "
     "(header `sync_regex`; project commits never test it), or any path with a migration segment "
     "(`migrations/` or `alembic/versions/` at any depth, case-insensitively, outside the "
@@ -372,7 +373,7 @@ def dumps(fixture: dict[str, Any]) -> str:
 def check(path: Path) -> int:
     try:
         recorded = load(path)
-    except (KeyError, IndexError, TypeError, ValueError) as exc:
+    except (OSError, KeyError, IndexError, TypeError, ValueError) as exc:
         print(
             f"lane_replay_capture --check: fixture and re-derivation differ — unreadable: {exc!r}"
         )

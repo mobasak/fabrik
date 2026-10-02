@@ -369,3 +369,42 @@ def test_command_alone_writes_no_lane_line(repo: Path) -> None:
     text = out.read_text(encoding="utf-8")
     assert _header(text, "Command") == ["**Command:** /fabrik-review · **Changed:** `app.py`"]
     assert _header(text, "Lane") == []
+
+
+# ── T08-D7 B-O5: the range is exactly <a>..<b> and its tip resolves to a commit ─────────
+
+
+def _second_commit(repo: Path) -> None:
+    _git(repo, "add", "app.py")
+    _git(repo, "commit", "-q", "-m", "second")
+
+
+@pytest.mark.parametrize("rng", ["HEAD~1...HEAD", "HEAD~1..", "..HEAD", "HEAD~1", "a..b..c"])
+def test_b_o5_a_range_not_exactly_a_dot_dot_b_is_refused(repo: Path, rng: str) -> None:
+    _second_commit(repo)
+    out = repo / "r-review.md"
+    r = _init(repo, "--out", str(out), "--changed", "app.py", "--range", rng)
+    assert r.returncode != 0
+    assert "<a>..<b>" in r.stderr and rng in r.stderr, r.stderr
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("tip", ["HEAD^{tree}", "nosuchref"])
+def test_b_o5_a_tip_that_is_not_a_commit_is_refused_naming_it(repo: Path, tip: str) -> None:
+    _second_commit(repo)
+    out = repo / "r-review.md"
+    r = _init(repo, "--out", str(out), "--changed", "app.py", "--range", f"HEAD~1..{tip}")
+    assert r.returncode != 0
+    assert f"`{tip}` does not resolve to a commit" in r.stderr, r.stderr
+    assert not out.exists()
+
+
+def test_b_o5_the_range_tip_line_carries_the_resolved_commit(repo: Path) -> None:
+    _second_commit(repo)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    out = repo / "r-review.md"
+    r = _init(repo, "--out", str(out), "--changed", "app.py", "--range", "HEAD~1..HEAD")
+    assert r.returncode == 0, r.stderr
+    assert f"range tip {head};" in out.read_text("utf-8")

@@ -631,3 +631,100 @@ def test_o12_a_pathless_mid_line_field_does_not_hide_a_later_one(tmp_path: Path)
         "Owner: infra · Spec: docs/superpowers/specs/s.md\n\n## Phase A\n"
     )
     assert pa.spec_text_for(plan, tmp_path) == "# s\n\nStatus: DRAFT\n"
+
+
+# --- T08-D7: the whole-plan review's plan-grader findings ------------------------------------
+
+
+def test_c_s1_an_explicit_external_root_wins_over_the_layout_root(tmp_path: Path) -> None:
+    layout, external = tmp_path / "layout", tmp_path / "external"
+    plan_dir = _set(layout, "2026-10-03", "Appetite: 60\n", profile="Profile: small\n")
+    _write(layout, SPEC_REL, _spec("DRAFT"))
+    _write(external, SPEC_REL, _spec("CONVERGED"))
+    results = cpt_mod.check_plan_dir(plan_dir, context="cli", external_root=external)
+    assert not [m for m in _messages(results) if "Size: small" in m]
+    # the mirror: without external_root the layout's own (DRAFT) spec is graded
+    results = cpt_mod.check_plan_dir(plan_dir, context="cli")
+    assert [m for m in _messages(results) if "Size: small" in m]
+
+
+def test_c_s2_check_plan_quality_resolves_the_spec_from_the_plan_files_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    _write(repo, SPEC_REL, _spec("DRAFT"))
+    p = _write(repo, f"{PLANS}/2026-10-05-plan-2-x.md", _monolith(profile="Profile: small\n"))
+    # PLAN_DIR is the cwd captured at import; here it encloses the repo instead of naming it
+    monkeypatch.setattr(cpq_mod, "PLAN_DIR", tmp_path.resolve())
+    msgs = [r.message for r in cpq_mod.check_file(p)]
+    assert not any("does not exist" in m for m in msgs), msgs
+    assert any("not CONVERGED" in m for m in msgs), msgs
+
+
+def test_c_s2_repo_root_of_reads_the_layout_of_monoliths_sets_and_archives(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    for rel in (
+        f"{PLANS}/2026-10-05-plan-2-x.md",
+        f"{PLANS}/2026-10-05-plan-1-x/T01-a.md",
+        f"{PLANS}/archived/2026-10-05-plan-1-x/2026-10-05-plan-1-x.md",
+    ):
+        assert pa.repo_root_of(root / rel) == root, rel
+    assert pa.repo_root_of(root / "notes" / "x.md") is None
+
+
+def test_c_s3_a_markdown_link_spec_is_cited_once() -> None:
+    plan = "# P\n\nSpec: [design](docs/superpowers/specs/s.md)\n\n## Phase A\n"
+    assert pa.spec_citations(plan) == ["docs/superpowers/specs/s.md"]
+    two = "# P\n\nSpec: [a](docs/a.md), `docs/b.md`, docs/a.md\n\n## Phase A\n"
+    assert pa.spec_citations(two) == ["docs/a.md", "docs/b.md"]
+
+
+@pytest.mark.parametrize("form", ["{p}", "`{p}`", "[design]({p})"])
+def test_c_o3_an_absolute_spec_path_inside_the_repo_resolves(tmp_path: Path, form: str) -> None:
+    _write(tmp_path, "docs/superpowers/specs/s.md", "# s\n\nStatus: DRAFT\n")
+    cite = form.format(p=f"{tmp_path.resolve()}/docs/superpowers/specs/s.md")
+    plan = f"# P\n\nProfile: small\nSpec: {cite}\n\n## Phase A\n"
+    assert pa.resolve_spec(plan, tmp_path) == ("# s\n\nStatus: DRAFT\n", None)
+
+
+@pytest.mark.parametrize("form", ["{p}", "[design]({p})"])
+def test_c_o3_an_absolute_spec_path_outside_the_repo_is_not_found(
+    tmp_path: Path, form: str
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    outside = _write(tmp_path, "elsewhere/docs/s.md", "# s\n\nStatus: CONVERGED\n")
+    plan = f"# P\n\nProfile: small\nSpec: {form.format(p=outside)}\n\n## Phase A\n"
+    text, why = pa.resolve_spec(plan, repo, repo / PLANS)
+    assert text is None
+    assert why and "does not exist" in why and str(outside) in why
+
+
+def test_c_o4_a_ticket_is_graded_by_its_header_field_lines_only() -> None:
+    body_only = "# T01 - x\n\nDepends: none\n\n## Scope\n\nAppetite: 60\n"
+    found = pa.appetite_findings(body_only, "2026-10-03", label="T01", ticket=True)
+    assert len(found) == 1 and "T01" in found[0], found
+    prose = "# T01 - x\n\nAppetite: 60\n\n## Scope\n\nAppetite: soon, once T00 lands\n"
+    assert pa.appetite_findings(prose, "2026-10-03", label="T01", ticket=True) == []
+    quoted = "# T01 - x\n\n> Appetite: 60\n\n## Scope\n"
+    assert len(pa.appetite_findings(quoted, "2026-10-03", label="T01", ticket=True)) == 1
+
+
+@pytest.mark.parametrize("fence", ["~~~", "```"])
+def test_c_o6_both_graders_agree_on_a_fenced_heading_in_the_header(
+    tmp_path: Path, fence: str
+) -> None:
+    plan_dir = _set(tmp_path, "2026-10-03", "Appetite: 60\n")
+    spine = plan_dir / f"{plan_dir.name}.md"
+    text = spine.read_text(encoding="utf-8").replace(
+        "\n\n## Ticket Board", f"\n{fence}\n## fake\n{fence}\nProfile: small\n\n## Ticket Board", 1
+    )
+    spine.write_text(text, encoding="utf-8")
+    _write(tmp_path, SPEC_REL, _spec("DRAFT"))
+    results = cpt_mod.check_plan_dir(plan_dir, context="cli")
+    waived = any("WAIVED" in r.message for r in results)
+    d10 = any("Size: small" in r.message for r in results)
+    assert waived == d10, (fence, waived, d10)
+    assert pa.is_small_profile(text) == waived
+    # the zone is CUT at the fenced heading first, so the Profile line past it is not header
+    assert waived is False

@@ -85,10 +85,21 @@ def _surface(root: Path, changed: list[str], rng: str | None) -> tuple[str, int]
     """The anchor line and the byte count it hashes (0 = nothing differs — the caller refuses)."""
     _, head = _git(root, "rev-parse", "HEAD")
     head = head.strip() or "no-git-HEAD"
-    if rng:
+    if rng is not None:
+        # exactly `<a>..<b>`: a three-dot range would make the tip `.B`, an open end or a bare
+        # rev names no tip, and the receipt's `Surface:` line must end at a real commit.
+        parts = rng.split("..")
+        if len(parts) != 2 or not all(p and p[0] != "." and p[-1] != "." for p in parts):
+            sys.stderr.write(f"review_receipt: --range {rng!r} is not exactly `<a>..<b>`\n")
+            raise SystemExit(2)
         # the range's own endpoint, resolved — HEAD alone misdescribes a `A..B` surface
-        _, tip = _git(root, "rev-parse", rng.split("..")[-1] or "HEAD")
-        head = f"{head}; range tip {tip.strip() or '?'}"
+        rc, tip = _git(root, "rev-parse", "--verify", "-q", f"{parts[1]}^{{commit}}")
+        if rc != 0 or not tip.strip():
+            sys.stderr.write(
+                f"review_receipt: --range tip `{parts[1]}` does not resolve to a commit\n"
+            )
+            raise SystemExit(2)
+        head = f"{head}; range tip {tip.strip()}"
     diff_cmd = ["diff", rng, "--", *changed] if rng else ["diff", "HEAD", "--", *changed]
     rc, blob = _git_bytes(root, *diff_cmd)
     if rc != 0:

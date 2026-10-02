@@ -13,6 +13,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -422,3 +424,24 @@ def test_receipt_path_is_normalised_on_both_closes():
         assert stamped.oversized_mini == [], spelled
         unstamped = _close(_record(stamped=False), [rows], receipt=spelled)
         assert unstamped.oversized_mini == [], spelled
+
+
+# ── T08-D7 ───────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("bad", [None, "1000", True, float("nan"), float("inf"), -float("inf")])
+def test_d_h1_a_record_without_a_finite_numeric_start_cannot_be_built(bad):
+    with pytest.raises(TypeError):
+        _record(started_at=bad)
+
+
+@pytest.mark.parametrize("good", [0, 1_000_000, 1_000_000.5])
+def test_d_h1_an_int_or_float_start_is_accepted(good):
+    assert _record(started_at=good).started_at == good
+
+
+def test_d_o8_the_docstring_puts_only_the_count_on_the_feedback_row():
+    doc = " ".join(_module().measure_close.__doc__.split())
+    assert "``design_amends`` and ``amended_paths`` go on the feedback row" not in doc
+    assert "the feedback row carries ``design_amends``" in doc
+    assert "``amended_paths`` is the ``CloseVerdict``'s own detail" in doc
