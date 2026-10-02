@@ -34,7 +34,9 @@ Last content verification: 2026-10-02
   hit the call exits with an error. Size `timeout_s` to the turn count: the lane default is 300 s, and a timed-out run
   is killed mid-turn with its cost unknown. Give the run a fixed tool set with `tools`, which leaves MCP tools
   untouched, so deny those with `disallowed_tools` (`mcp__*` removes them all), and keep `permission_mode` at
-  `dontAsk`, the module's default; `bypassPermissions` needs the module's explicit opt-in. Keep the module's default
+  `dontAsk`, the module's default; `bypassPermissions` needs the module's explicit opt-in. `dontAsk` denies any call
+  that would prompt, so grant the tools that edit or run commands with `allowed_tools` (`Edit`, a `Bash` rule scoped to
+  a command prefix): `tools` only restricts what exists. Keep the module's default
   `setting_sources=""`, which keeps the project's settings, hooks and `.mcp.json` out of the run (the bare CLI loads
   them even in an untrusted folder), and load MCP servers through `mcp_configs` with `strict_mcp_config`. The agentic
   and session helpers raise `DispatchError` with no metered fallback, so catch it; a `max_turns` exit is one, and it is

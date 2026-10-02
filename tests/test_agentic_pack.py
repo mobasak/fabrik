@@ -138,6 +138,10 @@ def test_every_loop_is_bounded() -> None:
     )
     for needle in ("timeout_s", 'setting_sources=""', "DispatchError"):
         assert needle in bound, f"the loop bounds no longer name {needle!r}"
+    # under dontAsk a tool that would prompt is denied unless allow-listed; tools alone grants nothing
+    assert re.search(r"grant the tools that edit or run commands with allowed_tools", bound), (
+        "the bounds no longer say dontAsk needs allowed_tools for editing and commands"
+    )
 
 
 def test_reasoning_is_effort() -> None:

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — ai/60-code: Claude Code in VS Code as the dev stack (operator ruling); code-writing features on ai/50's loop, isolated, with the repository untrusted (2026-10-02)
+
+`.windsurf/rules/ai/60-code.md` listed Windsurf Cascade and the Kilo CLI as the dev stack and gave no isolation or trust rule. Now Fabrik's own development is Claude Code (the VS Code extension and the CLI), per the operator; code-writing features run on ai/50's `run_agentic` loop with editing granted through `allowed_tools`; generated code never runs on the host; the repository is untrusted input (OWASP's Rule of Two). ai/50's bound rule gains the same `allowed_tools` grant. New `tests/test_code_pack.py` (40 mutants, each red); 6 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-02-code-currency-ledger.md`; D-514.
+
 ### Changed — ai/50-agentic: agent loops on Claude through llm-dispatch, bounded, workflow first; subscription terms filed for the operator (2026-10-02)
 
 `.windsurf/rules/ai/50-agentic.md` offered OpenAI's o3 and o4-mini, AutoGPT and LangChain Agents, named Kilo and Traycer, and gave no loop, bound or auth detail. Now a workflow comes before an agent; agent loops run on Claude through `claude -p` and fabrik-lib's `llm-dispatch` on `opus`, each bounded by `max_turns`, a `timeout_s`, a fixed tool set, `dontAsk` and strict MCP config; reasoning depth is effort, with the `haiku` rung's exception; the auth boundary states Anthropic's live terms and files the user-facing-service question for the operator (W-ee2156db). New `tests/test_agentic_pack.py` (46 mutants, each red); 8 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-02-agentic-currency-ledger.md`; D-510.

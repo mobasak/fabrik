@@ -2982,3 +2982,45 @@ claims:
     verify: "https://gorilla.cs.berkeley.edu/leaderboard.html (firecrawl, 2026-10-02; ledger a2-15)"
     window_days: 60
     last_verified: 2026-10-02
+  - id: developer-tool-landscape
+    pack: ai/60-code.md
+    kind: platform
+    claim: "SpaceX completed its acquisition of Cursor (Anysphere) on 2026-08-14; Windsurf, owned by Cognition, was renamed Devin Desktop on 2026-06-02; Amazon Q Developer IDE plugins reach end of support on 2027-04-30 in favour of Kiro; Gemini CLI stopped serving consumer users on 2026-06-18 in favour of Antigravity CLI"
+    verify: "https://app.edgar.tools/filing/1181412/0001628280-26-056945 ; https://docs.devin.ai/desktop/devin-desktop-faq ; https://aws.amazon.com/blogs/devops/amazon-q-developer-end-of-support-announcement/ ; https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/ (WebSearch + exa, 2026-10-02; ledger c1-03, c1-06, c1-08, c1-13)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: claude-code-sandbox
+    pack: ai/60-code.md
+    kind: platform
+    claim: "Claude Code's sandboxed Bash tool restricts only Bash commands; its file tools, MCP servers and hooks still run on the host; if the sandbox cannot start, commands run unsandboxed unless sandbox.failIfUnavailable is set; an untrusted repository calls for a dedicated VM"
+    verify: "https://code.claude.com/docs/en/sandboxing ; https://code.claude.com/docs/en/sandbox-environments (exa, 2026-10-02; ledger c1-22..c1-26)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: code-sandbox-hosts
+    pack: ai/60-code.md
+    kind: platform
+    claim: "E2B isolates sandboxes as Firecracker microVMs; Daytona runs containers by default with a VM class; Modal isolates with gVisor and allows outbound network by default until blocked; all three bill per second"
+    verify: "https://github.com/e2b-dev/infra/blob/main/docs/ARCHITECTURE.md ; https://www.daytona.io/docs/en/isolation/ ; https://modal.com/docs/guide/sandboxes ; https://modal.com/docs/guide/sandbox-networking (exa + WebFetch, 2026-10-02; ledger c1-28..c1-34)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: code-context-injection
+    pack: ai/60-code.md
+    kind: standard
+    claim: "The OWASP Top 10 for LLM Applications 2026 (published 2026-08-04) ranks prompt injection first and names repository code, issue titles, package READMEs, changelogs and tool output as injection surfaces, with architectural mitigations (credentials outside the model, least privilege, human confirmation of the exact action)"
+    verify: "https://genai.owasp.org/resource/owasp-genai-llm-top-10-2026/ ; https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/blob/main/2026/final/LLM01_PromptInjection.md (WebSearch + exa, 2026-10-02; ledger c1-36..c1-39)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: open-code-model-licences
+    pack: ai/60-code.md
+    kind: policy
+    claim: "Codestral's open weights are under Mistral's non-production licence (no commercial or hosted use); Mistral's open coding model ships under a modified MIT licence with a revenue cap; Qwen's coder line, DeepSeek's open models and OpenAI's gpt-oss are Apache, MIT and Apache respectively"
+    verify: "https://huggingface.co/mistralai/Codestral-22B-v0.1 ; https://mistral.ai/news/mistral-ai-non-production-license-mnpl/ ; https://mistral.ai/news/vibe-remote-agents-mistral-medium-3-5/ ; https://huggingface.co/Qwen/Qwen3-Coder-Next ; https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro/blob/main/LICENSE ; https://huggingface.co/openai/gpt-oss-120b ; https://huggingface.co/Qwen/Qwen3.8-Flash-Next/raw/main/LICENSE (firecrawl + brave + WebFetch, 2026-10-02; ledger c2-01..c2-15, op-09; the revenue-cap figure is a secondary quote — read the licence file)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: claude-code-review
+    pack: ai/60-code.md
+    kind: platform
+    claim: "Claude Code's hosted Code Review for GitHub pull requests is a research preview for Team and Enterprise plans; other plans review a diff locally with /code-review, which can post to the PR with --comment"
+    verify: "https://code.claude.com/docs/en/code-review ; https://github.com/anthropics/claude-code/blob/main/plugins/code-review/README.md (firecrawl + brave, 2026-10-02; ledger c2-26, c2-29)"
+    window_days: 60
+    last_verified: 2026-10-02
