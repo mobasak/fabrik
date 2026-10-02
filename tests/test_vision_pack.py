@@ -137,8 +137,9 @@ def test_generation_stays_with_specialists() -> None:
 def test_managed_and_sibling_caveats_hold() -> None:
     """A vendor flagged as not set up in one lane is flagged in every lane; ai/40's pinned model is overridden by ai/00."""
     ocr = _section(_pack(), "Subcategories").split("**Managed →", 1)[1].split("\n- ", 1)[0]
-    assert "not" in ocr and "set up" in ocr, (
-        "the managed OCR route lost its not-set-up caveat (Google Cloud, AWS)"
+    caveat = re.sub(r"\s+", " ", ocr)
+    assert "Neither is set up today" in caveat and "has no AWS row" in caveat, (
+        "the managed OCR route lost its caveat that neither Google Cloud nor AWS is set up"
     )
     first = _defaults().split("\n- ", 2)[1]
     assert "ai/00 wins" in first, (
@@ -178,8 +179,9 @@ def test_fabrik_lib_routes_exist() -> None:
 
 def test_no_retired_routes() -> None:
     body = _prose()
-    # a file path (docs/reference/kilo/....md) names a file, not a route; a slash-joined route (Kilo/OpenRouter) is kept
-    lowered = re.sub(r"[\w./-]*/[\w.-]+\.(?:md|py|json|ya?ml)\b", "", body).lower()
+    # the vendor-access catalog lives under docs/reference/kilo/ — that one directory names a file, not a route;
+    # every other "kilo" (a route, a slash-joined pair, a module path) stays visible
+    lowered = body.replace("docs/reference/kilo/", "docs/reference/").lower()
     # case-folded: "dall-e" and "Schnell" are the same retired names; Kilo is retired as a gateway and this pack names none
     for gone in ("dall", "detectron", "traycer", "schnell", "kilo"):
         assert gone not in lowered, f"{gone} is retired or unmaintained and still named"
@@ -194,8 +196,8 @@ def test_no_version_literals() -> None:
     found = re.findall(
         r"\b[vV]\d+(?:\.\d+)?\b|\b\d+\.\d+\.\d+\b|[≥>]=?\s?\d+(?:\.\d+)?|@\d+\.\d+"
         r"|\b[A-Za-z][\w./-]*[A-Za-z] \d+\.\d+\b|\b[A-Za-z]+\.\d+\b|\b\d+B\b"
-        # a digit glued to a product name (FLUX2, YOLO26) or a bare generation after one (GPT Image 1, Recraft 4)
-        r"|\b[A-Z][A-Za-z]*[A-Z]\d+\b|\b(?:Image|FLUX|Recraft|YOLO|SD|Tesseract|PaddleOCR|MediaPipe|Claude) \d+\b",
+        # a digit glued to a product name (FLUX2, YOLO26) or a bare generation after any capitalised name (GPT Image 1, Textract 2)
+        r"|\b[A-Z][A-Za-z]*[A-Z]\d+\b|\b[A-Z][A-Za-z]+ \d+\b",
         body,
     )
     assert not found, f"version literals in the pack: {found}"

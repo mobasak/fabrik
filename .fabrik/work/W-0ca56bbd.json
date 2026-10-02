@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "probe BFL and Recraft balances with the keys (no values printed), then reconcile docs/reference/kilo/AI_VENDOR_ACCESS.md:31-32, docs/reference/ai-media-generation-provider-map.md:22,62 and .windsurf/rules/ai/00-ai-model-selection.md:112 to one truth",
+  "next": "probe BFL and Recraft balances with the keys (no values printed), then reconcile docs/reference/kilo/AI_VENDOR_ACCESS.md:31-32, docs/reference/ai-media-generation-provider-map.md:22,62 and .windsurf/rules/ai/00-ai-model-selection.md:112 to one truth, and add Ideogram to (or remove it from) AI_VENDOR_ACCESS.md's fal/Replicate rows (:29-30) to match reach map :63",
   "note": "",
   "owner": "",
   "priority": 2,
@@ -19,5 +19,5 @@
   "tags": [
     "rules"
   ],
-  "title": "Vendor-access catalog and reach map disagree on image keys: AI_VENDOR_ACCESS says BFL deprecated/unset (the hub .env holds a BFL_API_KEY) and Recraft 'small credits' vs the map's 0 credits; ai/00:112 still says 'Owned BFL_API_KEY'"
+  "title": "Vendor-access catalog and reach map disagree on image keys: AI_VENDOR_ACCESS says BFL deprecated/unset (the hub .env holds a BFL_API_KEY) and Recraft 'small credits' vs the map's 0 credits; ai/00:112 still says 'Owned BFL_API_KEY'; Ideogram is marked callable through fal and Replicate in the reach map but absent from the catalog's aggregator rows"
 }
