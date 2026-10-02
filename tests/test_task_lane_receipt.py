@@ -201,6 +201,130 @@ def test_a_checker_that_crashes_is_a_refusal(repo: Repo) -> None:
     _only(_check(repo, REL, [repo.last]), "b")
 
 
+# ── (b) the header Status is CLOSED — a review that has not finished is not a review ──────
+
+STATUS = "**Status:** CONVERGED"
+
+
+def _status(repo: Repo, new: str) -> None:
+    text = repo.text()
+    assert text.count(STATUS) == 1
+    repo.write(text.replace(STATUS, new, 1))
+
+
+def _status_refused(reasons: list[str]) -> None:
+    assert any(r.startswith("(b) ") and "**Status:**" in r for r in reasons), reasons
+
+
+def test_an_in_progress_receipt_is_refused_by_its_status_alone(repo: Repo) -> None:
+    """The checker EXEMPTS ``IN-PROGRESS`` (exit 0) — an unfilled ``--init`` skeleton would
+    otherwise discharge the close."""
+    _status(repo, "**Status:** IN-PROGRESS")
+    reasons = _check(repo, REL, [repo.last])
+    _only(reasons, "b")
+    _status_refused(reasons)
+    assert "IN-PROGRESS" in reasons[0], reasons
+
+
+def test_an_unfilled_init_skeleton_is_refused(repo: Repo) -> None:
+    """The cheapest path end to end: ``--init --range`` and never review."""
+    skeleton = repo.root / "docs/development/reviews/2026-10-02-skeleton-review.md"
+    made = subprocess.run(
+        [
+            sys.executable,
+            str(RECEIPT_SCRIPT),
+            "--init",
+            "--project-root",
+            str(repo.root),
+            "--out",
+            str(skeleton),
+            "--changed",
+            "app.py",
+            "--range",
+            f"{repo.seed}..{repo.last}",
+        ],
+        cwd=repo.root,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert made.returncode == 0, made.stderr
+    _status_refused(_check(repo, skeleton, [repo.last]))
+
+
+def test_a_blocked_receipt_is_refused_by_its_status(repo: Repo) -> None:
+    _status(repo, "**Status:** BLOCKED")
+    _status_refused(_check(repo, REL, [repo.last]))
+
+
+def test_a_receipt_with_no_status_line_is_refused(repo: Repo) -> None:
+    _status(repo, "")
+    _status_refused(_check(repo, REL, [repo.last]))
+
+
+def test_a_converged_status_with_trailing_words_is_refused(repo: Repo) -> None:
+    """Only bare ``CONVERGED`` (or the D-252 wording) closes — a prefix test admits this."""
+    _status(repo, "**Status:** CONVERGED-ish — pending the last round")
+    _status_refused(_check(repo, REL, [repo.last]))
+
+
+def test_a_status_below_the_header_zone_does_not_count(repo: Repo) -> None:
+    """The header zone is the first 10 lines, as ``check_review_coverage._in_progress`` reads it:
+    a body-deep ``**Status:** CONVERGED`` is prose, never the receipt's status."""
+    _status(repo, "")
+    repo.write(repo.text() + f"\n{STATUS}\n")
+    _status_refused(_check(repo, REL, [repo.last]))
+
+
+def test_the_d252_scope_growth_wording_is_a_closed_status(repo: Repo) -> None:
+    """``CONVERGED … on the D-252 scope-growth stop`` is the third sanctioned exit; the checker's
+    own ledger half (two rounds that each confirmed something) is built here so (b)'s subprocess
+    passes too."""
+    text = repo.text().replace(
+        "found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation |",
+        "found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation |",
+        1,
+    )
+    assert text != repo.text()
+    repo.write(text)
+    _status(repo, "**Status:** CONVERGED (2026-10-02) on the D-252 scope-growth stop")
+    assert _check(repo, REL, [repo.last]) == []
+
+
+def test_an_unloadable_status_reader_is_a_refusal(repo: Repo, monkeypatch, tmp_path: Path) -> None:
+    """The Status half reuses the co-shipped checker's header-zone readers; if that module
+    cannot load, the status is unread and the receipt is refused — never passed."""
+    tl = _module()
+    monkeypatch.setattr(tl, "_LOCAL_CHECKER", tmp_path / "absent.py")
+    monkeypatch.setattr(tl, "_crc_cache", [])
+    reasons = _check(repo, REL, [repo.last])
+    _only(reasons, "b")
+    assert "Status cannot be read" in reasons[0], reasons
+
+
+def test_a_negated_d252_wording_is_refused(repo: Repo) -> None:
+    _status(repo, "**Status:** CONVERGED — this did not close on the D-252 scope-growth stop")
+    _status_refused(_check(repo, REL, [repo.last]))
+
+
+# ── (a) follows symlinks ───────────────────────────────────────────────────────────────────
+
+
+def test_a_symlink_under_reviews_pointing_outside_is_refused_by_check_a(repo: Repo) -> None:
+    outside = "docs/development/2026-10-02-widget-review.md"
+    repo.write(repo.text(), outside)
+    link = repo.root / "docs/development/reviews/2026-10-02-link-review.md"
+    link.symlink_to(repo.root / outside)
+    reasons = _check(repo, "docs/development/reviews/2026-10-02-link-review.md", [repo.last])
+    assert reasons and reasons[0].startswith("(a) "), reasons
+
+
+def test_a_symlink_resolving_into_reviews_passes_check_a(repo: Repo) -> None:
+    link = repo.root / "docs/2026-10-02-alias-review.md"
+    link.symlink_to(repo.receipt)
+    assert _check(repo, "docs/2026-10-02-alias-review.md", [repo.last]) == []
+
+
 # ── (c) the **Command:** token is exactly /fabrik-review ──────────────────────────────────
 
 

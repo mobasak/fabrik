@@ -707,6 +707,68 @@ _SURFACE_LINE = "**Surface:**"
 # `review_receipt.py --range A..B` writes `… = <HEAD>; range tip <sha>; `git diff …`` on the
 # Surface line (review_receipt.py `_surface`); an unresolvable endpoint is written `?`.
 _RANGE_TIP = re.compile(r"; range tip ([^\s;]+)")
+# The header Status value, read in the checker's own header zone (the first 10 lines,
+# normalised and fence-stripped — `check_review_coverage._in_progress`). Horizontal whitespace
+# only between `Status:` and the value, as the checker's `IN_PROGRESS` reads it.
+_STATUS_VALUE = re.compile(r"^\**Status:\**[ \t]*(.*?)[ \t]*$", re.M | re.I)
+_HEADER_LINES = 10
+_CLOSED_STATUS = "CONVERGED"
+# The coverage checker shipped beside this module — imported lazily (it is 185 KB) and only
+# for its header-zone readers, never its grammar (that is the subprocess in check (b)).
+_LOCAL_CHECKER = Path(__file__).resolve().parent / "enforcement" / "check_review_coverage.py"
+_crc_cache: list[Any] = []
+
+
+def _crc() -> Any:
+    """The co-shipped ``check_review_coverage`` module, loaded once; raises when it cannot load
+    (the caller refuses — fail closed)."""
+    if not _crc_cache:
+        import importlib.util  # noqa: PLC0415 — only a receipt check pays for the 185 KB module
+
+        spec = importlib.util.spec_from_file_location("_task_lane_crc", _LOCAL_CHECKER)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"cannot load {_LOCAL_CHECKER}")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _crc_cache.append(mod)
+    return _crc_cache[0]
+
+
+def _status_refusal(text: str) -> str | None:
+    """``None`` when the receipt's header Status is CLOSED, else the refusal's tail.
+
+    CLOSED is exactly ``CONVERGED`` (optional bold markers around it), or the D-252
+    scope-growth-stop declaration ``check_review_coverage.py`` parses — its own
+    ``SCOPE_GROWTH_EXIT`` window and ``_EXIT_NEGATION`` denial test, on a CONVERGED line.
+    ``IN-PROGRESS``, ``BLOCKED``, any other value and a missing line refuse. The zone is the
+    checker's: the first 10 raw lines, normalised (``_normalized``) and fence-stripped
+    (``_strip_fences``), so a body-deep or quoted Status line is never the receipt's status.
+    """
+    try:
+        crc = _crc()
+        zone = crc._strip_fences(
+            "".join(crc._normalized(text).splitlines(keepends=True)[:_HEADER_LINES])
+        )
+    except Exception as exc:  # noqa: BLE001 — any load failure refuses (fail closed)
+        return f"the header Status cannot be read ({exc.__class__.__name__}: {exc})"
+    m = _STATUS_VALUE.search(zone)
+    if m is None:
+        return f"carries no **Status:** line in its first {_HEADER_LINES} lines"
+    value = m.group(1).strip("* \t")
+    if value == _CLOSED_STATUS:
+        return None
+    exit_ = crc.SCOPE_GROWTH_EXIT.search(m.group(0))
+    if (
+        re.match(rf"{_CLOSED_STATUS}\b", value) is not None
+        and exit_ is not None
+        and not crc._EXIT_NEGATION.search(exit_.group(1))
+        and not crc._EXIT_NEGATION.search(exit_.group(2))
+    ):
+        return None
+    return (
+        f"is **Status:** {value!r} — only {_CLOSED_STATUS} (or the D-252 scope-growth-stop "
+        "declaration) closes a review; an unfinished review is not a review"
+    )
 
 
 def _resolve_commit(root: Path, rev: str) -> str | None:
@@ -727,9 +789,13 @@ def check_review_receipt(path: Path, commits: list[str], *, root: Path) -> list[
     opens with its check's letter:
 
     (a) the path — normalised as ``measure_close`` normalises the receipt (``_norm_path``),
-        relative to ``root`` — lies under ``docs/development/reviews/``;
-    (b) ``<root>/scripts/enforcement/check_review_coverage.py --root <root> <receipt>`` exits 0;
-        a missing, crashing or timed-out checker is a refusal (fail closed);
+        joined to ``root`` and RESOLVED (symlinks followed) — lies under the resolved
+        ``<root>/docs/development/reviews/``;
+    (b) ``<root>/scripts/enforcement/check_review_coverage.py --root <root> <receipt>`` exits 0
+        (a missing, crashing or timed-out checker is a refusal — fail closed) AND the header
+        Status is CLOSED (``_status_refusal``: exactly ``CONVERGED``, or the D-252
+        scope-growth-stop declaration); ``IN-PROGRESS``, ``BLOCKED``, anything else or no
+        Status line each refuse with their own reason;
     (c) the token on the first ``**Command:**`` line — the text after ``**Command:** `` up to the
         next `` · `` — is exactly ``/fabrik-review`` (``/fabrik-review-scoped`` shares the prefix
         and is refused);
@@ -739,21 +805,27 @@ def check_review_receipt(path: Path, commits: list[str], *, root: Path) -> list[
 
     A receipt that is not a file is refused once, by that reason alone.
 
+    (d) is TIP-ONLY, as the spec words it: the range's base is not checked, so a receipt over
+    ``<last>~1..<last>`` passes for a run with earlier commits.
+
     THE CHEAPEST WAY TO SATISFY THIS CHECK WITHOUT THE OUTCOME (D-253): ``review_receipt.py
-    --init --range <base>..<last>`` and never run the review — the skeleton is born
-    ``Status: IN-PROGRESS``, which ``check_review_coverage.py`` exempts, so (b) passes on an
-    unreviewed file. Nothing in (a)-(d) sees that; the spec names exactly these four checks,
-    so the gap is reported to the plan (T03b report) rather than closed here by a fifth.
+    --init --range <base>..<last>`` and never run the review — the skeleton's
+    ``Status: IN-PROGRESS`` is exempt from ``check_review_coverage.py``, so its exit 0 alone
+    would pass an unreviewed file; the Status half of (b) is the counter-measure. What is left
+    is flipping the Status to CONVERGED on a ledger the checker accepts — which costs the
+    checker's own closing-round grammar (a re-derivation pass naming its finder seats), the
+    work itself or a lie no text check can see.
     """
     root = Path(root)
-    raw = os.fspath(path)
-    if os.path.isabs(raw):
-        raw = os.path.relpath(raw, os.fspath(root))
-    rel = _norm_path(raw.replace(os.sep, "/"))
+    # Spelled like a declared path (`_norm_path`, as `measure_close` spells the receipt), then
+    # RESOLVED — symlinks followed — so a link under reviews/ pointing elsewhere is judged by
+    # where it lands (ruling 2026-10-02 (2)).
+    rel = _norm_path(os.fspath(path).replace(os.sep, "/"))
+    receipt = (root / rel).resolve()
+    reviews = (root / REVIEWS_DIR).resolve()
     reasons: list[str] = []
-    if not rel.startswith(REVIEWS_DIR):
-        reasons.append(f"(a) the receipt {path} is not under {REVIEWS_DIR}")
-    receipt = root / rel
+    if not receipt.is_relative_to(reviews) or receipt == reviews:
+        reasons.append(f"(a) the receipt {path} resolves to {receipt}, not under {reviews}/")
     if not receipt.is_file():
         return [f"--review {path}: not a file under {root}"]
     try:
@@ -781,6 +853,11 @@ def check_review_receipt(path: Path, commits: list[str], *, root: Path) -> list[
             rc, tail = None, [exc.__class__.__name__]
         if rc != 0:
             reasons.append(f"(b) {_CHECKER} refused the receipt (rc={rc}): {tail[0][:300]}")
+    # (b) also: the review FINISHED. The checker exempts IN-PROGRESS and passes a missing or
+    # BLOCKED Status on a well-formed ledger, so its exit 0 alone cannot say so (ruling (1)).
+    status = _status_refusal(text)
+    if status is not None:
+        reasons.append(f"(b) the receipt {status}")
 
     lines = text.splitlines()
     # (c) the command token, compared whole.
