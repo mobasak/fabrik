@@ -1,6 +1,6 @@
 # Plan — backrest coverage: protect what a service persists, never a path that does not exist (W-5c4ad6a6)
 
-Status: DRAFT
+Status: CONVERGED (/fabrik-plan-review 2026-10-02: passes 16→7→0 confirmed; spec flipped with it) — awaiting the operator's design approval
 Profile: small
 **Owner:** fleet
 
@@ -38,7 +38,7 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | I8 | rollback removes a plan it did not create | IN | Phase B (B5) |
 | I9 | an empty or stale snapshot alert | OUT-OF-SCOPE | W-43904006 |
 | I10 | the four test specs with nothing to persist | OUT-OF-SCOPE | the audit names them (B4's shape-mismatch row); their owners fix the flag |
-| I12 | `refresh_infrastructure` never sets `ctx.target_vps`, so a refresh runs every registrar against vps1 (pre-existing; found at plan-review pass 2) | OUT-OF-SCOPE | W-item filed with this plan's convergence commit |
+| I12 | `refresh_infrastructure` never sets `ctx.target_vps`, so a refresh runs every registrar against vps1 (pre-existing; found at plan-review pass 2) | OUT-OF-SCOPE | W-c5b9397b |
 | I11 | the `30-ops` checklist line (fleet-synced, infra's beat) | IN | Phase C step 1 — a proposal to infra, never an edit here |
 
 ## What we already agreed (citations, not restatement)
@@ -186,8 +186,8 @@ Appetite: 50
   registrar owns per-database plans).
 - `src/fabrik/audit.py::audit_backrest(spec)` (`:331-390`) — the spec's right column, through the Phase A functions inside
   the same env swap (a `SimpleNamespace(target_vps=...)` passed to `_target_vps_env`, the target resolved as `fabrik
-  destroy` does without the CLI flag: `.fabrik/state/<id>.json` `target_vps`, then the spec field, then `vps1` —
-  `cli.py:955-970`; the driver calls follow `FABRIK_VPS_SSH_HOST`, default `vps`, `drivers/ssh.py:31`). Order: any
+  destroy` does without the CLI flag: `<FABRIK_ROOT>/.fabrik/state/<id>.json` `target_vps` (anchored at `fabrik.config.FABRIK_ROOT`, never the working
+  directory — `cli.py:960-961` reads it relative to the cwd), then the spec field, then `vps1` — `cli.py:955-970`; the driver calls follow `FABRIK_VPS_SSH_HOST`, default `vps`, `drivers/ssh.py:31`). Order: any
   probe `None` → `unknown`; collect findings: a `<sid>-data` plan whose paths are not all visible → `paper plan <id>:
   remove it`; zero containers → status `missing` ("not running on <host>") unless a paper plan was found (then `drift`);
   containers but no path and the database not engaged → shape mismatch; each uncovered path → `unprotected` (naming
@@ -333,11 +333,11 @@ is a local of `provision()` there.
 
 - Grounding: the spec's three research seats (ledger, 37 rows) and the orchestrator's own reads of every cited line; the
   judge panel re-verified the spec's anchors independently (all three).
-- (a) Coverage: I1-I8 and I11 map to Phases A-C and the rollout; I9-I10 have named destinations.
-- (b) Signatures: `Persistence`, `discover_persistence`, `read_plans`, `coverage`, `visible`, `POSTGRES_CLUSTER_PLAN`
-  (A) are what B calls in both the registrar and the audit; the registrar's new signature is called from one site
+- (a) Coverage: I1-I8 and I11 map to Phases A-C and the rollout; I9, I10 and I12 have named destinations.
+- (b) Signatures: `Persistence`, `discover_persistence`, `read_plans`, `coverage`, `visible`, `extend_backup_plan`,
+  `POSTGRES_CLUSTER_PLAN` (A) are what B calls in both the registrar and the audit; the registrar's new signature is called from one site
   (`:634-635`); `visible` is `-> set[str] | None` in both spec D2 and Phase A.
-- Not yet at a fixed point: `/fabrik-plan-review` runs next.
+- Fixed point: `/fabrik-plan-review` closed at pass 3 (confirmed 0) — see the Pass Ledger.
 
 ## Residual unknowns
 
@@ -351,26 +351,41 @@ is a local of `provision()` there.
   `orchestrator/deployer_ssh.py:156-170`, `orchestrator/__init__.py:174-180`; B7 moves the backrest calls to `target_vps`);
   every consumer of the audit status (Phase B Mirror); compose project names (0 of 39 `/opt/*/compose*` set `name:`).
 
+## Pass Ledger
+
+`/fabrik-plan-review`, 2026-10-02. Native seats only (D-181), partitioned by section (D-212, D-218): `rules` (Opus — Global
+Constraints, Context Ledger, Constraints Digest, every Interfaces block, every Behavior Contract, Evidence, File Scope,
+Coverage Checklist; spec The delta, Validation, Constraints digest, What exists today, the Chosen approach table) and
+`prose` (Sonnet — the rest of both). The spec is `Size: small`, so its sections are graded here with the plan.
+`dispatch_headroom.py --slices opus=1,sonnet=1` → `SEATS: 2`, stamped each pass.
+
+| Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) · spec md5 (start → end) |
+|-----:|---|---|---|---|
+| Pass 1 | opus×1 (`rules`, 50 citations) + sonnet×1 (`prose`, 24) · all axes | found: 16, new: 16, confirmed: 15, fixed: 15, unexecuted: 0, edits: 2 files | method: citation — full partitioned pass; the orchestrator executed R1 (`deployer_ssh.py:156-170` restores the hub host before `provision()`), R8 (`verify.py:239-276` fails only on `missing`), R9 (the four tests) and the per-database dump step (`deployment.md:512-545`). Confirmed: registrars run hub-side (R1); bind files vs directories (R2); a per-service plan's own excludes (R3); fnmatch vs restic excludes (R4); `visible` `None` (R5); undeployed specs would drift (R6); the dump directory is a manual patch (R7); consumers and tests unnamed (R8, R9); a hyphen-rejecting validator (R10 = P1); pipeline masking in the fallback (R11); an existing plan swallowing new paths (R12); wording (R13); types (R14); the mail body (P2). | 2bda359a3c0257c93adc0799019ba9a5 → d2b0621dde481a6efc8418749e8c2039 · a66034b2cd405d4f3e9c4c3f54dd8fd4 → c29afd45a507fa17397beb819869e98e |
+| Pass 2 | the same two seats over their own ledgers + one hop of the fix diff (a73f6dc72) | found: 7, new: 7, confirmed: 6, fixed: 6, unexecuted: 0, edits: 2 files | method: re-derivation — all 16 round-1 claims NOW_FALSE (reference implementation of the exclude rule run on every case; BC A1 holds). Confirmed, all inside round-1 fix text: relative patterns with `/` (N1), a healthy plan blocking new paths (N2 → `extend_backup_plan`, A6, B8), the audit's host order (N4), docker's own name filters (N5, executed against the local docker), B7's context (N6), the size estimate (Q1 → ≈270). N3 (refresh never sets `target_vps`) is pre-existing → W-c5b9397b. **Scope-growth stop:** pass 2 was all own-fix, so pass 3 re-verifies only this set. | d2b0621dde481a6efc8418749e8c2039 → f2976aafc87be759c19fc02647e04e57 · c29afd45a507fa17397beb819869e98e → 52f4364df7f5d852fcdf0fffe4cf9988 |
+| Pass 3 | the same two seats · ONLY the round-2 fixed set | found: 2, new: 2, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — N1, N2, N4, N5, N6, Q1 all NOW_FALSE (exclude reference implementation re-run; docker name filters executed, empty match rc 0). Two own-fix findings RECORDED, not re-armed (`term-edit` § Scope-growth stop): the state-file path must be anchored at `FABRIK_ROOT`, and the Self-audit omitted I12 and `extend_backup_plan` — both folded at the flip below. | f2976aafc87be759c19fc02647e04e57 → f2976aafc87be759c19fc02647e04e57 · 52f4364df7f5d852fcdf0fffe4cf9988 → 52f4364df7f5d852fcdf0fffe4cf9988 |
+| Flip | orchestrator · the CONVERGED flip gates | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 6 | method: gate — Status flipped on plan and spec; the 14 Coverage Checklist rows adjudicated from passes 1-3; the two pass-3 recorded folds applied (the `FABRIK_ROOT` anchor; the Self-audit lists); I12's destination W-c5b9397b. Gates run after these edits: `check_convergence`, `check_plan_quality`, `check_rule_grounding`, `check_spec_convergence` (outputs in the commit). | f2976aafc87be759c19fc02647e04e57 → (this commit) · 52f4364df7f5d852fcdf0fffe4cf9988 → Status line only |
+
 ## Coverage Checklist
 
-Every row starts UNCHECKED and is adjudicated by `/fabrik-plan-review`.
+Every row adjudicated by `/fabrik-plan-review` (passes 1-3).
 
 | Class | Verdict |
 |---|---|
-| FLOOR core/35-security-auth — secrets, auth, config via env | UNCHECKED |
-| FLOOR core/25-data-postgres — database, backups | UNCHECKED |
-| FLOOR core/30-ops — volume backup rule, admin processes | UNCHECKED |
-| FLOOR 12-Factor — all twelve axes against what the plan steps | UNCHECKED |
-| MATCHED core/10-python — no deps-file edits, no file logging | UNCHECKED |
-| MATCHED core/40-documentation — heading levels, the docs the change makes stale | UNCHECKED |
-| MATCHED core/45-testing-strategy — one test per behaviour, watched-fail-first | UNCHECKED |
-| MATCHED ai/50-agentic — not engaged (no LLM) | UNCHECKED |
-| Production-write safety: no delete, no zero-path plan, no plan for an invisible path | UNCHECKED |
-| Secret handling: `read_plans` never moves the repo section off the VPS | UNCHECKED |
-| fail-open vs fail-closed on every probe (discovery, plans, visibility) | UNCHECKED |
-| boundary/sentinel/prefix collisions (`/opt/a` vs `/opt/ab`, trailing slashes, exclude globs) | UNCHECKED |
-| rollback and destroy only touch what this run created | UNCHECKED |
-| behavior-without-a-test | UNCHECKED |
+| FLOOR core/35-security-auth — secrets, auth, config via env | CLEAN — no env var, no secret; `read_plans` selects `id/paths/excludes` on the VPS and never moves the repo section (rules #A5; seat probe on a fake config) |
+| FLOOR core/25-data-postgres — database, backups | FIXED r1 — database coverage by its per-database dump directory or the `postgres-dumps` plan (R7); the postgres registrar keeps owning per-database plans |
+| FLOOR core/30-ops — volume backup rule, admin processes | FIXED r1 — the design is the pack's own rule made executable (`30-ops.md:222-223`); the audit runs from the hub release |
+| FLOOR 12-Factor — all twelve axes against what the plan steps | CLEAN — IV, XI, XII stated in Global Constraints; the rest not engaged |
+| MATCHED core/10-python — no deps-file edits, no file logging | CLEAN — stdlib only (`fnmatch`, `json`, `shlex`); no logfile |
+| MATCHED core/40-documentation — heading levels, the docs the change makes stale | CLEAN — two doc landing sites; Phase C step 2 runs `check_doc_sync` and `render_doc_script_links --check` |
+| MATCHED core/45-testing-strategy — one test per behaviour, watched-fail-first | FIXED r1-r2 — rows A1-A6, B1-B8, C1; red-on-revert steps per phase; B7 sets `ctx.target_vps` itself (N6) |
+| MATCHED ai/50-agentic — not engaged (no LLM) | CLEAN — matched by glob only; no LLM or agent loop |
+| Production-write safety: no delete, no zero-path plan, no plan for an invisible path | FIXED r1-r2 — never deletes or edits a plan except an additive extend of a healthy own plan (N2); zero-path and invisible paths never written (R5); the per-service plan carries no excludes (R3) |
+| Secret handling: `read_plans` never moves the repo section off the VPS | CLEAN — verified by the rules seat's jq probe |
+| fail-open vs fail-closed on every probe (discovery, plans, visibility) | FIXED r1-r2 — every probe `None` → `unknown`; pipefail + a zero-container branch; docker's own name filters (R11, N5) |
+| boundary/sentinel/prefix collisions (`/opt/a` vs `/opt/ab`, trailing slashes, exclude globs) | FIXED r1-r2 — trailing slashes stripped; component-wise restic exclude semantics incl. any-depth relative patterns (R4, N1), proven on a reference implementation |
+| rollback and destroy only touch what this run created | FIXED r1 — `add_resource` only on `created` (B5); destroy unchanged (own `<name>-data`) |
+| behavior-without-a-test | FIXED r1-r2 — B6 (database), B7 (target host), B8 (extend), A6 added |
 
 The rubric this plan's reviews inject into every seat brief, run on the plan's own `## File Scope (owned paths)`:
 
