@@ -25,8 +25,9 @@ Design notes
 * **Reload via lifecycle endpoint, fallback to restart.** Prometheus
   reloads its config on ``POST /-/reload`` only when started with
   ``--web.enable-lifecycle``. We try the endpoint first (fast, no
-  scrape-gap) and fall back to a container restart on HTTP failure.
-  The restart costs ~3 s of scrape-gap but always works.
+  scrape-gap) and fall back to a container restart (~3 s of scrape-gap)
+  only when ``promtool check config`` passes inside the container: a
+  config /-/reload refused is never restarted into (W-5aa5e3d8).
 * **Public-HTTPS scrape targets by default.** Coolify-managed container
   names carry unpredictable UUID suffixes that change on rebuild — same
   reason :mod:`fabrik.drivers.gatus` probes the public domain. The
@@ -78,14 +79,18 @@ except Exception:  # noqa: BLE001 — defensive: tests can monkeypatch
     _LOCAL_PROMETHEUS_CONFIG_PATH = None
 
 PROMETHEUS_RELOAD_URL = "http://localhost:9090/-/reload"
-# The config path INSIDE the container (configs/monitoring-compose.yaml `--config.file`).
-PROMETHEUS_CONTAINER_CONFIG = "/etc/prometheus/prometheus.yml"
 """Lifecycle endpoint for hot-reload, called from INSIDE the prometheus
 container (its own loopback). The VPS host does not join the monitoring
 network, and the old route — wget from the ``alertmanager`` container to
 ``prometheus:9090`` — stopped resolving (``bad address``, probed live
 2026-10-02, W-a1a359c8), which silently turned every reload into a
 container restart."""
+
+# The config path INSIDE the container (configs/monitoring-compose.yaml `--config.file`).
+PROMETHEUS_CONTAINER_CONFIG = "/etc/prometheus/prometheus.yml"
+# Fails the chain with a NAMED reason when no prometheus container is running: a bare
+# `[ -n "$X" ]` exits 1 with empty stderr, and the logged reason read `rc=1: ` (restart-S2).
+_NO_CONTAINER = "echo 'no running prometheus container' >&2; false"
 
 DEFAULT_METRICS_PATH = "/metrics"
 """Standard Prometheus convention. Override per-call if the service
@@ -202,7 +207,8 @@ def _reload_prometheus() -> bool:
         # An empty name must fail here, not run `docker exec wget ...`.
         ssh(
             f"PC=$(sudo docker ps --format '{{{{.Names}}}}' "
-            f"| grep -E '^prometheus(-|$)' | head -1) && [ -n \"$PC\" ] && "
+            f"| grep -E '^prometheus(-|$)' | head -1) && "
+            f'{{ [ -n "$PC" ] || {{ {_NO_CONTAINER}; }}; }} && '
             f"sudo docker exec \"$PC\" wget -qO- --post-data='' "
             f"{shlex.quote(PROMETHEUS_RELOAD_URL)}",
             timeout=15,
@@ -220,7 +226,7 @@ def _reload_prometheus() -> bool:
         ssh(
             "PROM_CONTAINER=$(sudo docker ps --format '{{.Names}}' "
             "| grep -E '^prometheus(-|$)' | head -1) && "
-            '[ -n "$PROM_CONTAINER" ] && '
+            f'{{ [ -n "$PROM_CONTAINER" ] || {{ {_NO_CONTAINER}; }}; }} && '
             'sudo docker exec "$PROM_CONTAINER" promtool check config '
             f"{shlex.quote(PROMETHEUS_CONTAINER_CONFIG)} && "
             'sudo docker restart "$PROM_CONTAINER"',
@@ -230,9 +236,8 @@ def _reload_prometheus() -> bool:
         return True
     except Exception as e:  # noqa: BLE001
         logger.warning(
-            "Prometheus hot-reload failed and the restart was skipped or failed — no container, "
-            "or the config fails promtool (the running Prometheus keeps its last good config) "
-            "(non-fatal): %s",
+            "Prometheus not restarted after a failed hot-reload (non-fatal; a running "
+            "Prometheus keeps its last good config): %s",
             e,
         )
         return False

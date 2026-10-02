@@ -17,6 +17,7 @@ written config Prometheus will not load: `/-/reload` answers HTTP 500 and `promt
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 from pathlib import Path
@@ -102,9 +103,15 @@ class TestDriverReload:
         assert "exec prometheus wget" in docker
         assert "restart" not in docker
 
-    def test_no_prometheus_container_runs_nothing_and_reports_failure(self, monkeypatch, tmp_path):
+    def test_no_prometheus_container_runs_nothing_and_reports_failure(
+        self, monkeypatch, tmp_path, caplog
+    ):
+        caplog.set_level(logging.INFO, logger=prom.__name__)
         ok, sent, docker = self._reload(monkeypatch, tmp_path, "alertmanager pushgateway")
         assert ok is False
+        # the logged reason NAMES the cause (a bare `[ -n ]` left it as `rc=1: `, restart-S2)
+        warning = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warning) == 1 and "no running prometheus container" in warning[0]
         assert len(sent) == 2  # hot-reload, then the restart fallback
         assert (
             "exec" not in docker and "restart" not in docker
@@ -128,7 +135,7 @@ class TestDriverReload:
         # the config was validated before the restart, never after
         assert docker.index("promtool check config") < docker.index("restart prometheus")
 
-    def test_invalid_config_is_never_restarted_into(self, monkeypatch, tmp_path):
+    def test_invalid_config_is_never_restarted_into(self, monkeypatch, tmp_path, caplog):
         """/-/reload refuses an invalid config and the running Prometheus keeps its last good one;
         a restart would drop it and crash-loop on the bad file (W-5aa5e3d8)."""
         ok, sent, docker = self._reload(
@@ -138,6 +145,9 @@ class TestDriverReload:
         assert len(sent) == 2  # hot-reload refused, then the guarded restart leg
         assert "promtool check config" in docker
         assert "restart" not in docker
+        warning = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warning) == 1 and "FAILED: parsing YAML" in warning[0]
+        assert "no running prometheus container" not in warning[0]
 
 
 class TestSyncScriptReload:
