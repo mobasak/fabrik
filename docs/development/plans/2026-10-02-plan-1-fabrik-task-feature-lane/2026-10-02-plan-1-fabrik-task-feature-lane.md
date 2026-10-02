@@ -35,7 +35,7 @@ A spec-fed delta plan: each ticket cites the spec section it implements and rest
 | T05a | Plan graders: Appetite per phase and the Size-small spec rule | — | ⚡ | ✅ | squash of worktree-agent-a749e8b44ee6b8c13 |
 | T05b | The spec and plan commands: size at spec time, DOWNGRADE, no false approval | — | ⚡ | ✅ | squash of worktree-agent-a5bd5c37407d40e54 |
 | T05c | Plan review holds the small-spec gate; execute-plan passes phase appetite | — | ⚡ | ⬜ | |
-| T06 | The feedback report reads the lane's new fields | T03b | ⛓️ | 🔵 | |
+| T06 | The feedback report reads the lane's new fields | T03b | ⛓️ | ✅ | squash of worktree-agent-a1b58998b8da3489e |
 | T07 | /fabrik-task's own text and the run-record protocol | T03b | ⛓️ | 🔵 | |
 | T08 | Integration: wire task_lane into command_run.py, the hub lane table, distribution, hub opt-in | T04, T05a, T05b, T05c, T06, T07 | ⛓️ | ⬜ | |
 

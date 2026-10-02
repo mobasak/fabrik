@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_command_feedback_report.py, docs/reference/command-run-protocol.md, docs/reference/work-tracking.md
+# AFTER-EDIT: tests/test_command_feedback_report.py, tests/test_command_feedback_report_lane.py, docs/reference/command-run-protocol.md, docs/reference/work-tracking.md
 """Per-command optimisation report over the fleet-wide close-out ledger (D-175).
 
 Every `command_run.py done|blocked|handoff` appends one row to
@@ -13,6 +13,7 @@ the concrete `change:` items agents asked for, ranked by how often they recur.
                                                [--json] [--ledger PATH]
     python3 scripts/command_feedback_report.py --observer-rank   # who pays for a writer seat
     python3 scripts/command_feedback_report.py --queue COMMAND   # one command's change: queue
+    python3 scripts/command_feedback_report.py --lane [--since DAYS]   # the /fabrik-task lane's measures
 
 Every count states its bound: `examined` of `total_rows`. A missing ledger is an empty report.
 """
@@ -1698,6 +1699,408 @@ def _stages_text(doc: dict) -> str:
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# The LANE view (plan 2026-10-02-plan-1 T06; spec 2026-10-02-fabrik-task-feature-lane-design
+# § Validation and § The delta D9). Reads the feedback fields the plan spine fixes — `parent`,
+# `size`, `from_downgrade`, `upgrade`, `upgrades`, `over_appetite_phases`, `phase_marks` — and the
+# D9 refusal ledger `lane-refusals.jsonl` beside the feedback ledger (both live in the state dir's
+# parent). ⚠️ The declared `phases` field is NEVER read here: it is the record's phase COUNT, not
+# an appetite datum (W-25318990).
+#
+# THE CHEAPEST WAY TO MOVE THESE NUMBERS WITHOUT THE OUTCOME (D-253): (1) the task-to-spec ratio
+# rises by labelling ordinary spec runs as downgrades — so a spec run is excluded only when its
+# handoff row carries the `from_downgrade` id `/fabrik-spec` writes on a `DOWNGRADE:` handoff, or
+# (no spec row carrying it) a task row carrying that id is matched to it, one spec per task; and
+# specs are counted DISTINCT, so closing one spec twice cannot double the denominator; (2) the
+# refused share falls by never starting `/fabrik-task` at all — so the share is printed beside its
+# denominator, and a zero-start agent shows `—/0`, never 0%; (3) the in-lane review median falls by closing a nested
+# review as `fabrik-review-scoped` — so only `fabrik-review` rows count, and the scoped ones are
+# not hidden in it; (4) a window (`--since`, default 30 days) can cut a join in half — the
+# header states the window and both row counts so a short window reads as short; (5) the refused
+# share falls by padding the denominator with pre-v2 task closes — only rows carrying the v2 close
+# key `over_appetite` are lane starts, and the v1 rows left out are counted aloud.
+# ---------------------------------------------------------------------------
+
+_LANE_REFUSALS = "lane-refusals.jsonl"
+_SPEC_PATH = re.compile(r"\d{4}-\d{2}-\d{2}-[\w.-]+?-design\.md")
+# `size: small` — matched WHOLE, case-insensitively, after any `(≈… lines, … files)` suffix
+_SIZE_SMALL = re.compile(r"small", re.IGNORECASE)
+_SIZE_SUFFIX = re.compile(r"\s*\(.*\)\s*$")
+_LANE_WINDOW_DAYS = 30.0  # the spec's 30-day measures; `--since` overrides
+_WORKTREES = "/.claude/worktrees/"
+_TASK_LANE: ModuleType | None = None
+_TASK_LANE_ERR: str | None = None
+
+
+def _task_lane() -> ModuleType | None:
+    """``scripts/task_lane.py`` beside this script, imported by path (this script runs
+    standalone). None when it is missing or broken — the pin section then prints `unknown`. The
+    failure is CACHED, like `_work()`: one warning per process, never one per call."""
+    global _TASK_LANE, _TASK_LANE_ERR
+    if _TASK_LANE is not None or _TASK_LANE_ERR is not None:
+        return _TASK_LANE
+    path = Path(__file__).resolve().parent / "task_lane.py"
+    try:
+        spec = importlib.util.spec_from_file_location("_command_feedback_report_lane", path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"no loader for {path}")
+        mod = importlib.util.module_from_spec(spec)
+        # registered BEFORE exec: `@dataclass` resolves its class's module in sys.modules
+        sys.modules[spec.name] = mod
+        spec.loader.exec_module(mod)
+    except Exception as e:
+        sys.modules.pop("_command_feedback_report_lane", None)
+        _TASK_LANE_ERR = f"task_lane unavailable — {e}"
+        print(f"command_feedback_report: {_TASK_LANE_ERR}", file=sys.stderr)
+        return None
+    _TASK_LANE = mod
+    return _TASK_LANE
+
+
+def _refusal_rows(path: Path | None) -> list[dict]:
+    """The D9 refusal ledger: one JSON object per line with a non-empty `id`. A missing file or
+    a corrupt line is skipped, never a crash — the same stance as `_rows`."""
+    if path is None:
+        return []
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    out = []
+    for ln in text.splitlines():
+        try:
+            r = json.loads(ln)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(r, dict) and str(r.get("id") or "").strip():
+            out.append(r)
+    return out
+
+
+def _s(r: dict, key: str) -> str:
+    v = r.get(key)
+    return v.strip() if isinstance(v, str) else ""
+
+
+def _count_field(v: object) -> int | None:
+    """A non-negative whole count from a string (the spine's field type) or an int, else None."""
+    if isinstance(v, str) and v.strip().isascii() and v.strip().isdigit() and len(v.strip()) <= 9:
+        return int(v.strip())
+    if isinstance(v, int) and not isinstance(v, bool) and 0 <= v < 10**9:
+        return v
+    return None
+
+
+def _minutes_median(rs: list[dict]) -> tuple[float | int | None, int]:
+    walls = [w for w in (_num(r.get("wall_s")) for r in rs) if w is not None and w >= 0]
+    if not walls:
+        return None, 0
+    m = statistics.median(walls) / 60
+    return (int(m) if float(m).is_integer() else round(m, 1)), len(walls)
+
+
+def _share(k: int, n: int) -> str:
+    return "—/0" if n == 0 else f"{k}/{n} ({round(100 * k / n)}%)"
+
+
+def _repo(r: dict) -> str:
+    """The row's repo, a hub worktree (`<repo>/.claude/worktrees/<x>`) collapsed to its checkout."""
+    repo = _s(r, "repo")
+    cut = repo.find(_WORKTREES)
+    return repo[:cut] if cut > 0 else repo.rstrip("/") or repo
+
+
+def _same_repo(a: dict, b: dict) -> bool:
+    """Both `repo` cells non-empty and naming one repository — equal after the worktree collapse,
+    or one a path under the other on a `/` boundary, the rule `_task_series_nested` keeps."""
+    ra, rb = _repo(a), _repo(b)
+    if not ra or not rb:
+        return False
+    return ra == rb or ra.startswith(rb + "/") or rb.startswith(ra + "/")
+
+
+def _spec_key(i: int, r: dict) -> tuple[str, str]:
+    """One SPEC, not one close: (repo, surface) when the surface is named, else the row itself."""
+    surface = _s(r, "surface")
+    return (_repo(r), surface) if surface else ("#row", str(i))
+
+
+def _downgraded_specs(rows: list[dict]) -> set[int]:
+    """Indices of the `/fabrik-spec` `handoff` rows a DOWNGRADE produced.
+
+    (1) EXACT: a handoff row carrying `from_downgrade` (written when its `--reason` opens
+    `DOWNGRADE: <id>`) is a downgrade. (2) INFERRED, only for a task whose id no spec row carries:
+    the task is matched to an id-less handoff in the same repo that closed at or before the task
+    STARTED (`ts - wall_s`). The match is a MAXIMUM matching (augmenting paths) over tasks in
+    ascending start order, candidates tried same-session first then newest — so a preference
+    never takes a spec another task can only use."""
+    specs = [
+        (i, r)
+        for i, r in enumerate(rows)
+        if r.get("command") == "fabrik-spec" and _s(r, "state") == "handoff"
+    ]
+    exact = {i for i, r in specs if _s(r, "from_downgrade")}
+    carried = {_s(r, "from_downgrade") for i, r in specs if i in exact}
+    pool = [(i, r) for i, r in specs if i not in exact and _num(r.get("ts")) is not None]
+    tasks = []
+    for t in rows:
+        tid, t_ts = _s(t, "from_downgrade"), _num(t.get("ts"))
+        if t.get("command") != "fabrik-task" or not tid or tid in carried or t_ts is None:
+            continue
+        tasks.append((t_ts - max(_num(t.get("wall_s")) or 0.0, 0.0), t))
+    tasks.sort(key=lambda st: st[0])
+    cands = [
+        [
+            i
+            for i, r in sorted(
+                pool,
+                key=lambda ir: (_s(ir[1], "sid") == _s(t, "sid"), _num(ir[1].get("ts")) or 0.0),
+                reverse=True,
+            )
+            if _same_repo(r, t) and (_num(r.get("ts")) or 0.0) <= start
+        ]
+        for start, t in tasks
+    ]
+    owner: dict[int, int] = {}
+
+    def augment(k: int, seen: set[int]) -> bool:
+        for i in cands[k]:
+            if i in seen:
+                continue
+            seen.add(i)
+            if i not in owner or augment(owner[i], seen):
+                owner[i] = k
+                return True
+        return False
+
+    for k in range(len(tasks)):
+        augment(k, set())
+    return exact | set(owner)
+
+
+def _lane_pins(repos: list[str]) -> list[dict] | None:
+    """Each repo whose `.fabrik/lane.json` exists, with `task_lane.lane_version`'s answer — the
+    file's presence is the pin (an uncommitted v1 file and no file read alike from lane_version).
+    None when `task_lane.py` cannot load: unknown, never a confident zero."""
+    tl = _task_lane()
+    if tl is None:
+        return None
+    out = []
+    for repo in repos:
+        root = Path(repo)
+        try:
+            if not (root / tl.LANE_FILE).is_file():
+                continue
+        except OSError:  # (a NUL byte in a hand-edited `repo` cell reads False, never raises)
+            continue
+        version, commit, warning = tl.lane_version(root)
+        out.append({"repo": repo, "version": version, "commit": commit, "warning": warning})
+    return out
+
+
+def lane(
+    rows: list[dict],
+    refusals: list[dict],
+    *,
+    window_days: float,
+    undated: int = 0,
+    undated_rows: int = 0,
+) -> dict:
+    """The lane's 30-day measures and kill-rule joins (spec § Validation; § The delta D9)."""
+    tasks = [r for r in rows if r.get("command") == "fabrik-task"]
+    # a lane START is a v2 close (every v2 close writes the `over_appetite` key) or a refusal
+    v2_tasks = [r for r in tasks if "over_appetite" in r]
+    sid_agent = {_s(r, "sid"): _s(r, "agent") for r in rows if _s(r, "sid") and _s(r, "agent")}
+    # a refusal is downgraded when its id reached a DOWNGRADE handoff or the task it restarted
+    downgraded_ids = {
+        _s(r, "from_downgrade")
+        for r in rows
+        if r.get("command") in ("fabrik-task", "fabrik-spec") and _s(r, "from_downgrade")
+    }
+
+    agents: dict[str, dict[str, int]] = {}
+    for r in v2_tasks:
+        a = agents.setdefault(_s(r, "agent") or "?", {"starts": 0, "refused": 0, "downgraded": 0})
+        a["starts"] += 1
+    for f in refusals:
+        name = _s(f, "agent") or sid_agent.get(_s(f, "session"), "") or "?"
+        a = agents.setdefault(name, {"starts": 0, "refused": 0, "downgraded": 0})
+        a["starts"] += 1
+        a["refused"] += 1
+        a["downgraded"] += int(_s(f, "id") in downgraded_ids)
+
+    spec_keys = {_spec_key(i, r) for i, r in enumerate(rows) if r.get("command") == "fabrik-spec"}
+    down_keys = {_spec_key(i, rows[i]) for i in _downgraded_specs(rows)}
+    specs, down_specs = len(spec_keys), len(down_keys)
+    denom = specs - down_specs
+
+    median, timed = _minutes_median(tasks)
+    tokens: collections.Counter[str] = collections.Counter()
+    for r in tasks:
+        # `upgrades` when written, else the single `upgrade` — an upgraded row always tallies
+        tokens.update(_s(r, "upgrades").split() or ([_s(r, "upgrade")] if _s(r, "upgrade") else []))
+    from_down = [r for r in tasks if _s(r, "from_downgrade")]
+
+    reviews = [
+        r for r in rows if r.get("command") == "fabrik-review" and _s(r, "parent") == "fabrik-task"
+    ]
+    rmedian, rtimed = _minutes_median(reviews)
+
+    # one entry per DISTINCT small spec; it closed when its EARLIEST close did
+    small_by_key: dict[tuple[str, str], dict] = {}
+    for i, r in enumerate(rows):
+        if r.get("command") == "fabrik-spec" and _SIZE_SMALL.fullmatch(
+            _SIZE_SUFFIX.sub("", _s(r, "size"))
+        ):
+            k = _spec_key(i, r)
+            prev = small_by_key.get(k)
+            if prev is None or (_num(r.get("ts")) or math.inf) < (_num(prev.get("ts")) or math.inf):
+                small_by_key[k] = r
+    small = list(small_by_key.values())
+    # A small spec whose surface names no `<date>-<slug>-design.md` can never join a review: it
+    # leaves the DENOMINATOR and is disclosed, or every such row would read as "not sent back".
+    sent_back = unkeyed = 0
+    for sp in small:
+        m = _SPEC_PATH.search(_s(sp, "surface"))
+        sp_ts = _num(sp.get("ts"))
+        if not m or sp_ts is None:
+            unkeyed += 1
+            continue
+        key = re.compile(r"(?<![\w.-])" + re.escape(m.group(0)))
+        if any(
+            r.get("command") == "fabrik-spec-review"
+            and _same_repo(r, sp)
+            and (_num(r.get("ts")) or 0.0) > sp_ts
+            and key.search(_s(r, "surface"))
+            for r in rows
+        ):
+            sent_back += 1
+
+    marks = over = marked = unreadable = 0
+    for r in rows:
+        if "phase_marks" not in r and "over_appetite_phases" not in r:
+            continue
+        pm, op = _count_field(r.get("phase_marks")), _count_field(r.get("over_appetite_phases"))
+        if pm is None or op is None or op > pm:
+            unreadable += 1
+            continue
+        marked, marks, over = marked + 1, marks + pm, over + op
+
+    repos = list(dict.fromkeys(_repo(r) for r in rows if _repo(r)))
+    return {
+        "coverage": {
+            "window_days": int(window_days) if float(window_days).is_integer() else window_days,
+            "feedback_rows": len(rows),
+            "undated_rows": undated_rows,
+            "refusal_rows": len(refusals),
+            "undated_refusals": undated,
+            "v1_task_rows": len(tasks) - len(v2_tasks),
+        },
+        "agents": dict(sorted(agents.items())),
+        "task_to_spec": {
+            "task": len(tasks),
+            "spec": specs,
+            "downgraded_spec": down_specs,
+            "ratio": round(len(tasks) / denom, 2) if denom > 0 else None,
+        },
+        "task": {
+            "rows": len(tasks),
+            "timed": timed,
+            "median_min": median,
+            "upgraded": sum(1 for r in tasks if _s(r, "upgrade")),
+            "upgrade_tokens": dict(sorted(tokens.items())),
+            "from_downgrade": len(from_down),
+            "downgrade_then_upgrade": sum(1 for r in from_down if _s(r, "upgrade")),
+        },
+        "in_lane_review": {"rows": len(reviews), "timed": rtimed, "median_min": rmedian},
+        "small_specs": {"rows": len(small), "unkeyed": unkeyed, "sent_back": sent_back},
+        "over_appetite": {
+            "rows": marked,
+            "phase_marks": marks,
+            "over_appetite_phases": over,
+            "unreadable": unreadable,
+        },
+        "pins": {"repos": len(repos), "pinned": _lane_pins(repos)},
+    }
+
+
+def _untimed(part: dict) -> str:
+    """The rows a median could not read (`wall_s` missing, negative or not a number), disclosed
+    beside it — a median over fewer rows than the share beside it must say so."""
+    n = part["rows"] - part["timed"]
+    return f" [+{n} untimed]" if n else ""
+
+
+def _lane_text(doc: dict) -> str:
+    cov, tts, t = doc["coverage"], doc["task_to_spec"], doc["task"]
+    lines = [
+        f"lane report — last {cov['window_days']} days — {cov['feedback_rows']} feedback rows"
+        + (f" [+{cov['undated_rows']} undated]" if cov["undated_rows"] else "")
+        + f", {cov['refusal_rows']} refusal rows"
+        + (f" [+{cov['undated_refusals']} undated]" if cov["undated_refusals"] else ""),
+        "per agent: agent · lane starts · refused to the chain · of those downgraded"
+        + (
+            f" ({cov['v1_task_rows']} v1 fabrik-task rows excluded from lane starts)"
+            if cov["v1_task_rows"]
+            else ""
+        ),
+    ]
+    for name, a in doc["agents"].items():
+        lines.append(
+            f"  {name} · {a['starts']} · {_share(a['refused'], a['starts'])} · "
+            f"{_share(a['downgraded'], a['refused'])}"
+        )
+    denom = tts["spec"] - tts["downgraded_spec"]
+    ratio = "—" if tts["ratio"] is None else tts["ratio"]
+    run = "run" if tts["downgraded_spec"] == 1 else "runs"
+    lines.append(
+        f"task-to-spec: {tts['task']} task / {denom} spec = {ratio} "
+        f"({tts['downgraded_spec']} downgraded /fabrik-spec {run} excluded of {tts['spec']})"
+    )
+    med = "—" if t["median_min"] is None else t["median_min"]
+    toks = " · ".join(f"{k} {v}" for k, v in t["upgrade_tokens"].items())
+    lines.append(
+        f"task: median {med} min of {t['timed']}{_untimed(t)} · "
+        f"UPGRADE {_share(t['upgraded'], t['rows'])}"
+        + (f" [{toks}]" if toks else "")
+        + f" · downgraded-then-upgraded {_share(t['downgrade_then_upgrade'], t['from_downgrade'])}"
+    )
+    rv = doc["in_lane_review"]
+    rmed = "—" if rv["median_min"] is None else rv["median_min"]
+    lines.append(
+        f"in-lane full review: median {rmed} min of {rv['timed']}{_untimed(rv)} "
+        "(fabrik-review rows with parent: fabrik-task)"
+    )
+    sm = doc["small_specs"]
+    lines.append(
+        "small specs sent back to spec-review: "
+        f"{_share(sm['sent_back'], sm['rows'] - sm['unkeyed'])}"
+        + (f" [+{sm['unkeyed']} with no spec path in surface]" if sm["unkeyed"] else "")
+    )
+    ap = doc["over_appetite"]
+    cell = (
+        "—/0 phase marks"
+        if ap["phase_marks"] == 0
+        else f"{ap['over_appetite_phases']}/{ap['phase_marks']} phase marks "
+        f"({round(100 * ap['over_appetite_phases'] / ap['phase_marks'])}%)"
+    )
+    lines.append(
+        f"over-appetite: {cell} over {ap['rows']} rows"
+        + (f" [+{ap['unreadable']} unreadable]" if ap["unreadable"] else "")
+    )
+    pins = doc["pins"]
+    if pins["pinned"] is None:
+        lines.append(f"lane.json pins: unknown — task_lane.py unavailable ({pins['repos']} repos)")
+    else:
+        lines.append(f"lane.json pins: {len(pins['pinned'])} of {pins['repos']} repos")
+    for p in pins["pinned"] or []:
+        at = f"@{p['commit'][:12]}" if p["commit"] else "uncommitted"
+        lines.append(
+            f"  {p['repo']} v{p['version']} {at}" + (f" {p['warning']}" if p["warning"] else "")
+        )
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="Per-command optimisation report over the feedback ledger."
@@ -1758,9 +2161,36 @@ def main(argv: list[str] | None = None) -> int:
         help="review stages per change (plan/spec/D-row keyed from the surface) with their yield, and its "
         "coverage; honours --since/--agent/--command windows",
     )
+    ap.add_argument(
+        "--lane",
+        action="store_true",
+        help="the /fabrik-task lane's measures and kill-rule joins over the last 30 days "
+        "(--since overrides), from the feedback ledger and the lane-refusals.jsonl beside it",
+    )
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--ledger", type=Path, default=None)
     a = ap.parse_args(argv)
+    _lane_clash = [
+        n
+        for n, v in (
+            ("--command", a.command is not None),
+            ("--agent", a.agent is not None),
+            ("--queue", a.queue is not None),
+            ("--observer-rank", a.observer_rank),
+            ("--mark-answered", a.mark_answered is not None),
+            ("--take", a.take is not None),
+            ("--stages", a.stages),
+            ("--rows", bool(a.rows)),
+            ("--commit", bool(a.commit)),
+        )
+        if v
+    ]
+    if a.lane and _lane_clash:
+        # a --command or --agent filter would cut the joins the view exists for (a spec row and
+        # the task that downgraded it, a refusal and its agent's starts) — refused, not half-run
+        ap.error(
+            "--lane is its own report over every command and agent; drop " + ", ".join(_lane_clash)
+        )
     if a.stages and (
         a.queue is not None or a.observer_rank or a.mark_answered is not None or a.take is not None
     ):
@@ -1918,6 +2348,18 @@ def main(argv: list[str] | None = None) -> int:
         if message.startswith("PARTIAL") or message.startswith("REFUSED"):
             return 1
         return 0 if (written or message.startswith("nothing to do")) else 1
+    if a.lane:
+        refusals = _refusal_rows(ledger.parent / _LANE_REFUSALS if ledger is not None else None)
+        days = a.since if a.since is not None else _LANE_WINDOW_DAYS
+        cutoff = time.time() - days * 86400
+        # a row or refusal with no numeric `ts` falls outside every window: counted, never silent
+        undated_rows = sum(1 for r in rows if _num(r.get("ts")) is None)
+        rows = [r for r in rows if (_num(r.get("ts")) or 0) >= cutoff]
+        undated = sum(1 for r in refusals if _num(r.get("ts")) is None)
+        refusals = [r for r in refusals if (_num(r.get("ts")) or 0) >= cutoff]
+        doc = lane(rows, refusals, window_days=days, undated=undated, undated_rows=undated_rows)
+        sys.stdout.write((json.dumps(doc, indent=1) if a.json else _lane_text(doc)) + "\n")
+        return 0
     if a.stages:
         doc = stages(rows)
         sys.stdout.write((json.dumps(doc, indent=1) if a.json else _stages_text(doc)) + "\n")

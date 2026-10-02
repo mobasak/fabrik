@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `command_feedback_report.py --lane`: the /fabrik-task lane's 30-day measures and kill-rule joins (2026-10-02)
+
+`--lane` (plan 2026-10-02-plan-1, T06) reads the feedback ledger and the lane-refusal ledger `lane-refusals.jsonl` beside it and prints, over a stated window (30 days unless `--since`): per agent the refused and downgraded shares; the task-to-spec ratio with downgraded `/fabrik-spec` runs excluded (joined first on the exact `from_downgrade` id, then by maximum matching); the task median, the UPGRADE share and its per-token split; the in-lane full-review median (`parent: fabrik-task`); small specs sent back; the over-appetite share (`over_appetite_phases` over `phase_marks`); per-repo `.fabrik/lane.json` pins with worktrees collapsed. v1 task rows are excluded from lane starts and counted; undated refusals are disclosed; `--lane` refuses the other modes and `--rows`/`--commit`; `--json` output.
+
 ### Added — The in-lane review stops hunting at its first own-fix-only round (2026-10-02)
 
 `task_lane.scope_growth_rounds(stack)` returns `(1, 1)` when a review's record is nested directly under a `/fabrik-task` run, else today's `(3, 2)` (plan 2026-10-02-plan-1, T04; spec D8, V8). `check_review_coverage.py` grants the declared D-252 scope-growth stop on ONE confirming own-fix round only for a receipt whose header carries the exact line `**Lane:** fabrik-task` (`_LANE_OWN_FIX_ROUNDS_FOR_STOP = 1`); the `unexecuted:` check still reads the ordinary two-round window, and the review still closes only on a confirmed-zero pass (D-355). Wave review over T04, T06 and T07: `docs/development/reviews/2026-10-02-plan-1-fabrik-task-feature-lane-T04-review.md`.
