@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-spec and /fabrik-plan-after-chat: DOWNGRADE at spec time, `Size: small`, required `Appetite:` (2026-10-02)
+`/fabrik-spec` Phase 0 reads the newest lane refusal whose `--file` list overlaps the brief and, for one reversible decision with no open trade-off, writes a seed naming `/fabrik-task --from-downgrade <id>` and closes with `handoff --resume`; Phase 5 writes `Size: small` for a spec estimated at about 400 code lines and 5 code files or less, which goes straight to `/fabrik-plan-after-chat`. `/fabrik-plan-after-chat` mints no approval row for a small spec and requires `Appetite: <minutes>` on every phase or ticket it emits. Plan 2026-10-02-plan-1, T05b (spec D9, D10, D11).
+
 ### Added — plan graders: `Appetite:` per phase or ticket, and the Size-small spec rule (2026-10-02)
 New `scripts/enforcement/plan_appetite.py` (`LANE_ROLLOUT_DATE = "2026-10-03"`, the shared `PROFILE_RE`, and `lane_findings`, the one entry point `check_plan_tickets.py` and `check_plan_quality.py` both call on blockquote-stripped text). A plan dated on or after the rollout needs `Appetite: <positive integer minutes>` in every `## Phase <id>` of a monolith or in every ticket of a set; a `Profile: small` plan is refused unless its spec reads CONVERGED or carries `Size: small` — fail-closed when the spec's status or the spec itself cannot be read. Older plans are never re-graded (747 subjects re-graded, 0 changed). Plan 2026-10-02-plan-1, T05a (spec D10, D11).
 

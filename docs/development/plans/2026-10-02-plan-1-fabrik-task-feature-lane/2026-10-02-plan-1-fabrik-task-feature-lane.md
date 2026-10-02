@@ -33,7 +33,7 @@ A spec-fed delta plan: each ticket cites the spec section it implements and rest
 | T03b | The close's review receipt: the real command, the lane marker, checks (a)–(d) | T03a | ⛓️ | ⬜ | |
 | T04 | The in-lane review stops hunting at the first own-fix-only round | T03b | ⛓️ | ⬜ | |
 | T05a | Plan graders: Appetite per phase and the Size-small spec rule | — | ⚡ | ✅ | squash of worktree-agent-a749e8b44ee6b8c13 |
-| T05b | The spec and plan commands: size at spec time, DOWNGRADE, no false approval | — | ⚡ | 🔵 | |
+| T05b | The spec and plan commands: size at spec time, DOWNGRADE, no false approval | — | ⚡ | ✅ | squash of worktree-agent-a5bd5c37407d40e54 |
 | T05c | Plan review holds the small-spec gate; execute-plan passes phase appetite | — | ⚡ | ⬜ | |
 | T06 | The feedback report reads the lane's new fields | T03b | ⛓️ | ⬜ | |
 | T07 | /fabrik-task's own text and the run-record protocol | T03b | ⛓️ | ⬜ | |

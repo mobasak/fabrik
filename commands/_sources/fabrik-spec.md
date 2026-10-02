@@ -14,6 +14,20 @@ Turn a rough idea into an **approved design spec** — *what* to build, *why*, a
 
 {{include:delegated-reads}}
 
+- **DOWNGRADE check (BLOCKING, before anything else — spec § The delta D9):** read the newest row of the
+  lane-refusal ledger (`lane-refusals.jsonl`, beside the run-record state dir) whose declared `--file` list
+  overlaps this brief's surface — not only this session's refusals; the spec may run in a new window. When
+  the brief in fact settles **one reversible decision with no open trade-off**, this work never needed a
+  design: **WRITE the seed file to disk FIRST** — a scratch path carrying a `## RESUME` heading that names
+  `/fabrik-task --from-downgrade <refusal id>` as the restart, plus the refusal id, the one-line reason,
+  and the brief's own surface (the `--file` list this spec never got to design). `handoff --resume` REFUSES
+  (rc 1) a path that is not already a regular file, or that carries no `## RESUME` heading
+  (`command_run.py:4746-4756`) — so the file must exist BEFORE the command below runs, never named as a
+  placeholder for the command to fill in. Only THEN close this run with
+  `python3 scripts/command_run.py handoff --command fabrik-spec --resume <that seed path> --reason "DOWNGRADE: <refusal id> — <why no design is needed>" --feedback …`
+  naming that same seed, and hand the operator to the `/fabrik-task --from-downgrade <refusal id>` restart
+  instead of writing a spec. No matching refusal, or one that no longer holds (the brief DOES carry a
+  one-way decision or an open trade-off) → proceed to the rest of Phase 0 unchanged.
 - Explore project context first: files, recent commits, existing `specs/`/`docs/`, `AFCL.md`.
 - **Epic-file intake (spec § Chain consolidation (d)):** when the argument is a file under
   `docs/development/epics/` (an already-decomposed epic, not a from-scratch idea), this run's
@@ -322,7 +336,9 @@ interfaces — for each you can state *what it does / how you use it / what it d
 - Write to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` (allowlisted location). **Check before
   create** — if it exists, STOP and ask; never overwrite.
 - Open the spec with **`Status: DRAFT`** — this command writes DRAFT; the adversarial `/fabrik-spec-review`
-  flips it to `CONVERGED` in place after re-verifying every cited fact + auditing the vendor verdict.
+  flips it to `CONVERGED` in place after re-verifying every cited fact + auditing the vendor verdict —
+  **except a `Size: small` spec (below, spec § The delta D10): `/fabrik-plan-review` flips it, together
+  with the plan, at its own approval gate, and `/fabrik-spec-review` never runs on it.**
 - **`Profile: delta` — the brief profile, declared on the line under `Status:` (hub ruling D-153:
   *"brief profile is needed"*).** Trigger, countable: EVERY item of the Intake Inventory maps to code that
   exists today — the brief is a change to an EXISTING engine (the § Phase 0 INHERIT bullet's case), not a
@@ -337,6 +353,17 @@ interfaces — for each you can state *what it does / how you use it / what it d
   collapsed section keeps its heading and its one line** . The 1c URL floor is unchanged — a delta on an existing engine
   still grounds its approach. A brief that fails the trigger (any item with no existing code behind it)
   takes the full section set; state the profile verdict either way.
+- **`Size: small` (spec § The delta D10) — estimate the diff, skip the review loop.** Before Phase 6,
+  estimate the code diff this spec's own deltas will produce using D-169's rule (the same rule
+  `/fabrik-plan-after-chat` applies to a plan, `commands/_sources/fabrik-plan-after-chat.md:210-222`): code
+  lines and code files, tests excluded. **≤ ~400 code lines AND ≤ 5 code files ⇒ write
+  `Size: small (≈<lines> lines, <files> files)` on its own line directly under `Status:`** — a separate key
+  from `Profile:` above, since `Profile: delta` already names the BRIEF's own shape, not the code estimate.
+  A `Size: small` spec skips `/fabrik-spec-review` entirely: after the self-review below, hand it straight
+  to **`/fabrik-plan-after-chat <spec path>`**, which plans it as `Profile: small` and whose own
+  `/fabrik-plan-review` grades the spec's sections together with the plan, flips BOTH to `CONVERGED`, and
+  holds the operator's design-approval gate in its place (Phase 6's exception, below). An estimate over
+  either bound writes no `Size:` line and keeps the full chain — Phase 6 runs `/fabrik-spec-review` as today.
 - The spec MUST contain a **`## Personas`** section, FIRST among the content sections (operator law
   2026-08-29: *"all specs must address all relevant personas"*): **(a)** EVERY relevant persona
   enumerated — including the ones specs forget (the RECEIVER of anything sent, the payer if distinct
@@ -385,12 +412,21 @@ interfaces — for each you can state *what it does / how you use it / what it d
   internal consistency (architecture matches features); scope (single buildable spec or decompose);
   ambiguity (pick one interpretation, make it explicit); and — Fabrik-specific — did any capability skip the
   vendor ladder? is any external claim ungrounded or from memory? Fix all before proceeding.
-- After the self-review, go straight to Phase 6 — the independent `/fabrik-spec-review` convergence runs BEFORE the user
-  approves, so the user approves a hardened (CONVERGED) spec, never an unverified DRAFT.
+- After the self-review, go straight to Phase 6 — for a full-profile spec, the independent
+  `/fabrik-spec-review` convergence runs BEFORE the user approves, so the user approves a hardened
+  (CONVERGED) spec, never an unverified DRAFT. **Exception — a `Size: small` spec (above):** Phase 6 skips
+  that call entirely and hands the DRAFT straight to `/fabrik-plan-after-chat` instead, whose own
+  `/fabrik-plan-review` grades it (Phase 6's own exception, below, states this) — never both.
 
 ## Phase 6 — Converge (MANDATORY), then hand off
 
-**MANDATORY final step — immediately invoke `/fabrik-spec-review <spec path>` (via the Skill tool) and run
+**Exception — a `Size: small` spec (Phase 5, spec § The delta D10) skips this phase's call entirely:** do
+NOT invoke `/fabrik-spec-review`; hand the DRAFT straight to `/fabrik-plan-after-chat <spec path>` instead.
+Its own `/fabrik-plan-review` grades this spec's sections together with the plan, flips both to
+`CONVERGED`, and holds the operator's approval gate there — never twice. Everything else in this phase
+(the MANDATORY call, the comparison table, the approval gate below) is the full-profile path, unchanged.
+
+**MANDATORY final step (full-profile specs only) — immediately invoke `/fabrik-spec-review <spec path>` (via the Skill tool) and run
 it to a fixed point in THIS turn. Do not just name it — call it.** Phase 5's self-review is the light inline
 pass; `/fabrik-spec-review` is the independent adversarial one that re-verifies every cited external fact
 against the live web, audits the fabrik-lib vendor→enhance→build verdict against real modules, iterates to a

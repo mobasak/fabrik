@@ -54,6 +54,11 @@ First capture the **source of truth** — do NOT invent scope:
   conversational turn no command contract bound) → mint it HERE before planning, then proceed
   (`/fabrik-spec-review` § after-CONVERGED owns that
   mint) — a decision made HERE always rows HERE.
+  **Exception — a `Size: small` spec (its own `Size:` line under `Status:`, spec § The delta D10): the
+  row-absent branch above does NOT apply.** Its approval never minted at `/fabrik-spec-review` time (that
+  review never ran on it) and does not mint HERE either — mint NO approval row in this phase for it.
+  `/fabrik-plan-review` mints it at its own approval gate, once this plan's spec and ticket sections have
+  converged together (this plan's `Profile: small` emit rule, Phase 2 below). Proceed straight to planning.
 - Then branch, and **state which branch you took and why**:
   - **RICH** (the chat/args already pin the goal AND the approach) → skip brainstorming, go to Phase 1.
   - **THIN** (goal or approach is vague/ambiguous/empty) → **spec FIRST** (invoke **`/fabrik-spec`** — the
@@ -220,6 +225,16 @@ the ONE heavy round — the `/fabrik-execute-plan` D7 floor (≥1 Opus authorita
 Behavior Contract rows stay one per behaviour, but the TEST budget is proportional: target ≤ ~1.5× the
 code diff in test lines, and seam tests are written ONCE, in the last phase, never repeated per phase.
 The profile's floor is about an hour of execution; larger than that ⇒ the shape decision.
+
+**Every phase or ticket declares `Appetite: <minutes>` (spec § The delta D11) — every profile, both
+shapes.** Write `Appetite: <minutes>` on its own header line for every phase (monolith) or ticket
+(spine+ticket set) — state a number you actually expect THAT phase/ticket to take, never a placeholder.
+`scripts/enforcement/check_plan_tickets.py` and `check_plan_quality.py` refuse a plan carrying none, for
+plans dated on or after the rollout (older plans are not re-graded). `/fabrik-execute-plan` passes it at
+`step --phase N --appetite <m>` and prints `elapsed <m>/<appetite> min` at the phase marker; past 2×
+elapsed it prints the standing order to stop and re-plan the rest of the phase with
+`/fabrik-plan-after-chat`, and the close records `phases: <n>` / `over_appetite_phases: <k>` — an order and
+a recorded verdict, never a forced cancel.
 
 **⚠️ SHAPE DECISION FIRST — monolith or spine+tickets.** Emit the **spine+ticket plan SET** when ANY
 of: the work decomposes into **>3 phases** · the projected monolith would exceed **~300 lines** · any
