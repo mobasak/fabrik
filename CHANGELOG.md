@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — ai/40-multimodal: route each modality to an engine that reads it — Claude for images and PDFs, Gemini for video and audio (2026-10-02)
+
+`.windsurf/rules/ai/40-multimodal.md` pinned an Opus model by version, offered GPT-4o, LLaVA and Kosmos-2, named Kilo and Traycer, and gave no route for the audio and video Claude cannot read. Now images and documents go to Claude through `claude -p` on ai/20's ladder, PDFs are read text first through fabrik-lib's `pdf-extract` and `ocr`, speech goes through ai/10's transcript, video and non-speech audio go to Gemini's Flash-Lite tier through OpenRouter, and open weights go to Qwen's models hosted first per core/76. ai/20's pointer to this pack is updated. New `tests/test_multimodal_pack.py` (39 mutants, each red); 8 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-02-multimodal-currency-ledger.md`; D-508.
+
 ### Changed — ai/30-language: Claude first for language work and translation, DeepL last, embeddings defer to core/65 (2026-10-02)
 
 `.windsurf/rules/ai/30-language.md` pinned Claude models by version, defaulted translation to DeepL against ai/00, offered Supabase for pgvector, listed GPT-4 and Cohere's legacy summarize endpoint, and carried a summarization glob the matcher never fired. Now LLM work, summarization and translation go to Claude through `claude -p`; translation runs through fabrik-lib's `mt-router` (pass context or `MT_CLAUDE_PLAIN=1`; drop its DeepL tier with `configure(deepl_api_key="")` until fabrik-lib reorders it), a pair leaves Claude only on a recorded bake-off, and DeepL comes last on the operator's ruling that it is not context-aware enough. Embeddings defer to core/65's binding roster. New `tests/test_language_pack.py` (29 mutants, each red); 6 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-02-language-currency-ledger.md`; D-505.

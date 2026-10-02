@@ -141,9 +141,9 @@ def test_managed_and_sibling_caveats_hold() -> None:
     assert "Neither is set up today" in caveat and "has no AWS row" in caveat, (
         "the managed OCR route lost its caveat that neither Google Cloud nor AWS is set up"
     )
-    first = _defaults().split("\n- ", 2)[1]
-    assert "ai/00 wins" in first, (
-        "the pointer to ai/40 no longer says ai/00's ladder overrides ai/40's pinned model"
+    first = re.sub(r"\s+", " ", _defaults().split("\n- ", 2)[1])
+    assert re.search(r"ai/40-multimodal\.md, which starts that work on this same ladder", first), (
+        "the pointer to ai/40 no longer says that pack starts on this same Claude ladder"
     )
 
 
