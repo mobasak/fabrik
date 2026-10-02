@@ -182,11 +182,12 @@ Appetite: 70
     bool, dry_run: bool) -> list[HealResult]` — `audits` maps spec id → `audit_all` result; `claims` and
     `claims_complete` come from the script (below). For each spec id whose `postgres` result is `drift` with `actual["found"] is True`
     and `actual["in_registry"] is False` (`audit.py:197-202`), with `db = actual["db_name"]`:
-    1. the claim map comes from the specs, never from audit outcomes: `claims(specs) -> dict[str, list[str]]` maps
-       `_db_name_for_spec(spec.model_dump())` → spec ids over every loaded spec whose postgres registrar applies,
-       whatever its audit returned (an `unknown` or skipped sibling still counts). When any database spec failed to load
+    1. the claim map comes from the specs, never from audit outcomes: `claims(specs) -> tuple[dict[str, list[str]],
+       list[str]]` returns (the map `_db_name_for_spec(spec.model_dump())` → spec ids over every loaded spec whose postgres
+       registrar applies, whatever its audit returned — an `unknown` or skipped sibling still counts; the ids whose name
+       failed to resolve, never raising). When any database spec failed to load
        or to resolve its name this run, every candidate gets `failed`, reason `claims-unresolved`, and nothing is written
-       — the provisioner raises rather than guess in the same case (`orchestrator/infrastructure.py:504-506`). Otherwise
+       — the provisioner raises rather than guess in the same case (`orchestrator/infrastructure.py:506-508`). Otherwise
        a `db` with two or more claimants gets `shared` (reason: the other spec ids, comma-joined) and nothing is written
        (`orchestrator/infrastructure.py:500-547`);
     2. else `dry_run` → `would-register`;
@@ -199,9 +200,10 @@ Appetite: 70
     One log line per result. It reads only the audit results the cron computed, plus `_db_owner`.
 - `scripts/audit_all_registrars.py`:
   - `main` (`:129-181`) keeps a `specs: dict[str, Spec]` beside `results` and builds `audits = dict(results)`; after the
-    audit loop it computes the claim map with `registry_reconcile.claims(specs.values())` and `claims_complete` (no spec
-    failed to load and no database spec's name failed to resolve); `m = registry_reconcile.mode()`; when `m != "off"`,
-    `heals = reconcile_postgres(audits, claims, claims_complete=..., dry_run=(m == "report"))`, then re-run
+    audit loop it computes `claim_map, unresolved = registry_reconcile.claims(specs.values())` and
+    `claims_complete = error_count == 0 and not unresolved` (no spec failed to load or audit, no database spec's name
+    failed to resolve); `m = registry_reconcile.mode()`; when `m != "off"`,
+    `heals = reconcile_postgres(audits, claim_map, claims_complete=claims_complete, dry_run=(m == "report"))`, then re-run
     `audit_all(specs[sid])` only for `registered` results and replace them in `results`.
   - `_render_metrics(results, heals, *, success: bool, spec_errors: int)` (`:72-102`) keeps both existing gauges and adds
     `fabrik_registry_heal_total{spec_id,db,outcome} 1` per heal, `fabrik_registry_heal_failed{spec_id,db,reason} 1` per
@@ -246,7 +248,7 @@ Appetite: 70
 - **Given** a registry write raises, or the owner lookup returns nothing, **When** the reconcile runs, **Then** the outcome is `failed` with the reason, nothing is written, a `fabrik_registry_heal_failed` sample is rendered and the run still renders its other series (B4; `spec § The delta` D5)
 - **Given** a run with no spec errors whose reconcile raises nothing, **When** the cron pushes, **Then** it uses `PUT` and the payload carries `fabrik_audit_last_success_timestamp_seconds`; a run with a spec error, or whose reconcile raises, renders no timestamp and renders `fabrik_audit_spec_errors` (B5; `scripts/audit_all_registrars.py:119`)
 - **Given** a stale entry (entry, no database) or a `missing` result, **When** the reconcile runs, **Then** it writes nothing and returns no result for it (B6; `src/fabrik/audit.py:197-203`; `spec § The delta` D3)
-- **Given** two specs that resolve to the same orphan database — including when one of them audits `unknown` — **When** the reconcile runs in `apply` mode, **Then** the orphan gets outcome `shared`, naming the other, and nothing is written; and when any database spec failed to load or resolve, every candidate gets `failed claims-unresolved` and nothing is written (B7; `src/fabrik/orchestrator/infrastructure.py:500`; `spec § The delta` D3)
+- **Given** two specs that resolve to the same orphan database — including when one of them audits `unknown` — **When** the reconcile runs in `apply` mode, **Then** the orphan gets outcome `shared`, naming the other, and nothing is written; when a spec's `depends.postgres` is not a string, `claims()` lists its id in `unresolved` without raising; and when `claims_complete` is false, every candidate gets `failed claims-unresolved` and nothing is written (B7; `src/fabrik/orchestrator/infrastructure.py:500`; `spec § The delta` D3)
 
 ## Phase C — Alerts, docs and Finish
 
@@ -421,7 +423,7 @@ local .env.example
   `_db_name_for_spec`) and the `POST` push (D5 now switches to `PUT`).
 - (a) Coverage: I1-I6 map to Phases A-C and the rollout; I7-I11 have named destinations.
 - (b) Signatures: `register_allocation_if_absent(db, *, spec_id, user, owner, notes) -> bool` (A) is what B calls;
-  `HealResult` and `reconcile_postgres(audits, *, dry_run)` (B) are what the script calls; the series B renders are what
+  `HealResult`, `claims(specs) -> (map, unresolved)` and `reconcile_postgres(audits, claims, *, claims_complete, dry_run)` (B) are what the script calls; the series B renders are what
   C's rules read: `fabrik_registry_heal_failed`, `fabrik_audit_last_success_timestamp_seconds` (plus
   `fabrik_registry_heal_total` and `fabrik_audit_spec_errors`, read by people, not rules).
 - Not yet at a fixed point: `/fabrik-plan-review` runs next.
@@ -446,6 +448,7 @@ both). The spec is `Size: small`, so its sections are graded here with the plan 
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (`rules`, 58 claims) + sonnet×1 (`prose`, 23 claims) · all axes, plus two orchestrator probes | found: 24, new: 24, confirmed: 23, fixed: 23, unexecuted: 0, edits: 31 | method: citation — full partitioned pass; every candidate executed by the orchestrator or by its seat's probe. Orchestrator probes: the name-rule move hits 9 of 23 postgres-applicable specs, 4 onto one database `main` (→ outcome `shared`). Rules: the `apply` default would write before the report pass (→ default `report`); a `PUT` without the timestamp deletes it so `FabrikAuditStale` could never fire (→ `or absent(...)`, promtool-proven); `_db_owner` `None` fell back to `db` (→ `failed owner-unresolved`); `registered` vs `already-present` was unknowable (→ `register_allocation_if_absent -> bool`, B2 tested on the real lock path); a changing `reason` reset `for: 2h` (→ `max by (spec_id, db)`); `PUT` drops a skipped spec's drift series (→ `fabrik_audit_spec_errors`, no timestamp on a spec error); `depends.postgres` has no pattern before SQL (→ `_validate_identifier`); the pusher grep, the header-check path and coverage, the writer lines, signature/date/series wording, the import-cycle reasoning, the self-healing scope (MATCHED via `**/health*` → row proposed to infra). Prose: B6 script path, A5 watched the wrong row, B1 patched names on the wrong module, the shared-append recipe's section, the site-provisioner spellings. Refuted 1: listing `INDEX.md`/`CHANGELOG.md` in File Scope (governance files are excluded by the plan grammar). | df375e0a1b89c80e8b659e1df6a31e24 → 91abe075c42a0903005f2476af829d62 · 7d45177e4fe9cb2aac559fa124b5f5bb → fedc2db3e83527c8f7d6f84563f8fe2d |
 | Pass 2 | opus×1 (round-1 owner of `rules`, 30 claims re-executed) + sonnet×1 (round-1 owner of `prose`, 9 claims) · the round-1 fix hunks + one hop | found: 4, new: 4, confirmed: 4, fixed: 4, unexecuted: 0, edits: 9 | method: re-derivation — all 21 round-1 candidates re-verified closed against the pin; promtool re-run on the corrected rules (6 cases, SUCCESS; orchestrator's own 3-case run SUCCESS, `check rules` → `SUCCESS: 3 rules found`); the 9/23 name-move probe re-run independently (identical). Confirmed, all inside round-1 fix text: N1 the `shared` claim map counted only audit outcomes, so an `unknown` or skipped sibling made a shared database look singly claimed (→ claims from every loaded database spec's name rule; any load/resolve failure → `failed claims-unresolved`); N2 spec D6 still said the first run registers (→ after the operator turns on `apply`); R1's unconditional "`main` must read `shared`" (→ conditional); the spec Personas' 0-step budget ignored the one-time opt-in. Recorded and folded: the name is resolved after the `n/a` return; the stale alert's `absent` arm also means a spec error (doc step); the promtool fixture sets `exp_annotations`. | 5287d516473890980855530c4d4fa7f4 → cfc00b95f94f51d75b77b2d56c12c11e · fedc2db3e83527c8f7d6f84563f8fe2d → a449286da9e9b5a144bc244234471287 |
+| Pass 3 | opus×1 (owner of `rules`, 12 claims re-executed) + sonnet×1 (owner of `prose`, 6 claims) · the round-2 fix hunks + one hop | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0, edits: 7 | method: re-derivation — the claim map executed over the live specs by both seats and the orchestrator (20 databases, `main` → 4 spec ids, 0 load and 0 resolve failures, so `claims_complete` is true today); all six round-2 closures re-verified. Confirmed, all inside round-2 fix text: C3-1 the old `reconcile_postgres` signature survived in spec D3 and the plan Self-audit; C3-2 `claims()` had no channel for an unresolved name (→ returns `(map, unresolved)`; `claims_complete = error_count == 0 and not unresolved`; B7 covers a non-string `depends.postgres`; spec: "any spec failed to load"); C3-3 the `infrastructure.py` anchor is `:506-508`. **Scope-growth stop:** Passes 2 and 3 were both all own-fix (4/4, 3/3), so the named set is fixed here and the next pass re-verifies only that set; a further own-fix defect is recorded, not re-armed. | 88257bf53723283202fabc87bee06a3d → 71fe2f5df1d6912e108d876bc88efcb0 · a449286da9e9b5a144bc244234471287 → b516d477ca963a2493568cd02d406956 |
 
 ## Coverage Checklist
 

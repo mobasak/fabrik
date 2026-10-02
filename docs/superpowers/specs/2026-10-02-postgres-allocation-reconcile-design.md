@@ -142,12 +142,14 @@ D2. **Register only if absent, decided inside the lock.** `src/fabrik/drivers/po
     reconcile knows whether it actually wrote.
 
 D3. **The reconcile.** A new module, `src/fabrik/registry_reconcile.py`, exposes
-    `reconcile_postgres(audits, *, dry_run: bool) -> list[HealResult]`, where `audits` maps each spec id to the
-    `audit_all` result the cron already computed. For each spec whose `postgres` result is `drift` with
+    `reconcile_postgres(audits, claims, *, claims_complete: bool, dry_run: bool) -> list[HealResult]`, where `audits`
+    maps each spec id to the `audit_all` result the cron already computed, `claims` maps each database to the spec ids
+    that claim it (from `claims(specs)`, below) and `claims_complete` says no spec failed to load or audit and no name
+    failed to resolve. For each spec whose `postgres` result is `drift` with
     `actual.found is True` and `actual.in_registry is False` (the orphan quadrant, `audit.py:197-202`), with
-    `db = actual.db_name`: a run in which any database spec failed to load or resolve its name → `failed`, reason
+    `db = actual.db_name`: a run in which any spec failed to load, or any database spec failed to resolve its name → `failed`, reason
     `claims-unresolved`, for every candidate (the provisioner raises rather than guess in that case,
-    `orchestrator/infrastructure.py:504-506`); a database two or more specs claim → `shared` (below), the claims counted
+    `orchestrator/infrastructure.py:506-508`); a database two or more specs claim → `shared` (below), the claims counted
     from every loaded database spec's name rule, never from audit outcomes, so an `unknown` sibling still counts; in `report` mode → `would-register`;
     otherwise `user = _db_owner(db)` (`postgres.py:572`) — `None` (the database is gone, or its owner fails validation) →
     `failed`, reason `owner-unresolved`, no write — then `register_allocation_if_absent(db, spec_id=..., user=user,
