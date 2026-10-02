@@ -18,7 +18,7 @@ can go false with no other gate red:
 
 Guards read structure (one bullet at a time, emphasis stripped, whole words) so a restyled line keeps its meaning. The
 cheapest way past (3) is to keep the words while routing audio to Claude in a sentence the bullet parser does not read;
-the review reads the defaults. The cheapest way past (6) is a version in words; the detector catches the shapes agents
+the defaults and the Subcategories audio lane are pinned bullet by bullet, and the review reads the rest. The cheapest way past (6) is a version in words; the detector catches the shapes agents
 copy.
 """
 
@@ -174,9 +174,19 @@ def test_self_host_defers_to_core76_and_the_trap_holds() -> None:
 def test_subcategories_route_each_modality() -> None:
     video = _bullet("Subcategories", "Video")
     assert re.search(r"OpenAI's models take no video", video), "the video lane no longer says OpenAI takes no video"
+    # every audio lane opens on Gemini, and no clause in it hands audio to Claude
+    audio = _bullet("Subcategories", "Audio")
+    assert re.search(r"^Audio understanding[^:]*:\s*Gemini \(default\)", audio), (
+        f"the audio lane no longer defaults to Gemini: {audio[:70]!r}"
+    )
+    assert not re.search(r"\bClaude\b", audio), f"the audio lane routes audio to Claude: {audio!r}"
     docs = _bullet("Subcategories", "Document")
-    for needle in ("Mistral OCR", "LlamaParse", "Docling", "file-parser", "signup"):
+    for needle in ("Mistral OCR", "LlamaParse", "Docling", "file-parser", "signup", "mistral-ocr"):
         assert needle in docs, f"the document lane no longer names {needle!r}"
+    # OpenRouter's file-parser defaults to the model's native file input; Mistral OCR is the engine you set or the fallback
+    assert not re.search(r"Mistral OCR[^.;]{0,80}\bdefault engine", docs), (
+        "the document lane calls Mistral OCR the file-parser's default again"
+    )
     gateway = _plain(_section("Gateway coverage").split("<!-- GATEWAY_COUNTS:START", 1)[0])
     assert "architecture.input_modalities" in gateway and "no video-input flag" in gateway, (
         "the gateway note no longer points at a video-input check that exists"

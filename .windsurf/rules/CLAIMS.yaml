@@ -2915,8 +2915,8 @@ claims:
   - id: document-parser-prices
     pack: ai/40-multimodal.md
     kind: pricing
-    claim: "Mistral OCR is about $4 per 1,000 pages ($2 through its batch API); LlamaParse is 1,000 credits for $1.25 at 1 to 45 credits a page; Docling is MIT-licensed"
-    verify: "https://mistral.ai/pricing/api/ ; https://mistral.ai/news/ocr-4/ ; https://www.llamaindex.ai/pricing ; https://github.com/docling-project/docling (firecrawl + brave, 2026-10-02; ledger v2-18..v2-21)"
+    claim: "Mistral lists OCR at about $4 per 1,000 pages; OpenRouter's file-parser plugin hands a PDF to a model that reads files natively unless an engine is set, falls back to its mistral-ocr engine otherwise, and bills that engine per page to the OpenRouter account; LlamaParse is 1,000 credits for $1.25 at 1 to 45 credits a page; Docling is MIT-licensed"
+    verify: "https://mistral.ai/pricing/api/ ; https://openrouter.ai/docs/guides/overview/multimodal/pdfs ; https://www.llamaindex.ai/pricing ; https://github.com/docling-project/docling (firecrawl + brave + WebFetch, 2026-10-02; ledger v2-18..v2-21, op-07, rv-01)"
     window_days: 90
     last_verified: 2026-10-02
   - id: qwen-open-multimodal-licence

@@ -72,10 +72,11 @@ source of truth for callable vendors) says which ones have keys today; OpenAI an
 - **Visual question answering, captioning, charts:** Claude (default); Gemini's Flash-Lite tier through OpenRouter as
   the measured cheap fallback; Qwen's open models.
 - **Document understanding:** Claude for a few documents. For bulk parsing: Mistral OCR through OpenRouter's
-  file-parser plugin (its default engine, billed per page to the OpenRouter account — Mistral direct has no key; about
-  $4 per 1,000 pages there, $2 through its batch API), LlamaParse (a new vendor that needs a signup; from 1 to 45 credits
-  a page, 1,000 credits for $1.25), or Docling (MIT, self-hosted, with IBM's small Granite document model). Gemini reads PDFs up to 1,000 pages and does not charge
-  for their native text.
+  file-parser plugin (set its engine to `mistral-ocr`; billed per page to the OpenRouter account, since Mistral direct
+  has no key; Mistral lists about $4 per 1,000 pages), LlamaParse (a new vendor that needs a signup; from 1 to 45
+  credits a page, 1,000 credits for $1.25), or Docling (MIT, self-hosted, with IBM's small Granite document model).
+  Gemini reads PDFs up to 1,000 pages and does not charge for their native text; OpenRouter hands a PDF straight to a
+  model that reads files natively unless an engine is set, and falls back to Mistral OCR for one that does not.
 - **Video understanding:** Gemini (default); Qwen's open models or its open omni model. OpenAI's models take
   no video.
 - **Audio understanding (sound events, music, and how speech was said):** Gemini (default); OpenAI's audio model and Qwen's
