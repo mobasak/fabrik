@@ -99,7 +99,7 @@ def test_llm_and_translation_go_to_claude_first() -> None:
         "ai/00 changed its translation rule: re-align"
     )
     llm = _bullet("Fabrik defaults", "LLM")
-    assert "Claude through claude -p" in llm and "by alias" in llm, (
+    assert "Claude through claude -p" in llm and re.search(r"\balias", llm), (
         "the LLM default is no longer Claude by alias"
     )
     translation = _bullet("Fabrik defaults", "Translation")
@@ -121,6 +121,9 @@ def test_llm_and_translation_go_to_claude_first() -> None:
     assert "MT_CLAUDE_PLAIN=1" in translation and "context" in translation, (
         "the plain-path knob is gone"
     )
+    # until fabrik-lib reorders mt-router, DeepL fires right after Claude whenever its key is set: the pack must say
+    # how to honor the ruling, or "DeepL last" is contradicted by the module it routes through
+    assert 'configure(deepl_api_key="")' in translation, "the DeepL opt-out for mt-router is gone"
     assert "decision ledger" in translation and "project.yaml" in translation, (
         "the bake-off result no longer says where it is recorded"
     )

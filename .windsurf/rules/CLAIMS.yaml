@@ -2831,7 +2831,7 @@ claims:
   - id: llm-translation-wmt
     pack: ai/30-language.md
     kind: practice
-    claim: "In the human evaluation of the WMT shared task of 2025, frontier LLMs were competitive with dedicated MT; the best system overall was Gemini 2.5 Pro, and the winner varied by language pair (Claude was in the winning cluster for three pairs)"
+    claim: "In the human evaluation of the WMT shared task of 2025, frontier LLMs were competitive with dedicated MT, with the winner varying by language pair"
     verify: "https://aclanthology.org/2025.wmt-1.22.pdf ; https://aclanthology.org/volumes/2025.wmt-1 (exa + brave + firecrawl, 2026-10-02; ledger tr-12, op-02)"
     window_days: 365
     last_verified: 2026-10-02

@@ -27,13 +27,15 @@ Last content verification: 2026-10-02
 - **Summarization and extraction → Claude**, with `llm-dispatch`'s schema-enforced JSON (`json_schema`) rather than
   prompt-and-parse.
 - **Translation → Claude first**, as ai/00 says, through fabrik-lib's `mt-router`. Its Claude tier (Opus, the module's
-  own measured choice) runs only on the context path: always pass product context, or set `MT_CLAUDE_PLAIN=1`, or a plain
-  call goes straight to the metered engines. Behind Claude sit DeepL or Azure (when their keys are set), then a
-  per-language chain across OpenRouter, DashScope and SiliconFlow. Claude first rests on ai/00's subscription cost rule;
-  the WMT shared task of 2025 showed frontier LLMs competitive with dedicated MT in human evaluation, with the winner
-  varying by language pair. So move a pair to another engine only when a bake-off shows Claude misses that pair's
-  quality or cost bar, and record the result in the project's decision ledger and project.yaml. DeepL comes last in that
-  choice: the operator rejected its translations as not context-aware enough (D-505).
+  own measured choice) runs only on the context path: always pass product context, or set `MT_CLAUDE_PLAIN=1`, or a
+  plain call goes straight to the metered engines. Behind Claude, mt-router today tries DeepL and then Azure whenever
+  their keys are set — and the fleet env sets DeepL's — then a per-language chain across OpenRouter, DashScope and
+  SiliconFlow; until fabrik-lib reorders it, honor the DeepL ruling below by calling
+  `mt_router.configure(deepl_api_key="")` after import. Claude first rests on ai/00's subscription cost rule; the WMT
+  shared task of 2025 showed frontier LLMs competitive with dedicated MT in human evaluation, with the winner varying by
+  language pair. So move a pair to another engine only when a bake-off shows Claude misses that pair's quality or cost
+  bar, and record the result in the project's decision ledger and project.yaml. DeepL comes last in that choice: the
+  operator rejected its translations as not context-aware enough (D-505).
 - **Embeddings and vector search → pgvector on `postgres-main`**, embeddings through OpenRouter's `/embeddings` via
   fabrik-lib's `rag` module, the model an env value (`RAG_EMBEDDING_MODEL`). core/65-rag-search.md owns the binding
   model roster, the dimensions, the index — and the fact that `postgres-main` does not carry the `vector` extension yet,
@@ -58,13 +60,14 @@ default.
   Google's Gemini embeddings (both on OpenRouter), Voyage AI (the partner Anthropic's docs recommend; now part of
   MongoDB, its API unchanged) and Cohere Embed (direct). The store is always pgvector.
 - **Translation:** Claude through `mt-router` (above). For a pair a bake-off moves off Claude, try an engine that takes
-  context first — another LLM through OpenRouter, or Qwen-MT on DashScope (its flash tier; the turbo tier is no longer
-  updated) — then the managed engines: Azure AI Translator (about $10 per million characters, 2 million a month free on
-  its free resource) and Google Cloud Translation (about $20 per million characters after 500,000 free a month; needs a
-  Google Cloud signup, which the vendor-access catalog lists as not set up). DeepL last, on the operator's ruling above;
-  its API Free and Pro plans are closed to new customers (a new account gets a one-time 1 million characters, then the
-  Growth plan), and its next-gen model is opt-in (`model_type=quality_optimized`, listed for the paid plans) — which
-  `mt-router` does not send today.
+  context first — another LLM through OpenRouter, or Qwen-MT on DashScope (its flash tier, called directly — the turbo
+  tier is no longer updated, and mt-router still pins it) — then the managed engines: Azure AI Translator (about $10 per
+  million characters, 2 million a month free on its free resource) and Google Cloud Translation (about $20 per million
+  characters after 500,000 free a month; needs a Google Cloud signup: the vendor-access catalog has no Translation row
+  and lists its Google Cloud projects as not set up). DeepL last, on the operator's ruling above; its API Free and Pro
+  plans are closed to new customers (a new account gets a one-time 1 million characters, then the Growth plan), and its
+  next-gen model is opt-in (`model_type=quality_optimized`, listed for the paid plans) — which `mt-router` does not send
+  today.
 - **Summarization and extraction:** Claude, above. Cohere's summarize endpoint is legacy and unmaintained.
 
 ## Gateway coverage
