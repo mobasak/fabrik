@@ -632,7 +632,7 @@ class InfrastructureProvisioner:
             self._provision_gatus(name, domain, spec, ctx, dry_run)
 
         if should_run["backrest"]:
-            self._provision_backrest(name, ctx, dry_run)
+            self._provision_backrest(name, spec, ctx, dry_run, with_database=should_run["postgres"])
 
         if should_run["glitchtip"]:
             self._provision_glitchtip(name, ctx, dry_run)
@@ -1134,15 +1134,51 @@ class InfrastructureProvisioner:
         except Exception as e:  # noqa: BLE001
             self._nonfatal(ctx, "gatus", e)
 
-    def _provision_backrest(self, name: str, ctx: DeploymentContext, dry_run: bool) -> None:
-        try:
-            from fabrik.drivers.backrest import add_backup_plan
+    def _provision_backrest(
+        self,
+        name: str,
+        spec: dict[str, Any],
+        ctx: DeploymentContext,
+        dry_run: bool,
+        *,
+        with_database: bool,
+    ) -> None:
+        """Check and warn, never write (W-5c4ad6a6, D-518).
 
-            plan_id = f"{name}-data"
-            paths = [f"/opt/{name}/data"]
-            result = add_backup_plan(plan_id, paths, dry_run=dry_run)
-            ctx.add_resource("backrest", plan_id, status=result.get("status"))
-            logger.info("backrest: %s → %s", plan_id, result.get("status"))
+        Backrest plans are host-level and operator-owned: the registrar names every path or database
+        dump no trusted plan covers, writes no plan and records no resource. ``unknown`` (a probe
+        failed) is a non-fatal registrar failure; every other finding is a warning.
+        """
+        if dry_run:
+            logger.info("backrest: dry run — coverage check skipped for %s", name)
+            return
+        try:
+            from fabrik.app_role_check import _db_name_for_spec
+            from fabrik.drivers import backrest
+            from fabrik.drivers.ssh import DEFAULT_SSH_HOST
+
+            db: str | None = None
+            if with_database:
+                try:
+                    db = _db_name_for_spec(spec)
+                except ValueError as e:
+                    logger.warning("backrest: %s: database not checked: %s", name, e)
+            # read before coverage_findings swaps FABRIK_VPS_SSH_HOST; the hub alias is `vps`,
+            # while a spoke's target_vps (vps2, vps3) is already its SSH alias
+            hub = os.getenv("FABRIK_VPS_SSH_HOST", DEFAULT_SSH_HOST)
+            target = hub if ctx.target_vps == "vps1" else ctx.target_vps
+            status, findings, actual = backrest.coverage_findings(
+                name, db, target_host=target, hub_host=hub
+            )
+            if status == "unknown":
+                raise RuntimeError("; ".join(findings) or "coverage unknown")
+            for finding in findings:
+                logger.warning("backrest: %s: %s", name, finding)
+            if status == "present":
+                ids = sorted(set((actual.get("covered_by") or {}).values()))
+                logger.info(
+                    "backrest: %s covered by %s", name, ", ".join(ids) or "its database plan"
+                )
         except Exception as e:  # noqa: BLE001
             self._nonfatal(ctx, "backrest", e)
 

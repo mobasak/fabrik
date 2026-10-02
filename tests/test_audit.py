@@ -213,92 +213,92 @@ class TestAuditGatus:
 
 
 class TestAuditBackrest:
+    """W-5c4ad6a6 (D-518): the audit reports ``backrest.coverage_findings``, read-only."""
+
     @staticmethod
-    def _fake_ssh(config: str, missing: str = ""):
-        """Answer all THREE distinct SSH calls audit_backrest now makes.
+    def _run(spec, ret=("present", [], {"covered_by": {"/v": "docker-volumes"}}), raises=None):
+        calls: list[dict] = []
 
-        1. `docker ps` container lookup — must return a real name: `_resolve_container`
-           caches per-process in a module-level dict, so returning "" here poisons
-           `_CONTAINER_CACHE['backrest']` for every later test in the session.
-        2. `cat /config/config.json` — the plan config.
-        3. the `test -e` path probe — stdout lists only the MISSING paths, so empty
-           output means every path exists.
+        def fake(name, db, *, target_host, hub_host):
+            calls.append({"name": name, "db": db, "target_host": target_host, "hub_host": hub_host})
+            if raises:
+                raise raises
+            return ret
 
-        A single-return mock cannot express this: it replays the config JSON as the
-        probe's stdout, which parses as 'all these paths are missing'.
-        """
-
-        def fake(cmd, **kw):
-            if "docker ps" in cmd:
-                return (True, "backrest")
-            if "config.json" in cmd:
-                return (True, config)
-            return (True, missing)
-
-        return fake
-
-    def test_present_when_plan_in_config(self):
-        spec = _spec_dict(shape={"has_persistent_data": True})
-        config = '{"plans": [{"id": "test-svc", "paths": ["/data"]}]}'
-        with patch.object(audit, "_ssh_check", side_effect=self._fake_ssh(config)):
+        with patch("fabrik.drivers.backrest.coverage_findings", side_effect=fake):
             r = audit_backrest(spec)
+        return r, calls
+
+    def test_b1_present_names_the_covering_plans(self):
+        r, calls = self._run(_spec_dict(shape={"has_persistent_data": True}))
         assert r.status == "present"
-        assert r.actual["paths"] == ["/data"]
+        assert "docker-volumes" in r.detail
+        assert r.actual["covered_by"] == {"/v": "docker-volumes"}
+        assert calls[0]["name"] == "test-svc"
 
-    def test_present_for_the_id_the_registrar_actually_creates(self):
-        """`_provision_backrest` writes `f"{name}-data"` (infrastructure.py:773).
-
-        Matching only a bare `sid` made `missing` structurally unreachable-to-avoid:
-        every service with a real plan audited as MISSING (zitadel, live 2026-08-31).
-        """
-        spec = _spec_dict(shape={"has_persistent_data": True})
-        config = '{"plans": [{"id": "test-svc-data", "paths": ["/opt/test-svc/data"]}]}'
-        with patch.object(audit, "_ssh_check", side_effect=self._fake_ssh(config)):
-            r = audit_backrest(spec)
-        assert r.status == "present"
-        assert r.expected["plan_id"] == "test-svc-data"
-        assert r.actual["paths"] == ["/opt/test-svc/data"]
-
-    def test_drift_when_plan_exists_but_its_path_does_not(self):
-        """A plan pointed at a non-existent directory is a PAPER BACKUP.
-
-        `_provision_backrest` hardcodes /opt/<name>/data regardless of where the
-        service persists, so a named-volume service gets a green plan that archives
-        nothing (live: /opt/zitadel/data absent, zitadel-data plan pointing at it).
-        """
-        spec = _spec_dict(shape={"has_persistent_data": True})
-        config = '{"plans": [{"id": "test-svc-data", "paths": ["/opt/test-svc/data"]}]}'
-
-        with patch.object(
-            audit, "_ssh_check", side_effect=self._fake_ssh(config, missing="/opt/test-svc/data")
-        ):
-            r = audit_backrest(spec)
+    def test_b2_an_unprotected_path_is_drift(self):
+        r, _ = self._run(
+            _spec_dict(shape={"has_persistent_data": True}),
+            ret=("drift", ["unprotected: /srv/x"], {"covered_by": {}}),
+        )
         assert r.status == "drift"
-        assert "archives NOTHING" in r.detail
-        assert r.actual["missing_paths"] == ["/opt/test-svc/data"]
+        assert "unprotected: /srv/x" in r.detail
 
-    def test_path_probe_failure_does_not_invent_drift(self):
-        """Fail-open: a broken probe must not manufacture a finding."""
-        spec = _spec_dict(shape={"has_persistent_data": True})
-        config = '{"plans": [{"id": "test-svc-data", "paths": ["/opt/test-svc/data"]}]}'
+    def test_b3_a_paper_plan_is_drift(self):
+        r, _ = self._run(
+            _spec_dict(shape={"has_persistent_data": True}),
+            ret=("drift", ["paper plan test-svc-data: remove it"], {}),
+        )
+        assert r.status == "drift"
+        assert "paper plan test-svc-data: remove it" in r.detail
 
-        def fake_ssh(cmd, **kw):
-            if "docker ps" in cmd:
-                return (True, "backrest")
-            if "config.json" in cmd:
-                return (True, config)
-            return (False, "ssh: connection reset")
+    @pytest.mark.parametrize("status", ["missing", "unknown"])
+    def test_b4_missing_and_unknown_pass_through(self, status):
+        r, _ = self._run(_spec_dict(shape={"has_persistent_data": True}), ret=(status, ["x"], {}))
+        assert r.status == status
 
-        with patch.object(audit, "_ssh_check", side_effect=fake_ssh):
-            r = audit_backrest(spec)
-        assert r.status == "present"
+    def test_b4_a_raising_check_is_unknown(self):
+        r, _ = self._run(_spec_dict(shape={"has_persistent_data": True}), raises=ValueError("bad"))
+        assert r.status == "unknown"
+        assert "bad" in r.detail
 
-    def test_missing_when_no_plan(self):
-        spec = _spec_dict(shape={"has_persistent_data": True})
-        config = '{"plans": [{"id": "other"}]}'
-        with patch.object(audit, "_ssh_check", side_effect=_vps((True, config))):
-            r = audit_backrest(spec)
-        assert r.status == "missing"
+    def test_b6_the_database_is_checked_only_when_postgres_runs(self):
+        shape = {"has_persistent_data": True, "needs_database": True}
+        _, calls = self._run(_spec_dict(shape=shape))
+        assert calls[0]["db"] == "test_svc"
+        _, calls = self._run(_spec_dict(shape=shape, infra={"postgres": False}))
+        assert calls[0]["db"] is None
+
+    def test_n_a_when_backrest_is_not_applicable(self):
+        r, calls = self._run(_spec_dict(shape={"has_persistent_data": False}))
+        assert r.status == "n/a" and calls == []
+
+    def test_b8_the_target_comes_from_the_fabrik_root_state_file(self, monkeypatch, tmp_path):
+        import json
+
+        root, cwd = tmp_path / "root", tmp_path / "elsewhere"
+        for base, vps in ((root, "vps3"), (cwd, "vps9")):  # the cwd copy is a decoy
+            (base / ".fabrik" / "state").mkdir(parents=True)
+            (base / ".fabrik" / "state" / "test-svc.json").write_text(
+                json.dumps({"target_vps": vps})
+            )
+        monkeypatch.chdir(cwd)
+        monkeypatch.setattr("fabrik.config.FABRIK_ROOT", root)
+        monkeypatch.setenv("FABRIK_AUDIT_VPS", "hubalias")
+        spec = {**_spec_dict(shape={"has_persistent_data": True}), "target_vps": "vps2"}
+
+        _, calls = self._run(spec)
+        assert (calls[0]["target_host"], calls[0]["hub_host"]) == ("vps3", "hubalias")
+
+        (root / ".fabrik" / "state" / "test-svc.json").unlink()
+        _, calls = self._run(spec)
+        assert (calls[0]["target_host"], calls[0]["hub_host"]) == ("vps2", "hubalias")
+
+        _, calls = self._run(_spec_dict(shape={"has_persistent_data": True}))
+        assert (calls[0]["target_host"], calls[0]["hub_host"]) == ("hubalias", "hubalias")
+
+        _, calls = self._run({**spec, "target_vps": "vps1"})
+        assert calls[0]["target_host"] == "hubalias"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
