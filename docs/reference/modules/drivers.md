@@ -188,9 +188,9 @@ status, findings, actual = coverage_findings(
 - `trusted(plan, vis)` — every plan path visible, a schedule that is not disabled, no `iexcludes`, no `backup_flags`.
 - `coverage(paths, plans, vis)` — each path → the most specific trusted plan covering it; an exclude matching any
   component of the path (or one carrying `[ \ $ !`) uncovers it.
-- `coverage_findings(...)` — paths on `target_host`; the database dump `/opt/backups/postgres/<db>/` must exist and be
+- `coverage_findings(...)` — paths on `target_host`; the database dump `/opt/backups/postgres/<db>` must exist and be
   covered on `hub_host`; a `<name>-data` or `postgres-<db>` plan with a path Backrest cannot stat is a paper plan,
-  reported for removal. Any doubt reads uncovered — a warning, never a false `present`.
+  reported for removal. Any doubt reads as unprotected — a warning, never a false `present`.
 
 ### MeiliSearch — search index
 
