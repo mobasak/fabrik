@@ -19,8 +19,8 @@ Last content verification: 2026-10-02
 
 ## Fabrik defaults
 
-- **Fabrik's own development** runs on Claude Code: the VS Code extension and the CLI, on the Max subscription
-  (operator ruling, D-514). Windsurf is no longer used (D-514), nor is the Kilo CLI (D-364). OpenRouter agents are a
+- **Fabrik's own development** runs on Claude Code — the VS Code extension and the CLI (operator ruling, D-514) — on
+  the Max subscription (D-364). Windsurf is no longer used (D-514), nor is the Kilo CLI (D-364). OpenRouter agents are a
   possible later option (D-514); the metered subagent pool they would use is paused by ruling (D-181/D-182).
 - **Code-writing features → Claude through `claude -p`** on the agent loop ai/50-agentic.md sets: fabrik-lib's
   `llm-dispatch` `run_agentic` on `opus`, with its bounds, its auth rules and its interim rule for features that answer
@@ -52,8 +52,9 @@ Last content verification: 2026-10-02
 
 **Licence trap — open code models carry their own terms.** Mistral's open Codestral weights are under its non-production
 licence (testing, research and evaluation only; no commercial or hosted use), and its current Codestral is API-only.
-Mistral's open coding model ships under a modified MIT licence with a revenue cap, and Qwen's newer licences gate
-commercial "AI work assistant" products, which includes coding tools. Older DeepSeek releases split a permissive code
+Mistral's open coding model ships under a modified MIT licence with a revenue cap. Qwen's coder line is
+Apache-licensed, but its newer general models carry licences (the Max and Community licences) that gate commercial "AI
+work assistant" products, coding tools included. Older DeepSeek releases split a permissive code
 licence from a stricter weights licence. Read the licence file of the exact weights.
 
 ## Subcategories

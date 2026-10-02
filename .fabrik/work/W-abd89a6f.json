@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "rewrite those README lines to Claude Code (VS Code extension and CLI); also scripts/docs_updater.py:17,769 and scripts/enforcement/__init__.py:4 / validate_conventions.py:6 name Windsurf as live; check_retired_terms.py already lists Windsurf Cascade and Kilo CLI as retired",
+  "next": "rewrite those README lines to Claude Code (VS Code extension and CLI); also scripts/docs_updater.py:17,769 and scripts/enforcement/__init__.py:4 / validate_conventions.py:6 name Windsurf as live; check_retired_terms.py already lists Windsurf Cascade and Kilo CLI as retired, but it scans docs/ only — README.md and .windsurf/rules are outside it, so widen its file list in the same fix",
   "note": "",
   "owner": "",
   "priority": 2,

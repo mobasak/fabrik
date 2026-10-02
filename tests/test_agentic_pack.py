@@ -229,7 +229,11 @@ def test_no_retired_routes() -> None:
 
 def test_no_version_literals() -> None:
     version_re = _load("vision_pack_test", ROOT / "tests" / "test_vision_pack.py").VERSION_RE
-    found = version_re.findall(_prose())
+    # a licence name carries a number but is not a version of anything the pack recommends (tests/test_vision_pack.py)
+    body = re.sub(
+        r"Apache(?: License,?(?: Version)?)?[- ]?2\.0|[AL]?GPL-?\d\.\d|CC-BY(?:-[A-Z]+)*-? ?\d\.\d", "", _prose()
+    )
+    found = version_re.findall(body)
     assert not found, f"version literals in the pack: {found}"
 
 

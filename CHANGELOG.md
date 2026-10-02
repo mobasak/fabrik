@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — ai/60-code: Claude Code in VS Code as the dev stack (operator ruling); code-writing features on ai/50's loop, isolated, with the repository untrusted (2026-10-02)
 
-`.windsurf/rules/ai/60-code.md` listed Windsurf Cascade and the Kilo CLI as the dev stack and gave no isolation or trust rule. Now Fabrik's own development is Claude Code (the VS Code extension and the CLI), per the operator; code-writing features run on ai/50's `run_agentic` loop with editing granted through `allowed_tools`; generated code never runs on the host; the repository is untrusted input (OWASP's Rule of Two). ai/50's bound rule gains the same `allowed_tools` grant. New `tests/test_code_pack.py` (40 mutants, each red); 6 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-02-code-currency-ledger.md`; D-514.
+`.windsurf/rules/ai/60-code.md` listed Windsurf Cascade and the Kilo CLI as the dev stack and gave no isolation or trust rule. Now Fabrik's own development is Claude Code (the VS Code extension and the CLI), per the operator; code-writing features run on ai/50's `run_agentic` loop with editing granted through `allowed_tools`; generated code never runs on the host; the repository is untrusted input (OWASP's Rule of Two). ai/50's bound rule gains the same `allowed_tools` grant. New `tests/test_code_pack.py` (43 mutants, each red); 6 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-02-code-currency-ledger.md`; D-514.
 
 ### Changed — ai/50-agentic: agent loops on Claude through llm-dispatch, bounded, workflow first; subscription terms filed for the operator (2026-10-02)
 

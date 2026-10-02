@@ -80,6 +80,19 @@ def _trap() -> str:
     return _plain(defaults[i:].split("\n\n", 1)[0]) if i != -1 else ""
 
 
+_RETIRED = r"no longer used|retired|discontinued|withdrawn"
+
+
+def _kilo_clauses(text: str) -> list[str]:
+    """Each clause (split at sentence ends, commas, semicolons and 'but') that names Kilo."""
+    return [c for c in re.split(r"(?<=[.;,])\s+|\s+but\s+", text) if re.search(r"\bkilo\b", c, re.I)]
+
+
+def _kilo_clause_retired(clause: str) -> bool:
+    """A Kilo clause is a retirement when it says so itself, or continues one with 'nor is'."""
+    return bool(re.search(_RETIRED, clause) or re.search(r"\bnor is the Kilo CLI\b", clause))
+
+
 def _prose() -> str:
     body = _pack().split("\n---\n", 1)[1]
     for marker in ("<!-- GATEWAY_COUNTS:START", "<!-- OPENROUTER_ROUTES:START"):
@@ -109,9 +122,11 @@ def test_dev_stack_is_the_operators() -> None:
     assert re.search(r"runs on Claude Code", stack) and "VS Code" in stack and "D-514" in stack, (
         "the dev-stack bullet no longer says Fabrik runs on Claude Code in VS Code (D-514)"
     )
-    assert re.search(r"Windsurf is no longer used \(D-514\)", stack) and re.search(r"Kilo CLI \(D-364\)", stack), (
-        "the dev-stack bullet no longer retires Windsurf (D-514) and the Kilo CLI (D-364)"
-    )
+    retired = r"(?:no longer used|retired|discontinued|withdrawn)"
+    assert re.search(rf"Windsurf is {retired} \(D-514\)", stack), "the dev-stack bullet no longer retires Windsurf (D-514)"
+    assert re.search(r"Kilo CLI[^.]{0,40}\(D-364\)", stack), "the Kilo CLI's retirement no longer cites D-364"
+    assert all(_kilo_clause_retired(c) for c in _kilo_clauses(stack)), "the dev-stack bullet names the Kilo CLI as live"
+    assert re.search(r"Max subscription \(D-364\)", stack), "the Max subscription is no longer cited to its own ruling"
     assert re.search(r"OpenRouter agents", stack) and re.search(r"paused", stack) and "D-181" in stack, (
         "OpenRouter agents are no longer tied to the paused pool"
     )
@@ -177,6 +192,9 @@ def test_trap_review_and_comparison() -> None:
     assert re.search(r"revenue cap", trap) and re.search(r"AI work assistant", trap), (
         "the licence trap lost the revenue-capped and assistant-gated licences"
     )
+    assert re.search(r"Qwen's coder line is Apache-licensed, but its newer general models", trap), (
+        "the licence trap no longer separates Qwen's Apache coder line from its gated general models"
+    )
     review = _bullet("Fabrik defaults", "Code review")
     assert "core/50-code-review.md" in review and re.search(r"read-only", review), (
         "the review rule lost its core/50 cite or its read-only tool set"
@@ -202,15 +220,18 @@ def test_no_retired_routes_offered() -> None:
     assert not re.search(r"\btraycer\b", body, re.I), "Traycer is retired and still named"
     assert not re.search(r"Windsurf Cascade", body), "Windsurf Cascade is retired and still named"
     assert not re.search(r"\bGPT-?4", body), "OpenAI's GPT-4 line is shut down; the pack still names it"
-    # Kilo may appear only in the sentence that retires it
-    for sentence in re.split(r"(?<=[.;])\s+", body.replace("docs/reference/kilo/", "docs/reference/")):
-        if re.search(r"\bkilo\b", sentence, re.I):
-            assert re.search(r"no longer used", sentence), f"Kilo is named as live: {sentence!r}"
+    # Kilo may appear only in a clause that retires it — read per clause, so Windsurf's retirement cannot cover it
+    for clause in _kilo_clauses(body.replace("docs/reference/kilo/", "docs/reference/")):
+        assert _kilo_clause_retired(clause), f"Kilo is named as live: {clause!r}"
 
 
 def test_no_version_literals() -> None:
     version_re = _load("vision_pack_test", ROOT / "tests" / "test_vision_pack.py").VERSION_RE
-    found = version_re.findall(_prose())
+    # a licence name carries a number but is not a version of anything the pack recommends (tests/test_vision_pack.py)
+    body = re.sub(
+        r"Apache(?: License,?(?: Version)?)?[- ]?2\.0|[AL]?GPL-?\d\.\d|CC-BY(?:-[A-Z]+)*-? ?\d\.\d", "", _prose()
+    )
+    found = version_re.findall(body)
     assert not found, f"version literals in the pack: {found}"
 
 
