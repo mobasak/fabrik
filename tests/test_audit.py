@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from fabrik import audit
 from fabrik.audit import (
     AuditResult,
@@ -21,12 +23,41 @@ from fabrik.audit import (
     audit_postgres,
     audit_prometheus,
     audit_redis,
+    audit_watchdog,
 )
 from fabrik.orchestrator.infrastructure import _REGISTRAR_ORDER
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Fixtures
 # ─────────────────────────────────────────────────────────────────────────────
+
+_PROBE = "sudo docker ps --format '{{.Names}}'"
+
+
+@pytest.fixture(autouse=True)
+def _fresh_container_cache():
+    # _resolve_container memoises per process; without this every test inherits
+    # whatever an earlier test left behind and passes or fails by run order.
+    audit._CONTAINER_CACHE.clear()
+    audit._CONTAINER_PROBE_FAILED.clear()
+    yield
+    audit._CONTAINER_CACHE.clear()
+    audit._CONTAINER_PROBE_FAILED.clear()
+
+
+_RUNNING = "postgres-main\nredis-main\nauthelia\nbackrest"
+
+
+def _vps(answer, names: str = _RUNNING):
+    """An `_ssh_check` stand-in: the container probe sees ``names`` running; every other
+    command gets ``answer`` (a fixed ``(ok, out)`` tuple, or a callable taking the command)."""
+
+    def fake(cmd, **_kw):
+        if cmd == _PROBE:
+            return (True, names)
+        return answer(cmd) if callable(answer) else answer
+
+    return fake
 
 
 def _spec_dict(
@@ -104,7 +135,7 @@ class TestAuditPostgres:
 
     def test_present_when_db_exists(self):
         with (
-            patch.object(audit, "_ssh_check", return_value=(True, "1")),
+            patch.object(audit, "_ssh_check", side_effect=_vps((True, "1"))),
             self._registry_mock("my_svc"),
         ):
             r = audit_postgres(_spec_dict(id="my-svc"))
@@ -114,14 +145,14 @@ class TestAuditPostgres:
 
     def test_missing_when_db_absent(self):
         with (
-            patch.object(audit, "_ssh_check", return_value=(True, "")),
+            patch.object(audit, "_ssh_check", side_effect=_vps((True, ""))),
             self._registry_mock(None),
         ):
             r = audit_postgres(_spec_dict(id="my-svc"))
         assert r.status == "missing"
 
     def test_unknown_when_ssh_fails(self):
-        with patch.object(audit, "_ssh_check", return_value=(False, "Connection refused")):
+        with patch.object(audit, "_ssh_check", side_effect=_vps((False, "Connection refused"))):
             r = audit_postgres(_spec_dict())
         assert r.status == "unknown"
         assert "Connection refused" in r.detail
@@ -265,7 +296,7 @@ class TestAuditBackrest:
     def test_missing_when_no_plan(self):
         spec = _spec_dict(shape={"has_persistent_data": True})
         config = '{"plans": [{"id": "other"}]}'
-        with patch.object(audit, "_ssh_check", return_value=(True, config)):
+        with patch.object(audit, "_ssh_check", side_effect=_vps((True, config))):
             r = audit_backrest(spec)
         assert r.status == "missing"
 
@@ -319,7 +350,7 @@ access_control:
     - domain: test.example.com
       policy: two_factor
 """
-        with patch.object(audit, "_ssh_check", return_value=(True, config)):
+        with patch.object(audit, "_ssh_check", side_effect=_vps((True, config))):
             r = audit_authelia(_spec_dict(domain="test.example.com"))
         assert r.status == "present"
         assert len(r.actual["rules"]) == 1
@@ -331,7 +362,7 @@ access_control:
     - domain: other.example.com
       policy: two_factor
 """
-        with patch.object(audit, "_ssh_check", return_value=(True, config)):
+        with patch.object(audit, "_ssh_check", side_effect=_vps((True, config))):
             r = audit_authelia(_spec_dict(domain="test.example.com"))
         assert r.status == "missing"
 
@@ -344,7 +375,7 @@ access_control:
         - test.example.com
       policy: bypass
 """
-        with patch.object(audit, "_ssh_check", return_value=(True, config)):
+        with patch.object(audit, "_ssh_check", side_effect=_vps((True, config))):
             r = audit_authelia(_spec_dict(domain="test.example.com"))
         assert r.status == "present"
 
@@ -488,19 +519,12 @@ class TestAuditReconcileRoundtrip:
                 "exposes_metrics": True,
             }
         )
-        # Clear the container cache so each Phase gets a fresh probe.
-        audit._CONTAINER_CACHE.clear()
 
         # Phase 1 — pre-reconcile audit. Most registrars return "missing".
         def pre_responses(cmd, **_):
-            # _resolve_container probes use `docker ps ... grep -E '^<prefix>(-|$)'`
-            if "docker ps" in cmd and "grep" in cmd:
-                if "postgres-main" in cmd:
-                    return (True, "postgres-main-test")
-                if "authelia" in cmd:
-                    return (True, "authelia-test")
-                if "backrest" in cmd:
-                    return (True, "backrest-test")
+            # _resolve_container lists every running name and filters locally.
+            if cmd == _PROBE:
+                return (True, "postgres-main-test\nauthelia-test\nbackrest-test")
             if "pg_database" in cmd:
                 return (True, "")  # db missing
             if "gatus" in cmd and "test -f" in cmd:
@@ -525,17 +549,11 @@ class TestAuditReconcileRoundtrip:
         audit._CONTAINER_CACHE.clear()
 
         def post_responses(cmd, **_):
-            if "docker ps" in cmd and "grep" in cmd:
-                if "postgres-main" in cmd:
-                    return (True, "postgres-main-test")
-                if "authelia" in cmd:
-                    return (True, "authelia-test")
-                if "backrest" in cmd:
-                    return (True, "backrest-test")
-                if (
-                    "watchdog" in cmd
-                ):  # D3: watchdog sidecar now audited — report present post-reconcile
-                    return (True, "present")
+            if cmd == _PROBE:
+                return (True, "postgres-main-test\nauthelia-test\nbackrest-test")
+            if "docker ps" in cmd and "watchdog" in cmd:
+                # D3: watchdog sidecar now audited — report present post-reconcile
+                return (True, "test-svc-watchdog")
             if "pg_database" in cmd:
                 return (True, "1")
             if "gatus" in cmd and "test -f" in cmd:
@@ -557,28 +575,98 @@ class TestAuditReconcileRoundtrip:
         )
 
 
+class TestAuditWatchdog:
+    """W-c6d27660: docker runs alone, so a docker failure is `unknown`, never `missing`."""
+
+    def test_present_when_sidecar_listed(self):
+        with patch.object(audit, "_ssh_check", return_value=(True, "test-svc-watchdog")):
+            r = audit_watchdog(_spec_dict())
+        assert r.status == "present"
+
+    def test_missing_when_docker_lists_nothing(self):
+        with patch.object(audit, "_ssh_check", return_value=(True, "")):
+            r = audit_watchdog(_spec_dict())
+        assert r.status == "missing"
+
+    def test_docker_failure_is_unknown_not_missing(self):
+        seen: list[str] = []
+
+        def probe(cmd, **_kw):
+            seen.append(cmd)
+            return (False, "Cannot connect to the Docker daemon")
+
+        with patch.object(audit, "_ssh_check", side_effect=probe):
+            r = audit_watchdog(_spec_dict())
+        assert r.status == "unknown"
+        assert "|" not in seen[0]  # nothing downstream of docker can mask its exit status
+
+
 class TestResolveContainerCache:
-    """W-c6d27660: a FAILED docker-ps probe (an ssh blip) is not cached, so the next call retries;
-    a successful probe that finds no container is cached, so an absent container costs one probe."""
+    """W-c6d27660: only an ANSWERED probe is cached. A failed probe (ssh blip, docker refused)
+    returns None, is held back for _PROBE_RETRY_S, then retried; an absent container costs one probe."""
 
     def test_failed_probe_is_retried_not_cached(self, monkeypatch):
-        audit._CONTAINER_CACHE.clear()
+        clock = [1000.0]
+        monkeypatch.setattr(audit, "_now", lambda: clock[0])
         answers = iter([(False, "ssh: connect timed out"), (True, "postgres-main")])
         monkeypatch.setattr(audit, "_ssh_check", lambda cmd, **_kw: next(answers))
         assert audit._resolve_container("postgres-main") is None
+        clock[0] += audit._PROBE_RETRY_S
         assert audit._resolve_container("postgres-main") == "postgres-main"
-        audit._CONTAINER_CACHE.clear()
 
-    def test_absent_container_is_probed_once(self, monkeypatch):
-        audit._CONTAINER_CACHE.clear()
+    def test_docker_failure_over_working_ssh_is_not_read_as_absent(self, monkeypatch):
+        """`docker ps | grep | head` exits 0 through `head` when docker itself fails, so the
+        failure read as 'container not running' and was cached for the run. The probe runs
+        docker alone: its non-zero exit must reach the resolver and nothing is cached."""
+        seen: list[str] = []
+
+        def probe(cmd, **_kw):
+            seen.append(cmd)
+            return (False, "Cannot connect to the Docker daemon")
+
+        monkeypatch.setattr(audit, "_ssh_check", probe)
+        assert audit._resolve_container("postgres-main") is None
+        assert "postgres-main" not in audit._CONTAINER_CACHE
+        assert seen == [_PROBE]
+
+    def test_failed_probe_is_held_back_within_the_retry_window(self, monkeypatch):
+        clock = [1000.0]
+        monkeypatch.setattr(audit, "_now", lambda: clock[0])
         calls: list[str] = []
 
         def probe(cmd, **_kw):
             calls.append(cmd)
-            return (True, "")
+            return (False, "ssh: connect timed out")
+
+        monkeypatch.setattr(audit, "_ssh_check", probe)
+        for _ in range(5):
+            assert audit._resolve_container("postgres-main") is None
+            clock[0] += 10
+        assert len(calls) == 1  # 40 s elapsed: still inside the hold
+        clock[0] += audit._PROBE_RETRY_S
+        assert audit._resolve_container("postgres-main") is None
+        assert len(calls) == 2
+
+    def test_absent_container_is_probed_once(self, monkeypatch):
+        calls: list[str] = []
+
+        def probe(cmd, **_kw):
+            calls.append(cmd)
+            return (True, "redis-main\nauthelia")
 
         monkeypatch.setattr(audit, "_ssh_check", probe)
         assert audit._resolve_container("backrest") is None
         assert audit._resolve_container("backrest") is None
         assert len(calls) == 1
-        audit._CONTAINER_CACHE.clear()
+
+    @pytest.mark.parametrize(
+        ("names", "expected"),
+        [
+            ("postgres-main", "postgres-main"),
+            ("redis-main\npostgres-main-abc123", "postgres-main-abc123"),
+            ("postgres-main2\npostgres-mainx", None),
+        ],
+    )
+    def test_matches_bare_name_and_legacy_suffix_only(self, monkeypatch, names, expected):
+        monkeypatch.setattr(audit, "_ssh_check", lambda cmd, **_kw: (True, names))
+        assert audit._resolve_container("postgres-main") == expected

@@ -37,7 +37,9 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shlex
+import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
@@ -110,29 +112,39 @@ def _ssh_check(cmd: str, *, timeout: int = 30) -> tuple[bool, str]:
 
 
 _CONTAINER_CACHE: dict[str, str] = {}
+_CONTAINER_PROBE_FAILED: dict[str, float] = {}
+_PROBE_RETRY_S = 60.0
+
+
+def _now() -> float:
+    return time.monotonic()
 
 
 def _resolve_container(prefix: str) -> str | None:
-    # Resolve a Coolify-managed container name from a stable prefix like
-    # "postgres-main" or "backrest" or "authelia". Coolify renames the
-    # container on every redeploy (suffix is a UUID); hardcoding the
-    # current UUID would make audits silently break after the next
-    # Coolify redeploy.
+    # Resolve a container name from a stable prefix like "postgres-main",
+    # "backrest" or "authelia" (bare name or a legacy `<prefix>-<suffix>`).
     #
-    # Cached per-process so audit_all's 9-call sweep does at most one
-    # docker-ps round-trip per distinct prefix. Only an ANSWERED probe is
-    # cached (a name, or "" for a container that is not running): a FAILED
-    # probe — an ssh blip — is retried next call, or one transient failure on
-    # the first lookup would blind every later audit of the run (W-c6d27660).
+    # Cached per-process so audit_all's sweep does at most one docker-ps
+    # round-trip per distinct prefix — but only an ANSWERED probe is cached
+    # (a name, or "" for a container that is not running). `docker ps` runs
+    # alone, so its own exit status reaches `ok`: in a `docker ps | grep | head`
+    # pipeline a failed docker (daemon down, sudo refused) exits 0 through
+    # `head` and read as "not running". A FAILED probe is not cached for the
+    # run, which once blinded every later audit after one ssh blip
+    # (W-c6d27660); it is held back for _PROBE_RETRY_S, so a dead ssh costs a
+    # few probes per run instead of one ~30 s timeout per audit call.
     if prefix in _CONTAINER_CACHE:
         return _CONTAINER_CACHE[prefix] or None
-    ok, out = _ssh_check(
-        f"sudo docker ps --format '{{{{.Names}}}}' | grep -E '^{prefix}(-|$)' | head -1"
-    )
-    if not ok:
+    if _now() < _CONTAINER_PROBE_FAILED.get(prefix, 0.0):
         return None
-    name = out.strip()
+    ok, out = _ssh_check("sudo docker ps --format '{{.Names}}'")
+    if not ok:
+        _CONTAINER_PROBE_FAILED[prefix] = _now() + _PROBE_RETRY_S
+        return None
+    pattern = re.compile(rf"^{re.escape(prefix)}(-|$)")
+    name = next((n.strip() for n in out.splitlines() if pattern.match(n.strip())), "")
     _CONTAINER_CACHE[prefix] = name
+    _CONTAINER_PROBE_FAILED.pop(prefix, None)
     return name or None
 
 
@@ -582,13 +594,14 @@ def audit_watchdog(spec: Any) -> AuditResult:
     if not applicable[0]:
         return AuditResult(status="n/a", detail=applicable[1])
     container = f"{sid}-watchdog"
+    # docker runs alone so its exit status reaches `ok`: behind `| grep -q . || echo missing`
+    # a failed docker read as an absent sidecar (W-c6d27660).
     ok, out = _ssh_check(
-        f"sudo docker ps --filter name={shlex.quote('^' + container + '$')} "
-        "--format '{{.Names}}' | grep -q . && echo present || echo missing"
+        f"sudo docker ps --filter name={shlex.quote('^' + container + '$')} --format '{{{{.Names}}}}'"
     )
     if not ok:
         return AuditResult(status="unknown", detail=f"ssh probe failed: {out[:80]}")
-    found = "present" in out
+    found = container in out.split()
     return AuditResult(
         status="present" if found else "missing",
         detail=f"{container} sidecar {'running' if found else 'absent'}",
