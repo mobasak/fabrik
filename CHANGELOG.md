@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — No window idles while work waits: `work.py queue`/`triage` and the coordinator Stop cause (2026-10-03)
+
+D-521 builds operator ruling D-512 in the simpler shape. `work.py queue` shows each window's queued work against a floor of 3; `work.py triage [--apply]` tops present workers up from unowned work (never promoting backlog); and an eighth Stop cause acts on `queue --stop`'s one action — claim your queued item, ring the coordinator when your queue is empty, triage as coordinator, or (one window, no distributor) promote and claim yourself. Backlog counts only once promoted with the `queued` tag; `runtime`, `hold` and `waits-*` items are never assigned automatically. Graded by `tests/test_work_coordinator.py` and `tests/test_stop_hook_coordinator.py`; full /fabrik-review CONVERGED.
+
 ### Added — Jev decision-model use cases mapped onto the hub's infra, researched with fabrik-lib's deep-research engine (2026-10-03)
 
 New `docs/reference/jev-decision-model-map.md` sorts what the evidence says about TypeSafe's Jev into seven proven use-case classes and eight constraints (it cannot abstain, calibration varies by task and wording, it is not a security boundary, it is hosted only). It then maps 14 of the hub's and fabrik-lib's closed-answer decision points against them: two pilots (the Stop hook's stall detector, which already has a labelled set, and the skill router's Tier 2, switched off for latency), six FIT rows, two CONDITIONAL rows and four NO rows. The evidence is 103 engine cards from three briefs run twice, ten direct reads, a 90-item OpenRouter price test and a read-only inventory that found 44 decision points, all filed in `docs/reference/research/2026-10-03-jev-use-cases-ledger.md`, which `check_research_ledger.py` passes with no row refused. No pilot is armed: both wait on two operator rulings, on sending hub text to an external decision API and on the channel.

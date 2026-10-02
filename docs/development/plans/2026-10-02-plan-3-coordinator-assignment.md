@@ -1,6 +1,8 @@
 # Coordinator proactive assignment — the build
 
-Status: DRAFT
+Status: SUPERSEDED
+
+> **Superseded 2026-10-03 by D-521** — built through `/fabrik-task` in the simpler shape the operator chose after the two design critiques ("ok rebuilt"); the design of record is the D-521 row and its run record, not this document.
 **Owner:** infra
 Spec: docs/superpowers/specs/2026-10-02-coordinator-assignment-design.md (DRAFT)
 

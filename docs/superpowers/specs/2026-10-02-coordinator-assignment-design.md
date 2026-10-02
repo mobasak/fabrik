@@ -1,6 +1,8 @@
 # Coordinator proactive assignment — no window idles while work exists
 
-Status: DRAFT
+Status: SUPERSEDED
+
+> **Superseded 2026-10-03 by D-521** — built through `/fabrik-task` in the simpler shape the operator chose after the two design critiques ("ok rebuilt"); the design of record is the D-521 row and its run record, not this document.
 
 > **Re-opened 2026-10-03 (D-519) by the two independent design critiques (D-517), before design approval.** Converged on its text (D-516), the design does not work on this box: `_is_ready` counts `backlog` as ready work, so D4's floor is met vacuously (fleet owns 65 backlog items) while D3 pushes workers onto backlog; agent charters exist in 1 of the `/opt` repos, so beat routing is empty elsewhere; a one-window repo gets no top-up; and both causes fire only at a Stop, so nothing wakes an idle coordinator once its workers drain. The rework is pending the operator's direction.
 Profile: delta — every item changes an engine that exists today: the work store (`scripts/work.py`), the Stop hook (`.claude/hooks/final_gate_stop.py`) and the multi-agent model docs.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_work.py, tests/test_work_claims.py, tests/test_work_sync.py, tests/test_work_migrate.py, docs/reference/work-tracking.md
+# AFTER-EDIT: tests/test_work.py, tests/test_work_claims.py, tests/test_work_sync.py, tests/test_work_migrate.py, docs/reference/work-tracking.md, tests/test_work_coordinator.py, tests/test_stop_hook_coordinator.py
 """Work tracking — one open-work record per repo, shared by its agents (spec 2026-09-24).
 
 THE STORE. One pretty-printed, sorted-key JSON file per item under ``<repo>/.fabrik/work/``,
@@ -3871,6 +3871,382 @@ def _priority_arg(raw: str) -> int:
     return value
 
 
+# ── the coordinator's queue (W-83021827, D-512 rebuilt in the simpler shape, D-521) ──────────
+#
+# "No agent waits idle if there is work to be done": `queue` shows each window's queued work,
+# `triage` tops present workers up to the floor, and `queue --stop` hands the Stop hook ONE action.
+# QUEUED work is only what was handed out: an owned `task`, or owned backlog the coordinator promoted
+# with the `queued` tag — backlog is a list, not an order, and `mail` items are already-claimed
+# obligations closed by `mail.py ack`. Three tags keep an item out of AUTOMATIC assignment
+# (`runtime` — a serialising act the distributor assigns by hand; `hold`; `waits-*`); every other
+# tag stays a label (the rule above TAG_RULE) — `triage` prints them so the coordinator judges role
+# fit before `--apply`. A worker counts its queue in ITS OWN tree (each tree holds its own copy of
+# the store; `claim` reads it there); routable and backlog counts read the main checkout's.
+# COBRA (D-253): claim-and-idle is met by the 2 h lease and the `on it` banner; promoting nothing
+# by `queue` printing the waiting backlog to the coordinator at every refusal; hoarding by `triage`
+# firing while the coordinator's own queue is above the floor; `queue_floor: 0` is clamped to 1;
+# tagging everything `hold` by `queue` printing the held count.
+QUEUE_FLOOR = 3
+QUEUED_TAG = "queued"
+HELD_TAGS = frozenset({"runtime", "hold"})
+HELD_PREFIX = "waits-"
+_HARNESS_RE = re.compile(r"agent-[0-9a-f]{16,}")
+_PLAN_DONE = frozenset({"EXECUTED", "COMPLETE", "SUPERSEDED", "SHIPPED"})
+
+
+def _tags(item: dict) -> set[str]:
+    return set(item.get("tags") or [])
+
+
+def _is_held(item: dict) -> bool:
+    tags = _tags(item)
+    return bool(tags & HELD_TAGS) or any(t.startswith(HELD_PREFIX) for t in tags)
+
+
+def _is_work(item: dict) -> bool:
+    """Handed-out work: a task, or backlog the coordinator promoted with the `queued` tag."""
+    kind = item.get("kind")
+    return kind == "task" or (kind == "backlog" and QUEUED_TAG in _tags(item))
+
+
+def _worktrees(repo: Path) -> list[Path]:
+    """Every registered tree, the main checkout first (`git worktree list --porcelain`)."""
+    try:
+        out = _git(repo, "worktree", "list", "--porcelain")
+    except Exception:
+        return [repo]
+    trees = [Path(line[9:]) for line in out.splitlines() if line.startswith("worktree ")]
+    return trees or [repo]
+
+
+def _workers(main: Path) -> dict[str, Path]:
+    """Registered `<main>/.claude/worktrees/<name>` trees that are not harness worktrees."""
+    base = (main / ".claude" / "worktrees").resolve()
+    out: dict[str, Path] = {}
+    for tree in _worktrees(main)[1:]:
+        tree = tree.resolve()
+        if tree.parent == base and not _HARNESS_RE.fullmatch(tree.name) and _valid_name(tree.name):
+            out[tree.name] = tree
+    return out
+
+
+def _present(workers: dict[str, Path]) -> set[str] | None:
+    """Workers with a live `claude` process inside their tree, read from /proc (or the root in
+    FABRIK_WORK_PROC); None when the process table cannot be read — then nobody is topped up."""
+    root = Path(os.environ.get("FABRIK_WORK_PROC") or "/proc")
+    try:
+        entries = [e for e in root.iterdir() if e.name.isdigit()]
+    except OSError:
+        return None
+    found: set[str] = set()
+    for entry in entries:
+        try:
+            if (entry / "comm").read_text(encoding="utf-8").strip() != "claude":
+                continue
+            cwd = Path(os.readlink(entry / "cwd")).resolve()
+        except OSError:
+            continue
+        for name, tree in workers.items():
+            if cwd == tree or tree in cwd.parents:
+                found.add(name)
+    return found
+
+
+def _queued(tree: Path, agent: str) -> list[dict]:
+    if not agent or not _has_store(tree):
+        return []
+    return [i for i in _ready_items(tree) if i.get("owner") == agent and _is_work(i)]
+
+
+def _pool(main: Path) -> dict[str, list[dict]]:
+    """The main checkout's unowned, ready items: routable work, waiting backlog, held."""
+    pool: dict[str, list[dict]] = {"routable": [], "backlog": [], "held": []}
+    for item in _ready_items(main):
+        if item.get("owner"):
+            continue
+        if _is_held(item):
+            pool["held"].append(item)
+        elif _is_work(item):
+            pool["routable"].append(item)
+        elif item.get("kind") == "backlog":
+            pool["backlog"].append(item)
+    return pool
+
+
+def _floor(main: Path) -> int:
+    try:
+        return max(1, int(_read_config(main).get("queue_floor", QUEUE_FLOOR)))
+    except (TypeError, ValueError):
+        return QUEUE_FLOOR
+
+
+def _holds_claim(tree: Path, session: str) -> bool:
+    return bool(session) and any(c.get("session") == session for c in _live_claims(tree).values())
+
+
+def _sessions_of(agent: str, main: Path) -> list[str]:
+    """The agent's live Claude Code session names (`mail.py who`), [] when none or on any error."""
+    try:
+        r = subprocess.run(
+            [sys.executable, str(Path(__file__).with_name("mail.py")), "who", agent],
+            cwd=main,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if r.returncode != 0:
+        return []
+    return [n for n in (line.strip() for line in r.stdout.splitlines()) if n and n != "none"]
+
+
+def _open_plans(main: Path) -> list[str]:
+    """Plan spines whose status is not terminal (docs_updater's own parser), [] on any error."""
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "_work_docs_updater", Path(__file__).with_name("docs_updater.py")
+        )
+        if spec is None or spec.loader is None:
+            return []
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        out = []
+        for path in sorted((main / "docs" / "development" / "plans").glob("*.md")):
+            status = str(mod.parse_plan_status(path)[0]).upper().strip()
+            if (status.split() or [""])[0] not in _PLAN_DONE:
+                out.append(f"{path.relative_to(main).as_posix()} ({status})")
+        return out
+    except Exception:
+        return []
+
+
+def _bucket(n: int) -> str:
+    return "0" if n <= 0 else ("few" if n < 5 else "many")
+
+
+def _stop_action(tree: Path, session: str) -> dict:
+    """The ONE action the Stop hook acts on for `session` working in `tree` (see the block above).
+    Pure reads; every unknown is a null action (the hook fails open)."""
+    main = _worktrees(tree)[0].resolve()
+    tree = tree.resolve()
+    workers = _workers(main)
+    coordinator = (
+        str(_read_config(main).get("distributor") or "").strip() if _has_store(main) else ""
+    )
+    agent = _agent_name(session=session)
+    is_worker = tree in workers.values()
+    if not agent and is_worker:
+        agent = next(n for n, t in workers.items() if t == tree)
+    if not agent and tree == main and coordinator:
+        agent = coordinator
+    none = {"agent": agent, "role": "", "action": None, "fp": "", "text": ""}
+    if not _has_store(main) or _holds_claim(tree, session):
+        return none
+    pool = _pool(main)
+    routable, backlog = len(pool["routable"]), len(pool["backlog"])
+    mine = _queued(tree, agent)
+    if mine:
+        first = mine[0]
+        return {
+            "agent": agent,
+            "role": "worker" if is_worker else "main",
+            "action": "claim",
+            "fp": f"claim:{_bucket(len(mine))}",
+            "text": f"{len(mine)} item(s) are queued for you ({agent}) and you hold no claim — "
+            f"first {first['id']} — {first.get('title', '')}. Claim it in this tree: "
+            f"`python3 scripts/work.py claim {first['id']}` and start it, or end on a formatted "
+            "`BLOCKED:` escalation naming why it cannot start.",
+        }
+    if is_worker:
+        if not (routable or backlog):
+            return {**none, "role": "worker"}
+        names = _sessions_of(coordinator, main) if coordinator else []
+        ring = " · ".join(
+            f"`SendMessage to={n}: queue empty — {routable} routable, {backlog} backlog`"
+            for n in names
+        )
+        how = (
+            f"ring the coordinator ({coordinator}): {ring}"
+            if ring
+            else "the coordinator has no live window — take the next unowned item your own tree "
+            "shows (`python3 scripts/work.py next`) and claim it"
+        )
+        return {
+            "agent": agent,
+            "role": "worker",
+            "action": "doorbell",
+            "fp": f"doorbell:{_bucket(routable)}:{_bucket(backlog)}",
+            "text": f"Your queue is empty while {routable} routable and {backlog} backlog item(s) "
+            f"wait in the main checkout: {how}. Message delivery is best effort.",
+        }
+    if workers and coordinator and agent == coordinator:
+        present = _present(workers) or set()
+        floor = _floor(main)
+        below = sorted(w for w in present if len(_queued(workers[w], w)) < floor)
+        own = len(_queued(main, coordinator))
+        if below and (routable or backlog or own > floor):
+            return {
+                "agent": agent,
+                "role": "coordinator",
+                "action": "triage",
+                "fp": f"triage:{','.join(below)}:{_bucket(routable)}:{_bucket(backlog)}",
+                "text": f"{len(below)} worker(s) below the floor of {floor} ({', '.join(below)}) "
+                f"while {routable} routable, {backlog} backlog and {own} of your own queued items "
+                "wait: run `python3 scripts/work.py triage`, promote the backlog you want done "
+                "(`python3 scripts/work.py assign <id> --owner <worker> --tag queued`), then "
+                "`python3 scripts/work.py triage --apply`, commit the store, and send the "
+                "SendMessage lines it prints.",
+            }
+        return {**none, "role": "coordinator"}
+    if not (workers and coordinator) and (routable or backlog):
+        me = agent or "<you>"
+        return {
+            "agent": agent,
+            "role": "self",
+            "action": "self",
+            "fp": f"self:{_bucket(routable)}:{_bucket(backlog)}",
+            "text": f"Nothing is queued for you while {routable} routable and {backlog} backlog "
+            f"item(s) wait — this repo has no other coordinator, so you are your own: promote one "
+            f"(`python3 scripts/work.py assign <id> --owner {me} --tag queued`) and claim it, or "
+            "end on a formatted `BLOCKED:` escalation naming why not.",
+        }
+    return none
+
+
+def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
+    if args.stop:
+        try:
+            result = _stop_action(_repo_root(args.cwd or repo), (args.session or "").strip())
+        except Exception as exc:  # the hook fails open on a null action
+            result = {
+                "agent": "",
+                "role": "",
+                "action": None,
+                "fp": "",
+                "text": "",
+                "error": str(exc),
+            }
+        print(json.dumps(result, sort_keys=True))
+        return 0
+    main = _worktrees(repo)[0].resolve()
+    _require_store(main)
+    workers = _workers(main)
+    present = _present(workers)
+    coordinator = str(_read_config(main).get("distributor") or "").strip()
+    floor = _floor(main)
+    pool = _pool(main)
+    agents = []
+    if coordinator:
+        agents.append(
+            {
+                "agent": coordinator,
+                "role": "coordinator",
+                "present": True,
+                "queued": len(_queued(main, coordinator)),
+                "tree": str(main),
+            }
+        )
+    for name, tree in sorted(workers.items()):
+        agents.append(
+            {
+                "agent": name,
+                "role": "worker",
+                "present": present is not None and name in present,
+                "queued": len(_queued(tree, name)),
+                "tree": str(tree),
+            }
+        )
+    report = {
+        "coordinator": coordinator or None,
+        "floor": floor,
+        "agents": agents,
+        "routable": len(pool["routable"]),
+        "backlog_waiting": len(pool["backlog"]),
+        "held": len(pool["held"]),
+        "plans": _open_plans(main),
+    }
+    if args.json:
+        print(json.dumps(report, sort_keys=True))
+        return 0
+    if not coordinator:
+        print("coordinator: none — set distributor in .fabrik/work/config.json")
+    for a in agents:
+        mark = "" if a["present"] else " (no live window)"
+        print(f"{a['agent']:<16} {a['role']:<11} queued {a['queued']}/{floor}{mark}")
+    print(
+        f"routable {report['routable']} · backlog waiting {report['backlog_waiting']} · "
+        f"held {report['held']} (runtime/hold/waits-*)"
+    )
+    for plan in report["plans"]:
+        print(f"plan not executed: {plan}")
+    return 0
+
+
+def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
+    main = _worktrees(repo)[0].resolve()
+    _require_store(main)
+    distributor = str(_read_config(main).get("distributor") or "").strip()
+    if args.apply and distributor and _agent_name() != distributor:
+        raise WorkError(
+            f"triage --apply is the distributor's ({distributor}); this caller is {_actor_label()}"
+        )
+    workers = _workers(main)
+    present = _present(workers) or set()
+    floor = _floor(main)
+    pool = _pool(main)
+    free = list(pool["routable"])
+    plan: dict[str, list[dict]] = {}
+    for name in sorted(present):
+        need = floor - len(_queued(workers[name], name))
+        if need > 0 and free:
+            plan[name], free = free[:need], free[need:]
+    for name, items in plan.items():
+        for item in items:
+            tags = ",".join(sorted(_tags(item))) or "-"
+            print(
+                f"plan: {name:<14} {item['id']}  P{_priority(item)}  [{tags}]  {item.get('title', '')}"
+            )
+    if not plan:
+        print("plan: nothing to assign (no present worker below the floor, or nothing routable)")
+    print(
+        f"backlog waiting {len(pool['backlog'])} — promote with "
+        "`assign <id> --owner <worker> --tag queued`"
+    )
+    if distributor:
+        print(
+            f"your own queued items ({distributor}): {len(_queued(main, distributor))} — hand out or keep"
+        )
+    print(f"held {len(pool['held'])} (runtime/hold/waits-*) — assign by hand")
+    for line in _open_plans(main):
+        print(f"plan not executed: {line}")
+    if not args.apply or not plan:
+        return 0
+    done: dict[str, list[str]] = {}
+    with _store_lock(main, CLI_LOCK_TIMEOUT_S, fail_open=False, label="triage"):
+        for name, items in plan.items():
+            for item in items:
+                fresh = _read_item(main, item["id"])
+                if fresh.get("owner"):
+                    print(f"skipped {item['id']}: assigned to {fresh['owner']} meanwhile")
+                    continue  # never overwrite another assignment
+                fresh["owner"] = name
+                _write_item(main, fresh)
+                done.setdefault(name, []).append(item["id"])
+        _after_write(main, _session())
+    if not done:
+        return 0
+    base = _base_branch(main) or "the base branch"
+    print("commit the store, then send:")
+    for name, written in done.items():
+        ids = " ".join(written)
+        for session in _sessions_of(name, main) or [f"<{name}'s session>"]:
+            print(
+                f"SendMessage to={session}: assigned {ids} — merge {base} into your branch, then claim"
+            )
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="work.py", description=__doc__.split("\n", 1)[0])
     p.add_argument("--repo", default=".", help="any path inside the repo (default: cwd)")
@@ -3888,6 +4264,19 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--priority", type=_priority_arg, default=DEFAULT_PRIORITY)
     s.add_argument("--tag", action="append", help=f"a constraint label ({TAG_RULE}), repeatable")
     s.set_defaults(fn=cmd_add)
+
+    s = sub.add_parser("queue", help="read-only: each window's queued work against the floor")
+    s.add_argument("--json", action="store_true", help="one JSON line")
+    s.add_argument("--stop", action="store_true", help="the Stop hook's one-line action")
+    s.add_argument("--session", default="", help="--stop: the session id")
+    s.add_argument("--cwd", default="", help="--stop: the session's working directory")
+    s.set_defaults(fn=cmd_queue)
+
+    s = sub.add_parser(
+        "triage", help="top present workers up to the floor (the distributor's verb)"
+    )
+    s.add_argument("--apply", action="store_true", help="assign the plan (otherwise report only)")
+    s.set_defaults(fn=cmd_triage)
 
     s = sub.add_parser("assign", help="set owner, priority, tags (the distributor's verb)")
     s.add_argument("id")
