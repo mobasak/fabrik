@@ -115,12 +115,16 @@ class TestLoaderRemoteCommand:
         bindir = tmp_path / "bin"
         bindir.mkdir()
         stub = bindir / "sudo"
-        stub.write_text('#!/bin/sh\nexec "$@"\n' if sudo_works else "#!/bin/sh\necho refused >&2\nexit 1\n")
+        stub.write_text(
+            '#!/bin/sh\nexec "$@"\n' if sudo_works else "#!/bin/sh\necho refused >&2\nexit 1\n"
+        )
         stub.chmod(0o755)
         env = {**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}"}
 
         def run_like_ssh(cmd, *, dry_run: bool = False):
-            r = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, env=env, check=False)
+            r = subprocess.run(
+                ["bash", "-c", cmd], capture_output=True, text=True, env=env, check=False
+            )
             if r.returncode != 0:
                 raise RuntimeError(f"rc={r.returncode}: {r.stderr}")
             return r.stdout.strip()
@@ -366,3 +370,86 @@ class TestAuditPostgresDrift:
         # list_allocations raises on a failed read (it never reads as an empty
         # registry), audit catches it and falls back: present, not a false drift.
         assert result.status == "present"
+
+
+# ---------------------------------------------------------------------------
+# register_allocation_if_absent (plan-2 Phase A, D2)
+# ---------------------------------------------------------------------------
+
+
+class TestRegisterAllocationIfAbsent:
+    def _fake(self, payload: dict, writes: list[str]):
+        def fake_ssh(cmd, *, dry_run: bool = False):
+            if "cat " in cmd:
+                return json.dumps(payload)
+            writes.append(cmd)
+            return ""
+
+        return fake_ssh
+
+    def test_existing_entry_is_left_unchanged_and_nothing_is_written(self):
+        # A1 — the in-lock check never overwrites a seed, manual or concurrent entry.
+        writes: list[str] = []
+        with patch.object(pg_driver, "ssh", side_effect=self._fake(SEED_PAYLOAD, writes)):
+            wrote = pg_driver.register_allocation_if_absent(
+                "site_provisioner",
+                spec_id="site-provisioner",
+                user="other_owner",
+                owner="fabrik",
+                notes="registered by the hourly reconcile",
+            )
+        assert wrote is False
+        assert writes == []
+
+    def test_absent_entry_is_written_with_the_given_fields(self):
+        # A2
+        writes: list[str] = []
+        with patch.object(pg_driver, "ssh", side_effect=self._fake(SEED_PAYLOAD, writes)):
+            wrote = pg_driver.register_allocation_if_absent(
+                "zitadel",
+                spec_id="zitadel",
+                user="zitadel",
+                owner="fabrik",
+                notes="registered by the hourly reconcile 2026-10-02",
+            )
+        assert wrote is True
+        tee = [c for c in writes if "tee " in c]
+        assert tee, writes
+        assert '"zitadel": {' in tee[0]
+        assert '"user": "zitadel"' in tee[0]
+        assert '"translator": {' in tee[0]  # siblings preserved
+
+
+class TestAuditPostgresDbName:
+    def _run(self, spec: dict):
+        from fabrik import audit
+
+        commands: list[str] = []
+
+        def fake_ssh_check(cmd, *, timeout=30):
+            commands.append(cmd)
+            return True, "1"
+
+        with (
+            patch.object(audit, "_ssh_check", side_effect=fake_ssh_check),
+            patch.object(audit, "_resolve_container", return_value="postgres-main-x"),
+            patch.object(audit, "_resolved_for", return_value={"postgres": (True, "shape")}),
+            patch.object(pg_driver, "ssh", return_value=json.dumps(SEED_PAYLOAD)),
+        ):
+            return audit_postgres(spec), commands
+
+    def test_depends_postgres_names_the_database_audited(self):
+        # A3 — the registrar's name rule, not the snake-cased id.
+        spec = {**_spec("evolution-api"), "depends": {"postgres": "site_provisioner"}}
+        result, commands = self._run(spec)
+        assert result.actual["db_name"] == "site_provisioner"
+        assert "site_provisioner" in commands[0]
+        assert "evolution_api" not in commands[0]
+        assert result.status == "present"
+
+    def test_invalid_identifier_is_unknown_and_runs_no_sql(self):
+        # A4 — depends.postgres carries no pattern; validate before any SQL.
+        spec = {**_spec("evil"), "depends": {"postgres": "x'; DROP DATABASE y; --"}}
+        result, commands = self._run(spec)
+        assert result.status == "unknown"
+        assert commands == []

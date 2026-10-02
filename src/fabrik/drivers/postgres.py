@@ -1908,19 +1908,41 @@ def register_allocation(
             spec_id,
             owner,
         )
+    entry = {"owner": owner, "spec_id": spec_id, "user": user, "notes": notes}
+    return _register(db_name, entry, if_absent=False, dry_run=dry_run)[0]
 
+
+def register_allocation_if_absent(
+    db_name: str,
+    *,
+    spec_id: str | None,
+    user: str,
+    owner: str,
+    notes: str,
+) -> bool:
+    """Register ``db_name`` only when the registry has no entry for it.
+
+    The check runs inside the registry lock, so an entry written by a
+    concurrent writer (or a seed/manual entry) is never overwritten.
+    Returns ``True`` when it wrote, ``False`` when an entry already existed.
+    """
+    entry = {"owner": owner, "spec_id": spec_id, "user": user, "notes": notes}
+    return _register(db_name, entry, if_absent=True, dry_run=False)[1]
+
+
+def _register(
+    db_name: str, entry: dict[str, Any], *, if_absent: bool, dry_run: bool
+) -> tuple[dict[str, Any], bool]:
+    """Read-modify-write one registry entry under the lock; ``(payload, wrote)``."""
     with file_lock("postgres-allocations", timeout_seconds=15.0):
         payload = _load_remote_allocations()
         allocations = payload.setdefault("allocations", {})
-        allocations[db_name] = {
-            "owner": owner,
-            "spec_id": spec_id,
-            "user": user,
-            "notes": notes,
-        }
+        if if_absent and db_name in allocations:
+            return payload, False
+        allocations[db_name] = entry
         if not dry_run:
             _write_remote_allocations(payload)
-        return payload
+        return payload, True
 
 
 def unregister_allocation(db_name: str, *, dry_run: bool = False) -> dict[str, Any]:

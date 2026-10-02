@@ -41,6 +41,8 @@ import shlex
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
+from fabrik.app_role_check import _db_name_for_spec
+from fabrik.drivers.postgres import _validate_identifier
 from fabrik.orchestrator.infrastructure import _REGISTRAR_ORDER, resolve_applicability
 
 logger = logging.getLogger(__name__)
@@ -135,11 +137,16 @@ def _resolve_container(prefix: str) -> str | None:
 
 
 def audit_postgres(spec: Any) -> AuditResult:
-    sid = _spec_id(spec)
     applicable = _resolved_for(spec).get("postgres", (False, "n/a"))
-    db_name = sid.replace("-", "_")
     if not applicable[0]:
         return AuditResult(status="n/a", detail=applicable[1])
+    # The registrar's name rule (depends.postgres wins), validated before any
+    # SQL because depends.postgres carries no pattern at load time.
+    try:
+        db_name = _db_name_for_spec(_spec_to_dict(spec))
+        _validate_identifier(db_name, "database")
+    except ValueError as exc:  # SpecResolutionError is a ValueError
+        return AuditResult(status="unknown", detail=str(exc))
     container = _resolve_container("postgres-main")
     if not container:
         return AuditResult(
@@ -148,9 +155,8 @@ def audit_postgres(spec: Any) -> AuditResult:
             expected={"db_name": db_name},
         )
     # Mirror postgres.py — SELECT 1 FROM pg_database WHERE datname=...
-    # nosec B608 — db_name is derived from spec.id which is regex-validated
-    # at load time; same pattern as postgres.py which carries the same
-    # annotation. No external untrusted input flows through this query.
+    # nosec B608 — db_name passed _validate_identifier above
+    # ([a-zA-Z_][a-zA-Z0-9_]{0,62}); same pattern as postgres.py.
     sql = f"SELECT 1 FROM pg_database WHERE datname='{db_name}'"  # nosec B608
     ok, out = _ssh_check(
         f"sudo docker exec {shlex.quote(container)} psql -U postgres -At -c {shlex.quote(sql)}"
