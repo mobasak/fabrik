@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task's own text and the run-record protocol for lane v2 (2026-10-02)
+
+`commands/_sources/fabrik-task.md` (plan 2026-10-02-plan-1, T07) gains, each tagged lane v2 with its v1 behaviour beside it: the design note's `## Behaviours` list (at most 7), the multi-commit build (`--commit A B`; one commit for a sync-path run in the main checkout), `--design-amend` as the answer to an undeclared-path refusal, the review flavour by surface, the four close-raised UPGRADE tokens (`contract`, `new-source`, `behaviours`, `appetite`) and independent slices as separate runs; the SIZE paste line carries `consumers=`. `commands/_fragments/scope-growth-exit.md` states the in-lane stop. `docs/reference/command-run-protocol.md` documents every new flag and feedback field as T08 writes them. The 2026-09-17 lane spec carries a SUPERSEDED-IN-PART banner. The grader anchors each governing sentence at both boundaries, so negations fail.
+
 ### Added — `command_feedback_report.py --lane`: the /fabrik-task lane's 30-day measures and kill-rule joins (2026-10-02)
 
 `--lane` (plan 2026-10-02-plan-1, T06) reads the feedback ledger and the lane-refusal ledger `lane-refusals.jsonl` beside it and prints, over a stated window (30 days unless `--since`): per agent the refused and downgraded shares; the task-to-spec ratio with downgraded `/fabrik-spec` runs excluded (joined first on the exact `from_downgrade` id, then by maximum matching); the task median, the UPGRADE share and its per-token split; the in-lane full-review median (`parent: fabrik-task`); small specs sent back; the over-appetite share (`over_appetite_phases` over `phase_marks`); per-repo `.fabrik/lane.json` pins with worktrees collapsed. v1 task rows are excluded from lane starts and counted; undated refusals are disclosed; `--lane` refuses the other modes and `--rows`/`--commit`; `--json` output.
