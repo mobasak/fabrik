@@ -74,10 +74,13 @@ def test_plan_review_small_spec_exception_names_the_joint_surface() -> None:
     """Row 1: `--surface` names BOTH the plan path AND the spec path (O5: a `--surface` naming only
     the plan, with the spec path merely "read as context", must fail)."""
     section = _plan_review_small_spec_section()
-    assert "Size: small" in section
+    assert "carries `Size: small` on its own line" in section
     assert '--surface "<plan path> + <spec path>"' in section
     # O5 regression guard: a --surface that drops the spec path from the flag's own value.
     assert '--surface "<plan path>"' not in section
+    # O8 regression guard: a weakened trigger ("anywhere in its body") must not stand in for the
+    # own-line requirement a plan_appetite.py-style grader would actually check.
+    assert "mentions `Size: small` anywhere in its body" not in section
 
 
 def test_plan_review_small_spec_exception_runs_one_joint_loop() -> None:
@@ -231,6 +234,10 @@ def test_execute_plan_header_note_has_a_dispatcher_mode_appetite_fallback() -> N
     assert "DISPATCHER MODE" in note
     assert "pass the TICKET's own" in note
     assert "Appetite" in note
+    assert "when the phase declares no `Appetite:` line" in note
+    # O13 regression guard: the bare affirmative substring is satisfied by its own negation —
+    # pair it with the absence of the negated form, same pattern as the approval-row test above.
+    assert "do not pass the TICKET's own" not in note
 
 
 def test_execute_plan_loop_and_header_note_are_distinct_sections() -> None:
