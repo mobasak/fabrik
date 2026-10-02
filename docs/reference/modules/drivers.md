@@ -30,7 +30,7 @@ Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to extern
 | `cloudflare.py` | 368 | `CloudflareClient` — direct Cloudflare API fallback when site-provisioner is down | fallback |
 | `postgres.py` | 1380 | `create_database()`, `drop_database()` — per-service DB + role on `postgres-main` (registrar injects `DATABASE_URL` on first create); watchdog/subagent roles, `create_payments_ingest_role()` (scoped NON-BYPASSRLS cross-tenant ingest role → `PAYMENTS_INGEST_DATABASE_URL`), allocations, analytics DB; SQL identifier validation; drops deferred to operator | `shape.needs_database` / `shape.needs_payments_ingest` |
 | `gatus.py` | 398 | `add_endpoint()`, `remove_endpoint()` — git-repo edit of `/opt/monitoring/configs/gatus/config.yaml` + commit via `git_commit_config()` | `shape.is_public` + `domain` |
-| `backrest.py` | 408 | `add_backup_plan()`, `remove_backup_plan()` — Restic policy via Backrest API; atomic `.tmp` → `json.tool` validate → `mv` | `shape.has_persistent_data` |
+| `backrest.py` | 667 | `add_backup_plan()`, `remove_backup_plan()` — Restic policy via Backrest API; atomic `.tmp` → `json.tool` validate → `mv` (operator use; the registrar never writes a plan). Read-only coverage: `discover_persistence()`, `read_plans()`, `visible()`, `trusted()`, `coverage()`, `coverage_findings()` | `shape.has_persistent_data` |
 | `glitchtip.py` | 501 | `create_project()`, `delete_project()`, `verify_dsn_injection()` — Sentry-compatible; **DSN verification via `docker inspect`** (Lesson 31) | `shape.kind in {service, worker, wordpress}` |
 | `grafana.py` | 291 | `post_deployment_annotation()`, `delete_annotation()` — global annotations; non-fatal (decorative) | always (universal) |
 | `authelia.py` | 592 | `add_access_rule()`, `remove_access_rule()` — `docker exec` into Authelia + `run_locked()`; supports `insert_before_twofactor=True` for `^/api/` bypass | `shape.is_admin_dashboard` + `domain` (+ bypass when `shape.has_bearer_api`) |
@@ -168,6 +168,29 @@ add_backup_plan(
 ```
 
 Atomic write pattern: `.tmp` → `json.tool` validate → `mv`. Lock held for the full script via `run_locked("backrest-config", ...)`.
+
+**The registrar warns, it never writes a plan** (W-5c4ad6a6, D-518). Backrest plans are host-level and
+operator-owned; `_provision_backrest` and `audit_backrest` both call the read-only check:
+
+```python
+from fabrik.drivers.backrest import coverage_findings
+
+status, findings, actual = coverage_findings(
+    "my-api", "my_api", target_host="vps2", hub_host="vps"
+)
+# status: present | drift | missing (not running on the host) | unknown (a probe failed)
+```
+
+- `discover_persistence(name)` — one SSH call: containers by compose label, else the exact name; their named
+  volumes and writable bind directories (`test -d`); anonymous volumes are counted, never listed.
+- `read_plans()` — plan fields only (`jq`); the repo section and its B2 credentials never leave the host.
+- `visible(paths)` — the subset Backrest itself can stat (`test -e` inside its container).
+- `trusted(plan, vis)` — every plan path visible, a schedule that is not disabled, no `iexcludes`, no `backup_flags`.
+- `coverage(paths, plans, vis)` — each path → the most specific trusted plan covering it; an exclude matching any
+  component of the path (or one carrying `[ \ $ !`) uncovers it.
+- `coverage_findings(...)` — paths on `target_host`; the database dump `/opt/backups/postgres/<db>/` must exist and be
+  covered on `hub_host`; a `<name>-data` or `postgres-<db>` plan with a path Backrest cannot stat is a paper plan,
+  reported for removal. Any doubt reads uncovered — a warning, never a false `present`.
 
 ### MeiliSearch — search index
 

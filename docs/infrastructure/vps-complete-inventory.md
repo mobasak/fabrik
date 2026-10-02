@@ -567,6 +567,14 @@ Each repo has its own restic password — **immutable post-init** (Lesson 67), s
 
 Spoke tenant backups (`docker-volumes-vpsN`, `postgres-dumps-vpsN`) defer to W4 — zero tenants on spokes yet.
 
+**Per-service coverage is checked, not created (W-5c4ad6a6, D-518).** `fabrik apply` no longer writes a
+`<service>-data` plan — the old one pointed at `/opt/<service>/data`, which named-volume and database-only services
+never have, so it archived nothing while reading green. The backrest registrar and the hourly audit now discover what a
+service really persists (named volumes, writable bind directories, its `postgres-<db>` dump directory on the hub) and
+report each path no trusted host plan above covers (`unprotected: <path>`, `database <db>: no dump covered`) and each
+paper plan (`paper plan <id>: remove it`) as `drift`. A missing host plan is an operator decision; removing the
+existing paper plans (`tryton-crm-data`, `zitadel-data`) is operator-gated.
+
 DR runbooks: [`vps-hub-rebuild.md`](vps-hub-rebuild.md) (hub, ≤ 90 min — **drilled GREEN 2026-06-15/16**) · [`vps-spoke-rebuild.md`](vps-spoke-rebuild.md) (spoke, ≤ 30 min — **fresh-install + restic-restore both drilled GREEN 2026-06-15/16**) · [`docs/operations/disaster-recovery.md`](../operations/disaster-recovery.md) (cross-cutting).
 
 ---
