@@ -1,9 +1,10 @@
 # Coordinator proactive assignment — the build
 
 Status: DRAFT
-Profile: small
 **Owner:** infra
-Spec: docs/superpowers/specs/2026-10-02-coordinator-assignment-design.md (DRAFT, `Size: small` — this plan's `/fabrik-plan-review` grades the spec's sections with the plan and holds the design-approval gate)
+Spec: docs/superpowers/specs/2026-10-02-coordinator-assignment-design.md (DRAFT)
+
+> **ON HOLD — re-plan after the spec converges.** The joint `/fabrik-plan-review` round 1 (2026-10-02, 24 candidates, 21 confirmed) found design defects the build could not settle (assignment invisible across worktrees, assignment to closed windows, a shared counter slot) and grew the change to ≈480 code lines, past D-169's ~400-line small profile. Per `fabrik-plan-review`'s escape hatch the spec lost `Size: small` and went to `/fabrik-spec-review`; this plan is rewritten by `/fabrik-plan-after-chat` from the converged spec. Its round-1 findings that concern plan text only (the counter write sites `final_gate_stop.py:3377 :3438 :3496 :3548 :3584 :3590 :3750 :3762` and unpacks `:3368 :3714`; the hub-vs-template anchor; the `work-tracking.md:206-211` mis-cite; the V5 second half; the different-digest dedup row; the `:3877-3972` range) carry into that rewrite.
 Work item: W-83021827 · Decision: D-512
 
 ## What this plan is
