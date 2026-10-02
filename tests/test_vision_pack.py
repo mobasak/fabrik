@@ -17,7 +17,7 @@ The pack is glob-activated on every image/vision/OCR path. Seven things it state
    its pinned model.
 
 The cheapest way past (4) is to rename a trap in the defaults; the review reads the licence. The cheapest way past (6) is a
-version in words; the check catches the shapes agents copy (`v4.1`, `FLUX.2`, `4B`, `FLUX2`, `GPT Image 1`). Licence names (Apache-2.0, AGPL-3.0)
+version in words; the check catches the shapes agents copy (`v4.1`, `FLUX.2`, `4B`, `FLUX2`, `GPT Image 1`, `YOLO-26`). Licence names (Apache-2.0, AGPL-3.0)
 are stripped before the scan — the bound is that named set.
 """
 
@@ -190,16 +190,25 @@ def test_no_retired_routes() -> None:
             assert "no public API" in sentence, f"Midjourney is named as callable: {sentence!r}"
 
 
+# A version in any shape agents copy: v4.1, 1.2.3, >=2, @1.2, "Name 2.1", FLUX.2, 4B, a digit glued to a product name
+# (FLUX2, YOLO26), or a generation after a capitalised name with a space or a hyphen (GPT Image 1, YOLO-26). Enumerative
+# prose ("Step 2", "Phase 1") is a numbered step, not a version.
+VERSION_RE = re.compile(
+    r"\b[vV]\d+(?:\.\d+)?\b|\b\d+\.\d+\.\d+\b|[≥>]=?\s?\d+(?:\.\d+)?|@\d+\.\d+"
+    r"|\b[A-Za-z][\w./-]*[A-Za-z] \d+\.\d+\b|\b[A-Za-z]+\.\d+\b|\b\d+B\b|\b[A-Z][A-Za-z]*[A-Z]\d+\b"
+    r"|\b(?!(?:Step|Phase|Section|Table|Tier|Gate|Round|Pass|Rule|Row|Figure|Item|Part|Level|Stage)\b)"
+    r"[A-Z][A-Za-z]+[ -]\d+\b"
+)
+
+
 def test_no_version_literals() -> None:
+    # the detector itself: it must flag each version shape and leave numbered steps alone
+    for shape in ("FLUX.2", "v4.1", "klein 4B", "FLUX2", "GPT Image 1", "YOLO-26"):
+        assert VERSION_RE.search(shape), f"the version check no longer sees {shape!r}"
+    assert not VERSION_RE.search("Step 2 is choosing the vendor; Phase 1 is reading this pack.")
     # a licence name carries a number but is not a version of anything the pack recommends
     body = re.sub(r"Apache-?2\.0|A?GPL-\d\.\d|CC-BY(?:-[A-Z]+)* \d\.\d", "", _prose())
-    found = re.findall(
-        r"\b[vV]\d+(?:\.\d+)?\b|\b\d+\.\d+\.\d+\b|[≥>]=?\s?\d+(?:\.\d+)?|@\d+\.\d+"
-        r"|\b[A-Za-z][\w./-]*[A-Za-z] \d+\.\d+\b|\b[A-Za-z]+\.\d+\b|\b\d+B\b"
-        # a digit glued to a product name (FLUX2, YOLO26) or a bare generation after any capitalised name (GPT Image 1, Textract 2)
-        r"|\b[A-Z][A-Za-z]*[A-Z]\d+\b|\b[A-Z][A-Za-z]+ \d+\b",
-        body,
-    )
+    found = VERSION_RE.findall(body)
     assert not found, f"version literals in the pack: {found}"
 
 
