@@ -50,5 +50,27 @@
     "tier": "lean",
     "red": []
   },
-  "tickets": {}
+  "tickets": {
+    "T01": {
+      "state": "merged",
+      "commit": "863cb7213"
+    },
+    "T05a": {
+      "state": "merged",
+      "commit": "26d8bfebb"
+    },
+    "T05b": {
+      "state": "merged",
+      "commit": "85173dee9"
+    },
+    "T05c": {
+      "state": "in-review",
+      "branch": "worktree-agent-a90fb4ec43ca7029e",
+      "base_commit": "3bdf06320"
+    },
+    "T02": {
+      "state": "dispatched",
+      "base_commit": "85173dee9"
+    }
+  }
 }
