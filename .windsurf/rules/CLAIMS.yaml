@@ -2765,3 +2765,66 @@ claims:
     verify: "https://github.com/opendatalab/OmniDocBench (WebFetch + WebSearch + brave, 2026-10-02; ledger iu-19)"
     window_days: 120
     last_verified: 2026-10-02
+  - id: meshy-printable-3mf
+    pack: ai/25-3d-generation.md
+    kind: practice
+    claim: "Meshy's API runs a print pipeline: free printability analysis, a repair step that returns watertight output, and multi-colour 3MF from a separate endpoint"
+    verify: "https://docs.meshy.ai/en/api/repair-printability ; https://help.meshy.ai/en/articles/16815622 (brave + exa + WebFetch, 2026-10-02; ledger ca-02, op-04)"
+    window_days: 120
+    last_verified: 2026-10-02
+  - id: tripo-quad-autorig
+    pack: ai/25-3d-generation.md
+    kind: practice
+    claim: "Tripo's API returns native quad Smart Mesh topology on its current model and offers auto-rigging"
+    verify: "https://developers.tripo3d.ai/en/pricing ; https://developers.tripo3d.ai/en/docs/changelog (exa + WebFetch, 2026-10-02; ledger ca-04, ca-05)"
+    window_days: 120
+    last_verified: 2026-10-02
+  - id: rodin-api-business-plan
+    pack: ai/25-3d-generation.md
+    kind: pricing
+    claim: "Rodin's API is on its Business plan only (about $120 a month), charges at submission, defaults to 2K textures and falls back to an older generation when the quality tier is omitted"
+    verify: "https://hyper3d.ai/pricing ; https://docs.hyper3d.ai/en/api-specification/rodin-gen2-5 (exa + WebFetch, 2026-10-02; ledger ca-07, ca-08, ca-10, ca-11)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: dead-3d-apis
+    pack: ai/25-3d-generation.md
+    kind: deprecation
+    claim: "CSM's platform and APIs shut down on 2026-01-05 after Google acquired it, Luma sunset Genie on 2026-01-01, and Higgsfield's developer API exposes no 3D models"
+    verify: "https://3dprintingindustry.com ; https://apps.apple.com/us/app/luma-3d-capture/id1615849914 ; https://open.higgsfield.ai (brave + WebSearch + WebFetch + exa, 2026-10-02; ledger ca-16, ca-17, ca-18)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: cad-boundary
+    pack: ai/25-3d-generation.md
+    kind: practice
+    claim: "Frontier LLMs, Claude among them, write valid parametric CAD code for simple parts but fail often on complex topology; Zoo's Text-to-CAD API returns STEP and glTF"
+    verify: "https://cadarena.dev ; https://zoo.dev/text-to-cad (exa + firecrawl, 2026-10-02; ledger ca-19, ca-20)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: open-3d-licences
+    pack: ai/25-3d-generation.md
+    kind: policy
+    claim: "TRELLIS's code and weights are MIT but its install pulls in NVIDIA's non-commercial nvdiffrast; Tencent's Hunyuan3D licence excludes the EU, UK and South Korea and caps monthly users; Stability's SF3D and SPAR3D are free only below USD 1M revenue"
+    verify: "https://github.com/microsoft/TRELLIS.2 ; https://raw.githubusercontent.com/NVlabs/nvdiffrast/main/LICENSE.txt ; https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2.1/main/LICENSE ; https://huggingface.co/stabilityai/stable-fast-3d (exa + WebFetch, 2026-10-02; ledger om-02, om-03, om-06, om-10, om-12, om-13)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: validation-tools
+    pack: ai/25-3d-generation.md
+    kind: practice
+    claim: "The Khronos glTF-Validator CLI checks glTF format and references but not watertightness or polycount; trimesh's is_volume checks watertight, consistently wound, outward-facing geometry"
+    verify: "https://github.com/KhronosGroup/glTF-Validator ; https://trimesh.org/trimesh.base.html (exa + WebFetch, 2026-10-02; ledger om-20, om-21)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: ar-viewer-budgets
+    pack: ai/25-3d-generation.md
+    kind: standard
+    claim: "Google Scene Viewer recommends models under 10 MB and 100,000 triangles with 2048 px textures; Apple publishes no file-size limit for AR Quick Look"
+    verify: "https://developers.google.com/ar/develop/scene-viewer ; https://developer.apple.com/forums/thread/693867 (exa + WebFetch + brave, 2026-10-02; ledger om-30, om-31)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: hosted-3d-routes
+    pack: ai/25-3d-generation.md
+    kind: platform
+    claim: "fal hosts Rodin, Meshy, Tripo, Hi3D and TRELLIS generation and WaveSpeed hosts Rodin, Meshy and Tripo, on keys the fleet holds, exposing the generate call only; 3D AI Studio's API reaches Tripo, Hi3D, TRELLIS and Hunyuan 3D but not Meshy or Rodin"
+    verify: "https://fal.ai/3d-models ; https://docs.3daistudio.com/api-reference (WebFetch + exa, 2026-10-02; ledger op-01, op-03)"
+    window_days: 90
+    last_verified: 2026-10-02
