@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Jev decision-model use cases mapped onto the hub's infra, researched with fabrik-lib's deep-research engine (2026-10-03)
+
+New `docs/reference/jev-decision-model-map.md` sorts what the evidence says about TypeSafe's Jev into seven proven use-case classes and eight constraints (it cannot abstain, calibration varies by task and wording, it is not a security boundary, it is hosted only). It then maps 14 of the hub's and fabrik-lib's closed-answer decision points against them: two pilots (the Stop hook's stall detector, which already has a labelled set, and the skill router's Tier 2, switched off for latency), six FIT rows, two CONDITIONAL rows and four NO rows. The evidence is 103 engine cards from three briefs run twice, ten direct reads, a 90-item OpenRouter price test and a read-only inventory that found 44 decision points, all filed in `docs/reference/research/2026-10-03-jev-use-cases-ledger.md`, which `check_research_ledger.py` passes with no row refused. No pilot is armed: both wait on two operator rulings, on sending hub text to an external decision API and on the channel.
+
 ### Added — Two independent design critiques before every design-approval decision (2026-10-03)
 
 Operator ruling D-517: the command holding a design-approval gate first dispatches two author-blind critiques in parallel — the latest Opus and the latest Fable — and adjudicates every concern beside the DECISION block. One fragment, `commands/_fragments/design-critique.md`, included at /fabrik-spec-review's approval gate, /fabrik-plan-review's `Size: small` gate and /fabrik-task phase 2 (before the design is recorded); /fabrik-spec points at those gates. Graded by `tests/test_design_critique_fragment.py`; full /fabrik-review CONVERGED (`docs/development/reviews/2026-10-03-design-critique-review.md`).

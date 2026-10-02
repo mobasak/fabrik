@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T21:46:18.270058Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-2a7390fe",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "on the operator's data-egress ruling, run pilot 1 per docs/reference/jev-decision-model-map.md § 4 against the stop-compaction verdict set",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "intel"
+  ],
+  "title": "Jev pilots in shadow mode: the Stop hook's stall detector, then the skill router's Tier 2 (owner: intel)"
+}
