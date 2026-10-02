@@ -70,28 +70,50 @@ it.
 
 ## Chosen approach — A, a coverage check (the judge panel's unanimous first)
 
-The registrar and the audit ask one question: **is every path this service persists covered by a Backrest plan whose
-path Backrest can stat?** A path is covered when a plan lists it or a parent of it, and no exclude glob of that plan
-matches it (`fnmatch`). Discovery asks Docker, never a convention:
+The registrar and the audit ask one question, **on the VPS the service runs on** (each VPS has its own Backrest):
+**is every path this service persists covered by a Backrest plan whose path Backrest can stat?** Both run the backrest
+calls inside the deployer's existing env swap to the spec's `target_vps` (`orchestrator/deployer_ssh.py:116-140`);
+today the registrar runs hub-side after `deploy()` restores the hub host (`orchestrator/deployer_ssh.py:156-170`,
+`orchestrator/__init__.py:174-180`), so a spoke service's plan lands on vps1's Backrest.
 
-- **Volume and bind paths** — the containers of compose project `<name>` (`label=com.docker.compose.project=<name>`, the
-  project the deployer creates at `/opt/<name>`), falling back to containers named `^<name>(-|$)` for single-image apps;
-  each `type=volume` mount's `Source` (the volume Mountpoint) and each `type=bind` mount whose source is a DIRECTORY under
-  `/opt/<name>/`. Other binds (the Docker socket, a single config file) are not service data.
-- **Database path** — `needs_database` adds `/opt/backups/postgres/<db>/` (`<db>` by `app_role_check._db_name_for_spec`,
-  the registrar's own rule), the directory `pre-backup.sh` dumps into for every tracked database (`drivers/backrest.py:285-300`).
+**Coverage.** Paths are compared with trailing slashes stripped. A path is covered by a plan when the plan lists it or a
+parent of it, and none of the plan's exclude patterns can exclude it. An exclude counts against a path when it matches
+the path or any ancestor below the plan's root, component by component, the way restic reads it: `**` spans any number of
+components, `*` stays inside one component, and a pattern without a `/` matches any single component name. The check is
+deliberately conservative: when in doubt the path reads uncovered, which can cost an extra per-service plan, never a
+false `present`. (The hub's `docker-volumes` plan excludes whole volumes such as Prometheus and Loki data,
+`docs/operations/hub-restore-inventory.md:93-112`; a service volume excluded there reads uncovered and gets its own plan.)
+
+**Discovery asks Docker, never a convention**, in one `bash -o pipefail` SSH call so docker's exit status reaches the
+caller:
+
+- **Containers** — compose project `<name>` (`label=com.docker.compose.project=<name>`; the deployer runs compose from
+  `/opt/<name>`, `orchestrator/deployer_ssh.py:67-69`, and no `/opt/*/compose*` file sets a top-level `name:`), falling
+  back to containers named `^<name>(-|$)` for single-image apps. Zero containers is its own answer ("not running on this
+  host"), never an error.
+- **Volume and bind paths** — each `type=volume` mount's `Source` (the volume Mountpoint), and each `type=bind` mount whose
+  source is under `/opt/<name>/` AND is a directory on the host (`test -d` in the same call; a bind of a single config
+  file such as tryton-crm's `./trytond.conf` is not service data).
+- **Database** — with `needs_database` (and no `infra.postgres: false`), the database `<db>` (by
+  `app_role_check._db_name_for_spec`, the registrar's own rule) is covered when its per-database dump directory
+  `/opt/backups/postgres/<db>/` exists and a plan covers it, OR when the host carries the whole-cluster dump plan
+  `postgres-dumps` (`docs/infrastructure/vps-complete-inventory.md:556`). The per-database directory exists only where
+  the one-time `pre-backup.sh` patch is applied and the database is tracked (`docs/operations/deployment.md:512-545`);
+  the whole-cluster plan covers every database either way.
 
 Then:
 
 | Discovery says | Registrar does | Audit reports |
 |---|---|---|
-| every path covered, every path exists | nothing (logs `covered by <plan ids>`) | `present` |
-| a path uncovered, Backrest can stat it | creates `<name>-data` with exactly the uncovered paths | `drift` until the plan exists, then `present` |
+| a probe failed (SSH, docker, `config.json`, the visibility check) | nothing; non-fatal | `unknown` |
+| a `<sid>-data` plan with a path Backrest cannot stat | nothing (never edits or deletes it); warns | `drift` — "paper plan <id>: remove it" (listed with any other finding below) |
+| zero containers on the host | nothing | `missing` — "not running on <host>" (an undeployed spec is not drift) |
+| containers, no persistent path, database not engaged | nothing; warns `has_persistent_data set but no persistence found` | `drift` — names the shape mismatch |
+| every path covered and visible, database covered | nothing (logs `covered by <plan ids>`) | `present`, each path's covering plan in `actual` |
+| a path uncovered, Backrest can stat it | creates `<name>-data` with exactly the uncovered visible paths and NO excludes (as the per-database plans do, `drivers/backrest.py:357-367`), so its own excludes can never drop its roots; if a `<name>-data` plan already exists, writes nothing and warns that the paper plan must go first (rollout V4) | `drift` until a plan covers it, then `present` |
 | a path uncovered, Backrest cannot stat it (e.g. a spoke without the volumes bind) | writes nothing; warns naming the path and the bind it needs | `drift` — "unprotected: <path> (not visible to Backrest)" |
-| a covered path does not exist (e.g. no dump yet for a new database) | nothing | `drift` — "<path> missing" (first dump lands nightly) |
-| a `<sid>-data` plan with a missing path | nothing (never deletes) | `drift` — "paper plan <id>: remove it" |
-| nothing persistent found and no database | nothing; warns `has_persistent_data set but no persistence found` | `drift` — names the shape mismatch |
-| discovery failed (ssh, docker) | nothing; non-fatal | `unknown` |
+| a covered path Backrest cannot stat | nothing | `drift` — "<path> missing" |
+| database neither per-database dump nor whole-cluster plan | nothing (the postgres registrar owns per-database plans) | `drift` — "database <db> not covered" |
 
 Cited practice: coverage verified as a signal rather than trusted from config is current SRE and restic practice
 (ledger cov-1, cov-3); a host-level restic over `/var/lib/docker/volumes` is the field's lean pattern (vol-8); live DB
@@ -121,33 +143,42 @@ state is dumped, never copied as files (vol-3). One discovery function serves th
 - Audit: `audit.py:331-390` (plan-id lookup, host path probe `_missing_host_paths` `:314-328`, fail-open).
 - Rollback: `rollback.py:153-154` dispatches every `backrest` resource to `_rollback_backrest` (`:307-316`) with no status
   filter, so a re-apply that recorded `status=exists` and then failed would remove a plan it did not create.
-- Target host: the registrar's SSH goes to the spec's `target_vps` (env swap, `cli.py:972-974`, mirrored by
-  `SSHDeployer.deploy()`).
+- Target host: only `deploy()` and `fabrik destroy` swap SSH to the spec's `target_vps` (`orchestrator/deployer_ssh.py:156-170`,
+  `cli.py:972-974`); the registrars run after `deploy()` restored the hub host (`orchestrator/__init__.py:174-180`), and the
+  audit reads one host, `FABRIK_AUDIT_VPS` (`audit.py:98`). Every persistent spec targets vps1 today.
+- Consumers of the audit's status: the cron maps any status to gauges (`scripts/audit_all_registrars.py:85-107`),
+  `fabrik audit-registrars` renders any status (`src/fabrik/cli.py:1430-1446`), and the post-deploy postcondition fails
+  only on `missing` (`src/fabrik/verify.py:239-276`).
 
 ## The delta
 
-- **D1 — discovery** (`drivers/backrest.py::discover_persistence(name, db_name|None) -> list[str] | None`): one SSH call
-  lists the project's container mounts (`docker ps -aq --filter label=com.docker.compose.project=<name>`, falling back to
-  the name pattern, then `docker inspect --format` over `.Mounts`); returns sorted unique paths per the rules above, or
-  `None` when the probe fails. The output is parsed in Python; no pipeline can mask docker's exit status (the class fixed in
-  W-c6d27660).
-- **D2 — plans and coverage** (`drivers/backrest.py::read_plans() -> list[dict] | None` reads `id/paths/excludes` only —
-  never the repo or credential fields — from `/opt/backrest/config/config.json` with `jq`; `coverage(paths, plans) ->
-  {path: plan_id | None}`, a pure function; `visible(paths) -> set[str]`, `test -e` run INSIDE the Backrest container,
-  because Backrest's `os.Stat` is what decides (brk-5)).
-- **D3 — registrar** (`infrastructure.py::_provision_backrest`): the table's left column. A plan is never written with
-  zero paths (Backrest refuses one, brk-4); `ctx.add_resource("backrest", …)` only when the driver returned `created`.
-- **D4 — audit** (`audit.py::audit_backrest`): the table's right column, through the same D1/D2 calls on the audit host.
-  The `missing` status (no `<sid>-data` plan) goes: no plan is correct when another plan covers the paths.
-- **D5 — heal the live paper plans**: after D4 ships, the audit's report lists every paper plan on vps1. Removing them
-  is a delete of production backup config, so it is an operator-gated rollout step (Validation 4) using the existing
-  `remove_backup_plan` (which writes a timestamped `.bak` first, `drivers/backrest.py:157-182`). The registrar and the
-  audit never delete.
+- **D1 — discovery** (`drivers/backrest.py::discover_persistence(name, db_name | None) -> Persistence | None`, where
+  `Persistence` holds `containers: int`, `paths: list[str]` and `db_name`): the one `bash -o pipefail` SSH call above,
+  parsed in Python; `None` when it fails. `name` is validated with the deployer's name pattern
+  `^[a-z0-9][a-z0-9-]{0,62}$` (`orchestrator/deployer_ssh.py:31`) and `db_name` with `_validate_db_name`
+  (`drivers/backrest.py:307-315`) before either reaches a shell; an invalid `db_name` drops the database check and warns.
+- **D2 — plans, coverage, visibility** (`read_plans() -> list[dict] | None` reads `id/paths/excludes` only — never the
+  repo or credential fields — with `jq` on the VPS; `coverage(paths, plans) -> {path: plan_id | None}`, a pure function
+  with the exclude semantics above; `visible(paths) -> set[str] | None`, `test -e` run INSIDE the Backrest container,
+  resolved by `^backrest(-|$)` behind an explicit empty-name guard, because Backrest's `os.Stat` is what decides, brk-5).
+- **D3 — registrar** (`infrastructure.py::_provision_backrest`): the table's middle column, inside the env swap to
+  `target_vps`. A plan is never written with zero paths (brk-4); `ctx.add_resource("backrest", …)` only when the driver
+  returned `created`. Under `dry_run` it makes no SSH call.
+- **D4 — audit** (`audit.py::audit_backrest`): the table's right column, through the same D1/D2 calls inside the same env
+  swap. `missing` now means "not running on the host", not "no `<sid>-data` plan"; `_missing_host_paths`
+  (`audit.py:314-328`) is replaced by `visible`.
+- **D5 — heal the live paper plans**: after D4 ships, the audit's report lists every paper plan. Removing them is a
+  delete of production backup config, so it is an operator-gated rollout step (Validation 4) using the existing
+  `remove_backup_plan` (which writes a timestamped `.bak` first, `drivers/backrest.py:157-182`). The code this spec adds
+  never deletes or edits a plan; `fabrik destroy` keeps removing the service's own `<name>-data` (`destroyer.py:213-226`),
+  and rollback now removes only a plan the run created.
 
 ## Contract deltas
 
-None: no data contract, no UI. `audit_backrest`'s statuses keep the `AuditResult` shape; its `missing` value is no longer
-produced (consumers read `drift` and `present`, `scripts/audit_all_registrars.py`).
+None: no data contract, no UI. `audit_backrest` keeps the `AuditResult` shape; `missing` changes meaning to "not running
+on the host". Mirror on the post-deploy postcondition (`verify.py:239-276`, fails only on `missing`): right after a
+deploy the containers exist, so a `missing` there now means discovery could not find them — the postcondition fails
+loudly; an uncovered path is `drift` and passes, as today's paper-plan drift does.
 
 ## Cost
 
@@ -157,10 +188,10 @@ persistent spec.
 ## Validation
 
 1. **Red first** — tests in `tests/test_backrest_coverage.py` (new) and `tests/test_audit.py`: the coverage function over a
-   table (exact path, parent path, exclude glob, sibling-prefix `/opt/a` vs `/opt/ab`); discovery parsing from recorded
-   `docker inspect` output (volume, bind dir, socket bind skipped, single-image fallback, probe failure → `None`); each
-   registrar row, asserting which driver call ran or never ran; each audit row. Each written first and seen red against
-   today's code.
+   table (exact path, parent path, trailing slashes, sibling prefix `/opt/a` vs `/opt/ab`, an excluded ancestor, `**`,
+   a bare-name pattern, `*` not crossing `/`); discovery parsing from recorded output (volume, bind dir, bind file and
+   socket skipped, zero containers, single-image fallback, probe failure → `None`); each registrar row, asserting which
+   driver call ran or never ran; each audit row. Each written first and seen red against today's code.
 2. **Rollback guard** — a test that a re-apply recording `exists` leaves no `backrest` resource, red on today's code.
 3. **Report on vps1 (read-only, after merge)** — one `scripts/audit_all_registrars.py` run; its backrest rows must show
    tryton-crm and zitadel as `paper plan` drift with their real paths covered, and list any other paper plan. Run by the
@@ -251,7 +282,10 @@ None for any project's `shape:`; no spec edits. Hub-side only. No VPS write unti
   `docker-volumes`/`opt-configs`/`postgres-dumps` and the path-preserving binds; a read-only probe this session was
   refused by the auto-mode classifier (production reads). Resolution: Validation 3's report run reads them through the
   same code the design adds; if a host plan is missing, the report says `drift`, never a false `present`.
-- **Open — compose files that set `name:`** (a project name other than `<name>`). Resolution: the single-image fallback
-  pattern catches the containers; a miss shows as the shape-mismatch drift, never silence.
+- **Open — a future compose that sets `name:`**. Resolution: the name fallback catches its containers; a miss reads
+  `missing` ("not running"), which fails the post-deploy postcondition loudly, never silence.
+- **Open — whether vps1 carries the per-database dump patch.** Resolution: Validation 3 shows it; the whole-cluster
+  `postgres-dumps` plan covers every database whether or not it does.
 - **Resolved:** what Backrest does with a missing path (fails the run, brk-5/brk-7); whether overlapping plans copy data
-  twice (no, dedup, brk-15; they do scan twice, brk-18); where the registrar's SSH goes for a spoke (`target_vps`).
+  twice (no, dedup, brk-15; they do scan twice, brk-18); where the registrar's SSH goes (vps1 today; D3 moves the backrest
+  calls to `target_vps`); compose project names (0 of 39 `/opt/*/compose*` files set `name:`).
