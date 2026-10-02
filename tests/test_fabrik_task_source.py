@@ -2,12 +2,13 @@
 
 Three facts about the source, each mechanically decidable (spec
 `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md` § Constraints C2, § Chosen approach;
-ticket T03 Behavior Contract):
+ticket T03 Behavior Contract), plus (T07, plan 2026-10-02-plan-1) the Revision-2 prose content:
 
-1. SIZE + INCLUDES — the source is at most `SIZE_CAP` bytes (D-296; NOT C2's original 8,847
-   in the corpus, C2's cap) and its only `{{include:}}` is `run-record`. The include half is C2's
-   cobra counter (cobra 8): the cheapest way to satisfy a source-byte cap is to move the prose into
-   a fragment, so a second include is refused whatever the byte count says.
+1. SIZE + INCLUDES — the source is at most `SIZE_CAP` bytes (D-296 raised it to 8980 above C2's
+   original 8,847; T07 raises it again to 10362 for D3/D6/D7/D8's required prose — a pending D-row,
+   see the comment above `SIZE_CAP`) and its only `{{include:}}` is `run-record`. The include half
+   is C2's cobra counter (cobra 8): the cheapest way to satisfy a source-byte cap is to move the
+   prose into a fragment, so a second include is refused whatever the byte count says.
 2. RENDER — the source renders: a temp-dir `render()` (never the installed corpus — the renderer
    PRUNES, and this suite runs from worktrees) emits `fabrik-task.md`, and the source carries the
    frontmatter the corpus check and the skill wrapper read: `description:` with a `TRIGGER —`
@@ -17,10 +18,18 @@ ticket T03 Behavior Contract):
    (`--feedback` on all three close verbs, `--commit` on `fabrik-task`'s `done`). A line an agent
    cannot paste is a line nobody runs; a close the tool refuses leaves the record `running` and the
    Stop hook holding the turn open.
+4. T07's CONTENT — spec D3/D6/D7/D8's required prose is present, each assertion anchored on the
+   WHOLE governing sentence (never a bare keyword, which a negated rewording would still satisfy):
+   the Behaviours cap, `--design-amend`, the close's REFUSAL of an undeclared or close-time
+   contract/new-source hit, the review flavour by surface and the D8 nested stop, the ten UPGRADE
+   tokens, independent slices (D6); plus the protocol doc's flag/field coverage, the scope-growth
+   fragment's lane variant, and the 2026-09-17 spec's SUPERSEDED-IN-PART banner.
 
 ⚠️ The cheapest way to satisfy grader 1 without producing the outcome is to move prose into a
 reference doc the source points at — UNCOUNTERED by machinery (spec C3 cobra 8), named here so the
-next reader greps it rather than discovering it.
+next reader greps it rather than discovering it. The same trap binds grader 4's new checks: moving
+the required sentence into `command-run-protocol.md` (already "the reference") would starve the
+*source*, which is why each T07 check reads the FILE the ticket's Scope actually names.
 """
 
 from __future__ import annotations
@@ -36,8 +45,15 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 SOURCE = REPO / "commands" / "_sources" / "fabrik-task.md"
+PROTOCOL_DOC = REPO / "docs" / "reference" / "command-run-protocol.md"
+SCOPE_GROWTH_FRAGMENT = REPO / "commands" / "_fragments" / "scope-growth-exit.md"
+OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-task-lane-design.md"
 # D-296: re-based above C2's 8,847 for T03's correctness fixes. May FALL, never rise, without a row.
-SIZE_CAP = 8980
+# T07 (plan 2026-10-02-plan-1) re-bases again for D3/D6/D7/D8's required prose (Behaviours list,
+# multi-commit build, --design-amend, the review flavour by surface, the close refusal, the four
+# new UPGRADE tokens) — a D-row is owed from the dispatching session citing this ratchet (the
+# subagent brief forbids minting it); until then this comment is the citation.
+SIZE_CAP = 10362
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -111,17 +127,29 @@ def _run_lines(text: str) -> list[str]:
     return out
 
 
+def _norm(text: str) -> str:
+    """Whitespace-collapsed text, with each line's leading blockquote marker (`>`) stripped
+    first — `scope-growth-exit.md` wraps every line in `> `, which would otherwise land INSIDE a
+    sentence this plan wrapped across source lines. T07's content checks read SENTENCES, never
+    isolated keywords (a bare substring is satisfied by its own negation, Addendum)."""
+    stripped = "\n".join(re.sub(r"^\s*>\s*", "", line) for line in text.splitlines())
+    return re.sub(r"\s+", " ", stripped)
+
+
 def test_source_size_and_single_include() -> None:
     """The byte ceiling, and `run-record` as the only include.
 
-    ⚠️ The cap is 8980 B, NOT the spec's C2 figure of 8,847 (D-296). The three HIGH findings of T03's
-    delta round cost more bytes than the compression that funded them: a polarity-INVERTED cobra
-    counter (it fired on the honest run and was silent on the padded one), a pointer 42 of 43 repos
-    could not follow, and a capture window that recorded a SIBLING's commit as this run's
-    measurement — plus closing a fail-open on the plan-lock collision guard. Cutting any of those to
-    hit a byte number would be optimising the measure over the outcome, which is D-253's cobra aimed
-    at this lane's own leanness rule. The ratchet still BINDS, one ratchet-click higher: this number
-    may go down and never up without a new row.
+    ⚠️ The cap is 10362 B, NOT the spec's C2 figure of 8,847 nor D-296's 8980 (the latter stood
+    until T07, plan 2026-10-02-plan-1, which gained the Behaviours cap, multi-commit build,
+    `--design-amend`, the review flavour by surface, the close refusal and the four new UPGRADE
+    tokens — all REQUIRED prose, not padding; see the `SIZE_CAP` comment above for the pending
+    D-row). Before T07: the three HIGH findings of T03's delta round cost more bytes than the
+    compression that funded them: a polarity-INVERTED cobra counter (it fired on the honest run and
+    was silent on the padded one), a pointer 42 of 43 repos could not follow, and a capture window
+    that recorded a SIBLING's commit as this run's measurement — plus closing a fail-open on the
+    plan-lock collision guard. Cutting a correctness fix to hit a byte number is optimising the
+    measure over the outcome, which is D-253's cobra aimed at this lane's own leanness rule. The
+    ratchet still BINDS: this number may go down and never up without a new row.
     """
     data = SOURCE.read_bytes() if SOURCE.exists() else b""
     assert SOURCE.exists(), f"{SOURCE} does not exist — T03's primary path"
@@ -241,3 +269,181 @@ def test_the_printed_phase_count_matches_the_headings() -> None:
             f"the printed `--phases {args.phases}` disagrees with the {derived} derived from the "
             f"source's own headings — the RUN line would misreport progress for the whole run"
         )
+
+
+# ── T07: spec D3/D6/D7/D8's prose, each row anchored on the WHOLE governing sentence — a bare
+# keyword is satisfied by its own negation (Addendum; the T05c review found 15 such). ───────────
+
+
+def test_design_note_names_behaviours_cap_and_the_design_amend_remedy() -> None:
+    """Behavior Contract row 1 (part): the Behaviours cap and the undeclared-path remedy.
+
+    Mutant: drop "REFUSES" (e.g. to "records") or the cap "7" — the sentence this anchors no
+    longer reads, so the match fails. Verified red on the pre-T07 blob (`git show HEAD:…`, which
+    carries neither sentence) and green on the working tree."""
+    text = _norm(_source_text())
+    assert re.search(
+        r"Add a `## Behaviours` list — each naming its test, at most 7 "
+        r"\(an 8th is the `behaviours` UPGRADE\)",
+        text,
+    ), "the design note no longer caps Behaviours at 7 with the 8th as an UPGRADE"
+    assert re.search(
+        r"a committed path missing from both REFUSES `done` at close; the remedy is "
+        r"`step --phase 2 --design-amend <path>`, append-only",
+        text,
+    ), "the design note no longer REFUSES done on an undeclared path, or drops --design-amend"
+    assert "`design_amends`" in text, "an amendment is no longer counted as `design_amends`"
+
+
+def test_build_and_review_sections_name_multicommit_sync_commit_and_full_review() -> None:
+    """Behavior Contract row 1 (part): multi-commit build, the sync-path single commit (D7), and
+    the review flavour by surface incl. the D8 nested stop.
+
+    Mutant: change "ONCE" to "once more" or drop "not the third" — each assertion below reads the
+    governing clause whole, not a keyword, so a weakened rewording fails it."""
+    text = _norm(_source_text())
+    assert re.search(
+        r"`done --commit sha1,sha2,…` measures each in order; a sync-path run \(D7\) commits "
+        r"ONCE, after phase 4, in the main checkout",
+        text,
+    ), "the build section no longer documents the multi-commit build or the sync single-commit rule"
+    assert re.search(
+        r"Invoke the review phase 0 already picked — `/fabrik-review-scoped`, or the full "
+        r"`/fabrik-review` for a sync, heavy, migration or >5-file surface \(D2, D7\)",
+        text,
+    ), "phase 4 no longer selects the review flavour by surface"
+    assert re.search(
+        r"its own scope-growth stop fires at the FIRST own-fix-only round, not the third \(D8\), "
+        r"still closing only on a confirmed-zero pass",
+        text,
+    ), "phase 4 no longer names the D8 nested stop and its confirmed-zero exit"
+
+
+def test_close_section_refuses_undeclared_and_close_time_contract_hits() -> None:
+    """Behavior Contract row 1 (part): the close REFUSES rather than merely records.
+
+    Mutant: swap "REFUSES" for "records" (the pre-D3 behaviour) — the assertion is keyed on the
+    verb, not just the words "oversized_mini" or "contract", which both texts would carry."""
+    text = _norm(_source_text())
+    assert re.search(
+        r"A committed path missing from APPROACH/MIRROR/an amendment\s*"
+        r"REFUSES `done` \(phase 2's remedy above\); `blocked`/`handoff` record it as "
+        r"`oversized_mini` instead",
+        text,
+    ), (
+        "the close no longer REFUSES an undeclared path on `done` (or no longer records it on blocked/handoff)"
+    )
+    assert re.search(
+        r"A contract or new-source hit found only here REFUSES `done` and `handoff` too, until "
+        r"`--review <a full /fabrik-review receipt>` names one — `blocked` needs none",
+        text,
+    ), "the close no longer refuses done/handoff on a close-time contract or new-source hit"
+
+
+def test_upgrade_section_gains_the_four_close_raised_tokens() -> None:
+    """Behavior Contract row 1 (part): the UPGRADE token list gains `contract`, `new-source`,
+    `behaviours`, `appetite`, distinguished from the six agent-typed ones."""
+    text = _norm(_source_text())
+    assert re.search(
+        r"lead with `files` · `oneway` · `tradeoffs` · `seat` · `sync` · `heavy` · `contract` · "
+        r"`new-source` · `behaviours` · `appetite`, then a dash and the detail",
+        text,
+    ), "the UPGRADE token list no longer carries all ten tokens in order"
+    assert re.search(
+        r"The last four the CLOSE raises itself, from the commit, never typed by hand: "
+        r"`contract`/`new-source` REFUSE `done`/`handoff` until `--review <receipt>` names one; "
+        r"`behaviours`/`appetite` are findings only",
+        text,
+    ), "the source no longer distinguishes the close-raised tokens from the agent-typed ones"
+
+
+def test_independent_slices_are_several_task_runs() -> None:
+    """Spec § The delta D6, named in this ticket's Scope."""
+    text = _norm(_source_text())
+    assert re.search(
+        r"A feature splitting into independently shippable slices is several of these runs, "
+        r"never one bundling them \(D6\)",
+        text,
+    ), "the source no longer states that independent slices are several /fabrik-task runs"
+
+
+def test_protocol_doc_documents_every_flag_and_feedback_field_this_ticket_scopes() -> None:
+    """Behavior Contract row 2: every flag and feedback field named in T07's Scope is documented
+    in `docs/reference/command-run-protocol.md` — one assertion per token, each read in the
+    sentence that introduces it so a dropped clause (not just a deleted word) is caught."""
+    assert PROTOCOL_DOC.exists(), f"{PROTOCOL_DOC} does not exist"
+    text = _norm(PROTOCOL_DOC.read_text(encoding="utf-8"))
+    for needle, why in [
+        (
+            "Lane v2 (D12) adds a sixth declare key, `consumers=external\\|internal`",
+            "the sixth declare key `consumers`",
+        ),
+        (
+            "`--appetite <min>` (default 240; past it routes `chain: appetite`)",
+            "`--appetite` on `start`",
+        ),
+        ('`--why "<reason>"` (required with `oneway=yes`/`tradeoffs=yes`', "`--why`"),
+        ("`--from-downgrade <refusal id>`", "`--from-downgrade`"),
+        ("A v2 start stamps `gate: 2` on the record", "the `gate: 2` stamp"),
+        (
+            "`--design-amend <path>` (`fabrik-task` only) APPENDS one path to the design's "
+            "declared surface",
+            "`step --design-amend`",
+        ),
+        ("`--appetite <min>` (`fabrik-execute-plan` phase steps, D11)", "`step --appetite`"),
+        (
+            "it names THIS run's commit(s), read from the capture file written the instant the "
+            "commit returns, and the close re-measures each commit's diff IN ORDER",
+            "`done --commit` accepting a multi-commit list",
+        ),
+        (
+            "`--review <receipt>` is REQUIRED on `done`/`handoff` when the re-measure finds a "
+            "contract or new-source hit",
+            "`done`/`handoff --review`",
+        ),
+    ]:
+        assert needle in text, f"the protocol doc no longer documents {why}: {needle!r} not found"
+    for field in (
+        "`parent`",
+        "`size`",
+        "`from_downgrade`",
+        "`design_amends`",
+        "`loc_added`",
+        "`over_appetite`",
+        "`upgrades`",
+        "`over_appetite_phases`",
+        "`phase_marks`",
+    ):
+        assert field in text, f"the protocol doc's feedback-field list drops {field}"
+
+
+def test_scope_growth_fragment_names_the_lane_variant() -> None:
+    """Behavior Contract row 3 (spec § The delta D8; D-355): the fragment names the lane variant
+    of the scope-growth stop and that the review still closes only on a confirmed-zero pass."""
+    assert SCOPE_GROWTH_FRAGMENT.exists(), f"{SCOPE_GROWTH_FRAGMENT} does not exist"
+    text = _norm(SCOPE_GROWTH_FRAGMENT.read_text(encoding="utf-8"))
+    assert re.search(
+        r"Nested under a `fabrik-task` run.*the own-fix bar drops to round 1, not round 3 — "
+        r"the FIRST own-fix-only round stops the hunt",
+        text,
+    ), "the fragment no longer names the fabrik-task lane variant of the scope-growth stop"
+    assert re.search(
+        r"the exit is unchanged: it still closes only on a round that CONFIRMS zero \(D8; D-355\)",
+        text,
+    ), (
+        "the fragment no longer states that the lane variant still closes only on a confirmed-zero pass"
+    )
+
+
+def test_old_lane_spec_carries_a_superseded_in_part_banner() -> None:
+    """Behavior Contract row 4 (spec § Documentation landing sites): the 2026-09-17 lane spec's
+    header carries a SUPERSEDED-IN-PART banner pointing at the 2026-10-02 spec. Read in the first
+    15 lines only — a banner buried in the body is not a HEADER banner."""
+    assert OLD_LANE_SPEC.exists(), f"{OLD_LANE_SPEC} does not exist"
+    head = _norm("\n".join(OLD_LANE_SPEC.read_text(encoding="utf-8").splitlines()[:15]))
+    assert "SUPERSEDED-IN-PART" in head, (
+        "the old lane spec's header carries no SUPERSEDED-IN-PART banner"
+    )
+    assert "2026-10-02-fabrik-task-feature-lane-design.md" in head, (
+        "the SUPERSEDED-IN-PART banner does not point at the superseding spec"
+    )
