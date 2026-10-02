@@ -80,11 +80,25 @@ except ValueError:
 # Planning figures, measured on this box 2026-09-08 with /usr/bin/time: `pytest tests/enforcement`
 # (1035 tests) peaks at 1.19 GB, `mypy` at 120 MB, `ruff` at 94 MB, the corpus render at 19 MB.
 # 2 GB per heavy seat is 1.7x the largest thing measured; 1 GB per read-only seat covers a finder
-# that runs a test slice through Bash. CPU: one core per seat — `ruff` alone took 14.5 cores for
-# 60 ms, so a per-seat CPU share is not a planning figure; the CPU term only refuses to put seats
-# onto a box whose load already fills its cores.
+# that runs a test slice through Bash.
 HEAVY_GB_PER_SEAT = 2.0
 LIGHT_GB_PER_SEAT = 1.0
+# CPU per seat (D-511). A native seat THINKS inside its parent `claude` process and only burns a
+# core while one of its tool subprocesses runs. Measured 2026-10-02 over the 3,114 seat transcripts
+# one long-lived hub infra session had accumulated (`<config>/projects/-opt-fabrik/<session>/
+# subagents/agent-*.jsonl`, one file per seat): per seat, every `message.content[]` block with
+# `type: tool_use, name: Bash` is paired with the later block whose `tool_result.tool_use_id`
+# matches it, the pair's line `timestamp`s give a wall span, the spans are summed, and the sum is
+# divided by the seat's first-to-last `timestamp` — median 9 %, mean 13 %, p90 28 % of a seat's
+# life; the Bash spans whose input names pytest, 3 %. Wall time bounds CPU from ABOVE (a span that
+# waits on IO or a sleep is counted whole), so the p90, rounded up, is a conservative read-only
+# cost. A HEAVY seat runs builds and tests by definition and keeps a whole core. Re-measure with the
+# same span sum over a fresh session's subagents directory before moving either number.
+# COBRA (D-253): the cheapest way past a CPU cap is to declare every seat read-only and then run
+# suites in it; the counter is the measurement above (re-run it — a creeping share is the signal)
+# and the memory term, which still charges every seat its tool subprocesses' RSS.
+LIGHT_CPU_PER_SEAT = 0.3
+HEAVY_CPU_PER_SEAT = 1.0
 ROTATE = Path(__file__).resolve().parent / "claude_rotate.py"
 
 
@@ -586,19 +600,37 @@ def budget(
     need = FLOOR
     floor_word = f"the floor of {FLOOR}"
     per_seat = HEAVY_GB_PER_SEAT if heavy else LIGHT_GB_PER_SEAT
+    cpu_cost = HEAVY_CPU_PER_SEAT if heavy else LIGHT_CPU_PER_SEAT
     if b.get("ok"):
         mem = b["mem_available_gb"]
         if "commit_headroom_gb" in b and b.get("commit_enforced"):
             mem = min(mem, b["commit_headroom_gb"])
-        by_mem = int(mem // per_seat)
-        by_cpu = max(int(b["cores"] - math.ceil(b["load1"])), 0)
+        free_cpu = max(b["cores"] - b["load1"], 0.0)
         taken = int(s.get("seats") or 0)
-        phys = min(by_mem, by_cpu)
+
+        def _fit(amount: float, cost: float) -> int:
+            # the epsilon keeps 0.9 / 0.3 at 3, never the 2 binary floating point gives
+            return max(int(amount / cost + 1e-9), 0)
+
+        by_mem = _fit(mem, per_seat)
+        by_cpu = _fit(free_cpu, cpu_cost)
+        # MEMORY is the hard bound and decides the floor; CPU sizes the COUNT but never blocks the
+        # floor (D-511): an oversubscribed core slows every process a little, an exhausted
+        # memory kills one, and a seat spends ~90 % of its life thinking, not computing — so a
+        # box busy with a sibling's gate run still hosts the floor, said, instead of a stalled loop
+        phys = by_mem
         # siblings RESERVE, they never starve: a session always gets the floor when the BOX has
         # room for it — three sessions each at 13 seats left the third at 0 (round-2 finding). But
         # a box that is itself below the floor keeps the reservation in full: `max(phys - taken,
-        # min(phys, FLOOR))` let three sessions each claim a 2-seat box (round-3 finding)
-        cap = max(phys - taken, 0)
+        # min(phys, FLOOR))` let three sessions each claim a 2-seat box (round-3 finding).
+        # A sibling's seats are charged in RESOURCES at the read-only cost (D-511) — never as
+        # whole seats of THIS caller's kind: ten light sibling seats are 10 GB and 3 cores, not ten
+        # of a heavy caller's 2 GB seats. Their stamp records no kind, so a sibling heavy seat is
+        # under-charged by up to 1 GB and 0.7 core; its running tools still show in `load1`.
+        cap = min(
+            _fit(mem - taken * LIGHT_GB_PER_SEAT, per_seat),
+            _fit(free_cpu - taken * LIGHT_CPU_PER_SEAT, cpu_cost),
+        )
         overcommit = 0
         if cap < need <= phys:
             # the floor is granted against the BOX, not the remainder: a session never waits a
@@ -618,7 +650,8 @@ def budget(
             )
         reasons.append(
             f"box allows {cap} {'heavy' if heavy else 'read-only'} seats "
-            f"(mem {mem:.1f}GB/{per_seat}GB={by_mem}, cores {b['cores']}-load {b['load1']:.1f}={by_cpu}"
+            f"(mem {mem:.1f}GB/{per_seat}GB={by_mem}, "
+            f"cpu ({b['cores']} cores - load {b['load1']:.1f})/{cpu_cost}={by_cpu}"
             + (
                 f", minus {taken} seat(s) dispatched < {SIBLING_FRESH_S // 60} min ago in "
                 f"{s.get('sessions')} running record(s)"

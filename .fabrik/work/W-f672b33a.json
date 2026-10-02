@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T18:20:00.185795Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f672b33a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add an optional --heavy count to command_run.py dispatch and read it in dispatch_headroom.siblings",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "dispatch stamps record no seat kind, so dispatch_headroom charges a sibling's heavy seats at the read-only cost (under by up to 1 GB and 0.7 core each) — review of D-SEATCPU, A-S-3"
+}
