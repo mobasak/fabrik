@@ -1,6 +1,20 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## Switching a push from POST to PUT moves an alert's silence onto a different rule (2026-10-02)
+
+The postgres allocation reconcile (plan-2, D-500) changed the hourly audit's pushgateway push from `POST` to `PUT` so
+a run replaces the whole group. That fixed stale series, but it also meant a spec skipped by a load error loses its
+`fabrik_audit_drift_total` series for that run, so its firing `FabrikRegistrarDrift` resolves. The plan named that
+mirror and shipped `FabrikAuditStale` to catch it, yet its rollout synced the rules LAST (R4) while the `PUT` went
+live at the merge's first hourly run, so there was a window with nothing watching; Phase B's review moved the rule
+sync to R0. When a change removes a signal and adds its replacement, check that both reach production in the same
+step, not just that both exist in the repo. Three smaller traps from the same run: an `or` of two PromQL branches
+whose label sets differ changes the alert's identity at every transition (`max()` on the age branch fixed it);
+`docker run -v <missing host path>` creates that path root-owned, so a seat scratch directory passed as a mount
+target became unwritable to every seat (pre-create it); and a seat running even a read-only `git status` inside
+the orchestrator's worktree holds its `index.lock` long enough to fail the orchestrator's commit.
+
 ## A fix that makes something work for the first time exposes what its failure was hiding (2026-10-02)
 
 The docusaurus scaffold had never produced a working image: its generic `.dockerignore` dropped `docs/`, so every
