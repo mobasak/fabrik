@@ -183,9 +183,11 @@ def test_subcategories_route_each_modality() -> None:
     docs = _bullet("Subcategories", "Document")
     for needle in ("Mistral OCR", "LlamaParse", "Docling", "file-parser", "signup", "mistral-ocr"):
         assert needle in docs, f"the document lane no longer names {needle!r}"
-    # OpenRouter's file-parser defaults to the model's native file input; Mistral OCR is the engine you set or the fallback
-    assert not re.search(r"Mistral OCR[^.;]{0,80}\bdefault engine", docs), (
-        "the document lane calls Mistral OCR the file-parser's default again"
+    # OpenRouter's file-parser defaults to the model's native file input; Mistral OCR is the engine you set or the fallback.
+    # Pinned as the two positive facts, never as a banned phrase: a negated "no longer the default engine" stays green
+    assert re.search(r"set its engine to mistral-ocr", docs), "the document lane no longer says Mistral OCR is set"
+    assert re.search(r"natively unless an engine is set", docs), (
+        "the document lane no longer says OpenRouter passes a PDF natively by default"
     )
     gateway = _plain(_section("Gateway coverage").split("<!-- GATEWAY_COUNTS:START", 1)[0])
     assert "architecture.input_modalities" in gateway and "no video-input flag" in gateway, (

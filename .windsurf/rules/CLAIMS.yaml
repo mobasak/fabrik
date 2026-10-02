@@ -2909,7 +2909,7 @@ claims:
     pack: ai/40-multimodal.md
     kind: deprecation
     claim: "OpenAI shuts down gpt-4o-2024-05-13 and gpt-4-turbo on 2026-10-23 and its gpt-4o audio and realtime models on 2027-01-20; its flagship takes text and image input, and no OpenAI model takes video"
-    verify: "https://developers.openai.com/api/docs/deprecations ; https://developers.openai.com/api/docs/models/gpt-5.6-sol (exa + WebFetch, 2026-10-02; ledger v1-27..v1-30)"
+    verify: "https://developers.openai.com/api/docs/deprecations ; https://developers.openai.com/api/docs/models/gpt-5.6-sol (exa + WebFetch, 2026-10-02; ledger v1-27..v1-30; the no-video half re-verified by the Fable second opinion, op-10: OpenAI's models page and 0 of 85 video-input models on OpenRouter)"
     window_days: 90
     last_verified: 2026-10-02
   - id: document-parser-prices
