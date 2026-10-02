@@ -199,14 +199,22 @@ _TABLE: dict[str, list[str]] = {
         "z-ai/glm-4.7-flash",
         "qwen/qwen3-coder-flash",
     ],
-    # review → the hub's GATE-SELECTED reviewer shortlist (2026-07-20 refresh; TASK_SUBAGENT_SELECTION.md
-    # "Reviewers — 4 selected", score5-desc). Top-3 = qwen/google/deepseek = 3 distinct families. The old
-    # judgment-seed models (v4-pro, m3, glm-4.5-air, m2.5, r1-distill) remain reachable via spec/plan/docs/
-    # research; the synced doc (auto-discovered) wins over this offline floor when present.
+    # review → the OFFLINE FLOOR, seeded from the hub's gate-selected reviewer shortlist as of the
+    # 2026-07-20 refresh (TASK_SUBAGENT_SELECTION.md, then "Reviewers — 4 selected"). The hub's list has
+    # since grown, and its routing `### review` section is what a synced doc supplies; when that doc is
+    # present, fresh and has a non-empty `review` section, it wins and this table is not read. The old judgment-seed models
+    # (v4-pro, m3, glm-4.5-air, m2.5, r1-distill) remain reachable via spec/plan/docs/research.
+    # ⚠️ `qwen/qwen3-max` is DEMOTED from rank 1 to rank 3 (D-103/F3, hub 01M3J2P353). Hand-adjudicated
+    # over ~20 review rounds it earned 1-2 of 5 almost every round, always for the same failure: asserting
+    # verification it cannot perform (it has no tools). It is kept at rank 3 rather than removed because
+    # it is the only third FAMILY on the shortlist, and the top-3-distinct-families invariant is the point
+    # of a recall fan-out (test_review_top3_are_distinct_families). A full deny waits for a third-family
+    # reviewer with measured quality. MIRROR, on the offline floor only (no synced doc):
+    # `pick_models("review", n=1)` now returns gemini, not qwen.
     "review": [
-        "qwen/qwen3-max",
         "google/gemini-3-flash-preview",
         "deepseek/deepseek-v4-flash",
+        "qwen/qwen3-max",
         "deepseek/deepseek-v3.2-exp",
     ],
     # ⚠️ `deepseek/deepseek-v4-pro` was RANK 1 here and is DEMOTED below the reliable models

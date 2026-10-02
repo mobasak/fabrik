@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T23:14:01.656372Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5c4ad6a6",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-spec: decide how the registrar finds a service's real persistent paths (spec volumes → named-volume host path vs skip the plan when data lives only in postgres-main) and what DB-only services get instead",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "backup",
+    "fleet"
+  ],
+  "title": "Backrest registrar makes paper backups: _provision_backrest hardcodes /opt/<name>/data (infrastructure.py:1141-1142), absent for named-volume and DB-only services; FabrikRegistrarDrift fires for tryton-crm and zitadel (split from W-714ae2cf)"
+}

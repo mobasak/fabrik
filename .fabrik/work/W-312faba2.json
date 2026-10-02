@@ -1,0 +1,26 @@
+{
+  "block_digest": "f3e5a62b80aa94a2d9b57618f33953a6fb81c63eeadd04457909ae33112bce6a",
+  "blocked_by": [],
+  "created": "2026-10-01T03:20:17.103442Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "underivable",
+  "id": "W-312faba2",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "540d0b525c8dab601278eba7da09450d390442cbbfd77d86f7bd7a34277673a1"
+  ],
+  "next": "",
+  "note": "ok (operator, 2026-10-01 — option A: hardlinks into the transcript store, wef1/wef3 now, the hook box-wide once session-recall is safe; D-467)",
+  "owner": "",
+  "priority": 2,
+  "question": "May the hub add hardlinks into the session transcript store (`~/.claude/projects`), now for wef1 and wef3 and automatically for every worktree session in every repo?",
+  "status": "done",
+  "title": "May the hub add hardlinks into the session transcript store (`~/.claude/projects`), now for wef1 and wef3 and automatically for every worktree session in every repo?"
+}

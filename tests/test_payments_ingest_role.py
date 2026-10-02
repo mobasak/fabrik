@@ -56,6 +56,45 @@ def test_grant_batch_pins_the_three_tables_readwrite() -> None:
     assert "DROP POLICY IF EXISTS payments_ingest_sel ON webhook_events" in grant_sql
 
 
+def test_legacy_block_stands_down_when_the_module_grant_function_exists() -> None:
+    """W-90784c3b: with fabrik-lib's payments_grant_ingest installed, the batch delegates to it."""
+    with patch.object(pg, "_role_exists", return_value=True), patch.object(pg, "_run_sql") as run:
+        pg.create_payments_ingest_role("ti")
+    grant_sql = run.call_args_list[0].args[0]
+    fn = "to_regprocedure('payments_grant_ingest(pg_catalog.regrole)')"
+    # every legacy DROP+CREATE block is gated on the function's ABSENCE
+    legacy = [b for b in grant_sql.split("DO $$") if "DROP POLICY" in b]
+    assert len(legacy) == 3 and all(f"{fn} IS NULL" in b for b in legacy)
+    assert f"{fn} IS NOT NULL" in grant_sql
+    assert (
+        "PERFORM payments_grant_ingest('\"ti_payments_ingest\"'::pg_catalog.regrole)" in grant_sql
+    )
+    # and only once all seven tables the function requires resolve
+    for t in (
+        "plans",
+        "customers",
+        "subscriptions",
+        "webhook_events",
+        "purchases",
+        "payments_audit_log",
+        "jobs",
+    ):
+        assert f"to_regclass('{t}') IS NOT NULL" in grant_sql
+
+
+@pytest.mark.parametrize(
+    ("last_line", "expected"),
+    [("module", "module"), ("legacy", "legacy"), ("pending", "pending"), ("GRANT", "unknown")],
+)
+def test_the_reported_grant_path_is_the_batch_last_line(last_line: str, expected: str) -> None:
+    """The batch's final SELECT names the path; anything else is `unknown`, never a guess."""
+    with (
+        patch.object(pg, "_role_exists", return_value=True),
+        patch.object(pg, "_run_sql", return_value=f"GRANT\nDO\n{last_line}\n"),
+    ):
+        assert pg.create_payments_ingest_role("ti")["grants"] == expected
+
+
 def test_fresh_password_only_on_create() -> None:
     with patch.object(pg, "_role_exists", return_value=False), patch.object(pg, "_run_sql"):
         assert pg.create_payments_ingest_role("ti")["password"] is not None

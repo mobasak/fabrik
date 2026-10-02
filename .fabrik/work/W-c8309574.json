@@ -1,0 +1,26 @@
+{
+  "block_digest": "d6dc9e365a4624d3cdefe1aad32f3b0b7ed8a406998443d738c67d995eb576b5",
+  "blocked_by": [],
+  "created": "2026-09-30T11:26:19.388421Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-c8309574",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "38ced19062df546da9262d0d933b1fdc4a8943eaa35b1d10d3d120e79dfe1726"
+  ],
+  "next": "",
+  "note": "Applied on the operator's go 'wire yourself and proceed' (D-477): /opt in additionalDirectories + autoMemoryDirectory in every repo/worktree.",
+  "owner": "",
+  "priority": 2,
+  "question": "In a new `/opt/fabrik` window opened after the change, did saving a memory still ask you?",
+  "status": "done",
+  "title": "In a new `/opt/fabrik` window opened after the change, did saving a memory still ask you?"
+}

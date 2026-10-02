@@ -107,26 +107,29 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
 - **Adoption** — `python scripts/docs_updater.py --adopt <name>[,<name>…]`, run ONCE by agent-1 in
   the main checkout (refuses below 2 live sessions unless `--single-window`; D-154, D-155): seeds the
   PLANS markers, stamps `**Owner:**` on every open unowned plan round-robin, tags every untagged
-  `STRATEGIC_BACKLOG.md` row in its own shape (a hub row's `Owner`/`Tag` cell · a project row's `Item`
-  cell · a bullet's text after its checkbox), appends the `MERGE OWNER: <first name>` ledger row (the
-  LAST row whose `what` cell opens with `MERGE OWNER:` wins — `python3 scripts/decisions.py
-  --merge-owner .` reads it; a changed owner is a NEW superseding row), and delegates the epic half to
+  work-item row of `STRATEGIC_BACKLOG.md` in its own shape (the cell under a header opening
+  `Owner`/`Tag` when it is empty — an occupied one, or an `Item` that already opens with a tag, is
+  left alone · else the `Item` cell; never a bullet or a table with neither column — W-77e00147),
+  appends the `MERGE OWNER: <first name>` ledger row (the
+  row with the HIGHEST D-id whose `what` cell opens with `MERGE OWNER:`, optionally after a
+  `supersedes D-NNN:` prefix (then the phrase must be exact uppercase), wins wherever it sits in the file, and a winning `MERGE OWNER:
+  UNDECLARED` row means nobody owns the repo — `python3 scripts/decisions.py --merge-owner .` reads
+  it; a changed owner is a NEW row opening `supersedes D-NNN: MERGE OWNER: <name>`), and delegates the epic half to
   `epic_order.py --assign` where that hub-only script is present. The PLANS block's second header line
   then prints `<!-- Merge owner: <name> | source: D-NNN -->`.
-- **The distributor** (`docs/reference/work-tracking.md`) is a SECOND, separate role beside the merge
-  owner — merging integrates branches into the base branch, distributing sets who owns which work-item
-  (`work.py assign`). `work.py init --distributor <agent>` records it in the repo's own
-  `.fabrik/work/config.json`; without `--distributor`, `init` asks
-  `python3 scripts/decisions.py --merge-owner .` and defaults to that answer, so a repo that never
-  names the two separately gets one agent doing both. The two are independent fields and can diverge —
-  the hub records intel as its distributor (D-395) while the hub's cut-over (plan
-  `2026-09-29-plan-1-hub-worktree-cutover`, T07) recorded infra as merge owner with the `MERGE
-  OWNER: infra` row D-453, so `--merge-owner` reads `infra` (§ Hub vs project below).
+- **The distributor — the coordinator** (`docs/reference/work-tracking.md`) is the SAME agent as the
+  merge owner, in every repo (D-471, operator: *"in each repo the agent which is not on worktree must
+  be merge owner and coordinator"*): the one agent in the main checkout merges branches into the base
+  branch AND sets who owns which work item (`work.py assign`). `work.py init` records it in the repo's
+  own `.fabrik/work/config.json`, defaulting to `python3 scripts/decisions.py --merge-owner .`;
+  never pass a different `--distributor`. The two are still two fields, so a changed merge owner
+  means changing `distributor` with it (the hub moved it from intel to infra under D-471).
 - **Ledgers and ids across branches** (D-448) — each agent writes its own ledger rows
   (`CHANGELOG.md`, `docs/DECISIONS.md`, `docs/STRATEGIC_BACKLOG.md`) on its own branch; two
   branches that both prepend a row to the same table always conflict at merge — `rerere` only
-  replays a resolution it has already recorded, so it helps with nothing new here — and agent-1
-  resolves the conflict BY HAND, keeping both sides (§ Merge protocol, below). Decision ids: mint
+  replays a resolution it has already recorded, so it helps with nothing new here — and
+  `merge_request.py merge` keeps both sides when the conflict is a pure insertion, refusing any
+  other (§ Merge protocol, below). Decision ids: mint
   with `python3 scripts/decisions.py --reserve-id .`, never `--next-id` alone — a flocked
   reservation keyed by the git common dir (so every worktree of a repo shares one file), and
   `--next-id` SKIPS a live reservation rather than reissuing it; a reservation is held until its id
@@ -140,22 +143,39 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
 
 ## Merge protocol — the merge owner only (§ Merge)
 
-Agent-1 merges finished branches into the base branch **one at a time, in `epic_order` phase order**
-(`python3 scripts/epic_order.py` prints the phases), rebase-first, `--no-ff`. This is INTEGRATION, not
-DISTRIBUTION: the merge owner decides merge order, never which agent owns which work item — that is
-`work.py assign`, the distributor's verb (§ Ownership surfaces, above).
+Finished work in a linked worktree is a MERGE REQUEST, and the merge owner merges it through ONE
+script, `scripts/merge_request.py` (spec `docs/superpowers/specs/2026-09-30-merge-request-loop-design.md`).
+This is INTEGRATION, not DISTRIBUTION: the merge owner decides merge order, never which agent owns
+which work item — that is `work.py assign`, the distributor's verb (§ Ownership surfaces, above).
 
 ```bash
-# 1. the reporting agent, INSIDE its worktree (git refuses to rebase a branch checked out elsewhere):
-git rebase master && git push          # push.autoSetupRemote makes the first push plain
-# 2. agent-1, in the main checkout:
-git merge --no-ff worktree-<name>      # one branch, one merge commit; verify (tests) on the result
-# 3. agent-1 messages the other windows: "merged epic N — rebase"
+# 1. the finishing agent, INSIDE its worktree, on a branch pushed as itself:
+python3 scripts/merge_request.py request --review <closing run record or review receipt> [--item W-xxxxxxxx]
+#    → one `merge-request` mail (ack: required) to the merge owner, an `ack: no` copy to the
+#      distributor when it is neither the owner nor the requester, and one `SendMessage to=<name>: …` doorbell line
+#      per live recipient session (`mail.py who <agent>`) — send each with the native SendMessage tool
+#    A branch cut before the script existed runs the main checkout's copy by absolute path
+#    (`python3 <main checkout>/scripts/merge_request.py request …`): it finds mail.py, work.py and
+#    whoami_agent.py beside itself, never in the branch. `--item` releases your claim on that item.
+# 2. the merge owner, in the main checkout:
+python3 scripts/merge_request.py merge [<id>]   # the oldest request addressed to it, or <id>
+python3 scripts/merge_request.py resume <id>    # a request left short of `replied` (exit 4)
 ```
 
-`rerere.enabled` replays a resolved conflict the next time the same hunks meet, which keeps the
-owner's load linear in the number of epics. `/fabrik-execute-plan`'s § Finish (c) is the agent-side
-half: a named agent's window merges nothing and removes nothing — push the branch and report.
+`merge` holds `<git common dir>/fabrik-merge.lock`, resumes any stranded record in
+`<git common dir>/fabrik-merge/` first, claims the request, and runs (a) a preflight in a throwaway
+worktree with a snapshot of every merged path, (b) pure-insertion ledger conflicts only, (c) the
+owner's tests (`.fabrik/merge-tests`, read from base), (d) a CAS of the local base (up to three
+rebuilds), (e) the carry into the main checkout — sibling WIP, untracked and staged files are never
+overwritten; a path that changed is kept and listed in the reply — (f) a fast-forward push, (g) the
+hub's governance sync, and (h) the reply to requester and distributor, then `mail.py ack done
+--merge-sha`. A refusal acks `blocked` with the refused step; the requester fixes and sends a new
+request. Mail is the durable record; the doorbell only wakes an idle session (best effort, D-463).
+The Stop hook holds the owner's turn while a request waits unclaimed or a record is stranded
+(`docs/workstation/hooks-index.md`). To keep a plan's epic order, merge by id in
+`python3 scripts/epic_order.py` phase order. `/fabrik-execute-plan`'s § Finish (c) is the agent-side
+half: a named agent's window merges nothing and removes nothing — push the branch and send the
+request.
 
 ## Locks — `.fabrik/plan-locks/`, per working tree (§ Live locks, D-117)
 
@@ -243,9 +263,9 @@ Projects adopted first; the hub runs the same model now, cut over by
 hazards were closed. **infra is agent-1**, the merge owner, alone in `/opt/fabrik` — recorded as a
 `MERGE OWNER: infra` ledger row (D-453) by the cut-over plan's own last ticket (T07), so
 `python3 scripts/decisions.py --merge-owner .` reads `infra`. Fleet and intel work in
-`.claude/worktrees/fleet` and `.claude/worktrees/intel`; intel stays the distributor unchanged
-(D-395, `.fabrik/work/config.json`) — the merge-owner and distributor roles are independent fields
-and diverge here on purpose (§ Ownership surfaces, above).
+`.claude/worktrees/fleet` and `.claude/worktrees/intel`; infra is also the distributor
+(`.fabrik/work/config.json`, D-471, superseding D-395's intel), so one agent holds both roles
+here as in every repo (§ Ownership surfaces, above).
 
 **Two acts stay main-checkout-only, both closed hazards the hub carried that projects never did:**
 - **The corpus render.** `commands/assemble_commands.py` PRUNES every installed command/skill absent
@@ -293,3 +313,13 @@ source, and it is **not inert here**: on CLI 2.1.258 `baseRef: "head"` applies t
 `EnterWorktree` and agent isolation, and the hub has live worktrees. `.worktreeinclude` (new at the
 cut-over, hub root) lists `.env` for the same reason projects' does — `.venv` needs no entry, it is
 already a `symlinkDirectories` entry in `.claude/settings.json`.
+
+<!-- BEGIN related-scripts: generated by scripts/render_doc_script_links.py — do not hand-edit -->
+## Related scripts
+
+Scripts that declare this document in their `# AFTER-EDIT:` header — editing one of them
+means updating this page in the same change. This list is generated from those headers
+(`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
+
+- `scripts/merge_request.py`
+<!-- END related-scripts -->

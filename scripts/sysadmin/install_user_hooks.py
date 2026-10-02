@@ -42,6 +42,14 @@ ENTRIES = {
     # (plan 2026-09-08-plan-1-scratch-sweep, D-184/D-187)
     "SessionStart": [
         f"python3 {HUB}/scripts/scratch_sweep.py --hook",
+        f"python3 {HUB}/scripts/sysadmin/worktree_transcript_link.py",
+    ],
+    # D-467: a worktree session's transcript gets a hardlink under its repo-root key, so the
+    # VS Code picker (`includeWorktrees: false`) still lists it after a reload. Stop catches a
+    # session that entered a worktree mid-run. Direct, not via user_hook_gate: no repo carries
+    # its own copy to defer to.
+    "Stop": [
+        f"python3 {HUB}/scripts/sysadmin/worktree_transcript_link.py",
     ],
 }
 TIMEOUT_S = 10

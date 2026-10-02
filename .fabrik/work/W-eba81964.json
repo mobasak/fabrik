@@ -1,0 +1,26 @@
+{
+  "block_digest": "b9319aa512c738a5c8edb8fedf9b178c70b034af1490507ed8d0d92ca917bfac",
+  "blocked_by": [],
+  "created": "2026-10-01T22:34:16.791781Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-eba81964",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "1d93aebeaa495fe679f8f23b1c1525d9392e97ecaff3fad820bce6acd1d4a494"
+  ],
+  "next": "",
+  "note": "yes",
+  "owner": "",
+  "priority": 2,
+  "question": "Once infra has merged the branch, may I deploy the Zitadel spec fix with `fabrik apply specs/services/zitadel.yaml`?",
+  "status": "done",
+  "title": "Once infra has merged the branch, may I deploy the Zitadel spec fix with `fabrik apply specs/services/zitadel.yaml`?"
+}

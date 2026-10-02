@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T23:17:34.809137Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5d3ed438",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/archived/2026-09-30-plan-1-merge-request-loop",
+    "spec": ""
+  },
+  "next": "decide the declaration grammar (uppercase MERGE OWNER: as the only declaration signal on bare rows too, and allow the bold-wrapped label) in decisions.py/docs_updater.py/session_orient.py with the shared-fixture parity test; found by the wave-1 review of plan 2026-09-30-plan-1-merge-request-loop, pass 3",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "hub"
+  ],
+  "title": "Merge-owner grammar gaps predating W-076ff4a9: a bold-wrapped **MERGE OWNER:** label never matches; a bare what-cell opening with prose 'Merge owner: rotated weekly' reads 'rotated' as owner"
+}

@@ -1,0 +1,26 @@
+{
+  "block_digest": "07e76d36368206f35dbbc64de0f23323de9655e47a52ac906c7c38eee25a6833",
+  "blocked_by": [],
+  "created": "2026-09-30T20:21:56.632115Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-0b238942",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "b2f3f8269e566279627f7ce64b5e2d7dd3877ef36c3b1ce12337ba50a2ce1e2b"
+  ],
+  "next": "",
+  "note": "operator 2026-09-30: \"A it is\" — merge-request loop design approved as written (Bell)",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve the merge-request loop design so it can go to planning?",
+  "status": "done",
+  "title": "Do you approve the merge-request loop design so it can go to planning?"
+}

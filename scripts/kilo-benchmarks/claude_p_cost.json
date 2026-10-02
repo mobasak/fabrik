@@ -1,73 +1,73 @@
 {
-  "amortized_per_mtok": 0.040594186699061056,
+  "amortized_per_mtok": 0.0882007102754247,
   "quota_draw_pct": 0.0,
-  "window_start": "2026-09-01",
-  "window_end": "2026-09-30",
+  "window_start": "2026-09-03",
+  "window_end": "2026-10-02",
   "accounts": 4,
   "spend_usd": 800.0,
-  "tokens": 19707255276,
-  "built_at": "2026-09-30T06:01:14+03:00",
+  "tokens": 9070221742,
+  "built_at": "2026-10-02T06:02:25+03:00",
   "per_model_spend": {
-    "window_start": "2026-09-01",
-    "window_end": "2026-09-30",
-    "spend_usd": 799.9999999999998,
+    "window_start": "2026-09-03",
+    "window_end": "2026-10-02",
+    "spend_usd": 798.2795698924729,
     "accounts": 4,
-    "base_rate_per_mtok": 0.0014615018664472718,
+    "base_rate_per_mtok": 0.0014776464244460527,
     "tiers": {
       "opus": {
         "weight": 5.0,
-        "tokens": 72603578566,
-        "share": 0.7023089638513854,
-        "rate_per_mtok": 0.007307509332236359,
-        "cost_usd": 530.5513279248007,
+        "tokens": 75877526285,
+        "share": 0.715891632062262,
+        "rate_per_mtok": 0.007388232122230264,
+        "cost_usd": 560.6007770542082,
         "models": [
           "claude-opus-5",
           "claude-opus-5-5",
           "claude-opus-4-8"
         ]
       },
-      "fable": {
-        "weight": 10.0,
-        "tokens": 15522440571,
-        "share": 0.15015167804647134,
-        "rate_per_mtok": 0.014615018664472719,
-        "cost_usd": 226.86075866333354,
-        "models": [
-          "claude-fable-5-1",
-          "claude-fable-5"
-        ]
-      },
       "sonnet": {
         "weight": 2.0,
-        "tokens": 13887445166,
-        "share": 0.1343360398717842,
-        "rate_per_mtok": 0.0029230037328945436,
-        "cost_usd": 40.59305406058628,
+        "tokens": 15620193611,
+        "share": 0.1473738858500177,
+        "rate_per_mtok": 0.0029552928488921055,
+        "cost_usd": 46.16224647689845,
         "models": [
           "claude-sonnet-5",
           "claude-sonnet-4-6"
         ]
       },
+      "fable": {
+        "weight": 10.0,
+        "tokens": 12790740301,
+        "share": 0.12067847223925136,
+        "rate_per_mtok": 0.014776464244460528,
+        "cost_usd": 189.0019167179068,
+        "models": [
+          "claude-fable-5-1",
+          "claude-fable-5"
+        ]
+      },
       "haiku": {
         "weight": 1.0,
-        "tokens": 1364937943,
-        "share": 0.013203318230359024,
-        "rate_per_mtok": 0.0014615018664472718,
-        "cost_usd": 1.9948593512791997,
+        "tokens": 1701780346,
+        "share": 0.01605600984846894,
+        "rate_per_mtok": 0.0014776464244460527,
+        "cost_usd": 2.5146296434594664,
         "models": [
           "claude-haiku-4-5-20251001"
         ]
       }
     },
     "models": {
-      "claude-opus-5": 58744197944,
-      "claude-fable-5": 621047582,
-      "claude-haiku-4-5-20251001": 1364937943,
-      "claude-fable-5-1": 14901392989,
-      "claude-opus-4-8": 229281765,
-      "claude-sonnet-5": 13848530762,
-      "claude-sonnet-4-6": 38914404,
-      "claude-opus-5-5": 13630098857
+      "claude-opus-5": 50977554546,
+      "claude-fable-5-1": 12774649456,
+      "claude-fable-5": 16090845,
+      "claude-sonnet-4-6": 43486187,
+      "claude-sonnet-5": 15576707424,
+      "claude-opus-4-8": 185964008,
+      "claude-haiku-4-5-20251001": 1701780346,
+      "claude-opus-5-5": 24714007731
     },
     "daily": [
       {
@@ -1612,13 +1612,35 @@
       },
       {
         "date": "2026-09-30",
-        "tokens": 1942917355,
-        "cost_usd": 12.138336319200993,
+        "tokens": 5046595108,
+        "cost_usd": 31.64775325575223,
         "by_tier": {
-          "haiku": 61270671,
-          "sonnet": 388039551,
-          "opus": 1493607133,
-          "fable": 0
+          "haiku": 146328144,
+          "sonnet": 833109500,
+          "opus": 4056004988,
+          "fable": 11152476
+        }
+      },
+      {
+        "date": "2026-10-01",
+        "tokens": 6658902892,
+        "cost_usd": 41.38678879297569,
+        "by_tier": {
+          "haiku": 157775873,
+          "sonnet": 883370610,
+          "opus": 5608836127,
+          "fable": 8920282
+        }
+      },
+      {
+        "date": "2026-10-02",
+        "tokens": 3486291186,
+        "cost_usd": 23.166959117843202,
+        "by_tier": {
+          "haiku": 104755177,
+          "sonnet": 454437446,
+          "opus": 2921266499,
+          "fable": 5832064
         }
       }
     ],
@@ -1627,7 +1649,8 @@
       "2026-06": 600.0,
       "2026-07": 600.0,
       "2026-08": 800.0,
-      "2026-09": 800.0
+      "2026-09": 800.0,
+      "2026-10": 800.0
     },
     "unweighted": {}
   }

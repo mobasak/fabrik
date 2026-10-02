@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T22:03:36.326358Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d56cb4e1",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-02-fabrik-task-feature-lane-design.md"
+  },
+  "next": "",
+  "note": "folded into spec Revision 2 (D10/D11)",
+  "owner": "",
+  "priority": 2,
+  "status": "dropped",
+  "tags": [
+    "infra"
+  ],
+  "title": "Appetite and breaker for /fabrik-execute-plan (884-min execute case)"
+}

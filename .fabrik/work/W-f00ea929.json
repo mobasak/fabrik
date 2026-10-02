@@ -1,0 +1,26 @@
+{
+  "block_digest": "7f9b0c71b076557bdea55f9d24257f35e07cde7ab441886af92ae4a18af41b14",
+  "blocked_by": [],
+  "created": "2026-10-02T10:02:40.832554Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-f00ea929",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "b0c908262273c49397a7332162beb86a999c4eaa01c4eae29e1908d013fa9e77"
+  ],
+  "next": "",
+  "note": "proceed — start building plan-2 (option A)",
+  "owner": "",
+  "priority": 2,
+  "question": "Shall I start building the approved plan now with `/fabrik-execute-plan`?",
+  "status": "done",
+  "title": "Shall I start building the approved plan now with `/fabrik-execute-plan`?"
+}

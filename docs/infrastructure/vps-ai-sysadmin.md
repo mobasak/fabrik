@@ -196,7 +196,7 @@ Claude Code reaches these from inside the Docker `fabrik` network via `sudo dock
 
 > **✅ Truth check RE-VERIFIED 2026-07-12:** the spoke scrape jobs **`node-spokes` / `cadvisor-spokes` / `promtail-spokes` ARE now live** in `prometheus.yml` (`:46,:58,:70`; 2 targets each, all up — 17 `job_name`s configured / 16 active in the repo config since the 2026-07-19 `pushgateway` restore). Spoke federation shipped in `8342ef1`, superseding the 2026-06-07 note that said they were absent. `proactive-check.sh` queries against `node_cpu_seconds_total{host=~"vps[23]"}` therefore DO return rows for spokes now. The per-spoke `aro-wake` job (3 targets) and each spoke's own `vps-sysadmin-bot.service` + `proactive-check.sh` cron remain in place on top.
 
-~~New Prometheus alert rules in group `spoke_health`~~ — **NOT in alerts.yml as of 2026-06-07T20:20Z**. The 5 actual live groups: `aro_wake` (2), `container_health` (6), `host_health` (3 — fires on `host=vps2|vps3` labels for host-level metrics that ARE available), `service_health` (1), `fabrik-registrar-drift` (1, separate file).
+~~New Prometheus alert rules in group `spoke_health`~~ — **NOT in alerts.yml as of 2026-06-07T20:20Z**. The 5 actual live groups: `aro_wake` (2), `container_health` (6), `host_health` (3 — fires on `host=vps2|vps3` labels for host-level metrics that ARE available), `service_health` (1), `fabrik-registrar-drift` (1 live; 3 once plan-2 rollout R0 syncs FabrikRegistryHealFailed + FabrikAuditStale, separate file).
 
 Originally designed (kept as a recipe, NOT live):
 

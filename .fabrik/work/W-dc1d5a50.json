@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T08:19:20.283104Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-dc1d5a50",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "trace which of those spawns reach a script importing fabrik (17 of 76 scripts do); derive their PYTHONPATH from Path(__file__) like tests/test_config_no_autoload.py does",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "tests"
+  ],
+  "title": "Hub tests that spawn python with a hand-built env= (no PYTHONPATH) still import the MAIN checkout's fabrik when run in a worktree — e.g. tests/test_stop_hook_harvest_resilience.py:57, tests/test_thread_anchor_flush_race.py:90, tests/enforcement/test_plan_shape_gates.py:565 (PYTHONPATH=/opt/fabrik)"
+}

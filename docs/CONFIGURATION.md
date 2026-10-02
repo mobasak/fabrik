@@ -211,9 +211,9 @@ For a watchdog-enabled project with `shape.needs_database`, the postgres registr
 
 ### Payments webhook ingest — `PAYMENTS_INGEST_DATABASE_URL` (auto-injected, do NOT set by hand)
 
-For a project with `shape.needs_payments_ingest` (vendors fabrik-lib `payments`, takes UNSIGNED-provider webhooks — iyzico has no signed org field), the postgres registrar mints a **scoped, NON-BYPASSRLS** cross-tenant ingest role and injects `PAYMENTS_INGEST_DATABASE_URL` at `fabrik apply` (hub-generated, never operator-set; minted on fresh create, preserved on re-apply — like `DATABASE_URL`). The role exists because `PgWebhookStore.resolve_org()` must read across tenants to discover *which* tenant a webhook belongs to (the tenant is the unknown being resolved), which the multi-tenant RLS model (ENABLE + FORCE) otherwise default-denies. Unlike fabrik-lib's BYPASSRLS default, this role is confined by permissive policies to ONLY the three payments tables the store touches — SELECT on `customers`/`subscriptions` and INSERT+SELECT on `webhook_events` (the SELECT half is required for `record_event`'s `INSERT … RETURNING`). A leaked DSN therefore cannot reach the app's own core tenant tables — proven at provision time: the role is `NOBYPASSRLS` and any non-payments table is `permission denied`.
+For a project with `shape.needs_payments_ingest` (vendors fabrik-lib `payments`, takes UNSIGNED-provider webhooks — iyzico has no signed org field), the postgres registrar mints a **scoped, NON-BYPASSRLS** cross-tenant ingest role and injects `PAYMENTS_INGEST_DATABASE_URL` at `fabrik apply` (hub-generated, never operator-set; minted on fresh create, preserved on re-apply — like `DATABASE_URL`). The role exists because `PgWebhookStore.resolve_org()` must read across tenants to discover *which* tenant a webhook belongs to (the tenant is the unknown being resolved), which the multi-tenant RLS model (ENABLE + FORCE) otherwise default-denies. Unlike fabrik-lib's BYPASSRLS default, this role is confined by permissive policies to ONLY the three payments tables the store touches — SELECT on `customers`/`subscriptions` and INSERT+SELECT on `webhook_events` (the SELECT half is required for `record_event`'s `INSERT … RETURNING`). A leaked DSN therefore cannot reach the app's own core tenant tables — proven at provision time: the role is `NOBYPASSRLS` and any non-payments table is `permission denied`. **Which grant path runs** depends on the project's payments install. Once it has run fabrik-lib's scoped-roles migration (fabrik-lib D-337), each apply calls the module's `payments_grant_ingest('<db>_payments_ingest')`. That call extends the ingest policies rather than replacing them, so other roles already on a policy survive. It grants SELECT on only the three columns `resolve_org` reads, never `email`, plus INSERT on the project's `jobs`. The tables resolve through the registrar session's search_path, which in a Fabrik project DB is `public`. If the payments schema is not applied yet, the apply grants nothing and logs a warning, and the next apply makes the grant. If the payments tables exist but `jobs` does not, the step fails and names `jobs`, because the function requires it. An install that predates the migration keeps the registrar's own block, which grants table-level SELECT.
 
-**Consuming-project wiring** (the project's job, NOT built by the registrar): connect ingest with `PAYMENTS_INGEST_DATABASE_URL` and assert the wiring at boot with `SELECT rolbypassrls, rolsuper FROM pg_roles WHERE rolname = current_user`, requiring BOTH false — not `verify_service_role(conn, allow_policy_based=True)` (fabrik-lib `payments`), whose flag skips the only check it makes and so asserts nothing for this policy-based role; the fulfilment WORKER does NOT use this role — it receives the resolved `org_id` in its job payload and runs as the ordinary tenant role with `SET app.current_org`. If the project's own `jobs`/queue table is under RLS, the project's migration adds its own policy for `{db}_payments_ingest` on that project-owned table (the registrar scopes only the payments-module tables). Contract to be documented fleet-wide in the multi-tenant/payments rule pack (infra hand-off).
+**Consuming-project wiring** (the project's job, NOT built by the registrar): connect ingest with `PAYMENTS_INGEST_DATABASE_URL`. To assert the wiring at boot on a payments copy re-vendored at or after fabrik-lib D-337, call `verify_service_role(conn, lane="ingest")`. It logs a "table-level SELECT" WARNING while an install is still on the legacy grant. On an older copy, check `SELECT rolbypassrls, rolsuper FROM pg_roles WHERE rolname = current_user` and require BOTH false. There, `verify_service_role(conn, allow_policy_based=True)` asserts nothing, because the flag skips the only check it makes; the fulfilment WORKER does NOT use this role — it receives the resolved `org_id` in its job payload and runs as the ordinary tenant role with `SET app.current_org`. If the project's own `jobs`/queue table is under RLS, the project's migration adds its own policy for `{db}_payments_ingest` on that project-owned table. The registrar's legacy block scopes only the payments-module tables, and `payments_grant_ingest` grants the INSERT privilege on `jobs` but no policy on it. Contract to be documented fleet-wide in the multi-tenant/payments rule pack (infra hand-off).
 
 ### Project database DSNs — `DATABASE_URL` / `DATABASE_URL_OWNER` and `shape.database_url_app_role` (auto-injected, do NOT set by hand)
 
@@ -567,6 +567,21 @@ PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audi
 ```
 
 **Removing:** `crontab -e` and delete the line. The script itself stays in place for ad-hoc runs.
+
+**`FABRIK_REGISTRY_RECONCILE` — the hourly drift cron's registry reconcile** (`scripts/audit_all_registrars.py`, `src/fabrik/registry_reconcile.py`; D-500). Set on the cron line's env prefix, never in `.env` (cron sources no dotenv):
+
+| Value | Effect |
+|---|---|
+| unset / `report` (default) | Dry run: nothing is written. Each unregistered postgres database is logged and pushed with the outcome it would get — `would-register`, or `shared` / `failed` (`claims-unresolved`, `db-name-missing`) for the refusals that are decided before any write. |
+| `apply` | Registers each unregistered database in `allocations.json` on vps1, in-lock, never overwriting an entry; owner role read from `pg_database` (none found: `failed owner-unresolved`). The same refusals as `report` apply. |
+| `off` | The reconcile does not run. |
+| anything else | Treated as `report`, with a warning. |
+
+After rollout step R2 of plan-2 (rules synced at R0, one `report` run read at R1), the audit line becomes:
+
+```cron
+0 * * * * FABRIK_REGISTRY_RECONCILE=apply PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_all_registrars.py >> /var/log/fabrik-audit-all.log 2>&1
+```
 
 WSL cron quirk: ensure `systemctl is-active cron` returns `active` after a WSL restart. Some fresh WSL installs don't autostart cron; if cron is `inactive` after reboot, run `sudo service cron start` and consider enabling on boot via `sudo systemctl enable cron`.
 
@@ -971,6 +986,7 @@ in `docs/reference/external-services-registry.md`.
 | Var | Default | Effect |
 |---|---|---|
 | `FABRIK_SCAFFOLD_OFFLINE` | unset | `1`/`true`/`yes`/`on` makes `create_project` write every file but create no venv, install nothing, create no local database, skip the hub registry sync and the `.mcp.json` emitter; the venv and database steps print the command to run instead. `tests/conftest.py` pins it for the whole test session. It scopes `create_project` only: `fabrik scaffold`'s own registry save, sync and GitHub wiring around it still run. |
+| `FABRIK_REAL_DOCKER_BUILD` | unset | `1` opts `tests/test_docusaurus_static_runtime.py::test_real_build_serves_the_static_site` into a real `docker build` and run of a scaffolded docusaurus site (needs docker and the npm registry; ~80 s); unset, the test skips with a reason naming the flag; set with no `docker` on `PATH`, it fails rather than skips. |
 
 <!-- BEGIN related-scripts: generated by scripts/render_doc_script_links.py — do not hand-edit -->
 ## Related scripts

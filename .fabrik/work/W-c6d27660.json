@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T15:32:37.588356Z",
+  "creator": "fleet",
+  "evidence": "9b61373826ec371e24fc17d0fe8cc9cb5a2ee3bd",
+  "id": "W-c6d27660",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-02-plan-2-postgres-allocation-reconcile.md",
+    "spec": ""
+  },
+  "next": "cache only a positive container name in src/fabrik/audit.py::_resolve_container (do not store '' on a failed probe), with a test that a failed first probe is retried",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "done",
+  "tags": [
+    "fleet"
+  ],
+  "title": "audit._resolve_container caches a failed docker-ps probe as 'not found' for the whole process: one transient SSH failure on the first lookup of postgres-main makes every later audit_postgres in that hourly run report unknown (fails safe: no drift, no heal, but the run's postgres audits are blind) — found by the plan-2 Finish review (A-registry-S1), predates plan-2"
+}

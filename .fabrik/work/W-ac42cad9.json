@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T11:55:32.516548Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ac42cad9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VN08YNNK9M7VMW2AMQRZV1",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "re finding 01M3TQKAR1 — fixed (3721fe7 + 1f91540); details in reply 01M3VN01NM to request 01M3VK1CMB"
+}

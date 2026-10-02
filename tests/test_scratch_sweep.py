@@ -81,6 +81,18 @@ def _tree_state(root: Path) -> set[tuple[str, int, int]]:
     return out
 
 
+@pytest.fixture(autouse=True)
+def _private_home(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every test resolves `~` to its own directory. The sweep's lock is
+    `~/.claude/state/scratch-sweep.lock`: on the real HOME a live sweep (cron, any window's
+    SessionStart hook, a parallel run) made tests print "another sweep holds the lock", and a test
+    holding it made the real sweep skip (measured 2026-10-01: 1 of 3 serial runs, 5 failures in 2
+    concurrent ones)."""
+    monkeypatch.setenv("HOME", str(tmp_path_factory.mktemp("home")))
+
+
 @pytest.fixture
 def scratch(tmp_path: Path) -> Path:
     """The plan's canonical session fixture: stale · fresh · kept · held, plus `tasks/` beside it.
@@ -1794,3 +1806,304 @@ def test_a_worktree_with_a_non_utf8_path_is_classified_not_a_usage_error(tmp_pat
     assert res.returncode == 0, res.stdout + res.stderr
     assert "bad invocation" not in res.stdout + res.stderr
     assert "wt\\udcffname" in res.stdout, res.stdout
+
+
+# ── --include-unmerged: dead worktrees whose branch keeps every commit ───────────────────────────
+def _sweep_module():
+    import importlib.util as _ilu
+    import types as _types
+
+    spec = _ilu.spec_from_file_location("scratch_sweep_inproc", SCRIPT)
+    mod = _ilu.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = mod  # dataclasses resolve their module through sys.modules
+    spec.loader.exec_module(mod)
+    return mod, _types
+
+
+def _allowed(mod, types_mod, include_unmerged: bool) -> set[str]:
+    args = types_mod.SimpleNamespace(
+        include_harness=False,
+        include_backups=False,
+        unowned_older_than=None,
+        include_unmerged=include_unmerged,
+    )
+    return mod._allowed_classes(args)
+
+
+def test_include_unmerged_removes_a_clean_unmerged_worktree_and_keeps_its_branch(
+    repo: Path,
+) -> None:
+    """Removing a worktree's FOLDER never deletes its branch, so a clean unmerged tree is safe to
+    remove: every commit stays reachable. Dirty, stashed, ignored-data and locked trees still stay."""
+    plain = _run("--worktrees", str(repo), "--apply", env=_wt_env())
+    assert plain.returncode == 0, plain.stderr
+    assert (repo.parent / "wt-unmerged").exists(), "no flag, no removal"
+
+    proc = _run("--worktrees", str(repo), "--apply", "--include-unmerged", env=_wt_env())
+    assert proc.returncode == 0, proc.stderr
+    assert not (repo.parent / "wt-unmerged").exists(), proc.stdout
+    assert not (repo.parent / "wt-nearmiss").exists(), proc.stdout
+    branches = _git(repo, "branch", "--list")
+    assert "feat-unmerged" in branches and "feat-squashed-2" in branches, branches
+    assert _git(repo, "log", "-1", "--format=%s", "feat-unmerged").strip() == "unmerged work"
+    for kept in ("wt-dirty", "wt-stashed", "wt-ignored-data", "wt-locked"):
+        assert (repo.parent / kept).exists(), f"{kept} must survive --include-unmerged"
+
+
+def _sync_only_tree(repo: Path, name: str, branch: str) -> Path:
+    path = repo.parent / name
+    _git(repo, "worktree", "add", "-q", str(path), "-b", branch)
+    (path / "scripts").mkdir()
+    (path / "scripts" / "synced.py").write_text("copied by the sync\n", encoding="utf-8")
+    os.utime(repo / ".git" / "worktrees" / name / "gitdir", (NOW, NOW))
+    return path
+
+
+def _rows(mod, repo: Path) -> dict[str, object]:
+    rows = mod.classify_worktrees(repo, NOW, Path("/proc"), NOW - DAY, False, None)
+    return {Path(r.path).name: r for r in rows}
+
+
+def test_a_sync_only_worktree_is_removed_only_under_include_unmerged(
+    repo: Path, monkeypatch
+) -> None:
+    mod, types_mod = _sweep_module()
+    monkeypatch.setattr(
+        mod, "_sync_materialised_paths", lambda path, names: {n for n in names if "scripts" in n}
+    )
+    tree = _sync_only_tree(repo, "wt-synconly", "feat-synconly")
+    tip = _git(repo, "rev-parse", "feat-synconly").strip()
+    rows = _rows(mod, repo)
+    assert rows["wt-synconly"].cls == "wt-sync-only", rows["wt-synconly"]
+    mod.apply_worktrees(repo, [rows["wt-synconly"]], _allowed(mod, types_mod, False))
+    assert tree.exists(), "no flag, no removal"
+    mod.apply_worktrees(repo, [rows["wt-synconly"]], _allowed(mod, types_mod, True))
+    assert not tree.exists()
+    # the branch held no commits of its own, so `-d` may drop it — its tip stays reachable from main
+    merged = subprocess.run(
+        ["git", "-C", str(repo), "merge-base", "--is-ancestor", tip, "main"], check=False
+    )
+    assert merged.returncode == 0 or "feat-synconly" in _git(repo, "branch", "--list")
+
+
+def test_a_sync_only_worktree_holding_ignored_data_or_a_stash_is_never_sync_only(
+    repo: Path, monkeypatch
+) -> None:
+    """Removing a sync-only tree needs --force, which also deletes ignored files — so the stash
+    and ignored-data checks must run BEFORE the sync-only verdict, not be skipped by it."""
+    mod, _types = _sweep_module()
+    monkeypatch.setattr(
+        mod, "_sync_materialised_paths", lambda path, names: {n for n in names if "scripts" in n}
+    )
+    data_tree = _sync_only_tree(repo, "wt-sync-data", "feat-sync-data")
+    (data_tree / "data").mkdir()
+    (data_tree / "data" / "only-copy.jsonl").write_text("payload", encoding="utf-8")
+    stash_tree = _sync_only_tree(repo, "wt-sync-stash", "feat-sync-stash")
+    (stash_tree / "a.txt").write_text("stashed edit", encoding="utf-8")
+    _git(stash_tree, "stash", "-q")
+    rows = _rows(mod, repo)
+    assert rows["wt-sync-data"].cls == "wt-ignored-data", rows["wt-sync-data"]
+    assert rows["wt-sync-stash"].cls == "wt-dirty", rows["wt-sync-stash"]
+
+
+def test_a_file_authored_after_classification_stops_the_forced_removal(
+    repo: Path, monkeypatch
+) -> None:
+    """--force is re-earned at removal time: a file written since the dry run keeps the tree."""
+    mod, types_mod = _sweep_module()
+    monkeypatch.setattr(
+        mod, "_sync_materialised_paths", lambda path, names: {n for n in names if "scripts" in n}
+    )
+    tree = _sync_only_tree(repo, "wt-sync-late", "feat-sync-late")
+    rows = _rows(mod, repo)
+    assert rows["wt-sync-late"].cls == "wt-sync-only"
+    (tree / "notes.txt").write_text("written after the dry run", encoding="utf-8")
+    mod.apply_worktrees(repo, [rows["wt-sync-late"]], _allowed(mod, types_mod, True))
+    assert (tree / "notes.txt").exists(), "the late file must survive"
+
+
+def test_the_printed_apply_command_carries_every_judging_flag() -> None:
+    mod, types_mod = _sweep_module()
+    args = types_mod.SimpleNamespace(
+        older_than=None,
+        include_backups=False,
+        include_harness=True,
+        strict_proc=False,
+        unowned_older_than=None,
+        foreign_older_than="14d",
+        include_unmerged=True,
+    )
+    cmd = mod._apply_command(["--worktrees", "/opt/x"], args)
+    assert "--foreign-older-than 14d" in cmd and "--include-unmerged" in cmd, cmd
+
+
+def _copies_tree(repo: Path, name: str, branch: str) -> Path:
+    """A worktree holding only what creation and the hub put there: the shared-venv link, a copy
+    of the main checkout's `.env`, and its own local settings."""
+    (repo / ".git" / "info").mkdir(exist_ok=True)
+    with open(repo / ".git" / "info" / "exclude", "a", encoding="utf-8") as fh:
+        fh.write(".env\n.claude/\n")
+    (repo / ".env").write_text("KEY=main\n", encoding="utf-8")
+    path = repo.parent / name
+    _git(repo, "worktree", "add", "-q", str(path), "-b", branch)
+    (path / ".venv").symlink_to(repo / ".venv-target")
+    (path / ".env").write_text("KEY=main\n", encoding="utf-8")
+    (path / ".claude").mkdir()
+    (path / ".claude" / "settings.local.json").write_text('{"autoMemoryDirectory": "x"}\n')
+    os.utime(repo / ".git" / "worktrees" / name / "gitdir", (NOW, NOW))
+    return path
+
+
+def test_creation_copies_and_the_venv_link_are_rebuildable_not_work(repo: Path) -> None:
+    """`.worktreeinclude` copies byte-identical to the main checkout, the shared-venv symlink and
+    the worktree's own `.claude/settings.local.json` are not anyone's work — under
+    --include-unmerged such a tree is removed (forced, re-verified) and its branch survives git's
+    own `-d` check."""
+    mod, types_mod = _sweep_module()
+    tree = _copies_tree(repo, "wt-copies", "feat-copies")
+    rows = _rows(mod, repo)
+    assert rows["wt-copies"].cls == "wt-sync-only", rows["wt-copies"]
+    mod.apply_worktrees(repo, [rows["wt-copies"]], _allowed(mod, types_mod, True))
+    assert not tree.exists()
+    assert (repo / ".env").read_text(encoding="utf-8") == "KEY=main\n", "main's copy untouched"
+
+
+def test_a_copy_that_differs_from_the_main_checkout_is_data(repo: Path) -> None:
+    mod, _types = _sweep_module()
+    tree = _copies_tree(repo, "wt-own-env", "feat-own-env")
+    (tree / ".env").write_text("KEY=edited-here\n", encoding="utf-8")
+    rows = _rows(mod, repo)
+    assert rows["wt-own-env"].cls == "wt-ignored-data", rows["wt-own-env"]
+
+
+def test_an_authored_file_beside_the_copies_keeps_the_tree_dirty(repo: Path) -> None:
+    mod, _types = _sweep_module()
+    tree = _copies_tree(repo, "wt-authored", "feat-authored")
+    (tree / "notes.md").write_text("real work", encoding="utf-8")
+    rows = _rows(mod, repo)
+    assert rows["wt-authored"].cls == "wt-dirty", rows["wt-authored"]
+
+
+def _ledgered_tree(repo: Path, name: str, branch: str) -> Path:
+    """A worktree carrying a STALE synced copy — bytes the main checkout no longer holds — that
+    the sync's own ledger records, plus nested build output."""
+    import hashlib
+
+    tree = _copies_tree(repo, name, branch)
+    with open(repo / ".git" / "info" / "exclude", "a", encoding="utf-8") as fh:
+        fh.write("libs/\n.fabrik/\nsites/*/.astro/\n")
+    (repo / "libs").mkdir(exist_ok=True)
+    (repo / "libs" / "mod.py").write_text("v2 = 'main moved on'\n", encoding="utf-8")
+    (tree / "libs").mkdir()
+    stale = b"v1 = 'what the sync wrote'\n"
+    (tree / "libs" / "mod.py").write_bytes(stale)
+    (tree / ".fabrik").mkdir()
+    (tree / ".fabrik" / "worktree-synced.lock").write_text(
+        json.dumps({"libs/mod.py": hashlib.md5(stale).hexdigest()}), encoding="utf-8"
+    )
+    (tree / "sites" / "a" / ".astro").mkdir(parents=True)
+    (tree / "sites" / "a" / ".astro" / "types.d.ts").write_text("export {}", encoding="utf-8")
+    (tree / "sites" / "a" / "node_modules").symlink_to(repo / ".nm-target")
+    return tree
+
+
+def test_a_stale_synced_copy_matching_its_ledger_and_build_output_are_not_data(
+    repo: Path,
+) -> None:
+    mod, _types = _sweep_module()
+    _ledgered_tree(repo, "wt-ledger", "feat-ledger")
+    rows = _rows(mod, repo)
+    assert rows["wt-ledger"].cls == "wt-sync-only", rows["wt-ledger"]
+
+
+def test_a_synced_copy_edited_after_the_sync_wrote_it_is_data(repo: Path) -> None:
+    mod, _types = _sweep_module()
+    tree = _ledgered_tree(repo, "wt-ledger-edit", "feat-ledger-edit")
+    (tree / "libs" / "mod.py").write_text("v1 = 'an agent edited this'\n", encoding="utf-8")
+    rows = _rows(mod, repo)
+    assert rows["wt-ledger-edit"].cls == "wt-ignored-data", rows["wt-ledger-edit"]
+
+
+def test_a_tracked_edit_under_a_build_dir_name_is_still_work(repo: Path) -> None:
+    """REBUILD_DIRS judges UNTRACKED entries only: a repo that tracks `dist/` keeps a hand edit."""
+    mod, _types = _sweep_module()
+    (repo / "dist").mkdir()
+    (repo / "dist" / "keep.txt").write_text("tracked\n", encoding="utf-8")
+    _git(repo, "add", "dist/keep.txt")
+    _git(repo, "commit", "-qm", "track dist")
+    path = repo.parent / "wt-dist"
+    _git(repo, "worktree", "add", "-q", str(path), "-b", "feat-dist")
+    os.utime(repo / ".git" / "worktrees" / "wt-dist" / "gitdir", (NOW, NOW))
+    (path / "dist" / "keep.txt").write_text("hand edit\n", encoding="utf-8")
+    rows = _rows(mod, repo)
+    assert rows["wt-dist"].cls == "wt-dirty", rows["wt-dist"]
+
+
+def _old_hub_bytes() -> bytes:
+    """`scripts/scratch_sweep.py` as committed at 5523a3061 — an immutable older version."""
+    return subprocess.run(
+        ["git", "show", "5523a3061:scripts/scratch_sweep.py"],
+        cwd="/opt/fabrik",
+        capture_output=True,
+        check=True,
+    ).stdout
+
+
+def test_an_older_committed_version_of_a_sync_source_is_in_hub_history() -> None:
+    mod, _types = _sweep_module()
+    old = _old_hub_bytes()
+    assert mod._in_hub_history("scripts/scratch_sweep.py", old)
+    assert not mod._in_hub_history("scripts/scratch_sweep.py", old + b"# an agent's edit\n")
+    assert not mod._in_hub_history("scripts/final_gate.py", old), "the blob must be on THAT path"
+
+
+def test_a_stale_synced_copy_outside_the_ledger_is_not_data(repo: Path, monkeypatch) -> None:
+    mod, _types = _sweep_module()
+    tree = _copies_tree(repo, "wt-old-sync", "feat-old-sync")
+    with open(repo / ".git" / "info" / "exclude", "a", encoding="utf-8") as fh:
+        fh.write("synced/\n")
+    (tree / "synced").mkdir()
+    (tree / "synced" / "tool.py").write_bytes(_old_hub_bytes())
+    hub_src = Path("/opt/fabrik/scripts/scratch_sweep.py")
+    monkeypatch.setattr(
+        mod, "_sync_source_for", lambda wt, rel: hub_src if rel == "synced/tool.py" else None
+    )
+    rows = _rows(mod, repo)
+    assert rows["wt-old-sync"].cls == "wt-sync-only", rows["wt-old-sync"]
+    (tree / "synced" / "tool.py").write_bytes(_old_hub_bytes() + b"# edited\n")
+    rows = _rows(mod, repo)
+    assert rows["wt-old-sync"].cls == "wt-ignored-data", rows["wt-old-sync"]
+
+
+def test_an_untracked_dir_or_file_with_a_build_output_name_is_work(repo: Path) -> None:
+    """A NAME proves nothing: an untracked, unignored `dist/` (or a FILE named `dist`) holding
+    unique bytes is someone's work — only the repo's ignore rules mark build output (review
+    R1-S1, where `--force` deleted exactly this)."""
+    mod, _types = _sweep_module()
+    for name, make_dir in (("wt-own-dist", True), ("wt-dist-file", False)):
+        tree = _copies_tree(repo, name, f"feat-{name}")
+        if make_dir:
+            (tree / "dist").mkdir()
+            (tree / "dist" / "report.txt").write_text("unique hand-made bytes\n")
+        else:
+            (tree / "dist").write_text("unique hand-made bytes\n")
+        rows = _rows(mod, repo)
+        assert rows[name].cls == "wt-dirty", rows[name]
+
+
+def test_an_ignored_output_dir_is_data_only_tool_caches_go_by_name(repo: Path) -> None:
+    """An IGNORED `dist/` still holds data: an output directory is where a report lands, so its
+    name proves nothing (review R2-S1). An ignored tool cache (`.pytest_cache/`) goes by name."""
+    mod, _types = _sweep_module()
+    tree = _copies_tree(repo, "wt-ign-dist", "feat-ign-dist")
+    with open(repo / ".git" / "info" / "exclude", "a", encoding="utf-8") as fh:
+        fh.write("dist/\n.pytest_cache/\n")
+    (tree / ".pytest_cache").mkdir()
+    (tree / ".pytest_cache" / "lastfailed").write_text("{}", encoding="utf-8")
+    rows = _rows(mod, repo)
+    assert rows["wt-ign-dist"].cls == "wt-sync-only", rows["wt-ign-dist"]
+    (tree / "dist").mkdir()
+    (tree / "dist" / "important-notes.txt").write_text("only copy\n", encoding="utf-8")
+    rows = _rows(mod, repo)
+    assert rows["wt-ign-dist"].cls == "wt-ignored-data", rows["wt-ign-dist"]

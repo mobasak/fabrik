@@ -929,7 +929,7 @@ class TestDocusaurusScaffold:
 
         assert scripts["start"] == "docusaurus start"
         assert scripts["build"] == "docusaurus build"
-        assert scripts["serve"] == "docusaurus serve"
+        assert "serve" not in scripts  # no Node runtime in production — nginx serves the build
 
     def test_creates_config(self, tmp_path):
         """Verify docusaurus.config.js is generated with full OpenAPI contract."""

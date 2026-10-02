@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T08:24:38.577511Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-9aca7862",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-01-docusaurus-static-runtime-design.md"
+  },
+  "next": "adjudicate each against the pack (B43 kept warn deliberately), then fix or record the deviation",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "docusaurus scaffold: the remaining 42-docusaurus divergences (onBrokenLinks warn vs throw, colour tokens, dark default, frontmatter check, OpenAPI placeholder artifacts)"
+}

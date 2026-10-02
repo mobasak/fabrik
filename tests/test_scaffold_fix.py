@@ -56,9 +56,10 @@ class TestScaffoldHubGuard:
 
         with pytest.raises(ValueError, match=_REFUSAL):
             _assert_not_hub(fake_hub)
-        # Path normalization: <hub>/docs/.. resolves to the hub (pathlib keeps the "..").
+        # Path normalization: <parent>/missing/../hub reaches the hub only once resolve() collapses
+        # the ".." — no lexical parent of the unresolved path carries the marker.
         with pytest.raises(ValueError, match=_REFUSAL):
-            _assert_not_hub(fake_hub / "docs" / "..")
+            _assert_not_hub(fake_hub.parent / "missing" / ".." / fake_hub.name)
 
     def test_assert_not_hub_allows_non_hub(self):
         from fabrik.scaffold import _assert_not_hub
@@ -74,7 +75,7 @@ class TestScaffoldHubGuard:
             _assert_not_hub(fake_hub / "docs" / "x")
 
     def test_assert_not_hub_blocks_symlink_to_hub(self, fake_hub, tmp_path):
-        """Over-block guard: resolve() must follow a symlink and still block the hub."""
+        """A link to a hub checkout is refused (its marker is visible through the link)."""
         from fabrik.scaffold import _assert_not_hub
 
         link = tmp_path / "hublink"
@@ -95,6 +96,12 @@ class TestScaffoldHubGuard:
         for target in (root, root / "new-project", link / "new-project"):
             with pytest.raises(ValueError, match=_REFUSAL):
                 scaffold._assert_not_hub(target)
+        # A sibling sharing the root's name prefix is not inside it (a string-prefix guard fails here).
+        scaffold._assert_not_hub(tmp_path / "configured-root-2")
+        # The root itself configured through a link: the guard must resolve FABRIK_ROOT too.
+        monkeypatch.setattr(scaffold, "FABRIK_ROOT", link)
+        with pytest.raises(ValueError, match=_REFUSAL):
+            scaffold._assert_not_hub(root / "new-project")
 
     def test_create_project_refuses_a_hub_base(self, fake_hub):
         """The scaffold path calls the guard too, before anything is written."""

@@ -35,7 +35,7 @@ ts: <ISO-8601 UTC>  # mint time
 re: <id|empty>      # advisory threading hint — a DANGLING ref is harmless (fail-soft), but the
                     # value must be ONE line (any separator forges frontmatter) and <= 512 chars;
                     # both are exit-2 refusals
-kind: request|finding|relay|reply|upstream-feedback
+kind: request|finding|relay|reply|upstream-feedback|merge-request
 ack: required|no
 agent: <role>       # OPTIONAL intra-mailbox addressee (infra|fleet|intel). Emitted only when set,
                     # so a message without it is byte-identical to a legacy one. A FILTER, never a
@@ -174,11 +174,34 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
 | `finding` | no | FYI; the reader archives it on read |
 | `relay` | no | a forwarded artifact/path |
 | `reply` | no | closes a prior `request`/`upstream-feedback` |
+| `merge-request` | required | finished worktree work for the repo's merge owner — written only by `merge_request.py request` (below) |
 
 **Reply-closure (the mandated back-channel).** An `ack: required` message is acked in the recipient's
 OWN archive AND the recipient sends a `reply` (`mail.py send --re <id> --kind reply …` + the
 disposition) to the ORIGINAL sender's inbox. Acks live in the recipient's mailbox and never travel, so
 **without the reply the requester's next session never learns it resolved.** Reply is the closure.
+
+### `merge-request` — the merge loop's kind (D-462)
+
+Sent only by `python3 scripts/merge_request.py request` from a linked worktree (the model doc's
+§ Merge protocol, `docs/reference/multi-agent-operating-model.md`): one to the merge owner
+(`ack: required`), plus an `ack: no` copy to the distributor when it is neither the owner nor the requester. The body
+is script-written `field: value` lines — `branch head base item review doorbell sent requester` — and
+`mail.py` reads them back (`_body_fields`). Three guards bind this kind only:
+
+- **claim and ack by the addressee only** — the message's `agent:` must be the caller's agent
+  (`CLAUDE_AGENT`, else the session's whoami binding); anyone else is refused, and an unknown caller
+  is refused (fail closed).
+- **`ack --disposition done --merge-sha <sha>`** — the SHA must be an ancestor of the request's
+  `base`, carry the request id in its message, and hold the request's `head` in its history; an
+  empty commit naming the id is no merge of it.
+- **`ack --disposition blocked|wontfix --reason <the refused step>`** — a refusal carries its reason.
+
+**`mail.py who <agent>`** prints the live Claude Code session names bound to `<agent>` in THIS repo
+(any of its worktrees — matched by absolute git common dir), joining each session's
+`CLAUDE_AGENT` or whoami binding; `merge_request.py request` turns each into a
+`SendMessage to=<name>: …` doorbell line. Read-only; an empty answer means no live session, and the
+mail waits for the next session's surfacing hook.
 
 ## The message contract (D-035, operator directive 2026-08-30)
 

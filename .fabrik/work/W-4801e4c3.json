@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T22:29:09.921563Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-4801e4c3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read the alert expression: does it compare usage (cache included) instead of the working set against the limit; fix the expression or the limit",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet",
+    "monitoring"
+  ],
+  "title": "ContainerHighMemory fires on Prometheus while its working set is 46% of its limit (kaizen 2026-10-02)"
+}

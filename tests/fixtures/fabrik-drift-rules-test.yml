@@ -1,0 +1,84 @@
+# promtool rule unit tests for configs/prometheus/rules/fabrik-drift.yml (plan-2 Phase C, C2).
+# Run with the image vps1 runs (configs/monitoring-compose.yaml):
+#   docker run --rm -v "$PWD/configs/prometheus/rules:/r:ro" -v "$PWD/tests/fixtures:/t:ro" \
+#     --entrypoint promtool prom/prometheus:v3.2.1 test rules /t/fabrik-drift-rules-test.yml
+rule_files:
+  - /r/fabrik-drift.yml
+
+evaluation_interval: 1m
+
+tests:
+  # The last clean run is older than 3 h: quiet at 2 h, firing at 4 h.
+  - interval: 1m
+    input_series:
+      - series: fabrik_audit_last_success_timestamp_seconds
+        values: "0x300"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: FabrikAuditStale
+        exp_alerts: []
+      - eval_time: 4h
+        alertname: FabrikAuditStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              alert_class: registrar_drift
+            exp_annotations:
+              summary: "Fabrik hourly registrar audit: no clean run in 3h"
+              description: "No hourly audit run without spec errors in the last 3h, or none recorded. A run with a spec error, a reconcile crash or a failed re-audit withholds the timestamp; fabrik_audit_spec_errors counts the skipped specs. Log: /var/log/fabrik-audit-all.log"
+
+  # Pushed series carry the push group's job label (honor_labels); max() strips it,
+  # so the age branch fires with the same label set as the absent() branch.
+  - interval: 1m
+    input_series:
+      - series: 'fabrik_audit_last_success_timestamp_seconds{job="fabrik-audit"}'
+        values: "0x300"
+    alert_rule_test:
+      - eval_time: 4h
+        alertname: FabrikAuditStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              alert_class: registrar_drift
+            exp_annotations:
+              summary: "Fabrik hourly registrar audit: no clean run in 3h"
+              description: "No hourly audit run without spec errors in the last 3h, or none recorded. A run with a spec error, a reconcile crash or a failed re-audit withholds the timestamp; fabrik_audit_spec_errors counts the skipped specs. Log: /var/log/fabrik-audit-all.log"
+
+  # No clean run recorded at all (a PUT without the timestamp deletes the series): firing within minutes.
+  - interval: 1m
+    input_series:
+      - series: fabrik_audit_spec_errors
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: FabrikAuditStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              alert_class: registrar_drift
+            exp_annotations:
+              summary: "Fabrik hourly registrar audit: no clean run in 3h"
+              description: "No hourly audit run without spec errors in the last 3h, or none recorded. A run with a spec error, a reconcile crash or a failed re-audit withholds the timestamp; fabrik_audit_spec_errors counts the skipped specs. Log: /var/log/fabrik-audit-all.log"
+
+  # A heal failing for 2 h fires even though its reason label changes after the first hour.
+  - interval: 1m
+    input_series:
+      - series: 'fabrik_registry_heal_failed{spec_id="zitadel",db="zitadel",reason="owner-unresolved"}'
+        values: "1x60"
+      - series: 'fabrik_registry_heal_failed{spec_id="zitadel",db="zitadel",reason="RuntimeError"}'
+        values: "_x60 1x120"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: FabrikRegistryHealFailed
+        exp_alerts: []
+      - eval_time: 2h10m
+        alertname: FabrikRegistryHealFailed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              alert_class: registrar_drift
+              spec_id: zitadel
+              db: zitadel
+            exp_annotations:
+              summary: "Fabrik registry heal failing: zitadel (zitadel)"
+              description: "The hourly registry reconcile could not register postgres database zitadel for 2h. The reason label of fabrik_registry_heal_failed names the cause. Log: /var/log/fabrik-audit-all.log"

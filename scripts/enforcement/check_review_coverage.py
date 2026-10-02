@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/enforcement/check_convergence.py | tests/enforcement/test_mega_validation_reports.py | tests/enforcement/test_review_exit_contract.py | tests/test_check_review_coverage_rederivation.py | tests/test_check_review_coverage_blocked.py | tests/test_check_review_coverage_precommit.py | tests/enforcement/test_review_confirmed_grammar.py | tests/enforcement/test_review_refusals.py
+# AFTER-EDIT: scripts/enforcement/check_convergence.py | tests/enforcement/test_mega_validation_reports.py | tests/enforcement/test_review_exit_contract.py | tests/test_check_review_coverage_rederivation.py | tests/test_check_review_coverage_blocked.py | tests/test_check_review_coverage_precommit.py | tests/enforcement/test_review_confirmed_grammar.py | tests/enforcement/test_review_refusals.py | tests/test_task_lane_review_stop.py (the in-lane window and its lockstep with scripts/task_lane.py)
 """Coverage-checklist gate — run by final_gate via run_optional_check (non-zero = fail).
 
 Companion to check_convergence.py for the coverage-adjudicated review commands
@@ -398,6 +398,21 @@ _EXIT_NEGATION = re.compile(
 # ⚠️ This grader can only corroborate the SHAPE; the own-fix half is a run-record counter and never
 # a ledger column, so it stays declarative.
 _OWN_FIX_ROUNDS_FOR_STOP = 2
+# ONE — the in-lane twin (spec 2026-10-02 D8): a review nested under a `/fabrik-task` run stops
+# hunting at the FIRST delta round whose confirmed defects are all its own fixes'. Applied only to
+# a receipt whose header zone carries the exact line `**Lane:** fabrik-task` (written by
+# `review_receipt.py --lane`); every other receipt keeps `_OWN_FIX_ROUNDS_FOR_STOP`. Its twin is
+# `task_lane.scope_growth_rounds([{"command": "fabrik-task"}])[1]`, pinned by
+# `tests/test_task_lane_review_stop.py`.
+# ⚠️ CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): paste the marker line into an
+# ordinary review's header to buy the one-round window. The marker only shortens the WINDOW — the
+# Status line must still declare the stop, the exit row must still confirm something with nothing
+# unexecuted, and V11's fresh closing seat still binds; what the line cannot prove is that a
+# `/fabrik-task` run owned the review, which the run record's `parent` field (T08) carries.
+_LANE_OWN_FIX_ROUNDS_FOR_STOP = 1
+# The marker, matched WHOLE-LINE and exact (a gate exemption reads fail-closed: `fabrik-task-x`,
+# `**Lane**: fabrik-task`, a bolded or re-cased value are not it), in the header zone only.
+_LANE_MARKER = re.compile(r"^\*\*Lane:\*\* fabrik-task$", re.M)
 PASS2 = re.compile(r"\bPass\s*2\b")
 # The proof of a rubric RUN is the script's own generated output header — a prose
 # mention is not an invocation (trade-intelligence 01M17Z7Q: a thrice-converged plan
@@ -488,12 +503,18 @@ def _scope_growth_exit(text: str, ordered_rows: list[_Row]) -> bool:
     # half only stops the accident.
     if _EXIT_NEGATION.search(_m.group(1)) or _EXIT_NEGATION.search(_m.group(2)):
         return False
-    if len(ordered_rows) < _OWN_FIX_ROUNDS_FOR_STOP:
+    lane = _LANE_MARKER.search(_strip_fences(header)) is not None
+    window = _LANE_OWN_FIX_ROUNDS_FOR_STOP if lane else _OWN_FIX_ROUNDS_FOR_STOP
+    # At least TWO rows under either window: round 1 is the full pass and holds none of the
+    # review's own fixes, so it can never be the own-fix round the stop keys on.
+    if len(ordered_rows) < max(window, 2):
         return False
-    tail = ordered_rows[-_OWN_FIX_ROUNDS_FOR_STOP:]
-    if any(r[3] for r in tail):  # a stated unexecuted: on either round
+    # The lane narrows ONLY how many rounds must have CONFIRMED something. The `unexecuted:` check
+    # reads the same rows with or without the marker (review ruling T04-O2): a candidate nobody ran
+    # in round 1 closes no loop just because the receipt carries the marker.
+    if any(r[3] for r in ordered_rows[-_OWN_FIX_ROUNDS_FOR_STOP:]):
         return False
-    return all(r[1] is not None and r[1] > 0 for r in tail)
+    return all(r[1] is not None and r[1] > 0 for r in ordered_rows[-window:])
 
 
 def _blocked_sections(text: str) -> int:

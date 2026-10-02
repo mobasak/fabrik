@@ -1,0 +1,101 @@
+{
+  "plan": "docs/development/plans/archived/2026-10-02-plan-1-fabrik-task-feature-lane",
+  "owned_paths": [
+    ".fabrik/lane.json",
+    ".pre-commit-config.yaml",
+    "CLAUDE.md",
+    "commands/_fragments/scope-growth-exit.md",
+    "commands/_sources/fabrik-execute-plan.md",
+    "commands/_sources/fabrik-plan-after-chat.md",
+    "commands/_sources/fabrik-plan-review.md",
+    "commands/_sources/fabrik-spec.md",
+    "commands/_sources/fabrik-task.md",
+    "docs/development/reviews/2026-10-02-plan-1-fabrik-task-feature-lane-review.md",
+    "docs/reference/command-run-protocol.md",
+    "docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md",
+    "scripts/command_feedback_report.py",
+    "scripts/command_run.py",
+    "scripts/enforcement/check_plan_quality.py",
+    "scripts/enforcement/check_plan_tickets.py",
+    "scripts/enforcement/check_review_coverage.py",
+    "scripts/enforcement/plan_appetite.py",
+    "scripts/fabrik_synced_manifest.py",
+    "scripts/lane_replay_capture.py",
+    "scripts/review_receipt.py",
+    "scripts/task_lane.py",
+    "tests/fixtures/lane_replay.json",
+    "tests/fixtures/lane_replay_tasks.json",
+    "tests/test_command_feedback_report_lane.py",
+    "tests/test_command_run_fabrik_task.py",
+    "tests/test_command_run_lane_v2.py",
+    "tests/test_fabrik_task_source.py",
+    "tests/test_lane_replay.py",
+    "tests/test_lane_replay_capture.py",
+    "tests/test_lane_switch_not_synced.py",
+    "tests/test_plan_appetite_size.py",
+    "tests/test_plan_review_small_gate.py",
+    "tests/test_review_receipt.py",
+    "tests/test_spec_plan_lane_text.py",
+    "tests/test_task_lane_admission.py",
+    "tests/test_task_lane_close.py",
+    "tests/test_task_lane_receipt.py",
+    "tests/test_task_lane_review_stop.py"
+  ],
+  "branch": "master",
+  "started_at": "2026-10-01T23:38:00+00:00",
+  "status": "released",
+  "baseline_commit": "37af248a4d28c0162eebd3919680a7c0185db0e2",
+  "baseline_gate": {
+    "status": "success",
+    "tier": "lean",
+    "red": []
+  },
+  "tickets": {
+    "T01": {
+      "state": "merged",
+      "commit": "863cb7213"
+    },
+    "T05a": {
+      "state": "merged",
+      "commit": "26d8bfebb"
+    },
+    "T05b": {
+      "state": "merged",
+      "commit": "85173dee9"
+    },
+    "T05c": {
+      "state": "merged",
+      "commit": "815f85cb7"
+    },
+    "T02": {
+      "state": "merged",
+      "commit": "6ebc08db0"
+    },
+    "T03a": {
+      "state": "merged",
+      "commit": "98987b5b0"
+    },
+    "T03b": {
+      "state": "merged",
+      "commit": "458ff2b50"
+    },
+    "T04": {
+      "state": "merged",
+      "commit": "81dac1943"
+    },
+    "T06": {
+      "state": "merged",
+      "commit": "82990cd2b"
+    },
+    "T07": {
+      "state": "merged",
+      "commit": "c8243863a"
+    },
+    "T08": {
+      "state": "merged",
+      "commit": "42c188805"
+    }
+  },
+  "completed_at": "2026-10-02T14:54:56Z",
+  "final_commit": "3a803b44b"
+}

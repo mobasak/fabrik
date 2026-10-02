@@ -1,0 +1,33 @@
+{
+  "plan": "docs/development/plans/archived/2026-09-30-plan-1-merge-request-loop",
+  "owned_paths": [
+    ".claude/hooks/final_gate_stop.py",
+    ".pre-commit-config.yaml",
+    "CLAUDE.md",
+    "docs/reference/fabrik-mail.md",
+    "docs/reference/multi-agent-operating-model.md",
+    "docs/superpowers/specs/2026-09-30-merge-request-loop-design.md",
+    "docs/workstation/hooks-index.md",
+    "scripts/fabrik_synced_manifest.py",
+    "scripts/mail.py",
+    "scripts/merge_request.py",
+    "templates/governance/CLAUDE.md",
+    "tests/test_governance_template_split.py",
+    "tests/test_mail_merge_request.py",
+    "tests/test_mail_who.py",
+    "tests/test_merge_request_merge.py",
+    "tests/test_merge_request_send.py",
+    "tests/test_stop_hook_merge_requests.py",
+    "tests/test_synced_manifest.py"
+  ],
+  "branch": "master",
+  "started_at": "2026-09-30T21:58:00+00:00",
+  "status": "released",
+  "baseline_commit": "8d9876021f2514afd4a12e5ef0f08ddb3d41b32c",
+  "baseline_gate": {
+    "status": "success",
+    "red_checks": [],
+    "note": "final_gate --check --json success at 8d9876021 (bandit/semgrep not installed, pytest off in hub)"
+  },
+  "tickets": {}
+}

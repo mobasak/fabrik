@@ -26,7 +26,10 @@ What we DO test:
 
 from __future__ import annotations
 
+import contextlib
 import json
+import os
+import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -83,11 +86,70 @@ class TestListAllocations:
             result = pg_driver.list_allocations()
             assert result == {"version": 1, "allocations": {}}
 
-    def test_missing_file_returns_empty_shape(self):
-        # SSH failure → empty default
-        with patch.object(pg_driver, "ssh", side_effect=RuntimeError("cat: no such file")):
-            result = pg_driver.list_allocations()
-            assert result == {"version": 1, "allocations": {}}
+    def test_failed_read_raises_instead_of_reading_empty(self):
+        # A failed read is not an empty registry: a writer would replace every entry.
+        with (
+            patch.object(pg_driver, "ssh", side_effect=RuntimeError("ssh: connection refused")),
+            pytest.raises(RuntimeError),
+        ):
+            pg_driver.list_allocations()
+
+    def test_failed_read_makes_register_write_nothing(self):
+        calls: list[str] = []
+
+        def fake_ssh(cmd, *, dry_run: bool = False):
+            calls.append(cmd)
+            if "cat " in cmd:
+                raise RuntimeError("ssh: connection refused")
+            return ""
+
+        with patch.object(pg_driver, "ssh", side_effect=fake_ssh), pytest.raises(RuntimeError):
+            pg_driver.register_allocation("new_service", spec_id="new-service")
+        assert not [c for c in calls if "tee " in c]
+
+
+class TestLoaderRemoteCommand:
+    """Run the loader's REAL shell command under bash with a stub ``sudo`` on PATH,
+    raising on a non-zero exit the way ``fabrik.drivers.ssh.ssh`` does."""
+
+    def _load(self, tmp_path, *, sudo_works: bool, target):
+        bindir = tmp_path / "bin"
+        bindir.mkdir()
+        stub = bindir / "sudo"
+        stub.write_text(
+            '#!/bin/sh\nexec "$@"\n' if sudo_works else "#!/bin/sh\necho refused >&2\nexit 1\n"
+        )
+        stub.chmod(0o755)
+        env = {**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}"}
+
+        def run_like_ssh(cmd, *, dry_run: bool = False):
+            r = subprocess.run(
+                ["bash", "-c", cmd], capture_output=True, text=True, env=env, check=False
+            )
+            if r.returncode != 0:
+                raise RuntimeError(f"rc={r.returncode}: {r.stderr}")
+            return r.stdout.strip()
+
+        with (
+            patch.object(pg_driver, "ALLOCATIONS_PATH", str(target)),
+            patch.object(pg_driver, "ssh", side_effect=run_like_ssh),
+        ):
+            return pg_driver.list_allocations()
+
+    def test_missing_file_reads_as_empty_registry(self, tmp_path):
+        result = self._load(tmp_path, sudo_works=True, target=tmp_path / "absent.json")
+        assert result == {"version": 1, "allocations": {}}
+
+    def test_present_file_is_parsed(self, tmp_path):
+        target = tmp_path / "allocations.json"
+        target.write_text(json.dumps(SEED_PAYLOAD))
+        assert "translator" in self._load(tmp_path, sudo_works=True, target=target)["allocations"]
+
+    def test_refused_sudo_raises_instead_of_reading_empty(self, tmp_path):
+        target = tmp_path / "allocations.json"
+        target.write_text(json.dumps(SEED_PAYLOAD))
+        with pytest.raises(RuntimeError):
+            self._load(tmp_path, sudo_works=False, target=target)
 
 
 # ---------------------------------------------------------------------------
@@ -306,8 +368,141 @@ class TestAuditPostgresDrift:
             patch.object(pg_driver, "ssh", side_effect=RuntimeError("registry unreachable")),
         ):
             result = audit_postgres(_spec("translator"))
-        # With RuntimeError swallowed by list_allocations (returns empty),
-        # the result is "drift" (DB present + empty registry) — that IS the
-        # correct behaviour. The fallback path applies when the read itself
-        # raises uncaught. Verify by patching the driver function instead.
-        assert result.status in ("present", "drift")
+        # list_allocations raises on a failed read (it never reads as an empty
+        # registry), audit catches it and falls back: present, not a false drift.
+        assert result.status == "present"
+
+
+# ---------------------------------------------------------------------------
+# register_allocation_if_absent (plan-2 Phase A, D2)
+# ---------------------------------------------------------------------------
+
+
+class TestRegisterAllocationIfAbsent:
+    def _fake(self, payload: dict, writes: list[str]):
+        def fake_ssh(cmd, *, dry_run: bool = False):
+            if "cat " in cmd:
+                return json.dumps(payload)
+            writes.append(cmd)
+            return ""
+
+        return fake_ssh
+
+    def test_existing_entry_is_left_unchanged_and_nothing_is_written(self):
+        # A1 — the in-lock check never overwrites a seed, manual or concurrent entry.
+        writes: list[str] = []
+        with patch.object(pg_driver, "ssh", side_effect=self._fake(SEED_PAYLOAD, writes)):
+            wrote = pg_driver.register_allocation_if_absent(
+                "site_provisioner",
+                spec_id="site-provisioner",
+                user="other_owner",
+                owner="fabrik",
+                notes="registered by the hourly reconcile",
+            )
+        assert wrote is False
+        assert writes == []
+
+    def test_absent_entry_is_written_with_the_given_fields(self):
+        # A2
+        writes: list[str] = []
+        with patch.object(pg_driver, "ssh", side_effect=self._fake(SEED_PAYLOAD, writes)):
+            wrote = pg_driver.register_allocation_if_absent(
+                "zitadel",
+                spec_id="zitadel",
+                user="zitadel",
+                owner="fabrik",
+                notes="registered by the hourly reconcile 2026-10-02",
+            )
+        assert wrote is True
+        tee = [c for c in writes if "tee " in c]
+        assert tee, writes
+        assert '"zitadel": {' in tee[0]
+        assert '"user": "zitadel"' in tee[0]
+        assert '"translator": {' in tee[0]  # siblings preserved
+
+    def test_read_check_and_write_run_under_one_lock_acquisition(self):
+        # The membership check must sit between the read and the write inside ONE
+        # file_lock hold, or a writer between them is overwritten.
+        state = {"held": False, "acquired": 0}
+        held_at: list[tuple[str, bool]] = []
+
+        @contextlib.contextmanager
+        def tracking_lock(name, **_kw):
+            state["held"], state["acquired"] = True, state["acquired"] + 1
+            try:
+                yield
+            finally:
+                state["held"] = False
+
+        def fake_ssh(cmd, *, dry_run: bool = False):
+            held_at.append(("read" if "cat " in cmd else "write", state["held"]))
+            return json.dumps(SEED_PAYLOAD) if "cat " in cmd else ""
+
+        for db, expect_write in (("site_provisioner", False), ("zitadel", True)):
+            held_at.clear()
+            state["acquired"] = 0
+            with (
+                patch.object(pg_driver, "file_lock", tracking_lock),
+                patch.object(pg_driver, "ssh", side_effect=fake_ssh),
+            ):
+                pg_driver.register_allocation_if_absent(
+                    db, spec_id=db, user=db, owner="fabrik", notes=""
+                )
+            assert state["acquired"] == 1, db
+            assert held_at and all(held for _, held in held_at), (db, held_at)
+            assert any(kind == "write" for kind, _ in held_at) is expect_write, db
+
+    def test_invalid_identifier_is_refused_before_any_registry_access(self):
+        # The reconcile's write entry point validates the key it persists.
+        calls: list[str] = []
+        with (
+            patch.object(pg_driver, "ssh", side_effect=lambda cmd, **_kw: calls.append(cmd)),
+            pytest.raises(ValueError),
+        ):
+            pg_driver.register_allocation_if_absent(
+                "x'; --", spec_id="x", user="x", owner="fabrik", notes=""
+            )
+        assert calls == []
+
+
+class TestAuditPostgresDbName:
+    def _run(self, spec: dict):
+        from fabrik import audit
+
+        commands: list[str] = []
+
+        def fake_ssh_check(cmd, *, timeout=30):
+            commands.append(cmd)
+            return True, "1"
+
+        with (
+            patch.object(audit, "_ssh_check", side_effect=fake_ssh_check),
+            patch.object(audit, "_resolve_container", return_value="postgres-main-x"),
+            patch.object(audit, "_resolved_for", return_value={"postgres": (True, "shape")}),
+            patch.object(pg_driver, "ssh", return_value=json.dumps(SEED_PAYLOAD)),
+        ):
+            return audit_postgres(spec), commands
+
+    def test_depends_postgres_names_the_database_audited(self):
+        # A3 — the registrar's name rule, not the snake-cased id.
+        spec = {**_spec("evolution-api"), "depends": {"postgres": "site_provisioner"}}
+        result, commands = self._run(spec)
+        assert result.actual["db_name"] == "site_provisioner"
+        assert "site_provisioner" in commands[0]
+        assert "evolution_api" not in commands[0]
+        assert result.status == "present"
+
+    def test_spec_name_wins_over_id_like_the_registrar(self):
+        # The registrar provisions `name or id` (orchestrator/infrastructure.py); the
+        # audit must check the same database when a spec's name differs from its id.
+        spec = {**_spec("translator-svc"), "name": "site-provisioner"}
+        result, commands = self._run(spec)
+        assert result.actual["db_name"] == "site_provisioner"
+        assert "translator_svc" not in commands[0]
+
+    def test_invalid_identifier_is_unknown_and_runs_no_sql(self):
+        # A4 — depends.postgres carries no pattern; validate before any SQL.
+        spec = {**_spec("evil"), "depends": {"postgres": "x'; DROP DATABASE y; --"}}
+        result, commands = self._run(spec)
+        assert result.status == "unknown"
+        assert commands == []

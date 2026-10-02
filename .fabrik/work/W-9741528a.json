@@ -1,0 +1,26 @@
+{
+  "block_digest": "8736d1c620e9f6599b65c76568eb1afbcf0d7da39de8e1b935a953db0b247ece",
+  "blocked_by": [],
+  "created": "2026-10-02T17:17:24.180105Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-9741528a",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "d73c014346e88198b6b8e3b2a9c6f6040d79fc5aff2d4131a2bb48e10ceea26e"
+  ],
+  "next": "",
+  "note": "operator pasted the cleanup NEXT line back as the go (2026-10-02); done: glitchtip + fabrik_analytics registered owner=infrastructure, my_proj removed, backup allocations.json.bak-20261002-registry-cleanup on vps1",
+  "owner": "",
+  "priority": 2,
+  "question": "May I clean up the production registry on vps1 (`allocations.json`): add glitchtip and fabrik_analytics as infrastructure databases, and remove the leftover `my_proj` test entry?",
+  "status": "done",
+  "title": "May I clean up the production registry on vps1 (`allocations.json`): add glitchtip and fabrik_analytics as infrastructure databases, and remove the leftover `my_proj` test entry?"
+}

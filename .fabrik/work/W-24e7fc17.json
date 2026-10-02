@@ -1,0 +1,26 @@
+{
+  "block_digest": "dcd1f32d8916909a5c9dbb87f78cd9f1358672f16a155a2e0e09adabc4c24ab4",
+  "blocked_by": [],
+  "created": "2026-10-01T22:34:43.503567Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-24e7fc17",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "dbc2b730a31548b8c54574cd3e6480c776bac4e094f86dc42af05d439b8dc22b"
+  ],
+  "next": "",
+  "note": "operator: 'approved' (D-492)",
+  "owner": "",
+  "priority": 2,
+  "question": "With the six gaps closed, do you approve this design for widening `/fabrik-task` so it can be planned and built?",
+  "status": "done",
+  "title": "With the six gaps closed, do you approve this design for widening `/fabrik-task` so it can be planned and built?"
+}

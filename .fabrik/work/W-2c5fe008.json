@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T17:56:25.602493Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2c5fe008",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-507",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "when Volkan is back: ssh mac, update his /task command's self-graded SIZE gate to the v2 rules (module tests: contract path, consumers=external, appetite > 240 → spec; sync/heavy → lane + full review), one test run, report",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "waits-on-volkan"
+  ],
+  "title": "Update Volkan's Mac /task port (D-319) to /fabrik-task lane v2 (D-507) — when Volkan is available"
+}

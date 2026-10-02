@@ -1,5 +1,11 @@
 # `/fabrik-task` — the lane between a right-now fix and the spec chain
 
+> **SUPERSEDED-IN-PART** by `docs/superpowers/specs/2026-10-02-fabrik-task-feature-lane-design.md`
+> (D-490, D-491, D-492): the file-count SIZE test (§ Why this exists), row 1b's heavy-surface
+> disposition, and the UPGRADE token list are replaced there (D1, D2, D3); D6–D12 are new. The step
+> budget, the SIZE phase-0 mechanics, the plan-lock check and the six DESIGN fields below are
+> unchanged and remain this spec's own text.
+
 **Status:** CONVERGED — by the operator's approval ruling 2026-09-18 (D-293), with phase 5's six invariants as the build's Phase A acceptance criteria.
 **Review:** `/fabrik-spec-review` 2026-09-17/18 — run 1 (two passes, 9 seats, 53 confirmed) closed on the D-278 exit with its residue routed as U6–U27; run 2 applied that residue under U8/U10/U19 and closed on the exit again (53/47/25 confirmed, all own-fix); run 3 (operator: *"until it converges"*) ran seven fresh-seat delta rounds — 23 → 25 → 19 → 20 → 19 → 12 → 15 confirmed, every one inside the previous round's fix, `command_run.py` printing SCOPE GROWTH from round 3 — while the mechanism shrank each round (the mtime leg deleted; phase 5 restated as six build-owned invariants). Everything outside phase 5's re-measure has been word-level since round 3; the re-measure's remaining findings are edge cases of a git mechanism that graders, not prose, settle. Closed at DRAFT on the exit; flipped CONVERGED on the operator's approval ruling 2026-09-18 (D-293), with phase 5's six invariants as the build's Phase A acceptance criteria, each with a red-first grader.
 **Profile:** full section set. `Profile: delta`'s trigger — *every Intake Inventory item maps to code that exists today* — fails: `/fabrik-task` is a NEW command with no source file behind it, and both of its two code changes add behaviour (`command_run.py start` gains a declaration; `command_feedback_report.py`'s `--queue` header gains two counted series). Verdict stated per the profile rule.

@@ -1457,3 +1457,84 @@ class TestTargetVpsRouting:
         finally:
             mod._write_file_to_vps = real_write
             os.environ.pop("FABRIK_VPS_SSH_HOST", None)
+
+
+class TestWriteFileToVpsPathNested:
+    """A rendered key with a slash (`src/theme/SearchBar/index.js`) needs its remote parent dir:
+    the writer `sudo mv`s into `{path}/{filename}`, and `mv` fails on a missing directory
+    (plan 2026-10-01-plan-1-docusaurus-static-runtime, Phase A step 3b; D-476)."""
+
+    def _run(self, filename: str) -> list[str]:
+        from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
+
+        cmds: list[str] = []
+        with (
+            patch("fabrik.drivers.ssh.scp_to_vps"),
+            patch(
+                "fabrik.drivers.ssh.ssh", side_effect=lambda cmd, timeout=10: cmds.append(cmd) or ""
+            ),
+        ):
+            _write_file_to_vps_path("/opt/docs", filename, "content")
+        return cmds
+
+    # Exact commands, not substrings: a mkdir of the FILE path, or `;` / `||` in place of `&&`,
+    # all still contain the expected fragments (the scoped review's escape variants S5-S7).
+    @staticmethod
+    def _tmp(filename: str) -> str:
+        import os
+
+        return f"/tmp/fabrik-{os.getpid()}-{filename.replace('/', '-')}"
+
+    def test_nested_key_creates_the_remote_parent_before_the_move(self) -> None:
+        key = "src/theme/SearchBar/index.js"
+        (cmd,) = self._run(key)
+        dest = f"/opt/docs/{key}"
+        assert cmd == (
+            "sudo mkdir -p /opt/docs/src/theme/SearchBar && "
+            f"sudo mv {self._tmp(key)} {dest} && sudo chown root:root {dest}"
+        ), cmd
+
+    def test_flat_key_command_is_unchanged(self) -> None:
+        (cmd,) = self._run("Dockerfile")
+        assert cmd == (
+            f"sudo mv {self._tmp('Dockerfile')} /opt/docs/Dockerfile && "
+            "sudo chown root:root /opt/docs/Dockerfile"
+        ), cmd
+
+    def test_a_nested_path_with_a_space_is_quoted(self) -> None:
+        # Only the FILENAME part is quoted: the app dir is a hub value the same caller also uses
+        # unquoted (`cd {path}`), so quoting it would stop a `~` from expanding (closing pass N1).
+        (cmd,) = self._run("a b/c.js")
+        assert cmd == (
+            "sudo mkdir -p /opt/docs/'a b' && "
+            f"sudo mv '{self._tmp('a b/c.js')}' /opt/docs/'a b/c.js' && "
+            "sudo chown root:root /opt/docs/'a b/c.js'"
+        ), cmd
+
+    def test_a_tilde_app_dir_is_left_for_the_shell_to_expand(self) -> None:
+        from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
+
+        cmds: list[str] = []
+        with (
+            patch("fabrik.drivers.ssh.scp_to_vps"),
+            patch(
+                "fabrik.drivers.ssh.ssh", side_effect=lambda cmd, timeout=10: cmds.append(cmd) or ""
+            ),
+        ):
+            _write_file_to_vps_path("~/apps/foo", ".env", "content")
+        assert cmds == [
+            f"sudo mv {self._tmp('.env')} ~/apps/foo/.env && sudo chown root:root ~/apps/foo/.env"
+        ], cmds
+
+    @pytest.mark.parametrize("bad", ["../x", "/abs/x", "a/../../x", "", ".", "a/./b", "a//b", "a/"])
+    def test_an_escaping_filename_is_refused_before_any_remote_call(self, bad: str) -> None:
+        from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
+
+        with (
+            patch("fabrik.drivers.ssh.scp_to_vps") as scp,
+            patch("fabrik.drivers.ssh.ssh") as ssh,
+            pytest.raises(ValueError, match="filename"),
+        ):
+            _write_file_to_vps_path("/opt/docs", bad, "content")
+        scp.assert_not_called()
+        ssh.assert_not_called()

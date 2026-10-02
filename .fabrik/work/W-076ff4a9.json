@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T21:32:09.203030Z",
+  "creator": "infra",
+  "evidence": "5412871e009df18c0716bd33bfa10df23ab39075",
+  "id": "W-076ff4a9",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/archived/2026-09-30-plan-1-merge-request-loop",
+    "spec": ""
+  },
+  "next": "one rule in decisions.py:582-599, docs_updater.py:1192-1214 and .claude/hooks/session_orient.py: highest D-id wins, an optional 'supersedes D-NNN[, D-NNN]:' prefix accepted; extend the tests/test_session_orient_hook.py:875 parity test; full /fabrik-review (synced + hook); precondition of plan 2026-09-30-plan-1-merge-request-loop T02",
+  "note": "",
+  "owner": "",
+  "priority": 0,
+  "status": "done",
+  "tags": [
+    "hub"
+  ],
+  "title": "Merge-owner selection: three readers pick the owner by row POSITION, which the ledger says is not an invariant; a 'supersedes D-NNN: MERGE OWNER: x' row never matches"
+}

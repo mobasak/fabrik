@@ -49,6 +49,7 @@ CORE_SCRIPTS = [
     "rules_match.py",  # the ONE path<->pack glob matcher; select_rules + review_rubric both import it
     "release_cut.py",  # /fabrik-release version cut: [Unreleased] -> semver section + tag + GitHub Release
     "mail.py",  # fabrik-mail sender/store — fleet-consumed by /fabrik-upstream (send/list/read/claim/ack/requeue/digest/should-reply)
+    "merge_request.py",  # MERGE-REQUEST LOOP: `request` from a linked worktree mails the merge owner (+ the distributor) through mail.py — travels with mail.py, which it shells out to (plan 2026-09-30-plan-1 T02)
     "rivals_run.py",  # /fabrik-rivals driver — SYNCED so EVERY repo runs the scan itself. It
     # resolves the engine local-first then falls back to the hub's vendored copy (a READ, which the
     # cross-repo hard stop does not govern — that rule is about create/edit/COMMIT). Keys reach every
@@ -59,6 +60,7 @@ CORE_SCRIPTS = [
     # of four providers unauthenticated in every repo past the delete.
     "whoami_agent.py",  # SELF-NAMING IDENTITY: a LIVE session binds itself to an agent name with no relaunch, and command_run.py imports its resolver — so it MUST travel on the same sync as command_run.py or the guarded import degrades to the env var (D-267/D-268)
     "command_run.py",  # COMMAND RUN-RECORD: the pinned `RUN:` line + class ledger; the Stop hook's 5th cause reads its state
+    "task_lane.py",  # the /fabrik-task lane's PURE module (plan 2026-10-02-plan-1): command_run.py imports it lazily for admission, the close and the in-lane review stop, so it MUST travel on the same sync — without it a repo runs lane v1 (the import is guarded). `.fabrik/lane.json` is REPO-OWNED and never synced (D12)
     "thread_anchor.py",  # THREAD ANCHORS: durable NEXT:-line memory — the Stop hook harvests, SessionStart/UserPromptSubmit re-inject (settings.json references it, so it must travel with settings.json)
     "work.py",  # WORK TRACKING: the open-work store (ready/next/claim/done/answer/assign/status/sync/render) — travels with thread_anchor.py, whose DECISION harvest and prompt block call it by path (plan 2026-09-24 T04)
     "check_research_ledger.py",  # RESEARCH LEDGER (D-352): the row grammar every research fan-out files its facts under, in every repo

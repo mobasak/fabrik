@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T08:05:09.505818Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-62281917",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "find which commit dropped the rows (git log -S '| D-055 |' -- docs/DECISIONS.md), restore them byte-for-byte, re-run the test",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "ledger"
+  ],
+  "title": "docs/DECISIONS.md: 10 decision-shape baseline rows are ABSENT (D-055, D-075, D-084, D-087, D-090, D-092, D-099, D-178, D-266, D-275); tests/enforcement/test_check_decisions_unique.py::test_failure_lines_carry_the_gate_prefix is red at HEAD 78928c977"
+}

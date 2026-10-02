@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T21:53:37.836311Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-00ae4256",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: decide per type whether the saas-skeleton reference copy is used by anything (grep the packs and commands that cite templates/saas-skeleton in a project), drop spec-pipeline outright (Traycer retired), test the emitted tree per type; intel finding 01M3VX3A1N item 6",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "create_project copies templates/saas-skeleton/ and the retired Traycer templates/spec-pipeline/ into EVERY new project whatever its type — a mobile app ships a whole Next.js template tree (scaffold.py ~1438-1460) (2026-10-02, owner: fleet)"
+}

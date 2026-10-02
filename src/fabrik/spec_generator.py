@@ -109,7 +109,7 @@ _TYPE_DEFAULTS: dict[str, dict] = {
     "static-site": {"memory": "256M", "cpu": "0.5", "health_path": "/api/health"},
     "file-api": {"memory": "256M", "cpu": "0.5", "health_path": "/api/health"},
     "file-worker": {"memory": "256M", "cpu": "0.5", "health_path": None},
-    "docusaurus": {"memory": "256M", "cpu": "0.5", "health_path": "/docs/intro"},
+    "docusaurus": {"memory": "256M", "cpu": "0.5", "health_path": "/docs/intro/"},
     "chrome-extension": {"memory": "256M", "cpu": "0.5", "health_path": "/health"},
     "mobile-app": {"memory": "256M", "cpu": "0.5", "health_path": "/health"},
 }

@@ -12,7 +12,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "",
+  "next": "UNBLOCKED 2026-10-02: fabrik-lib legal-content is on main (ab59359b; interface per mail 01M3SYT0N3, D-343). Re-cut docs/superpowers/specs/2026-09-29-saas-skeleton-legal-pages-design.md to the wiring only via /fabrik-spec (vendor lib/legal-content from src/*.ts minus tests, four force-dynamic routes at /terms /privacy /refund /cookies, server-only LEGAL_* config, marketing-page links, docs-site pointers, scaffold tests), then /fabrik-spec-review and the design gate.",
   "note": "",
   "owner": "fleet",
   "priority": 2,

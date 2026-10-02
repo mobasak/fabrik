@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T11:55:32.377323Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fecaf669",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VN01NMVW0PXYY4DAYN83J5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "DONE — reindex double-ingest of hardlinked transcripts fixed, live DB healed (finding 01M3TQKAR1)"
+}

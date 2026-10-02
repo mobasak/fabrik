@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-25T21:07:24.849569Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "a6058f770ebfe9450ec2b5453e125b983046f7c5",
   "id": "W-a6d1dbf5",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "tests/test_scaffold_fix.py: test_fix_project_refuses_hub and test_assert_not_hub_refuses_hub_and_dotpath assume a real /opt/fabrik with no requires_fabrik_env skip (2026-09-26, owner: fleet)"
 }

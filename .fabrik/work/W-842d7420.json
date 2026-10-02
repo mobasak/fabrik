@@ -1,0 +1,26 @@
+{
+  "block_digest": "9119231ed60e038f2c63a913b095690f37e16d77f21589eac5383c3395e84c49",
+  "blocked_by": [],
+  "created": "2026-10-01T22:10:33.666240Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-842d7420",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "b364a90564651b571c5bdc00aac17efd1a006fcf56f6f498cbaf49f85b7867ea"
+  ],
+  "next": "",
+  "note": "operator: 'close the gaps then' — not an approval; design revised (D-490), approval re-asked after re-review",
+  "owner": "",
+  "priority": 2,
+  "question": "Knowing it fixes the main cause but not everything, do you approve this design for widening `/fabrik-task` so it can be planned and built?",
+  "status": "done",
+  "title": "Knowing it fixes the main cause but not everything, do you approve this design for widening `/fabrik-task` so it can be planned and built?"
+}

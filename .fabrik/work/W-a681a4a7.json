@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T23:33:08.061706Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a681a4a7",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/archived/2026-09-30-plan-1-merge-request-loop",
+    "spec": ""
+  },
+  "next": "reproduce in a scratch worktree, make the test (or the digest's hub attribution) independent of the checkout directory name; matters for merge_request.py, whose owner tests run in a throwaway worktree (plan 2026-09-30-plan-1-merge-request-loop T03)",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "hub"
+  ],
+  "title": "tests/test_mail_escalate.py::test_the_agent_leg_attributes_the_digest_to_the_hub_whatever_the_cwd passes in the main checkout but fails inside a linked worktree (it reads the tree's name where it expects 'fabrik')"
+}

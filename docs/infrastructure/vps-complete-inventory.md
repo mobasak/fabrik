@@ -1,6 +1,6 @@
 # VPS Fleet — Complete Service Inventory
 
-**Last Updated:** 2026-09-04 22:57 UTC
+**Last Updated:** 2026-10-01 23:05 UTC
 **Last probe report:** [`probe-reports/infra-probe-2026-08-03T18-37Z.yaml`](probe-reports/infra-probe-2026-08-03T18-37Z.yaml)
 **Hosts:** **vps1** (LA, hub) · **vps2** (Coventry UK, spoke) · **vps3** (Coventry UK, spoke). **The fleet is settled at 3 permanent hosts.** Any `vps4` you see in drill logs/reports is the **disposable drill identity** — a throwaway Vultr instance the `fabrik vultr drill` subsystem spins up and auto-destroys; it is NOT a permanent fleet member. (`fabrik vultr provision` can add a real 4th spoke, but none is currently provisioned.)
 **Network:** Wireguard mesh `10.99.0.0/24` over UDP `51820`, MTU `1420`, hub-and-spoke topology
@@ -33,7 +33,7 @@ dead chain pages via Telegram and heals by re-`/login` on that host. Quota conse
 - **Loki ingest:** spokes pushing logs successfully (`host` label values: `["vps1","vps2","vps3"]`)
 - **Prometheus:** **17 `job_name`s configured / 16 active (`fabrik-services` null-target; `pushgateway` restored `b8071f40` 2026-07-19; repo re-verified 2026-07-20; prior live probe 2026-07-12: 20/20 targets up)**; every series carries `host` + `role` labels. Spoke federation jobs (`node-spokes`, `cadvisor-spokes`, `promtail-spokes`) added 2026-06-17 in commit `8342ef1`, scraping spoke exporters over the wg0 mesh.
 - **Grafana:** all 5 dashboards have `host` template variable (regex `/^vps/`)
-- **Alert rules:** ~~`spoke_health` group~~ — **NOT in alerts.yml as of 2026-06-07T20:20Z**. The 5 live groups: aro_wake (2 rules), container_health (6), host_health (3), service_health (1), fabrik-registrar-drift (1).
+- **Alert rules:** ~~`spoke_health` group~~ — **NOT in alerts.yml as of 2026-06-07T20:20Z**. The 5 live groups: aro_wake (2 rules), container_health (6), host_health (3), service_health (1), fabrik-registrar-drift (1 live; 3 once plan-2 rollout R0 syncs FabrikRegistryHealFailed + FabrikAuditStale).
 - **AI sysadmin:** `proactive-check.sh` tags every anomaly with originating host (`cpu_high[vps2]`)
 - **Backups:** B2 bucket holds restic repo `a256277c45` with **4 plans live** (`postgres-dumps`, `docker-volumes`, `opt-configs`, `host-state`) since 2026-06-01. First snapshots: 117 MiB on B2 (612 MiB uncompressed, 5.23× compression). Path-preserving bind mounts on the Backrest container — see [`vps-hub-rebuild.md`](vps-hub-rebuild.md) for the rebuild contract.
 - **Cloudflare API token (`/opt/fabrik/.env`):** refreshed 2026-05-31 afternoon by syncing the working token from the local site-provisioner instance (`/opt/site-provisioner/.env`). Pre-edit backup at `backups/.env.backup.20260531-155948`. Verified active via `curl /user/tokens/verify`.
@@ -715,7 +715,7 @@ This table answers "when X breaks, what wakes up an AI to look at it?" — and l
 | Source | What it observes | Where the signal lands | Wakes an AI? |
 | :--- | :--- | :--- | :--- |
 | `prometheus` (vps1) | 17 jobs configured / 16 active (pushgateway restored 2026-07-19; prior live probe 2026-07-12 = 20/20 targets): node, cadvisor, postgres, redis, gatus, grafana, authelia, meilisearch, loki, alertmanager, prometheus, `aro-wake` (3 targets — vps1+vps2+vps3 over mesh), plus the spoke federation `node-spokes` / `cadvisor-spokes` / `promtail-spokes` (2 targets each, `prometheus.yml:46,58,70`). (No `blackbox`, `fabrik-registrar`, or `glitchtip-web` scrape jobs; `pushgateway` IS scraped since the 2026-07-19 restore.) | `alertmanager` → Telegram (native) **AND** queried by `proactive-check.sh` cron | ✅ via `proactive-check.sh` (every 15 min, rate-limited 5 Claude wakes/h) |
-| `alertmanager` (vps1) | Prometheus rule alerts from 5 live groups: `aro_wake` (2), `container_health` (6), `host_health` (3 — fires on host=vps1\|vps2\|vps3 labels), `service_health` (1), `fabrik-registrar-drift` (1, separate `rules/fabrik-drift.yml`). No `spoke_health` group exists (was planned, never landed). | Native `telegram_configs` → Telegram | ❌ (operator-in-loop by design; ARO-Brain receiver stub in config but not built) |
+| `alertmanager` (vps1) | Prometheus rule alerts from 5 live groups: `aro_wake` (2), `container_health` (6), `host_health` (3 — fires on host=vps1\|vps2\|vps3 labels), `service_health` (1), `fabrik-registrar-drift` (1 live; 3 once plan-2 rollout R0 syncs FabrikRegistryHealFailed + FabrikAuditStale, separate `rules/fabrik-drift.yml`). No `spoke_health` group exists (was planned, never landed). | Native `telegram_configs` → Telegram | ❌ (operator-in-loop by design; ARO-Brain receiver stub in config but not built) |
 | `loki` (vps1) | logs from promtail on all 3 hosts (`host` label vps1/vps2/vps3) | Grafana dashboards; **no ruler / log-alert wiring** | ❌ |
 | `gatus` (vps1) | 31 synthetic endpoints across 18 config files (apps/core/data/observability/external) | Custom alerter → Apprise → Telegram | ❌ |
 | `glitchtip-web` + `glitchtip-worker` (vps1) | Sentry-compat exception ingest from instrumented apps; 7 retained projects | DSN → web UI; per-project alerts → Apprise → Telegram | ❌ |
@@ -832,6 +832,8 @@ Net code surface this added (committed):
 ```
 
 Audit via `fabrik audit-registrars`; cross-references live `pg_database` and emits `drift` for orphan DBs or stale registry entries.
+
+**Writers:** `create_database` registers a database it creates; the hourly drift cron (`scripts/audit_all_registrars.py`) registers an orphan it finds — a database present in `pg_database` with no entry — through `register_allocation_if_absent` when the cron line sets `FABRIK_REGISTRY_RECONCILE=apply` (default `report` writes nothing; D-500). The cron's entries carry `owner: "fabrik"`, the role read from `pg_database`, and `notes: "registered by the hourly reconcile <date>"`. It never overwrites or deletes an entry, and refuses a database two specs claim (`main`) or a run where a spec failed to load or audit, or a database spec's name failed to resolve. Every writer reads, checks and writes under one host-local `file_lock`; a writer on another host is not serialised.
 
 ### Live Postgres state (verified 2026-05-31 afternoon)
 

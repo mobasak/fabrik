@@ -2452,6 +2452,10 @@ def test_queue_fabrik_task_seam_counts_a_real_command_run_close(tmp_path: Path) 
     repo = tmp_path / "repo"
     (repo / "src").mkdir(parents=True)
     (repo / "src" / "a.py").write_text("x = 1\n", encoding="utf-8")
+    # the seam this grades is v1's RECORDED undeclared path (`oversized_mini`); lane v2 is every
+    # repo's default since D-507 and would refuse the close, so the repo pins v1
+    (repo / ".fabrik").mkdir()
+    (repo / ".fabrik" / "lane.json").write_text('{"version": 1}\n', encoding="utf-8")
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True, timeout=15)
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True, timeout=15)
     subprocess.run(
@@ -2483,7 +2487,7 @@ def test_queue_fabrik_task_seam_counts_a_real_command_run_close(tmp_path: Path) 
         "--file",
         "src/a.py",
         "--declare",
-        "decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=no",
+        "decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=no,consumers=internal",
         cwd=repo,
         sid=sid,
     )

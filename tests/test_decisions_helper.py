@@ -290,13 +290,14 @@ def test_next_id_accepts_a_direct_file_path_too(tmp_path, capsys):
 
 
 # ── T01 (plan set 2026-09-06-plan-2-multi-agent-adoption): `--merge-owner` reads the declared
-# merge owner from the last matching `MERGE OWNER:`-opening `what` cell in the ledger — the read
+# merge owner from the highest-id `MERGE OWNER:`-opening `what` cell in the ledger — the read
 # half of the merge-owner convention T02a's docs_updater.py writes at merge time. ─────────────
 
 
-def test_merge_owner_prints_last_matching_owner_and_strips_leading_stars(tmp_path, capsys):
-    """The last row (bottom-most in file order) whose `what` cell OPENS with `MERGE OWNER:`
-    wins over an earlier one, and a `**bold**`-wrapped phrase is still recognized."""
+def test_merge_owner_prints_highest_id_owner_and_strips_leading_stars(tmp_path, capsys):
+    """The HIGHEST-id row whose `what` cell OPENS with `MERGE OWNER:` wins, and a
+    `**bold**`-wrapped phrase is still recognized. (This test once said "bottom-most in file
+    order"; the ledger's own header says position is a convention nothing may read — W-076ff4a9.)"""
     _repo(
         tmp_path,
         "hub",
@@ -311,6 +312,59 @@ def test_merge_owner_prints_last_matching_owner_and_strips_leading_stars(tmp_pat
     out = capsys.readouterr().out
     assert rc == 0
     assert out.strip() == "beta"
+
+
+_MO_HDR = "| id | when | who | what (the decision) | why | where |\n|---|---|---|---|---|---|\n"
+
+
+def _merge_owner_of(tmp_path, capsys, rows: str) -> tuple[int, str]:
+    rc = dec.main(["--merge-owner", str(_repo(tmp_path, "hub", _MO_HDR + rows))])
+    return rc, capsys.readouterr().out.strip()
+
+
+# W-076ff4a9: the ledger's header says row POSITION is a convention nothing reads, so the merge
+# owner is chosen by the highest numeric D-id, never by where the row sits in the file.
+
+
+def test_merge_owner_higher_id_row_above_a_lower_one_wins(tmp_path, capsys):
+    """Newest-at-the-top (the ledger's stated convention): a position rule answered `alpha`."""
+    rows = "| D-002 | x | op | MERGE OWNER: beta | y | z |\n| D-001 | x | op | MERGE OWNER: alpha | y | z |\n"
+    assert _merge_owner_of(tmp_path, capsys, rows) == (0, "beta")
+
+
+def test_merge_owner_higher_id_row_below_a_lower_one_wins(tmp_path, capsys):
+    rows = "| D-001 | x | op | MERGE OWNER: alpha | y | z |\n| D-010 | x | op | MERGE OWNER: beta | y | z |\n"
+    assert _merge_owner_of(tmp_path, capsys, rows) == (0, "beta")
+
+
+def test_merge_owner_a_superseding_row_with_the_higher_id_wins(tmp_path, capsys):
+    """A changed owner is a NEW row whose what-cell OPENS `supersedes D-NNN:` (the ledger's own
+    law) — the `^`-anchored regex never matched it, so the superseded owner stayed in charge."""
+    rows = (
+        "| D-001 | x | op | MERGE OWNER: alpha | y | z |\n"
+        "| D-002 | x | op | **supersedes D-001:** MERGE OWNER: beta | y | z |\n"
+    )
+    assert _merge_owner_of(tmp_path, capsys, rows) == (0, "beta")
+    rows = (
+        "| D-003 | x | op | supersedes D-001, D-002: **MERGE OWNER: gamma** | y | z |\n"
+        "| D-002 | x | op | MERGE OWNER: beta | y | z |\n"
+        "| D-001 | x | op | MERGE OWNER: alpha | y | z |\n"
+    )
+    assert _merge_owner_of(tmp_path, capsys, rows) == (0, "gamma")
+
+
+def test_merge_owner_a_highest_id_undeclared_row_is_undeclared_at_exit_3(tmp_path, capsys):
+    """The un-adoption row: nobody owns the repo, so the answer is the NO-OWNER exit (3), never
+    `UNDECLARED` printed at rc 0 as though it were an agent's name (the pre-fix behaviour)."""
+    for cell in ("MERGE OWNER: UNDECLARED — un-adopted", "MERGE OWNER: UNDECLARED."):
+        rows = f"| D-002 | x | op | {cell} | y | z |\n| D-001 | x | op | MERGE OWNER: alpha | y | z |\n"
+        assert _merge_owner_of(tmp_path, capsys, rows) == (3, "UNDECLARED"), cell
+    # a LOWER-id un-adoption row is history: the later owner row stands
+    rows = "| D-001 | x | op | MERGE OWNER: UNDECLARED | y | z |\n| D-002 | x | op | MERGE OWNER: alpha | y | z |\n"
+    assert _merge_owner_of(tmp_path, capsys, rows) == (0, "alpha")
+    # token-exact: a name that merely starts with the word is an owner
+    rows = "| D-002 | x | op | MERGE OWNER: undeclared-team | y | z |\n"
+    assert _merge_owner_of(tmp_path, capsys, rows) == (0, "undeclared-team")
 
 
 def test_merge_owner_reports_undeclared_when_phrase_is_not_at_the_open(tmp_path, capsys):

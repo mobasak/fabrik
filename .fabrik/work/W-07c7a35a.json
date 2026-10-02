@@ -1,0 +1,26 @@
+{
+  "block_digest": "d0b53ff5aaf744877162485c107396b8c4744007bb1afbfe8fdd2b83b5ee0d42",
+  "blocked_by": [],
+  "created": "2026-10-02T17:43:14.100563Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-07c7a35a",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "671ce8a210000fddaefdb846c345b4bb9e4d855a1b6be9d1ee8482c62e649169"
+  ],
+  "next": "",
+  "note": "operator 2026-10-02: Volkan is away now; do it when he is available",
+  "owner": "",
+  "priority": 2,
+  "question": "Should I update Volkan's Mac `/task` command over SSH to the new v2 rules? There is no mailbox for that machine, so the spec's \"mail his port\" step can't happen.",
+  "status": "done",
+  "title": "Should I update Volkan's Mac `/task` command over SSH to the new v2 rules? There is no mailbox for that machine, so the spec's \"mail his port\" step can't happen."
+}

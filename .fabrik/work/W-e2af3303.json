@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T16:59:46.525563Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-e2af3303",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-spec for the chrome-extension developer-mode release kit, seeded with mail 01M3WQXZ3Y and .windsurf/rules/chrome-ext/70-chrome-ext.md § Distribution Model — spec-chain: >3 files, a signing-key secret surface, and the keypair-at-scaffold vs at-release trade-off",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "chrome-extension scaffold: developer-mode release kit per D-486 — pinned manifest key (keypair, private key out of the repo, exact-ID CORS), GET /extension/latest in server/, in-extension update checker (startup + chrome.alarms), INSTALL guide with the keep-Developer-mode-on and managed-browser caveats (mail 01M3WQXZ3Y)"
+}

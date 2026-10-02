@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T16:30:33.041794Z",
+  "creator": "fleet",
+  "evidence": "d528000f5d3fc5a50bed733dcfc909d7d9323c06",
+  "id": "W-a1a359c8",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reload from inside the prometheus container (docker exec prometheus wget -qO- --post-data='' http://localhost:9090/-/reload — worked by hand 2026-10-02), keep the exit-1 on failure, add a test that greps the reload command",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "fleet"
+  ],
+  "title": "scripts/sync_prometheus_to_vps.sh --push always reports a failed reload: it POSTs /-/reload from the alertmanager container, which can no longer resolve 'prometheus' (wget: bad address 'prometheus:9090', probed 2026-10-02 during plan-2 rollout R0); the files land on disk but Prometheus keeps the old rules until reloaded by hand"
+}

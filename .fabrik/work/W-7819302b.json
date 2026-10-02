@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T22:03:35.813724Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7819302b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-02-fabrik-task-feature-lane-design.md"
+  },
+  "next": "",
+  "note": "folded into spec Revision 2 (D10/D11)",
+  "owner": "",
+  "priority": 2,
+  "status": "dropped",
+  "tags": [
+    "infra"
+  ],
+  "title": "Profile: small — one design-review loop (fold spec-review into plan-review; the profile is set after the spec)"
+}

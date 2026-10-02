@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T12:48:09.454653Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-77e00147",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VR0800GPM5H79RHPSZD8WA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "ADOPTED — iterative_image_editor merge owner is iie1 (D-054); one --adopt defect found"
+}

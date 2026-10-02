@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T20:47:12.090470Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-4b1dfd76",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-09-30-payments-fulfilment-role-design.md"
+  },
+  "next": "at /fabrik-plan-after-chat for the fulfilment spec, name both refresh branches in the ticket that edits cli.py; unit test drives refresh with a failing registrar AND a pending payments lane and asserts the ⚠ line",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "fulfilment-role build: print registrar_warnings in fabrik refresh's exit-2 branch (cli.py:1282) as well as its ✅ branch (:1293) — spec 2026-09-30-payments-fulfilment-role § The delta item 5 names 'the refresh summary' singular (spec-review round 4, rules-O22, recorded under the scope-growth stop)"
+}

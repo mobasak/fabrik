@@ -48,7 +48,7 @@ repos:
         pass_filenames: false
 """
 
-_ALL_NO = "decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=no"
+_ALL_NO = "decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=no,consumers=internal"
 
 
 def _load(name: str, path: Path):
@@ -141,6 +141,9 @@ def repo(tmp_path: Path) -> Path:
     # applies only there and in the hub (fabrik-lib 01M3FQ152 C4).
     (r / ".fabrik").mkdir()
     (r / ".fabrik" / "synced.lock").write_text("[]\n", encoding="utf-8")
+    # This file grades the lane-v1 gate; every repo defaults to v2 since D-507, so the
+    # fixture pins v1 in its first commit (tracked, clean, never part of a measured diff).
+    (r / ".fabrik" / "lane.json").write_text('{"version": 1}\n', encoding="utf-8")
     subprocess.run(["git", "init", "-q"], cwd=r, check=True, timeout=15)
     subprocess.run(["git", "add", "-A"], cwd=r, check=True, timeout=15)
     subprocess.run(
@@ -1697,6 +1700,10 @@ def test_a_root_commit_is_diffed_against_the_empty_tree(
     r = tmp_path / "virgin"
     r.mkdir()
     subprocess.run(["git", "init", "-q", "-b", "main"], cwd=str(r), check=True, timeout=15)
+    # a v1 pin (this grades v1's recorded, never refused, undeclared path) that the root
+    # commit must not carry: untracked and excluded, so `add -A` leaves it out
+    _write(r, ".fabrik/lane.json", '{"version": 1}\n')
+    (r / ".git" / "info" / "exclude").write_text(".fabrik/\n", encoding="utf-8")
     _write(r, "src/only.py")
     run = _cr(
         run_dir,

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T10:47:37.290728Z",
+  "creator": "infra",
+  "evidence": "15ca79fba3258ee8549159471548de5037a7b1fb",
+  "id": "W-20a8e9f1",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "in .claude/hooks/final_gate_stop.py's spontaneous-work cause, drop authored paths that no longer exist or whose working tree equals HEAD before judging the covered window; red-first with a fixture that edits then reverts a file",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "title": "Stop hook's UNREVIEWED SPONTANEOUS WORK cause counts files a session authored even after they are WITHDRAWN: 2026-09-30 it named scripts/sysadmin/permission_md_allow.py and tests/sysadmin/test_permission_md_allow.py (deleted) and install_user_hooks.py (byte-identical to HEAD) after a closed /fabrik-review-scoped proved the withdrawal clean — a re-review cannot clear it because the edits predate every run window"
+}

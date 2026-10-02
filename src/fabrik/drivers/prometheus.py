@@ -25,8 +25,9 @@ Design notes
 * **Reload via lifecycle endpoint, fallback to restart.** Prometheus
   reloads its config on ``POST /-/reload`` only when started with
   ``--web.enable-lifecycle``. We try the endpoint first (fast, no
-  scrape-gap) and fall back to a container restart on HTTP failure.
-  The restart costs ~3 s of scrape-gap but always works.
+  scrape-gap) and fall back to a container restart (~3 s of scrape-gap)
+  only when ``promtool check config`` passes inside the container: a
+  config /-/reload refused is never restarted into (W-5aa5e3d8).
 * **Public-HTTPS scrape targets by default.** Coolify-managed container
   names carry unpredictable UUID suffixes that change on rebuild — same
   reason :mod:`fabrik.drivers.gatus` probes the public domain. The
@@ -77,11 +78,19 @@ try:
 except Exception:  # noqa: BLE001 — defensive: tests can monkeypatch
     _LOCAL_PROMETHEUS_CONFIG_PATH = None
 
-PROMETHEUS_RELOAD_URL = "http://prometheus:9090/-/reload"
-"""Lifecycle endpoint for hot-reload. Reachable from the VPS host via
-the ``coolify`` Docker network alias; we curl it from inside the
-``alertmanager`` container which sits on the same network. (The VPS
-host itself does NOT join the monitoring network.)"""
+PROMETHEUS_RELOAD_URL = "http://localhost:9090/-/reload"
+"""Lifecycle endpoint for hot-reload, called from INSIDE the prometheus
+container (its own loopback). The VPS host does not join the monitoring
+network, and the old route — wget from the ``alertmanager`` container to
+``prometheus:9090`` — stopped resolving (``bad address``, probed live
+2026-10-02, W-a1a359c8), which silently turned every reload into a
+container restart."""
+
+# The config path INSIDE the container (configs/monitoring-compose.yaml `--config.file`).
+PROMETHEUS_CONTAINER_CONFIG = "/etc/prometheus/prometheus.yml"
+# Fails the chain with a NAMED reason when no prometheus container is running: a bare
+# `[ -n "$X" ]` exits 1 with empty stderr, and the logged reason read `rc=1: ` (restart-S2).
+_NO_CONTAINER = "echo 'no running prometheus container' >&2; false"
 
 DEFAULT_METRICS_PATH = "/metrics"
 """Standard Prometheus convention. Override per-call if the service
@@ -180,26 +189,28 @@ def _write_config(data: dict[str, Any]) -> None:
 
 
 def _reload_prometheus() -> bool:
-    """Hot-reload Prometheus; fall back to container restart on failure.
+    """Hot-reload Prometheus; on failure, restart the container only if its config passes promtool.
 
     Returns True if either path succeeded. We always succeed-or-warn
     because the config is already written — a reload failure means
     "the new target won't show up until next restart", not "the deploy
     is broken".
     """
-    # Hot-reload first (fast, no scrape-gap). Run from inside alertmanager
-    # since it shares the monitoring Docker network and has curl.
+    # Hot-reload first (fast, no scrape-gap), from INSIDE the prometheus
+    # container against its own loopback — no other container's DNS involved
+    # (the old route via a sidecar container stopped resolving `prometheus`,
+    # W-a1a359c8).
     # Container name pattern: `^<name>(-|$)` matches both the canonical bare
-    # name (e.g. `alertmanager` — what's live since the Coolify migration)
-    # AND any legacy `<name>-<suffix>` form. The old pattern `^alertmanager-`
-    # silently no-matched the bare names and `_reload_prometheus` always
-    # fell through to "non-fatal" — verified live 2026-06-08 during the vps4
-    # drill follow-up cleanup.
+    # name AND any legacy `<name>-<suffix>` form (the Coolify-era prefix-only
+    # pattern no-matched the bare names — verified live 2026-06-08).
     try:
+        # An empty name must fail here, not run `docker exec wget ...`.
         ssh(
-            f"sudo docker exec $(sudo docker ps --format '{{{{.Names}}}}' "
-            f"| grep -E '^alertmanager(-|$)' | head -1) "
-            f"wget -qO- --post-data='' {shlex.quote(PROMETHEUS_RELOAD_URL)}",
+            f"PC=$(sudo docker ps --format '{{{{.Names}}}}' "
+            f"| grep -E '^prometheus(-|$)' | head -1) && "
+            f'{{ [ -n "$PC" ] || {{ {_NO_CONTAINER}; }}; }} && '
+            f"sudo docker exec \"$PC\" wget -qO- --post-data='' "
+            f"{shlex.quote(PROMETHEUS_RELOAD_URL)}",
             timeout=15,
         )
         logger.info("Prometheus hot-reload succeeded")
@@ -207,17 +218,28 @@ def _reload_prometheus() -> bool:
     except Exception as e:  # noqa: BLE001 — bounded fallback
         logger.info("Prometheus hot-reload failed (%s); trying container restart", e)
 
+    # Restart only into a config that loads: when /-/reload refused an INVALID config the
+    # running Prometheus still serves its last good one, and a restart would drop it and
+    # crash-loop on the bad file (W-5aa5e3d8). promtool ships in the prometheus image and
+    # also validates the referenced rule files.
     try:
         ssh(
             "PROM_CONTAINER=$(sudo docker ps --format '{{.Names}}' "
             "| grep -E '^prometheus(-|$)' | head -1) && "
+            f'{{ [ -n "$PROM_CONTAINER" ] || {{ {_NO_CONTAINER}; }}; }} && '
+            'sudo docker exec "$PROM_CONTAINER" promtool check config '
+            f"{shlex.quote(PROMETHEUS_CONTAINER_CONFIG)} && "
             'sudo docker restart "$PROM_CONTAINER"',
             timeout=30,
         )
         logger.info("Prometheus container restarted")
         return True
     except Exception as e:  # noqa: BLE001
-        logger.warning("Prometheus reload AND restart both failed (non-fatal): %s", e)
+        logger.warning(
+            "Prometheus not restarted after a failed hot-reload (non-fatal; a running "
+            "Prometheus keeps its last good config): %s",
+            e,
+        )
         return False
 
 

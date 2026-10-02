@@ -767,6 +767,22 @@ _PAYMENTS_INGEST_SUFFIX = "_payments_ingest"
 # reads it; NOT the project's `jobs` queue — a project-owned table, the project's policy).
 _PAYMENTS_INGEST_READ_TABLES = ("customers", "subscriptions")  # store.py:153/162 (resolve_org)
 _PAYMENTS_INGEST_WRITE_TABLE = "webhook_events"  # store.py:188 (record_event INSERT … RETURNING)
+# fabrik-lib payments (its D-337) ships an owner-run grant function that EXTENDS the ingest
+# policies (ALTER POLICY … TO <current roles>, r) and grants only the three columns
+# resolve_org reads. The block below DROP+CREATEs the policies (stripping every other role)
+# and grants table-level SELECT (re-widening the role to `email`), so it runs only on an
+# install that predates the function. The function RAISES unless all seven of its tables
+# resolve — pinned from payments/db/migrations/2026-09-29-scoped-service-roles.sql.
+_PAYMENTS_GRANT_INGEST_FN = "payments_grant_ingest(pg_catalog.regrole)"
+_PAYMENTS_GRANT_TABLES = (
+    "plans",
+    "customers",
+    "subscriptions",
+    "webhook_events",
+    "purchases",
+    "payments_audit_log",
+    "jobs",
+)
 
 
 def _payments_ingest_role_name(db_name: str) -> str:
@@ -803,7 +819,9 @@ def _payments_ingest_drop_role_sql(db_name: str) -> str:
 def _payments_ingest_policy_block(table: str, role: str, *, write: bool) -> str:
     """A table-existence-GUARDED, idempotent GRANT+POLICY DO block for one table.
 
-    The tables come from the PROJECT's `db/schema.sql`, applied by the owner role
+    The LEGACY path: it runs only while ``payments_grant_ingest`` is absent (an install
+    predating fabrik-lib's scoped-roles migration); otherwise
+    :func:`_payments_grant_ingest_block` grants and this block is a no-op. The tables come from the PROJECT's `db/schema.sql`, applied by the owner role
     AFTER `fabrik apply` (postgres.py: "so it can apply its own schema") — so they may
     not exist when the role is minted. `to_regclass` guards each: absent → skipped
     (self-heals on the apply after the schema lands). `DROP POLICY IF EXISTS` + CREATE
@@ -823,7 +841,65 @@ def _payments_ingest_policy_block(table: str, role: str, *, write: bool) -> str:
             "WITH CHECK (true)",
         ]
     body = "\n".join(f"    EXECUTE '{s}';" for s in stmts)
-    return f"DO $$ BEGIN\n  IF to_regclass('public.{table}') IS NOT NULL THEN\n{body}\n  END IF;\nEND $$;"
+    return (
+        f"DO $$ BEGIN\n  IF to_regclass('public.{table}') IS NOT NULL\n"
+        f"     AND to_regprocedure('{_PAYMENTS_GRANT_INGEST_FN}') IS NULL THEN\n"
+        f"{body}\n  END IF;\nEND $$;"
+    )
+
+
+def _payments_grant_ingest_block(role: str) -> str:
+    """Delegate to fabrik-lib's ``payments_grant_ingest`` when the install carries it.
+
+    With the function present: all six payments tables and ``jobs`` resolve → the function
+    grants; the payments tables resolve but ``jobs`` does not → RAISE, naming ``jobs`` (the
+    function requires the project's job queue, and granting without it would leave a role
+    that resolves nothing — so the step is recorded failed, never silently empty); the
+    payments schema is not applied yet → a NOTICE, and the apply after it lands grants. The
+    legacy block stays off in every one of these states, so an apply never re-widens a role
+    the function narrowed. A refusal from the function (owner/lane membership, a PUBLIC or
+    misshaped policy, the column-leak postcondition) raises too; the caller records the
+    step as failed. Tables resolve through the session's search_path, exactly as the
+    function resolves them. ``role`` is ``_validate_identifier``-gated; names are constants.
+    """
+    payments = [t for t in _PAYMENTS_GRANT_TABLES if t != "jobs"]
+    payments_present = " AND ".join(f"to_regclass('{t}') IS NOT NULL" for t in payments)
+    return (
+        "DO $$ BEGIN\n"
+        f"  IF to_regprocedure('{_PAYMENTS_GRANT_INGEST_FN}') IS NOT NULL THEN\n"
+        f"    IF {payments_present} THEN\n"
+        "      IF to_regclass('jobs') IS NULL THEN\n"
+        f"        RAISE EXCEPTION 'payments_grant_ingest for {role}: the payments tables exist "
+        "but jobs does not; create the job queue table the payments module requires, then "
+        "re-apply';\n"
+        "      END IF;\n"
+        f"      PERFORM payments_grant_ingest('\"{role}\"'::pg_catalog.regrole);\n"
+        "    ELSE\n"
+        f"      RAISE NOTICE 'payments_grant_ingest deferred for {role}: the payments schema "
+        "is not applied yet';\n"
+        "    END IF;\n"
+        "  END IF;\n"
+        "END $$;"
+    )
+
+
+def _payments_grant_path_sql() -> str:
+    """One ``SELECT`` naming the grant path the batch took: ``legacy``, ``module`` or ``pending``.
+
+    Printed as the batch's LAST line (``psql -tA``), so the caller can log what actually
+    happened instead of assuming the three tables were granted.
+    """
+    all_present = " AND ".join(f"to_regclass('{t}') IS NOT NULL" for t in _PAYMENTS_GRANT_TABLES)
+    return (
+        f"SELECT CASE WHEN to_regprocedure('{_PAYMENTS_GRANT_INGEST_FN}') IS NULL THEN "
+        "CASE WHEN "
+        + " AND ".join(
+            f"to_regclass('public.{t}') IS NOT NULL"
+            for t in (*_PAYMENTS_INGEST_READ_TABLES, _PAYMENTS_INGEST_WRITE_TABLE)
+        )
+        + f" THEN 'legacy' ELSE 'pending' END WHEN {all_present} THEN 'module' "
+        "ELSE 'pending' END;"
+    )
 
 
 def create_payments_ingest_role(
@@ -837,10 +913,14 @@ def create_payments_ingest_role(
     create (``None`` on re-apply) so the caller injects ``PAYMENTS_INGEST_DATABASE_URL``
     exactly once. The role is ``NOBYPASSRLS`` — the whole point; its cross-tenant reach
     comes ONLY from the permissive policies on the three payments tables (guarded on
-    existence, so it self-heals on the apply after the app's schema lands).
+    existence, so it self-heals on the apply after the app's schema lands). Where the
+    install carries fabrik-lib's ``payments_grant_ingest``, that function does the grants
+    (policies extended, never replaced; column-level SELECT only) and the legacy
+    per-table block stands down.
 
-    Returns ``{"user", "password"|None, "status"}`` — ``password`` present only on a
-    fresh create (mirrors :func:`create_watchdog_roles`).
+    Returns ``{"user", "password"|None, "status", "grants"}`` — ``password`` present only
+    on a fresh create (mirrors :func:`create_watchdog_roles`); ``grants`` is the path the
+    batch took (``legacy`` · ``module`` · ``pending`` · ``unknown`` when unreadable).
     """
     role = _payments_ingest_role_name(db_name)
     if dry_run:
@@ -867,17 +947,32 @@ def create_payments_ingest_role(
     grant_parts.append(
         _payments_ingest_policy_block(_PAYMENTS_INGEST_WRITE_TABLE, role, write=True)
     )
+    grant_parts.append(_payments_grant_ingest_block(role))
+    grant_parts.append(_payments_grant_path_sql())
     # nosec B608 — db_name/role are _validate_identifier-gated; table names are constants.
-    _run_sql("\n".join(grant_parts) + "\n", container=container)  # nosec B608
-    logger.info(
-        "payments-ingest role on %s: %s (%s) — non-BYPASSRLS, scoped to %s + %s",
-        db_name,
-        role,
-        "created" if not exists else "exists",
-        ", ".join(_PAYMENTS_INGEST_READ_TABLES),
-        _PAYMENTS_INGEST_WRITE_TABLE,
-    )
-    return {"user": role, "password": pw, "status": "created" if not exists else "exists"}
+    out = _run_sql("\n".join(grant_parts) + "\n", container=container)  # nosec B608
+    lines = [ln.strip() for ln in out.splitlines() if ln.strip()] if isinstance(out, str) else []
+    grants = lines[-1] if lines and lines[-1] in ("legacy", "module", "pending") else "unknown"
+    status = "created" if not exists else "exists"
+    if grants == "pending":
+        logger.warning(
+            "payments-ingest role on %s: %s (%s) — NO grants yet: the payments schema is not "
+            "applied; the next apply grants",
+            db_name,
+            role,
+            status,
+        )
+    else:
+        logger.info(
+            "payments-ingest role on %s: %s (%s) — non-BYPASSRLS, grants via %s path on %s + %s",
+            db_name,
+            role,
+            status,
+            grants,
+            ", ".join(_PAYMENTS_INGEST_READ_TABLES),
+            _PAYMENTS_INGEST_WRITE_TABLE,
+        )
+    return {"user": role, "password": pw, "status": status, "grants": grants}
 
 
 # ── The app's non-owner runtime role: ``<db>_app`` ────────────────────────── #
@@ -1719,16 +1814,16 @@ def _load_remote_allocations() -> dict[str, Any]:
     ``{"version": 1, "allocations": {}}`` when the file is missing or empty
     (first-run on a fresh VPS). Raises ``json.JSONDecodeError`` on a corrupted
     file — caller decides whether to abort or overwrite.
+
+    A FAILED read (SSH down, file unreadable) raises ``RuntimeError``; it is never
+    read as an empty registry, because every writer here does read-modify-write and
+    would then replace the whole registry with its one entry. Only a file that does
+    not exist reads as empty (the remote ``test -e`` prints nothing, exit 0). The test
+    runs INSIDE one ``sudo sh -c``: a bare ``if sudo test -e`` would read a refused
+    sudo as a missing file, because an ``if`` with no ``else`` exits 0.
     """
-    try:
-        raw = ssh(f"sudo cat {shlex.quote(ALLOCATIONS_PATH)}")
-    except RuntimeError as e:
-        logger.warning(
-            "postgres allocations: cat %s failed (%s) — assuming empty registry",
-            ALLOCATIONS_PATH,
-            e,
-        )
-        return {"version": 1, "allocations": {}}
+    path = shlex.quote(ALLOCATIONS_PATH)
+    raw = ssh(f"sudo sh -c {shlex.quote(f'if test -e {path}; then cat {path}; fi')}")
     if not raw.strip():
         return {"version": 1, "allocations": {}}
     return json.loads(raw)
@@ -1813,19 +1908,53 @@ def register_allocation(
             spec_id,
             owner,
         )
+    entry = {"owner": owner, "spec_id": spec_id, "user": user, "notes": notes}
+    return _register(db_name, entry, if_absent=False, dry_run=dry_run)[0]
 
+
+def register_allocation_if_absent(
+    db_name: str,
+    *,
+    spec_id: str | None,
+    user: str,
+    owner: str,
+    notes: str,
+) -> bool:
+    """Register ``db_name`` only when the registry has no entry for it.
+
+    The read, the check and the write share one ``file_lock`` hold, so a
+    seed or manual entry, or one written by another writer on this host
+    sharing the lock dir, is never overwritten. The lock is host-local:
+    a writer on another host is not serialised (same limit as
+    ``register_allocation``). Returns ``True`` when it wrote, ``False``
+    when an entry already existed. Raises ``ValueError`` on a name that
+    is not a safe identifier, before touching the registry.
+    """
+    _validate_identifier(db_name, "database")
+    entry = {"owner": owner, "spec_id": spec_id, "user": user, "notes": notes}
+    wrote = _register(db_name, entry, if_absent=True, dry_run=False)[1]
+    logger.info(
+        "postgres allocation %s: db=%s spec=%s",
+        "registered" if wrote else "already present, left unchanged",
+        db_name,
+        spec_id,
+    )
+    return wrote
+
+
+def _register(
+    db_name: str, entry: dict[str, Any], *, if_absent: bool, dry_run: bool
+) -> tuple[dict[str, Any], bool]:
+    """Read-modify-write one registry entry under the lock; ``(payload, wrote)``."""
     with file_lock("postgres-allocations", timeout_seconds=15.0):
         payload = _load_remote_allocations()
         allocations = payload.setdefault("allocations", {})
-        allocations[db_name] = {
-            "owner": owner,
-            "spec_id": spec_id,
-            "user": user,
-            "notes": notes,
-        }
+        if if_absent and db_name in allocations:
+            return payload, False
+        allocations[db_name] = entry
         if not dry_run:
             _write_remote_allocations(payload)
-        return payload
+        return payload, True
 
 
 def unregister_allocation(db_name: str, *, dry_run: bool = False) -> dict[str, Any]:

@@ -18,6 +18,7 @@ One neutral-path file mailbox per repo at ``$FABRIK_MAIL_ROOT/<repo>/{inbox,arch
     digest [--days N]
     sweep [--days N] [--repo <repo>]   # archive stale ack:no mail; obligations never swept
     claim <id> [--repo <repo>]
+    who <agent>   # read-only: the live session name(s) of <agent> in THIS repo, one per line
     should-reply <id> [--repo <repo>]   # advisory loop-safety pre-check (ALLOW 0 / HOLD 3)
 
 Protocol invariants (the conventions doc, docs/reference/fabrik-mail.md, is canonical):
@@ -35,11 +36,15 @@ import argparse
 import contextlib
 import importlib.util
 import io
+import json
 import os
 import re as _re
+import stat
 import subprocess
 import sys
 import time
+import unicodedata
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
@@ -51,10 +56,11 @@ _CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 _ULID_LEN = 26  # 128 bits encoded MSB-first, left-padded
 
 HUB_NODES = frozenset({"fabrik", "fabrik-lib"})  # the star center + its first-class node
-KINDS = frozenset({"request", "finding", "relay", "reply", "upstream-feedback"})
+KINDS = frozenset({"request", "finding", "relay", "reply", "upstream-feedback", "merge-request"})
 ACK_BY_KIND = {  # default ack per kind
     "request": "required",
     "upstream-feedback": "required",
+    "merge-request": "required",  # a merge obligation the owner must close (D-462)
     "finding": "no",
     "relay": "no",
     "reply": "no",
@@ -1221,6 +1227,398 @@ def _note_mail_requeue(msg_id: str, repo: str) -> None:
         _warn(f"mail item not closed for {msg_id} — {type(exc).__name__}: {exc}")
 
 
+# --- merge-request guards (spec 2026-09-30-merge-request-loop § Contract deltas) --------
+_MERGE_REQUEST = "merge-request"
+_SHA_RE = _re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
+
+
+def _whoami() -> ModuleType | None:
+    """The sibling ``whoami_agent`` module via the GUARDED import ``command_run.py`` uses, or None
+    when it cannot load — never raises. The one import site for ``_caller_agent`` and ``who``."""
+    try:
+        here = str(Path(__file__).resolve().parent)
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        import whoami_agent  # noqa: PLC0415
+
+        return whoami_agent
+    except (Exception, SystemExit):  # SystemExit is BaseException — same reasoning as command_run
+        return None
+
+
+def _caller_agent() -> str:
+    """The caller's agent name, resolved as ``command_run.py`` does: the sibling
+    ``whoami_agent.resolve_agent_name`` (CLAUDE_AGENT first, else this session's identity
+    binding). "" when unknown — never raises; the merge-request guard refuses "" (fail closed)."""
+    try:
+        mod = _whoami()
+        name = mod.resolve_agent_name() if mod is not None else ""
+        return name if isinstance(name, str) else ""
+    except (Exception, SystemExit):
+        return ""
+
+
+# --- who: the doorbell lookup (spec 2026-09-30-merge-request-loop § The delta 4) ---------------
+# READ-ONLY. Both roots are env-overridable and read at CALL time, so a fixture never touches the
+# real registry or the real /proc.
+_WHO_GIT_TIMEOUT_S = 10
+# Repo-LOCATING git vars. Inherited, `git -C <entry cwd>` would answer for the CALLER's repo and
+# every registry entry would match — so every `who` git call runs without them.
+_GIT_LOCATOR_VARS = frozenset({"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"})
+
+
+def _sessions_root() -> Path:
+    """``$FABRIK_SESSIONS_ROOT`` else ``~/.claude/sessions`` (Path.home()-keyed, like the whoami
+    store — a pinned account's config dir shares it)."""
+    raw = os.environ.get("FABRIK_SESSIONS_ROOT")
+    return Path(raw) if raw else Path.home() / ".claude" / "sessions"
+
+
+def _proc_root() -> Path:
+    """``$FABRIK_PROC_ROOT`` else ``/proc``."""
+    return Path(os.environ.get("FABRIK_PROC_ROOT") or "/proc")
+
+
+def _git_common_dir(cwd: str | None = None) -> str | None:
+    """realpath of ``git rev-parse --path-format=absolute --git-common-dir`` run in ``cwd`` (this
+    process's cwd when None); None on ANY failure, and a None never matches."""
+    cmd = ["git"] + (["-C", cwd] if cwd is not None else [])
+    cmd += ["rev-parse", "--path-format=absolute", "--git-common-dir"]
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_LOCATOR_VARS}
+    try:
+        res = subprocess.run(  # noqa: S603 — fixed argv, no shell
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=_WHO_GIT_TIMEOUT_S,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    out = res.stdout.strip()
+    if res.returncode != 0 or not out:
+        return None
+    return os.path.realpath(out)
+
+
+_WHO_MAX_ENTRY = 64 * 1024  # a registry entry is a few hundred bytes; anything bigger is not one
+_WHO_NAME_MAX = 128
+# Each printed line becomes a SendMessage target downstream (merge_request.py), so one entry must
+# never print as two lines: a name is refused when it holds a Cc control (\n \r \x85 …), a Zl/Zp
+# separator (U+2028/U+2029), or anything else str.splitlines() breaks on. Cf format characters that
+# break nothing (ZWJ U+200D in emoji sequences, soft hyphen U+00AD) are real names and stay.
+_WHO_LINE_BREAKING = frozenset({"Cc", "Zl", "Zp"})
+# A LOCAL copy of whoami_agent._NAME_RE, so the env path survives that module failing to import
+# (tests/test_mail_who.py pins the two patterns equal).
+_AGENT_NAME_RE = _re.compile(r"[a-z0-9-]{1,32}")
+# How far a live session's computed start may run past its registry file's mtime. The start is
+# CURRENT btime + ticks, so a forward wall-clock step after the session wrote its entry (WSL2
+# resume resync, NTP) moves it later; this slack absorbs that. A step beyond the slack is a KNOWN
+# RESIDUAL: those sessions stop ringing until they rewrite their entry — the doorbell is best
+# effort, and the durable mail plus the owner's Stop cause carry delivery. The pid-reuse defence
+# no longer rests on time alone: the pid must also still run a claude binary (_proc_is_claude).
+_WHO_START_SLACK_S = 600
+
+
+def _proc_agent(pid: str) -> str:
+    """``CLAUDE_AGENT`` from ``<proc root>/<pid>/environ`` (NUL-separated ``KEY=VALUE``); ""
+    when unreadable (another user's process, or gone)."""
+    try:
+        path = _proc_root() / pid / "environ"
+        if not path.is_file():
+            return ""
+        raw = path.read_bytes()
+    except OSError:
+        return ""
+    for item in raw.split(b"\0"):
+        key, sep, val = item.partition(b"=")
+        if sep and key == b"CLAUDE_AGENT":
+            return val.decode("utf-8", errors="replace").strip()
+    return ""
+
+
+def _proc_started_at(pid: str) -> float | None:
+    """The epoch second ``<proc root>/<pid>`` started: btime (``<proc root>/stat``) + field 22 of
+    ``<proc root>/<pid>/stat`` in clock ticks. None when either is unreadable.
+
+    Not ``whoami_agent._pid_start``: that one hardcodes ``/proc`` and returns raw ticks, and this
+    reader must honour the proc-root override. btime is whole seconds, rounded DOWN, so the
+    estimate is never later than the true start and an original session is never read as reborn.
+    """
+    try:
+        root = _proc_root()
+        btime = None
+        for line in (root / "stat").read_text(encoding="utf-8", errors="replace").splitlines():
+            if line.startswith("btime "):
+                btime = int(line.split()[1])
+                break
+        if btime is None:
+            return None
+        raw = (root / pid / "stat").read_text(encoding="utf-8", errors="replace")
+        ticks = int(raw[raw.rindex(")") + 1 :].split()[19])  # comm may hold spaces and ')'
+        return btime + ticks / os.sysconf("SC_CLK_TCK")
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _read_capped(
+    path: Path, cap: int, *, prefix: bool = False
+) -> tuple[bytes, os.stat_result] | None:
+    """(content, fstat) of a REGULAR file read through ONE descriptor, or None when it is not a
+    regular file or holds more than ``cap`` bytes — or, with ``prefix=True``, its first ``cap``
+    bytes instead of None (for a file only its head matters, such as a long cmdline).
+
+    ⚠️ The cap is enforced by the READ, never by ``st_size``: procfs/sysfs pseudo-files are
+    S_ISREG with st_size 0, so a ``<pid>.json`` symlinked to /proc/self/pagemap passed a stat cap
+    and was read unbounded. O_NONBLOCK makes opening a FIFO return at once (fstat then refuses
+    it), and fstat on the open fd closes the stat-then-open TOCTOU window.
+    """
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            return None
+        chunks: list[bytes] = []
+        got = 0
+        while got <= cap:
+            chunk = os.read(fd, cap + 1 - got)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            got += len(chunk)
+        data = b"".join(chunks)
+        if got <= cap:
+            return data, st
+        return (data[:cap], st) if prefix else None
+    finally:
+        os.close(fd)
+
+
+def _proc_is_claude(pid: str) -> bool:
+    """True when the basename of argv[0] OR argv[1] in ``<proc root>/<pid>/cmdline`` names claude.
+
+    Grounded on this box: a VS Code session runs
+    ``…/anthropic.claude-code-<ver>-linux-x64/resources/native-binary/claude`` (argv[0]); an npm
+    install runs ``node …/claude-code/cli.js`` (argv[1]). A pid recycled into any other program
+    fails this whatever its start time says. Only the first 4 KB is read — a long argv (a big
+    system prompt) is a PREFIX, never a refusal.
+    """
+    got = _read_capped(_proc_root() / pid / "cmdline", 4096, prefix=True)
+    if got is None:
+        return False
+    argv = [a.decode("utf-8", errors="replace") for a in got[0].split(b"\0")[:2]]
+    names = [os.path.basename(argv[0])]
+    if len(argv) > 1:
+        # argv[1]'s basename AND its parent dir: the npm form's basename is `cli.js`, and only
+        # its directory (`claude-code`) names claude.
+        names += [os.path.basename(argv[1]), os.path.basename(os.path.dirname(argv[1]))]
+    return any("claude" in n.lower() for n in names)
+
+
+def _display_name(raw: object) -> str | None:
+    """The registry ``name`` as ONE printable line: ends stripped, then refused when empty, longer
+    than _WHO_NAME_MAX, splitting into more than one line, or holding a _WHO_LINE_BREAKING
+    character."""
+    if not isinstance(raw, str):
+        return None
+    name = raw.strip()
+    if not name or len(name) > _WHO_NAME_MAX:
+        return None
+    if len(name.splitlines()) != 1:
+        return None
+    if any(unicodedata.category(ch) in _WHO_LINE_BREAKING for ch in name):
+        return None
+    return name
+
+
+def _bound_agents(mod: ModuleType) -> dict[str, str]:
+    """session id → agent name from the whoami binding store, the LAST valid row per session
+    winning (``resolve_agent_name``'s order). {} when the store is unavailable."""
+    try:
+        out: dict[str, str] = {}
+        for row in mod._rows(mod.store_path()):
+            name = str(row.get("name") or "")
+            if mod._NAME_RE.fullmatch(name):
+                out[str(row["session_id"])] = name
+        return out
+    except Exception:
+        return {}
+
+
+def _who_entry(entry: Path, bound: Callable[[], dict[str, str]]) -> tuple[str, str, str] | None:
+    """(agent, display name, absolute cwd) of ONE live registry entry, or None when any probe
+    fails — the caller still owes the common-dir check. Every probe of the entry lives here, and
+    the caller wraps the whole call in one per-entry skip."""
+    pid = entry.stem
+    if entry.suffix != ".json" or not pid.isdigit():
+        return None
+    # Regular file, bounded BY THE READ, one descriptor (a FIFO, a procfs symlink, a runaway file).
+    got = _read_capped(entry, _WHO_MAX_ENTRY)
+    if got is None:
+        return None
+    raw, st = got
+    data = json.loads(raw.decode("utf-8", errors="replace"))
+    if not isinstance(data, dict):
+        return None
+    name, cwd, sid = _display_name(data.get("name")), data.get("cwd"), data.get("sessionId")
+    if name is None:
+        return None
+    # A RELATIVE cwd would resolve against the CALLER's cwd under `git -C` and match falsely.
+    if not isinstance(cwd, str) or not os.path.isabs(cwd):
+        return None
+    # LIVENESS + PID REUSE: a dead pid has no readable start time; a recycled pid runs some other
+    # program (not a claude binary) or started well after the entry was written. An unknown start
+    # cannot prove identity, so it is skipped (best-effort doorbell: a missed ring costs speed; a
+    # false ring reaches the wrong session). The slack and its residual: _WHO_START_SLACK_S.
+    born = _proc_started_at(pid)
+    if born is None or born > st.st_mtime + _WHO_START_SLACK_S or not _proc_is_claude(pid):
+        return None
+    # Precedence mirrors whoami_agent.resolve_agent_name: a VALID env name alone decides; the
+    # binding is consulted only when the env carries none. An invalid env value is no identity.
+    env = _proc_agent(pid)
+    if _AGENT_NAME_RE.fullmatch(env):
+        return env, name, cwd
+    if isinstance(sid, str) and sid:
+        bound_to = bound().get(sid, "")
+        if bound_to:
+            return bound_to, name, cwd
+    return None
+
+
+def who_sessions(agent: str) -> list[str]:
+    """The live session name(s) of ``agent`` whose cwd shares the caller's git common dir.
+
+    A registry entry ``<sessions root>/<pid>.json`` counts when its pid is alive under the proc
+    root, still runs a claude binary and started no later than the entry's mtime plus
+    _WHO_START_SLACK_S (a recycled pid never rings), its agent — the valid ``CLAUDE_AGENT`` in its
+    environ, else the last binding row for its ``sessionId`` — equals ``agent``, and ``git -C
+    <cwd>`` (an absolute cwd) resolves to the caller's common dir, realpath-compared, never a
+    string prefix (``/opt/fabrik-lib`` is not ``/opt/fabrik``). Names that are not one printable
+    line are skipped. Sorted and deduplicated; [] on any unreadable input. If ``whoami_agent``
+    cannot load, only the binding source is lost. Read-only: it writes no state (importing
+    ``whoami_agent`` may leave a ``.pyc``).
+    """
+    agent = agent.strip()
+    if not agent:
+        return []
+    mod = _whoami()
+    mine = _git_common_dir()
+    if mine is None:
+        return []
+    try:
+        entries = sorted(_sessions_root().iterdir())
+    except OSError:
+        return []
+    cache: list[dict[str, str]] = []  # the binding store, read once and only when needed
+
+    def bound() -> dict[str, str]:
+        if not cache:
+            cache.append(_bound_agents(mod) if mod is not None else {})
+        return cache[0]
+
+    names: set[str] = set()
+    for entry in entries:
+        try:
+            hit = _who_entry(entry, bound)
+        # one unreadable entry never aborts the verb; RecursionError: '[' * 60000 is under the cap
+        except (OSError, ValueError, RecursionError):
+            continue
+        if hit is not None and hit[0] == agent and _git_common_dir(hit[2]) == mine:
+            names.add(hit[1])
+    return sorted(names)
+
+
+def _merge_request_at(*paths: Path) -> tuple[dict, str] | None:
+    """(frontmatter, body) of the FIRST existing path when it is a ``merge-request``, else None.
+
+    Every other kind — and an absent or malformed file — returns None and goes down
+    claim/ack's unchanged path, whose own rename raises exactly as before."""
+    for path in paths:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except FileNotFoundError:
+            continue
+        fm = _parse(text)
+        if fm is None or fm.get("kind") != _MERGE_REQUEST:
+            return None
+        return fm, text[text.find("\n---", 4) + 4 :]
+    return None
+
+
+def _refuse_non_addressee(msg_id: str, fm: dict, verb: str) -> None:
+    """A merge-request is claimed and acked ONLY by the agent it is addressed to (V7b)."""
+    owner = (fm.get("agent") or "").strip()
+    caller = _caller_agent()
+    if not owner or caller != owner:
+        raise MailRefusedError(
+            f"{msg_id}: a merge-request addressed to {owner or '(nobody)'!r} — {verb} refused for "
+            f"caller {caller or '(unresolved: set CLAUDE_AGENT or bind this session)'!r}"
+        )
+
+
+def _body_fields(body: str) -> dict[str, str]:
+    """The script-written ``field: value`` lines of a merge-request body (first one wins)."""
+    out: dict[str, str] = {}
+    for line in body.splitlines():
+        k, sep, v = line.partition(":")
+        if sep and k.strip() and k.strip() not in out:
+            out[k.strip()] = v.strip()
+    return out
+
+
+def _git(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], capture_output=True, text=True, timeout=60, check=False)
+
+
+def _commit_sha(ref: str) -> str:
+    """Full SHA of ``ref`` as a commit in the CWD's repo, else "" (``--end-of-options``: a ref
+    can never be read as an option)."""
+    if not ref:
+        return ""
+    r = _git("rev-parse", "--verify", "--quiet", "--end-of-options", f"{ref}^{{commit}}")
+    sha = r.stdout.strip()
+    return sha if r.returncode == 0 and _SHA_RE.fullmatch(sha) else ""
+
+
+def _is_ancestor(older: str, newer: str) -> bool:
+    return _git("merge-base", "--is-ancestor", older, newer).returncode == 0
+
+
+def _verify_merge_sha(msg_id: str, body: str, merge_sha: str | None) -> str:
+    """``ack --disposition done`` of a merge-request: ``merge_sha`` must be a commit that is an
+    ancestor of the request's ``base``, whose message carries the request id, AND whose history
+    holds the request's ``head`` (O34 — an empty commit naming the request is no merge of it).
+    Git runs in the CWD's repository. Returns the FULL SHA; raises MailRefusedError otherwise.
+    Cobra note: the cheapest pass without a merge is a commit that merges the head AND names the
+    id — which is a real merge by construction; ancestry of base is what makes it landed."""
+    if not (merge_sha or "").strip():
+        raise MailRefusedError(
+            f"{msg_id}: ack --disposition done of a merge-request needs --merge-sha <sha> "
+            "(the merge commit that landed the request's head in base)"
+        )
+    fields = _body_fields(body)
+    base_ref, head_ref = fields.get("base", ""), fields.get("head", "")
+    sha = _commit_sha(merge_sha.strip())
+    if not sha:
+        raise MailRefusedError(f"{msg_id}: --merge-sha {merge_sha!r} is not a commit in this repo")
+    base = _commit_sha(base_ref)
+    if not base:
+        raise MailRefusedError(f"{msg_id}: the request's base {base_ref!r} is not a commit here")
+    if not _is_ancestor(sha, base):
+        raise MailRefusedError(f"{msg_id}: {sha} is not an ancestor of base {base_ref!r}")
+    msg = _git("log", "-1", "--format=%B", sha)
+    if msg.returncode != 0 or msg_id not in msg.stdout:
+        raise MailRefusedError(f"{msg_id}: {sha}'s message does not carry the request id")
+    head = _commit_sha(head_ref)
+    if not head or not _is_ancestor(head, sha):
+        raise MailRefusedError(
+            f"{msg_id}: the request head {head_ref!r} is not in {sha}'s history — not a merge of it"
+        )
+    return sha
+
+
 # --- claim / ack / requeue ----------------------------------------------------
 def claim(msg_id: str, repo: str) -> Path:
     """Claim WITHOUT resolving: the rename lock alone, no acked-by line.
@@ -1235,18 +1633,22 @@ def claim(msg_id: str, repo: str) -> Path:
     base = _mail_root() / repo
     src = base / "inbox" / f"{msg_id}.md"
     dst = base / "archive" / f"{msg_id}.md"
+    mr = _merge_request_at(src)
+    if mr is not None:  # refused BEFORE the rename: the message stays in the inbox
+        _refuse_non_addressee(msg_id, mr[0], "claim")
     dst.parent.mkdir(parents=True, exist_ok=True)
     os.rename(src, dst)  # FileNotFoundError if already claimed — the race lock
     return dst
 
 
-def _append_ack_line(dst: Path, repo: str, disposition: str) -> None:
+def _append_ack_line(dst: Path, repo: str, disposition: str, extra: str = "") -> None:
     """Append the ack line WITHOUT O_CREAT — if the archived file vanished between ack's
     rename and this append (a concurrent requeue won the race), fail LOUDLY instead of
-    silently creating an archive file that holds only an ack line."""
+    silently creating an archive file that holds only an ack line. ``extra`` (single-line,
+    `` · ``-led) sits BEFORE the disposition, so ``_ACK_LINE`` still matches the line."""
     fd = os.open(dst, os.O_WRONLY | os.O_APPEND)  # FileNotFoundError if requeued meanwhile
     with os.fdopen(fd, "a", encoding="utf-8") as fh:
-        fh.write(f"\nacked-by: {repo} · ts: {_now_iso()} · disposition: {disposition}\n")
+        fh.write(f"\nacked-by: {repo} · ts: {_now_iso()}{extra} · disposition: {disposition}\n")
 
 
 def route(msg_id: str, to_agent: str, repo: str | None = None) -> Path:
@@ -1304,7 +1706,13 @@ def route(msg_id: str, to_agent: str, repo: str | None = None) -> Path:
     return path
 
 
-def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
+def ack(
+    msg_id: str,
+    repo: str,
+    disposition: str = "done",
+    merge_sha: str | None = None,
+    reason: str | None = None,
+) -> Path:
     """Claim + resolve — EVERY resolve goes through a per-process rename-locked window.
 
     Unified after three closer rounds (C1/E1/E2): the direct append-at-path branch let a
@@ -1315,6 +1723,11 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
     targets it), ``utime`` stamps the WINDOW's open time, append, rename back. A concurrent
     ack/claim/requeue during the window gets ENOENT (no archive/<id>.md exists). A message
     already RESOLVED (ack line present) raises — the double-ack loser semantics hold.
+
+    A ``merge-request`` is guarded BEFORE any rename or append (spec § Contract deltas): only
+    its addressee may ack it, ``done`` needs a verified ``merge_sha``, and ``blocked`` or
+    ``wontfix`` (both refusals) a ``reason`` naming the refused step; both land on the ack line. ``reason`` stays optional
+    (and recorded) for every other kind; ``merge_sha`` is refused on them.
     """
     _safe_id(msg_id)
     _safe_name(repo, "repo")
@@ -1325,6 +1738,30 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
     base = _mail_root() / repo
     src = base / "inbox" / f"{msg_id}.md"
     dst = base / "archive" / f"{msg_id}.md"
+    # str.split() breaks on EVERY separator _parse honours (\v \f \x1c-\x1e \x85   …), so a
+    # reason can never end the ack line early or plant a second one
+    why = " ".join((reason or "").split())
+    extra = f" · reason: {why}" if why else ""
+    # Judge the message WHEREVER it lives — inbox, archive, or a resolving window a crashed
+    # ack left behind (the sweep below would restore that window and append to it, so a guard
+    # blind to it is a bypass). Every window is a copy of the same message: same kind, same agent.
+    windows = sorted(dst.parent.glob(f"{msg_id}.md.resolving.*"))
+    mr = _merge_request_at(src, dst, *windows)
+    if mr is None:
+        if merge_sha:
+            raise MailRefusedError(f"{msg_id}: --merge-sha applies only to a merge-request")
+    else:
+        _refuse_non_addressee(msg_id, mr[0], "ack")
+        if disposition in ("blocked", "wontfix") and not why:
+            # both are refusals, and a refusal carries its reason (spec § The delta 5(h))
+            raise MailRefusedError(
+                f"{msg_id}: ack --disposition {disposition} of a merge-request needs --reason "
+                "naming the refused step"
+            )
+        if disposition == "done":
+            extra = f" · merge-sha: {_verify_merge_sha(msg_id, mr[1], merge_sha)}{extra}"
+        elif merge_sha:
+            raise MailRefusedError(f"{msg_id}: --merge-sha applies only to --disposition done")
     dst.parent.mkdir(parents=True, exist_ok=True)
     try:
         os.rename(src, dst)  # claim if still in inbox — the race lock (loser: ENOENT later)
@@ -1378,7 +1815,10 @@ def ack(msg_id: str, repo: str, disposition: str = "done") -> Path:
     try:
         if _ACK_LINE.search(win.read_text(encoding="utf-8", errors="replace")):
             raise FileNotFoundError(f"{msg_id} already resolved")
-        _append_ack_line(win, repo, disposition)
+        if extra:
+            _append_ack_line(win, repo, disposition, extra)
+        else:  # the unchanged 3-arg call — every existing ack (and its seams) stays byte-identical
+            _append_ack_line(win, repo, disposition)
     finally:
         os.rename(win, dst)
     return dst
@@ -1905,6 +2345,17 @@ def main(argv: list[str] | None = None) -> int:
     p_ack.add_argument("id")
     p_ack.add_argument("--repo")
     p_ack.add_argument("--disposition", default="done", choices=list(DISPOSITIONS))
+    p_ack.add_argument(
+        "--merge-sha",
+        dest="merge_sha",
+        help="merge-request + done (required): the merge commit — an ancestor of base whose "
+        "message names the request and whose history holds its head",
+    )
+    p_ack.add_argument(
+        "--reason",
+        help="written on the ack line; REQUIRED for a merge-request's blocked or wontfix "
+        "(the refused step)",
+    )
 
     p_route = sub.add_parser(
         "route", help="set/clear the intra-mailbox addressee on a message already in the inbox"
@@ -1924,6 +2375,11 @@ def main(argv: list[str] | None = None) -> int:
 
     p_dig = sub.add_parser("digest", help="report unacked + quarantined traffic")
     p_dig.add_argument("--days", type=int, default=3)
+
+    p_who = sub.add_parser(
+        "who", help="read-only: the live session name(s) of an agent in THIS repo, one per line"
+    )
+    p_who.add_argument("agent")
 
     p_sr = sub.add_parser(
         "should-reply", help="advisory loop-safety pre-check: ALLOW (exit 0) / HOLD (exit 3)"
@@ -2042,7 +2498,13 @@ def main(argv: list[str] | None = None) -> int:
             _note_mail_claim(args.id, repo, dst)
         elif args.cmd == "ack":
             repo = args.repo or _current_repo()
-            dst = ack(args.id, repo, disposition=args.disposition)
+            dst = ack(
+                args.id,
+                repo,
+                disposition=args.disposition,
+                merge_sha=args.merge_sha,
+                reason=args.reason,
+            )
             print(dst)
             _note_mail_ack(args.id, repo, args.disposition)
         elif args.cmd == "route":
@@ -2055,6 +2517,9 @@ def main(argv: list[str] | None = None) -> int:
             _note_mail_requeue(args.id, repo)
         elif args.cmd == "digest":
             _deliver_digest(digest(days=args.days))
+        elif args.cmd == "who":
+            for name in who_sessions(args.agent):
+                print(name)
         elif args.cmd == "should-reply":
             repo = args.repo or _current_repo()
             try:

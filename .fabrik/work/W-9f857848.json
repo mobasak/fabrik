@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-01T04:36:03.251453Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-9f857848",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-467",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "on session-recall's confirming reply: add worktree_transcript_link.py to install_user_hooks.py ENTRIES (SessionStart + Stop), hooks-index rows, run the installer, then --sweep",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Wire the worktree transcript link hook box-wide once session-recall dedupes two-name transcripts (D-467, mail 01M3TQKAR1)"
+}

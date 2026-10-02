@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-09-30T21:37:35.354162Z",
+  "creator": "fleet",
+  "evidence": "c5f2b4bdc587033f9cb2fd4efa27519b4e1bc90f",
+  "id": "W-1f904e4b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "emit a prom-client /metrics route and serve the health handler on /health and /api/health in _scaffold_node_api; behavioural test runs the emitted index.js",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "title": "node-api scaffold serves no /metrics while shape.exposes_metrics defaults true, and its /api/health (compose healthcheck + spec health_path) falls through to the welcome response (split from W-aec7365b, mail 01M1EQ3NCA)"
+}

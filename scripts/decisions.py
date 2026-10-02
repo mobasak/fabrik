@@ -37,7 +37,27 @@ from pathlib import Path
 # must not be invisible to the integrity checks (review 2026-08-30).
 ROW_RE = re.compile(r"^\|\s*(D-\d+)\s*\|", re.IGNORECASE)
 SUPERSEDES_RE = re.compile(r"supersedes\s+(D-\d+)", re.IGNORECASE)
-MERGE_OWNER_RE = re.compile(r"^\**\s*MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I)
+# The merge-owner row grammar, shared byte for byte with `docs_updater.py` and the fleet-synced
+# `.claude/hooks/session_orient.py` (pinned by tests/test_session_orient_hook.py). A changed owner
+# is a NEW row whose what-cell OPENS a supersedes clause (this ledger's own law), so that prefix is
+# optional before the phrase, in every spelling the ledger's real rows use (`supersedes D-258.`,
+# `Supersedes D-446's scope:`, `SUPERSEDES D-235 ON THE MECHANISM:`, any case, `**` allowed); the
+# un-adoption row is TOKEN-exact (`undeclared-team` is an owner, `UNDECLARED.` is prose).
+# The prefix ends at the cell's FIRST `:` or `.` (the qualifier may hold neither), and the phrase
+# must follow it at once — so it cannot reach a `MERGE OWNER:` written later in the prose.
+# After a supersedes clause the phrase must be the exact UPPERCASE `MERGE OWNER:` (the lookahead's
+# `(?-i:...)`): a prose sentence such as `Supersedes D-001.** Merge owner: rotated weekly` is not a
+# declaration. A bare row with no prefix keeps the case-insensitive phrase it always had.
+_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*(?=(?-i:MERGE OWNER:)))?"
+MERGE_OWNER_RE = re.compile(
+    r"^\**\s*" + _SUPERSEDES_PREFIX + r"MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I
+)
+_UNDECLARED_RE = re.compile(
+    r"^\**\s*"
+    + _SUPERSEDES_PREFIX
+    + r"MERGE OWNER:\s*UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-])",
+    re.I,
+)
 
 
 def _say(line: str) -> None:
@@ -586,12 +606,24 @@ def _merge_owner(repo: Path) -> int:
     except OSError as exc:
         sys.stderr.write(f"decisions: cannot read {ledger} ({exc})\n")
         return 1
+    # The HIGHEST numeric D-id among matching rows wins, never the bottom-most: the ledger's
+    # header says row position is a convention nothing may read (W-076ff4a9). A winning
+    # un-adoption row means nobody owns the repo — the same exit 3 as no row at all.
+    best = -1
     owner: str | None = None
-    for _rid, cells in _rows(ledger):
-        if len(cells) > 3:
+    for rid, cells in _rows(ledger):
+        if len(cells) <= 3:
+            continue
+        if _UNDECLARED_RE.match(cells[3]):
+            name: str | None = None
+        else:
             match = MERGE_OWNER_RE.match(cells[3])
-            if match:
-                owner = match.group(1)
+            if not match:
+                continue
+            name = match.group(1)
+        num = int(rid[2:])
+        if num >= best:  # an (illegal) duplicate id resolves to the later row, as before
+            best, owner = num, name
     if owner is None:
         print("UNDECLARED")
         return 3

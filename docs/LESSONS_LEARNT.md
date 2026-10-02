@@ -1,6 +1,54 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A review seat that mutates its pin, a receipt gated before it is staged, and a command line that cannot carry two commits (2026-10-02)
+
+Plan 2026-10-02-plan-1 (the /fabrik-task lane v2, 11 tickets) surfaced four process defects no ticket review was built to see.
+- **A seat left a mutant in the pinned review tree.** Round 1 of the T04/T06/T07 wave confirmed `_SCOPE_GROWTH_LANE = (2, 2)` — the seat's own mutation, written into the pin despite a read-only brief, then read back by its siblings. Check the pin's `git status` after every pass and restore by `git checkout` before reading any finding that cites a value; the brief alone does not hold.
+- **A receipt gated before staging is never graded.** `check_convergence` grades a review receipt only once it is staged, so three receipts committed with a gate run made before `git add` shipped with no gate output and headings its Phase/Step pattern misses. Run the gate on the code with the receipt unstaged, embed it, stage the receipt, gate again.
+- **The documented multi-commit close could not work.** `fabrik-task.md` captured with `>` (only the last commit survived) and passed `"$(cat …)"` quoted (several SHAs as one argument). Prose tests matched the text; only a test that pushes the documented form through bash and the real parser caught it.
+- **A whole-plan review is where the integration defects live.** Eleven ticket reviews converged; the D7 pass over T08's wiring still confirmed 40, among them a gate-2 `done` that accepted an unreviewed contract hit whenever its measurement raised.
+
+## Switching a push from POST to PUT moves an alert's silence onto a different rule (2026-10-02)
+
+The postgres allocation reconcile (plan-2, D-500) changed the hourly audit's pushgateway push from `POST` to `PUT` so
+a run replaces the whole group. That fixed stale series, but it also meant a spec skipped by a load error loses its
+`fabrik_audit_drift_total` series for that run, so its firing `FabrikRegistrarDrift` resolves. The plan named that
+mirror and shipped `FabrikAuditStale` to catch it, yet its rollout synced the rules LAST (R4) while the `PUT` went
+live at the merge's first hourly run, so there was a window with nothing watching; Phase B's review moved the rule
+sync to R0. When a change removes a signal and adds its replacement, check that both reach production in the same
+step, not just that both exist in the repo. Three smaller traps from the same run: an `or` of two PromQL branches
+whose label sets differ changes the alert's identity at every transition (`max()` on the age branch fixed it);
+`docker run -v <missing host path>` creates that path root-owned, so a seat scratch directory passed as a mount
+target became unwritable to every seat (pre-create it); and a seat running even a read-only `git status` inside
+the orchestrator's worktree holds its `index.lock` long enough to fail the orchestrator's commit.
+
+## A fix that makes something work for the first time exposes what its failure was hiding (2026-10-02)
+
+The docusaurus scaffold had never produced a working image: its generic `.dockerignore` dropped `docs/`, so every
+build failed. Phase B's review fixed that, and the next pass found what the broken build had hidden: once images
+built, 18 hub-internal files the scaffold seeds under `docs/reference`, `docs/development` and `docs/archive` (AI
+vendor access notes, the /opt project catalog) would publish on a public site. Nothing had leaked only because
+nothing had ever deployed. When a fix turns a path from "always fails" to "works", review what that path now
+EXPOSES as a separate question, not just whether the fix holds. Two traps from the same run: a `git archive`
++ `git init` review pin is not a hub worktree, so `fabrik.config.FABRIK_ROOT` silently falls back to the live
+`/opt/fabrik` and any FABRIK_ROOT-keyed test grades the moving tree (mailed to infra, 01M3WMGRQ7); and Docker's
+`.dockerignore` DOES re-include a file under an excluded directory (`docs`, `!docs/intro.md`), unlike `.gitignore`
+— a seat's "Docker won't re-include it" was refuted only by running a real build. Lastly, an executed plan whose
+early ledger rows already sit on master is left unarchived: archiving must either edit those rows (sibling merge
+conflicts, per the 2026-10-01 entry) or break their links (D-484).
+
+## The merge owner lands its own work before it merges anyone else's, and an archive never edits a ledger row (2026-10-01)
+
+The merge-request loop's first live hour refused two of three requests, and both refusals came from the merge
+owner's own side, not the requester's. The first: the owner held an uncommitted edit to a file the requester's
+branch also changed, and the preflight refuses any dirty non-ledger path, so nothing moved. The second: the owner's
+plan-archive commit repointed a path inside an existing `docs/DECISIONS.md` row, and every open branch that inserted
+rows beside it now met a conflict that is not a pure insertion. The script's refusals were correct both times. The
+practice is the lesson. Commit and land your own work before running `merge_request.py merge`. When archiving a
+plan, leave existing ledger rows untouched (a row is immutable; a moved path is said in the new row), because an
+edited row turns every sibling's ledger insertion into a hand merge.
+
 ## A path filter must read with --no-renames, and a merge test must build its branch in a linked worktree (2026-09-29)
 
 Git's rename detection hides a deleted source path: `--name-only` lists only the destination of a move, so a

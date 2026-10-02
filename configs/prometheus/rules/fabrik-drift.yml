@@ -22,3 +22,31 @@ groups:
             {{ $labels.registrar }} reports {{ $value }} drift entries for spec {{ $labels.spec_id }}.
             Live state diverges from spec. Investigate:
               fabrik audit-registrars --spec /opt/fabrik/specs/services/{{ $labels.spec_id }}.yaml
+
+      # plan-2 (D-500): the same cron runs the postgres registry reconcile
+      # (src/fabrik/registry_reconcile.py) and pushes with PUT. Aggregated over
+      # `reason` so a heal whose failure cause changes keeps its window.
+      - alert: FabrikRegistryHealFailed
+        expr: max by (spec_id, db) (fabrik_registry_heal_failed) > 0
+        for: 2h
+        labels:
+          severity: warning
+          alert_class: registrar_drift
+        annotations:
+          summary: "Fabrik registry heal failing: {{ $labels.db }} ({{ $labels.spec_id }})"
+          description: "The hourly registry reconcile could not register postgres database {{ $labels.db }} for 2h. The reason label of fabrik_registry_heal_failed names the cause. Log: /var/log/fabrik-audit-all.log"
+
+      # The timestamp is pushed only by a run with no spec error, no
+      # reconcile crash and no failed re-audit; a PUT without it deletes the
+      # series, so absent() fires within minutes of such a run, and age covers
+      # a stopped cron. max() strips the push group's labels so both branches
+      # carry the same label set and the alert keeps one identity.
+      - alert: FabrikAuditStale
+        expr: (time() - max(fabrik_audit_last_success_timestamp_seconds) > 10800) or absent(fabrik_audit_last_success_timestamp_seconds)
+        for: 5m
+        labels:
+          severity: warning
+          alert_class: registrar_drift
+        annotations:
+          summary: "Fabrik hourly registrar audit: no clean run in 3h"
+          description: "No hourly audit run without spec errors in the last 3h, or none recorded. A run with a spec error, a reconcile crash or a failed re-audit withholds the timestamp; fabrik_audit_spec_errors counts the skipped specs. Log: /var/log/fabrik-audit-all.log"

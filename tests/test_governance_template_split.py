@@ -146,7 +146,7 @@ T6_CLAIMS = (
     "the rows that can never fail — `WARN_ONLY_CHECKS`, `:336-349` — carrying each one's own text",
     "only a leg that ran to completion is the bare `pytest`",
     "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
-    "a `status: \"setup-error\"` envelope (`:2944-2960` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys",
+    'a `status: "setup-error"` envelope (`:2944-2960` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
     "FROM THE REPO ROOT",
     # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
     # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
@@ -394,8 +394,7 @@ def _delim_row():
     Deliberately function-scoped: at module scope a rename of that script or of its private
     `_DELIM` aborts COLLECTION of this whole file — all 17 tests — instead of reddening only the
     4 that call it. Measured both ways: a renamed script and a renamed symbol each red exactly 4."""
-    return _load("check_governance_tables",
-                 "scripts/enforcement/check_governance_tables.py")._DELIM
+    return _load("check_governance_tables", "scripts/enforcement/check_governance_tables.py")._DELIM
 
 
 def _step0_body(text: str, end: str = _STEP0_END) -> str:
@@ -485,7 +484,9 @@ def test_the_heavy_surface_list_names_a_governance_sync_path() -> None:
     hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
     para = [ln for ln in hub.split("\n") if ln.lstrip().startswith("1a. **SELF-REVIEW")]
     assert len(para) == 1, f"§ 1a's opening line moved or split ({len(para)} matches)"
-    assert "a governance-sync path" in para[0], "§ 1a's heavy-surface list omits a governance-sync path"
+    assert "a governance-sync path" in para[0], (
+        "§ 1a's heavy-surface list omits a governance-sync path"
+    )
     # The UNIVERSAL marker in the same paragraph is load-bearing and must not be reworded.
     assert "EVERY code-changing chunk of work gets a review-family pass" in para[0]
 
@@ -516,61 +517,61 @@ def test_the_lane_tables_verdicts_match_the_size_gates_own_routing() -> None:
     never read by any grader, so flipping row 6's verdict to `/fabrik-spec` (which kills the lane
     outright) passed, and so did widening row 5 from 3 files to 30 while `_TASK_MAX_FILES` stayed 3.
 
-    This binds the table to the gate's own constants, so contract and code cannot drift apart."""
-    cr = _load("command_run", "scripts/command_run.py")
-    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
-    rows = {r[0]: r for r in _lane_table(hub)[1:]}
+    This binds the table to the gate's own constants, so contract and code cannot drift apart.
+
+    Lane v2 is every repo's default since D-507 (operator ruling 2026-10-02, superseding D12's
+    hub-only week), so the FLEET TEMPLATE's rows are bound to `task_lane` exactly as the hub's are
+    (`test_the_hubs_lane_table_matches_lane_v2`); the v1 arm survives only behind a repo's own
+    `{"version": 1}` pin and is graded by `tests/test_command_run_fabrik_task.py`."""
+    tl = _load("task_lane", "scripts/task_lane.py")
+    tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    rows = {r[0]: r for r in _lane_table(tpl, _STEP0_END_TPL)[1:]}
     assert len(rows) == 8, sorted(rows)
-    assert f"more than {cr._TASK_MAX_FILES} DECLARED files" in rows["5"][1]
-    assert "DECLARE the code surface ONLY" in rows["5"][1]
-    # round 3 added this caveat and shipped NO grader for it, so inverting it back to "never
-    # declare one" passed — re-introducing the exact defect the caveat exists to close.
-    assert "is neither excluded nor free" in rows["5"][1]
-    assert "the close scores it undeclared" in rows["5"][1]
-    # The basis is `--file`, and the COUNT is of DISTINCT normalised paths — the gate dedupes
-    # (`src/a.py`, `./src/a.py` and the absolute spelling are one file), so "the `--file` count"
-    # read as the occurrence count and was refuted by execution: four occurrences of two paths
-    # start at rc 0 (docs review, 2026-09-19). Both halves pinned; the first cut pinned only the
-    # flag name, so the wrong quantity survived.
-    assert "DISTINCT `--file` paths" in rows["5"][1], "row 5's executable basis is --file, not --declare"
-    assert "normalised repo-root-relative" in rows["5"][1], "row 5 must say WHICH count: distinct, normalised"
-    assert "excluded at CLOSE, not at start" in rows["5"][1], (
-        "row 5 must say WHEN the exclusion applies — it is close-only, and the first cut of\n"
-        "this row claimed the --file count itself was already the code surface"
-    )
+    assert f"`--appetite` over {tl._APPETITE_MAX} minutes" in rows["5"][1]
+    assert "declared `consumers=external`" in rows["5"][1]
+    assert "Re-checked at CLOSE over every committed path" in rows["5"][1]
     assert "`/fabrik-task`" in rows["6"][2] and "/fabrik-spec" not in rows["6"][2]
     for n in ("3", "4", "5"):
         assert "spec chain" in rows[n][2], n
     assert "the lane, unless another row fires" in rows["2"][2]  # D-315: row 2 no longer refuses
     for n in ("1", "1b"):
-        assert "**not this lane:**" in rows[n][2] and "spec chain" not in rows[n][2], n
+        assert "**`/fabrik-task` with the full `/fabrik-review`**" in rows[n][2], n
         # the FULL review, never the scoped one: these two rows govern a public contract for ~46
         # repos, and downgrading the verdict passed every guard until this line existed.
-        assert "the full `/fabrik-review`" in rows[n][2], n
+        assert "spec chain" not in rows[n][2] and "scoped" not in rows[n][2], n
     assert "right-now" in rows["4b"][2] and "spec chain" not in rows["4b"][2]
     # `command_run.py` provably REFUSES the lane for decision=no; the cell said so and nothing
     # stopped it saying the opposite.
     assert "`start` refuses the lane for it" in rows["4b"][2]
     # ⚠️ the VALUE, not just the key: a bare `f"`{key}="` prefix let `mechanism=yes` become
     # `mechanism=no` — teaching the OPPOSITE declaration — in five rows at once.
-    for n, kv in (("1b", "heavy=yes"), ("2", "mechanism=yes"), ("3", "oneway=yes"),
-                  ("4", "tradeoffs=yes"), ("4b", "decision=no")):
+    for n, kv in (
+        ("1b", "heavy=yes"),
+        ("2", "mechanism=yes"),
+        ("3", "oneway=yes"),
+        ("4", "tradeoffs=yes"),
+        ("4b", "decision=no"),
+    ):
         assert f"`{kv}`" in rows[n][1], (n, kv)
     # the question each row ASKS, not only its label — two rows' prose were swapped wholesale and
     # every grader stayed green, leaving a table that contradicted its own annotations.
-    for n, noun in (("1", "governance-sync"), ("1b", "heavy surface"), ("2", "NEW MECHANISM"),
-                    ("3", "ONE-WAY"), ("4", "TRADE-OFF"), ("4b", "pure fix")):
+    for n, noun in (
+        ("1", "governance-sync"),
+        ("1b", "heavy surface"),
+        ("2", "NEW MECHANISM"),
+        ("3", "ONE-WAY"),
+        ("4", "TRADE-OFF"),
+        ("4b", "pure fix"),
+    ):
         assert noun in rows[n][1], (n, noun)
     assert ".pre-commit-config.yaml" in rows["1"][1]
-    for n, phrase in (("1b", "operator-named work"), ("1b", "D-137"),
-                      ("3", "expensive to unwind")):
+    for n, phrase in (("1b", "operator-named work"), ("3", "expensive to unwind")):
         assert phrase in rows[n][1], (n, phrase)
     assert "PUBLIC CONTRACT" in rows["1"][1], "row 1's QUESTION, not just its parenthetical"
     # the six design fields, which `commands/_sources/fabrik-task.md` also names: a silent
     # divergence here breaks a cross-file contract with nothing to catch it.
     for field in ("PROBLEM", "APPROACH", "DECISION", "MIRROR", "OUT", "TERMINAL"):
         assert field in rows["6"][2], field
-    assert "right-now +" in rows["1"][2], "row 1's verdict names a LANE, not just a review"
     assert "the § Binding block lives there" in rows["3"][2]
     # D-298's re-cut, pinned on phrases that exist ONLY in the new wording: "no trade-off" is a
     # prefix of "no trade-off to settle first" and "TRADE-OFF" matches "TRADE-OFFS", so the pins
@@ -578,14 +579,19 @@ def test_the_lane_tables_verdicts_match_the_size_gates_own_routing() -> None:
     assert "no trade-off to settle first" in rows["6"][1]
     assert "settled BEFORE building" in rows["4"][1]
     assert "is this lane's ordinary case, not a trigger" in rows["4"][1]
-    for conj in ("one reversible decision", f"≤{cr._TASK_MAX_FILES} files", "no sync path",
-                 "no heavy surface", "any mechanism reversible", "no trade-off"):
+    for conj in (
+        "one reversible decision",
+        "no module test tripped",
+        "any mechanism reversible",
+        "no trade-off",
+    ):
         assert conj in rows["6"][1], conj
+    assert f"more than {tl._FULL_REVIEW_FILES} files" in rows["6"][2]
     # DERIVED from the table, never a second hand-kept copy of the same five strings: the old
     # closing line compared the constant against a literal it also wrote down, so it could only
     # fail when someone edited the constant — never when the table drifted from it.
     taught = {k for r in rows.values() for k in re.findall(r"`([a-z]+)=[a-z]+`", r[1])}
-    assert set(cr._TASK_DECLARE_KEYS) == taught, (set(cr._TASK_DECLARE_KEYS), taught)
+    assert set(tl._V2_KEYS) == taught, (set(tl._V2_KEYS), taught)
 
 
 def test_the_lane_table_states_the_precedence_the_gate_actually_evaluates() -> None:
@@ -596,35 +602,39 @@ def test_the_lane_table_states_the_precedence_the_gate_actually_evaluates() -> N
     surface class. The spec carries the reconciling sentence; the first cut of this table dropped
     it, and three mis-routes were executed against the live parser before it came back."""
     cr = _load("command_run", "scripts/command_run.py")
-    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
-    step0 = _step0_body(hub)
+    tl = _load("task_lane", "scripts/task_lane.py")
+    # D-507: the template states lane v2's order, read out of `task_lane.admit`.
+    hub = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    step0 = _step0_body(hub, _STEP0_END_TPL)
     assert hasattr(cr, "_task_size_gate"), "the cited symbol must exist — `_task_size` never did"
     assert "_task_size_gate" in step0, "the precedence claim must cite the function implementing it"
-    # The ORDER, read out of the gate itself. `lane = (...)` fires in `if/elif` order, so the
-    # sequence of its labels IS the precedence, and a reordering of the gate reds this test.
-    src = inspect.getsource(cr._task_size_gate)
-    labels = [m.split()[0] for m in re.findall(r'lane = \(f?"([^"]+)"', src)]
-    # `mechanism` is absent by ruling (D-315): declared and recorded, never a refusal arm.
-    assert labels == ["files", "oneway", "tradeoffs", "sync", "heavy", "decision=no"], labels
-    row_of = {"files": "5", "oneway": "3", "tradeoffs": "4",
-              "sync": "1", "heavy": "1b", "decision=no": "4b"}
-    from_gate = [{row_of[x] for x in labels[:3]}, {row_of[x] for x in labels[3:5]},
-                 {row_of[x] for x in labels[5:]}]
+    assert "`scripts/task_lane.py::admit`" in step0
+    # The ORDER, read out of `admit` itself: the chain arms fire in source order.
+    src = inspect.getsource(tl.admit)
+    order = [
+        src.index(x) for x in ('"chain: contract"', '"chain: appetite"', 'f"chain: {deciding[0]}"')
+    ]
+    assert order == sorted(order), "admit's route order changed — re-state it in step 0"
+    # chain tier: module tests (5), oneway (3), tradeoffs (4); the lane-with-full-review tier:
+    # sync (1), heavy (1b); right-now: decision=no (4b).
+    from_gate = [{"3", "4", "5"}, {"1", "1b"}, {"4b"}]
     # ⚠️ DERIVED FROM THE TABLE, not from `labels` again: the first cut computed both sides from
     # the same list, so once the labels assertion passed this one could not fail — a second
     # binding that bound nothing. Now the table's own verdict cells are the other side.
-    rows = {r[0]: r for r in _lane_table(hub)[1:]}
+    rows = {r[0]: r for r in _lane_table(hub, _STEP0_END_TPL)[1:]}
     from_table = [
         {n for n, r in rows.items() if "spec chain" in r[2]},
-        {n for n, r in rows.items() if "**not this lane:**" in r[2]},
-        {n for n, r in rows.items() if "/fabrik-review-scoped`" in r[2] and "not this lane" not in r[2]},
+        {n for n, r in rows.items() if "with the full `/fabrik-review`**" in r[2]},
+        {n for n, r in rows.items() if "/fabrik-review-scoped`" in r[2] and "right-now" in r[2]},
     ]
     assert from_gate == from_table, (from_gate, from_table)
     assert "Rows 3, 4 and 5 take PRECEDENCE over rows 1 and 1b" in step0
     assert "which in turn take precedence over row 4b" in step0
-    # the tier-1 caveat: the gate checks the file count FIRST, so a refusal naming `files > 3`
-    # can still be hiding a row-3/4 trigger. Deleting this clause passed every other guard.
-    assert "except INSIDE the spec-chain tier, where the gate reports the file count first" in step0
+    # the tier-1 caveat: the gate reports the contract test FIRST, so a refusal naming one can
+    # still be hiding a row-3/4 trigger. Deleting this clause passed every other guard.
+    assert (
+        "except INSIDE the spec-chain tier, where the gate reports the contract test first" in step0
+    )
     assert "any of 3, 4 or 5 is spec-chain work" in step0, (
         "the precedence sentence must state its VERDICT, not only which rows outrank which"
     )
@@ -641,8 +651,72 @@ def test_the_lane_table_states_the_precedence_the_gate_actually_evaluates() -> N
     # every run needs all five declare keys; "any one of them" passed and costs a round trip.
     # the qualifier was pinned; the claim it qualifies was not, so "a KEY `start` requires"
     # could become "accepts optionally" and leave the sentence self-contradictory.
-    assert "names a `--declare` KEY `start` requires — all five, every run" in step0
+    assert "names a `--declare` KEY `start` requires — all six, every run" in step0
     assert "`Profile: small` then lightens execution" in step0
+    assert "Every repo runs lane v2 unless it pins" in step0
+    # a v1-pinned project reads this table too: the paragraph must say what its gate does instead
+    assert "A pinned repo runs the v1 gate instead (more than 3 declared files" in step0
+    # § 1a's `>5` sizes the REVIEW, never the lane — mirrored from the hub for the fleet
+    para = [ln for ln in hub.split("\n") if ln.lstrip().startswith("1a. **SELF-REVIEW")]
+    assert len(para) == 1 and "which LANE a change takes is row 5" in para[0]
+
+
+def test_the_hubs_lane_table_matches_lane_v2() -> None:
+    """T08 (plan 2026-10-02-plan-1): the hub's table describes lane v2, bound to `task_lane`'s own
+    constants and `admit`'s route order — rows 1 and 1b keep the lane with the full review (D2, D7),
+    row 5 is the module tests (D1), row 6 names the full-review boundary and the declaration
+    refusal, and the six declared keys are `task_lane._V2_KEYS`."""
+    tl = _load("task_lane", "scripts/task_lane.py")
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    step0 = _step0_body(hub)
+    rows = {r[0]: r for r in _lane_table(hub)[1:]}
+    for n in ("1", "1b"):
+        assert "**`/fabrik-task` with the full `/fabrik-review`**" in rows[n][2], n
+        assert "not this lane" not in rows[n][2], n
+    assert "commits ONCE, after that review" in rows["1"][2]
+    assert "D-137" in rows["1b"][1] and "operator-named work" in rows["1b"][1]
+    assert f"`--appetite` over {tl._APPETITE_MAX} minutes" in rows["5"][1]
+    assert f"more than {tl._MAX_NEW_SOURCE} new source files" in rows["5"][1]
+    assert f"more than {tl._MAX_BEHAVIOURS} Behaviours" in rows["5"][1]
+    assert "`specs/services/`" in rows["5"][1] and "*.schema.json" in rows["5"][1]
+    assert "spec chain" in rows["5"][2]
+    assert f"more than {tl._FULL_REVIEW_FILES} files" in rows["6"][2]
+    assert "or `done` is refused" in rows["6"][2]
+    assert "no module test tripped" in rows["6"][1]
+    assert "trips no module test" in rows["2"][1]
+    taught = {k for r in rows.values() for k in re.findall(r"`([a-z]+)=[a-z]+`", r[1])}
+    assert set(tl._V2_KEYS) == taught, (set(tl._V2_KEYS), taught)
+    assert "names a `--declare` KEY `start` requires — all six, every run" in step0
+    # the route order the precedence sentence states, read out of `admit` itself
+    src = inspect.getsource(tl.admit)
+    order = [
+        src.index(x) for x in ('"chain: contract"', '"chain: appetite"', 'f"chain: {deciding[0]}"')
+    ]
+    assert order == sorted(order), "admit's route order changed — re-state it in step 0"
+    assert "reports the contract test first, then the appetite, then oneway and tradeoffs" in step0
+    assert "`scripts/task_lane.py::admit`" in step0
+    assert "Every repo runs lane v2 unless it pins" in step0
+    # D7 D-O3: admit routes decision=no on a full-review surface to right-now + the full review,
+    # never into the lane — the table's 4b sentence must say exactly that.
+    v = tl.admit(
+        {
+            "decision": "no",
+            "heavy": "yes",
+            "mechanism": "no",
+            "oneway": "no",
+            "tradeoffs": "no",
+            "consumers": "internal",
+        },
+        ["src/a.py"],
+        sync_hits=set(),
+        appetite=None,
+        why=None,
+        version=2,
+    )
+    assert v.route == "right-now + /fabrik-review", v
+    assert (
+        "a change that trips 4b AND row 1 or 1b is right-now + the full `/fabrik-review`" in step0
+    )
 
 
 def test_the_lane_table_renders_as_a_table_for_every_gfm_reader() -> None:
@@ -657,8 +731,10 @@ def test_the_lane_table_renders_as_a_table_for_every_gfm_reader() -> None:
     This asserts the thing that actually matters — the verdict row reaches a table CELL — against
     the renderer, which by construction cannot disagree with GFM about what GFM does."""
     markdown_it = pytest.importorskip("markdown_it", reason="renderer needed to grade GFM validity")
-    html = markdown_it.MarkdownIt("gfm-like").enable("table").render(
-        _step0_body((FABRIK / "CLAUDE.md").read_text(encoding="utf-8"))
+    html = (
+        markdown_it.MarkdownIt("gfm-like")
+        .enable("table")
+        .render(_step0_body((FABRIK / "CLAUDE.md").read_text(encoding="utf-8")))
     )
     assert re.search(r"<td>\s*one reversible decision", html), (
         "the lane table's verdict row did not render inside a table cell — the table is "
@@ -712,8 +788,8 @@ def test_the_templates_mirrored_prose_matches_the_hubs() -> None:
     tpl_s = _step0_body((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"), _STEP0_END_TPL)
     for lead in ("**No code surface at all**", "**Tripwire:**"):
         assert lead in tpl_s, f"the template lost a mirrored paragraph: {lead}"
-        h = hub_s[hub_s.index(lead):].split("\n", 1)[0]
-        t = tpl_s[tpl_s.index(lead):].split("\n", 1)[0]
+        h = hub_s[hub_s.index(lead) :].split("\n", 1)[0]
+        t = tpl_s[tpl_s.index(lead) :].split("\n", 1)[0]
         # the hub names `docs/CAPABILITIES.md`, which exists in 1 of 45 repos; the template says
         # "docs or ledgers only" instead. That is the only sanctioned difference in these two.
         if lead == "**No code surface at all**":
@@ -733,8 +809,10 @@ def test_the_templates_mirrored_prose_matches_the_hubs() -> None:
 def test_the_template_renders_its_lane_table_for_every_gfm_reader() -> None:
     """The mirror is worthless if it renders as a paragraph in ~46 repos."""
     markdown_it = pytest.importorskip("markdown_it", reason="renderer needed to grade GFM validity")
-    html = markdown_it.MarkdownIt("gfm-like").enable("table").render(
-        _step0_body((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"), _STEP0_END_TPL)
+    html = (
+        markdown_it.MarkdownIt("gfm-like")
+        .enable("table")
+        .render(_step0_body((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"), _STEP0_END_TPL))
     )
     assert re.search(r"<td>\s*one reversible decision", html), (
         "the template's lane table did not render inside a table cell — it would be invisible "
@@ -822,6 +900,7 @@ def test_the_gate_rows_line_citations_land_on_what_they_name() -> None:
         assert gate[int(cite[1:]) - 1].startswith(construct), (
             f"final_gate.py{cite} no longer holds {construct!r}"
         )
+
 
 # ── T02a: the DECISION block lives in § FINAL OUTPUT, plus # Compact instructions ────────────
 # docs/development/plans/archived/2026-09-23-plan-1-stop-and-compaction/T02a-hub-claude-md.md, implementing
@@ -1010,8 +1089,7 @@ def test_the_bar_paragraph_keeps_every_restored_and_new_rule() -> None:
     assert "written unfenced" in para, "O1: the unfenced-writing rule is missing"
     assert _CLOSED_GATE_CLASS_LIST in para, "O6: the closed gate-class list is missing or drifted"
     assert (
-        "is named `destructive`, since discarding a branch/worktree is the destructive act"
-        in para
+        "is named `destructive`, since discarding a branch/worktree is the destructive act" in para
     ), "O3 (round 2): the ad-hoc-branch disposition names no list token"
     assert "an `(a)/(b)` options menu is never legitimate" in para, (
         "O2 (round 2): the (a)/(b) options-menu ban is missing"
@@ -1097,7 +1175,9 @@ def test_compact_instructions_heading_exists_with_its_five_lines() -> None:
     # extending-a-sentence-unanchors-its-pinned-span).
     normalised = re.sub(r"\s+", " ", body)
     assert "never summarise a pending operator question as settled" in normalised.lower()
-    assert "Context is never a reason to stop, and a fresh session is never the remedy" in normalised
+    assert (
+        "Context is never a reason to stop, and a fresh session is never the remedy" in normalised
+    )
     assert "D-374" in body, "the sentence must cite D-374"
 
 
@@ -1190,7 +1270,9 @@ def _rewrite_hub_id(text: str, rewrite: tuple[str, str]) -> str:
     once first — a rewrite that silently matches zero (or more than one) span is a rewrite that
     proves nothing, the same failure mode `_TEMPLATE_ROW_DIVERGENCES` guards against."""
     old, new = rewrite
-    assert text.count(old) == 1, f"expected exactly one {old!r} in the hub text, found {text.count(old)}"
+    assert text.count(old) == 1, (
+        f"expected exactly one {old!r} in the hub text, found {text.count(old)}"
+    )
     return text.replace(old, new)
 
 
@@ -1626,3 +1708,133 @@ def test_each_hub_contract_mutant_reds_its_check(old: str, new: str, check) -> N
     assert text.count(old) == 1, f"stale mutant — its span is not in the hub once: {old!r}"
     with pytest.raises(AssertionError):
         check(text.replace(old, new))
+
+
+# ── T05a (plan 2026-09-30-plan-1-merge-request-loop): finished worktree work is a merge request ──
+
+
+def _template_exit_item(text: str) -> str:
+    """§ Completion Contract item 5 (EXIT), from its marker to the next `## ` heading."""
+    start = "5. **EXIT** —"
+    assert text.count(start) == 1, "§ EXIT item marker drifted"
+    return text.split(start, 1)[1].split("\n## ", 1)[0]
+
+
+def _check_template_exit_finish_duty(text: str) -> None:
+    """Spec § The delta 3: in a linked worktree, "finished" means the agent ran
+    `merge_request.py request` and sent the doorbell it printed; delta 8: in an undeclared repo
+    the duty reads as advice; the ad-hoc merge-to-base default binds the MAIN checkout only."""
+    flat = re.sub(r"\s+", " ", _template_exit_item(text))
+    assert "python3 scripts/merge_request.py request --review" in flat, "finish verb missing"
+    assert "--review <the closing run record or review receipt>" in flat, "--review value drifted"
+    assert "[--item <W-id>]" in flat, "the --item option is not named"
+    assert "send the `SendMessage` lines it prints" in flat, "the doorbell duty is missing"
+    assert "a pushed branch without a request is unfinished" in flat, "finish != push lost"
+    assert "never re-run" in flat, "the exit-4 partial-send rule is missing"
+    assert "reads as advice there" in flat, "the undeclared-repo clause (delta 8) is missing"
+    adhoc = flat.split("**Ad-hoc branch/worktree work**", 1)
+    assert len(adhoc) == 2, "the ad-hoc clause moved"
+    scope, default = adhoc[1].split("the DEFAULT is merge to base locally", 1)
+    assert "in the MAIN checkout" in scope, "the merge default is not scoped to the main checkout"
+    assert "a worktree agent never merges" in scope, "a worktree agent is not barred from merging"
+
+
+def test_the_templates_exit_names_the_merge_request_as_the_worktree_finish() -> None:
+    _check_template_exit_finish_duty((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"))
+
+
+def test_every_universal_anchor_survives_in_the_templates_rules_outside_its_index() -> None:
+    """Spec § Constraints: the § EXIT edit keeps every UNIVERSAL anchor verbatim. The anchor list
+    is parsed from the hub's canonical bullets; each must appear in the template OUTSIDE its own
+    condensed index line, which always carries every anchor and so would prove nothing."""
+    hub = _hub_text()
+    section = hub.split("## UNIVERSAL governance markers", 1)[1].split("\n## ", 1)[0]
+    anchors = re.findall(r"^- `[a-z-]+` — anchor \*\*(.+?)\*\* — ", section, re.MULTILINE)
+    assert len(anchors) >= 14, f"the anchor list parsed short: {anchors}"
+    tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    start = "## UNIVERSAL governance markers"
+    assert tpl.count(start) == 1, "the template's § UNIVERSAL heading drifted"
+    before, rest = tpl.split(start, 1)
+    body = before + "\n## " + rest.split("\n## ", 1)[1]
+    missing = [a for a in anchors if a not in body]
+    assert not missing, f"UNIVERSAL anchors no longer carried by a template rule: {missing}"
+
+
+_T05A_MUTANTS = (
+    ("verb-dropped", "python3 scripts/merge_request.py request --review", "python3 scripts/x.py"),
+    ("scope-dropped", "a worktree agent never merges", "a worktree agent may merge"),
+    ("main-scope-dropped", "in the MAIN checkout", "anywhere"),
+    (
+        "review-order-reversed",
+        "the closing run record or review receipt",
+        "the closing review receipt or run record",
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("old", "new"), [m[1:] for m in _T05A_MUTANTS], ids=[m[0] for m in _T05A_MUTANTS]
+)
+def test_each_exit_finish_mutant_reds_its_check(old: str, new: str) -> None:
+    text = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    flat_exit = re.sub(r"\s+", " ", _template_exit_item(text))
+    assert flat_exit.count(old) == 1, f"stale mutant: {old!r}"
+    mutated = re.sub(r"\s+", " ", text).replace(old, new)
+    with pytest.raises(AssertionError):
+        _check_template_exit_finish_duty(mutated)
+
+
+# ── T05b (plan 2026-09-30-plan-1-merge-request-loop): the hub's own § EXIT mirrors the template ──
+
+
+def _check_hub_exit_finish_duty(text: str) -> None:
+    """Spec § The delta 3, hub copy: a hub worktree agent (fleet, intel) finishes by REQUESTING the
+    merge from infra, the hub's merge owner; the ad-hoc merge-to-base default binds the MAIN
+    checkout only. The hub declares its owner, so the template's delta-8 advice clause is not owed;
+    the UNIVERSAL anchors are pinned by `_check_universal_anchors`."""
+    flat = re.sub(r"\s+", " ", _template_exit_item(text))
+    lead = "**In a linked worktree, finished work is a merge request:**"
+    verb = "python3 scripts/merge_request.py request --review"
+    assert lead in flat, "the duty's linked-worktree lead-in is missing or broadened"
+    assert verb in flat, "finish verb missing"
+    assert flat.index(lead) < flat.index(verb), "the lead-in no longer scopes the finish verb"
+    assert "--review <the closing run record or review receipt>" in flat, "--review value drifted"
+    assert "[--item <W-id>]" in flat, "the --item option is not named"
+    assert "send the `SendMessage` lines it prints" in flat, "the doorbell duty is missing"
+    assert "a pushed branch without a request is unfinished" in flat, "finish != push lost"
+    assert "infra (the merge owner) merges it" in flat, "the hub's merge owner is not named"
+    assert "never re-run" in flat, "the exit-4 partial-send rule is missing"
+    adhoc = flat.split("**Ad-hoc branch/worktree work**", 1)
+    assert len(adhoc) == 2, "the ad-hoc clause moved"
+    scope, _default = adhoc[1].split("the DEFAULT is merge to base locally", 1)
+    assert "in the MAIN checkout" in scope, "the merge default is not scoped to the main checkout"
+    assert "a worktree agent never merges" in scope, "a worktree agent is not barred from merging"
+
+
+def test_the_hubs_exit_names_the_merge_request_as_the_worktree_finish() -> None:
+    hub = _hub_text()
+    _check_hub_exit_finish_duty(hub)
+    _check_universal_anchors(hub)
+
+
+_T05B_MUTANTS = (
+    ("verb-dropped", "python3 scripts/merge_request.py request --review", "python3 scripts/x.py"),
+    ("owner-dropped", "infra (the merge owner) merges it", "someone merges it"),
+    (
+        "lead-in-broadened",
+        "In a linked worktree, finished work is a merge request:",
+        "In the MAIN checkout too, finished work is a merge request:",
+    ),
+    ("scope-dropped", "a worktree agent never merges", "a worktree agent may merge"),
+    ("main-scope-dropped", "in the MAIN checkout", "anywhere"),
+)
+
+
+@pytest.mark.parametrize(
+    ("old", "new"), [m[1:] for m in _T05B_MUTANTS], ids=[m[0] for m in _T05B_MUTANTS]
+)
+def test_each_hub_exit_finish_mutant_reds_its_check(old: str, new: str) -> None:
+    flat = re.sub(r"\s+", " ", _hub_text())
+    assert re.sub(r"\s+", " ", _template_exit_item(_hub_text())).count(old) == 1, f"stale: {old!r}"
+    with pytest.raises(AssertionError):
+        _check_hub_exit_finish_duty(flat.replace(old, new))

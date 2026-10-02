@@ -127,18 +127,20 @@ def test_remove_aro_wake_target_no_match_is_noop(monkeypatch):
 
 
 def test_reload_prometheus_uses_bare_container_name_pattern():
-    """Coolify-era pattern `^alertmanager-` no-matched today's bare container
-    names. The fix uses `^alertmanager(-|$)` — both shapes match.
+    """The reload targets the prometheus container by `^prometheus(-|$)`, which matches
+    both the bare name and a legacy `-suffix` (the Coolify-era prefix-only pattern
+    no-matched bare names); nothing routes through alertmanager any more (W-a1a359c8).
     """
     # Look at the source text so the test fails loudly if a future edit
     # reverts to the broken Coolify-prefix-only regex.
     from inspect import getsource
 
     src = getsource(prom._reload_prometheus)
-    assert "'^alertmanager(-|$)'" in src or '"^alertmanager(-|$)"' in src
+    # Both the hot-reload and the restart fallback target the prometheus container
+    # (W-a1a359c8: the alertmanager route no longer resolves `prometheus`).
     assert "'^prometheus(-|$)'" in src or '"^prometheus(-|$)"' in src
-    assert "'^alertmanager-'" not in src  # no bare prefix-only
-    assert "'^prometheus-'" not in src
+    assert "alertmanager" not in src
+    assert "'^prometheus-'" not in src  # no bare prefix-only
 
 
 def test_write_config_mirrors_to_git_after_vps_write(monkeypatch, tmp_path):

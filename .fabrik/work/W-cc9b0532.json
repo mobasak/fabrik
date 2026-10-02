@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T18:55:20.077364Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-cc9b0532",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-513",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide the contract: add a reloaded: bool to each result dict and make fabrik apply surface it, then grade it",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "drivers/prometheus add_scrape_target/remove_scrape_target/add_aro_wake_target/remove_aro_wake_target discard _reload_prometheus()'s bool (each calls it bare): a config written but never loaded (reload refused, restart skipped by the promtool gate, W-5aa5e3d8) still reports status=created to fabrik apply; only a WARNING log says otherwise (restart-S1, predates the gate)"
+}
