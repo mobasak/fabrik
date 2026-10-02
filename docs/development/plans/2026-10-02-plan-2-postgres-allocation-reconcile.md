@@ -105,7 +105,7 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | "**No skipped heading levels** — `##` to `###`, never `##` to `####`" | `.windsurf/rules/core/40-documentation.md:241` | Doc headings |
 | "one-off admin processes should be run in an identical environment as the regular long-running processes of the app" | `.windsurf/rules/core/30-ops.md:430` | Admin processes |
 
-## Phase A — Registry primitives
+## Phase A — Registry primitives — ✅ EXECUTED 2026-10-02 (96ca25289, review fixes aec09c11a; /fabrik-review-scoped closed 2 rounds 5→0)
 
 Appetite: 35
 
