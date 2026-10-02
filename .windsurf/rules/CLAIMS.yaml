@@ -2926,3 +2926,59 @@ claims:
     verify: "https://github.com/QwenLM/Qwen3-VL ; https://huggingface.co/Qwen/Qwen3.8-27B ; https://github.com/QwenLM/Qwen3-Omni ; https://qwen.ai/blog?id=qwen3.5-omni ; https://github.com/haotian-liu/LLaVA (exa + WebFetch, 2026-10-02; ledger v1-33..v1-39)"
     window_days: 180
     last_verified: 2026-10-02
+  - id: claude-oauth-boundary
+    pack: ai/50-agentic.md
+    kind: policy
+    claim: "Anthropic's Claude Code legal page says OAuth is intended exclusively for subscription purchasers and ordinary use of Claude Code and native Anthropic apps; developers building products, including with the Agent SDK, should use API key authentication and may not route requests through Free, Pro or Max credentials on behalf of their users, which Anthropic reserves the right to enforce without prior notice; plan limits assume ordinary, individual usage"
+    verify: "https://code.claude.com/docs/en/legal-and-compliance ; https://code.claude.com/docs/en/agent-sdk/overview (WebFetch + exa, 2026-10-02; ledger a1-18..a1-21, a2-23..a2-25; quote only the live wording)"
+    window_days: 60
+    last_verified: 2026-10-02
+  - id: claude-p-plan-limits
+    pack: ai/50-agentic.md
+    kind: policy
+    claim: "claude -p and Agent SDK usage still draw from the subscription's usage limits; the planned move to a separate monthly Agent SDK credit from 2026-06-15 was paused"
+    verify: "https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan (exa + WebFetch, 2026-10-02; ledger a1-22..a1-24; the Agent SDK overview's credit banner is stale)"
+    window_days: 30
+    last_verified: 2026-10-02
+  - id: claude-cli-agent-flags
+    pack: ai/50-agentic.md
+    kind: platform
+    claim: "claude -p's --max-turns has no limit by default and exits with an error when reached; --tools does not affect MCP tools; without --bare, -p loads project hooks and .mcp.json even in an untrusted folder; bare mode never reads OAuth credentials"
+    verify: "https://code.claude.com/docs/en/cli-reference ; https://code.claude.com/docs/en/headless (WebFetch + exa, 2026-10-02; ledger a1-01, a1-05, a1-13, a1-14; if bare becomes the -p default, the subscription lane must pass the opt-out)"
+    window_days: 60
+    last_verified: 2026-10-02
+  - id: claude-reasoning-control
+    pack: ai/50-agentic.md
+    kind: platform
+    claim: "Claude's current Sonnet, Opus and Fable models think adaptively and reject a thinking budget (budget_tokens is deprecated on the 4.6 models and rejected from 4.7 on); the current Haiku supports extended thinking with a budget only and no effort; effort affects all tokens including tool calls, and changing it between requests invalidates the prompt cache"
+    verify: "https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting ; https://platform.claude.com/docs/en/build-with-claude/effort (exa + WebFetch, 2026-10-02; ledger a2-30..a2-37)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: openai-reasoning-retirement
+    pack: ai/50-agentic.md
+    kind: deprecation
+    claim: "OpenAI shuts down o4-mini, o3-mini, o1 and o1-pro on 2026-10-23 and o3 and o3-pro on 2026-12-11"
+    verify: "https://developers.openai.com/api/docs/deprecations (exa raw extract, 2026-10-02; ledger a1-28, a1-29, a1-32; a WebFetch summary misdated o4-mini)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: mcp-governance
+    pack: ai/50-agentic.md
+    kind: policy
+    claim: "Anthropic donated the Model Context Protocol to the Agentic AI Foundation, a directed fund under the Linux Foundation, on 2025-12-09; the current protocol version is 2026-07-28"
+    verify: "https://blog.modelcontextprotocol.io/posts/2025-12-09-mcp-joins-agentic-ai-foundation/ ; https://modelcontextprotocol.io/specification/versioning (exa + WebFetch, 2026-10-02; ledger a1-35, a1-36)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: agent-framework-licences
+    pack: ai/50-agentic.md
+    kind: policy
+    claim: "LangGraph, Pydantic AI, CrewAI, Microsoft Agent Framework and OpenAI's Agents SDK are MIT-licensed; AutoGen is in maintenance mode with Microsoft Agent Framework its successor; AutoGPT's autogpt_platform folder is under the Polyform Shield License"
+    verify: "https://pypi.org/pypi/langgraph/json ; https://pypi.org/pypi/pydantic-ai/json ; https://pypi.org/pypi/crewai/json ; https://pypi.org/pypi/agent-framework/json ; https://pypi.org/pypi/openai-agents/json ; https://github.com/microsoft/autogen ; https://github.com/Significant-Gravitas/AutoGPT/blob/master/LICENSE (WebFetch + exa + brave, 2026-10-02; ledger a2-01..a2-14)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: function-calling-board-stale
+    pack: ai/50-agentic.md
+    kind: practice
+    claim: "The Berkeley Function Calling Leaderboard was last updated 2026-04-12"
+    verify: "https://gorilla.cs.berkeley.edu/leaderboard.html (firecrawl, 2026-10-02; ledger a2-15)"
+    window_days: 60
+    last_verified: 2026-10-02

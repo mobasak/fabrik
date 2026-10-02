@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — ai/50-agentic: agent loops on Claude through llm-dispatch, bounded, workflow first; subscription terms filed for the operator (2026-10-02)
+
+`.windsurf/rules/ai/50-agentic.md` offered OpenAI's o3 and o4-mini, AutoGPT and LangChain Agents, named Kilo and Traycer, and gave no loop, bound or auth detail. Now a workflow comes before an agent; agent loops run on Claude through `claude -p` and fabrik-lib's `llm-dispatch` on `opus`, each bounded by `max_turns`, a `timeout_s`, a fixed tool set, `dontAsk` and strict MCP config; reasoning depth is effort, with the `haiku` rung's exception; the auth boundary states Anthropic's live terms and files the user-facing-service question for the operator (W-ee2156db). New `tests/test_agentic_pack.py` (41 mutants, each red); 8 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-02-agentic-currency-ledger.md`; D-510.
+
 ### Changed — ai/40-multimodal: route each modality to an engine that reads it — Claude for images and PDFs, Gemini for video and audio (2026-10-02)
 
 `.windsurf/rules/ai/40-multimodal.md` pinned an Opus model by version, offered GPT-4o, LLaVA and Kosmos-2, named Kilo and Traycer, and gave no route for the audio and video Claude cannot read. Now images and documents go to Claude through `claude -p` on ai/20's ladder, PDFs are read text first through fabrik-lib's `pdf-extract` and `ocr`, speech goes through ai/10's transcript, video and non-speech audio go to Gemini's Flash-Lite tier through OpenRouter, and open weights go to Qwen's models hosted first per core/76. ai/20's pointer to this pack is updated. New `tests/test_multimodal_pack.py` (44 mutants, each red); 8 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-02-multimodal-currency-ledger.md`; D-508.
