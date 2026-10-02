@@ -1,6 +1,6 @@
 # Backrest coverage: protect what a service actually persists, never a path that does not exist
 
-Status: DRAFT (revised 2026-10-03 on the operator's ruling D-518, after two independent design critiques — Opus 5.5 and Fable 5.1)
+Status: CONVERGED (/fabrik-plan-review 2026-10-03 with plan-3, on the D-518 revision; Size: small) — awaiting the operator's design approval
 Size: small (≈210 lines, 3 files)
 Profile: delta — every intake item maps to code that exists today: the backrest registrar
 (`src/fabrik/orchestrator/infrastructure.py::_provision_backrest`), the plan driver (`src/fabrik/drivers/backrest.py`), the
