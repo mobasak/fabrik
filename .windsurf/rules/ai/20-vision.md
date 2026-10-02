@@ -31,8 +31,8 @@ Last content verification: 2026-10-02
   above; `haiku` reads at the standard resolution): crop to the region that matters rather than downscaling. It reads
   JPEG, PNG, WebP and GIF (first frame only). Every image draws visual tokens from the subscription quota, and past 20
   images in one run — earlier Read results count — every image must be 2000 px or less a side or the request is
-  rejected. Visual question answering, captioning and document understanding are ai/40-multimodal.md, and they start on
-  this same ladder.
+  rejected. Visual question answering, captioning and document understanding are ai/40-multimodal.md; that pack still
+  names a pinned model until its own turn, and ai/00 wins over it, so that work starts on this same ladder too.
 - **When a dedicated model beats Claude.** Anthropic's vision docs say Claude's coordinates and counts are approximate,
   that it errs on very small, rotated or low-quality images, will not name people, cannot tell an AI-generated image,
   and is not for medical scans. So pixel-exact boxes, counting many small objects, real-time video frames, on-device
@@ -84,7 +84,8 @@ around any vendor below.
     parser). Small dedicated parsers lead the OmniDocBench document-OCR leaderboard over general vision models, and no
     Claude model is listed there — so bulk document OCR goes to a parser, and Claude takes the hard pages and the meaning.
   - **Managed → Google Cloud Vision or AWS Textract**, about $1.50 per 1,000 pages for plain text; Textract's tables and
-    forms cost more per page.
+    forms cost more per page. Neither is set up today: the vendor-access catalog lists the Google Cloud project as not
+    set up and has no AWS row, so a managed OCR route starts with an account and is recorded as a choice.
 - **Face / pose estimation:** MediaPipe (Apache-2.0, on-device, maintained under Google AI Edge). OpenPose is
   noncommercial only.
 

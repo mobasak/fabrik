@@ -1,6 +1,6 @@
 """Pins `ai/20-vision.md` to its consumers, its licences and its cross-references.
 
-The pack is glob-activated on every image/vision/OCR path. Six things it states can go false with no other gate red:
+The pack is glob-activated on every image/vision/OCR path. Seven things it states can go false with no other gate red:
 
 1. The two machinery-owned blocks (GATEWAY_COUNTS, OPENROUTER_ROUTES): `update_gateway_counts.py` and
    `category_export_markdown.py` rewrite the text between their markers, so both marker pairs must survive an edit.
@@ -12,10 +12,12 @@ The pack is glob-activated on every image/vision/OCR path. Six things it states 
 5. Its cites: ai/00 § Claude subscription first, ai/40-multimodal.md, 25-3d-generation.md, the reach map's § VIDEO,
    fabrik-lib's `llm-dispatch` and `ocr` READMEs.
 6. No retired route (DALL·E, the Kilo gateway, FLUX-schnell as the bulk default, Detectron2, Traycer, Midjourney as an
-   option) and no version number in any shape.
+   option), in any case, and no version number in any shape.
+7. A vendor flagged as not set up in one lane is flagged in every lane, and the pointer to ai/40 says ai/00 overrides
+   its pinned model.
 
 The cheapest way past (4) is to rename a trap in the defaults; the review reads the licence. The cheapest way past (6) is a
-version in words; the check catches the shapes agents copy (`v4.1`, `FLUX.2`, `4B`). Licence names (Apache-2.0, AGPL-3.0)
+version in words; the check catches the shapes agents copy (`v4.1`, `FLUX.2`, `4B`, `FLUX2`, `GPT Image 1`). Licence names (Apache-2.0, AGPL-3.0)
 are stripped before the scan — the bound is that named set.
 """
 
@@ -132,6 +134,18 @@ def test_generation_stays_with_specialists() -> None:
     )
 
 
+def test_managed_and_sibling_caveats_hold() -> None:
+    """A vendor flagged as not set up in one lane is flagged in every lane; ai/40's pinned model is overridden by ai/00."""
+    ocr = _section(_pack(), "Subcategories").split("**Managed →", 1)[1].split("\n- ", 1)[0]
+    assert "not" in ocr and "set up" in ocr, (
+        "the managed OCR route lost its not-set-up caveat (Google Cloud, AWS)"
+    )
+    first = _defaults().split("\n- ", 2)[1]
+    assert "ai/00 wins" in first, (
+        "the pointer to ai/40 no longer says ai/00's ladder overrides ai/40's pinned model"
+    )
+
+
 def test_cites_resolve() -> None:
     pack = _pack()
     heads = [
@@ -164,13 +178,13 @@ def test_fabrik_lib_routes_exist() -> None:
 
 def test_no_retired_routes() -> None:
     body = _prose()
-    for gone in ("DALL", "Detectron", "Traycer", "schnell"):
-        assert gone not in body, f"{gone} is retired or unmaintained and still named"
-    assert not re.search(r"Kilo\s*/|/\s*Kilo|via Kilo|through Kilo|Kilo:", body), (
-        "the pack routes through Kilo"
-    )
+    # a file path (docs/reference/kilo/....md) names a file, not a route; a slash-joined route (Kilo/OpenRouter) is kept
+    lowered = re.sub(r"[\w./-]*/[\w.-]+\.(?:md|py|json|ya?ml)\b", "", body).lower()
+    # case-folded: "dall-e" and "Schnell" are the same retired names; Kilo is retired as a gateway and this pack names none
+    for gone in ("dall", "detectron", "traycer", "schnell", "kilo"):
+        assert gone not in lowered, f"{gone} is retired or unmaintained and still named"
     for sentence in re.split(r"(?<=[.;])\s+", body):
-        if "Midjourney" in sentence:
+        if "midjourney" in sentence.lower():
             assert "no public API" in sentence, f"Midjourney is named as callable: {sentence!r}"
 
 
@@ -179,7 +193,9 @@ def test_no_version_literals() -> None:
     body = re.sub(r"Apache-?2\.0|A?GPL-\d\.\d|CC-BY(?:-[A-Z]+)* \d\.\d", "", _prose())
     found = re.findall(
         r"\b[vV]\d+(?:\.\d+)?\b|\b\d+\.\d+\.\d+\b|[≥>]=?\s?\d+(?:\.\d+)?|@\d+\.\d+"
-        r"|\b[A-Za-z][\w./-]*[A-Za-z] \d+\.\d+\b|\b[A-Za-z]+\.\d+\b|\b\d+B\b",
+        r"|\b[A-Za-z][\w./-]*[A-Za-z] \d+\.\d+\b|\b[A-Za-z]+\.\d+\b|\b\d+B\b"
+        # a digit glued to a product name (FLUX2, YOLO26) or a bare generation after one (GPT Image 1, Recraft 4)
+        r"|\b[A-Z][A-Za-z]*[A-Z]\d+\b|\b(?:Image|FLUX|Recraft|YOLO|SD|Tesseract|PaddleOCR|MediaPipe|Claude) \d+\b",
         body,
     )
     assert not found, f"version literals in the pack: {found}"
