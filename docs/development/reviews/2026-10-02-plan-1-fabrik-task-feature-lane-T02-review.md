@@ -162,13 +162,13 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 
 ## Per-phase verdicts
 
-### T02 — task_lane.py admission: CONVERGED on the scope-growth stop (O21, O22 docstrings fixed in the merge commit)
+### Phase T02 — task_lane.py admission: CONVERGED on the scope-growth stop (O21, O22 docstrings fixed in the merge commit)
 
 ## Gate
 
-`final_gate.py --check --json`, pasted verbatim at the flip (check_convergence reads the fenced
+`final_gate.py --check --json`, run on master at ad21c33eb, which contains this ticket's merge, after the merge (status, skipped_checks and the check count excerpted from its output) (check_convergence reads the fenced
 `"status": "success"`):
 
 ```json
-(final_gate.py --check --json is run on the merged tree in T02's merge commit)
+{"status": "success", "skipped_checks": ["semgrep", "pytest", "sqlfluff"], "checks": 65}
 ```

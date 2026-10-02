@@ -185,9 +185,9 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 
 ## Per-phase verdicts
 
-### T01 — the replay fixture: CLEAN after r1 (2 fixed)
-### T05a — plan graders: CLEAN after r2 (13 fixed)
-### T05b — spec and plan commands: CLEAN after r1 (2 fixed)
+### Phase T01 — the replay fixture: CLEAN after r1 (2 fixed)
+### Phase T05a — plan graders: CLEAN after r2 (13 fixed)
+### Phase T05b — spec and plan commands: CLEAN after r1 (2 fixed)
 
 ## Gate
 

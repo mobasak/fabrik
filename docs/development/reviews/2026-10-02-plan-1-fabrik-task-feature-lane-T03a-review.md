@@ -163,13 +163,13 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 
 ## Per-phase verdicts
 
-### T03a — measure_close: CONVERGED (quiet pass 3)
+### Phase T03a — measure_close: CONVERGED (quiet pass 3)
 
 ## Gate
 
-`final_gate.py --check --json`, pasted verbatim at the flip (check_convergence reads the fenced
+`final_gate.py --check --json`, run on master at ad21c33eb, which contains this ticket's merge, after the merge (status, skipped_checks and the check count excerpted from its output) (check_convergence reads the fenced
 `"status": "success"`):
 
 ```json
-(final_gate.py --check --json is run on the merged tree in T03a's merge commit)
+{"status": "success", "skipped_checks": ["semgrep", "pytest", "sqlfluff"], "checks": 65}
 ```
