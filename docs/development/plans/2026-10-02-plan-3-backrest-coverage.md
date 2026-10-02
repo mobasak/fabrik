@@ -73,8 +73,10 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 - **Discovery is read-only and its exit status is honest:** each probe runs under `bash -o pipefail` with zero
   containers handled as its own branch, and the output is parsed in Python (the class closed in W-c6d27660, 9b6137382);
   a failed probe returns `None` and is `unknown`, never a confident `present` or `drift`.
-- **Each VPS's own Backrest:** the registrar and the audit run every backrest call inside the deployer's existing env swap
-  to the spec's `target_vps` (`orchestrator/deployer_ssh.py:116-140`); no new host-selection mechanism.
+- **Each VPS's own Backrest, the database on the hub:** `coverage_findings` takes `target_host` and `hub_host` and sets
+  `FABRIK_VPS_SSH_HOST` itself (try/finally) — the one new host mechanism, a parameter pair replacing the deployer's
+  env-swap context (`orchestrator/deployer_ssh.py:116-140`), which neither caller uses here; the hub host is read
+  before any swap.
 - **Dry run makes no SSH call:** `_provision_backrest` under `dry_run` logs what it would check and returns.
 - No new dependency (`fnmatch`, `json` and `shlex` are stdlib); `pyproject.toml` and `uv.lock` are not touched
   (`core/10-python.md`). No env var is added (`spec § Constraints digest`, the config row).
@@ -143,8 +145,8 @@ Appetite: 40
 - `coverage(paths: list[str], plans: list[dict], vis: set[str]) -> dict[str, str | None]` — pure: trailing slashes
   stripped; a path is covered by the first trusted plan (by id) that lists it or a parent of it (`p == q` or
   `p.startswith(q + "/")`) and none of whose excludes can match it — an exclude matches when its last non-empty
-  component (trailing `/` stripped) `fnmatch.fnmatchcase`-matches any component of the whole absolute path, and any
-  exclude containing `[`, `\`, `$` or `!` matches. `None` when no trusted plan covers it.
+  component (trailing `/` stripped) `fnmatch.fnmatchcase`-matches any component of the whole absolute path, an exclude
+  with no non-empty component (e.g. `/`) matches everything, and any exclude containing `[`, `\`, `$` or `!` matches. `None` when no trusted plan covers it.
 - `coverage_findings(name: str, db_name: str | None, *, target_host: str, hub_host: str) -> tuple[str, list[str], dict]`
   — the spec's table: runs `discover_persistence`, `read_plans` and `visible` with `FABRIK_VPS_SSH_HOST` set to
   `target_host`, and the database check — `/opt/backups/postgres/<db_name>/` visible AND covered by a trusted plan — with
@@ -167,20 +169,20 @@ Appetite: 40
    tests/test_backrest_coverage.py tests/drivers/test_backrest.py tests/test_backrest_postgres_plan.py -q -p no:cacheprovider`.
 4. Prove red on revert in a throwaway worktree (`git worktree add --detach <scratch>/pa HEAD`, copy the edited files):
    drop the `"/"` in `coverage`'s prefix test → A1's sibling-prefix case fails; match excludes only below the plan root →
-   A1's ancestor case fails; let `trusted` ignore `backup_flags` → A2 fails; accept a dump directory by its covered parent →
-   A7 fails; remove the worktree.
+   A1's ancestor case fails; let `trusted` ignore `backup_flags` → A2 fails; skip the dump directory's visibility check (accept it because its parent is
+   covered) → A7's absent case fails; remove the worktree.
 5. **`/fabrik-review-scoped`** on Phase A's surface (`src/fabrik/drivers/backrest.py`, `tests/test_backrest_coverage.py`),
    run to its closing pass confirming 0 — BLOCKING before Phase B.
 6. Commit Phase A (explicit paths + provenance trailers, `Agent-Phase: A`), push.
 
 ### Behavior Contract — Phase A
 - **Given** trusted plans `docker-volumes` (`/var/lib/docker/volumes`, excluding `prom-data`) and `opt-configs` (`/opt/`, excluding `**/cache`), all paths visible, **When** `coverage` runs over `/var/lib/docker/volumes/x_y/_data`, `/var/lib/docker/volumes/prom-data/_data`, `/opt/a/data`, `/opt/a/cache/sub`, `/opt/ab/x` and `/srv/z`, **Then** it maps them to `docker-volumes`, `None`, `opt-configs`, `None`, `opt-configs` and `None`; a plan listing `/opt/a` never covers `/opt/ab`; and an exclude `docker` or `cache/` matching a component ABOVE the plan root makes the path `None` (A1; `spec § Chosen approach`, coverage)
-- **Given** a plan that covers a path by prefix but carries `iexcludes`, or `backup_flags`, or no schedule, or a disabled schedule, or one path that is not visible, or an exclude containing `[`, `\`, `$` or `!`, **When** `trusted`/`coverage` run, **Then** that path is `None` in each case (A2; `spec § Chosen approach`, trust)
+- **Given** a plan that covers a path by prefix but carries `iexcludes`, or `backup_flags`, or no schedule, or a disabled schedule, or one path that is not visible, or an exclude `/`, or an exclude containing `[`, `\`, `$` or `!`, **When** `trusted`/`coverage` run, **Then** that path is `None` in each case (A2; `spec § Chosen approach`, trust)
 - **Given** stub `docker` and `sudo` binaries modelling a host (as `tests/test_prometheus_reload_path.py` does) with a named volume, an anonymous volume, a writable bind directory outside `/opt/<name>/`, a read-only bind, a file bind, a socket bind and a tmpfs mount, **When** the real script `discover_persistence` sends is executed under bash, **Then** it returns the named volume's Mountpoint and the writable bind directory, with `anonymous == 1`, and nothing else (A3; `spec § The delta` D1)
-- **Given** no labelled container and none named exactly `<name>` (only `<name>-other`), **When** `discover_persistence` runs under the same stub, **Then** it returns `Persistence(0, [], 0)` (A4; `spec § Chosen approach`, discovery)
+- **Given** no labelled container and none named exactly `<name>` (only `<name>-other`), **When** `discover_persistence` runs under the same stub, **Then** it returns `Persistence(0, [], 0)`; and the script text sent over SSH carries `--filter name=^<name>$` exactly (the stub models docker's filter, so the text assertion pins what real docker receives) (A4; `spec § Chosen approach`, discovery)
 - **Given** the SSH call raises, **When** `discover_persistence`, `read_plans` or `visible` runs, **Then** each returns `None`; a hyphenated name `tryton-crm` passes validation and an invalid name raises `ValueError` before any SSH call (A5; `spec § The delta` D1-D2)
 - **Given** a `config.json` with a repo section carrying credentials, **When** `read_plans` runs, **Then** the command sent over SSH selects only the plan fields named in the Interfaces, and the parsed result holds nothing else (A6; `drivers/backrest.py:22-25`)
-- **Given** `coverage_findings` with fakes for every probe, **When** the dump directory `/opt/backups/postgres/<db>/` is visible and covered, absent, or only its parent `/opt/backups` is covered, **Then** the database reads covered, `database <db>: no dump covered`, and `database <db>: no dump covered` respectively; an invalid `db_name` yields a finding naming it; and the database probes ran with `FABRIK_VPS_SSH_HOST` equal to `hub_host` while the path probes ran with `target_host` (A7; `spec § Chosen approach`, database)
+- **Given** `coverage_findings` with fakes for every probe, **When** the dump directory `/opt/backups/postgres/<db>/` is visible and covered by a trusted plan over its parent `/opt/backups`, is absent while that parent is covered, or is visible but no trusted plan covers it, **Then** the database reads covered, `database <db>: no dump covered`, and `database <db>: no dump covered` respectively; an invalid `db_name` yields a finding naming it; and the database probes ran with `FABRIK_VPS_SSH_HOST` equal to `hub_host` while the path probes ran with `target_host` (A7; `spec § Chosen approach`, database)
 
 ## Phase B — The registrar warns, the audit reports
 
@@ -190,9 +192,9 @@ Appetite: 45
 - `src/fabrik/orchestrator/infrastructure.py::_provision_backrest(name, spec, ctx, dry_run, *, with_database: bool)` —
   today `(name, ctx, dry_run)` at `:1137-1147`; the call at `:634-635` passes `spec` (bound `spec = ctx.spec` at `:596`)
   and `with_database=should_run["postgres"]`. Under `dry_run`: log and return, no SSH. Otherwise: `db =
-  _db_name_for_spec(spec)` when `with_database` (a `ValueError` → warn, `db = None`); `status, findings, _ =
-  backrest.coverage_findings(name, db, target_host=<ctx.target_vps, with vps1 → the current FABRIK_VPS_SSH_HOST or its
-  default>, hub_host=<the same hub value>)`; each finding logged as a warning, or `covered by <ids>`; `unknown` is a
+  _db_name_for_spec(spec)` when `with_database` (a `ValueError` → warn, `db = None`); `hub = os.getenv("FABRIK_VPS_SSH_HOST",
+  DEFAULT_SSH_HOST)` (`drivers/ssh.py:31`), read here, outside any env swap; `status, findings, _ =
+  backrest.coverage_findings(name, db, target_host=hub if ctx.target_vps == "vps1" else ctx.target_vps, hub_host=hub)`; each finding logged as a warning, or `covered by <ids>`; `unknown` is a
   `_nonfatal` warning. It calls no plan-writing driver function (`add_backup_plan` is no longer imported here) and
   records no resource. The import is `from fabrik.drivers import backrest` (the driver layer; no cycle with `audit.py`,
   which imports `fabrik.orchestrator.infrastructure` at module level, `audit.py:48`).
@@ -237,7 +239,7 @@ Appetite: 45
 - **Given** `coverage_findings` returning `missing`, or `unknown`, **When** the audit runs, **Then** it returns `missing` or `unknown`, and the registrar warns without failing the deploy (B4; `spec § Chosen approach`)
 - **Given** any branch of the registrar, including an uncovered path and a paper plan, **When** it runs, **Then** no plan-writing driver function is called and no `backrest` resource is recorded (B5; `spec § The delta` D3)
 - **Given** a spec with `needs_database` whose `infra.postgres` is `false`, **When** the audit runs, **Then** `coverage_findings` receives `db_name=None` (B6; `spec § Chosen approach`, database)
-- **Given** a context whose `target_vps` the test sets to `vps2` (the `_ctx` helper leaves it at `vps1`, `src/fabrik/orchestrator/context.py:50`), **When** the registrar runs, **Then** `coverage_findings` receives `target_host="vps2"` and a hub `hub_host` (B7; `orchestrator/deployer_ssh.py:116-140`)
+- **Given** a context whose `target_vps` the test sets to `vps2` (the `_ctx` helper leaves it at `vps1`, `src/fabrik/orchestrator/context.py:50`), **When** the registrar runs, **Then** `coverage_findings` receives `target_host="vps2"` and `hub_host` equal to the `FABRIK_VPS_SSH_HOST` value the test set before the call (never `"vps2"`) (B7; `drivers/ssh.py:31`)
 - **Given** a state file `<FABRIK_ROOT>/.fabrik/state/<id>.json` naming `vps3`, then no state file, then neither state file nor spec field, with `FABRIK_AUDIT_VPS=hubalias` and the working directory elsewhere, **When** the audit runs, **Then** `target_host` is `vps3`, the spec's `target_vps`, and `hubalias` respectively, and `hub_host` is `hubalias` (B8; `cli.py:955-970`, `audit.py:98`)
 
 ## Phase C — Docs, the infra proposal and Finish
@@ -407,7 +409,7 @@ Every row starts UNCHECKED for the revision and is adjudicated by `/fabrik-plan-
 The rubric this plan's reviews inject into every seat brief, run on the plan's own `## File Scope (owned paths)`:
 
 ```bash
-python3 scripts/review_rubric.py --changed src/fabrik/drivers/backrest.py src/fabrik/orchestrator/infrastructure.py src/fabrik/audit.py tests/test_backrest_coverage.py tests/test_audit.py tests/orchestrator/test_infrastructure.py docs/reference/modules/drivers.md docs/infrastructure/vps-complete-inventory.md
+python3 scripts/review_rubric.py --changed src/fabrik/drivers/backrest.py src/fabrik/orchestrator/infrastructure.py src/fabrik/audit.py tests/test_backrest_coverage.py tests/test_audit.py tests/orchestrator/test_infrastructure.py tests/orchestrator/test_e2e_rollback.py docs/reference/modules/drivers.md docs/infrastructure/vps-complete-inventory.md
 ```
 
 ```text

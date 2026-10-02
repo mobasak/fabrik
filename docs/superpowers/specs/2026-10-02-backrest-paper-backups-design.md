@@ -74,9 +74,12 @@ it.
 
 The registrar and the audit ask one question, **on the VPS the service runs on** (each VPS has its own Backrest):
 **is every path this service persists covered by a plan Backrest can actually run over it?** Nothing writes a plan: the
-registrar warns at deploy, the audit reports every hour. Both run the backrest calls inside the deployer's existing env
-swap to the spec's `target_vps` (`orchestrator/deployer_ssh.py:116-140`); today the registrar runs hub-side after
-`deploy()` restores the hub host (`orchestrator/deployer_ssh.py:156-170`, `orchestrator/__init__.py:174-180`).
+registrar warns at deploy, the audit reports every hour. Both call one
+shared check that takes the two hosts as parameters — the service's `target_host` for its paths, the `hub_host` for the
+database — and sets `FABRIK_VPS_SSH_HOST` itself, restoring it afterwards; neither caller wraps it in the deployer's
+`_target_vps_env` (`orchestrator/deployer_ssh.py:116-140`), so the hub host is read before any swap. Today the
+registrar runs hub-side after `deploy()` restores the hub host (`orchestrator/deployer_ssh.py:156-170`,
+`orchestrator/__init__.py:174-180`).
 
 Why no writes (the critiques' shared finding): on today's fleet every volume Mountpoint is under the host
 `docker-volumes` plan and every `/opt` bind under `opt-configs`, and a spoke's Backrest cannot stat volume paths anyway, so
@@ -91,8 +94,8 @@ a warning line and a false `present` costs a backup:
 - it has a schedule and the schedule is not `disabled`, and it carries no `iexcludes` and no `backup_flags` (flags can exclude files or supply
   paths, ledger brk-1/brk-4 — any flag makes the plan untrusted for coverage);
 - no exclude pattern can match: an exclude counts against the path when its LAST non-empty component (trailing `/`
-  stripped) matches any component of the WHOLE absolute path (`fnmatch.fnmatchcase`), and any pattern containing `[`,
-  `\`, `$` or `!` counts as matching (Python and restic read brackets, escapes and environment expansion differently).
+  stripped) matches any component of the WHOLE absolute path (`fnmatch.fnmatchcase`), a pattern with no non-empty
+  component (e.g. `/`) counts as matching everything, and any pattern containing `[`, `\`, `$` or `!` counts as matching (Python and restic read brackets, escapes and environment expansion differently).
   This over-reads restic's own rules — which match against the full path — so a doubt reads uncovered.
 
 (The hub's `docker-volumes` plan excludes whole volumes such as Prometheus and Loki data,
@@ -184,13 +187,16 @@ over `/var/lib/docker/volumes` is the field's lean pattern (vol-8); live DB stat
   `visible(paths) -> set[str] | None`, `test -e` run INSIDE the Backrest container resolved by `^backrest(-|$)` behind an
   explicit empty-name guard; `trusted(plan, visible) -> bool` and `coverage(paths, plans, visible) -> {path: plan_id |
   None}`, pure functions with the rules above). `read_plans` also reads whether the plan has a schedule at all.
-- **D3 — the shared check and the registrar**: `drivers/backrest.py::coverage_findings(name, db_name) ->
-  (status, findings, actual)` evaluates the table (paths on the target host, the database on the hub); it lives in the
+- **D3 — the shared check and the registrar**: `drivers/backrest.py::coverage_findings(name, db_name, *, target_host,
+  hub_host) -> (status, findings, actual)` evaluates the table (paths on `target_host`, the database on `hub_host`,
+  setting and restoring `FABRIK_VPS_SSH_HOST` itself — the one new host mechanism, a parameter pair replacing the
+  deployer's env-swap context); it lives in the
   driver because `audit.py` already imports `fabrik.orchestrator.infrastructure` at module level (`audit.py:48`), so a
   helper in `audit.py` imported back by the orchestrator would cycle. `infrastructure.py::_provision_backrest` calls it
-  inside the env swap and logs the table's middle column; it calls no plan-writing function and records no resource.
+  outside any env swap — `target_host` from `ctx.target_vps` (`vps1` → the hub host), `hub_host` the hub host
+  (`FABRIK_VPS_SSH_HOST`, default `vps`, read before any swap) — and logs the table's middle column; it calls no plan-writing function and records no resource.
   Under `dry_run` it makes no SSH call.
-- **D4 — audit** (`audit.py::audit_backrest`): the table's right column, through the same calls inside the same env swap;
+- **D4 — audit** (`audit.py::audit_backrest`): the table's right column, through the same `coverage_findings`;
   the host is `fabrik destroy`'s order without the CLI flag — `<FABRIK_ROOT>/.fabrik/state/<id>.json` `target_vps`, then
   the spec field, then `vps1` (`cli.py:955-970`); `vps1` maps to `FABRIK_AUDIT_VPS` (default `vps`, `audit.py:98`) so
   the backrest audit honours the same host override as every other audit. `missing` now means "not running on the host"; `_missing_host_paths`
@@ -212,7 +218,8 @@ plan is the operator's call.
 ## Cost
 
 No new service, no new plan (the paper plans go away). Three SSH calls per apply and per hourly audit of a persistent
-spec (discovery, plans, visibility); `read_plans` may be cached per host per sweep later if it shows in the cron's runtime.
+spec (discovery, plans, visibility on the target host), plus two for a database-backed one (plans and visibility on the
+hub); `read_plans` may be cached per host per sweep later if it shows in the cron's runtime.
 
 ## Validation
 
@@ -243,7 +250,8 @@ spec (discovery, plans, visibility); `read_plans` may be cached per host per swe
 ## Lifecycle
 
 - **First run:** the pre-merge probe (Validation 2), the read-only report (3), then the one-time operator go (4).
-- **Growth:** three SSH calls per persistent spec per hour (21 today). Trigger to revisit: a spoke hosting a persistent
+- **Growth:** three SSH calls per persistent spec per hour, five for a database-backed one (21 persistent today, 15 of
+  them database-backed). Trigger to revisit: a spoke hosting a persistent
   service (its paths read `unprotected`) — then the spoke's Backrest gains the `/var/lib/docker/volumes` and
   `/opt/backups` binds and a `docker-volumes-<vps>` plan (deferred today, `vps-complete-inventory.md:666`); or the cron's
   runtime grows enough to cache `read_plans` per host.
