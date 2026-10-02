@@ -138,6 +138,10 @@ def test_every_loop_is_bounded() -> None:
     )
     for needle in ("timeout_s", 'setting_sources=""', "DispatchError"):
         assert needle in bound, f"the loop bounds no longer name {needle!r}"
+    # under dontAsk a tool that would prompt is denied unless allow-listed; tools alone grants nothing
+    assert re.search(r"grant the tools that edit or run commands with allowed_tools", bound), (
+        "the bounds no longer say dontAsk needs allowed_tools for editing and commands"
+    )
 
 
 def test_reasoning_is_effort() -> None:
@@ -225,7 +229,11 @@ def test_no_retired_routes() -> None:
 
 def test_no_version_literals() -> None:
     version_re = _load("vision_pack_test", ROOT / "tests" / "test_vision_pack.py").VERSION_RE
-    found = version_re.findall(_prose())
+    # a licence name carries a number but is not a version of anything the pack recommends (tests/test_vision_pack.py)
+    body = re.sub(
+        r"Apache(?: License,?(?: Version)?)?[- ]?2\.0|[AL]?GPL-?\d\.\d|CC-BY(?:-[A-Z]+)*-? ?\d\.\d", "", _prose()
+    )
+    found = version_re.findall(body)
     assert not found, f"version literals in the pack: {found}"
 
 

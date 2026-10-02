@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T19:21:35.135844Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-abd89a6f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-514",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "rewrite those README lines to Claude Code (VS Code extension and CLI); also scripts/docs_updater.py:17,769 and scripts/enforcement/__init__.py:4 / validate_conventions.py:6 name Windsurf as live; check_retired_terms.py already lists Windsurf Cascade and Kilo CLI as retired, but it scans docs/ only — README.md and .windsurf/rules are outside it, so widen its file list in the same fix",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "docs"
+  ],
+  "title": "Hub README still presents Traycer, Windsurf Cascade and Kilo CLI as the live workflow (README.md:11,23,94,392); the operator confirmed 2026-10-02 the stack is Claude Code in the VS Code extension, OpenRouter agents only as a possible future option"
+}
