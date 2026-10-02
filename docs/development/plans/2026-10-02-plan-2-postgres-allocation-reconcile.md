@@ -259,7 +259,7 @@ Appetite: 45
   - `FabrikRegistryHealFailed`: `expr: max by (spec_id, db) (fabrik_registry_heal_failed) > 0` (aggregated so a changing
     `reason` label does not reset the window), `for: 2h`, `severity: warning`, `alert_class: registrar_drift`, annotation
     naming `{{ $labels.db }}`;
-  - `FabrikAuditStale`: `expr: (time() - fabrik_audit_last_success_timestamp_seconds > 10800) or
+  - `FabrikAuditStale`: `expr: (time() - max(fabrik_audit_last_success_timestamp_seconds) > 10800) or
     absent(fabrik_audit_last_success_timestamp_seconds)`, `for: 5m`, `severity: warning`, `alert_class: registrar_drift`,
     annotation pointing at `/var/log/fabrik-audit-all.log` and `fabrik_audit_spec_errors`. The `absent(...)` arm covers a
     pushed run that carried no timestamp (a `PUT` deletes the series) and the time before the first success — so a run

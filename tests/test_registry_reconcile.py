@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
@@ -515,7 +516,7 @@ class TestDriftRules:
     def test_audit_stale_rule_covers_age_and_absence(self):
         rule = self._rules()["FabrikAuditStale"]
         assert rule["expr"] == (
-            "(time() - fabrik_audit_last_success_timestamp_seconds > 10800)"
+            "(time() - max(fabrik_audit_last_success_timestamp_seconds) > 10800)"
             " or absent(fabrik_audit_last_success_timestamp_seconds)"
         )
         assert rule["for"] == "5m"
@@ -525,3 +526,31 @@ class TestDriftRules:
         fixture = yaml.safe_load((REPO / "tests/fixtures/fabrik-drift-rules-test.yml").read_text())
         names = {t["alertname"] for case in fixture["tests"] for t in case["alert_rule_test"]}
         assert names == {"FabrikRegistryHealFailed", "FabrikAuditStale"}
+
+    @pytest.mark.skipif(
+        shutil.which("docker") is None, reason="promtool runs from the docker image vps1 runs"
+    )
+    def test_promtool_rule_unit_tests_pass(self):
+        # C2: run the fixture under the Prometheus image vps1 runs (configs/monitoring-compose.yaml).
+        r = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{REPO}/configs/prometheus/rules:/r:ro",
+                "-v",
+                f"{REPO}/tests/fixtures:/t:ro",
+                "--entrypoint",
+                "promtool",
+                "prom/prometheus:v3.2.1",
+                "test",
+                "rules",
+                "/t/fabrik-drift-rules-test.yml",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+        assert r.returncode == 0, r.stdout + r.stderr

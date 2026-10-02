@@ -59,9 +59,9 @@ Prometheus (rules) → Alertmanager → Telegram (native telegram_configs)
 > **ARO Brain (planned):** LLM-based alert triage. When deployed, add as a primary
 > receiver routed before `telegram`, with `telegram` as the fallback.
 
-### Prometheus Alert Rules (13 total, 5 groups)
+### Prometheus Alert Rules (15 total, 5 groups)
 
-Source of truth: `configs/prometheus/rules/alerts.yml` (12 rules, 4 groups) + `configs/prometheus/rules/fabrik-drift.yml` (1 rule, group `fabrik-registrar-drift`). There are no Promtail/log-based alert rules.
+Source of truth: `configs/prometheus/rules/alerts.yml` (12 rules, 4 groups) + `configs/prometheus/rules/fabrik-drift.yml` (3 rules, group `fabrik-registrar-drift`; rules 14-15 reach vps1 at plan-2 rollout R0 — until then vps1 runs 13). There are no Promtail/log-based alert rules.
 
 | # | Alert | Group | Severity | Threshold | For |
 | --- | --- | --- | --- | --- | --- |
@@ -78,6 +78,8 @@ Source of truth: `configs/prometheus/rules/alerts.yml` (12 rules, 4 groups) + `c
 | 11 | AroWakeLowSuccessRate | aro_wake | warning | low success rate | 15m |
 | 12 | AroWakeCostBurnHigh | aro_wake | warning | cost burn >$5/h per host | 10m |
 | 13 | FabrikRegistrarDrift | fabrik-registrar-drift | warning | `fabrik_audit_drift_total > 0` | 10m |
+| 14 | FabrikRegistryHealFailed | fabrik-registrar-drift | warning | `max by (spec_id, db) (fabrik_registry_heal_failed) > 0` | 2h |
+| 15 | FabrikAuditStale | fabrik-registrar-drift | warning | last clean audit run >3h old, or none recorded | 5m |
 
 All applicable rules include `value` annotations for ARO Brain quantitative reasoning.
 
@@ -264,11 +266,11 @@ Generalises the Authelia weekly cron to all 10 audited registrars at hourly cade
 **Registry reconcile (plan-2, D-498/D-500).** After the audit loop the same run calls `src/fabrik/registry_reconcile.py`: each postgres result of `drift` with the database present and no `allocations.json` entry is registered additively, in-lock, never overwriting or deleting. The mode is `FABRIK_REGISTRY_RECONCILE` on the cron line — `report` (default) dry-runs, `apply` writes, `off` skips (`docs/CONFIGURATION.md` § Scheduled audits). A database two specs claim is `shared` and never written; a run in which a spec failed to load or audit, or a database spec's name failed to resolve, fails every candidate as `claims-unresolved`; no owner role in `pg_database`, no write. A registered spec is re-audited in the same run, so its drift series clears in that push. The push is now a `PUT`, which replaces the whole `fabrik-audit` group each run, and carries:
 
 - `fabrik_registry_heal_total{spec_id,db,outcome}` — one per candidate: `registered`, `already-present`, `would-register`, `shared` or `failed`;
-- `fabrik_registry_heal_failed{spec_id,db,reason}` — one per failed heal (`claims-unresolved`, `owner-unresolved`, or the exception class);
+- `fabrik_registry_heal_failed{spec_id,db,reason}` — one per failed heal (`claims-unresolved`, `owner-unresolved`, `db-name-missing`, or the exception class);
 - `fabrik_audit_spec_errors` — specs skipped this run because they failed to load or audit;
-- `fabrik_audit_last_success_timestamp_seconds` — only on a run with no spec error and no reconcile crash.
+- `fabrik_audit_last_success_timestamp_seconds` — only on a run with no spec error, no reconcile crash and no failed re-audit of a registered spec.
 
-Two alerts in the same rule file and route: **`FabrikRegistryHealFailed`** (`max by (spec_id, db) (fabrik_registry_heal_failed) > 0` for 2h — aggregated over `reason` so a changing cause keeps the window) and **`FabrikAuditStale`** (`(time() - fabrik_audit_last_success_timestamp_seconds > 10800) or absent(...)` for 5m). Because a run without the timestamp deletes the series, `FabrikAuditStale` fires within minutes of any run with a spec error, not only after 3h; under `POST` such a spec kept its last drift value, under `PUT` its drift series is absent for that run, which is why the stale alert exists. The rules are unit-tested with `promtool test rules tests/fixtures/fabrik-drift-rules-test.yml` (image `prom/prometheus:v3.2.1`).
+Two alerts in the same rule file and route: **`FabrikRegistryHealFailed`** (`max by (spec_id, db) (fabrik_registry_heal_failed) > 0` for 2h — aggregated over `reason` so a changing cause keeps the window) and **`FabrikAuditStale`** (`(time() - max(fabrik_audit_last_success_timestamp_seconds) > 10800) or absent(...)` for 5m; `max()` strips the push group's labels so both branches give the alert one identity). Because a run without the timestamp deletes the series, `FabrikAuditStale` fires within minutes of any run with a spec error, not only after 3h; under `POST` such a spec kept its last drift value, under `PUT` its drift series is absent for that run, which is why the stale alert exists. The rules are unit-tested with `promtool test rules tests/fixtures/fabrik-drift-rules-test.yml` (image `prom/prometheus:v3.2.1`).
 
 **Pairs with:**
 

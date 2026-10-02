@@ -44,7 +44,7 @@
   `host_health` (3 rules: HostHighCPU, HostHighMemory, HostDiskFull);
   `service_health` (1 rule: ServiceUnhealthy — note: the `netdata` instance
   this used to fire for was removed 2026-06-07 after a 24× Telegram flood);
-  `fabrik-registrar-drift` (1 rule). TOTAL: 13 rules across 5 groups.
+  `fabrik-registrar-drift` (1 live; 3 once plan-2 rollout R0 syncs FabrikRegistryHealFailed + FabrikAuditStale). TOTAL: 13 rules across 5 groups (15 after R0).
   **No** `spoke_health` group exists today (earlier docs referenced
   SpokeDown/SpokeHighCPU/SpokeHighRAM which never landed or were removed).
 ```

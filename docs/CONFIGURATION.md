@@ -572,10 +572,12 @@ PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audi
 
 | Value | Effect |
 |---|---|
-| unset / `report` (default) | Dry run: every unregistered postgres database is logged and pushed as `outcome="would-register"`; nothing is written. |
-| `apply` | Registers each unregistered database in `allocations.json` on vps1, in-lock, never overwriting an entry; owner role read from `pg_database`. A database two specs claim (`shared`), or a run with an incomplete claim map (`claims-unresolved`), is refused. |
+| unset / `report` (default) | Dry run: nothing is written. Each unregistered postgres database is logged and pushed with the outcome it would get — `would-register`, or `shared` / `failed` (`claims-unresolved`, `db-name-missing`) for the refusals that are decided before any write. |
+| `apply` | Registers each unregistered database in `allocations.json` on vps1, in-lock, never overwriting an entry; owner role read from `pg_database` (none found: `failed owner-unresolved`). The same refusals as `report` apply. |
 | `off` | The reconcile does not run. |
 | anything else | Treated as `report`, with a warning. |
+
+After rollout step R2 of plan-2 (rules synced at R0, one `report` run read at R1), the audit line becomes:
 
 ```cron
 0 * * * * FABRIK_REGISTRY_RECONCILE=apply PYTHONPATH=/opt/fabrik/src /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/audit_all_registrars.py >> /var/log/fabrik-audit-all.log 2>&1

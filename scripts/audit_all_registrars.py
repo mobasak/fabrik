@@ -138,7 +138,7 @@ def _render_metrics(
     ]
     if success:
         run_lines += [
-            "# HELP fabrik_audit_last_success_timestamp_seconds Unix time of the last run with no spec error and no reconcile crash.",
+            "# HELP fabrik_audit_last_success_timestamp_seconds Unix time of the last run with no spec error, no reconcile crash and no failed re-audit.",
             "# TYPE fabrik_audit_last_success_timestamp_seconds gauge",
             f"fabrik_audit_last_success_timestamp_seconds {int(time.time())}",
         ]

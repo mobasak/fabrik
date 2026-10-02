@@ -192,7 +192,7 @@ D5. **Surface every outcome.** Each run's push carries, besides the two existing
     And `fabrik-drift.yml` gains two rules:
     - `FabrikRegistryHealFailed: max by (spec_id, db) (fabrik_registry_heal_failed) > 0` with `for: 2h` (two hourly runs
       failing before it pages, ledger obs-2; aggregated so a changing `reason` label does not reset the window);
-    - `FabrikAuditStale: (time() - fabrik_audit_last_success_timestamp_seconds > 10800) or
+    - `FabrikAuditStale: (time() - max(fabrik_audit_last_success_timestamp_seconds) > 10800) or
       absent(fabrik_audit_last_success_timestamp_seconds)` (3 h = more than two missed runs, ledger obs-2; `absent` covers a
       pushed run that carried no timestamp, which a `PUT` turns into a missing series, and the time before the first
       success). Without it a dead cron freezes every gauge in the pushgateway at its last value, which reads as healthy

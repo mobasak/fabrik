@@ -25,7 +25,24 @@ tests:
               alert_class: registrar_drift
             exp_annotations:
               summary: "Fabrik hourly registrar audit: no clean run in 3h"
-              description: "No hourly audit run without spec errors in the last 3h, or none recorded. A run with a spec error or a reconcile crash withholds the timestamp; fabrik_audit_spec_errors counts the skipped specs. Log: /var/log/fabrik-audit-all.log"
+              description: "No hourly audit run without spec errors in the last 3h, or none recorded. A run with a spec error, a reconcile crash or a failed re-audit withholds the timestamp; fabrik_audit_spec_errors counts the skipped specs. Log: /var/log/fabrik-audit-all.log"
+
+  # Pushed series carry the push group's job label (honor_labels); max() strips it,
+  # so the age branch fires with the same label set as the absent() branch.
+  - interval: 1m
+    input_series:
+      - series: 'fabrik_audit_last_success_timestamp_seconds{job="fabrik-audit"}'
+        values: "0x300"
+    alert_rule_test:
+      - eval_time: 4h
+        alertname: FabrikAuditStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              alert_class: registrar_drift
+            exp_annotations:
+              summary: "Fabrik hourly registrar audit: no clean run in 3h"
+              description: "No hourly audit run without spec errors in the last 3h, or none recorded. A run with a spec error, a reconcile crash or a failed re-audit withholds the timestamp; fabrik_audit_spec_errors counts the skipped specs. Log: /var/log/fabrik-audit-all.log"
 
   # No clean run recorded at all (a PUT without the timestamp deletes the series): firing within minutes.
   - interval: 1m
@@ -41,7 +58,7 @@ tests:
               alert_class: registrar_drift
             exp_annotations:
               summary: "Fabrik hourly registrar audit: no clean run in 3h"
-              description: "No hourly audit run without spec errors in the last 3h, or none recorded. A run with a spec error or a reconcile crash withholds the timestamp; fabrik_audit_spec_errors counts the skipped specs. Log: /var/log/fabrik-audit-all.log"
+              description: "No hourly audit run without spec errors in the last 3h, or none recorded. A run with a spec error, a reconcile crash or a failed re-audit withholds the timestamp; fabrik_audit_spec_errors counts the skipped specs. Log: /var/log/fabrik-audit-all.log"
 
   # A heal failing for 2 h fires even though its reason label changes after the first hour.
   - interval: 1m
