@@ -30,7 +30,7 @@ A spec-fed delta plan: each ticket cites the spec section it implements and rest
 | T01 | The replay fixture, pinned before any gate code | — | ⚡ | ✅ | squash of worktree-agent-ad5af92a95a1b16fa |
 | T02 | task_lane.py admission: the module test, the switch, the refusal ledger, the replay | T01 | ⛓️ | ✅ | squash of worktree-agent-a7202d6507f63bf60 |
 | T03a | task_lane.py close: the per-commit measurement and its refusals | T02 | ⛓️ | ✅ | squash of worktree-agent-ac91db68cafca62c4 |
-| T03b | The close's review receipt: the real command, the lane marker, checks (a)–(d) | T03a | ⛓️ | ⬜ | |
+| T03b | The close's review receipt: the real command, the lane marker, checks (a)–(d) | T03a | ⛓️ | 🔵 | |
 | T04 | The in-lane review stops hunting at the first own-fix-only round | T03b | ⛓️ | ⬜ | |
 | T05a | Plan graders: Appetite per phase and the Size-small spec rule | — | ⚡ | ✅ | squash of worktree-agent-a749e8b44ee6b8c13 |
 | T05b | The spec and plan commands: size at spec time, DOWNGRADE, no false approval | — | ⚡ | ✅ | squash of worktree-agent-a5bd5c37407d40e54 |

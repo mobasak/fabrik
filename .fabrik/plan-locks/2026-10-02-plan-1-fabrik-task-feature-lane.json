@@ -73,8 +73,12 @@
       "commit": "6ebc08db0"
     },
     "T03a": {
+      "state": "merged",
+      "commit": "98987b5b0"
+    },
+    "T03b": {
       "state": "dispatched",
-      "base_commit": "6ebc08db0"
+      "base_commit": "98987b5b0"
     }
   }
 }
