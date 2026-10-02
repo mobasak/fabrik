@@ -442,8 +442,8 @@ def _discovery_script(name: str) -> str:
         'if [ -z "$ids" ]; then echo NOCONTAINERS; exit 0; fi\n'
         'echo "containers|$(echo $ids | wc -w)"\n'
         "sudo docker inspect --format "
-        "'{{range .Mounts}}{{.Type}}|{{.Name}}|{{.Source}}|{{.RW}}{{\"\\n\"}}{{end}}' $ids"
-        " | while IFS='|' read -r t n src rw; do\n"
+        "'{{range .Mounts}}{{.Type}}|{{.Name}}|{{.RW}}|{{.Source}}{{\"\\n\"}}{{end}}' $ids"
+        " | while IFS='|' read -r t n rw src; do\n"
         '  case "$t" in\n'
         '    volume) printf \'volume|%s|%s\\n\' "$n" "$src" ;;\n'
         '    bind) if [ "$rw" = true ] && sudo test -d "$src"; then printf \'bind|-|%s\\n\' "$src"; fi ;;\n'
@@ -544,18 +544,21 @@ def _excluded(path: str, patterns: list[str]) -> bool:
 
 
 def coverage(paths: list[str], plans: list[dict], vis: set[str]) -> dict[str, str | None]:
-    """Map each path to the first trusted plan (by id) that covers it, or ``None``."""
+    """Map each path to the trusted plan whose root covers it most specifically (ties by id), or ``None``."""
     result: dict[str, str | None] = {}
     candidates = sorted((p for p in plans if trusted(p, vis)), key=lambda p: str(p.get("id")))
     for raw in paths:
         path = _norm(raw)
         result[raw] = None
+        best = -1
         for plan in candidates:
             roots = [_norm(r) for r in plan.get("paths") or []]
-            under = any(path == r or r == "/" or path.startswith(r + "/") for r in roots)
-            if under and not _excluded(path, list(plan.get("excludes") or [])):
-                result[raw] = str(plan.get("id"))
-                break
+            depth = max(
+                (len(r) for r in roots if path == r or r == "/" or path.startswith(r + "/")),
+                default=-1,
+            )
+            if depth > best and not _excluded(path, list(plan.get("excludes") or [])):
+                result[raw], best = str(plan.get("id")), depth
     return result
 
 
@@ -629,7 +632,7 @@ def coverage_findings(
     actual: dict = {"anonymous_volumes": found.anonymous}
     if found.containers == 0:
         return (
-            ("drift" if paper else "missing"),
+            ("drift" if findings else "missing"),
             findings or [f"not running on {target_host}"],
             actual,
         )

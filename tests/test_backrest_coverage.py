@@ -61,6 +61,13 @@ def test_a1_coverage_maps_paths_to_trusted_plans_and_respects_excludes():
     ]
 
 
+def test_a1_a_path_is_attributed_to_its_most_specific_plan():
+    broad, narrow = _plan("a-plan", ["/opt"]), _plan("b-plan", ["/opt/a"])
+    assert backrest.coverage(["/opt/a/data"], [broad, narrow], {"/opt", "/opt/a"}) == {
+        "/opt/a/data": "b-plan"
+    }
+
+
 def test_a1_a_plan_never_covers_a_sibling_prefix():
     plan = _plan("a", ["/opt/a"])
     assert backrest.coverage(["/opt/ab"], [plan], {"/opt/a"}) == {"/opt/ab": None}
@@ -163,27 +170,37 @@ def test_a3_discovery_keeps_named_volumes_and_writable_bind_dirs_only(monkeypatc
     data_dir.mkdir(parents=True)
     ro_dir = tmp_path / "ro"
     ro_dir.mkdir()
+    piped = tmp_path / "a|b"  # a '|' in a path must not cost the mount
+    piped.mkdir()
     conf = tmp_path / "app.conf"
     conf.write_text("x")
     anon = "a" * 64
     mounts = (
-        f"volume|svc_data|/var/lib/docker/volumes/svc_data/_data|true\\n"
-        f"volume|{anon}|/var/lib/docker/volumes/{anon}/_data|true\\n"
-        f"bind||{data_dir}|true\\n"
-        f"bind||{ro_dir}|false\\n"
-        f"bind||{conf}|true\\n"
-        f"bind||/var/run/docker.sock|true\\n"
-        f"tmpfs|||true\\n"
+        f"volume|svc_data|true|/var/lib/docker/volumes/svc_data/_data\\n"
+        f"volume|{anon}|true|/var/lib/docker/volumes/{anon}/_data\\n"
+        f"bind||true|{data_dir}\\n"
+        f"bind||true|{piped}\\n"
+        f"bind||false|{ro_dir}\\n"
+        f"bind||true|{conf}\\n"
+        f"bind||true|/var/run/docker.sock\\n"
+        f"tmpfs||true|\\n"
     )
     env = _host(tmp_path, label_ids="c1", mounts=mounts)
     sent = _run_remote(monkeypatch, env)
     found = backrest.discover_persistence("svc")
     assert found == backrest.Persistence(
         containers=1,
-        paths=sorted(["/var/lib/docker/volumes/svc_data/_data", str(data_dir)]),
+        paths=sorted(["/var/lib/docker/volumes/svc_data/_data", str(data_dir), str(piped)]),
         anonymous=1,
     )
     assert sent[0].startswith("bash -o pipefail -c ")
+    # the Go template reaches docker intact through shlex + bash -c (the stub cannot evaluate it)
+    inspect = [
+        ln for ln in (tmp_path / "docker.log").read_text().splitlines() if ln.startswith("inspect")
+    ]
+    assert inspect == [
+        'inspect --format {{range .Mounts}}{{.Type}}|{{.Name}}|{{.RW}}|{{.Source}}{{"\\n"}}{{end}} c1'
+    ]
 
 
 def test_a4_zero_containers_and_the_exact_name_fallback(monkeypatch, tmp_path):
@@ -326,6 +343,9 @@ def test_findings_table_rows(monkeypatch):
         visible_by_host={"t": set()},
     )
     assert backrest.coverage_findings("svc", None, target_host="t", hub_host="t")[0] == "missing"
+    # stopped, but its database dump is uncovered: still a real gap, so drift
+    status, findings, _ = backrest.coverage_findings("svc", "svc", target_host="t", hub_host="t")
+    assert status == "drift" and findings == ["database svc: no dump covered"]
 
     _fakes(
         monkeypatch,
