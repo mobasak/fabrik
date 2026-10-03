@@ -108,7 +108,7 @@ GOVERNANCE_FILES = [
 # scaffold-retired-agent-surface): the Kilo/opencode and Windsurf agents are not used (D-364,
 # D-514). The hub's own copies are archived under docs/archive/2026-10-03-retired-agent-bootstraps/.
 RETIRED_GOVERNANCE_FILES = [
-    "AGENTS-compact.md",  # read only by opencode.json's `instructions`
+    "AGENTS-compact.md",  # Kilo compact contract; its only reader was opencode.json (also retired)
     "opencode.json",  # Kilo/opencode config
     ".windsurfrules",  # Windsurf Cascade rules
 ]
