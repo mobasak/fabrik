@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Worktree model (D-444/D-445): a --worktree session loads the MAIN checkout's CLAUDE.md too, so a repo that TRACKS CLAUDE.md runs two contract versions until each branch rebases"
 }

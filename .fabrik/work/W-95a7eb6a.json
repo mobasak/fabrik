@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "e37154a35b79d7334806cbc5f187e8e58424ca4d",
   "id": "W-95a7eb6a",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:8b44c411ceeb",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "40 of 211 synced sources are not governance-sync triggers (2026-09-24)"
 }

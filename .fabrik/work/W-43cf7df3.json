@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-26T13:31:47.799954Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "e37154a35b79d7334806cbc5f187e8e58424ca4d",
   "id": "W-43cf7df3",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Payments-ingest-role plan: CONVERGED 2026-08-25, zero commits since — build it or mark it superseded"
 }

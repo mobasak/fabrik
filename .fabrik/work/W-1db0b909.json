@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T05:45:13.886342Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1db0b909",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WZ7HCATQB45ZGNDZ68ZVS8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: a ruling is needed on finding 01M3WXMWCKAVEFTEXWMRNKPJA7 (check_convergence's EXECUTED-plan advisory cannot read whole-plan reviews written before the Pass-row grammar). It went out as `kind: finding, ack: no`, so nothing obliges a reply, but web-ecommerce-factory work item W-a20cf62f (owner w"
+}
