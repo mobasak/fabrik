@@ -23,14 +23,27 @@ def fake_root(tmp_path, monkeypatch):
     real_template = Path("/opt/fabrik/templates/preplan/preplan.md.j2")
     (template_dir / "preplan.md.j2").write_text(real_template.read_text())
 
-    monkeypatch.setenv("FABRIK_ROOT", str(fake))
+    # Import the scaffold against the REAL root first: its module-level .gitignore block reads
+    # <FABRIK_ROOT>/scripts/fabrik_synced_manifest.py, which the fake root does not carry. Clear
+    # any FABRIK_ROOT an earlier test left behind (tests/test_state.py sets one and never restores
+    # it) so config resolves the real checkout before that first import.
     import fabrik.config
 
+    monkeypatch.delenv("FABRIK_ROOT", raising=False)
+    importlib.reload(fabrik.config)
+    import fabrik.scaffold  # noqa: F401
+
+    monkeypatch.setenv("FABRIK_ROOT", str(fake))
     importlib.reload(fabrik.config)
     import fabrik.preplan
 
     importlib.reload(fabrik.preplan)
-    return fake
+    yield fake
+    # Restore the real root for every later test: a reloaded config left pointing at this
+    # deleted tmp dir broke the first scaffold import of whichever test ran next.
+    monkeypatch.undo()
+    importlib.reload(fabrik.config)
+    importlib.reload(fabrik.preplan)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -172,7 +185,12 @@ class TestLayerPreplanIntoProject:
         assert copied.exists()
         assert copied.read_text() == preplan_path.read_text()
 
-    def test_injects_reference_into_all_4_guardrails(self, fake_root, tmp_path):
+    def test_b1_copies_only_and_never_edits_a_guardrail_file(self, fake_root, tmp_path):
+        """plan-1 B1 (D-529): the pre-plan is copied to docs/preplan.md and no guardrail file changes.
+
+        The four files the old step appended a ``Preplan:`` line to are all fleet-synced, so the
+        next sync overwrote the line; the governance CLAUDE.md points agents at docs/preplan.md.
+        """
         from fabrik.preplan import create_preplan, parse_preplan
         from fabrik.scaffold import _layer_preplan_into_project
 
@@ -181,60 +199,15 @@ class TestLayerPreplanIntoProject:
 
         project_dir = tmp_path / "fake-project"
         project_dir.mkdir()
-        # Create all 4 guardrail files with minimal stub content
-        for fname in ("AGENTS.md", "CLAUDE.md", "AGENTS-compact.md", ".windsurfrules"):
+        guardrails = ("AGENTS.md", "CLAUDE.md", "AGENTS-compact.md", ".windsurfrules")
+        for fname in guardrails:
             (project_dir / fname).write_text(f"# {fname}\n\nExisting content.\n")
 
         _layer_preplan_into_project(project_dir, pp)
 
-        for fname in ("AGENTS.md", "CLAUDE.md", "AGENTS-compact.md", ".windsurfrules"):
-            content = (project_dir / fname).read_text()
-            assert "Preplan:" in content
-            assert "docs/preplan.md" in content
-            # Original content preserved
-            assert "Existing content." in content
-
-    def test_skips_missing_guardrail_files_silently(self, fake_root, tmp_path):
-        from fabrik.preplan import create_preplan, parse_preplan
-        from fabrik.scaffold import _layer_preplan_into_project
-
-        preplan_path = create_preplan("partial", date="2026-05-15")
-        pp = parse_preplan(preplan_path)
-
-        project_dir = tmp_path / "fake-project"
-        project_dir.mkdir()
-        # Only one of the 4 guardrails exists
-        (project_dir / "AGENTS.md").write_text("# AGENTS\n")
-        # Don't create CLAUDE.md / AGENTS-compact.md / .windsurfrules
-
-        # Should not raise
-        _layer_preplan_into_project(project_dir, pp)
-
-        assert "Preplan:" in (project_dir / "AGENTS.md").read_text()
-        assert not (project_dir / "CLAUDE.md").exists()
-
-    def test_idempotent_does_not_duplicate_reference(self, fake_root, tmp_path):
-        from fabrik.preplan import create_preplan, parse_preplan
-        from fabrik.scaffold import _layer_preplan_into_project
-
-        preplan_path = create_preplan("idempotent", date="2026-05-15")
-        pp = parse_preplan(preplan_path)
-
-        project_dir = tmp_path / "fake-project"
-        project_dir.mkdir()
-        (project_dir / "AGENTS.md").write_text("# AGENTS\n")
-
-        _layer_preplan_into_project(project_dir, pp)
-        first_content = (project_dir / "AGENTS.md").read_text()
-
-        # Second invocation should be a no-op for files that already
-        # contain "Preplan:" + "docs/preplan.md"
-        _layer_preplan_into_project(project_dir, pp)
-        second_content = (project_dir / "AGENTS.md").read_text()
-
-        assert first_content == second_content
-        # Only one Preplan: reference, not two
-        assert first_content.count("Preplan:") == 1
+        assert (project_dir / "docs" / "preplan.md").read_text() == preplan_path.read_text()
+        for fname in guardrails:
+            assert (project_dir / fname).read_text() == f"# {fname}\n\nExisting content.\n"
 
     def test_none_preplan_is_no_op(self, tmp_path):
         from fabrik.scaffold import _layer_preplan_into_project

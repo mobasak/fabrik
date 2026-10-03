@@ -47,7 +47,7 @@ The scaffold writes the full project tree under `/opt/<name>/` and emits `specs/
 
 For API scaffolds (`python-api`, `node-api`, `file-api`), the scaffold also writes — automatically, no manual ticket needed — `internal_auth.py` (M2M `X-Internal-Token` validation via `hmac.compare_digest`), `metrics.py` (Prometheus business counters `REQUEST_COUNT` / `ERROR_COUNT` / `ACTIVE_JOBS` / `PROCESSING_COUNT`), `/metrics` endpoint (Authelia-bypassed), `glitchtip_init.py` / `glitchtip_init.js` (Sentry SDK pointed at GlitchTip; no-op if `GLITCHTIP_DSN` unset; wired in `main.py` BEFORE app construction), `SERVICE_INTERNAL_SECRET_KEY` line in `.env.example`, and a structured logger module (`logger.py` / `logger.js`) emitting JSON with `SERVICE_NAME` from env.
 
-The scaffold also propagates `.windsurfrules`, `.windsurf/rules/`, and `.windsurf/workflows/` so the new project carries the same agent contract.
+The scaffold also propagates `.windsurf/rules/` and `.windsurf/workflows/` (and the governance `CLAUDE.md`) so the new project carries the same agent contract.
 
 **Authoritative shape matrix:** `src/fabrik/spec_loader.py::Shape` docstring (divergence from `templates/<type>/defaults.yaml` is a failing test in `tests/test_spec_generator.py`).
 **Registrar applicability matrix:** `src/fabrik/orchestrator/infrastructure.py::resolve_applicability()`.

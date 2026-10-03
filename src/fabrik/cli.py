@@ -1810,10 +1810,9 @@ def _create_and_wire_github_repo(name: str, project_dir: Path, project_type: str
     default=None,
     help=(
         "Ingest a preplan from docs/preplans/<file>.md to pre-fill --description, "
-        "--type, shape:, secrets:, and domain in the generated spec. Adds a "
-        "'Preplan:' reference to all 4 AI guardrail files (AGENTS.md, CLAUDE.md, "
-        "AGENTS-compact.md, .windsurfrules) and copies the preplan into "
-        "<project>/docs/preplan.md."
+        "--type, shape:, secrets:, and domain in the generated spec, and copies the "
+        "preplan into <project>/docs/preplan.md (the governance CLAUDE.md points "
+        "agents at it)."
     ),
 )
 def scaffold(
@@ -2218,7 +2217,7 @@ def preplan():
     Capture project intent in docs/preplans/<date>-<slug>.md BEFORE
     running fabrik scaffold. The scaffold step ingests the preplan
     via --from-preplan to pre-fill type / shape / domain / secrets
-    and to layer a Preplan reference into all 4 AI guardrail files.
+    and copies it into the project as docs/preplan.md.
 
     Lifecycle:
       idea → fabrik preplan new <slug> → refine the markdown →

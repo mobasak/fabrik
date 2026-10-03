@@ -269,10 +269,10 @@ None: no spec `shape:` field, registrar or VPS changes.
 
 Every live doc that states the retired behaviour (`command grep -n 'review-context\|traycer-reports\|4 AI guardrail\|Preplan:'`
 over `docs/`): `docs/QUICKSTART.md:70-77` (the preplan comment and the AGENTS-compact line),
-`docs/reference/architecture.md:255-256` (the `.droid/review-context/` and `.droid/traycer-reports/` rows),
+`docs/reference/architecture.md:188` (the scaffold module-map line; the `.droid` rows of its runtime table describe the hub's own directories and stay),
 `docs/workflows/SCAFFOLD_STRUCTURE.md:27,70,147,263` (the scaffold-emitted rows and the `fix_project` repair line),
 `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md:266-268,444-446,604-613` (the `.droid/` tree and tables),
-`docs/CONFIGURATION.md:596`, `docs/reference/fabrik-cli-reference.md:26`, `docs/preplans/README.md:25` and
+`docs/CONFIGURATION.md:596-598`, `docs/workflows/development-and-deployment-workflow.md:50`, `docs/reference/fabrik-cli-reference.md:26`, `docs/preplans/README.md:25` and
 `docs/traycer/fabrik-workflow.md:92` (the injection),
 `docs/FEATURES.md:427,606` (a governance file, applied by the orchestrator), `CHANGELOG.md`. No file is added or
 removed, so `INDEX.md` is untouched. Infra owns `templates/governance/CLAUDE.md`, the manifest docs and

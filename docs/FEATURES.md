@@ -217,11 +217,11 @@ at the source beats routing at the destination (spec § Rejected alternative E).
 | [Deploy Command Triad](#deploy-command-triad) | ✅ Shipped | Operator | `/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → Gate-2 `/fabrik-deploy` — plan-governed, evidence-bound deploys wrapping `fabrik apply` |
 | [Deployment Verification](#deployment-verification--the-parity-contract) | ✅ Shipped | Operator | Per-project parity contract (`scripts/verify_prod_parity.py`) — `/fabrik-deploy-checklist` freezes it, `/fabrik-release` blocks on DRAFT, `/fabrik-deploy-verify` EXECUTES it as a blocking phase |
 | [Preplan Handoff](#preplan-handoff) | ✅ Shipped | Developer | Capture intent before scaffold; every agent reads the same intent |
-| [Project Scaffolding](#project-scaffolding) | ✅ Shipped | Developer | 12 scaffold types with `.droid/`, AI guardrails, and spec emission |
+| [Project Scaffolding](#project-scaffolding) | ✅ Shipped | Developer | 12 scaffold types with AI guardrails and spec emission |
 | [Documentation Enforcement](#documentation-enforcement) | ✅ Shipped | Developer | Never ship undocumented code again |
 | [9-Step Workflow](#9-step-workflow) | ✅ Shipped | Developer | Systematic code quality from plan to commit |
 | [AI Code Review](#ai-code-review) | ✅ Shipped | Developer | `/fabrik-review` — adversarial review gate: OpenRouter-pool finders + native Claude reviewers, converge to a no-op |
-| [Development Workspace](#development-workspace) | ✅ Shipped | Developer | `.droid/` per-project workspace for review artifacts, transcripts, cost tracking, model sync |
+| [Development Workspace](#development-workspace) | 🗄️ Retired | Developer | The `.droid/` per-project workspace; retired 2026-10-03 with its Kilo/Traycer tools (D-529) |
 | [Deploy State Store](#deploy-state-store) | ✅ Shipped | Operator | `.fabrik/state/` records what was deployed; feeds audit, destroy, export, verify |
 | [Registrar Audit & Reconcile](#registrar-audit--reconcile) | ✅ Shipped | Operator | Spec ↔ live drift detection across the fleet |
 | [Local Dev Loop](#local-dev-loop) | ✅ Shipped | Developer | `fabrik dev` / `fabrik logs --local` / `fabrik review` |
@@ -424,7 +424,7 @@ The Fabrik lifecycle begins with **intent capture**. Before `fabrik scaffold` cr
 2. Pre-fills the spec's `shape:` block from the preplan's "Shape preview" yaml
 3. Adopts the preplan's "Idea" first line as the project description
 4. Copies the preplan to `<project>/docs/preplan.md`
-5. **Appends a `Preplan:` reference line to all 4 AI guardrail files** — `AGENTS.md` (Traycer), `CLAUDE.md` (Claude Code), `AGENTS-compact.md` (Kilo), `.windsurfrules` (Windsurf) — so every downstream agent that opens the project reads the same intent
+5. Writes nothing into the guardrail files — the governance `CLAUDE.md` tells every agent to read `docs/preplan.md` when it exists (the per-file `Preplan:` line retired, D-529)
 
 ### How To Use
 
@@ -482,16 +482,14 @@ fabrik scaffold my-project --type python-api
 - `docs/` — Documentation with FEATURES.md, INDEX.md
 - `.env.example` — Environment template
 - `AGENTS.md` — file copy of `/opt/fabrik/AGENTS.md` (Traycer)
-- `AGENTS-compact.md` — file copy of `/opt/fabrik/AGENTS-compact.md` (Kilo CLI)
 - `CLAUDE.md` — file copy of `/opt/fabrik/templates/governance/CLAUDE.md` (Claude Code; the hub's own `CLAUDE.md` is the hub contract, never seeded) — *added T1-02 G-B5*
-- `.windsurfrules` — file copy of `/opt/fabrik/.windsurfrules` (compact synced contract file; consumed by non-Claude tooling — Windsurf Cascade itself is retired)
 - `.windsurf/rules/` — file copy of `/opt/fabrik/.windsurf/rules/`
 
 **Optional flags:**
 
 - `--github-create` (T1-02 G-B2): also creates a private GitHub repo at `mobasak/<name>` via `gh repo create … --yes`. Best-effort — missing `gh` binary or unauthenticated state log a warning and continue.
 
-**Output trailer:** Every successful scaffold ends with a `# Next: cd /opt/<name>; open Traycer …` hint pointing at the Traycer-managed workflow (T1-02 G-B4).
+**Output trailer:** Every successful scaffold ends with a `# Next: cd /opt/<name>; then run /fabrik-vision …` hint (`cli.py`).
 
 **Project Types:** `python-api`, `python-api-gpu`, `saas-skeleton`, `node-api`, `file-api`, `file-worker`, `wordpress`, `docusaurus`, `chrome-extension`, `office-extension`, `mobile-app`, `desktop-app`, `static-site`
 
@@ -597,23 +595,16 @@ PLAN → IMPLEMENT → SELF_REVIEW → FINAL_GATE → REVIEW → FINAL_GATE → 
 
 ## Development Workspace
 
-**Status:** ✅ Shipped | **Audience:** Developer | **Since:** v0.1
+**Status:** 🗄️ Retired 2026-10-03 (D-529) | **Audience:** Developer | **Since:** v0.1
 
-> **Headline:** Every scaffolded project gets a `.droid/` directory — the runtime workspace for review artifacts, Traycer dispatch reports, multi-model consultations, and development cost tracking.
+> **Headline:** The `.droid/` workspace served the retired Kilo/Traycer tools; the scaffold no longer creates it.
 
 ### What It Does
 
-`.droid/` is created by `fabrik scaffold` (part of `SHARED_DIRS` in `scaffold.py`) for all 12 scaffold types. `fabrik fix` also creates/updates it on existing projects. Only `review-context/` and `traycer-reports/` are git-tracked; everything else is gitignored runtime state — `/fabrik-review` bundles, Traycer dispatch reports, per-session transcripts, multi-model consultation JSON, the doc-generation queue/log, and a SQLite dev-tracker (`dev_tracker.db`) recording gate results, review costs, and workflow events.
-
-### How To Use
-
-```bash
-# Cost report across dev sessions
-python scripts/kilo_cost_report.py
-
-# Query the dev tracker
-python scripts/dev_tracker.py report summary
-```
+`fabrik scaffold` no longer creates `.droid/`. Its one live writer, `docs_updater.py`, creates `.droid/docs_queue/`
+and `.droid/docs_log/` itself, and the root `.gitignore` ignores both. `fabrik fix` removes the old Traycer markers
+(`.droid/review-context/.gitkeep`, `.droid/traycer-reports/.gitignore`), each directory when nothing else is in it,
+and a project's `scripts/kilo_47_agents_final.json`; it leaves an existing `.droid/.gitignore` as it is.
 
 ---
 

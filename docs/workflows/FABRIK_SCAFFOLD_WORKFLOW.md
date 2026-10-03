@@ -261,12 +261,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 
 ```
 /opt/my-project/
-├── .droid/
-│   ├── .gitignore                   # Blocks Kilo runtime files from git
-│   ├── review-context/
-│   │   └── .gitkeep                 # Tracked placeholder for Traycer plans
-│   └── traycer-reports/
-│       └── .gitignore               # Commits dir, gitignores *.md reports
 ├── .cache/                          # Cache directory (gitignored)
 ├── .tmp/                            # Temp files (gitignored, NOT /tmp/)
 ├── .windsurf/
@@ -387,14 +381,12 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 ├── .gitignore                       # Git ignore patterns
 ├── INDEX.md                         # Master file index
 ├── Makefile                         # Shortcuts: make dev, test, review
-├── opencode.json                    # Kilo CLI configuration
 ├── PORTS.md                         # Port allocation registry
 ├── .pre-commit-config.yaml          # Pre-commit hooks
 ├── project.yaml                     # Project metadata (source of truth)
 ├── pyproject.toml                   # Python project config
 ├── README.md                        # Project overview
-├── requirements.txt                 # Python dependencies
-└── .windsurfrules                   # Copied from /opt/fabrik/.windsurfrules
+└── requirements.txt                 # Python dependencies
 ```
 
 #### Files Created (70+)
@@ -406,7 +398,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `README.md` | `templates/scaffold/docs/PROJECT_README_TEMPLATE.md` | Project overview |
 | `CHANGELOG.md` | `templates/scaffold/docs/CHANGELOG_TEMPLATE.md` | Version history |
 | `AGENTS.md` | Copied from `/opt/fabrik/AGENTS.md` | AI agent instructions |
-| `.windsurfrules` | Copied from `/opt/fabrik/.windsurfrules` | Cascade compact agent contract |
 | `.gitignore` | Generated inline | Git ignore patterns |
 | `.env.example` | Generated inline | Env var template |
 | `requirements.txt` | Generated inline | Production Python dependencies |
@@ -418,7 +409,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `INDEX.md` | Generated inline | Master file index |
 | `PORTS.md` | Generated inline | Port allocation registry |
 | `project.yaml` | Generated inline | Project metadata — source of truth for sync |
-| `opencode.json` | Copied from Fabrik | Kilo CLI configuration |
 | **Documentation** | | |
 | `docs/README.md` | `templates/scaffold/docs/DOCS_INDEX_TEMPLATE.md` | Docs index |
 | `docs/QUICKSTART.md` | `templates/scaffold/docs/QUICKSTART_TEMPLATE.md` | Getting started |
@@ -441,9 +431,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | `Makefile` | `docker/Makefile.python` | Dev shortcuts (`make dev`, `make test`, `make review`) |
 | `compose.dev.yaml` | `docker/compose.dev.yaml.template` | Dev overlay with bind-mount hot reload |
 | `.dockerignore` | `docker/dockerignore.template` | Excludes `.venv`, `.git`, `__pycache__` from Docker context |
-| `.droid/.gitignore` | Generated inline | Blocks Kilo runtime files; tracks `review-context/` |
-| `.droid/review-context/.gitkeep` | Generated inline | Ensures `review-context/` is committed |
-| `.droid/traycer-reports/.gitignore` | Generated inline | Commits dir, gitignores `*.md` reports |
 | `scripts/runc` | `scripts/runc` | Check detached job status |
 | `scripts/rund` | `scripts/rund` | Run command in detached mode |
 | `scripts/rundsh` | `scripts/rundsh` | Shell into container |
@@ -484,11 +471,8 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 | File | Source | Purpose |
 |------|--------|---------|
 | `AGENTS.md` | `/opt/fabrik/AGENTS.md` | AI agent instructions |
-| `AGENTS-compact.md` | `/opt/fabrik/AGENTS-compact.md` | Compact agent instructions |
-| `.windsurfrules` | `/opt/fabrik/.windsurfrules` | Cascade agent contract |
 | `.windsurf/rules/*` | `/opt/fabrik/.windsurf/rules/` | Windsurf IDE rules (22 files) |
 | `.windsurf/workflows/*` | `/opt/fabrik/.windsurf/workflows/` | Cascade slash-command workflows |
-| `opencode.json` | `/opt/fabrik/opencode.json` | Kilo CLI configuration |
 
 **Why copied, not symlinked:** Prevents AI agents in child projects from discovering `/opt/fabrik` parent directory (session isolation).
 
@@ -560,10 +544,9 @@ data/
 output/
 *.log
 .venv/
-.droid/kilo_usage.jsonl
-.droid/reviews/
-.droid/kilo_models_cache.json
-.droid/.kilo_cache_last_refresh
+.factory/consultations/
+.droid/docs_queue/
+.droid/docs_log/
 ```
 
 **`.env.example`**:
@@ -599,18 +582,13 @@ After file creation, `fabrik scaffold` also:
 
 > See [Sync Projects Workflow](SYNC_PROJECTS_WORKFLOW.md) for details on `project.yaml` schema and sync mechanism.
 
-#### Review-artifact directory
+#### Retired: the `.droid/` review-artifact directory
 
-`fabrik scaffold` provisions the `.droid/` directory used for review-context artifacts:
-
-| Path | Purpose |
-|------|---------|
-| `.droid/review-context/` | Where agents save plan artifacts (`task-${TRAYCER_TASK_ID}.md`, unique per task) |
-| `.droid/.gitignore` | Commits `review-context/` only; blocks runtime files |
-| `.droid/review-context/.gitkeep` | Ensures directory is tracked by git |
-
-(The Kilo consumer of this directory — `kilo_code_review.py` — was retired to `scripts/archived/`
-by the M0 shrink ruling 2026-08-19; the directory remains for review-context artifacts.)
+`fabrik scaffold` no longer creates `.droid/` (D-529): its Kilo/Traycer consumers are retired, and the one live
+writer, `docs_updater.py`, creates `.droid/docs_queue/` and `.droid/docs_log/` itself (both ignored by the root
+`.gitignore`). `fabrik fix` removes the two old markers — `.droid/review-context/.gitkeep` and
+`.droid/traycer-reports/.gitignore` — and each directory when nothing else is in it, keeping and reporting any
+directory that still holds files.
 
 **Developer shortcuts (all available immediately after scaffold):**
 
@@ -1197,11 +1175,8 @@ class Config:
 ### Governance / agent instructions
 
 - `@/opt/fabrik/AGENTS.md` — full agent briefing (Traycer reads)
-- `@/opt/fabrik/AGENTS-compact.md` — compact contract (coding agents read; copied into every scaffolded project as `AGENTS.md`)
-- `@/opt/fabrik/.windsurfrules` — Cascade contract (copied into every scaffolded project)
 - `@/opt/fabrik/.windsurf/rules/` — 22 rule files (copied verbatim into every scaffolded project)
 - `@/opt/fabrik/.windsurf/workflows/` — 10 Cascade slash-command workflows (copied verbatim)
-- `@/opt/fabrik/opencode.json` — Kilo CLI config (copied verbatim)
 
 ### Cross-referenced docs
 

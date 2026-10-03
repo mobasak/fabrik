@@ -22,7 +22,7 @@ Example: `2026-05-15-citation-verifier.md`
    - `specs/services/<name>.yaml` shape block from `## 3. Shape preview`
    - service domain from `## 5. Domain`
    - secrets list from `## 4. External deps`
-   - copies the preplan into `<project>/docs/preplan.md` and adds a `Preplan:` reference line into all 4 AI guardrail files (`AGENTS.md` for Traycer, `CLAUDE.md` for Claude Code, `AGENTS-compact.md` for Kilo, `.windsurfrules` for Windsurf) so every agent that picks up the project knows the original intent.
+   - copies the preplan into `<project>/docs/preplan.md`; the project's `CLAUDE.md` tells every agent that picks up the project to read it, so the original intent is never re-derived.
 4. **Archive** — once the project is shipped, the preplan stays in `docs/preplans/` as historical record. Append a `## Status` block at the bottom marking the delivery date and the spec file that resulted.
 
 ## Why preplan first?

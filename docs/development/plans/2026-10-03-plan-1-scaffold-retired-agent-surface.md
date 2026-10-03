@@ -223,7 +223,7 @@ byte-identical), `TestFixProjectRootGitignorePatch` (`:245-308`, `kilo_usage` in
 - **Given** a root `.gitignore` holding the old eight-line `.droid` block among user lines, one of them `.droid/secrets.json`, **When** `fix_project` runs, **Then** the block is replaced by the reduced one, the user lines — `.droid/secrets.json` included — survive in order, and a second run reports no `.gitignore` change (A7; `scaffold.py:7266-7303`)
 - **Given** `fix_project` returning one addition, one `removed` entry and one `kept` entry; then only a `kept` entry; then one `could not remove` entry, **When** `fabrik fix` renders them, **Then** the addition prints `Added:`, the removal `Removed:`, the note without either label and outside the counts; the second run prints "No missing files - project structure is complete!" and exits 0; the third prints the failure, not the "complete" line, and exits 0 (A8; `cli.py:2038-2060`)
 
-## Phase B — The pre-plan copy stops writing into guardrail files; docs; Finish
+## Phase B — The pre-plan copy stops writing into guardrail files; docs; Finish — ✅ EXECUTED 2026-10-03 (Phase B commit, worktree-fleet; Finish below)
 
 Appetite: 50
 
@@ -237,10 +237,10 @@ Appetite: 50
 - Docstrings and help, same wording: `src/fabrik/preplan.py:1-8`, `src/fabrik/cli.py:1806-1818` (the `--from-preplan`
   help) and `:2198-2211` (the `preplan` group), `src/fabrik/portability.py:416-417` (the governance list loses
   `.windsurfrules`, `AGENTS-compact.md` and `KILO_CLI_RULES.md`).
-- Docs (`spec § Documentation landing sites`): `docs/QUICKSTART.md:70-77`, `docs/reference/architecture.md:255-256`,
+- Docs (`spec § Documentation landing sites`): `docs/QUICKSTART.md:70-77`, `docs/reference/architecture.md:188` (amended in execution — see § Execution notes),
   `docs/workflows/SCAFFOLD_STRUCTURE.md:27,70,147,263`, `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md:266-268,444-446,604-613`,
   `docs/CONFIGURATION.md:596`, `docs/reference/fabrik-cli-reference.md:26`, `docs/preplans/README.md:25`,
-  `docs/traycer/fabrik-workflow.md:92`; and through the
+  `docs/traycer/fabrik-workflow.md:92`, `docs/workflows/development-and-deployment-workflow.md:50`; and through the
   orchestrator's governance path (outside File Scope by the plan grammar) `docs/FEATURES.md:427,606` and `CHANGELOG.md`.
 
 **Consumes:** Phase A (the `.droid/` shape the docs describe).
@@ -299,6 +299,7 @@ Appetite: 50
 - docs/workflows/SCAFFOLD_STRUCTURE.md
 - docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md
 - docs/traycer/fabrik-workflow.md
+- docs/workflows/development-and-deployment-workflow.md
 - docs/superpowers/specs/2026-10-03-scaffold-retired-agent-surface-design.md
 - docs/development/reviews/2026-10-03-plan-1-scaffold-retired-agent-surface-review.md
 
@@ -386,6 +387,17 @@ as history.
 - **Phase A, red-on-revert:** 8 contract mutants in a throwaway worktree plus 4 review-fix mutants in a second one,
   each red then green; the one review-fix mutant for `test_a4b` ran in this worktree (not shared) and was restored
   from a backup, verified by grep and the test.
+
+- **Phase B, review-scoped:** `docs/reference/architecture.md:255-256` was the wrong landing site — that table lists the
+  HUB's own runtime directories (`/opt/fabrik/.droid/review-context` exists), which the scaffold change does not
+  touch; only the module-map line (`:188`) changes. The review found more scaffold-emitted rows the change made false:
+  `FABRIK_SCAFFOLD_WORKFLOW.md` (tree, files table, copied-files table, sample `.gitignore`, references),
+  `SCAFFOLD_STRUCTURE.md` (tree `:79-82`, copied-from-Fabrik row `:136`), `FEATURES.md` (index rows, generated
+  structure, output trailer), `CONFIGURATION.md:598` and `docs/workflows/development-and-deployment-workflow.md:50`.
+  Lines that describe infra's still-live sync code (`SYNC_PROJECTS_WORKFLOW.md:83,183`, `DATA_SYNC_WORKFLOW.md:84`)
+  stay with infra's half. The `tests/test_preplan.py` fixture also clears a `FABRIK_ROOT` left by
+  `tests/test_state.py` before its first scaffold import (every order now leaves only `test_state.py`'s own
+  pre-existing failure, filed W-019e468b).
 
 ## Pass Ledger
 

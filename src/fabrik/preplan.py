@@ -2,10 +2,10 @@
 
 Preplans live at ``docs/preplans/<YYYY-MM-DD>-<slug>.md`` and capture project
 intent BEFORE ``fabrik scaffold`` creates anything. The scaffold step reads
-them via :func:`parse_preplan` to pre-fill type / shape / domain / secrets;
-the four AI guardrail files (CLAUDE.md, AGENTS.md, AGENTS-compact.md,
-.windsurfrules) get a ``Preplan:`` reference line so every agent that opens
-the project knows the original intent without re-deriving it.
+them via :func:`parse_preplan` to pre-fill type / shape / domain / secrets,
+and copies the preplan into the project as ``docs/preplan.md``; the governance
+CLAUDE.md tells every agent that opens the project to read it, so the original
+intent is never re-derived.
 
 The 9 canonical sections (per ``templates/preplan/preplan.md.j2``):
 

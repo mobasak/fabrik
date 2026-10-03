@@ -413,8 +413,7 @@ services can be rebuilt on a fresh target.
 2. **`postgres-main`** Coolify Service deployed and reachable as `postgres-main:5432`
    from the `coolify` Docker network.
 3. **`redis-main`** Coolify Service deployed and reachable as `redis-main:6379`.
-4. **Fabrik governance files** synced (`AGENTS.md`, `CLAUDE.md`, `.windsurfrules`,
-   `AGENTS-compact.md`, `KILO_CLI_RULES.md`) — typically via
+4. **Fabrik governance files** synced (`AGENTS.md`, `CLAUDE.md`) — typically via
    `python3 scripts/sync_enforcement_to_projects.py --force` from a fabrik
    checkout on the target.
 5. **DNS provider** access (Cloudflare token) — not in this bundle; operator
