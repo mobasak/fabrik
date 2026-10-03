@@ -106,8 +106,9 @@ infra step 1). Nothing requires `.droid/` to exist.
    empty. It never acts through a symlink (a symlinked `.droid/` or marker directory is skipped and reported), never
    deletes a marker that is not a regular file, and reports — never raises on — a removal the filesystem refuses. The
    dry run reports exactly what the live run would do. `.droid/.gitignore` and the root `.gitignore` are rewritten to the
-   reduced content (`:7524-7528`, `:7546-7553`) — except when `.droid` itself is a symlink, where the whole `.droid`
-   block is skipped and reported. The `fabrik fix` command (`cli.py:2038-2058`) prints a removal as a removal and a kept
+   reduced content (`:7524-7528`, `:7546-7553`) — except that a `.droid` which is a symlink or not a directory is
+   skipped and reported, with nothing written inside it (the root `.gitignore` is still patched). The `fabrik fix`
+   command (`cli.py:2038-2060`) prints a removal as a removal and a kept
    directory as a note, never as "Added", still says the structure is complete when only notes remain, and exits 1 on a
    refused removal as it does on an unsupported file.
 4. `_layer_preplan_into_project` (`:6939-7005`) keeps copying the pre-plan to `docs/preplan.md` and stops writing
