@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — 30-ops.md's persistent-data checklist describes the check-and-warn backrest registrar (2026-10-03)
+
+The `has_persistent_data: true` item in `.windsurf/rules/core/30-ops.md` still said the backrest registrar "hardcodes `paths = [/opt/<name>/data]`" — behaviour fleet's plan-3 removed (merged at 9ee52047b; D-518, D-520). It now says the registrar writes no plan: it checks the service's named volumes, writable bind directories and its database dump at `/opt/backups/postgres/<db>` on the hub, warns (the hourly audit reports `drift`) for each one no host plan covers, and names the four warnings agents act on. Requested by fleet (mail 01M3ZEDP80, W-a489330d).
+
 ### Fixed — Five hub tests red at HEAD: two stale sources of truth fixed, three stale tests corrected (2026-10-03)
 
 `scripts/sysadmin/quota_dashboard.py`'s `PIPELINE_ORDER` lacked `fabrik-task` and `fabrik-command-improve`, so the Commands tab sorted them last unslotted. `commands/assemble_commands.py`'s stored after-text for plan-review's `term-edit` include predated the small-spec paragraph 815f85cb7 added, so an `extract()` rewrite would have deleted that paragraph from the source. Three tests were stale: the source-fallback oracle now blanks comments and boilerplate as the board does; the seat-rule golden values follow D-344/D-208 and no longer pin cells the parser reads from shared-fragment text (W-d7b0d34f); the model-doc test names `scripts/merge_request.py merge` as the merge protocol and drops a 150-line cap the doc outgrew on 2026-09-16. W-dbb0eeec.

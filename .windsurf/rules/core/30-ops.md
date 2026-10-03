@@ -216,11 +216,13 @@ claim about RUNTIME, not a config value** — the registrar believes it and wire
       non-fatal and `add_scrape_target` only means "job appended to file".  Verify the built image serves the
       path before the flag goes in the spec, and assert target health (`/api/v1/targets` → `up`), never a
       bare `curl` of a path you assumed.
-- [ ] **`has_persistent_data: true` ⇒ name WHERE the data actually lives.** The backrest registrar
-      hardcodes `paths = [/opt/<name>/data]` regardless of reality, so a service persisting to a NAMED
-      VOLUME gets a plan pointed at a directory that never exists — a paper backup that reads green and
-      archives nothing.  If the data is a volume, say so in the spec comment and rely on the global `docker-volumes`
-      plan; never let a service-named plan be mistaken for the protection.
+- [ ] **`has_persistent_data: true` ⇒ the data is covered by a HOST plan.** The backrest registrar writes no
+      plan (D-518): it discovers the service's named volumes and writable bind directories, plus its
+      database's dump at `/opt/backups/postgres/<db>` on the hub, and warns — the hourly audit reports `drift` —
+      for each one no host plan covers. Read the deploy's `backrest:` warnings: `unprotected: <path>` or
+      `database <db>: no dump covered` means a host plan (e.g. `docker-volumes`, `postgres-dumps`) must be
+      extended by the operator, and `paper plan <name>-data: remove it` (or `paper plan postgres-<db>:
+      remove it` on the hub) names a plan that protects nothing. Never add a service-named plan.
 - [ ] **Cold start: does the datastore initialise ITSELF?** Read the base image's entrypoint, the compose
       `command:`, and any baked init script — do not assume. If nothing initialises the schema, a
       health-enabled service can NEVER pass `up -d --wait` on a fresh database, and the deploy hangs to
