@@ -106,7 +106,7 @@ GOVERNANCE_FILES = [
 # root. De-listing alone deletes nothing (the governance leg only copies what is listed), so a
 # retired file needs this list exactly as RETIRED_CORE_SCRIPTS does. D-529 (spec 2026-10-03
 # scaffold-retired-agent-surface): the Kilo/opencode and Windsurf agents are not used (D-364,
-# D-514). The HUB copies stay until fleet's scaffold half stops copying them (infra step 6).
+# D-514). The hub's own copies are archived under docs/archive/2026-10-03-retired-agent-bootstraps/.
 RETIRED_GOVERNANCE_FILES = [
     "AGENTS-compact.md",  # read only by opencode.json's `instructions`
     "opencode.json",  # Kilo/opencode config

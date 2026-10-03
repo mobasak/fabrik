@@ -17,8 +17,10 @@ ALLOWED_ROOT_MD = {
     "CHANGELOG.md",
     "tasks.md",
     "AGENTS.md",
-    # AGENTS-compact.md is RETIRED (D-529): the sync prunes it, but the scaffold still writes it
-    # until fleet's half merges, so it stays allowed until the hub copy is deleted (infra step 6).
+    # AGENTS-compact.md is RETIRED (D-529/D-537) and nothing writes it any more, but it stays
+    # allowed: the worktree prune leaves a copy it cannot prove the sync wrote (11 worktrees on
+    # 2026-10-03), and once a branch takes the regenerated .gitignore that copy is untracked and
+    # unignored — this blocking row would then fail a gate over a dead file.
     "AGENTS-compact.md",
     # agents-fabrik.md (2026-07-12): the autonomous-factory orientation file — a
     # direct peer of AGENTS.md (same infra map, reframed for our tool-capable

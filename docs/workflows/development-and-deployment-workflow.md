@@ -1,7 +1,7 @@
 # Fabrik Development & Deployment Workflow — End-to-End
 
 **Audience:** Owner reference + onboarding agents (Traycer / Claude Code / Cascade / Kilo CLI).
-**Authority:** This document narrates the workflow. Authoritative rule sources stay in [AGENTS.md](../../AGENTS.md), [CLAUDE.md](../../CLAUDE.md), [.windsurfrules](../../.windsurfrules), [AGENTS-compact.md](../../AGENTS-compact.md), and the topic packs under [.windsurf/rules/](../../.windsurf/rules/). When this document and a rule file disagree, the rule file wins — update this document.
+**Authority:** This document narrates the workflow. Authoritative rule sources stay in [AGENTS.md](../../AGENTS.md), [CLAUDE.md](../../CLAUDE.md), and the topic packs under [.windsurf/rules/](../../.windsurf/rules/). When this document and a rule file disagree, the rule file wins — update this document.
 **Updated:** 2026-07-20
 
 > **⚠️ Partially pre-migration vintage.** Sections that mention Coolify
@@ -25,8 +25,7 @@ Four families of files orchestrate the agents:
 |---|---|---|
 | [AGENTS.md](../../AGENTS.md) | **Traycer** (planner) | Identity, infrastructure inventory, pack registry, pre-flight, planning constraints |
 | [CLAUDE.md](../../CLAUDE.md) | **Claude Code** (coder) | Always-on rules + HARD STOPS for Claude Code |
-| [.windsurfrules](../../.windsurfrules) | **Windsurf Cascade** (coder) | Always-on rules + HARD STOPS for Cascade |
-| [AGENTS-compact.md](../../AGENTS-compact.md) | **Kilo CLI** (coder, via `opencode.json`) | Self-contained always-on rules for Kilo |
+| [docs/archive/2026-10-03-retired-agent-bootstraps/](../../docs/archive/2026-10-03-retired-agent-bootstraps/) | — (RETIRED: Windsurf Cascade's `.windsurfrules`, Kilo CLI's `AGENTS-compact.md` via `opencode.json`; D-529) | Archived; nothing reads them |
 | [.windsurf/rules/](../../.windsurf/rules/) (55 packs) | All 3 coders | Scope-relevant topic deep-dives, loaded on demand |
 
 ---
@@ -78,8 +77,8 @@ Three coding paths, each with its own bootstrap:
 | Coder | Bootstrap | How packs reach it |
 |---|---|---|
 | **Claude Code** | [CLAUDE.md](../../CLAUDE.md) (≤6,000 chars, enforced) | Reads scope-relevant packs from `.windsurf/rules/` on demand |
-| **Windsurf Cascade** | [.windsurfrules](../../.windsurfrules) | Cascade auto-loads packs via frontmatter (`activation: glob` or `model_decision`) |
-| **Kilo CLI** | `AGENTS-compact.md` | the Kilo dispatcher (retired 2026-08-15) injects the bootstrap + selectively-chosen packs into every prompt |
+| **Windsurf Cascade** (RETIRED) | `.windsurfrules`, archived in [docs/archive/2026-10-03-retired-agent-bootstraps/](../../docs/archive/2026-10-03-retired-agent-bootstraps/) | Cascade auto-loaded packs via frontmatter (`activation: glob` or `model_decision`) |
+| **Kilo CLI** (RETIRED) | `AGENTS-compact.md`, archived (D-529) | the Kilo dispatcher (retired 2026-08-15) injects the bootstrap + selectively-chosen packs into every prompt |
 
 All three carry the same always-on contract: **FIRST OUTPUT line** (`RULES ACTIVE: <agent> | <3 rules applied>`), **Orient** (read `project.yaml`, `AFCL.md`, scope-relevant packs), **Behavior** (check-before-create, present-before-execute, stay-on-task, surface state conflicts), **Completion Contract** (IMPLEMENT → GATE → CHANGELOG → LESSONS LEARNT → EXIT), and a **HARD STOPS** table forbidding `git commit/push` without explicit user ask, `localhost` in connection strings, Alpine base images, raw `pip install`, Authelia SIGHUP, Gatus UUID names, `/tmp/` usage, FastAPI `except Exception` swallowing `HTTPException`, etc.
 
@@ -236,7 +235,7 @@ Traycer reads AGENTS.md
        ↓  → injects rule-packs into prompt (default + feature overlays, ≤40 lines)
        ↓  → emits tickets (Scope / AC / Final Gate / Lessons Learnt)
        ↓
-You pick a coder:  Claude Code (CLAUDE.md) | Cascade (.windsurfrules) | Kilo CLI (AGENTS-compact.md)
+The coder:  Claude Code (CLAUDE.md)  — Cascade and Kilo CLI are retired (D-514, D-529)
        ↓
 Coder loads bootstrap + scope-relevant packs from .windsurf/rules/
        ↓
