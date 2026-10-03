@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed — 81-mobile-billing.md: store builds need the RevenueCat keys as EAS environment variables (2026-10-04)
-A scaffolded mobile project gitignores `.env`, so an EAS store build never sees the RevenueCat keys set there and configures RevenueCat with an empty key. The pack now says to set both public keys as EAS environment variables per build profile (`eas env:create`). Guard: `test_pack_says_store_builds_need_the_keys_as_eas_env_vars`, red before the change. W-ea9bfb04 (the EAS part; the secret-classification and stale-spec parts stay open).
+A scaffolded mobile project gitignores `.env`, and EAS Build skips what `.gitignore` excludes, so a store build never sees the RevenueCat keys set there and calls `configure` with no key (`undefined`). The pack now says to set both public keys as EAS environment variables in every environment the build profiles use (`eas env:set … --visibility plaintext`), never with secret visibility, which EAS cannot embed in the bundle. Guard: `test_pack_says_store_builds_need_the_keys_as_eas_env_vars`, red before the change. W-ea9bfb04 (the EAS part; the secret-classification and stale-spec parts stay open).
 
 ### Changed — The hub's retired agent bootstraps are archived, and their live mentions are gone (2026-10-04)
 
