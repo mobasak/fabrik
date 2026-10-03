@@ -8091,3 +8091,54 @@ def test_the_promise_reader_and_the_tier_reader_agree_on_which_bytes_are_line_on
         os.utime(s, (FLEET_NOW, FLEET_NOW))
         assert cr._promised_resume(s) == float(far), f"pre-tier {body!r} must still promise"
         assert cr._stamp_tier(s) == "walled", f"pre-tier {body!r} must still hold"
+
+
+def test_a_ledger_row_that_cannot_be_written_is_reported_not_dropped(tmp_path, monkeypatch, capsys):
+    """W-16ebba0a: on 2026-09-29 the active pointer moved sarp -> mob with no flip row. The only
+    pointer writer, `_flip_active`, writes the pointer FIRST and the ledger row SECOND, and a failed
+    append was swallowed in silence — the one record of a fleet-wide account change gone, no trace.
+    A row that cannot be written must say so on stderr (the cron tick sends 2>&1 to its log)."""
+    not_a_dir = tmp_path / "state-is-a-file"
+    not_a_dir.write_text("", encoding="utf-8")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(not_a_dir))
+    fallback = tmp_path / "fallback.jsonl"
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(fallback))
+    cr._ledger_append({"event": "flip", "ts": 1.0, "from": "sarp", "to": "mob"})
+    err = capsys.readouterr().err
+    assert "rotate ledger" in err and '"to": "mob"' in err, err
+    # durable whoever owns stderr: the dashboard's --switch captures stderr and drops it on rc 0
+    assert '"to": "mob"' in fallback.read_text(encoding="utf-8")
+
+
+def test_a_closed_stderr_never_makes_the_ledger_raise(tmp_path, monkeypatch):
+    """The report path must not raise either: a flip has already moved the pointer when its row is
+    written, and an escape here skips the posture invalidation and crashes --switch at rc 1."""
+    not_a_dir = tmp_path / "state-is-a-file"
+    not_a_dir.write_text("", encoding="utf-8")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(not_a_dir))
+    fallback = tmp_path / "fallback.jsonl"
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(fallback))
+    monkeypatch.setattr(cr.sys, "stderr", None)
+    cr._ledger_append({"event": "flip", "to": "mob"})
+    assert '"to": "mob"' in fallback.read_text(encoding="utf-8")
+
+
+def test_a_row_json_cannot_encode_is_still_reported_and_never_raises(tmp_path, monkeypatch, capsys):
+    """The report path must not itself raise: an event json rejects (ValueError, inside the caught
+    set) used to escape the except branch, breaking `_ledger_append`'s never-raises contract."""
+    not_a_dir = tmp_path / "state-is-a-file"
+    not_a_dir.write_text("", encoding="utf-8")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(not_a_dir))
+    event: dict = {"event": "flip", "to": "mob"}
+    event["self"] = event  # circular — json.dumps raises ValueError
+    cr._ledger_append(event)
+    assert "rotate ledger write failed" in capsys.readouterr().err
+
+
+def test_an_unencodable_row_on_a_healthy_ledger_is_written_not_raised(tmp_path, monkeypatch):
+    """A `set` in an event made the FIRST json.dumps raise TypeError, which no except caught — on a
+    perfectly writable ledger. The row is written in a degraded but readable form instead."""
+    state = tmp_path / "state"
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    cr._ledger_append({"event": "flip", "to": "mob", "odd": {1, 2}})
+    assert "unencodable_event" in (state / "rotate-ledger.jsonl").read_text(encoding="utf-8")

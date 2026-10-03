@@ -407,17 +407,13 @@ def _activate_snapshot(
         # a marker-write failure must not fail an already-completed swap (token-match still recovers).
         try:
             _secure_write(ACTIVE_MARKER, target.name.encode())
-            # closer #5: EVERY switch writer starts the dwell clock — a manual --switch/
-            # --next/aro-wake rotation invisible to the ledger let the tick re-rotate
-            # minutes later, defeating the hysteresis the plan promises
-            try:
-                _ledger_append(
-                    {"event": "switch", "ts": _now(), "to": target.name, "via": "activate"}
-                )
-            except Exception:  # noqa: BLE001 — audit only, never a switch-blocker
-                pass
-        except OSError:
-            pass
+        except OSError as exc:
+            sys.stderr.write(f"claude_rotate: active marker write failed ({exc}) — swap stands\n")
+        # closer #5: EVERY switch writer starts the dwell clock — a manual --switch/--next/aro-wake
+        # rotation invisible to the ledger let the tick re-rotate minutes later, defeating the
+        # hysteresis. Ledgered OUTSIDE the marker's try: a failed marker used to skip the row in
+        # silence (W-16ebba0a review C3). `_ledger_append` never raises.
+        _ledger_append({"event": "switch", "ts": _now(), "to": target.name, "via": "activate"})
         # fsync the CONTAINING DIRECTORY so the rename (directory-entry update) is also
         # crash-durable, not just the file data (_secure_write already fsync'd that). Together
         # they make the swap genuinely power-loss-safe. Best-effort — a fsync failure here does
@@ -2279,11 +2275,44 @@ def _usable_ts(ts: object) -> float | None:
 
 # The ledger is an audit trail, never a crash source — an escape from these readers aborts the tick
 # mid-flight, taking the drain broadcast with it.
+def _ledger_fallback_path() -> Path:
+    """Where a row the ledger refused goes: the system temp dir, per uid — a different directory
+    from the state dir whose failure sent it here, readable by the operator and by --status."""
+    override = os.environ.get("ROTATE_LEDGER_FALLBACK")
+    if override:
+        return Path(override)
+    return Path(tempfile.gettempdir()) / f"claude-rotate-ledger-fallback-{os.getuid()}.jsonl"
+
+
 def _ledger_append(event: dict) -> None:
+    """Append one row; never raises (the tick must keep running), never drops a row in SILENCE.
+
+    A flip writes the pointer FIRST and this row SECOND, so a failed append leaves the fleet on a
+    new account with no record of the move — W-16ebba0a, 2026-09-29: the pointer went sarp -> mob
+    and nothing could say who did it. A refused row goes to :func:`_ledger_fallback_path` (durable
+    whoever owns stderr — the dashboard's --switch captures stderr and drops it on rc 0) and to
+    stderr (the cron tick sends 2>&1 to rotate-tick.log). Neither report can raise."""
+    try:
+        row = json.dumps(event)
+    except (TypeError, ValueError):  # encoded ONCE, before any write, so neither path can raise
+        row = json.dumps({"unencodable_event": repr(event)})
     try:
         with (_rotate_state_dir() / "rotate-ledger.jsonl").open("a") as fh:
-            fh.write(json.dumps(event) + "\n")
-    except _STATE_DIR_ERRORS:
+            fh.write(row + "\n")
+        return
+    except _STATE_DIR_ERRORS as exc:
+        reason = str(exc)
+    try:
+        with _ledger_fallback_path().open("a") as fh:
+            fh.write(row + "\n")
+        where = f"; kept in {_ledger_fallback_path()}"
+    except OSError:
+        where = "; the fallback file failed too"
+    try:
+        sys.stderr.write(
+            f"claude_rotate: rotate ledger write failed ({reason}){where} — row: {row}\n"
+        )
+    except Exception:  # noqa: BLE001 — stderr closed or a broken pipe: the fallback file holds it
         pass
 
 

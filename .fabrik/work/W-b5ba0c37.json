@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T10:07:08.126662Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b5ba0c37",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "take an exclusive flock on a ledger lock file in _ledger_append and _ledger_rotate, and write the trim as tmp + os.replace; heavy surface (concurrency) — full /fabrik-review",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rotation"
+  ],
+  "title": "claude_rotate._ledger_rotate trims rotate-ledger.jsonl read-then-truncate with no lock, and _flip_active/_ledger_append take none: a --switch flip row appended between the trim's read and write is lost in silence (a third 'pointer moved, no row' path; W-16ebba0a review C4, simulated)"
+}

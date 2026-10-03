@@ -180,6 +180,8 @@ def _isolated_opt_dir(tmp_path, _private_monkeypatch):
     state.mkdir(exist_ok=True)
     monkeypatch.setenv("FABRIK_OPT_DIR", str(opt))
     monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    # a refused rotate-ledger row goes to a fallback file in the system temp dir (W-16ebba0a)
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(state / "ledger-fallback.jsonl"))
     # ⚠️ The SECOND sink, and the one that fires FIRST: the fleet-exhausted branch calls
     # `_tick_telegram` before `_drain_mail`, and the notifier is resolved from `Path.home()`, which
     # nothing here pins. The first cut of this fixture closed only the mailbox half, leaving a test
