@@ -118,8 +118,9 @@ infra step 1). Nothing requires `.droid/` to exist.
    `.droid/traycer-reports/.gitignore`) and then each directory only when it is empty; a symlinked or non-directory
    `.droid` is skipped and reported. It never acts through a symlink, never deletes a marker that is not a regular file,
    and reports — never raises on — a filesystem refusal. It also removes the project's
-   `scripts/kilo_47_agents_final.json` when that is a regular file (38 project copies today; read only on the hub). The
-   dry run reports exactly what the live run would do. The root `.gitignore` is still patched to the reduced block
+   `scripts/kilo_47_agents_final.json` when that is a regular file and `scripts/` is not a symlink (38 project copies
+   today; read only on the hub). On a tree the user may write, the dry run reports exactly what the live run does; a
+   refusal the filesystem raises only on the write shows on the live run. The root `.gitignore` is still patched to the reduced block
    (`:7546-7553`) for every project. The `fabrik fix` command (`cli.py:2038-2060`) prints a removal as a removal, a kept
    directory as a note, and a refusal as a warning — never as "Added" — and does not claim the structure is complete
    when a refusal is listed; a refusal leaves dead residue, not a missing file, so it does not change the exit status.

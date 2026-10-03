@@ -1,6 +1,6 @@
 # Plan — the scaffold stops emitting the retired Kilo/Traycer/Windsurf surface (mail 01M407YP)
 
-Status: CONVERGED 2026-10-03 (/fabrik-plan-review passes 1-6 + two design critiques) — approved by the operator 2026-10-03 (D-529)
+Status: IN-PROGRESS 2026-10-03 — CONVERGED by /fabrik-plan-review passes 1-6 + two design critiques; approved by the operator (D-529)
 Profile: small
 **Owner:** fleet
 
@@ -112,7 +112,7 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | "**No skipped heading levels** — `##` to `###`, never `##` to `####`" | `.windsurf/rules/core/40-documentation.md:241` | Docs |
 | "Mandate: config via env vars only (`os.getenv("KEY", "default")`); **ZERO secrets/constants in code**." | `.windsurf/rules/core/35-security-auth.md:267` | Config (not engaged) |
 
-## Phase A — `_scaffold_shared` and `fix_project` stop emitting the retired surface
+## Phase A — `_scaffold_shared` and `fix_project` stop emitting the retired surface — ✅ EXECUTED 2026-10-03 (Phase A commit, worktree-fleet)
 
 Appetite: 75
 
@@ -371,6 +371,21 @@ as history.
 - **Resolved:** who reads each retired artifact (`spec § What exists today`); that today's `_patch_droid_block` drops
   user lines (executed above; A7 changes it); the merge order (`spec § Contract deltas`); that de-listing deletes no
   project copy (`sync_enforcement_to_projects.py:2023-2030`, `prune_retired_scripts` at `:1764`).
+
+## Execution notes
+
+- **Phase A, A1 deviation:** the row says the root `.gitignore` carries "no line containing `kilo`". The manifest's synced
+  block legitimately ignores `docs/reference/kilo/` (a live, kept directory), so the test asserts instead that the only
+  `.droid/`/`.factory/` lines are the reduced block's three and that no line names `traycer`.
+- **Phase A, review-scoped (12→2→0):** the review added a `scripts/`-is-a-symlink guard to the kilo_47 removal (a symlinked
+  `scripts/` could have deleted the hub's copy), wrapped the `.droid` probe in the same `OSError` reporting, tightened
+  `_patch_droid_block`'s fast path so a stray retired line beside a current block is still dropped, renamed the CLI's
+  count to "retired paths", and widened A4, A6 and A8. The dry-run sentence of the spec now states its limit: on a
+  writable tree dry equals live; a refusal raised only by the write shows on the live run. Two pre-existing root
+  `.gitignore` defects (a symlinked or non-file `.gitignore`) are filed as W-2eb9f73e.
+- **Phase A, red-on-revert:** 8 contract mutants in a throwaway worktree plus 4 review-fix mutants in a second one,
+  each red then green; the one review-fix mutant for `test_a4b` ran in this worktree (not shared) and was restored
+  from a backup, verified by grep and the test.
 
 ## Pass Ledger
 

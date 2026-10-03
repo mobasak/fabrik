@@ -6,9 +6,8 @@ from pathlib import Path
 import pytest
 
 from fabrik.scaffold import (
-    _DROID_DIR_GITIGNORE,
     _DROID_GITIGNORE_BLOCK,
-    _TRAYCER_REPORTS_GITIGNORE,
+    _RETIRED_DROID_GITIGNORE_LINES,
     _patch_droid_block,
     create_project,
     fix_project,
@@ -26,19 +25,15 @@ requires_fabrik_env = pytest.mark.skipif(
 class TestDroidGitignoreBlock:
     """Test _DROID_GITIGNORE_BLOCK constant correctness."""
 
-    def test_constant_contains_required_entries(self):
-        """Verify all required runtime files are in the constant."""
-        required = [
-            ".droid/kilo_usage.jsonl",
-            ".droid/reviews/",
-            ".droid/kilo_models_cache.json",
-            ".droid/.kilo_cache_last_refresh",
+    def test_constant_holds_only_the_live_entries(self):
+        """The block ignores docs_updater's two dirs and .factory/consultations/, nothing retired."""
+        assert _DROID_GITIGNORE_BLOCK.splitlines() == [
+            ".factory/consultations/",
             ".droid/docs_queue/",
             ".droid/docs_log/",
-            ".droid/traycer-reports/*.md",
         ]
-        for entry in required:
-            assert entry in _DROID_GITIGNORE_BLOCK, f"Missing {entry}"
+        for retired in _RETIRED_DROID_GITIGNORE_LINES:
+            assert retired not in _DROID_GITIGNORE_BLOCK, retired
 
     def test_no_dead_entries(self):
         """Verify removed phantom files are not in the constant."""
@@ -62,12 +57,13 @@ class TestPatchDroidBlock:
         assert result.startswith(".env\n")
 
     def test_replace_scattered_entries(self):
-        """Replace scattered .droid/ entries with canonical block."""
-        content = ".env\n.droid/old1\nlogs/\n.droid/old2\n*.log\n"
+        """Replace scattered scaffold-written entries; a project's own .droid/ lines survive."""
+        content = ".env\n.droid/reviews/\nlogs/\n.droid/old2\n.droid/kilo_usage.jsonl\n*.log\n"
         result = _patch_droid_block(content, _DROID_GITIGNORE_BLOCK)
         assert ".droid/docs_queue/" in result
-        assert ".droid/old1" not in result
-        assert ".droid/old2" not in result
+        assert ".droid/reviews/" not in result
+        assert ".droid/kilo_usage.jsonl" not in result
+        assert ".droid/old2\n" in result  # the project's own line
         assert "logs/\n" in result  # Non-.droid/ content preserved
 
     def test_noop_when_already_updated(self):
@@ -76,14 +72,21 @@ class TestPatchDroidBlock:
         result = _patch_droid_block(content, _DROID_GITIGNORE_BLOCK)
         assert result == content
 
+    def test_canonical_present_still_drops_a_stray_retired_line(self):
+        """The fast path never keeps a retired line sitting beside an already-current block."""
+        content = ".env\n" + _DROID_GITIGNORE_BLOCK + ".droid/reviews/\n*.log\n"
+        result = _patch_droid_block(content, _DROID_GITIGNORE_BLOCK)
+        assert ".droid/reviews/" not in result
+        assert result.count(".droid/docs_queue/") == 1
+
     def test_replace_contiguous_block(self):
-        """Replace contiguous .droid/ entries."""
+        """Replace contiguous retired entries with the reduced block."""
         content = (
             ".env\n.droid/kilo_usage.jsonl\n.droid/reviews/\n.droid/kilo_models_cache.json\n*.log\n"
         )
         result = _patch_droid_block(content, _DROID_GITIGNORE_BLOCK)
         assert ".droid/docs_queue/" in result
-        assert result.count(".droid/kilo_usage.jsonl") == 1  # Not duplicated
+        assert ".droid/kilo_usage.jsonl" not in result  # retired, so replaced
 
 
 @requires_fabrik_env
@@ -115,16 +118,11 @@ class TestScaffoldGitignoreCoverage:
         assert gitignore_path.exists(), f".gitignore not created for {project_type}"
         content = gitignore_path.read_text()
 
-        # Verify all required entries from _DROID_GITIGNORE_BLOCK are present
-        required_entries = [
-            ".droid/kilo_usage.jsonl",
-            ".droid/reviews/",
-            ".droid/docs_queue/",
-            ".droid/docs_log/",
-            ".droid/traycer-reports/*.md",
-        ]
-        for entry in required_entries:
+        # The reduced _DROID_GITIGNORE_BLOCK is present and no retired line is
+        for entry in (".droid/docs_queue/", ".droid/docs_log/"):
             assert entry in content, f"{entry} missing in {project_type} .gitignore"
+        for retired in _RETIRED_DROID_GITIGNORE_LINES:
+            assert retired not in content, f"{retired} still in {project_type} .gitignore"
 
 
 @requires_fabrik_env
@@ -184,62 +182,42 @@ class TestProjectYamlHasUserGuide:
 
 
 class TestFixProjectDroidStructure:
-    """Test fix_project() repairs .droid/ structure."""
+    """fix_project() no longer creates or rewrites anything under .droid/ (D-529)."""
 
-    def test_creates_missing_droid_structure(self, tmp_path):
-        """fix_project() creates missing .droid/ directories and files."""
+    def test_creates_no_droid_structure(self, tmp_path):
+        """fix_project() leaves a project without .droid/ without one."""
         project_dir = tmp_path / "test-project"
         project_dir.mkdir()
         (project_dir / ".git").mkdir()  # Make it look like a git repo
 
-        # Run fix_project
-        _ = fix_project(project_dir, project_type="python-api", dry_run=False)
+        added = fix_project(project_dir, project_type="python-api", dry_run=False)
 
-        # Verify .droid/ structure
-        assert (project_dir / ".droid" / ".gitignore").exists()
-        assert (project_dir / ".droid" / "review-context" / ".gitkeep").exists()
-        assert (project_dir / ".droid" / "traycer-reports" / ".gitignore").exists()
+        assert not (project_dir / ".droid").exists()
+        assert not any(".droid" in item and "block updated" not in item for item in added)
 
-        # Verify canonical content
-        droid_gitignore = (project_dir / ".droid" / ".gitignore").read_text()
-        assert droid_gitignore == _DROID_DIR_GITIGNORE
-
-        traycer_gitignore = (project_dir / ".droid" / "traycer-reports" / ".gitignore").read_text()
-        assert traycer_gitignore == _TRAYCER_REPORTS_GITIGNORE
-
-    def test_updates_outdated_droid_gitignore(self, tmp_path):
-        """fix_project() updates outdated .droid/.gitignore."""
+    def test_leaves_an_existing_droid_gitignore_alone(self, tmp_path):
+        """An existing .droid/.gitignore is byte-identical after fix_project()."""
         project_dir = tmp_path / "test-project"
         project_dir.mkdir()
         (project_dir / ".git").mkdir()
         droid_dir = project_dir / ".droid"
         droid_dir.mkdir()
-
-        # Write old content
         (droid_dir / ".gitignore").write_text("# Old content\n*\n")
 
         _ = fix_project(project_dir, project_type="python-api", dry_run=False)
 
-        # Verify content was updated
-        droid_gitignore = (droid_dir / ".gitignore").read_text()
-        assert "# Kilo/Traycer runtime files" in droid_gitignore
-        content = (droid_dir / ".gitignore").read_text()
-        assert content == _DROID_DIR_GITIGNORE
+        assert (droid_dir / ".gitignore").read_text() == "# Old content\n*\n"
 
-    def test_dry_run_reports_droid_changes(self, tmp_path):
-        """fix_project() dry_run accurately reports .droid/ changes."""
+    def test_dry_run_reports_no_droid_writes(self, tmp_path):
+        """fix_project() dry_run reports no .droid/ creation and writes nothing."""
         project_dir = tmp_path / "test-project"
         project_dir.mkdir()
         (project_dir / ".git").mkdir()
 
         added = fix_project(project_dir, project_type="python-api", dry_run=True)
 
-        assert any(".droid/.gitignore" in item for item in added)
-        assert any("review-context/.gitkeep" in item for item in added)
-        assert any("traycer-reports/.gitignore" in item for item in added)
-
-        # Verify nothing was actually written
-        assert not (project_dir / ".droid" / ".gitignore").exists()
+        assert not any(".droid/.gitignore" in item for item in added)
+        assert not (project_dir / ".droid").exists()
 
 
 class TestFixProjectRootGitignorePatch:
@@ -262,7 +240,7 @@ class TestFixProjectRootGitignorePatch:
         content = (project_dir / ".gitignore").read_text()
         assert ".droid/docs_queue/" in content
         assert ".droid/docs_log/" in content
-        assert content.count(".droid/kilo_usage.jsonl") == 1  # Not duplicated
+        assert ".droid/kilo_usage.jsonl" not in content  # retired, so replaced
 
     def test_appends_when_no_droid_entries(self, tmp_path):
         """fix_project() appends .droid/ block when missing entirely."""
@@ -306,47 +284,6 @@ class TestFixProjectRootGitignorePatch:
         assert ".gitignore (.droid/ block updated)" in added
         # Verify file wasn't actually modified
         assert (project_dir / ".gitignore").read_text() == original_content
-
-
-class TestTracerReportsScaffolding:
-    """Test traycer-reports/ directory scaffolding."""
-
-    def test_traycer_reports_created_in_scaffold(self, tmp_path):
-        """Verify traycer-reports/ is created with correct .gitignore."""
-        create_project(
-            name="test-project",
-            project_type="python-api",
-            description="Test",
-            base=tmp_path,
-        )
-
-        project_dir = tmp_path / "test-project"
-
-        traycer_dir = project_dir / ".droid" / "traycer-reports"
-        assert traycer_dir.exists()
-        assert traycer_dir.is_dir()
-
-        gitignore = traycer_dir / ".gitignore"
-        assert gitignore.exists()
-        content = gitignore.read_text()
-        assert "*.md" in content
-        assert "!.gitignore" in content
-
-    def test_droid_gitignore_allows_traycer_reports(self, tmp_path):
-        """Verify .droid/.gitignore allows traycer-reports/.gitignore tracking."""
-        create_project(
-            name="test-project",
-            project_type="python-api",
-            description="Test",
-            base=tmp_path,
-        )
-
-        project_dir = tmp_path / "test-project"
-
-        droid_gitignore = (project_dir / ".droid" / ".gitignore").read_text()
-        assert "!traycer-reports/" in droid_gitignore
-        assert "!traycer-reports/.gitignore" in droid_gitignore
-        assert "traycer-reports/*.md" in droid_gitignore
 
 
 @requires_fabrik_env
@@ -537,16 +474,11 @@ class TestChromeExtensionScaffold:
 
         gitignore = (project_dir / ".gitignore").read_text()
 
-        # Verify required .droid/ entries
-        required_entries = [
-            ".droid/kilo_usage.jsonl",
-            ".droid/reviews/",
-            ".droid/docs_queue/",
-            ".droid/docs_log/",
-            ".droid/traycer-reports/*.md",
-        ]
-        for entry in required_entries:
+        # The reduced .droid/ block is present and no retired line is
+        for entry in (".droid/docs_queue/", ".droid/docs_log/"):
             assert entry in gitignore, f"{entry} missing in chrome-extension .gitignore"
+        for retired in _RETIRED_DROID_GITIGNORE_LINES:
+            assert retired not in gitignore, f"{retired} still in chrome-extension .gitignore"
 
     def test_test_workflow_is_wired_correctly(self, tmp_path):
         """Verify test workflow runs out-of-box (BUG-3 regression guard)."""
@@ -1205,3 +1137,381 @@ class TestCreateProjectRejectsUnknownKeywords:
         )
 
         assert seen == [True] and type(seen[0]) is bool
+
+
+# --- plan-1 2026-10-03: the scaffold and `fabrik fix` stop emitting the retired Kilo/Traycer
+# surface (spec docs/superpowers/specs/2026-10-03-scaffold-retired-agent-surface-design.md, D-529).
+
+_RETIRED_PROJECT_FILES = (
+    ".windsurfrules",
+    "AGENTS-compact.md",
+    "opencode.json",
+    "scripts/kilo_47_agents_final.json",
+)
+_REDUCED_DROID_LINES = {".factory/consultations/", ".droid/docs_queue/", ".droid/docs_log/"}
+
+
+def _fake_hub(root: Path, *, windsurfrules: bool = True, opencode: bool = True) -> Path:
+    """A hub root carrying every source the scaffold or fix could copy (outside the project)."""
+    (root / ".windsurf" / "rules").mkdir(parents=True)
+    (root / ".windsurf" / "rules" / "10-python.md").write_text("# rules\n")
+    (root / ".windsurf" / "workflows").mkdir(parents=True)
+    (root / ".windsurf" / "workflows" / "test.md").write_text("# wf\n")
+    (root / "AGENTS.md").write_text("# AGENTS\n")
+    (root / "AGENTS-compact.md").write_text("# AGENTS-compact\n")
+    (root / "docs" / "reference" / "kilo").mkdir(parents=True)
+    (root / "docs" / "reference" / "kilo" / "x.md").write_text("# kilo\n")
+    (root / "scripts").mkdir()
+    (root / "scripts" / "kilo_47_agents_final.json").write_text('{"hub": true}\n')
+    (root / ".pre-commit-config.yaml").write_text("repos: []\n")
+    if windsurfrules:
+        (root / ".windsurfrules").write_text("# rules\n")
+    if opencode:
+        (root / "opencode.json").write_text("{}\n")
+    return root
+
+
+def _hub_patches(root: Path):
+    """Point every module-level hub path the scaffold and fix read at the fake root."""
+    from contextlib import ExitStack
+    from unittest.mock import patch
+
+    import fabrik.scaffold as scaffold
+
+    stack = ExitStack()
+    stack.enter_context(patch.object(scaffold, "FABRIK_ROOT", root))
+    stack.enter_context(patch.object(scaffold, "TEMPLATE_DIR", root / "templates" / "scaffold"))
+    stack.enter_context(patch.object(scaffold, "FABRIK_AGENTS_MD", root / "AGENTS.md"))
+    stack.enter_context(
+        patch.object(scaffold, "FABRIK_WINDSURF_HOOKS", root / ".windsurf" / "hooks.json")
+    )
+    stack.enter_context(patch("subprocess.run"))
+    return stack
+
+
+def _droid_lines(gitignore: str) -> set[str]:
+    return {
+        line.strip()
+        for line in gitignore.splitlines()
+        if line.strip().startswith((".droid/", ".factory/"))
+    }
+
+
+def _old_project(root: Path) -> Path:
+    """A project as the old scaffold left it: both markers and the old .droid/.gitignore."""
+    (root / ".git").mkdir(parents=True)
+    (root / ".droid" / "review-context").mkdir(parents=True)
+    (root / ".droid" / "review-context" / ".gitkeep").write_text("")
+    (root / ".droid" / "traycer-reports").mkdir()
+    (root / ".droid" / "traycer-reports" / ".gitignore").write_text("*.md\n!.gitignore\n")
+    (root / ".droid" / ".gitignore").write_text("# OLD\n*\n!review-context/\n")
+    return root
+
+
+class TestRetiredSurfaceScaffold:
+    """A1-A2: `_scaffold_shared` (every create-time copy) emits no retired artifact."""
+
+    def test_a1_scaffold_emits_no_retired_surface(self, tmp_path):
+        import fabrik.scaffold as scaffold
+
+        hub = _fake_hub(tmp_path / "hub")
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        with _hub_patches(hub):
+            scaffold._scaffold_shared(proj, "svc", "Test", "2026-10-03", 8099, "python-api")
+
+        assert not (proj / ".droid").exists()
+        for rel in _RETIRED_PROJECT_FILES:
+            assert not (proj / rel).exists(), rel
+        assert (proj / "docs" / "reference" / "kilo" / "x.md").exists()
+        gitignore = (proj / ".gitignore").read_text()
+        assert _droid_lines(gitignore) == _REDUCED_DROID_LINES
+        assert "traycer" not in gitignore
+
+    def test_a2_scaffold_needs_no_hub_windsurfrules_or_opencode(self, tmp_path):
+        import fabrik.scaffold as scaffold
+
+        hub = _fake_hub(tmp_path / "hub", windsurfrules=False, opencode=False)
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        with _hub_patches(hub):
+            scaffold._scaffold_shared(proj, "svc", "Test", "2026-10-03", 8099, "python-api")
+
+        assert (proj / ".gitignore").exists()
+
+
+class TestRetiredSurfaceFix:
+    """A3-A7: `fix_project` removes only the scaffold's dead markers and writes none of the rest."""
+
+    def _fix(self, hub: Path, proj: Path, dry_run: bool = False) -> list[str]:
+        with _hub_patches(hub):
+            return fix_project(proj, project_type="python-api", dry_run=dry_run)
+
+    def test_a3_fix_removes_markers_and_kilo_copy_and_creates_no_droid(self, tmp_path):
+        hub = _fake_hub(tmp_path / "hub")
+        old = _old_project(tmp_path / "old")
+        (old / "scripts").mkdir()
+        (old / "scripts" / "kilo_47_agents_final.json").write_text("{}\n")
+        fresh = tmp_path / "fresh"
+        (fresh / ".git").mkdir(parents=True)
+
+        added = self._fix(hub, old)
+        self._fix(hub, fresh)
+
+        for gone in (
+            ".droid/review-context",
+            ".droid/traycer-reports",
+            "scripts/kilo_47_agents_final.json",
+        ):
+            assert not (old / gone).exists(), gone
+        for entry in (
+            "removed .droid/review-context/.gitkeep",
+            "removed .droid/review-context/ (empty)",
+            "removed .droid/traycer-reports/.gitignore",
+            "removed .droid/traycer-reports/ (empty)",
+            "removed scripts/kilo_47_agents_final.json",
+        ):
+            assert entry in added, entry
+        assert (old / ".droid" / ".gitignore").read_text() == "# OLD\n*\n!review-context/\n"
+        assert not (fresh / ".droid").exists()
+
+    def test_a4_fix_guard_holds_on_every_odd_tree(self, tmp_path):
+        hub = _fake_hub(tmp_path / "hub")
+
+        nonempty = _old_project(tmp_path / "nonempty")
+        (nonempty / ".droid" / "review-context" / "notes.md").write_text("mine")
+        assert "kept .droid/review-context/ (1 other entries)" in self._fix(hub, nonempty)
+        assert (nonempty / ".droid" / "review-context" / "notes.md").read_text() == "mine"
+
+        target = tmp_path / "target"
+        target.mkdir()
+        (target / ".gitignore").write_text("t")
+        symdir = tmp_path / "symdir"
+        (symdir / ".git").mkdir(parents=True)
+        (symdir / ".droid").mkdir()
+        os.symlink(target, symdir / ".droid" / "traycer-reports")
+        assert "skipped .droid/traycer-reports/ (symlink)" in self._fix(hub, symdir)
+        assert (target / ".gitignore").read_text() == "t"
+
+        for name, link_to in (("symdroid", tmp_path / "droid-target"), ("dangdroid", None)):
+            proj = tmp_path / name
+            (proj / ".git").mkdir(parents=True)
+            proj.joinpath(".gitignore").write_text(".env\n.droid/kilo_usage.jsonl\n")
+            if link_to is not None:
+                link_to.mkdir()
+                os.symlink(link_to, proj / ".droid")
+            else:
+                os.symlink(tmp_path / "nowhere", proj / ".droid")
+            added = self._fix(hub, proj)
+            assert "skipped .droid/ (symlink)" in added
+            if link_to is not None:
+                assert list(link_to.iterdir()) == []
+            assert ".droid/kilo_usage.jsonl" not in proj.joinpath(".gitignore").read_text()
+
+        dirmarker = tmp_path / "dirmarker"
+        (dirmarker / ".git").mkdir(parents=True)
+        (dirmarker / ".droid" / "review-context" / ".gitkeep").mkdir(parents=True)
+        assert "kept .droid/review-context/ (1 other entries)" in self._fix(hub, dirmarker)
+        assert (dirmarker / ".droid" / "review-context" / ".gitkeep").is_dir()
+
+        dangmarker = tmp_path / "dangmarker"
+        (dangmarker / ".git").mkdir(parents=True)
+        (dangmarker / ".droid" / "review-context").mkdir(parents=True)
+        os.symlink(tmp_path / "gone", dangmarker / ".droid" / "review-context" / ".gitkeep")
+        assert "kept .droid/review-context/ (1 other entries)" in self._fix(hub, dangmarker)
+
+        filedroid = tmp_path / "filedroid"
+        (filedroid / ".git").mkdir(parents=True)
+        (filedroid / ".droid").write_text("f")
+        assert "kept .droid (not a directory)" in self._fix(hub, filedroid)
+
+        filerc = tmp_path / "filerc"
+        (filerc / ".git").mkdir(parents=True)
+        (filerc / ".droid").mkdir()
+        (filerc / ".droid" / "review-context").write_text("f")
+        assert "kept .droid/review-context (not a directory)" in self._fix(hub, filerc)
+
+        if os.geteuid() != 0:
+            unread = _old_project(tmp_path / "unread")
+            os.chmod(unread / ".droid" / "review-context", 0)
+            try:
+                added = self._fix(hub, unread)
+            finally:
+                os.chmod(unread / ".droid" / "review-context", 0o755)
+            assert any(e.startswith("could not remove .droid/review-context") for e in added)
+
+        kilo_target = tmp_path / "kilo-target"
+        kilo_target.mkdir()
+        (kilo_target / "kilo_47_agents_final.json").write_text("hub copy")
+        symscripts = tmp_path / "symscripts"
+        (symscripts / ".git").mkdir(parents=True)
+        os.symlink(kilo_target, symscripts / "scripts")
+        added = self._fix(hub, symscripts)
+        assert "skipped scripts/kilo_47_agents_final.json (scripts/ is a symlink)" in added
+        assert (kilo_target / "kilo_47_agents_final.json").read_text() == "hub copy"
+
+        symkilo = tmp_path / "symkilo"
+        (symkilo / ".git").mkdir(parents=True)
+        (symkilo / "scripts").mkdir()
+        os.symlink(
+            kilo_target / "kilo_47_agents_final.json",
+            symkilo / "scripts" / "kilo_47_agents_final.json",
+        )
+        assert not any("kilo_47" in e for e in self._fix(hub, symkilo))
+        assert (kilo_target / "kilo_47_agents_final.json").read_text() == "hub copy"
+
+        from unittest.mock import patch
+
+        refused = _old_project(tmp_path / "refused")
+        (refused / "scripts").mkdir()
+        (refused / "scripts" / "kilo_47_agents_final.json").write_text("{}")
+        rmdirs: list[Path] = []
+        with (
+            patch.object(Path, "unlink", side_effect=PermissionError(13, "Permission denied")),
+            patch.object(Path, "rmdir", lambda self: rmdirs.append(self)),
+        ):
+            added = self._fix(hub, refused)
+        assert "could not remove .droid/review-context/.gitkeep: Permission denied" in added
+        assert "could not remove scripts/kilo_47_agents_final.json: Permission denied" in added
+        assert rmdirs == []
+
+    def test_a4b_a_refused_droid_probe_is_reported_never_raised(self, tmp_path):
+        """An OSError while probing `.droid` itself is a `could not remove` entry, not a traceback."""
+        from unittest.mock import patch
+
+        import fabrik.scaffold as scaffold
+
+        proj = _old_project(tmp_path / "proj")
+        real = Path.is_symlink
+
+        def refuse(self):
+            if self.name == ".droid":
+                raise PermissionError(13, "Permission denied")
+            return real(self)
+
+        with patch.object(Path, "is_symlink", refuse):
+            entries = scaffold._retire_droid_and_kilo_config(proj, dry_run=False)
+        assert entries == ["could not remove .droid: Permission denied"]
+        assert (proj / ".droid" / "review-context" / ".gitkeep").exists()
+
+    def test_a5_fix_never_writes_or_deletes_the_synced_files(self, tmp_path):
+        hub = _fake_hub(tmp_path / "hub")
+        own = tmp_path / "own"
+        (own / ".git").mkdir(parents=True)
+        for rel in (".windsurfrules", "AGENTS-compact.md", "opencode.json"):
+            (own / rel).write_text(f"project's own {rel}\n")
+        bare = tmp_path / "bare"
+        (bare / ".git").mkdir(parents=True)
+
+        added = self._fix(hub, own)
+        self._fix(hub, bare)
+
+        for rel in (".windsurfrules", "AGENTS-compact.md", "opencode.json"):
+            assert (own / rel).read_text() == f"project's own {rel}\n"
+            assert not any(rel in e for e in added), rel
+        for rel in _RETIRED_PROJECT_FILES:
+            assert not (bare / rel).exists(), rel
+
+    def test_a6_dry_run_reports_what_live_does_and_changes_nothing(self, tmp_path):
+        hub = _fake_hub(tmp_path / "hub")
+        for name, notes in (("plain", False), ("nonempty", True)):
+            dry_proj = _old_project(tmp_path / f"dry-{name}")
+            live_proj = _old_project(tmp_path / f"live-{name}")
+            for p in (dry_proj, live_proj):
+                (p / "scripts").mkdir()
+                (p / "scripts" / "kilo_47_agents_final.json").write_text("{}")
+                if notes:
+                    (p / ".droid" / "review-context" / "notes.md").write_text("mine")
+            before = sorted(str(p.relative_to(dry_proj)) for p in dry_proj.rglob("*"))
+
+            verbs = ("removed ", "kept ", "skipped ", "could not remove ")
+            dry = [e for e in self._fix(hub, dry_proj, dry_run=True) if e.startswith(verbs)]
+            live = [e for e in self._fix(hub, live_proj) if e.startswith(verbs)]
+            assert "removed scripts/kilo_47_agents_final.json" in live
+
+            assert dry == live
+            assert sorted(str(p.relative_to(dry_proj)) for p in dry_proj.rglob("*")) == before
+
+    def test_a7_gitignore_patch_keeps_user_droid_lines(self, tmp_path):
+        hub = _fake_hub(tmp_path / "hub")
+        proj = tmp_path / "proj"
+        (proj / ".git").mkdir(parents=True)
+        old_block = (
+            ".factory/consultations/\n.droid/kilo_usage.jsonl\n.droid/reviews/\n"
+            ".droid/kilo_models_cache.json\n.droid/.kilo_cache_last_refresh\n"
+            ".droid/docs_queue/\n.droid/docs_log/\n.droid/traycer-reports/*.md\n"
+        )
+        (proj / ".gitignore").write_text(".env\n" + old_block + ".droid/secrets.json\n*.log\n")
+
+        first = self._fix(hub, proj)
+        content = (proj / ".gitignore").read_text()
+        second = self._fix(hub, proj)
+
+        assert ".gitignore (.droid/ block updated)" in first
+        assert _droid_lines(content) == _REDUCED_DROID_LINES | {".droid/secrets.json"}
+        lines = content.splitlines()
+        assert lines.index(".env") < lines.index(".droid/secrets.json") < lines.index("*.log")
+        assert ".gitignore (.droid/ block updated)" not in second
+
+
+class TestFixCommandRendering:
+    """A8: `fabrik fix` prints removals as removals and notes as notes, never as "Added"."""
+
+    def _run(self, tmp_path, entries, *flags):
+        from unittest.mock import patch
+
+        from click.testing import CliRunner
+
+        from fabrik.cli import cli
+
+        with patch("fabrik.scaffold.fix_project", return_value=entries):
+            return CliRunner().invoke(cli, ["fix", str(tmp_path), *flags])
+
+    def test_a8_removals_notes_and_failures_render_by_kind(self, tmp_path):
+        mixed = self._run(
+            tmp_path,
+            [
+                "README.md",
+                "removed .droid/review-context/.gitkeep",
+                "kept .droid/review-context/ (1 other entries)",
+            ],
+        )
+        assert "Added: README.md" in mixed.output
+        assert "Removed: .droid/review-context/.gitkeep" in mixed.output
+        assert "Added: removed" not in mixed.output and "Added: kept" not in mixed.output
+        assert "Added 1 files" in mixed.output
+        assert "Removed 1 retired paths" in mixed.output
+
+        dry = self._run(
+            tmp_path,
+            ["removed .droid/review-context/.gitkeep", "removed .droid/review-context/ (empty)"],
+            "--dry-run",
+        )
+        assert "Would remove: .droid/review-context/.gitkeep" in dry.output
+        assert "Run without --dry-run to remove 2 retired paths" in dry.output
+        assert "Removed:" not in dry.output
+
+        partial = self._run(
+            tmp_path,
+            [
+                "removed .droid/review-context/.gitkeep",
+                "skipped .droid/traycer-reports/ (symlink)",
+                "could not remove .droid/review-context/: Permission denied",
+            ],
+        )
+        assert "Removed: .droid/review-context/.gitkeep" in partial.output
+        assert "skipped .droid/traycer-reports/ (symlink)" in partial.output
+        assert "Added:" not in partial.output and "Added " not in partial.output
+        assert "project structure is complete" not in partial.output
+        assert partial.exit_code == 0
+
+        notes_only = self._run(tmp_path, ["kept .droid/review-context/ (1 other entries)"])
+        assert "No missing files - project structure is complete!" in notes_only.output
+        assert notes_only.exit_code == 0
+
+        failure = self._run(
+            tmp_path, ["could not remove .droid/review-context/.gitkeep: Permission denied"]
+        )
+        assert "could not remove .droid/review-context/.gitkeep" in failure.output
+        assert "project structure is complete" not in failure.output
+        assert failure.exit_code == 0
