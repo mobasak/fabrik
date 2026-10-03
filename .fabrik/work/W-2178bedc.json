@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T09:12:04.507647Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-2178bedc",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add tests with subprocess.run and httpx stubbed: NS parse, poll until an A record, timeout warning path, and the Host-header IP probe (verifier.py:164-256, :287-314)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "verifier._wait_for_dns (dig NS lookup + authoritative poll) and _check_health's resolved-IP httpx branch have no unit test — they only ever ran as live network calls, now stubbed out of tests/orchestrator/test_verifier.py (W-1996f86b review)"
+}

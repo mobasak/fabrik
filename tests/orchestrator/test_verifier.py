@@ -6,9 +6,21 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from fabrik.orchestrator import verifier as verifier_module
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.exceptions import VerificationError
 from fabrik.orchestrator.verifier import DeploymentVerifier
+
+
+@pytest.fixture(autouse=True)
+def _no_live_dns_or_sleep(monkeypatch):
+    # verify() runs real `dig` against 1.1.1.1 for up to 120 s (_wait_for_dns) and sleeps 5 s per Traefik
+    # router poll (six polls); a unit test must reach neither — five tests here took 30-120 s each (W-1996f86b).
+    # A test that patches _wait_for_dns on its own instance still wins.
+    monkeypatch.setattr(
+        DeploymentVerifier, "_wait_for_dns", lambda self, domain, max_wait=120: None
+    )
+    monkeypatch.setattr(verifier_module.time, "sleep", lambda seconds: None)
 
 
 class TestDeploymentVerifier:
