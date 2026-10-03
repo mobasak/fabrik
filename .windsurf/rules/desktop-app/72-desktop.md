@@ -1,47 +1,72 @@
 ---
 activation: glob
 globs: ["**/electron/**", "**/renderer/**", "**/electron-builder*", "**/forge.config*", "**/preload.{js,ts}"]
-description: Electron 30+ desktop app — process model, IPC zero-trust, code signing (Azure Trusted Signing / Apple notarization), R2 auto-update, native integrations, KVKK
+description: Electron desktop app — supported-major policy, process model, IPC zero-trust, fuses, encrypted local storage, code signing and notarization, auto-update from your own domain, native integrations, KVKK/GDPR
 trigger: glob
+currency_pass: 2026-10-03
 ---
-<!-- CONSUMER: Coding agents (Claude Code + dispatched subagents)
-     GOAL: Electron 30+ desktop application patterns — process isolation, IPC validation, distribution, code signing, auto-update, local storage, OS integrations
-     TRAYCER USAGE: Injects as Context File for desktop-app scaffold tickets. Composes with 12-node.md (main process is Node) + 20-typescript.md.
-     AGENT USAGE: Follow verbatim. Research basis: docs/reference/research/Electron Desktop App Best Practices.md (cited). -->
+<!-- CONSUMER: Coding agents (Claude Code + dispatched subagents) on the `desktop-app` scaffold.
+     GOAL: Electron desktop application patterns — process isolation, IPC validation, distribution, code signing,
+     auto-update, local storage, OS integrations. Composes with 12-node.md (main process is Node) + 20-typescript.md.
+     The planning layer (standalone vs connected, unit economics, kill criteria) is 00-domain-desktop-app.md.
+     Research basis: docs/reference/research/2026-10-03-desktop-app-currency-ledger.md (every fact here, with its
+     source) and docs/reference/research/Electron Desktop App Best Practices.md (the original survey). -->
 
-# Electron Desktop App Rules (2026)
+# Electron Desktop App Rules
 
-**Activation:** Glob `**/electron/**`, `**/main/**`, `**/renderer/**`, `**/preload*`, `**/electron-builder*`, `**/forge.config*`, `main.{js,ts}`, `preload.{js,ts}`
-**Purpose:** Production patterns for Electron 30+ desktop applications, both standalone and as frontend to a Fabrik-deployed backend.
-**Scope:** `desktop-app` scaffold. Composes with `12-node.md` (main-process runtime), `20-typescript.md` (renderer TS), `35-security-auth.md` (OAuth/M2M tokens), `55-observability.md` (Sentry/GlitchTip in main + renderer), `design-system-template.md`.
-**Research basis:** [`docs/reference/research/Electron Desktop App Best Practices.md`](../../../docs/reference/research/Electron%20Desktop%20App%20Best%20Practices.md)
+**Activation:** the frontmatter globs — `**/electron/**`, `**/renderer/**`, `**/electron-builder*`, `**/forge.config*`,
+`**/preload.{js,ts}`.
+**Purpose:** production patterns for Electron desktop applications, both standalone and as a client of a
+Fabrik-deployed backend.
+**Scope:** `desktop-app` scaffold. Composes with `12-node.md` (main-process runtime), `20-typescript.md` (renderer
+TS), `35-security-auth.md` (sign-in, tokens), `55-observability.md` (Sentry/GlitchTip in main + renderer),
+`design-system-template.md`.
 
 ---
+
+## The fleet today
+
+- The `desktop-app` scaffold (`templates/desktop-app/`) emits an Electron app packaged with **electron-builder**
+  (Windows NSIS target), `electron-updater`, and a `BrowserWindow` that sets `nodeIntegration: false`,
+  `contextIsolation: true` and `sandbox: true`. It ships no preload file and no update feed yet (fleet finding
+  filed 2026-10-03); a project scaffolded from it adds both from the sections below before its first build.
+- No fleet project builds a desktop app today: the one repo declared `desktop-app` is an Obsidian plugin with no
+  Electron code, so nothing in the fleet activates this pack's globs. The rules below are what the first real one
+  must meet.
 
 ## Framework Choice — Why Electron
 
-Three viable frameworks in 2026:
-
-| Framework | Bundle (baseline) | Idle RAM | Native lang | Cross-platform parity |
+| Framework | Rendering engine | Shipped size | Native language | Cross-platform parity |
 | --- | --- | --- | --- | --- |
-| **Electron 30+** | ~150 MB | 150–200 MB | JavaScript / Node | **Excellent** (bundled Chromium) |
-| Tauri 2.0 | 5–15 MB | < 80 MB | Rust | Variable (host webviews — WebView2 on Win, WebKit on Mac) |
-| Wails | 10–20 MB | < 80 MB | Go | Variable |
+| **Electron** | Bundled Chromium | ~100–200 MB | JavaScript / Node | **Excellent** — the same engine on every OS |
+| Tauri | The OS webview (WebView2 on Windows, WKWebView on macOS, webkitgtk on Linux) | a few MB | Rust | Variable — WKWebView updates only with macOS, webkitgtk varies by distro |
+| Wails | The OS webview | a few MB | Go | Variable, as Tauri |
 
-**Pick Electron.** For a solo developer prioritizing feature velocity + cross-platform parity, Electron is the pragmatic default. Tauri/Wails give smaller bundles but introduce Rust/Go context-switching that bleeds solo dev velocity. The 150 MB baseline is acceptable for professional/productivity tools provided you ASAR-pack + Bytenode-compile (below).
+**Pick Electron.** For a solo developer prioritising feature velocity and cross-platform parity, one engine on
+every OS is the pragmatic default; Tauri and Wails ship far smaller bundles (third-party measurements put Tauri at
+a few percent of Electron's size and well under its idle memory) but add Rust or Go, and per-OS webview bugs that
+only reproduce on that OS. Re-weigh only when bundle size or memory is the product's selling point.
 
-Bundle-size mitigations (mandatory for >50 MB shipped builds):
+**Version policy.** Electron ships a new major every eight weeks and supports only the **three newest stable
+majors**, each on its latest minor. Stay inside that window: an app on an unsupported major gets no security
+fixes, and Chromium vulnerabilities are the main reason Electron releases at all. Pin the major in `package.json`
+and move to the next major before yours leaves the window.
 
-- **ASAR packing with integrity validation** — `electron-builder` enables this by default with `asarUnpack` for native modules. Verifies the bundle against tampering and accelerates disk reads.
-- **Bytenode compilation (optional)** — transforms JS to V8 bytecode. Reduces cold-start parser overhead AND obscures proprietary business logic. Adopt when bundle obfuscation matters.
+**Packaging tool.** Electron's own docs recommend **Electron Forge**; **electron-builder** is maintained by the
+community, not the Electron project, and replaces some official modules (its own `electron-updater`). The fleet
+uses electron-builder because the scaffold does and because it carries code signing, fuses and the update
+manifests in one config. Keep one tool per project; do not mix.
 
 ## Process Model — Rigid Security Posture
 
 Electron's multi-process model is the security boundary.
 
-- **Main process** — full Node.js privileges. All OS native APIs, filesystem, SQLite, `safeStorage`, child processes (Ollama). Treat as the trusted server.
-- **Renderer process** — hosts React UI. **Treat as untrusted** (XSS-susceptible). No Node, no `require`, no filesystem.
-- **Preload script** — the ONLY allowed bridge. Use `contextBridge.exposeInMainWorld(...)` to expose a narrow, typed surface.
+- **Main process** — full Node.js privileges. All OS native APIs, filesystem, SQLite, `safeStorage`, child
+  processes. Treat it as the trusted server.
+- **Renderer process** — hosts the React UI. **Treat it as untrusted** (XSS-susceptible). No Node, no `require`, no
+  filesystem.
+- **Preload script** — the ONLY bridge. Use `contextBridge.exposeInMainWorld(...)` to expose a narrow, typed
+  surface.
 
 ### Mandatory `BrowserWindow` settings
 
@@ -58,7 +83,41 @@ new BrowserWindow({
 });
 ```
 
-Missing ANY of these three is a CVE waiting to happen — `nodeIntegration: true` + XSS = instant RCE.
+All three are Electron's defaults; declare them anyway, because turning context isolation off also turns the
+sandbox off, and an explicit `true` makes that regression visible in review. `nodeIntegration: true` plus one XSS
+is remote code execution.
+
+### Lock down what the renderer can reach
+
+- **Permissions:** Electron approves every permission request (camera, microphone, notifications, geolocation)
+  unless you install a handler. Call `session.defaultSession.setPermissionRequestHandler(...)` and allow only what
+  the app uses.
+- **Navigation:** deny it by default — `contents.on('will-navigate', (e, url) => { ... e.preventDefault() })` —
+  and compare with Node's URL parser, never a string prefix (`startsWith('https://example.com')` lets
+  `https://example.com.attacker.com` through).
+- **New windows:** `contents.setWindowOpenHandler(() => ({ action: 'deny' }))`; hand a vetted URL to
+  `shell.openExternal`, and never pass it untrusted content (it can run arbitrary commands).
+- **Content Security Policy:** send it as a response header (`session.webRequest.onHeadersReceived`) with
+  `script-src 'self'`; a `<meta>` tag is the fallback for pages loaded from disk.
+- **Local content:** serve the app's pages through a custom protocol (`protocol.handle`) rather than `file://`.
+
+### Fuses — flip them at package time
+
+Fuses are build-time switches that code signing then protects. Set them through electron-builder's `electronFuses`
+config (or `@electron/fuses` in an `afterPack` hook):
+
+| Fuse | Set to | Why |
+| --- | --- | --- |
+| `runAsNode` | off | stops `ELECTRON_RUN_AS_NODE` turning the app into a plain Node binary; use Utility Processes instead of `child_process.fork` |
+| `enableNodeOptionsEnvironmentVariable` | off | `NODE_OPTIONS` can inject code |
+| `enableNodeCliInspectArguments` | off in release builds | `--inspect` attaches a debugger; Playwright needs it on, so test a build that keeps it (§ Testing) |
+| `enableCookieEncryption` | on | encrypts the cookie store with the OS keychain |
+| `enableEmbeddedAsarIntegrityValidation` + `onlyLoadAppFromAsar` | on | together they refuse to load any code that is not the validated ASAR (macOS and Windows only) |
+| `grantFileProtocolExtraPrivileges` | off | unless the app still serves pages from `file://` |
+
+**Bytenode** (compiling JS to JavaScript-engine bytecode) obscures logic; it is not a security control. Its bytecode must be
+compiled by the exact Electron build and in the same process type that loads it, and recent majors crash on
+bytecode compiled the old way. Adopt it only with a test on the major you ship.
 
 ### Preload + `contextBridge`
 
@@ -71,18 +130,20 @@ contextBridge.exposeInMainWorld('api', {
     save: (payload: unknown) => ipcRenderer.invoke('files:save', payload),
     list: () => ipcRenderer.invoke('files:list'),
   },
-  // ⚠ NEVER do this:
-  // ipcRenderer: ipcRenderer,   // exposing the raw bridge = renderer compromise = main compromise
+  onProgress: (cb: (pct: number) => void) =>
+    ipcRenderer.on('files:progress', (_event, pct) => cb(pct)),   // never pass cb itself: it leaks event.sender
+  // ⚠ NEVER: ipcRenderer: ipcRenderer — exposing the raw bridge = renderer compromise = main compromise
 });
 ```
 
 - Expose only the specific named methods you need.
-- Never expose `ipcRenderer`, `ipcMain`, `webFrame`, or any module reference directly.
-- Renderer accesses these via `window.api.files.save(...)`.
+- Never expose `ipcRenderer`, `ipcMain`, `webFrame`, or any module reference directly, and never hand a renderer
+  callback straight to `ipcRenderer.on` (the event object carries the sender).
+- The renderer calls `window.api.files.save(...)`.
 
 ### Zero-trust IPC validation
 
-Every `ipcMain.handle` receiver MUST validate inputs with Zod (or equivalent runtime schema) BEFORE doing anything privileged:
+Every `ipcMain.handle` receiver MUST check **who sent it** and **what was sent** before doing anything privileged:
 
 ```js
 import { z } from 'zod';
@@ -93,23 +154,28 @@ const SaveFilePayload = z.object({
   encoding: z.enum(['utf8', 'base64']),
 });
 
+const TRUSTED_ORIGINS = new Set(['app://bundle']);  // the custom protocol the app serves itself from
+
 ipcMain.handle('files:save', async (event, payload) => {
-  const parsed = SaveFilePayload.safeParse(payload);
-  if (!parsed.success) {
-    return { success: false, error: 'invalid payload' };
+  if (!event.senderFrame || !TRUSTED_ORIGINS.has(event.senderFrame.origin)) {
+    return { success: false, error: 'untrusted sender' };
   }
+  const parsed = SaveFilePayload.safeParse(payload);
+  if (!parsed.success) return { success: false, error: 'invalid payload' };
   try {
-    const result = await saveFile(parsed.data);
-    return { success: true, data: result };
+    return { success: true, data: await saveFile(parsed.data) };
   } catch (e) {
     return { success: false, error: (e as Error).message };
   }
 });
 ```
 
+Check the frame's **origin**, not its URL (`about:blank`, `blob:` and sandboxed documents carry URLs that do not
+say who controls them), and treat a missing frame as untrusted.
+
 ### Error serialization across IPC
 
-Standard `Error` objects do NOT cross the IPC boundary intact (they get flattened to `{message, stack}` strings or lost entirely). Every IPC handler returns the same wrapper shape:
+`Error` objects do not cross the IPC boundary intact. Every IPC handler returns the same wrapper shape:
 
 ```ts
 type IpcResult<T> = { success: true; data: T } | { success: false; error: string };
@@ -123,31 +189,34 @@ if (!r.success) showError(r.error);
 else applyResult(r.data);
 ```
 
-## Local Persistence — `better-sqlite3` with SQLCipher
+## Local Persistence — `better-sqlite3`, encrypted
 
 For local relational data (offline-first or local cache):
 
-- **`better-sqlite3`** is the engine. Synchronous API matches SQLite's serialized access model — no mutex thrashing.
+- **`better-sqlite3`** is the engine. Its synchronous API matches SQLite's serialized access model, and it now
+  builds on Node-API, so one prebuilt binary serves several Node and Electron versions.
 - **NOT `IndexedDB`** (renderer-only, async overhead, no real query language).
-- **NOT `leveldb`** (no relational support, awkward for joins/filters).
-- **NOT cloud-stored** — local-first applications keep the canonical store local.
+- **NOT `leveldb`** (no relational support).
+- **NOT cloud-stored** — a local-first application keeps the canonical store local.
 
-### Encryption at rest — `better-sqlite3-multiple-ciphers` (SQLCipher)
+### Encryption at rest — `better-sqlite3-multiple-ciphers`
 
-Production builds MUST encrypt the local SQLite file:
+Production builds MUST encrypt the local SQLite file. The key is a random 32-byte value generated on first launch
+and kept in `safeStorage` (below); a random key needs no slow key derivation, so pass it **raw**:
 
 ```js
 import Database from 'better-sqlite3-multiple-ciphers';
 
-const masterKey = await getMasterKeyFromSafeStorage();  // see below
+const hexKey = await getMasterKeyFromSafeStorage();      // 64 hex characters = 32 random bytes
 const db = new Database(path.join(app.getPath('userData'), 'app.db'));
-db.pragma(`key = '${masterKey}'`);
-db.pragma('cipher = sqlcipher');
-db.pragma('kdf_iter = 256000');                          // OWASP 2026 floor
+db.pragma(`cipher = 'sqlcipher'`);                         // choose the cipher before the key
+db.pragma(`key = "x'${hexKey}'"`);                         // raw key: skips the passphrase KDF
 ```
 
-- Master key is a high-entropy random value generated on first launch + stored via `safeStorage` (below).
-- `kdf_iter = 256000` matches current OWASP recommendations for PBKDF2 iterations.
+- A raw key (`x'…'`, exactly 64 hex characters) is used as the encryption key directly.
+- Only when the key comes from **something the user types** does key derivation matter: keep SQLCipher's default
+  (PBKDF2 with HMAC-SHA512, 256,000 iterations — above OWASP's floor for that hash) or derive with Argon2id (OWASP
+  minimum: 19 MiB memory, two iterations).
 
 ## Sign-in — passwordless, OTP code path
 
@@ -160,127 +229,158 @@ machinery for no gain over a code the user is already reading in the same mail.
 
 ## Credential Storage — `safeStorage`
 
-`safeStorage` is the canonical 2026 credential API. **Replaces `keytar`** (which is unmaintained / native-build flaky).
+`safeStorage` is Electron's credential API. **It replaces `keytar`**, which was archived in 2022. Prefer the
+asynchronous calls (`encryptStringAsync` / `decryptStringAsync`): they support key rotation, and Electron says the
+synchronous ones may be deprecated.
 
 ```js
 import { safeStorage } from 'electron';
 
-function storeSecret(key: string, value: string) {
-  if (!safeStorage.isEncryptionAvailable()) {
-    // Linux without a Secret Service daemon (rare) — must handle explicitly
-    throw new Error('OS keychain unavailable; refusing to store secret in plaintext');
+async function storeSecret(key: string, value: string) {
+  if (!safeStorage.isEncryptionAvailable() || safeStorage.getSelectedStorageBackend?.() === 'basic_text') {
+    throw new Error('OS keychain unavailable; refusing to store secret with a hardcoded key');
   }
-  const ciphertext = safeStorage.encryptString(value);
-  fs.writeFileSync(secretsPath(key), ciphertext);
+  fs.writeFileSync(secretsPath(key), await safeStorage.encryptStringAsync(value));
 }
 
-function loadSecret(key: string): string {
-  const ciphertext = fs.readFileSync(secretsPath(key));
-  return safeStorage.decryptString(ciphertext);
+async function loadSecret(key: string): Promise<string> {
+  return safeStorage.decryptStringAsync(fs.readFileSync(secretsPath(key)));
 }
 ```
 
-**Platform mapping:**
+Call both only after `app` is `ready`. **Platform mapping:**
 
-- **macOS** — Keychain
-- **Windows** — DPAPI
-- **Linux** — Secret Service (GNOME keyring / KWallet)
+- **macOS** — Keychain: protected from other users and from other apps of the same user.
+- **Windows** — DPAPI: protected from other users, **not** from other apps running as the same user.
+- **Linux** — the Secret Service (GNOME libsecret, KWallet), or the `org.freedesktop.portal.Secret` portal under
+  Flatpak (asynchronous API only).
 
-**Linux fallback handling — explicit check required:**
-
-- `safeStorage.isEncryptionAvailable()` returns `false` on Linux systems without a supported daemon (some headless servers, minimal Wayland setups).
-- **DO NOT silently fall back to plaintext.** Either: (a) refuse to store the secret and surface a user-facing warning, or (b) require the user to type a passphrase that derives the encryption key (Argon2id).
-- Document the OS-keyring requirement in the app's README / first-run check.
+**Linux fallback — explicit check required:** with no secret store, `safeStorage` falls back to the `basic_text`
+backend, which encrypts with a **hardcoded password** — effectively plaintext. Detect it with
+`getSelectedStorageBackend() === 'basic_text'`. **Do not store secrets that way.** Either refuse and tell the user,
+or have the user type a passphrase that derives the key (Argon2id). State the OS-keyring requirement in the
+app's README and first-run check.
 
 ## Distribution Channels
 
-| Channel | When | Cost | Trade-offs |
+| Channel | When | Cost to you | Trade-offs |
 | --- | --- | --- | --- |
-| **Direct download (developer domain)** | Default for solo dev | Hosting only | Full update lifecycle control; you must build everything |
-| Microsoft Store | Enterprise reach, no SmartScreen friction | Free dev account | Restrictive sandbox + slow review; not ideal for power-user tools |
-| Mac App Store | iCloud sync, IAP, family sharing | $99/yr (covered by Developer ID) | Hardened sandbox limits filesystem + network; review process |
-| Homebrew Cask / winget / Chocolatey | Power-user discovery | Free | Community-driven; still need signed binaries hosted by you |
-| AppImage (Linux) | Universal Linux | Free | No auto-trust; ship `.AppImage` + GPG signature |
-| Flatpak / snap | Linux desktop distro integration | Free | More install friction; auto-update + sandbox via the store |
+| **Direct download (your own domain)** | Default for a solo developer | Hosting only; no commission | Full control of the update lifecycle; signing (below) is on you |
+| Microsoft Store | Reach, no SmartScreen warning | Free registration for individual developers; MSIX packages are re-signed by Microsoft for free | With your own commerce you keep all revenue on non-game apps; Microsoft's commerce takes 15% on apps (12% games). An MSI/EXE you submit must already be signed by a trusted CA |
+| Mac App Store | iCloud, in-app purchase, family sharing | the Apple Developer Program ($99/year — the same membership as Developer ID) | A 30% commission, 15% in the Small Business Program (up to $1M proceeds a year) and on subscriptions after a subscriber's first year; app sandbox limits filesystem and network; review |
+| Homebrew Cask / winget / Chocolatey | Power-user discovery | Free | Community manifests pointing at signed binaries you host |
+| AppImage (Linux) | Universal Linux | Free | No OS trust; embed a GPG signature (`appimagetool --sign`) and publish the key |
+| Flatpak (Flathub) / Snap | Distro integration | Free | Flathub builds from source with no network and wants XDG portals over broad permissions; snaps auto-update (snapd checks four times a day) |
 
-**Default: direct download + Homebrew Cask / winget / AppImage GPG-signed.** Add stores only when their reach justifies the sandbox cost.
+**Default: direct download + Homebrew Cask / winget + a signed AppImage.** Add a store only when its reach justifies
+its sandbox and commission.
 
-## Code Signing (the 2026 cost matrix)
+## Code Signing
 
-| OS | Required identity | Annual cost | Hardware token? |
+Unsigned builds convert at near zero (`00-domain-desktop-app.md` Fork 2), so signing is part of the build, not a
+release chore.
+
+### Windows
+
+| Identity | Cost (vendor figures) | Who can get it | SmartScreen |
 | --- | --- | --- | --- |
-| **Windows 10/11** | **Azure Trusted Signing** | **~$120 ($9.99/mo)** | **No** (Cloud HSM via Azure) |
-| Windows (legacy) | EV Certificate | $350–700 | Yes (USB token) |
-| **macOS 13+** | Apple Developer ID + notarization | $99 | No (Apple ID auth) |
-| **Linux** | GPG signature | $0 | No |
+| **Azure Artifact Signing** (formerly Trusted Signing) | $9.99/month Basic (5,000 signatures), $99.99/month Premium; needs a paid Azure subscription | Organisations in the US, Canada, the EU and the UK; individuals in the US and Canada only | Reputation builds over releases signed with the same identity — **not instant** |
+| **OV code-signing certificate** | about $150–300/year | Any verified organisation | Equivalent to Artifact Signing for SmartScreen |
+| EV certificate | $400+/year | Verified organisations | No longer skips SmartScreen (since 2024) — not worth the premium for that |
 
-**Recommendations:**
+- **Fabrik default:** Artifact Signing when the legal entity is eligible; otherwise an **OV certificate held in a
+  cloud signing service**. The CA/Browser Forum has required code-signing keys to live in a hardware security
+  module since 2023-06-01, and caps certificate validity at 460 days from 2026-03-01 — plan a renewal every year.
+  Identity validation takes days and cannot be expedited: start it at Epic 1.
+- **electron-builder:** Artifact Signing is `win.sign` with `type: "azure"` (endpoint, account name, certificate
+  profile, publisher name; credentials from `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET`); the
+  integration is marked beta. A cloud-HSM OV certificate signs through a custom `win.sign` hook.
+- **SmartScreen reputation** accrues to a consistent publisher identity over weeks and hundreds of clean installs;
+  an unsigned file starts from zero on every update. **Smart App Control** on Windows clean installs blocks
+  unsigned code outright and lets CA-signed code through when it cannot judge it.
 
-- **Windows: Azure Trusted Signing.** Bypasses EV USB tokens, gives **immediate SmartScreen reputation**, integrates with `electron-builder` via the SignTool plugin. The single most important cost reduction for solo desktop dev in 2026.
-- **macOS: Apple Developer ID + Hardened Runtime + notarization.**
-  - Enable Hardened Runtime: `electron-builder` flag `hardenedRuntime: true`.
-  - Notarize with `xcrun notarytool`. `electron-builder` does this automatically when API keys are present.
-  - **Entitlements:** declare each capability explicitly. For backend-connected apps: `com.apple.security.network.client`. For file access: `com.apple.security.files.user-selected.read-write`. Over-requesting fails notarization.
-- **Linux:** GPG-sign the final `.AppImage` output. Distribute the `.asc` alongside.
+### macOS
 
-### Notarization gotcha
-
-macOS notarization happens AFTER signing AND requires re-stapling. Sequence:
+- **Apple Developer ID + Hardened Runtime + secure timestamp + notarization**, $99/year (the Apple Developer
+  Program).
+  - Hardened Runtime: electron-builder `hardenedRuntime: true`.
+  - Notarize with `xcrun notarytool` (Apple stopped accepting `altool` uploads in 2023); electron-builder does it
+    when API credentials are present.
+  - **Entitlements:** declare each capability explicitly — `com.apple.security.network.client` for a
+    backend-connected app, `com.apple.security.files.user-selected.read-write` for user-picked files. Request only
+    what the app uses.
+- **Staple** the ticket so Gatekeeper can verify offline; without it, the first launch needs a network lookup. A
+  `.app`, `.dmg` or `.pkg` can be stapled; a ZIP cannot — staple the `.app` inside before zipping.
 
 ```bash
 electron-builder --mac --publish never        # signs + notarizes + staples
-# verify:
-spctl --assess --type execute -vv dist/MyApp.app
-codesign --verify --deep --strict --verbose=2 dist/MyApp.app
+spctl --assess --type execute -vv dist/mac/MyApp.app
+codesign --verify --deep --strict --verbose=2 dist/mac/MyApp.app
+xcrun stapler validate dist/mac/MyApp.app
 ```
 
-If you ship without stapling, Gatekeeper requires online lookup on first launch — slow + offline-hostile.
+### Linux
 
-## Auto-Update — Zero-Egress via Cloudflare R2
+Embed a GPG signature in the AppImage (`appimagetool --sign`) and publish the public key on the download page;
+`--appimage-signature` only displays a signature, so users verify with an external tool.
 
-**Default architecture: `electron-updater` + Cloudflare R2** with a public `pub-*.r2.dev` URL as a generic HTTP provider.
+## Auto-Update — your own domain in front of object storage
 
-```js
-// electron-builder.yml
+**Default architecture: `electron-updater` with a `generic` provider** pointing at your own update host — a
+**custom domain** in front of a Cloudflare R2 bucket.
+
+```yaml
+# electron-builder.yml
 publish:
   provider: generic
-  url: https://pub-<account>.r2.dev/updates/${os}
+  url: https://updates.<your-domain>/${os}
 ```
 
-- **Cloudflare R2** has zero egress fees. A 150 MB installer downloaded N thousand times accumulates serious bandwidth charges on AWS S3; R2 makes auto-update economically viable for a solo dev.
-- **`electron-builder` publishes** the artifacts AND a `latest.yml` (Windows), `latest-mac.yml` (macOS), `latest-linux.yml` (Linux) — these are the manifest files `electron-updater` reads.
-- **Blockmap delta updates** are enabled by default — only the changed blocks of the binary are downloaded, drastically reducing payload.
+- **Cloudflare R2** charges no egress, so a large installer downloaded thousands of times costs storage only.
+  Serve it through a custom domain: Cloudflare rate-limits the public `r2.dev` URL and says it is for development
+  only.
+- electron-builder publishes the artifacts and the manifests `electron-updater` reads — `latest.yml` (Windows),
+  `latest-mac.yml` (macOS), `latest-linux.yml` (Linux).
+- **Updatable targets:** NSIS on Windows (not Squirrel.Windows), DMG plus the **zip** target on macOS (Squirrel.Mac
+  needs the zip, and the app must be signed or it will not update), AppImage, DEB and RPM on Linux.
+- **Differential updates** use blockmaps (NSIS, AppImage, the macOS zip), so a client downloads only changed
+  blocks.
+- **Channels:** publish `stable` and `beta` under separate prefixes and point a beta build at its prefix.
+
+```text
+client launches → electron-updater fetches https://updates.<your-domain>/win/latest.yml
+                → new version: downloads the blockmap difference
+                → installs on quit-and-relaunch
+```
 
 **Banned:**
 
-- **GitHub Releases for private repos.** Requires embedding a GitHub token in the app binary — instant token leak via `strings` or runtime memory dump.
-- **AWS S3 with default egress pricing** for installers > 50 MB.
+- **GitHub Releases on a private repo.** It needs a `GH_TOKEN` inside the app binary (readable with `strings`),
+  and electron-builder itself calls that provider "not suitable for all users".
+- **Production updates from `r2.dev`** (rate-limited) or from object storage that bills egress, for installers
+  over 50 MB.
 
-Update channel design:
-
-```text
-client launches → electron-updater checks https://pub-xyz.r2.dev/updates/win/latest.yml
-                → if new version found, downloads blockmap diff
-                → installs on next quit-and-relaunch
-```
-
-Channels (`stable` / `beta`): R2 supports prefix routing — `updates/stable/` and `updates/beta/`. App checks via `autoUpdater.setFeedURL({ url, channel: 'stable' })`.
+The update channel is yours alone, so old builds live forever: version-gate the backend and keep a minimum-version
+floor (`00-domain-desktop-app.md` Fork 3).
 
 ## Native Integrations
 
 ### Cross-platform menus
 
-Define menu structure in the main process. Use Electron's `Menu.buildFromTemplate` with role-based items (`copy`, `paste`, `selectAll`) — these get the right platform shortcuts automatically (⌘C on Mac, Ctrl+C elsewhere).
+Define the menu in the main process with `Menu.buildFromTemplate` and role-based items (`copy`, `paste`,
+`selectAll`) — they get the right platform shortcuts automatically (⌘C on Mac, Ctrl+C elsewhere).
 
 ### System tray + dock badges
 
-- Tray icons: `new Tray(path.join(__dirname, 'tray-icon.png'))`. Use the right PNG size per OS (16x16 win, 22x22 mac, varies linux). Bundle multiple sizes.
-- Dock badge (macOS): `app.dock.setBadge('3')` for notification counts.
+- Tray icons: `new Tray(path.join(__dirname, 'tray-icon.png'))`, with the right PNG size per OS (16x16 Windows,
+  22x22 macOS, varies on Linux). Bundle several sizes.
+- Dock badge (macOS): `app.dock.setBadge('3')`.
 - Windows taskbar overlay icon: `BrowserWindow.setOverlayIcon(...)`.
 
 ### Deep-link protocol handlers
 
-Register a protocol (`myapp://`) at install time. `electron-builder` handles registration via `protocols:` in the config. Main process catches incoming URLs:
+Register a protocol (`myapp://`) at install time — electron-builder's `protocols:` config — and catch incoming
+URLs in the main process:
 
 ```js
 app.setAsDefaultProtocolClient('myapp');
@@ -291,38 +391,37 @@ app.on('open-url', (event, url) => {
   handleDeepLink(url);
 });
 
-// Windows/Linux: second-instance event (deep-link comes via argv)
+// Windows/Linux: second-instance event (the deep link arrives in argv)
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
   app.on('second-instance', (_, argv) => {
     const url = argv.find(a => a.startsWith('myapp://'));
-    if (url) handleDeepLink(url);
+    if (url) handleDeepLink(new URL(url).toString());
   });
 }
 ```
 
-Mandatory use cases:
-
-- **OAuth callback** (see Auth below)
-- **File-type associations** (`open with MyApp`)
+Use it for links from your website or mail into the app, and for file-type associations (`open with MyApp`). Treat
+every deep link as untrusted input. **OAuth callbacks do not use it** (§ Authentication).
 
 ### Autostart at login
 
-Use Electron's cross-platform API — never poke registry / LaunchAgents directly:
+Use Electron's cross-platform API — never poke the registry or LaunchAgents directly:
 
 ```js
 app.setLoginItemSettings({
   openAtLogin: true,
   openAsHidden: true,           // Mac: start hidden
-  args: ['--hidden'],           // Win/Linux: detect flag
+  args: ['--hidden'],           // Win/Linux: detect the flag
 });
 ```
 
 ### Single-instance lock
 
-Mandatory for any app where a deep-link or file-double-click should route to the existing window instead of spawning a second instance:
+Mandatory for any app where a deep link or a file double-click should reach the existing window instead of
+spawning a second instance:
 
 ```js
 const gotLock = app.requestSingleInstanceLock();
@@ -341,160 +440,190 @@ if (!gotLock) {
 
 ## Performance
 
-- **Defer heavy `require()`** — don't synchronously load native modules at the top of `main.ts`. Load them lazily when their subsystem is first invoked. Cold start gets faster.
-- **`app.requestSingleInstanceLock()`** — see above; prevents memory-heavy second Chromium spawn.
-- **Renderer process-per-window vs shared** — modern Electron defaults are sensible; do not override `affinity:` without measuring.
-- **Background work belongs in workers, not hidden renderers** — see "Background Execution" below.
+- **Defer heavy `require()`** — load native modules lazily when their subsystem is first used; cold start gets
+  faster.
+- **`app.requestSingleInstanceLock()`** — see above; it prevents a memory-heavy second Chromium.
+- **Renderer process-per-window vs shared** — Electron's defaults are sensible; do not override without measuring.
+- **Background work belongs in Utility Processes or workers, not hidden renderers** — § Background Execution.
 
-## Crash Reporting — Sentry / GlitchTip in BOTH Processes
+## Crash Reporting — Sentry / GlitchTip in every process
 
-Crash reporting in 2026 = third-party SDK in main AND renderer. Electron's built-in `crashReporter` is for native (Chromium) crashes only — application JS errors need the SDK.
+Application JS errors need the SDK; Electron's built-in `crashReporter` covers native (Chromium) crashes only.
 
 ```js
-// main process — before any window opens
+// main process — as early as possible, before any window opens
 import * as Sentry from '@sentry/electron/main';
 Sentry.init({ dsn: process.env.GLITCHTIP_DSN });
 
-// renderer/preload — react component tree wrapped with ErrorBoundary
+// renderer (and the preload too: with context isolation, preload errors are not captured otherwise)
 import * as Sentry from '@sentry/electron/renderer';
-Sentry.init({ dsn: process.env.GLITCHTIP_DSN });
+Sentry.init({});
 ```
 
-`@sentry/electron` handles both sides. GlitchTip is Sentry-protocol-compatible — same DSN, same SDK.
-
-**Minidumps for native Chromium crashes** are stored locally in `app.getPath('crashDumps')`. Transmit only with explicit consent (KVKK below).
+- Renderer events travel through the main process, which holds the DSN.
+- **Native crashes:** the SDK collects minidumps from any Electron process and uploads them on the next start
+  (immediately after a renderer crash). Upload debug symbols, or enable the Electron symbol server. Native crash
+  handling is off in Mac App Store builds.
+- GlitchTip speaks the Sentry protocol — same SDK, its own DSN.
+- **Consent first:** nothing is sent until the user opts in (§ KVKK / GDPR).
 
 ## Authentication (Connected mode)
 
-**OAuth: system browser, never embedded webview.**
+**OAuth runs in the system browser, never an embedded webview, and always with PKCE.**
 
 ```js
 import { shell } from 'electron';
+import http from 'node:http';
 
 async function login() {
   const verifier = generatePkceVerifier();
-  const challenge = await pkceChallenge(verifier);
-  const url = `https://auth.example.com/oauth?client_id=...&code_challenge=${challenge}&redirect_uri=myapp://auth`;
-  await shell.openExternal(url);
-  // wait for myapp://auth?code=... via deep-link handler
+  const challenge = await pkceChallenge(verifier);                 // S256
+  const server = http.createServer();                              // loopback redirect listener
+  await new Promise<void>(r => server.listen(0, '127.0.0.1', r));
+  const { port } = server.address() as { port: number };
+  const redirect = `http://127.0.0.1:${port}/callback`;
+  await shell.openExternal(
+    `https://auth.example.com/authorize?client_id=...&code_challenge=${challenge}` +
+    `&code_challenge_method=S256&redirect_uri=${encodeURIComponent(redirect)}`
+  );
+  // wait for GET /callback?code=... on `server`, then exchange code + verifier
 }
 ```
 
 **Why:**
 
-- Google, Microsoft, and most major IdPs **actively ban** embedded webview OAuth flows (phishing surface).
-- System browser has the user's existing session + 2FA + password-manager integration.
-- `<webview>` tag and embedded `BrowserWindow` for auth are banned.
+- The OAuth standard for native apps forbids embedded user-agents and requires PKCE for public clients
+  (RFC 8252).
+- **Loopback is the redirect that works everywhere:** Google no longer supports custom URI schemes for desktop
+  clients and blocks embedded webviews (`disallowed_useragent`); Microsoft's identity platform takes
+  `http://localhost` for system-browser desktop apps. Use `127.0.0.1` with any port the OS assigns.
+- The system browser has the user's session, 2FA and password manager.
+- The `<webview>` tag and an embedded `BrowserWindow` for sign-in are banned.
 
-Token storage: `safeStorage` (above). Never write tokens to plain disk or environment.
+The fleet's own sign-in uses the OTP code path above and needs no redirect at all. Token storage: `safeStorage`.
+Never write tokens to plain disk or environment.
 
 ## Sync Architecture (Connected mode)
 
-Optimistic-UI + local mutation log + queue-and-replay:
+Optimistic UI + local mutation log + queue-and-replay:
 
 ```text
 user action → INSERT INTO mutations_pending (action, payload, ts) → UI updates immediately
-network up → background sync worker reads mutations_pending
-           → POST batched mutations to Fabrik backend (X-Internal-Token or app-issued Bearer JWT from fabrik-lib/fastapi-user-auth)
+network up → background sync reads mutations_pending
+           → POST batched mutations to the Fabrik backend (app-issued Bearer JWT from fabrik-lib/fastapi-user-auth)
            → on success: DELETE FROM mutations_pending; APPLY canonical state from response
-           → on conflict: invoke conflict resolver (CRDT or last-write-wins per field)
+           → on conflict: invoke the conflict resolver (CRDT or last-write-wins per field)
 ```
 
 **Conflict resolution:**
 
-- **Default: last-write-wins per field** with server timestamp. Simplest, correct for most apps.
-- **CRDT (e.g., Yjs / Automerge)** when you need real-time multi-device editing of structured documents.
-- **Operational Transformation** when you need preserving-intent edits to ordered text (collaborative editor).
+- **Default: last-write-wins per field** with a server timestamp. Simplest, correct for most apps.
+- **CRDT (e.g. Yjs / Automerge)** for real-time multi-device editing of structured documents.
+- **Operational Transformation** for intent-preserving edits to ordered text (a collaborative editor).
 
-Per `58-resilience.md`: wrap sync calls with timeout + retry + circuit breaker. On circuit-open, sync pauses gracefully; the local mutation log stays intact.
+Per `58-resilience.md`: wrap sync calls with timeout + retry + circuit breaker. On circuit-open, sync pauses and the
+local mutation log stays intact.
 
 ## Real-Time Backend Updates
 
 For server-pushed updates: **SSE > WebSockets > polling**.
 
-- **Polling** burns battery (Windows Battery Saver + macOS Low Power Mode throttle aggressively).
-- **WebSockets** maintain a TCP connection — fine for active windows, but close them when the window minimizes.
-- **SSE (Server-Sent Events)** is the simplest server-push pattern over HTTPS; no upgrade dance, auto-reconnect with `Last-Event-ID`.
+- **Polling** burns battery (Windows Battery Saver and macOS Low Power Mode throttle it).
+- **WebSockets** hold a TCP connection — fine for an active window; close it when the window is minimised.
+- **SSE** is the simplest server push over HTTPS; it reconnects with `Last-Event-ID`.
 
-Per `12-node.md`: Node backend uses Fastify's SSE plugin or Express's `EventEmitter` pattern for the server side.
+Per `12-node.md`: a Node backend serves SSE with Fastify's SSE plugin or a plain streamed response.
 
 ## Background Execution — DON'T
 
-Persistent hidden renderer processes for background sync are **banned**:
+Persistent hidden renderer processes for background sync are **banned**: power-saving modes throttle or kill them,
+and each keeps a full renderer's memory resident while "doing nothing".
 
-- macOS Low Power Mode kills them.
-- Windows Battery Saver throttles them.
-- They keep ~150 MB RAM resident even when "doing nothing".
+**Instead:** sync on launch and on window focus, and let the backend wake the app with a push notification:
 
-**Instead:** rely on OS push notifications to wake the app for sync. For Mac: `node-mac-notifications` or APNs via the backend. For Win: WNS via the backend. For Linux: there's no canonical push; degrade to a tray-based "Click to sync" pattern.
+- **Windows:** Windows App SDK push notifications (WNS) with an Azure app registration. They may not work for a
+  self-contained or elevated app — check `PushNotificationManager.IsSupported()` and fall back to sync-on-launch.
+- **macOS:** APNs is available to Developer ID apps outside the App Store.
+- **Linux:** no canonical push; degrade to a tray "Sync now" action.
 
 ## Local LLM (Standalone AI mode)
 
-For air-gapped AI features: Ollama as a child process.
+For offline AI features: Ollama as a child process.
 
 ```js
 import { spawn } from 'node:child_process';
 
 const ollama = spawn('ollama', ['serve'], { stdio: 'inherit' });
-// Ollama exposes OpenAI-compatible REST API at http://localhost:11434
+// binds 127.0.0.1:11434 by default — native API at /api, OpenAI-compatible at /v1, no key for local calls
 ```
 
-- Models live on the user's disk (`~/.ollama/models/`).
-- Fabrik dev workstation already runs Ollama at `localhost:11434` (per `agents-fabrik.md § Local LLM Agents`).
-- App ships Ollama as a bundled dep OR detects an existing install. Bundling adds ~100 MB but eliminates "install Ollama first" friction.
-- Per `cost-budget.md`: local inference replaces OpenRouter API spend for offline use cases.
-- **Constraint:** Ollama capabilities are bounded by the user's GPU VRAM. Document the minimum hardware (e.g., 8 GB VRAM for Llama 3 8B q4).
+- Models live on the user's disk (`~/.ollama/models/`); Ollama is MIT-licensed.
+- Ship Ollama with the app or detect an existing install; bundling adds about 100 MB but removes "install Ollama
+  first" friction.
+- Keep it on loopback: setting `OLLAMA_HOST` to a public address exposes an unauthenticated API.
+- Local inference has no per-token spend (`cost-budget.md`).
+- **Constraint:** what runs is bounded by the user's GPU memory. Document the minimum VRAM for the model you ship.
 
 ## License Management (Standalone, no backend)
 
-For paid standalone apps with offline license validation:
+For paid standalone apps with offline licence validation — a signature the app can check without a server:
 
 ```js
 import crypto from 'node:crypto';
 
-const PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----`;
+const PUBLIC_KEY = crypto.createPublicKey(`-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----`);
 
 function verifyLicense(licenseFile: Buffer): LicensePayload | null {
-  // licenseFile = JSON payload + RSA-SHA256 signature
+  // licenseFile = JSON payload + Ed25519 signature (base64)
   const { payload, signature } = parseLicense(licenseFile);
-  const verifier = crypto.createVerify('RSA-SHA256');
-  verifier.update(payload);
-  if (!verifier.verify(PUBLIC_KEY, signature, 'base64')) return null;
+  const ok = crypto.verify(null, Buffer.from(payload), PUBLIC_KEY, Buffer.from(signature, 'base64'));
+  if (!ok) return null;
   const parsed = JSON.parse(payload);
   if (parsed.expires_at < Date.now()) return null;
   return parsed;  // { user_id, tier, features, expires_at }
 }
 ```
 
-- Developer signs license file with private key (kept offline, NEVER in repo).
-- App ships public key embedded in code.
-- License payload carries `user_id`, `tier`, `features`, `expires_at`.
-- **Revocation:** ship a blacklist of compromised license signatures in updates. Limited but workable for low-volume markets.
+- You sign licence files with the private key, kept offline and NEVER in the repo.
+- The app ships the public key embedded in code.
+- The licence payload carries `user_id`, `tier`, `features`, `expires_at`.
+- **Revocation:** ship a blocklist of compromised licence signatures in updates. Limited, and a cracked binary
+  skips the check entirely — that is the standalone deal (`00-domain-desktop-app.md` Fork 1).
 
 ## KVKK / GDPR Compliance
 
-For Turkish entity (KVKK) and EU users (GDPR):
+For a Turkish entity (KVKK) and EU users (GDPR):
 
-- **Telemetry: opt-in only.** Default config = no network egress. First-run prompt explicitly asks; refusal is silent + permanent (until user opts in via Settings).
-- **Crash reporting (Sentry/GlitchTip): opt-in.** Without consent, minidumps stay local-only.
-- **Anonymous IDs locally** when telemetry is enabled — no PII in event payloads.
-- **No foreign-cloud egress without consent.** KVKK Article 9: personal data cannot be transferred outside Türkiye without explicit informed consent OR adequacy decision (rare).
+- **Telemetry: opt-in only.** Default config = no network egress. The first-run prompt asks; a refusal is silent
+  and permanent until the user opts in from Settings. Under GDPR, an installed app that sends telemetry from the
+  user's machine falls under ePrivacy Art. 5(3) — the EDPB's guidelines on its technical scope (adopted
+  2024-10-07) name laptops and SDK-triggered sends — so it needs consent unless strictly necessary.
+- **Crash reporting (Sentry/GlitchTip): opt-in.** Without consent, minidumps stay on the machine.
+- **Anonymous IDs** when telemetry is on — no PII in event payloads.
+- **Transfers out of Türkiye (KVKK Art. 9, as amended by Law No. 7499 from 2024-06-01):** a transfer needs an
+  adequacy decision or an appropriate safeguard — most practically the Board's standard contract, which must be
+  notified to the Authority within five business days of signing (binding corporate rules and Board-approved
+  commitments are the other safeguards). Explicit consent is now only an exception for incidental transfers, not
+  the basis for a routine data flow. A foreign crash-report or telemetry host is a routine transfer: sign and
+  notify the standard contract before switching it on.
 
 ## Apple Privacy Manifest
 
-For macOS App Store submissions AND notarized direct-download apps:
+- **Mac App Store submissions:** include `PrivacyInfo.xcprivacy` declaring every data category collected; App Store
+  Connect enforces the manifest at upload.
+- **Required-reason APIs** (boot time, file timestamps, disk space, user defaults) are enforced for Apple's
+  iOS-family platforms; Apple's list does not name macOS. Declare them anyway when an SDK you bundle ships its own
+  manifest, using codes from Apple's list — never invented ones.
+- **Direct download:** Apple states no manifest check for notarization. Write one only if you also ship to the
+  Mac App Store.
 
-- `PrivacyInfo.xcprivacy` is mandatory.
-- Declare every data category collected.
-- **Required Reason APIs** (boot times, file timestamps, disk space, system uptime, UserDefaults) — each needs a justification code from Apple's approved list. Pick the closest fit; don't invent codes.
-
-`electron-builder` doesn't auto-generate this — author manually based on what your native dependencies use.
+electron-builder does not generate it — author it by hand from what your native dependencies use.
 
 ## Testing — Playwright (Spectron is dead)
 
 ```js
-// playwright.config.ts
-import { _electron as electron } from '@playwright/test';
+// tests/app.spec.ts
+import { test, expect, _electron as electron } from '@playwright/test';
 
 test('main window renders', async () => {
   const app = await electron.launch({ args: ['main.js'] });
@@ -504,9 +633,12 @@ test('main window renders', async () => {
 });
 ```
 
-- **Spectron is DEPRECATED** (read: never use).
-- Playwright supports Electron natively via `_electron.launch()`.
-- **Mock native OS dialogs** (file picker, save dialog) via `electronApp.evaluate()` — they block test execution otherwise:
+- **Spectron** has been deprecated since 2022 and its repository is archived — never use it.
+- **Playwright's Electron support is experimental** and needs the `enableNodeCliInspectArguments` fuse left on;
+  run E2E against a test build that keeps it, and ship release builds with it off.
+- **WebdriverIO's Electron service** is the supported alternative when you need it (Chromedriver set up for you,
+  Electron API mocking).
+- **Mock native OS dialogs** (file picker, save dialog) — they block a test otherwise:
 
   ```js
   await electronApp.evaluate(({ dialog }) => {
@@ -514,11 +646,13 @@ test('main window renders', async () => {
   });
   ```
 
-Testing Trophy + Behavior Contract (per `45-testing-strategy.md`) — one integration/E2E test per distinct user-observable behavior, risk-ordered; **NOT** a wide base of business-logic unit tests:
+Testing Trophy + Behavior Contract (per `45-testing-strategy.md`) — one integration/E2E test per distinct
+user-observable behavior, risk-ordered; **NOT** a wide base of business-logic unit tests:
 
-- **Primary: IPC integration tests** — exercise the preload `contextBridge` surface with mock main handlers (the main↔renderer contract is where Electron bugs live).
-- **Primary: Playwright E2E** — golden-path user flows, one per behavior; keep small + fast.
-- **Unit (`vitest` per `12-node.md`) ONLY for complex pure algorithms / data transformations** — reserved, not the base.
+- **Primary: IPC integration tests** — exercise the preload `contextBridge` surface with mock main handlers (the
+  main↔renderer contract is where Electron bugs live).
+- **Primary: Playwright E2E** — golden-path user flows, one per behavior; small and fast.
+- **Unit (`vitest` per `12-node.md`) ONLY for complex pure algorithms / data transformations.**
 
 ---
 
@@ -526,73 +660,83 @@ Testing Trophy + Behavior Contract (per `45-testing-strategy.md`) — one integr
 
 | Pattern | Use Instead | Reason |
 | --- | --- | --- |
-| `nodeIntegration: true` in `BrowserWindow` | `contextIsolation: true` + `nodeIntegration: false` + `sandbox: true` | XSS → instant RCE if Node is enabled in renderer |
-| Exposing `ipcRenderer` directly via `contextBridge` | Expose named, typed methods only | Raw ipcRenderer leak = full renderer-to-main compromise |
-| `<webview>` or `BrowserWindow` for OAuth | `shell.openExternal` + deep-link callback | Embedded webview OAuth is banned by Google + most IdPs (phishing) |
-| `keytar` | `safeStorage` API | keytar is unmaintained + native-build flaky; safeStorage is canonical |
-| `IndexedDB` / `leveldb` for relational data | `better-sqlite3` with SQLCipher | IndexedDB lacks SQL; leveldb has no relational support |
-| Plain `better-sqlite3` (unencrypted) for prod | `better-sqlite3-multiple-ciphers` (SQLCipher 256-bit AES) | KVKK + reasonable user expectation for local sensitive data |
-| Silently falling back to plaintext on Linux without keyring | Refuse + warn OR require passphrase | "Silent plaintext" defeats the whole credential model |
-| Throwing exceptions across IPC | Return `{success, data?, error?}` wrapper | Error objects don't serialize over IPC; throwing loses context |
-| Skipping Zod validation on `ipcMain.handle` | Validate every input with Zod | Renderer is untrusted; raw inputs to privileged main code = RCE risk |
-| Legacy EV USB-token code signing on Windows | Azure Trusted Signing ($9.99/mo) | USB tokens break CI; Azure Trusted Signing gives same SmartScreen reputation at fraction of cost |
-| GitHub Releases for private-repo auto-update | Cloudflare R2 generic HTTP provider | Embedding GH token in binary = token leak; egress costs make S3 unviable |
-| Hidden persistent renderer for background sync | OS push notifications + on-launch sync | Battery Saver / Low Power Mode kill them; massive idle RAM |
-| Aggressive HTTP polling for backend updates | SSE > WebSockets > polling | Polling burns battery + breaks under throttling |
-| Persistent telemetry without explicit opt-in | First-run opt-in prompt + KVKK-aware default | Foreign-cloud egress without consent violates KVKK Art 9 |
-| Spectron for E2E tests | Playwright `_electron.launch()` | Spectron is deprecated; Playwright is the 2026 standard |
-| Native OS dialogs blocking automated tests | `electronApp.evaluate(({ dialog }) => ...)` mock | Dialogs are modal; uncovered tests hang in CI |
-| Skipping notarization on macOS | `xcrun notarytool` (auto via electron-builder) | Gatekeeper warns users; ships unstapled = online check on every launch |
-| Manual file paths to `app.getPath(...)` constants | `app.getPath('userData')`, `'crashDumps'`, etc. | Hardcoded paths break under user-relocated profiles + portable installs |
+| An Electron major outside the three newest stable ones | Upgrade before yours leaves the window | Unsupported majors get no Chromium security fixes |
+| `nodeIntegration: true` / `contextIsolation: false` / `sandbox: false` | The three declared explicitly, as above | XSS → instant RCE; disabling isolation also disables the sandbox |
+| Exposing `ipcRenderer` (or passing a callback straight to `ipcRenderer.on`) via `contextBridge` | Named, typed methods; wrap callbacks | Raw `ipcRenderer` or `event.sender` = renderer-to-main compromise |
+| `ipcMain.handle` without a sender-origin check and a schema | Check `event.senderFrame.origin`, then Zod | The renderer and any frame in it are untrusted |
+| No permission handler / unrestricted navigation or new windows | `setPermissionRequestHandler`, deny `will-navigate`, `setWindowOpenHandler` deny | Electron approves every permission by default |
+| Default fuses in a release build | `electronFuses` as in § Fuses | `runAsNode` and `NODE_OPTIONS` turn the signed app into a code runner |
+| `<webview>` or `BrowserWindow` for OAuth, or a custom-scheme OAuth redirect | System browser + PKCE + loopback redirect | Embedded sign-in is blocked by Google and forbidden by RFC 8252; Google refuses custom schemes for desktop |
+| `keytar` | `safeStorage` (async API) | keytar is archived |
+| Storing secrets when `safeStorage` reports `basic_text` | Refuse + warn, or a user passphrase via Argon2id | `basic_text` is a hardcoded key — effectively plaintext |
+| `IndexedDB` / `leveldb` for relational data | `better-sqlite3` | IndexedDB lacks SQL; leveldb has no relational support |
+| Plain `better-sqlite3` (unencrypted) in production | `better-sqlite3-multiple-ciphers`, SQLCipher, raw random key | KVKK + reasonable user expectation for local sensitive data |
+| Throwing exceptions across IPC | Return the `{success, data?, error?}` wrapper | Error objects don't serialize over IPC |
+| Paying for an EV certificate to skip SmartScreen | Artifact Signing or an OV certificate, signed consistently | EV no longer bypasses SmartScreen; reputation builds per identity |
+| Shipping unsigned or un-notarized builds | Signing in the build pipeline (§ Code Signing) | SmartScreen / Smart App Control / Gatekeeper stop the install |
+| GitHub Releases for private-repo auto-update | Generic provider on your own domain | Embedding a GitHub token in the binary leaks it |
+| Production updates from `r2.dev` | A custom domain on the R2 bucket | `r2.dev` is rate-limited and for development only |
+| Hidden persistent renderer for background sync | Push notifications + sync on launch/focus | Power-saving modes kill them; idle memory |
+| Aggressive HTTP polling for backend updates | SSE > WebSockets > polling | Polling burns battery and breaks under throttling |
+| Telemetry or crash reports without explicit opt-in | First-run opt-in prompt | ePrivacy Art. 5(3) consent; KVKK transfer rules |
+| Spectron for E2E tests | Playwright `_electron.launch()` (or WebdriverIO) | Spectron is deprecated and archived |
+| Native OS dialogs blocking automated tests | `electronApp.evaluate(({ dialog }) => ...)` mock | Dialogs are modal; tests hang in CI |
+| Hardcoded profile paths | `app.getPath('userData')`, `'crashDumps'`, etc. | Hardcoded paths break relocated profiles and portable installs |
 
 ---
 
 ## Related Rule Packs
 
-- `core/12-node.md` — main process is Node; SIGTERM drain, structured logging via pino, `crypto.timingSafeEqual()` (for M2M token validation if connecting to Fabrik backend)
+- `core/12-node.md` — main process is Node; SIGTERM drain, structured logging, `crypto.timingSafeEqual()`
 - `core/20-typescript.md` — TS-specific patterns (auto-loads on `.ts` files)
-- `core/15-api-contracts.md` — when connecting to Fabrik backend, request/response contracts
-- `core/35-security-auth.md` — app-issued Bearer JWT (`fabrik-lib/fastapi-user-auth`, Pattern A default), M2M `X-Internal-Token` (backend-side)
-- `core/55-observability.md` — `@sentry/electron` for both processes; GlitchTip DSN
+- `core/15-api-contracts.md` — request/response contracts when connecting to a Fabrik backend
+- `core/35-security-auth.md` — passwordless sign-in, app-issued Bearer JWT (`fabrik-lib/fastapi-user-auth`)
+- `core/55-observability.md` — `@sentry/electron` in every process; GlitchTip DSN
 - `core/58-resilience.md` — sync queue retry + circuit breaker patterns
-- `core/45-testing-strategy.md` — Testing Trophy + Behavior Contract (integration/E2E primary per behavior; unit via vitest only for pure algorithms)
+- `core/45-testing-strategy.md` — Testing Trophy + Behavior Contract
 - `core/design-system-template.md` — token slots, spacing, components and states for the React UI
 - `core/ocoron-design-system.md` — color and typography values, when the project declares the house identity
-- `core/cost-budget.md` — local LLM via Ollama as alternative to OpenRouter API spend
-- Epic decomposition + the standalone-vs-connected mode fork: **§ Epic Decomposition** below (promoted into this pack 2026-07-13; `domain-modules/` is deleted).
+- `core/cost-budget.md` — local LLM via Ollama as an alternative to metered API spend
+- `desktop-app/00-domain-desktop-app.md` — the planning layer (§ Epic Decomposition below)
 
 ---
 
 ## Done When
 
+- [ ] Electron is on one of the three newest stable majors, latest minor.
 - [ ] All `BrowserWindow` instances declare `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
-- [ ] Preload script uses `contextBridge.exposeInMainWorld` with named typed methods; no raw `ipcRenderer` exposed.
-- [ ] Every `ipcMain.handle` receiver validates input with Zod (or equivalent) BEFORE doing privileged work.
-- [ ] All IPC handlers return `{success: true, data} | {success: false, error: string}` wrapper.
-- [ ] Local SQLite uses `better-sqlite3-multiple-ciphers` with SQLCipher 256-bit AES; `kdf_iter ≥ 256000`.
-- [ ] Master key + OAuth tokens stored via `safeStorage.encryptString`; never plaintext on disk.
-- [ ] Linux fallback: `safeStorage.isEncryptionAvailable()` checked; refuse OR require passphrase if false.
-- [ ] Windows signing: Azure Trusted Signing via `electron-builder` SignTool plugin; no EV USB tokens.
-- [ ] macOS signing: Apple Developer ID + Hardened Runtime + notarization via `xcrun notarytool`; stapled.
-- [ ] macOS entitlements: only those actually needed; `com.apple.security.network.client` for backend-connected.
-- [ ] Linux: GPG-signed AppImage + `.asc` published alongside.
-- [ ] Auto-update via `electron-updater` with `provider: generic` pointing to `pub-*.r2.dev` (Cloudflare R2); blockmap delta updates enabled.
+- [ ] A permission request handler, `will-navigate` denial and a `setWindowOpenHandler` deny are installed; CSP is
+      sent as a header.
+- [ ] Release builds set the fuses in § Fuses (incl. ASAR integrity + `onlyLoadAppFromAsar`).
+- [ ] The preload uses `contextBridge.exposeInMainWorld` with named typed methods; no raw `ipcRenderer`.
+- [ ] Every `ipcMain.handle` checks `event.senderFrame.origin`, then validates input with Zod, before privileged work.
+- [ ] All IPC handlers return the `{success: true, data} | {success: false, error: string}` wrapper.
+- [ ] Local SQLite uses `better-sqlite3-multiple-ciphers` (SQLCipher) with a raw random 32-byte key.
+- [ ] The master key and tokens are stored via `safeStorage` (async API); never plaintext on disk.
+- [ ] Linux: `basic_text` detected → refuse or require a passphrase.
+- [ ] Windows: signed with Artifact Signing or an OV certificate in a cloud HSM; renewal date tracked.
+- [ ] macOS: Developer ID + Hardened Runtime + notarization via `xcrun notarytool`; stapled.
+- [ ] macOS entitlements: only those actually needed.
+- [ ] Linux: AppImage carries an embedded GPG signature; the public key is on the download page.
+- [ ] Auto-update via `electron-updater`, `provider: generic`, on a custom domain (not `r2.dev`); macOS ships the
+      zip target; blockmap differential updates enabled.
 - [ ] GitHub Releases NOT used for private-repo distribution.
-- [ ] `app.requestSingleInstanceLock()` mandatory; `second-instance` event routes argv (deep links, file paths) to existing window.
-- [ ] Deep-link protocol handler registered (`app.setAsDefaultProtocolClient`); `open-url` (Mac) + `second-instance` argv (Win/Linux) handled.
-- [ ] Autostart via `app.setLoginItemSettings` (not registry / LaunchAgents directly).
-- [ ] OAuth via `shell.openExternal` to system browser; deep-link callback; never `<webview>` or `BrowserWindow` for auth.
-- [ ] `@sentry/electron/main` + `@sentry/electron/renderer` both initialised with `GLITCHTIP_DSN`; opt-in only per KVKK.
-- [ ] Telemetry default: NO network egress until user opts in; anonymous IDs only.
-- [ ] Apple Privacy Manifest (`PrivacyInfo.xcprivacy`) filed for macOS submissions + notarized direct downloads.
+- [ ] `app.requestSingleInstanceLock()`; `second-instance` routes argv (deep links, file paths) to the existing window.
+- [ ] Deep-link protocol handler registered; `open-url` (Mac) + `second-instance` argv (Win/Linux) handled as
+      untrusted input.
+- [ ] Autostart via `app.setLoginItemSettings` (not the registry / LaunchAgents directly).
+- [ ] OAuth (if any): system browser, PKCE, loopback redirect; never `<webview>` or `BrowserWindow`.
+- [ ] `@sentry/electron` initialised in main, preload and renderer; opt-in only.
+- [ ] Telemetry default: NO network egress until the user opts in; anonymous IDs only.
+- [ ] A foreign telemetry/crash host has a signed and notified KVKK standard contract.
+- [ ] `PrivacyInfo.xcprivacy` filed if the app ships to the Mac App Store.
 - [ ] Sync mode: optimistic UI + local mutation log; queue-and-replay; CRDT or LWW conflict resolution.
 - [ ] Real-time backend: SSE preferred over WebSockets over polling.
-- [ ] No persistent hidden renderer for background sync; rely on OS push notifications.
-- [ ] Local LLM (if shipped): Ollama child process at `localhost:11434`; minimum hardware documented.
-- [ ] Standalone licensing (if applicable): RSA-SHA256 signature verification with embedded public key.
-- [ ] E2E tests: Playwright `_electron.launch()`; native dialogs mocked via `electronApp.evaluate()`.
+- [ ] No persistent hidden renderer for background sync.
+- [ ] Local LLM (if shipped): Ollama on loopback; minimum VRAM documented.
+- [ ] Standalone licensing (if applicable): Ed25519 signature verification with an embedded public key.
+- [ ] E2E tests: Playwright `_electron.launch()` against a test build; native dialogs mocked.
 - [ ] Spectron NOT used.
-- [ ] ASAR packing enabled with integrity validation; Bytenode adopted IF bundle obfuscation matters.
 - [ ] Ocoron design tokens used for ALL color/spacing/typography (no hardcoded hex or raw px).
 
 ---
@@ -605,9 +749,7 @@ unit economics, risk, kill criteria) and the epic-decomposition directives — l
 not by glob.
 
 **This pack owns the code-time facts** (process model, IPC, persistence, § Distribution Channels, § Code
-Signing, § Auto-Update, licence verification, testing). The planner cites them; it never restates them. Keep
-it that way — the duplicate that used to live here had already restated § Code Signing's cost four hundred
-lines below it.
+Signing, § Auto-Update, licence verification, testing). The planner cites them; it never restates them.
 
 ## Draft Persistence — nothing typed or AI-generated is EVER lost (fleet mandate 2026-08-13)
 

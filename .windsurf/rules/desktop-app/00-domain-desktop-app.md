@@ -2,15 +2,16 @@
 activation: manual
 description: Desktop-app domain — PLANNING layer. Vision-intake dimensions (ICP, the standalone-vs-connected fork that decides whether revenue can be gated at all, zero-intermediary economics vs the OS gatekeeper, unit economics, risk, kill criteria) + epic-decomposition directives. Business formation, not code discipline — 72-desktop.md owns every code-time fact.
 trigger: manual
+currency_pass: 2026-10-03
 ---
 <!-- CONSUMER: the mega-epic planner (vision intake + epic decomposition). Loaded BY PATH from
-     docs/traycer/mega-epic-breakdown/00-trigger-*.md and 02-epic-decomposition-*.md.
+     commands/_sources/fabrik-epics.md and commands/_sources/fabrik-vision.md.
      ⚠️ NOT glob-activated ON PURPOSE — "who is the ICP?" and "what is the kill criteria?" are vision-intake
         questions, not something to inject into an agent mid-edit in main.ts.
      ⚠️ THE ONE RULE: this file FORCES A DECISION; it NEVER states an implementation. No value (signing costs,
-        certificate prices, store fees, SDK names, window sizes, crypto algorithms) may be copied in from
-        72-desktop.md — a second copy drifts, and that is exactly why docs/traycer/**/domain-modules/ was
-        deleted 2026-07-13. Cite 72; never restate it. -->
+        certificate prices, store fees or commissions, SDK names, window sizes, crypto algorithms) may be
+        copied in from 72-desktop.md — a second copy drifts. No dollar amount and no percentage here. Cite 72-desktop.md;
+        never restate it. -->
 
 # Desktop App Domain — Planning Layer (vision intake + epic decomposition)
 
@@ -20,9 +21,9 @@ A dimension belongs at intake **only if** getting it wrong is **irreversible** o
 
 ---
 
-## The 3 Forks (do NOT inherit SaaS, mobile or extension defaults here)
+## The Three Forks (do NOT inherit SaaS, mobile or extension defaults here)
 
-**1. STANDALONE vs CONNECTED decides whether you can gate revenue AT ALL. This is the Epic-1 gate.**
+**1. STANDALONE vs CONNECTED decides whether you can gate revenue AT ALL. This is the Epic 1 gate.**
 Every other product type in Fabrik can enforce entitlement on a server: the SaaS checks a row, the extension calls its backend, the mobile app validates a receipt. **A standalone desktop app cannot.** If it runs offline, the entitlement check runs *on the user's machine, inside a binary you handed them* — so it must be an offline-verifiable licence, and it is **crackable by definition**. That is not a bug to fix; it is the deal. Price and position accordingly.
 
 - **Connected** ⇒ server-side entitlement, real auth, sync — but you now own a backend, its uptime, and its COGS.
@@ -32,15 +33,17 @@ Every other product type in Fabrik can enforce entitlement on a server: the SaaS
 → Implementations owned by `72` § License Management (Standalone, no backend) · § Authentication (Connected mode) · § Sync Architecture (Connected mode).
 
 **2. Desktop is the ONLY type with NO mandatory intermediary — but the OS is still a gatekeeper.**
-Mobile is forced into store billing. An extension cannot bill in-store at all. Desktop can do **either** — and the default, direct download from your own domain, means **no store, no review, no commission: you keep 100%**. If you *do* choose a store, the cut is real and asymmetric, and this is the number nobody else in the repo states:
+Mobile is forced into store billing. An extension cannot bill in-store at all. Desktop can do **either** — and the default, direct download from your own domain, means **no store, no review, no commission: you keep all of it**. If you *do* choose a store, the cut is real and asymmetric:
 
-- **Mac App Store** — Apple takes a commission on sales (reduced for subscriptions and Small-Business-Program members; in 2026 Apple moved to a layered fee shaped by payment path and user type). ([App Store fee changes, 2026](https://blog.funnelfox.com/apple-app-store-fees-2026-eu-dma/))
-- **Microsoft Store** — **you may use your own commerce system and keep 100%** for non-gaming apps; Microsoft's cut applies only if you opt into *its* commerce. Publishing is free. ([Microsoft Store revenue share](https://appetiser.com.au/blog/microsoft-store-revenue-now-gives-developers-a-95-cut-on-one-condition/), [free publishing](https://techcrunch.com/2025/05/19/itll-soon-be-free-to-publish-apps-to-the-microsoft-store/))
+- **Mac App Store** — Apple takes a commission on every sale, lower for small developers and for subscriptions after their first year.
+- **Microsoft Store** — **you may use your own commerce system and keep all the revenue** on non-game apps; Microsoft's cut applies only if you opt into *its* commerce, and registration is free for individual developers.
+
+The rates and fees are in `72-desktop.md` § Distribution Channels.
 
 **The catch that kills launch dates:** with no store, **the OS becomes the gatekeeper — and the tax it charges is paid in conversion, not in commission.** Be precise about what actually happens to an unsigned build, because the two platforms differ:
 
-- **macOS** — since Sequoia (15) the Control-click bypass is **gone**. A user must open System Settings → Privacy & Security → *Open Anyway* → and enter an admin password. ([Apple removed the Control-click override](https://www.idownloadblog.com/2024/08/07/apple-macos-sequoia-gatekeeper-change-install-unsigned-apps-mac/))
-- **Windows** — SmartScreen **warns** ("Windows protected your PC") and permits *More info → Run anyway*; it is friction, not a wall. But **Smart App Control blocks unsigned executables outright** unless they carry positive reputation. ([Microsoft: SmartScreen reputation](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation))
+- **macOS** — since 2024 the Control-click bypass is **gone**. A user must open System Settings → Privacy & Security → *Open Anyway* → and authenticate, and macOS also expects the app to be notarized. ([Apple: updates to runtime protection](https://developer.apple.com/news/?id=saqachfa))
+- **Windows** — SmartScreen **warns** ("Windows protected your PC") and permits *More info → Run anyway*; it is friction, not a wall — but enterprise policy can remove *Run anyway*, an unsigned file starts from zero reputation on every update, and since 2024 not even an EV certificate skips the warning: reputation builds per signing identity, over weeks. **Smart App Control blocks unsigned code outright** where it is on. ([Microsoft: SmartScreen reputation](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation))
 
 So the honest statement is not "unsigned is impossible" — it is **"unsigned converts at near zero."** A prospect who downloads your app and is told the OS protected them from it does not go hunting through System Settings; they close the window. Code signing is therefore a **launch-blocking prerequisite carrying a recurring cost AND an identity-verification lead time** — a paperwork queue, not a packaging step.
 → Channels, costs and the signing matrix are owned by `72` § Distribution Channels + § Code Signing. **Read the numbers there; never copy them here.**
@@ -63,18 +66,18 @@ No store pushes your update. A user can sit on a two-year-old build forever, and
 
 **Force:** one-time licence / subscription / freemium · **and (from Fork 1) whether entitlement is enforceable at all**.
 **Default:** direct sale, own commerce, zero intermediary. A standalone app's licence is offline-verifiable and therefore **crackable** — pick a price and a market where that is acceptable, or pick connected.
-**Why now:** the entitlement mechanism is Epic-1 architecture. It cannot be bolted on.
+**Why now:** the entitlement mechanism is Epic 1 architecture. It cannot be bolted on.
 
 ### 3. Platform Scope
 
-**Force:** Windows / macOS / Linux — which, at v1?
+**Force:** Windows / macOS / Linux — which, at the first release?
 **Default:** ship only the platforms your ICP actually uses. Every added OS multiplies signing identity, notarization, testing and support. **macOS is the expensive one** (identity + notarization + entitlements); Linux is the cheap one.
 **Why now:** each platform is a distinct signing identity with its own lead time, and "we'll add Mac later" means re-testing everything.
 
 ### 4. Trust & Signing Readiness
 
-**Force:** who is the **legal identity** that will hold the signing certificate (individual vs company), and **when does verification start**?
-**Default:** **start identity verification before you need it.** It is a paperwork process with a queue, not a purchase.
+**Force:** who is the **legal identity** that will hold the signing certificate (individual vs company), **which signing services accept that entity's country**, and **when does verification start**?
+**Default:** **start identity verification before you need it.** It is a paperwork process with a queue that cannot be expedited, not a purchase — and not every signing service serves every country, so the entity's location can decide the Windows route (`72-desktop.md` § Code Signing).
 **Why now:** unsigned ⇒ the OS blocks the app ⇒ there is no launch. A signing identity cannot be conjured in the final week.
 
 ### 5. Data Residency & Local Storage
@@ -110,7 +113,7 @@ No store pushes your update. A user can sit on a two-year-old build forever, and
 
 ### 10. Sequencing & Kill Criteria
 
-**Force:** v1 = one workflow, one platform · explicit kill/pivot criteria **with a date** · what evidence would prove this should have been a web app.
+**Force:** the first release = one workflow, one platform · explicit kill/pivot criteria **with a date** · what evidence would prove this should have been a web app.
 **Default:** ship the wedge to one OS, validate, then expand.
 **Why now:** the only structural defense against building past the point of disproof — and desktop's cross-platform tax makes over-scoping unusually expensive.
 
