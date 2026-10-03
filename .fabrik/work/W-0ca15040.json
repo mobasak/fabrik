@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T23:37:36.359783Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "65dc95db3099145ca5a6593d1fd4e43accaf5cb0",
   "id": "W-0ca15040",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "intel",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "title": "V6 reading of the work store, due 2026-10-08 (two weeks after hub adoption)"
 }

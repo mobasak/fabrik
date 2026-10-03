@@ -360,6 +360,56 @@ def test_class_6_flags_bad_evidence_and_a_stale_open_marker_but_exempts_legacy(t
     assert f".fabrik/work/{legacy_bad}.json" not in lines
 
 
+def test_class_6_exempts_a_decision_closed_by_answer_but_not_a_bare_done_decision(tmp_path):
+    """`answer` closes an awaiting-operator decision with the operator's words and no commit, so
+    the evidence predicate must not count it; a decision flipped to done with neither a note nor
+    evidence still is class 6 (V6 reading 2026-10-04: all 52 class-6 items were answered decisions)."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+
+    # decision items come only from the Stop-hook harvest, never from `add`: make a plain item
+    # and rewrite its kind, as the harvest's own output would read
+    answered = _add(repo, env, title="Deploy now?")
+    it = _item(repo, answered)
+    it.update(kind="decision", status="awaiting-operator")
+    _write_item(repo, answered, it)
+    _ok(["answer", answered, "--note", "operator: A, deploy now"], env, repo)
+    assert _item(repo, answered)["status"] == "done"
+
+    bare = _add(repo, env, title="Hand-closed decision")
+    it = _item(repo, bare)
+    it.update(kind="decision", status="done")
+    _write_item(repo, bare, it)
+
+    # a note on any other kind is not an operator's answer, and a non-string note is not one either
+    task = _add(repo, env, title="Task closed with a note but no evidence")
+    it = _item(repo, task)
+    it.update(status="done", note="looked fine")
+    _write_item(repo, task, it)
+    odd = _add(repo, env, title="Decision with a non-string note")
+    it = _item(repo, odd)
+    it.update(kind="decision", status="done", note={"x": 1})
+    _write_item(repo, odd, it)
+
+    lines = "\n".join(_drift_lines(_ok(["status"], env, repo), 6))
+    assert f".fabrik/work/{answered}.json" not in lines
+    assert f".fabrik/work/{bare}.json" in lines
+    assert f".fabrik/work/{task}.json" in lines
+    assert f".fabrik/work/{odd}.json" in lines
+
+
+def test_answer_refuses_a_non_decision_item(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item = _add(repo, env, title="Not a decision")
+    it = _item(repo, item)
+    it.update(status="awaiting-operator")
+    _write_item(repo, item, it)
+    r = run(["answer", item, "--note", "operator: yes"], env, repo)
+    assert r.returncode != 0 and "only a decision item" in r.stderr, (r.stdout, r.stderr)
+    assert _item(repo, item)["status"] == "awaiting-operator"
+
+
 # ── row 4: sync --check on a fresh (unmigrated) store ─────────────────────────────────────────
 
 

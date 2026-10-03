@@ -1746,10 +1746,19 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
             if data.get("status") not in STATUSES:
                 report[5].append(rel)
                 continue
+            # `answer` closes an awaiting-operator decision with the operator's words in `note` and
+            # no commit, so an answered decision carries no evidence by design. COBRA (D-253): a
+            # hand-written note on a decision dodges this predicate; that edit is in the item's git
+            # history, and a decision done with neither note nor evidence still reads class 6.
+            note = data.get("note")
+            answered = (
+                data.get("kind") == "decision" and isinstance(note, str) and bool(note.strip())
+            )
             if (
                 data.get("status") == "done"
                 and not data.get("legacy")
                 and data.get("kind") not in LINKED_KINDS
+                and not answered
             ):
                 if (
                     _status_change_age_seconds(
@@ -3092,6 +3101,13 @@ def cmd_answer(repo: Path, args: argparse.Namespace) -> int:
             raise WorkError(
                 f"answer closes only an awaiting-operator item; {args.id} is "
                 f"{item.get('status')} (use done or drop)"
+            )
+        if item.get("kind") != "decision":
+            # only the decision harvest sets awaiting-operator; drift class 6 exempts an answered
+            # item by kind, so an answer on any other kind would read as unevidenced drift
+            raise WorkError(
+                f"answer closes only a decision item; {args.id} is kind {item.get('kind')!r} "
+                "(use done with evidence, or drop)"
             )
         if args.id in _closed_ids(repo):
             raise WorkError(f"answer {args.id} refused: it was already closed in another tree")

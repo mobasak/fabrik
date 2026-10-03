@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T22:03:24.571407Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-5937c2cd",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-09-24-work-tracking-design.md"
+  },
+  "next": "Batch the class-6 git reads (one git log over .fabrik/work for status-changing commits, one rev-list/log for evidence SHAs) instead of _status_change_age_seconds + _evidence_commit per item; profile: a cProfile run on 2026-10-04 took 5.98 s (about 5.5 s unprofiled), of which 3.2 s + 1.9 s are those two helpers; then amend spec § Lifecycle's remedy",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "work.py status takes ~5.5 s on the hub (spec growth trigger: over 1 s) — 615 git subprocesses in _drift_report, two per recently-closed done item; the spec's archive remedy cannot help (3 of 360 closed items are older than 90 days)"
+}

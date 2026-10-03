@@ -204,7 +204,7 @@ Drift classes, each defined by a predicate `status` evaluates and lists by path:
 3. **A plan IN-PROGRESS with no plan lock** (8 fleet-wide).
 4. **A plan EXECUTED while an item linking it is still open.**
 5. **An item file that doesn't parse, or a status outside the vocabulary.**
-6. **An item marked `done` within the last 14 days whose evidence SHA doesn't exist or doesn't name the item.** Older items are exempt, since a deleted branch can be garbage-collected. `legacy` items are exempt. Also here: a closed marker older than 14 days whose item is still open in the main checkout (the branch was never merged).
+6. **An item marked `done` within the last 14 days whose evidence SHA doesn't exist or doesn't name the item.** Older items are exempt, since a deleted branch can be garbage-collected. `legacy` items are exempt, and so is a `decision` closed by `answer` (it carries the operator's words in `note` and no commit by design; amended 2026-10-04, D-542). Also here: a closed marker older than 14 days whose item is still open in the main checkout (the branch was never merged).
 7. Advisory: the backlog block is stale (`render` would change it).
 8. Advisory: plan Status values outside the normalised set.
 
