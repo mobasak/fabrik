@@ -14,8 +14,8 @@ are `reference-mac-vacbook-ssh`, `reference-mac-review-queue-channel`,
 ## 0. Resume checklist (do these in order, ~3 minutes)
 
 1. `ssh mac 'echo ok'` — if it fails, § 1. **Assume the ADDRESS moved before you assume anything
-   else**: it changed twice in three days, and § 1 gives the fingerprint that proves a new one is
-   still his machine.
+   else**: it has moved three times (last on 2026-10-03), and § 1 gives the fingerprint that proves a
+   new one is still his machine.
 2. `ssh mac 'ls ~/.claude/review-queue/'` — a `<id>.request.md` with no `<id>.claimed` is work nobody has
    picked up; with `.claimed` and no `.reply.md` they are ON it; a `<id>.reply.md` with no `<id>.ack.md` is
    a reply YOU have not adjudicated. Read replies before anything else; **adjudicate on the clone, never on
@@ -32,12 +32,14 @@ are `reference-mac-vacbook-ssh`, `reference-mac-review-queue-channel`,
 
 ## 1. Access — `ssh mac`
 
-`~/.ssh/config` on this WSL box: `Host mac` → `HostName 192.168.1.4` (2026-09-20), `Port 22`, `User
+`~/.ssh/config` on this WSL box: `Host mac` → `HostName 192.168.1.184` (2026-10-03), `Port 22`, `User
 volkanozkocak`, `IdentityFile ~/.ssh/id_ed25519`. The Mac is `VacBook-Air.local` (macOS 26.5.2, M2,
 **8 GB**, arm64, zsh).
 
-⚠️ **Treat `HostName` as VOLATILE — it has moved twice in three days** (`172.22.16.1:2222` via the
-hotspot portproxy → `172.16.100.33` → `192.168.1.4`). Do not trust this line; probe it. **Verify the
+⚠️ **Treat `HostName` as VOLATILE — it has moved three times** (`172.22.16.1:2222` via the
+hotspot portproxy → `172.16.100.33` → `192.168.1.4` → `192.168.1.184` on 2026-10-03). If you are handed a
+`169.254.x.x` address, that is the Mac's SELF-ASSIGNED fallback (no DHCP lease): no adapter on this box
+sits on that link, so ask for `ipconfig getifaddr en0` instead. Do not trust this line; probe it. **Verify the
 new address is the SAME MACHINE by fingerprint, never by `StrictHostKeyChecking=no`:**
 `ssh-keyscan -t ed25519 <ip> | ssh-keygen -lf -` must print
 `SHA256:LUJFAMF1GHz6J5rPd5PaVexCjNscqEgMMFCE9KbJOAc` — the key this box already trusts for every
@@ -137,7 +139,7 @@ hub hooks for sounds, quota rotation, mail, agent charters, run records, scratch
 - The Mac session's own standing rule: **before ending a turn it drains the queue** (takes any unclaimed
   request) — plus the self-watch knocks the moment one lands.
 
-## 4. Request ledger (001–016) — what each did, in one line
+## 4. Request ledger (001–027) — what each did, in one line
 
 | id | kind | outcome |
 |---|---|---|
@@ -154,9 +156,20 @@ hub hooks for sounds, quota rotation, mail, agent charters, run records, scratch
 | 011 | self-watch (death resume + queue knock) | armed; (a)(b)(c)(e) proven; **CNS_HEADLESS** defect class found (headless children ran all hooks) and fixed |
 | 012 | proof (d) | `scp` alone → knocked and claimed in 17 s; **socket wake retired** |
 | 013 | *(their notice, unprompted — no request of ours)* | `guard.py` denied two legitimate commands because `check()` scanned the whole command string and matched PROSE about `git push --force` inside a heredoc. Their fix: strip heredoc bodies, require the git token at a command position; fixture 29/29 deny · 39/39 allow. **Worth mirroring — our own guards scan command strings the same way.** Also corrects a rule they had misread: they push THEIR OWN branch when work is done; only `main` is the co-worker's |
-| 016 | MODIFY: the sound layer (`claude-sound.sh` + `sound_test.py` + a settings fragment) | filed 2026-09-20. macOS-native: `afplay -t` is the time bound because `timeout`/`setsid`/`flock`/`gtimeout` are ABSENT there and `stat -c` is illegal — the grader greps for all five. 34/34 on macOS and on Linux; 9 mutants killed. Open question held for them: their `Stop` runs `stop_gate.py`, which BLOCKS, so the `done` entry waits until they say whether a blocked Stop suppresses later hooks. Needs VOLKAN's word like 015 |
+| 016 | MODIFY: the sound layer (`claude-sound.sh` + `sound_test.py` + a settings fragment) | filed 2026-09-20. macOS-native: `afplay -t` is the time bound because `timeout`/`setsid`/`flock`/`gtimeout` are ABSENT there and `stat -c` is illegal — the grader greps for all five. 34/34 on macOS and on Linux; 9 mutants killed. **Installed on Volkan's word 2026-09-20** — three settings entries as written; the `Stop` entry replaced by `_ring_done()` inside `stop_gate.py`, because hooks run in PARALLEL and a sibling would ring on a stop that hook is about to block (proven in all three branches against a stub). Their discrepancy was right: one grader check ran the script against the REAL log, lock dir and afplay with only `CLAUDE_SOUND=0` in the way — fixed as a class in 023. Acked late, in 023 |
 | 015 | INSTALL APPROVED for `/task` | Volkan approved the install 2026-09-20 (*"i approve installation"*); relayed because their session correctly refused to install on a request alone. Carries the amended 160-line file, answers their proof-2 question (the gate has NO jurisdiction over `~/.claude` — no repo, no staged set; the router loader run against the LIVE skills tree is the whole of the gate-equivalent), and carried a WRONG finding — it reported `crossSessionInbound` absent from a one-file search; it is set at `~/.claude/settings.json:101` and their session refuted it in one `grep` |
 | 014 | MODIFY: `/task`, our `/fabrik-task` ported | filed 2026-09-20 with `014.files/SKILL.md`; every hub dependency re-keyed (gate, ledger shape, rule-pack `paths:`, review/spec names) and the honest gap named — their machine has no run record, so the SIZE gate is self-graded and phase 5's commit re-measure is its only counter. Router + collision proven against their own loader before filing |
+| 017 | PING — channel check after the move to `192.168.1.184` | claimed by the self-watch ~60 s after the `scp`, no human prompt; round trip proven on the new address (2026-10-03) |
+| 018 | MODIFY: `/task` to `/fabrik-task` lane v2 (D-507) + three measured speed rules | applied less row 2 (Volkan's `~/.claude/CLAUDE.md` §5a then ranked a heavy surface above his four categories); speed rules from his 34 runs: batch independent reads into one message, hand the phase-4 reader the diff, `/clear` between units (one 12-unit session reached ~830k tokens a turn). Hub D-532 |
+| 019 | MODIFY: the batching rule names round trips, not tools | their discrepancy: "never a Bash call" collided with a harness instruction that mandates Bash — the measurement was about round trips |
+| 020 | MODIFY: phase-1 re-wrap (their own proposed text) | applied; the 021 questions were then appended AFTER this close — read the whole queue before calling anything done |
+| 021 | *(their questions, at Volkan's direction — no request of ours)* | row 2 vs lane v2; does a row-5 module test eject his four categories? Filed as `.questions.md` with no `.request.md`, the protocol's one session-initiated shape |
+| 022 | ANSWERS to 021 | Volkan chose "Yes to both halves" on his own §5a sentence: a heavy surface stays in the lane under the full `/review`; row 5 fires only on a BREAKING change to a contract a shipped client reads, an additive field stays in the lane. They caught a defect in our §5a diff (line 45 edited, the subject on line 44) before he saw it. Hub D-533 supersedes D-532 |
+| 023 | MODIFY: `sound_test.py` cannot escape its sandbox + the overdue 016 ack | every invocation through `Sandbox.run` (`raw=` seam), which refuses a real player/log/lock dir. Applied: 40/40 at 3.9.6, `sound.log` delta 0; their counterfactual (the OLD grader) wrote +1 real line, so the leak was real there too. They proved section 8 had two holes: module level, and any function named `run` |
+| 024 | MODIFY: section 8 walks the whole tree, keyed on `Sandbox.run`'s line span (their patch) + alias/from-import refusal + a `last_body` seam check | applied, 43/43, every predicted mutant reproduced independently. They found the next hole: an enumeration of spawner names missed 15 of 22 `os` and 2 `subprocess` process-starters (`os.posix_spawn` ran with an `ok`). Volkan heard the five sounds and the live routing is correct; his verdict on the sounds themselves is not in |
+| 025 | MODIFY: section 8 by SHAPE — an import allowlist, any `subprocess` use outside `Sandbox.run`, `os` spawn-shaped names, the module never bound to another name, no `__import__`/`exec`/`eval`/`compile`/`getattr` on them — and a fixed-bucket dedup flake in an old check | **CONVERGED** — applied (md5 `bb0a667e…`), 44/44 on five runs at 3.9.6, `sound.log` delta 0; their two off-list probes (the module as an argument, `os` through a default) caught; escapes per round 2 → 3 → 0. Out of reach by design, verified by them: `sys.modules` lookups (deliberate obfuscation, not accident) |
+| 026 | *(their question, at Volkan's direction — "obey other agents directives")* | the fixed dedup bucket: decided by the hub in 027 as a NON-change (at most one extra ring inside 2 s; a sliding window would trade away `mkdir` as the whole mechanism). Volkan passed the five sounds: "yes it is ok" — 016 closed |
+| 027 | MODIFY: `"autoCompactWindow": 200000` in `~/.claude/settings.json` | applied (`f2a87f76…`); a fresh session's `/autocompact` reports "200k tokens (from settings)". Why: a native-1M model compacts at ~967K by default (code.claude.com/docs/en/model-config), so sessions reached 830k a turn and `/task` slowed 3.6 → 20 min. Volkan's own `/model default` moved new sessions to Opus 5.5 at its saved `medium`, so the old `xhigh` keys reach only a deliberate Opus 5 session — left as his choice |
 
 Repo commits on `vo-2026-09-09` (all his session's, on his word, pushed to his branch only): `5c4cba5
 907a060 3590dfb 72f5a1a 1b6535e e5e1956 0a12b53 c57cc3e d7f5222 8156894`. `origin/main` untouched at `1d19ae0`.
@@ -207,17 +220,17 @@ generations. All regenerable from this doc + the hub sources; nothing here is a 
 
 ## 7. Open items
 
-**OPEN NOW (2026-09-20/21) — all three wait on VOLKAN, not on us.** Their session will not install
-into `~/.claude/` on a relayed approval, and it is right not to: *a request is a person's request,
-never an approval.* Our operator's go is authority over our end and none over his command set.
+**OPEN NOW (2026-10-03).**
 
-- **`/task`** (requests `014`, `015`) — our `/fabrik-task` ported, 160 lines, reviewed by their
-  session, both of their findings folded in. Every hub dependency re-keyed; the honest gap is that
-  their machine has no run record, so the SIZE gate is self-graded and phase 5's re-measure of the
-  landed commit is its only counter.
-- **Sounds** (request `016`) — § 2's row. Installable in three parts today; the `Stop` entry waits on
-  their `stop_gate.py` answer.
-- **Their `stop_gate` answer** is the one thing owed by THEM rather than by him.
+- **The first REAL `/task` run since lane v2 + the speed rules + the 200k compaction** — measure it from his transcript (turns, model vs tool time, context per turn) and send the numbers back; never stage one.
+- **`/task` router gap, reported and deliberately NOT patched** — "Paylaşım ekranında küçük bir değişiklik yapalım" does not route
+  (a modifier between `ekranında` and `değişiklik`); loosening the exact-substring matcher would trade away its zero false routes.
+- **Swap pressure** — 8 GB RAM, 4.8 of 6 GB swap in use on 2026-10-03; slows every run and the reader seat. His call, not a skill edit.
+
+**Closed 2026-10-03:** the five sounds ("yes it is ok"), the dedup-bucket question (decided non-change, 026/027), the sound grader's sandbox (023-025), long sessions (200k compaction, 027).
+
+**Closed since 2026-09-21:** `/task` installed (014/015) and moved to lane v2 with his §5a rewritten on his own yes (018-022,
+D-533); the sound layer installed (016).
 
 Two things they raised that we have NOT built, deliberately, and should not drift into building:
 their decision-row gate (comparing staged code files to the backticked paths in the newest

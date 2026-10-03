@@ -1,0 +1,26 @@
+{
+  "block_digest": "d6669ed8108848f825c88df36f67b6b9a455a06e5bc7f5349668987e1ea04974",
+  "blocked_by": [],
+  "created": "2026-10-03T16:47:35.143917Z",
+  "creator": "intel",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-a167ad36",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "f0c4879834def552ae204802ec5aa59f2d9383fd0a2770fe34f8d3fc2be8cb62"
+  ],
+  "next": "",
+  "note": "NEXT: operator decision: lift the pause and resume W-75a781e7, file 52 of the rules currency pass (ai/80-specialized-domains.md)",
+  "owner": "",
+  "priority": 2,
+  "question": "Should I lift the pause and resume the rules currency pass with file 52 (`ai/80-specialized-domains.md`)?",
+  "status": "done",
+  "title": "Should I lift the pause and resume the rules currency pass with file 52 (`ai/80-specialized-domains.md`)?"
+}

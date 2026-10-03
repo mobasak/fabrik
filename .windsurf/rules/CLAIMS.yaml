@@ -3059,3 +3059,45 @@ claims:
     verify: "https://aws.amazon.com/blogs/machine-learning/transition-your-amazon-forecast-usage-to-amazon-sagemaker-canvas/ ; https://docs.aws.amazon.com/sagemaker/latest/dg/use-auto-ml.html ; https://github.com/facebook/prophet ; https://www.cs.cmu.edu/~pavlo/blog/2026/01/2025-databases-retrospective.html ; https://www.tigerdata.com/docs/use-timescale/latest/hyperfunctions/about-hyperfunctions (exa + brave + firecrawl, 2026-10-03; ledger c1-30, c1-40, c2-28, c2-35, c2-38)"
     window_days: 180
     last_verified: 2026-10-03
+  - id: moderation-service-status
+    pack: ai/80-specialized-domains.md
+    kind: deprecation
+    claim: "Perspective API is sunsetting and ends after 2026 with no migration support; Azure Content Moderator is deprecated and retires on 2027-03-15, replaced by Azure AI Content Safety; Amazon Comprehend's toxicity detection is English-only and its prompt-safety classification closed to new customers on 2026-04-30; OpenAI's omni-moderation endpoint is free and takes text and images"
+    verify: "https://www.perspectiveapi.com/ ; https://learn.microsoft.com/en-us/azure/ai-services/content-moderator/overview ; https://docs.aws.amazon.com/comprehend/latest/dg/comprehend-availability-change.html ; https://developers.openai.com/api/docs/guides/moderation (brave + exa, 2026-10-03; ledger d1-01, d1-16, d1-17, d1-26, d1-27)"
+    window_days: 90
+    last_verified: 2026-10-03
+  - id: moderation-languages-and-guard-licences
+    pack: ai/80-specialized-domains.md
+    kind: platform
+    claim: "Azure AI Content Safety's harm classes were trained on eight languages and its Prompt Shields tested in English only; AWS Bedrock Guardrails' Standard tier lists Turkish as supported (tested, not tuned) while its Classic tier covers English, French and Spanish; Granite Guardian and the Qwen guard models are Apache-licensed, Granite Guardian trained and tested on English only and the Qwen guard models covering 119 languages; Llama Guard is gated under the Llama community licence with a published multilingual recall of 43%; ShieldGemma is English-only under the Gemma terms"
+    verify: "https://learn.microsoft.com/en-us/azure/ai-services/content-safety/region-availability ; https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-supported-languages.html ; https://github.com/ibm-granite/granite-guardian ; https://arxiv.org/abs/2510.14276 ; https://github.com/meta-llama/PurpleLlama/blob/main/Llama-Guard4/12B/MODEL_CARD.md ; https://ai.google.dev/gemma/docs/shieldgemma/model_card (brave + exa + WebFetch + Fable second opinion, 2026-10-03; ledger d1-09, d1-21, d1-22, d1-32, d1-34, d1-38, d1-40, d1-42, op-07, op-12)"
+    window_days: 90
+    last_verified: 2026-10-03
+  - id: prompt-injection-detectors-not-a-boundary
+    pack: ai/80-specialized-domains.md
+    kind: standard
+    claim: "adaptive attacks bypassed twelve published prompt-injection defences, detectors included, at above 90% success for most; OWASP says it is unclear whether fool-proof prevention exists and lists least privilege, human approval for high-risk actions and segregating external content; the UK NCSC says LLMs do not enforce a boundary between instructions and data"
+    verify: "https://arxiv.org/html/2510.09023 ; https://github.com/OWASP/www-project-top-10-for-large-language-model-applications/blob/main/2_0_vulns/LLM01_PromptInjection.md ; https://www.ncsc.gov.uk/blog-post/prompt-injection-is-not-sql-injection (exa + brave, 2026-10-03; ledger d1-47, d1-48, d1-51)"
+    window_days: 180
+    last_verified: 2026-10-03
+  - id: recommender-baselines
+    pack: ai/80-specialized-domains.md
+    kind: practice
+    claim: "of 18 neural recommenders only 7 were reproducible and 6 of those were often beaten by simple nearest-neighbour or graph heuristics, the seventh not consistently beating a tuned linear method; well-tuned simple baselines beat published diffusion recommenders; implicit is MIT-licensed and maintained, LightFM has had no release since 2023-03"
+    verify: "https://arxiv.org/abs/1907.06902 ; https://arxiv.org/abs/2505.09364 ; https://pypi.org/project/implicit/ ; https://pypi.org/project/lightfm/ (firecrawl + WebSearch + WebFetch, 2026-10-03; ledger d2-01, d2-03, d2-15, d2-16, d2-17)"
+    window_days: 180
+    last_verified: 2026-10-03
+  - id: synthetic-data-limits
+    pack: ai/80-specialized-domains.md
+    kind: policy
+    claim: "synthetic data gives no better privacy-utility trade-off than traditional anonymisation, with highly variable privacy gain; training on model-generated data instead of real data loses the tails of the distribution, while accumulating it beside real data avoids collapse; SDV's Business Source License forbids a synthetic-data service and converts to MIT four years after each release; synthcity and MOSTLY AI's SDK are Apache-licensed"
+    verify: "https://www.usenix.org/conference/usenixsecurity22/presentation/stadler ; https://www.nature.com/articles/s41586-024-07566-y ; https://arxiv.org/abs/2404.01413 ; https://github.com/sdv-dev/SDV/blob/main/LICENSE ; https://github.com/vanderschaarlab/synthcity ; https://pypi.org/project/mostlyai/ (firecrawl + WebSearch + WebFetch, 2026-10-03; ledger d2-18, d2-19, d2-22, d2-26, d2-29, d2-30, d2-31)"
+    window_days: 180
+    last_verified: 2026-10-03
+  - id: health-feature-classification
+    pack: ai/80-specialized-domains.md
+    kind: policy
+    claim: "FDA's general-wellness policy keeps low-risk wellness products out of device regulation and does not cover dietary supplements themselves; clinical decision support escapes device rules only under all four non-device criteria; a consumer-entered health app is not a HIPAA business associate but the FTC Health Breach Notification Rule covers it; MDR Rule 11 makes software informing diagnostic or therapeutic decisions class IIa or higher, which is high-risk under the AI Act, whose obligations for AI in regulated products apply from 2028-08-02"
+    verify: "https://www.fda.gov/media/90652/download ; https://www.fda.gov/regulatory-information/search-fda-guidance-documents/clinical-decision-support-software ; https://www.hhs.gov/sites/default/files/ocr-health-app-developer-scenarios-2-2016.pdf ; https://www.ftc.gov/business-guidance/resources/complying-ftcs-health-breach-notification-rule-0 ; https://blog.johner-institute.com/regulatory-affairs/mdr-rule-11/ ; https://www.freshfields.com/en/our-thinking/blogs/technology-quotient/eu-ai-act-unpacked-34-the-final-digital-omnibus-on-ai-key-amendments-to-the-a-102nber (firecrawl + WebSearch + exa, 2026-10-03; ledger d2-44, d2-46, d2-47, d2-50, d2-52, d2-54, d2-56, d2-57)"
+    window_days: 90
+    last_verified: 2026-10-03

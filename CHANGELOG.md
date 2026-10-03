@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — ai/80-specialized-domains: owning packs first, layered moderation, prompt injection by design, a SQL recommender baseline, limits on synthetic data, classify health features first (2026-10-03)
+
+`.windsurf/rules/ai/80-specialized-domains.md` listed vendor names for eight domains and named the retired Kilo. It now routes each domain another pack owns to that pack; layers moderation (deterministic rules first, a classifier that only flags and routes, a person owning anything irreversible, a labelled sample in the project's own languages before trusting any classifier) and refuses Perspective API, Azure Content Moderator and Amazon Comprehend's toxicity detection; treats prompt injection as a design problem no detector solves; starts recommenders at SQL popularity and co-occurrence; states that synthetic data is not a privacy guarantee and that SDV's licence forbids a synthetic-data service; and sends any health feature that diagnoses, treats or recommends a treatment to the spec chain. New `tests/test_specialized_domains_pack.py`; 6 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-03-specialized-domains-currency-ledger.md`; D-535.
+
 ### Fixed — Catch-up wave 1: twenty review-loop defects in command_run.py, the two review checks and /fabrik-review (2026-10-03)
 
 Four parallel coders each took one surface (D-531); every fix carries a test seen red on its parent, and the merged branch passed a full `/fabrik-review` (four passes, confirmed 4 → 2 → 1 → 0; receipt `docs/development/reviews/2026-10-03-catchup-wave1-review.md`, D-534).

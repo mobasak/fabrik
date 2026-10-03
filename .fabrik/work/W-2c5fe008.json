@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-02T17:56:25.602493Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "33ccfb577dc46dcd072a858e4ffa3ca819804fb5",
   "id": "W-2c5fe008",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "waits-on-volkan"
   ],

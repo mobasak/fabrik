@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "file 52 — the remaining ai/* packs (2): ai/80-specialized-domains, 90-long-context — model names and prices are the drift class (route model choice to ai/00-ai-model-selection.md; keep the model-routing/gateway blocks per W-b58d0f90's pending operator answer). Then desktop (2), core/90-bootstrap",
+  "next": "file 53 — the remaining ai/* pack (1): ai/90-long-context — model names and prices are the drift class (route model choice to ai/00-ai-model-selection.md; keep the model-routing/gateway blocks per W-b58d0f90's pending operator answer). Then desktop (2), core/90-bootstrap",
   "note": "",
   "owner": "intel",
   "priority": 2,
@@ -19,5 +19,5 @@
   "tags": [
     "rules"
   ],
-  "title": "Rules currency pass: evaluate the 5 packs still missing currency_pass: (52 of 57 done; file 51 ai/70-data-predictive landed 2026-10-03, D-528)"
+  "title": "Rules currency pass: evaluate the 4 packs still missing currency_pass: (53 of 57 done; file 52 ai/80-specialized-domains landed 2026-10-03, D-535)"
 }
