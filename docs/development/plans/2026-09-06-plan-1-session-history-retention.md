@@ -1,6 +1,7 @@
 # Plan — session-history retention: archive, prove, then prune
 
 Status: CONVERGED
+Build state (re-grounded 2026-10-04, W-08eeaee1): Phase 0 shipped (899bfb1a6); Phase A shipped its hub-side CODE only (a1647928b: `scripts/sysadmin/archive_transcripts.py` + tests) and has NEVER RUN — no `~/.claude/archive/manifest.jsonl` exists (the manifest is appended only after a successful transport, so no transcript has reached the archive) and no crontab line schedules it. Phase B (prove the restore through Backrest + B2) therefore has nothing to restore, and Phase C stays blocked behind it. Resuming starts with the first live archive run, which writes to vps1 (`ARCHIVE_REMOTE`) and needs A.3's Backrest plan — an operator go, asked when W-08eeaee1 was re-grounded.
 Date: 2026-09-06
 Owner: fleet
 Spec: `docs/superpowers/specs/2026-09-05-session-history-retention-design.md` (CONVERGED, md5
