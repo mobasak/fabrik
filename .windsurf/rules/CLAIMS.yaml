@@ -3024,3 +3024,38 @@ claims:
     verify: "https://code.claude.com/docs/en/code-review ; https://github.com/anthropics/claude-code/blob/main/plugins/code-review/README.md (firecrawl + brave, 2026-10-02; ledger c2-26, c2-29)"
     window_days: 60
     last_verified: 2026-10-02
+  - id: tsfm-weights-licences
+    pack: ai/70-data-predictive.md
+    kind: platform
+    claim: "Amazon's current Chronos generation ships Apache-licensed open weights that run on CPU or GPU; TimesFM's newest pretrained weights are under a non-commercial licence while its earlier weights stay Apache-licensed; Salesforce's Moirai weights are released for research only (CC-BY-NC)"
+    verify: "https://huggingface.co/amazon/chronos-2 ; https://github.com/google-research/timesfm ; https://huggingface.co/Salesforce/moirai-2.0-R-small (exa + WebFetch, 2026-10-03; ledger c1-02, c1-10, c1-12)"
+    window_days: 90
+    last_verified: 2026-10-03
+  - id: tabpfn-commercial-licence
+    pack: ai/70-data-predictive.md
+    kind: platform
+    claim: "TabPFN generations after its second carry non-commercial model licences, and production, client work or business decisions need a separate commercial licence from Prior Labs; TabICL (BSD licence) and Mitra (Apache licence) are free for commercial use"
+    verify: "https://docs.priorlabs.ai/models ; https://auto.gluon.ai/dev/tutorials/tabular/tabular-foundational-models.html ; https://github.com/soda-inria/tabicl (brave + firecrawl + WebFetch, 2026-10-03; ledger c2-06, c2-07, c2-10, c2-11)"
+    window_days: 90
+    last_verified: 2026-10-03
+  - id: forecast-baselines-and-llms
+    pack: ai/70-data-predictive.md
+    kind: benchmark
+    claim: "GIFT-Eval scores models relative to seasonal naive and several classical methods (AutoARIMA, AutoETS, AutoTheta) land below it; removing the LLM from LLM-based forecasters does not degrade accuracy and usually improves it; on Context is Key many LLM forecasters are pareto-dominated by pretrained time-series models"
+    verify: "https://tsfm.ai/benchmarks/gift-eval ; https://proceedings.neurips.cc/paper_files/paper/2024/hash/6ed5bf446f59e2c6646d23058c86424b-Abstract-Conference.html ; https://arxiv.org/pdf/2410.18959 (exa, 2026-10-03; ledger c1-25, c1-38, c1-39)"
+    window_days: 180
+    last_verified: 2026-10-03
+  - id: anomaly-library-status
+    pack: ai/70-data-predictive.md
+    kind: platform
+    claim: "Salesforce's Merlion repository was archived on 2026-03-11; ADTK has had no release since 2020; PyOD and River are actively released; on TSB-AD simpler statistical methods often perform best"
+    verify: "https://github.com/salesforce/Merlion ; https://github.com/arundo/adtk ; https://pypi.org/project/pyod/ ; https://openreview.net/forum?id=R6kJtWsTGy (firecrawl + WebFetch + brave, 2026-10-03; ledger c2-20, c2-22, c2-23, c2-27)"
+    window_days: 180
+    last_verified: 2026-10-03
+  - id: predictive-platform-status
+    pack: ai/70-data-predictive.md
+    kind: platform
+    claim: "Amazon Forecast closed to new customers on 2024-07-29 with SageMaker Canvas as the path, Canvas took over Autopilot's interface on 2023-11-30, Prophet entered maintenance mode, PostgresML went bust in 2025, and the TimescaleDB toolkit has no forecasting or anomaly functions"
+    verify: "https://aws.amazon.com/blogs/machine-learning/transition-your-amazon-forecast-usage-to-amazon-sagemaker-canvas/ ; https://docs.aws.amazon.com/sagemaker/latest/dg/use-auto-ml.html ; https://github.com/facebook/prophet ; https://www.cs.cmu.edu/~pavlo/blog/2026/01/2025-databases-retrospective.html ; https://www.tigerdata.com/docs/use-timescale/latest/hyperfunctions/about-hyperfunctions (exa + brave + firecrawl, 2026-10-03; ledger c1-30, c1-40, c2-28, c2-35, c2-38)"
+    window_days: 180
+    last_verified: 2026-10-03

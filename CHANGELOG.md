@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — ai/70-data-predictive: beat a naive baseline first, no numbers from a chat LLM, check the licence of the exact weights (2026-10-03)
+
+`.windsurf/rules/ai/70-data-predictive.md` listed four managed platforms and the retired Kilo. It now sets a baseline-first rule (seasonal naive, a robust z-score, a held-out window), keeps chat LLMs out of the numbers, orders forecasting (statsforecast, mlforecast with LightGBM, then a pretrained model such as Chronos), defaults tabular work to gradient-boosted trees, puts anomaly detection statistical first, runs the work in a core/75 worker, and adds a licence trap for non-commercial weights (TimesFM, TabPFN, Moirai). New `tests/test_data_predictive_pack.py`; 5 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-03-data-predictive-currency-ledger.md`; D-528.
+
 ### Fixed — The quota dashboard shows /fabrik-plan-review's per-ticket seat rule; its golden test renders the corpus from the tree (2026-10-03)
 
 `scripts/sysadmin/quota_dashboard.py`'s seat-rule parser only counts a unit when a dispatch word sits within 120 characters, and "partition" was not one, so `/fabrik-plan-review`'s rule ("The partition per ticket … one fresh seat") was invisible. `partition`/`partitions`/`partitioned` are now dispatch words — measured over all 38 rendered commands, it changes that one cell only. `test_the_seat_rule_reads_the_real_corpus_correctly` now renders the corpus from the tree it runs in instead of reading the installed `$HOME/.claude/commands`, whose verdict depended on the last install rather than the commit under test. W-d7b0d34f.
