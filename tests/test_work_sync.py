@@ -381,9 +381,33 @@ def test_class_6_exempts_a_decision_closed_by_answer_but_not_a_bare_done_decisio
     it.update(kind="decision", status="done")
     _write_item(repo, bare, it)
 
+    # a note on any other kind is not an operator's answer, and a non-string note is not one either
+    task = _add(repo, env, title="Task closed with a note but no evidence")
+    it = _item(repo, task)
+    it.update(status="done", note="looked fine")
+    _write_item(repo, task, it)
+    odd = _add(repo, env, title="Decision with a non-string note")
+    it = _item(repo, odd)
+    it.update(kind="decision", status="done", note={"x": 1})
+    _write_item(repo, odd, it)
+
     lines = "\n".join(_drift_lines(_ok(["status"], env, repo), 6))
     assert f".fabrik/work/{answered}.json" not in lines
     assert f".fabrik/work/{bare}.json" in lines
+    assert f".fabrik/work/{task}.json" in lines
+    assert f".fabrik/work/{odd}.json" in lines
+
+
+def test_answer_refuses_a_non_decision_item(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item = _add(repo, env, title="Not a decision")
+    it = _item(repo, item)
+    it.update(status="awaiting-operator")
+    _write_item(repo, item, it)
+    r = run(["answer", item, "--note", "operator: yes"], env, repo)
+    assert r.returncode != 0 and "only a decision item" in r.stderr, (r.stdout, r.stderr)
+    assert _item(repo, item)["status"] == "awaiting-operator"
 
 
 # ── row 4: sync --check on a fresh (unmigrated) store ─────────────────────────────────────────

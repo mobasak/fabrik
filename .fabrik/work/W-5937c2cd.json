@@ -11,7 +11,7 @@
     "plan": "",
     "spec": "docs/superpowers/specs/2026-09-24-work-tracking-design.md"
   },
-  "next": "Batch the class-6 git reads (one git log over .fabrik/work for status-changing commits, one rev-list/log for evidence SHAs) instead of _status_change_age_seconds + _evidence_commit per item; profile: scratch cProfile of 2026-10-04 shows 3.2 s + 1.9 s of 5.98 s; then amend spec § Lifecycle's remedy",
+  "next": "Batch the class-6 git reads (one git log over .fabrik/work for status-changing commits, one rev-list/log for evidence SHAs) instead of _status_change_age_seconds + _evidence_commit per item; profile: a cProfile run on 2026-10-04 took 5.98 s (about 5.5 s unprofiled), of which 3.2 s + 1.9 s are those two helpers; then amend spec § Lifecycle's remedy",
   "note": "",
   "owner": "",
   "priority": 2,
