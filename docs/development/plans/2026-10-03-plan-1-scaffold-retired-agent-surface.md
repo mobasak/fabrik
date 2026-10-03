@@ -372,28 +372,29 @@ graded here with the plan. `dispatch_headroom.py --slices opus=1,sonnet=1` → `
 | Pass 1 | opus×1 (`rules`) + sonnet×1 (`prose`) + one sonnet refuter per slice · all axes | found: 22, new: 22, confirmed: 22, fixed: 22, unexecuted: 0, edits: 2 files | method: citation — full partitioned pass, shape: workflow (wf_66e32be9-d25); the orchestrator re-ran every confirmed check (`verify1.py`) and added O18 (de-listing deletes no project copy, `sync_enforcement_to_projects.py:2023-2030`). Confirmed: `.droid/` loses its only creator (O1); fleet-first fails a new project's gate (O2); the create-time tests could not go red as written (O3, O11); mirror tests missing (O4); the helper acts through a symlinked directory, mishandles a directory or dangling marker, and raises on a refused removal (O5, O6); live and dry-run counts can differ (O7); removals print as `Added:` (O8); the log line survives (O9); docs missing (O10, S1, S2); the guard rule's five spellings (O12); the infra-first window (O13); stale comments (O14); five vs six (O15); the Evidence enumeration (O16); user `.gitignore` lines dropped (O17); plan vs spec on open unknowns (S3); plus the spec's approach floor (0 cited URLs, `check_spec_convergence`), fixed in 458d507b2. | a65530f1ca3b344cd25f65d5666c14d3 → the Pass 2 pin · b0cc428411e56ab2fd8b80bf65ec7a34 → the Pass 2 pin |
 | Pass 2 | opus×1 (`rules`, round-1 owner) + sonnet×1 (`prose`, round-1 owner) + one sonnet refuter per slice · delta over the pass-1 fix hunks (8af931102) + one hop | found: 7, new: 7, confirmed: 6, fixed: 6, unexecuted: 0, edits: 2 files | method: re-derivation — all 20 pass-1 ledger claims NOW_FALSE (17 rules, 3 prose; the rules seat re-ran the A1/A2 fake-root probe and the live/dry-run comparison on the pinned source, and `git log -p -G'droid/'` to prove the managed-line set covers every line the scaffold ever wrote); the orchestrator re-ran O18, O21, O22 (`verify2.py`: write-through via a symlinked `.droid`, `FileExistsError` on a dangling one, `NotADirectoryError` on a file) and re-derived the doc population (10 files). Confirmed, all inside pass-1 hunks (own-fix: round 1): the kept `.droid/.gitignore` write acts through a symlinked `.droid` (O18) and a dangling one raises (O21); the A3-A7 fake root lacked the `.windsurf` dirs the kept guards need (O19); a refused removal printed "complete" (O20); a regular file named like the marker directory aborted the listing (O22); a failed `unlink` still led to `rmdir` (O23). Recorded: O24 `docs/traycer/fabrik-workflow.md:92` (one hop) — folded into the doc lists anyway. | 30a94eb6caf96090363d5f6731f15a2c → the Pass 3 pin · 451560e4b76d5c8214dd1956bb481cb8 → the Pass 3 pin |
 | Pass 3 | opus×1 (`rules`, round-1 owner) + one sonnet refuter · ONLY the pass-2 set (O18-O23) + one hop; `prose` held no open claim and was not re-dispatched | found: 4, new: 4, confirmed: 4, fixed: 4, unexecuted: 0, edits: 2 files | method: re-derivation — O18-O23 all NOW_FALSE, each by an executed probe on the pinned source (`p1.py`, `p2.py`); the doc population re-derived (10). Confirmed, all inside pass-2 hunks (own-fix: round 2): an unreadable marker directory raised outside the `OSError` handling (O25); a regular-file `.droid` still reached `mkdir` (O26); the exit anchor stopped two lines short of `raise SystemExit(1)` (O27, `cli.py:2057-2060`); the symlinked-`.droid` skip also dropped the root-`.gitignore` patch (O28). **Scope-growth stop:** passes 2 and 3 are both all own-fix (6/6, 4/4), so hunting stops; the four are fixed in ONE batch — the helper and gate paragraph rewritten whole (`; class rewrite — Phase A Interfaces, the helper and the gate`), every filesystem call of a pair inside one `try` — and the closing pass re-verifies only this set. The orchestrator executed the rewritten algorithm as a reference implementation over all 12 A4 trees (`refimpl.py`): no exception, dry run equal to live on every tree, both symlink targets untouched, the refused `unlink` reporting with no `rmdir`. | 939626dc626f192ef5ade6a2dd2b1351 → the Pass 4 pin · 61d3b392192213dfa4820552c95bee40 → the Pass 4 pin |
+| Pass 4 | opus×1 (`rules`, round-1 owner) · ONLY the pass-3 fixed set (O25-O28), no new hunting (scope-growth stop) | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — closing pass; O25-O28 all NOW_FALSE, each executed: the plan's gate + helper run with pathlib on a mode-000 directory, a regular-file `.droid`, a live and a dangling `.droid` symlink (no exception, dry run equal to live, symlink target untouched, root `.gitignore` still patched), and the anchors `cli.py:2038-2060`, `:2057-2060`, `scaffold.py:7522`, `:7546-7553` re-derived from the live files; standing clean since pass 1: every other class of the ledger (anchors, create-path, mirror-tests, docs, bc-testability, consistency). | 5492404b74ded0a134c8c88fb7591739 → 5492404b74ded0a134c8c88fb7591739 ✓ · c1152a98fa882cd71120f94bca33a3b0 → c1152a98fa882cd71120f94bca33a3b0 ✓ |
 
 ## Coverage Checklist
 
-Rows adjudicated by `/fabrik-plan-review`.
+Every row adjudicated by `/fabrik-plan-review` (passes 1-4).
 
 | Class | Verdict |
 |---|---|
-| FLOOR core/35-security-auth — secrets, auth, config via env | UNCHECKED |
-| FLOOR core/25-data-postgres — database | UNCHECKED |
-| FLOOR core/30-ops — deploy, runtime | UNCHECKED |
-| FLOOR 12-Factor — all twelve axes against what the plan steps | UNCHECKED |
-| MATCHED core/10-python — no deps-file edits, no file logging | UNCHECKED |
-| MATCHED core/40-documentation — heading levels, fenced code, every doc the change makes stale | UNCHECKED |
-| MATCHED core/45-testing-strategy — one test per behaviour, watched-fail-first, guard spellings | UNCHECKED |
-| Deletion safety: only the two markers and empty directories, never through a symlink | UNCHECKED |
-| Live/dry-run pairing in `fix_project` | UNCHECKED |
-| `fabrik fix` report rendering (additions, removals, notes) | UNCHECKED |
-| Merge order with infra's half | UNCHECKED |
-| fail-open vs fail-closed (a missing hub file, a missing `.droid/`) | UNCHECKED |
-| cost/quota accounting — not engaged (no metered call) | UNCHECKED |
-| boundary/sentinel (empty vs one-entry directory, marker vs user file, symlink) | UNCHECKED |
-| behavior-without-a-test | UNCHECKED |
+| FLOOR core/35-security-auth — secrets, auth, config via env | CLEAN — no env var, secret or auth path is touched (Global Constraints; the File Scope holds no config) |
+| FLOOR core/25-data-postgres — database | CLEAN — no database, schema or migration in File Scope |
+| FLOOR core/30-ops — deploy, runtime | CLEAN — no compose, service or deploy change; `spec § Shape / infra implications` |
+| FLOOR 12-Factor — all twelve axes against what the plan steps | CLEAN — III and XI stated in Global Constraints; no step adds config, a logfile, a process or a backing service |
+| MATCHED core/10-python — no deps-file edits, no file logging | CLEAN — stdlib only; one `logger.info` reworded (Phase B) |
+| MATCHED core/40-documentation — heading levels, fenced code, every doc the change makes stale | FIXED p1-p2 — the doc population re-derived (10 files, 9 edited, 1 retired by banner; O10, S1, S2, O24) |
+| MATCHED core/45-testing-strategy — one test per behaviour, watched-fail-first, guard spellings | FIXED p1-p3 — A1-A8, B1-B2, each with its red reason; fake roots that can show red (O3, O11, O19); five guard trees plus two failure trees in A4 (O12, O25) |
+| Deletion safety: only the two markers and empty directories, never through a symlink | FIXED p1-p3 — O5, O6, O18, O21, O22, O23, O25, O26; the reference implementation over 12 trees deleted nothing else and touched no symlink target (`refimpl.py`, Pass 3) |
+| Live/dry-run pairing in `fix_project` | FIXED p1 — O7; dry run equal to live on all 12 trees (Pass 3, Pass 4) |
+| `fabrik fix` report rendering (additions, removals, notes) | FIXED p1-p3 — O8, O20, O27; A8 |
+| Merge order with infra's half | FIXED p1 — O2, O13, O18 (prune): infra first, mailed 01M40VMZ |
+| fail-open vs fail-closed (a missing hub file, a missing `.droid/`) | FIXED p1-p3 — a refused removal exits 1 (O20); no probe raises (O25); a missing hub `.windsurfrules`/`opencode.json` no longer raises (A2) |
+| cost/quota accounting — not engaged (no metered call) | CLEAN — no API, quota or metered call in File Scope |
+| boundary/sentinel (empty vs one-entry directory, marker vs user file, symlink) | FIXED p1-p3 — empty vs one other entry, marker vs user file, a user's own `.droid/` ignore line (O17, A7), file vs directory vs symlink |
+| behavior-without-a-test | FIXED p1 — A7 (gitignore patch) and A8 (fix rendering) added; every Interfaces bullet maps to a row |
 
 The rubric this plan's reviews inject into every seat brief, run on the plan's code surface:
 
