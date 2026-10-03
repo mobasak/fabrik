@@ -3101,3 +3101,45 @@ claims:
     verify: "https://www.fda.gov/media/90652/download ; https://www.fda.gov/regulatory-information/search-fda-guidance-documents/clinical-decision-support-software ; https://www.hhs.gov/sites/default/files/ocr-health-app-developer-scenarios-2-2016.pdf ; https://www.ftc.gov/business-guidance/resources/complying-ftcs-health-breach-notification-rule-0 ; https://blog.johner-institute.com/regulatory-affairs/mdr-rule-11/ ; https://www.freshfields.com/en/our-thinking/blogs/technology-quotient/eu-ai-act-unpacked-34-the-final-digital-omnibus-on-ai-key-amendments-to-the-a-102nber (firecrawl + WebSearch + exa, 2026-10-03; ledger d2-44, d2-46, d2-47, d2-50, d2-52, d2-54, d2-56, d2-57)"
     window_days: 90
     last_verified: 2026-10-03
+  - id: long-context-effective-length
+    pack: ai/90-long-context.md
+    kind: standard
+    claim: "across 18 models performance grows increasingly unreliable as input length grows; on NoLiMa 11 of 13 models claiming 128K tokens fall below half their short-input score at 32K; with perfect retrieval, input length alone costs 13.9% to 85% of accuracy within the claimed context length"
+    verify: "https://www.trychroma.com/research/context-rot ; https://arxiv.org/abs/2502.05167 ; https://aclanthology.org/2025.findings-emnlp.1264/ (brave + exa, 2026-10-03; ledger e1-01, e1-07, e1-17)"
+    window_days: 180
+    last_verified: 2026-10-03
+  - id: long-context-prompt-order
+    pack: ai/90-long-context.md
+    kind: practice
+    claim: "Anthropic: put long documents at the top and the query last (up to 30 percent better on complex multi-document input), wrap each document with its source, and quote the relevant passages first; Google likewise puts the question after the context; OpenAI's guidance puts instructions before and after the context"
+    verify: "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/long-context-tips ; https://ai.google.dev/gemini-api/docs/long-context ; https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide (exa + brave, 2026-10-03; ledger e1-29, e1-30, e1-31, e1-32, e1-35)"
+    window_days: 180
+    last_verified: 2026-10-03
+  - id: long-context-vs-retrieval
+    pack: ai/90-long-context.md
+    kind: practice
+    claim: "when resourced, a full long context outperforms retrieval on average but retrieval's much lower cost remains its advantage; one 2026 study measured long context at 26 times the per-query tokens of semantic retrieval, another costs near 100 times retrieval's at 300 pages"
+    verify: "https://arxiv.org/abs/2407.16833 ; https://pubdb.com/paper/2606.20898 ; https://dl.acm.org/doi/10.1145/3809481.3816479 (brave + exa, 2026-10-03; ledger e1-37, e1-41, e1-42)"
+    window_days: 180
+    last_verified: 2026-10-03
+  - id: claude-code-auto-compact-window
+    pack: ai/90-long-context.md
+    kind: platform
+    claim: "Claude Code compacts a model with a native 1M window at about 967K tokens by default; autoCompactWindow in settings, /autocompact, --autocompact or CLAUDE_CODE_AUTO_COMPACT_WINDOW set it lower; Anthropic's context editing invalidates cached prompt prefixes when it clears tool results"
+    verify: "https://code.claude.com/docs/en/model-config ; https://platform.claude.com/docs/en/build-with-claude/context-editing (WebFetch + exa, 2026-10-03; ledger e1-49, e1-51, e1-52)"
+    window_days: 90
+    last_verified: 2026-10-03
+  - id: long-input-pricing
+    pack: ai/90-long-context.md
+    kind: pricing
+    claim: "Claude bills the full 1M window at standard per-token rates; a cache read costs 0.1x input (less on the newest top models), a five-minute write 1.25x and a one-hour write 2x, paying off after one read, and prompts below a minimum length are silently not cached; Gemini Pro charges a higher rate above 200K tokens and OpenAI's flagship models above 272K; batch APIs are half price; the newest Claude tokenizer produces about 30% more tokens for the same text"
+    verify: "https://platform.claude.com/docs/en/about-claude/pricing ; https://platform.claude.com/docs/en/build-with-claude/prompt-caching ; https://ai.google.dev/gemini-api/docs/pricing ; https://developers.openai.com/api/docs/pricing (firecrawl + WebFetch, 2026-10-03; ledger e2-04, e2-10, e2-11, e2-13, e2-15, e2-17, e2-36, e2-43)"
+    window_days: 90
+    last_verified: 2026-10-03
+  - id: codebase-agentic-search
+    pack: ai/90-long-context.md
+    kind: practice
+    claim: "Claude Code finds code with glob and grep just in time; its team dropped a local vector index because agentic search worked better with fewer security, privacy and staleness issues; Cursor measured 12.5% higher accuracy on average when semantic search is added beside grep"
+    verify: "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents ; https://x.com/bcherny/status/2017824286489383315 ; https://cursor.com/blog/semsearch (exa + brave, 2026-10-03; ledger e1-45, e1-55, e1-56)"
+    window_days: 180
+    last_verified: 2026-10-03
