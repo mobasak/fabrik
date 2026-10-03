@@ -106,9 +106,10 @@ infra step 1). Nothing requires `.droid/` to exist.
    empty. It never acts through a symlink (a symlinked `.droid/` or marker directory is skipped and reported), never
    deletes a marker that is not a regular file, and reports — never raises on — a removal the filesystem refuses. The
    dry run reports exactly what the live run would do. `.droid/.gitignore` and the root `.gitignore` are rewritten to the
-   reduced content (`:7524-7528`, `:7546-7553`). The `fabrik fix` command (`cli.py:2038-2056`) prints a removal as a
-   removal and a kept directory as a note, never as "Added", and still says the structure is complete when only notes
-   remain.
+   reduced content (`:7524-7528`, `:7546-7553`) — except when `.droid` itself is a symlink, where the whole `.droid`
+   block is skipped and reported. The `fabrik fix` command (`cli.py:2038-2058`) prints a removal as a removal and a kept
+   directory as a note, never as "Added", still says the structure is complete when only notes remain, and exits 1 on a
+   refused removal as it does on an unsupported file.
 4. `_layer_preplan_into_project` (`:6939-7005`) keeps copying the pre-plan to `docs/preplan.md` and stops writing
    into guardrail files; its closing log line (`:7002-7005`) stops claiming an injection. The docstrings that describe
    the injection change with it: `create_project` (`:7104-7117`), the function's own (`:6940-6960`), the caller comment
@@ -238,7 +239,8 @@ over `docs/`): `docs/QUICKSTART.md:70-77` (the preplan comment and the AGENTS-co
 `docs/reference/architecture.md:255-256` (the `.droid/review-context/` and `.droid/traycer-reports/` rows),
 `docs/workflows/SCAFFOLD_STRUCTURE.md:27,70,147,263` (the scaffold-emitted rows and the `fix_project` repair line),
 `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md:266-268,444-446,604-613` (the `.droid/` tree and tables),
-`docs/CONFIGURATION.md:596`, `docs/reference/fabrik-cli-reference.md:26` and `docs/preplans/README.md:25` (the injection),
+`docs/CONFIGURATION.md:596`, `docs/reference/fabrik-cli-reference.md:26`, `docs/preplans/README.md:25` and
+`docs/traycer/fabrik-workflow.md:92` (the injection),
 `docs/FEATURES.md:427,606` (a governance file, applied by the orchestrator), `CHANGELOG.md`. No file is added or
 removed, so `INDEX.md` is untouched. Infra owns `templates/governance/CLAUDE.md`, the manifest docs and
 `SCAFFOLD_STRUCTURE.md`'s synced-file rows (infra half step 5).

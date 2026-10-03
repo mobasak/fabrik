@@ -129,29 +129,34 @@ Appetite: 75
   `.windsurf/workflows` guards `:1246-1251` stay), the AGENTS-compact copy (`:1324-1327`), the kilo_47 copy
   (`:1379-1384`) and the `opencode.json` copy (`:1400-1401`) removed; comments `:290-291` and `:1333-1334` removed or
   reworded so they name no retired file.
-- `_remove_retired_droid_markers(project_path: Path, *, dry_run: bool) -> list[str]` — new, beside `_patch_droid_block`.
-  When `.droid` is a symlink: one entry `skipped .droid/ (symlink)` and return. For each of
+- `_remove_retired_droid_markers(project_path: Path, *, dry_run: bool) -> list[str]` — new, beside `_patch_droid_block`;
+  called only when `.droid` is a real directory (`fix_project` handles a symlinked `.droid`, below). For each of
   `(".droid/review-context", ".gitkeep")` and `(".droid/traycer-reports", ".gitignore")`, with `d` the directory and `m`
-  the marker:
+  the marker, the first matching rule wins:
   1. `d` missing (`not d.exists() and not d.is_symlink()`) → nothing;
   2. `d.is_symlink()` → `skipped <dir>/ (symlink)`;
-  3. `m.is_file() and not m.is_symlink()` → remove it (`m.unlink()`, not under `dry_run`) and report `removed <dir>/<marker>`;
-     a marker that is a directory, a symlink (dangling or not) or absent is left and counted as an entry;
-  4. `others` = the entries of `d` other than a removed-or-removable regular-file marker, counted the same way in both
-     modes; `others == 0` → `d.rmdir()` (not under `dry_run`) and report `removed <dir>/ (empty)`; else report
-     `kept <dir>/ (<others> other entries)`;
-  5. an `OSError` from `unlink` or `rmdir` is reported `could not remove <path>: <strerror>` and the loop continues.
+  3. `d` is not a directory (a regular file of that name) → `kept <dir> (not a directory)`;
+  4. `m.is_file() and not m.is_symlink()` → remove it (`m.unlink()`, not under `dry_run`) and report `removed <dir>/<marker>`;
+     an `OSError` from that `unlink` reports `could not remove <dir>/<marker>: <strerror>` and ends this pair (no `rmdir`
+     is tried); a marker that is a directory, a symlink (dangling or not) or absent is left and counted as an entry;
+  5. `others` = the entries of `d` other than a regular-file marker that rule 4 removed or (under `dry_run`) would remove,
+     so both modes count the same; `others == 0` → `d.rmdir()` (not under `dry_run`) and report `removed <dir>/ (empty)`;
+     else report `kept <dir>/ (<others> other entries)`; an `OSError` from `rmdir` reports `could not remove <dir>/: <strerror>`.
   Entries are returned prefixed by their verb (`removed `, `kept `, `skipped `, `could not remove `).
 - `fix_project`: the `.windsurfrules`, `AGENTS-compact.md`, `opencode.json`, `kilo_47_agents_final.json` blocks and
   their dry-run twins removed (`spec § Chosen approach` fleet step 3 lists every range), with the `windsurfrules_target`
-  guard `:7402`, `:7408-7409`; the `.droid/.gitignore` and root-`.gitignore` rewrites kept, now writing the reduced
-  constants; the marker creation `:7530-7544` / `:7605-7613` replaced by one `_remove_retired_droid_markers` call in each
-  branch, its entries appended to the returned list.
-- `src/fabrik/cli.py` `fix` command (`:2038-2056`): splits the returned list into notes (`kept `, `skipped `,
-  `could not remove `), removals (`removed `) and additions (everything else, as today). Additions print as today;
-  removals print `🗑️  Removed: <rest>` (`Would remove: <rest>` under `--dry-run`); notes print `ℹ️  <entry>` and never
-  count. "No missing files - project structure is complete!" prints when there are no additions, removals or unsupported
-  entries, notes or not; the closing count line counts additions and removals separately.
+  guard `:7402`, `:7408-7409` (the `.windsurf/rules` and `.windsurf/workflows` guards `:7410-7413` stay); the marker
+  creation `:7530-7544` / `:7605-7613` replaced by one `_remove_retired_droid_markers` call in each branch, its entries
+  appended to the returned list. When `.droid` is a symlink, dangling or not (`droid_dir.is_symlink()`), both branches
+  skip the whole `.droid` block — no `mkdir` (`:7522` raises `FileExistsError` on a dangling link and writes through a live
+  one), no `.droid/.gitignore` write, no helper call — and append one `skipped .droid/ (symlink)` entry. Otherwise the
+  `.droid/.gitignore` rewrite and the root-`.gitignore` patch stay, writing the reduced constants.
+- `src/fabrik/cli.py` `fix` command (`:2038-2058`): splits the returned list into notes (`kept `, `skipped `),
+  failures (`could not remove `), removals (`removed `) and additions (everything else, as today). Additions print as
+  today; removals print `🗑️  Removed: <rest>` (`Would remove: <rest>` under `--dry-run`); notes print `ℹ️  <entry>` and
+  never count; failures print `⚠️  <entry>` and make the command exit 1, as unsupported entries do (`:2057-2058`).
+  "No missing files - project structure is complete!" prints only when there are no additions, removals, failures or
+  unsupported entries, notes or not; the closing count line counts additions and removals separately.
 
 **Consumes:** nothing.
 
@@ -173,8 +178,10 @@ types' `kilo_usage`/`reviews`/`traycer` entries), `TestFixProjectDroidStructure`
    `def :1121`) against a fake `FABRIK_ROOT` built like `tests/test_scaffold_doc_seeding.py:129-151`, extended with
    `docs/reference/kilo/x.md` and `scripts/kilo_47_agents_final.json` so A1's kilo legs can go red (A2 omits
    `.windsurfrules` and `opencode.json`); A3-A7 build project trees in `tmp_path` and call `fix_project` with
-   `FABRIK_ROOT` patched to a fake root holding `kilo_47_agents_final.json`, `AGENTS-compact.md`, `opencode.json` and
-   `.windsurfrules` (the worktree has no `kilo_47`, so the real root cannot show A5 red); A8 drives the `fix` command
+   `FABRIK_ROOT` patched to a fake root outside `tmp_path`'s project dir holding `kilo_47_agents_final.json`,
+   `AGENTS-compact.md`, `opencode.json`, `.windsurfrules`, `.windsurf/rules/x.md` and `.windsurf/workflows/x.md` (the
+   `.windsurf` guards at `scaffold.py:7410-7413` stay and raise without them; the worktree has no `kilo_47`, so the real
+   root cannot show A5 red); A8 drives the `fix` command
    through Click's `CliRunner` with `fix_project` patched to return fixed entries. Run them and confirm each fails for the
    right reason (A1: the retired files exist; A2: `FileNotFoundError` naming `.windsurfrules`; A3-A6: markers kept or
    synced files rewritten; A7: the user's `.droid/` line dropped; A8: a removal printed as `Added:`).
@@ -198,11 +205,11 @@ types' `kilo_usage`/`reviews`/`traycer` entries), `TestFixProjectDroidStructure`
 - **Given** a fake hub root carrying every source file, **When** `_scaffold_shared` builds a project, **Then** the project has no `.droid/review-context`, `.droid/traycer-reports`, `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` or `scripts/kilo_47_agents_final.json`, has `docs/reference/kilo/`, its `.droid/.gitignore` equals `_DROID_DIR_GITIGNORE`, and its root `.gitignore` carries `.droid/docs_queue/` and `.droid/docs_log/` and no line containing `kilo`, `traycer` or `.droid/reviews` (A1; `spec § Validation` 1)
 - **Given** a fake hub root with no `.windsurfrules` and no `opencode.json`, **When** `_scaffold_shared` runs, **Then** it completes and writes `.droid/.gitignore` (A2; `spec § Contract deltas`, merge order)
 - **Given** an old-shaped project with `.droid/review-context/.gitkeep` and `.droid/traycer-reports/.gitignore` only, **When** `fix_project` runs, **Then** both markers and both directories are gone and the result carries a `removed` entry for each (A3; `spec § Validation` 2)
-- **Given** five trees — `review-context/` holding `.gitkeep` and `notes.md`; a symlinked `.droid/traycer-reports`; a symlinked `.droid/`; a `.gitkeep` that is a directory; a `.gitkeep` that is a dangling symlink — and a project whose `unlink` raises `PermissionError`, **When** `fix_project` runs on each, **Then** `notes.md` survives with `kept .droid/review-context/ (1 other entries)`, each symlink and its target are untouched with a `skipped … (symlink)` entry, the directory marker and the dangling symlink stay with a `kept` entry, the refused removal yields `could not remove …` and the run completes (A4; `45-testing-strategy.md:199`)
+- **Given** five trees — `review-context/` holding `.gitkeep` and `notes.md`; a symlinked `.droid/traycer-reports`; a `.droid/` that is a symlink to a real directory and one that is a dangling symlink; a `.gitkeep` that is a directory; a `.gitkeep` that is a dangling symlink — plus a `.droid/review-context` that is a regular file and a project whose marker `unlink` raises `PermissionError`, **When** `fix_project` runs on each, **Then** `notes.md` survives with `kept .droid/review-context/ (1 other entries)`; each symlink and its target are untouched (no `.gitignore` written into the target) with one `skipped … (symlink)` entry and no exception; the directory marker, the dangling marker and the regular file stay with a `kept` entry; the refused removal yields one `could not remove …` entry, no `rmdir` is tried for that directory, and the run completes (A4; `45-testing-strategy.md:199`)
 - **Given** a project holding its own `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` and `scripts/kilo_47_agents_final.json` and a hub root holding all four, and one project holding none of them, **When** `fix_project` runs, **Then** the first keeps all four byte-identical, the second gains none, and no entry names them (A5; `spec § Chosen approach`, fleet step 3)
 - **Given** the A3 tree and the A4 non-empty tree with `dry_run=True`, **When** `fix_project` runs, **Then** its entries equal the live run's entries for the same trees, and every file and directory is unchanged (A6; `spec § Validation` 2)
 - **Given** a root `.gitignore` holding the old eight-line `.droid` block among user lines, one of them `.droid/secrets.json`, **When** `fix_project` runs, **Then** the block is replaced by the reduced one, the user lines — `.droid/secrets.json` included — survive in order, and a second run reports no `.gitignore` change (A7; `scaffold.py:7266-7303`)
-- **Given** `fix_project` returning one addition, one `removed` entry and one `kept` entry, then only a `kept` entry, **When** `fabrik fix` renders them, **Then** the addition prints `Added:`, the removal `Removed:`, the note without either label and outside the counts, and the second run prints "No missing files - project structure is complete!" (A8; `cli.py:2038-2056`)
+- **Given** `fix_project` returning one addition, one `removed` entry and one `kept` entry; then only a `kept` entry; then one `could not remove` entry, **When** `fabrik fix` renders them, **Then** the addition prints `Added:`, the removal `Removed:`, the note without either label and outside the counts; the second run prints "No missing files - project structure is complete!" and exits 0; the third prints the failure, not the "complete" line, and exits 1 (A8; `cli.py:2038-2058`)
 
 ## Phase B — The pre-plan copy stops writing into guardrail files; docs; Finish
 
@@ -220,7 +227,8 @@ Appetite: 50
   `.windsurfrules`, `AGENTS-compact.md` and `KILO_CLI_RULES.md`).
 - Docs (`spec § Documentation landing sites`): `docs/QUICKSTART.md:70-77`, `docs/reference/architecture.md:255-256`,
   `docs/workflows/SCAFFOLD_STRUCTURE.md:27,70,147,263`, `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md:266-268,444-446,604-613`,
-  `docs/CONFIGURATION.md:596`, `docs/reference/fabrik-cli-reference.md:26`, `docs/preplans/README.md:25`; and through the
+  `docs/CONFIGURATION.md:596`, `docs/reference/fabrik-cli-reference.md:26`, `docs/preplans/README.md:25`,
+  `docs/traycer/fabrik-workflow.md:92`; and through the
   orchestrator's governance path (outside File Scope by the plan grammar) `docs/FEATURES.md:427,606` and `CHANGELOG.md`.
 
 **Consumes:** Phase A (the `.droid/` shape the docs describe).
@@ -240,7 +248,8 @@ Appetite: 50
 5. The doc edits per the Interfaces; `docs/FEATURES.md` and `CHANGELOG.md` through the shared-append private-index recipe
    (`CLAUDE.md` § Behavior, the shared-repo bullet). Then `command grep -rn "review-context\|traycer-reports\|4 AI
    guardrail" docs/QUICKSTART.md docs/CONFIGURATION.md docs/FEATURES.md docs/preplans/README.md docs/reference/architecture.md
-   docs/reference/fabrik-cli-reference.md docs/workflows/SCAFFOLD_STRUCTURE.md docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md`
+   docs/reference/fabrik-cli-reference.md docs/workflows/SCAFFOLD_STRUCTURE.md docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md
+   docs/traycer/fabrik-workflow.md`
    → only historical mentions (a "retired" note), each read; `python scripts/enforcement/check_doc_sync.py` and
    `python scripts/render_doc_script_links.py --check` → both exit 0.
 6. **`/fabrik-review-scoped`** on Phase B's surface (the four source files, `tests/test_preplan.py`, the edited docs), run
@@ -277,6 +286,7 @@ Appetite: 50
 - docs/reference/fabrik-cli-reference.md
 - docs/workflows/SCAFFOLD_STRUCTURE.md
 - docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md
+- docs/traycer/fabrik-workflow.md
 - docs/superpowers/specs/2026-10-03-scaffold-retired-agent-surface-design.md
 - docs/development/reviews/2026-10-03-plan-1-scaffold-retired-agent-surface-review.md
 
@@ -312,7 +322,10 @@ tests/test_preplan.py:175:     def test_injects_reference_into_all_4_guardrails(
 The docs: `docs/QUICKSTART.md:70-77`, `docs/CONFIGURATION.md:596`, `docs/preplans/README.md:25`,
 `docs/reference/architecture.md:255-256`, `docs/reference/fabrik-cli-reference.md:26`,
 `docs/workflows/SCAFFOLD_STRUCTURE.md:27`, `:70`, `:147`, `:263`, `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md:266-268`,
-`:444-446`, `:604-613`, `docs/FEATURES.md:427`, `:606`.
+`:444-446`, `:604-613`, `docs/traycer/fabrik-workflow.md:92`, `docs/FEATURES.md:427`, `:606`. Population: `command grep
+-rln '4 AI guardrail\|review-context\|traycer-reports' docs --include=*.md` outside archives, specs, plans, reviews and the
+ledgers lists 10 files — these nine plus `docs/traycer/README.md`, a doc retired by its own banner (2026-07-19) and left
+as history.
 
 ## Self-audit
 
@@ -353,6 +366,7 @@ graded here with the plan. `dispatch_headroom.py --slices opus=1,sonnet=1` → `
 | Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) · spec md5 (start → end) |
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (`rules`) + sonnet×1 (`prose`) + one sonnet refuter per slice · all axes | found: 22, new: 22, confirmed: 22, fixed: 22, unexecuted: 0, edits: 2 files | method: citation — full partitioned pass, shape: workflow (wf_66e32be9-d25); the orchestrator re-ran every confirmed check (`verify1.py`) and added O18 (de-listing deletes no project copy, `sync_enforcement_to_projects.py:2023-2030`). Confirmed: `.droid/` loses its only creator (O1); fleet-first fails a new project's gate (O2); the create-time tests could not go red as written (O3, O11); mirror tests missing (O4); the helper acts through a symlinked directory, mishandles a directory or dangling marker, and raises on a refused removal (O5, O6); live and dry-run counts can differ (O7); removals print as `Added:` (O8); the log line survives (O9); docs missing (O10, S1, S2); the guard rule's five spellings (O12); the infra-first window (O13); stale comments (O14); five vs six (O15); the Evidence enumeration (O16); user `.gitignore` lines dropped (O17); plan vs spec on open unknowns (S3); plus the spec's approach floor (0 cited URLs, `check_spec_convergence`), fixed in 458d507b2. | a65530f1ca3b344cd25f65d5666c14d3 → the Pass 2 pin · b0cc428411e56ab2fd8b80bf65ec7a34 → the Pass 2 pin |
+| Pass 2 | opus×1 (`rules`, round-1 owner) + sonnet×1 (`prose`, round-1 owner) + one sonnet refuter per slice · delta over the pass-1 fix hunks (8af931102) + one hop | found: 7, new: 7, confirmed: 6, fixed: 6, unexecuted: 0, edits: 2 files | method: re-derivation — all 20 pass-1 ledger claims NOW_FALSE (17 rules, 3 prose; the rules seat re-ran the A1/A2 fake-root probe and the live/dry-run comparison on the pinned source, and `git log -p -G'droid/'` to prove the managed-line set covers every line the scaffold ever wrote); the orchestrator re-ran O18, O21, O22 (`verify2.py`: write-through via a symlinked `.droid`, `FileExistsError` on a dangling one, `NotADirectoryError` on a file) and re-derived the doc population (10 files). Confirmed, all inside pass-1 hunks (own-fix: round 1): the kept `.droid/.gitignore` write acts through a symlinked `.droid` (O18) and a dangling one raises (O21); the A3-A7 fake root lacked the `.windsurf` dirs the kept guards need (O19); a refused removal printed "complete" (O20); a regular file named like the marker directory aborted the listing (O22); a failed `unlink` still led to `rmdir` (O23). Recorded: O24 `docs/traycer/fabrik-workflow.md:92` (one hop) — folded into the doc lists anyway. | 30a94eb6caf96090363d5f6731f15a2c → the Pass 3 pin · 451560e4b76d5c8214dd1956bb481cb8 → the Pass 3 pin |
 
 ## Coverage Checklist
 
