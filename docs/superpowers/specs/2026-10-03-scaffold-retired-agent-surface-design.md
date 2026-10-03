@@ -169,9 +169,10 @@ infra step 1). Nothing requires `.droid/` to exist.
   `:1207-1215`), a blocking gate row (`final_gate.py:2080-2084`) that fails until a governance sync happens to run.
   Infra-first is safe if infra keeps the hub copies of `.windsurfrules` and `opencode.json` until fleet merges, because
   until then `_scaffold_shared` still copies `opencode.json` unconditionally (`:1400-1401`) and raises on a missing
-  `.windsurfrules` (`:1244-1245`). Its one window: a `fabrik scaffold` or `fabrik fix` run between the two merges copies
-  the three files into a project as untracked residue; infra's prune (infra step 1) removes them on that project's next
-  sync. Infra step 6 deletes the hub copies once fleet has merged.
+  `.windsurfrules` (`:1244-1245`). Its one window: between the two merges a `fabrik fix` run copies the three files into a
+  pruned project as untracked residue, and a `fabrik scaffold` run commits them in the new project's initial commit
+  (`git add .`, `scaffold.py:7191-7193`); infra's prune (infra step 1) removes them on that project's next sync — for the
+  scaffolded project a tracked deletion left for the owner to commit, as with the markers. Infra step 6 deletes the hub copies once fleet has merged.
 
 ## Cost
 
