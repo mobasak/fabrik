@@ -45,7 +45,7 @@ Synchronizes Fabrik governance + enforcement files to all `/opt/*` projects, ens
 | `docs/reference/kilo/` | Kilo agent-selection + model docs (recursive, orphan-pruned) |
 | `docs/reference/MD/` | Shared markdown reference set (recursive, orphan-pruned) |
 
-**Retired:** `AGENTS-compact.md`, `opencode.json` and `.windsurfrules` (`RETIRED_GOVERNANCE_FILES`) are no longer synced; `prune_retired_governance()` deletes a project's copy on every run, the way `prune_retired_scripts()` handles `RETIRED_CORE_SCRIPTS` (D-529). Linked worktrees are not pruned, for either list.
+**Retired:** `AGENTS-compact.md`, `opencode.json` and `.windsurfrules` (`RETIRED_GOVERNANCE_FILES`) are no longer synced; `prune_retired_governance()` deletes a project's copy on every run, the way `prune_retired_scripts()` handles `RETIRED_CORE_SCRIPTS` (D-529). In each linked worktree, `resync_worktree_artifacts` prunes both lists too, but only a file the worktree's own ledger proves the sync wrote and that is unchanged since; an edit is left in place with a WARN.
 
 **Note:** `AFCL.md` is scaffolded as `AFCL_TEMPLATE.md` and customized per project, not synced. `.pre-commit-config.yaml` is tech-stack specific and not synced.
 

@@ -1154,6 +1154,49 @@ def reap_zombie_rows(authored: dict, project_dir: Path, wt: Path) -> int:
     return reaped
 
 
+def _prune_retired_in_worktree(
+    wt: Path,
+    previously_authored_rel: dict[str, str],
+    *,
+    dry_run: bool,
+    backup: bool,
+    project_dir: Path,
+) -> list[SyncResult]:
+    """Remove a RETIRED governance file or core script from one linked worktree — only when
+    THIS worktree's ledger proves the sync wrote it, it is not committed to the worktree's own
+    branch, and its bytes still match the recorded hash (the orphan prune's rule). An edit is
+    left in place and reported; a path the ledger never recorded is left silently."""
+    results: list[SyncResult] = []
+    rels = [*RETIRED_GOVERNANCE_FILES, *(f"scripts/{n}" for n in RETIRED_CORE_SCRIPTS)]
+    for rel in rels:
+        dest = wt / rel
+        recorded_hash = previously_authored_rel.get(rel)
+        if not recorded_hash or dest.is_symlink() or not dest.is_file():
+            continue
+        try:
+            if _worktree_file_is_tracked(wt, Path(rel)):
+                continue
+            if compute_file_hash(dest) != recorded_hash:
+                results.append(
+                    SyncResult(
+                        "WARN",
+                        dest,
+                        dest,
+                        "retired, but differs from the ledger record — left in place",
+                    )
+                )
+                continue
+            if backup and not dry_run:
+                _backup_worktree_file(dest, wt, project_dir)
+            if not dry_run:
+                dest.unlink()
+        except OSError as e:
+            results.append(SyncResult("WARN", dest, dest, f"retired, could not be pruned: {e}"))
+            continue
+        results.append(SyncResult("DELETE", dest, dest, "retired file pruned (worktree)"))
+    return results
+
+
 def resync_worktree_artifacts(
     project_dir: Path,
     dry_run: bool = False,
@@ -1413,6 +1456,21 @@ def resync_worktree_artifacts(
                 total_warned += 1
                 print(f"  WARN (worktree, error processing {rel}: {e}): {wt}")
                 continue
+
+        # A RETIRED file is no longer a .worktreeinclude pattern, so the loop above never visits
+        # it and a worktree created before the retirement keeps its copy. Prune it under the
+        # same proof the orphan prune demands (review A-S1, D-529).
+        for retired in _prune_retired_in_worktree(
+            wt, previously_authored_rel, dry_run=dry_run, backup=backup, project_dir=project_dir
+        ):
+            if retired.action == "WARN":
+                total_warned += 1
+                print(f"  WARN (worktree, {retired.reason}): {retired.destination}")
+                continue
+            total_deleted += 1
+            verb = "Would delete" if dry_run else "Deleted"
+            print(f"  {verb} ({retired.reason}): {retired.destination}")
+            authored_this_run.pop(retired.destination.relative_to(wt).as_posix(), None)
 
         if not dry_run:
             # round 7, class 10: reap zombie rows — a path whose MAIN CHECKOUT

@@ -2508,3 +2508,34 @@ def _reap_zombie_rows(ledger: dict[str, str], project_dir: Path, wt: Path) -> di
     out = dict(ledger)
     sync.reap_zombie_rows(out, project_dir, wt)
     return out
+
+
+# --------------------------------------------------------------------------- #
+# Retired files in a linked worktree (review A-S1, D-529)                     #
+# --------------------------------------------------------------------------- #
+
+
+def test_a_retired_file_the_sync_wrote_into_a_worktree_is_pruned_there_too(
+    tmp_path: Path, capsys
+) -> None:
+    """The main-checkout prune leaves every pre-existing worktree's copy behind: the resync only
+    walks CURRENT .worktreeinclude patterns, which no longer list a retired name. A retired file
+    the worktree's own ledger proves the sync wrote, unchanged since, is removed; an agent's edit
+    of one and a file the ledger never recorded are left in place."""
+    repo = _init_repo(tmp_path / "proj")
+    wt = _add_worktree(repo, "agent-x")
+    synced = {"AGENTS-compact.md": "hub copy\n", "opencode.json": "{}\n"}
+    for name, body in synced.items():
+        (wt / name).write_text(body)
+    sync._write_worktree_ledger(wt, {n: sync.compute_file_hash(wt / n) for n in synced})
+    (wt / "opencode.json").write_text('{"agent": "edited"}\n')  # an edit after the sync wrote it
+    (wt / ".windsurfrules").write_text("never recorded\n")  # no ledger row at all
+    (wt / "scripts").mkdir(exist_ok=True)
+
+    sync.resync_worktree_artifacts(repo)
+    out = capsys.readouterr().out
+
+    assert not (wt / "AGENTS-compact.md").exists(), out
+    assert (wt / "opencode.json").read_text() == '{"agent": "edited"}\n', "an edit is never pruned"
+    assert (wt / ".windsurfrules").exists(), "a file the ledger never recorded is not the sync's"
+    assert "AGENTS-compact.md" not in sync._read_worktree_ledger(wt), "no zombie row"
