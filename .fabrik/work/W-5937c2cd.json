@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-03T22:03:24.571407Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "7950ce431ce34b3595cf56dc30b9bfd5beb4ba3a",
   "id": "W-5937c2cd",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "work.py status takes ~5.5 s on the hub (spec growth trigger: over 1 s) — 615 git subprocesses in _drift_report, two per recently-closed done item; the spec's archive remedy cannot help (3 of 360 closed items are older than 90 days)"
 }
