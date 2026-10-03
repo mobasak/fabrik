@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-03T10:07:08.126662Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "89dc8c6fad81ea320f1dbf9c77cccf2d312278a0",
   "id": "W-b5ba0c37",
   "kind": "backlog",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "rotation"
   ],
