@@ -3255,3 +3255,51 @@ claims:
     verify: "https://developer.apple.com/news/?id=saqachfa ; https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation ; https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/overview (WebSearch + WebFetch, 2026-10-03; ledger f2-13, f2-18, f2-29, f2-30)"
     window_days: 180
     last_verified: 2026-10-03
+
+  - id: fail2ban-package-defaults
+    pack: core/90-bootstrap-scripts.md
+    kind: standard
+    claim: "fail2ban's upstream jail.conf defaults are maxretry 5, findtime 10m and bantime 10m, and Debian/Ubuntu's packaged jail.d/defaults-debian.conf enables the sshd jail; fail2ban-client set <jail> unbanip <ip> lifts a ban"
+    verify: "https://raw.githubusercontent.com/fail2ban/fail2ban/master/config/jail.conf ; https://salsa.debian.org/python-team/packages/fail2ban/-/raw/master/debian/debian-files/jail.d_defaults-debian.conf ; https://manpages.ubuntu.com/manpages/noble/man1/fail2ban-client.1.html (WebFetch + brave, 2026-10-04; ledger g1-01, g1-05, g1-08)"
+    window_days: 180
+    last_verified: 2026-10-04
+
+  - id: sshd-first-match-dropins
+    pack: core/90-bootstrap-scripts.md
+    kind: standard
+    claim: "sshd uses the first value it reads for each keyword and Ubuntu includes sshd_config.d/*.conf at the top in lexical order, so cloud-image drop-ins such as 50-cloud-init.conf override a later 99- drop-in or a main-file edit; sshd -t checks validity only and sshd -T prints the effective configuration"
+    verify: "https://man.openbsd.org/sshd_config ; https://man.openbsd.org/sshd ; https://github.com/lacs-project/sysknife/issues/559 (WebFetch + brave, 2026-10-04; ledger g1-12, g1-15, g1-17..g1-20)"
+    window_days: 365
+    last_verified: 2026-10-04
+
+  - id: claude-code-native-install
+    pack: core/90-bootstrap-scripts.md
+    kind: practice
+    claim: "Claude Code's recommended install is the native installer (curl -fsSL https://claude.ai/install.sh | bash), which auto-updates; npm is an alternative that must not be run as sudo npm install -g; the installer needs about 512 MB free and a Killed exit 137 is the OOM killer; headless boxes use claude setup-token"
+    verify: "https://code.claude.com/docs/en/setup ; https://code.claude.com/docs/en/troubleshoot-install ; https://code.claude.com/docs/en/authentication (WebFetch + exa, 2026-10-04; ledger g1-28, g1-29, g1-34, g1-35)"
+    window_days: 90
+    last_verified: 2026-10-04
+
+  - id: pep668-externally-managed
+    pack: core/90-bootstrap-scripts.md
+    kind: standard
+    claim: "Ubuntu marks its system Python externally managed (PEP 668) so pip refuses system-wide installs; --break-system-packages overrides it at the risk of breaking the OS's Python, and the spec points to apt packages, a venv or pipx instead"
+    verify: "https://packaging.python.org/en/latest/specifications/externally-managed-environments/ ; https://pip.pypa.io/en/stable/cli/pip_install/ (WebFetch + firecrawl, 2026-10-04; ledger g1-23..g1-26)"
+    window_days: 365
+    last_verified: 2026-10-04
+
+  - id: cron-redirect-before-exec
+    pack: core/90-bootstrap-scripts.md
+    kind: standard
+    claim: "The shell processes redirections before running the command and a file it cannot open or create fails the redirection; cron runs lines with /bin/sh and mails output to MAILTO or the owner, and with no mail agent Ubuntu's cron discards it and logs CRON lines to the journal"
+    verify: "https://www.gnu.org/software/bash/manual/html_node/Redirections.html ; https://manpages.ubuntu.com/manpages/noble/man5/crontab.5.html ; https://blog.healthchecks.io/2023/01/using-logs-to-troubleshoot-failing-cron-jobs/ (WebFetch + brave, 2026-10-04; ledger g1-36, g1-37, g1-39)"
+    window_days: 365
+    last_verified: 2026-10-04
+
+  - id: vps-recovery-consoles
+    pack: core/90-bootstrap-scripts.md
+    kind: platform
+    claim: "DigitalOcean's Recovery Console, Vultr's noVNC View Console and Hetzner's VNC console reach a VPS without network SSH but need a password login; DigitalOcean's Droplet Console needs a working sshd"
+    verify: "https://docs.digitalocean.com/products/droplets/how-to/recovery/recovery-console/ ; https://docs.vultr.com/vultr-web-console-faq ; https://docs.hetzner.com/cloud/servers/getting-started/vnc-console/ (firecrawl + exa + brave, 2026-10-04; ledger g1-46..g1-50)"
+    window_days: 180
+    last_verified: 2026-10-04
