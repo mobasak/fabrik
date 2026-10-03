@@ -78,10 +78,10 @@
 │   └── __init__.py · conftest.py · test_health.py · test_glitchtip_no_secret_leak.py
 ├── config/ · data/ · logs/ · backups/ · .tmp/ · output/ · .cache/   # standard dirs
 ├── .dockerignore · .env.example · .gitignore · .pre-commit-config.yaml
-├── .worktreeinclude
-├── AFCL.md · AGENTS.md · CHANGELOG.md · CLAUDE.md · INDEX.md · PORTS.md · README.md
+├── .windsurfrules · .worktreeinclude
+├── AFCL.md · AGENTS.md · AGENTS-compact.md · CHANGELOG.md · CLAUDE.md · INDEX.md · PORTS.md · README.md
 ├── compose.yaml · compose.dev.yaml · Dockerfile · Makefile
-└── project.yaml · pyproject.toml · requirements.txt · requirements-dev.txt
+└── opencode.json · project.yaml · pyproject.toml · requirements.txt · requirements-dev.txt
 ```
 
 `.github/` is not emitted: CI checks are retired fleet-wide (operator directive), and `scripts/ci_local.sh` is the
@@ -135,7 +135,7 @@ Seeding is **type-aware**: `_scaffold_shared` skips a doc whose registry bucket 
 
 | Source | Destination |
 |--------|-------------|
-| `/opt/fabrik/AGENTS.md` (a 9-line pointer to `agents-fabrik.md`) | same name at the project root — 1 of the 3 GOVERNANCE_FILES; `agents-fabrik.md` and `agents-fabrik-core.md` arrive with the governance sync, not at scaffold time |
+| `/opt/fabrik/AGENTS.md` (a 9-line pointer to `agents-fabrik.md`), plus `AGENTS-compact.md`, `.windsurfrules`, `opencode.json` until fleet's scaffold change (D-529) | same name at the project root — `AGENTS.md` is 1 of the 3 GOVERNANCE_FILES; the other three are RETIRED_GOVERNANCE_FILES the next governance sync deletes; `agents-fabrik.md` and `agents-fabrik-core.md` arrive with the governance sync, not at scaffold time |
 | `templates/governance/CLAUDE.md`, `DECISIONS.md`, `.worktreeinclude` | `CLAUDE.md`, `docs/DECISIONS.md`, `.worktreeinclude` (GOVERNANCE_TEMPLATES) |
 | `/opt/fabrik/.windsurf/rules/`, `.windsurf/workflows/`, `docs/reference/kilo/` | same paths (3 of the 4 GOVERNANCE_DIRS; `docs/reference/MD/` is created empty and filled by the sync) |
 | `/opt/fabrik/scripts/enforcement/` | `scripts/enforcement/` |

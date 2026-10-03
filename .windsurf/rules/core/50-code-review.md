@@ -18,7 +18,7 @@ currency_pass: 2026-09-02
 
 ### Internal Audit
 
-*Perform before reporting completion. Full checklist in the agent's bootstrap file (`CLAUDE.md` / `.windsurfrules` / `AGENTS-compact.md`).*
+*Perform before reporting completion. Full checklist in the agent's bootstrap file (`CLAUDE.md`).*
 
 - [ ] **Secrets:** No hardcoded keys or tokens?
 - [ ] **Infrastructure:** `Dockerfile` uses the pinned Debian `-slim` variant (per `30-ops.md` § Container Base Images), has `HEALTHCHECK`, no Alpine?

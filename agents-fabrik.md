@@ -394,7 +394,7 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 
 - `fabrik preplan new <slug>` — create `docs/preplans/<YYYY-MM-DD>-<slug>.md` from `templates/preplan/preplan.md.j2`. 9 sections: Idea / Project type / Shape preview / External deps / Domain / Success criteria / Out of scope / Open questions / Notes (VPS1 inventory reminders).
 - Refine the markdown with Opus / ChatGPT / Claude.
-- `fabrik scaffold <name> --from-preplan docs/preplans/<file>` — ingests the preplan: pre-fills `--type`, and copies the preplan into `<project>/docs/preplan.md`; the synced project `CLAUDE.md` tells every agent to read `docs/preplan.md` before planning when it exists (D-529 — the per-file `Preplan:` injection never survived a sync and is removed).
+- `fabrik scaffold <name> --from-preplan docs/preplans/<file>` — ingests the preplan: pre-fills `--type`, and copies the preplan into `<project>/docs/preplan.md`; the synced project `CLAUDE.md` tells every agent to read `docs/preplan.md` before planning when it exists. The scaffold still also layers a `Preplan:` line into the guardrail files until fleet's scaffold change (D-529) retires that injection — it never survived a sync anyway.
 - (HISTORY — Traycer is retired, D-102; the pre-plan read now lives in `/fabrik-vision`'s research discovery over `docs/preplans/`.) Traycer's Step 2.5 in `docs/traycer/fabrik-workflow.md` was the planning-side companion: when a fresh project is detected, look for a preplan in `docs/preplans/` BEFORE asking the user to declare anything from scratch.
 
 **Post-deploy lifecycle commands (T2-01 + T2-02 + T2-03 + T2-04):**
