@@ -90,3 +90,33 @@ def test_a_staged_receipt_failure_carries_no_intent_to_add_note(tmp_path: Path) 
     r = _run_gate(tmp_path)
     assert r.returncode == 1, r.stdout + r.stderr
     assert "intent-to-add" not in r.stdout, r.stdout
+
+
+def test_the_explicit_paths_branch_does_not_claim_it_read_the_index(tmp_path: Path) -> None:
+    """W-73bb87d5 (1): the explicit-`paths` branch never consults the index, yet its summary said
+    "N staged review artifact(s)" — seats spent probes checking whether it had graded a sibling's
+    staged file. It grades exactly the paths it was handed, and must say so."""
+    f = tmp_path / "2026-10-03-not-a-review.md"
+    f.write_text("# notes\n\nno checklist here\n", encoding="utf-8")
+    r = _run_gate(tmp_path, str(f))
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "staged" not in r.stdout, r.stdout
+    assert "1 explicitly-named review artifact(s)" in r.stdout, r.stdout
+    bad = tmp_path / "2026-10-03-bad-review.md"
+    bad.write_text(_FAILING_RECEIPT, encoding="utf-8")
+    r = _run_gate(tmp_path, str(bad))
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "staged" not in r.stdout.splitlines()[0], r.stdout
+
+
+def test_the_gfm_separator_test_is_importable_not_nested() -> None:
+    """W-73bb87d5 (1): `_is_separator` was nested inside `_table_rows`, so a harness loading the
+    gate by path had to RETYPE the separator grammar — the drift the file's own round-69 doctrine
+    forbids. It is a module-level function, and `_table_rows` uses that one."""
+    assert callable(getattr(crc, "_is_separator", None))
+    assert crc._is_separator("|---|:--:|")
+    assert crc._is_separator("---")
+    assert not crc._is_separator("|::|::|")
+    assert not crc._is_separator("| a | b |")
+    # the header pair still forms through the hoisted test
+    assert crc._table_rows("| h | v |\n|---|---|\n| 1 | CLEAN |\n") == ["| 1 | CLEAN |"]

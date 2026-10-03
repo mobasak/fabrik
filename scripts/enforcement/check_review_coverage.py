@@ -161,6 +161,30 @@ def _intent_to_add(root: Path, prefix: str) -> set[Path]:
     }
 
 
+def _is_separator(row: str) -> bool:
+    # MODULE-LEVEL (hoisted out of `_table_rows`): nested, a harness loading the gate by path
+    # had to RETYPE this grammar to test it — the drift the round-69 doctrine forbids.
+    # The REAL GFM delimiter-row grammar, per cell (round 97): each cell is `:?-+:?`
+    # with at least one hyphen — the coarse character-class test accepted `|::|::|`,
+    # `| : | : |` and blank cells, forming a phantom header pair no renderer forms and
+    # swallowing the row above. The rule is closed and fully specified; enforcing it
+    # precisely ends the separator sub-chase definitionally.
+    # Per-cell validation ONLY (round 101): GFM puts the pipe requirement on the HEADER
+    # row, not the delimiter — a bare `---` IS a valid separator under a 1-column
+    # pipe-bounded header (renderer-verified), and round 100's pipe-presence gate here
+    # false-failed exactly that honest shape. The setext/thematic ambiguity is carried
+    # structurally by the callers: candidate rows are pipe-filtered before the
+    # anywhere-skip, and the header pair only forms under a pipe-bounded header with
+    # matching cell counts (`Title\n---` never pairs — Title carries no pipe).
+    r = re.sub(r"\\\|", "\x00", row.strip())
+    if r.startswith("|"):
+        r = r[1:]
+    if r.endswith("|"):
+        r = r[:-1]
+    cells = r.split("|")
+    return bool(cells) and all(re.fullmatch(r"\s*:?-+:?\s*", c) for c in cells)
+
+
 def _table_rows(section: str) -> list[str]:
     """ALL visible data rows in the checklist section (round 85).
 
@@ -179,27 +203,6 @@ def _table_rows(section: str) -> list[str]:
     # no-nesting fail-open the parity and refusal nets never see. A row is a header only if
     # its separator is the literally next line.
     phys = section.splitlines()
-
-    def _is_separator(row: str) -> bool:
-        # The REAL GFM delimiter-row grammar, per cell (round 97): each cell is `:?-+:?`
-        # with at least one hyphen — the coarse character-class test accepted `|::|::|`,
-        # `| : | : |` and blank cells, forming a phantom header pair no renderer forms and
-        # swallowing the row above. The rule is closed and fully specified; enforcing it
-        # precisely ends the separator sub-chase definitionally.
-        # Per-cell validation ONLY (round 101): GFM puts the pipe requirement on the HEADER
-        # row, not the delimiter — a bare `---` IS a valid separator under a 1-column
-        # pipe-bounded header (renderer-verified), and round 100's pipe-presence gate here
-        # false-failed exactly that honest shape. The setext/thematic ambiguity is carried
-        # structurally by the callers: candidate rows are pipe-filtered before the
-        # anywhere-skip, and the header pair only forms under a pipe-bounded header with
-        # matching cell counts (`Title\n---` never pairs — Title carries no pipe).
-        r = re.sub(r"\\\|", "\x00", row.strip())
-        if r.startswith("|"):
-            r = r[1:]
-        if r.endswith("|"):
-            r = r[:-1]
-        cells = r.split("|")
-        return bool(cells) and all(re.fullmatch(r"\s*:?-+:?\s*", c) for c in cells)
 
     def _cells(row: str) -> int:
         # GFM-faithful cell count (round 95): exactly ONE optional boundary pipe strips per
@@ -2015,7 +2018,7 @@ def _block_refusals(block: list[str]) -> list[str]:
     header-shaped row inside the block is a data row: its vocabulary carries the colon token and
     the token rule refuses it there.
 
-    ⚠️ NOT `_table_rows`'s separator-adjacency test (`:176-213`): `_ledger_shapes` reads
+    ⚠️ NOT `_table_rows`'s separator-adjacency test (`:220-258`): `_ledger_shapes` reads
     `founds[-1]` from `ordered`, which knows nothing of separators, so the two readers must agree
     on which row is DATA — a content test agrees with it definitionally, an adjacency test does
     not (the round-89 swallow is the standing proof).
@@ -3075,7 +3078,7 @@ def main() -> int:
                 continue
             failures.extend(_grade(p, root))
         if failures:
-            print("Coverage-checklist gate FAILED (staged review artifacts):")
+            print("Coverage-checklist gate FAILED (explicitly-named review artifacts):")
             for f in failures:
                 print(f"  - {f}")
             print(
@@ -3086,7 +3089,7 @@ def main() -> int:
             return 1
         print(
             "check_review_coverage: OK — 0 unproven coverage claims across "
-            f"{len(args.paths)} staged review artifact(s)"
+            f"{len(args.paths)} explicitly-named review artifact(s)"
         )
         return 0
     changed, skip_notes, untracked = _changed_md(root, REVIEWS_DIR)
