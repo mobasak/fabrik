@@ -1421,9 +1421,6 @@ def test_production_shape_agent_edit_older_than_refreshed_hub_source_survives(
         "AGENTS.md",
         "agents-fabrik.md",
         "agents-fabrik-core.md",
-        "AGENTS-compact.md",
-        "opencode.json",
-        ".windsurfrules",
         "CLAUDE.md",
         "PORTS.md",
     ]
@@ -1431,14 +1428,14 @@ def test_production_shape_agent_edit_older_than_refreshed_hub_source_survives(
         (repo / name).write_text(f"{name} hub v1\n")
 
     wt_dir = _add_worktree(repo, "agent-x")
-    sync.resync_worktree_artifacts(repo)  # establishes the ledger for all 8 files
+    sync.resync_worktree_artifacts(repo)  # establishes the ledger for all 5 files
 
     # The hub advances on every file (a governance commit), refreshing each source's
     # mtime to "now" — exactly what a real `shutil.copy2` propagation does.
     for name in filenames:
         (repo / name).write_text(f"{name} hub v2\n")
 
-    # The agent edited exactly ONE of the eight files, 30 minutes ago.
+    # The agent edited exactly ONE of the five files, 30 minutes ago.
     edited = "CLAUDE.md"
     (wt_dir / edited).write_text("agent's in-flight edit, 30 minutes old\n")
     _touch_mtime(wt_dir / edited, -1800)
@@ -1449,7 +1446,7 @@ def test_production_shape_agent_edit_older_than_refreshed_hub_source_survives(
     agent_edit_lost = (wt_dir / edited).read_text() != "agent's in-flight edit, 30 minutes old\n"
     assert not agent_edit_lost, f"AGENT EDIT LOST: {agent_edit_lost}"
     assert "WARN" in out, out
-    # The other seven, genuinely untouched by the agent, still refresh normally.
+    # The other four, genuinely untouched by the agent, still refresh normally.
     for name in filenames:
         if name == edited:
             continue

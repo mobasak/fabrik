@@ -40,7 +40,6 @@ ESSENTIAL_FILES: list[str] = [
     "project.yaml",
     "compose.yaml",
     "Dockerfile",
-    ".windsurfrules",
 ]
 
 WARN_THRESHOLD = 1

@@ -16,11 +16,8 @@ def fake_project(tmp_path):
 
     # Governance files (real copies)
     (project / "AGENTS.md").write_text("# AGENTS\n")
-    (project / "AGENTS-compact.md").write_text("# Compact\n")
     (project / "agents-fabrik.md").write_text("# canonical agents doc\n")
     (project / "agents-fabrik-core.md").write_text("# platform core\n")
-    (project / "opencode.json").write_text("{}\n")
-    (project / ".windsurfrules").write_text("# rules\n")
 
     # .windsurf/rules/ with a real file
     rules_dir = project / ".windsurf" / "rules"

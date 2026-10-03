@@ -3,11 +3,11 @@
 """Sync enforcement scripts to all /opt projects for Fabrik compliance.
 
 Syncs to all /opt projects:
-- Core scripts (6): final_gate.py, kilo_code_review.py, kilo_docs_enforcer.py,
-  docs_updater.py, health_checker.py
+- Core scripts (CORE_SCRIPTS): final_gate.py, docs_updater.py, command_run.py, … — the
+  manifest is the list; RETIRED_CORE_SCRIPTS are pruned
 - Enforcement directory (scripts/enforcement/*)
-- Governance files (5): AGENTS.md, AGENTS-compact.md, opencode.json, .windsurfrules,
-  .pre-commit-config.yaml
+- Governance files: AGENTS.md, agents-fabrik.md, agents-fabrik-core.md (GOVERNANCE_FILES);
+  the retired AGENTS-compact.md, opencode.json and .windsurfrules are PRUNED (D-529)
 - Governance directories: .windsurf/rules/, .windsurf/workflows/, docs/reference/kilo/
 - Reference docs: long-command-monitoring, technology-stack-decision-guide, etc. (REFERENCE_DOCS)
 
@@ -49,6 +49,7 @@ from fabrik_synced_manifest import (  # noqa: E402
     GOVERNANCE_TEMPLATES,
     REFERENCE_DOCS,
     RETIRED_CORE_SCRIPTS,
+    RETIRED_GOVERNANCE_FILES,
     RUN_SCRIPTS,
     RUN_SCRIPTS_SRC_DIR,
     SEED_IF_MISSING,
@@ -1779,6 +1780,23 @@ def prune_retired_scripts(scripts_dir: Path, dry_run: bool = False) -> list[Sync
     return results
 
 
+def prune_retired_governance(project_dir: Path, dry_run: bool = False) -> list[SyncResult]:
+    """Delete project-root copies of RETIRED_GOVERNANCE_FILES (D-529).
+
+    The governance leg only copies what GOVERNANCE_FILES lists, so de-listing a file leaves
+    every project's old copy behind. Only a FILE is removed — the shape the sync wrote; a
+    directory under a retired name is the project's own and is left unreported.
+    """
+    results: list[SyncResult] = []
+    for name in RETIRED_GOVERNANCE_FILES:
+        dest = project_dir / name
+        if dest.is_file():
+            if not dry_run:
+                dest.unlink()
+            results.append(SyncResult("DELETE", dest, dest, "retired governance file pruned"))
+    return results
+
+
 def sync_single_file(
     source: Path,
     destination: Path,
@@ -2019,7 +2037,7 @@ def sync_scripts_to_project(
                         if dirpath.is_dir() and not any(dirpath.iterdir()):
                             dirpath.rmdir()
 
-        # Sync governance files (AGENTS.md, opencode.json, .windsurfrules)
+        # Sync governance files (AGENTS.md, agents-fabrik*.md)
         for gov_file in GOVERNANCE_FILES:
             source = FABRIK_ROOT / gov_file
             if source.exists():
@@ -2028,6 +2046,8 @@ def sync_scripts_to_project(
                     source, destination, dry_run=dry_run, backup=backup, force=force
                 )
                 file_results.append(result)
+        # Prune RETIRED governance files — de-listing alone leaves every project's old copy.
+        file_results.extend(prune_retired_governance(project_dir, dry_run=dry_run))
 
         # Governance templates: src under templates/, dest at project root.
         # CLAUDE.md hub/project split — /opt/fabrik/CLAUDE.md is the HUB agents'
@@ -2111,7 +2131,6 @@ def sync_scripts_to_project(
 
         # Sync agent "definition of done" hooks (.claude/ Stop hook, Cascade
         # .windsurf/hooks.json). Nested paths → mkdir parents like reference docs.
-        # opencode.json (Kilo) rides GOVERNANCE_FILES above.
         for rel in AGENT_HOOK_FILES:
             source = FABRIK_ROOT / rel
             if source.exists():

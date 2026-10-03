@@ -100,9 +100,17 @@ GOVERNANCE_FILES = [
     "AGENTS.md",
     "agents-fabrik.md",  # canonical agents doc (AGENTS.md is a stub pointing here)
     "agents-fabrik-core.md",  # high-frequency core @import-ed by CLAUDE.md — must exist fleet-wide
-    "AGENTS-compact.md",
-    "opencode.json",
-    ".windsurfrules",
+]
+
+# Governance files RETIRED from GOVERNANCE_FILES — the sync DELETES these from every project
+# root. De-listing alone deletes nothing (the governance leg only copies what is listed), so a
+# retired file needs this list exactly as RETIRED_CORE_SCRIPTS does. D-529 (spec 2026-10-03
+# scaffold-retired-agent-surface): the Kilo/opencode and Windsurf agents are not used (D-364,
+# D-514). The HUB copies stay until fleet's scaffold half stops copying them (infra step 6).
+RETIRED_GOVERNANCE_FILES = [
+    "AGENTS-compact.md",  # read only by opencode.json's `instructions`
+    "opencode.json",  # Kilo/opencode config
+    ".windsurfrules",  # Windsurf Cascade rules
 ]
 
 # Governance templates → (src_rel under templates/, dest_rel at project root).
@@ -258,9 +266,7 @@ RETIRED_VENDORED_DIRS = [
 # project via ${CLAUDE_PROJECT_DIR} + stdin cwd; the Cascade hook commands
 # self-locate via `git rev-parse`). This is what makes every project — existing
 # and future — enforce `final_gate` green as the definition of done, and route
-# bare-prose prompts to the matching /fabrik-* skill. (Kilo/opencode has no
-# config-level hook surface — its schema is strict — so Kilo stays
-# instruction-only via AGENTS-compact.md, which rides GOVERNANCE_FILES above.)
+# bare-prose prompts to the matching /fabrik-* skill.
 AGENT_HOOK_FILES = [
     ".claude/settings.json",
     ".claude/hooks/final_gate_stop.py",

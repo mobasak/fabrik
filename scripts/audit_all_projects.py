@@ -60,15 +60,12 @@ LEGIT_ROOT_FILES = {
     "INDEX.md",
     "PORTS.md",
     "AGENTS.md",
-    "AGENTS-compact.md",
-    ".windsurfrules",
     ".gitignore",
     ".env",
     ".env.example",
     ".pre-commit-config.yaml",
     ".codeiumignore",
     "project.yaml",
-    "opencode.json",
     "Dockerfile",
     "compose.yaml",
     "docker-compose.yaml",
@@ -91,9 +88,7 @@ LEGIT_ROOT_FILES = {
 
 # Paths to EXCLUDE when searching for health endpoints / print() etc.
 GOVERNANCE_EXCLUDE = {
-    ".windsurfrules",
     "AGENTS.md",
-    "AGENTS-compact.md",
     "docs_updater.py",
     "00-research.md",
 }
