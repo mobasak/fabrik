@@ -6612,6 +6612,34 @@ def test_a_record_opened_before_normalisation_still_closes_under_its_own_name(
     assert "REFUSED — you asked to close" not in out.stdout, out.stdout
 
 
+def test_every_reader_sees_a_pre_normalisation_record_under_its_normalised_name(
+    run_dir: Path,
+) -> None:
+    """Review A-ONEHOP-1/2: the A-S2 fix normalised only `_close`'s own comparison, and a record
+    the pre-W-5aa12ff3 binary stored as `Fabrik-Review-Scoped` was still read raw by every other
+    `in REVIEW_FAMILY` reader -- its `done` close recorded no review reach. `load` now hands every
+    reader the normalised name."""
+    sid = "probe-onehop"
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-review-scoped",
+        "--phases",
+        "1",
+        "--terminal",
+        "t",
+        sid=sid,
+    )
+    f = run_dir / f"{sid}.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec["command"] = "Fabrik-Review-Scoped"  # the shape the pre-fix binary wrote
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
+    got = json.loads(f.read_text(encoding="utf-8"))
+    assert got.get("first_review_reach"), got
+
+
 @pytest.mark.parametrize(
     "corrupt",
     [

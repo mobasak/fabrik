@@ -200,7 +200,13 @@ def load(sid: str) -> dict[str, Any]:
     """The session's record, or {} — never raises (missing/corrupt/unreadable → {})."""
     try:
         data = json.loads(_record_path(sid).read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
+        if not isinstance(data, dict):
+            return {}
+        # a record the pre-W-5aa12ff3 binary wrote stores `--command` raw (`Fabrik-Review`); every
+        # reader compares it normalised, so it is normalised here, once (review A-ONEHOP-1/2)
+        if isinstance(data.get("command"), str) and data["command"]:
+            data["command"] = _norm_command(data["command"])
+        return data
     except Exception:
         return {}
 
