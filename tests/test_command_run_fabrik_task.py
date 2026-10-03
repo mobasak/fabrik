@@ -2184,7 +2184,9 @@ def test_a_broken_git_environment_never_refuses_the_close(
 
 
 @pytest.mark.parametrize(
-    "files", ["mas.txt", ["mas.txt", 7]], ids=["a-string-scalar", "a-non-string-member"]
+    "files",
+    ["mas.txt", ["mas.txt", 7], []],
+    ids=["a-string-scalar", "a-non-string-member", "an-empty-list"],
 )
 def test_a_corrupt_declared_block_refuses_to_publish_a_count(
     run_dir: Path, repo: Path, hub: Path, files: object
@@ -2192,7 +2194,9 @@ def test_a_corrupt_declared_block_refuses_to_publish_a_count(
     """A5 + its element half. A `files` STRING scalar became a set of CHARACTERS, so the declared
     file failed its own membership test and was scored oversized. Guarding only the CONTAINER left
     the same class open one level down: `["mas.txt", 7]` silently dropped the bad member and still
-    published a confident number. Both are equally corrupt and neither is measurable.
+    published a confident number. Both are equally corrupt and neither is measurable. An EMPTY
+    list cleared both halves (`all()` of nothing is True) and scored every path undeclared
+    (W-438885f8) — `start` requires `--file`, so an empty block is the same corruption.
 
     The reason stays `no-git` — invariant (vi)'s grammar is closed at three and the mislabel
     (a healthy git reported as an outage) is routed to the backlog, not fixed by a fourth."""

@@ -3832,7 +3832,13 @@ def _task_measure(
     # own membership test and is scored oversized — a CONFIDENT number derived from a record we
     # cannot trust. A record this malformed is not measurable; say so rather than publish a count.
     _raw_files = (rec.get("declared") or {}).get("files")
-    if not isinstance(_raw_files, (list, tuple)) or not all(isinstance(f, str) for f in _raw_files):
+    if (
+        not isinstance(_raw_files, (list, tuple))
+        # EMPTY too: `all()` of nothing is True, and `declared = set()` then scores every path in
+        # the commit undeclared — `start` requires `--file`, so an empty block is corrupt (W-438885f8)
+        or not _raw_files
+        or not all(isinstance(f, str) for f in _raw_files)
+    ):
         # The ELEMENTS too: dropping a non-string member silently would publish a confident count
         # from the same corruption class the container check refuses.
         # Name the MEMBER and its type, never only the container's: `… not a list of str: list`
@@ -3840,7 +3846,7 @@ def _task_measure(
         # record — the close prints only the class (W-416058b2).
         _bad = (
             [f"{f!r} ({type(f).__name__})" for f in _raw_files if not isinstance(f, str)]
-            if isinstance(_raw_files, (list, tuple))
+            if isinstance(_raw_files, (list, tuple)) and _raw_files
             else [f"{_raw_files!r} ({type(_raw_files).__name__})"]
         )
         raise TypeError(f"declared.files is not a list of str: {', '.join(_bad[:3])}")
