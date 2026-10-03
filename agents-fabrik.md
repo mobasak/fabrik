@@ -115,7 +115,7 @@ Our planning agents ground against this file. Agent-execution contracts, rule pa
 | `docs/orchestrator/_retired/**` | tombstones of the retired chains (`*.RETIRED.md`) — reference only, never edited | ❌ No |
 | `docs/traycer/fabrik-workflow.md` | HISTORY — the retired Traycer layer's workflow prompt (D-102); reference only | ❌ No |
 | `CLAUDE.md` | Claude Code bootstrap | ❌ No |
-| `docs/archive/2026-10-03-retired-agent-bootstraps/` | RETIRED Windsurf/Kilo bootstraps (`.windsurfrules`, `AGENTS-compact.md`, `opencode.json`), archived — not synced, not scaffolded (D-529, D-537) | ❌ No |
+| `docs/archive/2026-10-03-retired-agent-bootstraps/` | RETIRED Windsurf/Kilo bootstraps (`.windsurfrules`, `AGENTS-compact.md`, `opencode.json`, `kilo.jsonc`), archived — not synced, not scaffolded (D-529, D-537) | ❌ No |
 | `.windsurf/rules/**` | Topic rule packs (shared; Cascade auto-loads via frontmatter, Claude Code and Kilo read on demand) | ❌ No |
 | `.windsurf/workflows/**` | Cascade slash-command workflows | ❌ No |
 | Per-project `CLAUDE.md`, `project.yaml` | Project-scoped (out of Fabrik-monorepo scope) | ❌ No |
