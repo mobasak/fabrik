@@ -50,7 +50,7 @@ def test_a1_coverage_maps_paths_to_trusted_plans_and_respects_excludes():
         "/opt/ab/x",
         "/srv/z",
     ]
-    got = backrest.coverage(paths, [DV, OC], VIS)
+    got = backrest.coverage(paths, [DV, OC], VIS | set(paths))
     assert [got[p] for p in paths] == [
         "docker-volumes",
         None,
@@ -61,17 +61,26 @@ def test_a1_coverage_maps_paths_to_trusted_plans_and_respects_excludes():
     ]
 
 
+def test_a1_a_path_backrest_cannot_stat_is_never_covered():
+    # /opt exists inside the Backrest image even with its host bind gone; the data path itself must be visible
+    plan = _plan("opt-configs", ["/opt"])
+    assert backrest.coverage(["/opt/svc/data"], [plan], {"/opt"}) == {"/opt/svc/data": None}
+    assert backrest.coverage(["/opt/svc/data"], [plan], {"/opt", "/opt/svc/data"}) == {
+        "/opt/svc/data": "opt-configs"
+    }
+
+
 def test_a1_a_path_is_attributed_to_its_most_specific_plan():
     broad, narrow = _plan("a-plan", ["/opt"]), _plan("b-plan", ["/opt/a"])
-    assert backrest.coverage(["/opt/a/data"], [broad, narrow], {"/opt", "/opt/a"}) == {
-        "/opt/a/data": "b-plan"
-    }
+    assert backrest.coverage(
+        ["/opt/a/data"], [broad, narrow], {"/opt", "/opt/a", "/opt/a/data"}
+    ) == {"/opt/a/data": "b-plan"}
 
 
 def test_a1_a_plan_never_covers_a_sibling_prefix():
     plan = _plan("a", ["/opt/a"])
-    assert backrest.coverage(["/opt/ab"], [plan], {"/opt/a"}) == {"/opt/ab": None}
-    assert backrest.coverage(["/opt/a/x"], [plan], {"/opt/a"}) == {"/opt/a/x": "a"}
+    assert backrest.coverage(["/opt/ab"], [plan], {"/opt/a", "/opt/ab"}) == {"/opt/ab": None}
+    assert backrest.coverage(["/opt/a/x"], [plan], {"/opt/a", "/opt/a/x"}) == {"/opt/a/x": "a"}
 
 
 @pytest.mark.parametrize("exclude", ["docker", "cache/", "/var/lib/docker"])
@@ -298,7 +307,10 @@ def test_a7_the_database_is_covered_only_by_an_existing_dump_on_the_hub(
         monkeypatch,
         found=backrest.Persistence(1, ["/var/lib/docker/volumes/z/_data"], 0),
         plans_by_host={"spoke": [DV], "hub": hub_plans},
-        visible_by_host={"spoke": {"/var/lib/docker/volumes"}, "hub": hub_visible},
+        visible_by_host={
+            "spoke": {"/var/lib/docker/volumes", "/var/lib/docker/volumes/z/_data"},
+            "hub": hub_visible,
+        },
     )
     monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "orig")
     status, findings, _ = backrest.coverage_findings(

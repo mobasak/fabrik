@@ -186,7 +186,8 @@ status, findings, actual = coverage_findings(
 - `read_plans()` — plan fields only (`jq`); the repo section and its B2 credentials never leave the host.
 - `visible(paths)` — the subset Backrest itself can stat (`test -e` inside its container).
 - `trusted(plan, vis)` — every plan path visible, a schedule that is not disabled, no `iexcludes`, no `backup_flags`.
-- `coverage(paths, plans, vis)` — each path → the most specific trusted plan covering it; an exclude matching any
+- `coverage(paths, plans, vis)` — each path Backrest can itself stat → the most specific trusted plan covering it
+  (a visible root such as `/opt` proves nothing: it exists inside the Backrest image without its bind); an exclude matching any
   component of the path (or one carrying `[ \ $ !`) uncovers it.
 - `coverage_findings(...)` — paths on `target_host`; the database dump `/opt/backups/postgres/<db>` must exist and be
   covered on `hub_host`; a `<name>-data` or `postgres-<db>` plan with a path Backrest cannot stat is a paper plan,

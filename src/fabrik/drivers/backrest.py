@@ -544,12 +544,19 @@ def _excluded(path: str, patterns: list[str]) -> bool:
 
 
 def coverage(paths: list[str], plans: list[dict], vis: set[str]) -> dict[str, str | None]:
-    """Map each path to the trusted plan whose root covers it most specifically (ties by id), or ``None``."""
+    """Map each path to the trusted plan whose root covers it most specifically (ties by id), or ``None``.
+
+    A path Backrest cannot itself stat is never covered: a plan root such as ``/opt`` exists inside the
+    Backrest image even when its host bind is missing, so a visible root alone proves nothing about the data.
+    """
     result: dict[str, str | None] = {}
+    seen = {_norm(v) for v in vis}
     candidates = sorted((p for p in plans if trusted(p, vis)), key=lambda p: str(p.get("id")))
     for raw in paths:
         path = _norm(raw)
         result[raw] = None
+        if path not in seen:
+            continue
         best = -1
         for plan in candidates:
             roots = [_norm(r) for r in plan.get("paths") or []]

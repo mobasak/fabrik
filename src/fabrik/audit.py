@@ -8,11 +8,11 @@ state-aware destroy (T4-01/T4-02).
 
 Each ``audit_<reg>(spec)`` function returns an :class:`AuditResult` with:
 
-* ``status`` ∈ {``present``, ``missing``, ``n/a``, ``unknown``} — exactly
-  what audit functions produce. ``drift`` (live shape differs from
-  expected) is not yet produced by any auditor; will be added in a
-  follow-up that compares config bags. ``override`` is folded into
-  ``n/a`` with the override reason in ``detail``.
+* ``status`` ∈ {``present``, ``missing``, ``n/a``, ``unknown``, ``drift``} —
+  ``drift`` means the live state differs from what the spec needs (the
+  postgres registry/database quadrants, an uncovered backrest path or a
+  paper plan). ``override`` is folded into ``n/a`` with the override
+  reason in ``detail``.
 * ``detail`` — short human-readable explanation
 * ``expected`` — what the spec's shape says SHOULD be there (per
   ``resolve_applicability``)
