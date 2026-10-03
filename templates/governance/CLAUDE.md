@@ -546,7 +546,12 @@ undispatched own-session work is the same checkpoint-stall as a bare block `NEXT
 discipline:** `DONE:` states only what actually happened (commit hashes / files / verdicts — never "mostly done");
 `NEXT:` names the successor precisely enough to run without re-derivation — the exact command + argument, the
 exact operator decision, or `none — terminal`. A vague `NEXT:` is a missing line. If `NEXT:` names work THIS agent
-owns in THIS session, it is dispatched, not narrated.
+owns in THIS session, it is dispatched, not narrated. **A merge is never a `NEXT:`** (operator 2026-10-03, D-525):
+a merge request waiting for this repo's merge owner is worked in the same turn (`python3 scripts/merge_request.py merge`)
+until it is merged or refused — a request the script PARKS is resolved as its message says (by hand, then `resume <id>`),
+or refused back to its requester with the reason — never offered, deferred or asked about; a finished worktree branch
+sends its request (`merge_request.py request`) in the same turn; and with no merge waiting, `NEXT:` names the next
+real work — never a merge that might arrive.
 
 **Work items.** A repo with a `.fabrik/work/` store keeps its open work there (`python3 scripts/work.py`;
 `/opt/fabrik/docs/reference/work-tracking.md`): `NEXT:` names the item id (`W-` and 8 lowercase hex) when one exists and then says in

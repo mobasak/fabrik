@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — A merge is never a `NEXT:`: a waiting merge request is merged in the same turn, in every repo (2026-10-03)
+
+Operator ruling D-525. The hub `CLAUDE.md` and `templates/governance/CLAUDE.md` add one sentence to the `DONE:`/`NEXT:` discipline: the merge owner works a waiting request in the same turn with `merge_request.py merge` until it is merged or refused (a parked request resolved as the script says), and never offers, defers or asks about it; a finished worktree branch sends its request in the same turn; with no merge waiting, `NEXT:` names real work, never a merge that might arrive. A Stop-hook pattern was measured and rejected (591 of 34,810 box `NEXT:` lines lead with a merge, nearly all in-flight own work); the existing merge-owner Stop cause stays the enforcement. fabrik-lib's hand-maintained `CLAUDE.md` gets the sentence by mail.
+
 ### Fixed — 30-ops.md's persistent-data checklist describes the check-and-warn backrest registrar (2026-10-03)
 
 The `has_persistent_data: true` item in `.windsurf/rules/core/30-ops.md` still said the backrest registrar "hardcodes `paths = [/opt/<name>/data]`" — behaviour fleet's plan-3 removed (merged at 9ee52047b; D-518, D-520). It now says the registrar writes no plan: it checks the service's named volumes, writable bind directories and its database dump at `/opt/backups/postgres/<db>` on the hub, warns (the hourly audit reports `drift`) for each one no host plan covers, and names the four warnings agents act on. Requested by fleet (mail 01M3ZEDP80, W-a489330d).
