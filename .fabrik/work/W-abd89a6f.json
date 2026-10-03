@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-02T19:21:35.135844Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "0ab29d1f4036f831e340ffbccf6f37ce5fbba0cc",
   "id": "W-abd89a6f",
   "kind": "backlog",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "docs"
   ],
