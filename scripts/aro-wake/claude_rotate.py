@@ -2316,6 +2316,10 @@ def _ledger_append(event: dict) -> None:
     fallback = _ledger_fallback_path()
     try:  # O_NOFOLLOW + 0600: a shared temp dir must not redirect or expose the row (N2)
         fd = os.open(fallback, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        if os.fstat(fd).st_uid != os.getuid():  # someone else's file: never append to it
+            os.close(fd)
+            raise PermissionError(f"{fallback} is not owned by this user")
+        os.fchmod(fd, 0o600)  # a file an older release created 0644 is tightened, not trusted
         with os.fdopen(fd, "a") as fh:
             fh.write(row + "\n")
         where = f"; kept in {fallback}"
@@ -2328,11 +2332,14 @@ def _degraded_row(event: object) -> str:
     """A row for an event JSON cannot encode: its ``event`` and ``ts`` stay top-level so the
     dwell readers still see it (N4), the rest is a repr — or the type name when repr raises."""
     keep: dict = {}
-    if isinstance(event, dict):
-        if isinstance(event.get("event"), str):
-            keep["event"] = event["event"]
-        if isinstance(event.get("ts"), (int, float)) and math.isfinite(event["ts"]):
-            keep["ts"] = event["ts"]
+    try:  # an int ts too big for a float, or a dict subclass whose .get raises
+        if isinstance(event, dict):
+            if isinstance(event.get("event"), str):
+                keep["event"] = str(event["event"])
+            if isinstance(event.get("ts"), (int, float)) and math.isfinite(event["ts"]):
+                keep["ts"] = event["ts"]
+    except Exception:  # noqa: BLE001
+        keep = {}
     try:
         keep["unencodable_event"] = repr(event)[:2000]
     except Exception:  # noqa: BLE001

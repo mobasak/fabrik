@@ -8181,3 +8181,18 @@ def test_the_fallback_file_follows_no_symlink_and_is_private(tmp_path, monkeypat
     monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(fresh))
     cr._ledger_append({"event": "flip", "to": "mob"})
     assert fresh.stat().st_mode & 0o777 == 0o600
+    old = tmp_path / "old.jsonl"  # created 0644 by the release before this one
+    old.write_text("", encoding="utf-8")
+    old.chmod(0o644)
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(old))
+    cr._ledger_append({"event": "flip", "to": "mob"})
+    assert old.stat().st_mode & 0o777 == 0o600 and '"to": "mob"' in old.read_text(encoding="utf-8")
+
+
+def test_a_degraded_row_whose_fields_cannot_be_read_never_raises(tmp_path, monkeypatch):
+    """An int ts too large for a float made math.isfinite raise inside `_degraded_row`."""
+    state = tmp_path / "state"
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    cr._ledger_append({"event": "flip", "ts": 10**400, "odd": {1}})
+    row = json.loads((state / "rotate-ledger.jsonl").read_text(encoding="utf-8"))
+    assert "unencodable_event" in row, row
