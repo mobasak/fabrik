@@ -105,6 +105,7 @@ def test_usable_window() -> None:
         "Accuracy falls as input grows, well inside the advertised length",
         "11 of 13 models that claim 128K tokens fell below half their short-input score at 32K",
         "every token is a cost to accuracy",
+        "cost about 14% to 85% of accuracy even when the evidence was retrieved perfectly",
         "measure the task at the input length you will actually send, and send less when the score drops",
     ):
         assert phrase in b, f"the usable-window rule lost: {phrase!r}"
@@ -143,6 +144,8 @@ def test_long_runs_compact_early() -> None:
         "A fresh session with a better prompt beats a long one carrying corrections",
         "compacts only at about 967K tokens by default; set autoCompactWindow",
         "Clearing tool results invalidates the cached prompt prefix",
+        "or CLAUDE_CODE_AUTO_COMPACT_WINDOW for headless claude -p runs",
+        "cached tokens still fill the window",
     ):
         assert phrase in b, f"the long-run rule lost: {phrase!r}"
 
@@ -160,7 +163,8 @@ def test_cost_rules() -> None:
     b = _bullet("Pay once for a long prefix")
     assert b, "the cost rule is gone"
     for phrase in (
-        "caching pays after one read",
+        "caching pays after one read on the five-minute cache and after two on the one-hour cache",
+        "which shows as zero cache-write and zero cache-read tokens on the call",
         "a prompt below the model's minimum length is silently not cached",
         "Claude bills its whole 1M window at the standard per-token rate",
         "charge a higher rate for every token once a prompt passes a size step (200K and 272K tokens respectively)",
@@ -168,6 +172,14 @@ def test_cost_rules() -> None:
         "Size input in tokens with the provider's own counter, never in words",
     ):
         assert phrase in b, f"the cost rule lost: {phrase!r}"
+
+
+def test_open_weight_licence_traps() -> None:
+    sub = _plain(_pack().split("\n## Subcategories\n", 1)[1].split("\n**Use cases:**", 1)[0])
+    assert "MiniMax's (non-commercial without MiniMax's written authorisation)" in sub, (
+        "ai/90 no longer says MiniMax's weights are non-commercial"
+    )
+    assert "Read the exact licence before use" in sub
 
 
 @pytest.mark.parametrize("word", ["Kilo", "Traycer"])

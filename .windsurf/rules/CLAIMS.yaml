@@ -3132,8 +3132,8 @@ claims:
   - id: long-input-pricing
     pack: ai/90-long-context.md
     kind: pricing
-    claim: "Claude bills the full 1M window at standard per-token rates; a cache read costs 0.1x input (less on the newest top models), a five-minute write 1.25x and a one-hour write 2x, paying off after one read, and prompts below a minimum length are silently not cached; Gemini Pro charges a higher rate above 200K tokens and OpenAI's flagship models above 272K; batch APIs are half price; the newest Claude tokenizer produces about 30% more tokens for the same text"
-    verify: "https://platform.claude.com/docs/en/about-claude/pricing ; https://platform.claude.com/docs/en/build-with-claude/prompt-caching ; https://ai.google.dev/gemini-api/docs/pricing ; https://developers.openai.com/api/docs/pricing (firecrawl + WebFetch, 2026-10-03; ledger e2-04, e2-10, e2-11, e2-13, e2-15, e2-17, e2-36, e2-43)"
+    claim: "Claude bills the full 1M window at standard per-token rates; a cache read costs 0.1x input (less on the newest top models), a five-minute write 1.25x and a one-hour write 2x, paying off after one read on the five-minute cache and two on the one-hour cache, and prompts below a minimum length are silently not cached; Gemini Pro charges a higher rate above 200K tokens and OpenAI's flagship models above 272K; batch APIs are half price; the newest Claude tokenizer produces about 30% more tokens for the same text"
+    verify: "https://platform.claude.com/docs/en/about-claude/pricing ; https://platform.claude.com/docs/en/build-with-claude/prompt-caching ; https://ai.google.dev/gemini-api/docs/pricing ; https://developers.openai.com/api/docs/pricing (firecrawl + WebFetch + Fable second opinion, 2026-10-03; ledger e2-04, e2-10, e2-11, e2-13, e2-15, e2-17, e2-36, e2-43, op-25)"
     window_days: 90
     last_verified: 2026-10-03
   - id: codebase-agentic-search
