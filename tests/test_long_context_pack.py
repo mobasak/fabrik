@@ -154,6 +154,9 @@ def test_codebase_by_agentic_search() -> None:
     b = _bullet("Analyse a codebase by agentic search")
     assert b, "the codebase rule is gone"
     assert "Analyse a codebase by agentic search, not by loading it whole" in b
+    assert "semantic search beside grep raised Cursor's average accuracy (+12.5%)" in b, (
+        "the measured lift behind the index rule is gone"
+    )
     assert "add one only when a test on the project shows the lift" in b, (
         "the semantic index is no longer gated"
     )
@@ -179,6 +182,7 @@ def test_open_weight_licence_traps() -> None:
     assert "MiniMax's (non-commercial without MiniMax's written authorisation)" in sub, (
         "ai/90 no longer says MiniMax's weights are non-commercial"
     )
+    assert "Kimi's (a modified MIT licence; 1M window)" in sub
     assert "Read the exact licence before use" in sub
 
 

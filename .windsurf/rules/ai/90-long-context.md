@@ -90,8 +90,8 @@ through fabrik-lib's `rag` module, under `core/65-rag-search.md`.
 - **Models:** Claude by alias (`ai/00-ai-model-selection.md`); Gemini and OpenAI's flagship models (1M-class windows,
   each with a long-prompt price step); open-weight long-context models — DeepSeek's (MIT licence, 1M window), Qwen's
   (Apache licence; 1M only by YaRN extension, which can cost accuracy on short text), Meta's Llama (community licence;
-  up to 10M tokens), Kimi's (a custom licence; 1M window), and MiniMax's (non-commercial without MiniMax's written
-  authorisation). Read the exact licence before use.
+  up to 10M tokens), Kimi's (a modified MIT licence; 1M window), and MiniMax's (non-commercial without MiniMax's
+  written authorisation). Read the exact licence before use.
 
 **Use cases:** codebase analysis, long-document question answering, contract and report review, book-length
 summarisation, long-running agent sessions.
