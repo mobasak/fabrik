@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T08:29:01.150589Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a489330d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3ZEDP80HXT952EW2A98AKC3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "30-ops.md:219-223 — the has_persistent_data checklist item describes the backrest registrar that W-5c4ad6a6 removes; proposed wording"
+}
