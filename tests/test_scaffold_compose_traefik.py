@@ -193,8 +193,8 @@ def test_traefik_labels_present(tmp_path, project_type):
     ), (
         f"{project_type} compose.yaml's loadbalancer.server.port label "
         f"must be a literal integer. ``${{PORT:-8000}}`` and similar "
-        f"shell fallbacks are NOT expanded by Coolify's compose parser "
-        f"and are passed verbatim to Traefik, which can't parse them "
+        f"shell fallbacks once reached Traefik verbatim, which can't parse them, "
+        f"and a literal keeps the router port equal to the healthcheck's "
         f"(see B18 in CHANGELOG)"
     )
 
@@ -282,3 +282,66 @@ def test_worker_compose_has_no_traefik(tmp_path):
         "file-worker should not declare Traefik labels — it is a "
         "background worker with no HTTP surface. Offending lines:\n" + "\n".join(label_hits)
     )
+
+
+@pytest.mark.parametrize("with_traefik", [True, False])
+def test_emitted_compose_names_no_retired_coolify_path(tmp_path, with_traefik):
+    """Every scaffold's compose.yaml is deployed by `fabrik apply` (SSH + Docker Compose).
+
+    The comments the generator writes into the file must give the live reasons (the memory
+    limit is what `_validate_compose` enforces), never the retired Coolify ones (W-4227a201).
+    """
+    from fabrik.scaffold import _write_canonical_compose
+
+    proj = tmp_path / "svc"
+    proj.mkdir()
+    _write_canonical_compose(
+        proj,
+        "svc",
+        port=8000,
+        with_traefik=with_traefik,
+        healthcheck_kind="http" if with_traefik else "process",
+        process_pattern=None if with_traefik else "worker",
+    )
+    content = (proj / "compose.yaml").read_text()
+    assert "coolify" not in content.lower()
+    assert "_validate_compose" in content
+
+
+@pytest.mark.parametrize("emitter", ["python_api", "node_api", "fastapi_backend", "saas_compose"])
+def test_no_emitter_writes_the_retired_coolify_path_into_a_project(tmp_path, emitter):
+    """The type-specific generators (beside `_write_canonical_compose`) write no Coolify text.
+
+    Compose headers, the FastAPI entry point, node-api's GlitchTip init and health endpoint all
+    once named Coolify; every file each generator writes is scanned (W-4227a201).
+    """
+    from fabrik import scaffold
+
+    proj = tmp_path / "svc"
+    proj.mkdir()
+    if emitter == "python_api":
+        scaffold._scaffold_python_api(proj, "svc", "a test service")
+    elif emitter == "node_api":
+        scaffold._scaffold_node_api(proj, "svc", "a test service")
+    elif emitter == "fastapi_backend":
+        scaffold._scaffold_fastapi_backend(proj, "svc", "svc")
+    else:
+        scaffold._write_saas_compose(proj, "svc")
+    # src/svc/glitchtip_init.py is VENDORED verbatim from site-provisioner (its own header says
+    # so); its retired COOLIFY_DEPLOYMENT_UUID release fallback is fixed upstream, then
+    # re-vendored. .venv is third-party code the scaffold installs, not text it writes.
+    vendored = {"src/svc/glitchtip_init.py"}
+    written = [
+        p
+        for p in proj.rglob("*")
+        if p.is_file()
+        and ".venv" not in p.relative_to(proj).parts
+        and p.relative_to(proj).as_posix() not in vendored
+    ]
+    assert written, emitter
+    hits = [
+        str(p.relative_to(proj))
+        for p in written
+        if "coolify" in p.read_text(encoding="utf-8", errors="replace").lower()
+    ]
+    assert hits == [], hits

@@ -168,12 +168,9 @@ GOVERNANCE_PREFIXES = (
 )
 GOVERNANCE_FILES = (
     "AGENTS.md",
-    "AGENTS-compact.md",
     "CLAUDE.md",
     "agents-fabrik.md",
     "agents-fabrik-core.md",
-    "opencode.json",
-    ".windsurfrules",
     ".claude/settings.json",
     ".windsurf/hooks.json",
     "scripts/final_gate.py",
@@ -266,7 +263,7 @@ def _area(path: str) -> str:
 def _is_governance(path: str) -> bool:
     # removeprefix, NEVER lstrip("./") — lstrip strips a CHARACTER SET, so
     # `.claude/hooks/x` lost its leading dot and matched nothing. Every dotfile
-    # governance surface (.claude/, .windsurf/, .windsurfrules) was invisible.
+    # governance surface (.claude/, .windsurf/) was invisible.
     p = path.removeprefix("./")
     if p in GOVERNANCE_FILES:
         return True

@@ -38,7 +38,6 @@ services:
     # F5: Declaring the memory limit here (not just CPU) makes Docker enforce
     # it on every redeploy — required so a single service can't OOM the shared
     # VPS (Fabrik invariant; `fabrik apply` rejects composes without it).
-    # (Legacy Coolify-era rationale; still applies to the compose deploy.)
     # Tune per-project as needed.
     deploy:
       resources:

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T20:31:25.183708Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-9ead34bd",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure which deployed projects use the canonical compose unedited; then emit env_file: .env (environment: literals still win) with a test, checking the BuildKit :- history in the env-default note",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Registrar-injected env (SENTRY_DSN, DATABASE_URL, REDIS_URL) never reaches canonical-compose containers: _write_canonical_compose and templates/scaffold/docker/compose.yaml.template emit no env_file: .env, so fabrik apply's /opt/<name>/.env only feeds ${VAR} interpolation (docker compose config proved it, W-4227a201 review)"
+}

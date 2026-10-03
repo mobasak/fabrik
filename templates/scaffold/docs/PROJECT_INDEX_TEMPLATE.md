@@ -15,15 +15,12 @@
 | **README.md** | Primary entry point — overview, tech stack, requirements, link to INDEX.md | Tech changes, setup changes |
 | **CHANGELOG.md** | Change history — what changed, why, when (Keep-a-Changelog format) | Every code change |
 | **AGENTS.md** | AI agent identity, tech stack, infra context | Read-only (synced from Fabrik) |
-| **AGENTS-compact.md** | Compressed agent contract (small-context agents) | Read-only (synced from Fabrik) |
 | **PORTS.md** | Port allocations for this project's services | New services or port changes |
 | **project.yaml** | Project metadata — type, status, ports, dependencies, tags | Status changes, new dependencies, port changes |
 | **.env.example** | Environment variable template (no secrets) | New env vars added |
 | **.env** | Actual secrets — **NEVER COMMIT** | When credentials change |
 | **.gitignore** | Git exclusion patterns | New file patterns to ignore |
 | **.pre-commit-config.yaml** | Git hooks — commit-time quality checks | Read-only (synced from Fabrik) |
-| **.windsurfrules** | Legacy Windsurf agent contract (kept for editor compatibility) | Read-only (synced from Fabrik) |
-| **opencode.json** | Legacy OpenCode configuration (retired stack; kept while synced) | Read-only (synced from Fabrik) |
 
 <!-- Add type-specific root files below. Delete rows that don't exist in your project. -->
 
@@ -121,7 +118,6 @@ See [docs/README.md](docs/README.md) for documentation index with purposes.
 ├── README.md                   # Project entry point
 ├── CHANGELOG.md                # Change history
 ├── AGENTS.md                   # Agent identity (synced)
-├── AGENTS-compact.md           # Compact agent contract (synced)
 ├── PORTS.md                    # Port allocations
 ├── project.yaml                # Project metadata
 ├── .env.example                # Env var template

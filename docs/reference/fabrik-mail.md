@@ -20,7 +20,7 @@ pattern for cross-repo AI requests. Zero always-on infrastructure — a file mai
 `<repo>` = the `/opt` directory name (`fabrik`, `tryton-crm`, `fabrik-lib`, …). Root is
 env-overridable via `FABRIK_MAIL_ROOT` (default `/opt/fabrik-mail`); the `/opt` base the recipient
 check reads is `FABRIK_OPT_ROOT` (default `/opt`). The root is operator-sanctioned as an outside-tree
-exception (both `CLAUDE.md` copies + `AGENTS-compact.md` + `.windsurfrules`).
+exception (both `CLAUDE.md` copies).
 
 ## Message format
 

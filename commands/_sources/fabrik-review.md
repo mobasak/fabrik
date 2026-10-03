@@ -55,7 +55,7 @@ plan. A mismatched name is refused; closing an already-closed run is a warned no
 # docs/DECISIONS.md are SEEDED_NOT_ENFORCED (live set: fabrik_synced_manifest.py) — projects may
 # edit them, so they stay normal review targets.
 python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lock')))))" | grep -vxF -e 'PORTS.md' -e 'docs/DECISIONS.md'
-# Covers: AGENTS.md · CLAUDE.md · .windsurfrules · AGENTS-compact.md · .windsurf/rules/** (all packs)
+# Covers: AGENTS.md · CLAUDE.md · agents-fabrik*.md · .windsurf/rules/** (all packs)
 #         scripts/enforcement/** (all checks — counts drift, list is computed) · final_gate.py · select_rules.py · review_rubric.py · hooks · reference docs
 ```
 
