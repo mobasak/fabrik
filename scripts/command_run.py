@@ -1388,7 +1388,7 @@ def _queue(
     The queue happens BEFORE the save: `main()` flushes in a `finally`, so an event that is
     already queued survives any failure in the tail.
     """
-    seq = int(rec.get("event_seq") or 0) + 1
+    seq = _int0(rec.get("event_seq")) + 1
     rec["event_seq"] = seq
     stamped = dict(fields, seq=seq, command=rec.get("command") or "", persisted=False)
     outbox["events"].append((event, stamped))
@@ -2442,7 +2442,7 @@ def _tokens_clause(tok: dict[str, Any]) -> str:
     if not tok:
         return ""
     has_seats = tok.get("tok_seat_in") is not None
-    skipped = int(tok.get("seats_skipped") or 0)
+    skipped = _int0(tok.get("seats_skipped"))
     if tok.get("tok_in") is None and not has_seats:
         # no orchestrator message AND no summed seat: the early return hid a skip event
         # (round-8 finding) — the skip is the only fact left, so print it alone
@@ -4377,7 +4377,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             "stack": stack,
             # Session-monotonic, so a nested run and a later run keep ascending rather
             # than restarting at 1 and colliding in the same session's stream.
-            "event_seq": int(rec.get("event_seq") or 0),
+            "event_seq": _int0(rec.get("event_seq")),
             # the ledger of windows earlier commands of this session COVERED — carried across
             # this overwrite so the Stop hook's sixth cause keeps every reviewed edit reviewed
             # (review P1-1: a single window un-reviewed every command before the last one)
@@ -4628,7 +4628,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _pd = rec.get("dispatch")
         prev_disp: dict = _pd if isinstance(_pd, dict) else {}
         n_rounds = len(rec.get("rounds") or [])
-        carried = int(prev_disp.get("seats") or 0) if prev_disp.get("round") == n_rounds else 0
+        carried = _int0(prev_disp.get("seats")) if prev_disp.get("round") == n_rounds else 0
         rec["dispatch"] = {
             "ts": time.time(),
             "seats": carried + args.seats,
@@ -4733,14 +4733,14 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # before. They HAD rounds — seven — so a zero-rounds threshold could never fire, and the
         # field that was actually lying (the phase) is the one nothing read. Unlike a phase-N
         # threshold this cannot be satisfied by calling `step` once at the start.
-        _phase_now = int(rec.get("phase") or 1)
+        _phase_now = _int0(rec.get("phase")) or 1
         # the STAMP is the seat figure — `dispatch --seats` accumulated it while the seats went
         # out; a bare `round` inherits it, and a hand-typed count that disagrees is said so
         # (round-7 Opus finding: `dispatch 3` + `dispatch 4` then a bare `round` declared 0)
         _dd = rec.get("dispatch")
         _d: dict = _dd if isinstance(_dd, dict) else {}
         _stamped = (
-            int(_d.get("seats") or 0)
+            _int0(_d.get("seats"))
             if _d.get("round") == len(rounds) and not _d.get("released")
             else 0
         )
@@ -4875,7 +4875,11 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # phase (correct, and common) or a boundary the agent walked past without recording. Both
         # deserve exactly one advisory line; neither deserves a refusal, which is why this prints
         # once at the threshold rather than on every round after it.
-        in_phase = [r for r in rounds if int(r.get("phase") or 0) == _phase_now]
+        # `_int0` at every record counter (W-ba3d1d4f): a hand-written `phase: "x"` raised here and
+        # the outer guard dropped the whole round with rc 0 — the `findings` incident's shape
+        in_phase = [
+            r for r in rounds if isinstance(r, dict) and _int0(r.get("phase")) == _phase_now
+        ]
         if len(in_phase) == ROUNDS_PER_PHASE_NOTICE:
             sys.stderr.write(
                 f"[command_run] NOTICE — {len(in_phase)} rounds recorded without leaving phase "
@@ -5572,8 +5576,10 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         )
         # the grader on the hand-typed reservation (round-4 finding): the close computes the TRUE
         # seat count in the same process; a stamp that disagrees is said out loud and recorded
-        _declared = sum(int(r.get("seats") or 0) for r in rec.get("rounds") or [])
-        _seen = int(_tok.get("seats_seen") or 0)
+        _declared = sum(
+            _int0(r.get("seats")) for r in rec.get("rounds") or [] if isinstance(r, dict)
+        )
+        _seen = _int0(_tok.get("seats_seen"))
         if (_tok.get("tok_seat_in") is not None or _declared) and abs(_declared - _seen) > 1:
             print(
                 f"[command_run] seats declared {_declared} (round --seats) vs seen {_seen} (seat "

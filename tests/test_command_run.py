@@ -6594,3 +6594,29 @@ def test_start_normalises_command_case_so_review_family_branches_fire(run_dir: P
     _cr(run_dir, "round", "--findings", "0", "--confirmed", "0")
     out = _cr(run_dir, "done", "--command", "FABRIK-REVIEW", "--evidence", "e")
     assert "REFUSED — you asked to close" not in out.stdout, out.stdout
+
+
+@pytest.mark.parametrize(
+    "corrupt",
+    [
+        {"rounds": [{"findings": 1, "phase": "x"}]},
+        {"phase": "y"},
+        {"event_seq": "z"},
+        {"dispatch": {"seats": "many", "round": 0}},
+    ],
+    ids=["round-phase", "record-phase", "event-seq", "dispatch-seats"],
+)
+def test_a_malformed_counter_on_the_record_never_crashes_a_round(
+    run_dir: Path, corrupt: dict
+) -> None:
+    """W-ba3d1d4f: `_int0` closed the bare-`int()` class for `findings` only. The same shape at
+    `phase`, `event_seq` and `seats` raised `ValueError` on a hand-written record — the round
+    died with a traceback and recorded nothing, while the record kept accepting starts."""
+    _start(run_dir)
+    f = run_dir / "s1.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec.update(corrupt)
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    r = _cr(run_dir, "round", "--findings", "1", "--classes-new", "a")
+    assert r.returncode == 0 and "Traceback" not in r.stderr, r.stderr
+    assert "ROUND" in r.stdout, r.stdout
