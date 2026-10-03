@@ -77,11 +77,7 @@
 
 ## D. Separate governance task (`/opt/fabrik` — NOT workstation cleanup)
 
-- **D1. `.windsurfrules` + Cascade-executor references.** ✅ DONE 2026-10-03 for the file (D-529/D-537: no longer synced or scaffolded, hub copy archived); the Cascade-executor prose remains. `.windsurfrules` is in `fabrik_synced_manifest.py` →
-  propagates to all 42 `/opt/*` projects; `select_rules.py` + rule-pack docs still name **Cascade** as an executor though it's
-  retired. ⚠️ **The `.windsurf/rules/` FOLDER content is LIVE governance — keep it.** Only the single legacy
-  `.windsurfrules` file + stale Cascade-executor prose are candidates. This is a deliberate fleet-wide change →
-  its own focused task through the fabrik pipeline (upstream edit + gate + review), not a workstation chore.
+- **D1. `.windsurfrules` + Cascade-executor references.** ✅ DONE 2026-10-03 (D-529/D-537): `.windsurfrules` is a RETIRED_GOVERNANCE_FILES entry the sync deletes from every project, nothing scaffolds it, and the hub copy is archived under `docs/archive/2026-10-03-retired-agent-bootstraps/`; `select_rules.py` and the rule packs no longer name Cascade as an executor (every remaining "cascade" in `.windsurf/rules/` is SQL `ON DELETE CASCADE`). The `.windsurf/rules/` folder is LIVE governance and stays.
 
 ---
 

@@ -78,7 +78,7 @@ Three coding paths, each with its own bootstrap:
 |---|---|---|
 | **Claude Code** | [CLAUDE.md](../../CLAUDE.md) (≤6,000 chars, enforced) | Reads scope-relevant packs from `.windsurf/rules/` on demand |
 | **Windsurf Cascade** (RETIRED) | `.windsurfrules`, archived in [docs/archive/2026-10-03-retired-agent-bootstraps/](../../docs/archive/2026-10-03-retired-agent-bootstraps/) | Cascade auto-loaded packs via frontmatter (`activation: glob` or `model_decision`) |
-| **Kilo CLI** (RETIRED) | `AGENTS-compact.md`, archived (D-529) | the Kilo dispatcher (retired 2026-08-15) injects the bootstrap + selectively-chosen packs into every prompt |
+| **Kilo CLI** (RETIRED) | `AGENTS-compact.md`, archived (D-529) | the Kilo dispatcher (retired 2026-08-15) injected the bootstrap + selectively-chosen packs into every prompt |
 
 All three carry the same always-on contract: **FIRST OUTPUT line** (`RULES ACTIVE: <agent> | <3 rules applied>`), **Orient** (read `project.yaml`, `AFCL.md`, scope-relevant packs), **Behavior** (check-before-create, present-before-execute, stay-on-task, surface state conflicts), **Completion Contract** (IMPLEMENT → GATE → CHANGELOG → LESSONS LEARNT → EXIT), and a **HARD STOPS** table forbidding `git commit/push` without explicit user ask, `localhost` in connection strings, Alpine base images, raw `pip install`, Authelia SIGHUP, Gatus UUID names, `/tmp/` usage, FastAPI `except Exception` swallowing `HTTPException`, etc.
 
