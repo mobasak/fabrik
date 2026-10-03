@@ -770,3 +770,14 @@ def test_the_finder_lessons_cover_a_truncated_line_not_only_a_truncated_file() -
     assert "over-long LINE" in lessons and "fold -w" in lessons, lessons[-600:]
     longest = max(len(line.encode()) for line in REVIEW_SOURCE.read_text().splitlines())
     assert longest > 2000, f"the lesson's reason: a line of {longest} bytes"
+
+
+def test_the_finder_lessons_tell_a_seat_to_import_the_pin_and_state_the_ledger_high_water_mark() -> (
+    None
+):
+    """W-049760e6: a finder briefed on a sha `sys.path.insert`-ed the LIVE scripts and measured a
+    sibling's uncommitted edit; another re-derived a fixed row because the brief named the ledger
+    by a hand-typed letter range."""
+    lessons = _finder_lessons()
+    assert "never `sys.path.insert` the live tree" in lessons and "`__file__`" in lessons
+    assert "high-water mark" in lessons

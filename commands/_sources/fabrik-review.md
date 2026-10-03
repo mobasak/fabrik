@@ -191,7 +191,11 @@ third-party API. Partition, don't skip (moot while every seat is native — D-18
   `command_run.py` probe sets `COMMAND_RUN_DIR`, `COMMAND_RUN_TRANSCRIPT` and `KAIZEN_EVENTS_DIR` (a
   test without them writes fabricated rounds under the LIVE sid) · every mutation is applied, tested
   and restored inside ONE Bash call with an ASSERTED restore (a `trap` across calls is unreliable) · a MUTATION-TESTING seat works on a COPY of the surface, never the tree, and runs its battery under an explicit `timeout` its brief names at or above the battery's measured runtime (01M25Y93M); the orchestrator holds its own edits to those files while that seat is live (01M25RZC3). ⚠️ **What a Bash call over its timeout actually does here: it AUTO-BACKGROUNDS, it is not killed** — the harness prints `moved to the background (ID: …)` and keeps writing to the task's output file, so the process runs on and its restore still happens. Observed repeatedly, this session. That matters because the two recoveries are opposite: a backgrounded mutation finishes and restores, a KILLED one leaves the tree mutated — which is why the COPY rule above is the guard that carries the weight, not the timeout. Do not write a brief that assumes a kill (01M25Y93M, adjudicated against fabrik-lib-dev1's filing) ·
-  never bare-grep a tracked path — `git show <sha>:<path>` · Python `time.sleep` in fixture scripts,
+  never bare-grep a tracked path — `git show <sha>:<path>` · a seat that MEASURES by importing code
+  imports the PIN (a `git archive <sha>` extract with the pinned files overlaid), never `sys.path.insert` the live tree, and prints the module's `__file__` beside every result (a
+  sibling's uncommitted edit in the live tree once fed three measurements) · a later pass's brief
+  states the ledger's high-water mark — its last row id and the receipt's sha at dispatch — never a
+  hand-typed row range · Python `time.sleep` in fixture scripts,
   never a foreground shell sleep · a quote verified against a session transcript filters out the
   Stop-hook feedback, the skill-invocation payloads and the re-invocation notice (all arrive as
   `type: user`; a brief's ARGUMENTS text is not the operator's words) and prefilters the raw line by
