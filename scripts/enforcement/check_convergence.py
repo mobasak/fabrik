@@ -989,7 +989,43 @@ def _scope_growth_closed(rtext: str) -> bool:
     return _scope_growth_exit(rtext, _ledger_shapes(rtext)[2])
 
 
-def _check_executed_plan(root: Path, path: Path, text: str | None = None) -> list[str]:
+# D-497 — the D-206 cut-over for whole-plan receipts that PREDATE the Pass-row grammar: a receipt
+# whose FIRST commit (git history, never a date written in the file) is before this day and whose
+# header Status reads CONVERGED is exempt from the Pass-row test; the advisory lists it as
+# `legacy (pre-D-206)` rather than as a defect. ⚠️ CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME
+# (cobra-effect): commit a new receipt under a back-dated GIT_COMMITTER_DATE. That costs a forged
+# history entry, visible in `git log`; writing an old date INTO the file buys nothing.
+_D206_CUTOVER = "2026-09-09"
+
+
+def _first_commit_date(root: Path, relpath: str) -> str:
+    """Committer date (YYYY-MM-DD) of the OLDEST commit that added ``relpath``, or "" if none."""
+    try:
+        r = subprocess.run(
+            ["git", "log", "--diff-filter=A", "--format=%cs", "--", relpath],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except Exception:
+        return ""
+    dates = r.stdout.split() if r.returncode == 0 else []
+    return dates[-1] if dates else ""
+
+
+def _legacy_receipt(root: Path, relpath: str, rtext: str) -> str:
+    """The receipt's first-commit date when D-497 grandfathers it, else ""."""
+    header = "".join(rtext.splitlines(keepends=True)[:10])  # the header zone (`_in_progress`'s)
+    if not _claims_converged(FENCE_STRIP.sub("", header)):
+        return ""
+    first = _first_commit_date(root, relpath)
+    return first if first and first < _D206_CUTOVER else ""
+
+
+def _check_executed_plan(
+    root: Path, path: Path, text: str | None = None, legacy: list[str] | None = None
+) -> list[str]:
     """A plan claiming EXECUTED must cite a persisted whole-plan review artifact
     that EXISTS on disk and carries a coverage-adjudicated exit signature.
 
@@ -1059,6 +1095,14 @@ def _check_executed_plan(root: Path, path: Path, text: str | None = None) -> lis
         # same receipt. Its cobra cost is stated at its definition (the phrase alone never exits;
         # the ledger must show the trailing confirming rounds).
         if _scope_growth_closed(rtext):
+            return fails
+        first = _legacy_receipt(root, c, rtext)
+        if first:
+            if legacy is not None:
+                legacy.append(
+                    f"{rel}: legacy (pre-D-206) — cited review {c} was first committed {first} "
+                    "with Status CONVERGED, before the Pass-row grammar; exempt (D-497)"
+                )
             return fails
     return fails + [
         f"{rel}: claims EXECUTED but its cited whole-plan review is missing on disk or not "
@@ -1235,11 +1279,13 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
             continue
         if not EXECUTED.search(text):
             continue
+        legacy: list[str] = []
         try:
-            findings = _check_executed_plan(root, p, heads[str(rel)])
+            findings = _check_executed_plan(root, p, heads[str(rel)], legacy)
         except Exception as e:  # ADVISORY: never a traceback out of the gate
             out.append(f"{rel}: advisory sweep could not grade this plan ({type(e).__name__}: {e})")
             continue
+        out.extend(legacy)  # D-497: listed as legacy, never as a defect
         for f in findings:
             if "review" in f and ("missing on disk" in f or "cites no whole-plan review" in f):
                 out.append(f)

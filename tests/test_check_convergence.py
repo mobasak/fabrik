@@ -2113,3 +2113,68 @@ def test_the_scope_growth_phrase_alone_never_satisfies_the_executed_citation(rep
         "docs/development/reviews/2026-08-03-plan-x-review.md": review,
     }
     assert _run_files(repo, files) == 1
+
+
+# --- W-2fc93899 / W-b7b2ae58 (D-497): pre-D-206 whole-plan reviews are grandfathered -----------
+
+_LEGACY_REVIEW = (
+    "# Whole-plan review of Plan X\n\nStatus: CONVERGED\n\n"
+    "## Phase A verdict\nClean — the loop closed before the Pass-row grammar existed.\n"
+)
+
+
+def _commit_at(repo: Path, date: str, msg: str) -> None:
+    import os
+
+    stamp = f"{date}T12:00:00"
+    env = {**os.environ, "GIT_AUTHOR_DATE": stamp, "GIT_COMMITTER_DATE": stamp}
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, timeout=15)
+    subprocess.run(
+        ["git", "commit", "-qm", msg],
+        cwd=repo,
+        check=True,
+        timeout=15,
+        env=env,
+        capture_output=True,
+    )
+
+
+def _legacy_fixture(repo: Path, review_date: str, review: str = _LEGACY_REVIEW) -> None:
+    rv = repo / "docs/development/reviews/2026-08-03-plan-x-review.md"
+    rv.parent.mkdir(parents=True, exist_ok=True)
+    rv.write_text(review)
+    _commit_at(repo, review_date, "receipt")
+    plan = repo / "docs/development/plans/2026-08-03-plan-x.md"
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    plan.write_text(_EXECUTED_CITING)
+    _git(repo, "add", "-A")
+
+
+def test_a_receipt_first_committed_before_d206_with_status_converged_is_legacy(repo: Path) -> None:
+    """D-497: a whole-plan receipt FIRST COMMITTED before 2026-09-09 whose header Status reads
+    CONVERGED is exempt from the Pass-row test — at the flip, and in the committed advisory, which
+    lists it as `legacy (pre-D-206)` instead of as a defect (web-ecommerce-factory 01M3WXMW)."""
+    _legacy_fixture(repo, "2026-09-01")
+    rc, out = _check_out(repo)
+    assert rc == 0, out  # the NEW flip citing a legacy receipt passes
+    _commit_at(repo, "2026-10-02", "flip")
+    rc, out = _check_out(repo)
+    assert rc == 0, out
+    assert "legacy (pre-D-206)" in out, out
+    assert "not coverage-adjudicated" not in out, out
+
+
+def test_a_receipt_first_committed_on_or_after_the_cutover_is_never_legacy(repo: Path) -> None:
+    """The exemption keys on git's FIRST-commit date, never a date written in the file: a receipt
+    first committed on the cutover day or later is graded by the Pass-row grammar."""
+    _legacy_fixture(repo, "2026-09-09")
+    rc, out = _check_out(repo)
+    assert rc == 1, out
+    assert "legacy (pre-D-206)" not in out, out
+
+
+def test_a_pre_d206_receipt_whose_status_is_not_converged_is_never_legacy(repo: Path) -> None:
+    review = _LEGACY_REVIEW.replace("Status: CONVERGED", "Status: COMPLETE — NOT converged")
+    _legacy_fixture(repo, "2026-09-01", review)
+    rc, out = _check_out(repo)
+    assert rc == 1, out
