@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `work.py status` runs in under a second on the hub instead of 5–7 (2026-10-04)
+Drift class 6 ran a `git log -1 -G` and three evidence git calls for every recently closed item, 627 subprocesses on the hub. It now reads every item's last status change in one `git log -G --no-renames --name-only` pass and every evidence commit in one `git cat-file --batch`, with the same answers: drift output identical to the pre-change baseline, 7.17 s → 0.93 s under load. A NUL byte in evidence, which used to crash `status`, is now refused. W-5937c2cd, D-543; full /fabrik-review CONVERGED in 2 passes (confirmed 5 → 0), receipt `docs/development/reviews/2026-10-04-w-5937c2cd-drift-batch-review.md`.
+
 ### Fixed — the mobile launch checklist's Sentry token line now uses EAS environment variables, not the retired EAS secrets (2026-10-04)
 `.windsurf/rules/mobile-app/89-mobile-launch-checklist.md:147` told every mobile project to put `SENTRY_AUTH_TOKEN` in "an EAS secret". EAS replaced secrets with environment variables, and the token now goes in an EAS environment variable with `sensitive` visibility via `eas env:set` (`eas env:create` on an older CLI), always with `--visibility`, because a non-interactive `env:set` stores a new variable as `plaintext`. The line also says why it is not `secret` (the `eas update` source-map upload reads the token outside EAS servers) and that it is never an `EXPO_PUBLIC_` name. This matches 81-mobile-billing.md:78. W-b2d7ffb4; /fabrik-review CONVERGED in 4 passes (confirmed 3 → 1 → 0 → 0), receipt `docs/development/reviews/2026-10-04-w-b2d7ffb4-eas-sentry-token-review.md`.
 

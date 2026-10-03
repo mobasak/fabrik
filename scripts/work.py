@@ -64,7 +64,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from datetime import UTC, date, datetime, timedelta
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 try:
@@ -1386,6 +1386,8 @@ def _normalize_plan_status(raw: str) -> str:
 # `\t` IS a real escape) are untouched.
 _PLAN_STATUS_GIT_PATTERN = r"^[[:blank:]]*([-*>][[:blank:]]+)?\*{0,2}Status\*{0,2}[[:blank:]]*:"
 _ITEM_STATUS_GIT_PATTERN = '"status":'  # the JSON status field's own line; already case-fixed
+_DIR_SCOPE_MIN = 8  # wanted paths under one parent before the batch scopes the directory
+_EVIDENCE_REV_RE = re.compile(r"[0-9A-Za-z^{}~@./_:-]+")  # a revision, never a protocol byte
 
 
 def _git_status_porcelain(repo: Path, *args: str) -> str:
@@ -1486,10 +1488,29 @@ def _status_change_age_seconds(
     status_of: Callable[[str], object],
 ) -> float:
     """Seconds since the last commit whose diff added or removed a line matching ``pattern``
-    (``git log -G``, a regex) in ``relpath`` at HEAD — never the file's last commit for ANY
-    reason, so a typo fix or a note edit does not reset the age clock (A-S2/A-S3, T02 review pass
-    1). A file's creation commit always counts (it "adds" the line), so a return of no match means
-    the file has no commit history at all.
+    in ``relpath`` — the one-path form of ``_status_change_ages``, which owns the rule."""
+    return _status_change_ages(repo, [relpath], pattern, dirty, head_blobs, status_of)[relpath]
+
+
+def _status_change_ages(
+    repo: Path,
+    relpaths: list[str],
+    pattern: str,
+    dirty: frozenset[str],
+    head_blobs: dict[str, str | None],
+    status_of: Callable[[str], object],
+) -> dict[str, float]:
+    """Seconds since, for each relpath, the last commit whose diff added or removed a line
+    matching ``pattern`` (``git log -G``, a regex) in that path at HEAD — never the file's last
+    commit for ANY reason, so a typo fix or a note edit does not reset the age clock (A-S2/A-S3,
+    T02 review pass 1). A file's creation commit always counts (it "adds" the line), so a path
+    with no match has no commit history at all.
+
+    ONE ``git log -G`` read serves every path (W-5937c2cd: one call per done item cost the hub's
+    ``status`` ~5 s). Pickaxe without ``--pickaxe-all`` names only the files whose OWN diff
+    matched, so the newest commit naming a path is exactly what the per-path ``log -1 -G`` read.
+    COBRA (D-253): the cheap way to pass the call-count grader is to drop paths from the batch;
+    the per-path age tests (class 2 and class 6) are the counter.
 
     A path in ``dirty`` (working copy differs from HEAD, A-O17) uses its own mtime ONLY when its
     STATUS reading (``status_of`` — the same concept the pickaxe pattern targets: the plan
@@ -1497,31 +1518,82 @@ def _status_change_age_seconds(
     working copy and HEAD, or when the path is absent from HEAD entirely (untracked or new) —
     never for JUST ANY uncommitted change (A-O20, T02 review pass 3): a notes-only edit to an old
     done item, or a body typo in an old CONVERGED plan, must still take the normal commit-history
-    age, not read as freshly changed."""
-    use_mtime = False
-    if relpath in dirty:
+    age, not read as freshly changed. A failed log read degrades every path to its mtime, as the
+    per-path read did on a git error."""
+    now = time.time()
+    use_mtime: set[str] = set()
+    for relpath in relpaths:
+        if relpath not in dirty:
+            continue
         head_text = head_blobs.get(relpath)
         if head_text is None:
-            use_mtime = True
-        else:
-            try:
-                working_text = (repo / relpath).read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                working_text = ""
-            use_mtime = status_of(working_text) != status_of(head_text)
-    if not use_mtime:
+            use_mtime.add(relpath)
+            continue
         try:
-            out = _git(repo, "log", "-1", "--format=%ct", "-G", pattern, "HEAD", "--", relpath)
+            working_text = (repo / relpath).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            working_text = ""
+        if status_of(working_text) != status_of(head_text):
+            use_mtime.add(relpath)
+    wanted = [p for p in relpaths if p not in use_mtime]
+    # pathspec: a parent directory holding at least _DIR_SCOPE_MIN wanted paths is scoped as the
+    # directory, filtered back to ``wanted`` below — git matches one directory far faster than
+    # hundreds of file pathspecs (0.26 s vs 1.39 s over the hub's 360-item store, 2026-10-04);
+    # every other path is its own pathspec, so a lone plan never walks its whole plans directory
+    # (1.27 s over 405 files). A multi-path scope does not simplify history per file: a merge
+    # that kept one side's status line can surface the other side's newer change, so an age may
+    # read YOUNGER than the per-file read — class 6 then checks evidence it would have skipped
+    # (stricter, never laxer). ``core.quotePath=false`` keeps non-ASCII names literal; a name
+    # git still quotes (a quote or control character) misses the filter and takes its mtime.
+    by_parent: dict[str, list[str]] = {}
+    for p in wanted:
+        by_parent.setdefault(str(PurePosixPath(p).parent) if "/" in p else "", []).append(p)
+    scopes = sorted(
+        scope
+        for parent, paths in by_parent.items()
+        for scope in ([parent] if parent and len(paths) >= _DIR_SCOPE_MIN else paths)
+    )
+    last: dict[str, float] = {}
+    if wanted:
+        try:
+            out = _git(
+                repo,
+                "-c",
+                "core.quotePath=false",
+                "log",
+                "--format=%x00%ct",
+                "--name-only",
+                "--no-renames",
+                "-G",
+                pattern,
+                "HEAD",
+                "--",
+                *scopes,
+            )
         except WorkError:
             out = ""
-        out = out.strip()
-        if out:
-            return max(0.0, time.time() - float(out))
-    try:
-        mtime = (repo / relpath).stat().st_mtime
-    except OSError:
-        return 0.0
-    return max(0.0, time.time() - mtime)
+        wanted_set = set(wanted)
+        stamp: float | None = None
+        for line in out.splitlines():
+            if line.startswith("\x00"):
+                try:
+                    stamp = float(line[1:])
+                except ValueError:
+                    stamp = None
+            elif line and stamp is not None and line in wanted_set and line not in last:
+                last[line] = stamp
+    ages: dict[str, float] = {}
+    for relpath in relpaths:
+        if relpath in last:
+            ages[relpath] = max(0.0, now - last[relpath])
+            continue
+        try:
+            mtime = (repo / relpath).stat().st_mtime
+        except OSError:
+            ages[relpath] = 0.0
+            continue
+        ages[relpath] = max(0.0, now - mtime)
+    return ages
 
 
 def _normalize_repo_path(repo: Path, raw: str) -> str:
@@ -1730,6 +1802,7 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
             report[4].append(rel)
 
     store = _store_dir(repo)
+    done_candidates: list[tuple[str, str, str]] = []
     if store.is_dir():
         for path in sorted(store.glob("W-*.json")):
             if not _ID_RE.fullmatch(path.stem):
@@ -1760,20 +1833,21 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
                 and data.get("kind") not in LINKED_KINDS
                 and not answered
             ):
-                if (
-                    _status_change_age_seconds(
-                        repo,
-                        rel,
-                        _ITEM_STATUS_GIT_PATTERN,
-                        dirty,
-                        head_blobs,
-                        _item_status_field,
-                    )
-                    <= RECENT_WINDOW_S
-                ):
-                    ev = str(data.get("evidence") or "")
-                    if _evidence_commit(repo, path.stem, ev) is None:
-                        report[6].append(rel)
+                done_candidates.append((rel, path.stem, str(data.get("evidence") or "")))
+        # W-5937c2cd: one batched age read and one batched evidence read, never per item
+        ages = _status_change_ages(
+            repo,
+            [rel for rel, _, _ in done_candidates],
+            _ITEM_STATUS_GIT_PATTERN,
+            dirty,
+            head_blobs,
+            _item_status_field,
+        )
+        recent = [c for c in done_candidates if ages[c[0]] <= RECENT_WINDOW_S]
+        resolved = _evidence_commits(repo, [(item_id, ev) for _, item_id, ev in recent])
+        for rel, item_id, ev in recent:
+            if resolved[(item_id, ev)] is None:
+                report[6].append(rel)
 
     now = time.time()
     markers = _read_records(_closed_dir(repo))
@@ -2866,19 +2940,64 @@ def _fence(repo: Path, item_id: str, session: str, verb: str) -> dict | None:
 
 def _evidence_commit(repo: Path, item_id: str, sha: str) -> str | None:
     """The resolved commit SHA if ``sha`` exists in ``repo`` and its message names ``item_id``,
-    else None — the read-only half of ``_verify_evidence``, reused by drift class 6 (T02)."""
-    if not sha or sha.startswith("-"):
-        return None
+    else None — the one-pair form of ``_evidence_commits``, shared by ``_verify_evidence`` and
+    drift class 6 (T02)."""
+    return _evidence_commits(repo, [(item_id, sha)])[(item_id, sha)]
+
+
+def _evidence_commits(
+    repo: Path, pairs: list[tuple[str, str]]
+) -> dict[tuple[str, str], str | None]:
+    """For each ``(item_id, sha)``, the resolved commit SHA when ``sha`` names a commit in
+    ``repo`` whose message names ``item_id``, else None — every pair in ONE ``git cat-file
+    --batch`` fed ``<sha>^{commit}`` (W-5937c2cd: three git calls per done item cost the hub's
+    ``status`` seconds). The header line resolves the object (a short, tag or full sha peels to
+    its commit; ``missing``/``ambiguous`` and a non-commit are None) and the body carries the
+    message (the raw object: split at the first blank line, never re-encoded). An empty value,
+    one starting with ``-`` and one outside ``_EVIDENCE_REV_RE`` are None without asking git — a
+    newline would split the batch's records and a NUL would truncate one, letting a valid prefix
+    pass (the per-pair read raised on a NUL instead). A failed batch read degrades every pair to
+    None, as the per-pair read did."""
+    result: dict[tuple[str, str], str | None] = dict.fromkeys(pairs)
+    asked = [
+        (item_id, sha)
+        for item_id, sha in dict.fromkeys(pairs)
+        if not sha.startswith("-") and _EVIDENCE_REV_RE.fullmatch(sha)
+    ]
+    if not asked:
+        return result
+    req = "".join(f"{sha}^{{commit}}\n" for _, sha in asked)
     try:
-        _git(repo, "cat-file", "-e", f"{sha}^{{commit}}")
-        resolved = _git(repo, "rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}")
-    except WorkError:
-        return None
+        proc = subprocess.run(
+            ["git", "-C", str(repo), "cat-file", "--batch"],
+            input=req.encode(),
+            capture_output=True,
+            timeout=_git_timeout(),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return result
+    if proc.returncode != 0:
+        return result
+    out, pos = proc.stdout, 0
     try:
-        message = _git(repo, "log", "-1", "--format=%B", resolved)
-    except WorkError:
-        return None
-    return resolved if item_id in _ITEM_REF_RE.findall(message) else None
+        for item_id, sha in asked:
+            nl = out.index(b"\n", pos)
+            head = out[pos:nl].split()
+            pos = nl + 1
+            if len(head) != 3:
+                continue  # "<rev> missing" / "<rev> ambiguous" carry no body
+            size = int(head[2])
+            body = out[pos : pos + size]
+            pos += size + 1
+            if head[1] != b"commit":
+                continue
+            text = body.decode("utf-8", "replace")
+            message = text.split("\n\n", 1)[1] if "\n\n" in text else ""
+            if item_id in _ITEM_REF_RE.findall(message):
+                result[(item_id, sha)] = head[0].decode()
+    except ValueError:
+        return dict.fromkeys(pairs)
+    return result
 
 
 def _verify_evidence(repo: Path, item_id: str, evidence: str | None) -> str:
