@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Catch-up wave 1: twenty review-loop defects in command_run.py, the two review checks and /fabrik-review (2026-10-03)
+
+Four parallel coders each took one surface (D-531); every fix carries a test seen red on its parent, and the merged branch passed a full `/fabrik-review` (four passes, confirmed 4 → 2 → 1 → 0; receipt `docs/development/reviews/2026-10-03-catchup-wave1-review.md`, D-534).
+- `scripts/command_run.py` (W-5aa12ff3 W-416058b2 W-438885f8 W-4f924816 W-b43ce8bc W-ba3d1d4f): `--command` is normalised where `start` writes it and where `load` reads it, on the record and on every parked frame, so a record an older binary stored as `Fabrik-Review` is read one way everywhere; malformed counters never crash a round; the declared-files guard says how many bad members it did not list.
+- `scripts/enforcement/check_review_coverage.py` (W-44f38118 W-3dc05964 W-73bb87d5 W-c72e8838) and `scripts/enforcement/check_convergence.py` (W-5b541aab W-2fc93899 W-b7b2ae58 W-98338ad4 W-e025eba1): the split-cell repair is offered only to a row that has a `fixed:` cell; a CONVERGED status parked in an HTML comment no longer grandfathers a live IN-PROGRESS receipt.
+- `commands/_sources/fabrik-review.md` (W-04780107 W-049760e6 W-a1b7033e W-73e47d29 W-cbb9ecc9): stale line cites replaced by named code paths; seat briefs import the pin, state the ledger's high-water mark, write probes in per-seat scratch dirs, and read a long line whole.
+
 ### Fixed — The keepalive-shim tests test the shim that exists, and no longer read the live account (2026-10-03)
 
 `scripts/sysadmin/claude-keepalive-rotate.sh` stopped calling `claude -p ping` on 2026-08-30 and now classifies the JSON from the free `claude_rotate.py --probe-current --json` probe. `scripts/sysadmin/test_bot_rotation_wire.py` still injected a fake `claude` binary the shim never runs. Four ping-era cases were red at HEAD, and the "healthy" case passed only because it probed the box's real account over the network. The harness now stubs the probe through `CLAUDE_ROTATE_PYTHON` and covers the shim's six outcomes: a live reading, a fresh cache, `stale_unproven`, `probe_incomplete`, `probe_error` and `no_active_account`. The review also fixed three latent defects in the shim itself:
