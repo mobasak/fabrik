@@ -1441,12 +1441,14 @@ PIPELINE_ORDER: tuple[str, ...] = (
     "fabrik-rules-review",
     "fabrik-conformance-review",
     "fabrik-workflow-review",
-    # utilities
+    # utilities — /fabrik-task is the lane between a right-now fix and the spec chain
+    "fabrik-task",
     "fabrik-docs-review",
     "fabrik-doc-converge",
     "fabrik-catchup",
     "fabrik-upstream",
     "fabrik-decommission",
+    "fabrik-command-improve",
 )
 _DESC_RE = re.compile(r"^description:\s*(.+?)\s*$", re.M)
 _SKIP_RE = re.compile(r"\s+SKIP(?:/ESCALATE[^:]{0,40})?:\s+")

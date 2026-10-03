@@ -1431,9 +1431,19 @@ def test_the_matrix_reads_the_rendered_corpus_not_the_sources(tmp_path, monkeypa
     # genuinely matches: 28 of the 35 do (measured 2026-09-06), and this test FOUND that the first
     # one alphabetically is not among them — the shared pool and mail fragments the sources lack
     # are exactly what the assembler adds, which is the feature's whole premise.
+    # The board blanks HTML comments (acffe9c1d: a commented pool contract must never light a dot)
+    # and the shared boilerplate (1720d62f6) before matching, so the oracle reads each source the same
+    # way — straight from the file, never through the fallback under test.
     src_dir = qd._FABRIK_ROOT / "commands" / "_sources"
+
+    def _live(f: Path) -> str:
+        text = qd._HTML_COMMENT_RE.sub("", f.read_text(encoding="utf-8"))
+        for rx in qd._BOILERPLATE:
+            text = rx.sub("", text)
+        return text
+
     hits = {
-        f.stem: {k for k, rx in qd._EXT_COMPILED if rx.search(f.read_text(encoding="utf-8"))}
+        f.stem: {k for k, rx in qd._EXT_COMPILED if rx.search(_live(f))}
         for f in sorted(src_dir.glob("fabrik-*.md"))
     }
     rich = next(n for n, s in hits.items() if s)
@@ -2941,12 +2951,17 @@ def test_the_seat_rule_reads_the_real_corpus_correctly(tmp_path, monkeypatch):
             "fabrik-catchup",
         )
     }
-    assert rule["fabrik-review"][0] and "group" in rule["fabrik-review"][1]  # the flagship
+    # the flagship has no Opus finder floor (D-344). Its units are NOT pinned: its real rule — two
+    # finders per SLICE — is worded like the shared closing-pass fragment 22 commands include, so a
+    # "slice" token would light 22 cells (measured 2026-10-03); backlog W-d7b0d34f.
+    assert rule["fabrik-review"][0] is False
     assert "claim" in rule["fabrik-upstream"][1]  # the real dispatch line spans "per\nclaim"
     assert rule["fabrik-user-test"][1] == ("flow",)  # not persona/screen/journey from prose
-    assert "ticket" in rule["fabrik-plan-review"][1]
+    # fabrik-plan-review is not pinned either: its rule is per TICKET, but the parser reads "unit" from
+    # the shared term-edit fragment 17 commands include — the same class, backlog W-d7b0d34f
     assert "dependency" in rule["fabrik-vision"][1]  # "per external dependency"
-    assert rule["fabrik-review-scoped"][1] == ("!3 readers",)
+    # UNITS-sized now (D-208): a per-unit refuter outranks the old fixed "floor is 3 readers"
+    assert rule["fabrik-review-scoped"][1] == ("unit",)
     # the grounding floor (round 4) adds "per INDEPENDENT unit" beside the per-dependency sentence
     assert rule["fabrik-spec"][1] == ("dependency", "unit")
     assert rule["fabrik-catchup"] == (False, ())
