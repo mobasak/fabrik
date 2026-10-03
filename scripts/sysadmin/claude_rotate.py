@@ -2342,8 +2342,10 @@ def _ledger_torn(ledger: Path) -> bool:
     """Whether the ledger ends mid-line. A write that failed partway leaves half a line, and a row
     appended to it is undecodable, so every reader skips it in silence (W-87791bfe). Best-effort: a
     ledger this process cannot read is assumed whole, so the append still lands."""
-    try:
-        with ledger.open("rb") as fh:
+    try:  # its own fd, non-blocking and regular-only: the path may have changed since the write
+        with os.fdopen(os.open(ledger, os.O_RDONLY | os.O_NONBLOCK), "rb") as fh:
+            if not stat.S_ISREG(os.fstat(fh.fileno()).st_mode):
+                return False
             end = fh.seek(0, os.SEEK_END)
             if not end:
                 return False

@@ -8266,6 +8266,22 @@ def test_a_fallback_fifo_with_a_reader_is_refused_not_trusted(tmp_path, monkeypa
         os.close(reader)
 
 
+def test_the_torn_line_read_never_blocks_on_a_fifo(tmp_path):
+    """W-87791bfe closing review: `_ledger_torn` reopened the ledger by PATH in blocking mode, so a
+    FIFO swapped in after the write fd's regular-file check wedged the tick. The read is checked
+    on its own fd and never blocks."""
+    import threading
+
+    fifo = tmp_path / "rotate-ledger.jsonl"
+    os.mkfifo(fifo)
+    out: list = []
+    t = threading.Thread(target=lambda: out.append(cr._ledger_torn(fifo)), daemon=True)
+    t.start()
+    t.join(5)
+    assert not t.is_alive(), "the torn-line read blocked on a FIFO"
+    assert out == [False], out
+
+
 def test_a_partial_last_line_does_not_swallow_the_next_row(tmp_path, monkeypatch):
     """W-87791bfe: a write that failed partway left half a line; the next row landed on it and
     every reader skipped that row as undecodable — the one flip record gone without a trace."""
