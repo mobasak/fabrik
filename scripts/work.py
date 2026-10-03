@@ -1746,10 +1746,16 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
             if data.get("status") not in STATUSES:
                 report[5].append(rel)
                 continue
+            # `answer` closes an awaiting-operator decision with the operator's words in `note` and
+            # no commit, so an answered decision carries no evidence by design. COBRA (D-253): a
+            # hand-written note on a decision dodges this predicate; that edit is in the item's git
+            # history, and a decision done with neither note nor evidence still reads class 6.
+            answered = data.get("kind") == "decision" and bool(str(data.get("note") or "").strip())
             if (
                 data.get("status") == "done"
                 and not data.get("legacy")
                 and data.get("kind") not in LINKED_KINDS
+                and not answered
             ):
                 if (
                     _status_change_age_seconds(

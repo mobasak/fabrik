@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — work store: drift class 6 no longer counts decisions closed by `work.py answer` (2026-10-04)
+
+`scripts/work.py`'s class-6 evidence predicate flagged every operator decision closed with `answer` (status done, the operator's words in `note`, no commit by design) as blocking drift. The hub's class 6 had grown from 0 to 52 since 2026-09-25, all answered decisions, so `sync --check`'s seven-clean-day blocking gate could never arm. An answered decision is now exempt beside mail and feedback items; a decision marked done with neither a note nor evidence still reads class 6. Found by the V6 reading of the work store (W-0ca15040), which also recorded the store's state and found the `status` latency (about 5.5 s against the spec's 1 s trigger) to be per-item git calls, filed as W-5937c2cd; D-542.
+
 ### Changed — Every copy of the contract names the orchestrator by role, and file loops no longer budget an Opus finder (2026-10-04)
 
 W-e80af564 (D-456, D-344, D-541). The project `CLAUDE.md` template, `commands/_fragments/subagents-core.md` and the `62-using-subagents` pack said Fable orchestrates with Opus as its refusal fallback; they now say Opus or Fable, whichever the quota allows, as the hub does. Two command sources, `convergence-prompts.md` and both contracts sized file-partitioned reviews with an Opus finder; they now say `--slices sonnet=N,haiku=N`, plus `opus=1` where `/fabrik-execute-plan` adds its Opus floor. "No file's logic read by two seats" became "no file in two slices". `tests/test_assemble_dispatch_step.py` refuses the retired budget anywhere it scans.
