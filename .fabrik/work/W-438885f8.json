@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-18T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "0d899d4f3647a2d63f3c4a29044868af875ee0ce",
   "id": "W-438885f8",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:90506a05f3c2",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "**An EMPTY `declared.files` passes the element guard and publishes a confident count (2026-09-18)** — `all(...)` of an empty iterable is `True`, so `files: []` clears both halves of `scripts/comman..."
 }

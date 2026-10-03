@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T16:56:57.310223Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-99525a15",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "normalise _tok(holder,'command') reads in .claude/hooks/final_gate_stop.py with the same rule as command_run._norm_command",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Stop hook reads a run record's command raw: final_gate_stop.py:1133 _tok(holder,'command') not in _REVIEW_FAMILY is case-sensitive, so a review record the pre-W-5aa12ff3 command_run.py stored as 'Fabrik-Review' never exempts its surface (a false block, fails closed; transient — only records opened before the fleet sync). command_run.py normalises at load since 9175c92ed; mirror it in the hook's reads of 'command' (red-first test, full review — sync path)"
+}

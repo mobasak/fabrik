@@ -6580,3 +6580,119 @@ def test_every_review_command_that_includes_a_termination_fragment_states_confir
         out.returncode,
         out.stderr,
     )
+
+
+def test_start_normalises_command_case_so_review_family_branches_fire(run_dir: Path) -> None:
+    """W-5aa12ff3: `start` stripped the leading slash but not the case, so a record opened as
+    `--command Fabrik-Review` failed every case-SENSITIVE `in REVIEW_FAMILY` /
+    `CONFIRMED_REQUIRED_COMMANDS` test — a round without `--confirmed` was accepted."""
+    _cr(run_dir, "start", "--command", " /Fabrik-Review ", "--phases", "1", "--terminal", "t")
+    assert _rec(run_dir)["command"] == "fabrik-review", _rec(run_dir)
+    r = _cr(run_dir, "round", "--findings", "1")
+    assert r.returncode == 2 and "review-family run" in r.stderr, (r.returncode, r.stderr)
+    # the close names the run in any case too — the same normalisation on both ends
+    _cr(run_dir, "round", "--findings", "0", "--confirmed", "0")
+    out = _cr(run_dir, "done", "--command", "FABRIK-REVIEW", "--evidence", "e")
+    assert "REFUSED — you asked to close" not in out.stdout, out.stdout
+
+
+def test_a_record_opened_before_normalisation_still_closes_under_its_own_name(
+    run_dir: Path,
+) -> None:
+    """Review A-S2: a record opened by the pre-W-5aa12ff3 binary stored `Fabrik-Review` un-lowered.
+    After the fleet sync, closing it with that same name compared a lowered name to the stored one
+    and was REFUSED, stranding a live run. Both sides are now compared normalised."""
+    _cr(run_dir, "start", "--command", "fabrik-review", "--phases", "1", "--terminal", "t")
+    f = run_dir / "s1.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec["command"] = "Fabrik-Review"  # the shape the pre-fix binary wrote
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    _cr(run_dir, "round", "--findings", "0", "--confirmed", "0")
+    out = _cr(run_dir, "done", "--command", "Fabrik-Review", "--evidence", "e")
+    assert "REFUSED — you asked to close" not in out.stdout, out.stdout
+
+
+def test_every_reader_sees_a_pre_normalisation_record_under_its_normalised_name(
+    run_dir: Path,
+) -> None:
+    """Review A-ONEHOP-1/2: the A-S2 fix normalised only `_close`'s own comparison, and a record
+    the pre-W-5aa12ff3 binary stored as `Fabrik-Review-Scoped` was still read raw by every other
+    `in REVIEW_FAMILY` reader -- its `done` close recorded no review reach. `load` now hands every
+    reader the normalised name."""
+    sid = "probe-onehop"
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-review-scoped",
+        "--phases",
+        "1",
+        "--terminal",
+        "t",
+        sid=sid,
+    )
+    f = run_dir / f"{sid}.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec["command"] = "Fabrik-Review-Scoped"  # the shape the pre-fix binary wrote
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
+    got = json.loads(f.read_text(encoding="utf-8"))
+    assert got.get("first_review_reach"), got
+
+
+def test_a_parked_frame_written_before_normalisation_still_reads_as_the_lane(
+    run_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Review pass 3, A-S1: `load` normalised the top-level `command` only, so a parent frame the
+    pre-W-5aa12ff3 binary parked as `Fabrik-Task` stayed raw in `stack`, and the lane check
+    (`task_lane.scope_growth_rounds`, `== "fabrik-task"`) read the nested review as outside the
+    lane. Every parked frame's `command` is normalised at load too."""
+    sid = "probe-frame"
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-review-scoped",
+        "--phases",
+        "1",
+        "--terminal",
+        "t",
+        sid=sid,
+    )
+    f = run_dir / f"{sid}.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec["stack"] = [{"command": "Fabrik-Task", "state": "running"}]  # the pre-fix parked shape
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(run_dir))
+    mod = _cr_module("frame")
+    lane = mod._lane_module()
+    stack = mod.load(sid)["stack"]
+    assert lane.scope_growth_rounds(stack) == lane.scope_growth_rounds(
+        [{"command": "fabrik-task", "state": "running"}]
+    ), stack
+
+
+@pytest.mark.parametrize(
+    "corrupt",
+    [
+        {"rounds": [{"findings": 1, "phase": "x"}]},
+        {"phase": "y"},
+        {"event_seq": "z"},
+        {"dispatch": {"seats": "many", "round": 0}},
+    ],
+    ids=["round-phase", "record-phase", "event-seq", "dispatch-seats"],
+)
+def test_a_malformed_counter_on_the_record_never_crashes_a_round(
+    run_dir: Path, corrupt: dict
+) -> None:
+    """W-ba3d1d4f: `_int0` closed the bare-`int()` class for `findings` only. The same shape at
+    `phase`, `event_seq` and `seats` raised `ValueError` on a hand-written record — the round
+    died with a traceback and recorded nothing, while the record kept accepting starts."""
+    _start(run_dir)
+    f = run_dir / "s1.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec.update(corrupt)
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    r = _cr(run_dir, "round", "--findings", "1", "--classes-new", "a")
+    assert r.returncode == 0 and "Traceback" not in r.stderr, r.stderr
+    assert "ROUND" in r.stdout, r.stdout

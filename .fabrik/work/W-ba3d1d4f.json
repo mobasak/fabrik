@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-14T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "52cf5349da244d9503b8290bf573dfed5937449d",
   "id": "W-ba3d1d4f",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:bd4fb61a9b8f",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "The `int()`-over-a-record-field class is closed for `findings` only — eight sibling call sites remain (2026-09-14, D-252 review round 3)"
 }

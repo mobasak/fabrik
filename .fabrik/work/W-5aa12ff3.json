@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-14T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "5a94bc32640f695a21f3b236ad3afc0abd358ddd",
   "id": "W-5aa12ff3",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:d5c5b6878f08",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`--command` is normalised for its leading slash but not its case, so `--command Fabrik-Review` silences the review-family branches (2026-09-14, D-252 review round 2)"
 }

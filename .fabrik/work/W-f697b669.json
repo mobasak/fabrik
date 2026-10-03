@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T15:44:19.385890Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f697b669",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Do the remaining work: Add the both-sets (overlap) refusal the item specified, and a regression test that a new unclassified group raises (and one in both sets raises).",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Reopened from W-51c49907 (closed in error by triage wave 1, overturned by the third check): Add the both-sets (overlap) refusal the item specified, and a regression test that a new unclassified group raises (and one in both sets raises)."
+}

@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:47.791389Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "63991ec19a2e992659b04dc94068a8491f037b85",
   "id": "W-3dc05964",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:679ba7bbf0ee",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Two enforcement checks red-line every session's gate for another session's uncommitted work"
 }

@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-09T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "adc07056aff6fa931eb3ad6add59c49fb470920c",
   "id": "W-73bb87d5",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:d3d5bdc96775",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "**Plan-review machinery findings from the review-convergence plan set (2026-09-09, owner: infra)** — four seat-reported frictions, none a plan defect: (1) `scripts/enforcement/check_review_coverage..."
 }

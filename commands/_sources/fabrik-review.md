@@ -21,7 +21,7 @@ python3 scripts/command_run.py start --command fabrik-review --phases 5 \
 
 {{include:orient}}
 
-A routed-up review names the trigger in its surface: `--surface "ROUTED-UP: step 1 — <the trigger> · <the diff range>"` — the ledger's only positive witness that `/fabrik-review-scoped`'s route-up fired (`command_run.py:1863` → `:2702`); its `done` then reaches back to the previous AGENT-closed window (`:2585`), which is what covers the pre-`start` edits.
+A routed-up review names the trigger in its surface: `--surface "ROUTED-UP: step 1 — <the trigger> · <the diff range>"` — the ledger's only positive witness that `/fabrik-review-scoped`'s route-up fired (no code detects a route-up — the record carries it only because the caller writes that surface string); its `done` then reaches back to the previous covered window's close (the `REVIEW_FAMILY` branch of `_close` in `scripts/command_run.py`), which is what covers the pre-`start` edits.
 
 Then, for the whole run: `step --phase <N> --title "<the phase title>"` on entering each phase, and
 **one `round` call per Phase-4 pass** —
@@ -190,14 +190,23 @@ third-party API. Partition, don't skip (moot while every seat is native — D-18
   `git init` inside a `git archive` pin (a bare pin fails through `_repo_root()`) · every
   `command_run.py` probe sets `COMMAND_RUN_DIR`, `COMMAND_RUN_TRANSCRIPT` and `KAIZEN_EVENTS_DIR` (a
   test without them writes fabricated rounds under the LIVE sid) · every mutation is applied, tested
-  and restored inside ONE Bash call with an ASSERTED restore (a `trap` across calls is unreliable) · a MUTATION-TESTING seat works on a COPY of the surface, never the tree, and runs its battery under an explicit `timeout` its brief names at or above the battery's measured runtime (01M25Y93M); the orchestrator holds its own edits to those files while that seat is live (01M25RZC3). ⚠️ **What a Bash call over its timeout actually does here: it AUTO-BACKGROUNDS, it is not killed** — the harness prints `moved to the background (ID: …)` and keeps writing to the task's output file, so the process runs on and its restore still happens. Observed repeatedly, this session. That matters because the two recoveries are opposite: a backgrounded mutation finishes and restores, a KILLED one leaves the tree mutated — which is why the COPY rule above is the guard that carries the weight, not the timeout. Do not write a brief that assumes a kill (01M25Y93M, adjudicated against fabrik-lib-dev1's filing) ·
-  never bare-grep a tracked path — `git show <sha>:<path>` · Python `time.sleep` in fixture scripts,
+  and restored inside ONE Bash call with an ASSERTED restore (a `trap` across calls is unreliable) · a MUTATION-TESTING seat works on a COPY of the surface made FROM the pin dir (so the pin's stated contents and commit are the copy's provenance), never the tree, and runs its battery under an explicit `timeout` its brief names at or above the battery's measured runtime (01M25Y93M); the orchestrator holds its own edits to those files while that seat is live (01M25RZC3). ⚠️ **What a Bash call over its timeout actually does here: it AUTO-BACKGROUNDS, it is not killed** — the harness prints `moved to the background (ID: …)` and keeps writing to the task's output file, so the process runs on and its restore still happens. Observed repeatedly, this session. That matters because the two recoveries are opposite: a backgrounded mutation finishes and restores, a KILLED one leaves the tree mutated — which is why the COPY rule above is the guard that carries the weight, not the timeout. Do not write a brief that assumes a kill (01M25Y93M, adjudicated against fabrik-lib-dev1's filing) ·
+  never bare-grep a tracked path — `git show <sha>:<path>` · a seat that MEASURES by importing code
+  imports the PIN (a `git archive <sha>` extract with the pinned files overlaid), never `sys.path.insert` the live tree, and prints the module's `__file__` beside every result (a
+  sibling's uncommitted edit in the live tree once fed three measurements) · a later pass's brief
+  states the ledger's high-water mark — its last row id and the receipt's sha at dispatch — never a
+  hand-typed row range · every helper or probe file a seat writes goes in its OWN scratch dir
+  (`<scratch>/<slice>-<model>/`), never the dispatcher's scratchpad root, and never under a name that
+  collides with an importable package (a seat's `h11.py` there shadowed the real `h11` for every
+  process run from that dir) · Python `time.sleep` in fixture scripts,
   never a foreground shell sleep · a quote verified against a session transcript filters out the
   Stop-hook feedback, the skill-invocation payloads and the re-invocation notice (all arrive as
   `type: user`; a brief's ARGUMENTS text is not the operator's words) and prefilters the raw line by
   timestamp before parsing (a 793 MB session file parses in under a second that way, ~40 s
   otherwise) · the Read tool truncates a long file on a token cap with NO marker — read in offset
-  pages and confirm the last line · print a DENOMINATOR beside every count, and the match count
+  pages and confirm the last line — and cuts one over-long LINE just as silently (this file carries
+  lines of several KB): read such a line whole with `sed -n '<n>p' <file> | fold -w 200`, never
+  conclude from its visible half · print a DENOMINATOR beside every count, and the match count
   beside any grep piped through `cut` · **HARD TIME BOX 15 minutes** · report `MACHINERY:` last.
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 - **OpenRouter finders (the pool — Claude *and* OpenRouter models via one API):** when `libs/subagents/` is

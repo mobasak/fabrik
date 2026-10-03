@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T05:45:14.069803Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b7b2ae58",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WXMWCKAVEFTEXWMRNKPJA7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Finding: check_convergence's EXECUTED-plan advisory cannot read whole-plan reviews written before the Pass-row grammar, so it is permanently on for converged plans."
+}

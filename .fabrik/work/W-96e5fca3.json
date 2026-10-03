@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-29T20:51:06.564627Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "e37154a35b79d7334806cbc5f187e8e58424ca4d",
   "id": "W-96e5fca3",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "decisions.py --merge-owner, docs_updater read_merge_owner and session_orient all take the LAST MERGE OWNER row in file order, but the hub ledger is newest-first, so a superseding owner row inserted at the top is ignored"
 }

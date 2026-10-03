@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-15T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "8116ad26166752837bf08abdfbd470b733e1a4f9",
   "id": "W-a1b7033e",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:2544484e2770",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`commands/_sources/fabrik-review.md:23`'s ROUTED-UP citations resolve to unrelated lines, and there is no route-up logic in `command_run.py` at all (2026-09-15, plan-2 Finish review, RECORDED — pre..."
 }

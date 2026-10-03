@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:48.655492Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "e37154a35b79d7334806cbc5f187e8e58424ca4d",
   "id": "W-41e15e57",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:cbd0796d8513",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "The refuted-never-reopens protection is INACTIVE on half of all scoped review runs"
 }

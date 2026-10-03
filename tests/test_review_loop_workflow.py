@@ -750,3 +750,61 @@ def test_a_defect_all_three_finders_raise_is_one_candidate_crediting_all_three()
     sl = out["slices"][0]
     assert [c["id"] for c in sl["candidates"]] == ["S-S1"], sl["candidates"]
     assert all(s["confirmed"] == 1 for s in sl["seats"]), sl["seats"]
+
+
+REVIEW_SOURCE = ROOT / "commands" / "_sources" / "fabrik-review.md"
+
+
+def _finder_lessons() -> str:
+    """The lesson list every finder brief carries VERBATIM — an Agent-tool seat's only copy of what
+    the workflow script's PINS/SCRATCH lines tell a workflow seat."""
+    body = REVIEW_SOURCE.read_text(encoding="utf-8")
+    start = body.index("Every finder brief carries these lessons VERBATIM")
+    return body[start : body.index("report `MACHINERY:` last.", start)]
+
+
+def test_the_finder_lessons_cover_a_truncated_line_not_only_a_truncated_file() -> None:
+    """W-04780107: the Read tool cuts one over-long LINE as silently as a long file, and this very
+    source carries lines of several KB; a seat reading the visible half concludes on a bounded read."""
+    lessons = _finder_lessons()
+    assert "over-long LINE" in lessons and "fold -w" in lessons, lessons[-600:]
+    longest = max(len(line.encode()) for line in REVIEW_SOURCE.read_text().splitlines())
+    assert longest > 2000, f"the lesson's reason: a line of {longest} bytes"
+
+
+def test_the_mutation_copy_is_made_from_the_pin_dir() -> None:
+    """W-cbb9ecc9: the pin-dir provenance a brief must state reaches the mutation room only if
+    the lesson ties the COPY to the pin dir instead of leaving the link to inference."""
+    assert "COPY of the surface made FROM the pin dir" in _finder_lessons()
+
+
+def test_the_finder_lessons_tell_a_seat_to_import_the_pin_and_state_the_ledger_high_water_mark() -> (
+    None
+):
+    """W-049760e6: a finder briefed on a sha `sys.path.insert`-ed the LIVE scripts and measured a
+    sibling's uncommitted edit; another re-derived a fixed row because the brief named the ledger
+    by a hand-typed letter range."""
+    lessons = _finder_lessons()
+    assert "never `sys.path.insert` the live tree" in lessons and "`__file__`" in lessons
+    assert "high-water mark" in lessons
+
+
+def test_the_finder_lessons_keep_helpers_in_the_seats_own_scratch_dir() -> None:
+    """W-73e47d29: a seat's `h11.py` in the shared scratchpad root shadowed the real `h11` package
+    for every other process that ran from there."""
+    lessons = _finder_lessons()
+    assert "OWN scratch dir" in lessons and "never the dispatcher's scratchpad root" in lessons
+    assert "importable package" in lessons
+
+
+def test_the_route_up_sentence_cites_symbols_that_exist_not_drifting_line_numbers() -> None:
+    """W-a1b7033e: `command_run.py:1863` → `:2702` and `:2585` resolved to unrelated lines, and no
+    code detects a route-up at all — three exact numbers that read as verified and were not."""
+    body = REVIEW_SOURCE.read_text(encoding="utf-8")
+    assert not re.search(r"command_run\.py:\d", body), re.findall(r"command_run\.py:\d+", body)
+    line = next(ln for ln in body.splitlines() if ln.startswith("A routed-up review"))
+    code = (ROOT / "scripts" / "command_run.py").read_text(encoding="utf-8")
+    symbols = re.findall(r"`([A-Z_]{4,}|_[a-z_]+)`", line)
+    assert symbols, line
+    for sym in symbols:
+        assert re.search(rf"^(?:{sym} =|def {sym}\()", code, re.M), sym

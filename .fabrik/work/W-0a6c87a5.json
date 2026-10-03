@@ -12,9 +12,9 @@
     "spec": ""
   },
   "next": "**[infra]** **`scripts/command_run.py::_kaizen()` appends the hard-coded `/opt/fabrik/scripts/sysadmin` to `sys.path`** (2026-09-09, owner: infra) — after the script-relative dir, so a sandboxed copy whose local `kaizen_events` fails to import silently falls through to the box's live module (D-191 round 20; never reached in any probe). Drop the absolute fallback or make it opt-in.",
-  "note": "migrated-digest:bc709de56109",
+  "note": "not reproduced, verified 2026-10-03 against _kaizen() (scripts/command_run.py:1196-1201): the script-relative scripts/sysadmin dir is appended to sys.path BEFORE the /opt/fabrik fallback, and Python imports kaizen_events from the first entry that has it; a local copy that RAISES on import propagates (caught fail-open to None) and never falls through to a later entry, so the claimed silent fall-through on a failing local import does not happen; the fallback is reached only when no local copy exists, which is the intended path for project copies (catch-up wave 1 coder and orchestrator both)",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "**`scripts/command_run.py::_kaizen()` appends the hard-coded `/opt/fabrik/scripts/sysadmin` to `sys.path`** (2026-09-09, owner: infra) — after the script-relative dir, so a sandboxed copy whose loc..."
 }

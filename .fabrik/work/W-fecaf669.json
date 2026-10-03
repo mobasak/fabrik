@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "DONE — reindex double-ingest of hardlinked transcripts fixed, live DB healed (finding 01M3TQKAR1)"
 }
