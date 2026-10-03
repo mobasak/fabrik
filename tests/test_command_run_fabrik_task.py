@@ -2237,6 +2237,18 @@ def test_the_declared_files_guard_names_the_offending_member_type(monkeypatch) -
     assert "int" in str(ei.value) and "7" in str(ei.value), str(ei.value)
 
 
+def test_the_declared_files_guard_says_how_many_bad_members_it_did_not_list(monkeypatch) -> None:
+    """Review A-S1: the message names three bad members and dropped the rest in silence. It is the
+    cause's sole record, so it now says how many more there are."""
+    cr = _load("cr_guard_more", _SCRIPT)
+    monkeypatch.setattr(cr, "_task_run_commit", lambda rec, rp, sha_in: ("abc", ["p"]))
+    monkeypatch.setattr(cr, "_task_diff_pairs", lambda root, base, sha: [])
+    rec = {"repo_root": "/nonexistent", "declared": {"files": ["a.py", 1, 2, 3, 4]}}
+    with pytest.raises(TypeError) as ei:
+        cr._task_measure(rec, cr.argparse.Namespace(cmd="done"), "abc", "")
+    assert "and 1 more" in str(ei.value), str(ei.value)
+
+
 def test_an_unverifiable_sync_claim_is_recorded_as_unverified(
     run_dir: Path, repo: Path, hub_sync: Path
 ) -> None:

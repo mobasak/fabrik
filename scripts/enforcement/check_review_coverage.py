@@ -1991,6 +1991,7 @@ def _row_refusals(line: str) -> list[str]:
         and not cell_path
         and "fixed" not in run[2]
         and _ROW_LEAD.sub("", line, count=1).startswith("|")
+        and re.search(r"\bfixed\s*:", line)  # a split cell needs a `fixed:` to have split off
     ):
         repair = _REPAIR_SPLIT
     # THE COUNTER RULE (both grammars): `unexecuted:` captured with no `confirmed:`. Without it

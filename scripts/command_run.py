@@ -3854,7 +3854,8 @@ def _task_measure(
             if isinstance(_raw_files, (list, tuple)) and _raw_files
             else [f"{_raw_files!r} ({type(_raw_files).__name__})"]
         )
-        raise TypeError(f"declared.files is not a list of str: {', '.join(_bad[:3])}")
+        _more = f" and {len(_bad) - 3} more" if len(_bad) > 3 else ""
+        raise TypeError(f"declared.files is not a list of str: {', '.join(_bad[:3])}{_more}")
     declared = set(_raw_files)
     excl = _task_excl(rp)
     # A sync-EXCLUDED repo has no sync contract: nothing it commits is a sync hit, and a sync
@@ -4979,7 +4980,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         print(msg)
         return 0
 
-    if passed != live:
+    # a record opened before W-5aa12ff3 stored the name un-lowered: compare both normalised, so
+    # a live run is never refused for a case it was legitimately opened with (review A-S2)
+    if passed != _norm_command(live):
         msg = (
             f"REFUSED — you asked to close /{passed}, but the LIVE run is /{live} "
             f"(phase {rec.get('phase')}/{rec.get('phases')}). Closing the wrong record "

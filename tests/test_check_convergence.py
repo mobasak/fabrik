@@ -2180,6 +2180,18 @@ def test_a_pre_d206_receipt_whose_status_is_not_converged_is_never_legacy(repo: 
     assert rc == 1, out
 
 
+def test_a_converged_status_parked_in_a_comment_is_never_legacy(repo: Path) -> None:
+    """Review D-H1: the D-497 grandfather read the header with fences stripped but comments kept, so
+    a CONVERGED status parked in `<!-- -->` above a live IN-PROGRESS one was grandfathered. It reads
+    through `_blank_quoted` now, the one quoting policy every other check uses (W-98338ad4)."""
+    review = _LEGACY_REVIEW.replace(
+        "Status: CONVERGED", "<!--\nStatus: CONVERGED\n-->\nStatus: IN-PROGRESS"
+    )
+    _legacy_fixture(repo, "2026-09-01", review)
+    rc, out = _check_out(repo)
+    assert rc == 1, out
+
+
 # --- W-98338ad4: one quoting policy for every spine-set check, and the closing-row graders ------
 
 _CLOSING_OK = "| Pass 1 | s | method: re-derivation | confirmed: 0 |\n"

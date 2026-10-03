@@ -1025,7 +1025,7 @@ def _first_commit_date(root: Path, relpath: str) -> str:
 def _legacy_receipt(root: Path, relpath: str, rtext: str) -> str:
     """The receipt's first-commit date when D-497 grandfathers it, else ""."""
     header = "".join(rtext.splitlines(keepends=True)[:10])  # the header zone (`_in_progress`'s)
-    if not _claims_converged(FENCE_STRIP.sub("", header)):
+    if not _claims_converged(_blank_quoted(header)):  # one quoting policy (W-98338ad4)
         return ""
     first = _first_commit_date(root, relpath)
     return first if first and first < _D206_CUTOVER else ""

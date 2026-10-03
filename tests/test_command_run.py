@@ -6596,6 +6596,22 @@ def test_start_normalises_command_case_so_review_family_branches_fire(run_dir: P
     assert "REFUSED — you asked to close" not in out.stdout, out.stdout
 
 
+def test_a_record_opened_before_normalisation_still_closes_under_its_own_name(
+    run_dir: Path,
+) -> None:
+    """Review A-S2: a record opened by the pre-W-5aa12ff3 binary stored `Fabrik-Review` un-lowered.
+    After the fleet sync, closing it with that same name compared a lowered name to the stored one
+    and was REFUSED, stranding a live run. Both sides are now compared normalised."""
+    _cr(run_dir, "start", "--command", "fabrik-review", "--phases", "1", "--terminal", "t")
+    f = run_dir / "s1.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec["command"] = "Fabrik-Review"  # the shape the pre-fix binary wrote
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    _cr(run_dir, "round", "--findings", "0", "--confirmed", "0")
+    out = _cr(run_dir, "done", "--command", "Fabrik-Review", "--evidence", "e")
+    assert "REFUSED — you asked to close" not in out.stdout, out.stdout
+
+
 @pytest.mark.parametrize(
     "corrupt",
     [

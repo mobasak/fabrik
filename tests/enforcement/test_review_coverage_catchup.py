@@ -159,3 +159,10 @@ def test_a_split_cell_row_is_told_the_repair_for_its_own_shape() -> None:
     )
     assert crc._row_refusals(repaired) == []
     assert crc._pass_counters_ext(repaired) == (15, 13, 13, 0)
+
+
+def test_a_row_without_a_fixed_cell_is_never_told_the_split_cell_repair() -> None:
+    """Review C-S1: the split-cell repair fired on any Pass row whose run lacked `fixed`, so a row
+    with a doubled `found:` and no `fixed:` anywhere was told its found/fixed cells were split."""
+    out = crc._row_refusals("| Pass 2 | x | found: 5, confirmed: 0, found: 7 |")
+    assert out and not any(crc._REPAIR_SPLIT in r for r in out), out
