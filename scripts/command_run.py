@@ -1140,6 +1140,14 @@ AGENT_CLOSED_STATES = frozenset({"done", "blocked", "handoff"})
 REVIEW_FAMILY = frozenset({"fabrik-review", "fabrik-review-scoped"})
 
 
+def _norm_command(value: object) -> str:
+    """`--command` as every reader compares it: no surrounding blanks, no leading slash, lower
+    case. Normalised ONCE, where `start` writes it and where a close names it — the readers test
+    `in REVIEW_FAMILY` case-sensitively, so a record stored as `Fabrik-Review` was read two ways
+    (W-5aa12ff3)."""
+    return str(value or "").strip().lstrip("/").strip().lower()
+
+
 def _finite_ts(v: object) -> float | None:
     """A usable epoch: a non-bool finite number, else None."""
     if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
@@ -4248,7 +4256,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # `command: 'fabrik-task'` and NO `declared` key, the SIZE gate skipped, while `_close`
         # keys on the normalised name and then demands `--commit`. The mirror is a wrongly
         # REFUSED `--command /fabrik-task --file a.py`, which the same binding closes.
-        _cmd = (args.command or "").lstrip("/")
+        _cmd = _norm_command(args.command)
         _declared: dict[str, Any] | None = None
         try:
             if _cmd != _TASK_COMMAND:
@@ -4324,7 +4332,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             stack.append(parent)
         new = {
             "session_id": sid,
-            "command": (args.command or "").lstrip("/"),
+            "command": _cmd,
             "phases": max(1, args.phases),
             "phase": 1,
             "phase_title": "",
@@ -4935,7 +4943,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     not the live one is REFUSED (rc 1) rather than applied to the wrong record.
     """
     live = rec.get("command") or "?"
-    passed = (args.command or "").lstrip("/")
+    passed = _norm_command(args.command)
     state = rec.get("state")
 
     if state != "running":

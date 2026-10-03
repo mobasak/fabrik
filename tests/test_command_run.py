@@ -6580,3 +6580,17 @@ def test_every_review_command_that_includes_a_termination_fragment_states_confir
         out.returncode,
         out.stderr,
     )
+
+
+def test_start_normalises_command_case_so_review_family_branches_fire(run_dir: Path) -> None:
+    """W-5aa12ff3: `start` stripped the leading slash but not the case, so a record opened as
+    `--command Fabrik-Review` failed every case-SENSITIVE `in REVIEW_FAMILY` /
+    `CONFIRMED_REQUIRED_COMMANDS` test — a round without `--confirmed` was accepted."""
+    _cr(run_dir, "start", "--command", " /Fabrik-Review ", "--phases", "1", "--terminal", "t")
+    assert _rec(run_dir)["command"] == "fabrik-review", _rec(run_dir)
+    r = _cr(run_dir, "round", "--findings", "1")
+    assert r.returncode == 2 and "review-family run" in r.stderr, (r.returncode, r.stderr)
+    # the close names the run in any case too — the same normalisation on both ends
+    _cr(run_dir, "round", "--findings", "0", "--confirmed", "0")
+    out = _cr(run_dir, "done", "--command", "FABRIK-REVIEW", "--evidence", "e")
+    assert "REFUSED — you asked to close" not in out.stdout, out.stdout
