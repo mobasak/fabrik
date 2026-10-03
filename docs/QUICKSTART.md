@@ -67,16 +67,13 @@ B2_BUCKET_NAME=your-bucket
 # to scaffold via --from-preplan.
 fabrik preplan new hello-api
 # edit docs/preplans/<today>-hello-api.md — fill in Idea / Shape / Deps / Domain / Success criteria
-# Then scaffold ingests the preplan and layers a `Preplan:` reference into all 4 AI guardrail files
-# (AGENTS.md / CLAUDE.md / AGENTS-compact.md / .windsurfrules) so every downstream agent
-# reads the same intent without re-deriving it.
+# Then scaffold ingests the preplan and copies it into docs/preplan.md; the project's CLAUDE.md
+# tells every agent to read it, so the intent is never re-derived.
 fabrik scaffold hello-api --from-preplan docs/preplans/$(date -u +%F)-hello-api.md
 
 # OR scaffold directly without a preplan — spec auto-generated with `shape:` defaults from the template.
-# Emits per-project CLAUDE.md (Claude Code bootstrap) + AGENTS-compact.md (Kilo CLI's bootstrap;
-# Kilo CLI itself RETIRED 2026-07-19 — file still synced for now) alongside the existing
-# .windsurfrules (Windsurf Cascade's bootstrap; Cascade itself RETIRED 2026-07-19 — file still
-# synced for now). Ends with a Traycer next-step hint.
+# Emits the per-project CLAUDE.md (the Claude Code bootstrap). The Kilo/Windsurf bootstraps
+# (AGENTS-compact.md, .windsurfrules, opencode.json) are no longer copied (D-529).
 fabrik scaffold hello-api --type python-api
 
 # Optionally also create a private GitHub repo (mobasak/<name>) at the same time:

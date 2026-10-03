@@ -1810,10 +1810,9 @@ def _create_and_wire_github_repo(name: str, project_dir: Path, project_type: str
     default=None,
     help=(
         "Ingest a preplan from docs/preplans/<file>.md to pre-fill --description, "
-        "--type, shape:, secrets:, and domain in the generated spec. Adds a "
-        "'Preplan:' reference to all 4 AI guardrail files (AGENTS.md, CLAUDE.md, "
-        "AGENTS-compact.md, .windsurfrules) and copies the preplan into "
-        "<project>/docs/preplan.md."
+        "--type, shape:, secrets:, and domain in the generated spec, and copies the "
+        "preplan into <project>/docs/preplan.md (the governance CLAUDE.md points "
+        "agents at it)."
     ),
 )
 def scaffold(
@@ -2036,8 +2035,18 @@ def fix(project_path: str, dry_run: bool, project_type: str | None):
         raise SystemExit(1) from exc
 
     unsupported = [f for f in added if f.startswith("[unsupported-fix] ")]
-    added = [f for f in added if f not in unsupported]
-    if not added and not unsupported:
+    # The retired-residue entries (D-529) carry their verb as a prefix: a removal, a note (kept or
+    # skipped — never counted), or a refusal (dead residue left behind, so not a missing file).
+    removed = [f.removeprefix("removed ") for f in added if f.startswith("removed ")]
+    notes = [f for f in added if f.startswith(("kept ", "skipped "))]
+    failures = [f for f in added if f.startswith("could not remove ")]
+    retired = set(notes) | set(failures) | {f"removed {f}" for f in removed}
+    added = [f for f in added if f not in unsupported and f not in retired]
+    for f in notes:
+        click.echo(f"  ℹ️  {f}")
+    for f in failures:
+        click.echo(f"  ⚠️  {f}")
+    if not added and not removed and not unsupported and not failures:
         click.echo("  ✅ No missing files - project structure is complete!")
         return
 
@@ -2046,6 +2055,8 @@ def fix(project_path: str, dry_run: bool, project_type: str | None):
             click.echo(f"  📄 {f}")
         else:
             click.echo(f"  ✅ Added: {f}")
+    for f in removed:
+        click.echo(f"  🗑️  {'Would remove' if dry_run else 'Removed'}: {f}")
     for f in unsupported:
         path_str = f.removeprefix("[unsupported-fix] ")
         click.echo(f"  ⚠️  Missing, not repairable by fix (re-run the scaffolder): {path_str}")
@@ -2054,6 +2065,10 @@ def fix(project_path: str, dry_run: bool, project_type: str | None):
         click.echo(f"\nRun without --dry-run to add {len(added)} files")
     elif added:
         click.echo(f"\n✅ Added {len(added)} files")
+    if removed and dry_run:
+        click.echo(f"Run without --dry-run to remove {len(removed)} retired paths")
+    elif removed:
+        click.echo(f"🗑️  Removed {len(removed)} retired paths")
     if unsupported:
         # The project is still incomplete after the repair: exit 1, as `fabrik validate` does.
         click.echo(f"❌ {len(unsupported)} required file(s) stay missing", err=True)
@@ -2202,7 +2217,7 @@ def preplan():
     Capture project intent in docs/preplans/<date>-<slug>.md BEFORE
     running fabrik scaffold. The scaffold step ingests the preplan
     via --from-preplan to pre-fill type / shape / domain / secrets
-    and to layer a Preplan reference into all 4 AI guardrail files.
+    and copies it into the project as docs/preplan.md.
 
     Lifecycle:
       idea → fabrik preplan new <slug> → refine the markdown →

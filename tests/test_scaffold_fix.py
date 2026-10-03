@@ -13,7 +13,7 @@ _REFUSAL = "refusing to scaffold/fix the Fabrik hub"
 
 
 def _source_root() -> Path:
-    """The root fix_project copies from — in a worktree the gitignored kilo JSON exists only in /opt/fabrik."""
+    """The root fix_project copies the reference docs from — `config._resolve_fabrik_root()`'s answer."""
     import fabrik.scaffold as scaffold
 
     return scaffold.FABRIK_ROOT
@@ -259,8 +259,8 @@ class TestFixProjectReferenceDocsRefresh:
         assert target.read_text() == canonical
         assert any("prebuilt-app-containers.md (refreshed from master)" in e for e in added)
 
-    def test_kilo_47_agents_json_is_overwritten_when_target_exists(self, tmp_path):
-        """kilo_47_agents_final.json is refreshed even if target exists."""
+    def test_kilo_47_agents_json_is_removed_never_copied(self, tmp_path):
+        """A project's kilo_47_agents_final.json is retired (D-529): removed, never re-copied."""
         project_dir = tmp_path / "test-project"
         project_dir.mkdir()
         (project_dir / ".git").mkdir()
@@ -272,19 +272,18 @@ class TestFixProjectReferenceDocsRefresh:
 
         added = fix_project(project_dir, project_type="python-api", dry_run=False)
 
-        source = _source_root() / "scripts" / "kilo_47_agents_final.json"
-        if source.exists():
-            assert target.read_text() == source.read_text()
-            assert any("kilo_47_agents_final.json (refreshed from master)" in e for e in added)
-        else:  # gitignored: absent in a worktree, so nothing is copied or reported
-            assert target.read_text() == '{"stale": true}\n'
-            assert not any("kilo_47_agents_final.json" in e for e in added)
+        assert not target.exists()
+        assert "removed scripts/kilo_47_agents_final.json" in added
+        assert not any("refreshed from master" in e and "kilo_47" in e for e in added)
 
     def test_dry_run_previews_reference_doc_refresh(self, tmp_path):
-        """dry_run accurately reports the reference docs as refreshed."""
+        """dry_run reports the reference-doc refresh and the kilo_47 removal, touching nothing."""
         project_dir = tmp_path / "test-project"
         project_dir.mkdir()
         (project_dir / ".git").mkdir()
+        (project_dir / "scripts").mkdir()
+        kilo = project_dir / "scripts" / "kilo_47_agents_final.json"
+        kilo.write_text("{}\n")
 
         added = fix_project(project_dir, project_type="python-api", dry_run=True)
 
@@ -294,8 +293,8 @@ class TestFixProjectReferenceDocsRefresh:
             )
         if (_source_root() / "docs" / "reference" / "prebuilt-app-containers.md").exists():
             assert any("prebuilt-app-containers.md (refreshed from master)" in e for e in added)
-        kilo = any("kilo_47_agents_final.json (refreshed from master)" in e for e in added)
-        assert kilo == (_source_root() / "scripts" / "kilo_47_agents_final.json").exists()
+        assert "removed scripts/kilo_47_agents_final.json" in added
+        assert kilo.read_text() == "{}\n"
 
 
 @requires_fabrik_env

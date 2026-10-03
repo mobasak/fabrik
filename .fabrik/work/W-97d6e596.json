@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T16:11:30.708671Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-97d6e596",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/archived/2026-10-03-plan-1-scaffold-retired-agent-surface.md",
+    "spec": ""
+  },
+  "next": "decide keep-marker-when-dir-nonempty in _remove_retired_droid_markers; preserve line endings in _patch_droid_block; fix the :766 table; drop the dead branch",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Scaffold fix residue recorded by the plan-1 Finish review: traycer marker removed while reports remain (needs a trimmed .droid/.gitignore — 0 of 40 on box); CRLF .gitignore gets an LF droid block (pre-existing); FABRIK_SCAFFOLD_WORKFLOW.md:766 says SCAFFOLD_TYPES has 12 entries and omits office-extension (13); preplan._extract_domain dead equality branch"
+}

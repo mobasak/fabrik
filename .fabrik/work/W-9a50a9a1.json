@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T13:11:38.212295Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-9a50a9a1",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-03-scaffold-retired-agent-surface-design.md"
+  },
+  "next": "infra: retire or reword each per D-514/D-364; filed from plan-1 design critique (Fable concern 7)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "Same-ruling Kilo residue outside the scaffold: final_gate Kilo CLI Health row (:2393-2400), --post-kilo gate_issues.jsonl (:2573), cli.py review-pack help naming Kilo (:2759-2795)"
+}

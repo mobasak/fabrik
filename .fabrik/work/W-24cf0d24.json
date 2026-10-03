@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T16:43:55.879939Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-24cf0d24",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/archived/2026-10-03-plan-1-scaffold-retired-agent-surface.md",
+    "spec": ""
+  },
+  "next": "python3 scripts/merge_request.py request --review docs/development/reviews/2026-10-03-plan-1-scaffold-retired-agent-surface-review.md, then send the printed SendMessage line",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Re-send the plan-1 merge request once infra's half (W-b13ce655) is on master — infra refused 01M419R9 only because its precondition was unmet"
+}

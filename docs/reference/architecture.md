@@ -185,7 +185,7 @@ src/fabrik/
 ├── spec_loader.py             # Pydantic Spec + Shape models
 ├── spec_generator.py          # Spec emission from scaffold context
 ├── template_renderer.py       # Jinja2 compose/Dockerfile rendering + ComposeLinter hook
-├── scaffold.py                # fabrik scaffold — 11 types, .droid/ creation, AI guardrail emission
+├── scaffold.py                # fabrik scaffold — per-type emission, AI guardrail emission
 ├── deploy.py                  # deploy_to_coolify() core function
 ├── deploy_router.py           # project-type dispatch (WordPress raises NotImplementedError — moved to /opt/wpf/)
 ├── deploy_validator.py        # scaffold-level readiness checks

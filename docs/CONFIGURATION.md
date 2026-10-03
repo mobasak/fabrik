@@ -593,9 +593,9 @@ Stage 1 of the Fabrik lifecycle captures project intent in `docs/preplans/<YYYY-
 
 - Pre-fills `--type` and description from the preplan
 - Copies the markdown into `<project>/docs/preplan.md`
-- Appends a `Preplan:` reference line to ALL 4 AI guardrail files (`AGENTS.md`, `CLAUDE.md`, `AGENTS-compact.md`, `.windsurfrules`) so every downstream agent reads the same intent
+- Writes nothing into the guardrail files: the governance `CLAUDE.md` tells every agent to read `docs/preplan.md` when it exists (D-529)
 
-No new env vars. The workflow is documented in `docs/preplans/README.md` and Traycer ingests it via Step 2.5 of `docs/traycer/fabrik-workflow.md`.
+No new env vars. The workflow is documented in `docs/preplans/README.md`.
 
 <!--
 `coolify.alias` spec field section — OBSOLETE 2026-06-02.

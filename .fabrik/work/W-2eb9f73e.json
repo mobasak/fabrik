@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T14:07:12.201350Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-2eb9f73e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "guard the root patch in both fix_project branches: skip + report a symlinked or non-file .gitignore, catch UnicodeDecodeError; tests for the three trees. Found by plan-1 Phase A review-scoped (O3, O4)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "fix_project's root-.gitignore patch writes through a symlinked .gitignore and raises on a directory or non-UTF-8 .gitignore (pre-existing, scaffold.py root patch block)"
+}

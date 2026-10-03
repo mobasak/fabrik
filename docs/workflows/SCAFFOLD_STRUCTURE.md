@@ -24,7 +24,6 @@
 │   ├── settings.json              # synced (hooks + permissions.allow)
 │   └── workflows/
 │       └── fabrik-review-loop.js  # the review-loop workflow script, copied with the hub's .claude/
-├── .droid/                        # .gitignore · review-context/.gitkeep · traycer-reports/.gitignore
 ├── .fabrik/
 │   └── run-pytest                 # arms the gate's pytest leg (python-api · python-api-gpu · file-api)
 ├── .git/ · .venv/                 # git init + the venv (Python types) — pruned from the emission, created by the scaffolder
@@ -67,7 +66,6 @@
 │   ├── rivals_run.py · rules_match.py · select_rules.py · thread_anchor.py · whoami_agent.py
 │   ├── work.py                    # CORE_SCRIPTS (the manifest set)
 │   ├── verify_prod_parity.py      # the parity-contract runner
-│   ├── kilo_47_agents_final.json  # agent registry snapshot (gitignored in the hub)
 │   └── runc · runclean · rund · rundsh · runk · runlast · runls · runtail · runwait
 │       · sync_cascade_backup.sh · sync_extensions.sh                           # RUN_SCRIPTS (11)
 ├── src/
@@ -78,10 +76,10 @@
 │   └── __init__.py · conftest.py · test_health.py · test_glitchtip_no_secret_leak.py
 ├── config/ · data/ · logs/ · backups/ · .tmp/ · output/ · .cache/   # standard dirs
 ├── .dockerignore · .env.example · .gitignore · .pre-commit-config.yaml
-├── .windsurfrules · .worktreeinclude
-├── AFCL.md · AGENTS.md · AGENTS-compact.md · CHANGELOG.md · CLAUDE.md · INDEX.md · PORTS.md · README.md
+├── .worktreeinclude
+├── AFCL.md · AGENTS.md · CHANGELOG.md · CLAUDE.md · INDEX.md · PORTS.md · README.md
 ├── compose.yaml · compose.dev.yaml · Dockerfile · Makefile
-└── opencode.json · project.yaml · pyproject.toml · requirements.txt · requirements-dev.txt
+└── project.yaml · pyproject.toml · requirements.txt · requirements-dev.txt
 ```
 
 `.github/` is not emitted: CI checks are retired fleet-wide (operator directive), and `scripts/ci_local.sh` is the
@@ -135,7 +133,7 @@ Seeding is **type-aware**: `_scaffold_shared` skips a doc whose registry bucket 
 
 | Source | Destination |
 |--------|-------------|
-| `/opt/fabrik/AGENTS.md` (a 9-line pointer to `agents-fabrik.md`), plus `AGENTS-compact.md`, `.windsurfrules`, `opencode.json` until fleet's scaffold change (D-529) | same name at the project root — `AGENTS.md` is 1 of the 3 GOVERNANCE_FILES; the other three are RETIRED_GOVERNANCE_FILES the next governance sync deletes; `agents-fabrik.md` and `agents-fabrik-core.md` arrive with the governance sync, not at scaffold time |
+| `/opt/fabrik/AGENTS.md` (a 9-line pointer to `agents-fabrik.md`) | `AGENTS.md` at the project root — 1 of the 3 GOVERNANCE_FILES; `agents-fabrik.md` and `agents-fabrik-core.md` arrive with the governance sync, not at scaffold time. The scaffold no longer copies `AGENTS-compact.md`, `.windsurfrules` or `opencode.json`: they are RETIRED_GOVERNANCE_FILES, which the governance sync deletes (D-529) |
 | `templates/governance/CLAUDE.md`, `DECISIONS.md`, `.worktreeinclude` | `CLAUDE.md`, `docs/DECISIONS.md`, `.worktreeinclude` (GOVERNANCE_TEMPLATES) |
 | `/opt/fabrik/.windsurf/rules/`, `.windsurf/workflows/`, `docs/reference/kilo/` | same paths (3 of the 4 GOVERNANCE_DIRS; `docs/reference/MD/` is created empty and filled by the sync) |
 | `/opt/fabrik/scripts/enforcement/` | `scripts/enforcement/` |
@@ -144,7 +142,6 @@ Seeding is **type-aware**: `_scaffold_shared` skips a doc whose registry bucket 
 | `/opt/fabrik/.claude/hooks/*` + `.claude/settings.json` + `.windsurf/hooks.json` | same paths (AGENT_HOOK_FILES, 9) |
 | `libs/health_probe/` | `libs/health_probe/` (VENDORED_DIRS) |
 | `docs/PROJECT_CATALOG.md`, `PORTS.md`, `docs/reference/technology-stack-decision-guide.md` — 3 of the 7 REFERENCE_DOCS — plus `docs/reference/prebuilt-app-containers.md` (in no manifest list) | `docs/reference/opt-project-catalog.md`, `PORTS.md`, the same two names. `PORTS.md` is the hub's port registry, read-only in the project (D-380): the scaffolder writes no project rows into it, and the governance sync keeps it current. The remaining 4 REFERENCE_DOCS arrive with the sync |
-| `/opt/fabrik/scripts/kilo_47_agents_final.json` | `scripts/kilo_47_agents_final.json` (in no manifest list) |
 | `templates/saas-skeleton/` (43 files, build artifacts excluded) + `templates/spec-pipeline/` (4 files) | the same paths, for every type |
 
 The manifest is the canonical list of what the SYNC distributes — read it, never this table, when the two disagree; this table is what the scaffolder itself copies.
@@ -259,7 +256,7 @@ Projects stay synchronized with Fabrik master via:
 1. **Post-commit hook (hub):** a plain git post-commit hook (`scripts/install_post_commit_hook.sh`) runs `scripts/governance_sync_postcommit.sh`, which reads the trigger regex from the `governance-sync` entry in `.pre-commit-config.yaml` (`stages: [manual]` — pre-commit never runs it, D-369) — a hub commit touching a trigger surface distributes to every `/opt` project after the commit lands; the trigger set is that hook's `files:` filter (CLAUDE.md § Sync-consciousness). It cannot block a commit, and a failed sync prints the manual re-run command.
 2. **Manual sync:** `python /opt/fabrik/scripts/sync_enforcement_to_projects.py [--force]` anytime.
 3. **Watcher:** `scripts/watch_enforcement_changes.sh` (inotifywait on the governance files) when started from the WSL startup hook.
-4. **Repair:** `scaffold.py::fix_project` adds the required files a project is missing AND force-refreshes the synced surfaces from the hub — `.windsurf/rules/`, `.windsurf/workflows/` and `docs/reference/kilo/` are deleted and re-copied, and `.windsurfrules`, `AGENTS.md`, `AGENTS-compact.md`, `.windsurf/hooks.json`, `opencode.json`, `docs/reference/technology-stack-decision-guide.md`, `docs/reference/prebuilt-app-containers.md` and `scripts/kilo_47_agents_final.json` are overwritten; a local edit under any of those is lost. Its missing-file seeding uses `fabrik fix --type` when given, else the `type` in the project's own `project.yaml`, and refuses when there is neither; the same type drives the `has_user_guide` backfill. `python-api` and `python-api-gpu` are repaired from the python-api template map, every other type from the shared map only, and a missing type-specific file with no template is reported (`[unsupported-fix]`, exit 1 from the CLI) and never stubbed.
+4. **Repair:** `scaffold.py::fix_project` adds the required files a project is missing AND force-refreshes the synced surfaces from the hub — `.windsurf/rules/`, `.windsurf/workflows/` and `docs/reference/kilo/` are deleted and re-copied, and `AGENTS.md`, `.windsurf/hooks.json`, `docs/reference/technology-stack-decision-guide.md` and `docs/reference/prebuilt-app-containers.md` are overwritten; a local edit under any of those is lost. It also retires the Kilo/Traycer residue of older scaffolds (D-529): it removes `.droid/review-context/.gitkeep`, `.droid/traycer-reports/.gitignore` and each of those directories when nothing else is in it, and `scripts/kilo_47_agents_final.json`; it never creates `.droid/`, never edits an existing `.droid/.gitignore`, never acts through a symlink, and reports a refused removal instead of raising. Its missing-file seeding uses `fabrik fix --type` when given, else the `type` in the project's own `project.yaml`, and refuses when there is neither; the same type drives the `has_user_guide` backfill. `python-api` and `python-api-gpu` are repaired from the python-api template map, every other type from the shared map only, and a missing type-specific file with no template is reported (`[unsupported-fix]`, exit 1 from the CLI) and never stubbed.
 
 ---
 

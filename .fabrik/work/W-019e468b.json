@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T15:01:59.173747Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-019e468b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reproduce with rt.py tests/test_state.py; fix the assertion or the state writer, and restore FABRIK_ROOT via monkeypatch. Found by plan-1 Phase B review (pre-existing at bf639a501)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "tests/test_state.py::test_save_writes_all_8_fields fails at HEAD, and test_state.py sets FABRIK_ROOT without restoring it"
+}

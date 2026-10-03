@@ -1,0 +1,33 @@
+{
+  "plan": "docs/development/plans/archived/2026-10-03-plan-1-scaffold-retired-agent-surface.md",
+  "owned_paths": [
+    "src/fabrik/scaffold.py",
+    "src/fabrik/preplan.py",
+    "src/fabrik/cli.py",
+    "src/fabrik/portability.py",
+    "tests/test_scaffold.py",
+    "tests/test_scaffold_fix.py",
+    "tests/test_preplan.py",
+    "docs/QUICKSTART.md",
+    "docs/CONFIGURATION.md",
+    "docs/preplans/README.md",
+    "docs/reference/architecture.md",
+    "docs/reference/fabrik-cli-reference.md",
+    "docs/workflows/SCAFFOLD_STRUCTURE.md",
+    "docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+    "docs/traycer/fabrik-workflow.md",
+    "docs/workflows/development-and-deployment-workflow.md",
+    "docs/superpowers/specs/2026-10-03-scaffold-retired-agent-surface-design.md",
+    "docs/development/reviews/2026-10-03-plan-1-scaffold-retired-agent-surface-review.md"
+  ],
+  "branch": "worktree-fleet",
+  "started_at": "2026-10-03T16:00:00+00:00",
+  "status": "released",
+  "baseline_commit": "bf639a5011ac90c75481483e4682c83f96884bee",
+  "baseline_gate": {
+    "status": "success",
+    "red": []
+  },
+  "completed_at": "2026-10-03",
+  "final_commit": "6d95303fb"
+}

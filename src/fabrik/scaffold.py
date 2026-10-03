@@ -287,8 +287,6 @@ SHARED_TEMPLATE_MAP = {
     "docs/data-contract-template.md": "docs/data-contract.md",  # frozen field dictionary; filled by /fabrik-data-contract
     # kilo-consult-workflow.md removed 2026-07-11 — `kilo consult` superseded by the OpenRouter
     # fabrik-lib consult module; no longer seeded (template archived, kilo_consult.py dormant).
-    # Note: Phase docs removed - Traycer Phases replace manual phase tracking
-    # Note: tasks.md removed - Traycer UI replaces manual task dashboard
     # Note: PLANS.md and archive/README.md are generated inline, not from templates
 }
 
@@ -492,8 +490,6 @@ SHARED_DIRS = [
     ".tmp",
     ".cache",
     "output",
-    ".droid/review-context",  # Kilo/Traycer review context directory
-    ".droid/traycer-reports",  # Traycer report files directory
 ]
 
 _PYTHON_API_DIRS = ["src"]
@@ -539,21 +535,25 @@ def _copy_windsurf_hooks(project_dir: Path) -> bool:
     return True
 
 
-# Canonical .droid/ gitignore block — shared across all scaffold types
-# Runtime files written by:
-#   - kilo_code_review.py: reviews/, kilo_models_cache.json, .kilo_cache_last_refresh
-#   - generate_kilo_agents.py shell scripts: kilo_usage.jsonl
-#   - docs_updater.py: docs_queue/, docs_log/
-#   - traycer_write_report.py: traycer-reports/*.md
-_DROID_GITIGNORE_BLOCK = (
-    ".factory/consultations/\n"
-    ".droid/kilo_usage.jsonl\n"
-    ".droid/reviews/\n"
-    ".droid/kilo_models_cache.json\n"
-    ".droid/.kilo_cache_last_refresh\n"
-    ".droid/docs_queue/\n"
-    ".droid/docs_log/\n"
-    ".droid/traycer-reports/*.md\n"
+# Canonical .droid/ gitignore block — shared across all scaffold types. Its one live writer is
+# docs_updater.py, which creates .droid/docs_queue/ and .droid/docs_log/ itself at import; the
+# scaffold creates no .droid/ (the Kilo/Traycer runtime files it used to ignore are retired, D-529).
+_DROID_GITIGNORE_BLOCK = ".factory/consultations/\n.droid/docs_queue/\n.droid/docs_log/\n"
+
+# Lines older scaffolds wrote into the block — `_patch_droid_block` drops these, and only these plus
+# the current block's own lines, so a project's own `.droid/` ignore line survives the patch.
+_RETIRED_DROID_GITIGNORE_LINES = (
+    ".droid/kilo_usage.jsonl",
+    ".droid/reviews/",
+    ".droid/kilo_models_cache.json",
+    ".droid/.kilo_cache_last_refresh",
+    ".droid/traycer-reports/*.md",
+)
+
+# The two scaffold-owned Traycer markers `fix_project` removes from older projects (D-529).
+_RETIRED_DROID_MARKERS = (
+    (".droid/review-context", ".gitkeep"),
+    (".droid/traycer-reports", ".gitignore"),
 )
 
 
@@ -693,23 +693,6 @@ _COMMON_GITIGNORE_PATTERNS = (
         "# Pipeline test outputs\n"
         "pipeline_output/\n"
     )
-)
-
-# Canonical .droid/.gitignore content — used by scaffold and fix_project()
-_DROID_DIR_GITIGNORE = (
-    "# Kilo/Traycer runtime files — do not commit\n"
-    "*\n"
-    "!.gitignore\n"
-    "!review-context/\n"
-    "!review-context/**\n"
-    "!traycer-reports/\n"
-    "!traycer-reports/.gitignore\n"
-    "traycer-reports/*.md\n"
-)
-
-# Canonical .droid/traycer-reports/.gitignore content
-_TRAYCER_REPORTS_GITIGNORE = (
-    "# Traycer report files — committed .gitignore, reports are gitignored\n*.md\n!.gitignore\n"
 )
 
 
@@ -1131,16 +1114,6 @@ def _scaffold_shared(
     for d in SHARED_DIRS:
         (project_dir / d).mkdir(parents=True, exist_ok=True)
 
-    # Write .droid/ files: gitignore keeps review-context/, blocks runtime files
-    (project_dir / ".droid" / ".gitignore").write_text(_DROID_DIR_GITIGNORE)
-    # .gitkeep so git tracks the empty review-context/ directory
-    (project_dir / ".droid" / "review-context" / ".gitkeep").write_text("")
-
-    # Create traycer-reports/ with its own .gitignore
-    traycer_reports_dir = project_dir / ".droid" / "traycer-reports"
-    traycer_reports_dir.mkdir(parents=True, exist_ok=True)
-    (traycer_reports_dir / ".gitignore").write_text(_TRAYCER_REPORTS_GITIGNORE)
-
     package_name = _get_package_name(name)
 
     # Copy shared templates — type-aware, driven by the canonical registry (SSOT).
@@ -1235,23 +1208,17 @@ def _scaffold_shared(
                 ignore=shutil.ignore_patterns(*_TOOL_CACHES),
             )
 
-    # Copy .windsurfrules, .windsurf/rules/, .windsurf/workflows/ (authoritative)
+    # Copy .windsurf/rules/ and .windsurf/workflows/ (authoritative)
     # Fail fast if fabrik targets are missing - environment is broken
-    fabrik_windsurfrules = FABRIK_ROOT / ".windsurfrules"
     fabrik_windsurf_rules = FABRIK_ROOT / ".windsurf" / "rules"
     fabrik_windsurf_workflows = FABRIK_ROOT / ".windsurf" / "workflows"
 
-    if not fabrik_windsurfrules.exists():
-        raise FileNotFoundError(f"Missing fabrik .windsurfrules: {fabrik_windsurfrules}")
     if not fabrik_windsurf_rules.exists():
         raise FileNotFoundError(f"Missing fabrik windsurf rules dir: {fabrik_windsurf_rules}")
     if not fabrik_windsurf_workflows.exists():
         raise FileNotFoundError(
             f"Missing fabrik windsurf workflows dir: {fabrik_windsurf_workflows}"
         )
-
-    # Copy .windsurfrules (no symlinks - workspace isolation)
-    shutil.copy(fabrik_windsurfrules, project_dir / ".windsurfrules")
 
     # Copy .windsurf/rules/ directory (no symlinks - workspace isolation)
     windsurf_target = project_dir / ".windsurf" / "rules"
@@ -1321,18 +1288,12 @@ def _scaffold_shared(
     if FABRIK_AGENTS_MD.exists():
         shutil.copy(FABRIK_AGENTS_MD, project_dir / "AGENTS.md")
 
-    # Copy AGENTS-compact.md (no symlinks - workspace isolation)
-    fabrik_compact = FABRIK_ROOT / "AGENTS-compact.md"
-    if fabrik_compact.exists():
-        shutil.copy(fabrik_compact, project_dir / "AGENTS-compact.md")
-
     # G-B5 (T1-02): Copy CLAUDE.md (no symlinks - workspace isolation).
     # Claude Code reads CLAUDE.md as its always-on bootstrap; without this
     # copy, scaffolded projects under /opt/<name>/ would have no per-project
     # CLAUDE.md and Claude Code would fall back to whatever it finds upward
-    # (or nothing). Symmetric to AGENTS-compact.md (Kilo) and .windsurfrules
-    # (Cascade) which are already copied. Source is the PROJECT TEMPLATE —
-    # /opt/fabrik/CLAUDE.md is the hub agents' own contract, never seeded.
+    # (or nothing). Source is the PROJECT TEMPLATE — /opt/fabrik/CLAUDE.md is
+    # the hub agents' own contract, never seeded.
     fabrik_claude_md = FABRIK_ROOT / "templates/governance/CLAUDE.md"
     if fabrik_claude_md.exists():
         shutil.copy(fabrik_claude_md, project_dir / "CLAUDE.md")
@@ -1376,13 +1337,6 @@ def _scaffold_shared(
     if afcl_template.exists():
         shutil.copy(afcl_template, project_dir / "AFCL.md")
 
-    # Copy kilo_47_agents_final.json (Kilo CLI agent configuration)
-    fabrik_kilo_config = FABRIK_ROOT / "scripts" / "kilo_47_agents_final.json"
-    if fabrik_kilo_config.exists():
-        scripts_target_dir = project_dir / "scripts"
-        scripts_target_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy(fabrik_kilo_config, scripts_target_dir / "kilo_47_agents_final.json")
-
     # Copy technology-stack-decision-guide.md (central stack guidance)
     fabrik_stack_guide = FABRIK_ROOT / "docs" / "reference" / "technology-stack-decision-guide.md"
     if fabrik_stack_guide.exists():
@@ -1396,9 +1350,6 @@ def _scaffold_shared(
         containers_target_dir = project_dir / "docs" / "reference"
         containers_target_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy(fabrik_containers, containers_target_dir / "prebuilt-app-containers.md")
-
-    # Copy opencode.json from fabrik master (single source of truth)
-    shutil.copy(FABRIK_ROOT / "opencode.json", project_dir / "opencode.json")
 
     # Create .gitignore and .env.example
     (project_dir / ".gitignore").write_text(
@@ -6937,20 +6888,12 @@ def _post_scaffold_sync(project_dir: Path) -> None:
 
 
 def _layer_preplan_into_project(project_dir: Path, preplan: object) -> None:
-    """T3-01 G-A4: copy the preplan + inject reference line into all 4 AI guardrails.
+    """T3-01: copy the preplan into the project as ``docs/preplan.md``.
 
-    Stage-1 of the Fabrik lifecycle says every agent that opens the project
-    should know the original intent. Putting a single ``Preplan:`` reference
-    in just one guardrail file would mean Claude Code / Kilo / Windsurf
-    miss it — only Traycer would see it. So we inject the line into all 4:
-
-    - ``AGENTS.md`` (Traycer)
-    - ``CLAUDE.md`` (Claude Code)
-    - ``AGENTS-compact.md`` (Kilo)
-    - ``.windsurfrules`` (Windsurf)
-
-    The reference path is RELATIVE to project root so the line stays valid
-    if the project tree moves.
+    Stage-1 of the Fabrik lifecycle says every agent that opens the project should know the
+    original intent. The governance ``CLAUDE.md`` (synced to every project) tells agents to
+    read ``docs/preplan.md`` when it exists, so nothing is written into the guardrail files: they
+    are fleet-synced, and a line appended here was overwritten by the next sync (D-529).
 
     Args:
         project_dir: The freshly-scaffolded project root.
@@ -6970,39 +6913,7 @@ def _layer_preplan_into_project(project_dir: Path, preplan: object) -> None:
     project_docs.mkdir(parents=True, exist_ok=True)
     dest = project_docs / "preplan.md"
     dest.write_text(source_path.read_text(encoding="utf-8"))
-
-    # 2. Inject a Preplan reference line into each of the 4 AI guardrails
-    reference_line = (
-        "\n> **Preplan:** [docs/preplan.md](docs/preplan.md) "
-        f"(original intent captured {getattr(preplan, 'date', 'pre-scaffold')}). "
-        "Read it for the project's Idea, Shape, External deps, Success criteria, "
-        "and VPS1-inventory reminders before proposing changes.\n"
-    )
-    guardrail_files = [
-        "AGENTS.md",
-        "CLAUDE.md",
-        "AGENTS-compact.md",
-        ".windsurfrules",
-    ]
-    for fname in guardrail_files:
-        target = project_dir / fname
-        if not target.exists():
-            # Some scaffold types may not emit all 4 (e.g. static-site
-            # might skip .windsurfrules). Skip silently.
-            continue
-        try:
-            content = target.read_text(encoding="utf-8")
-            # Idempotent: if a Preplan reference already exists, don't dup.
-            if "Preplan:" in content and "docs/preplan.md" in content:
-                continue
-            target.write_text(content.rstrip() + "\n" + reference_line)
-        except Exception as e:  # noqa: BLE001
-            logger.warning("preplan layering: %s update failed: %s", fname, e)
-
-    logger.info(
-        "preplan layering: copied to %s + reference injected into 4 guardrails",
-        dest.relative_to(project_dir),
-    )
+    logger.info("preplan layering: copied to %s", dest.relative_to(project_dir))
 
 
 def _configure_git_repo(project_dir: Path) -> None:
@@ -7107,11 +7018,8 @@ def create_project(
     ``fabrik.preplan.parse_preplan``), the resulting project gets the
     preplan layered in as Stage-1 context:
 
-    - Preplan markdown copied to ``<project>/docs/preplan.md``
-    - A ``Preplan: docs/preplan.md`` reference line appended to each of
-      the 4 AI guardrail files (AGENTS.md, CLAUDE.md, AGENTS-compact.md,
-      .windsurfrules) so every agent that opens the project knows the
-      original intent.
+    - Preplan markdown copied to ``<project>/docs/preplan.md``, which the governance
+      ``CLAUDE.md`` tells every agent to read (nothing is written into a guardrail file).
     - The shape block, domain, and secrets list from the preplan are
       passed through to the spec generator (post-scaffold hook).
     """
@@ -7176,9 +7084,8 @@ def create_project(
             content = content.replace("has_user_guide: false", "has_user_guide: true")
         project_yaml_path.write_text(content)
 
-    # T3-01 G-A4: layer preplan context BEFORE the final commit so the
-    # preplan copy + 4-file guardrail reference are part of the initial
-    # snapshot.
+    # T3-01: copy the preplan BEFORE the final commit so docs/preplan.md is part of the
+    # initial snapshot.
     if preplan is not None:
         _layer_preplan_into_project(project_dir, preplan)
 
@@ -7267,9 +7174,12 @@ def _patch_droid_block(content: str, canonical: str) -> str:
     """Replace .droid/ entries in .gitignore with canonical block.
 
     Handles three cases:
-    1. Canonical block already present → no-op
-    2. .droid/ or .factory/ entries exist (scattered or contiguous) → replace with canonical
+    1. Canonical block already present and no retired line left anywhere → no-op
+    2. Lines the scaffold wrote (the canonical block's or a retired one, scattered or contiguous)
+       exist → replace them with the canonical block at the first one's position
     3. No managed entries → append canonical block at end
+
+    A project's own `.droid/` or `.factory/` line is never managed, so it survives.
 
     Args:
         content: Current .gitignore file content
@@ -7278,16 +7188,19 @@ def _patch_droid_block(content: str, canonical: str) -> str:
     Returns:
         Updated .gitignore content
     """
-    # Fast path: canonical block already present verbatim
-    if canonical in content:
+    # Fast path: canonical block already present verbatim and no retired line left elsewhere
+    retired_left = any(
+        line.strip() in _RETIRED_DROID_GITIGNORE_LINES for line in content.splitlines()
+    )
+    if canonical in content and not retired_left:
         return content
 
     lines = content.splitlines(keepends=True)
-    # Match both .droid/ and .factory/ lines — both are part of the canonical block
-    managed_prefixes = (".droid/", ".factory/")
-    managed_indices = {
-        i for i, line in enumerate(lines) if line.strip().startswith(managed_prefixes)
-    }
+    # Managed = a line the scaffold ever wrote into this block: the canonical block's own lines plus
+    # the retired ones. Any other `.droid/` or `.factory/` line is the project's own and survives.
+    managed = {line.strip() for line in canonical.splitlines() if line.strip()}
+    managed.update(_RETIRED_DROID_GITIGNORE_LINES)
+    managed_indices = {i for i, line in enumerate(lines) if line.strip() in managed}
 
     if not managed_indices:
         # No managed entries — append canonical block
@@ -7301,6 +7214,87 @@ def _patch_droid_block(content: str, canonical: str) -> str:
         + canonical
         + "".join(filtered_lines[first_managed:])
     )
+
+
+def _remove_retired_droid_markers(project_path: Path, *, dry_run: bool) -> list[str]:
+    """Remove the scaffold's dead Traycer markers from a project whose ``.droid`` is a real directory.
+
+    For each marker directory the first matching rule wins: missing → nothing; a symlink → skipped
+    (never acted through); not a directory → kept; a regular-file marker is removed, then the
+    directory only when nothing else is in it. Every filesystem call of a pair sits in one ``try``:
+    an ``OSError`` is reported as ``could not remove …`` and ends that pair, never raised. Under
+    ``dry_run`` nothing is touched and, on a tree the user may write, the entries are the ones the
+    live run returns; a refusal the filesystem raises only on the write shows on the live run. Each
+    entry starts with its verb (``removed ``, ``kept ``, ``skipped ``, ``could not remove ``) — the
+    ``fabrik fix`` command renders by that prefix.
+    """
+    entries: list[str] = []
+    for rel, marker_name in _RETIRED_DROID_MARKERS:
+        directory = project_path / rel
+        marker = directory / marker_name
+        touched = marker
+        try:
+            if not directory.exists() and not directory.is_symlink():
+                continue
+            if directory.is_symlink():
+                entries.append(f"skipped {rel}/ (symlink)")
+                continue
+            if not directory.is_dir():
+                entries.append(f"kept {rel} (not a directory)")
+                continue
+            removable = marker.is_file() and not marker.is_symlink()
+            if removable:
+                if not dry_run:
+                    marker.unlink()
+                entries.append(f"removed {rel}/{marker_name}")
+            touched = directory
+            others = [e for e in directory.iterdir() if not (removable and e.name == marker_name)]
+            if others:
+                entries.append(f"kept {rel}/ ({len(others)} other entries)")
+            else:
+                if not dry_run:
+                    directory.rmdir()
+                entries.append(f"removed {rel}/ (empty)")
+        except OSError as exc:
+            entries.append(
+                f"could not remove {touched.relative_to(project_path)}: {exc.strerror or exc}"
+            )
+    return entries
+
+
+def _retire_droid_and_kilo_config(project_path: Path, *, dry_run: bool) -> list[str]:
+    """The `fix_project` step that retires the Kilo/Traycer residue of older scaffolds (D-529).
+
+    Never creates ``.droid/`` and never writes a file inside it, so an existing ``.droid/.gitignore``
+    stays as it is; inside ``.droid/`` it only unlinks the two markers and removes their emptied
+    directories. A symlinked ``.droid`` (dangling or not) is skipped and a non-directory kept; a real
+    one has its two markers removed. Then the project's dead copy of
+    ``scripts/kilo_47_agents_final.json`` (read only on the hub) goes when it is a regular file.
+    """
+    entries: list[str] = []
+    droid_dir = project_path / ".droid"
+    try:
+        if droid_dir.is_symlink():
+            entries.append("skipped .droid/ (symlink)")
+        elif droid_dir.exists() and not droid_dir.is_dir():
+            entries.append("kept .droid (not a directory)")
+        elif droid_dir.is_dir():
+            entries.extend(_remove_retired_droid_markers(project_path, dry_run=dry_run))
+    except OSError as exc:
+        entries.append(f"could not remove .droid: {exc.strerror or exc}")
+    scripts_dir = project_path / "scripts"
+    kilo_config = scripts_dir / "kilo_47_agents_final.json"
+    try:
+        if scripts_dir.is_symlink():
+            if kilo_config.exists():
+                entries.append("skipped scripts/kilo_47_agents_final.json (scripts/ is a symlink)")
+        elif kilo_config.is_file() and not kilo_config.is_symlink():
+            if not dry_run:
+                kilo_config.unlink()
+            entries.append("removed scripts/kilo_47_agents_final.json")
+    except OSError as exc:
+        entries.append(f"could not remove scripts/kilo_47_agents_final.json: {exc.strerror or exc}")
+    return entries
 
 
 def _declared_project_type(project_path: Path, verb: str) -> str:
@@ -7399,27 +7393,17 @@ def fix_project(
         added.append(f)
 
     # Ensure governance files exist
-    windsurfrules_target = FABRIK_ROOT / ".windsurfrules"
     windsurf_rules_target = FABRIK_ROOT / ".windsurf" / "rules"
     windsurf_workflows_target = FABRIK_ROOT / ".windsurf" / "workflows"
 
     if not dry_run:
         # Fail fast if fabrik targets are missing - environment is broken
-        if not windsurfrules_target.exists():
-            raise FileNotFoundError(f"Missing fabrik .windsurfrules: {windsurfrules_target}")
         if not windsurf_rules_target.exists():
             raise FileNotFoundError(f"Missing fabrik windsurf rules dir: {windsurf_rules_target}")
         if not windsurf_workflows_target.exists():
             raise FileNotFoundError(
                 f"Missing fabrik windsurf workflows dir: {windsurf_workflows_target}"
             )
-
-        # Copy .windsurfrules (remove symlink if exists)
-        windsurfrules_path = project_path / ".windsurfrules"
-        if windsurfrules_path.is_symlink():
-            windsurfrules_path.unlink()
-        shutil.copy(windsurfrules_target, windsurfrules_path)
-        added.append(".windsurfrules (copied)")
 
         # Copy .windsurf/rules/ directory (remove symlink if exists)
         windsurf_rules_path = project_path / ".windsurf" / "rules"
@@ -7467,15 +7451,6 @@ def fix_project(
             shutil.copy(FABRIK_AGENTS_MD, agents_path)
             added.append("AGENTS.md (copied)")
 
-        # Copy AGENTS-compact.md (remove symlink if exists)
-        compact_path = project_path / "AGENTS-compact.md"
-        compact_target = FABRIK_ROOT / "AGENTS-compact.md"
-        if compact_path.is_symlink():
-            compact_path.unlink()
-        if compact_target.exists():
-            shutil.copy(compact_target, compact_path)
-            added.append("AGENTS-compact.md (copied)")
-
         # Copy .windsurf/hooks.json (rewriting cwd to point at the project)
         hooks_path = project_path / ".windsurf" / "hooks.json"
         if hooks_path.is_symlink():
@@ -7493,12 +7468,6 @@ def fix_project(
             shutil.copy(afcl_template, afcl_target)
             added.append("AFCL.md (created)")
 
-        # Always refresh opencode.json from master (single source of truth)
-        fabrik_opencode = FABRIK_ROOT / "opencode.json"
-        if fabrik_opencode.exists():
-            shutil.copy(fabrik_opencode, project_path / "opencode.json")
-            added.append("opencode.json (refreshed from master)")
-
         # Always refresh reference docs from canonical source — Fabrik root is
         # authoritative and these files may have been updated since last fix.
         for doc_name in ["technology-stack-decision-guide.md", "prebuilt-app-containers.md"]:
@@ -7509,39 +7478,8 @@ def fix_project(
                 shutil.copy(source, target)
                 added.append(f"docs/reference/{doc_name} (refreshed from master)")
 
-        # Always refresh kilo_47_agents_final.json from canonical source.
-        kilo_config_source = FABRIK_ROOT / "scripts" / "kilo_47_agents_final.json"
-        if kilo_config_source.exists():
-            kilo_config_target = project_path / "scripts" / "kilo_47_agents_final.json"
-            kilo_config_target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy(kilo_config_source, kilo_config_target)
-            added.append("scripts/kilo_47_agents_final.json (refreshed from master)")
-
-        # Ensure .droid/ structure is current
-        droid_dir = project_path / ".droid"
-        droid_dir.mkdir(exist_ok=True)
-
-        # .droid/.gitignore — create or update
-        droid_gitignore = droid_dir / ".gitignore"
-        if not droid_gitignore.exists() or droid_gitignore.read_text() != _DROID_DIR_GITIGNORE:
-            droid_gitignore.write_text(_DROID_DIR_GITIGNORE)
-            added.append(".droid/.gitignore (created/updated)")
-
-        # .droid/review-context/ + .gitkeep
-        review_ctx = droid_dir / "review-context"
-        review_ctx.mkdir(exist_ok=True)
-        gitkeep = review_ctx / ".gitkeep"
-        if not gitkeep.exists():
-            gitkeep.write_text("")
-            added.append(".droid/review-context/.gitkeep")
-
-        # .droid/traycer-reports/ + .gitignore
-        traycer_reports = droid_dir / "traycer-reports"
-        traycer_reports.mkdir(exist_ok=True)
-        tr_gitignore = traycer_reports / ".gitignore"
-        if not tr_gitignore.exists() or tr_gitignore.read_text() != _TRAYCER_REPORTS_GITIGNORE:
-            tr_gitignore.write_text(_TRAYCER_REPORTS_GITIGNORE)
-            added.append(".droid/traycer-reports/.gitignore (created/updated)")
+        # Retire the Kilo/Traycer residue of older scaffolds (never creates .droid/)
+        added.extend(_retire_droid_and_kilo_config(project_path, dry_run=False))
 
         # Update root .gitignore .droid/ block if outdated
         root_gitignore = project_path / ".gitignore"
@@ -7553,9 +7491,6 @@ def fix_project(
                 added.append(".gitignore (.droid/ block updated)")
     else:
         # dry_run: accurately report what would be created/fixed
-        # .windsurfrules - always copied (symlink migration)
-        added.append(".windsurfrules (copied)")
-
         # .windsurf/rules - always copied (symlink migration)
         added.append(".windsurf/rules (copied)")
 
@@ -7565,10 +7500,6 @@ def fix_project(
         # AGENTS.md - always copied (symlink migration)
         if FABRIK_AGENTS_MD.exists():
             added.append("AGENTS.md (copied)")
-
-        # AGENTS-compact.md - always copied (symlink migration)
-        if (FABRIK_ROOT / "AGENTS-compact.md").exists():
-            added.append("AGENTS-compact.md (copied)")
 
         # .windsurf/hooks.json - always copied (with cwd rewrite)
         if FABRIK_WINDSURF_HOOKS.exists():
@@ -7580,37 +7511,14 @@ def fix_project(
         if afcl_template.exists() and not afcl_target.exists():
             added.append("AFCL.md (created)")
 
-        # opencode.json — always refresh
-        if (FABRIK_ROOT / "opencode.json").exists():
-            added.append("opencode.json (refresh from master)")
-
         # Reference docs — always refreshed (no longer guarded by "missing only")
         for doc_name in ["technology-stack-decision-guide.md", "prebuilt-app-containers.md"]:
             source = FABRIK_ROOT / "docs" / "reference" / doc_name
             if source.exists():
                 added.append(f"docs/reference/{doc_name} (refreshed from master)")
 
-        # kilo_47_agents_final.json — always refreshed
-        if (FABRIK_ROOT / "scripts" / "kilo_47_agents_final.json").exists():
-            added.append("scripts/kilo_47_agents_final.json (refreshed from master)")
-
-        # .droid/ structure dry_run reporting
-        droid_dir = project_path / ".droid"
-        droid_gitignore = droid_dir / ".gitignore"
-        if not droid_gitignore.exists() or (
-            droid_gitignore.exists() and droid_gitignore.read_text() != _DROID_DIR_GITIGNORE
-        ):
-            added.append(".droid/.gitignore (created/updated)")
-
-        review_ctx_gitkeep = droid_dir / "review-context" / ".gitkeep"
-        if not review_ctx_gitkeep.exists():
-            added.append(".droid/review-context/.gitkeep")
-
-        tr_gitignore = droid_dir / "traycer-reports" / ".gitignore"
-        if not tr_gitignore.exists() or (
-            tr_gitignore.exists() and tr_gitignore.read_text() != _TRAYCER_REPORTS_GITIGNORE
-        ):
-            added.append(".droid/traycer-reports/.gitignore (created/updated)")
+        # Retired Kilo/Traycer residue — the same entries the live run returns, nothing touched
+        added.extend(_retire_droid_and_kilo_config(project_path, dry_run=True))
 
         # Root .gitignore dry_run reporting
         root_gitignore = project_path / ".gitignore"

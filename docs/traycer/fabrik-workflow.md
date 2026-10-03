@@ -89,7 +89,7 @@ When Step 2 row 13 fires (no scaffold detected, new project) or the workspace's 
 - `## 8. Open questions` — unresolved decisions to surface in the plan
 - `## 9. Notes (VPS1 inventory reminders)` — postgres-main, redis-main, X-Internal-Token, /health-bypass, /metrics, GlitchTip — treat as ground truth
 
-**Handoff to scaffold:** once the preplan is selected and reviewed, the operator invokes `fabrik scaffold <name> --from-preplan docs/preplans/<file>`. That command (T3-01 G-A4) copies the preplan into `<project>/docs/preplan.md` and injects a `Preplan:` reference line into all 4 AI guardrail files (`AGENTS.md`, `CLAUDE.md`, `AGENTS-compact.md`, `.windsurfrules`) so every downstream agent (Claude Code + the OpenRouter pool; Kilo CLI and Windsurf Cascade retired 2026-07-19; Traycer itself) reads the same intent without re-deriving it.
+**Handoff to scaffold:** once the preplan is selected and reviewed, the operator invokes `fabrik scaffold <name> --from-preplan docs/preplans/<file>`. That command (T3-01) copies the preplan into `<project>/docs/preplan.md`; the project's `CLAUDE.md` tells every downstream agent to read it, so the intent is never re-derived (the per-file `Preplan:` line is retired, D-529).
 
 State which preplan was selected and what the parsed values were (project type, shape block, domain). If no preplan exists, state `none — proceeding to Step 3 on the interview-only path`.
 

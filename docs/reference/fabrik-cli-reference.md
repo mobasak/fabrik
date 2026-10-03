@@ -23,7 +23,7 @@ fabrik preplan new citation-verifier
 fabrik preplan new my-feature --date 2026-05-30   # override the date stamp
 ```
 
-**Why it matters:** When `fabrik scaffold --from-preplan <file>` later ingests this markdown, it pre-fills the project's `--type`, `shape:` block, domain and secrets, copies the preplan into `<project>/docs/preplan.md`, and **layers a `Preplan:` reference line into all 4 AI guardrail files** (AGENTS.md, CLAUDE.md, AGENTS-compact.md, .windsurfrules) so every downstream agent reads the same captured intent.
+**Why it matters:** When `fabrik scaffold --from-preplan <file>` later ingests this markdown, it pre-fills the project's `--type`, `shape:` block, domain and secrets, and copies the preplan into `<project>/docs/preplan.md`, which the project's `CLAUDE.md` tells every downstream agent to read, so they all work from the same captured intent.
 
 **Skipping is allowed.** Scaffold without a preplan works fine — you just lose the layered-intent context for AI agents.
 
