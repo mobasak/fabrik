@@ -202,10 +202,14 @@ def load(sid: str) -> dict[str, Any]:
         data = json.loads(_record_path(sid).read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             return {}
-        # a record the pre-W-5aa12ff3 binary wrote stores `--command` raw (`Fabrik-Review`); every
-        # reader compares it normalised, so it is normalised here, once (review A-ONEHOP-1/2)
-        if isinstance(data.get("command"), str) and data["command"]:
-            data["command"] = _norm_command(data["command"])
+        # a record the pre-W-5aa12ff3 binary wrote stores `--command` raw (`Fabrik-Review`), on the
+        # record and on every frame it parked; every reader compares it normalised, so both are
+        # normalised here, once (review A-ONEHOP-1/2, pass-3 A-S1)
+        stack = data.get("stack")
+        frames = [f for f in stack if isinstance(f, dict)] if isinstance(stack, list) else []
+        for holder in (data, *frames):
+            if isinstance(holder.get("command"), str) and holder["command"]:
+                holder["command"] = _norm_command(holder["command"])
         return data
     except Exception:
         return {}

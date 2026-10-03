@@ -6640,6 +6640,38 @@ def test_every_reader_sees_a_pre_normalisation_record_under_its_normalised_name(
     assert got.get("first_review_reach"), got
 
 
+def test_a_parked_frame_written_before_normalisation_still_reads_as_the_lane(
+    run_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Review pass 3, A-S1: `load` normalised the top-level `command` only, so a parent frame the
+    pre-W-5aa12ff3 binary parked as `Fabrik-Task` stayed raw in `stack`, and the lane check
+    (`task_lane.scope_growth_rounds`, `== "fabrik-task"`) read the nested review as outside the
+    lane. Every parked frame's `command` is normalised at load too."""
+    sid = "probe-frame"
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-review-scoped",
+        "--phases",
+        "1",
+        "--terminal",
+        "t",
+        sid=sid,
+    )
+    f = run_dir / f"{sid}.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec["stack"] = [{"command": "Fabrik-Task", "state": "running"}]  # the pre-fix parked shape
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(run_dir))
+    mod = _cr_module("frame")
+    lane = mod._lane_module()
+    stack = mod.load(sid)["stack"]
+    assert lane.scope_growth_rounds(stack) == lane.scope_growth_rounds(
+        [{"command": "fabrik-task", "state": "running"}]
+    ), stack
+
+
 @pytest.mark.parametrize(
     "corrupt",
     [
