@@ -1333,10 +1333,14 @@ _LOOSE_TOK = re.compile(rf"(?<![\w-])(?:{'|'.join(_GRAMMAR_TOKENS)}):\s*\d+")
 # One comma-joined `key: value` item of a counter run — the spec's own boundary definition
 # ("the first character that is not part of a comma-joined `key: value` item"), so a
 # `method: re-derivation` item does NOT end the run and a counter after it is still inside.
-# The value is a BARE WORD: no spaces, so ` — delta (confirmed: 0)` still ends the run and
-# `confirmed: 0 candidates reproduced` ends after `0` — where the stand-alone TOKEN guard then
-# refuses it (a run item is a boundary rule; only a real token is ever read as a counter).
-_RUN_ITEM = re.compile(r"\s*,\s*\**\s*([\w-]+)\s*:\s*\**([\w-]+)\**")
+# The value is ONE SPACE-FREE run (no space, comma or pipe), so ` — delta (confirmed: 0)` still
+# ends the run and `confirmed: 0 candidates reproduced` ends after `0` — where the stand-alone
+# TOKEN guard then refuses it (a run item is a boundary rule; only a real token is ever read as
+# a counter). NOT a `[\w-]+` word: a wrapped value (`new: '2'`) ended the run AT its item, so the
+# name never reached the rank test and a displaced `new:` went unrefused (W-c72e8838). Measured
+# 2026-10-03 over 6,510 `found:` lines in 1,662 receipts (`/opt/*/docs/development/reviews`):
+# 0 lines change their counters or their refusals.
+_RUN_ITEM = re.compile(r"\s*,\s*\**\s*([\w-]+)\s*:\s*[^\s,|]+")
 
 
 def _unparsed_pass_lines(text: str) -> list[str]:
@@ -1842,6 +1846,16 @@ _REPAIR_PASS = (
     "`found:` cell when `found:` and `fixed:` sit in separate cells, where `unexecuted:` "
     "follows `confirmed:` in that same cell"
 )
+# The Pass-path repair for the shape `_REPAIR_PASS` leads AWAY from: a table row whose `fixed:` is
+# NOT in the counter run (it sits in a cell of its own), so the run is the `found:` cell alone. Its
+# author usually already wrote `confirmed:` between `new:` and `fixed:` — each in its own cell —
+# and the lead instruction of `_REPAIR_PASS` read as "you did it right" (W-c72e8838: 6 of 6
+# measured lost counters were this shape, `2026-09-10-mail-handling-governance-review.md`).
+_REPAIR_SPLIT = (
+    "`found:` and `fixed:` sit in separate cells here, so only the `found:` cell is read — write "
+    "`confirmed:` (and `unexecuted:`) inside that cell, `| found: F, new: N, confirmed: C, "
+    "unexecuted: U | fixed: X |`, or join every counter into one cell"
+)
 # A LINE REFERENCE, not "any word": `[\w.:/-]+` matched prose, so `| F1 | the finder confirmed:
 # the fix holds |` was told to write `confirmed at :the` and `unexecuted: pending operator` got
 # `unexecuted at :pending` — a fabricated citation, which is worse than a generic message because
@@ -1969,8 +1983,16 @@ def _row_refusals(line: str) -> list[str]:
     spans, cell_path, resolved = _consumed_counters(line)
     # A row with no counter run states no counters: neither counter-placement repair can be acted
     # on there, so it gets the citation repair instead (round 2).
-    cites = _counter_run(line) is None
+    run = _counter_run(line)
+    cites = run is None
     repair = "" if cites else (_REPAIR_CELL if cell_path else _REPAIR_PASS)
+    if (
+        run is not None
+        and not cell_path
+        and "fixed" not in run[2]
+        and _ROW_LEAD.sub("", line, count=1).startswith("|")
+    ):
+        repair = _REPAIR_SPLIT
     # THE COUNTER RULE (both grammars): `unexecuted:` captured with no `confirmed:`. Without it
     # `| u | x | found: 0 | fixed: 0 | unexecuted: 2 |` reads old-grammar QUIET with two
     # unexecuted candidates standing — the fail-open on the one counter the redesign added to

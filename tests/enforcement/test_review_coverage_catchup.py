@@ -120,3 +120,42 @@ def test_the_gfm_separator_test_is_importable_not_nested() -> None:
     assert not crc._is_separator("| a | b |")
     # the header pair still forms through the hoisted test
     assert crc._table_rows("| h | v |\n|---|---|\n| 1 | CLEAN |\n") == ["| 1 | CLEAN |"]
+
+
+def test_a_wrapped_value_cannot_hide_a_displaced_counter_from_the_order_check() -> None:
+    """W-c72e8838 (3): `_RUN_ITEM` read a run item's value as a bare word only, so a quoted
+    `new: '2'` ended the run there — `new` never entered the names and the rank test could not
+    see it was displaced, while the same row with `new: 2` is refused by name."""
+    bare = "| Pass 3 | x | found: 5, confirmed: 0, new: 2, fixed: 3 |"
+    quoted = "| Pass 3 | x | found: 5, confirmed: 0, new: '2', fixed: 3 |"
+    assert isinstance(crc._pass_counters_ext(bare), str)  # the control: refused by name
+    got = crc._pass_counters_ext(quoted)
+    assert isinstance(got, str) and "`new:` is displaced" in got, got
+    # the mirror: a wrapped value in canonical order still parses
+    ok = "| Pass 3 | x | found: 5, new: '2', confirmed: 0, fixed: 3, unexecuted: 0 |"
+    assert crc._pass_counters_ext(ok) == (5, 0, 3, 0)
+
+
+# The measured shape (docs/development/reviews/2026-09-10-mail-handling-governance-review.md:38-43):
+# every counter in its OWN cell, so only the `found:` cell is the run and `confirmed:`/
+# `unexecuted:` are never read.
+_SPLIT_ROW = (
+    "| Pass 2 | method: re-derivation | found: 15 | new: 15 | confirmed: 13 | fixed: 13 "
+    "| unexecuted: 0 | finders: dispatched 2 |"
+)
+
+
+def test_a_split_cell_row_is_told_the_repair_for_its_own_shape() -> None:
+    """W-c72e8838 (1): that row's author DID write `confirmed:` between `new:` and `fixed:`; the
+    refusal led with exactly that instruction. It must name the shape it saw and the edit that
+    makes the row parse — and the edit it names must really parse."""
+    out = crc._row_refusals(_SPLIT_ROW)
+    assert len(out) == 1, out
+    assert "between `new:` and `fixed:` inside the counter cell" not in out[0], out[0]
+    assert "separate cells" in out[0], out[0]
+    repaired = (
+        "| Pass 2 | method: re-derivation | found: 15, new: 15, confirmed: 13, unexecuted: 0 "
+        "| fixed: 13 | finders: dispatched 2 |"
+    )
+    assert crc._row_refusals(repaired) == []
+    assert crc._pass_counters_ext(repaired) == (15, 13, 13, 0)
