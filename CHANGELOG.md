@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Every copy of the contract names the orchestrator by role, and file loops no longer budget an Opus finder (2026-10-04)
+
+W-e80af564 (D-456, D-344, D-541). The project `CLAUDE.md` template, `commands/_fragments/subagents-core.md` and the `62-using-subagents` pack said Fable orchestrates with Opus as its refusal fallback; they now say Opus or Fable, whichever the quota allows, as the hub does. Two command sources, `convergence-prompts.md` and both contracts sized file-partitioned reviews with an Opus finder; they now say `--slices sonnet=N,haiku=N`, plus `opus=1` where `/fabrik-execute-plan` adds its Opus floor. "No file's logic read by two seats" became "no file in two slices". `tests/test_assemble_dispatch_step.py` refuses the retired budget anywhere it scans.
+
 ### Changed — The hub's retired agent bootstraps are archived, and their live mentions are gone (2026-10-04)
 
 D-529 step 6 (D-539; W-83a9508f), after fleet's scaffold half stopped copying them: `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` and `kilo.jsonc` move from the hub root to `docs/archive/2026-10-03-retired-agent-bootstraps/`. Live mentions are swept from the manifest comment, `check_ticket_breadth`'s governance tuple, `audit_all_projects` messages, `.gitignore` comments, `INDEX.md`, the project INDEX template, `agents-fabrik.md`, three command sources and seven docs, including the fleet-synced technology-stack guide. `check_structure` still allows a root `AGENTS-compact.md`, because a few linked worktrees hold a copy the prune cannot prove the sync wrote.
