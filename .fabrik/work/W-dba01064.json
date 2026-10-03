@@ -1,0 +1,26 @@
+{
+  "block_digest": "235650e13f17ec1d3cfdd9a6891aad0aea38a134df494dd87c98c9cd7a514042",
+  "blocked_by": [],
+  "created": "2026-10-03T15:02:59.371867Z",
+  "creator": "intel",
+  "evidence": "",
+  "ground": "underivable",
+  "id": "W-dba01064",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "874e1101e28e52e1af7bcfdd85296322aa4995d39a23846e06969a0369712042"
+  ],
+  "next": "",
+  "note": "169.168.1.184 / 192.168.1.184",
+  "owner": "",
+  "priority": 2,
+  "question": "What address can Volkan's Mac be reached on right now?",
+  "status": "done",
+  "title": "What address can Volkan's Mac be reached on right now?"
+}
