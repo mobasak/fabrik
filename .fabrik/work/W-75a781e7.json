@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "file 54 — desktop-app (2): .windsurf/rules/desktop-app/00-domain-desktop-app.md and 72-desktop.md — framework versions and packaging/signing rules are the drift class (Tauri, Electron, code signing, notarisation, auto-update). Then core/90-bootstrap-scripts.md",
+  "next": "file 55 — core/90-bootstrap-scripts.md, the last pack without currency_pass: — script and tool versions are the drift class. Then close W-75a781e7",
   "note": "",
   "owner": "intel",
   "priority": 2,
@@ -19,5 +19,5 @@
   "tags": [
     "rules"
   ],
-  "title": "Rules currency pass: evaluate the 3 packs still missing currency_pass: (54 of 57 done; file 53 ai/90-long-context landed 2026-10-03, D-536)"
+  "title": "Rules currency pass: evaluate the 1 pack still missing currency_pass: (56 of 57 done; file 54 desktop-app/72-desktop and 00-domain-desktop-app landed 2026-10-04, D-538)"
 }

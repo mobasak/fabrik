@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The hub's retired agent bootstraps are archived, and their live mentions are gone (2026-10-04)
+
+D-529 step 6 (D-539; W-83a9508f), after fleet's scaffold half stopped copying them: `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` and `kilo.jsonc` move from the hub root to `docs/archive/2026-10-03-retired-agent-bootstraps/`. Live mentions are swept from the manifest comment, `check_ticket_breadth`'s governance tuple, `audit_all_projects` messages, `.gitignore` comments, `INDEX.md`, the project INDEX template, `agents-fabrik.md`, three command sources and seven docs, including the fleet-synced technology-stack guide. `check_structure` still allows a root `AGENTS-compact.md`, because a few linked worktrees hold a copy the prune cannot prove the sync wrote.
+
+### Changed — desktop-app packs: supported-major policy, renderer lockdown and fuses, raw SQLCipher key, Windows signing corrected, custom-domain updates, loopback OAuth, KVKK standard contract (2026-10-03)
+
+`.windsurf/rules/desktop-app/72-desktop.md` and `00-domain-desktop-app.md` carried an Electron version floor, an immediate-SmartScreen claim for Trusted Signing, an `r2.dev` update URL, a custom-scheme OAuth redirect where Google documents only loopback for desktop, KVKK's pre-2024 consent rule and a retired Traycer loader path. 72 now holds Electron to its supported-major window, adds the permission/navigation/new-window/IPC-origin lockdown and release fuses, passes SQLCipher a raw random key, refuses `safeStorage`'s `basic_text` fallback, routes Windows signing to Artifact Signing or an OV certificate, updates from a custom domain, signs in through a loopback redirect with PKCE and `state`, carries Electron's Hardened Runtime entitlements and update-signature rotation, rests KVKK transfers on the standard contract, scopes the privacy manifest to the Mac App Store and states what the scaffold ships today; 00 names its live loaders and copies no price or rate. New `tests/test_desktop_packs.py`; 14 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-03-desktop-app-currency-ledger.md`; D-538.
+
 ### Fixed — the mobile-app scaffold ships one RevenueCat key per platform (2026-10-03)
 `templates/mobile-app/.env.example` had a single `EXPO_PUBLIC_REVENUECAT_API_KEY` slot, but RevenueCat issues one public SDK key per platform, and `81-mobile-billing.md`'s client sample reads `EXPO_PUBLIC_REVENUECAT_IOS_KEY` (`appl_…`) and `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` (`goog_…`). The template now ships both slots, and the pack drops its "split the single key" instruction (it keeps the advice to add both keys to `env.ts`'s schema when wiring billing). Guard: `test_scaffold_ships_one_revenuecat_key_per_platform`, red before the fix. W-45bba015.
 

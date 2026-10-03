@@ -1,0 +1,6 @@
+{
+  "$schema": "https://kilo.ai/config.json",
+  "instructions": [
+    ".windsurf/rules/cross-cutting.md"
+  ]
+}

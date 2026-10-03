@@ -857,7 +857,7 @@ def build_issues(audit: ProjectAudit):
                 "Dockerfile base image non-compliant",
                 "Dockerfile",
                 f"Final stage: `FROM {final}` (stages: {all_bases})",
-                "`-slim-bookworm` suffix required per .windsurfrules",
+                "`-slim-bookworm` suffix required",
                 f"Change `{clean}` to `{clean}-bookworm`",
             )
         )
@@ -924,7 +924,7 @@ def build_issues(audit: ProjectAudit):
                 "Health endpoint returns static JSON — does not test dependencies",
                 audit.health_endpoint,
                 "Health route exists but has no DB/API checks in function body",
-                "Must `await db.execute('SELECT 1')` or equivalent per .windsurfrules",
+                "Must `await db.execute('SELECT 1')` or equivalent per CLAUDE.md",
                 "Add real dependency checks to the health function",
             )
         )
@@ -955,7 +955,7 @@ def build_issues(audit: ProjectAudit):
                 f"Hardcoded `localhost`/`127.0.0.1` in code ({audit.hardcoded_localhost_count} refs)",
                 files_str,
                 "Direct localhost references outside of `os.getenv()` fallbacks",
-                "Never hardcode addresses per .windsurfrules — use `os.getenv('HOST', 'localhost')`",
+                "Never hardcode addresses per CLAUDE.md — use `os.getenv('HOST', 'localhost')`",
                 "Replace with environment variable lookups",
             )
         )

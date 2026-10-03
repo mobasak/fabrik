@@ -1233,7 +1233,6 @@ All CLI commands implemented in `@/opt/fabrik/src/fabrik/cli.py`. Counts and sig
 ## See Also
 
 - [AGENTS.md](../../AGENTS.md) — Mandatory workflow reference (Traycer reads)
-- [AGENTS-compact.md](../../AGENTS-compact.md) — Compact agent contract (coding agents read)
 - [DEPLOYMENT_ARCHITECTURE.md](../DEPLOYMENT_ARCHITECTURE.md) — **Canonical deploy reference** (orchestrator, registrars, verifier, rollback)
 - [Fabrik CLI Reference](../reference/fabrik-cli-reference.md) — Full CLI flag-by-flag reference
 - [Sync Projects Workflow](SYNC_PROJECTS_WORKFLOW.md) — Project tracking & registry

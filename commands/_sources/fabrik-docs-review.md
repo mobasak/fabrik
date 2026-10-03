@@ -47,7 +47,7 @@ you close** — a bare close would end the CALLER when this command runs nested 
 # SEEDED_NOT_ENFORCED (live set: fabrik_synced_manifest.py; projects may edit them) → they stay
 # normal reconciliation targets.
 python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lock')))))" | grep -vxF -e 'PORTS.md' -e 'docs/DECISIONS.md'
-# Covers: AGENTS.md · CLAUDE.md · AGENTS-compact.md · .windsurfrules · .windsurf/rules/**
+# Covers: AGENTS.md · CLAUDE.md · agents-fabrik*.md · .windsurf/rules/**
 #         docs/reference/MD/** · docs/reference/kilo/** · fabrik-lifecycle.md · tech-stack guide · …
 ```
 
