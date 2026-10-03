@@ -306,6 +306,9 @@ _RETIRED_LITERALS = (
     "one sonnet + one haiku",
     # interpolation-tolerant: `_floor()` splits the sentence around `{native}`
     "breadth seat and one haiku mechanical seat per independent unit",
+    # D-344 (W-e80af564): a FILE loop seats no Opus finder, so its budget is never this triple;
+    # /fabrik-execute-plan's per-round Opus floor is `opus=1,...`, which this does not match
+    "--slices opus=n,sonnet=n,haiku=n",
 )
 
 
