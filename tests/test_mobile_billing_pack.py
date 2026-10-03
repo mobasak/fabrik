@@ -1,4 +1,4 @@
-"""Pins `mobile-app/81-mobile-billing.md` — the code agents copy from it, and the scaffold fact it warns about.
+"""Pins `mobile-app/81-mobile-billing.md` — the code agents copy from it, and the scaffold fact it states.
 
 Agents follow this pack's webhook and client samples verbatim, so a regression in a sample ships to every
 mobile repo. Three things can go false without any other gate turning red:
@@ -7,8 +7,8 @@ mobile repo. Three things can go false without any other gate turning red:
    field (a missing secret must stop the app, not become "Bearer None"), dedupe on the event id, and re-read the
    customer instead of branching on the type.
 2. The client sample: one public RevenueCat key per platform, `configure()` not awaited.
-3. The scaffold's single `EXPO_PUBLIC_REVENUECAT_API_KEY` slot, which the pack tells agents to split — when the
-   template ships two keys this goes red and the pack's warning is removed in the same change.
+3. The scaffold's two RevenueCat slots, one per platform, which the pack's client sample reads — if the
+   template goes back to a single key, or the pack names the retired single slot again, this goes red.
 
 The cheapest way to satisfy (1) without the outcome is a sample that names `record_event_once` but never calls
 it before the state write; the order check below reads the call sequence, not the names.
@@ -150,13 +150,14 @@ def project(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 @requires_fabrik_env
-def test_scaffold_still_ships_one_revenuecat_key_slot(project: Path) -> None:
+def test_scaffold_ships_one_revenuecat_key_per_platform(project: Path) -> None:
+    """RevenueCat issues one public SDK key per platform (appl_ iOS, goog_ Android)."""
     env = (project / ".env.example").read_text(encoding="utf-8")
     keys = re.findall(r"^(EXPO_PUBLIC_REVENUECAT\w*)=", env, re.M)
-    assert keys == ["EXPO_PUBLIC_REVENUECAT_API_KEY"], (
-        f"the scaffold now ships {keys}: drop the pack's 'split the single key' note"
-    )
-    assert "`EXPO_PUBLIC_REVENUECAT_API_KEY`" in PACK.read_text(encoding="utf-8")
+    assert sorted(keys) == ["EXPO_PUBLIC_REVENUECAT_ANDROID_KEY", "EXPO_PUBLIC_REVENUECAT_IOS_KEY"], keys
+    pack = PACK.read_text(encoding="utf-8")
+    assert "EXPO_PUBLIC_REVENUECAT_API_KEY" not in pack
+    assert "`.env.example` ships both slots" in pack, "the pack must state the scaffold's two slots"
 
 
 @pytest.mark.parametrize(
