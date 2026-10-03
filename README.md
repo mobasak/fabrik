@@ -1,14 +1,14 @@
 # Fabrik
 
-**Last Updated:** 2026-06-17
+**Last Updated:** 2026-10-03
 
 **Spec-Driven Deployment Platform + AI Development Workflow**
 
 Fabrik is three things:
 
-1. **A deployment CLI** — takes a YAML spec (`specs/services/<id>.yaml`) with a `shape:` block and runs the full lifecycle: scaffold → plan → apply → verify. 9 registrars (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus) fire automatically based on shape flags. Saga-pattern orchestrator with rollback. 11 scaffold types. 20+ drivers (Cloudflare, Backrest, Supabase, R2, etc., plus archived legacy Coolify modules retained for `fabrik status` / `fabrik logs` against the few pre-2026-05-30 services).
+1. **A deployment CLI** — takes a YAML spec (`specs/services/<id>.yaml`) with a `shape:` block and runs the full lifecycle: scaffold → plan → apply → verify. 9 registrars (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus) fire automatically based on shape flags. Saga-pattern orchestrator with rollback. 11 scaffold types. 20+ drivers (Cloudflare, Backrest, R2, Supabase as an exception only, etc., plus archived legacy Coolify modules retained for `fabrik status` / `fabrik logs` against the few pre-2026-05-30 services).
 
-2. **An AI development workflow** — Traycer (Windsurf IDE extension) drives spec-to-ticket planning. Kilo CLI runs iterative multi-model code reviews with fix-and-revalidate loops. Final Gate runs 25 deterministic enforcement checks before and after review. Every project gets a `.droid/` workspace that stores review sessions, transcripts, cost tracking, and model sync state.
+2. **An AI development workflow** — Claude Code (the VS Code extension and the CLI) is the development agent from idea to release (D-514). Every stage is a `/fabrik-*` command from the corpus (`commands/_sources/`, rendered box-wide): spec → spec review → plan → plan review → execute, with `/fabrik-review` (or `/fabrik-review-scoped` for a small change) reviewing every code change and `scripts/final_gate.py --json` as the completion gate. The Stop hook holds a session until its work is gated, committed and pushed. OpenRouter agents are a possible later option; that pool is paused (D-181/D-182).
 
 3. **An AI VPS system administrator** — Claude Code Opus runs locally on each VPS, triggered via Telegram or scheduled cron. Queries 15 infrastructure APIs (Prometheus, Loki, Gatus, GlitchTip, Docker, etc.) directly. Acts autonomously on safe operations. Proactive health checks every 15 min. Daily morning briefings. Weekly security patrols. Monthly backup verification. Incident playbooks. Shift notes for memory between sessions. Zero cost when idle.
 
@@ -20,67 +20,20 @@ Fabrik is three things:
 
 Fabrik is a **development methodology as code**—not just infrastructure automation. It enforces:
 
-1. **Spec-Driven Development** via Traycer (Windsurf IDE extension)
-2. **Mandatory Quality Gates** via Final Gate (deterministic checks) + Kilo (AI review)
-3. **Convention Enforcement** via 19 enforcement scripts covering security, structure, documentation
-4. **AI-Guided Workflows** via Fabrik skills, Traycer phases, Kilo sessions
+1. **Spec-Driven Development** via the `/fabrik-*` command corpus run in Claude Code
+2. **Mandatory Quality Gates** via Final Gate (deterministic checks) + `/fabrik-review` (adversarial AI review)
+3. **Convention Enforcement** via the `scripts/enforcement/` checks covering security, structure, documentation
+4. **AI-Guided Workflows** via the corpus, rule packs (`.windsurf/rules/`) and the Claude Code hooks
 5. **Production Deployment** via SSH + Docker Compose orchestration, DNS automation, health monitoring
 
 ### The Complete Development Flow
 
-```
-┌──────────────────┐
-│  Traycer Plan    │  1. Spec-driven planning (Epic mode: 8-command workflow)
-│  (IDE Extension) │  2. Phase breakdown with context preservation
-└────────┬─────────┘  3. Hands off to coding agents
-         │
-         ▼
-┌──────────────────┐
-│  Windsurf/Cascade│  4. Code implementation (Gemini 3.1 Pro, escalate to Sonnet 4.6)
-│  or Kilo CLI     │  5. Auto-invoked skills (10+ Fabrik conventions)
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│  Self-Review     │  6. Coding AI reviews own work (spec compliance, edge cases, docs)
-│  (MANDATORY)     │  7. Structured report: requirements, env vars, DB, issues
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│  Final Gate      │  8. Pre-Kilo: Auto-fix format, lint, static analysis (saves tokens)
-│  (Pre-Kilo)      │  9. Repo consistency: 25 checks across security/docs/structure
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│  Kilo Review     │  10. Diff-scoped AI review (SPEC, SECURITY, CONFIG, EDGE, DOCS)
-│  (Iterative)     │  11. Coder fixes ALL issues (BLOCKER, MAJOR, MINOR)
-└────────┬─────────┘  12. Re-review until verdict=PASS (max 5 iterations)
-         │
-         ▼
-┌──────────────────┐
-│  Final Gate      │  13. Post-Kilo: Verify fixes didn't break deterministic rules
-│  (Post-Kilo)     │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│  Traycer Verify  │  14. Traycer's built-in verifier validates against spec
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│  Sync & Commit   │  15. Final Gate --sync: Extensions + backup
-│                  │  16. Pre-commit: 4 absolute blockers only
-└────────┬─────────┘  17. Git commit succeeds
-         │
-         ▼
-┌──────────────────┐
-│  Deploy Pipeline │  18. SSH + Docker Compose orchestration (saga pattern)
-│  (Orchestrator)  │  19. DNS + SSL + Health checks
-└──────────────────┘  20. Automatic rollback on failure
-```
+Idea → `/fabrik-spec` → `/fabrik-spec-review` → `/fabrik-plan-after-chat` → `/fabrik-plan-review` →
+`/fabrik-execute-plan` (a `/fabrik-review` at every phase boundary) → certification →
+`/fabrik-release` → Gate 2 (human) → `fabrik apply`. One small reversible change takes `/fabrik-task`
+instead. The full picture, sessions and gates included, is the
+[AI Integration Architecture](#ai-integration-architecture) diagram below; the authoritative chain is
+`CLAUDE.md` § Pipeline.
 
 ---
 
@@ -90,17 +43,17 @@ Fabrik is a **development methodology as code**—not just infrastructure automa
 
 | Layer | Component | Lines of Code | Purpose |
 |-------|-----------|---------------|----------|
-| **Planning** | Traycer (IDE Extension) | External | Spec-driven Epic workflows, phase management, YOLO automation |
-| **Coding** | Windsurf Cascade / Kilo CLI | External | AI coding agents (Cascade for IDE, Kilo for CLI/review) |
+| **Planning** | `/fabrik-*` command corpus | `commands/_sources/` | Spec → plan chain, run records, NEXT-command chaining |
+| **Coding** | Claude Code (VS Code extension + CLI) | External | The development agent; native subagents for review fan-out |
 | **Enforcement** | Final Gate | 688 | Deterministic quality checks (25 checks, 3 phases) |
 | **Enforcement** | 19 Enforcement Scripts | 2,230 | Security, structure, docs, conventions, health checks |
-| **Review** | Kilo CLI Integration | 2,996 | Iterative AI code review with fix loops |
+| **Review** | `/fabrik-review`, `/fabrik-review-scoped` | `commands/_sources/` | Partitioned adversarial review to a confirmed-zero round |
 | **Orchestration** | DeploymentOrchestrator | 147 | State machine: validate → provision → deploy → verify → rollback |
 | **Provisioning** | SiteProvisioner | 782 | Saga pattern: domain → DNS → SSH+Compose → health (15 granular states; was Coolify pre-2026-05-30) |
 | **WordPress** | WordPress Automation | 2,500+ | Theme, pages, SEO, analytics, multilingual, content generation |
 | **Content Pipeline** | ContentPublisher | ~600 | SEO brief-drain → TCO generation → Image Broker → WordPress publish |
 | **CLI** | Fabrik CLI | 828 | Commands: new, plan, apply, status, templates, scaffold, content publish |
-| **Drivers** | External Integrations | 3,000+ | SSH+Compose (deployer_ssh), Cloudflare, Namecheap, Supabase, R2, WordPress API, SEO service, TCO, Image Broker (legacy Coolify modules retained for `fabrik status`/`logs`) |
+| **Drivers** | External Integrations | 3,000+ | SSH+Compose (deployer_ssh), Cloudflare, Namecheap, R2, Supabase (exception only), WordPress API, SEO service, TCO, Image Broker (legacy Coolify modules retained for `fabrik status`/`logs`) |
 | **Templates** | 18 Project Templates | - | SaaS skeleton, APIs, WordPress, workers, Chrome extensions |
 
 **Total Production Code:** 13,565 lines
@@ -179,7 +132,7 @@ land in another's commit, by construction rather than discipline.
 - Past sessions are searchable (`session-recall`); nothing is re-derived from memory
 
 **Integration with Fabrik:**
-- Rule packs in `.windsurf/rules/` activate by glob; `scripts/review_rubric.py` injects the matched mandates into every review finder
+- Rule packs in `.windsurf/rules/` declare globs; `scripts/select_rules.py --changed <paths>` lists the packs a change matches, and `scripts/review_rubric.py` injects the matched mandates into every review finder
 - `scripts/final_gate.py --json` is the completion gate; every AI commit carries Agent Provenance Trailers
 
 ---
@@ -228,7 +181,7 @@ land in another's commit, by construction rather than discipline.
 | Module docs | `check_docs.py` | WARN | New `src/` modules have reference docs |
 | Plan naming | `check_plans.py` | ERROR/WARN | `YYYY-MM-DD-plan-<name>.md` format |
 
-**Pre-commit (Step 8 - Only 4 Absolute Blockers):**
+**Pre-commit (absolute blockers):**
 ```yaml
 - check-added-large-files  # No files >500KB
 - check-merge-conflict      # No <<<< markers
@@ -238,42 +191,23 @@ land in another's commit, by construction rather than discipline.
 
 ---
 
-### 3. Kilo Code Review (Iterative AI Review)
+### 3. Adversarial Code Review (`/fabrik-review`)
 
-**2,996 lines of iterative review logic** with fix-and-revalidate loops.
+Every code-changing chunk of work gets a review-family pass, sized to the surface:
 
-**How it works:**
-```bash
-# Initial review: pass task/plan for SPEC verification
-python scripts/kilo_code_review.py review src/api.py \
-  --plan .droid/review-context/task.md \
-  --review-agent ask \
-  --output json
+- **`/fabrik-review-scoped`** — diff-scoped, minutes; the default for a small change.
+- **`/fabrik-review`** — the full review for heavy surfaces (enforcement, hooks, governance-sync paths,
+  auth, schema, migrations, more than five files).
 
-# Subsequent reviews: maintain context
-python scripts/kilo_code_review.py review src/api.py \
-  --session continue \
-  --output json
-```
+**How it works:** the surface is cut into disjoint slices; each slice gets two author-blind Claude
+finder seats (`fabrik-reviewer`, Sonnet + Haiku), and the orchestrating session executes every
+candidate's claim before it counts. Confirmed defects are fixed in the same run; later rounds re-verify
+only the fixed slices; the review closes on a round that confirms zero code or doc defects. The
+receipt lands in `docs/development/reviews/`. Rule packs matched by `scripts/review_rubric.py` are
+injected into every finder brief.
 
-**Review Categories:**
-- **SPEC**: Meets requirements from plan/spec?
-- **SECURITY**: Vulnerabilities, auth issues, injection risks
-- **CONFIG**: Env vars, hardcoded values, deployment issues
-- **EDGE**: Error handling, null checks, edge cases
-- **DOCS**: Code comments, docstrings, README updates
-
-**Iterative Loop:**
-1. Kilo reviews diff (not full codebase - saves tokens)
-2. Returns JSON: `{"verdict": "FAIL", "issues": [{severity: "MAJOR", ...}]}`
-3. **Coder fixes ALL issues** (not Kilo auto-fix - cheaper)
-4. Re-review with `--session continue` (maintains context)
-5. Repeat until `verdict=PASS` (max 5 iterations)
-
-**Variant escalation:**
-- Start with `variant=high` (fast, cheap)
-- Final verification uses `variant=max` (thorough, expensive)
-- Doc-only files: max 2 iterations (lighter review)
+> The Kilo CLI review loop this section once described is retired (2026-07-19); `kilo_code_review.py`
+> was archived in 7a8dc2810.
 
 ---
 
@@ -377,19 +311,19 @@ class ProvisionState(str, Enum):
 
 **10+ Fabrik skills** define project conventions and patterns.
 
-**Location:** `.windsurf/rules/` (Cascade rules) + `scripts/enforcement/` (check scripts)
+**Location:** `.windsurf/rules/` (rule packs — the directory keeps its name; Claude Code reads them through `scripts/select_rules.py` and `scripts/review_rubric.py`) + `scripts/enforcement/` (check scripts)
 
 | Pattern | Triggers | Enforced By |
 |---------|----------|-------------|
 | SaaS scaffold | "SaaS", "web app", "dashboard" | `scaffold.py` + `20-typescript.md` |
 | Docker standards | "dockerfile", "compose" | `check_docker.py` + `30-ops.md` |
-| Health endpoints | "health", "healthcheck" | `check_health.py` + `.windsurfrules` |
-| Config patterns | "config", "environment" | `check_env_contract.py` + `.windsurfrules` |
+| Health endpoints | "health", "healthcheck" | `check_health.py` + `30-ops.md` |
+| Config patterns | "config", "environment" | `check_env_contract.py` + `30-ops.md` |
 | API endpoints | "endpoint", "route", "API" | `validate_conventions.py` + `10-python.md` |
 | Watchdog scripts | "watchdog", "monitor" | `check_watchdog.py` + `30-ops.md` |
-| Database schema | "database", "postgres" | `check_schema_sync.py` + `.windsurfrules` |
+| Database schema | "database", "postgres" | `check_schema_sync.py` + `10-python.md` |
 
-**Enforcement:** Windsurf Cascade reads `.windsurf/rules/` for AI behavior. `scripts/final_gate.py` runs 27 enforcement scripts.
+**Enforcement:** each rule pack declares its globs in frontmatter; `python scripts/select_rules.py --changed <paths>` lists the packs a change matches for the agent to read, and `scripts/review_rubric.py` injects them into every review finder. `scripts/final_gate.py --json` runs the enforcement checks.
 
 ---
 
@@ -398,7 +332,7 @@ class ProvisionState(str, Enum):
 | Service | Location | Purpose |
 |---|---|---|
 | **VPS** | GreenCloud LA (172.93.160.197) | x86_64 hub running shared services; vps2/vps3 are Coventry UK spokes |
-| **Deploy mechanism** | SSH + Docker Compose via `fabrik apply` | Replaced Coolify 2026-05-30; deployer at [`src/fabrik/orchestrator/deployer_ssh.py`](src/fabrik/orchestrator/deployer_ssh.py) |
+| **Deploy mechanism** | SSH + Docker Compose via `fabrik apply` | Coolify retired 2026-05-30; deployer at [`src/fabrik/orchestrator/deployer_ssh.py`](src/fabrik/orchestrator/deployer_ssh.py) |
 | **Traefik** | VPS (ports 80/443) | Reverse proxy + automatic HTTPS |
 | **PostgreSQL** | postgres-main container | Shared database |
 | **Redis** | redis-main container | Shared cache |
@@ -426,7 +360,7 @@ Create production-ready services instantly:
 | `file-api` | Node.js + Cloudflare R2 | File upload services | Presigned URLs, direct browser uploads |
 | `file-worker` | Python + R2 | Background processing | OCR, transcription, async jobs |
 | `wordpress` | WordPress + MySQL | Content sites, blogs | Automated theme, plugins, content |
-| `saas-skeleton` | Next.js + Supabase + Paddle | Multi-tenant SaaS | Auth, billing, dashboard, job workflow, SSE streaming |
+| `saas-skeleton` | Next.js + FastAPI (`fastapi-user-auth`) + Paddle | Multi-tenant SaaS | Auth, billing, dashboard, job workflow, SSE streaming |
 | `chrome-extension` | TypeScript + Vite + CRXJS | Browser extensions + Python backend | Extension (popup, background, content scripts) + FastAPI server |
 | `desktop-app` | Electron + React | Desktop applications | Cross-platform native apps |
 | `mobile-app` | React Native | Mobile apps | iOS + Android from one codebase |
@@ -436,7 +370,7 @@ Create production-ready services instantly:
 - Marketing site (hero, pricing, features pages)
 - App dashboard with job workflow UI
 - SSE streaming for AI chat integration
-- Supabase auth + Row-level security
+- Self-hosted auth via `fabrik-lib/fastapi-user-auth` (Supabase auth is an exception only, kept for migration)
 - Paddle billing integration (Stripe NOT available to TR entities)
 - Admin panel
 - ChatUI component for AI features
@@ -496,18 +430,18 @@ fabrik preplan new my-api
 fabrik scaffold my-api --from-preplan docs/preplans/<today>-my-api.md
 # `--from-preplan` ingests the preplan: pre-fills type + shape + description,
 # copies the preplan into <project>/docs/preplan.md, and appends a `Preplan:`
-# reference line to all 4 AI guardrail files so Claude Code / Kilo / Windsurf / Traycer
-# all read the same intent.
+# reference line to the project's AI guardrail files (CLAUDE.md, AGENTS.md and two
+# legacy agent files) so every agent reads the same intent.
 
 # Canonical project-creation entry point.
 # Creates complete project structure + emits a deployment spec with a
 # populated shape: block that drives which infrastructure registrars run.
 fabrik scaffold my-api --type python-api -d "User authentication API"
 # Creates: INDEX.md, README, tests/, Dockerfile, compose.yaml, pre-commit hooks,
-# CLAUDE.md (Claude Code bootstrap), AGENTS-compact.md (Kilo CLI bootstrap),
-# and specs/services/my-api.yaml with the python-api shape: block.
-# Ends with a "# Next: cd /opt/<name>; open Traycer ..." hint pointing at the
-# Traycer-managed workflow. See: docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md
+# CLAUDE.md (the Claude Code contract) and specs/services/my-api.yaml with the
+# python-api shape: block.
+# Ends with a "# Next: cd /opt/<name>; then run /fabrik-vision ..." hint.
+# See: docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md
 
 # Optionally also create a private GitHub repo at the same time:
 fabrik scaffold my-api --type python-api -d "..." --github-create
@@ -535,41 +469,22 @@ curl https://api.example.com/health
 
 **Result:** API live with HTTPS, DNS configured, health monitoring active.
 
-### Running the 9-Step Workflow Manually
+### Finishing a Change by Hand
 
 ```bash
-# After coding (Step 2)
 cd /opt/my-api
 
-# Step 2.5: Self-Review (MANDATORY)
-echo "SELF-REVIEW COMPLETE:"
-echo "✓ All spec requirements implemented"
-echo "✓ Edge cases handled: [list]"
-echo "✓ Env vars documented: [list]"
-echo "✓ DB changes documented: N/A"
-echo "⚠ Potential issues: None identified"
+# Review the change (in Claude Code): /fabrik-review-scoped, or /fabrik-review for a heavy surface
 
-# Step 3: Pre-Kilo Final Gate
-python /opt/fabrik/scripts/final_gate.py
-# → Auto-fixes format, runs lint, checks conventions
+# Completion gate — must report "status": "success"
+python /opt/fabrik/scripts/final_gate.py --json
 
-# Step 4: Kilo Review (if Final Gate passes)
-python /opt/fabrik/scripts/kilo_code_review.py review src/ \
-  --plan .droid/review-context/task.md \
-  --output json
-# → Read JSON, fix ALL issues, re-review with --session continue
+# Commit your own files only, with Agent Provenance Trailers, then push
+git commit -m "feat: user authentication" -- src/auth.py tests/test_auth.py
+git push
 
-# Step 5: Post-Kilo Final Gate
-python /opt/fabrik/scripts/final_gate.py
-
-# Step 7: Sync
-python /opt/fabrik/scripts/final_gate.py --sync
-
-# Step 8: Commit (pre-commit runs 4 blockers only)
-git commit -m "feat: user authentication"
-
-# Step 9: Deploy
-fabrik apply specs/my-api.yaml
+# Deploy (from the hub)
+fabrik apply specs/services/my-api.yaml
 ```
 
 ---
@@ -667,7 +582,7 @@ fabrik review                           # bundle diff + spec + preplan + resolve
 fabrik review --since HEAD~3            # last 3 commits
 ```
 
-`fabrik review` writes `.fabrik/review/<ts>.md` (gitignored) — hand the bundle to a human reviewer or dispatch to Kilo CLI's reviewer agent. Helpers live in `src/fabrik/dev_tools.py`; the Loki-backed `fabrik logs <service>` remote path is unchanged and `--local` is opt-in.
+`fabrik review` writes `.fabrik/review/<ts>.md` (gitignored) — hand the bundle to a human reviewer or to `/fabrik-review-scoped` in Claude Code. Helpers live in `src/fabrik/dev_tools.py`; the Loki-backed `fabrik logs <service>` remote path is unchanged and `--local` is opt-in.
 
 ### 7. WordPress Automation
 
@@ -715,14 +630,14 @@ services:  # Generates pages automatically
 > `kilo_consult.py` were deleted in 73bde59a5). Read the Kilo/Traycer rows as how `.droid/` was filled, not as live
 > writers — except the hub's own `/opt/fabrik/.droid/kilo_model_sync.log`, which the operator's cron still writes.
 
-Every project scaffolded by `fabrik scaffold` gets a `.droid/` directory — it's part of `SHARED_DIRS` in `scaffold.py`, meaning all 11 scaffold types (python-api, saas-skeleton, node-api, wordpress, etc.) receive it. `fabrik fix` also creates/updates it on existing projects. The directory is the runtime workspace for Kilo CLI, Traycer, and the development tracker. Only `review-context/` and `traycer-reports/` are git-tracked; everything else is gitignored runtime state.
+Every project scaffolded by `fabrik scaffold` gets a `.droid/` directory — it's part of `SHARED_DIRS` in `scaffold.py`, meaning all 11 scaffold types (python-api, saas-skeleton, node-api, wordpress, etc.) receive it. `fabrik fix` also creates/updates it on existing projects. The directory was the runtime workspace for the retired Kilo and Traycer tools and still holds the development tracker. Only `review-context/` and `traycer-reports/` are git-tracked; everything else is gitignored runtime state.
 
 **How it connects to the workflow:**
 
-The 9-step development flow (Section "The Complete Development Flow" above) generates artifacts at each stage. `.droid/` is where those artifacts accumulate:
+The retired Kilo/Traycer flow generated artifacts at each stage, and `.droid/` is where they accumulated:
 
-- **Step 4 (Kilo review):** `kilo_code_review.py` reads task context from `review-context/` (passed via `--plan .droid/review-context/task.md`) and writes review session output
-- **Step 4 (iterative loop):** `--session continue` picks up previous review context for re-review after fixes
+- **Kilo review:** `kilo_code_review.py` reads task context from `review-context/` (passed via `--plan .droid/review-context/task.md`) and writes review session output
+- **Kilo iterative loop:** `--session continue` picks up previous review context for re-review after fixes
 - **After each Kilo session:** `kilo_terminal_runner.py` auto-saves the raw terminal transcript to `transcripts/` and logs the event (cost, tokens, model, duration) to `dev_tracker.db` via `dev_tracker.py`
 - **After each review invocation:** the generated Kilo agent shell scripts append token counts and costs to `kilo_usage.jsonl`
 - **Traycer dispatch:** `kilo_dispatch.py` writes analysis reports to `traycer-reports/latest.md` after dispatched review sessions
@@ -747,9 +662,6 @@ The 9-step development flow (Section "The Complete Development Flow" above) gene
 **Querying the tracker:**
 
 ```bash
-# Cost report across all Kilo sessions
-python scripts/kilo_cost_report.py
-
 # Query the dev tracker directly
 python scripts/dev_tracker.py report summary
 python scripts/dev_tracker.py report costs
@@ -842,10 +754,9 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md#content-creation-pipeline) for
 
 ### 11. Cloud Integration
 
-**Supabase + Cloudflare R2:**
-- Multi-tenant database (PostgreSQL)
+**PostgreSQL + Cloudflare R2** (self-hosted by default; Supabase is an exception only, ADR-recorded — `agents-fabrik.md` § Supabase):
+- Multi-tenant database (shared `postgres-main`)
 - Row-level security
-- Real-time subscriptions
 - S3-compatible object storage
 - Presigned upload URLs (bypass server)
 - Background job queue
@@ -872,7 +783,7 @@ fabrik scaffold my-service
 # │   ├── QUICKSTART.md
 # │   ├── CONFIGURATION.md
 # │   └── reference/multilingual-plan.md  # i18n bible (GUI types only)
-# ├── .droid/               # Kilo/Traycer runtime workspace
+# ├── .droid/               # legacy runtime workspace (see § 8)
 # └── static/i18n/en.json   # i18n source JSON (GUI types only)
 ```
 
@@ -886,10 +797,10 @@ GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, m
 
 | Aspect | Manual | With Fabrik |
 |--------|--------|-------------|
-| **Code Review** | Manual PR reviews, inconsistent | Automated Kilo review (5 categories, iterative loops) |
+| **Code Review** | Manual PR reviews, inconsistent | `/fabrik-review` — partitioned adversarial review to a confirmed-zero round |
 | **Conventions** | Varies by developer | 19 enforcement scripts, 25 automated checks |
 | **Deployment** | 2-3 hours per service | 5 minutes (`fabrik apply`) |
-| **Quality Gates** | Hope pre-commit catches issues | 3-phase Final Gate + Kilo + Traycer verification |
+| **Quality Gates** | Hope pre-commit catches issues | Final Gate + `/fabrik-review` + the Stop hook's definition of done |
 | **Documentation** | Often stale or missing | Auto-generated, enforced by Final Gate |
 
 ### vs Kubernetes
@@ -899,7 +810,7 @@ GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, m
 | **Complexity** | 100+ YAML files, steep learning curve | 1 YAML file per service |
 | **Cost** | $50-200/month managed cluster | $10/month VPS, unlimited services |
 | **Setup Time** | Days to weeks | 30 minutes |
-| **AI Integration** | None built-in | Traycer + Kilo + skills = full AI workflow |
+| **AI Integration** | None built-in | Claude Code + the `/fabrik-*` corpus + rule packs |
 | **Enforcement** | Manual helm chart reviews | Automated (2,230 lines of checks) |
 
 ### vs Platform-as-a-Service (Heroku, Vercel, Railway)
@@ -908,7 +819,7 @@ GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, m
 |--------|------|--------|
 | **Cost** | $20-100/month per service | $10/month total |
 | **Vendor Lock-in** | Locked to platform | Self-hosted, portable |
-| **AI Workflow** | None | Traycer + 9-step workflow |
+| **AI Workflow** | None | Claude Code + the `/fabrik-*` corpus |
 | **Customization** | Platform constraints | Full Docker control |
 
 ### vs Terraform/Ansible
@@ -917,7 +828,7 @@ GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, m
 |--------|------------------|--------|
 | **Scope** | Infrastructure only | End-to-end (infra + app + monitoring + AI workflow) |
 | **Application Deployment** | Separate tool needed | Built-in orchestration |
-| **AI Integration** | None | Traycer planning + Kilo review |
+| **AI Integration** | None | `/fabrik-spec` planning + `/fabrik-review` |
 | **WordPress** | Manual setup | Full automation (2,500+ lines) |
 
 **Fabrik's unique value:** Not just deployment - it's a complete AI-assisted development methodology with enforcement.
@@ -930,10 +841,9 @@ GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, m
 
 | Layer | Technology | Purpose |
 |-------|------------|----------|
-| **Planning** | Traycer (Windsurf Extension) | Spec-driven Epic workflows, YOLO automation |
-| **Coding** | Cascade (Gemini 3.1 Pro High Thinking) | Primary implementation agent |
-| **Coding** | Kilo CLI (Claude Opus 4.8, GPT-5.1 Codex, Gemini 3.1 Pro) | Terminal-based coding agent, code review |
-| **Review** | Kilo CLI | Diff-scoped AI review with iterative loops |
+| **Agent** | Claude Code (VS Code extension + CLI) | Development agent from idea to release (D-514); latest Opus / Fable / Sonnet / Haiku by role |
+| **Planning** | `/fabrik-*` command corpus | Spec → plan → execute chain with run records |
+| **Review** | `/fabrik-review`, `/fabrik-review-scoped` | Native Claude subagent seats; the OpenRouter pool is paused (D-181/D-182) |
 | **Enforcement** | Final Gate + 19 scripts | 25 checks (format, lint, security, conventions) |
 | **Python Tooling** | uv, ruff, mypy, bandit | Fast package manager, linter, types, security |
 
@@ -946,7 +856,7 @@ GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, m
 | **Deployment** | SSH + Docker Compose |
 | **DNS** | Site Provisioner service (Namecheap + Cloudflare) |
 | **Reverse Proxy** | Traefik (automatic HTTPS) |
-| **Database** | PostgreSQL 16, Supabase |
+| **Database** | PostgreSQL 16 (self-hosted `postgres-main`) |
 | **Cache** | Redis |
 | **Storage** | Cloudflare R2 (S3-compatible) |
 | **Monitoring** | Gatus, Grafana, Prometheus, Alertmanager, Loki |
@@ -959,7 +869,8 @@ GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, m
 
 ### Core Docs
 
-- **[AGENTS.md](AGENTS.md)** - **Traycer orchestrator contract** (planning constraints, rule-pack registry, stack defaults)
+- **[CLAUDE.md](CLAUDE.md)** - **the hub agents' contract** (routing, completion contract, hard stops)
+- **[agents-fabrik.md](agents-fabrik.md)** - the canonical infra + codebase map (`AGENTS.md` is a stub)
 - **[INDEX.md](INDEX.md)** - Master documentation map
 - **[Quick Start](docs/QUICKSTART.md)** - Get running in 5 minutes
 - **[FAQ](docs/archive/FAQ.md)** - Comprehensive Q&A (500+ lines)
@@ -969,13 +880,12 @@ GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, m
 - **[Configuration](docs/CONFIGURATION.md)** - Credentials, architecture, troubleshooting
 - **[Deployment](docs/operations/deployment.md)** - Deployment procedures, workflows, troubleshooting
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Debug guides
-- **[AGENTS.md](AGENTS.md)** - Traycer orchestrator contract (Kilo uses `AGENTS-compact.md`, Cascade uses `.windsurfrules`)
 
 ### Reference
 
-- **[Windsurf Rules](.windsurf/rules/)** - 35 rule packs (glob/model_decision activated; critical, Python, TypeScript, ops, docs, review, security, etc.)
+- **[Rule packs](.windsurf/rules/)** - 57 packs, matched to a change's paths by `scripts/select_rules.py --changed` (critical, Python, TypeScript, ops, docs, review, security, etc.)
+- **[Command corpus](commands/_sources/)** - the `/fabrik-*` commands
 - **[Enforcement Scripts](scripts/enforcement/)** - 19 scripts, 2,230 lines
-- **[Traycer Integration](docs/traycer/README.md)** - Complete workflow details
 
 ---
 
@@ -985,7 +895,7 @@ GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, m
 |-----------|--------|---------------|
 | **Final Gate** | ✅ Production | 688 |
 | **Enforcement Scripts** | ✅ Production | 2,230 (19 scripts) |
-| **Kilo Integration** | ✅ Production | 2,996 |
+| **Kilo Integration** | Retired 2026-07-19 — replaced by `/fabrik-review` | — |
 | **Deployment Orchestrator** | ✅ Production | 147 |
 | **Site Provisioner** | ✅ Production | 782 (15 states) |
 | **WordPress Automation** | ↗ Moved to `/opt/wpf` (`wpf` CLI) — Fabrik keeps deploy-only `scaffold --type wordpress` | — |

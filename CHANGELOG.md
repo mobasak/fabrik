@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The hub README describes Claude Code, not the retired Traycer/Windsurf/Kilo stack; the retired-tech tripwire now reads it (2026-10-03)
+
+D-514 settled that Fabrik's own development runs on Claude Code in VS Code (the extension and the CLI), but `README.md` still presented Traycer, Windsurf Cascade and the Kilo CLI as the live workflow, with commands for the archived `kilo_code_review.py` and the absent `kilo_cost_report.py`. The intro, the development-flow summary, the components and tech-stack tables, § 3 (now `/fabrik-review`), § 6 (rule packs read through `select_rules.py`/`review_rubric.py`), the hand-finish workflow, the comparison tables, the doc links and Project Status were rewritten. The saas-skeleton rows also now name its default self-hosted auth (`fastapi-user-auth`) instead of Supabase. `scripts/enforcement/check_retired_terms.py` scanned `docs/` only, so it never saw the README; it now scans the root `README.md` too, guarded by a red-first test (`test_root_readme_is_scanned`). Three docstrings that named Windsurf/Kilo callers now name the real ones: `docs_updater.py`, `enforcement/__init__.py`, and `validate_conventions.py` (run by `final_gate.py --systemic` and the still-synced `.windsurf/hooks.json`). W-abd89a6f, D-523.
+
 ### Added — No window idles while work waits: `work.py queue`/`triage` and the coordinator Stop cause (2026-10-03)
 
 D-521 builds operator ruling D-512 in the simpler shape. `work.py queue` shows each window's queued work against a floor of 3; `work.py triage [--apply]` tops present workers up from unowned work (never promoting backlog); and an eighth Stop cause acts on `queue --stop`'s one action — claim your queued item, ring the coordinator when your queue is empty, triage as coordinator, or (one window, no distributor) promote and claim yourself. Backlog counts only once promoted with the `queued` tag; `runtime`, `hold` and `waits-*` items are never assigned automatically. Graded by `tests/test_work_coordinator.py` and `tests/test_stop_hook_coordinator.py`; full /fabrik-review CONVERGED.

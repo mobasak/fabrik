@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T07:06:27.043677Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-84b5ba35",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "re-measure each component's LOC from src/fabrik/, drop or mark the moved rows, and recompute the totals in README.md:44-59 and Project Status",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "docs"
+  ],
+  "title": "README System Components table still lists WordPress Automation (2,500+) and Content Pipeline (~600) as current, and its 13,565-line total and Project Status counts are stale (WordPress moved to /opt/wpf)"
+}

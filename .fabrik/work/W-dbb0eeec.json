@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T06:52:38.586928Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-dbb0eeec",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reproduce each at HEAD, attribute with git log -S, fix at the root with the test as the grader (the doc needle: decide whether the doc or the test is stale)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "tests"
+  ],
+  "title": "Five hub tests already red at HEAD: test_quota_dashboard x3, test_assemble_dispatch_step round_trips, and test_docs_updater::TestMultiAgentOperatingModelDoc (needle 'git merge --no-ff' removed from the model doc in 72a14d087)"
+}
