@@ -1,6 +1,7 @@
 # Universal product-aware watchdog — every project ships one, prompt gate-enforced
 
 **Status:** CONVERGED
+**Build state (re-grounded 2026-10-03, W-f0a5d246):** NOT built as written. Watchdog-on-by-default landed by another route (D-052: platform default + the `enabled: false` overrides removed). A project-specific prompt shipped as the OPTIONAL, fail-soft `watchdog.project_system_prompt_file` (`src/fabrik/spec_loader.py:679`; 1 of 72 specs set it) — not the mandatory, gate-enforced prompt this plan specifies. Unbuilt: Phase A (hub canonical template + sync), Phase B's prompt stub, Phase C (`check_watchdog_prompt.py` — absent from `scripts/enforcement/`), Phase D (the `/project`-mount prompt read; no `WATCHDOG_PROMPT_FILE` in `src/`), Phase F. The 2026-07-08 commit 5da0f5e9f is an audit of `scripts/kilo-benchmarks/audit_pipeline.py`, not of this plan's build. Whether to build the mandatory prompt or retire this plan against the shipped optional field is an open operator decision, asked when W-f0a5d246 closed.
 **Author:** Claude Opus 4.8 (hub) · from chat 2026-07-06
 **Owner:** hub AI — governance/watchdog stream (this session; created `54cd2f95`). MINE, not a cross-stream sibling plan; a 2026-07-08 plan inventory misattributed it — corrected here. Not yet executed (`/fabrik-execute-plan` pending).
 **Converged:** 2026-07-06 via `/fabrik-plan-review` (3 grounding passes, 3 parallel grounders/pass; Pass 3 = edit-free no-op, md5 `ef47899b…` stable)
