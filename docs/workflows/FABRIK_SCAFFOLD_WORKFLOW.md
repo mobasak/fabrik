@@ -815,7 +815,7 @@ Members of `SCAFFOLD_TYPES` (`@/opt/fabrik/src/fabrik/scaffold.py:138-152`, 12 e
 
 ## Template Complexity Tiers
 
-> 📜 **REMOVED 2026-04-29.** This section previously described "Simple / Medium / Complex" tiers backed by `templates/scaffold/{simple,medium,complex}.yaml`. **`simple.yaml` and `medium.yaml` were never shipped**; only `complex.yaml` exists (`@/opt/fabrik/templates/scaffold/complex.yaml`, 1988 bytes). The tier system also referenced `CLAUDE.md` for agent instructions, but the scaffolder writes `AGENTS.md` + `AGENTS-compact.md` (never `CLAUDE.md`).
+> 📜 **REMOVED 2026-04-29.** This section previously described "Simple / Medium / Complex" tiers backed by `templates/scaffold/{simple,medium,complex}.yaml`. **`simple.yaml` and `medium.yaml` were never shipped**; only `complex.yaml` exists (`@/opt/fabrik/templates/scaffold/complex.yaml`, 1988 bytes). The tier system also referenced `CLAUDE.md` for agent instructions, but the scaffolder writes `AGENTS.md` (never `CLAUDE.md`; it stopped copying `AGENTS-compact.md` 2026-10-03, D-529).
 >
 > The actual project structure produced by `fabrik scaffold` is documented above in [`fabrik scaffold` Output](#fabrik-scaffold-output-complete-file-list) and varies per `--type`. There is no separate complexity-tier dimension in the current code.
 
@@ -1009,7 +1009,7 @@ python scripts/docs_updater.py --dry-run # Preview changes
 
 ## Factory Configuration
 
-> 📜 **REMOVED 2026-04-29.** This section previously documented `factory-settings.json`, `factory-hooks.json`, `factory-mcp.json`, and `pre-commit-config.yaml` under `templates/scaffold/`. **None of those files exist** in the current codebase. Pre-commit configuration is generated inline by `_install_pre_commit()` in `@/opt/fabrik/src/fabrik/scaffold.py:327` using a config that lives in the Fabrik repo itself, not in `templates/scaffold/`. Kilo CLI configuration is copied from `/opt/fabrik/opencode.json` directly (no template indirection).
+> 📜 **REMOVED 2026-04-29.** This section previously documented `factory-settings.json`, `factory-hooks.json`, `factory-mcp.json`, and `pre-commit-config.yaml` under `templates/scaffold/`. **None of those files exist** in the current codebase. Pre-commit configuration is generated inline by `_install_pre_commit()` in `@/opt/fabrik/src/fabrik/scaffold.py:327` using a config that lives in the Fabrik repo itself, not in `templates/scaffold/`. The scaffold copies no Kilo CLI configuration: `opencode.json` stopped being copied 2026-10-03 (D-529).
 
 ---
 
