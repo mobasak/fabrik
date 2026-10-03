@@ -304,6 +304,21 @@ def test_v2_done_refuses_an_undeclared_path_until_it_is_amended(
     assert row["over_appetite"] == "no"
 
 
+def test_v2_done_treats_the_work_store_as_a_ledger_not_an_undeclared_path(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """W-b43ce8bc (lane v2's first run, D-506): a work item a verb changed is committed WITH the
+    task (CLAUDE.md § Work items), and the close refused `.fabrik/work/W-*.json` as a path the
+    design never named — `task_lane` already excludes the store from its own measurement."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    w = _edit_commit(repo, ".fabrik/work/W-1a2b3c4d.json", "{}\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", a, w)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rows(run_dir)[-1]["oversized_mini"] == "0", _rows(run_dir)[-1]
+
+
 def test_v2_a_contract_hit_at_close_owes_a_receipt_and_blocked_does_not(
     run_dir: Path, tmp_path: Path
 ) -> None:
