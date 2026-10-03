@@ -7,7 +7,7 @@ Profile: small
 Spec: `docs/superpowers/specs/2026-10-03-scaffold-retired-agent-surface-design.md` (DRAFT, `Size: small`, `Profile: delta` —
 `/fabrik-plan-review` grades its sections together with this plan and flips both). Source: infra's mail 01M407YP (acked;
 reply 01M40SBBEGYNQ3R6AW3EAXBWT5 carries infra's half). Rulings: D-514 (development runs on Claude Code), D-364 (Kilo CLI
-retired). Estimated diff: ≈180 code lines in 4 code files, tests excluded — `src/fabrik/scaffold.py` ≈150 (mostly
+retired). Estimated diff: ≈190 code lines in 4 code files, tests excluded — `src/fabrik/scaffold.py` ≈160 (mostly
 deletions plus the marker-removal helper), `src/fabrik/cli.py` ≈25 (the `fix` rendering and two help texts),
 `src/fabrik/preplan.py` ≈5, `src/fabrik/portability.py` ≈2.
 
@@ -40,6 +40,8 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | I7 | "The decision is whether to keep `.droid/dev_tracker.db`" | IN | decided in `spec § Decisions taken`; no scaffold code writes it, so no step here; the dead script is infra's (reply 01M40SBB) |
 | I8 | infra's W-477e37cd retired-terms tripwire "waits on it" | OUT-OF-SCOPE | infra's own item W-477e37cd, unblocked once both halves merge |
 | I9 | `docs/reference/kilo/` copied by the scaffold | IN (kept) | Phase A keeps it; `spec § Rejected alternatives` C |
+| I10 | design critiques: `.windsurf/hooks.json` is a Windsurf-only file the scaffold still emits | OUT-OF-SCOPE | W-a24fe72a (`spec § Decisions taken`) |
+| I11 | design critique: same-ruling Kilo residue outside the scaffold | OUT-OF-SCOPE | W-9a50a9a1 (infra) |
 
 ## What we already agreed (citations, not restatement)
 
@@ -54,10 +56,11 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 
 ## Global Constraints (every phase inherits these)
 
-- **Nothing a project owns is deleted except the two scaffold-owned Traycer markers**, and their directories only when
-  empty (`spec § Chosen approach`, fleet step 3; `spec § Contract deltas`). `fix_project` never deletes
-  `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` or `scripts/kilo_47_agents_final.json` in a project — infra's
-  prune owns the first three; the fourth is left for its owner. Nothing is removed through a symlink.
+- **Nothing a project owns is deleted except the two scaffold-owned Traycer markers** (their directories only when
+  empty) **and the dead project copy of `scripts/kilo_47_agents_final.json`** (`spec § Chosen approach`, fleet step 3;
+  `spec § Contract deltas`). `fix_project` never deletes `.windsurfrules`, `AGENTS-compact.md` or `opencode.json` in a
+  project — infra's prune owns them — never creates `.droid/`, and never edits an existing `.droid/.gitignore`. Nothing is
+  removed through a symlink.
 - **`docs/reference/kilo/` stays** — both copies (`scaffold.py:1312-1318`, `:7448-7460`) are untouched
   (`spec § Rejected alternatives` C).
 - **`_DROID_GITIGNORE_BLOCK` keeps its name** — eight per-type writers embed it (`:1405`, `:4498`, `:4647`, `:4780`,
@@ -121,11 +124,10 @@ Appetite: 75
 - `_patch_droid_block(content, canonical)` (`:7266-7303`) — "managed" becomes a line whose stripped text is one of the
   canonical block's lines or one of `_RETIRED_DROID_GITIGNORE_LINES`, instead of any line starting `.droid/` or
   `.factory/`; the fast path and the insert-at-first-managed-position behaviour are unchanged.
-- `_DROID_DIR_GITIGNORE` (`:699-708`) — content exactly `"# .droid runtime files (docs_queue/, docs_log/) — do not
-  commit\n*\n!.gitignore\n"`. `_TRAYCER_REPORTS_GITIGNORE` (`:711-713`) removed.
+- `_DROID_DIR_GITIGNORE` (`:699-708`) and `_TRAYCER_REPORTS_GITIGNORE` (`:711-713`) removed: the scaffold no longer
+  creates `.droid/` (`docs_updater.py:107-108` creates `docs_queue`/`docs_log` itself; the root block ignores them).
 - `_scaffold_shared` (`def :1121`): `SHARED_DIRS` loses `.droid/review-context` and `.droid/traycer-reports`
-  (`:495-496`) and gains `.droid` (the only creator of `.droid/` once they go; `:1131-1132` makes each entry); `:1136-1142`
-  removed; the `.windsurfrules` guard and copy (`:1240`, `:1244-1245`, `:1253-1254` — the `.windsurf/rules` and
+  (`:495-496`); the whole `.droid` write block `:1134-1142` (including the `.droid/.gitignore` write at `:1135`) removed; the `.windsurfrules` guard and copy (`:1240`, `:1244-1245`, `:1253-1254` — the `.windsurf/rules` and
   `.windsurf/workflows` guards `:1246-1251` stay), the AGENTS-compact copy (`:1324-1327`), the kilo_47 copy
   (`:1379-1384`) and the `opencode.json` copy (`:1400-1401`) removed; comments `:290-291` and `:1333-1334` removed or
   reworded so they name no retired file.
@@ -148,19 +150,22 @@ Appetite: 75
 - `fix_project`: the `.windsurfrules`, `AGENTS-compact.md`, `opencode.json`, `kilo_47_agents_final.json` blocks and
   their dry-run twins removed (`spec § Chosen approach` fleet step 3 lists every range), with the `windsurfrules_target`
   guard `:7402`, `:7408-7409` (the `.windsurf/rules` and `.windsurf/workflows` guards `:7410-7413` stay); the marker
-  creation `:7530-7544` / `:7605-7613` replaced by the gate below, in each branch. The gate on `droid_dir`
-  (`project_path / ".droid"`): a symlink, dangling or not → one `skipped .droid/ (symlink)` entry; an existing
-  non-directory → one `kept .droid (not a directory)` entry; otherwise the `.droid/` block runs — `mkdir`, the
-  `.droid/.gitignore` rewrite to the reduced constant, then `_remove_retired_droid_markers`, its entries appended. The
-  first two never call `mkdir` (`:7522` raises `FileExistsError` on a dangling link or a file and writes through a live
-  link) and never write inside `.droid`. The root-`.gitignore` patch (`:7546-7553`, target `project_path / ".gitignore"`)
-  is outside the gate and runs for every project.
+  `.droid` block (`:7520-7544` live, `:7597-7613` dry run — the `mkdir`, the `.droid/.gitignore` write or rewrite and the
+  marker creation) replaced by the gate below, in each branch. The gate on `droid_dir` (`project_path / ".droid"`): missing
+  → nothing; a symlink, dangling or not → one `skipped .droid/ (symlink)` entry; an existing non-directory → one
+  `kept .droid (not a directory)` entry; a real directory → `_remove_retired_droid_markers`, its entries appended. No
+  branch calls `mkdir` or writes inside `.droid` (`:7522` raised `FileExistsError` on a dangling link or a file and wrote
+  through a live link), and an existing `.droid/.gitignore` is left byte-identical. Then, outside the gate, in each
+  branch: `scripts/kilo_47_agents_final.json` in the project, when `is_file() and not is_symlink()`, is removed (not under
+  `dry_run`) with `removed scripts/kilo_47_agents_final.json`, an `OSError` reporting `could not remove …`; and the
+  root-`.gitignore` patch (`:7546-7553`, target `project_path / ".gitignore"`) runs for every project.
 - `src/fabrik/cli.py` `fix` command (`:2038-2060`): splits the returned list into notes (`kept `, `skipped `),
   failures (`could not remove `), removals (`removed `) and additions (everything else, as today). Additions print as
   today; removals print `🗑️  Removed: <rest>` (`Would remove: <rest>` under `--dry-run`); notes print `ℹ️  <entry>` and
-  never count; failures print `⚠️  <entry>` and make the command exit 1, as unsupported entries do (`:2057-2060`).
-  "No missing files - project structure is complete!" prints only when there are no additions, removals, failures or
-  unsupported entries, notes or not; the closing count line counts additions and removals separately.
+  never count; failures print `⚠️  <entry>` and do not change the exit status (a refusal leaves dead residue, not a
+  missing file — unsupported entries alone exit 1, `:2057-2060`). "No missing files - project structure is complete!"
+  prints only when there are no additions, removals, failures or unsupported entries, notes or not; the closing count
+  line counts additions and removals separately.
 
 **Consumes:** nothing.
 
@@ -168,10 +173,11 @@ Appetite: 75
 `TestDroidGitignoreBlock` (`:26-51`, the entry list), `TestPatchDroidBlock.test_replace_contiguous_block` (`:79-86`, its
 `kilo_usage` count — an old block is now replaced by the reduced one), `TestScaffoldGitignoreCoverage` (`:89-127`, five
 types' `kilo_usage`/`reviews`/`traycer` entries), `TestFixProjectDroidStructure` (`:186-242`, the marker files and
-`_TRAYCER_REPORTS_GITIGNORE`), `TestFixProjectRootGitignorePatch` (`:245-308`, `kilo_usage` in the block),
+`_TRAYCER_REPORTS_GITIGNORE` — rewritten to assert `fix` creates no `.droid/` and leaves an existing `.droid/.gitignore`
+byte-identical), `TestFixProjectRootGitignorePatch` (`:245-308`, `kilo_usage` in the block),
 `TestTracerReportsScaffolding` (`:311-349`, removed — replaced by A1), `test_droid_gitignore_block_present`
 (`:527-546`, its `kilo_usage`, `reviews` and `traycer` entries); `tests/test_scaffold_fix.py` the `kilo_47` refresh tests
-(`:262-281`) and the kilo line of `test_dry_run_previews_reference_doc_refresh` (`:297-298`, its reference-doc asserts
+(`:262-281`, rewritten to "removed from the project, never copied") and the kilo line of `test_dry_run_previews_reference_doc_refresh` (`:297-298`, its reference-doc asserts
 `:291-296` stay); `_source_root` (`:15-19`) removed if nothing else uses it. Fixture hub roots that create
 `.windsurfrules`, `AGENTS-compact.md` and `opencode.json` (`tests/test_scaffold_logging.py:79-90`,
 `tests/test_scaffold_doc_seeding.py:129-136`) keep working unchanged — the scaffold just stops copying from them.
@@ -187,8 +193,9 @@ types' `kilo_usage`/`reviews`/`traycer` entries), `TestFixProjectDroidStructure`
    `.windsurf` guards at `scaffold.py:7410-7413` stay and raise without them; the worktree has no `kilo_47`, so the real
    root cannot show A5 red); A8 drives the `fix` command
    through Click's `CliRunner` with `fix_project` patched to return fixed entries. Run them and confirm each fails for the
-   right reason (A1: the retired files exist; A2: `FileNotFoundError` naming `.windsurfrules`; A3-A6: markers kept or
-   synced files rewritten; A7: the user's `.droid/` line dropped; A8: a removal printed as `Added:`).
+   right reason (A1: `.droid/` and the retired files exist; A2: `FileNotFoundError` naming `.windsurfrules`; A3: markers,
+   kilo_47 kept and `.droid/.gitignore` rewritten; A4-A6: markers kept or synced files rewritten; A7: the user's
+   `.droid/` line dropped; A8: a removal printed as `Added:`).
 2. Change the constants, `_patch_droid_block`, `SHARED_DIRS` and `_scaffold_shared` per the Interfaces.
 3. Add `_remove_retired_droid_markers`; rewrite `fix_project`'s blocks per the Interfaces, live and dry run; change the
    `fix` command's rendering in `cli.py`.
@@ -198,22 +205,23 @@ types' `kilo_usage`/`reviews`/`traycer` entries), `TestFixProjectDroidStructure`
    (A8 lives in `tests/test_scaffold.py`; `tests/test_cli.py` is run because the `fix` command's output changes).
 6. Prove red on revert in a throwaway worktree (copy each edited file to its exact path, grep a marker to confirm the
    copy landed): let `_remove_retired_droid_markers` remove a non-empty directory with `shutil.rmtree` → A4 fails; drop
-   the `d.is_symlink()` check → A4 fails; restore the `opencode.json` copy → A1 fails; restore the `.windsurfrules` guard
-   → A2 fails; restore the prefix test in `_patch_droid_block` → A7 fails; remove the worktree.
+   the `d.is_symlink()` check → A4 fails; restore the `.droid` `mkdir` and `.droid/.gitignore` write in `fix_project` → A3
+   fails; restore the `opencode.json` copy → A1 fails; restore the `.windsurfrules` guard → A2 fails; restore the prefix
+   test in `_patch_droid_block` → A7 fails; remove the worktree.
 7. `python scripts/enforcement/check_doc_sync.py` → exit 0.
 8. **`/fabrik-review-scoped`** on Phase A's surface (`src/fabrik/scaffold.py`, `src/fabrik/cli.py`,
    `tests/test_scaffold.py`, `tests/test_scaffold_fix.py`), run to its closing pass confirming 0 — BLOCKING before Phase B.
 9. Commit Phase A (explicit paths + provenance trailers, `Agent-Phase: A`), push.
 
 ### Behavior Contract — Phase A
-- **Given** a fake hub root carrying every source file, **When** `_scaffold_shared` builds a project, **Then** the project has no `.droid/review-context`, `.droid/traycer-reports`, `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` or `scripts/kilo_47_agents_final.json`, has `docs/reference/kilo/`, its `.droid/.gitignore` equals `_DROID_DIR_GITIGNORE`, and its root `.gitignore` carries `.droid/docs_queue/` and `.droid/docs_log/` and no line containing `kilo`, `traycer` or `.droid/reviews` (A1; `spec § Validation` 1)
-- **Given** a fake hub root with no `.windsurfrules` and no `opencode.json`, **When** `_scaffold_shared` runs, **Then** it completes and writes `.droid/.gitignore` (A2; `spec § Contract deltas`, merge order)
-- **Given** an old-shaped project with `.droid/review-context/.gitkeep` and `.droid/traycer-reports/.gitignore` only, **When** `fix_project` runs, **Then** both markers and both directories are gone and the result carries a `removed` entry for each (A3; `spec § Validation` 2)
+- **Given** a fake hub root carrying every source file, **When** `_scaffold_shared` builds a project, **Then** the project has no `.droid/` at all and no `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` or `scripts/kilo_47_agents_final.json`, has `docs/reference/kilo/`, and its root `.gitignore` carries `.droid/docs_queue/` and `.droid/docs_log/` and no line containing `kilo`, `traycer` or `.droid/reviews` (A1; `spec § Validation` 1)
+- **Given** a fake hub root with no `.windsurfrules` and no `opencode.json`, **When** `_scaffold_shared` runs, **Then** it completes (A2; `spec § Contract deltas`, merge order)
+- **Given** an old-shaped project with `.droid/.gitignore`, `.droid/review-context/.gitkeep`, `.droid/traycer-reports/.gitignore` and `scripts/kilo_47_agents_final.json`, and a second project with no `.droid/`, **When** `fix_project` runs, **Then** both markers, both directories and the kilo_47 copy are gone with a `removed` entry each, `.droid/.gitignore` is byte-identical, and the second project still has no `.droid/` (A3; `spec § Validation` 2)
 - **Given** five trees — `review-context/` holding `.gitkeep` and `notes.md`; a symlinked `.droid/traycer-reports`; a `.droid/` that is a symlink to a real directory and one that is a dangling symlink; a `.gitkeep` that is a directory; a `.gitkeep` that is a dangling symlink — plus a `.droid` and a `.droid/review-context` that are regular files, a `review-context/` with mode `000` (skipped when the test runs as root), and a project whose marker `unlink` raises `PermissionError`, **When** `fix_project` runs on each, **Then** `notes.md` survives with `kept .droid/review-context/ (1 other entries)`; each symlink and its target are untouched (no `.gitignore` written into the target) with one `skipped … (symlink)` entry and no exception, while the root `.gitignore` is still patched; the directory marker, the dangling marker and both regular files stay with a `kept` entry; the unreadable directory and the refused removal each yield one `could not remove …` entry, no `rmdir` is tried for them, and the run completes (A4; `45-testing-strategy.md:199`)
-- **Given** a project holding its own `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` and `scripts/kilo_47_agents_final.json` and a hub root holding all four, and one project holding none of them, **When** `fix_project` runs, **Then** the first keeps all four byte-identical, the second gains none, and no entry names them (A5; `spec § Chosen approach`, fleet step 3)
+- **Given** a project holding its own `.windsurfrules`, `AGENTS-compact.md` and `opencode.json` and a hub root holding all three plus `scripts/kilo_47_agents_final.json`, and one project holding none of them, **When** `fix_project` runs, **Then** the first keeps all three byte-identical, the second gains none of the four, and no entry names the three (A5; `spec § Chosen approach`, fleet step 3)
 - **Given** the A3 tree and the A4 non-empty tree with `dry_run=True`, **When** `fix_project` runs, **Then** its entries equal the live run's entries for the same trees, and every file and directory is unchanged (A6; `spec § Validation` 2)
 - **Given** a root `.gitignore` holding the old eight-line `.droid` block among user lines, one of them `.droid/secrets.json`, **When** `fix_project` runs, **Then** the block is replaced by the reduced one, the user lines — `.droid/secrets.json` included — survive in order, and a second run reports no `.gitignore` change (A7; `scaffold.py:7266-7303`)
-- **Given** `fix_project` returning one addition, one `removed` entry and one `kept` entry; then only a `kept` entry; then one `could not remove` entry, **When** `fabrik fix` renders them, **Then** the addition prints `Added:`, the removal `Removed:`, the note without either label and outside the counts; the second run prints "No missing files - project structure is complete!" and exits 0; the third prints the failure, not the "complete" line, and exits 1 (A8; `cli.py:2038-2060`)
+- **Given** `fix_project` returning one addition, one `removed` entry and one `kept` entry; then only a `kept` entry; then one `could not remove` entry, **When** `fabrik fix` renders them, **Then** the addition prints `Added:`, the removal `Removed:`, the note without either label and outside the counts; the second run prints "No missing files - project structure is complete!" and exits 0; the third prints the failure, not the "complete" line, and exits 0 (A8; `cli.py:2038-2060`)
 
 ## Phase B — The pre-plan copy stops writing into guardrail files; docs; Finish
 
@@ -304,7 +312,8 @@ src/fabrik/scaffold.py:1384:         shutil.copy(fabrik_kilo_config, scripts_tar
 src/fabrik/scaffold.py:1401:     shutil.copy(FABRIK_ROOT / "opencode.json", project_dir / "opencode.json")
 ```
 `.droid/` is created only by the two retired `SHARED_DIRS` entries today (`:1131-1132`, `:495-496`), then written at
-`:1135` — the pass-1 seat ran the change without a `.droid` entry and got `FileNotFoundError: …/.droid/.gitignore`. The
+`:1135` — the pass-1 seat removed the entries alone and got `FileNotFoundError: …/.droid/.gitignore`, which is why the
+whole `.droid` write block `:1134-1142` goes with them (the design critique's simplification). The
 fix path's live/dry-run pairing: `:7406-7553` / `:7554-7621`; every deletion in the live branch is a replace-before-copy
 (10 sites: `:7420`, `:7427`, `:7429`, `:7438`, `:7440`, `:7453`, `:7455`, `:7465`, `:7474`, `:7482`), so
 `_remove_retired_droid_markers` is new code with its own guards. Today's `_patch_droid_block` drops a user's own line:
@@ -343,6 +352,10 @@ as history.
   reports refused removals; `_patch_droid_block` keeps a user's own `.droid/` lines; the `fix` command renders removals
   and notes; more mirror tests and docs are named.
 - Infra's half now carries a prune (`spec § Chosen approach`, infra step 1) and the merge order — mailed to infra.
+- Two independent design critiques (Opus 5.5, Fable 5.1), both `sound-with-changes`, changed it once more: the scaffold
+  no longer creates `.droid/` and `fix` leaves an existing `.droid/.gitignore` alone; `fix` removes the dead kilo_47
+  copy; a refusal no longer fails the command; infra gains a hub-copy deletion step and more consumers;
+  `.windsurf/hooks.json` and the Kilo residue are filed (W-a24fe72a, W-9a50a9a1).
 - (a) Coverage: I1-I3, I6 → Phase A; I4 → Phase A (scaffold side), infra (manifest + prune); I5 → Phase B, infra
   (governance line); I7 → decided, no scaffold code; I9 → kept (Global Constraints); I8 → W-477e37cd.
 - (b) Signatures: `_remove_retired_droid_markers` (A) is called from both `fix_project` branches (A) and its entry
@@ -353,8 +366,8 @@ as history.
 
 ## Residual unknowns
 
-- **Open, not blocking — whether any live project keeps its own files under `.droid/review-context/`.** A4 covers it
-  (kept and reported); the operator sees the `kept` notes on the next `fabrik fix`. No step depends on the answer.
+- **None open.** Answered by the design critique's survey: six projects keep 30 files of their own under
+  `.droid/review-context/` (`spec § Contract deltas`); A4 keeps and reports them, and `.droid/.gitignore` is untouched.
 - **Resolved:** who reads each retired artifact (`spec § What exists today`); that today's `_patch_droid_block` drops
   user lines (executed above; A7 changes it); the merge order (`spec § Contract deltas`); that de-listing deletes no
   project copy (`sync_enforcement_to_projects.py:2023-2030`, `prune_retired_scripts` at `:1764`).
@@ -373,6 +386,7 @@ graded here with the plan. `dispatch_headroom.py --slices opus=1,sonnet=1` → `
 | Pass 2 | opus×1 (`rules`, round-1 owner) + sonnet×1 (`prose`, round-1 owner) + one sonnet refuter per slice · delta over the pass-1 fix hunks (8af931102) + one hop | found: 7, new: 7, confirmed: 6, fixed: 6, unexecuted: 0, edits: 2 files | method: re-derivation — all 20 pass-1 ledger claims NOW_FALSE (17 rules, 3 prose; the rules seat re-ran the A1/A2 fake-root probe and the live/dry-run comparison on the pinned source, and `git log -p -G'droid/'` to prove the managed-line set covers every line the scaffold ever wrote); the orchestrator re-ran O18, O21, O22 (`verify2.py`: write-through via a symlinked `.droid`, `FileExistsError` on a dangling one, `NotADirectoryError` on a file) and re-derived the doc population (10 files). Confirmed, all inside pass-1 hunks (own-fix: round 1): the kept `.droid/.gitignore` write acts through a symlinked `.droid` (O18) and a dangling one raises (O21); the A3-A7 fake root lacked the `.windsurf` dirs the kept guards need (O19); a refused removal printed "complete" (O20); a regular file named like the marker directory aborted the listing (O22); a failed `unlink` still led to `rmdir` (O23). Recorded: O24 `docs/traycer/fabrik-workflow.md:92` (one hop) — folded into the doc lists anyway. | 30a94eb6caf96090363d5f6731f15a2c → the Pass 3 pin · 451560e4b76d5c8214dd1956bb481cb8 → the Pass 3 pin |
 | Pass 3 | opus×1 (`rules`, round-1 owner) + one sonnet refuter · ONLY the pass-2 set (O18-O23) + one hop; `prose` held no open claim and was not re-dispatched | found: 4, new: 4, confirmed: 4, fixed: 4, unexecuted: 0, edits: 2 files | method: re-derivation — O18-O23 all NOW_FALSE, each by an executed probe on the pinned source (`p1.py`, `p2.py`); the doc population re-derived (10). Confirmed, all inside pass-2 hunks (own-fix: round 2): an unreadable marker directory raised outside the `OSError` handling (O25); a regular-file `.droid` still reached `mkdir` (O26); the exit anchor stopped two lines short of `raise SystemExit(1)` (O27, `cli.py:2057-2060`); the symlinked-`.droid` skip also dropped the root-`.gitignore` patch (O28). **Scope-growth stop:** passes 2 and 3 are both all own-fix (6/6, 4/4), so hunting stops; the four are fixed in ONE batch — the helper and gate paragraph rewritten whole (`; class rewrite — Phase A Interfaces, the helper and the gate`), every filesystem call of a pair inside one `try` — and the closing pass re-verifies only this set. The orchestrator executed the rewritten algorithm as a reference implementation over all 12 A4 trees (`refimpl.py`): no exception, dry run equal to live on every tree, both symlink targets untouched, the refused `unlink` reporting with no `rmdir`. | 939626dc626f192ef5ade6a2dd2b1351 → the Pass 4 pin · 61d3b392192213dfa4820552c95bee40 → the Pass 4 pin |
 | Pass 4 | opus×1 (`rules`, round-1 owner) · ONLY the pass-3 fixed set (O25-O28), no new hunting (scope-growth stop) | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — closing pass; O25-O28 all NOW_FALSE, each executed: the plan's gate + helper run with pathlib on a mode-000 directory, a regular-file `.droid`, a live and a dangling `.droid` symlink (no exception, dry run equal to live, symlink target untouched, root `.gitignore` still patched), and the anchors `cli.py:2038-2060`, `:2057-2060`, `scaffold.py:7522`, `:7546-7553` re-derived from the live files; standing clean since pass 1: every other class of the ledger (anchors, create-path, mirror-tests, docs, bc-testability, consistency). | 5492404b74ded0a134c8c88fb7591739 → 5492404b74ded0a134c8c88fb7591739 ✓ · c1152a98fa882cd71120f94bca33a3b0 → c1152a98fa882cd71120f94bca33a3b0 ✓ |
+| Critique | fabrik-reviewer opus×1 + fabrik-reviewer fable×1, author-blind, same brief, spec md5 c1152a98fa882cd71120f94bca33a3b0 at a43a1e9c7 · design | found: 15, new: 15, confirmed: 11, fixed: 11, unexecuted: 0, edits: 2 files | method: re-derivation — the orchestrator executed every concern (`crit/verify.py`: 38 project kilo_47 copies, 50 `.windsurf/hooks.json`, 6 projects / 30 own files in `review-context/`, the nine preplan sections, the synced-list and trigger lines, the `--force` sync line) and re-ran the reference implementation on the simplified design (`crit/refimpl2.py`, 13 trees). Both verdicts `sound-with-changes`, no split. ACCEPTED: kilo_47 removed by fix (Opus 1); `.windsurf/hooks.json` as OUT-OF-SCOPE I10 → W-a24fe72a (Opus 2, Fable 1); unknown closed with the survey (Opus 3, Fable 3); the scaffold no longer creates `.droid/`, fix leaves `.droid/.gitignore` alone (Opus 4); infra step 6 deletes the hub copies (Opus 5); the window names scaffold (Opus 6); the governance line names the nine sections (Opus 7); four more infra surfaces + `agents-fabrik.md:398` (Fable 2); the `--force` premise (Fable 4); a refusal no longer fails the command (Fable 6). REJECTED: the fixtures assert nothing about the copies (Opus 8, `crit/verify.py` C8); conditional copies (Fable 5, spec § Rejected alternatives E). RECORDED: same-ruling Kilo residue → W-9a50a9a1 (Fable 7). | 5492404b74ded0a134c8c88fb7591739 → the Pass 5 pin · c1152a98fa882cd71120f94bca33a3b0 → the Pass 5 pin |
 
 ## Coverage Checklist
 
