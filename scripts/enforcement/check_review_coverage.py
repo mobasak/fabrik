@@ -16,8 +16,9 @@ A changed reviews/*.md containing a "Coverage Checklist" table:
      on a spot-verify round.)
   -> the standing recurrence classes must appear as rows (fail-open,
      cost/quota accounting, boundary/sentinel, behavior-without-a-test).
-A changed reviews/*.md that names /fabrik-review or /fabrik-repo-review as its
-command but has NO Coverage Checklist -> fail (the contract requires emitting it).
+A changed reviews/*.md with NO Coverage Checklist heading is not this gate's
+subject, whatever command it names: the command-name sniff was retired at round 27
+(see COMMAND_MARK), and artifact emission is enforced by the run record instead.
 
 Ceiling (by design): enforces checklist *presence and complete adjudication* —
 never that the hunting behind a CLEAN verdict was good. Artifacts from the
@@ -134,6 +135,56 @@ def _changed_md(root: Path, prefix: str) -> tuple[list[Path], list[str], list[Pa
     return paths, notes, untracked
 
 
+def _intent_to_add(root: Path, prefix: str) -> set[Path]:
+    """Paths under ``prefix`` that are INTENT-TO-ADD (`git add -N`: porcelain `" A"`).
+
+    The working-tree scan grades them on purpose (an author grades a receipt before committing
+    it), so a PEER's unfinished receipt reds every session's gate — and `git diff --cached` shows
+    such an entry as nothing at all, so neither its owner nor the reader can see why. main()
+    names them on failure; it never skips them (that would let the author's own receipt escape).
+    Read only on the failure path, so a green run pays no second `git status`.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no", "--", prefix],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return set()
+    return {
+        (root / line[3:].strip().strip('"')).resolve()
+        for line in out.splitlines()
+        if line[:2] == " A"
+    }
+
+
+def _is_separator(row: str) -> bool:
+    # MODULE-LEVEL (hoisted out of `_table_rows`): nested, a harness loading the gate by path
+    # had to RETYPE this grammar to test it — the drift the round-69 doctrine forbids.
+    # The REAL GFM delimiter-row grammar, per cell (round 97): each cell is `:?-+:?`
+    # with at least one hyphen — the coarse character-class test accepted `|::|::|`,
+    # `| : | : |` and blank cells, forming a phantom header pair no renderer forms and
+    # swallowing the row above. The rule is closed and fully specified; enforcing it
+    # precisely ends the separator sub-chase definitionally.
+    # Per-cell validation ONLY (round 101): GFM puts the pipe requirement on the HEADER
+    # row, not the delimiter — a bare `---` IS a valid separator under a 1-column
+    # pipe-bounded header (renderer-verified), and round 100's pipe-presence gate here
+    # false-failed exactly that honest shape. The setext/thematic ambiguity is carried
+    # structurally by the callers: candidate rows are pipe-filtered before the
+    # anywhere-skip, and the header pair only forms under a pipe-bounded header with
+    # matching cell counts (`Title\n---` never pairs — Title carries no pipe).
+    r = re.sub(r"\\\|", "\x00", row.strip())
+    if r.startswith("|"):
+        r = r[1:]
+    if r.endswith("|"):
+        r = r[:-1]
+    cells = r.split("|")
+    return bool(cells) and all(re.fullmatch(r"\s*:?-+:?\s*", c) for c in cells)
+
+
 def _table_rows(section: str) -> list[str]:
     """ALL visible data rows in the checklist section (round 85).
 
@@ -152,27 +203,6 @@ def _table_rows(section: str) -> list[str]:
     # no-nesting fail-open the parity and refusal nets never see. A row is a header only if
     # its separator is the literally next line.
     phys = section.splitlines()
-
-    def _is_separator(row: str) -> bool:
-        # The REAL GFM delimiter-row grammar, per cell (round 97): each cell is `:?-+:?`
-        # with at least one hyphen — the coarse character-class test accepted `|::|::|`,
-        # `| : | : |` and blank cells, forming a phantom header pair no renderer forms and
-        # swallowing the row above. The rule is closed and fully specified; enforcing it
-        # precisely ends the separator sub-chase definitionally.
-        # Per-cell validation ONLY (round 101): GFM puts the pipe requirement on the HEADER
-        # row, not the delimiter — a bare `---` IS a valid separator under a 1-column
-        # pipe-bounded header (renderer-verified), and round 100's pipe-presence gate here
-        # false-failed exactly that honest shape. The setext/thematic ambiguity is carried
-        # structurally by the callers: candidate rows are pipe-filtered before the
-        # anywhere-skip, and the header pair only forms under a pipe-bounded header with
-        # matching cell counts (`Title\n---` never pairs — Title carries no pipe).
-        r = re.sub(r"\\\|", "\x00", row.strip())
-        if r.startswith("|"):
-            r = r[1:]
-        if r.endswith("|"):
-            r = r[:-1]
-        cells = r.split("|")
-        return bool(cells) and all(re.fullmatch(r"\s*:?-+:?\s*", c) for c in cells)
 
     def _cells(row: str) -> int:
         # GFM-faithful cell count (round 95): exactly ONE optional boundary pipe strips per
@@ -1303,10 +1333,14 @@ _LOOSE_TOK = re.compile(rf"(?<![\w-])(?:{'|'.join(_GRAMMAR_TOKENS)}):\s*\d+")
 # One comma-joined `key: value` item of a counter run — the spec's own boundary definition
 # ("the first character that is not part of a comma-joined `key: value` item"), so a
 # `method: re-derivation` item does NOT end the run and a counter after it is still inside.
-# The value is a BARE WORD: no spaces, so ` — delta (confirmed: 0)` still ends the run and
-# `confirmed: 0 candidates reproduced` ends after `0` — where the stand-alone TOKEN guard then
-# refuses it (a run item is a boundary rule; only a real token is ever read as a counter).
-_RUN_ITEM = re.compile(r"\s*,\s*\**\s*([\w-]+)\s*:\s*\**([\w-]+)\**")
+# The value is ONE SPACE-FREE run (no space, comma or pipe), so ` — delta (confirmed: 0)` still
+# ends the run and `confirmed: 0 candidates reproduced` ends after `0` — where the stand-alone
+# TOKEN guard then refuses it (a run item is a boundary rule; only a real token is ever read as
+# a counter). NOT a `[\w-]+` word: a wrapped value (`new: '2'`) ended the run AT its item, so the
+# name never reached the rank test and a displaced `new:` went unrefused (W-c72e8838). Measured
+# 2026-10-03 over 6,510 `found:` lines in 1,662 receipts (`/opt/*/docs/development/reviews`):
+# 0 lines change their counters or their refusals.
+_RUN_ITEM = re.compile(r"\s*,\s*\**\s*([\w-]+)\s*:\s*[^\s,|]+")
 
 
 def _unparsed_pass_lines(text: str) -> list[str]:
@@ -1812,6 +1846,16 @@ _REPAIR_PASS = (
     "`found:` cell when `found:` and `fixed:` sit in separate cells, where `unexecuted:` "
     "follows `confirmed:` in that same cell"
 )
+# The Pass-path repair for the shape `_REPAIR_PASS` leads AWAY from: a table row whose `fixed:` is
+# NOT in the counter run (it sits in a cell of its own), so the run is the `found:` cell alone. Its
+# author usually already wrote `confirmed:` between `new:` and `fixed:` — each in its own cell —
+# and the lead instruction of `_REPAIR_PASS` read as "you did it right" (W-c72e8838: 6 of 6
+# measured lost counters were this shape, `2026-09-10-mail-handling-governance-review.md`).
+_REPAIR_SPLIT = (
+    "`found:` and `fixed:` sit in separate cells here, so only the `found:` cell is read — write "
+    "`confirmed:` (and `unexecuted:`) inside that cell, `| found: F, new: N, confirmed: C, "
+    "unexecuted: U | fixed: X |`, or join every counter into one cell"
+)
 # A LINE REFERENCE, not "any word": `[\w.:/-]+` matched prose, so `| F1 | the finder confirmed:
 # the fix holds |` was told to write `confirmed at :the` and `unexecuted: pending operator` got
 # `unexecuted at :pending` — a fabricated citation, which is worse than a generic message because
@@ -1939,8 +1983,16 @@ def _row_refusals(line: str) -> list[str]:
     spans, cell_path, resolved = _consumed_counters(line)
     # A row with no counter run states no counters: neither counter-placement repair can be acted
     # on there, so it gets the citation repair instead (round 2).
-    cites = _counter_run(line) is None
+    run = _counter_run(line)
+    cites = run is None
     repair = "" if cites else (_REPAIR_CELL if cell_path else _REPAIR_PASS)
+    if (
+        run is not None
+        and not cell_path
+        and "fixed" not in run[2]
+        and _ROW_LEAD.sub("", line, count=1).startswith("|")
+    ):
+        repair = _REPAIR_SPLIT
     # THE COUNTER RULE (both grammars): `unexecuted:` captured with no `confirmed:`. Without it
     # `| u | x | found: 0 | fixed: 0 | unexecuted: 2 |` reads old-grammar QUIET with two
     # unexecuted candidates standing — the fail-open on the one counter the redesign added to
@@ -1988,7 +2040,7 @@ def _block_refusals(block: list[str]) -> list[str]:
     header-shaped row inside the block is a data row: its vocabulary carries the colon token and
     the token rule refuses it there.
 
-    ⚠️ NOT `_table_rows`'s separator-adjacency test (`:176-213`): `_ledger_shapes` reads
+    ⚠️ NOT `_table_rows`'s separator-adjacency test (`:220-258`): `_ledger_shapes` reads
     `founds[-1]` from `ordered`, which knows nothing of separators, so the two readers must agree
     on which row is DATA — a content test agrees with it definitionally, an adjacency test does
     not (the round-89 swallow is the standing proof).
@@ -3048,7 +3100,7 @@ def main() -> int:
                 continue
             failures.extend(_grade(p, root))
         if failures:
-            print("Coverage-checklist gate FAILED (staged review artifacts):")
+            print("Coverage-checklist gate FAILED (explicitly-named review artifacts):")
             for f in failures:
                 print(f"  - {f}")
             print(
@@ -3059,7 +3111,7 @@ def main() -> int:
             return 1
         print(
             "check_review_coverage: OK — 0 unproven coverage claims across "
-            f"{len(args.paths)} staged review artifact(s)"
+            f"{len(args.paths)} explicitly-named review artifact(s)"
         )
         return 0
     changed, skip_notes, untracked = _changed_md(root, REVIEWS_DIR)
@@ -3091,12 +3143,24 @@ def main() -> int:
         # startswith("⚠") opt-in and re-hid the advisory whenever an untracked draft
         # co-occurred with a committed advisory (round 25, reproduced end-to-end)
         print(note)
+    failed: list[Path] = []
     for p in changed:
-        failures.extend(_grade(p, root))
+        errs = _grade(p, root)
+        if errs:
+            failed.append(p)
+        failures.extend(errs)
     if failures:
         print("Coverage-checklist gate FAILED:")
         for f in failures:
             print(f"  - {f}")
+        ita = _intent_to_add(root, REVIEWS_DIR)
+        for p in failed:
+            if p.resolve() in ita:
+                print(
+                    f"  NOTE: {p.relative_to(root)} is intent-to-add (`git add -N`, never "
+                    "committed, invisible to `git diff --cached`) — if it is not your receipt it "
+                    "is another session's in-flight work: message its author, never edit it"
+                )
         print(
             "A coverage-adjudicated review exits only on a fully-adjudicated checklist "
             "— there is no cap-stop; a spot-verify of fixes is the re-check step, never the closing round."
