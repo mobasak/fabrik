@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T16:40:28.816068Z",
+  "creator": "infra",
+  "evidence": "cf148a73e3d470899fb06c3ea9e4862b9b7c973d",
+  "id": "W-b13ce655",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "build steps 1-5 per the spec on fleet's branch (worktree-fleet), with the full /fabrik-review (governance-sync path), merge FIRST, then merge fleet's 01M419R9; step 6 (delete the hub copies plus the FABRIK_SCAFFOLD_WORKFLOW.md:1237 See Also link) after",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "done",
+  "title": "Infra half of plan-1 scaffold-retired-agent-surface (D-529, spec 2026-10-03-scaffold-retired-agent-surface-design.md § Chosen approach infra steps 1-5): de-list AGENTS-compact.md/opencode.json/.windsurfrules from GOVERNANCE_FILES plus a retired-governance prune; retire check_opencode_json.py and its final_gate row; add the governance preplan line; update the presence lists and other hub surfaces. Fleet's merge request 01M419R9 is held on it"
+}
