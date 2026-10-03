@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-26T13:31:47.434267Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "97d7da7cf01654e1b53fcf5a9a19ca0d52b008e7",
   "id": "W-f0a5d246",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Universal-watchdog plan: an audit review of its build ran 2026-07-08 (5da0f5e9f) yet Status is still CONVERGED — confirm it shipped and archive it, or name the unbuilt part"
 }
