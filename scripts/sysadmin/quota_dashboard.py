@@ -1767,7 +1767,8 @@ _UNIT_RE = re.compile(
 )
 _DISPATCH_RE = re.compile(
     r"\b(seat|seats|subagent|subagents|grounder|grounders|finder|finders|reviewer|reviewers|"
-    r"researcher|researchers|reconciler|reconcilers|dispatch|dispatched|fan[- ]?out|in parallel)\b",
+    r"researcher|researchers|reconciler|reconcilers|dispatch|dispatched|fan[- ]?out|in parallel|"
+    r"partition|partitions|partitioned)\b",
     re.I,
 )
 _DISPATCH_WINDOW = 120

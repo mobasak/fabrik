@@ -2929,14 +2929,20 @@ def test_the_seat_column_reports_the_dispatch_rule_not_the_type_count(tmp_path, 
 
 
 def test_the_seat_rule_reads_the_real_corpus_correctly(tmp_path, monkeypatch):
-    """Golden values against the LIVE rendered corpus — the round-1 finder reproduced five wrong
-    cells that no fixture test could see. Skipped where the corpus is not installed."""
-    import pytest
-
-    corpus = Path.home() / ".claude" / "commands"
-    if not (corpus / "fabrik-review.md").exists():
-        pytest.skip("rendered corpus not installed here")
+    """Golden values against the corpus rendered from THIS tree — the round-1 finder reproduced five
+    wrong cells that no fixture test could see. It renders into tmp_path rather than reading the
+    installed corpus, whose verdict depends on the last install, not on the commit under test."""
     qd = _load(tmp_path, monkeypatch)
+    spec = importlib.util.spec_from_file_location(
+        "assemble_commands_for_seat_rule", qd._FABRIK_ROOT / "commands" / "assemble_commands.py"
+    )
+    assert spec is not None and spec.loader is not None
+    ac = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ac)
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    # all three destinations, so the render never touches the live agents or skills dirs
+    ac.render(corpus, tmp_path / "skills", tmp_path / "agents")
     monkeypatch.setattr(qd, "RENDERED_COMMANDS", corpus)
     rule = {
         n: qd._command_seat_rule(n)
@@ -2953,12 +2959,14 @@ def test_the_seat_rule_reads_the_real_corpus_correctly(tmp_path, monkeypatch):
     }
     # the flagship has no Opus finder floor (D-344). Its units are NOT pinned: its real rule — two
     # finders per SLICE — is worded like the shared closing-pass fragment 22 commands include, so a
-    # "slice" token would light 22 cells (measured 2026-10-03); backlog W-d7b0d34f.
+    # "slice" token would light 24 of the 38 rendered cells (measured 2026-10-03, W-d7b0d34f).
     assert rule["fabrik-review"][0] is False
     assert "claim" in rule["fabrik-upstream"][1]  # the real dispatch line spans "per\nclaim"
     assert rule["fabrik-user-test"][1] == ("flow",)  # not persona/screen/journey from prose
-    # fabrik-plan-review is not pinned either: its rule is per TICKET, but the parser reads "unit" from
-    # the shared term-edit fragment 17 commands include — the same class, backlog W-d7b0d34f
+    # plan-review partitions per TICKET ("The partition per ticket … one fresh seat"): no seat word
+    # sits within the window, so "partition" is a dispatch word (W-d7b0d34f). Its cell still leads
+    # with "unit", read from the shared term-edit sentence — true for its termination loop, not pinned.
+    assert "ticket" in rule["fabrik-plan-review"][1]
     assert "dependency" in rule["fabrik-vision"][1]  # "per external dependency"
     # UNITS-sized now (D-208): a per-unit refuter outranks the old fixed "floor is 3 readers"
     assert rule["fabrik-review-scoped"][1] == ("unit",)

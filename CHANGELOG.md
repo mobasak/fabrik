@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The quota dashboard shows /fabrik-plan-review's per-ticket seat rule; its golden test renders the corpus from the tree (2026-10-03)
+
+`scripts/sysadmin/quota_dashboard.py`'s seat-rule parser only counts a unit when a dispatch word sits within 120 characters, and "partition" was not one, so `/fabrik-plan-review`'s rule ("The partition per ticket … one fresh seat") was invisible. `partition`/`partitions`/`partitioned` are now dispatch words — measured over all 38 rendered commands, it changes that one cell only. `test_the_seat_rule_reads_the_real_corpus_correctly` now renders the corpus from the tree it runs in instead of reading the installed `$HOME/.claude/commands`, whose verdict depended on the last install rather than the commit under test. W-d7b0d34f.
+
 ### Changed — A merge is never a `NEXT:`: a waiting merge request is merged in the same turn, in every repo (2026-10-03)
 
 Operator ruling D-525. The hub `CLAUDE.md` and `templates/governance/CLAUDE.md` add one sentence to the `DONE:`/`NEXT:` discipline: the merge owner works a waiting request in the same turn with `merge_request.py merge` until it is merged or refused (a parked request resolved as the script says), and never offers, defers or asks about it; a finished worktree branch sends its request in the same turn; with no merge waiting, `NEXT:` names real work, never a merge that might arrive. A Stop-hook pattern was measured and rejected (591 of 34,810 box `NEXT:` lines lead with a merge, nearly all in-flight own work); the existing merge-owner Stop cause stays the enforcement. fabrik-lib's hand-maintained `CLAUDE.md` gets the sentence by mail.
