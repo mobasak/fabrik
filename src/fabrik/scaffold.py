@@ -236,6 +236,7 @@ FILE_API_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "file-api"
 FILE_WORKER_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "file-worker"
 SAAS_SKELETON_DIR = FABRIK_ROOT / "templates" / "saas-skeleton"
 MOBILE_APP_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "mobile-app"
+NODE_API_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "node-api"
 DESKTOP_APP_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "desktop-app"
 DOCUSAURUS_TEMPLATE_DIR = FABRIK_ROOT / "templates" / "docusaurus"
 I18N_KIT_DIR = FABRIK_ROOT / "templates" / "i18n-kit"
@@ -4443,7 +4444,9 @@ process.on('SIGTERM', () => {
         f"GLITCHTIP_DSN=\nENVIRONMENT=production\n"
     )
 
-    # h) Overwrite .gitignore with Node-appropriate content
+    # h) Overwrite .gitignore with Node-appropriate content, then the template's own rules
+    #    (e.g. `.env.local`) — appended so the template stays the one list for them.
+    node_template_rules = (NODE_API_TEMPLATE_DIR / ".gitignore").read_text(encoding="utf-8")
     (project_dir / ".gitignore").write_text(
         _COMMON_GITIGNORE_PATTERNS + "\n" + _DROID_GITIGNORE_BLOCK + "\n" + "# Node.js-specific\n"
         "node_modules/\n"
@@ -4458,6 +4461,7 @@ process.on('SIGTERM', () => {
         ".next/\n"
         "out/\n"
         "build/\n"
+        "\n" + node_template_rules
     )
 
     # B20: Emit a Coolify-correct compose.yaml. node-api scaffolders

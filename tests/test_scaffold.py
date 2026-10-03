@@ -9,6 +9,7 @@ from fabrik.scaffold import (
     _DROID_GITIGNORE_BLOCK,
     _RETIRED_DROID_GITIGNORE_LINES,
     MOBILE_APP_TEMPLATE_DIR,
+    NODE_API_TEMPLATE_DIR,
     _patch_droid_block,
     create_project,
     fix_project,
@@ -604,6 +605,23 @@ class TestMobileAppScaffold:
         template = (MOBILE_APP_TEMPLATE_DIR / ".gitignore").read_text().splitlines()
         missing = [ln for ln in template if ln.strip() and not ln.startswith("#") and ln not in rules]
         assert missing == [], missing
+        # a set cannot see order: a later `!` line would re-include what an earlier rule ignored
+        assert not [ln for ln in rules if ln.startswith("!")]
+
+    def test_node_api_gitignore_carries_its_template_rules(self, tmp_path):
+        """node-api once hand-wrote a .gitignore that dropped its template's `.env.local` (W-149de516)."""
+        create_project(
+            name="test-node",
+            project_type="node-api",
+            description="Test Node API",
+            base=tmp_path,
+            generate_spec=False,
+        )
+        rules = set((tmp_path / "test-node" / ".gitignore").read_text().splitlines())
+        template = (NODE_API_TEMPLATE_DIR / ".gitignore").read_text().splitlines()
+        missing = [ln for ln in template if ln.strip() and not ln.startswith("#") and ln not in rules]
+        assert missing == [], missing
+        assert ".env.local" in rules
 
     def test_scaffolds_expo_config_files(self, tmp_path):
         """The Expo/expo-router foundation must ship, and the app identity must be
