@@ -2308,16 +2308,22 @@ def _ledger_append(event: dict) -> None:
     except Exception:  # noqa: BLE001 — TypeError, ValueError, RecursionError, a raising __repr__
         row = _degraded_row(event)
     try:
-        with (_rotate_state_dir() / "rotate-ledger.jsonl").open("a") as fh:
-            fh.write(row + "\n")
+        ledger = _rotate_state_dir() / "rotate-ledger.jsonl"
+        with ledger.open("ab") as fh:  # write-only: an unreadable ledger still takes the row
+            fh.write((b"\n" if _ledger_torn(ledger) else b"") + row.encode("utf-8") + b"\n")
         return
     except _STATE_DIR_ERRORS as exc:
         reason = str(exc)
     fallback = _ledger_fallback_path()
     try:  # O_NOFOLLOW + 0600: a shared temp dir must not redirect or expose the row (N2)
-        fd = os.open(fallback, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        # O_NONBLOCK: a FIFO with no reader fails at once (ENXIO) instead of blocking forever
+        flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK
+        fd = os.open(fallback, flags, 0o600)
         with os.fdopen(fd, "a") as fh:  # owns the fd from here: every exit below closes it
-            if os.fstat(fh.fileno()).st_uid != os.getuid():
+            st = os.fstat(fh.fileno())
+            if not stat.S_ISREG(st.st_mode):  # a FIFO with a reader, a device: not a ledger
+                raise OSError(f"{fallback} is not a regular file")
+            if st.st_uid != os.getuid():
                 raise PermissionError(f"{fallback} is not owned by this user")
             os.fchmod(fh.fileno(), 0o600)  # an older release created it 0644: tighten it
             fh.write(row + "\n")
@@ -2325,6 +2331,21 @@ def _ledger_append(event: dict) -> None:
     except OSError:
         where = "; the fallback file failed too"
     _warn(f"claude_rotate: rotate ledger write failed ({reason}){where} — row: {row}\n")
+
+
+def _ledger_torn(ledger: Path) -> bool:
+    """Whether the ledger ends mid-line. A write that failed partway leaves half a line, and a row
+    appended to it is undecodable, so every reader skips it in silence (W-87791bfe). Best-effort: a
+    ledger this process cannot read is assumed whole, so the append still lands."""
+    try:
+        with ledger.open("rb") as fh:
+            end = fh.seek(0, os.SEEK_END)
+            if not end:
+                return False
+            fh.seek(end - 1)
+            return fh.read(1) != b"\n"
+    except OSError:
+        return False
 
 
 def _degraded_row(event: object) -> str:

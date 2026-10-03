@@ -8198,6 +8198,39 @@ def test_a_degraded_row_whose_fields_cannot_be_read_never_raises(tmp_path, monke
     assert row.get("event") == "flip" and "ts" not in row, row  # one bad field keeps the other
 
 
+def test_a_fifo_at_the_fallback_path_never_hangs_the_append(tmp_path, monkeypatch):
+    """W-87791bfe: os.open without O_NONBLOCK blocks forever on a FIFO with no reader, wedging the
+    tick in the very path that reports a failed ledger write."""
+    import threading
+
+    not_a_dir = tmp_path / "state-is-a-file"
+    not_a_dir.write_text("", encoding="utf-8")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(not_a_dir))
+    fifo = tmp_path / "fallback.jsonl"
+    os.mkfifo(fifo)
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(fifo))
+    t = threading.Thread(
+        target=cr._ledger_append, args=({"event": "flip", "to": "mob"},), daemon=True
+    )
+    t.start()
+    t.join(5)
+    assert not t.is_alive(), "the fallback open blocked on a FIFO"
+
+
+def test_a_partial_last_line_does_not_swallow_the_next_row(tmp_path, monkeypatch):
+    """W-87791bfe: a write that failed partway left half a line; the next row landed on it and
+    every reader skipped that row as undecodable — the one flip record gone without a trace."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    (state / "rotate-ledger.jsonl").write_text(
+        '{"event": "flip", "ts": 1.0}\n{"event": "fl', encoding="utf-8"
+    )
+    cr._ledger_append({"event": "flip", "ts": 2.0, "to": "mob"})
+    last = (state / "rotate-ledger.jsonl").read_text(encoding="utf-8").splitlines()[-1]
+    assert json.loads(last)["to"] == "mob", last
+
+
 def test_a_fallback_whose_chmod_fails_leaks_no_descriptor(tmp_path, monkeypatch):
     """fstat/fchmod ran before os.fdopen owned the fd, so a refusing filesystem leaked one per row."""
     not_a_dir = tmp_path / "state-is-a-file"
