@@ -1,0 +1,26 @@
+{
+  "block_digest": "e479da7b87da0aa7cd334591388e089590104ea3a8b915894f8bf7efd1a35514",
+  "blocked_by": [],
+  "created": "2026-10-03T13:34:51.627208Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-94946e80",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "86d6ca35deffb16eacffc4dba8a927b35ef9a896f52eae76724bf42ec1e4f4c0"
+  ],
+  "next": "",
+  "note": "if you had with a proper context, consult fable 5,1 and opus 5.5 agents about this, then approved.",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve this design for retiring the leftover Kilo/Traycer files from `fabrik scaffold` and `fabrik fix`, so the plan can be built?",
+  "status": "done",
+  "title": "Do you approve this design for retiring the leftover Kilo/Traycer files from `fabrik scaffold` and `fabrik fix`, so the plan can be built?"
+}

@@ -1,6 +1,6 @@
 # Plan — the scaffold stops emitting the retired Kilo/Traycer/Windsurf surface (mail 01M407YP)
 
-Status: CONVERGED 2026-10-03 (/fabrik-plan-review passes 1-6 + two design critiques; awaiting the operator's design approval)
+Status: CONVERGED 2026-10-03 (/fabrik-plan-review passes 1-6 + two design critiques) — approved by the operator 2026-10-03 (D-529)
 Profile: small
 **Owner:** fleet
 
