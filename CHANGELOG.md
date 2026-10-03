@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — desktop-app packs: supported-major policy, renderer lockdown and fuses, raw SQLCipher key, Windows signing corrected, custom-domain updates, loopback OAuth, KVKK standard contract (2026-10-03)
+
+`.windsurf/rules/desktop-app/72-desktop.md` and `00-domain-desktop-app.md` carried an Electron version floor, an immediate-SmartScreen claim for Trusted Signing, an `r2.dev` update URL, a custom-scheme OAuth redirect Google refuses, KVKK's pre-2024 consent rule and a retired Traycer loader path. 72 now holds Electron to its supported-major window, adds the permission/navigation/new-window/IPC-origin lockdown and release fuses, passes SQLCipher a raw random key, refuses `safeStorage`'s `basic_text` fallback, routes Windows signing to Artifact Signing or an OV certificate, updates from a custom domain, signs in through a loopback redirect with PKCE, rests KVKK transfers on the standard contract, scopes the privacy manifest to the Mac App Store and states what the scaffold ships today; 00 names its live loaders and copies no price or rate. New `tests/test_desktop_packs.py`; 14 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-03-desktop-app-currency-ledger.md`; D-538.
+
 ### Changed — AGENTS-compact.md, opencode.json and .windsurfrules are no longer synced to projects (2026-10-03)
 
 Infra's half of the retired-agent-surface spec (D-529, D-537; W-b13ce655), merged before fleet's scaffold half. Development runs on Claude Code (D-514), so the Kilo/opencode and Windsurf bootstraps leave the fleet:
