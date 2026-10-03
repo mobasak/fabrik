@@ -1375,6 +1375,41 @@ class TestRetiredSurfaceFix:
         assert "could not remove scripts/kilo_47_agents_final.json: Permission denied" in added
         assert rmdirs == []
 
+    def test_a4c_each_guard_of_the_marker_helper_holds_on_its_own(self, tmp_path):
+        """One tree per guard the A4 trees never reach on their own (Finish review A-O1..A-O4)."""
+        hub = _fake_hub(tmp_path / "hub")
+
+        user_file = tmp_path / "users-notes.txt"
+        user_file.write_text("keep me")
+        livemarker = tmp_path / "livemarker"
+        (livemarker / ".git").mkdir(parents=True)
+        (livemarker / ".droid" / "review-context").mkdir(parents=True)
+        os.symlink(user_file, livemarker / ".droid" / "review-context" / ".gitkeep")
+        added = self._fix(hub, livemarker)
+        assert "removed .droid/review-context/.gitkeep" not in added
+        assert "kept .droid/review-context/ (1 other entries)" in added
+        assert (livemarker / ".droid" / "review-context" / ".gitkeep").is_symlink()
+        assert user_file.read_text() == "keep me"
+
+        dangdir = tmp_path / "dangdir"
+        (dangdir / ".git").mkdir(parents=True)
+        (dangdir / ".droid").mkdir()
+        os.symlink(tmp_path / "no-such-dir", dangdir / ".droid" / "traycer-reports")
+        assert "skipped .droid/traycer-reports/ (symlink)" in self._fix(hub, dangdir)
+        assert (dangdir / ".droid" / "traycer-reports").is_symlink()
+
+        empty_target = tmp_path / "scripts-target"
+        empty_target.mkdir()
+        nokilo = tmp_path / "nokilo"
+        (nokilo / ".git").mkdir(parents=True)
+        os.symlink(empty_target, nokilo / "scripts")
+        assert not any("kilo_47" in e for e in self._fix(hub, nokilo))
+
+        three = _old_project(tmp_path / "three")
+        for name in ("a.md", "b.md", "c.md"):
+            (three / ".droid" / "review-context" / name).write_text(name)
+        assert "kept .droid/review-context/ (3 other entries)" in self._fix(hub, three)
+
     def test_a4b_a_refused_droid_probe_is_reported_never_raised(self, tmp_path):
         """An OSError while probing `.droid` itself is a `could not remove` entry, not a traceback."""
         from unittest.mock import patch

@@ -7174,7 +7174,7 @@ def _patch_droid_block(content: str, canonical: str) -> str:
     """Replace .droid/ entries in .gitignore with canonical block.
 
     Handles three cases:
-    1. Canonical block already present → no-op
+    1. Canonical block already present and no retired line left anywhere → no-op
     2. Lines the scaffold wrote (the canonical block's or a retired one, scattered or contiguous)
        exist → replace them with the canonical block at the first one's position
     3. No managed entries → append canonical block at end
@@ -7265,8 +7265,9 @@ def _remove_retired_droid_markers(project_path: Path, *, dry_run: bool) -> list[
 def _retire_droid_and_kilo_config(project_path: Path, *, dry_run: bool) -> list[str]:
     """The `fix_project` step that retires the Kilo/Traycer residue of older scaffolds (D-529).
 
-    Never creates ``.droid/`` and never writes inside it, so an existing ``.droid/.gitignore`` stays
-    as it is. A symlinked ``.droid`` (dangling or not) is skipped and a non-directory kept; a real
+    Never creates ``.droid/`` and never writes a file inside it, so an existing ``.droid/.gitignore``
+    stays as it is; inside ``.droid/`` it only unlinks the two markers and removes their emptied
+    directories. A symlinked ``.droid`` (dangling or not) is skipped and a non-directory kept; a real
     one has its two markers removed. Then the project's dead copy of
     ``scripts/kilo_47_agents_final.json`` (read only on the hub) goes when it is a regular file.
     """
