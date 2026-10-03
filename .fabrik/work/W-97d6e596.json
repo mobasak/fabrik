@@ -8,7 +8,7 @@
   "legacy": false,
   "links": {
     "decision": "",
-    "plan": "docs/development/plans/2026-10-03-plan-1-scaffold-retired-agent-surface.md",
+    "plan": "docs/development/plans/archived/2026-10-03-plan-1-scaffold-retired-agent-surface.md",
     "spec": ""
   },
   "next": "decide keep-marker-when-dir-nonempty in _remove_retired_droid_markers; preserve line endings in _patch_droid_block; fix the :766 table; drop the dead branch",

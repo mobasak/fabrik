@@ -1,6 +1,6 @@
 # Plan — the scaffold stops emitting the retired Kilo/Traycer/Windsurf surface (mail 01M407YP)
 
-Status: IN-PROGRESS 2026-10-03 — CONVERGED by /fabrik-plan-review passes 1-6 + two design critiques; approved by the operator (D-529)
+Status: EXECUTED 2026-10-03 — both phases built and reviewed (scoped A 12→2→0, B 17→0); whole-plan /fabrik-review CONVERGED, receipt `docs/development/reviews/2026-10-03-plan-1-scaffold-retired-agent-surface-review.md` (18 found / 6 confirmed and fixed → closing pass 0); requirements 10/10; approved by the operator (D-529). Merge waits for infra's half (mail 01M40VMZ)
 Profile: small
 **Owner:** fleet
 
@@ -398,6 +398,16 @@ as history.
   stay with infra's half. The `tests/test_preplan.py` fixture also clears a `FABRIK_ROOT` left by
   `tests/test_state.py` before its first scaffold import (every order now leaves only `test_state.py`'s own
   pre-existing failure, filed W-019e468b).
+
+- **Finish:** the whole-plan `/fabrik-review` (receipt above) confirmed four marker-helper guards no test killed
+  (`test_a4c_each_guard_of_the_marker_helper_holds_on_its_own` added, mutants M1/M11/M12/M13 red) and two docstrings;
+  its refuted and recorded candidates are in the receipt's Residual, the recorded residue filed as W-97d6e596.
+  `/fabrik-docs-review`: SKIPPED — every changed doc was review surface (slice C graded all eleven, D9). Doc-coverage
+  receipt: `check_doc_sync.py --range bf639a501..HEAD` and `check_doc_stubs.py --range bf639a501..HEAD` exit 0 (the
+  INDEX.md warning answered with the receipt's row). Requirements: A1-A8 and B1 each have their named test (123 pass
+  over the three touched files); B2 — `check_doc_sync`, `render_doc_script_links --check` green and no "4 AI guardrail"
+  text under `src/fabrik`. The merge request tells infra to drop the `AGENTS-compact.md` See Also line
+  (`FABRIK_SCAFFOLD_WORKFLOW.md:1237`) when its step 6 deletes the hub copy.
 
 ## Pass Ledger
 
