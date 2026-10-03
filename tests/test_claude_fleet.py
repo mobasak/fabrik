@@ -8217,6 +8217,55 @@ def test_a_fifo_at_the_fallback_path_never_hangs_the_append(tmp_path, monkeypatc
     assert not t.is_alive(), "the fallback open blocked on a FIFO"
 
 
+def test_a_fifo_ledger_never_hangs_and_its_row_is_kept(tmp_path, monkeypatch, capsys):
+    """W-87791bfe review: the ledger open and the torn-line read blocked forever on a FIFO with no
+    reader; a FIFO with one is not a ledger either. Both now refuse at once, and the row is kept."""
+    import threading
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    fallback = tmp_path / "fb.jsonl"
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(fallback))
+    os.mkfifo(state / "rotate-ledger.jsonl")
+    t = threading.Thread(
+        target=cr._ledger_append, args=({"event": "flip", "to": "mob"},), daemon=True
+    )
+    t.start()
+    t.join(5)
+    assert not t.is_alive(), "the ledger open blocked on a FIFO"
+    reader = os.open(state / "rotate-ledger.jsonl", os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        cr._ledger_append({"event": "flip", "to": "ob"})
+        assert '"to": "ob"' in fallback.read_text(encoding="utf-8"), (
+            "a FIFO with a reader took the row"
+        )
+    finally:
+        os.close(reader)
+
+
+def test_a_fallback_fifo_with_a_reader_is_refused_not_trusted(tmp_path, monkeypatch, capsys):
+    """The S_ISREG refusal: with a reader attached, O_NONBLOCK opens the FIFO, and the row must not
+    vanish into it while the message claims it was kept."""
+    not_a_dir = tmp_path / "state-is-a-file"
+    not_a_dir.write_text("", encoding="utf-8")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(not_a_dir))
+    fifo = tmp_path / "fallback.jsonl"
+    os.mkfifo(fifo)
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(fifo))
+    reader = os.open(fifo, os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        cr._ledger_append({"event": "flip", "to": "mob"})
+        assert "the fallback file failed too" in capsys.readouterr().err
+        try:
+            got = os.read(reader, 4096)
+        except BlockingIOError:
+            got = b""
+        assert got == b"", got
+    finally:
+        os.close(reader)
+
+
 def test_a_partial_last_line_does_not_swallow_the_next_row(tmp_path, monkeypatch):
     """W-87791bfe: a write that failed partway left half a line; the next row landed on it and
     every reader skipped that row as undecodable — the one flip record gone without a trace."""

@@ -2309,7 +2309,12 @@ def _ledger_append(event: dict) -> None:
         row = _degraded_row(event)
     try:
         ledger = _rotate_state_dir() / "rotate-ledger.jsonl"
-        with ledger.open("ab") as fh:  # write-only: an unreadable ledger still takes the row
+        # write-only, so an unreadable ledger still takes the row; O_NONBLOCK + a regular-file
+        # check, so a FIFO at the path fails at once instead of wedging the tick (W-87791bfe)
+        fd = os.open(ledger, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NONBLOCK, 0o666)
+        with os.fdopen(fd, "ab") as fh:
+            if not stat.S_ISREG(os.fstat(fh.fileno()).st_mode):
+                raise OSError(f"{ledger} is not a regular file")
             fh.write((b"\n" if _ledger_torn(ledger) else b"") + row.encode("utf-8") + b"\n")
         return
     except _STATE_DIR_ERRORS as exc:
