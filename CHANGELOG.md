@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Trimming the rotate ledger no longer erases a row another process is appending (2026-10-03)
+
+`_ledger_rotate` trimmed `rotate-ledger.jsonl` by reading it and then rewriting it, with no lock. A row that `--switch`, aro-wake or a second tick appended in between was erased in silence, a third way the fleet pointer could move with no flip row. A test that races a child appender against repeated trims failed 10 of 10 runs, losing rows. Now:
+- the trim and the append share an `fcntl.flock` on the ledger itself: exclusive for the trim, shared for appends, and neither side waits more than about a second;
+- a contended trim is skipped until the next tick, and a contended append still lands, plus a copy in the fallback file and a stderr line;
+- the trim reads only the newest `cap/2` bytes, so its hold stays bounded however large the file grew;
+- it writes before it truncates, so an unlocked reader never sees an empty ledger (the dwell guard opens on one);
+- a filesystem that cannot lock behaves as before.
+
+Both byte-identical copies (`scripts/sysadmin/`, `scripts/aro-wake/`) are changed. W-b5ba0c37.
+
 ### Fixed — The rotate ledger survives a torn last line and a FIFO at its fallback path (2026-10-03)
 
 A ledger write that failed partway left half a line. The next row was appended to it, so every reader skipped that row as undecodable, in silence. `_ledger_append` now starts a fresh line when the ledger ends mid-line. That check is a separate best-effort read, so a write-only ledger still takes the row. The fallback file is opened `O_NONBLOCK` and must be a regular file, so a FIFO at its path fails at once instead of hanging the tick forever. Both copies (`scripts/sysadmin/`, `scripts/aro-wake/`) are byte-identical. W-87791bfe.

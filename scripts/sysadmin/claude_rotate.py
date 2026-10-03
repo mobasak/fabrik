@@ -2315,8 +2315,14 @@ def _ledger_append(event: dict) -> None:
         with os.fdopen(fd, "ab") as fh:
             if not stat.S_ISREG(os.fstat(fh.fileno()).st_mode):
                 raise OSError(f"{ledger} is not a regular file")
+            # SHARED with other appenders, EXCLUSIVE against a trim's read-and-rewrite. Released
+            # only by the close below, AFTER the flush: an early LOCK_UN would let a trim truncate
+            # a row still in the buffer. Not won in time: the row still lands, plus a trace.
+            unlocked = _ledger_lock(fh.fileno(), fcntl.LOCK_SH) is False
             fh.write((b"\n" if _ledger_torn(ledger) else b"") + row.encode("utf-8") + b"\n")
-        return
+        if not unlocked:
+            return
+        reason = "ledger lock contended past the bound — appended unlocked, a trim may erase it"
     except _STATE_DIR_ERRORS as exc:
         reason = str(exc)
     fallback = _ledger_fallback_path()
@@ -2961,15 +2967,62 @@ def _keepwarm_pass(rows: list[dict], live_name: str | None, now: float) -> None:
 
 
 def _ledger_rotate(cap_bytes: int = 1_000_000) -> None:
-    """Bound the append-only ledger (closer #15): keep the newest half when it crosses the
-    cap — the dwell scan only ever needs the recent tail."""
+    """Bound the append-only ledger (closer #15): keep the newest ~half when it crosses the
+    cap — the dwell scan only ever needs the recent tail.
+
+    Holds the ledger's EXCLUSIVE flock across its read and in-place rewrite; `_ledger_append` holds
+    a SHARED one, so a row appended mid-trim is no longer erased in silence (W-b5ba0c37). A trim
+    that cannot win the lock within `_LEDGER_LOCK_WAIT_S` is SKIPPED — the next tick retries.
+    It reads only the last ``cap_bytes // 2`` bytes, so its hold is bounded by the cap however far
+    skipped trims let the file grow, and stays far below the append's bound. The tail is written
+    at offset 0 BEFORE the truncate: readers take no lock, and an empty ledger reads as "nothing
+    ever happened", which opens the dwell guard."""
     try:
         led = _rotate_state_dir() / "rotate-ledger.jsonl"
-        if led.stat().st_size > cap_bytes:
-            lines = led.read_text().splitlines(keepends=True)
-            led.write_text("".join(lines[len(lines) // 2 :]))
+        if led.stat().st_size <= cap_bytes:  # a FIFO reports 0: never opened here
+            return
+        fd = os.open(led, os.O_RDWR | os.O_NONBLOCK)
+        with os.fdopen(fd, "r+b") as fh:
+            if not stat.S_ISREG(os.fstat(fh.fileno()).st_mode):
+                return
+            if _ledger_lock(fh.fileno(), fcntl.LOCK_EX) is False:
+                return  # contended: skip this trim, the next tick retries
+            size = os.fstat(fh.fileno()).st_size
+            if size <= cap_bytes:
+                return  # another trimmer got here first while we waited
+            fh.seek(size - cap_bytes // 2)
+            tail = fh.read()
+            tail = tail[tail.find(b"\n") + 1 :]  # drop the partial first line
+            if not tail:
+                # the window held no whole row (one row is >= cap // 2): keeping nothing would
+                # leave the ledger EMPTY, so leave it whole and let a later trim try (A-S1)
+                return
+            fh.seek(0)
+            fh.write(tail)
+            fh.truncate()  # AFTER the write: the file is never observed empty
     except _STATE_DIR_ERRORS:
         pass  # runs in _tick_inner's finally — an escape here would mask the tick's own outcome
+
+
+_LEDGER_LOCK_WAIT_S: Final = 1.0
+
+
+def _ledger_lock(fd: int, kind: int) -> bool | None:
+    """Take a flock on *fd* without ever blocking past `_LEDGER_LOCK_WAIT_S`.
+
+    True: held. False: CONTENDED past the bound. None: this filesystem cannot lock at all (ENOLCK,
+    EOPNOTSUPP) — callers then behave as before the lock existed, never skipping work forever."""
+    deadline = time.monotonic() + _LEDGER_LOCK_WAIT_S
+    while True:
+        try:
+            fcntl.flock(fd, kind | fcntl.LOCK_NB)
+            return True
+        except BlockingIOError:
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.02)
+        except OSError:
+            return None
 
 
 # ── fleet mode: per-ACCOUNT dirs + ONE `active` pointer, flipped by quota headroom ────────────

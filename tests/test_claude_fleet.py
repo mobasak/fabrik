@@ -8282,6 +8282,179 @@ def test_the_torn_line_read_never_blocks_on_a_fifo(tmp_path):
     assert out == [False], out
 
 
+def test_a_trim_racing_an_append_never_loses_a_row(tmp_path, monkeypatch):
+    """W-b5ba0c37: `_ledger_rotate` read the ledger, then truncated and rewrote it, with no lock, so a
+    row another process appended in between was erased in silence: a pointer moved with no flip
+    row. A trim may drop only the OLDEST rows, so the surviving sequence numbers must form one
+    unbroken run ending at the last row written. A gap is a lost row."""
+    import subprocess as _sp
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(tmp_path / "fb.jsonl"))
+    rows = 400
+    child = tmp_path / "appender.py"
+    child.write_text(
+        "import importlib.util, sys\n"
+        "spec = importlib.util.spec_from_file_location('c', sys.argv[1])\n"
+        "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+        "for i in range(int(sys.argv[2])):\n"
+        "    m._ledger_append({'event': 'race', 'n': i, 'pad': 'x' * 400})\n"
+    )
+    proc = _sp.Popen(
+        [
+            sys.executable,
+            str(child),
+            str(REPO / "scripts" / "sysadmin" / "claude_rotate.py"),
+            str(rows),
+        ]
+    )
+    gaps: list = []
+    empties = 0
+    held_rows = False
+    try:
+        while proc.poll() is None:
+            cr._ledger_rotate(cap_bytes=20_000)
+            # every loop, not only the final file: a row erased by an early trim is later
+            # trimmed away legitimately, and a final-file check alone never sees it
+            led = state / "rotate-ledger.jsonl"
+            if not led.exists():
+                continue  # the child has not written its first row yet
+            text = led.read_text(encoding="utf-8")
+            # once the ledger has held rows, a reader must never see it empty again: that would
+            # be a trim truncating before it writes (the first O_CREAT is legitimately empty)
+            empties += held_rows and not text
+            held_rows = held_rows or bool(text)
+            seen = []
+            for ln in text.splitlines():
+                try:  # unlocked, like every production reader: a row mid-write is skipped
+                    seen.append(json.loads(ln)["n"])
+                except ValueError:
+                    continue
+            if seen and seen != list(range(seen[0], seen[-1] + 1)):
+                gaps.append(sorted(set(range(seen[0], seen[-1] + 1)) - set(seen))[:5])
+    finally:
+        proc.wait(timeout=60)
+    assert proc.returncode == 0
+    assert not gaps, f"rows erased mid-race: {gaps[:5]}"
+    assert empties == 0, f"a reader saw an empty ledger {empties} time(s)"
+    got = [
+        json.loads(ln)["n"]
+        for ln in (state / "rotate-ledger.jsonl").read_text(encoding="utf-8").splitlines()
+        if ln.strip()
+    ]
+    assert got and got[-1] == rows - 1, got[-5:]
+    assert got[0] > 0, "no trim ever ran: the race was never exercised"
+    assert got == list(range(got[0], rows)), (
+        f"rows lost mid-ledger: {sorted(set(range(got[0], rows)) - set(got))[:10]}"
+    )
+
+
+def test_a_trim_whose_window_holds_no_whole_row_never_empties_the_ledger(tmp_path, monkeypatch):
+    """W-b5ba0c37 review A-S1: the trim keeps the last ``cap//2`` bytes minus the partial first line.
+    When that window held no whole row, everything was dropped and the ledger truncated to EMPTY,
+    which every reader treats as "nothing ever happened" (the dwell guard opens). Such a trim now
+    leaves the ledger alone."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    led = state / "rotate-ledger.jsonl"
+    row = b'{"event": "x", "pad": "' + b"y" * 40 + b'"}\n'
+    emptied = []
+    for cap in range(100, 140):  # window cap//2 below, at and above one row's length
+        led.write_bytes(row * 1000)
+        cr._ledger_rotate(cap_bytes=cap)
+        data = led.read_bytes()
+        if not data:
+            emptied.append(cap)
+        else:
+            assert data.endswith(row), f"cap={cap}: the newest row did not survive"
+    assert not emptied, f"the trim emptied the ledger at cap_bytes={emptied[:5]}..."
+
+
+def test_a_trim_skips_when_the_ledger_lock_is_held(tmp_path, monkeypatch):
+    """W-b5ba0c37: a trim that cannot win the exclusive lock SKIPS (the next tick retries) — it
+    never blocks the tick and never rewrites a ledger someone else holds."""
+    import fcntl
+    import time as _time
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    led = state / "rotate-ledger.jsonl"
+    led.write_text("".join(f'{{"event": "x", "n": {i}}}\n' for i in range(500)), encoding="utf-8")
+    before = led.read_bytes()
+    holder = os.open(led, os.O_RDONLY)
+    try:
+        fcntl.flock(holder, fcntl.LOCK_EX)
+        t0 = _time.monotonic()
+        cr._ledger_rotate(cap_bytes=100)
+        assert _time.monotonic() - t0 < 5, "the trim blocked on a held lock"
+        assert led.read_bytes() == before, "the trim rewrote a ledger whose lock it never won"
+    finally:
+        os.close(holder)
+    cr._ledger_rotate(cap_bytes=100)  # lock free again: the trim now runs
+    assert len(led.read_bytes()) < len(before)
+
+
+def test_an_append_under_a_held_exclusive_lock_still_lands(tmp_path, monkeypatch):
+    """W-b5ba0c37 mirror: a lock holder that never lets go must not wedge the tick or cost the
+    row. The append waits a bounded moment, lands unlocked, and leaves a trace in the fallback
+    file, because a trim still holding the lock may erase it."""
+    import fcntl
+    import threading
+    import time as _time
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    fallback = tmp_path / "fb.jsonl"
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(fallback))
+    led = state / "rotate-ledger.jsonl"
+    led.write_text("", encoding="utf-8")
+    holder = os.open(led, os.O_RDONLY)
+    try:
+        fcntl.flock(holder, fcntl.LOCK_EX)
+        t0 = _time.monotonic()
+        t = threading.Thread(
+            target=cr._ledger_append, args=({"event": "flip", "to": "mob"},), daemon=True
+        )
+        t.start()
+        t.join(10)
+        assert not t.is_alive(), "the append blocked forever on a held lock"
+        assert _time.monotonic() - t0 < 3, "the append waited past its bound"
+    finally:
+        os.close(holder)
+    assert '"to": "mob"' in led.read_text(encoding="utf-8")
+    assert '"to": "mob"' in fallback.read_text(encoding="utf-8"), "an unlocked append left no trace"
+
+
+def test_a_filesystem_that_cannot_lock_still_trims(tmp_path, monkeypatch):
+    """W-b5ba0c37 mirror: on a filesystem whose flock fails outright (ENOLCK, EOPNOTSUPP), the
+    trim must run as it did before the lock existed, never be skipped forever, and appends must
+    pay no wait."""
+    import errno
+    import time as _time
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    led = state / "rotate-ledger.jsonl"
+    led.write_text("".join(f'{{"event": "x", "n": {i}}}\n' for i in range(500)), encoding="utf-8")
+    before = len(led.read_bytes())
+
+    def nolock(fd, op):
+        raise OSError(errno.ENOLCK, "no locks available")
+
+    monkeypatch.setattr(cr.fcntl, "flock", nolock)
+    cr._ledger_rotate(cap_bytes=100)
+    assert len(led.read_bytes()) < before, "a filesystem that cannot lock stopped trimming"
+    t0 = _time.monotonic()
+    cr._ledger_append({"event": "flip", "to": "mob"})
+    assert _time.monotonic() - t0 < 0.5, "an append waited on a lock that can never be had"
+
+
 def test_a_partial_last_line_does_not_swallow_the_next_row(tmp_path, monkeypatch):
     """W-87791bfe: a write that failed partway left half a line; the next row landed on it and
     every reader skipped that row as undecodable — the one flip record gone without a trace."""
