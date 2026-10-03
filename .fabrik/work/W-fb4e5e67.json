@@ -1,11 +1,11 @@
 {
-  "block_digest": "d6669ed8108848f825c88df36f67b6b9a455a06e5bc7f5349668987e1ea04974",
+  "block_digest": "75a25d5c6f31de956defce4a8ecaf10c9d33c0737957901fcdc6574dadcd3c0e",
   "blocked_by": [],
-  "created": "2026-10-03T16:47:35.143917Z",
+  "created": "2026-10-03T17:01:30.574439Z",
   "creator": "intel",
   "evidence": "",
   "ground": "owned",
-  "id": "W-a167ad36",
+  "id": "W-fb4e5e67",
   "kind": "decision",
   "legacy": false,
   "links": {
@@ -14,7 +14,7 @@
     "spec": ""
   },
   "msg_digests": [
-    "f0c4879834def552ae204802ec5aa59f2d9383fd0a2770fe34f8d3fc2be8cb62"
+    "5236617b90e0a1658e7b57b0be688c10a5e72122693683bd134684422130a585"
   ],
   "next": "",
   "note": "NEXT: operator decision: lift the pause and resume W-75a781e7, file 52 of the rules currency pass (ai/80-specialized-domains.md)",

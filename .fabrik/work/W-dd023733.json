@@ -17,10 +17,10 @@
     "2862a409ef64c873e7876a9af9a55d07eb4eb249021ee79178d5298ca820c903"
   ],
   "next": "",
-  "note": "",
+  "note": "NEXT: operator decision: lift the pause and resume W-75a781e7, file 52 of the rules currency pass (ai/80-specialized-domains.md)",
   "owner": "",
   "priority": 2,
   "question": "Should I resume the rules currency pass with file 52 (`ai/80-specialized-domains.md`) now that Volkan's Mac is connected?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Should I resume the rules currency pass with file 52 (`ai/80-specialized-domains.md`) now that Volkan's Mac is connected?"
 }
