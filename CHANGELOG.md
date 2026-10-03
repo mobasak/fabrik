@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The keepalive-shim tests test the shim that exists, and no longer read the live account (2026-10-03)
+
+`scripts/sysadmin/claude-keepalive-rotate.sh` stopped calling `claude -p ping` on 2026-08-30 and now classifies the JSON from the free `claude_rotate.py --probe-current --json` probe. `scripts/sysadmin/test_bot_rotation_wire.py` still injected a fake `claude` binary the shim never runs. Four ping-era cases were red at HEAD, and the "healthy" case passed only because it probed the box's real account over the network. The harness now stubs the probe through `CLAUDE_ROTATE_PYTHON` and covers the shim's six outcomes: a live reading, a fresh cache, `stale_unproven`, `probe_incomplete`, `probe_error` and `no_active_account`. The review also fixed three latent defects in the shim itself:
+- with no row matching the active slug, it fell back to the first account, reporting another account healthy; that case now reports `no_active_account`;
+- a boolean or NaN utilization, or a negative, boolean or non-finite age, counted as a reading;
+- its header still listed the retired `401_auth` reason, and `docs/infrastructure/vps-status.md` still described the cron as pinging claude and rotating, so both are corrected.
+
+The tests now assert the exit code, the 7200-second freshness bound and the producer's real dead-token shape. They run the pytest interpreter, and all 15 classifier mutants turn a test red. W-301ad93d.
+
+### Fixed — Trimming the rotate ledger no longer erases a row another process is appending (2026-10-03)
+
+`_ledger_rotate` trimmed `rotate-ledger.jsonl` by reading it and then rewriting it, with no lock. A row that `--switch`, aro-wake or a second tick appended in between was erased in silence, a third way the fleet pointer could move with no flip row. A test that races a child appender against repeated trims failed 10 of 10 runs, losing rows. Now:
+- the trim and the append share an `fcntl.flock` on the ledger itself: exclusive for the trim, shared for appends, and neither side waits more than about a second;
+- a contended trim is skipped until the next tick, and a contended append still lands, plus a copy in the fallback file and a stderr line;
+- the trim reads only the newest `cap/2` bytes, so its hold stays bounded however large the file grew;
+- it writes before it truncates, so an unlocked reader never sees an empty ledger (the dwell guard opens on one);
+- a filesystem that cannot lock behaves as before.
+
+Both byte-identical copies (`scripts/sysadmin/`, `scripts/aro-wake/`) are changed. W-b5ba0c37.
+
+### Fixed — The rotate ledger survives a torn last line and a FIFO at its fallback path (2026-10-03)
+
+A ledger write that failed partway left half a line. The next row was appended to it, so every reader skipped that row as undecodable, in silence. `_ledger_append` now starts a fresh line when the ledger ends mid-line. That check is a separate best-effort read, so a write-only ledger still takes the row. The fallback file is opened `O_NONBLOCK` and must be a regular file, so a FIFO at its path fails at once instead of hanging the tick forever. Both copies (`scripts/sysadmin/`, `scripts/aro-wake/`) are byte-identical. W-87791bfe.
+
+### Fixed — A rotation-ledger row that cannot be written is reported, not dropped in silence (2026-10-03)
+
+On 2026-09-29 the fleet's `active` pointer moved `sarp` → `mob` between the 21:15:01 cron tick and an off-cadence run at 21:19:03, and the rotate ledger holds no row for it (the 20:18:46 relief flip to `sarp` and the 21:19:29 dead-chain flip from `mob` bracket the gap). `_flip_active` is the only pointer writer in the hub; it writes the pointer first and the ledger row second, and `_ledger_append` swallowed a failed write with `pass`. The writer of that move cannot be named from what was retained (the tick log carries no timestamps, and `sarp` was a real directory throughout, so a link chain is ruled out); what is fixed is the class that could have hidden it. A failed append now keeps the row in a fallback file (`ROTATE_LEDGER_FALLBACK`, else `<tempdir>/claude-rotate-ledger-fallback-<uid>.jsonl`) and writes the error, where the row went and the row itself to stderr (the cron tick sends that to `rotate-tick.log`; the dashboard's `--switch` drops stderr on rc 0, which is why the file exists). The fallback is opened with no symlink following and mode 0600, since it sits in a shared temp dir and rows carry account emails. The append never raises: an event JSON cannot encode is written with its `event` and `ts` kept, so the dwell readers still see it, and the rest as a `repr`. A failed `.active-account` write with an unusable stderr no longer raises after a completed swap. In legacy mode, a failed `.active-account` marker write no longer skips the `switch` row. `scripts/sysadmin/test_claude_rotate.py` was 22 red on any box with a fleet: the suite now pins `CLAUDE_FLEET_ROOT` to an empty directory, gives its credential fixtures an `expiresAt` (the stale-snapshot rule fails closed without one) and patches `_env_sysadmin` instead of the removed `ENV_SYSADMIN`; 72 of 72 pass. Both byte-identical copies (`scripts/sysadmin/`, `scripts/aro-wake/`). W-16ebba0a.
+
 ### Changed — ai/70-data-predictive: beat a naive baseline first, no numbers from a chat LLM, check the licence of the exact weights (2026-10-03)
 
 `.windsurf/rules/ai/70-data-predictive.md` listed four managed platforms and the retired Kilo. It now sets a baseline-first rule (seasonal naive, a robust z-score, a held-out window), keeps chat LLMs out of the numbers, orders forecasting (statsforecast, mlforecast with LightGBM, then a pretrained model such as Chronos), defaults tabular work to gradient-boosted trees, puts anomaly detection statistical first, runs the work in a core/75 worker, and adds a licence trap for non-commercial weights (TimesFM, TabPFN, Moirai). New `tests/test_data_predictive_pack.py`; 5 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-03-data-predictive-currency-ledger.md`; D-528.
@@ -100,6 +128,9 @@ New `scripts/enforcement/plan_appetite.py` (`LANE_ROLLOUT_DATE = "2026-10-03"`, 
 
 ### Added — the /fabrik-task lane replay fixture, pinned before any gate code (2026-10-02)
 `scripts/lane_replay_capture.py` captures, read-only, the `-M -C` name-status of the 1038 commits the feature-lane spec measured (the hub's 300 ending `c84f0b0b7`, 200 each from web-ecommerce-factory, trade-intelligence and seo, tojlo-mail's 137, the wef1 commit `0e89dcb67`) into `tests/fixtures/lane_replay.json`, each with its pinned verdict and the rule text; `--check` re-derives every row and refuses a merge commit. A hub commit whose only paths are governance-sync `.md` files is `lane: full-review`. The 21 `/fabrik-task` feedback rows sit in `tests/fixtures/lane_replay_tasks.json`. Plan 2026-10-02-plan-1, T01; wave-1 review `docs/development/reviews/2026-10-02-plan-1-fabrik-task-feature-lane-T01-review.md`.
+
+### Fixed — the scaffold's resilience template no longer promises per-service Backrest snapshots (2026-10-03)
+`templates/scaffold/docs/RESILIENCE_TEMPLATE.md`, which every new project inherits, said the backrest registrar sets an hourly snapshot to B2 for each service. Since D-518 the registrar writes no plan: it checks that the host plans (`docker-volumes`, `opt-configs`, `postgres-dumps`) cover what the service persists, warns at deploy, and the hourly audit reports gaps as `drift` (a failed probe reads `unknown`). The WordPress row no longer claims its MariaDB database is covered: the registrar checks postgres-main only, so a WordPress site ships its own dump job. Routed back to fleet by infra (mail 01M40F7077).
 
 ### Changed — backrest coverage counts writable single-file binds and resolves symlinked sources (2026-10-03)
 Backrest discovery kept a writable bind mount only when its host source was a directory, so a service keeping its state in one writable file (a SQLite database, a token store) read `present` with nothing backing it up. A writable bind now counts when its source, resolved with `readlink -f`, is a directory or a regular file; sockets, FIFOs, devices, missing paths and read-only binds stay skipped. Resolving the source also fixes symlinked directories: restic stores a symlink as a link, so the coverage check now judges the target. Measured on vps1, vps2 and vps3: the only writable file binds are Traefik's `acme*.json` under `/opt`, already covered, so no new drift. Known gaps recorded: a host file replaced by rename leaves the container on the old inode (W-a31674c9), and a single-file SQLite keeps its WAL in the container layer. Tests in `tests/test_backrest_coverage.py` (real symlinks, a UNIX socket and a FIFO under the stub `sudo`); four mutants killed. D-526, W-63a1c159.

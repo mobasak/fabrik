@@ -3,10 +3,14 @@
 site routes through claude_rotate.run_claude (not a bare subprocess.run), the keepalive
 shim writes the right content token for each outcome, and the cron template calls the shim."""
 
+import json
 import os
 import pathlib
 import shlex
 import subprocess
+import sys
+
+import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]  # /opt/fabrik
 SYS_TWIN = ROOT / "scripts/sysadmin/claude_rotate.py"
@@ -81,59 +85,95 @@ def test_keepalive_shim_syntax_valid():
     assert r.returncode == 0, r.stderr
 
 
-# --- shim behaviour: run the REAL shim with a fake `claude` binary + empty HOME (no
-#     manager-accounts → no rotation), assert the content token per outcome ------------
+# --- shim behaviour: run the REAL shim against a STUBBED probe, assert the content token per
+#     outcome. The shim no longer calls `claude` (the ping was retired 2026-08-30, f532047f8): it
+#     classifies the JSON of the free `claude_rotate.py --probe-current --json` probe. The stub is a
+#     CLAUDE_ROTATE_PYTHON wrapper that answers that one invocation with a fixture and runs the
+#     real python for the shim's classifier, so no test reads the box's live account or the network
+#     (the old fake-`claude` harness did both, and four of its ping-era cases were red at HEAD —
+#     W-301ad93d). ------------------------------------------------------------------------------
 
 
-def _run_shim(tmp_path, fake_output: str, fake_rc: int) -> str:
-    fakebin = tmp_path / "fakeclaude"
-    fakebin.write_text(
-        f"#!/usr/bin/env bash\nprintf '%s' {shlex.quote(fake_output)}\nexit {fake_rc}\n"
+def _run_shim(tmp_path, probe_stdout: str) -> tuple[int, str]:
+    fixture = tmp_path / "probe.json"
+    fixture.write_text(probe_stdout)
+    fakepy = tmp_path / "fakepython"
+    fakepy.write_text(
+        "#!/usr/bin/env bash\n"
+        'for a in "$@"; do [ "$a" = "--probe-current" ] && { cat '
+        f"{shlex.quote(str(fixture))}; exit 0; }}; done\n"
+        f'exec {shlex.quote(sys.executable)} "$@"\n'  # the interpreter running pytest
     )
-    fakebin.chmod(0o755)
-    home = tmp_path / "home"
-    home.mkdir()  # no ~/.claude/manager-accounts → claude_rotate finds <2 accounts → no rotation
+    fakepy.chmod(0o755)
     log = tmp_path / "keepalive.log"
-    env = {
-        **os.environ,
-        "HOME": str(home),
-        "CLAUDE_BIN": str(fakebin),
-        "CLAUDE_KEEPALIVE_LOG": str(log),
-        "CLAUDE_ROTATE_PYTHON": "python3",
-    }
-    subprocess.run(["bash", str(SHIM)], env=env, capture_output=True, text=True)
-    return log.read_text().strip()
+    env = {**os.environ, "CLAUDE_KEEPALIVE_LOG": str(log), "CLAUDE_ROTATE_PYTHON": str(fakepy)}
+    r = subprocess.run(["bash", str(SHIM)], env=env, capture_output=True, text=True, timeout=60)
+    return r.returncode, log.read_text().strip()
 
 
-def test_shim_ok_on_healthy_ping(tmp_path):
-    assert _run_shim(tmp_path, '{"result":"pong"}', 0).startswith("KEEPALIVE_OK")
+def _probe(*extra, **row) -> str:
+    """The shape `claude_rotate.py --probe-current --json` emits: active "current", one row."""
+    return json.dumps({"active": "current", "accounts": [{"slugs": ["current"], **row}, *extra]})
 
 
-def test_shim_fail_on_401(tmp_path):
-    assert _run_shim(tmp_path, "401 Invalid authentication credentials", 1).startswith(
-        "KEEPALIVE_FAIL:401_auth"
+def _ok(tmp_path, probe: str) -> None:
+    rc, token = _run_shim(tmp_path, probe)
+    assert rc == 0 and token.startswith("KEEPALIVE_OK"), (rc, token)
+
+
+def _fail(tmp_path, probe: str, reason: str) -> None:
+    rc, token = _run_shim(tmp_path, probe)
+    assert rc == 1 and token.startswith(f"KEEPALIVE_FAIL:{reason} "), (rc, token)
+
+
+def test_shim_ok_on_a_live_reading(tmp_path):
+    _ok(tmp_path, _probe(five_hour={"utilization": 12.0}, source="live"))
+
+
+def test_shim_ok_on_a_freshly_cached_reading(tmp_path):
+    _ok(tmp_path, _probe(five_hour={"utilization": 12.0}, source="cache", age_s=60))
+
+
+def test_shim_ok_at_the_freshness_bound(tmp_path):
+    _ok(tmp_path, _probe(five_hour={"utilization": 12.0}, source="cache", age_s=7200))
+
+
+@pytest.mark.parametrize("age", [7201, 9000, None, -5, True], ids=str)
+def test_shim_fails_a_stale_or_unproven_cache(tmp_path, age):
+    # a dead token stops both the live probe AND the cache refresh, so the cache only ages; an age
+    # that is missing, negative or not a number proves nothing
+    row = {"five_hour": {"utilization": 12.0}, "source": "cache"}
+    if age is not None:
+        row["age_s"] = age
+    _fail(tmp_path, _probe(**row), "stale_unproven")
+
+
+@pytest.mark.parametrize(
+    "five_hour",
+    [None, {}, {"utilization": "12"}, {"utilization": True}, {"utilization": float("nan")}],
+    ids=str,
+)
+def test_shim_fails_a_reading_without_a_numeric_utilization(tmp_path, five_hour):
+    # None + "unavailable" is the producer's real dead-token shape (claude_rotate.py _cmd_probe_current)
+    _fail(tmp_path, _probe(five_hour=five_hour, source="unavailable"), "probe_incomplete")
+
+
+def test_shim_reads_the_active_row_not_the_first(tmp_path):
+    first = {"slugs": ["other"], "five_hour": {"utilization": 1.0}, "source": "live"}
+    probe = json.dumps(
+        {"active": "current", "accounts": [first, {"slugs": ["current"], "five_hour": {}}]}
     )
+    _fail(tmp_path, probe, "probe_incomplete")
 
 
-def test_shim_fail_on_usage_limit(tmp_path):
-    assert _run_shim(tmp_path, "You've hit your session limit · resets 3pm", 1).startswith(
-        "KEEPALIVE_FAIL:usage_limit"
-    )
+def test_shim_never_reports_another_account_healthy(tmp_path):
+    other = {"slugs": ["other"], "five_hour": {"utilization": 1.0}, "source": "live"}
+    _fail(tmp_path, json.dumps({"active": "current", "accounts": [other]}), "no_active_account")
 
 
-def test_shim_ok_on_benign_401_substring(tmp_path):
-    # RC=0, a "401" substring but no auth wording → must be OK, not a spurious FAIL:unknown
-    token = _run_shim(tmp_path, "I checked port 401 and it is closed.", 0)
-    assert token.startswith("KEEPALIVE_OK"), f"benign 401 substring must not FAIL: {token!r}"
+def test_shim_fails_an_unparseable_probe(tmp_path):
+    _fail(tmp_path, "not json", "probe_error")
 
 
-def test_shim_fail_on_nonzero_exit_without_markers(tmp_path):
-    token = _run_shim(tmp_path, "some transient error", 3)
-    assert token.startswith("KEEPALIVE_FAIL:exit_3"), token
-
-
-def test_shim_fail_on_middot_limit_render_rc0(tmp_path):
-    # branch-5-only usage-limit render ("limit · resets") with RC=0 — the rotation core rotates
-    # on it, so the shim must NOT report OK (regex-parity regression guard vs the 4-branch bug)
-    token = _run_shim(tmp_path, "You've reached your limit · resets 3pm", 0)
-    assert token.startswith("KEEPALIVE_FAIL:usage_limit"), f"middot render must FAIL, got {token!r}"
+def test_shim_fails_when_no_account_answers(tmp_path):
+    _fail(tmp_path, json.dumps({"active": "current", "accounts": []}), "no_active_account")

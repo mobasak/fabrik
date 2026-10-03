@@ -66,9 +66,11 @@
      Agent-free SSH (cron-safe). Without this, host standby snapshots went stale, so rotation landed on dead
      accounts → the 401 storm.
   3. **Per-host keepalive cron (already deployed, all 3):** `/etc/cron.d/vps-sysadmin` runs
-     `claude-keepalive-rotate.sh` hourly (staggered :27/:11/:44) → pings claude through `claude_rotate.py`,
-     which **auto-rotates the active to a fresh standby on a quota-limit OR a 401** (bounded by account count;
-     a 401 also fires a debounced Telegram alert).
+     `claude-keepalive-rotate.sh` hourly (staggered :27/:11/:44). *Superseded 2026-08-30:* the shim no longer
+     pings claude or rotates; it classifies the free `claude_rotate.py --probe-current --json` reading into
+     `KEEPALIVE_OK` or `KEEPALIVE_FAIL:<probe_error|no_active_account|probe_incomplete|stale_unproven>`
+     (see `docs/infrastructure/vps-ai-sysadmin.md`). At the time of this entry it pinged claude and
+     auto-rotated the active account on a quota limit or a 401.
   Verified live: all 3 `claude -p` auth OK (vps/vps2 active `can`, vps3 active `mob` — each rotates
   independently). The containerized watchdog uses its own mounted creds (separate path).
 - **Sysadmin config audit — 5 defects fixed fleet-wide (2026-08-03, live-verified).**

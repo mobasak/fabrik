@@ -267,7 +267,7 @@ primary is down, and prove the alarm fires on zero progress. Rule-pack basis: `c
 | PHP-FPM saturation    | `pm=ondemand`, max_children=10/site; Gatus alerts on 502 spike         |
 | Plugin auto-update    | DISABLED; managed via `wp-cli` from Fabrik deploy job                  |
 | File uploads          | Off-load to R2 via plugin; local `wp-content/uploads` is ephemeral     |
-| Backrest snapshot     | Hourly DB dump + daily file-system snapshot to B2                      |
+| Backups               | `wp-content` must sit under a host Backrest plan (the registrar warns on a gap); the MariaDB database is NOT checked by the registrar (it covers postgres-main only) — ship its own dump job |
 
 ---
 
@@ -297,7 +297,13 @@ primary is down, and prove the alarm fires on zero progress. Rule-pack basis: `c
 
 ### 5b. `has_persistent_data: true` (Backrest registrar)
 
-- Backrest schedule: hourly snapshot to Backblaze B2.
+- The registrar creates no plan for this service; it CHECKS that the host's Backrest plans already cover what the
+  service persists (named volumes → `docker-volumes`, writable bind directories and files → usually `opt-configs`, the
+  database → the hub's nightly `pg_dumpall` or `/opt/backups/postgres/<db>` → `postgres-dumps`). Read the deploy's
+  `backrest:` warnings: `unprotected: <path>` or `database <db>: no dump covered` means a host plan must be extended by
+  the operator — never add a service-named plan. The hourly audit reports the same as `drift`. A probe that fails
+  reads `unknown` (charted, not alerted): treat it as unverified, never as covered.
+- A single-file database (SQLite) keeps its `-wal`/`-shm` files beside it: mount its directory, not the file.
 - **Restore drill quarterly** — record date in Project Shape Card §1. A backup you haven't restored doesn't exist.
 - Disk pause: Beat task (5min) reads `df` on data volume; pause `<svc>:pause:disk` at >90%.
 - Cleanup policy: explicit, documented, automated. No "we'll clean it later" without a ticket.
@@ -555,7 +561,7 @@ Auto-provisioned by `fabrik apply` based on the shape flags in §1. **Do not dup
 | `gatus`          | Public uptime probe + alert routing            | `is_public: true` + `domain` set            |
 | `glitchtip`      | Error tracking DSN injection + project create  | `kind ∈ {service, worker, wordpress}`       |
 | `grafana`        | Deployment annotations on every deploy         | always                                      |
-| `backrest`       | Snapshot schedule + B2 offsite                 | `has_persistent_data: true`                 |
+| `backrest`       | Coverage check against the host plans (warns)  | `has_persistent_data: true`                 |
 | `meilisearch`    | Index provisioning + API key                   | `has_search_feature: true`                  |
 | `authelia`       | Auth layer + `^/api/` bypass if bearer-API    | `is_admin_dashboard: true` + `domain` set   |
 | `traefik`        | TLS, routing, HTTP→HTTPS                      | auto-discovered from compose labels         |

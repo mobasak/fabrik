@@ -407,17 +407,13 @@ def _activate_snapshot(
         # a marker-write failure must not fail an already-completed swap (token-match still recovers).
         try:
             _secure_write(ACTIVE_MARKER, target.name.encode())
-            # closer #5: EVERY switch writer starts the dwell clock — a manual --switch/
-            # --next/aro-wake rotation invisible to the ledger let the tick re-rotate
-            # minutes later, defeating the hysteresis the plan promises
-            try:
-                _ledger_append(
-                    {"event": "switch", "ts": _now(), "to": target.name, "via": "activate"}
-                )
-            except Exception:  # noqa: BLE001 — audit only, never a switch-blocker
-                pass
-        except OSError:
-            pass
+        except OSError as exc:
+            _warn(f"claude_rotate: active marker write failed ({exc}) — swap stands\n")
+        # closer #5: EVERY switch writer starts the dwell clock — a manual --switch/--next/aro-wake
+        # rotation invisible to the ledger let the tick re-rotate minutes later, defeating the
+        # hysteresis. Ledgered OUTSIDE the marker's try: a failed marker used to skip the row in
+        # silence (W-16ebba0a review C3). `_ledger_append` never raises.
+        _ledger_append({"event": "switch", "ts": _now(), "to": target.name, "via": "activate"})
         # fsync the CONTAINING DIRECTORY so the rename (directory-entry update) is also
         # crash-durable, not just the file data (_secure_write already fsync'd that). Together
         # they make the swap genuinely power-loss-safe. Best-effort — a fsync failure here does
@@ -2279,12 +2275,114 @@ def _usable_ts(ts: object) -> float | None:
 
 # The ledger is an audit trail, never a crash source — an escape from these readers aborts the tick
 # mid-flight, taking the drain broadcast with it.
-def _ledger_append(event: dict) -> None:
+def _warn(text: str) -> None:
+    """Write *text* to stderr; never raises — stderr may be None, closed or a broken pipe, and a
+    report must not fail the operation it reports on (a raise after a completed swap made the
+    caller read "no rotation" — W-16ebba0a closing review N1)."""
     try:
-        with (_rotate_state_dir() / "rotate-ledger.jsonl").open("a") as fh:
-            fh.write(json.dumps(event) + "\n")
-    except _STATE_DIR_ERRORS:
+        sys.stderr.write(text)
+    except Exception:  # noqa: BLE001
         pass
+
+
+def _ledger_fallback_path() -> Path:
+    """Where a row the ledger refused goes: the system temp dir, per uid — a different directory
+    from the state dir whose failure sent it here. Nothing reads it automatically: the stderr line
+    that names it is the signal, and the operator reads the file by hand."""
+    override = os.environ.get("ROTATE_LEDGER_FALLBACK")
+    if override:
+        return Path(override)
+    return Path(tempfile.gettempdir()) / f"claude-rotate-ledger-fallback-{os.getuid()}.jsonl"
+
+
+def _ledger_append(event: dict) -> None:
+    """Append one row; never raises (the tick must keep running), never drops a row in SILENCE.
+
+    A flip writes the pointer FIRST and this row SECOND, so a failed append leaves the fleet on a
+    new account with no record of the move — W-16ebba0a, 2026-09-29: the pointer went sarp -> mob
+    and nothing could say who did it. A refused row goes to :func:`_ledger_fallback_path` (durable
+    whoever owns stderr — the dashboard's --switch captures stderr and drops it on rc 0) and to
+    stderr (the cron tick sends 2>&1 to rotate-tick.log). Neither report can raise."""
+    try:  # encoded ONCE, before any write, so neither path can raise
+        row = json.dumps(event)
+    except Exception:  # noqa: BLE001 — TypeError, ValueError, RecursionError, a raising __repr__
+        row = _degraded_row(event)
+    try:
+        ledger = _rotate_state_dir() / "rotate-ledger.jsonl"
+        # write-only, so an unreadable ledger still takes the row; O_NONBLOCK + a regular-file
+        # check, so a FIFO at the path fails at once instead of wedging the tick (W-87791bfe)
+        fd = os.open(ledger, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NONBLOCK, 0o666)
+        with os.fdopen(fd, "ab") as fh:
+            if not stat.S_ISREG(os.fstat(fh.fileno()).st_mode):
+                raise OSError(f"{ledger} is not a regular file")
+            # SHARED with other appenders, EXCLUSIVE against a trim's read-and-rewrite. Released
+            # only by the close below, AFTER the flush: an early LOCK_UN would let a trim truncate
+            # a row still in the buffer. Not won in time: the row still lands, plus a trace.
+            unlocked = _ledger_lock(fh.fileno(), fcntl.LOCK_SH) is False
+            fh.write((b"\n" if _ledger_torn(ledger) else b"") + row.encode("utf-8") + b"\n")
+        if not unlocked:
+            return
+        reason = "ledger lock contended past the bound — appended unlocked, a trim may erase it"
+    except _STATE_DIR_ERRORS as exc:
+        reason = str(exc)
+    fallback = _ledger_fallback_path()
+    try:  # O_NOFOLLOW + 0600: a shared temp dir must not redirect or expose the row (N2)
+        # O_NONBLOCK: a FIFO with no reader fails at once (ENXIO) instead of blocking forever
+        flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK
+        fd = os.open(fallback, flags, 0o600)
+        with os.fdopen(fd, "a") as fh:  # owns the fd from here: every exit below closes it
+            st = os.fstat(fh.fileno())
+            if not stat.S_ISREG(st.st_mode):  # a FIFO with a reader, a device: not a ledger
+                raise OSError(f"{fallback} is not a regular file")
+            if st.st_uid != os.getuid():
+                raise PermissionError(f"{fallback} is not owned by this user")
+            os.fchmod(fh.fileno(), 0o600)  # an older release created it 0644: tighten it
+            fh.write(row + "\n")
+        where = f"; kept in {fallback}"
+    except OSError:
+        where = "; the fallback file failed too"
+    _warn(f"claude_rotate: rotate ledger write failed ({reason}){where} — row: {row}\n")
+
+
+def _ledger_torn(ledger: Path) -> bool:
+    """Whether the ledger ends mid-line. A write that failed partway leaves half a line, and a row
+    appended to it is undecodable, so every reader skips it in silence (W-87791bfe). Best-effort: a
+    ledger this process cannot read is assumed whole, so the append still lands."""
+    try:  # its own fd, non-blocking and regular-only: the path may have changed since the write
+        with os.fdopen(os.open(ledger, os.O_RDONLY | os.O_NONBLOCK), "rb") as fh:
+            if not stat.S_ISREG(os.fstat(fh.fileno()).st_mode):
+                return False
+            end = fh.seek(0, os.SEEK_END)
+            if not end:
+                return False
+            fh.seek(end - 1)
+            return fh.read(1) != b"\n"
+    except OSError:
+        return False
+
+
+def _degraded_row(event: object) -> str:
+    """A row for an event JSON cannot encode: its ``event`` and ``ts`` stay top-level so the
+    dwell readers still see it (N4), the rest is a repr — or the type name when repr raises.
+    Each field is read on its own, so one unreadable field cannot drop the other."""
+    keep: dict = {}
+    if isinstance(event, dict):
+        try:
+            if isinstance(event.get("event"), str):
+                keep["event"] = str.__str__(event["event"])
+        except Exception:  # noqa: BLE001 — a dict subclass whose .get raises
+            pass
+        try:  # an int too large for a float makes isfinite raise
+            ts = event.get("ts")
+            if isinstance(ts, (int, float)) and not isinstance(ts, bool) and math.isfinite(ts):
+                keep["ts"] = ts
+        except Exception:  # noqa: BLE001
+            pass
+    try:
+        keep["unencodable_event"] = repr(event)[:2000]
+    except Exception:  # noqa: BLE001
+        keep["unencodable_event"] = type(event).__name__
+    return json.dumps(keep)
 
 
 def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:
@@ -2869,15 +2967,62 @@ def _keepwarm_pass(rows: list[dict], live_name: str | None, now: float) -> None:
 
 
 def _ledger_rotate(cap_bytes: int = 1_000_000) -> None:
-    """Bound the append-only ledger (closer #15): keep the newest half when it crosses the
-    cap — the dwell scan only ever needs the recent tail."""
+    """Bound the append-only ledger (closer #15): keep the newest ~half when it crosses the
+    cap — the dwell scan only ever needs the recent tail.
+
+    Holds the ledger's EXCLUSIVE flock across its read and in-place rewrite; `_ledger_append` holds
+    a SHARED one, so a row appended mid-trim is no longer erased in silence (W-b5ba0c37). A trim
+    that cannot win the lock within `_LEDGER_LOCK_WAIT_S` is SKIPPED — the next tick retries.
+    It reads only the last ``cap_bytes // 2`` bytes, so its hold is bounded by the cap however far
+    skipped trims let the file grow, and stays far below the append's bound. The tail is written
+    at offset 0 BEFORE the truncate: readers take no lock, and an empty ledger reads as "nothing
+    ever happened", which opens the dwell guard."""
     try:
         led = _rotate_state_dir() / "rotate-ledger.jsonl"
-        if led.stat().st_size > cap_bytes:
-            lines = led.read_text().splitlines(keepends=True)
-            led.write_text("".join(lines[len(lines) // 2 :]))
+        if led.stat().st_size <= cap_bytes:  # a FIFO reports 0: never opened here
+            return
+        fd = os.open(led, os.O_RDWR | os.O_NONBLOCK)
+        with os.fdopen(fd, "r+b") as fh:
+            if not stat.S_ISREG(os.fstat(fh.fileno()).st_mode):
+                return
+            if _ledger_lock(fh.fileno(), fcntl.LOCK_EX) is False:
+                return  # contended: skip this trim, the next tick retries
+            size = os.fstat(fh.fileno()).st_size
+            if size <= cap_bytes:
+                return  # another trimmer got here first while we waited
+            fh.seek(size - cap_bytes // 2)
+            tail = fh.read()
+            tail = tail[tail.find(b"\n") + 1 :]  # drop the partial first line
+            if not tail:
+                # the window held no whole row (one row is >= cap // 2): keeping nothing would
+                # leave the ledger EMPTY, so leave it whole and let a later trim try (A-S1)
+                return
+            fh.seek(0)
+            fh.write(tail)
+            fh.truncate()  # AFTER the write: the file is never observed empty
     except _STATE_DIR_ERRORS:
         pass  # runs in _tick_inner's finally — an escape here would mask the tick's own outcome
+
+
+_LEDGER_LOCK_WAIT_S: Final = 1.0
+
+
+def _ledger_lock(fd: int, kind: int) -> bool | None:
+    """Take a flock on *fd* without ever blocking past `_LEDGER_LOCK_WAIT_S`.
+
+    True: held. False: CONTENDED past the bound. None: this filesystem cannot lock at all (ENOLCK,
+    EOPNOTSUPP) — callers then behave as before the lock existed, never skipping work forever."""
+    deadline = time.monotonic() + _LEDGER_LOCK_WAIT_S
+    while True:
+        try:
+            fcntl.flock(fd, kind | fcntl.LOCK_NB)
+            return True
+        except BlockingIOError:
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.02)
+        except OSError:
+            return None
 
 
 # ── fleet mode: per-ACCOUNT dirs + ONE `active` pointer, flipped by quota headroom ────────────
