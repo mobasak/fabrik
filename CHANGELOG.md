@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the scaffold's resilience template no longer promises per-service Backrest snapshots (2026-10-03)
+`templates/scaffold/docs/RESILIENCE_TEMPLATE.md`, which every new project inherits, said the backrest registrar sets an hourly snapshot to B2 for each service. Since D-518 the registrar writes no plan: it checks that the host plans (`docker-volumes`, `opt-configs`, `postgres-dumps`) cover what the service persists, warns at deploy, and the hourly audit reports gaps as `drift` (a failed probe reads `unknown`). The WordPress row no longer claims its MariaDB database is covered: the registrar checks postgres-main only, so a WordPress site ships its own dump job. Routed back to fleet by infra (mail 01M40F7077).
+
 ### Changed — backrest coverage counts writable single-file binds and resolves symlinked sources (2026-10-03)
 Backrest discovery kept a writable bind mount only when its host source was a directory, so a service keeping its state in one writable file (a SQLite database, a token store) read `present` with nothing backing it up. A writable bind now counts when its source, resolved with `readlink -f`, is a directory or a regular file; sockets, FIFOs, devices, missing paths and read-only binds stay skipped. Resolving the source also fixes symlinked directories: restic stores a symlink as a link, so the coverage check now judges the target. Measured on vps1, vps2 and vps3: the only writable file binds are Traefik's `acme*.json` under `/opt`, already covered, so no new drift. Known gaps recorded: a host file replaced by rename leaves the container on the old inode (W-a31674c9), and a single-file SQLite keeps its WAL in the container layer. Tests in `tests/test_backrest_coverage.py` (real symlinks, a UNIX socket and a FIFO under the stub `sudo`); four mutants killed. D-526, W-63a1c159.
 
