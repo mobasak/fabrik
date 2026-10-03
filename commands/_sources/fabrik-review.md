@@ -197,7 +197,9 @@ third-party API. Partition, don't skip (moot while every seat is native — D-18
   `type: user`; a brief's ARGUMENTS text is not the operator's words) and prefilters the raw line by
   timestamp before parsing (a 793 MB session file parses in under a second that way, ~40 s
   otherwise) · the Read tool truncates a long file on a token cap with NO marker — read in offset
-  pages and confirm the last line · print a DENOMINATOR beside every count, and the match count
+  pages and confirm the last line — and cuts one over-long LINE just as silently (this file carries
+  lines of several KB): read such a line whole with `sed -n '<n>p' <file> | fold -w 200`, never
+  conclude from its visible half · print a DENOMINATOR beside every count, and the match count
   beside any grep piped through `cut` · **HARD TIME BOX 15 minutes** · report `MACHINERY:` last.
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 - **OpenRouter finders (the pool — Claude *and* OpenRouter models via one API):** when `libs/subagents/` is

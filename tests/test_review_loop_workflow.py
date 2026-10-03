@@ -750,3 +750,23 @@ def test_a_defect_all_three_finders_raise_is_one_candidate_crediting_all_three()
     sl = out["slices"][0]
     assert [c["id"] for c in sl["candidates"]] == ["S-S1"], sl["candidates"]
     assert all(s["confirmed"] == 1 for s in sl["seats"]), sl["seats"]
+
+
+REVIEW_SOURCE = ROOT / "commands" / "_sources" / "fabrik-review.md"
+
+
+def _finder_lessons() -> str:
+    """The lesson list every finder brief carries VERBATIM — an Agent-tool seat's only copy of what
+    the workflow script's PINS/SCRATCH lines tell a workflow seat."""
+    body = REVIEW_SOURCE.read_text(encoding="utf-8")
+    start = body.index("Every finder brief carries these lessons VERBATIM")
+    return body[start : body.index("report `MACHINERY:` last.", start)]
+
+
+def test_the_finder_lessons_cover_a_truncated_line_not_only_a_truncated_file() -> None:
+    """W-04780107: the Read tool cuts one over-long LINE as silently as a long file, and this very
+    source carries lines of several KB; a seat reading the visible half concludes on a bounded read."""
+    lessons = _finder_lessons()
+    assert "over-long LINE" in lessons and "fold -w" in lessons, lessons[-600:]
+    longest = max(len(line.encode()) for line in REVIEW_SOURCE.read_text().splitlines())
+    assert longest > 2000, f"the lesson's reason: a line of {longest} bytes"
