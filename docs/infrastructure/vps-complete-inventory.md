@@ -570,8 +570,8 @@ Spoke tenant backups (`docker-volumes-vpsN`, `postgres-dumps-vpsN`) defer to W4 
 **Per-service coverage is checked, not created (W-5c4ad6a6, D-518).** `fabrik apply` no longer writes a
 `<service>-data` plan — the old one pointed at `/opt/<service>/data`, which named-volume and database-only services
 never have, so it archived nothing while reading green. The backrest registrar and the hourly audit now discover what a
-service really persists (named volumes, writable bind directories, its `/opt/backups/postgres/<db>` dump directory on
-the hub) and name each path no trusted host plan above covers (`unprotected: <path>`, `database <db>: no dump covered`)
+service really persists (named volumes, writable bind directories, its database's dump on the hub — the
+`/opt/backups/postgres/<db>` directory, or the nightly `pg_dumpall` in `/opt/backups` when it holds the database) and name each path no trusted host plan above covers (`unprotected: <path>`, `database <db>: no dump covered`)
 and each paper plan (`paper plan <id>: remove it`) — as a warning at deploy, and as `drift` in the audit. A missing host plan is an operator decision; removing the
 existing paper plans (`tryton-crm-data`, `zitadel-data`) is operator-gated.
 

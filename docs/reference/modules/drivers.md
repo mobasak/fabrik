@@ -30,7 +30,7 @@ Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to extern
 | `cloudflare.py` | 368 | `CloudflareClient` — direct Cloudflare API fallback when site-provisioner is down | fallback |
 | `postgres.py` | 1380 | `create_database()`, `drop_database()` — per-service DB + role on `postgres-main` (registrar injects `DATABASE_URL` on first create); watchdog/subagent roles, `create_payments_ingest_role()` (scoped NON-BYPASSRLS cross-tenant ingest role → `PAYMENTS_INGEST_DATABASE_URL`), allocations, analytics DB; SQL identifier validation; drops deferred to operator | `shape.needs_database` / `shape.needs_payments_ingest` |
 | `gatus.py` | 398 | `add_endpoint()`, `remove_endpoint()` — git-repo edit of `/opt/monitoring/configs/gatus/config.yaml` + commit via `git_commit_config()` | `shape.is_public` + `domain` |
-| `backrest.py` | 674 | `add_backup_plan()`, `remove_backup_plan()` — Restic policy via Backrest API; atomic `.tmp` → `json.tool` validate → `mv` (operator use; the registrar never writes a plan). Read-only coverage: `discover_persistence()`, `read_plans()`, `visible()`, `trusted()`, `coverage()`, `coverage_findings()` | `shape.has_persistent_data` |
+| `backrest.py` | 737 | `add_backup_plan()`, `remove_backup_plan()` — Restic policy via Backrest API; atomic `.tmp` → `json.tool` validate → `mv` (operator use; the registrar never writes a plan). Read-only coverage: `discover_persistence()`, `read_plans()`, `visible()`, `trusted()`, `coverage()`, `coverage_findings()` | `shape.has_persistent_data` |
 | `glitchtip.py` | 501 | `create_project()`, `delete_project()`, `verify_dsn_injection()` — Sentry-compatible; **DSN verification via `docker inspect`** (Lesson 31) | `shape.kind in {service, worker, wordpress}` |
 | `grafana.py` | 291 | `post_deployment_annotation()`, `delete_annotation()` — global annotations; non-fatal (decorative) | always (universal) |
 | `authelia.py` | 592 | `add_access_rule()`, `remove_access_rule()` — `docker exec` into Authelia + `run_locked()`; supports `insert_before_twofactor=True` for `^/api/` bypass | `shape.is_admin_dashboard` + `domain` (+ bypass when `shape.has_bearer_api`) |
@@ -187,10 +187,13 @@ status, findings, actual = coverage_findings(
 - `visible(paths)` — the subset Backrest itself can stat (`test -e` inside its container).
 - `trusted(plan, vis)` — every plan path visible, a schedule that is not disabled, no `iexcludes`, no `backup_flags`.
 - `coverage(paths, plans, vis)` — each path Backrest can itself stat → the most specific trusted plan covering it
-  (a visible root such as `/opt` proves nothing: it exists inside the Backrest image without its bind); an exclude matching any
-  component of the path (or one carrying `[ \ $ !`) uncovers it.
-- `coverage_findings(...)` — paths on `target_host`; the database dump `/opt/backups/postgres/<db>` must exist and be
-  covered on `hub_host`; a `<name>-data` or `postgres-<db>` plan with a path Backrest cannot stat is a paper plan,
+  (a visible root such as `/opt` proves nothing: it exists inside the Backrest image without its bind); an exclude whose last
+  real component (`**`/`*` components dropped) matches any component of the path, or one carrying `[ \ $ !`, uncovers it.
+- `coverage_findings(...)` — a service not running on `target_host` is `missing` (`drift` when a `<name>-data` or
+  `postgres-<db>` paper plan is found), its database not checked for a dump; otherwise
+  paths on `target_host`, and on `hub_host` the database: its dump directory `/opt/backups/postgres/<db>` existing and
+  covered, or else the newest `/opt/backups/pg_dump_*.sql` (the nightly `pg_dumpall`) under 36 h old, complete (its
+  trailer) and containing `CREATE DATABASE <db>`, covered (`_cluster_dump_for`, D-524); a `<name>-data` or `postgres-<db>` plan with a path Backrest cannot stat is a paper plan,
   reported for removal. Any doubt reads as unprotected — a warning, never a false `present`.
 
 ### MeiliSearch — search index

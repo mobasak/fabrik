@@ -530,17 +530,49 @@ def trusted(plan: dict, vis: set[str]) -> bool:
 
 
 def _excluded(path: str, patterns: list[str]) -> bool:
-    # Conservative over-read of restic: a pattern's last component against ANY component of the whole path.
+    # Conservative over-read of restic: a pattern's last real component against ANY component of the whole path.
+    # Pure-wildcard components (`**`, `*`) are dropped first: restic reads `dir/**` as dir and everything under it,
+    # and fnmatch of `**` would otherwise match every component, excluding the whole plan.
     components = [c for c in path.split("/") if c]
     for pattern in patterns:
         if any(ch in pattern for ch in _UNSAFE_EXCLUDE_CHARS):
             return True
-        parts = [c for c in pattern.rstrip("/").split("/") if c]
+        parts = [c for c in pattern.rstrip("/").split("/") if c and c.strip("*")]
         if not parts:
             return True
         if any(fnmatch.fnmatchcase(c, parts[-1]) for c in components):
             return True
     return False
+
+
+_DUMP_DIR = "/opt/backups"
+_CLUSTER_DUMP_MAX_MIN = 36 * 60
+"""The hub's pre-backup.sh writes a nightly pg_dumpall here as pg_dump_YYYYMMDD_HHMM.sql (01:30); 36 h lets one
+missed run alarm by the next afternoon."""
+
+
+def _cluster_dump_for(db_name: str) -> str | None:
+    """The newest fresh, COMPLETE cluster dump that contains ``db_name`` on this host, ``""`` when there is none.
+
+    Only the newest file is tested — a partial newest dump is the alarm, never a fall back to yesterday's. ``None``
+    when the probe fails. ``db_name`` is validated by the caller.
+    """
+    q = shlex.quote
+    script = (
+        "set -o pipefail\n"
+        f"f=$(sudo find {q(_DUMP_DIR)} -maxdepth 1 -type f -name 'pg_dump_*.sql' -size +0c "
+        f"-mmin -{_CLUSTER_DUMP_MAX_MIN} -printf '%T@ %p\\n' | sort -rn | head -1 | cut -d' ' -f2-)\n"
+        '[ -n "$f" ] || exit 0\n'
+        "sudo tail -c 512 \"$f\" | grep -q 'database cluster dump complete' || exit 0\n"
+        f'sudo grep -q -m1 {q("^CREATE DATABASE " + db_name + " ")} "$f" || exit 0\n'
+        "printf '%s\\n' \"$f\"\n"
+    )
+    try:
+        out = ssh(f"bash -c {q(script)}", timeout=120)
+    except Exception as exc:  # noqa: BLE001 — a failed probe is "unknown", never a guess
+        logger.warning("backrest: cluster dump probe failed: %s", exc)
+        return None
+    return out.strip()
 
 
 def coverage(paths: list[str], plans: list[dict], vis: set[str]) -> dict[str, str | None]:
@@ -595,8 +627,9 @@ def coverage_findings(
 ) -> tuple[str, list[str], dict]:
     """The coverage table for one service: ``(status, findings, actual)``.
 
-    Paths are checked on ``target_host``; the database — a per-database dump that must EXIST and be covered — on
-    ``hub_host``, where postgres-main and /opt/backups live. ``FABRIK_VPS_SSH_HOST`` is set for each and restored.
+    Paths are checked on ``target_host``; the database on ``hub_host``, where postgres-main and /opt/backups live — a
+    per-database dump directory that exists and is covered, or else the newest fresh, complete cluster dump that
+    contains it and is covered. A service not running on the host is ``missing`` and its database is not checked. ``FABRIK_VPS_SSH_HOST`` is set for each and restored.
     Status: ``unknown`` (a probe failed) · ``missing`` (not running on the host) · ``drift`` · ``present``.
     """
     findings: list[str] = []
@@ -621,6 +654,30 @@ def coverage_findings(
     if paper:
         findings.append(f"paper plan {name}-data: remove it")
 
+    actual: dict = {"anonymous_volumes": found.anonymous}
+    if found.containers == 0:
+        # not running on the host: an undeployed spec is not drift and its database is not checked for a dump, but a
+        # paper plan tied to it — `<name>-data` above, or a `postgres-<db>` plan on the hub — still is (spec table)
+        if db_name is not None:
+            with _on_host(hub_host):
+                hub_plans = plans if hub_host == target_host else read_plans()
+                if hub_plans is None:
+                    return "unknown", ["the hub plan read failed"], {}
+                pg = [p for p in hub_plans if p.get("id") == f"postgres-{db_name}"]
+                pg_vis: set[str] | None = vis
+                if pg and hub_host != target_host:
+                    pg_vis = visible(sorted({x for p in pg for x in p.get("paths") or []}))
+                    if pg_vis is None:
+                        return "unknown", ["the hub visibility probe failed"], {}
+            if pg and pg_vis is not None and _paper(pg, f"postgres-{db_name}", pg_vis):
+                findings.append(f"paper plan postgres-{db_name}: remove it")
+                paper = True
+        return (
+            ("drift" if paper else "missing"),
+            findings or [f"not running on {target_host}"],
+            actual,
+        )
+
     if db_name is not None:
         with _on_host(hub_host):
             hub_plans = plans if hub_host == target_host else read_plans()
@@ -631,18 +688,24 @@ def coverage_findings(
             hub_vis = visible(sorted({dump, *hub_paths}))
             if hub_vis is None:
                 return "unknown", ["the hub visibility probe failed"], {}
+            db_covered = dump in hub_vis and coverage([dump], hub_plans, hub_vis)[dump] is not None
+            if not db_covered:
+                # every database on postgres-main is in the nightly pg_dumpall; a per-db dir exists only for a few
+                cluster = _cluster_dump_for(db_name)
+                if cluster is None:
+                    return "unknown", ["the cluster dump probe failed"], {}
+                if cluster:
+                    cluster_vis = visible([cluster])
+                    if cluster_vis is None:
+                        return "unknown", ["the hub visibility probe failed"], {}
+                    # coverage() itself refuses a path Backrest cannot stat
+                    db_covered = (
+                        coverage([cluster], hub_plans, hub_vis | cluster_vis)[cluster] is not None
+                    )
         if _paper(hub_plans, f"postgres-{db_name}", hub_vis):
             findings.append(f"paper plan postgres-{db_name}: remove it")
-        if dump not in hub_vis or coverage([dump], hub_plans, hub_vis)[dump] is None:
+        if not db_covered:
             findings.append(f"database {db_name}: no dump covered")
-
-    actual: dict = {"anonymous_volumes": found.anonymous}
-    if found.containers == 0:
-        return (
-            ("drift" if findings else "missing"),
-            findings or [f"not running on {target_host}"],
-            actual,
-        )
 
     if not found.paths and db_name is None:
         findings.append("has_persistent_data set but no persistence found")

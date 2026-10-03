@@ -94,8 +94,10 @@ a warning line and a false `present` costs a backup:
 - it has a schedule and the schedule is not `disabled`, and it carries no `iexcludes` and no `backup_flags` (flags can exclude files or supply
   paths, ledger brk-1/brk-4 — any flag makes the plan untrusted for coverage);
 - no exclude pattern can match: an exclude counts against the path when its LAST non-empty component (trailing `/`
-  stripped) matches any component of the WHOLE absolute path (`fnmatch.fnmatchcase`), a pattern with no non-empty
-  component (e.g. `/`) counts as matching everything, and any pattern containing `[`, `\`, `$` or `!` counts as matching (Python and restic read brackets, escapes and environment expansion differently).
+  stripped, and — amended 2026-10-03, D-524 — pure-wildcard components such as `**` and `*` dropped first, since
+  `fnmatch` of `**` matches every component and made the hub's `docker-volumes` plan exclude every volume) matches
+  any component of the WHOLE absolute path (`fnmatch.fnmatchcase`), a pattern with no remaining component (e.g. `/`,
+  `**`) counts as matching everything, and any pattern containing `[`, `\`, `$` or `!` counts as matching (Python and restic read brackets, escapes and environment expansion differently).
   This over-reads restic's own rules — which match against the full path — so a doubt reads uncovered.
 
 (The hub's `docker-volumes` plan excludes whole volumes such as Prometheus and Loki data,
@@ -114,9 +116,13 @@ caller:
   on the host (`test -d`); a read-only bind, a single file (tryton-crm's `./trytond.conf`), a socket or a `tmpfs` mount
   is not service data.
 - **Database** — with `needs_database` (and no `infra.postgres: false`), the database `<db>` (by
-  `app_role_check._db_name_for_spec`) is covered only when its per-database dump directory `/opt/backups/postgres/<db>/`
+  `app_role_check._db_name_for_spec`) is covered when its per-database dump directory `/opt/backups/postgres/<db>/`
   EXISTS (visible to Backrest) and a trusted plan covers it — a directory that does not exist is a dump that is not
-  happening, whatever plan covers its parent. The live `postgres-main` data volume does not count: copying a running
+  happening, whatever plan covers its parent — or (amended 2026-10-03, D-524) when the hub's newest
+  `/opt/backups/pg_dump_*.sql` — `pre-backup.sh`'s nightly `pg_dumpall` of postgres-main, which per-database
+  directories exist for only three names of — is modified within 36 hours, ends with pg_dumpall's
+  `database cluster dump complete` trailer, contains `CREATE DATABASE <db> `, and is visible to Backrest and covered
+  by a trusted plan. Only the newest file is tested: a partial newest dump is the alarm. The live `postgres-main` data volume does not count: copying a running
   PGDATA is a file-level copy of live database state, which the cited practice rules out (vol-3); the hub restore uses
   that volume opportunistically with a dump as the fallback (`docs/infrastructure/vps-hub-rebuild.md:171`,
   `scripts/bootstrap/bootstrap-hub.sh:1315`), so the dump is what must exist. The database is always checked **on the
@@ -128,10 +134,10 @@ Then:
 |---|---|---|
 | a probe failed (SSH, docker, `config.json`, the visibility check) | warns | `unknown` |
 | a plan tied to this spec — `<sid>-data` or `postgres-<db>` — with a path Backrest cannot stat | warns: paper plan, remove it | `drift` — "paper plan <id>: remove it" (listed with any other finding) |
-| zero containers on the host | warns | `missing` — "not running on <host>" (an undeployed spec is not drift) |
+| zero containers on the host | warns | `missing` — "not running on <host>" (an undeployed spec is not drift; the database is not checked — D-524 restores this row after the 891a88392 review fix made a database finding turn it into `drift`) |
 | containers, no persistent path, database not engaged | warns: shape mismatch | `drift` — names the shape mismatch |
 | a path no trusted plan covers | warns, naming the path | `drift` — "unprotected: <path>" |
-| the database's dump directory is absent or not covered by a trusted plan | warns | `drift` — "database <db>: no dump covered" |
+| neither the database's dump directory nor a fresh complete cluster dump containing it is covered by a trusted plan | warns | `drift` — "database <db>: no dump covered" |
 | everything covered by trusted plans | logs `covered by <plan ids>` | `present`, each path's covering plan in `actual` |
 
 `present` means "configured and runnable": it says nothing about last night's run, which is W-43904006.
@@ -242,7 +248,8 @@ hub); `read_plans` may be cached per host per sweep later if it shows in the cro
 - Approach A (coverage check) over C and B, by a unanimous judge panel; check-and-warn only, on the operator's ruling
   D-518 after the Opus 5.5 and Fable 5.1 critiques; reversible (three files).
 - A plan is trusted only when Backrest can run it over the path (D2); the database is covered only by its per-database
-  dump directory, which must exist, checked on the hub — never by a plan id or a live-volume copy (vol-3).
+  dump directory, which must exist, or by the hub's newest fresh, complete `pg_dumpall` that contains it (D-524),
+  checked on the hub — never by a plan id or a live-volume copy (vol-3).
 - No code writes, edits or deletes a plan; removing paper plans is operator-gated (D5). `has_persistent_data` keeps its
   meaning and its 21 specs are not edited.
 - The approval row is minted at the approval gate (`/fabrik-plan-review`; this spec is `Size: small`).

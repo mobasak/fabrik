@@ -1,6 +1,19 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A review fix can quietly break the spec table it was meant to serve, and only real data shows it (2026-10-03)
+
+The backrest coverage check (plan-3) passed four reviews and then, at its first hourly run, raised drift from 2 to 18
+specs. Three causes, two of them ours. A Phase A review fix had changed "zero containers" from `missing` to `drift`
+whenever any finding existed, which looked right for a stopped service with an undumped database, but the approved
+findings table says an undeployed spec is not drift: the fifteen database-backed specs that do not run on vps1 all
+turned red. No reviewer re-read the change against the table, because each judged the fix against the finding that
+produced it. Second, the conservative exclude rule took a pattern's last component, and `**` is a last component
+that `fnmatch` matches against everything, so every volume read excluded. Third, the design assumed per-database
+dump directories, while the hub dumps every database with one nightly `pg_dumpall`. When a review fix changes a
+status, check it against the spec's own status table, not just the finding; and run a reporting change against the
+real fleet read-only before it alerts, which here was the rollout step the plan named first and the merge skipped.
+
 ## A directory that exists inside a container proves nothing about the host behind it (2026-10-03)
 
 The backrest coverage check (plan-3, D-518) trusted a plan only when every plan path was visible to Backrest, tested
