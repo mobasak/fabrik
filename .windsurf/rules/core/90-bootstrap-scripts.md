@@ -19,7 +19,9 @@ currency_pass: 2026-10-04
 Applies when running, editing, or debugging any script under `scripts/bootstrap/` or any operator-rebuild doc under
 `docs/infrastructure/vps-*-rebuild.md`. These rules encode operator-discipline traps that the project has hit in real
 drills. Walking past one of these will burn 10+ minutes of recovery time minimum. Only the hub carries these scripts;
-no project repo has a `scripts/bootstrap/`.
+no project repo has a `scripts/bootstrap/`. `scripts/bootstrap/bootstrap-config.sh` holds the settings the three
+scripts source (users, mesh, ports): an edit there changes every script at once, so re-run each script's `--verify`
+after it.
 
 ## Rule 1 — SSH user transition (CRITICAL)
 
@@ -60,8 +62,8 @@ SSH to root@<ip> failed BUT ssh ozgur@<ip> works.
 step_01 has already run on this host (root login disabled).
 ```
 
-and tells you to re-run with `ozgur@<ip>`. (The message's own fail2ban figure is out of date — the defaults are
-above.)
+and tells you to re-run with `ozgur@<ip>`. It goes on to warn that more root retries will trip fail2ban, citing a
+three-failure threshold that is out of date — the defaults are above.
 
 **If you see this message, switch to `ozgur@<ip>` and re-run. Do not retry with `root@<ip>`.**
 
@@ -143,7 +145,7 @@ if ! command -v claude >/dev/null; then
 fi
 
 # Good — a step that overwrites is idempotent by construction; verify afterwards
-sudo install -m 644 "$UNIT_SRC" /etc/systemd/system/aro-wake.service
+sudo install -m 644 scripts/aro-wake/templates/aro-wake.service.template /etc/systemd/system/aro-wake.service
 systemctl cat aro-wake.service >/dev/null 2>&1 && echo "unit installed OK"
 ```
 
@@ -239,8 +241,7 @@ Prefer a path the user owns outright — `$HOME/.claude/state/<name>.log` or the
 **creates the file with the right owner** is part of the change, not an assumption.
 
 ⚠️ **Not mechanically gated, deliberately.** Dozens of `>> /var/log/` redirects exist across this repo's docs, scripts
-and templates (38 lines in 18 files on 2026-10-04, this pack's own examples included), and most are correct — VPS
-root cron writing pre-created files. A check flagging all of them would fire mostly on legitimate lines, and a rule
+and templates, and most are correct — VPS root cron writing pre-created files. A check flagging all of them would fire mostly on legitimate lines, and a rule
 that is routinely waived teaches agents that the gate's findings are advisory. Writability depends on the user and
 the host; only the author can resolve it, which is why this is a rule you apply rather than a check that fires.
 

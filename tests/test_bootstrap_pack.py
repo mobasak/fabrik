@@ -54,6 +54,30 @@ def _line(path: Path, n: int) -> str:
     return path.read_text(encoding="utf-8").splitlines()[n - 1]
 
 
+def _glob_re(pattern: str) -> str:
+    """Translate a frontmatter glob: `**/` is zero or more directories, `*` stays inside one path segment."""
+    parts = re.split(r"(\*\*/|\*|\{[^}]*\})", pattern)
+    out = []
+    for part in parts:
+        if part == "**/":
+            out.append("(?:.*/)?")
+        elif part == "*":
+            out.append("[^/]*")
+        elif part.startswith("{"):
+            out.append("(?:" + "|".join(map(re.escape, part[1:-1].split(","))) + ")")
+        else:
+            out.append(re.escape(part))
+    return "".join(out)
+
+
+def test_glob_translation() -> None:
+    assert re.fullmatch(_glob_re("scripts/bootstrap/**/*.sh"), "scripts/bootstrap/a/b/x.sh")
+    assert re.fullmatch(_glob_re("scripts/bootstrap/**/*.sh"), "scripts/bootstrap/x.sh")
+    assert not re.fullmatch(
+        _glob_re("scripts/aro-wake/templates/*.template"), "scripts/aro-wake/templates/a/x.template"
+    )
+
+
 def test_stamp_and_globs() -> None:
     head = _pack().split("---", 2)[1]
     assert re.search(r"^currency_pass: \d{4}-\d{2}-\d{2}$", head, re.M), (
@@ -66,11 +90,9 @@ def test_stamp_and_globs() -> None:
     patterns = [g.strip().strip('"') for g in globs.split(",")]
     for rel in named:
         assert (ROOT / rel).is_file(), f"the pack names {rel}, which does not exist"
-        assert any(
-            Path(rel).match(p)
-            or re.fullmatch(p.replace("**/", "(.*/)?").replace("*", "[^/]*"), rel)
-            for p in patterns
-        ), f"no glob activates the pack for {rel}"
+        assert any(re.fullmatch(_glob_re(p), rel) for p in patterns), (
+            f"no glob activates the pack for {rel}"
+        )
 
 
 def test_cited_lines_still_say_it() -> None:
@@ -124,9 +146,14 @@ def test_fail2ban_and_lockout() -> None:
         "need a password login",
         "Recovery Console",
     )
-    assert "3 failures" not in _plain(_pack()), (
-        "the pack states the old three-failure threshold again"
-    )
+    for doc in (
+        PACK,
+        ROOT / "docs/infrastructure/vps-spoke-rebuild.md",
+        ROOT / "docs/infrastructure/vps-hub-rebuild.md",
+    ):
+        assert "3 failures" not in doc.read_text(encoding="utf-8"), (
+            f"{doc.name} states the old three-failure threshold again"
+        )
 
 
 def test_effective_sshd_config() -> None:
@@ -138,6 +165,27 @@ def test_effective_sshd_config() -> None:
         "low-numbered drop-in",
         "sshd -T | grep -Ei",
         "sshd -t checks syntax only",
+    )
+
+
+def test_remote_quoting() -> None:
+    s = _rule(2)
+    _has(
+        s,
+        'do not nest $(...) inside echo "..."',
+        "capture into a variable first",
+        "bash -n reads\nthe single-quoted remote program".replace("\n", " "),
+        "do a --verify dry-run",
+    )
+    assert "VER=$(python3 -c" in s, "Rule 2 lost its good example"
+
+
+def test_config_and_template_scope() -> None:
+    pre = _plain(_pack().split("\n## Rule 1 ", 1)[0])
+    _has(pre, "scripts/bootstrap/bootstrap-config.sh holds the settings the three scripts source")
+    _has(
+        _rule(3),
+        "scripts/aro-wake/templates/aro-wake.service.template /etc/systemd/system/aro-wake.service",
     )
 
 
