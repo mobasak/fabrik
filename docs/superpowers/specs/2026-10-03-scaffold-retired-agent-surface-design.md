@@ -188,7 +188,17 @@ Intake: 9 items — 8 IN, 1 OUT-OF-SCOPE (W-477e37cd, infra), 0 ASK.
 
 ## External dependencies
 
-No external facts: every claim is about hub code, grounded at path:line above.
+Every claim about the change is about hub code, grounded at path:line above. Two external facts back the approach,
+fetched 2026-10-03 with WebFetch:
+- Claude Code loads `./CLAUDE.md` (or `./AGENTS.md`) at the start of every session, and a CLAUDE.md can pull in another
+  file with `@path/to/import` — "Imported files are expanded and loaded into context at launch alongside the CLAUDE.md
+  that references them" (https://code.claude.com/docs/en/memory § Import additional files). So one line in the synced
+  governance CLAUDE.md reaches every agent, which is why the per-project injection is replaced rather than moved
+  (`§ Chosen approach`, infra step 3). The line stays plain text, not an `@docs/preplan.md` import, because most projects
+  have no pre-plan and the page does not say what a missing import does.
+- opencode loads extra instruction files only through the `instructions` key of `opencode.json` — "This takes an array of
+  paths and glob patterns to instruction files" (https://opencode.ai/docs/config/). `opencode.json:4` lists
+  `AGENTS-compact.md` there, so with opencode retired nothing loads it (`§ What exists today`).
 
 ## fabrik-lib verdict
 
