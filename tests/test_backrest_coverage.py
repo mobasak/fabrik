@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -75,6 +76,26 @@ def test_a1_a_path_is_attributed_to_its_most_specific_plan():
     assert backrest.coverage(
         ["/opt/a/data"], [broad, narrow], {"/opt", "/opt/a", "/opt/a/data"}
     ) == {"/opt/a/data": "b-plan"}
+
+
+@pytest.mark.parametrize("tail", ["**", "*"])
+def test_a1_a_trailing_wildcard_exclude_matches_only_its_directory(tail):
+    plan = _plan(
+        "docker-volumes",
+        ["/var/lib/docker/volumes"],
+        [f"/var/lib/docker/volumes/monitoring_prom-data/{tail}"],
+    )
+    other = "/var/lib/docker/volumes/tryton-crm_filestore/_data"
+    skipped = "/var/lib/docker/volumes/monitoring_prom-data/_data"
+    vis = {"/var/lib/docker/volumes", other, skipped}
+    assert backrest.coverage([other, skipped], [plan], vis) == {
+        other: "docker-volumes",
+        skipped: None,
+    }
+    # a pattern with no real component still matches everything (conservative)
+    assert backrest.coverage([other], [_plan("p", ["/var/lib/docker/volumes"], [tail])], vis) == {
+        other: None
+    }
 
 
 def test_a1_a_plan_never_covers_a_sibling_prefix():
@@ -264,7 +285,7 @@ def test_a6_read_plans_selects_only_plan_fields(monkeypatch):
 # ── A7: the shared check — the database is a dump that exists, checked on the hub ─────────────────────────────────
 
 
-def _fakes(monkeypatch, *, found, plans_by_host, visible_by_host):
+def _fakes(monkeypatch, *, found, plans_by_host, visible_by_host, cluster=""):
     seen: list[tuple[str, str]] = []
 
     def host():
@@ -282,9 +303,14 @@ def _fakes(monkeypatch, *, found, plans_by_host, visible_by_host):
         seen.append(("visible", host()))
         return {p for p in paths if p.rstrip("/") in visible_by_host[host()]}
 
+    def dump(db):
+        seen.append(("cluster", host()))
+        return cluster
+
     monkeypatch.setattr(backrest, "discover_persistence", disc)
     monkeypatch.setattr(backrest, "read_plans", rp)
     monkeypatch.setattr(backrest, "visible", vis)
+    monkeypatch.setattr(backrest, "_cluster_dump_for", dump)
     return seen
 
 
@@ -324,6 +350,100 @@ def test_a7_the_database_is_covered_only_by_an_existing_dump_on_the_hub(
     assert os.environ["FABRIK_VPS_SSH_HOST"] == "orig"  # restored
 
 
+PD = _plan("postgres-dumps", ["/opt/backups"])
+CLUSTER = "/opt/backups/pg_dump_20261003_0130.sql"
+
+
+def _running(monkeypatch, *, hub_visible, cluster, hub_plans=(PD,)):
+    return _fakes(
+        monkeypatch,
+        found=backrest.Persistence(1, ["/var/lib/docker/volumes/z/_data"], 0),
+        plans_by_host={"spoke": [DV], "hub": list(hub_plans)},
+        visible_by_host={
+            "spoke": {"/var/lib/docker/volumes", "/var/lib/docker/volumes/z/_data"},
+            "hub": hub_visible,
+        },
+        cluster=cluster,
+    )
+
+
+def test_a7_a_fresh_complete_cluster_dump_covers_the_database(monkeypatch):
+    seen = _running(monkeypatch, hub_visible={"/opt/backups", CLUSTER}, cluster=CLUSTER)
+    status, findings, _ = backrest.coverage_findings(
+        "svc", "svc", target_host="spoke", hub_host="hub"
+    )
+    assert (status, findings) == ("present", [])
+    assert ("cluster", "hub") in seen
+
+
+@pytest.mark.parametrize(
+    ("cluster", "hub_visible", "hub_plans"),
+    [
+        ("", {"/opt/backups"}, (PD,)),  # no fresh complete dump holds the database
+        (CLUSTER, {"/opt/backups"}, (PD,)),  # Backrest cannot stat the dump
+        (
+            CLUSTER,
+            {"/opt/backups", CLUSTER},
+            (_plan("postgres-dumps", ["/opt/backups"], ["pg_dump_*.sql"]),),
+        ),
+        (CLUSTER, {"/opt/backups", CLUSTER}, ()),  # no trusted plan covers it
+    ],
+)
+def test_a7_an_incomplete_or_foreign_cluster_dump_does_not_cover(
+    monkeypatch, cluster, hub_visible, hub_plans
+):
+    _running(monkeypatch, hub_visible=hub_visible, cluster=cluster, hub_plans=hub_plans)
+    status, findings, _ = backrest.coverage_findings(
+        "svc", "svc", target_host="spoke", hub_host="hub"
+    )
+    assert status == "drift" and findings == ["database svc: no dump covered"]
+
+
+def test_a7_the_cluster_probe_runs_only_when_needed_and_fails_unknown(monkeypatch):
+    seen = _running(
+        monkeypatch, hub_visible={"/opt/backups", "/opt/backups/postgres/svc"}, cluster=None
+    )
+    status, _, _ = backrest.coverage_findings("svc", "svc", target_host="spoke", hub_host="hub")
+    assert status == "present" and ("cluster", "hub") not in seen  # the per-db dump covered it
+    _running(monkeypatch, hub_visible={"/opt/backups"}, cluster=None)
+    status, findings, _ = backrest.coverage_findings(
+        "svc", "svc", target_host="spoke", hub_host="hub"
+    )
+    assert status == "unknown"
+
+
+def _dump(path, *, db="svc", trailer=True, age_h=1.0):
+    body = f"CREATE DATABASE {db} WITH TEMPLATE = template0 ENCODING = 'UTF8';\n\\connect {db}\n"
+    if trailer:
+        body += "--\n-- PostgreSQL database cluster dump complete\n--\n\n"
+    path.write_text(body)
+    t = time.time() - age_h * 3600
+    os.utime(path, (t, t))
+
+
+def test_a7_the_cluster_dump_probe_script(monkeypatch, tmp_path):
+    env = _host(tmp_path)
+    _run_remote(monkeypatch, env)
+    d = tmp_path / "backups"
+    d.mkdir()
+    monkeypatch.setattr(backrest, "_DUMP_DIR", str(d))
+    assert backrest._cluster_dump_for("svc") == ""  # none yet
+    _dump(d / "pg_dump_20261002_0130.sql", age_h=25)
+    good = str(d / "pg_dump_20261002_0130.sql")
+    assert backrest._cluster_dump_for("svc") == good
+    assert backrest._cluster_dump_for("other") == ""  # the database is not in it
+    assert backrest._cluster_dump_for("sv") == ""  # a prefix of a name is not the name
+    _dump(
+        d / "pg_dump_20261003_0130.sql", trailer=False
+    )  # the newest is partial: alarm, never fall back
+    assert backrest._cluster_dump_for("svc") == ""
+    _dump(
+        d / "pg_dump_20261003_0130.sql", age_h=40
+    )  # complete but stale, and the older one is staler
+    _dump(d / "pg_dump_20261002_0130.sql", age_h=50)
+    assert backrest._cluster_dump_for("svc") == ""
+
+
 def test_a7_an_invalid_db_name_is_a_finding(monkeypatch):
     _fakes(
         monkeypatch,
@@ -355,9 +475,33 @@ def test_findings_table_rows(monkeypatch):
         visible_by_host={"t": set()},
     )
     assert backrest.coverage_findings("svc", None, target_host="t", hub_host="t")[0] == "missing"
-    # stopped, but its database dump is uncovered: still a real gap, so drift
+    # not running on the host: missing, the database is not checked (an undeployed spec is not drift)
+    seen = _fakes(
+        monkeypatch,
+        found=backrest.Persistence(0, [], 0),
+        plans_by_host={"t": [DV]},
+        visible_by_host={"t": set()},
+    )
     status, findings, _ = backrest.coverage_findings("svc", "svc", target_host="t", hub_host="t")
-    assert status == "drift" and findings == ["database svc: no dump covered"]
+    assert (status, findings) == ("missing", ["not running on t"])
+    assert ("cluster", "t") not in seen
+    # ... but a postgres-<db> paper plan tied to it is still drift, on the hub as on the same host
+    for hub in ("t", "hub"):
+        _fakes(
+            monkeypatch,
+            found=backrest.Persistence(0, [], 0),
+            plans_by_host={
+                "t": [DV],
+                "hub": [_plan("postgres-svc", ["/opt/backups/postgres/svc/"])],
+            }
+            if hub == "hub"
+            else {"t": [DV, _plan("postgres-svc", ["/opt/backups/postgres/svc/"])]},
+            visible_by_host={"t": set(), "hub": set()},
+        )
+        status, findings, _ = backrest.coverage_findings(
+            "svc", "svc", target_host="t", hub_host=hub
+        )
+        assert (status, findings) == ("drift", ["paper plan postgres-svc: remove it"])
 
     _fakes(
         monkeypatch,
