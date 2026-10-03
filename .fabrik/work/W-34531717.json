@@ -1,0 +1,26 @@
+{
+  "block_digest": "0924966e1d5a37384079ed6d58b124ec401048a5b03255888f37aba0f1a94769",
+  "blocked_by": [],
+  "created": "2026-10-03T16:11:57.276698Z",
+  "creator": "intel",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-34531717",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "32d21a9d56932e2b9f148eae41bcce1f82d9140ff16c413e42fca1e296ede4d4"
+  ],
+  "next": "",
+  "note": "make it flawless asap. fix our sound_test.py sandbox bug and send it to Volkan's Mac as request 023 too",
+  "owner": "",
+  "priority": 2,
+  "question": "Shall I fix our `sound_test.py` sandbox bug and send it to Volkan's Mac as request 023 (with the overdue 016 acknowledgement), and bring the runbook up to date?",
+  "status": "done",
+  "title": "Shall I fix our `sound_test.py` sandbox bug and send it to Volkan's Mac as request 023 (with the overdue 016 acknowledgement), and bring the runbook up to date?"
+}
