@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-03T12:32:30.791632Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "ebf0bc3f2f21ee72aa0bb3155e22cdbf95e336c8",
   "id": "W-87791bfe",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "done",
   "title": "claude_rotate ledger, older-code notes from the W-2f5fed87 seat: (1) the fallback os.open has no O_NONBLOCK, so a FIFO this uid owns at the fallback path hangs the append forever (probe: timeout rc=124); (2) a ledger write that fails partway leaves half a line, and the next row lands on it, so readers skip that row silently"
 }
