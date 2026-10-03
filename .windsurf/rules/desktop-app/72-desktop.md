@@ -724,7 +724,7 @@ user-observable behavior, risk-ordered; **NOT** a wide base of business-logic un
 | Hidden persistent renderer for background sync | Push notifications + sync on launch/focus | Power-saving modes kill them; idle memory |
 | Aggressive HTTP polling for backend updates | SSE > WebSockets > polling | Polling burns battery and breaks under throttling |
 | Telemetry or crash reports without explicit opt-in | First-run opt-in prompt | ePrivacy Art. 5(3) consent; KVKK transfer rules |
-| Spectron for E2E tests | Playwright `_electron.launch()` (or WebdriverIO) | Spectron is deprecated and archived |
+| Spectron for E2E tests | Playwright `_electron.launch()` (or WebdriverIO) | Spectron is deprecated |
 | Native OS dialogs blocking automated tests | `electronApp.evaluate(({ dialog }) => ...)` mock | Dialogs are modal; tests hang in CI |
 | Hardcoded profile paths | `app.getPath('userData')`, `'crashDumps'`, etc. | Hardcoded paths break relocated profiles and portable installs |
 

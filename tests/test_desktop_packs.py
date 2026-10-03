@@ -16,9 +16,10 @@
 9. The scaffold still ships what the pack says it ships, and neither pack carries a version number in any shape.
 
 Guards read emphasis-stripped, whitespace-collapsed text and pin the clause that carries the force, so a reversed verb
-fails. The cheapest way past (2) is a price in words; the check catches digit shapes (`$99`, `15%`) and the currency
-and rate words a spelled-out value needs (`dollars`, `percent`), so the cheap path left is a value with no unit at all,
-which the pack's review catches.
+fails. The cheapest way past (2) is a price in words. A copied value needs a unit, and money and rate units are a small
+closed set, so the check flags any digit shape (`$99`, `15%`) and any money or rate unit word, singular or plural,
+anywhere in the prose outside HTML comments (where the ONE RULE itself names "dollar amount"). The cheap path left is a
+value with no unit at all, which the pack's review catches.
 """
 
 from __future__ import annotations
@@ -106,11 +107,9 @@ def test_domain_names_the_live_loaders() -> None:
 
 
 def test_domain_copies_no_price_or_rate() -> None:
-    found = re.findall(
-        r"\$\s?\d|\d\s?%|\b(?:percent|per cent|dollars|euros|liras?|USD|EUR)\b",
-        _plain(_body(DOMAIN)),
-        re.I,
-    )
+    prose = re.sub(r"<!--.*?-->", "", _body(DOMAIN), flags=re.S)
+    units = r"dollars?|euros?|cents?|pence|pounds?|liras?|yen|percent|per cent|USD|EUR|GBP|TRY"
+    found = re.findall(rf"\$\s?\d|\d\s?%|\b(?:{units})\b", _plain(prose), re.I)
     assert not found, f"00 copies a value 72 owns: {found}"
 
 
@@ -285,6 +284,9 @@ def test_auth_compliance_testing() -> None:
         "Playwright's Electron support is experimental and needs the enableNodeCliInspectArguments fuse left on",
         "Spectron has been deprecated since 2022",
     )
+    for line in PACK.read_text(encoding="utf-8").splitlines():
+        if "Spectron" in line:
+            assert "archived" not in line, f"72 calls Spectron archived again: {line.strip()}"
 
 
 def test_scaffold_ships_what_the_pack_says() -> None:
