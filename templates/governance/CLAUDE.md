@@ -480,15 +480,14 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   author-blind rule, same decide/refute/merge you own; nothing records to the flywheel and **no `NO-POOL:`
   declaration is owed**. Native sizing has TWO shapes. **The partitioned review loops** (`/fabrik-review` and
   `/fabrik-repo-review` by FILE; `/fabrik-spec-review` and `/fabrik-plan-review` by SECTION — Opus on the
-  rule/grammar sections, Sonnet on the rest, no Haiku seat) cut the surface into DISJOINT slices: two cheap finders
-  per slice — one Sonnet and one Haiku, each
+  rule/grammar sections, Sonnet on the rest, no Haiku seat) cut the surface into DISJOINT slices, with the orchestrator — Opus or Fable, whichever the
+  quota allows, and whichever newer model replaces them (hub D-334, D-456) — EXECUTING every refutation and every
+  confirmed reproduction, never a finder. The FILE loops seat two cheap finders per slice — one Sonnet and one Haiku, each
   over the whole slice, candidates unioned, never voted — and no Opus finder (pilot hub D-344, superseding D-207's
   Opus-on-the-risky mix; the risky units — concurrency/locks, record and file formats, fleet-synced paths, auth,
-  schema, migrations, secrets — are the slice's named hunt priority), at most ONE extra Haiku seat for a
-  judgement-shaped inventory class only when the brief names it, and Fable (Opus when Fable refuses) orchestrating and
-  EXECUTING every refutation and every confirmed reproduction, never a finder. The union of the slices IS the full
-  pass, no file's logic read by two
-  seats; round 1 is the only full pass; every later pass is the round-1 seats re-verifying their OWN slices'
+  schema, migrations, secrets — are the slice's named hunt priority), plus at most ONE extra Haiku seat for a
+  judgement-shaped inventory class only when the brief names it. The union of the slices IS the full
+  pass, no file in two slices; round 1 is the only full pass; every later pass is the round-1 seats re-verifying their OWN slices'
   claim ledgers over the fix diff plus one hop of callers and callees (`command_run.py round --slices A:n/m,…`;
   the hop bounds the EXTENT, what a later pass may COUNT is the fragments' bounded-hop rule —
   `term-edit`/`term-coverage`), never a fresh whole-surface reader, closing when every slice is verified and the
@@ -498,13 +497,14 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   journey · fact · behaviour) a Sonnet breadth seat plus a Haiku mechanical seat, plus the Opus authoritative
   seat(s), all dispatched in a SINGLE message; the cap is independence OF THE SURFACE and the FLOOR is three seats
   (under a partition the floor stands down; it binds round 1 only). EVERY partitioned loop runs `python3
-  /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` before it dispatches (a
-  section partition passes `opus=N,sonnet=N`); a units-sized surface runs `--units <N> [--heavy] [--risky <R>]
+  /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices sonnet=N,haiku=N` before it dispatches (a FILE
+  partition, plus `opus=1` where `/fabrik-execute-plan`'s per-round Opus floor applies; a section partition passes
+  `opus=N,sonnet=N`); a units-sized surface runs `--units <N> [--heavy] [--risky <R>]
   [--mechanical <M>]` before any fan-out wider than the floor; a floor-sized fan-out (1 unit = 3 seats) needs no
   script — stamp with `dispatch --seats 3`. Dispatch **exactly** the `SEATS:` and mix it prints — stamped FIRST
   with `python3 scripts/command_run.py dispatch --seats <n>` (concurrent agents subtract that stamp for 25
   minutes; a `round --seats` at the close reserves nothing). The box, the CLI cap and the quota are the ceiling;
-  the slices or units only the partition. Model by ROLE: Fable orchestrates/adjudicates, Opus authoritative,
+  the slices or units only the partition. Model by ROLE: the orchestrator (above; hub D-334, D-456) orchestrates/adjudicates, Opus authoritative,
   Sonnet breadth, Haiku mechanical — priced haiku 1× · sonnet 2× · opus 5× · fable 10× (hub D-190), so breadth on
   Opus is a 2.5× overspend. The unit count is what the SURFACE HAS; spend is bounded by units (or slices), never
   by how idle the box looks. The `ai-consult` lane is off with the pool. The pool contract is frozen in
