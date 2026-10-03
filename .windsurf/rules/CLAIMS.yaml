@@ -3027,8 +3027,8 @@ claims:
   - id: tsfm-weights-licences
     pack: ai/70-data-predictive.md
     kind: platform
-    claim: "Amazon's current Chronos generation ships Apache-licensed open weights that run on CPU or GPU; TimesFM's newest pretrained weights are under a non-commercial licence while its earlier weights stay Apache-licensed; Salesforce's Moirai weights are released for research only (CC-BY-NC)"
-    verify: "https://huggingface.co/amazon/chronos-2 ; https://github.com/google-research/timesfm ; https://huggingface.co/Salesforce/moirai-2.0-R-small (exa + WebFetch, 2026-10-03; ledger c1-02, c1-10, c1-12)"
+    claim: "Amazon's current Chronos generation ships Apache-licensed open weights that run on CPU or GPU; TimesFM's newest pretrained weights are under a non-commercial licence while its earlier weights stay Apache-licensed; Salesforce's Moirai weights are released for research only (CC-BY-NC); NX-AI's TiRex community licence allows commercial use with attribution below a revenue threshold"
+    verify: "https://huggingface.co/amazon/chronos-2 ; https://github.com/google-research/timesfm ; https://huggingface.co/Salesforce/moirai-2.0-R-small (exa + WebFetch + Fable second opinion, 2026-10-03; ledger c1-02, c1-10, c1-12, op-36) ; https://huggingface.co/NX-AI/TiRex/raw/main/LICENSE"
     window_days: 90
     last_verified: 2026-10-03
   - id: tabpfn-commercial-licence
@@ -3041,8 +3041,8 @@ claims:
   - id: forecast-baselines-and-llms
     pack: ai/70-data-predictive.md
     kind: benchmark
-    claim: "GIFT-Eval scores models relative to seasonal naive and several classical methods (AutoARIMA, AutoETS, AutoTheta) land below it; removing the LLM from LLM-based forecasters does not degrade accuracy and usually improves it; on Context is Key many LLM forecasters are pareto-dominated by pretrained time-series models"
-    verify: "https://tsfm.ai/benchmarks/gift-eval ; https://proceedings.neurips.cc/paper_files/paper/2024/hash/6ed5bf446f59e2c6646d23058c86424b-Abstract-Conference.html ; https://arxiv.org/pdf/2410.18959 (exa, 2026-10-03; ledger c1-25, c1-38, c1-39)"
+    claim: "GIFT-Eval scores models relative to seasonal naive and, on the tsfm.ai mirror of its leaderboard, several classical methods (AutoARIMA, AutoETS, AutoTheta) land below it; removing the LLM from LLM-based forecasters does not degrade accuracy and usually improves it; on Context is Key the best prompted LLMs win only where the task hinges on text context, at far higher compute cost and with occasional catastrophic misses"
+    verify: "https://github.com/SalesforceAIResearch/gift-eval (the official leaderboard is JavaScript-rendered) ; https://tsfm.ai/benchmarks/gift-eval (a mirror, refetched every 12 hours) ; https://proceedings.neurips.cc/paper_files/paper/2024/hash/6ed5bf446f59e2c6646d23058c86424b-Abstract-Conference.html ; https://arxiv.org/pdf/2410.18959 (exa + Fable second opinion, 2026-10-03; ledger c1-21, c1-25, c1-38, c1-39, op-06)"
     window_days: 180
     last_verified: 2026-10-03
   - id: anomaly-library-status

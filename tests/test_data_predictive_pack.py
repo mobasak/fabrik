@@ -16,8 +16,8 @@ it is read by citation from ai/00). Six things it states can go false with no ot
    defines), and every cited sibling pack exists.
 
 Guards read emphasis-stripped, whitespace-collapsed text and pin the clause that carries the force, so a reversed verb
-fails. The cheapest way past (4) is recommending a refused option in a new sentence the guards do not read; the review
-reads the whole pack.
+fails. The cheapest way past (4) was recommending a refused option in a new sentence; a whole-pack guard now requires every
+sentence naming one to carry its refusal, so the cheapest way left is a synonym for the tool's name.
 """
 
 from __future__ import annotations
@@ -75,6 +75,7 @@ def test_baseline_first() -> None:
         "Every forecast is scored against seasonal naive",
         "every anomaly detector against a robust z-score rule",
         "after the training window, never a random split",
+        "Score point forecasts with MASE and probabilistic ones with CRPS or pinball loss",
         "A heavier model ships only when it beats that baseline on the project's own data",
         "the margin goes in the project's decision ledger",
     ):
@@ -92,7 +93,8 @@ def test_forecasting_tabular_and_anomaly_defaults() -> None:
     f = _bullet("Forecasting, in order")
     assert "Classical models first, through Nixtla's statsforecast" in f
     assert "Then gradient-boosted trees on lag features, through mlforecast with LightGBM" in f
-    assert "A pretrained time-series foundation model only when there are many series, little history" in f
+    assert "A pretrained time-series foundation model when there are many series, little history" in f
+    assert "and only once it beats that rung on the held-out window" in f, "the foundation-model rung is no longer gated"
     assert "Prophet is in maintenance mode, so start nothing new on it" in f, "Prophet is no longer refused for new work"
     t = _bullet("Tabular prediction")
     assert "gradient-boosted trees (LightGBM, XGBoost, CatBoost) by default" in t
@@ -103,6 +105,8 @@ def test_forecasting_tabular_and_anomaly_defaults() -> None:
     w = _bullet("Run it in the project's own worker")
     assert "core/75-workers-jobs worker" in w and "core/76-gpu-workers" in w
     assert "so neither is a home for this work" in w, "PostgresML / TimescaleDB are no longer refused as the home"
+    assert "Pin the model revision and bake the weights into the worker image" in w, "the weights-pinning rule is gone"
+    assert "so it runs in that pack's forked-child isolation" in w
     m = _bullet("Managed platforms only on a recorded need")
     assert m, "the managed-platform gate is gone"
     assert "Amazon Forecast closed to new customers on 2024-07-29" in m
@@ -130,3 +134,19 @@ def test_no_retired_route_and_no_version_literal() -> None:
 def test_cited_packs_exist() -> None:
     for rel in ("ai/00-ai-model-selection.md", "core/75-workers-jobs.md", "core/76-gpu-workers.md"):
         assert (RULES / rel).exists(), f"the pack cites {rel}, which is gone"
+
+
+def test_refused_options_are_never_recommended_anywhere() -> None:
+    """Every sentence in the pack that names a refused option also carries its refusal."""
+    refusals = {
+        "Prophet": ("maintenance mode", "start nothing new"),
+        "Merlion": ("archived", "adopt neither"),
+        "ADTK": ("no release since", "adopt neither"),
+        "PostgresML": ("went bust", "not a home"),
+    }
+    sentences = re.split(r"(?<=[.!?])\s+", _plain(_pack()))
+    for name, markers in refusals.items():
+        hits = [s for s in sentences if name in s]
+        assert hits, f"the pack no longer mentions {name}, so its refusal is gone"
+        for sentence in hits:
+            assert any(m in sentence for m in markers), f"{name} is named without its refusal: {sentence!r}"
