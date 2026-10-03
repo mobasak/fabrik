@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — backrest coverage counts writable single-file binds and resolves symlinked sources (2026-10-03)
+Backrest discovery kept a writable bind mount only when its host source was a directory, so a service keeping its state in one writable file (a SQLite database, a token store) read `present` with nothing backing it up. A writable bind now counts when its source, resolved with `readlink -f`, is a directory or a regular file; sockets, FIFOs, devices, missing paths and read-only binds stay skipped. Resolving the source also fixes symlinked directories: restic stores a symlink as a link, so the coverage check now judges the target. Measured on vps1, vps2 and vps3: the only writable file binds are Traefik's `acme*.json` under `/opt`, already covered, so no new drift. Known gaps recorded: a host file replaced by rename leaves the container on the old inode (W-a31674c9), and a single-file SQLite keeps its WAL in the container layer. Tests in `tests/test_backrest_coverage.py` (real symlinks, a UNIX socket and a FIFO under the stub `sudo`); four mutants killed. D-526, W-63a1c159.
+
 ### Fixed — tests/orchestrator/ no longer stalls on live DNS and real sleeps (2026-10-03)
 Five tests in `tests/orchestrator/test_verifier.py` reached `DeploymentVerifier._wait_for_dns`, which runs a real `dig` against 1.1.1.1 and polls for up to 120 s, or the Traefik router poll's six real 5-second sleeps, so the file took over ten minutes and the `tests/orchestrator/` run never finished. An autouse fixture now stubs the DNS wait and the verifier's sleep (a test that patches `_wait_for_dns` on its own instance still wins): the file runs in under a second and `tests/orchestrator/` passes 549 in 11 s. The DNS-wait body and the resolved-IP probe still lack a unit test that stubs `subprocess`/`httpx` (W-2178bedc). W-1996f86b.
 

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T09:38:03.941238Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-a31674c9",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "detect per container via /proc/<pid>/mountinfo's //deleted marker in discover_persistence and report 'unprotected: <file> (stale bind; restart the container)'; measure first whether any live bind is stale",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Backrest coverage cannot see a STALE single-file bind: when the host path is replaced by rename (mv tmp file, restore, git pull) the container keeps writing the old unlinked inode while Backrest backs up the new file, so the service reads present (D-526 critique)"
+}

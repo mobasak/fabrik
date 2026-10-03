@@ -446,14 +446,20 @@ def _discovery_script(name: str) -> str:
         " | while IFS='|' read -r t n rw src; do\n"
         '  case "$t" in\n'
         '    volume) printf \'volume|%s|%s\\n\' "$n" "$src" ;;\n'
-        '    bind) if [ "$rw" = true ] && sudo test -d "$src"; then printf \'bind|-|%s\\n\' "$src"; fi ;;\n'
+        '    bind) src=$(sudo readlink -f -- "$src" || printf \'%s\' "$src")\n'
+        '      if [ "$rw" = true ] && { sudo test -d "$src" || sudo test -f "$src"; }; then\n'
+        "        printf 'bind|-|%s\\n' \"$src\"\n"
+        "      fi ;;\n"
         "  esac\n"
         "done\n"
     )
 
 
 def discover_persistence(name: str) -> Persistence | None:
-    """Ask Docker what service ``name`` persists: named volumes and writable bind directories.
+    """Ask Docker what service ``name`` persists: named volumes and writable bind directories and files.
+
+    A bind source is resolved (``readlink -f``) first: restic stores a symlink as a link, not its target's data. A source
+    ``readlink`` cannot resolve (a missing parent) keeps its literal path and then fails ``test -d``/``-f``: skipped, never fatal.
 
     One SSH call; ``None`` when it fails (never a guess). Zero containers is its own answer.
     """
