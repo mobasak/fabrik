@@ -45,7 +45,8 @@ of step_00). The operator-side trap is that `REMOTE="$1"` is re-read fresh on ev
 4. You keep re-trying → each attempt is another authentication failure
 5. **fail2ban bans your dev WSL public IP.** No bootstrap script writes a jail config, so the Ubuntu package's
    defaults apply: the package enables the `sshd` jail, and upstream's defaults ban after **5 failures within 10
-   minutes, for 10 minutes**. One failed connection can log more than one failure.
+   minutes, for 10 minutes**. A refused root login counts once per key the client offers that root's
+   `authorized_keys` accepts, so a client with several such keys burns several failures per attempt.
 6. You are locked out of the target VPS for 10 minutes
 7. The only ways to recover: wait, use the provider's web console (Rule 6), or SSH from a different source IP
 
@@ -78,23 +79,30 @@ three-failure threshold that is out of date — the defaults are above.
 ### Verify the EFFECTIVE sshd config, not the file you edited
 
 sshd uses the **first** value it reads for each keyword, and Ubuntu's `sshd_config` includes
-`/etc/ssh/sshd_config.d/*.conf` at the top, in lexical order. Ubuntu cloud images ship drop-ins such as
-`50-cloud-init.conf` or `60-cloudimg-settings.conf` that can set `PasswordAuthentication yes` — and that value beats a
-later `99-…` drop-in and any edit to the main `sshd_config`. So:
+`/etc/ssh/sshd_config.d/*.conf` at the top, in lexical order. Ubuntu images ship their own drop-ins:
+cloud-init's `50-cloud-init.conf` may say `PasswordAuthentication yes` (it carries whatever the image or installer
+chose), while `60-cloudimg-settings.conf` says `no`. Either way, any drop-in that sorts before yours wins over a later
+`99-…` drop-in and over any edit to the main `sshd_config`. So:
 
 - Put hardening in a **low-numbered** drop-in (e.g. `01-fabrik-hardening.conf`), not a `99-…` one and not a `sed` on
   the main file.
-- Validate with `sshd -t` before reloading, then **assert the effective value** with
-  `sshd -T | grep -Ei '^(permitrootlogin|passwordauthentication) '` — `sshd -t` checks syntax only and passes while a
-  cloud drop-in silently overrides you.
-- On cloud images, cloud-init also prefixes root's `authorized_keys` so a root key login prints a "log in as the
-  user …" message and exits; that is a different mechanism from `PermitRootLogin`.
+- Before reloading, **assert the effective value** with
+  `sudo sshd -T | grep -Ei '^(permitrootlogin|passwordauthentication) '` — `-T` runs every check `-t` does and then
+  prints the configuration sshd will actually use; it needs root because the host keys are root-only. A clean
+  `sshd -t` passes while a cloud drop-in silently overrides you.
+- When cloud-init's `disable_root` is on (its default), it also prefixes root's `authorized_keys` so a root key
+  login prints a "log in as the user …" message and exits — a different mechanism from `PermitRootLogin`. The
+  providers this fleet uses ship images that allow the first root login (the table above), so it is off there.
+- **The scripts are behind this rule:** `bootstrap-vps.sh` edits the main `sshd_config`, `bootstrap-hub.sh` and
+  `bootstrap-spoke-restore.sh` write a `99-…` drop-in, and `--verify` greps the main file instead of running
+  `sshd -T`. Until fleet lands the fix (finding filed 2026-10-04), verify a box by hand with the `sshd -T` line above.
 
 ## Rule 2 — Remote-bash quote escaping (CRITICAL)
 
 Inside `remote '...'` single-quoted strings, **do not nest `$(...)` inside `echo "..."`** if the inner command also
-uses double-quoted strings. The local bash parser accepts it; the remote bash (via ssh) does not — you get a syntax
-error at runtime.
+uses double-quoted strings. Inside single quotes a backslash escapes nothing, so `\"` reaches the remote shell as
+two literal characters, and the remote bash — the only shell that parses this program — hits a syntax error at
+runtime.
 
 ### Bad — caught by first DR drill 2026-06-07
 
@@ -149,13 +157,18 @@ sudo install -m 644 scripts/aro-wake/templates/aro-wake.service.template /etc/sy
 systemctl cat aro-wake.service >/dev/null 2>&1 && echo "unit installed OK"
 ```
 
-- **Claude Code:** the docs recommend the native installer; the npm package is an alternative that needs a current
-  Node.js and must **not** be installed with `sudo npm install -g`. The installer needs about 512 MB of free memory:
-  on a small VPS, an install that dies with `Killed` (exit 137) was the OOM killer — add swap and re-run. Headless
-  boxes authenticate with a long-lived token from `claude setup-token` in `CLAUDE_CODE_OAUTH_TOKEN`.
+- **Claude Code:** the docs recommend the native installer; the npm package is an alternative that needs Node.js
+  only while npm installs it (the binary it fetches does not use Node) and must **not** be installed with
+  `sudo npm install -g`. The installer needs about 512 MB of free memory: on a small VPS, an install that dies with
+  `Killed` (exit 137) was the OOM killer — add swap and re-run. Running it needs the documented 4 GB of RAM, so a box
+  that installs fine can still run out of memory when a bot starts `claude`. Headless boxes authenticate with a
+  long-lived token from `claude setup-token` in `CLAUDE_CODE_OAUTH_TOKEN`.
+- **The spoke script is behind this rule:** `bootstrap-vps.sh` still installs Claude Code with `sudo npm install -g`
+  and its closing message tells you to log in interactively; `bootstrap-hub.sh` already uses the native installer.
+  Fleet owns the migration (finding filed 2026-10-04).
 - **Python packages:** Ubuntu marks its system Python externally managed (PEP 668), so a plain `pip install` fails.
   `--break-system-packages` overrides that at the risk of breaking the OS's own Python; prefer an apt `python3-…`
-  package, a venv, or `pipx`. The spoke script's existing `python-telegram-bot` install uses the override; new
+  package, a venv, or `pipx`. The `python-telegram-bot` install in `bootstrap-vps.sh` uses the override; new
   dependencies go into a venv.
 
 If the operator re-runs the script (which they will — bootstrap is allowed to fail partway and be restarted), every
@@ -176,8 +189,8 @@ When drilling `bootstrap-vps.sh` on a throwaway VPS, use both flags:
 - `--skip-dns` skips the step that calls site-provisioner to create `*.vps4.ocoron.com` DNS records. Without it,
   drilling pollutes the production DNS zone.
 
-Both flags make the drill HERMETIC — destroying the throwaway droplet at the end leaves zero residue on production
-infrastructure. `bootstrap-hub.sh` and `bootstrap-spoke-restore.sh` accept `--skip-mesh` and `--verify` but have no
+Both flags make the drill write nothing to production — destroying the throwaway droplet at the end leaves zero
+residue. The preflight still reads vps1 (it checks the hub's WireGuard state), so the hub must be reachable. `bootstrap-hub.sh` and `bootstrap-spoke-restore.sh` accept `--skip-mesh` and `--verify` but have no
 `--skip-dns`.
 
 ## Rule 5 — Spoke name must match `^vps[0-9]+$`
@@ -190,8 +203,8 @@ is needed on vps1 because `--skip-mesh` was used.
 
 ## Rule 6 — Never retry SSH more than twice without checking fail2ban
 
-The ban threshold is five failures in ten minutes by default (Rule 1), but each failed connection can count more
-than once and the preflight's own probes count too. Stop after the second failure and diagnose first:
+The ban threshold is five failures in ten minutes by default (Rule 1), but one attempt can count more than once
+and the preflight's own probes count too. Stop after the second failure and diagnose first:
 
 ```bash
 # Confirm the public IP we're connecting from (will be the banned one)
@@ -203,6 +216,13 @@ ssh vps "ssh ozgur@<target-ip> 'sudo fail2ban-client status sshd 2>&1 | head -15
 # From any shell on the target (console or another IP), lift the ban
 sudo fail2ban-client set sshd unbanip <your-ip>
 ```
+
+On Ubuntu the `sshd` jail reads the systemd journal, so there may be no `auth.log` to grep — use
+`journalctl -u ssh` beside `fail2ban-client status sshd`.
+
+**Prevention:** fail2ban never bans an address in `ignoreip`. Adding the operator's IP and the mesh range in a
+`/etc/fail2ban/jail.d/*.local` drop-in (or at runtime with `sudo fail2ban-client set sshd addignoreip <ip>`) retires
+this whole lockout class; the bootstrap scripts do not do it yet.
 
 If the ban-list shows your dev WSL IP, your options are: (a) wait 10 min, (b) log in through the provider's browser
 console and unban, or (c) SSH from another IP. The consoles work without network SSH but need a **password** login:
@@ -217,7 +237,8 @@ failure** whenever the cron's user cannot create that file. The shell opens the 
 exec'ing the script, and a redirect that cannot open the file fails the command — so the job dies with no output in
 the log, the script never runs, and the absent log looks like "it ran and printed nothing". Cron runs the line with
 `/bin/sh`; the shell's error goes to cron's mail (the crontab owner, or `MAILTO`), and on a box with no mail agent
-cron discards it — look in the journal (`journalctl -t CRON`).
+cron discards it. The journal (`journalctl -t CRON`) then shows only that the job ran and that its output was
+discarded — never the shell's error — so the writability probe below is the diagnostic, not the log.
 
 Founding incident: `scripts/sysadmin/liveness_audit.py:10-11` — the Claude-config DR backup had never
 once run from cron for exactly this reason. Reproduced again 2026-08-29 (`touch /var/log/x` →
@@ -225,16 +246,19 @@ once run from cron for exactly this reason. Reproduced again 2026-08-29 (`touch 
 a working precedent and shipped the same defect; only a native Opus reviewer caught it.
 
 **Why the precedent misleads:** the `/var/log/…` redirects that DO work on the VPS work because those files were
-**pre-created** (`bootstrap-vps.sh` touches the sysadmin logs and hands `claude-keepalive.log` to `ozgur` before it
-installs `/etc/cron.d/vps-sysadmin`) or because the cron runs as root. Copying such a line into a user crontab, or
+**pre-created** (`bootstrap-vps.sh` installs `/etc/cron.d/vps-sysadmin` and, in the same step, touches the sysadmin
+logs and hands `claude-keepalive.log` to `ozgur`) or because the cron runs as root. Copying such a line into a user crontab, or
 onto a box where the file does not exist, silently reproduces the bug. Root-on-VPS and user-on-WSL are different
 worlds and the line looks identical in both.
 
 **Before proposing ANY cron line, prove the redirect target:**
 
 ```
-$ sudo -u <the cron's user> test -w "$(dirname /var/log/thing.log)" && echo writable || echo NOT
+$ f=/var/log/thing.log; sudo -u <the cron's user> sh -c "test -w '$f' || { test ! -e '$f' && test -w \"\$(dirname '$f')\"; }" && echo writable || echo NOT
 ```
+
+The sibling silent failure: cron ignores a file in `/etc/cron.d` whose name contains a dot (it follows run-parts'
+naming — letters, digits, underscores and hyphens only), so a template installed as `vps-sysadmin.cron` never runs.
 
 Prefer a path the user owns outright — `$HOME/.claude/state/<name>.log` or the project's own
 `logs/` — over `/var/log/`. If `/var/log/` is genuinely required, the provisioning step that

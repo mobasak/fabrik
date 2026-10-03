@@ -145,6 +145,8 @@ def test_fail2ban_and_lockout() -> None:
         "sudo fail2ban-client set sshd unbanip",
         "need a password login",
         "Recovery Console",
+        "fail2ban never bans an address in ignoreip",
+        "journalctl -u ssh",
     )
     for doc in (
         PACK,
@@ -163,8 +165,11 @@ def test_effective_sshd_config() -> None:
         "sshd uses the first value it reads",
         "50-cloud-init.conf",
         "low-numbered drop-in",
-        "sshd -T | grep -Ei",
-        "sshd -t checks syntax only",
+        "sudo sshd -T | grep -Ei",
+        "-T runs every check -t does",
+        "60-cloudimg-settings.conf says no",
+        "When cloud-init's disable_root is on",
+        "The scripts are behind this rule",
     )
 
 
@@ -176,6 +181,7 @@ def test_remote_quoting() -> None:
         "capture into a variable first",
         "bash -n reads\nthe single-quoted remote program".replace("\n", " "),
         "do a --verify dry-run",
+        "Inside single quotes a backslash escapes nothing",
     )
     assert "VER=$(python3 -c" in s, "Rule 2 lost its good example"
 
@@ -200,6 +206,8 @@ def test_idempotency_and_installs() -> None:
         "about 512 MB of free memory",
         "externally managed (PEP 668)",
         "prefer an apt python3-… package, a venv, or pipx",
+        "The spoke script is behind this rule",
+        "needs Node.js only while npm installs it",
     )
     assert "==" not in s, "Rule 3 pins a package version again"
 
@@ -209,7 +217,10 @@ def test_cron_redirect() -> None:
         _rule(7),
         "The shell opens the redirect before exec'ing the script",
         "journalctl -t CRON",
+        "the writability probe below is the diagnostic, not the log",
         "prove the redirect target",
+        "cron ignores a file in /etc/cron.d whose name contains a dot",
+        "test -w '$f' || { test ! -e '$f'",
     )
 
 

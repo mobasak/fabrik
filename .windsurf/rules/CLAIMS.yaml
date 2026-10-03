@@ -3267,16 +3267,16 @@ claims:
   - id: sshd-first-match-dropins
     pack: core/90-bootstrap-scripts.md
     kind: standard
-    claim: "sshd uses the first value it reads for each keyword and Ubuntu includes sshd_config.d/*.conf at the top in lexical order, so cloud-image drop-ins such as 50-cloud-init.conf override a later 99- drop-in or a main-file edit; sshd -t checks validity only and sshd -T prints the effective configuration"
-    verify: "https://man.openbsd.org/sshd_config ; https://man.openbsd.org/sshd ; https://github.com/lacs-project/sysknife/issues/559 (WebFetch + brave, 2026-10-04; ledger g1-12, g1-15, g1-17..g1-20)"
+    claim: "sshd uses the first value it reads for each keyword and Ubuntu includes sshd_config.d/*.conf at the top in lexical order, so an earlier drop-in such as cloud-init's 50-cloud-init.conf (which may say PasswordAuthentication yes) overrides a later 99- drop-in or a main-file edit; sshd -T runs sshd -t's checks, prints the effective configuration and needs root"
+    verify: "https://man.openbsd.org/sshd_config ; https://man.openbsd.org/sshd ; https://github.com/lacs-project/sysknife/issues/559 (WebFetch + brave + Fable second opinion, 2026-10-04; ledger g1-12, g1-15, g1-17..g1-20, op-08, op-09)"
     window_days: 365
     last_verified: 2026-10-04
 
   - id: claude-code-native-install
     pack: core/90-bootstrap-scripts.md
     kind: practice
-    claim: "Claude Code's recommended install is the native installer (curl -fsSL https://claude.ai/install.sh | bash), which auto-updates; npm is an alternative that must not be run as sudo npm install -g; the installer needs about 512 MB free and a Killed exit 137 is the OOM killer; headless boxes use claude setup-token"
-    verify: "https://code.claude.com/docs/en/setup ; https://code.claude.com/docs/en/troubleshoot-install ; https://code.claude.com/docs/en/authentication (WebFetch + exa, 2026-10-04; ledger g1-28, g1-29, g1-34, g1-35)"
+    claim: "Claude Code's recommended install is the native installer (curl -fsSL https://claude.ai/install.sh | bash), which auto-updates; npm is an alternative that needs Node only at install time and must not be run as sudo npm install -g; the installer needs about 512 MB free and a Killed exit 137 is the OOM killer, while running it needs the documented 4 GB of RAM; headless boxes use claude setup-token"
+    verify: "https://code.claude.com/docs/en/setup ; https://code.claude.com/docs/en/troubleshoot-install ; https://code.claude.com/docs/en/authentication (WebFetch + exa + Fable second opinion, 2026-10-04; ledger g1-28, g1-29, g1-34, g1-35, op-16, op-19)"
     window_days: 90
     last_verified: 2026-10-04
 
@@ -3291,8 +3291,8 @@ claims:
   - id: cron-redirect-before-exec
     pack: core/90-bootstrap-scripts.md
     kind: standard
-    claim: "The shell processes redirections before running the command and a file it cannot open or create fails the redirection; cron runs lines with /bin/sh and mails output to MAILTO or the owner, and with no mail agent Ubuntu's cron discards it and logs CRON lines to the journal"
-    verify: "https://www.gnu.org/software/bash/manual/html_node/Redirections.html ; https://manpages.ubuntu.com/manpages/noble/man5/crontab.5.html ; https://blog.healthchecks.io/2023/01/using-logs-to-troubleshoot-failing-cron-jobs/ (WebFetch + brave, 2026-10-04; ledger g1-36, g1-37, g1-39)"
+    claim: "The shell processes redirections before running the command and a file it cannot open or create fails the redirection; cron runs lines with /bin/sh and mails output to MAILTO or the owner, and with no mail agent Ubuntu's cron discards it, leaving only a 'discarding output' line in the journal; cron also ignores /etc/cron.d files whose names contain dots"
+    verify: "https://www.gnu.org/software/bash/manual/html_node/Redirections.html ; https://manpages.ubuntu.com/manpages/noble/man5/crontab.5.html ; https://blog.healthchecks.io/2023/01/using-logs-to-troubleshoot-failing-cron-jobs/ (WebFetch + brave + Fable second opinion, 2026-10-04; ledger g1-36, g1-37, g1-39, op-30, op-33)"
     window_days: 365
     last_verified: 2026-10-04
 
