@@ -154,8 +154,10 @@ def test_scaffold_ships_one_revenuecat_key_per_platform(project: Path) -> None:
     """RevenueCat issues one public SDK key per platform (appl_ iOS, goog_ Android)."""
     env = (project / ".env.example").read_text(encoding="utf-8")
     keys = re.findall(r"^(EXPO_PUBLIC_REVENUECAT\w*)=", env, re.M)
-    assert keys == ["EXPO_PUBLIC_REVENUECAT_IOS_KEY", "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY"], keys
-    assert "EXPO_PUBLIC_REVENUECAT_API_KEY" not in PACK.read_text(encoding="utf-8")
+    assert sorted(keys) == ["EXPO_PUBLIC_REVENUECAT_ANDROID_KEY", "EXPO_PUBLIC_REVENUECAT_IOS_KEY"], keys
+    pack = PACK.read_text(encoding="utf-8")
+    assert "EXPO_PUBLIC_REVENUECAT_API_KEY" not in pack
+    assert "`.env.example` ships both slots" in pack, "the pack must state the scaffold's two slots"
 
 
 @pytest.mark.parametrize(
