@@ -4,7 +4,7 @@
 
 Improvements over v1:
 - Dockerfile: Parses ALL FROM lines (multi-stage), checks HEALTHCHECK directive
-- Health endpoint: Excludes governance files (.windsurfrules, AGENTS.md, docs_updater.py)
+- Health endpoint: Excludes governance files (AGENTS.md, docs_updater.py)
 - print(): Also scans root-level .py files
 - New checks: hardcoded localhost in code + compose, .env.example, db/schema.sql,
   watchdog scripts, Makefile, .pre-commit, logging imports, compose coolify network,
