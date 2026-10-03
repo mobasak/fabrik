@@ -13,7 +13,7 @@
   },
   "next": "(1) _extract_next_lines -> reuse thread_anchor._next_values so bold, bulleted and quoted NEXT lines count as the harvest counts them; (2) count a session only when it has an assistant text turn, or label the line 'transcript files'; (3) key the hub's V5 sessions across its linked worktrees (fabrik--claude-worktrees-*) as well as /opt/fabrik; (4) decide whether 'awaiting your reply' is a hold for classify_next; also check _default_root reads one account dir only. Found by the 2026-10-04 scoped review of 95155b6f5 (Opus seat); W-aa89df9f's dated reading depends on it",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 1,
   "status": "open",
   "title": "next_census.py must measure what V5 means before the 2026-10-09 reading: it reads NEXT lines with a stricter rule than the harvest, counts every transcript file as a session, keys hub sessions so worktree sessions never count, and classifies 'awaiting your reply' as free-text"
