@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — next_census: the V5 PASS line prints its bound (2026-10-04)
+
+`scripts/sysadmin/next_census.py --repo` printed a bare `V5: PASS`, so a vacuous 0 <= 0 read the same as a real 3 <= 3 and the V5 reading (W-aa89df9f) had no bound to record. It now prints `V5: PASS — <items> open next item(s) <= <sessions> qualifying session(s), <claims> live claim(s)`; `tests/test_next_census.py` pins the exact line and `docs/reference/work-tracking.md` describes it.
+
 ### Fixed — work store: drift class 6 no longer counts decisions closed by `work.py answer` (2026-10-04)
 
 `scripts/work.py`'s class-6 evidence predicate flagged every operator decision closed with `answer` (status done, the operator's words in `note`, no commit by design) as blocking drift. The hub's class 6 had grown from 0 to over 50 since 2026-09-25, every one an answered decision, so `sync --check`'s seven-clean-day blocking gate could never arm. An answered decision is now exempt beside mail and feedback items; a decision marked done with neither a note nor evidence, or any other kind closed with only a note, still reads class 6, and `answer` now refuses an item that is not a decision. The spec's class-6 definition and `docs/reference/work-tracking.md` say so. Found by the V6 reading of the work store (W-0ca15040), which also recorded the store's state and found the `status` latency (about 5.5 s against the spec's 1 s trigger) to be per-item git calls, filed as W-5937c2cd; D-542.

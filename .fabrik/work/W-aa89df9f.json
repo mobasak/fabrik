@@ -12,7 +12,7 @@
     "spec": ""
   },
   "next": "on or after 2026-10-09 run python3 scripts/sysadmin/next_census.py --since 7 --repo /opt/fabrik and record the V5 line (PASS/FAIL and the bound) plus the classes line in docs/reference/work-tracking.md § Validation reading; the spec's open unknown (_is_anchor as the next-item filter) is judged on it",
-  "note": "",
+  "note": "Interim reading 2026-10-04 (day 9 of 14; the dated V5 record stays for 2026-10-09): `next_census.py --since 7 --repo /opt/fabrik` printed V5: PASS — 0 open next item(s) <= 0 qualifying session(s), 3 live claim(s); classes: 12797 NEXT lines over 1648 transcript files (names-item 1269, none 220, operator-decision 715, blocked 8, free-text 10585). Of the 1648 files only 34 end on a NEXT line (18 names-item, 7 none, 5 free-text, 4 operator-decision); 1615 carry none (headless and subagent transcripts). None of the 5 session-final free-text values matches _is_anchor, and the one sampled (\"when A2 reports, adjudicate it and send fix brief 1.\") is a transient step — so on this reading _is_anchor is not dropping threads worth persisting; sessions now end on item ids instead. The PASS line did not print its bound; it does now (this change).",
   "owner": "intel",
   "priority": 1,
   "status": "open",

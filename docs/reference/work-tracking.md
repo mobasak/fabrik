@@ -263,7 +263,9 @@ DECISION blocks and the register, above, states the scope each actually reads), 
 class/distinct/per-repo-session counts of spec § Why this exists, and — with `--repo` — prints this
 repo's Validation V5 verdict: PASS when its open `next` items whose `next_at` was SET between 1 day in
 the future (clock skew) and 7 days in the past number no more than the qualifying sessions counted for
-it, AND it shows more than 0 live claims.
+it, AND it shows more than 0 live claims. The PASS line prints its bound (`V5: PASS — <items> open next item(s) <=
+<sessions> qualifying session(s), <claims> live claim(s)`), so a vacuous 0 <= 0 reads differently from a
+real one.
 
 ## Spec and plan state is derived, never copied
 
