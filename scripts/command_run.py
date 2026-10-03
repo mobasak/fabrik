@@ -3552,6 +3552,8 @@ _TASK_LEDGER_EXCL = (
     "docs/STRATEGIC_BACKLOG.md",
     "INDEX.md",
     "docs/LESSONS_LEARNT.md",
+    # the matrix's legacy-tolerated spelling — the ONLY lessons file in 12 repos (W-4f924816)
+    "docs/lessons-learnt.md",
 )
 
 _TASK_BACKTICKED = re.compile(r"`([^`]+)`")
@@ -3607,11 +3609,11 @@ def _doc_sync_tokens(text: str) -> set[str]:
 
 
 def _task_excl(root: Path) -> set[str]:
-    """Invariant (iv)'s exclusion set: the live matrix's destinations, the five ledger files and
+    """Invariant (iv)'s exclusion set: the live matrix's destinations, the ledger files (both lessons spellings) and
     `docs/CAPABILITIES.md`.
 
     A repo whose `CLAUDE.md` is absent, unreadable, or carries no matrix section falls back to
-    the six constants — NEVER a fourth `unmeasurable` reason: the membership arm can still say
+    the seven constants — NEVER a fourth `unmeasurable` reason: the membership arm can still say
     something true about a commit, and reporting it as unmeasurable would discard that.
     """
     excl = set(_TASK_LEDGER_EXCL) | {_TASK_CAPABILITIES}
@@ -3621,7 +3623,7 @@ def _task_excl(root: Path) -> set[str]:
         # The BARE class, and not `OSError` alone: an undecodable `CLAUDE.md` raises
         # `UnicodeDecodeError`, which is a `ValueError` — it would escape to the caller's arm and
         # be recorded as `unmeasurable=no-git`, a reason that is simply false (git is fine) and
-        # that discards a membership count this function could still have produced from the six.
+        # that discards a membership count this function could still have produced from the seven.
         pass
     return excl
 

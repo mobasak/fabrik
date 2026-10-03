@@ -1103,7 +1103,7 @@ repos:
 """
 
 # ⚠️ The heading carries its live SUFFIX. An equality read finds nothing here, exactly as it
-# finds nothing in both live copies, and EXCL silently collapses to the six-constant fallback.
+# finds nothing in both live copies, and EXCL silently collapses to the seven-constant fallback.
 # The SECOND `## ` section carries a backticked `.md` token that must NEVER reach EXCL — that is
 # what makes the block terminator falsifiable rather than decorative.
 _FIXTURE_CLAUDE = """\
@@ -1278,7 +1278,7 @@ def test_the_matrix_destinations_are_excluded_at_close_time(
     run_dir: Path, repo: Path, hub_sync: Path
 ) -> None:
     """Row 2. The Doc Sync Matrix's *Update* column is parsed from `CLAUDE.md` AT CLOSE TIME, so
-    `docs/FEATURES.md` — a matrix destination that is NOT one of the six fallback constants — is
+    `docs/FEATURES.md` — a matrix destination that is NOT one of the seven fallback constants — is
     excluded and the count is 0."""
     _seed_claude(repo)
     _start_task(run_dir, repo, hub_sync, "src/a.py")
@@ -1864,20 +1864,32 @@ def test_docs_capabilities_is_a_real_file() -> None:
     assert (Path(__file__).resolve().parents[1] / mod._TASK_CAPABILITIES).is_file()
 
 
-def test_a_repo_without_the_matrix_falls_back_to_six_constants(
+def test_both_lessons_spellings_are_ledger_exclusions(repo: Path) -> None:
+    """W-4f924816: the Doc Sync Matrix calls `docs/LESSONS_LEARNT.md` canonical and the lowercase
+    `lessons-learnt.md` legacy-tolerated, and 12 repos on the box carry ONLY the lowercase file —
+    a close there scored the mandated lessons entry as undeclared. Exact-case membership still
+    holds: the ROOT-level `lessons-learnt.md` stays out (the F5 parenthetical harvest)."""
+    mod = _load("cr_lessons", _SCRIPT)
+    excl = mod._task_excl(repo)
+    assert mod._task_excluded("docs/LESSONS_LEARNT.md", excl)
+    assert mod._task_excluded("docs/lessons-learnt.md", excl)
+    assert not mod._task_excluded("lessons-learnt.md", excl)
+
+
+def test_a_repo_without_the_matrix_falls_back_to_seven_constants(
     run_dir: Path, repo: Path, hub: Path
 ) -> None:
     """Invariant (iv)'s FALLBACK, stated in the docstring and GRADED here: a repo whose
-    `CLAUDE.md` lacks the section (or has no `CLAUDE.md` at all) excludes the five ledger files
-    plus `docs/CAPABILITIES.md` — never a fourth `unmeasurable` reason."""
+    `CLAUDE.md` lacks the section (or has no `CLAUDE.md` at all) excludes the six ledger files
+    (both lessons spellings) plus `docs/CAPABILITIES.md` — never a fourth `unmeasurable` reason."""
     mod = _load("cr_fallback", _SCRIPT)
     assert mod._task_excl(repo) == set(mod._TASK_LEDGER_EXCL) | {mod._TASK_CAPABILITIES}
-    assert len(mod._task_excl(repo)) == 6
+    assert len(mod._task_excl(repo)) == 7
 
     _start_task(run_dir, repo, hub, "src/a.py")
     _write(repo, "docs/STRATEGIC_BACKLOG.md", "# backlog\n")
     _write(repo, "docs/CAPABILITIES.md", "# caps\n")
-    _write(repo, "docs/FEATURES.md", "# features\n")  # a matrix row — NOT one of the six
+    _write(repo, "docs/FEATURES.md", "# features\n")  # a matrix row — NOT one of the seven
     sha = _commit_all(repo, "docs")
     out = _close_run(run_dir, repo, hub, "done", "--commit", sha, "--evidence", "green")
     assert out.returncode == 0, out.stdout + out.stderr
@@ -1993,7 +2005,7 @@ def test_only_the_first_three_paths_are_named(run_dir: Path, repo: Path, hub: Pa
 
 
 def test_an_undecodable_claude_md_still_falls_back(run_dir: Path, repo: Path, hub: Path) -> None:
-    """`_task_excl`'s docstring says an UNREADABLE `CLAUDE.md` falls back to the six constants.
+    """`_task_excl`'s docstring says an UNREADABLE `CLAUDE.md` falls back to the seven constants.
     An undecodable one raises `UnicodeDecodeError` — a `ValueError`, NOT an `OSError` — so an
     `except OSError` arm lets it escape to the caller and record `unmeasurable=no-git`: a reason
     that is false (git is fine) and that discards a count this repo could still produce."""
