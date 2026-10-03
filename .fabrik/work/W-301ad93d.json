@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-03T11:36:23.042682Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "e03b9e55a07a20b3245e8a399f73300cfe1e019c",
   "id": "W-301ad93d",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "scripts/sysadmin/test_bot_rotation_wire.py: 4 keepalive-shim tests red at HEAD (a 401 run returns KEEPALIVE_OK, expected KEEPALIVE_FAIL:401_auth) — reproduced in a clean worktree at 2a34b6fec"
 }
