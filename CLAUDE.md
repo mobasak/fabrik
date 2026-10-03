@@ -464,7 +464,7 @@ session-recall — structured rows beat lexical transcripts.
   over the whole slice, candidates unioned, never voted — and no Opus finder (pilot D-344, superseding D-207's
   Opus-on-the-risky mix; the risky units — concurrency/locks, record and file formats, fleet-synced paths, auth,
   schema, migrations, secrets — are the slice's named hunt priority), plus at most ONE extra Haiku seat for a
-  judgement-shaped inventory class only when the brief names it. The union of the slices IS the full pass, no file's logic read by two seats; round
+  judgement-shaped inventory class only when the brief names it. The union of the slices IS the full pass, no file in two slices; round
   1 is the only full pass; every later pass is the round-1 seats re-verifying their OWN slices' claim ledgers over
   the fix diff plus one hop of callers and callees (`command_run.py round --slices A:n/m,…`; the hop bounds the
   EXTENT, what a later pass may COUNT is the fragments' bounded-hop rule — `term-edit`/`term-coverage`), never a
@@ -475,8 +475,9 @@ session-recall — structured rows beat lexical transcripts.
   Sonnet breadth seat plus a Haiku mechanical seat, plus the Opus authoritative seat(s), all dispatched in a
   SINGLE message; the cap is independence OF THE SURFACE and the FLOOR is three seats (D-208; under a partition
   the floor stands down; D-335 binds it to round 1). EVERY partitioned loop runs `python3
-  /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` before it dispatches (a
-  section partition passes `opus=N,sonnet=N`); a units-sized surface runs `--units <N> [--heavy] [--risky <R>]
+  /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices sonnet=N,haiku=N` before it dispatches (a FILE
+  partition, plus `opus=1` where `/fabrik-execute-plan`'s per-round Opus floor applies; a section partition passes
+  `opus=N,sonnet=N`); a units-sized surface runs `--units <N> [--heavy] [--risky <R>]
   [--mechanical <M>]` before any fan-out wider than the floor; a floor-sized fan-out (1 unit = 3 seats) needs no
   script — stamp with `dispatch --seats 3`. Dispatch **exactly** the `SEATS:` and mix it prints — stamped FIRST
   with `python3 scripts/command_run.py dispatch --seats <n>` (sibling sessions subtract that stamp for 25 minutes;
