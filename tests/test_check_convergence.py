@@ -2052,3 +2052,247 @@ def test_proof_citation_accepts_every_scaffold_types_sources(repo: Path) -> None
     )
     assert "handler.py" not in doc
     assert _run(repo, "docs/development/plans/2026-06-18-plan-x.md", doc) == 0
+
+
+# --- W-5b541aab: the D-252 scope-growth stop is an exit at BOTH graders --------------------------
+
+_SG_ROW = (
+    "| Pass {n} | native opus×1 | found: 9, new: {c}, confirmed: {c}, fixed: {c}, "
+    "unexecuted: 0 | method: re-derivation |"
+)
+
+
+def _scope_growth_review(confirmed: list[int]) -> str:
+    rows = "\n".join(_SG_ROW.format(n=i, c=c) for i, c in enumerate(confirmed, 1))
+    return (
+        "# Whole-plan review of Plan X\n\n"
+        "**Status:** CONVERGED — closed on the D-252 scope-growth stop\n\n"
+        "## Coverage Checklist\n| class | verdict |\n|---|---|\n| fail-open | FIXED(4) |\n\n"
+        "## Phase A verdict\nMirrors the plan.\n\nreviewed — sign-off.\n\n"
+        "## Pass Ledger\n| Pass | Finders | Counters | Method |\n|---|---|---|---|\n"
+        f"{rows}\n\n"
+        '```\n$ python scripts/final_gate.py --json\n{"status": "success", "tier": 2}\n```\n'
+    )
+
+
+def _crc():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "crc_sg", CHECK.parent / "check_review_coverage.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_a_review_closed_on_the_scope_growth_stop_satisfies_the_executed_citation(
+    repo: Path,
+) -> None:
+    """W-5b541aab: check_review_coverage accepts a receipt that closed on the D-252 scope-growth
+    stop (`_scope_growth_exit`), while this gate demanded a quiet row from the SAME receipt — the
+    two gates disagreed about one artifact. The predicate is imported, never copied."""
+    review = _scope_growth_review([5, 4, 5])
+    crc = _crc()
+    assert crc._scope_growth_exit(review, crc._ledger_shapes(review)[2])
+    files = {
+        "docs/development/plans/2026-08-03-plan-x.md": EXECUTED_PLAN_CITES,
+        "docs/development/reviews/2026-08-03-plan-x-review.md": review,
+    }
+    assert _run_files(repo, files) == 0
+
+
+def test_the_scope_growth_phrase_alone_never_satisfies_the_executed_citation(repo: Path) -> None:
+    """The cobra path: the phrase over a ledger whose last two rounds did NOT each confirm
+    something (here: a single round) is not the stop — refused as check_review_coverage refuses."""
+    review = _scope_growth_review([4])
+    crc = _crc()
+    assert not crc._scope_growth_exit(review, crc._ledger_shapes(review)[2])
+    files = {
+        "docs/development/plans/2026-08-03-plan-x.md": EXECUTED_PLAN_CITES,
+        "docs/development/reviews/2026-08-03-plan-x-review.md": review,
+    }
+    assert _run_files(repo, files) == 1
+
+
+# --- W-2fc93899 / W-b7b2ae58 (D-497): pre-D-206 whole-plan reviews are grandfathered -----------
+
+_LEGACY_REVIEW = (
+    "# Whole-plan review of Plan X\n\nStatus: CONVERGED\n\n"
+    "## Phase A verdict\nClean — the loop closed before the Pass-row grammar existed.\n"
+)
+
+
+def _commit_at(repo: Path, date: str, msg: str) -> None:
+    import os
+
+    stamp = f"{date}T12:00:00"
+    env = {**os.environ, "GIT_AUTHOR_DATE": stamp, "GIT_COMMITTER_DATE": stamp}
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, timeout=15)
+    subprocess.run(
+        ["git", "commit", "-qm", msg],
+        cwd=repo,
+        check=True,
+        timeout=15,
+        env=env,
+        capture_output=True,
+    )
+
+
+def _legacy_fixture(repo: Path, review_date: str, review: str = _LEGACY_REVIEW) -> None:
+    rv = repo / "docs/development/reviews/2026-08-03-plan-x-review.md"
+    rv.parent.mkdir(parents=True, exist_ok=True)
+    rv.write_text(review)
+    _commit_at(repo, review_date, "receipt")
+    plan = repo / "docs/development/plans/2026-08-03-plan-x.md"
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    plan.write_text(_EXECUTED_CITING)
+    _git(repo, "add", "-A")
+
+
+def test_a_receipt_first_committed_before_d206_with_status_converged_is_legacy(repo: Path) -> None:
+    """D-497: a whole-plan receipt FIRST COMMITTED before 2026-09-09 whose header Status reads
+    CONVERGED is exempt from the Pass-row test — at the flip, and in the committed advisory, which
+    lists it as `legacy (pre-D-206)` instead of as a defect (web-ecommerce-factory 01M3WXMW)."""
+    _legacy_fixture(repo, "2026-09-01")
+    rc, out = _check_out(repo)
+    assert rc == 0, out  # the NEW flip citing a legacy receipt passes
+    _commit_at(repo, "2026-10-02", "flip")
+    rc, out = _check_out(repo)
+    assert rc == 0, out
+    assert "legacy (pre-D-206)" in out, out
+    assert "not coverage-adjudicated" not in out, out
+
+
+def test_a_receipt_first_committed_on_or_after_the_cutover_is_never_legacy(repo: Path) -> None:
+    """The exemption keys on git's FIRST-commit date, never a date written in the file: a receipt
+    first committed on the cutover day or later is graded by the Pass-row grammar."""
+    _legacy_fixture(repo, "2026-09-09")
+    rc, out = _check_out(repo)
+    assert rc == 1, out
+    assert "legacy (pre-D-206)" not in out, out
+
+
+def test_a_pre_d206_receipt_whose_status_is_not_converged_is_never_legacy(repo: Path) -> None:
+    review = _LEGACY_REVIEW.replace("Status: CONVERGED", "Status: COMPLETE — NOT converged")
+    _legacy_fixture(repo, "2026-09-01", review)
+    rc, out = _check_out(repo)
+    assert rc == 1, out
+
+
+# --- W-98338ad4: one quoting policy for every spine-set check, and the closing-row graders ------
+
+_CLOSING_OK = "| Pass 1 | s | method: re-derivation | confirmed: 0 |\n"
+_BOARD_T01 = "| T01 | fixture | — | ⚡ | ⬜ | — |\n"
+
+
+def test_a_parked_board_row_in_an_html_comment_is_not_an_orphan(tmp_path):
+    """A superseded Board row parked in `<!-- … -->` is a quote, as a parked ledger already was."""
+    parked = _BOARD_T01 + "<!-- superseded:\n| T09 | old | — | ⚡ | ⬜ | — |\n-->\n"
+    head = _LEDGER_SPINE_HEAD.replace(_BOARD_T01, parked)
+    assert head != _LEDGER_SPINE_HEAD
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    spine = _ledger_spine(tmp_path)
+    spine.write_text(head + _CLOSING_OK)
+    assert cc._check_spine_set(tmp_path, spine, spine.read_text()) == []
+    # the same row LIVE is still an orphan
+    spine.write_text(head.replace("<!-- superseded:\n", "").replace("-->\n", "") + _CLOSING_OK)
+    fails = cc._check_spine_set(tmp_path, spine, spine.read_text())
+    assert any("Board row T09" in f and "orphan row" in f for f in fails), fails
+
+
+def test_a_parked_status_line_in_a_ticket_is_not_a_ticket_status(tmp_path):
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    spine = _ledger_spine(tmp_path)
+    spine.write_text(_LEDGER_SPINE_HEAD + _CLOSING_OK)
+    ticket = spine.parent / "T01-fixture.md"
+    ticket.write_text(_LEDGER_TICKET + "\n<!--\nStatus: DONE\n-->\n")
+    assert cc._check_spine_set(tmp_path, spine, spine.read_text()) == []
+    ticket.write_text(_LEDGER_TICKET + "\nStatus: DONE\n")
+    fails = cc._check_spine_set(tmp_path, spine, spine.read_text())
+    assert any("carries a Status: line" in f for f in fails), fails
+
+
+@pytest.mark.parametrize(
+    "ledger",
+    [
+        # `_CONFIRMED_TOKEN` is case-insensitive
+        "| Pass 1 | s | confirmed: 0 |\n| Pass 2 | s | Confirmed: 3 |\n",
+        # ... and takes a counter with NO space after the colon
+        "| Pass 1 | s | confirmed: 0 |\n| Pass 2 | s | confirmed:3 |\n",
+        # `_PASS_ROW` grades an UNPADDED GFM row
+        "| Pass 1 | s | confirmed: 0 |\n|Pass 2|s|confirmed: 3|\n",
+        # a later COUNTERLESS row never un-counts the ledger: the last COUNTER row decides
+        "| Pass 1 | s | confirmed: 3 |\n| Pass 2 | s | edits: 0 |\n",
+    ],
+    ids=["case", "no-space", "unpadded", "counterless-later-row"],
+)
+def test_the_closing_row_rule_refuses_these_documented_shapes(ledger):
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    assert cc._closing_row_fail(ledger) is not None
+
+
+@pytest.mark.parametrize(
+    "ledger",
+    [
+        # a BLOCKQUOTED row is quoted content, never the closing row
+        "| Pass 1 | s | confirmed: 0 |\n> | Pass 2 | s | confirmed: 3 |\n",
+        # a line with no LEADING pipe is prose, not a ledger row
+        "| Pass 1 | s | confirmed: 0 |\nPass 2 | s | confirmed: 3 |\n",
+        # `\b` after the label: `Passage` is not `Pass`
+        "| Pass 1 | s | confirmed: 0 |\n| Passage | s | confirmed: 3 |\n",
+    ],
+    ids=["blockquote", "no-leading-pipe", "label-word-boundary"],
+)
+def test_the_closing_row_rule_does_not_grade_these_documented_non_rows(ledger):
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    assert cc._closing_row_fail(ledger) is None
+
+
+def test_a_spine_is_the_same_stem_md_in_a_dated_plan_directory_only():
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    d = Path("docs/development/plans/2026-09-10-plan-1-ledger")
+    assert cc._is_spine(d / "2026-09-10-plan-1-ledger.md")
+    assert not cc._is_spine(d / "2026-09-10-plan-1-ledger-notes.md")
+    assert not cc._is_spine(d / "T01-fixture.md")
+
+
+# --- W-e025eba1: `_STATUS_LINE` reads a bold-wrapped VALUE and a colon outside the bold ----------
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Status: **IN-PROGRESS**",
+        "**Status:** IN-PROGRESS",
+        "**Status**: IN-PROGRESS",
+        "**Status:** **IN-PROGRESS**",
+        "Status: IN-PROGRESS",
+    ],
+)
+def test_the_status_reader_takes_every_bold_placement(line):
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    m = cc._STATUS_LINE.search(f"# Plan\n\n{line}\n")
+    assert m and m.group(1).strip().upper() == "IN-PROGRESS", (line, m and m.group(1))
+
+
+def test_an_archived_plan_whose_bold_status_value_is_midflight_is_reported(repo: Path) -> None:
+    arch = repo / "docs/development/plans/archived/2026-07-01-plan-y.md"
+    arch.parent.mkdir(parents=True, exist_ok=True)
+    arch.write_text("# Y\n\nStatus: **IN-PROGRESS**\n\n## Phase 1\nx\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "archived mid-flight")
+    rc, out = _check_out(repo)
+    assert rc == 0 and "2026-07-01-plan-y.md: archived while its own Status" in out, out
