@@ -82,7 +82,7 @@ If the bootstrap fails partway and you need to re-run, the SSH login user change
 | First (fresh VPS) | `root@<new-ip>` | step_00 hasn't created `ozgur` yet |
 | Any re-run after step_01 succeeded | **`ozgur@<new-ip>`** | step_01 has disabled root SSH |
 
-**If you re-run with `root@<new-ip>` after step_01 ran, the SSH preflight fails — and three quick retries trip the target's fail2ban (default 3 failures / 10 min), locking you out for 10 minutes.** The script's preflight has a safe-rerun trap (added 2026-06-07) that auto-detects this and tells you to switch to `ozgur@<new-ip>` BEFORE attempting the SSH that would trigger the ban. If you somehow trip it anyway: wait 10 min, or reboot the VPS via the provider's web console to clear fail2ban state.
+**If you re-run with `root@<new-ip>` after step_01 ran, the SSH preflight fails — and repeated retries trip the target's fail2ban (the Ubuntu package defaults: 5 failures within 10 min, a 10-minute ban; see `.windsurf/rules/core/90-bootstrap-scripts.md` Rule 1).** The script's preflight has a safe-rerun trap (added 2026-06-07) that auto-detects this and tells you to switch to `ozgur@<new-ip>` BEFORE attempting the SSH that would trigger the ban. If you somehow trip it anyway: wait 10 min, or reboot the VPS via the provider's web console to clear fail2ban state.
 
 ## What `bootstrap-hub.sh` does, step by step
 
