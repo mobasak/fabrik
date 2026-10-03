@@ -79,17 +79,24 @@ def test_stamps() -> None:
 def test_owning_packs_named_and_present() -> None:
     b = _bullet("Use the pack that owns the topic first")
     assert b, "the owning-pack routing rule is gone"
+    # Each pack must follow ITS topic directly: two independent substring checks passed when two packs swapped
+    # topics (round 1, test-and-ledger-S1).
     for topic, pack in (
-        ("Fraud, abuse and account takeover are", "saas/87-abuse-detection.md"),
-        ("On-device inference is", "ai/20-vision.md"),
-        ("for the app", "mobile-app/80-mobile.md"),
-        ("for the app", "desktop-app/72-desktop.md"),
+        ("Fraud and abuse are", "saas/87-abuse-detection.md"),
+        ("account takeover and credential stuffing are", "core/35-security-auth.md"),
+        ("On-device vision models are", "ai/20-vision.md"),
+        ("a local LLM in a desktop app is", "desktop-app/72-desktop.md"),
         ("Forecasting and anomaly detection are", "ai/70-data-predictive.md"),
         ("Prompt injection in code agents is", "ai/60-code.md"),
         ("in watchdog loops", "core/60-watchdog.md"),
     ):
-        assert topic in b and pack in b, f"ai/80 no longer routes {topic!r} to {pack}"
+        assert re.search(re.escape(topic) + r"\s+" + re.escape(pack), b), (
+            f"ai/80 no longer routes {topic!r} to {pack}"
+        )
         assert (RULES / pack).is_file(), f"ai/80 routes to {pack}, which does not exist"
+    assert "no pack yet covers on-device models in a mobile app" in b, (
+        "ai/80 claims a mobile pack owns on-device models again"
+    )
 
 
 def test_moderation_is_layered_and_measured() -> None:
@@ -104,6 +111,9 @@ def test_moderation_is_layered_and_measured() -> None:
         "A vendor's benchmark is not the project's content",
         "a Turkish-language product measures on its own Turkish sample before it relies on any of them",
         "Read the exact licence before shipping any of them",
+        "Granite Guardian is trained and tested on English only",
+        "for Turkish the Qwen guard models, which cover 119 languages and dialects, are the Apache-licensed option",
+        "that policy withholds the multimodal models' rights from companies based in the EU",
     ):
         assert phrase in b, f"the moderation rule lost: {phrase!r}"
 
