@@ -112,9 +112,13 @@ caller:
   ("not running on this host").
 - **Paths** — each named `type=volume` mount's `Source` (the Mountpoint; an anonymous volume, a 64-hex name, is skipped
   and counted, because compose replaces it on recreate and the hub's `docker-volumes` plan excludes them,
-  `docs/operations/hub-restore-inventory.md:93`), and each `type=bind` mount that is writable (`RW=true`) and a directory
-  on the host (`test -d`); a read-only bind, a single file (tryton-crm's `./trytond.conf`), a socket or a `tmpfs` mount
-  is not service data.
+  `docs/operations/hub-restore-inventory.md:93`), and each `type=bind` mount that is writable (`RW=true`) and, its source
+  resolved with `readlink -f` (restic stores a symlink as a link, not its target's data), a directory or — amended
+  2026-10-03, D-526 — a regular file on the host (`test -d` / `test -f`); a read-only bind (tryton-crm's
+  `./trytond.conf`), a socket, a FIFO, a device or a `tmpfs` mount is not service data. A single-file database (SQLite)
+  is counted, but its `-wal`/`-shm`/`-journal` files stay in the container layer, so a covered file is not a consistent
+  database backup — mount its directory instead. A host path replaced by rename leaves the container on the old inode
+  while Backrest reads the new file; the path rule cannot see that (known gap).
 - **Database** — with `needs_database` (and no `infra.postgres: false`), the database `<db>` (by
   `app_role_check._db_name_for_spec`) is covered when its per-database dump directory `/opt/backups/postgres/<db>/`
   EXISTS (visible to Backrest) and a trusted plan covers it — a directory that does not exist is a dump that is not
@@ -232,7 +236,7 @@ hub); `read_plans` may be cached per host per sweep later if it shows in the cro
 1. **Red first** — tests in `tests/test_backrest_coverage.py` (new) and `tests/test_audit.py`: trust and coverage over a
    table (exact path, parent path, trailing slashes, sibling prefix `/opt/a` vs `/opt/ab`, an excluded ancestor, a bare
    name, a bracket pattern, `iexcludes`, `backup_flags`, a disabled schedule, a plan with one unreachable path);
-   discovery parsing (volume, writable bind dir anywhere, read-only bind, file and socket skipped, zero containers,
+   discovery parsing (volume, writable bind dir or file anywhere at its resolved path, read-only bind, socket and FIFO skipped, zero containers,
    name fallback, probe failure → `None`); each registrar row, asserting no plan-writing function and no resource in any
    branch; each audit row. Each written first and seen red against today's code.
 2. **Pre-merge read-only probe (operator-gated)** — before infra merges, the operator runs or approves one read-only

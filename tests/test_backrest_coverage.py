@@ -12,7 +12,10 @@ A3/A4 EXECUTE the real discovery script under bash with stub ``sudo``/``docker``
 from __future__ import annotations
 
 import os
+import shutil
+import socket
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -195,7 +198,7 @@ def _run_remote(monkeypatch, env) -> list[str]:
     return sent
 
 
-def test_a3_discovery_keeps_named_volumes_and_writable_bind_dirs_only(monkeypatch, tmp_path):
+def test_a3_discovery_keeps_named_volumes_and_writable_bind_dirs_and_files(monkeypatch, tmp_path):
     data_dir = tmp_path / "srv" / "media"
     data_dir.mkdir(parents=True)
     ro_dir = tmp_path / "ro"
@@ -204,6 +207,19 @@ def test_a3_discovery_keeps_named_volumes_and_writable_bind_dirs_only(monkeypatc
     piped.mkdir()
     conf = tmp_path / "app.conf"
     conf.write_text("x")
+    # W-63a1c159: a symlinked source is judged at its target (restic stores a link, not its data)
+    real_db = tmp_path / "data" / "app.sqlite"
+    real_db.parent.mkdir()
+    real_db.write_text("db")
+    db_link = tmp_path / "db.sqlite"
+    db_link.symlink_to(real_db)
+    dir_link = tmp_path / "media-link"
+    dir_link.symlink_to(data_dir)
+    fifo = tmp_path / "events.fifo"
+    os.mkfifo(fifo)
+    sock_dir = Path(tempfile.mkdtemp(dir="/tmp"))  # AF_UNIX paths are capped near 108 bytes
+    sock = socket.socket(socket.AF_UNIX)
+    sock.bind(str(sock_dir / "s"))
     anon = "a" * 64
     mounts = (
         f"volume|svc_data|true|/var/lib/docker/volumes/svc_data/_data\\n"
@@ -212,15 +228,34 @@ def test_a3_discovery_keeps_named_volumes_and_writable_bind_dirs_only(monkeypatc
         f"bind||true|{piped}\\n"
         f"bind||false|{ro_dir}\\n"
         f"bind||true|{conf}\\n"
+        f"bind||true|{db_link}\\n"
+        f"bind||true|{dir_link}\\n"
+        f"bind||true|{sock_dir / 's'}\\n"
         f"bind||true|/var/run/docker.sock\\n"
+        f"bind||true|/nonexistent-parent-w63/state.db\\n"  # readlink -f exits 1: skipped, never fatal
         f"tmpfs||true|\\n"
+        f"bind||true|{fifo}\\n"  # the LAST line is a skipped one: the loop must still exit 0
     )
     env = _host(tmp_path, label_ids="c1", mounts=mounts)
     sent = _run_remote(monkeypatch, env)
-    found = backrest.discover_persistence("svc")
+    try:
+        found = backrest.discover_persistence("svc")
+    finally:
+        sock.close()
+        shutil.rmtree(sock_dir, ignore_errors=True)
+    # a writable single file is data; a symlink resolves to its target (the dir link folds into data_dir);
+    # the read-only dir, the sockets, the FIFO and tmpfs are not
     assert found == backrest.Persistence(
         containers=1,
-        paths=sorted(["/var/lib/docker/volumes/svc_data/_data", str(data_dir), str(piped)]),
+        paths=sorted(
+            [
+                "/var/lib/docker/volumes/svc_data/_data",
+                str(data_dir),
+                str(piped),
+                str(conf),
+                str(real_db),
+            ]
+        ),
         anonymous=1,
     )
     assert sent[0].startswith("bash -o pipefail -c ")
