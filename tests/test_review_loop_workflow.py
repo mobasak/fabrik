@@ -781,3 +781,16 @@ def test_the_finder_lessons_tell_a_seat_to_import_the_pin_and_state_the_ledger_h
     lessons = _finder_lessons()
     assert "never `sys.path.insert` the live tree" in lessons and "`__file__`" in lessons
     assert "high-water mark" in lessons
+
+
+def test_the_route_up_sentence_cites_symbols_that_exist_not_drifting_line_numbers() -> None:
+    """W-a1b7033e: `command_run.py:1863` → `:2702` and `:2585` resolved to unrelated lines, and no
+    code detects a route-up at all — three exact numbers that read as verified and were not."""
+    body = REVIEW_SOURCE.read_text(encoding="utf-8")
+    assert not re.search(r"command_run\.py:\d", body), re.findall(r"command_run\.py:\d+", body)
+    line = next(ln for ln in body.splitlines() if ln.startswith("A routed-up review"))
+    code = (ROOT / "scripts" / "command_run.py").read_text(encoding="utf-8")
+    symbols = re.findall(r"`([A-Z_]{4,}|_[a-z_]+)`", line)
+    assert symbols, line
+    for sym in symbols:
+        assert re.search(rf"^(?:{sym} =|def {sym}\()", code, re.M), sym

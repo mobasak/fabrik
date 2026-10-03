@@ -21,7 +21,7 @@ python3 scripts/command_run.py start --command fabrik-review --phases 5 \
 
 {{include:orient}}
 
-A routed-up review names the trigger in its surface: `--surface "ROUTED-UP: step 1 — <the trigger> · <the diff range>"` — the ledger's only positive witness that `/fabrik-review-scoped`'s route-up fired (`command_run.py:1863` → `:2702`); its `done` then reaches back to the previous AGENT-closed window (`:2585`), which is what covers the pre-`start` edits.
+A routed-up review names the trigger in its surface: `--surface "ROUTED-UP: step 1 — <the trigger> · <the diff range>"` — the ledger's only positive witness that `/fabrik-review-scoped`'s route-up fired (no code detects a route-up — the record carries it only because the caller writes that surface string); its `done` then reaches back to the previous covered window's close (the `REVIEW_FAMILY` branch of `_close` in `scripts/command_run.py`), which is what covers the pre-`start` edits.
 
 Then, for the whole run: `step --phase <N> --title "<the phase title>"` on entering each phase, and
 **one `round` call per Phase-4 pass** —
