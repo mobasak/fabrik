@@ -2316,11 +2316,10 @@ def _ledger_append(event: dict) -> None:
     fallback = _ledger_fallback_path()
     try:  # O_NOFOLLOW + 0600: a shared temp dir must not redirect or expose the row (N2)
         fd = os.open(fallback, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-        if os.fstat(fd).st_uid != os.getuid():  # someone else's file: never append to it
-            os.close(fd)
-            raise PermissionError(f"{fallback} is not owned by this user")
-        os.fchmod(fd, 0o600)  # a file an older release created 0644 is tightened, not trusted
-        with os.fdopen(fd, "a") as fh:
+        with os.fdopen(fd, "a") as fh:  # owns the fd from here: every exit below closes it
+            if os.fstat(fh.fileno()).st_uid != os.getuid():
+                raise PermissionError(f"{fallback} is not owned by this user")
+            os.fchmod(fh.fileno(), 0o600)  # an older release created it 0644: tighten it
             fh.write(row + "\n")
         where = f"; kept in {fallback}"
     except OSError:
@@ -2330,16 +2329,21 @@ def _ledger_append(event: dict) -> None:
 
 def _degraded_row(event: object) -> str:
     """A row for an event JSON cannot encode: its ``event`` and ``ts`` stay top-level so the
-    dwell readers still see it (N4), the rest is a repr — or the type name when repr raises."""
+    dwell readers still see it (N4), the rest is a repr — or the type name when repr raises.
+    Each field is read on its own, so one unreadable field cannot drop the other."""
     keep: dict = {}
-    try:  # an int ts too big for a float, or a dict subclass whose .get raises
-        if isinstance(event, dict):
+    if isinstance(event, dict):
+        try:
             if isinstance(event.get("event"), str):
-                keep["event"] = str(event["event"])
-            if isinstance(event.get("ts"), (int, float)) and math.isfinite(event["ts"]):
-                keep["ts"] = event["ts"]
-    except Exception:  # noqa: BLE001
-        keep = {}
+                keep["event"] = str.__str__(event["event"])
+        except Exception:  # noqa: BLE001 — a dict subclass whose .get raises
+            pass
+        try:  # an int too large for a float makes isfinite raise
+            ts = event.get("ts")
+            if isinstance(ts, (int, float)) and not isinstance(ts, bool) and math.isfinite(ts):
+                keep["ts"] = ts
+        except Exception:  # noqa: BLE001
+            pass
     try:
         keep["unencodable_event"] = repr(event)[:2000]
     except Exception:  # noqa: BLE001

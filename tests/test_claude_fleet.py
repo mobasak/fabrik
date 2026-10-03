@@ -8195,4 +8195,21 @@ def test_a_degraded_row_whose_fields_cannot_be_read_never_raises(tmp_path, monke
     monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
     cr._ledger_append({"event": "flip", "ts": 10**400, "odd": {1}})
     row = json.loads((state / "rotate-ledger.jsonl").read_text(encoding="utf-8"))
-    assert "unencodable_event" in row, row
+    assert row.get("event") == "flip" and "ts" not in row, row  # one bad field keeps the other
+
+
+def test_a_fallback_whose_chmod_fails_leaks_no_descriptor(tmp_path, monkeypatch):
+    """fstat/fchmod ran before os.fdopen owned the fd, so a refusing filesystem leaked one per row."""
+    not_a_dir = tmp_path / "state-is-a-file"
+    not_a_dir.write_text("", encoding="utf-8")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(not_a_dir))
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(tmp_path / "fb.jsonl"))
+
+    def refuse(fd, mode):
+        raise PermissionError("chmod refused")
+
+    monkeypatch.setattr(cr.os, "fchmod", refuse)
+    before = len(os.listdir("/proc/self/fd"))
+    for _ in range(20):
+        cr._ledger_append({"event": "flip", "to": "mob"})
+    assert len(os.listdir("/proc/self/fd")) - before < 5, "the fallback leaked descriptors"
