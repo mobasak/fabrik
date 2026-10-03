@@ -34,5 +34,7 @@ Run models on constrained hardware. **Examples:** TensorFlow Lite, Apple Neural 
 ## 14. Governance / Trust / Safety
 Detect bias, hallucinations, unsafe content. **Examples:** LLaMA Guard, Perspective API, Azure Content Safety. **Use cases:** content moderation, compliance, model interpretability.
 
+A moderation, spam or prompt-injection check with a fixed answer (allow or flag, a short list of harm classes) on content at volume may run in ai/00's decision-model lane, through fabrik-lib's `decision-gate`: independent tests found TypeSafe's Jev about as accurate as small LLMs at spotting prompt injection, and in one fraud-classification test it recalled 93% of the fraud an LLM recalled 62% of (`/opt/fabrik/docs/reference/jev-decision-model-map.md` (hub-only)). It flags and routes. A human or a deterministic rule still owns any removal that cannot be undone, and whoever writes the content can steer the answer, so it is never the only guard.
+
 ## 15. Generative Design & Simulation
 Create optimized designs via algorithms. **Examples:** Autodesk Generative Design, nTopology, OpenAI Shap-E. **Use cases:** architecture, manufacturing, product design.

@@ -42,6 +42,11 @@ Last content verification: 2026-10-02
   and session helpers raise `DispatchError` with no metered fallback, so catch it; a `max_turns` exit is one, and it is
   billed. A multi-turn agent resumes only a persisted session; a resumed result carries the session total, so read the
   last result rather than summing results — `budget_record` already receives each turn's delta.
+- **Typed gates inside a loop.** A decision the harness makes between model calls with a fixed answer — is this tool
+  call risky, is the run still on task, which skill or tool does this request need — is a closed-answer decision, and
+  ai/00's decision-model lane may take it when its six conditions hold. Such a gate only tightens what the loop allows:
+  `allowed_tools`, `disallowed_tools` and `dontAsk` stay the permission boundary, and a model's verdict on a tool call
+  is never the only thing between the agent and an irreversible act.
 - **Reasoning depth is effort, not a thinking budget.** On the `sonnet`, `opus` and `fable` rungs thinking is adaptive,
   a thinking token budget is rejected, and effort steers how much the model reasons and acts. The `haiku` rung is the
   reverse: extended thinking with a budget is its only mode and effort does not apply, so a haiku step has no reasoning

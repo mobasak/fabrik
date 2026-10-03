@@ -20,7 +20,7 @@ This folder is the **canonical AI ruleset** (it replaced the former `docs/refere
 
 ## Claude subscription first (BINDING)
 
-**If Claude can do the task — text, code, reasoning, classification, extraction, structured output, image understanding — run it through `claude -p` on the Claude Max subscription.** Per token it costs less than nearly every metered model: the hub's cost sidecar (`/opt/fabrik/scripts/kilo-benchmarks/claude_p_cost.json`, `amortized_per_mtok` over a rolling 30-day window, rebuilt by `/opt/fabrik/scripts/claude_p_cost.py --refresh` — both hub-only) puts the subscription's amortized rate below every priced route but free tiers and a micro-model or two, and far below Anthropic's own API list prices. Metered APIs are for what Claude cannot serve (rung 4 of § In-code AI agent calls — the dispatch ladder) and for the specialized non-LLM categories below.
+**If Claude can do the task — text, code, reasoning, classification, extraction, structured output, image understanding — run it through `claude -p` on the Claude Max subscription.** Per token it costs less than nearly every metered model: the hub's cost sidecar (`/opt/fabrik/scripts/kilo-benchmarks/claude_p_cost.json`, `amortized_per_mtok` over a rolling 30-day window, rebuilt by `/opt/fabrik/scripts/claude_p_cost.py --refresh` — both hub-only) puts the subscription's amortized rate below every priced route but free tiers and a micro-model or two, and far below Anthropic's own API list prices. Metered APIs are for what Claude cannot serve (rung 4 of § In-code AI agent calls — the dispatch ladder) and for the specialized non-LLM categories below. A closed-answer decision on a hot path or at volume may take that section's decision-model lane instead, and only when its six conditions hold.
 
 **Always the latest Claude models — select by ALIAS, never by an old ID.** Claude Code's aliases resolve to the newest model of each family and move with every release, so code that says `--model opus` never goes stale:
 
@@ -163,6 +163,7 @@ For specialized categories 7–15 (Robotics / Synthetic data / Recommendation / 
 ## Anti-patterns
 
 - Paying a metered API for a task the Claude subscription can do.
+- Asking a general LLM for one label on a hot path the decision-model lane covers, or making a decision model the only guard on an irreversible act.
 - Pinning an old Claude model ID (or copying one from an old doc) instead of selecting by alias.
 - General LLM for a specialized non-LLM task (e.g. an LLM for transcription instead of Soniox).
 - Choosing a tool before identifying the category.
@@ -218,3 +219,32 @@ above; never `ANTHROPIC_API_KEY`, never a vendor SDK — `core/57-external-data-
 in the `58-resilience` contract, and any unattended paid-LLM loop still carries watchdog +
 cost-budget. This ladder governs **in-code single-call/worker dispatch**; gradeable parallel fan-out
 (review finders, graders, doc reconcilers) runs NATIVE while the pool is OFF (D-181) per `core/62-using-subagents.md`.
+
+### Closed-answer decisions — the decision-model lane
+
+A step whose answer is fixed in advance — yes or no, one label from a short list, a position on an ordered scale — runs
+on the ladder above by default. It moves to a typed decision model instead (today TypeSafe's Jev, through OpenRouter's
+Decisions API) only when all six hold:
+
+1. **Closed and short:** the options are known before the call and number at most about 25; beyond that, split the
+   question into stages.
+2. **Text that fits:** the state plus its longest question stays inside the model's input budget.
+3. **Hot path or volume:** it runs on every message, request or agent turn, or drains a backlog, or it replaces a regex
+   standing in for meaning — places where a `claude -p` call takes seconds.
+4. **Reversible or caught:** a wrong answer can be undone, or a confidence threshold sends the uncertain answer to the
+   fallback.
+5. **No rationale needed:** the model returns probabilities, never a reason.
+6. **Cleared to leave the box:** the text is of a data class the project's owner has ruled may go to TypeSafe; until
+   that ruling exists the lane is not wired for that class, and customer text needs that ruling first. In the hub the
+   question is still open (hub work item W-5e7743d9).
+
+Wire the lane only through fabrik-lib's `decision-gate` module, never a hand-rolled client. The module entered
+fabrik-lib's spec chain on 2026-10-03, and until it is vendorable no project wires the lane. Inside the lane,
+deterministic rules decide first and the model decides only what they leave open; every question carries an explicit
+`insufficient` option, because the model never abstains on its own; the threshold is calibrated per decision on the
+project's own labelled data, scored on a held-out split; everything under the threshold falls back to the ladder above;
+and a pilot runs in shadow mode first and is armed only when its wrong-allow rate is no worse than the mechanism it
+replaces. **Never** make a decision model the only guard on an irreversible act (a send, a payment, a deletion, an
+auto-submit, a secret), never judge quality or compliance with it, and never ask it to count, compare dates or do
+arithmetic. Evidence and the hub's own decision points: `/opt/fabrik/docs/reference/jev-decision-model-map.md` (hub-only).
+

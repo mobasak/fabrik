@@ -1,0 +1,26 @@
+{
+  "block_digest": "a92d06d0ba09794b64e0801eab8dc46dc5e3e5889e391bc48aa39a983fa17c44",
+  "blocked_by": [],
+  "created": "2026-10-02T23:16:06.496072Z",
+  "creator": "intel",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-5e7743d9",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "308280a8fbb79b9e48be1d6e68653dd9b0960c6ef65986c1075f00d0e9509ba4"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May Jev pilots send text to TypeSafe through OpenRouter's Decisions API? That would start with public-data projects (citation-verifier, calendar, youtube) and the hub's Stop-hook pilot, with customer text (tojlo-mail, whatsapp, CRM mail) staying excluded until a separate ruling.",
+  "status": "awaiting-operator",
+  "title": "May Jev pilots send text to TypeSafe through OpenRouter's Decisions API? That would start with public-data projects (citation-verifier, calendar, youtube) and the hub's Stop-hook pilot, with customer text (tojlo-mail, whatsapp, CRM mail) staying excluded until a separate ruling."
+}

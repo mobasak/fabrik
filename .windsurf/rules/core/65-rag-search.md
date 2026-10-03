@@ -96,7 +96,8 @@ A RAG system uses multiple stages. Some need AI models, some don't.
 | Component | What it does | Route | Notes |
 |---|---|---|---|
 | **Embeddings** | Text → vector | **OpenRouter `/embeddings`** (module `embed.py`) | One key, all providers; batching, retries, circuit breaker, dimension reduction are the module's |
-| **Classifier** (optional) | Chunk → structured labels (intent, sentiment, entities) | OpenRouter chat (module `classifier.py`, `RAG_CLASSIFIER_MODEL`) | Project-specific ontology — define in project docs, not here |
+| **Classifier** (optional) | Chunk → structured labels (intent, sentiment, entities) | OpenRouter chat (module `classifier.py`, `RAG_CLASSIFIER_MODEL`) | Project-specific ontology — define in project docs, not here; a closed label set at volume may take ai/00's decision-model lane instead |
+| **Relevance gate** (optional) | Decide whether retrieval should run at all, or which retrieved chunks to inject | ai/00's decision-model lane (fabrik-lib `decision-gate`, not wired until that module is vendorable) | Only with a measured lift, as for the re-ranker; one production swap of a cross-encoder for a decision model measured better precision, recall and silence at equal cost (`/opt/fabrik/docs/reference/jev-decision-model-map.md` (hub-only)) |
 | **Answer generator** | Retrieved chunks → human answer | OpenRouter chat (`rag.adapters.openrouter_chat`), the subscription path `claude_p_chat` (`claude -p`, low volume), or a model you run yourself (§ The gateway) | For RAG Q&A UIs |
 | **Summarizer** (optional) | Multiple chunks → condensed insight | same routes as the answer generator | For reports/dashboards |
 | **Re-ranker** (optional) | Re-score top-K for precision | OpenRouter `/rerank` (module `rerank.py`) | Only with a measured lift — § Hybrid Search |
