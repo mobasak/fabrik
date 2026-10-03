@@ -772,6 +772,12 @@ def test_the_finder_lessons_cover_a_truncated_line_not_only_a_truncated_file() -
     assert longest > 2000, f"the lesson's reason: a line of {longest} bytes"
 
 
+def test_the_mutation_copy_is_made_from_the_pin_dir() -> None:
+    """W-cbb9ecc9: the pin-dir provenance a brief must state reaches the mutation room only if
+    the lesson ties the COPY to the pin dir instead of leaving the link to inference."""
+    assert "COPY of the surface made FROM the pin dir" in _finder_lessons()
+
+
 def test_the_finder_lessons_tell_a_seat_to_import_the_pin_and_state_the_ledger_high_water_mark() -> (
     None
 ):
