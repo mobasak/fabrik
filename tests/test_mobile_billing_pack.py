@@ -1,7 +1,7 @@
 """Pins `mobile-app/81-mobile-billing.md` — the code agents copy from it, and the scaffold fact it states.
 
 Agents follow this pack's webhook and client samples verbatim, so a regression in a sample ships to every
-mobile repo. Three things can go false without any other gate turning red:
+mobile repo. Four things can go false without any other gate turning red:
 
 1. The webhook sample: it must parse, compare the Authorization header verbatim against a required Settings
    field (a missing secret must stop the app, not become "Bearer None"), dedupe on the event id, and re-read the
@@ -9,6 +9,8 @@ mobile repo. Three things can go false without any other gate turning red:
 2. The client sample: one public RevenueCat key per platform, `configure()` not awaited.
 3. The scaffold's two RevenueCat slots, one per platform, which the pack's client sample reads — if the
    template goes back to a single key, or the pack names the retired single slot again, this goes red.
+4. The store-build note: the scaffold must still gitignore `.env`, and the pack's bullet must still tell agents
+   to set both keys with `eas env:set` and never with secret visibility.
 
 The cheapest way to satisfy (1) without the outcome is a sample that names `record_event_once` but never calls
 it before the state write; the order check below reads the call sequence, not the names.
@@ -173,3 +175,18 @@ def test_sections_other_packs_cite_exist(heading: str) -> None:
     assert any(ln.startswith(heading) for ln in lines), (
         f"{heading!r} is cited by 00-domain-mobile-app.md and 89-mobile-launch-checklist.md"
     )
+
+
+@requires_fabrik_env
+def test_pack_says_store_builds_need_the_keys_as_eas_env_vars(project: Path) -> None:
+    """The scaffold gitignores .env and EAS Build skips what .gitignore excludes (W-ea9bfb04)."""
+    assert ".env" in (project / ".gitignore").read_text(encoding="utf-8").splitlines(), (
+        "the pack's premise is that the scaffold ignores .env"
+    )
+    bullet = next(
+        (ln for ln in PACK.read_text(encoding="utf-8").splitlines() if "store build never sees" in ln),
+        "",
+    )
+    assert bullet, "the pack lost its store-build note"
+    assert "eas env:set" in bullet and "EAS environment variables" in bullet, bullet
+    assert "EXPO_PUBLIC_REVENUECAT_IOS_KEY" in bullet and "never secret" in bullet, bullet

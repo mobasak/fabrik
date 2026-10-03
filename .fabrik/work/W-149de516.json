@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T21:27:21.457109Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-149de516",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "append the template's secrets/signing lines and node_modules/ to the generated block (or read the template file), with a red-first scaffold test; align 89:147 wording (infra beat)",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "The generated mobile-app .gitignore lacks node_modules/, .env*.local and the signing files (*.jks, *.p8, *.p12, *.mobileprovision): templates/mobile-app/.gitignore has them but scaffold.py:5896 skips it and the block at :5959-5973 writes only the common patterns, so git add . in a new mobile project stages node_modules and any keystore or App Store key; also 89-mobile-launch-checklist.md:147 says 'EAS secret' where EAS now has environment variables with secret visibility"
+}
