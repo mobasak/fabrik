@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T15:44:16.970989Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-bae31fe6",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Do the remaining work: The item's 'next' condition is met: I found a malformed-row shape that _table_body() and ROW both miss (a blank line splitting the table, followed by a malformed row). The owed step, adding a red battery covering that shape, was never done.",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Reopened from W-9a96a381 (closed in error by triage wave 1, overturned by the third check): The item's 'next' condition is met: I found a malformed-row shape that _table_body() and ROW both miss (a blank line splitting the table, followed by a malformed row). The owed step, adding a red battery covering that shape, was never done."
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T15:44:17.483485Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-256d6877",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Do the remaining work: _USAGE_GRAMMAR still does not round-trip: the optional [· cost: …] brackets still land in filed/cost. --evidence is still free text with no --unexecuted. The 'seats advisory fires in a scratch env' part was never checked by anyone.",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Reopened from W-b2a64f17 (closed in error by triage wave 1, overturned by the third check): _USAGE_GRAMMAR still does not round-trip: the optional [· cost: …] brackets still land in filed/cost. --evidence is still free text with no --unexecuted. The 'seats advisory fires in a scratch env' part was never checked by anyone."
+}

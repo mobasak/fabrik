@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T15:44:18.809543Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-837b85c3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Do the remaining work: The pool is suspended, not retired. The cycle-boundary-equals-HEAD defect (and its fire-rate measurement) is still unfixed in the code, and it comes back as soon as _POOL_POLICY_ON is flipped back. Dropping the item as obsolete loses the record of a known latent defect; it should be parked as blocked-by the pool re-enable, not dropped.",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Reopened from W-038798ef (closed in error by triage wave 1, overturned by the third check): The pool is suspended, not retired. The cycle-boundary-equals-HEAD defect (and its fire-rate measurement) is still unfixed in the code, and it comes back as soon as _POOL_POLICY_ON is flipped back. Dropping the item as obsolete loses the record of a known latent defect; it should be parked as blocked-by the pool re-enable, not dropped."
+}

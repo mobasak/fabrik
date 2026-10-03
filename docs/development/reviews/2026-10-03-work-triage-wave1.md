@@ -1,6 +1,6 @@
 # Work-store triage — wave 1 (D-531)
 
-**Status:** CLOSED-ITEMS RECEIPT · **Run:** workflow wf_87f11f8e-7d6 at HEAD 2f5f570f5 · **Date:** 2026-10-03
+**Status:** CLOSED-ITEMS RECEIPT (corrected by the third check below) · **Run:** workflow wf_87f11f8e-7d6 at HEAD 2f5f570f5 · **Date:** 2026-10-03
 
 Each open work item was triaged against HEAD by one Sonnet agent. Every proposed close was then re-executed
 by a separate verifier agent told to refute it. Only the 36 closes the verifier AGREED with are listed and
@@ -48,3 +48,32 @@ Coverage: 351 of 390 items triaged in this wave; the 40 not reached are re-run i
 | W-e98a82f6 | fixed | **Spec-comment truth discipline** (deploy-triad root-cause #4, Lesson-105 class): three tryton spec comments were code-false (shared-token "accepts TI's token t | Commit e6ec7fb6e 'docs(backlog): #3 recurrence-checked — the spec-comment class has NOT recurred' and the in-place correction at specs/services/tryton-crm.yaml:113 ('create_rpc_service_user.py IGNORES it and GENERATES its own') match the item's own described fix; the item's own decision ('do not build the periodic auditor until a real second instance appears') is a standing ruling already satisfied, not an open action. | Ran `git log -1 e6ec7fb6e` — commit exists verbatim as cited, docs-only backlog entry recording the 2026-08-25 recurrence check. Ran `git show 2f5f570f5b167b057a3d8e0ae4f274dee747f34a:specs/services/tryton-crm.yaml &#124; grep -n 'IGNORES it and GENERATES'` — confirmed at line 113 (lines shifted from the item's own `:96` cite since 2026-08-25, but the text is identical and present at HEAD). Read /opt/tryton-crm/scripts/trytond/create_rpc_service_user.py (line 116 `password = _password()`, a fresh `secrets.choice` draw) — confirms the comment is still TRUE: the script really does ignore the pre |
 | W-ea2d8725 | fixed | Nine confirmed candidates in the kaizen spec's amendment — filed, NOT fixed, deliberately (2026-09-11, owner: infra) | scripts/command_run.py now has a generic `handoff --resume <artifact>` close verb (lines ~2761, 3993, 4090, 5340-5380) that requires a successor artifact with a `## RESUME` block naming the open rows, built per mail 01M2ZEX6ZJ7S92GK5HCP2E4ZNX — exactly the mechanism this item proposed ('a handoff --resume shape that carries a findings brief') for a review loop whose foundation error is the fixer's own identity. | Grepped scripts/command_run.py at HEAD for the handoff/--resume machinery: found exactly at the cited lines — 2761/2772 (the `handoff` subcommand + `--resume` arg), 4090 (handoff gates on review), 5340-5374 (the close-time verb: refuses rc 1 unless `--resume` points to a real regular file containing a `## RESUME` block naming the open rows, capped read via `_RESUME_READ_CAP`, citing mail 01M2ZEX6ZJ7S92GK5HCP2E4ZNX by id in a comment at line 5347-5348). Confirmed the mail id is real and load-bearing — it appears in CHANGELOG.md:729, a dedicated review doc (docs/development/reviews/2026-09-24-ha |
 | W-fecaf669 | fixed | DONE — reindex double-ingest of hardlinked transcripts fixed, live DB healed (finding 01M3TQKAR1) | The mail (01M3VN01NMVW0PXYY4DAYN83J5) is already in /opt/fabrik-mail/fabrik/archive/ (not inbox) and its own body is a DONE reply citing pushed commits 3721fe7+1f91540 in the session-recall repo plus a verified live-DB heal. The follow-on it explicitly unblocks is also landed here: commit 47ff3edbf "feat(hooks): register the worktree transcript link on SessionStart and Stop (D-467)". | Mail 01M3VN01NMVW0PXYY4DAYN83J5 is in /opt/fabrik-mail/fabrik/archive/ (verified by ls, not inbox); its body is a DONE reply citing session-recall commits 3721fe7+1f91540, which exist and are ancestors of session-recall's actual branch tip (mobasak/session-recall is that repo's only branch and remote HEAD, not an unmerged side-branch). The cited review receipt docs/development/reviews/2026-10-01-reindex-inode-dedupe-review.md in /opt/session-recall shows Status: CONVERGED, a 3-pass loop ending confirmed:0/fixed:0, and an embedded final_gate.py JSON with status:success + 81 passed/2 skipped pyt |
+
+## Corrections — the third check (independent Opus, workflow wf_32fe5f9f-3ab)
+
+The operator asked for every claim to be validated before acting on it. All 36 closes above, plus wave 2's
+single close, were therefore re-derived by an independent Opus agent told to reject or mark partial whenever in doubt.
+Result: 29 confirmed, 7 partial, 1 rejected. The 8 closes it overturned were wrong. The owed work was not done,
+or was only partly done, so each one's remaining work is re-filed as a new open item, and the original row above
+stands corrected by this table:
+
+| Closed in error | Third check | What is still owed | Re-filed as |
+|---|---|---|---|
+| W-038798ef | partial | The pool is suspended, not retired. The cycle-boundary-equals-HEAD defect (and its fire-rate measurement) is still unfixed in the code, and it comes back as soon as _POOL_POLICY_ON is flipped back. Dropping the item as obsolete loses the record of a known latent defect; it should be parked as blocked-by the pool re-enable, not dropped. | W-837b85c3 |
+| W-1db0b909 | partial | The ruling was never sent back to web-ecommerce-factory: the thread got no reply, the correction mail 01M3WZJA6 is still unread in the inbox and D-497 does not cover it, and the reply now depends only on W-2fc93899, which is open and has no owner. | W-8ba6e25c |
+| W-2b944b8e | partial | Nothing yet extracts and grades the exit-row examples in commands/_sources (fabrik-review.md:514-516, fabrik-epics-review.md:435-436), so a drift between those rows and the graders would not be caught. | W-cf9ec0cf |
+| W-51c49907 | partial | Add the both-sets (overlap) refusal the item specified, and a regression test that a new unclassified group raises (and one in both sets raises). | W-f697b669 |
+| W-9a96a381 | partial | The item's 'next' condition is met: I found a malformed-row shape that _table_body() and ROW both miss (a blank line splitting the table, followed by a malformed row). The owed step, adding a red battery covering that shape, was never done. | W-bae31fe6 |
+| W-b2a64f17 | partial | _USAGE_GRAMMAR still does not round-trip: the optional [· cost: …] brackets still land in filed/cost. --evidence is still free text with no --unexecuted. The 'seats advisory fires in a scratch env' part was never checked by anyone. | W-256d6877 |
+| W-c553a0c2 | reject | The item's defect (the --commit requirement has no rollout cutover) is still unfixed. If it is to be closed, it should be closed as obsolete with a correct reason (for example, every pre-T01b record is now long past the 12h staleness fail-open), not as fixed on a misread of the code. | W-fc1a2f48 |
+| W-e98a82f6 | partial | The item is a deferral that waits on recurrence, so nothing was 'fixed'. The mitigation it relies on (a 'class-8 doc-truth' check in the deploy-plan review) does not exist at HEAD. Closing the item drops the only watch on the spec-comment class: a doc-truth/spec-comment check still needs to be added, or the recurrence watch kept open. | W-8ca1d536 |
+
+The evidence behind every close was also checked mechanically: each cited commit resolves in a repo under `/opt`,
+and each cited `path:line` exists at HEAD. All 36 pass.
+
+## Wave 2 (workflow wf_c66e44ee-09a, HEAD 2edfededb)
+
+All 40 items wave 1 missed were triaged: 36 real, 3 need an operator ruling, and 1 is fixed. That close,
+**W-3a4cac48** (deploy ordering broke init-at-boot images), was confirmed by all three checks. Commit a47d5e20f
+added `db_before_boot`, which provisions the database before the first `up`
+(`src/fabrik/orchestrator/__init__.py:156-161`). It is closed against this commit.
