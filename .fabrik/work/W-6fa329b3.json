@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T22:02:42.876290Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-6fa329b3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add a fix_project step that appends missing non-comment templates/<type>/.gitignore lines to an existing project's .gitignore (match whole lines like _patch_droid_block), red-first test; then mail the four repos to run fabrik fix",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Backfill the template .gitignore rules into existing mobile-app projects: rnfinal and supplement-tracker-advisor have no node_modules or signing rules, exam-coach and meb lack *.jks/*.p8/.env*.local (found by the W-149de516 review); fix_project and the governance sync never add template rules"
+}

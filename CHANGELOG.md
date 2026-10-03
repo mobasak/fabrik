@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a new mobile-app project no longer lets git stage node_modules or its signing keys (2026-10-04)
+`_scaffold_mobile_app` skipped `templates/mobile-app/.gitignore` and wrote its own shorter copy, which dropped `node_modules/`, `.env*.local` and the signing patterns (`*.jks`, `*.p8`, `*.p12`, `*.mobileprovision`), so `git add .` in a fresh project staged the dependency tree and any Android keystore or App Store key. The generator now appends the template's file after the fabrik blocks, so the template is the one list. node-api had the same defect (its hand-written block dropped the template's `.env.local`); it now appends `templates/node-api/.gitignore` after its Node block. Guards: `test_gitignore_keeps_dependencies_and_signing_files_out_of_git` (which also rejects a re-including `!` rule) and `test_node_api_gitignore_carries_its_template_rules`, each red before the fix. Existing mobile projects are not touched by this; their backfill is a separate item. W-149de516.
+
 ### Changed — Every copy of the contract names the orchestrator by role, and file loops no longer budget an Opus finder (2026-10-04)
 
 W-e80af564 (D-456, D-344, D-541). The project `CLAUDE.md` template, `commands/_fragments/subagents-core.md` and the `62-using-subagents` pack said Fable orchestrates with Opus as its refusal fallback; they now say Opus or Fable, whichever the quota allows, as the hub does. Two command sources, `convergence-prompts.md` and both contracts sized file-partitioned reviews with an Opus finder; they now say `--slices sonnet=N,haiku=N`, plus `opus=1` where `/fabrik-execute-plan` adds its Opus floor. "No file's logic read by two seats" became "no file in two slices". `tests/test_assemble_dispatch_step.py` refuses the retired budget anywhere it scans.
