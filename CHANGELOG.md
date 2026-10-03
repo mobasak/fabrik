@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — AGENTS-compact.md, opencode.json and .windsurfrules are no longer synced to projects (2026-10-03)
+
+Infra's half of the retired-agent-surface spec (D-529, D-537; W-b13ce655), merged before fleet's scaffold half. Development runs on Claude Code (D-514), so the Kilo/opencode and Windsurf bootstraps leave the fleet:
+- `scripts/fabrik_synced_manifest.py` moves the three to `RETIRED_GOVERNANCE_FILES`; `scripts/sync_enforcement_to_projects.py` deletes a project's copy on every sync, and a linked worktree's copy only when its own ledger proves the sync wrote it and it is unchanged and untracked. The merge's sync removed them from all 47 synced projects.
+- `check_opencode_json.py` moved to `scripts/archived/` and its blocking Tier-2 gate row removed (Tier 2: 56 → 55 checks); its liveness canary went with it.
+- The project `CLAUDE.md` template tells agents to read `docs/preplan.md` before planning when it exists.
+- `sync_projects.py` uses `AGENTS.md` as the scaffold marker and `health_summary.py` checks five essential files; the hub docs, two rule packs and `agents-fabrik.md` follow. The hub keeps its own copies until the scaffold stops copying them.
+
 ### Changed — ai/80-specialized-domains: owning packs first, layered moderation, prompt injection by design, a SQL recommender baseline, limits on synthetic data, classify health features first (2026-10-03)
 
 `.windsurf/rules/ai/80-specialized-domains.md` listed vendor names for eight domains and named the retired Kilo. It now routes each domain another pack owns to that pack; layers moderation (deterministic rules first, a classifier that only flags and routes, a person owning anything irreversible, a labelled sample in the project's own languages before trusting any classifier) and refuses Perspective API, Azure Content Moderator and Amazon Comprehend's toxicity detection; treats prompt injection as a design problem no detector solves; starts recommenders at SQL popularity and co-occurrence; states that synthetic data is not a privacy guarantee and that SDV's licence forbids a synthetic-data service; and sends any health feature that diagnoses, treats or recommends a treatment to the spec chain. New `tests/test_specialized_domains_pack.py`; 6 `CLAIMS.yaml` rows; research ledger `docs/reference/research/2026-10-03-specialized-domains-currency-ledger.md`; D-535.
