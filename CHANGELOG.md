@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The hub's retired agent bootstraps are archived, and their live mentions are gone (2026-10-04)
+
+D-529 step 6 (D-539; W-83a9508f), after fleet's scaffold half stopped copying them: `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` and `kilo.jsonc` move from the hub root to `docs/archive/2026-10-03-retired-agent-bootstraps/`. Live mentions are swept from the manifest comment, `check_ticket_breadth`'s governance tuple, `audit_all_projects` messages, `.gitignore` comments, `INDEX.md`, the project INDEX template, `agents-fabrik.md`, three command sources and seven docs, including the fleet-synced technology-stack guide. `check_structure` still allows a root `AGENTS-compact.md`, because a few linked worktrees hold a copy the prune cannot prove the sync wrote.
+
 ### Changed — AGENTS-compact.md, opencode.json and .windsurfrules are no longer synced to projects (2026-10-03)
 
 Infra's half of the retired-agent-surface spec (D-529, D-537; W-b13ce655), merged before fleet's scaffold half. Development runs on Claude Code (D-514), so the Kilo/opencode and Windsurf bootstraps leave the fleet:
