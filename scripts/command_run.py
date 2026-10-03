@@ -1140,6 +1140,14 @@ AGENT_CLOSED_STATES = frozenset({"done", "blocked", "handoff"})
 REVIEW_FAMILY = frozenset({"fabrik-review", "fabrik-review-scoped"})
 
 
+def _norm_command(value: object) -> str:
+    """`--command` as every reader compares it: no surrounding blanks, no leading slash, lower
+    case. Normalised ONCE, where `start` writes it and where a close names it — the readers test
+    `in REVIEW_FAMILY` case-sensitively, so a record stored as `Fabrik-Review` was read two ways
+    (W-5aa12ff3)."""
+    return str(value or "").strip().lstrip("/").strip().lower()
+
+
 def _finite_ts(v: object) -> float | None:
     """A usable epoch: a non-bool finite number, else None."""
     if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
@@ -1380,7 +1388,7 @@ def _queue(
     The queue happens BEFORE the save: `main()` flushes in a `finally`, so an event that is
     already queued survives any failure in the tail.
     """
-    seq = int(rec.get("event_seq") or 0) + 1
+    seq = _int0(rec.get("event_seq")) + 1
     rec["event_seq"] = seq
     stamped = dict(fields, seq=seq, command=rec.get("command") or "", persisted=False)
     outbox["events"].append((event, stamped))
@@ -2434,7 +2442,7 @@ def _tokens_clause(tok: dict[str, Any]) -> str:
     if not tok:
         return ""
     has_seats = tok.get("tok_seat_in") is not None
-    skipped = int(tok.get("seats_skipped") or 0)
+    skipped = _int0(tok.get("seats_skipped"))
     if tok.get("tok_in") is None and not has_seats:
         # no orchestrator message AND no summed seat: the early return hid a skip event
         # (round-8 finding) — the skip is the only fact left, so print it alone
@@ -3544,6 +3552,11 @@ _TASK_LEDGER_EXCL = (
     "docs/STRATEGIC_BACKLOG.md",
     "INDEX.md",
     "docs/LESSONS_LEARNT.md",
+    # the matrix's legacy-tolerated spelling — the ONLY lessons file in 12 repos (W-4f924816)
+    "docs/lessons-learnt.md",
+    # the work-item store: a verb's item files are committed WITH the task (CLAUDE.md § Work
+    # items), and `task_lane` already excludes the store from its own measurement (W-b43ce8bc)
+    ".fabrik/work/",
 )
 
 _TASK_BACKTICKED = re.compile(r"`([^`]+)`")
@@ -3599,11 +3612,11 @@ def _doc_sync_tokens(text: str) -> set[str]:
 
 
 def _task_excl(root: Path) -> set[str]:
-    """Invariant (iv)'s exclusion set: the live matrix's destinations, the five ledger files and
+    """Invariant (iv)'s exclusion set: the live matrix's destinations, the ledger files (both lessons spellings, the `.fabrik/work/` store) and
     `docs/CAPABILITIES.md`.
 
     A repo whose `CLAUDE.md` is absent, unreadable, or carries no matrix section falls back to
-    the six constants — NEVER a fourth `unmeasurable` reason: the membership arm can still say
+    the eight constants — NEVER a fourth `unmeasurable` reason: the membership arm can still say
     something true about a commit, and reporting it as unmeasurable would discard that.
     """
     excl = set(_TASK_LEDGER_EXCL) | {_TASK_CAPABILITIES}
@@ -3613,7 +3626,7 @@ def _task_excl(root: Path) -> set[str]:
         # The BARE class, and not `OSError` alone: an undecodable `CLAUDE.md` raises
         # `UnicodeDecodeError`, which is a `ValueError` — it would escape to the caller's arm and
         # be recorded as `unmeasurable=no-git`, a reason that is simply false (git is fine) and
-        # that discards a membership count this function could still have produced from the six.
+        # that discards a membership count this function could still have produced from the eight.
         pass
     return excl
 
@@ -3824,10 +3837,24 @@ def _task_measure(
     # own membership test and is scored oversized — a CONFIDENT number derived from a record we
     # cannot trust. A record this malformed is not measurable; say so rather than publish a count.
     _raw_files = (rec.get("declared") or {}).get("files")
-    if not isinstance(_raw_files, (list, tuple)) or not all(isinstance(f, str) for f in _raw_files):
+    if (
+        not isinstance(_raw_files, (list, tuple))
+        # EMPTY too: `all()` of nothing is True, and `declared = set()` then scores every path in
+        # the commit undeclared — `start` requires `--file`, so an empty block is corrupt (W-438885f8)
+        or not _raw_files
+        or not all(isinstance(f, str) for f in _raw_files)
+    ):
         # The ELEMENTS too: dropping a non-string member silently would publish a confident count
         # from the same corruption class the container check refuses.
-        raise TypeError(f"declared.files is not a list of str: {type(_raw_files).__name__}")
+        # Name the MEMBER and its type, never only the container's: `… not a list of str: list`
+        # for `["mas.txt", 7]` read as a contradiction, and this string is the cause's sole
+        # record — the close prints only the class (W-416058b2).
+        _bad = (
+            [f"{f!r} ({type(f).__name__})" for f in _raw_files if not isinstance(f, str)]
+            if isinstance(_raw_files, (list, tuple)) and _raw_files
+            else [f"{_raw_files!r} ({type(_raw_files).__name__})"]
+        )
+        raise TypeError(f"declared.files is not a list of str: {', '.join(_bad[:3])}")
     declared = set(_raw_files)
     excl = _task_excl(rp)
     # A sync-EXCLUDED repo has no sync contract: nothing it commits is a sync hit, and a sync
@@ -4248,7 +4275,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # `command: 'fabrik-task'` and NO `declared` key, the SIZE gate skipped, while `_close`
         # keys on the normalised name and then demands `--commit`. The mirror is a wrongly
         # REFUSED `--command /fabrik-task --file a.py`, which the same binding closes.
-        _cmd = (args.command or "").lstrip("/")
+        _cmd = _norm_command(args.command)
         _declared: dict[str, Any] | None = None
         try:
             if _cmd != _TASK_COMMAND:
@@ -4324,7 +4351,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             stack.append(parent)
         new = {
             "session_id": sid,
-            "command": (args.command or "").lstrip("/"),
+            "command": _cmd,
             "phases": max(1, args.phases),
             "phase": 1,
             "phase_title": "",
@@ -4350,7 +4377,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             "stack": stack,
             # Session-monotonic, so a nested run and a later run keep ascending rather
             # than restarting at 1 and colliding in the same session's stream.
-            "event_seq": int(rec.get("event_seq") or 0),
+            "event_seq": _int0(rec.get("event_seq")),
             # the ledger of windows earlier commands of this session COVERED — carried across
             # this overwrite so the Stop hook's sixth cause keeps every reviewed edit reviewed
             # (review P1-1: a single window un-reviewed every command before the last one)
@@ -4601,7 +4628,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _pd = rec.get("dispatch")
         prev_disp: dict = _pd if isinstance(_pd, dict) else {}
         n_rounds = len(rec.get("rounds") or [])
-        carried = int(prev_disp.get("seats") or 0) if prev_disp.get("round") == n_rounds else 0
+        carried = _int0(prev_disp.get("seats")) if prev_disp.get("round") == n_rounds else 0
         rec["dispatch"] = {
             "ts": time.time(),
             "seats": carried + args.seats,
@@ -4706,14 +4733,14 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # before. They HAD rounds — seven — so a zero-rounds threshold could never fire, and the
         # field that was actually lying (the phase) is the one nothing read. Unlike a phase-N
         # threshold this cannot be satisfied by calling `step` once at the start.
-        _phase_now = int(rec.get("phase") or 1)
+        _phase_now = _int0(rec.get("phase")) or 1
         # the STAMP is the seat figure — `dispatch --seats` accumulated it while the seats went
         # out; a bare `round` inherits it, and a hand-typed count that disagrees is said so
         # (round-7 Opus finding: `dispatch 3` + `dispatch 4` then a bare `round` declared 0)
         _dd = rec.get("dispatch")
         _d: dict = _dd if isinstance(_dd, dict) else {}
         _stamped = (
-            int(_d.get("seats") or 0)
+            _int0(_d.get("seats"))
             if _d.get("round") == len(rounds) and not _d.get("released")
             else 0
         )
@@ -4848,7 +4875,11 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # phase (correct, and common) or a boundary the agent walked past without recording. Both
         # deserve exactly one advisory line; neither deserves a refusal, which is why this prints
         # once at the threshold rather than on every round after it.
-        in_phase = [r for r in rounds if int(r.get("phase") or 0) == _phase_now]
+        # `_int0` at every record counter (W-ba3d1d4f): a hand-written `phase: "x"` raised here and
+        # the outer guard dropped the whole round with rc 0 — the `findings` incident's shape
+        in_phase = [
+            r for r in rounds if isinstance(r, dict) and _int0(r.get("phase")) == _phase_now
+        ]
         if len(in_phase) == ROUNDS_PER_PHASE_NOTICE:
             sys.stderr.write(
                 f"[command_run] NOTICE — {len(in_phase)} rounds recorded without leaving phase "
@@ -4935,7 +4966,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     not the live one is REFUSED (rc 1) rather than applied to the wrong record.
     """
     live = rec.get("command") or "?"
-    passed = (args.command or "").lstrip("/")
+    passed = _norm_command(args.command)
     state = rec.get("state")
 
     if state != "running":
@@ -5545,8 +5576,10 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         )
         # the grader on the hand-typed reservation (round-4 finding): the close computes the TRUE
         # seat count in the same process; a stamp that disagrees is said out loud and recorded
-        _declared = sum(int(r.get("seats") or 0) for r in rec.get("rounds") or [])
-        _seen = int(_tok.get("seats_seen") or 0)
+        _declared = sum(
+            _int0(r.get("seats")) for r in rec.get("rounds") or [] if isinstance(r, dict)
+        )
+        _seen = _int0(_tok.get("seats_seen"))
         if (_tok.get("tok_seat_in") is not None or _declared) and abs(_declared - _seen) > 1:
             print(
                 f"[command_run] seats declared {_declared} (round --seats) vs seen {_seen} (seat "
