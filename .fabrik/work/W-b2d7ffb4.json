@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-03T21:52:47.773790Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "c62e4d07c5ec4ee5329be26fe50cdbf484799c6b",
   "id": "W-b2d7ffb4",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "done",
   "title": ".windsurf/rules/mobile-app/89-mobile-launch-checklist.md:147 still says 'EAS secret' — EAS replaced secrets with environment variables (eas env:create, renamed env:set in eas-cli 21.0.0; the box runs 20.5.1); align it with 81-mobile-billing.md's new EAS bullet (fleet, W-ea9bfb04, merged a434f8d78) and 80-mobile.md:246. Fleet-synced pack: review-scoped at least"
 }
