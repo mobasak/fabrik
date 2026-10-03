@@ -75,6 +75,7 @@ const isPremium = info.entitlements.active['premium'] !== undefined;
 ```
 
 - RevenueCat issues **one public SDK key per platform** (`appl_…` for the App Store, `goog_…` for Google Play). The scaffold's `.env.example` ships both slots. When you wire billing, add both to `env.ts` (the schema and `_env`), and refuse an empty key before calling `configure`: `env.ts` runs its zod check only under `STRICT_ENV_VALIDATION=1` (the `prebuild:*` scripts), so at runtime a missing key otherwise reaches `configure` as `undefined`.
+- A store build never sees your local `.env`: the scaffold gitignores it, and EAS Build uploads only what git tracks. Set both keys as EAS environment variables for each build profile (`eas env:create`); they are public SDK keys that ship in the bundle anyway, so plain-text visibility is fine.
 - Real purchases need an EAS development build — Expo Go only mocks the store.
 - The RevenueCat app user id is the backend's `users.id` (the table `fabrik-lib/fastapi-user-auth` creates on `postgres-main`), set with `Purchases.logIn` after sign-in.
 - **Never trust client-side entitlement state for gating premium content.** Client checks drive UX only.

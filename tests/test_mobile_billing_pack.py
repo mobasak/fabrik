@@ -173,3 +173,9 @@ def test_sections_other_packs_cite_exist(heading: str) -> None:
     assert any(ln.startswith(heading) for ln in lines), (
         f"{heading!r} is cited by 00-domain-mobile-app.md and 89-mobile-launch-checklist.md"
     )
+
+
+def test_pack_says_store_builds_need_the_keys_as_eas_env_vars() -> None:
+    """The scaffold gitignores .env and EAS Build uploads what git tracks (W-ea9bfb04)."""
+    pack = PACK.read_text(encoding="utf-8")
+    assert "EAS environment variables" in pack, "store builds never see a gitignored .env"

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — 81-mobile-billing.md: store builds need the RevenueCat keys as EAS environment variables (2026-10-04)
+A scaffolded mobile project gitignores `.env`, so an EAS store build never sees the RevenueCat keys set there and configures RevenueCat with an empty key. The pack now says to set both public keys as EAS environment variables per build profile (`eas env:create`). Guard: `test_pack_says_store_builds_need_the_keys_as_eas_env_vars`, red before the change. W-ea9bfb04 (the EAS part; the secret-classification and stale-spec parts stay open).
+
 ### Changed — The hub's retired agent bootstraps are archived, and their live mentions are gone (2026-10-04)
 
 D-529 step 6 (D-539; W-83a9508f), after fleet's scaffold half stopped copying them: `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` and `kilo.jsonc` move from the hub root to `docs/archive/2026-10-03-retired-agent-bootstraps/`. Live mentions are swept from the manifest comment, `check_ticket_breadth`'s governance tuple, `audit_all_projects` messages, `.gitignore` comments, `INDEX.md`, the project INDEX template, `agents-fabrik.md`, three command sources and seven docs, including the fleet-synced technology-stack guide. `check_structure` still allows a root `AGENTS-compact.md`, because a few linked worktrees hold a copy the prune cannot prove the sync wrote.
