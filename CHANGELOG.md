@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The keepalive-shim tests test the shim that exists, and no longer read the live account (2026-10-03)
+
+`scripts/sysadmin/claude-keepalive-rotate.sh` stopped calling `claude -p ping` on 2026-08-30 and now classifies the JSON from the free `claude_rotate.py --probe-current --json` probe. `scripts/sysadmin/test_bot_rotation_wire.py` still injected a fake `claude` binary the shim never runs. Four ping-era cases were red at HEAD, and the "healthy" case passed only because it probed the box's real account over the network. The harness now stubs the probe through `CLAUDE_ROTATE_PYTHON` and covers the shim's six outcomes: a live reading, a fresh cache, `stale_unproven`, `probe_incomplete`, `probe_error` and `no_active_account`. The review also fixed three latent defects in the shim itself:
+- with no row matching the active slug, it fell back to the first account, reporting another account healthy; that case now reports `no_active_account`;
+- a boolean or NaN utilization, or a negative, boolean or non-finite age, counted as a reading;
+- its header still listed the retired `401_auth` reason, and `docs/infrastructure/vps-status.md` still described the cron as pinging claude and rotating, so both are corrected.
+
+The tests now assert the exit code, the 7200-second freshness bound and the producer's real dead-token shape. They run the pytest interpreter, and all 15 classifier mutants turn a test red. W-301ad93d.
+
 ### Fixed — Trimming the rotate ledger no longer erases a row another process is appending (2026-10-03)
 
 `_ledger_rotate` trimmed `rotate-ledger.jsonl` by reading it and then rewriting it, with no lock. A row that `--switch`, aro-wake or a second tick appended in between was erased in silence, a third way the fleet pointer could move with no flip row. A test that races a child appender against repeated trims failed 10 of 10 runs, losing rows. Now:
