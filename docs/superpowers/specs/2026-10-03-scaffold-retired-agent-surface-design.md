@@ -1,6 +1,6 @@
 # Scaffold: stop emitting the retired Kilo/Traycer/Windsurf agent surface
 
-Status: DRAFT
+Status: CONVERGED 2026-10-03 (graded with plan-1 by /fabrik-plan-review; awaiting the operator's design approval)
 Size: small (≈190 lines, 4 files)
 Profile: delta — every intake item maps to code that exists today: `src/fabrik/scaffold.py` (`create_project`,
 `fix_project`, `_layer_preplan_into_project`, `_DROID_GITIGNORE_BLOCK`), `src/fabrik/preplan.py`, `src/fabrik/cli.py`
