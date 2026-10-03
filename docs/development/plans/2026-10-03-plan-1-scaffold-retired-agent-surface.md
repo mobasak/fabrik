@@ -7,21 +7,22 @@ Profile: small
 Spec: `docs/superpowers/specs/2026-10-03-scaffold-retired-agent-surface-design.md` (DRAFT, `Size: small`, `Profile: delta` —
 `/fabrik-plan-review` grades its sections together with this plan and flips both). Source: infra's mail 01M407YP (acked;
 reply 01M40SBBEGYNQ3R6AW3EAXBWT5 carries infra's half). Rulings: D-514 (development runs on Claude Code), D-364 (Kilo CLI
-retired). Estimated diff: ≈140 code lines in 4 code files, tests excluded — `src/fabrik/scaffold.py` ≈125 (mostly
-deletions plus the marker-removal helper), `src/fabrik/preplan.py` ≈5, `src/fabrik/cli.py` ≈6, `src/fabrik/portability.py` ≈2.
+retired). Estimated diff: ≈180 code lines in 4 code files, tests excluded — `src/fabrik/scaffold.py` ≈150 (mostly
+deletions plus the marker-removal helper), `src/fabrik/cli.py` ≈25 (the `fix` rendering and two help texts),
+`src/fabrik/preplan.py` ≈5, `src/fabrik/portability.py` ≈2.
 
 ## What this plan is
 
 The FLEET half of the spec (`spec § Chosen approach`, fleet half steps 1-5), in two inline phases the orchestrator codes
 itself in the worktree; no coder is dispatched:
 
-- **A — `create_project` and `fix_project` stop emitting the retired surface**, and `fix_project` removes the two empty
-  Traycer markers from existing projects.
+- **A — `_scaffold_shared` and `fix_project` stop emitting the retired surface**, `fix_project` removes the two empty
+  Traycer markers from existing projects, and `fabrik fix` reports removals as removals.
 - **B — the pre-plan copy stops writing into guardrail files**; docs, Finish.
 
-**Ordering:** independent of infra's half (`spec § Chosen approach`, infra steps 1-5; `spec § Contract deltas`, merge
-order). Fleet-first is safe: `fix` stops writing the three synced files but never deletes them, so the sync keeps
-delivering them until infra's merge removes them.
+**Ordering:** infra's half merges first (`spec § Chosen approach`, infra steps 1-5; `spec § Contract deltas`, merge
+order) — fleet-first would leave a newly scaffolded project with `check_opencode_json.py` but no `opencode.json`, a
+blocking gate red. This plan can be executed now; only its merge waits (Phase B step 9).
 
 Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy `/fabrik-review` (the
 `/fabrik-execute-plan` D7 floor) and one receipt.
@@ -55,18 +56,19 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 
 - **Nothing a project owns is deleted except the two scaffold-owned Traycer markers**, and their directories only when
   empty (`spec § Chosen approach`, fleet step 3; `spec § Contract deltas`). `fix_project` never deletes
-  `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` or `scripts/kilo_47_agents_final.json` in a project — the
-  sync owns the first three; the fourth is left for its owner.
+  `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` or `scripts/kilo_47_agents_final.json` in a project — infra's
+  prune owns the first three; the fourth is left for its owner. Nothing is removed through a symlink.
 - **`docs/reference/kilo/` stays** — both copies (`scaffold.py:1312-1318`, `:7448-7460`) are untouched
   (`spec § Rejected alternatives` C).
 - **`_DROID_GITIGNORE_BLOCK` keeps its name** — eight per-type writers embed it (`:1405`, `:4498`, `:4647`, `:4780`,
   `:5849`, `:6012`, `:6147`, `:6451`); only its content changes.
 - **Every `fix_project` live block removed here takes its dry-run twin with it** (the `if not dry_run:` / `else:`
-  pairing, `:7406-7553` / `:7554-7621`), and a new step gets a dry-run twin that reports without writing.
-- **Merge order is free** (`spec § Contract deltas`, merge order): this plan does not wait for infra's half; it removes
-  the scaffold's dependency on the hub copies of `.windsurfrules` and `opencode.json`.
+  pairing, `:7406-7553` / `:7554-7621`), and a new step gets a dry-run twin that reports what the live run would do.
+- **Merge order: infra's half first** (`spec § Contract deltas`, merge order). This plan may be EXECUTED before infra
+  merges; its merge request (Phase B step 9) asks infra to merge it only after infra's half (the manifest, the prune and
+  the `check_opencode_json` retirement) is on master.
 - No new dependency; `pyproject.toml` and `uv.lock` are not touched (`core/10-python.md:30`). No env var is added. No
-  logging change (`core/10-python.md:292`: no file sink is introduced).
+  logging change beyond rewording one `logger.info` (`core/10-python.md:292`: no file sink is introduced).
 - 12-Factor on this surface: a hub CLI's file generation — **III** no config added, **XI** logging unchanged; the rest not
   engaged (no service, no backing store, no process model change).
 - Tests: watched-fail-first for every behaviour this plan adds or changes (`core/45-testing-strategy.md:22`); assertions on
@@ -85,8 +87,8 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | Source | What binds | Grounded ref |
 |---|---|---|
 | `.windsurf/rules/core/10-python.md` (MATCHED) | no deps-file edit; no file logging | `core/10-python.md:30`, `:292` |
+| `.windsurf/rules/core/40-documentation.md` (MATCHED) | heading levels and fenced code in the docs edited | `core/40-documentation.md:241` |
 | `.windsurf/rules/core/45-testing-strategy.md` (MATCHED) | one test per behaviour; watched-fail-first; no cosmetic assertions; a guard proven several ways | `45-testing-strategy.md:20-22`, `:199-200` |
-| `.windsurf/rules/core/40-documentation.md` (MATCHED) | heading levels and fenced code in the three docs edited | `core/40-documentation.md:241` |
 | `.windsurf/rules/core/35-security-auth.md` (FLOOR) | config via env only — not engaged: no config, no secret | `core/35-security-auth.md:267` |
 | `.windsurf/rules/core/30-ops.md` (FLOOR) | deploy/runtime rules — not engaged: no service, compose or deploy change | `spec § Shape / infra implications` |
 | `.windsurf/rules/core/25-data-postgres.md` (FLOOR) | not engaged: no database | `spec § Shape / infra implications` |
@@ -103,94 +105,123 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | "every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one**" | `.windsurf/rules/core/45-testing-strategy.md:20` | Behaviour Contract |
 | "**No cosmetic assertions**: never assert against CSS classes, Tailwind utility strings, pixel measurements, or snapshot hashes." | `.windsurf/rules/core/45-testing-strategy.md:21` | Assertions |
 | "**Watched-fail-first** (for tests this change adds or modifies" | `.windsurf/rules/core/45-testing-strategy.md:22` | Red first |
-| "A GUARD proven only by the ONE spelling of the defect you already fixed" | `.windsurf/rules/core/45-testing-strategy.md:199` | Guard spellings |
+| "A GUARD proven only by the ONE spelling of the defect you already fixed" | `.windsurf/rules/core/45-testing-strategy.md:199` | Guard spellings — five trees in A4 |
 | "**No skipped heading levels** — `##` to `###`, never `##` to `####`" | `.windsurf/rules/core/40-documentation.md:241` | Docs |
 | "Mandate: config via env vars only (`os.getenv("KEY", "default")`); **ZERO secrets/constants in code**." | `.windsurf/rules/core/35-security-auth.md:267` | Config (not engaged) |
 
-## Phase A — `create_project` and `fix_project` stop emitting the retired surface
+## Phase A — `_scaffold_shared` and `fix_project` stop emitting the retired surface
 
-Appetite: 60
+Appetite: 75
 
-**Interfaces — Produces** (all in `src/fabrik/scaffold.py`; `spec § Chosen approach`, fleet steps 1-3):
+**Interfaces — Produces** (`src/fabrik/scaffold.py` unless named; `spec § Chosen approach`, fleet steps 1-3):
 - `_DROID_GITIGNORE_BLOCK` (`:548-557`) — content exactly `.factory/consultations/`, `.droid/docs_queue/`,
-  `.droid/docs_log/`, one per line, trailing newline.
+  `.droid/docs_log/`, one per line, trailing newline; the comment above it (`:542-547`) names only `docs_updater.py`.
+- `_RETIRED_DROID_GITIGNORE_LINES` — new tuple of the five retired lines (`.droid/kilo_usage.jsonl`, `.droid/reviews/`,
+  `.droid/kilo_models_cache.json`, `.droid/.kilo_cache_last_refresh`, `.droid/traycer-reports/*.md`).
+- `_patch_droid_block(content, canonical)` (`:7266-7303`) — "managed" becomes a line whose stripped text is one of the
+  canonical block's lines or one of `_RETIRED_DROID_GITIGNORE_LINES`, instead of any line starting `.droid/` or
+  `.factory/`; the fast path and the insert-at-first-managed-position behaviour are unchanged.
 - `_DROID_DIR_GITIGNORE` (`:699-708`) — content exactly `"# .droid runtime files (docs_queue/, docs_log/) — do not
   commit\n*\n!.gitignore\n"`. `_TRAYCER_REPORTS_GITIGNORE` (`:711-713`) removed.
-- `_remove_retired_droid_markers(project_path: Path, *, dry_run: bool) -> list[str]` — new, beside `_patch_droid_block`
-  (`:7266`). For each of `(".droid/review-context", ".gitkeep")` and `(".droid/traycer-reports", ".gitignore")`: when the
-  marker file exists, remove it (not under `dry_run`) and report `removed <dir>/<marker>`; then, when the directory
-  exists, holds no entry other than the marker, and is not a symlink, remove it (`Path.rmdir`, not under `dry_run`) and
-  report `removed <dir>/ (empty)`; when it holds other entries, leave it and report `kept <dir>/ (not empty: <n>
-  entries)`. A missing directory reports nothing. Never follows a symlink, never deletes a file other than the named
-  marker. Called once in each `fix_project` branch.
-- `create_project` / `_scaffold_shared`: no `.droid/review-context`, `.droid/traycer-reports`, `.windsurfrules`,
-  `AGENTS-compact.md`, `scripts/kilo_47_agents_final.json` or `opencode.json` written; no `FileNotFoundError` for a
-  missing hub `.windsurfrules` (the `.windsurf/rules` and `.windsurf/workflows` guards `:1246-1251` stay).
+- `_scaffold_shared` (`def :1121`): `SHARED_DIRS` loses `.droid/review-context` and `.droid/traycer-reports`
+  (`:495-496`) and gains `.droid` (the only creator of `.droid/` once they go; `:1131-1132` makes each entry); `:1136-1142`
+  removed; the `.windsurfrules` guard and copy (`:1240`, `:1244-1245`, `:1253-1254` — the `.windsurf/rules` and
+  `.windsurf/workflows` guards `:1246-1251` stay), the AGENTS-compact copy (`:1324-1327`), the kilo_47 copy
+  (`:1379-1384`) and the `opencode.json` copy (`:1400-1401`) removed; comments `:290-291` and `:1333-1334` removed or
+  reworded so they name no retired file.
+- `_remove_retired_droid_markers(project_path: Path, *, dry_run: bool) -> list[str]` — new, beside `_patch_droid_block`.
+  When `.droid` is a symlink: one entry `skipped .droid/ (symlink)` and return. For each of
+  `(".droid/review-context", ".gitkeep")` and `(".droid/traycer-reports", ".gitignore")`, with `d` the directory and `m`
+  the marker:
+  1. `d` missing (`not d.exists() and not d.is_symlink()`) → nothing;
+  2. `d.is_symlink()` → `skipped <dir>/ (symlink)`;
+  3. `m.is_file() and not m.is_symlink()` → remove it (`m.unlink()`, not under `dry_run`) and report `removed <dir>/<marker>`;
+     a marker that is a directory, a symlink (dangling or not) or absent is left and counted as an entry;
+  4. `others` = the entries of `d` other than a removed-or-removable regular-file marker, counted the same way in both
+     modes; `others == 0` → `d.rmdir()` (not under `dry_run`) and report `removed <dir>/ (empty)`; else report
+     `kept <dir>/ (<others> other entries)`;
+  5. an `OSError` from `unlink` or `rmdir` is reported `could not remove <path>: <strerror>` and the loop continues.
+  Entries are returned prefixed by their verb (`removed `, `kept `, `skipped `, `could not remove `).
 - `fix_project`: the `.windsurfrules`, `AGENTS-compact.md`, `opencode.json`, `kilo_47_agents_final.json` blocks and
   their dry-run twins removed (`spec § Chosen approach` fleet step 3 lists every range), with the `windsurfrules_target`
   guard `:7402`, `:7408-7409`; the `.droid/.gitignore` and root-`.gitignore` rewrites kept, now writing the reduced
-  constants; the marker creation `:7530-7544` / `:7605-7613` replaced by the `_remove_retired_droid_markers` call.
+  constants; the marker creation `:7530-7544` / `:7605-7613` replaced by one `_remove_retired_droid_markers` call in each
+  branch, its entries appended to the returned list.
+- `src/fabrik/cli.py` `fix` command (`:2038-2056`): splits the returned list into notes (`kept `, `skipped `,
+  `could not remove `), removals (`removed `) and additions (everything else, as today). Additions print as today;
+  removals print `🗑️  Removed: <rest>` (`Would remove: <rest>` under `--dry-run`); notes print `ℹ️  <entry>` and never
+  count. "No missing files - project structure is complete!" prints when there are no additions, removals or unsupported
+  entries, notes or not; the closing count line counts additions and removals separately.
 
 **Consumes:** nothing.
 
 **Mirror (named):** tests asserting the old surface change with it — `tests/test_scaffold.py`
-`TestDroidGitignoreBlock` (`:26-51`, the entry list), `TestFixProjectDroidStructure` (`:186-242`, the marker files and
-`_TRAYCER_REPORTS_GITIGNORE`), `TestFixProjectRootGitignorePatch` (`:245-308`, `.droid/kilo_usage.jsonl` no longer in
-the block), `TestTracerReportsScaffolding` (`:311-349`, removed — replaced by A1), `test_droid_gitignore_block_present`
-(`:527-546`, its `traycer-reports` entry); `tests/test_scaffold_fix.py` the `kilo_47` refresh tests (`:262-281`) and the
-kilo line of `test_dry_run_previews_reference_doc_refresh` (`:297-298`, its reference-doc asserts `:291-296` stay);
-`_source_root` (`:15-19`) removed if nothing else uses it. Fixture hub roots that create `.windsurfrules`,
-`AGENTS-compact.md` and `opencode.json` (`tests/test_scaffold_logging.py:79-90`, `tests/test_scaffold_doc_seeding.py:129-136`)
-keep working unchanged — the scaffold just stops copying from them.
+`TestDroidGitignoreBlock` (`:26-51`, the entry list), `TestPatchDroidBlock.test_replace_contiguous_block` (`:79-86`, its
+`kilo_usage` count — an old block is now replaced by the reduced one), `TestScaffoldGitignoreCoverage` (`:89-127`, five
+types' `kilo_usage`/`reviews`/`traycer` entries), `TestFixProjectDroidStructure` (`:186-242`, the marker files and
+`_TRAYCER_REPORTS_GITIGNORE`), `TestFixProjectRootGitignorePatch` (`:245-308`, `kilo_usage` in the block),
+`TestTracerReportsScaffolding` (`:311-349`, removed — replaced by A1), `test_droid_gitignore_block_present`
+(`:527-546`, its `kilo_usage`, `reviews` and `traycer` entries); `tests/test_scaffold_fix.py` the `kilo_47` refresh tests
+(`:262-281`) and the kilo line of `test_dry_run_previews_reference_doc_refresh` (`:297-298`, its reference-doc asserts
+`:291-296` stay); `_source_root` (`:15-19`) removed if nothing else uses it. Fixture hub roots that create
+`.windsurfrules`, `AGENTS-compact.md` and `opencode.json` (`tests/test_scaffold_logging.py:79-90`,
+`tests/test_scaffold_doc_seeding.py:129-136`) keep working unchanged — the scaffold just stops copying from them.
 
 0. Probe the environment: `cd /opt/fabrik/.claude/worktrees/fleet && PYTHONPATH=$PWD/src .venv/bin/python -c "import
    fabrik.scaffold as s; print(s.__file__)"` prints the worktree path.
-1. **Write the failing tests first** (rows A1-A6) in `tests/test_scaffold.py`: A1 and A2 call `create_project` against a
-   fake `FABRIK_ROOT` built like `tests/test_scaffold_doc_seeding.py:129-151` (A2 omits `.windsurfrules` and
-   `opencode.json` from it); A3-A6 build an old-shaped project tree in `tmp_path` and call `fix_project`. Run them and
-   confirm each fails for the right reason (A1: the retired files exist; A2: `FileNotFoundError`; A3-A5: markers still
-   present / synced files rewritten; A6: the old block survives).
-2. Change the constants, `SHARED_DIRS`, `_scaffold_shared` and `create_project` per the Interfaces; delete the comments
-   at `:290-291`.
-3. Add `_remove_retired_droid_markers`; rewrite `fix_project`'s blocks per the Interfaces, live and dry run.
+1. **Write the failing tests first** (rows A1-A8): A1 and A2 call `_scaffold_shared` (every create-time copy is inside it,
+   `def :1121`) against a fake `FABRIK_ROOT` built like `tests/test_scaffold_doc_seeding.py:129-151`, extended with
+   `docs/reference/kilo/x.md` and `scripts/kilo_47_agents_final.json` so A1's kilo legs can go red (A2 omits
+   `.windsurfrules` and `opencode.json`); A3-A7 build project trees in `tmp_path` and call `fix_project` with
+   `FABRIK_ROOT` patched to a fake root holding `kilo_47_agents_final.json`, `AGENTS-compact.md`, `opencode.json` and
+   `.windsurfrules` (the worktree has no `kilo_47`, so the real root cannot show A5 red); A8 drives the `fix` command
+   through Click's `CliRunner` with `fix_project` patched to return fixed entries. Run them and confirm each fails for the
+   right reason (A1: the retired files exist; A2: `FileNotFoundError` naming `.windsurfrules`; A3-A6: markers kept or
+   synced files rewritten; A7: the user's `.droid/` line dropped; A8: a removal printed as `Added:`).
+2. Change the constants, `_patch_droid_block`, `SHARED_DIRS` and `_scaffold_shared` per the Interfaces.
+3. Add `_remove_retired_droid_markers`; rewrite `fix_project`'s blocks per the Interfaces, live and dry run; change the
+   `fix` command's rendering in `cli.py`.
 4. Update the named mirror tests.
 5. Run green: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_scaffold.py tests/test_scaffold_fix.py
-   tests/test_scaffold_doc_seeding.py tests/test_scaffold_logging.py -q -p no:cacheprovider` → all pass.
+   tests/test_scaffold_doc_seeding.py tests/test_scaffold_logging.py tests/test_cli.py -q -p no:cacheprovider` → all pass
+   (A8 lives in `tests/test_scaffold.py`; `tests/test_cli.py` is run because the `fix` command's output changes).
 6. Prove red on revert in a throwaway worktree (copy each edited file to its exact path, grep a marker to confirm the
-   copy landed): let `_remove_retired_droid_markers` remove a non-empty directory with `shutil.rmtree` → A4 fails;
-   restore the `opencode.json` copy in `create_project` → A1 fails; restore the `.windsurfrules` guard → A2 fails;
-   remove the worktree.
+   copy landed): let `_remove_retired_droid_markers` remove a non-empty directory with `shutil.rmtree` → A4 fails; drop
+   the `d.is_symlink()` check → A4 fails; restore the `opencode.json` copy → A1 fails; restore the `.windsurfrules` guard
+   → A2 fails; restore the prefix test in `_patch_droid_block` → A7 fails; remove the worktree.
 7. `python scripts/enforcement/check_doc_sync.py` → exit 0.
-8. **`/fabrik-review-scoped`** on Phase A's surface (`src/fabrik/scaffold.py`, `tests/test_scaffold.py`,
-   `tests/test_scaffold_fix.py`), run to its closing pass confirming 0 — BLOCKING before Phase B.
+8. **`/fabrik-review-scoped`** on Phase A's surface (`src/fabrik/scaffold.py`, `src/fabrik/cli.py`,
+   `tests/test_scaffold.py`, `tests/test_scaffold_fix.py`), run to its closing pass confirming 0 — BLOCKING before Phase B.
 9. Commit Phase A (explicit paths + provenance trailers, `Agent-Phase: A`), push.
 
 ### Behavior Contract — Phase A
-- **Given** a fake hub root carrying every source file, **When** `create_project` scaffolds a `python-api` project, **Then** the project has no `.droid/review-context`, `.droid/traycer-reports`, `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` or `scripts/kilo_47_agents_final.json`, has `docs/reference/kilo/`, its `.droid/.gitignore` equals `_DROID_DIR_GITIGNORE`, and its root `.gitignore` carries `.droid/docs_queue/` and `.droid/docs_log/` and no line containing `kilo`, `traycer` or `.droid/reviews` (A1; `spec § Validation` 1)
-- **Given** a fake hub root with no `.windsurfrules` and no `opencode.json`, **When** `create_project` runs, **Then** it completes without raising (A2; `spec § Contract deltas`, merge order)
-- **Given** an old-shaped project with `.droid/review-context/.gitkeep` and `.droid/traycer-reports/.gitignore` only, **When** `fix_project` runs, **Then** both markers and both directories are gone and the report names each removal (A3; `spec § Validation` 2)
-- **Given** `.droid/review-context/` holding `.gitkeep` and `notes.md`, a symlinked `.droid/traycer-reports`, and a project with no `.droid/` at all, **When** `fix_project` runs on each, **Then** `notes.md` survives with its directory reported `kept … (not empty: 1 entries)`, the symlink and its target are untouched, and the `.droid`-less project reports no removal and raises nothing (A4; `45-testing-strategy.md:199`)
-- **Given** a project holding its own `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` and `scripts/kilo_47_agents_final.json`, and one holding none of them, **When** `fix_project` runs, **Then** the first keeps all four byte-identical, the second gains none, and no report line names them (A5; `spec § Chosen approach`, fleet step 3)
-- **Given** an old-shaped project and `dry_run=True`, **When** `fix_project` runs, **Then** the report lists the marker removals and the `.gitignore` rewrites, and every file and directory is unchanged (A6; `spec § Validation` 2)
-- **Given** a root `.gitignore` holding the old eight-line `.droid` block among user lines, **When** `fix_project` runs, **Then** the block is replaced by the reduced one, the user lines survive in order, and a second run reports no `.gitignore` change (A7; `scaffold.py:7266`)
+- **Given** a fake hub root carrying every source file, **When** `_scaffold_shared` builds a project, **Then** the project has no `.droid/review-context`, `.droid/traycer-reports`, `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` or `scripts/kilo_47_agents_final.json`, has `docs/reference/kilo/`, its `.droid/.gitignore` equals `_DROID_DIR_GITIGNORE`, and its root `.gitignore` carries `.droid/docs_queue/` and `.droid/docs_log/` and no line containing `kilo`, `traycer` or `.droid/reviews` (A1; `spec § Validation` 1)
+- **Given** a fake hub root with no `.windsurfrules` and no `opencode.json`, **When** `_scaffold_shared` runs, **Then** it completes and writes `.droid/.gitignore` (A2; `spec § Contract deltas`, merge order)
+- **Given** an old-shaped project with `.droid/review-context/.gitkeep` and `.droid/traycer-reports/.gitignore` only, **When** `fix_project` runs, **Then** both markers and both directories are gone and the result carries a `removed` entry for each (A3; `spec § Validation` 2)
+- **Given** five trees — `review-context/` holding `.gitkeep` and `notes.md`; a symlinked `.droid/traycer-reports`; a symlinked `.droid/`; a `.gitkeep` that is a directory; a `.gitkeep` that is a dangling symlink — and a project whose `unlink` raises `PermissionError`, **When** `fix_project` runs on each, **Then** `notes.md` survives with `kept .droid/review-context/ (1 other entries)`, each symlink and its target are untouched with a `skipped … (symlink)` entry, the directory marker and the dangling symlink stay with a `kept` entry, the refused removal yields `could not remove …` and the run completes (A4; `45-testing-strategy.md:199`)
+- **Given** a project holding its own `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` and `scripts/kilo_47_agents_final.json` and a hub root holding all four, and one project holding none of them, **When** `fix_project` runs, **Then** the first keeps all four byte-identical, the second gains none, and no entry names them (A5; `spec § Chosen approach`, fleet step 3)
+- **Given** the A3 tree and the A4 non-empty tree with `dry_run=True`, **When** `fix_project` runs, **Then** its entries equal the live run's entries for the same trees, and every file and directory is unchanged (A6; `spec § Validation` 2)
+- **Given** a root `.gitignore` holding the old eight-line `.droid` block among user lines, one of them `.droid/secrets.json`, **When** `fix_project` runs, **Then** the block is replaced by the reduced one, the user lines — `.droid/secrets.json` included — survive in order, and a second run reports no `.gitignore` change (A7; `scaffold.py:7266-7303`)
+- **Given** `fix_project` returning one addition, one `removed` entry and one `kept` entry, then only a `kept` entry, **When** `fabrik fix` renders them, **Then** the addition prints `Added:`, the removal `Removed:`, the note without either label and outside the counts, and the second run prints "No missing files - project structure is complete!" (A8; `cli.py:2038-2056`)
 
 ## Phase B — The pre-plan copy stops writing into guardrail files; docs; Finish
 
-Appetite: 45
+Appetite: 50
 
 **Interfaces — Produces:**
-- `src/fabrik/scaffold.py::_layer_preplan_into_project(project_dir: Path, preplan: object) -> None` (`:6939-7000`) —
+- `src/fabrik/scaffold.py::_layer_preplan_into_project(project_dir: Path, preplan: object) -> None` (`:6939-7005`) —
   signature unchanged; copies the pre-plan to `docs/preplan.md` as today (`:6968-6972`) and returns; the
-  `reference_line`, the guardrail list and the per-file loop (`:6975-7000`) are removed. Its docstring (`:6940-6960`),
-  `create_project`'s (`:7104-7117`) and the caller comment (`:7179-7181`) say the pre-plan is copied to
-  `docs/preplan.md` and the governance CLAUDE.md points agents at it.
+  `reference_line`, the guardrail list and the per-file loop (`:6975-7000`) are removed and the closing `logger.info`
+  (`:7002-7005`) says only that the pre-plan was copied. Its docstring (`:6940-6960`), `create_project`'s (`:7104-7117`)
+  and the caller comment (`:7179-7181`) say the pre-plan is copied to `docs/preplan.md` and the governance CLAUDE.md
+  points agents at it.
 - Docstrings and help, same wording: `src/fabrik/preplan.py:1-8`, `src/fabrik/cli.py:1806-1818` (the `--from-preplan`
   help) and `:2198-2211` (the `preplan` group), `src/fabrik/portability.py:416-417` (the governance list loses
   `.windsurfrules`, `AGENTS-compact.md` and `KILO_CLI_RULES.md`).
-- Docs: `docs/QUICKSTART.md:70-77` (the preplan comment and the AGENTS-compact line), `docs/reference/architecture.md:255`
-  (the `.droid/review-context/` row → the `.droid/` row naming `docs_queue/` and `docs_log/`),
-  `docs/workflows/SCAFFOLD_STRUCTURE.md:27,70,147` (the scaffold-emitted rows); `CHANGELOG.md` (orchestrator-applied,
-  outside File Scope by the plan grammar).
+- Docs (`spec § Documentation landing sites`): `docs/QUICKSTART.md:70-77`, `docs/reference/architecture.md:255-256`,
+  `docs/workflows/SCAFFOLD_STRUCTURE.md:27,70,147,263`, `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md:266-268,444-446,604-613`,
+  `docs/CONFIGURATION.md:596`, `docs/reference/fabrik-cli-reference.md:26`, `docs/preplans/README.md:25`; and through the
+  orchestrator's governance path (outside File Scope by the plan grammar) `docs/FEATURES.md:427,606` and `CHANGELOG.md`.
 
 **Consumes:** Phase A (the `.droid/` shape the docs describe).
 
@@ -201,29 +232,34 @@ Appetite: 45
 
 1. **Write the failing test first** (B1) in `tests/test_preplan.py`, replacing the three injection tests; confirm it fails
    against today's code (the guardrail files gain the line).
-2. Rewrite `_layer_preplan_into_project` and the docstrings/help per the Interfaces.
+2. Rewrite `_layer_preplan_into_project`, its log line and the docstrings/help per the Interfaces.
 3. Run green: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_preplan.py tests/test_scaffold.py -q -p
-   no:cacheprovider`; and `command grep -rn "4 AI guardrail\|all 4 AI\|four AI guardrail" src/fabrik` → no output.
+   no:cacheprovider`; and `command grep -rn "4 AI guardrail\|all 4 AI\|four AI guardrail\|4 guardrails" src/fabrik` → no
+   output.
 4. Prove red on revert in a throwaway worktree: restore the injection loop for `CLAUDE.md` only → B1 fails; remove it.
-5. The doc edits per the Interfaces; `CHANGELOG.md` through the shared-append private-index recipe (`CLAUDE.md`
-   § Behavior, the shared-repo bullet). Then `python scripts/enforcement/check_doc_sync.py` and
+5. The doc edits per the Interfaces; `docs/FEATURES.md` and `CHANGELOG.md` through the shared-append private-index recipe
+   (`CLAUDE.md` § Behavior, the shared-repo bullet). Then `command grep -rn "review-context\|traycer-reports\|4 AI
+   guardrail" docs/QUICKSTART.md docs/CONFIGURATION.md docs/FEATURES.md docs/preplans/README.md docs/reference/architecture.md
+   docs/reference/fabrik-cli-reference.md docs/workflows/SCAFFOLD_STRUCTURE.md docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md`
+   → only historical mentions (a "retired" note), each read; `python scripts/enforcement/check_doc_sync.py` and
    `python scripts/render_doc_script_links.py --check` → both exit 0.
-6. **`/fabrik-review-scoped`** on Phase B's surface (the four source files, `tests/test_preplan.py`, the three docs), run to
-   its closing pass confirming 0.
+6. **`/fabrik-review-scoped`** on Phase B's surface (the four source files, `tests/test_preplan.py`, the edited docs), run
+   to its closing pass confirming 0.
 7. **Finish — the heavy `/fabrik-review`** over the whole-plan diff (`git diff <phase-A base>..HEAD`): the D7 floor — at
    least one Opus authoritative seat plus one Sonnet and one Haiku seat per independent failure-class group, sized by
    `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <groups>` and stamped with
    `python3 scripts/command_run.py dispatch --seats <n>` before they go out; the receipt at
    `docs/development/reviews/2026-10-03-plan-1-scaffold-retired-agent-surface-review.md` embedding the verbatim
-   `final_gate.py --json` success. Then `/fabrik-docs-review` over the three docs.
+   `final_gate.py --json` success. Then `/fabrik-docs-review` over the edited docs.
 8. The full gate: `python scripts/final_gate.py --check --json` → `"status": "success"` (necessary, not sufficient — the
    Evidence below is the design proof), and `python scripts/enforcement/check_convergence.py` → exit 0.
 9. Commit Phase B (`Agent-Phase: B`), push, then `python3 scripts/merge_request.py request --review <the receipt>` and send
-   the printed `SendMessage` line.
+   the printed `SendMessage` line, with the message saying: merge after infra's half (the manifest, the prune and the
+   `check_opencode_json` retirement) is on master.
 
 ### Behavior Contract — Phase B
 - **Given** a parsed pre-plan and a project holding `AGENTS.md`, `CLAUDE.md`, `AGENTS-compact.md` and `.windsurfrules`, **When** `_layer_preplan_into_project` runs, **Then** `docs/preplan.md` equals the source pre-plan and all four files are byte-identical to before (B1; `spec § Validation` 3)
-- **Given** the merged change, **When** `check_doc_sync.py` and `render_doc_script_links.py --check` run, **Then** both pass and no file under `src/fabrik/` says "4 AI guardrail" (B2; `spec § Documentation landing sites`)
+- **Given** the merged change, **When** `check_doc_sync.py` and `render_doc_script_links.py --check` run, **Then** both pass and no file under `src/fabrik/` says "4 AI guardrail" or "4 guardrails" (B2; `spec § Documentation landing sites`)
 
 ## File Scope (owned paths)
 
@@ -235,67 +271,88 @@ Appetite: 45
 - tests/test_scaffold_fix.py
 - tests/test_preplan.py
 - docs/QUICKSTART.md
+- docs/CONFIGURATION.md
+- docs/preplans/README.md
 - docs/reference/architecture.md
+- docs/reference/fabrik-cli-reference.md
 - docs/workflows/SCAFFOLD_STRUCTURE.md
+- docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md
 - docs/superpowers/specs/2026-10-03-scaffold-retired-agent-surface-design.md
 - docs/development/reviews/2026-10-03-plan-1-scaffold-retired-agent-surface-review.md
 
 ## Evidence
 
-**Phase A.** The create-time copies and the guard (read this run):
+**Phase A.** The create-time copies and the guard, all inside `_scaffold_shared` (`def :1121`, read this run):
 ```text
 src/fabrik/scaffold.py:1244:     if not fabrik_windsurfrules.exists():
 src/fabrik/scaffold.py:1254:     shutil.copy(fabrik_windsurfrules, project_dir / ".windsurfrules")
 src/fabrik/scaffold.py:1384:         shutil.copy(fabrik_kilo_config, scripts_target_dir / "kilo_47_agents_final.json")
 src/fabrik/scaffold.py:1401:     shutil.copy(FABRIK_ROOT / "opencode.json", project_dir / "opencode.json")
 ```
-The fix path's live/dry-run pairing and its markers: `src/fabrik/scaffold.py:7406-7553` / `:7554-7621`;
-`_patch_droid_block` replaces every `.droid/`/`.factory/` line (`:7266-7302`):
+`.droid/` is created only by the two retired `SHARED_DIRS` entries today (`:1131-1132`, `:495-496`), then written at
+`:1135` — the pass-1 seat ran the change without a `.droid` entry and got `FileNotFoundError: …/.droid/.gitignore`. The
+fix path's live/dry-run pairing: `:7406-7553` / `:7554-7621`; every deletion in the live branch is a replace-before-copy
+(10 sites: `:7420`, `:7427`, `:7429`, `:7438`, `:7440`, `:7453`, `:7455`, `:7465`, `:7474`, `:7482`), so
+`_remove_retired_droid_markers` is new code with its own guards. Today's `_patch_droid_block` drops a user's own line:
 ```text
-src/fabrik/scaffold.py:7536:             added.append(".droid/review-context/.gitkeep")
-src/fabrik/scaffold.py:7544:             added.append(".droid/traycer-reports/.gitignore (created/updated)")
-src/fabrik/scaffold.py:7557:         added.append(".windsurfrules (copied)")
-src/fabrik/scaffold.py:7585:             added.append("opencode.json (refresh from master)")
+$ python3 -c "...from fabrik.scaffold import _patch_droid_block as p; print(repr(p('.env\n.droid/secrets.json\n.droid/kilo_usage.jsonl\n', '.factory/consultations/\n.droid/docs_queue/\n.droid/docs_log/\n')))"
+'.env\n.factory/consultations/\n.droid/docs_queue/\n.droid/docs_log/\n'
 ```
-No existing `fix_project` step deletes a regular file or an empty directory (a full read of `:7323-7643` by the grounding
-seat; every deletion there is a replace-before-copy at `:7420`, `:7429`, `:7453-7455`), so `_remove_retired_droid_markers`
-is new code with its own guards. The live readers of what stays: `scripts/docs_updater.py:107-108` creates
-`.droid/docs_queue` and `.droid/docs_log` at import.
+The `fix` command prints every returned entry as `Added:` and counts it (`cli.py:2044-2056`). The live readers of what
+stays: `scripts/docs_updater.py:107-108` creates `.droid/docs_queue` and `.droid/docs_log` at import.
 
 **Phase B.** The injection and its consumers:
 ```text
 src/fabrik/scaffold.py:6981:     guardrail_files = [
+src/fabrik/scaffold.py:7003:         "preplan layering: copied to %s + reference injected into 4 guardrails",
 src/fabrik/cli.py:1814:         "'Preplan:' reference to all 4 AI guardrail files (AGENTS.md, CLAUDE.md, "
 src/fabrik/preplan.py:6: the four AI guardrail files (CLAUDE.md, AGENTS.md, AGENTS-compact.md,
 tests/test_preplan.py:175:     def test_injects_reference_into_all_4_guardrails(self, fake_root, tmp_path):
 ```
-The docs: `docs/QUICKSTART.md:70-77`, `docs/reference/architecture.md:255`, `docs/workflows/SCAFFOLD_STRUCTURE.md:27`,
-`:70`, `:147`.
+The docs: `docs/QUICKSTART.md:70-77`, `docs/CONFIGURATION.md:596`, `docs/preplans/README.md:25`,
+`docs/reference/architecture.md:255-256`, `docs/reference/fabrik-cli-reference.md:26`,
+`docs/workflows/SCAFFOLD_STRUCTURE.md:27`, `:70`, `:147`, `:263`, `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md:266-268`,
+`:444-446`, `:604-613`, `docs/FEATURES.md:427`, `:606`.
 
 ## Self-audit
 
 - Grounding: three native seats (Opus on `fix_project`, Sonnet on the create path, Sonnet on the pre-plan path and every
-  consumer), all returning `path:line`; the orchestrator re-read every anchor this plan and the spec cite
-  (`anchors2.py`, 70 lines printed) and re-ran the spec's path check (32 paths, 2 expected misses: a gitignored hub
-  artifact and a project-side path).
+  consumer), all returning `path:line`; the orchestrator re-read every anchor this plan and the spec cite.
 - The seats changed the design: `opencode.json` and `kilo_47_agents_final.json` are also copied at create time; both
   `.windsurfrules` copies sit behind a fail-fast guard; every fix block has a dry-run twin; the constant feeds eight
-  writers; a fleet-first merge is safe, so the ordering gate was dropped. The spec was amended for each.
-- Five more hub consumers of the three synced files belong to infra (`spec § Chosen approach`, infra step 5) — mailed
-  as an addendum to 01M40SBB.
-- (a) Coverage: I1-I3, I6 → Phase A; I4 → Phase A (scaffold side), infra (manifest); I5 → Phase B, infra (governance
-  line); I7 → decided, no scaffold code; I9 → kept (Global Constraints); I8 → W-477e37cd.
-- (b) Signatures: `_remove_retired_droid_markers` (A) is called from both `fix_project` branches (A); B consumes no A
-  function, only the `.droid/` shape its docs describe; `_layer_preplan_into_project`'s signature is unchanged for its
-  one caller (`:7182-7183`).
-- Fixed point: not yet — `/fabrik-plan-review` runs next.
+  writers. The spec was amended for each.
+- Plan-review pass 1 changed it again (Pass Ledger): the merge order is infra-first, not free; `.droid/` needs its own
+  creator; de-listing deletes no project copy, so infra owes a prune; the marker helper never acts through a symlink and
+  reports refused removals; `_patch_droid_block` keeps a user's own `.droid/` lines; the `fix` command renders removals
+  and notes; more mirror tests and docs are named.
+- Infra's half now carries a prune (`spec § Chosen approach`, infra step 1) and the merge order — mailed to infra.
+- (a) Coverage: I1-I3, I6 → Phase A; I4 → Phase A (scaffold side), infra (manifest + prune); I5 → Phase B, infra
+  (governance line); I7 → decided, no scaffold code; I9 → kept (Global Constraints); I8 → W-477e37cd.
+- (b) Signatures: `_remove_retired_droid_markers` (A) is called from both `fix_project` branches (A) and its entry
+  prefixes are what the `fix` command (A) splits on; `_RETIRED_DROID_GITIGNORE_LINES` (A) is read by `_patch_droid_block`
+  (A); B consumes no A function, only the `.droid/` shape its docs describe; `_layer_preplan_into_project`'s signature is
+  unchanged for its one caller (`:7182-7183`).
+- Fixed point: see the Pass Ledger.
 
 ## Residual unknowns
 
-- **Open — whether any live project keeps real files under `.droid/review-context/`.** A4 covers it (kept and reported);
-  the operator sees the `kept` lines on the next `fabrik fix`. No step depends on the answer.
-- **Resolved:** who reads each retired artifact (`spec § What exists today`); whether `_patch_droid_block` drops the old
-  lines (it replaces every managed line, `:7266-7302`); whether the merge order matters (`spec § Contract deltas`).
+- **Open, not blocking — whether any live project keeps its own files under `.droid/review-context/`.** A4 covers it
+  (kept and reported); the operator sees the `kept` notes on the next `fabrik fix`. No step depends on the answer.
+- **Resolved:** who reads each retired artifact (`spec § What exists today`); that today's `_patch_droid_block` drops
+  user lines (executed above; A7 changes it); the merge order (`spec § Contract deltas`); that de-listing deletes no
+  project copy (`sync_enforcement_to_projects.py:2023-2030`, `prune_retired_scripts` at `:1764`).
+
+## Pass Ledger
+
+`/fabrik-plan-review`, 2026-10-03. Native seats only (D-181), partitioned by section (D-212, D-218): `rules` (Opus — Global
+Constraints, Context Ledger, Constraints Digest, every Interfaces block and Mirror paragraph, the step lists, both Behavior
+Contracts, File Scope, Evidence, Coverage Checklist; spec What exists today, Chosen approach, The delta, Contract deltas,
+Validation, Constraints digest) and `prose` (Sonnet — the rest of both). The spec is `Size: small`, so its sections are
+graded here with the plan. `dispatch_headroom.py --slices opus=1,sonnet=1` → `SEATS: 2`, stamped with the refuters.
+
+| Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) · spec md5 (start → end) |
+|-----:|---|---|---|---|
+| Pass 1 | opus×1 (`rules`) + sonnet×1 (`prose`) + one sonnet refuter per slice · all axes | found: 22, new: 22, confirmed: 22, fixed: 22, unexecuted: 0, edits: 2 files | method: citation — full partitioned pass, shape: workflow (wf_66e32be9-d25); the orchestrator re-ran every confirmed check (`verify1.py`) and added O18 (de-listing deletes no project copy, `sync_enforcement_to_projects.py:2023-2030`). Confirmed: `.droid/` loses its only creator (O1); fleet-first fails a new project's gate (O2); the create-time tests could not go red as written (O3, O11); mirror tests missing (O4); the helper acts through a symlinked directory, mishandles a directory or dangling marker, and raises on a refused removal (O5, O6); live and dry-run counts can differ (O7); removals print as `Added:` (O8); the log line survives (O9); docs missing (O10, S1, S2); the guard rule's five spellings (O12); the infra-first window (O13); stale comments (O14); five vs six (O15); the Evidence enumeration (O16); user `.gitignore` lines dropped (O17); plan vs spec on open unknowns (S3); plus the spec's approach floor (0 cited URLs, `check_spec_convergence`), fixed in 458d507b2. | a65530f1ca3b344cd25f65d5666c14d3 → the Pass 2 pin · b0cc428411e56ab2fd8b80bf65ec7a34 → the Pass 2 pin |
 
 ## Coverage Checklist
 
@@ -312,6 +369,8 @@ Rows adjudicated by `/fabrik-plan-review`.
 | MATCHED core/45-testing-strategy — one test per behaviour, watched-fail-first, guard spellings | UNCHECKED |
 | Deletion safety: only the two markers and empty directories, never through a symlink | UNCHECKED |
 | Live/dry-run pairing in `fix_project` | UNCHECKED |
+| `fabrik fix` report rendering (additions, removals, notes) | UNCHECKED |
+| Merge order with infra's half | UNCHECKED |
 | fail-open vs fail-closed (a missing hub file, a missing `.droid/`) | UNCHECKED |
 | cost/quota accounting — not engaged (no metered call) | UNCHECKED |
 | boundary/sentinel (empty vs one-entry directory, marker vs user file, symlink) | UNCHECKED |
@@ -320,7 +379,7 @@ Rows adjudicated by `/fabrik-plan-review`.
 The rubric this plan's reviews inject into every seat brief, run on the plan's code surface:
 
 ```bash
-python3 scripts/review_rubric.py --changed src/fabrik/scaffold.py src/fabrik/preplan.py src/fabrik/cli.py src/fabrik/portability.py tests/test_scaffold.py tests/test_scaffold_fix.py tests/test_preplan.py docs/QUICKSTART.md docs/reference/architecture.md docs/workflows/SCAFFOLD_STRUCTURE.md
+python3 scripts/review_rubric.py --changed src/fabrik/scaffold.py src/fabrik/preplan.py src/fabrik/cli.py src/fabrik/portability.py tests/test_scaffold.py tests/test_scaffold_fix.py tests/test_preplan.py docs/QUICKSTART.md docs/CONFIGURATION.md docs/preplans/README.md docs/reference/architecture.md docs/reference/fabrik-cli-reference.md docs/workflows/SCAFFOLD_STRUCTURE.md docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md
 ```
 
 ```text
@@ -432,7 +491,7 @@ python3 scripts/review_rubric.py --changed src/fabrik/scaffold.py src/fabrik/pre
 **Factor XII — Admin processes. NEVER migrate from app startup.**
 **BANNED: `alembic upgrade head` in FastAPI's `lifespan`, in an `@app.on_event("startup")`, or as an import side-effect.** With more than one replica (or a restart storm) two containers run `upgrade head` **concurrently** → they race the Alembic version table → duplicate DDL → **wedged deploy**. Migrations are a **one-off admin process against the deployed release**: `docker compose run --rm <svc> alembic upgrade head` (see `30-ops.md` § Release & Admin Processes).
 
-### core/40-documentation.md  (hit: docs/QUICKSTART.md, docs/reference/architecture.md, docs/workflows/SCAFFOLD_STRUCTURE.md)
+### core/40-documentation.md  (hit: docs/CONFIGURATION.md, docs/QUICKSTART.md, docs/preplans/README.md)
 - > **⚠️ `docs/OPERATIONS.md` + `docs/DEPLOYMENT.md` are FLEET-AI INTERFACES, not just docs (D-065).**
 - **Tier-1 (author → verify → converge; the author leg is NATIVE while the pool is OFF, D-181 — `scripts/doc_reconcile.py`'s pool author cannot dispatch):** for each **mechanically-detectable** doc whose Doc-Sync trigger fired (`docs/QUICKSTART.md` · `docs/CONFIGURATION.md` · `docs/data-contract.md` · `docs/SERVICES.md` · `docs/OPERATIONS.md` — the reliable-signal subset), `scripts/doc_reconcile.py` dispatches a cheap OpenRouter-pool author (`libs.subagents`, `pick_models("docs")`) to emit a **minimal structured patch**, **verifies it before applying** (a symbol cross-check catches invented endpoints; the orchestrator injects a higher-assurance native-Claude verify), and loops to a zero-edit round. Runs per phase in `/fabrik-execute-plan`; never blocks (fail-safe). The other docs (CHANGELOG, INDEX, FEATURES, RESILIENCE, PORTS, the READMEs, `db/schema.sql`, …) have no reliable mechanical content-signal → they rely on the touch-on-change backstop below + your own edit (force-update, not force-correct).
 - The SSOT is the type-aware registry (`scripts/enforcement/_doc_registry.py::PROJECT_DOCS`) — this table is its project-facing rendering, kept in step, never a second truth. `/fabrik-plan-after-chat` (the plan set's spine + tickets — the ticket-format authority) injects these rows per ticket as its `Docs:` line.
