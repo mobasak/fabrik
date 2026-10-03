@@ -363,7 +363,11 @@ def _v5_line(repo_arg: str, scan: _Scan, work_mod: ModuleType) -> str:
     repo_name = _display_repo(_dir_name_for_path(root))
     sessions = scan.repo_sessions.get(repo_name, 0)
     if open_next <= sessions and live_claims > 0:
-        return "V5: PASS"
+        # the bound is printed on PASS too: a vacuous 0 <= 0 and a real 3 <= 3 are different readings
+        return (
+            f"V5: PASS — {open_next} open next item(s) <= {sessions} qualifying session(s), "
+            f"{live_claims} live claim(s)"
+        )
     if live_claims == 0:
         return f"V5: FAIL — {live_claims} live claims"
     return f"V5: FAIL — {open_next} open next item(s) > {sessions} qualifying session(s)"

@@ -723,7 +723,7 @@ def test_v5_pass_with_live_claim_and_matching_sessions(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     lines = _lines(result.stdout)
     v5_line = next(ln for ln in lines if ln.startswith("V5:"))
-    assert v5_line == "V5: PASS"
+    assert v5_line == "V5: PASS — 2 open next item(s) <= 2 qualifying session(s), 1 live claim(s)"
 
 
 def test_v5_fail_names_the_claims_bound_with_no_live_claim(tmp_path: Path) -> None:
@@ -776,7 +776,7 @@ def test_v5_window_excludes_future_and_stale_items(tmp_path: Path) -> None:
     lines = _lines(result.stdout)
     v5_line = next(ln for ln in lines if ln.startswith("V5:"))
     # only the 2-days-ago item counts (1) <= 1 qualifying session, with a live claim -> PASS
-    assert v5_line == "V5: PASS"
+    assert v5_line == "V5: PASS — 1 open next item(s) <= 1 qualifying session(s), 1 live claim(s)"
 
 
 # ---------------------------------------------------------------------------
@@ -819,7 +819,7 @@ def test_v5_closed_marker_excludes_the_item_even_though_locally_open(tmp_path: P
     lines = _lines(result.stdout)
     v5_line = next(ln for ln in lines if ln.startswith("V5:"))
     # the closed marker hides the only item -> 0 open next items <= 0 sessions, live claim present
-    assert v5_line == "V5: PASS"
+    assert v5_line == "V5: PASS — 0 open next item(s) <= 0 qualifying session(s), 1 live claim(s)"
 
 
 def test_sidechain_row_never_becomes_the_sessions_last_next(tmp_path: Path) -> None:
