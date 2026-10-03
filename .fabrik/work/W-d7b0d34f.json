@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-03T08:06:18.211111Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "6e29a8f350c8443e4df59be45e8267f7bc970c66",
   "id": "W-d7b0d34f",
   "kind": "backlog",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "done",
   "tags": [
     "dashboard"
   ],
