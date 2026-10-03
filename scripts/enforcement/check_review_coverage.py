@@ -16,8 +16,9 @@ A changed reviews/*.md containing a "Coverage Checklist" table:
      on a spot-verify round.)
   -> the standing recurrence classes must appear as rows (fail-open,
      cost/quota accounting, boundary/sentinel, behavior-without-a-test).
-A changed reviews/*.md that names /fabrik-review or /fabrik-repo-review as its
-command but has NO Coverage Checklist -> fail (the contract requires emitting it).
+A changed reviews/*.md with NO Coverage Checklist heading is not this gate's
+subject, whatever command it names: the command-name sniff was retired at round 27
+(see COMMAND_MARK), and artifact emission is enforced by the run record instead.
 
 Ceiling (by design): enforces checklist *presence and complete adjudication* —
 never that the hunting behind a CLEAN verdict was good. Artifacts from the
