@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-03T12:08:24.676701Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "1894c721c3dd7af5d7579c993c58ad057e451581",
   "id": "W-2f5fed87",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Seat-verify 5990cd53f (claude_rotate _ledger_append fallback fd ownership + per-field _degraded_row rewrite): the W-16ebba0a review closed on the scope-growth stop after 3 own-fix rounds, so this rewrite has its red-first tests but no fresh-seat pass"
 }
