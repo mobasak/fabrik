@@ -7,7 +7,7 @@
 making non-trivial changes directly** (Claude Code — Max OAuth — with native Task subagents; the OpenRouter subagent pool is OFF by ruling, D-181/D-182, 2026-09-07; Windsurf Cascade + Kilo CLI RETIRED 2026-07-19). This is the canonical infra +
 codebase map — ground every plan in it, don't guess.
 **Our agents are tool-capable — orient, then act:** run `python scripts/select_rules.py` to load the ACTIVE rule packs; open every file/symbol you cite (`path:line`); ground external facts **live via MCP** (`exa` → `brave-search` → `context7`, cite URL + date, never from memory); gate with `python scripts/final_gate.py`. Enumerations here are copied from the live registry (`scaffold.py::SCAFFOLD_TYPES`, `.windsurf/rules/**`, `fabrik-lib/README.md`, `spec_loader.py::Shape`) — if a count disagrees with the registry, the registry wins.
-**Coding agents:** Claude Code reads `CLAUDE.md` (which `@import`s `agents-fabrik-core.md`). ⚠️ Windsurf Cascade + Kilo CLI are **RETIRED (2026-07-19)** — their bootstrap files (`.windsurfrules`, `AGENTS-compact.md`, `opencode.json`) are no longer synced: the governance sync prunes them from every project (D-529), and the hub copies go once the scaffold stops copying them. Rule packs live in `.windsurf/rules/**` — canonical; at review time `scripts/review_rubric.py` injects them.
+**Coding agents:** Claude Code reads `CLAUDE.md` (which `@import`s `agents-fabrik-core.md`). ⚠️ Windsurf Cascade + Kilo CLI are **RETIRED (2026-07-19)** — their bootstrap files (`.windsurfrules`, `AGENTS-compact.md`, `opencode.json`) are no longer synced or scaffolded — the governance sync prunes them from every project and the hub copies are archived under `docs/archive/2026-10-03-retired-agent-bootstraps/` (D-529, D-537). Rule packs live in `.windsurf/rules/**` — canonical; at review time `scripts/review_rubric.py` injects them.
 
 ## Platform at a Glance
 
@@ -115,7 +115,7 @@ Our planning agents ground against this file. Agent-execution contracts, rule pa
 | `docs/orchestrator/_retired/**` | tombstones of the retired chains (`*.RETIRED.md`) — reference only, never edited | ❌ No |
 | `docs/traycer/fabrik-workflow.md` | HISTORY — the retired Traycer layer's workflow prompt (D-102); reference only | ❌ No |
 | `CLAUDE.md` | Claude Code bootstrap | ❌ No |
-| `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` | RETIRED Windsurf/Kilo bootstraps — no longer synced (D-529); deleted once the scaffold stops copying them | ❌ No |
+| `docs/archive/2026-10-03-retired-agent-bootstraps/` | RETIRED Windsurf/Kilo bootstraps (`.windsurfrules`, `AGENTS-compact.md`, `opencode.json`, `kilo.jsonc`), archived — not synced, not scaffolded (D-529, D-537) | ❌ No |
 | `.windsurf/rules/**` | Topic rule packs (shared; Cascade auto-loads via frontmatter, Claude Code and Kilo read on demand) | ❌ No |
 | `.windsurf/workflows/**` | Cascade slash-command workflows | ❌ No |
 | Per-project `CLAUDE.md`, `project.yaml` | Project-scoped (out of Fabrik-monorepo scope) | ❌ No |
@@ -394,7 +394,7 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 
 - `fabrik preplan new <slug>` — create `docs/preplans/<YYYY-MM-DD>-<slug>.md` from `templates/preplan/preplan.md.j2`. 9 sections: Idea / Project type / Shape preview / External deps / Domain / Success criteria / Out of scope / Open questions / Notes (VPS1 inventory reminders).
 - Refine the markdown with Opus / ChatGPT / Claude.
-- `fabrik scaffold <name> --from-preplan docs/preplans/<file>` — ingests the preplan: pre-fills `--type`, and copies the preplan into `<project>/docs/preplan.md`; the synced project `CLAUDE.md` tells every agent to read `docs/preplan.md` before planning when it exists. The scaffold still also layers a `Preplan:` line into the guardrail files until fleet's scaffold change (D-529) retires that injection — it never survived a sync anyway.
+- `fabrik scaffold <name> --from-preplan docs/preplans/<file>` — ingests the preplan: pre-fills `--type`, and copies the preplan into `<project>/docs/preplan.md`; the synced project `CLAUDE.md` tells every agent to read `docs/preplan.md` before planning when it exists. (The old per-file `Preplan:` injection into four guardrail files is retired, D-529 — it never survived a sync.)
 - (HISTORY — Traycer is retired, D-102; the pre-plan read now lives in `/fabrik-vision`'s research discovery over `docs/preplans/`.) Traycer's Step 2.5 in `docs/traycer/fabrik-workflow.md` was the planning-side companion: when a fresh project is detected, look for a preplan in `docs/preplans/` BEFORE asking the user to declare anything from scratch.
 
 **Post-deploy lifecycle commands (T2-01 + T2-02 + T2-03 + T2-04):**

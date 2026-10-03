@@ -659,9 +659,10 @@ folder path:
 
 **Lifecycle check (4 stages — completeness audit; gaps feed the Compliance Report):**
 1. **Scaffolding:** `project.yaml` exists? **Full Fabrik-synced set** (canonical list in
-   `scripts/fabrik_synced_manifest.py`; covers the 5 governance files — AGENTS.md, CLAUDE.md,
-   AGENTS-compact.md, .windsurfrules, `opencode.json` — plus `.windsurf/rules/`, `scripts/enforcement/`,
-   etc.) present AND byte-identical to `/opt/fabrik` source? Run
+   `scripts/fabrik_synced_manifest.py`; covers the governance files — AGENTS.md, CLAUDE.md,
+   agents-fabrik.md, agents-fabrik-core.md — plus `.windsurf/rules/`, `scripts/enforcement/`,
+   etc.) present AND byte-identical to what the sync last distributed (the project's `.fabrik/synced.lock`;
+   a project's CLAUDE.md comes from `templates/governance/CLAUDE.md`, never the hub's own)? Run
    `python scripts/enforcement/check_synced_unmodified.py` to verify both presence and unmodified state
    in one shot. A missing file and a locally-edited file are different gaps: **missing** → propose
    `fabrik fix /opt/<project> --type <scaffold-type>`; **modified** → revert + propose the change upstream
