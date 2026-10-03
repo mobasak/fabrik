@@ -186,6 +186,10 @@ def test_storage() -> None:
         "encrypts with a hardcoded password",
         "not from other apps running as the same user",
     )
+    sample = c.split("async function storeSecret", 1)[1].split("async function loadSecret", 1)[0]
+    assert "=== 'basic_text'" in sample and "throw new Error" in sample, (
+        "the storeSecret sample no longer refuses the basic_text backend"
+    )
 
 
 def test_signing() -> None:
