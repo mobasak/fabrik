@@ -976,6 +976,19 @@ def _converged_targets(root: Path) -> list[Path]:
     return targets
 
 
+def _scope_growth_closed(rtext: str) -> bool:
+    """check_review_coverage's own `_scope_growth_exit` over the receipt's own ledger rows."""
+    try:
+        from .check_review_coverage import _ledger_shapes, _scope_growth_exit  # noqa: PLC0415
+    except ImportError:  # direct-script invocation
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from scripts.enforcement.check_review_coverage import (  # noqa: PLC0415
+            _ledger_shapes,
+            _scope_growth_exit,
+        )
+    return _scope_growth_exit(rtext, _ledger_shapes(rtext)[2])
+
+
 def _check_executed_plan(root: Path, path: Path, text: str | None = None) -> list[str]:
     """A plan claiming EXECUTED must cite a persisted whole-plan review artifact
     that EXISTS on disk and carries a coverage-adjudicated exit signature.
@@ -1040,6 +1053,13 @@ def _check_executed_plan(root: Path, path: Path, text: str | None = None) -> lis
         # the whole-text search; the row grammar is the only witness of a round that ran
         if any(QUIET_PASS.search(m.group(0)) for m in _LEDGER_LINE.finditer(rtext)):
             return fails  # citation satisfied; spine-set findings (if any) still surface
+        # W-5b541aab: the D-252 scope-growth stop is a SANCTIONED exit at check_review_coverage —
+        # a receipt that closed on it carries no quiet row by design. The predicate is IMPORTED
+        # (one law, both graders): copying it is how the two gates came to disagree about the
+        # same receipt. Its cobra cost is stated at its definition (the phrase alone never exits;
+        # the ledger must show the trailing confirming rounds).
+        if _scope_growth_closed(rtext):
+            return fails
     return fails + [
         f"{rel}: claims EXECUTED but its cited whole-plan review is missing on disk or not "
         "coverage-adjudicated (needs a quiet final pass — a 'confirmed: 0, fixed: 0' round, or "

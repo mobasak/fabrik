@@ -2052,3 +2052,64 @@ def test_proof_citation_accepts_every_scaffold_types_sources(repo: Path) -> None
     )
     assert "handler.py" not in doc
     assert _run(repo, "docs/development/plans/2026-06-18-plan-x.md", doc) == 0
+
+
+# --- W-5b541aab: the D-252 scope-growth stop is an exit at BOTH graders --------------------------
+
+_SG_ROW = (
+    "| Pass {n} | native opus×1 | found: 9, new: {c}, confirmed: {c}, fixed: {c}, "
+    "unexecuted: 0 | method: re-derivation |"
+)
+
+
+def _scope_growth_review(confirmed: list[int]) -> str:
+    rows = "\n".join(_SG_ROW.format(n=i, c=c) for i, c in enumerate(confirmed, 1))
+    return (
+        "# Whole-plan review of Plan X\n\n"
+        "**Status:** CONVERGED — closed on the D-252 scope-growth stop\n\n"
+        "## Coverage Checklist\n| class | verdict |\n|---|---|\n| fail-open | FIXED(4) |\n\n"
+        "## Phase A verdict\nMirrors the plan.\n\nreviewed — sign-off.\n\n"
+        "## Pass Ledger\n| Pass | Finders | Counters | Method |\n|---|---|---|---|\n"
+        f"{rows}\n\n"
+        '```\n$ python scripts/final_gate.py --json\n{"status": "success", "tier": 2}\n```\n'
+    )
+
+
+def _crc():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "crc_sg", CHECK.parent / "check_review_coverage.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_a_review_closed_on_the_scope_growth_stop_satisfies_the_executed_citation(
+    repo: Path,
+) -> None:
+    """W-5b541aab: check_review_coverage accepts a receipt that closed on the D-252 scope-growth
+    stop (`_scope_growth_exit`), while this gate demanded a quiet row from the SAME receipt — the
+    two gates disagreed about one artifact. The predicate is imported, never copied."""
+    review = _scope_growth_review([5, 4, 5])
+    crc = _crc()
+    assert crc._scope_growth_exit(review, crc._ledger_shapes(review)[2])
+    files = {
+        "docs/development/plans/2026-08-03-plan-x.md": EXECUTED_PLAN_CITES,
+        "docs/development/reviews/2026-08-03-plan-x-review.md": review,
+    }
+    assert _run_files(repo, files) == 0
+
+
+def test_the_scope_growth_phrase_alone_never_satisfies_the_executed_citation(repo: Path) -> None:
+    """The cobra path: the phrase over a ledger whose last two rounds did NOT each confirm
+    something (here: a single round) is not the stop — refused as check_review_coverage refuses."""
+    review = _scope_growth_review([4])
+    crc = _crc()
+    assert not crc._scope_growth_exit(review, crc._ledger_shapes(review)[2])
+    files = {
+        "docs/development/plans/2026-08-03-plan-x.md": EXECUTED_PLAN_CITES,
+        "docs/development/reviews/2026-08-03-plan-x-review.md": review,
+    }
+    assert _run_files(repo, files) == 1
