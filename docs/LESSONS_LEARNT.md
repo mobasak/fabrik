@@ -1,6 +1,14 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A review seat that mutates its pin, a receipt gated before it is staged, and a command line that cannot carry two commits (2026-10-02)
+
+Plan 2026-10-02-plan-1 (the /fabrik-task lane v2, 11 tickets) surfaced four process defects no ticket review was built to see.
+- **A seat left a mutant in the pinned review tree.** Round 1 of the T04/T06/T07 wave confirmed `_SCOPE_GROWTH_LANE = (2, 2)` — the seat's own mutation, written into the pin despite a read-only brief, then read back by its siblings. Check the pin's `git status` after every pass and restore by `git checkout` before reading any finding that cites a value; the brief alone does not hold.
+- **A receipt gated before staging is never graded.** `check_convergence` grades a review receipt only once it is staged, so three receipts committed with a gate run made before `git add` shipped with no gate output and headings its Phase/Step pattern misses. Run the gate on the code with the receipt unstaged, embed it, stage the receipt, gate again.
+- **The documented multi-commit close could not work.** `fabrik-task.md` captured with `>` (only the last commit survived) and passed `"$(cat …)"` quoted (several SHAs as one argument). Prose tests matched the text; only a test that pushes the documented form through bash and the real parser caught it.
+- **A whole-plan review is where the integration defects live.** Eleven ticket reviews converged; the D7 pass over T08's wiring still confirmed 40, among them a gate-2 `done` that accepted an unreviewed contract hit whenever its measurement raised.
+
 ## A review fix can quietly break the spec table it was meant to serve, and only real data shows it (2026-10-03)
 
 The backrest coverage check (plan-3) passed four reviews and then, at its first hourly run, raised drift from 2 to 18

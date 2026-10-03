@@ -12,9 +12,9 @@
     "spec": ""
   },
   "next": "**[infra] check_subagent_flywheel: on shared master the cycle boundary is HEAD** (2026-09-02, /fabrik-review):\n  the check counts local-ledger pool rows newer than `merge-base HEAD <ref>`, which on a shared master\n  with no branch is HEAD itself — so a SIBLING's commit at 13:34 made this session's four pool review\n  rows from 13:19 \"not this cycle\" and the gate BLOCKED a run that had used the pool minutes earlier.\n  Measured once; the fix candidates (key the window on the staged files' oldest mtime, or on the last\n  commit AUTHORED by this session) need a fire-rate measurement before shipping (FIX verb 5). Until\n  then a later-pass pool dispatch re-satisfies it.",
-  "note": "migrated-digest:6aa243bad378",
+  "note": "obsolete — triage wave 1 (D-531, receipt docs/development/reviews/2026-10-03-work-triage-wave1.md, e37154a35): scripts/enforcement/check_subagent_flywheel.py:257 `_POOL_POLICY_ON = False`; `_pool_available()` (:285-293) requires `_pool_policy_on()` and `_pool_or_declare()` (:296-298) returns 0 immediately when",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "**check_subagent_flywheel: on shared master the cycle boundary is HEAD** (2026-09-02, /fabrik-review):"
 }

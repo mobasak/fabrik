@@ -42,7 +42,7 @@ def test_read_only_seats_follow_the_unit_count_up_to_the_cli_cap():
 def test_read_only_seats_are_bounded_by_the_box_too_a_finder_still_runs_pytest():
     """Round-1 (authoritative seat): a "read-only" fabrik-reviewer ran `pytest tests/enforcement`
     through Bash at 1.19 GB max RSS — the label is self-declared, the tools load the box the same.
-    1 GB planned per read-only seat, against min(MemAvailable, CommitLimit − Committed_AS)."""
+    1 GB planned per read-only seat, against MemAvailable (the commit headroom only where enforced)."""
     r = dh.budget(12, False, dict(BOX_OK, mem_available_gb=4.0), Q_OK)
     assert r["caps"]["box_cap"] == 4 and r["seats"] == 4
     # ⚠️ the commit limit binds first ONLY where the kernel enforces it (`vm.overcommit_memory=2`)
@@ -175,8 +175,9 @@ def test_seats_live_in_sibling_sessions_are_subtracted_from_the_box(tmp_path):
         )
     )
     assert dh.siblings(now=now, runs_dir=edge)["seats"] == 0
-    r = dh.budget(12, True, BOX_OK, Q_OK, s)  # box allows 12 heavy, minus 9 live elsewhere
-    assert r["caps"]["box_cap"] == 3 and r["seats"] == 3
+    # 9 sibling seats are charged 9 GB at the read-only cost (D-511): (25 - 9) GB / 2 GB = 8
+    r = dh.budget(12, True, BOX_OK, Q_OK, s)
+    assert r["caps"]["box_cap"] == 8 and r["seats"] == 8
     assert any(
         "minus 9 seat(s) dispatched < 25 min ago in 2 running record(s)" in x for x in r["reasons"]
     )
@@ -210,14 +211,51 @@ def test_heavy_seats_are_bounded_by_memory_and_cpu_never_the_unit_count_alone():
     r = dh.budget(12, True, tight, Q_OK)
     assert r["caps"]["box_cap"] == 2 and r["seats"] == 2
     assert any("HARD cap" in x and "box_cap=2" in x for x in r["reasons"])
-    busy = dict(BOX_OK, load1=22.5)  # (24 - 22.5) / 1.5 = 1 core-share left
-    assert dh.budget(12, True, busy, Q_OK)["seats"] == 1
+    busy = dict(BOX_OK, load1=22.5)  # 1.5 free cores / 1 core = 1 heavy seat by CPU — but CPU
+    r = dh.budget(12, True, busy, Q_OK)  # never blocks the floor while memory has room (D-511)
+    assert r["seats"] == dh.FLOOR and r["floor_granted"] == dh.FLOOR - 1
     empty = dict(BOX_OK, mem_available_gb=0.0)
     r = dh.budget(12, True, empty, Q_OK)
     assert r["seats"] == 0 and any("never dispatch past a hard cap" in x for x in r["reasons"])
     assert dh.budget(12, True, dict(BOX_OK, mem_available_gb=25.0), Q_OK)["seats"] == 12
     roomy = dh.budget(12, True, BOX_OK, Q_OK)
     assert roomy["caps"]["box_cap"] == 12 and roomy["seats"] == 12
+
+
+def test_read_only_seats_cost_the_measured_cpu_share():
+    """A read-only seat's tools run a measured p90 of 28% of its life (D-511), so it is charged
+    `LIGHT_CPU_PER_SEAT` of a core, never a whole one: 3 free cores host 10 seats, not 3."""
+    assert dh.LIGHT_CPU_PER_SEAT == 0.3 and dh.HEAVY_CPU_PER_SEAT == 1.0
+    busy = dict(BOX_OK, load1=21.0)  # 24 - 21.0 = 3.0 free cores / 0.3 = 10
+    r = dh.budget(12, False, busy, Q_OK)
+    assert r["caps"]["box_cap"] == 10, r["caps"]
+    assert any("cpu (24 cores - load 21.0)/0.3=10" in x for x in r["reasons"]), r["reasons"]
+    # the float edge: 0.9 free cores is three seats, not the two a bare floor(0.9/0.3) gives
+    assert dh.budget(12, False, dict(BOX_OK, load1=23.1), Q_OK)["caps"]["box_cap"] == 3
+
+
+def test_a_cpu_saturated_box_still_hosts_the_floor_and_says_so():
+    """CPU oversubscription slows, memory exhaustion kills (D-511): a box whose load is past
+    its cores — a sibling's gate run — sizes the COUNT to zero by CPU but still grants the floor,
+    named, where the old rule stalled the loop at `SEATS: 0`. Memory below the floor still refuses."""
+    hot = dict(BOX_OK, load1=25.1)
+    sibs = {"ok": True, "seats": 16, "sessions": 5, "unrecorded": 0, "skipped": []}
+    r = dh.budget(6, False, hot, Q_OK, sibs)
+    assert r["seats"] == dh.FLOOR and r["floor_granted"] == dh.FLOOR, (r["caps"], r["reasons"])
+    assert any("floor granted: 3 seat(s)" in x for x in r["reasons"]), r["reasons"]
+    starved = dh.budget(6, False, dict(hot, mem_available_gb=2.0), Q_OK)
+    assert starved["seats"] < dh.FLOOR  # memory is the hard bound: no floor past it
+
+
+def test_sibling_seats_are_charged_at_the_read_only_cost():
+    """A sibling's reservation is charged in RESOURCES (its seats x the read-only cost), never as
+    whole seats of the caller's kind: ten light sibling seats on a roomy box leave a heavy caller
+    (25 - 10) GB / 2 = 7 seats, where subtracting seats from seats left it 12 - 10 = 2."""
+    sibs = {"ok": True, "seats": 10, "sessions": 2, "unrecorded": 0, "skipped": []}
+    r = dh.budget(12, True, BOX_OK, Q_OK, sibs)
+    assert r["caps"]["box_cap"] == 7, (r["caps"], r["reasons"])
+    light = dh.budget(40, False, BOX_OK, Q_OK, sibs)  # mem (25-10)/1 = 15; cpu (23-3)/0.3 = 66
+    assert light["caps"]["box_cap"] == 15, light["caps"]
 
 
 def test_quota_pressure_holds_the_round_at_the_floor_and_names_which_band_tripped():
@@ -344,9 +382,9 @@ def test_json_output_carries_the_budget_and_both_probes(monkeypatch, capsys):
     assert (
         out["seats"] == 11 and out["box"]["ok"] and out["quota"]["ok"] and "fable" in out["tiers"]
     )
-    assert out["caps"] == {"wanted": 11, "concurrency_cap": dh.CONCURRENCY_CAP, "box_cap": 23}
+    assert out["caps"] == {"wanted": 11, "concurrency_cap": dh.CONCURRENCY_CAP, "box_cap": 25}
     assert out["reasons"] == [
-        "box allows 23 read-only seats (mem 25.0GB/1.0GB=25, cores 24-load 1.0=23)"
+        "box allows 25 read-only seats (mem 25.0GB/1.0GB=25, cpu (24 cores - load 1.0)/0.3=76)"
     ]
     assert out["siblings"] == {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
     assert (
@@ -389,7 +427,7 @@ def test_siblings_reserve_but_never_starve_a_session_below_the_floor():
     r = dh.budget(6, False, BOX_OK, Q_OK, sib)
     assert r["caps"]["box_cap"] == 3 and r["seats"] == 3
     assert any("never below the floor of 3" in x for x in r["reasons"])
-    assert dh.budget(6, False, BOX_OK, Q_OK, dict(sib, seats=13))["seats"] == 10
+    assert dh.budget(6, False, BOX_OK, Q_OK, dict(sib, seats=13))["seats"] == 12  # (25-13)/1
     assert dh.SIBLING_FRESH_S == 25 * 60
     # a box that is ITSELF below the floor keeps the reservation in full — three sessions must not
     # each claim a 2-seat box (round-3 finding)
@@ -423,12 +461,12 @@ def test_the_cost_story_describes_the_mix_it_prints_never_the_per_unit_sentence(
     assert "SEATS: 3" in out and "no mechanical seat (--mechanical 0" in out
     assert dh.main(["--units", "3", "--json"]) == 0
     d = json.loads(capsys.readouterr().out)
-    assert d["box_caps"] == {"read_only": 23, "heavy": 12} and d["full_mix"] == d["mix"]
+    assert d["box_caps"] == {"read_only": 25, "heavy": 12} and d["full_mix"] == d["mix"]
     assert d["floor"] == dh.FLOOR and d["box_caps_floored"] == {"read_only": False, "heavy": False}
     # the True case through main() (round 10: the wiring could be hardcoded False and stay green)
     monkeypatch.setattr(
-        dh, "siblings", lambda: {"ok": True, "seats": 21, "sessions": 2, "skipped": []}
-    )
+        dh, "siblings", lambda: {"ok": True, "seats": 23, "sessions": 2, "skipped": []}
+    )  # 23 sibling GB leave 2 read-only seats and 1 heavy — both below the floor (D-511)
     assert dh.main(["--units", "3", "--json"]) == 0
     d = json.loads(capsys.readouterr().out)
     assert d["box_caps_floored"] == {"read_only": True, "heavy": True} and d["floor_granted"] == 1
@@ -886,11 +924,12 @@ def test_a_parked_parent_frame_keeps_its_reservation_and_the_two_no_standby_fact
     s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="nobody")
     assert s["skipped"] == ["negative.json"] and s["seats"] == 7
     # the floor past the remainder is bounded and SAID (round-8 finding)
-    r = dh.budget(6, False, BOX_OK, Q_OK, {"ok": True, "seats": 21, "unrecorded": 0})
+    # 23 sibling seats leave (25 - 23) GB = 2 read-only seats, one short of the floor
+    r = dh.budget(6, False, BOX_OK, Q_OK, {"ok": True, "seats": 23, "unrecorded": 0})
     assert r["caps"]["box_cap"] == dh.FLOOR and r["floor_granted"] == 1
     assert any("floor granted: 1 seat(s) past what the box has left" in x for x in r["reasons"])
     # an honest remainder that equals the floor is NOT the floor (round-9 Opus finding)
-    r = dh.budget(6, False, BOX_OK, Q_OK, {"ok": True, "seats": 20, "unrecorded": 0})
+    r = dh.budget(6, False, BOX_OK, Q_OK, {"ok": True, "seats": 22, "unrecorded": 0})
     assert r["caps"]["box_cap"] == 3 and r["floor_granted"] == 0
     # the guarantee is stated only where it holds: a box with no room says no "never below"
     low = dh.budget(
@@ -1001,7 +1040,7 @@ def test_floor_granted_stays_box_driven_under_slices_never_hardcoded_zero():
     """Implementation note: `floor_granted` is driven by BOX capacity alone and must NOT be gated
     on `slices` — a capacity-constrained box still grants the floor's OOM-preventing overcommit for
     a tiny partition, or a capacity-constrained box loses the signal the module exists for."""
-    sib = {"ok": True, "seats": 21, "sessions": 2, "skipped": []}
+    sib = {"ok": True, "seats": 23, "sessions": 2, "skipped": []}  # (25 - 23) GB = 2 < the floor
     r = dh.budget(0, False, BOX_OK, Q_OK, sib, slices={"opus": 1, "sonnet": 1})
     assert r["caps"]["box_cap"] == 3 and r["floor_granted"] == 1
     assert any("floor granted" in x for x in r["reasons"])

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T16:23:55.831831Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-17d787a1",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-505",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "if a later edit to ai/30-language.md trips or slips the opt-out guard, stop extending the word list and pin the opt-out as a structured marker (a labelled bullet or a fenced call) the test parses; the battery in the review receipt lists the 29 regressions and 7 rewordings already proven",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "tests/test_language_pack.py's DeepL opt-out guard is a clause matcher with a negation word list: further rewordings may slip past or false-fail (scope-growth stop of the D-505 review, 2026-10-02)"
+}

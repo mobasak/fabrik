@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T19:04:55.806111Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-0f437556",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-535",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "verify both dates on the EUR-Lex text of the Digital Omnibus, then add the transparency duty to the pack that owns user-facing AI (ai/00 or a governance pack) with a pinned test",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules-currency"
+  ],
+  "title": "No rule pack owns the EU AI Act's transparency duties (chatbot disclosure, AI-generated-content marking, applying from 2026-08-02) or its Annex III standalone high-risk classes (applying from 2027-12-02)"
+}

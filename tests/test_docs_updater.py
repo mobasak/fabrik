@@ -454,10 +454,12 @@ class TestMultiAgentOperatingModelDoc:
             "rerere.enabled",  # artifact 4: the two git config keys
             "push.autoSetupRemote",
             ".fabrik/plan-locks/",  # the lock location (T04b: unchanged, per working tree)
-            "git merge --no-ff",  # the merge protocol
+            "scripts/merge_request.py merge",  # the merge protocol (`merge_request.py` runs `git merge --no-ff` itself)
         ):
             assert needle in text, f"doc does not name {needle!r}"
         # the pending half is labelled as pending, never stated as shipped
         assert text.count("on master (T01b, merged 2026-09-06)") >= 3
         assert "On master (T13, merged 2026-09-06)" in text  # T13 (R2)
-        assert len(text.splitlines()) <= 150
+        # No line cap: T15's 150-line ceiling (last enforced at aedcf64c6) was a plan-era snapshot; the
+        # doc became the canonical operating model and passed it at f4fac0204 (2026-09-16), growing
+        # through every reviewed change since. Its contract is the named surfaces above, not a length.

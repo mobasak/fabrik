@@ -1,0 +1,26 @@
+{
+  "block_digest": "25e7041d4753ab64fdc30b2603edbea69056a6da776ec6482fd17e9dd6dca787",
+  "blocked_by": [],
+  "created": "2026-10-03T15:37:15.326370Z",
+  "creator": "intel",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-d99b43e0",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "4de8aa72ca1ecce216715420aec15addd37448feb288e64da765a100dbd7dfcb"
+  ],
+  "next": "",
+  "note": "NEXT: operator decision: lift the pause and resume W-75a781e7, file 52 of the rules currency pass (ai/80-specialized-domains.md)",
+  "owner": "",
+  "priority": 2,
+  "question": "Should I resume the rules currency pass with file 52 (`ai/80-specialized-domains.md`) now that Volkan's `/task` is done?",
+  "status": "done",
+  "title": "Should I resume the rules currency pass with file 52 (`ai/80-specialized-domains.md`) now that Volkan's `/task` is done?"
+}

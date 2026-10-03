@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T18:42:15.414693Z",
+  "creator": "infra",
+  "evidence": "4e0464f186d74a9fc779e1685aeb63d0161529aa",
+  "id": "W-83021827",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-512",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-spec: idle detection from ListAgents, triage by beat and priority, work.py assign + SendMessage dispatch, a Stop-time check on the coordinator; supersede work-tracking.md § Ownership's self-claim default",
+  "note": "",
+  "owner": "",
+  "priority": 0,
+  "status": "done",
+  "title": "Coordinator proactive assignment (D-512): the merge owner triages waiting work (store, backlog, mail, CONVERGED specs/plans) and assigns it to idle windows so no agent idles while work exists"
+}

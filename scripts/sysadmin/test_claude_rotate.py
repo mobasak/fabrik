@@ -34,6 +34,14 @@ def _hermetic_governor_hooks(monkeypatch, tmp_path):
     fake_run call counts of the rotation tests). Neutralize both by default and sandbox the state
     dir; the dedicated hook tests re-patch what they measure."""
     monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "rotate-state"))
+    # The box's real ~/.claude-fleet put every legacy test in FLEET mode, where the fleet guard
+    # refuses legacy rotation — 22 tests red on any machine that has a fleet — and left the real
+    # `active` pointer reachable from this suite. An empty fleet root restores legacy mode and
+    # seals the pointer (W-16ebba0a).
+    fleet = tmp_path / "isolated-fleet"
+    fleet.mkdir()
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(fleet))
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(tmp_path / "ledger-fallback.jsonl"))
     monkeypatch.setattr(claude_rotate, "_oauth_get", lambda *a, **k: None)
     monkeypatch.setattr(claude_rotate, "_signal_governor_capped", lambda text: None)
 
@@ -288,7 +296,7 @@ def test_should_alert_401_debounces_per_window(tmp_path, monkeypatch):
 def test_telegram_config_env_beats_file_and_parses_file(tmp_path, monkeypatch):
     f = tmp_path / ".env.sysadmin"
     f.write_text('# c\nTELEGRAM_BOT_TOKEN="fileTok"\nTELEGRAM_OWNER_ID=99\nOTHER=x\n')
-    monkeypatch.setattr(claude_rotate, "ENV_SYSADMIN", f)
+    monkeypatch.setattr(claude_rotate, "_env_sysadmin", lambda: f)
 
     # env set AND file set to DIFFERENT values → env must win.
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "envTok")
@@ -301,7 +309,7 @@ def test_telegram_config_env_beats_file_and_parses_file(tmp_path, monkeypatch):
     assert claude_rotate._telegram_config() == ("fileTok", "99"), "parsed from .env.sysadmin"
 
     # neither → None (WSL dev box).
-    monkeypatch.setattr(claude_rotate, "ENV_SYSADMIN", tmp_path / "nope")
+    monkeypatch.setattr(claude_rotate, "_env_sysadmin", lambda: tmp_path / "nope")
     assert claude_rotate._telegram_config() is None
 
 
@@ -309,7 +317,7 @@ def test_notify_telegram_failsoft(tmp_path, monkeypatch):
     # No config → no-op False, no network attempt.
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     monkeypatch.delenv("TELEGRAM_OWNER_ID", raising=False)
-    monkeypatch.setattr(claude_rotate, "ENV_SYSADMIN", tmp_path / "nope")
+    monkeypatch.setattr(claude_rotate, "_env_sysadmin", lambda: tmp_path / "nope")
     assert claude_rotate._notify_telegram("hi") is False
 
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
@@ -341,7 +349,7 @@ def test_telegram_config_corrupt_file_is_noop_not_raise(tmp_path, monkeypatch):
     monkeypatch.delenv("TELEGRAM_OWNER_ID", raising=False)
     f = tmp_path / ".env.sysadmin"
     f.write_bytes(b"TELEGRAM_BOT_TOKEN=\xff\xfe not-utf8\nTELEGRAM_OWNER_ID=1\n")
-    monkeypatch.setattr(claude_rotate, "ENV_SYSADMIN", f)
+    monkeypatch.setattr(claude_rotate, "_env_sysadmin", lambda: f)
 
     assert claude_rotate._telegram_config() is None, "undecodable file → no config, no raise"
     assert claude_rotate._notify_telegram("hi") is False, "fail-soft, never raises"
@@ -783,11 +791,21 @@ def test_run_claude_default_does_not_touch_stdin(monkeypatch):
 # --- real-filesystem coverage of the security/atomicity swap (was fully mocked) -------
 
 
+# `_stale_snapshot_reason` fails CLOSED on a snapshot with no `expiresAt` (it cannot prove the
+# credential authenticates), so a fixture without one is a refused target and every rotation test
+# reads None. Far-future milliseconds, the shape Claude Code writes (W-16ebba0a).
+_FRESH_EXPIRY_MS = 4_102_444_800_000  # 2100-01-01
+
+
 def _write_creds(path, org):
     path.write_text(
         json.dumps(
             {
-                "claudeAiOauth": {"accessToken": "FAKE-" + org, "refreshToken": "FAKE"},
+                "claudeAiOauth": {
+                    "accessToken": "FAKE-" + org,
+                    "refreshToken": "FAKE",
+                    "expiresAt": _FRESH_EXPIRY_MS,
+                },
                 "organizationUuid": org,
             }
         )
@@ -801,7 +819,15 @@ def _write_creds_no_org(path, token):
     org-based guard wrongly treated as corrupt — the gap the 9-pass review missed because
     _write_creds always wrote an org."""
     path.write_text(
-        json.dumps({"claudeAiOauth": {"accessToken": token, "refreshToken": "R-" + token}})
+        json.dumps(
+            {
+                "claudeAiOauth": {
+                    "accessToken": token,
+                    "refreshToken": "R-" + token,
+                    "expiresAt": _FRESH_EXPIRY_MS,
+                }
+            }
+        )
     )
     os.chmod(path, 0o600)
 
@@ -1011,7 +1037,11 @@ def test_ambiguous_shared_org_falls_through_to_marker(tmp_path, monkeypatch):
         (d / ".credentials.json").write_text(
             json.dumps(
                 {
-                    "claudeAiOauth": {"accessToken": tok, "refreshToken": "R"},
+                    "claudeAiOauth": {
+                        "accessToken": tok,
+                        "refreshToken": "R",
+                        "expiresAt": _FRESH_EXPIRY_MS,
+                    },
                     "organizationUuid": "org-shared",
                 }
             )
@@ -1451,3 +1481,30 @@ def test_oauth_get_401_is_definitive_no_host_fallback(monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
     assert _REAL_OAUTH_GET("usage", "tok", timeout_s=1, attempts=2) is None
     assert len(calls) == 1, "one attempt, one host — definitive"
+
+
+def test_a_failed_active_marker_write_still_ledgers_the_switch(tmp_path, monkeypatch):
+    """W-16ebba0a review C3: the switch row shared a try with the marker write, so a failed marker
+    skipped the row in silence and the dwell clock never started."""
+    claude_dir, _, active = _setup_fake_claude(
+        tmp_path, monkeypatch, {"mob-dir": "org-mob", "ob-dir": "org-ob"}
+    )
+    _write_creds(active, "org-mob")
+    (claude_dir / ".active-account").mkdir()  # the marker write now raises OSError
+    assert claude_rotate._rotate_active_account() == "ob-dir"
+    ledger = (claude_dir / "state" / "rotate-ledger.jsonl").read_text(encoding="utf-8")
+    assert '"event": "switch"' in ledger and '"to": "ob-dir"' in ledger, ledger
+
+
+def test_a_failed_marker_with_an_unusable_stderr_still_reports_the_swap(tmp_path, monkeypatch):
+    """W-16ebba0a closing review N1: the marker handler's stderr write was unguarded, so with stderr
+    None the completed swap raised (or read as "no rotation") and the switch row was skipped."""
+    claude_dir, _, active = _setup_fake_claude(
+        tmp_path, monkeypatch, {"mob-dir": "org-mob", "ob-dir": "org-ob"}
+    )
+    _write_creds(active, "org-mob")
+    (claude_dir / ".active-account").mkdir()
+    monkeypatch.setattr(claude_rotate.sys, "stderr", None)
+    assert claude_rotate._rotate_active_account() == "ob-dir"
+    ledger = (claude_dir / "state" / "rotate-ledger.jsonl").read_text(encoding="utf-8")
+    assert '"to": "ob-dir"' in ledger, ledger

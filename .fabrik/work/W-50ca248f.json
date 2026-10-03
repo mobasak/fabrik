@@ -1,0 +1,26 @@
+{
+  "block_digest": "0032b9bc6a3b39e52393661331927a13bad7da9e9227e7318a116d8082f0cd2f",
+  "blocked_by": [],
+  "created": "2026-10-03T11:11:03.269889Z",
+  "creator": "intel",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-50ca248f",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "612ef31ece144b0d8a13a312742d7e57dfde3143248ccbafbddf973b553480ce"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May Jev pilots send text to TypeSafe through OpenRouter's Decisions API? That would start with public-data projects and the hub's Stop-hook pilot, with customer text excluded.",
+  "status": "awaiting-operator",
+  "title": "May Jev pilots send text to TypeSafe through OpenRouter's Decisions API? That would start with public-data projects and the hub's Stop-hook pilot, with customer text excluded."
+}

@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-08-25T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "e37154a35b79d7334806cbc5f187e8e58424ca4d",
   "id": "W-e98a82f6",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:d9cf04e873af",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "**Spec-comment truth discipline** (deploy-triad root-cause #4, Lesson-105 class): three tryton spec comments were code-false (shared-token \"accepts TI's token too\" — dev-only in production; `expose..."
 }

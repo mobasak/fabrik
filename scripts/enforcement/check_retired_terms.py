@@ -3,7 +3,7 @@
 """Retired-tech tripwire — WARN-only, ALWAYS exits 0 (docs-truth convergence 2026-07-20).
 
 Flags retired-stack tokens (Kilo CLI, Windsurf Cascade, Coolify, Supabase) appearing
-in a LIVE doc line whose surrounding context (±2 lines) carries no retirement marker.
+in a LIVE doc line (``docs/**/*.md`` and the root ``README.md``) whose surrounding context (±2 lines) carries no retirement marker.
 This catches the dominant docs-truth defect class — a retired tool framed as live —
 at commit time instead of at the next convergence sweep.
 
@@ -49,7 +49,7 @@ def main() -> int:
     warns: list[str] = []
     scanned = 0
     tracked = subprocess.run(
-        ["git", "ls-files", "docs/**/*.md", "docs/*.md"],
+        ["git", "ls-files", "docs/**/*.md", "docs/*.md", "README.md"],
         cwd=REPO,
         capture_output=True,
         text=True,
@@ -65,8 +65,9 @@ def main() -> int:
         scanned += 1
         # Doc-level banner rule: a retirement banner in the file head marks the
         # WHOLE doc's mentions as documented-historical (the traycer-README pattern).
+        # Never for the root README: its intro names retirements while the rest stays live.
         head = " ".join(lines[:30])
-        if re.search(
+        if p != "README.md" and re.search(
             r"[Rr]etired 2026|RETIRED 2026|retirement banner|[Pp]re-migration vintage|[Pp]re-migration context|decommission|Coolify-era|Coolify-API era|Coolify-flavored historical",
             head,
         ):

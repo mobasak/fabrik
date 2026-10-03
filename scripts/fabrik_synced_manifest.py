@@ -60,6 +60,7 @@ CORE_SCRIPTS = [
     # of four providers unauthenticated in every repo past the delete.
     "whoami_agent.py",  # SELF-NAMING IDENTITY: a LIVE session binds itself to an agent name with no relaunch, and command_run.py imports its resolver — so it MUST travel on the same sync as command_run.py or the guarded import degrades to the env var (D-267/D-268)
     "command_run.py",  # COMMAND RUN-RECORD: the pinned `RUN:` line + class ledger; the Stop hook's 5th cause reads its state
+    "task_lane.py",  # the /fabrik-task lane's PURE module (plan 2026-10-02-plan-1): command_run.py imports it lazily for admission, the close and the in-lane review stop, so it MUST travel on the same sync — without it a repo runs lane v1 (the import is guarded). `.fabrik/lane.json` is REPO-OWNED and never synced (D12)
     "thread_anchor.py",  # THREAD ANCHORS: durable NEXT:-line memory — the Stop hook harvests, SessionStart/UserPromptSubmit re-inject (settings.json references it, so it must travel with settings.json)
     "work.py",  # WORK TRACKING: the open-work store (ready/next/claim/done/answer/assign/status/sync/render) — travels with thread_anchor.py, whose DECISION harvest and prompt block call it by path (plan 2026-09-24 T04)
     "check_research_ledger.py",  # RESEARCH LEDGER (D-352): the row grammar every research fan-out files its facts under, in every repo
@@ -99,9 +100,17 @@ GOVERNANCE_FILES = [
     "AGENTS.md",
     "agents-fabrik.md",  # canonical agents doc (AGENTS.md is a stub pointing here)
     "agents-fabrik-core.md",  # high-frequency core @import-ed by CLAUDE.md — must exist fleet-wide
-    "AGENTS-compact.md",
-    "opencode.json",
-    ".windsurfrules",
+]
+
+# Governance files RETIRED from GOVERNANCE_FILES — the sync DELETES these from every project
+# root. De-listing alone deletes nothing (the governance leg only copies what is listed), so a
+# retired file needs this list exactly as RETIRED_CORE_SCRIPTS does. D-529 (spec 2026-10-03
+# scaffold-retired-agent-surface): the Kilo/opencode and Windsurf agents are not used (D-364,
+# D-514). The HUB copies stay until fleet's scaffold half stops copying them (infra step 6).
+RETIRED_GOVERNANCE_FILES = [
+    "AGENTS-compact.md",  # read only by opencode.json's `instructions`
+    "opencode.json",  # Kilo/opencode config
+    ".windsurfrules",  # Windsurf Cascade rules
 ]
 
 # Governance templates → (src_rel under templates/, dest_rel at project root).
@@ -257,9 +266,7 @@ RETIRED_VENDORED_DIRS = [
 # project via ${CLAUDE_PROJECT_DIR} + stdin cwd; the Cascade hook commands
 # self-locate via `git rev-parse`). This is what makes every project — existing
 # and future — enforce `final_gate` green as the definition of done, and route
-# bare-prose prompts to the matching /fabrik-* skill. (Kilo/opencode has no
-# config-level hook surface — its schema is strict — so Kilo stays
-# instruction-only via AGENTS-compact.md, which rides GOVERNANCE_FILES above.)
+# bare-prose prompts to the matching /fabrik-* skill.
 AGENT_HOOK_FILES = [
     ".claude/settings.json",
     ".claude/hooks/final_gate_stop.py",

@@ -3,8 +3,8 @@
 """Fabrik Convention Validator - Orchestrates all convention checks.
 
 Called by:
-    - Windsurf Cascade hooks
-    - Kilo CLI PostToolUse hooks
+    - scripts/final_gate.py --systemic (tier 3, with --strict --git-diff)
+    - .windsurf/hooks.json post_write_code (still synced; Windsurf itself is retired)
     - CI/CD pipelines
 
 Exit codes:

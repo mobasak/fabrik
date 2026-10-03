@@ -216,8 +216,12 @@ shared container, reseeding the dev database. Measured in tryton-crm on the mode
 ## Claim or assign (D-442)
 
 The distributor is not a gate on every item — a worker that waits for an assignment while the store
-already offers `claim` has turned one agent into a serialisation point. The default is
-**self-service**: an idle agent runs `work.py ready`, claims what it will do, and says so. The
+already offers `claim` has turned one agent into a serialisation point. Since D-521 (D-512: "no agent
+waits idle if there is work to be done") the distributor also keeps every present worker at the floor
+of queued work (`work.py triage --apply`), a worker whose queue runs empty rings it, and the Stop hook
+holds both sides to it (`docs/reference/work-tracking.md` § Ownership and the distributor). Between
+top-ups, **self-service** still holds: an idle agent runs `work.py ready`, claims what it will do, and
+says so. The
 distributor **assigns** where self-service would go wrong: items tagged for a serialising act
 (above), items that must not run concurrently with another, and a queue the distributor has not
 yet triaged (a migrated or polluted one) — say so to the other agents while it lasts, so they know

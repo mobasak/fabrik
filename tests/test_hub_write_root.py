@@ -302,6 +302,8 @@ CONVERTED_FILES = {
 #   deferred   — writes a TRACKED file via a hard-coded root, same class as the four converted
 #                files, but outside T01's Touches — a real follow-up, not silently dropped
 ALLOWLIST: dict[str, str] = {
+    # ── reads, not write roots ──
+    "scripts/lane_replay_capture.py": "read: `/opt/fabrik` is the git repo whose history the lane replay fixture is captured FROM (`git -C` reads, :189-196) — nothing is written under it",
     # ── config: already follow fabrik.config.FABRIK_ROOT ──
     "scripts/audit_all_registrars.py": "config: `from fabrik.config import FABRIK_ROOT`",
     "src/fabrik/cli.py": "config: imports FABRIK_ROOT (ticket DO-NOT — scaffold.py/cli.py follow without edits)",

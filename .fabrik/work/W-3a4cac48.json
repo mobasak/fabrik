@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-08-28T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "e34eb9c36a9fd97eafb246f9ef0719ee621734e9",
   "id": "W-3a4cac48",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:6f578783eb1c",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "**Deploy ordering breaks init-at-boot images (registrar injects `DATABASE_URL` AFTER first `up`)** (found live in the Zitadel deploy-plan review, 2026-08-28, plan finding D1). `deploy()` runs `depl..."
 }

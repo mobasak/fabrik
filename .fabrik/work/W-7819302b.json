@@ -12,10 +12,10 @@
     "spec": "docs/superpowers/specs/2026-10-02-fabrik-task-feature-lane-design.md"
   },
   "next": "",
-  "note": "",
+  "note": "folded into spec Revision 2 (D10/D11)",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "infra"
   ],

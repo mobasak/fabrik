@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-02T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "929d504e2b1cc1531bf069ee304a5309ad544b3d",
   "id": "W-049760e6",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:fb772e17858d",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "fabrik-review finder brief: pin the ledger high-water mark AND finder imports to a sha (found by the external-services review pass 9, 2026-09-02)"
 }

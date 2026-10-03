@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-05T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "e37154a35b79d7334806cbc5f187e8e58424ca4d",
   "id": "W-8e5fc2a2",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:b7213fafab42",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "**`/fabrik-rivals` hub fallback shadows a partial local vendor** (native closing reader, 2026-09-05, pre-existing): `_resolve_engine` inserts `/opt/fabrik/libs` at `sys.path[0]` when `libs/competit..."
 }

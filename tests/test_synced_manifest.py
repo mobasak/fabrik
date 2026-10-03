@@ -143,6 +143,61 @@ def test_retired_and_live_script_lists_are_disjoint() -> None:
         assert name not in m.CORE_SCRIPTS, name
 
 
+_RETIRED_GOVERNANCE = ("AGENTS-compact.md", "opencode.json", ".windsurfrules")
+
+
+def test_retired_governance_files_are_pruned_project_side(tmp_path: Path) -> None:
+    """D-529 (W-b13ce655): de-listing a governance file copies nothing new but deletes
+    nothing either -- the project copies of the retired Kilo/opencode/Windsurf files must be
+    REMOVED by the sync, while a live governance file is never touched."""
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    for name in _RETIRED_GOVERNANCE:
+        (proj / name).write_text("retired copy\n")
+    (proj / "AGENTS.md").write_text("live\n")
+    dry = sync.prune_retired_governance(proj, dry_run=True)
+    assert all((proj / n).exists() for n in _RETIRED_GOVERNANCE), "a dry run deletes nothing"
+    assert sorted(r.destination.name for r in dry if r.action == "DELETE") == sorted(
+        _RETIRED_GOVERNANCE
+    )
+    sync.prune_retired_governance(proj, dry_run=False)
+    assert not any((proj / n).exists() for n in _RETIRED_GOVERNANCE)
+    assert (proj / "AGENTS.md").read_text() == "live\n", "live governance is never pruned"
+
+
+def test_a_retired_governance_name_that_is_a_directory_is_left_alone(tmp_path: Path) -> None:
+    """The prune deletes a FILE the sync once wrote; a directory under that name is the
+    project's own and is neither deleted nor reported."""
+    proj = tmp_path / "proj"
+    (proj / ".windsurfrules").mkdir(parents=True)
+    assert sync.prune_retired_governance(proj, dry_run=False) == []
+    assert (proj / ".windsurfrules").is_dir()
+
+
+def test_retired_and_live_governance_lists_are_disjoint() -> None:
+    assert not set(m.RETIRED_GOVERNANCE_FILES) & set(m.GOVERNANCE_FILES)
+    assert set(_RETIRED_GOVERNANCE) <= set(m.RETIRED_GOVERNANCE_FILES)
+
+
+def test_a_project_sync_removes_the_retired_governance_files_while_the_hub_keeps_them(
+    fake_fabrik: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Spec 2026-10-03 § Contract deltas: the hub keeps its copies until fleet's scaffold half
+    merges, so the sync must neither re-deliver them nor leave the old project copies."""
+    for name in _RETIRED_GOVERNANCE:
+        (fake_fabrik / name).write_text("hub copy\n")
+    monkeypatch.setattr(sync, "FABRIK_ROOT", fake_fabrik)
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    for name in _RETIRED_GOVERNANCE:
+        (proj / name).write_text("hub copy\n")
+    sync.sync_scripts_to_project(proj, dry_run=False)
+    assert not any((proj / n).exists() for n in _RETIRED_GOVERNANCE)
+    assert (proj / "AGENTS.md").exists(), "the live governance leg still runs"
+    dests = {d.name for _s, d in m.iter_synced_pairs(proj, fake_fabrik)}
+    assert not dests & set(_RETIRED_GOVERNANCE), "a retired file is never a sync destination"
+
+
 def test_gitignore_block_collapses_windsurf_and_groups() -> None:
     groups = m.gitignore_dest_paths()
     dirs = groups["Rule packs, workflows and synced reference dirs"]

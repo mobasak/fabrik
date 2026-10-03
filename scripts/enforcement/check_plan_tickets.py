@@ -90,10 +90,12 @@ from pathlib import Path, PurePosixPath
 from typing import cast
 
 try:
+    from . import plan_appetite
     from .check_convergence import PROOF
     from .validate_conventions import CheckResult, Severity
 except ImportError:  # direct-script invocation (python scripts/enforcement/…py)
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from scripts.enforcement import plan_appetite
     from scripts.enforcement.check_convergence import PROOF
     from scripts.enforcement.validate_conventions import CheckResult, Severity
 
@@ -237,40 +239,9 @@ _DRAFT_LIKE = ("DRAFT", "PLANNED", "")
 # Phase 2, operator ruling 2026-09-06): the orchestrator codes every ticket itself in the main
 # checkout, so no cold coder ever reads a ticket — the READ budget (a cold-coder guard) is waived,
 # the set is capped at SMALL_PROFILE_MAX_TICKETS, and only the native-executed tiers are admitted.
-# Bold-tolerant like STATUS_RE; searched on the same blockquote-stripped scan.
-PROFILE_RE = re.compile(
-    r"^\s*(?:[-*>]\s+)?\*{0,2}Profile\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*\*{0,2}(small)\*{0,2}"
-    r"[^\S\n]*$",
-    re.I | re.M,
-)
-# Tilde fences are OUT of `_FENCE_RE`'s contract (fail-closed everywhere else); here a fenced
-# example must never ARM a waiver, so the header zone strips them too.
-_TILDE_FENCE_RE = re.compile(r"^[ \t]*~{3,}[^\n]*\n.*?^[ \t]*~{3,}[ \t]*$", re.M | re.S)
-# an UNCLOSED tilde opener absorbs to the end of the zone (renderer behaviour; fail-closed — the
-# balanced regex alone left `~~~\nProfile: small` visible and armed the waiver, executed)
-_TILDE_OPEN_RE = re.compile(r"^[ \t]*~{3,}[^\n]*$", re.M)
-_FIRST_SECTION_RE = re.compile(r"^#{2,6}\s", re.M)
-
-
-def _header_zone(status_scan: str) -> str:
-    """The spine's header — everything before its first `##` heading, tilde fences removed.
-
-    `Profile:` is a HEADER field (fabrik-plan-after-chat: "the line after `Status:`"). Searching
-    the whole spine let a bullet in `## Global Constraints` or a tilde-fenced example arm the
-    waiver (round-1 finder, executed); the zone is where the field lives, nowhere else. A spine
-    with NO `##` heading is all header by this definition — and it fails the structure checks
-    (`## Ticket Board` is mandatory), so the profile it declares never reaches a dispatcher."""
-    # ORDER MATTERS: cut the zone FIRST, then strip fences inside it. Stripping first let a tilde
-    # fence opened in the header and closed past `## Ticket Board` swallow that heading, so the
-    # zone ran on into the body (round-3 finder); cut first, the opener is dangling inside the
-    # zone and absorbs to its end — fail-closed.
-    m = _FIRST_SECTION_RE.search(status_scan)
-    zone = status_scan[: m.start()] if m else status_scan
-    zone = _TILDE_FENCE_RE.sub("", zone)
-    dangling = _TILDE_OPEN_RE.search(zone)
-    return zone[: dangling.start()] if dangling else zone
-
-
+# Bold-tolerant like STATUS_RE; searched on the same blockquote-stripped scan. Defined ONCE in
+# plan_appetite (D10's Size-small rule keys on the same profile) and re-exported here.
+PROFILE_RE = plan_appetite.PROFILE_RE
 SMALL_PROFILE_MAX_TICKETS = 3
 COMPLEXITY_VALUES = ("simple", "complex", "native", "never-route", "inline")
 SMALL_PROFILE_TIERS = ("inline", "native", "never-route")  # every native-executed tier
@@ -1645,7 +1616,9 @@ def check_plan_dir(
     status_scan = _BLOCKQUOTE_RE.sub("", spine_scan)
     status_m = STATUS_RE.search(status_scan)
     spine_status = status_m.group(1).upper() if status_m else ""
-    spine_small = bool(PROFILE_RE.search(_header_zone(status_scan)))
+    # The header zone is plan_appetite's — cut first, fences stripped inside it, blockquotes
+    # dropped — so this waiver and the D10 Size-small rule read ONE profile (T08-D7 C-O6).
+    spine_small = plan_appetite.is_small_profile(spine_text)
     # A PRESENT-but-unrecognized Status (`Status: COMPLETE`, `Status: Done ✅`, a
     # typo) must FAIL CLOSED — inheriting the absent-status DRAFT protection
     # would let one bad token silence the whole contract at the gate.
@@ -2474,6 +2447,18 @@ def check_plan_dir(
                 severity=Severity.PASS,
             )
         )
+
+    # --- D11 Appetite per ticket + D10 Size-small spec rule (plans dated on/after the rollout) ---
+    # ONE entry point shared with check_plan_quality (same text, same verdict); it is a no-op for
+    # sets dated before plan_appetite.LANE_ROLLOUT_DATE.
+    lane_root = external_root if external_root is not None else _repo_root(plan_dir)
+    for _tid, t in sorted(tickets.items()):
+        for msg in plan_appetite.lane_findings(t.text, t.path, lane_root):
+            results.append(
+                _err(msg, t.path, hint="Add `Appetite: <minutes>` to the ticket's field lines")
+            )
+    for msg in plan_appetite.lane_findings(spine_text, spine, lane_root):
+        results.append(_err(msg, spine, hint="Converge the spec, or have /fabrik-spec size it"))
 
     # --- Gate-context DRAFT downgrade (ALL findings, structural included) ---------------
     # DRAFT/PLANNED (or absent-status) = someone's mid-AUTHORING set on shared

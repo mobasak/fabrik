@@ -4,17 +4,16 @@
 """
 Fabrik Documentation Updater
 
-Automatically updates documentation when code changes are detected.
-Uses low-cost AI models to analyze changes and write updates directly to doc files.
+Two halves, only one of them live:
 
-This is SEPARATE from the code review workflow (kilo_code_review.py).
+- LIVE: every verb except the AI queue — `--check` / `--sync` (docs tree, plan and backlog
+  indexes; `scripts/final_gate.py --systemic` runs `--check` as an advisory row) and the
+  merge-owner adoption the SessionStart hook points to.
+- DORMANT: the AI update queue (`--daemon`, `--file`, `--task-file`, `--prompt`). It was
+  fed by a post-edit hook from the retired Windsurf/Kilo era (retired 2026-07-19); no
+  Claude Code hook queues work for it today, and it shells out to `droid exec`.
 
-Workflow:
-1. Post-edit hook detects code change
-2. Queues documentation update task
-3. This script runs async, analyzes changes
-4. Writes documentation updates DIRECTLY to files
-5. User sees changes in Windsurf diff view (native Accept/Reject)
+Review of code changes is SEPARATE: `/fabrik-review`.
 
 Usage:
     # Process queue once (default)
@@ -321,7 +320,7 @@ then other relevant documentation."""
 
 
 def run_docs_update(files: list[str]) -> dict[str, Any]:
-    """Run the documentation update using Kilo CLI."""
+    """Run the documentation update through `droid exec` (the dormant AI queue)."""
     if not files:
         return {"success": True, "result": "No files to process"}
 
@@ -479,9 +478,7 @@ def process_batch(tasks: list[dict[str, Any]]) -> None:
     if result["success"]:
         print(f"✓ Documentation updated for {len(files)} files")
         # Send notification
-        send_notification(
-            f"📄 Documentation updated for {len(files)} files - check Windsurf diff view"
-        )
+        send_notification(f"📄 Documentation updated for {len(files)} files - review with git diff")
     else:
         print(f"✗ Documentation update failed: {result.get('result', 'unknown error')}")
 
@@ -765,9 +762,9 @@ def generate_docs_structure_tree() -> str:
         "prebuilt-app-containers.md": "Prebuilt container catalog",
         "technology-stack-decision-guide.md": "Tech decision flowchart",
         "templates.md": "Available deployment templates",
-        "KILO_MODEL_CAPABILITIES.md": "Kilo model capabilities",
-        "windsurf/": "Windsurf IDE optimization",
-        "kilo_selected_agents.md": "Kilo selected agents",
+        "KILO_MODEL_CAPABILITIES.md": "Kilo model capabilities (Kilo CLI retired)",
+        "windsurf/": "Windsurf IDE reference (retired 2026-07-19)",
+        "kilo_selected_agents.md": "Kilo selected agents (retired)",
         "PLAN_OUTPUT_LOCATION.md": "Plan output location",
         "operations/": "Operational runbooks and VPS state",
         "vps-status.md": "Current VPS state and configuration",

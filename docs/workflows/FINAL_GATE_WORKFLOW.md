@@ -141,7 +141,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 **Runs in:** All tiers (1, 2, 3) and modes (except `--sync`), with tier-specific check sets:
 
-<!-- GATE-COUNTS: tier1=36 tier2=56 tier3=22 every-tier=14 -->
+<!-- GATE-COUNTS: tier1=36 tier2=55 tier3=22 every-tier=14 -->
 ⚠️ The counts below are declared ONCE in the HTML comment above and asserted against instrumented
 execution by `tests/test_final_gate_tier_counts.py` — a new registration that does not update it
 fails the author's own gate run. Do not re-count by hand; do not restate the numbers anywhere a
@@ -214,7 +214,7 @@ second declaration could drift from the first (T12.8, 01M23CRZZ).
 own `.github/workflows/*` run pytest — OR the repo carries `.fabrik/run-pytest`**. ⚠️ The marker exists because the workflow-scan signal INVERTS during a CI cutover: deleting the workflows disarms local pytest instead of relocating it. A repo retiring its workflows MUST touch the marker. Rationale: the gate must be equivalent to what CI will reject —
 an agent must not reach `status:success` and still push test-failing code. A repo whose CI doesn't run pytest is skipped (no CI red to prevent;
 the hub's own suite is far past the 900s budget — never run it inside a completion gate). Graceful skips:
-one of the three `_why` reasons (`:1356-1370`) → `pytest (NOT RUN)`; exit 5 → the separate `pytest (NO TESTS COLLECTED)` row (`:1300-1303`). Via the CLI a missing pytest never reaches these rows — the `REQUIRED_TOOLS` probe aborts at `status: "setup-error"` (`:2944-2960`) first (pytest must import under the selected interpreter, ruff must resolve as a binary, `:81`), which leaves the `pytest (NOT RUN) — pytest is not installed` branch at `:1296-1298` unreachable.
+one of the three `_why` reasons (`:1356-1370`) → `pytest (NOT RUN)`; exit 5 → the separate `pytest (NO TESTS COLLECTED)` row (`:1300-1303`). Via the CLI a missing pytest never reaches these rows — the `REQUIRED_TOOLS` probe aborts at `status: "setup-error"` (`:2932-2948`) first (pytest must import under the selected interpreter, ruff must resolve as a binary, `:81`), which leaves the `pytest (NOT RUN) — pytest is not installed` branch at `:1296-1298` unreachable.
 
 **What the pytest leg PRINTS, and what each line means** (read these before writing prose about the mechanism):
 
@@ -227,7 +227,7 @@ one of the three `_why` reasons (`:1356-1370`) → `pytest (NOT RUN)`; exit 5 �
 
 The arming condition is a conjunction — `tests/` exists AND (`.fabrik/run-pytest` OR a workflow names pytest) AND (the sentinel OR an empty diff OR a `src/`/`tests/`/`scripts/` change), `final_gate.py:1281-1291` — cite it, never paraphrase it (a paraphrase drifted once, D-284).
 
-**Phase 3: Repo Consistency** — inherits **35** of the 36 Tier-1 checks above — every one but the lean-only `INDEX.md ↔ new docs (untracked, this run)` row (fourteen run unconditionally outside the `tier in (1, 2)` block) — **plus 19 Tier-2-only checks** — 15 with notes below, plus the hub-conditional `epic_order --check` bullet the "20 where …" clause adds; four more run with no note: User-Level Hooks Registered (`scripts/sysadmin/install_user_hooks.py`), Rule-pack reachability (`check_pack_reachability.py`), Command Corpus [BLOCKING] (`check_command_corpus.py`), Ticket Breadth (`check_ticket_breadth.py`) — (the `if tier == 2:` block — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [ADVISORY row] — plus the Plan-Set Contract, Hooks Index Fresh, Sync Trigger Coverage, Phase Tests [ADVISORY row, plan-window] and Work items (sync); 20 where `scripts/epic_order.py` exists — the hub-conditional `epic_order --check` row below), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **56 checks total** on this hub with an empty changed set (the results list of `run_consistency_checks(tier=2, changed_files=set())`). Three of the 56 are not `run_optional_check` rows — `epic_order --check`, Work items (sync) and the Kilo CLI Health Check — so a probe that counts CALLS rather than the results list answers 53; neither is changed-set-gated; only `epic_order --check` is gated on file existence at all (`_epic_order_row` returns no row where `scripts/epic_order.py` is absent, so a project's Tier-2 total is 55), while the Kilo row is appended on every `tier >= 2` run and degrades to an UNLABELLED green `(check not present, skipping)` row when its script is missing — it reaches neither `--json` warnings nor `skipped_checks`. A REAL changed set gives FEWER, not more (54 for a one-`.md` diff, 55 for a one-`.py` diff): every `if not changed or …` predicate is satisfied by an empty set. (Counts are verified by INSTRUMENTED EXECUTION — stub `run_optional_check`/`run_cmd` and count `run_consistency_checks(tier=…)`'s results list with `changed_files=set()`: tier 1 → 36, tier 2 → 56, tier 3 → 22; by `run_optional_check` calls alone the same runs read 36 / 53 / 20 — never by eyeballing call sites and never by `path:line` ranges, which drift on every insertion; `tests/test_final_gate_tier_counts.py` asserts the declaration.)
+**Phase 3: Repo Consistency** — inherits **35** of the 36 Tier-1 checks above — every one but the lean-only `INDEX.md ↔ new docs (untracked, this run)` row (fourteen run unconditionally outside the `tier in (1, 2)` block) — **plus 18 Tier-2-only checks** — 14 with notes below, plus the hub-conditional `epic_order --check` bullet the "20 where …" clause adds; four more run with no note: User-Level Hooks Registered (`scripts/sysadmin/install_user_hooks.py`), Rule-pack reachability (`check_pack_reachability.py`), Command Corpus [BLOCKING] (`check_command_corpus.py`), Ticket Breadth (`check_ticket_breadth.py`) — (the `if tier == 2:` block — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [ADVISORY row] — plus the Plan-Set Contract, Hooks Index Fresh, Sync Trigger Coverage, Phase Tests [ADVISORY row, plan-window] and Work items (sync); 19 where `scripts/epic_order.py` exists — the hub-conditional `epic_order --check` row below), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **55 checks total** on this hub with an empty changed set (the results list of `run_consistency_checks(tier=2, changed_files=set())`). Three of the 55 are not `run_optional_check` rows — `epic_order --check`, Work items (sync) and the Kilo CLI Health Check — so a probe that counts CALLS rather than the results list answers 52; neither is changed-set-gated; only `epic_order --check` is gated on file existence at all (`_epic_order_row` returns no row where `scripts/epic_order.py` is absent, so a project's Tier-2 total is 54), while the Kilo row is appended on every `tier >= 2` run and degrades to an UNLABELLED green `(check not present, skipping)` row when its script is missing — it reaches neither `--json` warnings nor `skipped_checks`. A REAL changed set gives FEWER, not more (53 for a one-`.md` diff, 54 for a one-`.py` diff): every `if not changed or …` predicate is satisfied by an empty set. (Counts are verified by INSTRUMENTED EXECUTION — stub `run_optional_check`/`run_cmd` and count `run_consistency_checks(tier=…)`'s results list with `changed_files=set()`: tier 1 → 36, tier 2 → 55, tier 3 → 22; by `run_optional_check` calls alone the same runs read 36 / 52 / 20 — never by eyeballing call sites and never by `path:line` ranges, which drift on every insertion; `tests/test_final_gate_tier_counts.py` asserts the declaration.)
 
 **The Tier-2-only checks:**
 - **Phase Tests (plan-window)** - `check_phase_tests.py` *(ADVISORY row)*
@@ -246,8 +246,6 @@ The arming condition is a conjunction — `tests/` exists AND (`.fabrik/run-pyte
     sync hook cannot fire from (a worktree)
 - **Project Structure** - `check_structure.py`
   - Validates directory layout matches Fabrik conventions
-- **opencode.json (Kilo-Safe Rules)** - `check_opencode_json.py`
-  - Validates Kilo-safe rules configuration
 - **Behavior Contract Proposal** - `check_test_proposal.py`
   - Verifies test justification is documented
 - **Plan-Set Contract (Spine+Tickets)** - `check_plan_tickets.py` — the spine↔ticket contract for the spine+ticket plan shape (Board↔files, Depends DAG + Merge Order, exclusive Touches, never-route routing cross-check, READ budget, Board staleness; sibling/DRAFT findings are advisory)
@@ -462,7 +460,6 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `check_lint_ratchet.py` — Lint Ratchet (repo-wide, no new debt) (Tier 1/2; ADVISORY row)
 - `check_mutation.py` — Mutation (opt-in FABRIK_MUTMUT) (Tier 1/2; advisory — `warn_only`, never blocks)
 - `check_no_host_ports.py` — No Host Ports on Traefik Services (Tier 1/2; BLOCKING)
-- `check_opencode_json.py` — opencode.json (Kilo-Safe Rules) (Tier 2; BLOCKING)
 - `check_pack_reachability.py` — Rule-pack reachability (Tier 2; advisory — `warn_only`, never blocks)
 - `check_phase_tests.py` — Phase Tests (plan-window) (Tier 2; advisory — `warn_only`, never blocks)
 - `check_plan_lock_release.py` — Plan-lock release (every tier; advisory — `warn_only`, never blocks)
@@ -534,32 +531,6 @@ Do not delete any of these 13 files yourself. Five are LIVE through an import �
 **Why this matters:**
 - Consistent structure across projects
 - Enables automation and tooling
-
-#### check_opencode_json.py
-
-**Purpose:** Ensures project's opencode.json contains only Kilo-safe instructions.
-
-**Validates:**
-- File exists and is valid JSON
-- Contains `instructions` field that is a list
-- Instructions exactly match Kilo-safe allowlist: `["AGENTS-compact.md"]`
-- No forbidden patterns (e.g., `.windsurf/rules/*.md`)
-- Instructions are in correct order
-
-**Why this matters:**
-- Prevents Cascade-only rules from being passed to Kilo CLI agents
-- Ensures consistent behavior across all projects
-- Enforces separation: Traycer uses AGENTS.md, Kilo uses AGENTS-compact.md
-
-**Example valid configuration:**
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "instructions": [
-    "AGENTS-compact.md"
-  ]
-}
-```
 
 #### check_index_md.py
 
@@ -938,13 +909,10 @@ API_KEY = os.getenv('API_KEY')
 
 **Purpose:** Governance files must be local copies, not symlinks.
 
-**Validates 8 governance paths** (`check_symlinks()` in `final_gate.py` — line numbers deliberately not cited, they drift):
+**Validates 5 governance paths** (`check_symlinks()` in `final_gate.py` — line numbers deliberately not cited, they drift):
 - `AGENTS.md` — Local copy
 - `agents-fabrik.md` — Local copy (canonical agents doc)
 - `agents-fabrik-core.md` — Local copy (@import-ed platform core)
-- `AGENTS-compact.md` — Local copy
-- `opencode.json` — Local copy
-- `.windsurfrules` — Local copy
 - `.windsurf/rules/` — Local directory (not symlinked), recursive descendant check
 - `.windsurf/workflows/` — Local directory (not symlinked), recursive descendant check
 
@@ -1070,28 +1038,6 @@ regardless of what your change did. Staging the file is not the same as having a
 (a multi-commit task writes its entry once and extends it — that is accepted, no new `###`
 heading needed). Fails **open** when the baseline revision cannot be read.
 
-### "opencode.json contains incorrect Kilo-safe list"
-
-**Cause:** Project's opencode.json has wrong instructions.
-
-**Common issues:**
-- Contains `.windsurf/rules/*.md` (Cascade-only)
-- Contains `AGENTS.md` (Traycer-only)
-- Missing `AGENTS-compact.md`
-- Wrong order of instructions
-
-**Fix:** Update project's opencode.json:
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "instructions": [
-    "AGENTS-compact.md"
-  ]
-}
-```
-
-**Note:** This check validates the PROJECT's opencode.json, not the global one at `~/.config/kilo/opencode.json`.
-
 ### "Symlink integrity failed"
 
 **Cause:** Old project has symlinks to `/opt/fabrik` (pre-March 2026 scaffold).
@@ -1103,13 +1049,10 @@ fabrik fix /opt/your-project
 
 Or manually copy:
 ```bash
-rm -f AGENTS.md AGENTS-compact.md opencode.json .windsurfrules  # Remove old symlinks
+rm -f AGENTS.md  # Remove old symlinks
 rm -rf .windsurf/rules .windsurf/workflows                      # Remove old symlinked dirs
 mkdir -p .windsurf
 cp /opt/fabrik/AGENTS.md ./AGENTS.md
-cp /opt/fabrik/AGENTS-compact.md ./AGENTS-compact.md
-cp /opt/fabrik/opencode.json ./opencode.json
-cp /opt/fabrik/.windsurfrules ./.windsurfrules
 cp -r /opt/fabrik/.windsurf/rules/ ./.windsurf/rules/
 cp -r /opt/fabrik/.windsurf/workflows/ ./.windsurf/workflows/
 ```
@@ -1142,7 +1085,7 @@ python -m bandit -r src/
 
 ## Sources of Truth
 
-- `.windsurfrules` — Cascade agent contract: behavior rules, invariants, and audit directives.
+- `CLAUDE.md` — the agent contract: behavior rules, invariants, and the completion gate.
 - `.windsurf/rules/core/50-code-review.md` — Tiered gate commands and usage for Cascade.
 - `scripts/final_gate.py` — Executable tiered implementation (runtime truth).
 
@@ -1178,7 +1121,6 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/enforcement/check_index_md.py`
 - `scripts/enforcement/check_no_host_ports.py`
 - `scripts/enforcement/check_openapi_sync.py`
-- `scripts/enforcement/check_opencode_json.py`
 - `scripts/enforcement/check_ports.py`
 - `scripts/enforcement/check_readme_md.py`
 - `scripts/enforcement/check_retired_terms.py`

@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-29T14:40:07.245447Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "e37154a35b79d7334806cbc5f187e8e58424ca4d",
   "id": "W-7bb352c0",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "decisions.py --next-id reserves nothing: two hub sessions minted D-442 within an hour on 2026-09-29 (repaired as D-443 in 5b0af19a1); make minting collision-proof across concurrent sessions"
 }

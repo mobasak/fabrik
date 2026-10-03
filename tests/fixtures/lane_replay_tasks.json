@@ -1,0 +1,216 @@
+{
+  "_about": "The /fabrik-task feedback rows recorded before spec commit c95e15e2d (21 rows; the spec text says 20 \u2014 one more had landed by the commit). Captured by the orchestrator from the feedback ledger; past run records do not keep the declared --file lists, so each row carries its OUTCOME and the replay derives its declaration from the upgrade token: tradeoffs/oneway -> declared yes with a --why; files -> a feature with more than 3 files; heavy -> heavy=yes; none -> an ordinary feature. 'not-a-lane-verdict' marks a handoff the size gate never decided (no commit, no upgrade token).",
+  "captured_from": "command-feedback.jsonl rows with command fabrik-task, ts <= 1790894025",
+  "rows": [
+    {
+      "ts": 1789769818.922969,
+      "repo": "fabrik",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "0",
+      "wall_min": 25,
+      "surface": "the hard-pinned _HUB_CONFIG absolute path in the lane's grader",
+      "expected": "lane"
+    },
+    {
+      "ts": 1789836415.4891517,
+      "repo": "store-content-set",
+      "state": "handoff",
+      "upgrade": "tradeoffs",
+      "oversized_mini": "unmeasurable=no-commit",
+      "wall_min": 57,
+      "surface": "BHD catalogue photo provenance + real-first swap (Track A run 1, D-044)",
+      "expected": "chain: tradeoffs"
+    },
+    {
+      "ts": 1789905941.4328785,
+      "repo": "fabrik",
+      "state": "handoff",
+      "upgrade": null,
+      "oversized_mini": "unmeasurable=no-commit",
+      "wall_min": 4,
+      "surface": "commands/_sources/fabrik-command-improve.md drive contract (operator ruling: /fabrik-task despite row 1b)",
+      "expected": "not-a-lane-verdict"
+    },
+    {
+      "ts": 1789909746.9386094,
+      "repo": "fabrik",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "0",
+      "wall_min": 56,
+      "surface": "commands/_sources/fabrik-command-improve.md drive contract (operator ruling: /fabrik-task despite row 1b; resumed from t",
+      "expected": "lane"
+    },
+    {
+      "ts": 1790358701.6857357,
+      "repo": "fabrik",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "1 \u00b7 commit=444e8dd4ed87222342dae56030af216bcc6b65df \u00b7 paths=.fabrik/plan-locks/2026-09-05-plan-1-windowed-cost-sidecar.json",
+      "wall_min": 31,
+      "surface": "W-40a0370e \u2014 the 2026-08-28 transdoc score-contamination batch in the ranker",
+      "expected": "lane"
+    },
+    {
+      "ts": 1790403347.0446036,
+      "repo": "fabrik",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "4 \u00b7 commit=c327e85d5b67f01bd08bc900a6c0ab59bf0d8544 \u00b7 paths=.fabrik/work/W-3e854ae7.json,docs/infrastructure/glitchtip-sdk-integration-setup.md,docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md",
+      "wall_min": 304,
+      "surface": "W-dc4f5470 emitted GlitchTip leak test",
+      "expected": "lane"
+    },
+    {
+      "ts": 1790433363.3314908,
+      "repo": "fabrik",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "2 \u00b7 commit=b7bf654884c82c750fc57fa964aedc0b678398e8 \u00b7 paths=.fabrik/work/W-f73c0257.json,.fabrik/work/W-fa4084cf.json",
+      "wall_min": 51,
+      "surface": "W-b0c1b4fc scaffold test offline seam",
+      "expected": "lane"
+    },
+    {
+      "ts": 1790438474.5779324,
+      "repo": "fabrik",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "0",
+      "wall_min": 41,
+      "surface": "review per merge wave + spec-review data-loss question (D-428, W-4f8368bf)",
+      "expected": "lane"
+    },
+    {
+      "ts": 1790448281.1178062,
+      "repo": "fabrik",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "1 \u00b7 commit=287a2c6763111abd83ac671107d07a93f4a9a3aa \u00b7 paths=scripts/kilo-benchmarks/tests/test_flywheel_safety.py",
+      "wall_min": 31,
+      "surface": "W-1a18423a: the D-415 delivered-freshness page in daily_refresh.sh",
+      "expected": "lane"
+    },
+    {
+      "ts": 1790532960.9143972,
+      "repo": "fabrik",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "1 \u00b7 commit=82557ccb016b193f7bf2024095fb1da0e736cdf2 \u00b7 paths=.fabrik/work/W-ec265df0.json",
+      "wall_min": 50,
+      "surface": "gpu price table refresh + verified-date watcher (mail 01M3482Z finding 3)",
+      "expected": "lane"
+    },
+    {
+      "ts": 1790539089.8032086,
+      "repo": "fabrik",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "0",
+      "wall_min": 66,
+      "surface": "python-api-gpu gpu_handler: hub-only rent() import replaced by a serverless endpoint client (mail 01M348TJ)",
+      "expected": "lane"
+    },
+    {
+      "ts": 1790542125.9066188,
+      "repo": "fabrik",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "1 \u00b7 commit=526c626d459cc720b83c0321d50972199297bc14 \u00b7 paths=tests/test_spec_generator.py",
+      "wall_min": 25,
+      "surface": "office-extension deploy spec + stale shape matrix",
+      "expected": "lane"
+    },
+    {
+      "ts": 1790689315.060299,
+      "repo": "trade-intelligence",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "0",
+      "wall_min": 8,
+      "surface": "acquisition incident miscounts the monitor_beat runtime ledger as a money source",
+      "expected": "lane"
+    },
+    {
+      "ts": 1790692304.615209,
+      "repo": "agent-2",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "0",
+      "wall_min": 19,
+      "surface": "bridge service identity invariant for tests/trytond",
+      "expected": "lane"
+    },
+    {
+      "ts": 1790707872.162584,
+      "repo": "fabrik",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "2 \u00b7 commit=15b78e9fbd18b5712f3b7149bdd7ab182060a9cc \u00b7 paths=.fabrik/work/W-16ebba0a.json,.fabrik/work/W-c7de366c.json",
+      "wall_min": 51,
+      "surface": "watchdog Tier-D storage prerequisite (W-4d2b7f5f)",
+      "expected": "lane"
+    },
+    {
+      "ts": 1790762856.1600304,
+      "repo": "wef1",
+      "state": "handoff",
+      "upgrade": "files",
+      "oversized_mini": "unmeasurable=no-commit",
+      "wall_min": 7,
+      "surface": "W-b3d26704 part 2a: audit page sample for Tier-C workers",
+      "expected": "lane"
+    },
+    {
+      "ts": 1790803658.5742025,
+      "repo": "agent-3",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "0",
+      "wall_min": 32,
+      "surface": "W-fa022ec2 export status: deleted-source reason",
+      "expected": "lane"
+    },
+    {
+      "ts": 1790805546.241674,
+      "repo": "tryton-crm",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "2 \u00b7 commit=c2c85860ff7fed4fb43e2a5ec164d2e9ccebd12f \u00b7 paths=.fabrik/work/W-99a33a5e.json,.fabrik/work/W-c0bad225.json",
+      "wall_min": 66,
+      "surface": "translation backup refuses to shrink (W-9bd27e7f)",
+      "expected": "lane"
+    },
+    {
+      "ts": 1790810611.5846632,
+      "repo": "agent-3",
+      "state": "done",
+      "upgrade": "heavy",
+      "oversized_mini": "0",
+      "wall_min": 58,
+      "surface": "W-84d3cd19 buyers.py lane-lock pool fallback",
+      "expected": "lane: full-review"
+    },
+    {
+      "ts": 1790845951.7659533,
+      "repo": "agent-2",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "1 \u00b7 commit=2cb9e1b3b1042fd3279a2017fe52b99e527ee18d \u00b7 paths=.fabrik/work/W-3773a362.json",
+      "wall_min": 72,
+      "surface": "W-0a3fbc93 probe-tenant teardown after accounting provisioning",
+      "expected": "lane"
+    },
+    {
+      "ts": 1790892725.5485628,
+      "repo": "agent-2",
+      "state": "done",
+      "upgrade": null,
+      "oversized_mini": "0",
+      "wall_min": 57,
+      "surface": "W-501574b3 queue-aware provisioning wait in _drop_company_deep_checked",
+      "expected": "lane"
+    }
+  ]
+}

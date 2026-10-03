@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "file 41 \u2014 chrome-ext/00-domain-chrome-ext.md, then chrome-ext/70-chrome-ext.md and 89-extension-launch-checklist.md (the MV3 facts against the live Chrome docs, emit a chrome-extension scaffold to ground them), then ai/* (10), desktop (2), core/90-bootstrap, by real audience not glob count",
+  "next": "file 53 — the remaining ai/* pack (1): ai/90-long-context — model names and prices are the drift class (route model choice to ai/00-ai-model-selection.md; keep the model-routing/gateway blocks per W-b58d0f90's pending operator answer). Then desktop (2), core/90-bootstrap",
   "note": "",
   "owner": "intel",
   "priority": 2,
@@ -19,5 +19,5 @@
   "tags": [
     "rules"
   ],
-  "title": "Rules currency pass: evaluate the 16 packs still missing currency_pass: (41 of 57 done; file 40 core/tojlo-design-system landed 2026-10-01, D-480)"
+  "title": "Rules currency pass: evaluate the 4 packs still missing currency_pass: (53 of 57 done; file 52 ai/80-specialized-domains landed 2026-10-03, D-535)"
 }

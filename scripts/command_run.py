@@ -200,7 +200,17 @@ def load(sid: str) -> dict[str, Any]:
     """The session's record, or {} — never raises (missing/corrupt/unreadable → {})."""
     try:
         data = json.loads(_record_path(sid).read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
+        if not isinstance(data, dict):
+            return {}
+        # a record the pre-W-5aa12ff3 binary wrote stores `--command` raw (`Fabrik-Review`), on the
+        # record and on every frame it parked; every reader compares it normalised, so both are
+        # normalised here, once (review A-ONEHOP-1/2, pass-3 A-S1)
+        stack = data.get("stack")
+        frames = [f for f in stack if isinstance(f, dict)] if isinstance(stack, list) else []
+        for holder in (data, *frames):
+            if isinstance(holder.get("command"), str) and holder["command"]:
+                holder["command"] = _norm_command(holder["command"])
+        return data
     except Exception:
         return {}
 
@@ -261,6 +271,7 @@ def pinned_line(rec: dict[str, Any]) -> str:
     if budget > 0:
         used = _minutes_used(rec)
         out += f" · budget {used}/{budget} min" + (" ⚠️ OVER" if used > budget else "")
+    out += _appetite_segment(rec, time.time())
     terminal = (rec.get("terminal") or "").strip()
     if terminal:
         out += f" · terminal: {terminal}"
@@ -470,7 +481,7 @@ def _own_fix(row: Any) -> int | None:
     return _count(row, "own_fix")
 
 
-def scope_growth_warning(rows: list[Any], command: str = "") -> str:
+def scope_growth_warning(rows: list[Any], command: str = "", *, lane: bool = False) -> str:
     """Advisory scope-growth diagnosis, or "" — NEVER blocks (a heuristic must not trap).
 
     The counted form of term-edit's scope-growth stop. The stall breaker keys on a count that
@@ -515,6 +526,25 @@ def scope_growth_warning(rows: list[Any], command: str = "") -> str:
     # missing counter does. Filtering them out closed the window ACROSS them and re-opened the
     # very hole round 1 fixed (review round 2, C-1); `_trend_series` applies the same rule over
     # the unfiltered list.
+    if lane and len(rows) >= 2:
+        # D8 (`task_lane.scope_growth_rounds`): a review nested directly under a running
+        # `/fabrik-task` stops hunting at its FIRST own-fix-only round after the full pass. Only
+        # the stop narrows; ESCALATE and UNCOMPUTABLE below keep the ordinary window, and the
+        # review still closes only on a confirmed-zero pass (D-355).
+        # D8's own word is own-fix-ONLY: every confirmed defect of the round is the review's own
+        # fix residue (T04-O5). The ordinary window keeps its two-thirds "mostly" rule below.
+        c, o = _confirmed(rows[-1]), _own_fix(rows[-1])
+        if c is not None and o is not None and c > 0 and o == c:
+            return (
+                f"\n⚠️  SCOPE GROWTH (in-lane) — round {len(rows)} confirmed ONLY defects inside "
+                f"text this review itself added (confirmed/own-fix: {c}/{o}) under a running "
+                "/fabrik-task.\n"
+                "    Exit (term-edit / term-coverage § Scope-growth stop, lane variant): STOP the "
+                "loop — route the remaining own-fix work to a backlog row with a named destination, "
+                "and close on the last round that swept the ORIGINAL surface; the receipt carries "
+                "`**Lane:** fabrik-task`.\n"
+                "    (Advisory only — nothing is blocked.)"
+            )
     if len(rows) < SCOPE_GROWTH_ROUNDS:
         return ""
     window = rows[-SCOPE_GROWTH_ROUNDS:]
@@ -816,7 +846,7 @@ def _round_report(rec: dict[str, Any]) -> str:
         lines.append(warn)
     # A loop can converge on the COUNT and still be reviewing only its own fixes — the two
     # advisories answer different questions and neither subsumes the other, so both may speak.
-    growth = scope_growth_warning(rounds, str(rec.get("command") or ""))
+    growth = scope_growth_warning(rounds, str(rec.get("command") or ""), lane=_in_lane_review(rec))
     if growth:
         lines.append(growth)
     return "\n".join(lines)
@@ -1120,6 +1150,14 @@ AGENT_CLOSED_STATES = frozenset({"done", "blocked", "handoff"})
 REVIEW_FAMILY = frozenset({"fabrik-review", "fabrik-review-scoped"})
 
 
+def _norm_command(value: object) -> str:
+    """`--command` as every reader compares it: no surrounding blanks, no leading slash, lower
+    case. Normalised ONCE, where `start` writes it and where a close names it — the readers test
+    `in REVIEW_FAMILY` case-sensitively, so a record stored as `Fabrik-Review` was read two ways
+    (W-5aa12ff3)."""
+    return str(value or "").strip().lstrip("/").strip().lower()
+
+
 def _finite_ts(v: object) -> float | None:
     """A usable epoch: a non-bool finite number, else None."""
     if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
@@ -1360,7 +1398,7 @@ def _queue(
     The queue happens BEFORE the save: `main()` flushes in a `finally`, so an event that is
     already queued survives any failure in the tail.
     """
-    seq = int(rec.get("event_seq") or 0) + 1
+    seq = _int0(rec.get("event_seq")) + 1
     rec["event_seq"] = seq
     stamped = dict(fields, seq=seq, command=rec.get("command") or "", persisted=False)
     outbox["events"].append((event, stamped))
@@ -2414,7 +2452,7 @@ def _tokens_clause(tok: dict[str, Any]) -> str:
     if not tok:
         return ""
     has_seats = tok.get("tok_seat_in") is not None
-    skipped = int(tok.get("seats_skipped") or 0)
+    skipped = _int0(tok.get("seats_skipped"))
     if tok.get("tok_in") is None and not has_seats:
         # no orchestrator message AND no summed seat: the early return hid a skip event
         # (round-8 finding) — the skip is the only fact left, so print it alone
@@ -2593,7 +2631,30 @@ def _build_parser() -> argparse.ArgumentParser:
         "--declare",
         default="",
         metavar="K=V,...",
-        help="/fabrik-task only: decision=,heavy=,mechanism=,oneway=,tradeoffs= (yes|no)",
+        help="/fabrik-task only: decision=,heavy=,mechanism=,oneway=,tradeoffs= (yes|no); at lane "
+        "v2 also consumers= (external|internal)",
+    )
+    # Lane v2 (D1, D4, D9; `task_lane.admit`). Read only when `.fabrik/lane.json` says version 2;
+    # at v1 they are accepted and ignored with a note, so command text that names them works
+    # unchanged in a repo that pins v1.
+    p.add_argument(
+        "--appetite",
+        type=int,
+        default=None,
+        metavar="MIN",
+        help="/fabrik-task only (lane v2): the run's appetite in minutes (default 240, max 240)",
+    )
+    p.add_argument(
+        "--why",
+        default=None,
+        help="/fabrik-task only (lane v2): required with oneway=yes or tradeoffs=yes — what cannot "
+        "be undone, or '<approach A> vs <approach B>'",
+    )
+    p.add_argument(
+        "--from-downgrade",
+        default=None,
+        metavar="ID",
+        help="/fabrik-task only (lane v2): the lane-refusal id a /fabrik-spec DOWNGRADE handed back",
     )
 
     p = sub.add_parser("step", help="advance to a phase", parents=[common])
@@ -2608,6 +2669,22 @@ def _build_parser() -> argparse.ArgumentParser:
         "--design",
         metavar="PATH",
         help="/fabrik-task only: record that file's TEXT as the run's design — once, whole (no cap — D-314)",
+    )
+    p.add_argument(
+        "--design-amend",
+        action="append",
+        metavar="PATH",
+        help="/fabrik-task only (lane v2): append one path to the design (repeatable) — counted on "
+        "the close row as design_amends, never overwriting the recorded design",
+    )
+    p.add_argument(
+        "--appetite",
+        type=int,
+        default=None,
+        metavar="MIN",
+        help="lane v2: this phase's appetite in minutes (a plan phase's `Appetite:`) — `line` shows "
+        "elapsed/appetite and, past 2x, the re-plan order; the close counts phase_marks and "
+        "over_appetite_phases",
     )
 
     p = sub.add_parser(
@@ -2680,7 +2757,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--surface", default="", help="name the surface late if `start` omitted it (ledger)"
     )
     p.add_argument("--evidence", required=True)
-    p.add_argument("--commit", default=None, help=_TASK_COMMIT_HELP)
+    p.add_argument("--commit", default=None, nargs="+", metavar="SHA", help=_TASK_COMMIT_HELP)
+    p.add_argument(
+        "--review",
+        default=None,
+        metavar="RECEIPT",
+        help="/fabrik-task only (lane v2): the full /fabrik-review receipt a close-time contract or "
+        "new-source hit owes — checked against the --commit SHAs",
+    )
     p.add_argument(
         "--feedback",
         default=None,
@@ -2712,7 +2796,14 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument("--reason", required=True, help="why rows remain open")
-    p.add_argument("--commit", default=None, help=_TASK_COMMIT_HELP)
+    p.add_argument("--commit", default=None, nargs="+", metavar="SHA", help=_TASK_COMMIT_HELP)
+    p.add_argument(
+        "--review",
+        default=None,
+        metavar="RECEIPT",
+        help="/fabrik-task only (lane v2): the full /fabrik-review receipt a close-time contract or "
+        "new-source hit owes — checked against the --commit SHAs",
+    )
     p.add_argument(
         "--feedback",
         default=None,
@@ -2729,7 +2820,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--surface", default="", help="name the surface late if `start` omitted it (ledger)"
     )
     p.add_argument("--reason", required=True)
-    p.add_argument("--commit", default=None, help=_TASK_COMMIT_HELP)
+    p.add_argument("--commit", default=None, nargs="+", metavar="SHA", help=_TASK_COMMIT_HELP)
     p.add_argument(
         "--feedback",
         default=None,
@@ -3016,7 +3107,225 @@ def _task_git(root: Path, *a: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _task_size_gate(args: argparse.Namespace) -> tuple[int, dict[str, Any] | None]:
+def _lane_module() -> Any:
+    """The co-shipped pure lane module, ``scripts/task_lane.py`` beside this file (plan
+    2026-10-02-plan-1). Imported lazily so no other command pays for it; ``None`` when the file is
+    absent or does not import — a repo whose sync predates it — and the caller then runs lane v1,
+    today's gate, unchanged. Same guarded, insert-once shape as ``_agent_name``."""
+    try:
+        here = str(Path(__file__).resolve().parent)
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        import task_lane  # noqa: PLC0415
+
+        return task_lane
+    except (Exception, SystemExit) as e:
+        # Absent is the quiet case (a repo synced before the module existed). A module that is
+        # PRESENT but does not import is a defect that would silently run every repo at v1, so
+        # it is said (D7 A-S2) — once per process, never a refusal.
+        if (Path(__file__).resolve().parent / "task_lane.py").is_file() and not _LANE_WARNED:
+            _LANE_WARNED.append(True)
+            sys.stderr.write(
+                f"[command_run] ⚠ task_lane.py did not import ({type(e).__name__}) — lane v1\n"
+            )
+        return None
+
+
+_LANE_WARNED: list[bool] = []
+
+
+def _lane_version_at(rec: dict[str, Any]) -> int:
+    """The lane version of the repo a record runs in — `task_lane.lane_version`'s answer (no switch
+    file: the default, 2 — D-507); 1 when the module or the repo root is missing."""
+    tl = _lane_module()
+    root = rec.get("repo_root")
+    if tl is None or not isinstance(root, str) or not root:
+        return 1
+    try:
+        return int(tl.lane_version(Path(root))[0])
+    except Exception:
+        return 1
+
+
+def _over(started: Any, appetite: Any, now: float) -> tuple[int, bool] | None:
+    """(elapsed minutes, past the 2x breaker) for a mark, or None when it cannot be read."""
+    st = _finite_ts(started)
+    if st is None or type(appetite) is not int or appetite <= 0:
+        return None
+    elapsed = now - st
+    return int(elapsed // 60), elapsed > 2 * appetite * 60
+
+
+def _appetite_segment(rec: dict[str, Any], now: float) -> str:
+    """`line`'s appetite segment (D4 for a v2 `/fabrik-task`, D11 for a plan phase), or "".
+    Past 2x it carries the standing order — an order, never a forced cancel."""
+    marks = rec.get("phase_marks")
+    if isinstance(marks, list) and marks and isinstance(marks[-1], dict):
+        m = marks[-1]
+        got = None if "ended" in m else _over(m.get("started"), m.get("appetite"), now)
+        if got is not None and m.get("phase") == rec.get("phase"):
+            mins, past = got
+            seg = f" · elapsed {mins}/{m['appetite']}"
+            if past:
+                seg += (
+                    " ⚠️ past 2× — stop and re-plan the rest of THIS phase with "
+                    "/fabrik-plan-after-chat"
+                )
+            return seg
+    d = rec.get("declared")
+    if (rec.get("command") or "") == _TASK_COMMAND and isinstance(d, dict) and d.get("gate") == 2:
+        got = _over(rec.get("started_epoch"), d.get("appetite"), now)
+        if got is not None:
+            mins, past = got
+            seg = f" · elapsed {mins}/{d['appetite']}"
+            if past:
+                seg += (
+                    " ⚠️ past 2× — UPGRADE: appetite: close `handoff`/`blocked` and take the rest "
+                    "to /fabrik-spec"
+                )
+            return seg
+    return ""
+
+
+def _phase_fields(rec: dict[str, Any], now: float) -> dict[str, str]:
+    """`phase_marks` / `over_appetite_phases` for the close row (D11), only when a phase was
+    marked — every other row keeps its shape."""
+    marks = [m for m in rec.get("phase_marks") or [] if isinstance(m, dict)]
+    if not marks:
+        return {}
+    over = 0
+    for m in marks:
+        end = _finite_ts(m.get("ended")) or now
+        got = _over(m.get("started"), m.get("appetite"), end)
+        if got is not None and got[1]:
+            over += 1
+    return {"phase_marks": str(len(marks)), "over_appetite_phases": str(over)}
+
+
+def _spec_size(rec: dict[str, Any]) -> str:
+    """`size: small` for a `/fabrik-spec` close whose surface is a spec carrying `Size: small` in
+    its header (D10) — read with T05a's own `SIZE_SMALL_RE`, so the grader and the row agree."""
+    if str(rec.get("command") or "").lstrip("/") != "fabrik-spec":
+        return ""
+    root, surface = rec.get("repo_root"), str(rec.get("surface") or "").strip()
+    if not isinstance(root, str) or not root or not surface:
+        return ""
+    try:
+        path = Path(surface) if Path(surface).is_absolute() else Path(root) / surface
+        if not path.is_file():
+            return ""
+        import importlib.util  # noqa: PLC0415
+
+        src = Path(__file__).resolve().parent / "enforcement" / "plan_appetite.py"
+        spec = importlib.util.spec_from_file_location("_cr_plan_appetite", src)
+        if spec is None or spec.loader is None:
+            return ""
+        pa = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(pa)
+        text = path.read_text(encoding="utf-8", errors="replace")[:200_000]
+        return "small" if pa.SIZE_SMALL_RE.search(pa.header_zone(text)) else ""
+    except Exception:
+        return ""
+
+
+def _in_lane_review(rec: dict[str, Any]) -> bool:
+    """D8: this record's immediate parent is a running `/fabrik-task` (`task_lane.
+    scope_growth_rounds` decides it), in a repo at lane v2 — else today's window (D12)."""
+    tl = _lane_module()
+    fn = getattr(tl, "scope_growth_rounds", None)
+    # D8 is a REVIEW's stop: a non-review command nested under the lane keeps today's window
+    # (T04-O6 — `scope_growth_rounds` keys on the parent only, so the child is checked here).
+    if str(rec.get("command") or "").lstrip("/") not in REVIEW_FAMILY:
+        return False
+    if fn is None or _lane_version_at(rec) != 2:
+        return False
+    stack = rec.get("stack")
+    try:
+        return tuple(fn(stack if isinstance(stack, list) else [])) == (1, 1)
+    except Exception:
+        return False
+
+
+# The id `task_lane.record_refusal` mints.
+_REFUSAL_ID = re.compile(r"LR-[0-9a-f]{8}")
+# D9: `handoff --reason "DOWNGRADE: <refusal id> — …"` on a /fabrik-spec run.
+_DOWNGRADE_REASON = re.compile(r"\s*DOWNGRADE:\s*(LR-[0-9a-f]{8})\b")
+
+
+# W-25318990: the two reviews whose surface D10 joins on.
+_SURFACE_REQUIRED_V2 = frozenset({"fabrik-spec-review", "fabrik-plan-review"})
+
+
+# D9: the lane-refusal ledger sits beside the state dir, one file per box; each row carries the
+# repo's git common dir as its key, so worktrees of one repo share a key.
+def _lane_ledger() -> Path:
+    return _state_dir().parent / "lane-refusals.jsonl"
+
+
+def _task_admit_v2(
+    tl: Any,
+    args: argparse.Namespace,
+    sid: str,
+    root: Path,
+    rels: list[str],
+    answers: dict[str, str],
+    declared: dict[str, Any],
+    sync_hits: set[str],
+    switch: str | None,
+) -> tuple[int, dict[str, Any] | None]:
+    """Lane v2 admission (`task_lane.admit`). A ``chain`` verdict is ledgered with
+    ``record_refusal`` before the start is refused, so a /fabrik-spec DOWNGRADE can name it; an
+    admitted start is stamped ``gate: 2`` with the review it owes and the switch's commit.
+
+    ⚠️ COBRA (D-253): `consumers=internal` is the cheapest way past the contract test; the
+    path-based `contract_hit` still fires on a declared contract file, and the close re-checks
+    every committed path before any exclusion (`measure_close`), so the lie surfaces at close."""
+    why = getattr(args, "why", None)
+    appetite = getattr(args, "appetite", None)
+    fd = getattr(args, "from_downgrade", None)
+    if fd is not None and not _REFUSAL_ID.fullmatch(str(fd)):
+        # D7 A-O5: the report joins a DOWNGRADE on this id, so only a refusal id's shape is kept.
+        return _refuse(
+            f"REFUSED — fabrik-task: --from-downgrade {fd!r} is not a refusal id (LR-xxxxxxxx)"
+        ), None
+    v = tl.admit(answers, rels, sync_hits=sync_hits, appetite=appetite, why=why, version=2)
+    if v.route == "refused":
+        return _refuse(f"REFUSED — fabrik-task: {v.reason}"), None
+    if v.route.startswith("chain: "):
+        line = f"REFUSED — fabrik-task: {v.reason} → /fabrik-spec"
+        common = _task_git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+        rid = tl.record_refusal(
+            _lane_ledger(),
+            {
+                "repo": common.stdout.strip() if common.returncode == 0 else str(root),
+                "session": sid,
+                "agent": _agent_name(),
+                "route": v.route,
+                "declared": dict(sorted(answers.items())),
+                "why": why or "",
+                "files": rels,
+                "refusal": line,
+            },
+        )
+        return _refuse(f"{line} (refusal {rid})"), None
+    if v.route != "lane":
+        return _refuse(f"REFUSED — fabrik-task: {v.reason} → {v.route}"), None
+    declared["consumers"] = answers["consumers"]
+    declared["gate"] = 2
+    declared["review"] = v.review
+    declared["review_reason"] = v.reason
+    declared["appetite"] = appetite if appetite is not None else tl.APPETITE_DEFAULT
+    declared["sync_hits"] = sorted(sync_hits)
+    # no switch file at all is the default, not an uncommitted switch (D-507)
+    declared["lane_switch"] = switch or ("" if (root / tl.LANE_FILE).is_file() else "default")
+    if why:
+        declared["why"] = why
+    if getattr(args, "from_downgrade", None):
+        declared["from_downgrade"] = str(args.from_downgrade)
+    return 0, declared
+
+
+def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[str, Any] | None]:
     """The SIZE inventory, in ORDER. The flag guards and the path/state checks SHORT-CIRCUIT —
     a missing flag, an invalid path or a dirty path makes every later test meaningless, so that
     correction prints alone and no lane verdict is printed. The two lane tests and the five
@@ -3169,6 +3478,36 @@ def _task_size_gate(args: argparse.Namespace) -> tuple[int, dict[str, Any] | Non
     for k in _TASK_DECLARE_KEYS:
         declared[k] = answers[k]
 
+    # The repo's lane switch (`.fabrik/lane.json`). No file is `task_lane._LANE_DEFAULT` (2, D-507);
+    # no module, or a v1 pin, is version 1: the routing below is the v1 gate and nothing new is stamped.
+    tl = _lane_module()
+    version, switch, warn = (1, None, None) if tl is None else tl.lane_version(root)
+    if warn:
+        sys.stderr.write(f"[command_run] {warn}\n")
+    if version == 2:
+        hits = {r for r in rels if pat.search(r)} if sync_hit and pat is not None else set()
+        # an unreadable or invalid switch file is labelled `invalid`, never `uncommitted`
+        return _task_admit_v2(
+            tl,
+            args,
+            sid,
+            root,
+            rels,
+            answers,
+            declared,
+            hits,
+            switch or ("invalid" if warn else None),
+        )
+    ignored = [
+        f"--{a.replace('_', '-')}"
+        for a in ("appetite", "why", "from_downgrade")
+        if getattr(args, a, None) is not None
+    ]
+    if ignored:
+        sys.stderr.write(
+            f"[command_run] note: {', '.join(ignored)} ignored — this repo runs lane v1\n"
+        )
+
     # The spec chain takes PRECEDENCE: oneway/tradeoffs or a fourth file name /fabrik-spec
     # even when the sync or heavy test also tripped. `mechanism=yes` is RECORDED, never a
     # refusal on its own (operator ruling 2026-09-20, D-315, loosening D-293's row 2): a new
@@ -3201,9 +3540,9 @@ def _task_size_gate(args: argparse.Namespace) -> tuple[int, dict[str, Any] | Non
 # is stdlib-only and reaches git only through `_task_git`.
 
 _TASK_COMMIT_HELP = (
-    "the SHA of this run's commit, from phase 5's capture file. `fabrik-task` ONLY: "
-    "REQUIRED on `done` there, optional on `blocked`/`handoff` (which may close before any "
-    "commit exists), and REFUSED on every other command"
+    "the SHA of this run's commit, from phase 5's capture file — at lane v2 every commit of the "
+    "run, in order. `fabrik-task` ONLY: REQUIRED on `done` there, optional on `blocked`/`handoff` "
+    "(which may close before any commit exists), and REFUSED on every other command"
 )
 
 # `git`'s empty tree. A ROOT commit has no parent, so `<c>~1` does not resolve and its diff is
@@ -3223,6 +3562,11 @@ _TASK_LEDGER_EXCL = (
     "docs/STRATEGIC_BACKLOG.md",
     "INDEX.md",
     "docs/LESSONS_LEARNT.md",
+    # the matrix's legacy-tolerated spelling — the ONLY lessons file in 12 repos (W-4f924816)
+    "docs/lessons-learnt.md",
+    # the work-item store: a verb's item files are committed WITH the task (CLAUDE.md § Work
+    # items), and `task_lane` already excludes the store from its own measurement (W-b43ce8bc)
+    ".fabrik/work/",
 )
 
 _TASK_BACKTICKED = re.compile(r"`([^`]+)`")
@@ -3278,11 +3622,11 @@ def _doc_sync_tokens(text: str) -> set[str]:
 
 
 def _task_excl(root: Path) -> set[str]:
-    """Invariant (iv)'s exclusion set: the live matrix's destinations, the five ledger files and
+    """Invariant (iv)'s exclusion set: the live matrix's destinations, the ledger files (both lessons spellings, the `.fabrik/work/` store) and
     `docs/CAPABILITIES.md`.
 
     A repo whose `CLAUDE.md` is absent, unreadable, or carries no matrix section falls back to
-    the six constants — NEVER a fourth `unmeasurable` reason: the membership arm can still say
+    the eight constants — NEVER a fourth `unmeasurable` reason: the membership arm can still say
     something true about a commit, and reporting it as unmeasurable would discard that.
     """
     excl = set(_TASK_LEDGER_EXCL) | {_TASK_CAPABILITIES}
@@ -3292,7 +3636,7 @@ def _task_excl(root: Path) -> set[str]:
         # The BARE class, and not `OSError` alone: an undecodable `CLAUDE.md` raises
         # `UnicodeDecodeError`, which is a `ValueError` — it would escape to the caller's arm and
         # be recorded as `unmeasurable=no-git`, a reason that is simply false (git is fine) and
-        # that discards a membership count this function could still have produced from the six.
+        # that discards a membership count this function could still have produced from the eight.
         pass
     return excl
 
@@ -3396,32 +3740,12 @@ def _mark_unverified_sync(fields: dict[str, Any]) -> None:
         fields["upgrade"] = "sync (unverified)"
 
 
-def _task_measure(
-    rec: dict[str, Any], args: argparse.Namespace, sha_in: str, upgrade: str
-) -> tuple[int, str, bool]:
-    """Invariants (ii)-(vi) for a close that CARRIED a commit. ``(rc, field, sync_tested)``; rc 1
-    means the close is refused and the refusal has already printed.
-
-    ``sync_tested`` says whether condition 6 could actually RUN — it needs a readable sync filter.
-    Without it an `UPGRADE: sync` claim, the widest claim the lane can make, is recorded exactly
-    as a checked one. The caller marks such a row unverified.
-
-    ⚠️ COBRA (D-253): the cheapest way to score ``oversized_mini: 0`` without producing the
-    outcome is to park the extra work under ``docs/reference/`` or ``docs/workstation/``, whose
-    matrix rows are whole-DIRECTORY prefixes — a real subsystem doc is legitimately excluded
-    there, and so is anything else dropped beside it. Nothing here can tell the two apart, and
-    nothing tries: the counter-measures are phase 4's review seats, which are told the DECLARED
-    size and asked whether the change fits it, and the command's own V3 probe. A check that
-    tried to judge the content of a `docs/reference/` write would only teach a better lie.
-    """
-    root = str(rec.get("repo_root") or "")
-    if not root:
-        # A record whose `start` ran outside a git repo. Unverifiable is `no-git`, never a guess
-        # against the CLOSE process's cwd — that is the wrong-repo hole the artifact check paid
-        # for at round 33.
-        raise RuntimeError("no repo_root on record")
-    rp = Path(root)
-
+def _task_run_commit(rec: dict[str, Any], rp: Path, sha_in: str) -> tuple[str | None, list[str]]:
+    """Invariant (ii) for ONE ``--commit`` value: ``(sha, parents)`` when it is this run's commit,
+    ``(None, [])`` when git says it is not (unresolvable, not a commit, a merge, or older than the
+    run's start). RAISES when git itself is unusable, so the caller records `unmeasurable` rather
+    than refusing a close over the environment. Shared by the v1 and the v2 close."""
+    root = str(rp)
     # ── (ii) RESOLVE the commit ───────────────────────────────────────────────────────────
     ok = True
     parents: list[str] = []
@@ -3473,14 +3797,47 @@ def _task_measure(
             # a commit made in the very second the run opened must not read as older than it.
             ok = False
     if not ok:
+        # The merge and the stale date SHARE one answer: neither is this run's commit.
+        return None, []
+    rv = _task_git(rp, "rev-parse", "-q", "--verify", sha_in + "^{commit}")
+    sha = rv.stdout.strip() if rv.returncode == 0 else sha_in
+    return sha, parents
+
+
+def _task_measure(
+    rec: dict[str, Any], args: argparse.Namespace, sha_in: str, upgrade: str
+) -> tuple[int, str, bool]:
+    """Invariants (ii)-(vi) for a close that CARRIED a commit. ``(rc, field, sync_tested)``; rc 1
+    means the close is refused and the refusal has already printed.
+
+    ``sync_tested`` says whether condition 6 could actually RUN — it needs a readable sync filter.
+    Without it an `UPGRADE: sync` claim, the widest claim the lane can make, is recorded exactly
+    as a checked one. The caller marks such a row unverified.
+
+    ⚠️ COBRA (D-253): the cheapest way to score ``oversized_mini: 0`` without producing the
+    outcome is to park the extra work under ``docs/reference/`` or ``docs/workstation/``, whose
+    matrix rows are whole-DIRECTORY prefixes — a real subsystem doc is legitimately excluded
+    there, and so is anything else dropped beside it. Nothing here can tell the two apart, and
+    nothing tries: the counter-measures are phase 4's review seats, which are told the DECLARED
+    size and asked whether the change fits it, and the command's own V3 probe. A check that
+    tried to judge the content of a `docs/reference/` write would only teach a better lie.
+    """
+    root = str(rec.get("repo_root") or "")
+    if not root:
+        # A record whose `start` ran outside a git repo. Unverifiable is `no-git`, never a guess
+        # against the CLOSE process's cwd — that is the wrong-repo hole the artifact check paid
+        # for at round 33.
+        raise RuntimeError("no repo_root on record")
+    rp = Path(root)
+
+    sha, parents = _task_run_commit(rec, rp, sha_in)
+    if sha is None:
         # The merge and the stale date SHARE this message: both answer the same question.
         return (
             _refuse(f"REFUSED — fabrik-task: --commit {sha_in} is not this run's commit"),
             "",
             False,
         )
-    rv = _task_git(rp, "rev-parse", "-q", "--verify", sha_in + "^{commit}")
-    sha = rv.stdout.strip() if rv.returncode == 0 else sha_in
 
     # ── (iii) the diff ────────────────────────────────────────────────────────────────────
     pairs = _task_diff_pairs(rp, f"{sha}~1" if parents else _TASK_EMPTY_TREE, sha)
@@ -3490,10 +3847,25 @@ def _task_measure(
     # own membership test and is scored oversized — a CONFIDENT number derived from a record we
     # cannot trust. A record this malformed is not measurable; say so rather than publish a count.
     _raw_files = (rec.get("declared") or {}).get("files")
-    if not isinstance(_raw_files, (list, tuple)) or not all(isinstance(f, str) for f in _raw_files):
+    if (
+        not isinstance(_raw_files, (list, tuple))
+        # EMPTY too: `all()` of nothing is True, and `declared = set()` then scores every path in
+        # the commit undeclared — `start` requires `--file`, so an empty block is corrupt (W-438885f8)
+        or not _raw_files
+        or not all(isinstance(f, str) for f in _raw_files)
+    ):
         # The ELEMENTS too: dropping a non-string member silently would publish a confident count
         # from the same corruption class the container check refuses.
-        raise TypeError(f"declared.files is not a list of str: {type(_raw_files).__name__}")
+        # Name the MEMBER and its type, never only the container's: `… not a list of str: list`
+        # for `["mas.txt", 7]` read as a contradiction, and this string is the cause's sole
+        # record — the close prints only the class (W-416058b2).
+        _bad = (
+            [f"{f!r} ({type(f).__name__})" for f in _raw_files if not isinstance(f, str)]
+            if isinstance(_raw_files, (list, tuple)) and _raw_files
+            else [f"{_raw_files!r} ({type(_raw_files).__name__})"]
+        )
+        _more = f" and {len(_bad) - 3} more" if len(_bad) > 3 else ""
+        raise TypeError(f"declared.files is not a list of str: {', '.join(_bad[:3])}{_more}")
     declared = set(_raw_files)
     excl = _task_excl(rp)
     # A sync-EXCLUDED repo has no sync contract: nothing it commits is a sync hit, and a sync
@@ -3581,6 +3953,208 @@ def _task_measure(
     return 0, "0", pat is not None or not applies
 
 
+# The design note's six fields (`commands/_sources/fabrik-task.md` § Phase 2). A field starts at a
+# line whose first word — after any heading hashes, list marker or bold — is its label.
+_DESIGN_FIELDS = ("PROBLEM", "APPROACH", "DECISION", "MIRROR", "OUT", "TERMINAL")
+_DESIGN_LABEL = re.compile(
+    r"^[ \t]*(?:#{1,6}[ \t]+|[-*][ \t]+)?\**[ \t]*(" + "|".join(_DESIGN_FIELDS) + r")\b",
+    re.MULTILINE,
+)
+_DESIGN_HEADING = re.compile(r"^#{1,6}[ \t]", re.MULTILINE)
+_BEHAVIOURS_HEADING = re.compile(r"^#{2,6}[ \t]+Behaviou?rs\b[^\n]*$", re.MULTILINE | re.IGNORECASE)
+_LIST_ITEM = re.compile(r"^[ \t]{0,3}(?:[-*+]|\d+[.)])[ \t]+\S", re.MULTILINE)
+_BACKTICKED = re.compile(r"`([^`\n]+)`")
+
+
+def _design_paths(text: str) -> list[str]:
+    """The backticked tokens of the design note's APPROACH and MIRROR fields (D3.3): every
+    committed path the close accepts must be named there. A field runs from its label to the next
+    label or heading. Tokens are kept as written; ``measure_close`` normalises them."""
+    marks = [(m.start(), m.group(1)) for m in _DESIGN_LABEL.finditer(text)]
+    stops = sorted({p for p, _ in marks} | {m.start() for m in _DESIGN_HEADING.finditer(text)})
+    out: list[str] = []
+    for pos, label in marks:
+        if label not in ("APPROACH", "MIRROR"):
+            continue
+        end = next((s for s in stops if s > pos), len(text))
+        out += _BACKTICKED.findall(text[pos:end])
+    return list(dict.fromkeys(out))
+
+
+def _design_behaviours(text: str) -> int:
+    """The number of list items under the design note's ``## Behaviours`` heading (D3.1), up to
+    the next heading. No heading counts 0."""
+    m = _BEHAVIOURS_HEADING.search(text)
+    if not m:
+        return 0
+    nxt = _DESIGN_HEADING.search(text, m.end())
+    return len(_LIST_ITEM.findall(text[m.end() : nxt.start() if nxt else len(text)]))
+
+
+def _in_linked_worktree(rp: Path) -> bool:
+    """Derived from git, never a flag (measure_close's docstring): a linked worktree's git dir
+    differs from its common dir."""
+    g = _task_git(rp, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
+    lines = g.stdout.split()
+    return g.returncode == 0 and len(lines) == 2 and lines[0] != lines[1]
+
+
+def _task_loc_added(rp: Path, base: str, sha: str) -> int:
+    """Lines added by one commit (`--numstat`; a binary file's `-` adds nothing)."""
+    r = _task_git(rp, "diff", "--numstat", "-M", "-C", base, sha)
+    if r.returncode != 0:
+        raise RuntimeError(f"git diff --numstat rc {r.returncode}")
+    return sum(int(ln.split("\t", 1)[0]) for ln in r.stdout.splitlines() if ln[:1].isdigit())
+
+
+def _repo_rel(root: Path, path: str | None) -> str | None:
+    """A `--review` path as the committed rows spell it: repo-root-relative. An absolute (or
+    cwd-relative) spelling of a file inside the repo is relativised, so the receipt the close demands
+    is also the one path its declaration check exempts (D7 B-O2); a path outside the repo is kept
+    as given, and `check_review_receipt` refuses it."""
+    if path is None:
+        return None
+    p = Path(path)
+    full = p if p.is_absolute() else Path.cwd() / p
+    try:
+        # BOTH sides resolved: a symlinked spelling of an in-repo path is still in the repo (AB-O1).
+        return full.resolve().relative_to(Path(root).resolve()).as_posix()
+    except ValueError:
+        return path
+
+
+def _task_close_v2(
+    rec: dict[str, Any], args: argparse.Namespace, commits: list[str] | None, review: str | None
+) -> tuple[int, dict[str, str]]:
+    """The lane v2 close (`task_lane.measure_close`, D1, D3, D4, D7): every `--commit` measured in
+    order, undeclared paths refuse `done`, a close-time contract or new-source hit owes a valid
+    `--review` receipt on `done` and `handoff` (`check_review_receipt`), and the row gains the
+    spine's feedback fields. `blocked` closes without a receipt.
+
+    ⚠️ COBRA (D-253): the cheapest way past the declaration refusal is a late `--design-amend` per
+    refused path; it is COUNTED (`design_amends`) on the row, never free. A receipt is checked for
+    closure, command and surface, so a stale or skeleton receipt cannot buy the close."""
+    tl = _lane_module()
+    verb = args.cmd
+    up = _task_upgrade(
+        getattr(args, "evidence", "") if verb == "done" else getattr(args, "reason", "")
+    )
+    if commits is None and verb == "done":
+        return _refuse(
+            "REFUSED — fabrik-task: done needs --commit; pass every commit of this run, in order"
+        ), {}
+    shas = [c.strip() for c in (commits or [])]
+    if any(not c for c in shas):
+        return _refuse(
+            "REFUSED — fabrik-task: --commit is empty — re-read the capture file written "
+            "beside the commit"
+        ), {}
+    d = rec.get("declared") or {}
+    fields: dict[str, str] = {}
+    try:
+        if tl is None:
+            raise RuntimeError("task_lane unavailable")
+        root = str(rec.get("repo_root") or "")
+        if not root:
+            raise RuntimeError("no repo_root on record")
+        rp = Path(root)
+        started = _finite_ts(rec.get("started_epoch"))
+        if started is None:
+            raise RuntimeError("no started_epoch on record")
+        resolved: list[str] = []
+        rows: list[list[tuple[str, str, str | None]]] = []
+        loc = 0
+        for c in shas:
+            sha, parents = _task_run_commit(rec, rp, c)
+            if sha is None:
+                return _refuse(f"REFUSED — fabrik-task: --commit {c} is not this run's commit"), {}
+            base = f"{sha}~1" if parents else _TASK_EMPTY_TREE
+            # (kind, source, destination) → the spine's (status, path, old_path); a modify row
+            # has no old path (T03a-O7).
+            rows.append([(k, dst, src) for k, src, dst in _task_diff_pairs(rp, base, sha)])
+            loc += _task_loc_added(rp, base, sha)
+            resolved.append(sha)
+        excl = _task_excl(rp)
+        design = str(rec.get("design") or "")
+        amends = rec.get("design_amends")
+        lane_rec = tl.LaneRecord(
+            started_at=started,
+            stamped=True,
+            files=[str(f) for f in d.get("files") or []],
+            design_paths=_design_paths(design),
+            amendments=[str(a) for a in amends] if isinstance(amends, list) else [],
+            behaviours=_design_behaviours(design),
+            appetite=int(d.get("appetite") or tl.APPETITE_DEFAULT),
+            consumers=str(d.get("consumers") or "internal"),
+            sync_hits=set(d.get("sync_hits") or []),
+            in_worktree=_in_linked_worktree(rp),
+        )
+        cv = tl.measure_close(
+            lane_rec,
+            rows,
+            excluded=lambda p: _task_excluded(p, excl),
+            verb=verb,
+            now=time.time(),
+            loc_added=loc,
+            receipt=_repo_rel(rp, review),
+        )
+    except Exception as e:
+        # A gate-2 `done` CLAIMS what this measurement proves — no undeclared path, no unreviewed
+        # contract or new-source hit — so a failed measurement refuses it (D-O2 of the whole-plan
+        # review: the v1 rule "a measurement failure never blocks a close" accepted a contract hit
+        # with no receipt). `blocked` and `handoff` still close, so the run is never trapped.
+        sys.stderr.write(
+            f"[command_run] ⚠ fabrik-task: re-measure unavailable ({type(e).__name__})\n"
+        )
+        if verb == "done":
+            return _refuse(
+                f"REFUSED — fabrik-task: the lane v2 close could not measure the run "
+                f"({type(e).__name__}) — fix the cause and re-run `done`, or close `blocked`"
+            ), {}
+        fields["oversized_mini"] = "unmeasurable=no-git"
+        # The report counts a v2 close by this key (T06), so the unmeasured close still says so.
+        fields["over_appetite"] = "unmeasurable"
+        if up:
+            fields["upgrade"] = _cap_field(up)
+        _mark_unverified_sync(fields)
+        return 0, fields
+    for line in cv.findings:
+        print(line)
+    if cv.refused:
+        return _refuse(cv.refused), {}
+    if up == "sync" and not _sync_applies(rp):
+        flag = "evidence" if verb == "done" else "reason"
+        return _refuse(f"REFUSED — fabrik-task: --{flag} {_SYNC_CLAIM_UNSYNCED}"), {}
+    if verb in ("done", "handoff") and (cv.needs_full_review or review is not None):
+        if review is None:
+            owed = " and ".join(t for t in cv.upgrade if t in ("contract", "new-source"))
+            return _refuse(
+                f"REFUSED — fabrik-task: the close found a {owed} hit — {verb} needs "
+                "--review <a CONVERGED full /fabrik-review receipt over these commits>; "
+                "`blocked` closes without one"
+            ), {}
+        reasons = tl.check_review_receipt(Path(review), resolved, root=rp)
+        if reasons:
+            return _refuse("REFUSED — fabrik-task: --review " + "; ".join(reasons)), {}
+    paths = sorted(set(cv.oversized_mini))
+    fields["oversized_mini"] = (
+        _cap_field(_task_field(len(paths), resolved[-1], paths))
+        if (paths and resolved)
+        else ("0" if resolved else "unmeasurable=no-commit")
+    )
+    token = up or (cv.upgrade[0] if cv.upgrade else "")
+    if token:
+        fields["upgrade"] = _cap_field(token)
+    if cv.upgrade:
+        fields["upgrades"] = " ".join(cv.upgrade)
+    fields["design_amends"] = str(cv.design_amends)
+    fields["loc_added"] = str(cv.loc_added)
+    fields["over_appetite"] = "yes" if cv.over_appetite else "no"
+    if d.get("from_downgrade"):
+        fields["from_downgrade"] = _cap_field(str(d["from_downgrade"]))
+    return 0, fields
+
+
 def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[int, dict[str, str]]:
     """The lane's TWO row fields for this close: ``(rc, fields)``. rc 1 = refused, already
     printed, and the record must stay `running`.
@@ -3590,16 +4164,30 @@ def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[i
     would emit `run_close {verdict: done}` for a close that did not happen — the very
     disagreement the NOT-CLOSED path deletes that event to prevent.
     """
-    commit = getattr(args, "commit", None)
+    commits = getattr(args, "commit", None)
+    review = getattr(args, "review", None)
     if (rec.get("command") or "") != _TASK_COMMAND:
         # ⚠️ OUTSIDE the lane block, deliberately (invariant (i) scopes the MEASURE, not this
         # guard). Placed inside it this refusal could never fire, and
         # `done --command fabrik-review --commit <sha>` would be SILENTLY ACCEPTED — breaking
         # the byte-identical promise in every one of the ~46 repos this file is synced to.
         # PRESENCE, never truthiness: `--commit ""` on another command is the same mistake.
-        if commit is not None:
+        if commits is not None:
             return _refuse("REFUSED — --commit belongs to --command fabrik-task"), {}
+        if review is not None:
+            return _refuse("REFUSED — --review belongs to --command fabrik-task"), {}
         return 0, {}
+
+    declared = rec.get("declared")
+    if isinstance(declared, dict) and declared.get("gate") == 2:
+        return _task_close_v2(rec, args, commits, review)
+    # An UNSTAMPED record — lane v1, or a run opened before the switch (§ Lifecycle): today's
+    # close exactly, one commit, no receipt.
+    if review is not None:
+        return _refuse("REFUSED — fabrik-task: --review needs a lane v2 run (gate: 2)"), {}
+    if commits is not None and len(commits) > 1:
+        return _refuse("REFUSED — fabrik-task: this run is lane v1 — pass ONE --commit"), {}
+    commit = None if commits is None else commits[0]
 
     fields: dict[str, str] = {}
     up = _task_upgrade(
@@ -3698,14 +4286,29 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # `command: 'fabrik-task'` and NO `declared` key, the SIZE gate skipped, while `_close`
         # keys on the normalised name and then demands `--commit`. The mirror is a wrongly
         # REFUSED `--command /fabrik-task --file a.py`, which the same binding closes.
-        _cmd = (args.command or "").lstrip("/")
+        _cmd = _norm_command(args.command)
         _declared: dict[str, Any] | None = None
         try:
             if _cmd != _TASK_COMMAND:
                 if getattr(args, "file", None) or str(getattr(args, "declare", "") or "").strip():
                     return _refuse("REFUSED — --file/--declare belong to --command fabrik-task")
+                if _cmd in _SURFACE_REQUIRED_V2 and not str(args.surface or "").strip():
+                    # W-25318990: D10's spec↔plan join reads the review's surface, so at lane v2
+                    # a spec-review or plan-review start without one is refused, naming the flag.
+                    if _lane_version_at({"repo_root": _repo_root()}) == 2:
+                        return _refuse(
+                            f"REFUSED — {_cmd}: --surface <the spec or plan path> is required "
+                            "at lane v2"
+                        )
+                if any(
+                    getattr(args, a, None) is not None
+                    for a in ("appetite", "why", "from_downgrade")
+                ):
+                    return _refuse(
+                        "REFUSED — --appetite/--why/--from-downgrade belong to --command fabrik-task"
+                    )
             else:
-                _rc, _declared = _task_size_gate(args)
+                _rc, _declared = _task_size_gate(args, sid)
                 if _rc:
                     return _rc
         except Exception as e:
@@ -3759,7 +4362,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             stack.append(parent)
         new = {
             "session_id": sid,
-            "command": (args.command or "").lstrip("/"),
+            "command": _cmd,
             "phases": max(1, args.phases),
             "phase": 1,
             "phase_title": "",
@@ -3785,7 +4388,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             "stack": stack,
             # Session-monotonic, so a nested run and a later run keep ascending rather
             # than restarting at 1 and colliding in the same session's stream.
-            "event_seq": int(rec.get("event_seq") or 0),
+            "event_seq": _int0(rec.get("event_seq")),
             # the ledger of windows earlier commands of this session COVERED — carried across
             # this overwrite so the Stop hook's sixth cause keeps every reviewed edit reviewed
             # (review P1-1: a single window un-reviewed every command before the last one)
@@ -3827,6 +4430,16 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             # directory. Printing it is what lets the agent PASTE the id rather than retype a
             # timestamp with a `%z` offset in it.
             print(f"RECORD: {new['started_at']}")
+            # D12 / W-25318990: say which lane admitted the run and, at v2, the commit that set
+            # the switch — who may change `.fabrik/lane.json` is answered by its history.
+            if _declared.get("gate") == 2:
+                sw = _declared.get("lane_switch") or "uncommitted"
+                print(
+                    f"lane: v2 (switch {sw}) · review: {_declared.get('review')} · appetite: "
+                    f"{_declared.get('appetite')} min"
+                )
+            else:
+                print("lane: v1")
         # A second `start` for the SAME command inside the join window is almost always a
         # DOUBLE-START, not a legitimate nest: a command invoking itself recursively is not a
         # shape we have, while an agent who missed the confirmation and re-ran is exactly what
@@ -3945,6 +4558,21 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             # record was rc 0 with the pinned line printed and nothing stored: every signal of
             # success, and the design gone.
             return _refuse("REFUSED — --design belongs to --command fabrik-task")
+        _amends = [str(a) for a in (getattr(args, "design_amend", None) or [])]
+        if _amends:
+            # D3.3: the append-only answer to an undeclared-path refusal. A v2 run only — at v1
+            # nothing refuses an undeclared path, so an amendment would be a count of nothing.
+            if str(rec.get("command") or "").lstrip("/") != _TASK_COMMAND:
+                return _refuse("REFUSED — --design-amend belongs to --command fabrik-task")
+            _decl = rec.get("declared")
+            if not (isinstance(_decl, dict) and _decl.get("gate") == 2):
+                return _refuse(
+                    "REFUSED — fabrik-task: --design-amend needs a lane v2 run (gate: 2)"
+                )
+            if any(not a.strip() for a in _amends):
+                return _refuse("REFUSED — fabrik-task: --design-amend needs a path")
+            _prev = rec.get("design_amends")
+            rec["design_amends"] = (_prev if isinstance(_prev, list) else []) + _amends
         if _design:
             # PRESENCE, not truth. An EMPTY design file sets `design = ''`, which is falsy, so a
             # truthiness guard let the next `--design` overwrite it with no NOTE — defeating the
@@ -3968,6 +4596,29 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 # applied to it, and it refused a sized six-field design at 3,588 chars on its
                 # first real use. An unreadable path still refuses above.
                 rec["design"] = _text
+        _ap = getattr(args, "appetite", None)
+        if _ap is not None and _ap <= 0:
+            return _refuse(f"REFUSED — step --appetite {_ap} must be a positive number of minutes")
+        if _ap is not None and _lane_version_at(rec) != 2:
+            # A v1 pin: the plan text that passes `--appetite` must keep working in a repo that
+            # pins lane v1 — accepted, ignored, said.
+            sys.stderr.write("[command_run] note: --appetite ignored — this repo runs lane v1\n")
+            _ap = None
+        _marks = rec.get("phase_marks")
+        _marks = _marks if isinstance(_marks, list) else []
+        _open = _marks[-1] if _marks and isinstance(_marks[-1], dict) else None
+        if (
+            _open is not None
+            and "ended" not in _open
+            and (_open.get("phase") != target or _ap is not None)
+        ):
+            # Leaving the phase (or re-budgeting it) ENDS its mark; the overrun is judged on the
+            # time the mark was open. A same-phase step that only renames keeps it running.
+            _open["ended"] = time.time()
+        if _ap is not None:
+            _marks.append({"phase": target, "appetite": _ap, "started": time.time()})
+        if _marks:
+            rec["phase_marks"] = _marks
         fields = _queue(rec, outbox, "phase", {"n": rec["phase"], "title": rec["phase_title"]})
         _touch(rec)
         fields["persisted"] = save(sid, rec)
@@ -3988,7 +4639,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _pd = rec.get("dispatch")
         prev_disp: dict = _pd if isinstance(_pd, dict) else {}
         n_rounds = len(rec.get("rounds") or [])
-        carried = int(prev_disp.get("seats") or 0) if prev_disp.get("round") == n_rounds else 0
+        carried = _int0(prev_disp.get("seats")) if prev_disp.get("round") == n_rounds else 0
         rec["dispatch"] = {
             "ts": time.time(),
             "seats": carried + args.seats,
@@ -4093,14 +4744,14 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # before. They HAD rounds — seven — so a zero-rounds threshold could never fire, and the
         # field that was actually lying (the phase) is the one nothing read. Unlike a phase-N
         # threshold this cannot be satisfied by calling `step` once at the start.
-        _phase_now = int(rec.get("phase") or 1)
+        _phase_now = _int0(rec.get("phase")) or 1
         # the STAMP is the seat figure — `dispatch --seats` accumulated it while the seats went
         # out; a bare `round` inherits it, and a hand-typed count that disagrees is said so
         # (round-7 Opus finding: `dispatch 3` + `dispatch 4` then a bare `round` declared 0)
         _dd = rec.get("dispatch")
         _d: dict = _dd if isinstance(_dd, dict) else {}
         _stamped = (
-            int(_d.get("seats") or 0)
+            _int0(_d.get("seats"))
             if _d.get("round") == len(rounds) and not _d.get("released")
             else 0
         )
@@ -4235,7 +4886,11 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # phase (correct, and common) or a boundary the agent walked past without recording. Both
         # deserve exactly one advisory line; neither deserves a refusal, which is why this prints
         # once at the threshold rather than on every round after it.
-        in_phase = [r for r in rounds if int(r.get("phase") or 0) == _phase_now]
+        # `_int0` at every record counter (W-ba3d1d4f): a hand-written `phase: "x"` raised here and
+        # the outer guard dropped the whole round with rc 0 — the `findings` incident's shape
+        in_phase = [
+            r for r in rounds if isinstance(r, dict) and _int0(r.get("phase")) == _phase_now
+        ]
         if len(in_phase) == ROUNDS_PER_PHASE_NOTICE:
             sys.stderr.write(
                 f"[command_run] NOTICE — {len(in_phase)} rounds recorded without leaving phase "
@@ -4322,7 +4977,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     not the live one is REFUSED (rc 1) rather than applied to the wrong record.
     """
     live = rec.get("command") or "?"
-    passed = (args.command or "").lstrip("/")
+    passed = _norm_command(args.command)
     state = rec.get("state")
 
     if state != "running":
@@ -4335,7 +4990,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         print(msg)
         return 0
 
-    if passed != live:
+    # a record opened before W-5aa12ff3 stored the name un-lowered: compare both normalised, so
+    # a live run is never refused for a case it was legitimately opened with (review A-S2)
+    if passed != _norm_command(live):
         msg = (
             f"REFUSED — you asked to close /{passed}, but the LIVE run is /{live} "
             f"(phase {rec.get('phase')}/{rec.get('phases')}). Closing the wrong record "
@@ -4846,6 +5503,31 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         # reach permanently None, so the join could only ever `min` the parent's value with itself.
         # Dead by construction, and removed rather than left as prose describing a branch that
         # cannot run: the third time that class surfaced in this review (C-R3, C2-9, here).
+    _decl = rec.get("declared")
+    _pdecl = (parent or {}).get("declared")
+    _stamped = any(isinstance(d, dict) and d.get("gate") == 2 for d in (_decl, _pdecl))
+    # A gate-2 record writes its v2 fields even if the switch changed since start (D7 A-O4): the
+    # stamp, like the close itself, is the run's own, never the repo's state at close time.
+    if _stamped or _lane_version_at(rec) == 2:
+        # Lane v2's row fields (spine § Interfaces), written only where the lane is on, so a v1
+        # repo's rows keep their shape (D12): the enclosing run of a nested close, the spec's size,
+        # and the plan phases' appetite marks.
+        _lane_extra = _phase_fields(rec, time.time())
+        if parent is not None and parent.get("command"):
+            _lane_extra["parent"] = str(parent.get("command")).lstrip("/")
+        # A late `done --surface` names the spec at close; read it here, before the record keeps
+        # it below (D7 A-O1).
+        _late = str(getattr(args, "surface", "") or "").strip()
+        _size = _spec_size({**rec, "surface": _late} if _late else rec)
+        if _size:
+            _lane_extra["size"] = _size
+        if args.cmd == "handoff" and str(rec.get("command") or "").lstrip("/") == "fabrik-spec":
+            # D9: a /fabrik-spec DOWNGRADE hands the work back to /fabrik-task naming the refusal;
+            # the id on this row makes the report's spec↔task join exact (T06).
+            _dg = _DOWNGRADE_REASON.match(str(getattr(args, "reason", "") or ""))
+            if _dg:
+                _lane_extra["from_downgrade"] = _dg.group(1)
+        _task_fields = {**_task_fields, **_lane_extra}
     _fb_verdict, _fb_beats = _feedback_verdict(
         _filed_text if getattr(args, "feedback", None) is not None else None
     )
@@ -4907,8 +5589,10 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         )
         # the grader on the hand-typed reservation (round-4 finding): the close computes the TRUE
         # seat count in the same process; a stamp that disagrees is said out loud and recorded
-        _declared = sum(int(r.get("seats") or 0) for r in rec.get("rounds") or [])
-        _seen = int(_tok.get("seats_seen") or 0)
+        _declared = sum(
+            _int0(r.get("seats")) for r in rec.get("rounds") or [] if isinstance(r, dict)
+        )
+        _seen = _int0(_tok.get("seats_seen"))
         if (_tok.get("tok_seat_in") is not None or _declared) and abs(_declared - _seen) > 1:
             print(
                 f"[command_run] seats declared {_declared} (round --seats) vs seen {_seen} (seat "
@@ -4936,8 +5620,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "account": str(rec.get("account") or ""),
             **{k: _cap_field(_usage_fields.get(k, "")) for k in (*_USAGE_FIELDS, "cost")},
             "cost_usd": _cost_usd(_usage_fields.get("cost", "")),
-            # `fabrik-task` ONLY — an empty dict everywhere else, so every other command's row
-            # stays byte-identical in all ~46 repos this file is synced to.
+            # `fabrik-task`'s close measure, plus the lane-v2 fields above (a nested close's
+            # `parent`, the spec `size`, the phase marks) for ANY command at lane v2 — every repo
+            # by default (D-507); empty in a repo pinned to v1, whose rows keep their shape.
             **_task_fields,
             **_tok,
         }

@@ -4,7 +4,7 @@
 
 Improvements over v1:
 - Dockerfile: Parses ALL FROM lines (multi-stage), checks HEALTHCHECK directive
-- Health endpoint: Excludes governance files (.windsurfrules, AGENTS.md, docs_updater.py)
+- Health endpoint: Excludes governance files (AGENTS.md, docs_updater.py)
 - print(): Also scans root-level .py files
 - New checks: hardcoded localhost in code + compose, .env.example, db/schema.sql,
   watchdog scripts, Makefile, .pre-commit, logging imports, compose coolify network,
@@ -60,15 +60,12 @@ LEGIT_ROOT_FILES = {
     "INDEX.md",
     "PORTS.md",
     "AGENTS.md",
-    "AGENTS-compact.md",
-    ".windsurfrules",
     ".gitignore",
     ".env",
     ".env.example",
     ".pre-commit-config.yaml",
     ".codeiumignore",
     "project.yaml",
-    "opencode.json",
     "Dockerfile",
     "compose.yaml",
     "docker-compose.yaml",
@@ -91,9 +88,7 @@ LEGIT_ROOT_FILES = {
 
 # Paths to EXCLUDE when searching for health endpoints / print() etc.
 GOVERNANCE_EXCLUDE = {
-    ".windsurfrules",
     "AGENTS.md",
-    "AGENTS-compact.md",
     "docs_updater.py",
     "00-research.md",
 }

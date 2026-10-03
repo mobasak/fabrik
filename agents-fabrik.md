@@ -7,7 +7,7 @@
 making non-trivial changes directly** (Claude Code — Max OAuth — with native Task subagents; the OpenRouter subagent pool is OFF by ruling, D-181/D-182, 2026-09-07; Windsurf Cascade + Kilo CLI RETIRED 2026-07-19). This is the canonical infra +
 codebase map — ground every plan in it, don't guess.
 **Our agents are tool-capable — orient, then act:** run `python scripts/select_rules.py` to load the ACTIVE rule packs; open every file/symbol you cite (`path:line`); ground external facts **live via MCP** (`exa` → `brave-search` → `context7`, cite URL + date, never from memory); gate with `python scripts/final_gate.py`. Enumerations here are copied from the live registry (`scaffold.py::SCAFFOLD_TYPES`, `.windsurf/rules/**`, `fabrik-lib/README.md`, `spec_loader.py::Shape`) — if a count disagrees with the registry, the registry wins.
-**Coding agents:** Claude Code reads `CLAUDE.md` (which `@import`s `agents-fabrik-core.md`). ⚠️ Windsurf Cascade + Kilo CLI are **RETIRED (2026-07-19)** — their bootstrap files (`.windsurfrules`, `AGENTS-compact.md` via `opencode.json`) remain synced only until removed. Rule packs live in `.windsurf/rules/**` — canonical; at review time `scripts/review_rubric.py` injects them.
+**Coding agents:** Claude Code reads `CLAUDE.md` (which `@import`s `agents-fabrik-core.md`). ⚠️ Windsurf Cascade + Kilo CLI are **RETIRED (2026-07-19)** — their bootstrap files (`.windsurfrules`, `AGENTS-compact.md`, `opencode.json`) are no longer synced: the governance sync prunes them from every project (D-529), and the hub copies go once the scaffold stops copying them. Rule packs live in `.windsurf/rules/**` — canonical; at review time `scripts/review_rubric.py` injects them.
 
 ## Platform at a Glance
 
@@ -17,7 +17,7 @@ codebase map — ground every plan in it, don't guess.
 | 2   | **Scaffolding**       | `scaffold.py`                                                                                | Creates projects with governance + infra wiring (12 types)                                                                                                                                                             |
 | 3   | **Planning**          | `/fabrik-vision` → `/fabrik-epics` → `/fabrik-epics-review` (the multi-epic chain — three sources in `commands/_sources/`) | Vision → epics → a converged, owner-assigned epic set (`epic_order.py --check` → `--assign <names>` → `--check --owners` inside the review). `/fabrik-vision` is the single entry for NEW and EXISTING projects (mode declared at Phase 0); the review names every window's `/fabrik-spec` launch. |
 | 4   | **Planning**          | `/fabrik-spec docs/development/epics/<epic>.md` → … → `/fabrik-execute-plan` (the per-epic corpus chain) | One epic per agent window (agents 2..N launch `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>`; agent-1 runs in the main checkout): the epic-file intake seeds `/fabrik-spec`; `owned_paths` flows epic → spine File Scope → plan-lock; every command commits + pushes the agent's branch; agent-1 merges in `epic_order` phase order. |
-| 5   | **Governance**        | `AGENTS.md` / `CLAUDE.md` / `.windsurfrules` / `AGENTS-compact.md` / `opencode.json`        | Agent bootstraps (5 files)                                                                                                                                                                                             |
+| 5   | **Governance**        | `AGENTS.md` / `CLAUDE.md` (+ `agents-fabrik*.md`)                                            | Agent bootstraps                                                                                                                                                                                                         |
 | 6   | **Rules**             | `.windsurf/rules/**/*.md`                                                                    | all packs (per-dir counts drift — count them live)                                                                                                              |
 | 7   | **Enforcement**       | `final_gate.py` + the checks in `enforcement/` (count live)                                               | Task completion + structural validation                                                                                                                                                                                |
 | 8   | **Dispatch**          | `kilo_dispatch.py` + kilo pipeline (15 scripts)                                              | Agent routing, model selection, benchmarks                                                                                                                                                                             |
@@ -115,11 +115,10 @@ Our planning agents ground against this file. Agent-execution contracts, rule pa
 | `docs/orchestrator/_retired/**` | tombstones of the retired chains (`*.RETIRED.md`) — reference only, never edited | ❌ No |
 | `docs/traycer/fabrik-workflow.md` | HISTORY — the retired Traycer layer's workflow prompt (D-102); reference only | ❌ No |
 | `CLAUDE.md` | Claude Code bootstrap | ❌ No |
-| `.windsurfrules` | Windsurf Cascade bootstrap | ❌ No |
-| `AGENTS-compact.md` | Kilo CLI bootstrap (via `opencode.json`) | ❌ No |
+| `.windsurfrules`, `AGENTS-compact.md`, `opencode.json` | RETIRED Windsurf/Kilo bootstraps — no longer synced (D-529); deleted once the scaffold stops copying them | ❌ No |
 | `.windsurf/rules/**` | Topic rule packs (shared; Cascade auto-loads via frontmatter, Claude Code and Kilo read on demand) | ❌ No |
 | `.windsurf/workflows/**` | Cascade slash-command workflows | ❌ No |
-| Per-project `CLAUDE.md`, `AGENTS-compact.md`, `project.yaml` | Project-scoped (out of Fabrik-monorepo scope) | ❌ No |
+| Per-project `CLAUDE.md`, `project.yaml` | Project-scoped (out of Fabrik-monorepo scope) | ❌ No |
 
 ## Owner & Working Style
 
@@ -395,7 +394,7 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 
 - `fabrik preplan new <slug>` — create `docs/preplans/<YYYY-MM-DD>-<slug>.md` from `templates/preplan/preplan.md.j2`. 9 sections: Idea / Project type / Shape preview / External deps / Domain / Success criteria / Out of scope / Open questions / Notes (VPS1 inventory reminders).
 - Refine the markdown with Opus / ChatGPT / Claude.
-- `fabrik scaffold <name> --from-preplan docs/preplans/<file>` — ingests the preplan: pre-fills `--type`, copies the preplan into `<project>/docs/preplan.md`, and **layers a `Preplan:` reference line into all 4 AI guardrail files** (`AGENTS.md`, `CLAUDE.md`, `AGENTS-compact.md`, `.windsurfrules`) so every downstream agent reads the same intent.
+- `fabrik scaffold <name> --from-preplan docs/preplans/<file>` — ingests the preplan: pre-fills `--type`, and copies the preplan into `<project>/docs/preplan.md`; the synced project `CLAUDE.md` tells every agent to read `docs/preplan.md` before planning when it exists. The scaffold still also layers a `Preplan:` line into the guardrail files until fleet's scaffold change (D-529) retires that injection — it never survived a sync anyway.
 - (HISTORY — Traycer is retired, D-102; the pre-plan read now lives in `/fabrik-vision`'s research discovery over `docs/preplans/`.) Traycer's Step 2.5 in `docs/traycer/fabrik-workflow.md` was the planning-side companion: when a fresh project is detected, look for a preplan in `docs/preplans/` BEFORE asking the user to declare anything from scratch.
 
 **Post-deploy lifecycle commands (T2-01 + T2-02 + T2-03 + T2-04):**
@@ -431,7 +430,7 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 | desktop-app | `templates/desktop-app/` | Electron | service | (none true; companion backend deploys, installer ships separately) |
 | static-site | `templates/static-site/` | Next.js / static HTML | static | is_public |
 
-> Each scaffold propagates `.windsurfrules`, `.windsurf/rules/` (with subdirectory structure: `core/`, `saas/`, `mobile-app/`, `chrome-ext/`, `desktop-app/`, `ai/` (all six registry subdirs)), and `.windsurf/workflows/` to generated projects automatically.
+> Each scaffold propagates `.windsurf/rules/` (with subdirectory structure: `core/`, `saas/`, `mobile-app/`, `chrome-ext/`, `desktop-app/`, `ai/` (all six registry subdirs)), and `.windsurf/workflows/` to generated projects automatically.
 > **Authoritative shape matrix:** `src/fabrik/spec_loader.py::Shape` docstring. Change it there, then run the full scaffold suite — divergence from `templates/<type>/defaults.yaml` is a failing test (`tests/test_spec_generator.py`).
 > **Registrar applicability matrix:** `src/fabrik/orchestrator/infrastructure.py` docstring + `resolve_applicability()`. Source of truth for which of (postgres / redis / gatus / backrest / glitchtip / grafana / authelia / meilisearch / prometheus) runs for a given `shape:` block.
 

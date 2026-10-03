@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:48.756182Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "dd3b84ddcca0715505d0d829244f1594e663b1e1",
   "id": "W-4f924816",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:3f43ced9eab5",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`_TASK_LEDGER_EXCL` misses the lowercase lessons file in 12 of 43 repos (routed from T04b)"
 }

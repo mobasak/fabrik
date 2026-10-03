@@ -282,6 +282,8 @@ external fact you cannot verify live, or a fabrik-lib capability you cannot conf
 `/fabrik-spec-review` ends at the **design approval gate** — a **human approves the hardened design** before any
 field-freeze / UI / plan work begins. Once the quiet closing round (§ Termination contract) earns `Status: CONVERGED`:
 
+{{include:design-critique}}
+
 - **Present, in this order:** (1) the **ask ↔ spec comparison table** — defined in `/fabrik-spec` Phase 6
   (hub ruling D-153): one row per item of the operator's brief in the operator's OWN WORDS · what the
   CONVERGED spec says (section + one line) · anchor · IN / CHANGED (how) / ADDED (why) / DROPPED (why), then

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T14:37:35.494322Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-42c10634",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-503",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "if a later edit to ai/25-3d-generation.md trips or slips a guard, replace that guard's substring/prefix match with a parsed structure (table cells, bullet labels) rather than another spelling; the battery at the review receipt lists the 31 regressions and 9 rewordings already proven",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "tests/test_3d_generation_pack.py guards are string matchers: further rewordings may slip past or false-fail (scope-growth stop of the D-503 review, 2026-10-02)"
+}

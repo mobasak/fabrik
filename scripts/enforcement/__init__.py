@@ -1,7 +1,8 @@
 # AFTER-EDIT: none
 """Fabrik Convention Enforcement Scripts.
 
-Shared validation layer called by Windsurf Cascade hooks and pre-commit checks.
+Shared validation layer called by scripts/final_gate.py (which the Claude Code Stop hook runs)
+and by pre-commit checks.
 
 Exit codes:
     0 = pass (all checks passed)

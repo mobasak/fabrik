@@ -8,9 +8,6 @@
 AGENTS.md
 agents-fabrik.md
 agents-fabrik-core.md
-AGENTS-compact.md
-opencode.json
-.windsurfrules
 CLAUDE.md
 .worktreeinclude
 .claude/settings.json
@@ -46,6 +43,7 @@ scripts/merge_request.py
 scripts/rivals_run.py
 scripts/whoami_agent.py
 scripts/command_run.py
+scripts/task_lane.py
 scripts/thread_anchor.py
 scripts/work.py
 scripts/check_research_ledger.py

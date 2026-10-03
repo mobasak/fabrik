@@ -12,7 +12,8 @@
 # telemetry, so this classifier would have FAILed every run). --probe-current emits the same
 # fields the classifier reads (slugs/source/age_s) on BOTH host shapes. Same log contract:
 #   KEEPALIVE_OK <iso8601>              — auth healthy (active account reports live quota windows)
-#   KEEPALIVE_FAIL:<reason> <iso8601>   — 401_auth | probe_error
+#   KEEPALIVE_FAIL:<reason> <iso8601>   — probe_error | no_active_account | probe_incomplete |
+#                                         stale_unproven  (401_auth was the retired ping's reason)
 # Single-run overwrite (matches the cron's `>` redirect). No token bytes / response content written.
 set -uo pipefail
 
@@ -28,14 +29,15 @@ OUT="$(timeout 40 "$PYTHON" "$DIR/claude_rotate.py" --probe-current --json 2>/de
 # Classify from the parsed payload: healthy iff the ACTIVE account reports a numeric five_hour
 # utilization (the token worked + the API answered); a failed/empty/broken probe → a FAIL reason.
 reason="$(printf '%s' "$OUT" | "$PYTHON" -c '
-import sys, json
+import sys, json, math
 try:
     d = json.load(sys.stdin)
 except Exception:
     print("probe_error"); raise SystemExit
 accts = d.get("accounts") or []
 active = d.get("active")
-row = next((a for a in accts if active in (a.get("slugs") or [])), accts[0] if accts else None)
+# no first-row fallback: a listing without the active slug must not report ANOTHER account healthy
+row = next((a for a in accts if active in (a.get("slugs") or [])), None)
 if not row:
     print("no_active_account"); raise SystemExit
 fh = row.get("five_hour") or {}
@@ -46,13 +48,15 @@ fh = row.get("five_hour") or {}
 # proactive-check keeps the cache minutes old; a dead account stops both the live probe AND the
 # cache refreshing, so age grows past the bound and we flag it). Preserves the retired ping`s
 # liveness guarantee without burning a completion.
-util_ok = isinstance(fh.get("utilization"), (int, float))
+def _num(v):  # bool is an int subclass, and json.load parses a bare NaN: neither is a reading
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+util_ok = _num(fh.get("utilization"))
 source = row.get("source")
 age = row.get("age_s")
 FRESH_S = 7200  # 2h — generous vs the 5-min status tick; a dead-token cache ages past this same-day
 if not util_ok:
     print("probe_incomplete")
-elif source == "live" or (isinstance(age, (int, float)) and age <= FRESH_S):
+elif source == "live" or (_num(age) and 0 <= age <= FRESH_S):
     print("")
 else:
     print("stale_unproven")

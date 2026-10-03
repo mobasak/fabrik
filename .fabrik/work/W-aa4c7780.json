@@ -12,9 +12,9 @@
     "spec": ""
   },
   "next": "**[infra] The `/fabrik-task` close event and its ledger row can disagree about the two lane fields (2026-09-18)** — `scripts/command_run.py:4409-4412` comments that the fields are \"mirrored from the row so the event stream carries what the ledger carries — a close the two disagree about is a disagreement nothing downstream can ever repair\". But the EVENT spread is unconditional while the ROW is gated on `_usage_is_required(rec)`: for a record whose `started_at` predates `_USAGE_REQUIRED_FROM`, the event carries `oversized_mini`/`upgrade` and no row exists at all. T01b's acceptance review could not REACH this (the feedback gate refuses first) and filed it as PLAUSIBLE — so the first task is to establish whether it is reachable at all before changing anything. Low.",
-  "note": "migrated-digest:030168db1a63",
+  "note": "unreachable, verified 2026-10-03: start writes started_at=_now() (scripts/command_run.py:4372) and /fabrik-task first existed 2026-09-18 (883ecef7f), after _USAGE_REQUIRED_FROM 2026-09-07 (:1499), so every /fabrik-task record is post-cutoff and the ledger row is always written beside the event; only a hand-forged record could diverge (catch-up wave 1 coder: not reproduced)",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "**The `/fabrik-task` close event and its ledger row can disagree about the two lane fields (2026-09-18)** — `scripts/command_run.py:4409-4412` comments that the fields are \"mirrored from the row so..."
 }

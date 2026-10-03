@@ -1,0 +1,26 @@
+{
+  "block_digest": "6964de7bb281924cc703ad33677b054b53766b91971fe5bb2d2695a4eaf51860",
+  "blocked_by": [],
+  "created": "2026-10-03T15:12:52.529823Z",
+  "creator": "intel",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-37c88300",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "D-532",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "23595938cf1a1c47ba4781d1f2db5e6cf308b76ddff3cd9656cda714d30b63b5"
+  ],
+  "next": "",
+  "note": "volkan is on the computer now, fix his task command now.",
+  "owner": "",
+  "priority": 2,
+  "question": "Should I send Volkan's Mac session a change request now, with the three speed fixes plus the W-2c5fe008 lane-v2 update?",
+  "status": "done",
+  "title": "Should I send Volkan's Mac session a change request now, with the three speed fixes plus the W-2c5fe008 lane-v2 update?"
+}

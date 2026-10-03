@@ -99,6 +99,8 @@ verbs:
 | `init [--distributor <agent>]` | once per repo | create `.fabrik/work/` and `config.json`; nothing else writes an item into a repo without it |
 | `add --kind {backlog,decision,feedback,mail,next,task} --title <t> [--next <t>] [--link key=value] [--priority 0-3] [--tag <t>]…` | anyone | create an item; `--kind decision`, `--kind mail`, `--kind feedback` and `--kind next` are all refused — each comes only from its own mechanism (an accepted DECISION block, a mail claim, taking a feedback queue, the Stop harvest's NEXT rules), never from `add` |
 | `assign <id> [--owner <agent>] [--priority 0-3] [--tag <t>]… [--untag <t>]…` | distributor | set owner, priority and/or tags |
+| `queue [--json] [--stop --session <id> --cwd <path>]` | anyone, read-only | each window's queued work against the floor, routable and waiting-backlog counts, plans not executed; `--stop` prints the Stop hook's one action (§ Ownership and the distributor) |
+| `triage [--apply]` | distributor (`--apply`) | plan the top-up of every present worker below the floor; `--apply` assigns it and prints the SendMessage lines |
 | `ready [--mine] [--all]` | worker | spec D4's crisp default: the obligation lines (§ The view), this session's claims, items this agent owns, awaiting items, then the top 10 remaining ready items (and how many more `--all` would show); `--mine` puts the caller's own first among those remaining, then unassigned ones; `--all` is the OLD default — every `open`, unblocked, unclaimed item by priority then age |
 | `next` | worker | the first item `ready --all --mine` would list — `_ready_items(mine=True)`'s ordering (open, unblocked, no live claim; this agent's own first, then unassigned; never an item owned by someone else), NOT the crisp `ready` default above |
 | `claim <id> [--session <s>]` | worker | take (or renew) the live claim; refused when another session holds a live claim, or the item is `blocked`/has an unresolved `blocked_by` |
@@ -135,10 +137,20 @@ omitted. It is the **same agent** as the merge owner in every repo — the one a
 checkout (D-471): the merge owner integrates branches into the base branch (§ Merge protocol there)
 and, as distributor, sets item owners and priorities (`work.py assign`) so a worker's `ready --mine`
 and a claim never collide over who should be doing what. Never pass `--distributor` naming anyone
-else; in the hub that agent is infra (D-471 superseded D-395's intel). Assigning is not
-the default way work moves: an idle worker claims from `ready` itself, and the distributor assigns
-the items self-service would get wrong (tagged for a serialising act, or a queue not yet triaged) —
-`docs/reference/multi-agent-operating-model.md` § Claim or assign.
+else; in the hub that agent is infra (D-471 superseded D-395's intel). Since D-521 (operator
+ruling D-512: "no agent waits idle if there is work to be done") the distributor keeps every PRESENT
+worker — a registered `.claude/worktrees/<name>` with a live `claude` process — at the floor (3,
+`queue_floor` in `config.json`) of QUEUED work: an owned `task`, or owned backlog promoted with the
+`queued` tag (backlog is a list, not an order). `work.py queue` shows each window against the floor,
+the routable and waiting-backlog counts and the plans not yet executed; `work.py triage` plans the
+top-up (it prints each item's tags — the coordinator judges role fit) and `--apply` assigns it, never
+promoting, dropping or creating anything; items tagged `runtime`, `hold` or `waits-*` are never
+assigned automatically. The Stop hook enforces both sides through `work.py queue --stop`: a window
+with queued work and no claim is told to claim it, a worker whose queue is empty rings the
+coordinator, the distributor is told to triage while a present worker sits below the floor and
+work waits (routable or backlog items, or its own queue above the floor), and a
+one-window repo (or one with no distributor) is its own coordinator. Self-service claiming from
+`ready` stays the fallback — `docs/reference/multi-agent-operating-model.md` § Claim or assign.
 
 ## NEXT, DECISION blocks and the register
 

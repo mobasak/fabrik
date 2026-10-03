@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -1658,6 +1659,82 @@ def _main_checkout_git(root: Path) -> tuple[Path, Path] | None:
         if dot.exists():
             return None
     return None
+
+
+# EIGHTH cause — coordinator assignment (W-83021827, D-521): `work.py queue --stop` decides ONE action
+# (claim · doorbell · triage · self) for this session, and this hook only acts on it. Its attempts
+# live in their OWN file keyed by a fingerprint (the action plus a count bucket, never item ids), so
+# the 7-slot counter is untouched and a churning queue does not re-arm it; after CAP blocks the cause
+# warns through ONCE and stays silent for that fingerprint until the queue changes, and a null action
+# clears the file. Silent under a running record, an accepted DECISION block, a formatted BLOCKED:
+# ending, a RED/WALL quota band (a missing or stale posture reads as GREEN — the posture hook's own
+# fail-open charter), and on any failure of the call. COBRA (D-253): the cheapest way past is to keep
+# the fingerprint — every block and warn-through is a kaizen `stop_block cause=coordinator` event.
+_COORD_ARGV: tuple[str, ...] | None = None  # None → this repo's own scripts/work.py
+_COORD_QUIET_BANDS = frozenset({"RED", "WALL"})
+_POSTURE_HOOK = Path("/opt/fabrik/scripts/sysadmin/quota_posture_hook.py")
+
+
+def _coord_state_path(sid: str) -> Path:
+    return Path(tempfile.gettempdir()) / f"fabrik-coord-{_safe_sid(sid)}.json"
+
+
+def _coord_band(transcript: str) -> str | None:
+    """This session's quota band from the posture the QUOTA: line reads; None when unreadable."""
+    try:
+        spec = importlib.util.spec_from_file_location("_fgs_posture", _POSTURE_HOOK)
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        posture, _why = mod._load_posture(time.time())
+        if not posture:
+            return None
+        band, _fable = mod._band_for_session(posture, transcript)
+        return str(band) if band else None
+    except Exception:
+        return None
+
+
+def _coordinator_duty(root: Path, sid: str, cwd: Path) -> tuple[str, str] | None:
+    """(block reason, warn line) when this Stop must be refused or warned through; None to pass."""
+    argv = _COORD_ARGV or (sys.executable, str(root / "scripts" / "work.py"))
+    if _COORD_ARGV is None and not Path(argv[1]).is_file():
+        return None
+    line = _resolve_line(
+        (*argv, "queue", "--stop", "--session", sid, "--cwd", str(cwd)),
+        root,
+        {**os.environ, "CLAUDE_CODE_SESSION_ID": sid},  # as `_merge_owner_duty`: THIS session
+    )
+    try:
+        result = json.loads(line) if line else None
+    except ValueError:
+        result = None
+    state_path = _coord_state_path(sid)
+    if not isinstance(result, dict) or not result.get("action"):
+        state_path.unlink(missing_ok=True)
+        return None
+    fp = str(result.get("fp") or result.get("action"))
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        state = {}
+    try:
+        att = int(state.get("att", 0)) if isinstance(state, dict) and state.get("fp") == fp else 0
+    except (TypeError, ValueError):
+        att = 0  # a corrupt state file restarts the count, never crashes the Stop
+    if att > CAP:
+        return None
+    att += 1
+    state_path.write_text(json.dumps({"fp": fp, "att": att}), encoding="utf-8")
+    text = str(result.get("text") or "")
+    if att > CAP:
+        return (
+            "",
+            f"Work still waits for this window after {CAP} blocked stops — stopping "
+            f"anyway: {text}\n",
+        )
+    return (f"WORK WAITING — {result['action']} (attempt {att}/{CAP}). {text}", "")
 
 
 def _merge_owner_duty(root: Path, sid: str) -> str | None:
@@ -3582,6 +3659,23 @@ def main(argv: list[str]) -> int:
                     counter.unlink(missing_ok=True)
                 else:
                     counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att},{m_att}")
+                # EIGHTH cause — coordinator assignment (see `_coordinator_duty`). After the
+                # counter write, so the 7-slot record behaves exactly as before.
+                if not run_active and not decision_ground and not _blocked_header(lam or ""):
+                    if (_coord_band(transcript_p) or "") not in _COORD_QUIET_BANDS:
+                        duty = _coordinator_duty(root, sid, Path(data.get("cwd") or root))
+                        if duty and duty[0]:
+                            _kaizen("stop_block", ev_sid, cause="coordinator", outcome="blocked")
+                            sys.stdout.write(
+                                json.dumps({"decision": "block", "reason": duty[0]}) + "\n"
+                            )
+                            return 0
+                        if duty and duty[1]:
+                            sys.stderr.write(duty[1])
+                            warned.append("coordinator")
+                            _kaizen(
+                                "stop_block", ev_sid, cause="coordinator", outcome="warned_through"
+                            )
                 # The ONE pass-through: every enforcement cause declined to block, so
                 # this Stop really ends the turn.
                 _store_decision(_ta, sid, judged, _repo)

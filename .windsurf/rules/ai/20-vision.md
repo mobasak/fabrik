@@ -1,44 +1,100 @@
 ---
 activation: glob
 globs: ["**/vision/**", "**/image/**", "**/images/**", "**/imagegen/**", "**/img/**", "**/ocr/**", "**/video-gen/**"]
-description: Vision AI (category 2) — image gen (Recraft v4.1 for branded/recurring-style/vector, FLUX-schnell for bulk illustration, FLUX/BFL for photoreal, Replicate as host/fallback), video gen, object/scene recognition, OCR, face/pose. Kilo: 70 vision models.
+description: Vision AI (category 2) — image understanding on Claude through `claude -p` on the subscription first; image generation with Recraft (branded, vector, its Flash tier for bulk) and FLUX (photoreal), Replicate or fal as host; dedicated models for pixel boxes, pose, real time and bulk document OCR; licence traps named.
 trigger: glob
+currency_pass: 2026-10-02
 ---
-<!-- CONSUMER: Coding agents building image/vision features + Traycer (tech-plan)
-     GOAL: Recraft for branded/recurring-style; FLUX-schnell for bulk/one-off illustration; FLUX for photoreal. Don't reach for Midjourney/DALL·E by default.
-     TRAYCER USAGE: Context File for image/vision tickets.
-     AGENT USAGE: Branded/recurring-style/vector → Recraft v4.1. Bulk/one-off illustration → FLUX-schnell. Photoreal → FLUX (BFL_API_KEY). Replicate = model host/fallback. Document choice in project.yaml. -->
+<!-- CONSUMER: Coding agents building image understanding, image generation, OCR or detection features.
+     GOAL: Understanding goes to Claude first; generation goes to Recraft or FLUX; a dedicated model only where Claude's own
+     documented limits bite. No weights with a non-commercial licence as a default.
+     AGENT USAGE: Can Claude do it? → `claude -p` through llm-dispatch. Generating? → Recraft (branded/vector, Flash tier for
+     bulk) or FLUX (photoreal). Boxes, pose, real time, bulk OCR → § Subcategories. Model choice across categories is
+     ai/00-ai-model-selection.md; record a project's choice and the rejected alternative in project.yaml (`ai_category`,
+     `ai_subcategory`, `ai_tools`), as ai/00's selection workflow says. -->
 
 # 2. Vision AI
 
-Last content verification: 2026-09-07
+Last content verification: 2026-10-02
 
-**Purpose:** Interpret or generate images/video.
+**Purpose:** Interpret or generate images and video.
 
 ## Fabrik defaults
-- **Branded / recurring-style / vector → Recraft v4.1** — logos, brand identity, mascots,
-  themed sets where style consistency across images matters, or SVG scalability is needed
-  (~$0.04/img; the style-id premium only pays off when images must look like a family).
-- **Bulk / low-personality illustration → FLUX-schnell (BFL/Replicate)** — vocabulary cards,
-  icons, one-off concrete-noun art (apple, tree, canteen) where per-image style variation is
-  irrelevant or even helpful. ~$0.003/img, ~10× cheaper. DO NOT default bulk illustration to
-  Recraft just because it's "illustration" — weigh count + style-consistency need first.
-- **Photoreal → FLUX (BFL)** — FLUX.1 / FLUX.2, owned `BFL_API_KEY`.
-- **Model host / fallback → Replicate.**
+
+- **Image understanding → Claude through `claude -p`** on the Max subscription (ai/00-ai-model-selection.md § Claude
+  subscription first): describe, classify, tag, read a screenshot or a chart, pull the text out of one hard image. Call it
+  through fabrik-lib's `llm-dispatch` — `run_agentic(prompt, tools=("Read",), max_turns=4, add_dirs=(<image dir>,),
+  model="haiku")`. The CLI has no image flag; Claude reads the file with its Read tool, headless included. Give the file
+  the extension of its real format (the Read tool takes the type from the extension), and ask for something only the
+  image contains, so that a blind answer shows up as a failure. Start at `haiku` and escalate on measured failure per
+  ai/00's dispatch ladder — except dense screenshots and small text, which need a high-resolution model (`sonnet` or
+  above; `haiku` reads at the standard resolution): crop to the region that matters rather than downscaling. It reads
+  JPEG, PNG, WebP and GIF (first frame only). Every image draws visual tokens from the subscription quota, and past 20
+  images in one run — earlier Read results count — every image must be 2000 px or less a side or the request is
+  rejected. Visual question answering, captioning and document understanding are ai/40-multimodal.md, which starts
+  that work on this same ladder and routes the video and audio Claude cannot read.
+- **When a dedicated model beats Claude.** Anthropic's vision docs say Claude's coordinates and counts are approximate,
+  that it errs on very small, rotated or low-quality images, will not name people, cannot tell an AI-generated image,
+  and is not for medical scans. So pixel-exact boxes, counting many small objects, real-time video frames, on-device
+  inference and face or pose landmarks go to a dedicated model, and bulk document OCR to a dedicated parser
+  (§ Subcategories).
+- **Image generation.** Claude does not generate images.
+  - **Branded / recurring-style / vector → Recraft** (its current model): native SVG output and brand styles held by a
+    style id, for logos, mascots and sets that must look like a family. About $0.035 a raster image, $0.08 a vector.
+  - **Bulk / low-personality illustration → Recraft's Flash tier** (about $0.007 an image) — vocabulary cards, icons,
+    one-off concrete nouns; weigh the count and the need for a shared style before reaching for Recraft's full model.
+    FLUX's small klein model (from about $0.014) when you need open weights you can self-host: they are Apache-licensed.
+  - **Photoreal → FLUX (Black Forest Labs)**, its pro tier (from about $0.03 a megapixel), through Replicate or fal.
+  - **Host / fallback → Replicate**, or fal when it is cheaper for that model or the only host. The hub's vendor-access
+    catalog (`/opt/fabrik/docs/reference/kilo/AI_VENDOR_ACCESS.md`) does not recommend a direct BFL route, and Recraft's
+    direct key has had little or no credit, so call Recraft through fal or Replicate until the key is funded.
+
+**Licence trap — open weights are not commercial weights.** FLUX's larger klein model, its dev weights and its Kontext
+dev weights carry the FLUX Non-Commercial License. Ultralytics YOLO is AGPL-3.0 for its code and every model trained with
+it: closed-source commercial use, internal R&D included, needs its paid Enterprise License. OpenPose is licensed for
+noncommercial research only. Surya's weights need a paid licence above $5M funding or revenue. None of them is a Fabrik
+default. Adopting one takes its owner's commercial licence — open-sourcing the whole product cures only the AGPL case.
 
 ## Subcategories
 
-⚠️ **A vendor NAMED here is not a vendor we can CALL.** These lists say what exists in each lane; `/opt/fabrik/docs/reference/ai-media-generation-provider-map.md` says what is reachable with keys the fleet holds, and the two drift apart silently — a name here with no key is a dead end that reads like a recommendation. Check the reach map before designing around any vendor below.
-- **Image Generation:** Recraft (v4.1), FLUX (BFL), Replicate (host/fallback), Midjourney, DALL·E, Stable Diffusion
-- **Video Generation:** see `/opt/fabrik/docs/reference/ai-media-generation-provider-map.md` § VIDEO — generation for what is actually REACHABLE with keys we hold — the reach map is the ONLY list of live routes, and this pack deliberately does not copy it (a copy is exactly the drift the warning above describes). Read the map for the live routes and their aggregators; do not carry a count or a vendor list from it into this line — at the 2026-09-05 fix, **Runway and Synthesia were add-key (not callable)** and Pika aggregator-only, which is the drift this bullet had shipped for months. This line previously named exactly those three and nothing else, so the pack's entire video guidance pointed at three dead ends while omitting eleven live routes (iterative_image_editor, `01M1KN5NAXBJW7PD7A01F2NPB4`).
-- **3D / mesh generation:** see `25-3d-generation.md` — zero-edit asset pipeline (Meshy / Tripo / Rodin / TRELLIS 2)
-- **Object/Scene Recognition:** YOLOv8, Detectron2, Google Vision API
-- **OCR (text from images):** Tesseract, AWS Textract
-- **Face/Pose Estimation:** MediaPipe, OpenPose
+⚠️ **A vendor NAMED here is not a vendor we can CALL.** These lists say what exists in each lane;
+`/opt/fabrik/docs/reference/kilo/AI_VENDOR_ACCESS.md` (ai/00's source of truth for callable vendors) and the reach map
+`/opt/fabrik/docs/reference/ai-media-generation-provider-map.md` say what the fleet can call. Check them before designing
+around any vendor below.
+- **Image generation:** Recraft; FLUX (Black Forest Labs); Replicate and fal as hosts; OpenAI GPT Image; Ideogram for
+  text rendered inside the image (through fal or Replicate); Stable Diffusion (Stability's Community License: free
+  commercial use below USD 1M annual revenue). Midjourney has no public API and its terms forbid automated access, so
+  it is not callable.
+- **Video generation:** the reach map's § VIDEO is the only list of live routes; this pack does not copy it, because a
+  copy drifts — read the map, and carry no vendor list or count from it into a design.
+- **3D / mesh generation:** see `25-3d-generation.md`.
+- **Image understanding** (describe, classify, tag, read screenshots and charts): Claude through `claude -p`, as above.
+- **Object detection** (boxes, counts, real time): on-device or real-time detection of everyday objects → MediaPipe's
+  Object Detector (Apache-2.0; still images, video and live streams; its default models know the 80 COCO classes).
+  Custom classes with pixel-exact boxes have no commercially clean default here: Ultralytics YOLO needs its paid licence
+  for closed use, and Google Cloud Vision needs a Google Cloud project the vendor-access catalog lists as not set up —
+  choose one deliberately and record why.
+- **OCR (text from images):**
+  - **A few hard pages or a short PDF → Claude** reads them directly; the Read tool takes PDFs too, in ranges of up to
+    20 pages.
+  - **A scanned batch → Tesseract** (Apache-2.0) behind fabrik-lib's `ocr/`, which preprocesses bad scans and retries
+    before paying. Its paid fallback is an injectable `vision_fn` that receives PNG bytes: write them to a `.png` in a
+    temp directory and call Claude through `llm-dispatch` on it, rather than the module's metered OpenRouter default.
+  - **Layout-heavy documents at volume (tables, columns) → PaddleOCR** (Apache-2.0, ships a document vision-language
+    parser). Small dedicated parsers lead the OmniDocBench document-OCR leaderboard over general vision models, and no
+    Claude model is listed there — so bulk document OCR goes to a parser, and Claude takes the hard pages and the meaning.
+  - **Managed → Google Cloud Vision or AWS Textract**, about $1.50 per 1,000 pages for plain text; Textract's tables and
+    forms cost more per page. Neither is set up today: the vendor-access catalog lists the Google Cloud project as not
+    set up and has no AWS row, so a managed OCR route starts with an account and is recorded as a choice.
+- **Face / pose estimation:** MediaPipe (Apache-2.0, on-device, maintained under Google AI Edge). OpenPose is
+  noncommercial only.
 
 ## Gateway coverage
 
-Either gateway is fine — pick the cheaper rate per model from the bake-off browser. **Note:** these are vision *understanding* models. For image *generation*, use Recraft (branded/vector) or FLUX/BFL (photoreal) directly — not a gateway LLM.
+Image understanding runs on Claude through `claude -p`, not a metered gateway (ai/00). A metered vision model through
+OpenRouter is the fallback only when Claude measurably falls short or a call cannot use the subscription; the counts
+below inventory that fallback. Image generation is not gateway-routed: call Recraft and FLUX directly or through
+Replicate or fal.
 
 <!-- GATEWAY_COUNTS:START — last-refreshed: 2026-09-07 (auto-managed by update_gateway_counts.py) -->
 *Live gateway counts (active models, 2026-09-07 UTC; auto-refreshed from `kilo_agents.db`):*

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T08:06:18.211111Z",
+  "creator": "infra",
+  "evidence": "6e29a8f350c8443e4df59be45e8267f7bc970c66",
+  "id": "W-d7b0d34f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "blank the shared closing-pass and term-edit fragment sentences (like _BOILERPLATE), add 'partition' to _DISPATCH_RE and a 'slice' unit, then pin fabrik-review (slice) and plan-review (ticket) in test_the_seat_rule_reads_the_real_corpus_correctly; also decide whether a fixed floor ('floor is 3 readers') shows beside units, and render the corpus into tmp_path instead of reading $HOME/.claude/commands",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "done",
+  "tags": [
+    "dashboard"
+  ],
+  "title": "Quota dashboard seat-rule parser reads shared-fragment text as a command's own rule: /fabrik-review's per-SLICE rule and /fabrik-plan-review's per-TICKET rule are invisible ('slice' and the term-edit 'a Sonnet seat per unit' sentence sit in fragments 17-22 commands include)"
+}

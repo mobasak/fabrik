@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T06:52:38.724089Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-477e37cd",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-514",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after fleet retires AGENTS-compact.md from the scaffold (mail 01M407YPAS6D), fix those lines and widen the pathspec to root *.md with CHANGELOG.md in SKIP_EXACT",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "docs"
+  ],
+  "title": "check_retired_terms.py covers docs/ + README.md only; root INDEX.md (8 WARNs incl. :29-30 'Kilo CLI bootstrap config', :168) and AGENTS-compact.md (2) still frame Kilo as live"
+}

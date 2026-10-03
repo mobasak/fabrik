@@ -8091,3 +8091,396 @@ def test_the_promise_reader_and_the_tier_reader_agree_on_which_bytes_are_line_on
         os.utime(s, (FLEET_NOW, FLEET_NOW))
         assert cr._promised_resume(s) == float(far), f"pre-tier {body!r} must still promise"
         assert cr._stamp_tier(s) == "walled", f"pre-tier {body!r} must still hold"
+
+
+def test_a_ledger_row_that_cannot_be_written_is_reported_not_dropped(tmp_path, monkeypatch, capsys):
+    """W-16ebba0a: on 2026-09-29 the active pointer moved sarp -> mob with no flip row. The only
+    pointer writer, `_flip_active`, writes the pointer FIRST and the ledger row SECOND, and a failed
+    append was swallowed in silence — the one record of a fleet-wide account change gone, no trace.
+    A row that cannot be written must say so on stderr (the cron tick sends 2>&1 to its log)."""
+    not_a_dir = tmp_path / "state-is-a-file"
+    not_a_dir.write_text("", encoding="utf-8")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(not_a_dir))
+    fallback = tmp_path / "fallback.jsonl"
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(fallback))
+    cr._ledger_append({"event": "flip", "ts": 1.0, "from": "sarp", "to": "mob"})
+    err = capsys.readouterr().err
+    assert "rotate ledger" in err and '"to": "mob"' in err, err
+    # durable whoever owns stderr: the dashboard's --switch captures stderr and drops it on rc 0
+    assert '"to": "mob"' in fallback.read_text(encoding="utf-8")
+
+
+def test_a_closed_stderr_never_makes_the_ledger_raise(tmp_path, monkeypatch):
+    """The report path must not raise either: a flip has already moved the pointer when its row is
+    written, and an escape here skips the posture invalidation and crashes --switch at rc 1."""
+    not_a_dir = tmp_path / "state-is-a-file"
+    not_a_dir.write_text("", encoding="utf-8")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(not_a_dir))
+    fallback = tmp_path / "fallback.jsonl"
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(fallback))
+    monkeypatch.setattr(cr.sys, "stderr", None)
+    cr._ledger_append({"event": "flip", "to": "mob"})
+    assert '"to": "mob"' in fallback.read_text(encoding="utf-8")
+
+
+def test_a_row_json_cannot_encode_is_still_reported_and_never_raises(tmp_path, monkeypatch, capsys):
+    """The report path must not itself raise: an event json rejects (ValueError, inside the caught
+    set) used to escape the except branch, breaking `_ledger_append`'s never-raises contract."""
+    not_a_dir = tmp_path / "state-is-a-file"
+    not_a_dir.write_text("", encoding="utf-8")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(not_a_dir))
+    event: dict = {"event": "flip", "to": "mob"}
+    event["self"] = event  # circular — json.dumps raises ValueError
+    cr._ledger_append(event)
+    assert "rotate ledger write failed" in capsys.readouterr().err
+
+
+def test_an_unencodable_row_on_a_healthy_ledger_is_written_not_raised(tmp_path, monkeypatch):
+    """A `set` in an event made the FIRST json.dumps raise TypeError, which no except caught — on a
+    perfectly writable ledger. The row is written in a degraded but readable form instead."""
+    state = tmp_path / "state"
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    cr._ledger_append({"event": "flip", "ts": 5.0, "to": "mob", "odd": {1, 2}})
+    row = json.loads((state / "rotate-ledger.jsonl").read_text(encoding="utf-8"))
+    # the dwell readers filter on `event`: a degraded flip row that lost it never started the clock
+    assert row["event"] == "flip" and row["ts"] == 5.0 and "unencodable_event" in row, row
+
+
+class _BadRepr:
+    def __repr__(self) -> str:
+        raise RuntimeError("no repr")
+
+
+def test_an_event_whose_repr_raises_or_nests_too_deep_never_raises(tmp_path, monkeypatch):
+    """RecursionError and a raising __repr__ escaped the (TypeError, ValueError) guard."""
+    state = tmp_path / "state"
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    deep: list = []
+    for _ in range(100_000):
+        deep = [deep]
+    cr._ledger_append({"event": "flip", "odd": _BadRepr()})
+    cr._ledger_append({"event": "flip", "odd": deep})
+    rows = (state / "rotate-ledger.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(rows) == 2 and all(json.loads(r)["event"] == "flip" for r in rows), rows
+
+
+def test_the_fallback_file_follows_no_symlink_and_is_private(tmp_path, monkeypatch):
+    """The default fallback sits in a shared temp dir: a planted link must not redirect the row,
+    and the file (account emails ride in rows) must not be world-readable."""
+    not_a_dir = tmp_path / "state-is-a-file"
+    not_a_dir.write_text("", encoding="utf-8")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(not_a_dir))
+    victim = tmp_path / "victim"
+    victim.write_text("", encoding="utf-8")
+    link = tmp_path / "fallback.jsonl"
+    link.symlink_to(victim)
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(link))
+    cr._ledger_append({"event": "flip", "to": "mob"})
+    assert victim.read_text(encoding="utf-8") == "", "the planted link was followed"
+    fresh = tmp_path / "fresh.jsonl"
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(fresh))
+    cr._ledger_append({"event": "flip", "to": "mob"})
+    assert fresh.stat().st_mode & 0o777 == 0o600
+    old = tmp_path / "old.jsonl"  # created 0644 by the release before this one
+    old.write_text("", encoding="utf-8")
+    old.chmod(0o644)
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(old))
+    cr._ledger_append({"event": "flip", "to": "mob"})
+    assert old.stat().st_mode & 0o777 == 0o600 and '"to": "mob"' in old.read_text(encoding="utf-8")
+
+
+def test_a_degraded_row_whose_fields_cannot_be_read_never_raises(tmp_path, monkeypatch):
+    """An int ts too large for a float made math.isfinite raise inside `_degraded_row`."""
+    state = tmp_path / "state"
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    cr._ledger_append({"event": "flip", "ts": 10**400, "odd": {1}})
+    row = json.loads((state / "rotate-ledger.jsonl").read_text(encoding="utf-8"))
+    assert row.get("event") == "flip" and "ts" not in row, row  # one bad field keeps the other
+
+
+def test_a_fifo_at_the_fallback_path_never_hangs_the_append(tmp_path, monkeypatch):
+    """W-87791bfe: os.open without O_NONBLOCK blocks forever on a FIFO with no reader, wedging the
+    tick in the very path that reports a failed ledger write."""
+    import threading
+
+    not_a_dir = tmp_path / "state-is-a-file"
+    not_a_dir.write_text("", encoding="utf-8")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(not_a_dir))
+    fifo = tmp_path / "fallback.jsonl"
+    os.mkfifo(fifo)
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(fifo))
+    t = threading.Thread(
+        target=cr._ledger_append, args=({"event": "flip", "to": "mob"},), daemon=True
+    )
+    t.start()
+    t.join(5)
+    assert not t.is_alive(), "the fallback open blocked on a FIFO"
+
+
+def test_a_fifo_ledger_never_hangs_and_its_row_is_kept(tmp_path, monkeypatch, capsys):
+    """W-87791bfe review: the ledger open and the torn-line read blocked forever on a FIFO with no
+    reader; a FIFO with one is not a ledger either. Both now refuse at once, and the row is kept."""
+    import threading
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    fallback = tmp_path / "fb.jsonl"
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(fallback))
+    os.mkfifo(state / "rotate-ledger.jsonl")
+    t = threading.Thread(
+        target=cr._ledger_append, args=({"event": "flip", "to": "mob"},), daemon=True
+    )
+    t.start()
+    t.join(5)
+    assert not t.is_alive(), "the ledger open blocked on a FIFO"
+    reader = os.open(state / "rotate-ledger.jsonl", os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        cr._ledger_append({"event": "flip", "to": "ob"})
+        assert '"to": "ob"' in fallback.read_text(encoding="utf-8"), (
+            "a FIFO with a reader took the row"
+        )
+    finally:
+        os.close(reader)
+
+
+def test_a_fallback_fifo_with_a_reader_is_refused_not_trusted(tmp_path, monkeypatch, capsys):
+    """The S_ISREG refusal: with a reader attached, O_NONBLOCK opens the FIFO, and the row must not
+    vanish into it while the message claims it was kept."""
+    not_a_dir = tmp_path / "state-is-a-file"
+    not_a_dir.write_text("", encoding="utf-8")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(not_a_dir))
+    fifo = tmp_path / "fallback.jsonl"
+    os.mkfifo(fifo)
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(fifo))
+    reader = os.open(fifo, os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        cr._ledger_append({"event": "flip", "to": "mob"})
+        assert "the fallback file failed too" in capsys.readouterr().err
+        try:
+            got = os.read(reader, 4096)
+        except BlockingIOError:
+            got = b""
+        assert got == b"", got
+    finally:
+        os.close(reader)
+
+
+def test_the_torn_line_read_never_blocks_on_a_fifo(tmp_path):
+    """W-87791bfe closing review: `_ledger_torn` reopened the ledger by PATH in blocking mode, so a
+    FIFO swapped in after the write fd's regular-file check wedged the tick. The read is checked
+    on its own fd and never blocks."""
+    import threading
+
+    fifo = tmp_path / "rotate-ledger.jsonl"
+    os.mkfifo(fifo)
+    out: list = []
+    t = threading.Thread(target=lambda: out.append(cr._ledger_torn(fifo)), daemon=True)
+    t.start()
+    t.join(5)
+    assert not t.is_alive(), "the torn-line read blocked on a FIFO"
+    assert out == [False], out
+
+
+def test_a_trim_racing_an_append_never_loses_a_row(tmp_path, monkeypatch):
+    """W-b5ba0c37: `_ledger_rotate` read the ledger, then truncated and rewrote it, with no lock, so a
+    row another process appended in between was erased in silence: a pointer moved with no flip
+    row. A trim may drop only the OLDEST rows, so the surviving sequence numbers must form one
+    unbroken run ending at the last row written. A gap is a lost row."""
+    import subprocess as _sp
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(tmp_path / "fb.jsonl"))
+    rows = 400
+    child = tmp_path / "appender.py"
+    child.write_text(
+        "import importlib.util, sys\n"
+        "spec = importlib.util.spec_from_file_location('c', sys.argv[1])\n"
+        "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+        "for i in range(int(sys.argv[2])):\n"
+        "    m._ledger_append({'event': 'race', 'n': i, 'pad': 'x' * 400})\n"
+    )
+    proc = _sp.Popen(
+        [
+            sys.executable,
+            str(child),
+            str(REPO / "scripts" / "sysadmin" / "claude_rotate.py"),
+            str(rows),
+        ]
+    )
+    gaps: list = []
+    empties = 0
+    held_rows = False
+    try:
+        while proc.poll() is None:
+            cr._ledger_rotate(cap_bytes=20_000)
+            # every loop, not only the final file: a row erased by an early trim is later
+            # trimmed away legitimately, and a final-file check alone never sees it
+            led = state / "rotate-ledger.jsonl"
+            if not led.exists():
+                continue  # the child has not written its first row yet
+            text = led.read_text(encoding="utf-8")
+            # once the ledger has held rows, a reader must never see it empty again: that would
+            # be a trim truncating before it writes (the first O_CREAT is legitimately empty)
+            empties += held_rows and not text
+            held_rows = held_rows or bool(text)
+            seen = []
+            for ln in text.splitlines():
+                try:  # unlocked, like every production reader: a row mid-write is skipped
+                    seen.append(json.loads(ln)["n"])
+                except ValueError:
+                    continue
+            if seen and seen != list(range(seen[0], seen[-1] + 1)):
+                gaps.append(sorted(set(range(seen[0], seen[-1] + 1)) - set(seen))[:5])
+    finally:
+        proc.wait(timeout=60)
+    assert proc.returncode == 0
+    assert not gaps, f"rows erased mid-race: {gaps[:5]}"
+    assert empties == 0, f"a reader saw an empty ledger {empties} time(s)"
+    got = [
+        json.loads(ln)["n"]
+        for ln in (state / "rotate-ledger.jsonl").read_text(encoding="utf-8").splitlines()
+        if ln.strip()
+    ]
+    assert got and got[-1] == rows - 1, got[-5:]
+    assert got[0] > 0, "no trim ever ran: the race was never exercised"
+    assert got == list(range(got[0], rows)), (
+        f"rows lost mid-ledger: {sorted(set(range(got[0], rows)) - set(got))[:10]}"
+    )
+
+
+def test_a_trim_whose_window_holds_no_whole_row_never_empties_the_ledger(tmp_path, monkeypatch):
+    """W-b5ba0c37 review A-S1: the trim keeps the last ``cap//2`` bytes minus the partial first line.
+    When that window held no whole row, everything was dropped and the ledger truncated to EMPTY,
+    which every reader treats as "nothing ever happened" (the dwell guard opens). Such a trim now
+    leaves the ledger alone."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    led = state / "rotate-ledger.jsonl"
+    row = b'{"event": "x", "pad": "' + b"y" * 40 + b'"}\n'
+    emptied = []
+    for cap in range(100, 140):  # window cap//2 below, at and above one row's length
+        led.write_bytes(row * 1000)
+        cr._ledger_rotate(cap_bytes=cap)
+        data = led.read_bytes()
+        if not data:
+            emptied.append(cap)
+        else:
+            assert data.endswith(row), f"cap={cap}: the newest row did not survive"
+    assert not emptied, f"the trim emptied the ledger at cap_bytes={emptied[:5]}..."
+
+
+def test_a_trim_skips_when_the_ledger_lock_is_held(tmp_path, monkeypatch):
+    """W-b5ba0c37: a trim that cannot win the exclusive lock SKIPS (the next tick retries) — it
+    never blocks the tick and never rewrites a ledger someone else holds."""
+    import fcntl
+    import time as _time
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    led = state / "rotate-ledger.jsonl"
+    led.write_text("".join(f'{{"event": "x", "n": {i}}}\n' for i in range(500)), encoding="utf-8")
+    before = led.read_bytes()
+    holder = os.open(led, os.O_RDONLY)
+    try:
+        fcntl.flock(holder, fcntl.LOCK_EX)
+        t0 = _time.monotonic()
+        cr._ledger_rotate(cap_bytes=100)
+        assert _time.monotonic() - t0 < 5, "the trim blocked on a held lock"
+        assert led.read_bytes() == before, "the trim rewrote a ledger whose lock it never won"
+    finally:
+        os.close(holder)
+    cr._ledger_rotate(cap_bytes=100)  # lock free again: the trim now runs
+    assert len(led.read_bytes()) < len(before)
+
+
+def test_an_append_under_a_held_exclusive_lock_still_lands(tmp_path, monkeypatch):
+    """W-b5ba0c37 mirror: a lock holder that never lets go must not wedge the tick or cost the
+    row. The append waits a bounded moment, lands unlocked, and leaves a trace in the fallback
+    file, because a trim still holding the lock may erase it."""
+    import fcntl
+    import threading
+    import time as _time
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    fallback = tmp_path / "fb.jsonl"
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(fallback))
+    led = state / "rotate-ledger.jsonl"
+    led.write_text("", encoding="utf-8")
+    holder = os.open(led, os.O_RDONLY)
+    try:
+        fcntl.flock(holder, fcntl.LOCK_EX)
+        t0 = _time.monotonic()
+        t = threading.Thread(
+            target=cr._ledger_append, args=({"event": "flip", "to": "mob"},), daemon=True
+        )
+        t.start()
+        t.join(10)
+        assert not t.is_alive(), "the append blocked forever on a held lock"
+        assert _time.monotonic() - t0 < 3, "the append waited past its bound"
+    finally:
+        os.close(holder)
+    assert '"to": "mob"' in led.read_text(encoding="utf-8")
+    assert '"to": "mob"' in fallback.read_text(encoding="utf-8"), "an unlocked append left no trace"
+
+
+def test_a_filesystem_that_cannot_lock_still_trims(tmp_path, monkeypatch):
+    """W-b5ba0c37 mirror: on a filesystem whose flock fails outright (ENOLCK, EOPNOTSUPP), the
+    trim must run as it did before the lock existed, never be skipped forever, and appends must
+    pay no wait."""
+    import errno
+    import time as _time
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    led = state / "rotate-ledger.jsonl"
+    led.write_text("".join(f'{{"event": "x", "n": {i}}}\n' for i in range(500)), encoding="utf-8")
+    before = len(led.read_bytes())
+
+    def nolock(fd, op):
+        raise OSError(errno.ENOLCK, "no locks available")
+
+    monkeypatch.setattr(cr.fcntl, "flock", nolock)
+    cr._ledger_rotate(cap_bytes=100)
+    assert len(led.read_bytes()) < before, "a filesystem that cannot lock stopped trimming"
+    t0 = _time.monotonic()
+    cr._ledger_append({"event": "flip", "to": "mob"})
+    assert _time.monotonic() - t0 < 0.5, "an append waited on a lock that can never be had"
+
+
+def test_a_partial_last_line_does_not_swallow_the_next_row(tmp_path, monkeypatch):
+    """W-87791bfe: a write that failed partway left half a line; the next row landed on it and
+    every reader skipped that row as undecodable — the one flip record gone without a trace."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    (state / "rotate-ledger.jsonl").write_text(
+        '{"event": "flip", "ts": 1.0}\n{"event": "fl', encoding="utf-8"
+    )
+    cr._ledger_append({"event": "flip", "ts": 2.0, "to": "mob"})
+    last = (state / "rotate-ledger.jsonl").read_text(encoding="utf-8").splitlines()[-1]
+    assert json.loads(last)["to"] == "mob", last
+
+
+def test_a_fallback_whose_chmod_fails_leaks_no_descriptor(tmp_path, monkeypatch):
+    """fstat/fchmod ran before os.fdopen owned the fd, so a refusing filesystem leaked one per row."""
+    not_a_dir = tmp_path / "state-is-a-file"
+    not_a_dir.write_text("", encoding="utf-8")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(not_a_dir))
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(tmp_path / "fb.jsonl"))
+
+    def refuse(fd, mode):
+        raise PermissionError("chmod refused")
+
+    monkeypatch.setattr(cr.os, "fchmod", refuse)
+    before = len(os.listdir("/proc/self/fd"))
+    for _ in range(20):
+        cr._ledger_append({"event": "flip", "to": "mob"})
+    assert len(os.listdir("/proc/self/fd")) - before < 5, "the fallback leaked descriptors"

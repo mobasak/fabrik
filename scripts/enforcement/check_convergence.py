@@ -215,6 +215,14 @@ _CONFIRMED_TOKEN = re.compile(r"(?<![\w-])confirmed\s*:\s*(\d+)", re.I)
 CLOSING_ROW_REFUSAL = "the flip is refused: the last Pass row does not read confirmed: 0"
 
 
+def _blank_quoted(text: str) -> str:
+    """The spine-set QUOTING policy, one definition for every check in `_check_spine_set`: fences
+    stripped, then code spans masked, then HTML comments blanked — a parked (commented) Board row,
+    ledger row or ticket `Status:` line is a quote, never live (W-98338ad4: the orphan-row loop and
+    the ticket Status ban read fence-stripped text only, so a parked Board row was an orphan)."""
+    return _HTML_COMMENT.sub("", _mask_spans(FENCE_STRIP.sub("", text)))
+
+
 def _closing_row_fail(text: str) -> str | None:
     """The refusal for a spine text, or None. The quoting policy is applied HERE — fences stripped,
     then code spans masked (a `<!--` inside backticks is prose, not a comment opener), then HTML
@@ -232,7 +240,7 @@ def _closing_row_fail(text: str) -> str | None:
     # population the `_PASS_ROW` comment states — change verdict), then HTML comments blanked.
     # The archived carve-out in the caller is the lowercase
     # DIRECTORY part `archived` — `Archived/` and a slug carrying the word are graded.
-    text = _HTML_COMMENT.sub("", _mask_spans(FENCE_STRIP.sub("", text)))
+    text = _blank_quoted(text)
     last: str | None = None
     for m in _PASS_ROW.finditer(text):
         tokens = _CONFIRMED_TOKEN.findall(m.group(0))
@@ -431,7 +439,7 @@ def _check_spine_set(root: Path, spine: Path, text: str) -> list[str]:
     if "archived" in rel.parts:
         return []  # settled history — never re-enforced
     fails: list[str] = []
-    text = FENCE_STRIP.sub("", text)  # fences are quotes — same policy as check_plan_dir
+    text = _blank_quoted(text)  # fences, code spans and comments are quotes (W-98338ad4)
     section = BOARD_SECTION.search(text)
     rows = BOARD_ROW.findall(section.group(1)) if section else []
     ticket_ids_on_disk = {
@@ -446,9 +454,7 @@ def _check_spine_set(root: Path, spine: Path, text: str) -> list[str]:
     for f in sorted(spine.parent.glob("*.md")):
         if not TICKET_FILE.match(f.name):
             continue
-        if ANY_STATUS_LINE.search(
-            FENCE_STRIP.sub("", f.read_text(encoding="utf-8", errors="replace"))
-        ):
+        if ANY_STATUS_LINE.search(_blank_quoted(f.read_text(encoding="utf-8", errors="replace"))):
             fails.append(
                 f"{rel}: ticket {f.name} carries a Status: line — ticket state lives ONLY "
                 "in the spine Board"
@@ -789,7 +795,9 @@ def _head_text(root: Path, relpath: str) -> str:
 # wolf on landing. Restricted to a dated PLAN file carrying an EXPLICIT mid-flight status, it
 # measures 6 of 265, one of them the reported instance.
 _ARCHIVED_PLAN = re.compile(r"/archived/\d{4}-\d{2}-\d{2}-plan-[^/]*\.md$")
-_STATUS_LINE = re.compile(r"^\s*\**Status:\**\s*([A-Za-z][A-Za-z -]*)", re.M)
+# bold on the label (colon inside or outside it) AND on the value — `Status: **IN-PROGRESS**` read
+# as empty before (W-e025eba1), so an archived plan stranded mid-flight in that spelling passed
+_STATUS_LINE = re.compile(r"^\s*\**Status\**:\**\s*\**\s*([A-Za-z][A-Za-z -]*)", re.M)
 _MIDFLIGHT = {"IN-PROGRESS", "IN PROGRESS", "DRAFT", "ACTIVE", "OPEN", "PLANNING"}
 
 
@@ -976,7 +984,56 @@ def _converged_targets(root: Path) -> list[Path]:
     return targets
 
 
-def _check_executed_plan(root: Path, path: Path, text: str | None = None) -> list[str]:
+def _scope_growth_closed(rtext: str) -> bool:
+    """check_review_coverage's own `_scope_growth_exit` over the receipt's own ledger rows."""
+    try:
+        from .check_review_coverage import _ledger_shapes, _scope_growth_exit  # noqa: PLC0415
+    except ImportError:  # direct-script invocation
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from scripts.enforcement.check_review_coverage import (  # noqa: PLC0415
+            _ledger_shapes,
+            _scope_growth_exit,
+        )
+    return _scope_growth_exit(rtext, _ledger_shapes(rtext)[2])
+
+
+# D-497 — the D-206 cut-over for whole-plan receipts that PREDATE the Pass-row grammar: a receipt
+# whose FIRST commit (git history, never a date written in the file) is before this day and whose
+# header Status reads CONVERGED is exempt from the Pass-row test; the advisory lists it as
+# `legacy (pre-D-206)` rather than as a defect. ⚠️ CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME
+# (cobra-effect): commit a new receipt under a back-dated GIT_COMMITTER_DATE. That costs a forged
+# history entry, visible in `git log`; writing an old date INTO the file buys nothing.
+_D206_CUTOVER = "2026-09-09"
+
+
+def _first_commit_date(root: Path, relpath: str) -> str:
+    """Committer date (YYYY-MM-DD) of the OLDEST commit that added ``relpath``, or "" if none."""
+    try:
+        r = subprocess.run(
+            ["git", "log", "--diff-filter=A", "--format=%cs", "--", relpath],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except Exception:
+        return ""
+    dates = r.stdout.split() if r.returncode == 0 else []
+    return dates[-1] if dates else ""
+
+
+def _legacy_receipt(root: Path, relpath: str, rtext: str) -> str:
+    """The receipt's first-commit date when D-497 grandfathers it, else ""."""
+    header = "".join(rtext.splitlines(keepends=True)[:10])  # the header zone (`_in_progress`'s)
+    if not _claims_converged(_blank_quoted(header)):  # one quoting policy (W-98338ad4)
+        return ""
+    first = _first_commit_date(root, relpath)
+    return first if first and first < _D206_CUTOVER else ""
+
+
+def _check_executed_plan(
+    root: Path, path: Path, text: str | None = None, legacy: list[str] | None = None
+) -> list[str]:
     """A plan claiming EXECUTED must cite a persisted whole-plan review artifact
     that EXISTS on disk and carries a coverage-adjudicated exit signature.
 
@@ -1040,6 +1097,21 @@ def _check_executed_plan(root: Path, path: Path, text: str | None = None) -> lis
         # the whole-text search; the row grammar is the only witness of a round that ran
         if any(QUIET_PASS.search(m.group(0)) for m in _LEDGER_LINE.finditer(rtext)):
             return fails  # citation satisfied; spine-set findings (if any) still surface
+        # W-5b541aab: the D-252 scope-growth stop is a SANCTIONED exit at check_review_coverage —
+        # a receipt that closed on it carries no quiet row by design. The predicate is IMPORTED
+        # (one law, both graders): copying it is how the two gates came to disagree about the
+        # same receipt. Its cobra cost is stated at its definition (the phrase alone never exits;
+        # the ledger must show the trailing confirming rounds).
+        if _scope_growth_closed(rtext):
+            return fails
+        first = _legacy_receipt(root, c, rtext)
+        if first:
+            if legacy is not None:
+                legacy.append(
+                    f"{rel}: legacy (pre-D-206) — cited review {c} was first committed {first} "
+                    "with Status CONVERGED, before the Pass-row grammar; exempt (D-497)"
+                )
+            return fails
     return fails + [
         f"{rel}: claims EXECUTED but its cited whole-plan review is missing on disk or not "
         "coverage-adjudicated (needs a quiet final pass — a 'confirmed: 0, fixed: 0' round, or "
@@ -1215,11 +1287,13 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
             continue
         if not EXECUTED.search(text):
             continue
+        legacy: list[str] = []
         try:
-            findings = _check_executed_plan(root, p, heads[str(rel)])
+            findings = _check_executed_plan(root, p, heads[str(rel)], legacy)
         except Exception as e:  # ADVISORY: never a traceback out of the gate
             out.append(f"{rel}: advisory sweep could not grade this plan ({type(e).__name__}: {e})")
             continue
+        out.extend(legacy)  # D-497: listed as legacy, never as a defect
         for f in findings:
             if "review" in f and ("missing on disk" in f or "cites no whole-plan review" in f):
                 out.append(f)

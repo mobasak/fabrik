@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T05:46:33.319405Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-61b60641",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-496",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "edit docs/reference/ai-media-generation-provider-map.md:152,163 to say Claude through claude -p on the subscription (llm-dispatch), OpenRouter only as the opted-in metered fallback",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "Reach map's video-factory recipe routes the script step to 'Claude via OpenRouter', against ai/00's subscription-first rule"
+}

@@ -133,7 +133,7 @@ Seeding is **type-aware**: `_scaffold_shared` skips a doc whose registry bucket 
 
 | Source | Destination |
 |--------|-------------|
-| `/opt/fabrik/AGENTS.md` (a 9-line pointer to `agents-fabrik.md`) | `AGENTS.md` at the project root; the other GOVERNANCE_FILES arrive with the governance sync, not at scaffold time (the scaffold stopped copying `AGENTS-compact.md`, `.windsurfrules` and `opencode.json`, D-529) |
+| `/opt/fabrik/AGENTS.md` (a 9-line pointer to `agents-fabrik.md`) | `AGENTS.md` at the project root — 1 of the 3 GOVERNANCE_FILES; `agents-fabrik.md` and `agents-fabrik-core.md` arrive with the governance sync, not at scaffold time. The scaffold no longer copies `AGENTS-compact.md`, `.windsurfrules` or `opencode.json`: they are RETIRED_GOVERNANCE_FILES, which the governance sync deletes (D-529) |
 | `templates/governance/CLAUDE.md`, `DECISIONS.md`, `.worktreeinclude` | `CLAUDE.md`, `docs/DECISIONS.md`, `.worktreeinclude` (GOVERNANCE_TEMPLATES) |
 | `/opt/fabrik/.windsurf/rules/`, `.windsurf/workflows/`, `docs/reference/kilo/` | same paths (3 of the 4 GOVERNANCE_DIRS; `docs/reference/MD/` is created empty and filled by the sync) |
 | `/opt/fabrik/scripts/enforcement/` | `scripts/enforcement/` |
@@ -159,15 +159,14 @@ The manifest is the canonical list of what the SYNC distributes — read it, nev
 
 These are **auto-synced** from `/opt/fabrik/` to every project by `scripts/sync_enforcement_to_projects.py`; the canonical list is `scripts/fabrik_synced_manifest.py`:
 
-1. **Cascade compact contract** — `.windsurfrules`. Cascade silently truncates it at 6,000 characters, so the budget is characters, not lines — and the file is longer than that today (`wc -c .windsurfrules`), so its tail never reaches Cascade.
-2. **Governance files** — the 6 GOVERNANCE_FILES (`AGENTS.md`, `AGENTS-compact.md`, `agents-fabrik.md`, `agents-fabrik-core.md`, `.windsurfrules`, `opencode.json` — the last is the Kilo-safe rules config, still gated by `check_opencode_json.py`) and the 3 GOVERNANCE_TEMPLATES (`CLAUDE.md`, `docs/DECISIONS.md`, `.worktreeinclude`).
-3. **Governance rules** — `.windsurf/rules/` (packs in 6 subdirs) — project-wide coding standards.
-4. **Workflows** — `.windsurf/workflows/` (6 files).
-5. **Enforcement scripts** — `scripts/enforcement/`: the quality-gate checks.
-6. **Core scripts** — the CORE_SCRIPTS (`final_gate.py` is the COMPLETION gate, run by hand; `command_run.py`, `docs_updater.py`, `review_rubric.py`, …) and the 11 RUN_SCRIPTS. `kilo_code_review.py`, `kilo_docs_enforcer.py` and `update_agents_toc.py` are RETIRED_CORE_SCRIPTS: the sync DELETES stale project copies and never re-seeds them.
-7. **Agent hooks** — `.claude/hooks/` + `.claude/settings.json` + `.windsurf/hooks.json` (AGENT_HOOK_FILES).
-8. **Reference docs and dirs** — REFERENCE_DOCS + `docs/reference/MD/` + `docs/reference/kilo/`.
-9. **Vendored module** — `libs/health_probe/`.
+1. **Governance files** — the 3 GOVERNANCE_FILES (`AGENTS.md`, `agents-fabrik.md`, `agents-fabrik-core.md`) and the 3 GOVERNANCE_TEMPLATES (`CLAUDE.md`, `docs/DECISIONS.md`, `.worktreeinclude`). The retired `.windsurfrules`, `AGENTS-compact.md` and `opencode.json` are RETIRED_GOVERNANCE_FILES: the sync deletes a project's copy (D-529).
+2. **Governance rules** — `.windsurf/rules/` (packs in 6 subdirs) — project-wide coding standards.
+3. **Workflows** — `.windsurf/workflows/` (6 files).
+4. **Enforcement scripts** — `scripts/enforcement/`: the quality-gate checks.
+5. **Core scripts** — the CORE_SCRIPTS (`final_gate.py` is the COMPLETION gate, run by hand; `command_run.py`, `docs_updater.py`, `review_rubric.py`, …) and the 11 RUN_SCRIPTS. `kilo_code_review.py`, `kilo_docs_enforcer.py` and `update_agents_toc.py` are RETIRED_CORE_SCRIPTS: the sync DELETES stale project copies and never re-seeds them.
+6. **Agent hooks** — `.claude/hooks/` + `.claude/settings.json` + `.windsurf/hooks.json` (AGENT_HOOK_FILES).
+7. **Reference docs and dirs** — REFERENCE_DOCS + `docs/reference/MD/` + `docs/reference/kilo/`.
+8. **Vendored module** — `libs/health_probe/`.
 
 The project's `.gitignore` carries a generated "Fabrik-synced" block for these paths (DISTRIBUTED_GITIGNORE_GROUPS), and `check_synced_unmodified.py` blocks local edits to a synced copy.
 

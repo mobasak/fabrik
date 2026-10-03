@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-19T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "e37154a35b79d7334806cbc5f187e8e58424ca4d",
   "id": "W-51c49907",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:9455c6cd8ceb",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "The ignore-only set is an opt-OUT, so a new gitignore group still defaults to \"distribute it\" (routed 2026-09-19)"
 }

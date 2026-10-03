@@ -2569,3 +2569,535 @@ claims:
     verify: "https://developer.chrome.com/docs/webstore/program-policies/trader-disclosure ; https://developer.chrome.com/docs/webstore/program-policies/trader-verification-faq (brave + exa, 2026-10-01; ledger oc-05, op-02)"
     window_days: 365
     last_verified: 2026-10-01
+  - id: chrome-devmode-toggle-gates-unpacked
+    pack: chrome-ext/70-chrome-ext.md
+    kind: platform
+    claim: "Unpacked extensions loaded from chrome://extensions run only while the Developer-mode switch is on; turning it off disables them"
+    verify: "https://groups.google.com/a/chromium.org/g/chromium-extensions/c/cTdMVtxxooY (WebSearch + exa, 2026-10-02; ledger dm-01)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: chrome-devmode-policy
+    pack: chrome-ext/70-chrome-ext.md
+    kind: platform
+    claim: "The ExtensionDeveloperModeSettings policy lets an admin forbid developer mode on the extensions page; when it is unset, DeveloperToolsAvailability decides"
+    verify: "https://raw.githubusercontent.com/chromium/chromium/main/components/policy/resources/templates/policy_definitions/Extensions/ExtensionDeveloperModeSettings.yaml ; https://chromeenterprise.google/policies/extension-developer-mode-settings/ (WebFetch + firecrawl, 2026-10-02; ledger dm-04)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: mv3-webrequestblocking-policy-only
+    pack: chrome-ext/70-chrome-ext.md
+    kind: platform
+    claim: "In Manifest V3, blocking webRequest (webRequestBlocking) is available only to policy-installed extensions; an unpacked extension cannot use it"
+    verify: "https://developer.chrome.com/docs/extensions/reference/api/webRequest (WebFetch, 2026-10-02; ledger dm-05)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: chrome-unpacked-no-autoupdate
+    pack: chrome-ext/70-chrome-ext.md
+    kind: platform
+    claim: "Chrome never auto-updates an unpacked extension, whatever update_url says; a manifest key keeps its ID stable across machines"
+    verify: "https://raw.githubusercontent.com/chromium/chromium/main/extensions/common/manifest.h ; https://developer.chrome.com/docs/extensions/reference/manifest/key (WebFetch, 2026-10-02; ledger dm-08, dm-09)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: chrome-offstore-crx-linux-only
+    pack: chrome-ext/70-chrome-ext.md
+    kind: platform
+    claim: "Chrome installs extensions hosted outside the Chrome Web Store only on Linux; Windows and macOS refuse an off-store CRX unless policy installs it"
+    verify: "https://developer.chrome.com/docs/extensions/how-to/distribute/install-extensions (WebFetch, 2026-10-02; ledger dm-10)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: chrome-forcelist-managed-only
+    pack: chrome-ext/70-chrome-ext.md
+    kind: platform
+    claim: "Off-store force-install through ExtensionInstallForcelist needs a managed browser: Windows joined to AD or Azure AD or enrolled in Chrome Enterprise Core; macOS MDM-managed, MCX-joined or enrolled in Chrome Enterprise Core"
+    verify: "https://raw.githubusercontent.com/chromium/chromium/main/components/policy/resources/templates/policy_definitions/Extensions/ExtensionInstallForcelist.yaml ; https://chromeenterprise.google/policies/extension-install-forcelist/ (WebFetch + firecrawl, 2026-10-02; ledger dm-12, op-03)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: sentry-extension-isolated-client
+    pack: chrome-ext/70-chrome-ext.md
+    kind: platform
+    claim: "In a browser extension Sentry must not use the global Sentry.init; use an isolated BrowserClient and Scope with the global-state integrations filtered out"
+    verify: "https://docs.sentry.io/platforms/javascript/best-practices/shared-environments/ (exa + WebFetch, 2026-10-02; ledger tl-05, op-02)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: glitchtip-no-sessions
+    pack: chrome-ext/70-chrome-ext.md
+    kind: platform
+    claim: "GlitchTip accepts @sentry/browser events but does not support sessions; with the current SDK, session tracking is disabled by removing browserSessionIntegration"
+    verify: "https://glitchtip.com/sdkdocs/javascript ; https://docs.sentry.io/platforms/javascript/migration/v8-to-v9.md (exa, 2026-10-02; ledger tl-06, oc-02)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: cws-fee-and-invited-members
+    pack: chrome-ext/89-extension-launch-checklist.md
+    kind: policy
+    claim: "Creating a Chrome Web Store publisher costs a one-time registration fee; members invited to an existing publisher with a role join at no cost"
+    verify: "https://developer.chrome.com/docs/extensions/whats-new ; https://developer.chrome.com/docs/webstore/register (exa + WebFetch, 2026-10-02; ledger rs-01)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: cws-2sv-required
+    pack: chrome-ext/89-extension-launch-checklist.md
+    kind: policy
+    claim: "2-Step Verification is required on a Chrome Web Store developer account before it can publish or update an extension"
+    verify: "https://developer.chrome.com/docs/webstore/program-policies/two-step-verification (exa + brave, 2026-10-02; ledger rs-02)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: cws-two-extension-slots
+    pack: chrome-ext/89-extension-launch-checklist.md
+    kind: policy
+    claim: "A new Chrome Web Store publisher may publish at most two extensions (themes uncapped); an increase is offered at the limit and may be refused"
+    verify: "https://developer.chrome.com/docs/webstore/publish ; https://developer.chrome.com/blog/cws-review-updates-2026 (WebFetch + exa, 2026-10-02; ledger oc-01, op-01)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: cws-listing-images
+    pack: chrome-ext/89-extension-launch-checklist.md
+    kind: policy
+    claim: "A store listing needs a 128x128 icon, one to five 1280x800 or 640x400 screenshots and a 440x280 small promo tile; the marquee is optional; the manifest description is at most 132 characters"
+    verify: "https://developer.chrome.com/docs/webstore/images (exa + WebFetch, 2026-10-02; ledger rs-05)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: cws-privacy-tab-five-answers
+    pack: chrome-ext/89-extension-launch-checklist.md
+    kind: policy
+    claim: "The dashboard privacy tab asks for a single purpose, a justification per permission, a remote-code declaration, data usage with the Limited Use certifications, and a privacy policy link"
+    verify: "https://developer.chrome.com/docs/webstore/cws-dashboard-privacy (exa + WebFetch, 2026-10-02; ledger rs-07)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: cws-review-time
+    pack: chrome-ext/89-extension-launch-checklist.md
+    kind: policy
+    claim: "Chrome Web Store review usually completes within a few days and can take weeks; every submission gets the same review; only a declarativeNetRequest-static-ruleset-only update can skip review"
+    verify: "https://developer.chrome.com/docs/webstore/review-process ; https://developer.chrome.com/docs/webstore/skip-review (exa + WebFetch, 2026-10-02; ledger rs-08, op-02)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: cws-partial-rollout
+    pack: chrome-ext/89-extension-launch-checklist.md
+    kind: policy
+    claim: "Partial rollout is available only to items with more than 10,000 seven-day active users; a new version stops a rollout in progress"
+    verify: "https://developer.chrome.com/docs/webstore/update (exa + WebFetch, 2026-10-02; ledger rs-09)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: cws-new-permission-disables
+    pack: chrome-ext/89-extension-launch-checklist.md
+    kind: policy
+    claim: "An update that adds a permission triggering a warning disables the extension for existing users until each accepts it"
+    verify: "https://developer.chrome.com/docs/extensions/develop/concepts/permission-warnings (exa + WebFetch, 2026-10-02; ledger rs-11)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: soniox-tts-multilingual-faithful
+    pack: ai/10-speech-audio.md
+    kind: practice
+    claim: "Soniox offers TTS in which every voice speaks 60+ languages, switches language mid-sentence, does not invent or drop words, clones voices from a short clip, and can run in an EU region on request"
+    verify: "https://soniox.com/text-to-speech ; https://soniox.com/europe (exa + brave + WebFetch, 2026-10-02; ledger tt-01, op-02)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: tts-noncommercial-weights
+    pack: ai/10-speech-audio.md
+    kind: practice
+    claim: "Coqui XTTS weights are under the non-commercial Coqui Public Model License, and F5-TTS and Meta MusicGen weights are CC-BY-NC; none may back a paid product"
+    verify: "https://huggingface.co/coqui/XTTS-v2 ; https://github.com/SWivid/F5-TTS ; https://huggingface.co/facebook/musicgen-large (WebFetch + brave, 2026-10-02; ledger tt-03, tt-07, tt-15)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: chatterbox-mit-multilingual
+    pack: ai/10-speech-audio.md
+    kind: practice
+    claim: "Chatterbox (Resemble AI) is MIT-licensed in code and weights, covers 23 languages including Turkish, clones voices zero-shot and watermarks every output"
+    verify: "https://huggingface.co/ResembleAI/chatterbox ; https://github.com/resemble-ai/chatterbox (exa + brave + WebFetch, 2026-10-02; ledger tt-05, oc-01)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: dedicated-stt-vs-llm
+    pack: ai/10-speech-audio.md
+    kind: practice
+    claim: "The best dedicated speech-to-text models match or beat general LLMs on word error rate at a fraction of the cost and many times the speed"
+    verify: "https://artificialanalysis.ai/speech-to-text (exa + WebFetch + firecrawl, 2026-10-02; ledger st-03, op-04)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: claude-vision-understanding-only
+    pack: ai/20-vision.md
+    kind: platform
+    claim: "Claude is an image understanding model only: it reads JPEG, PNG, WebP and GIF (first frame) and cannot generate or edit images; `claude -p` reads an image through its Read tool headless"
+    verify: "https://platform.claude.com/docs/en/build-with-claude/vision ; https://code.claude.com/docs/en/tools-reference (exa + WebFetch, 2026-10-02; local claude -p probe; ledger ig-08, iu-01, iu-08, oc-01)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: claude-vision-limits
+    pack: ai/20-vision.md
+    kind: platform
+    claim: "Anthropic documents Claude's vision limits: approximate coordinates and counts, errors on very small, rotated or low-quality images, no naming of people, no AI-image detection, not for medical scans; past 20 images in a request (earlier turns and tool results count) an image over 2000 px a side is rejected; models before the high-resolution tier read images at a lower long-edge ceiling"
+    verify: "https://platform.claude.com/docs/en/build-with-claude/vision (WebFetch + brave, 2026-10-02; ledger iu-02, iu-07, op-05, op-06)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: recraft-vector-and-styles
+    pack: ai/20-vision.md
+    kind: practice
+    claim: "Recraft's API returns native SVG from its vector models and holds brand styles by style id"
+    verify: "https://www.recraft.ai/docs/api-reference/endpoints (exa + brave, 2026-10-02; ledger ig-02)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: image-gen-tier-prices
+    pack: ai/20-vision.md
+    kind: pricing
+    claim: "Recraft's current model costs about $0.035 a raster image and $0.08 a vector, its Flash tier about $0.007; FLUX's small klein model starts near $0.014 an image and its pro tier near $0.03 a megapixel"
+    verify: "https://www.recraft.ai/docs/api-reference/pricing ; https://docs.bfl.ml/quick_start/pricing (exa + WebFetch, 2026-10-02; ledger ig-03, ig-06)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: flux-open-weight-licences
+    pack: ai/20-vision.md
+    kind: policy
+    claim: "FLUX's small klein weights are Apache-2.0, while its larger klein, dev and Kontext dev weights carry the FLUX Non-Commercial License; BFL no longer hosts the schnell model"
+    verify: "https://docs.bfl.ml/flux_2/flux2_overview ; https://docs.bfl.ml/quick_start/pricing (exa + WebFetch, 2026-10-02; ledger ig-04, ig-05)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: detection-pose-licences
+    pack: ai/20-vision.md
+    kind: policy
+    claim: "Ultralytics YOLO is AGPL-3.0 for code and trained models, so closed-source commercial use needs its paid Enterprise License; OpenPose is licensed for noncommercial research only; MediaPipe is Apache-2.0 and its Object Detector task detects the 80 COCO classes in images, video and live streams"
+    verify: "https://www.ultralytics.com/license ; https://github.com/CMU-Perceptual-Computing-Lab/openpose ; https://github.com/google-ai-edge/mediapipe ; https://ai.google.dev/edge/mediapipe/solutions/vision/object_detector/python (WebSearch + brave + WebFetch, 2026-10-02; ledger iu-09, iu-11, iu-12, oc-02)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: managed-ocr-prices
+    pack: ai/20-vision.md
+    kind: pricing
+    claim: "Google Cloud Vision text detection and AWS Textract Detect Document Text both cost about $1.50 per 1,000 pages at low volume; Textract's tables and forms cost more per page"
+    verify: "https://cloud.google.com/vision/pricing ; https://aws.amazon.com/textract/pricing/ (WebFetch + exa + brave, 2026-10-02; ledger iu-13, iu-14)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: doc-ocr-specialists-lead
+    pack: ai/20-vision.md
+    kind: practice
+    claim: "On the OmniDocBench document-OCR leaderboard small dedicated parsers lead general vision-language models, and no Claude model is listed"
+    verify: "https://github.com/opendatalab/OmniDocBench (WebFetch + WebSearch + brave, 2026-10-02; ledger iu-19)"
+    window_days: 120
+    last_verified: 2026-10-02
+  - id: meshy-printable-3mf
+    pack: ai/25-3d-generation.md
+    kind: practice
+    claim: "Meshy's API runs a print pipeline: free printability analysis, a repair step that returns watertight output, and multi-colour 3MF from a separate endpoint"
+    verify: "https://docs.meshy.ai/en/api/repair-printability ; https://help.meshy.ai/en/articles/16815622 (brave + exa + WebFetch, 2026-10-02; ledger ca-02, op-04)"
+    window_days: 120
+    last_verified: 2026-10-02
+  - id: tripo-quad-autorig
+    pack: ai/25-3d-generation.md
+    kind: practice
+    claim: "Tripo's API returns native quad Smart Mesh topology on its current model and offers auto-rigging"
+    verify: "https://developers.tripo3d.ai/en/pricing ; https://developers.tripo3d.ai/en/docs/changelog (exa + WebFetch, 2026-10-02; ledger ca-04, ca-05)"
+    window_days: 120
+    last_verified: 2026-10-02
+  - id: rodin-api-business-plan
+    pack: ai/25-3d-generation.md
+    kind: pricing
+    claim: "Rodin's API is on its Business plan only (about $120 a month), charges at submission, defaults to 2K textures and falls back to an older generation when the quality tier is omitted"
+    verify: "https://hyper3d.ai/pricing ; https://docs.hyper3d.ai/en/api-specification/rodin-gen2-5 (exa + WebFetch, 2026-10-02; ledger ca-07, ca-08, ca-10, ca-11)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: dead-3d-apis
+    pack: ai/25-3d-generation.md
+    kind: deprecation
+    claim: "CSM's platform and APIs shut down on 2026-01-05 after Google acquired it, Luma sunset Genie on 2026-01-01, and Higgsfield's developer API exposes no 3D models"
+    verify: "https://3dprintingindustry.com ; https://apps.apple.com/us/app/luma-3d-capture/id1615849914 ; https://open.higgsfield.ai (brave + WebSearch + WebFetch + exa, 2026-10-02; ledger ca-16, ca-17, ca-18)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: cad-boundary
+    pack: ai/25-3d-generation.md
+    kind: practice
+    claim: "Frontier LLMs, Claude among them, write valid parametric CAD code for simple parts but fail often on complex topology; Zoo's Text-to-CAD API returns STEP and glTF"
+    verify: "https://cadarena.dev ; https://zoo.dev/text-to-cad (exa + firecrawl, 2026-10-02; ledger ca-19, ca-20)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: open-3d-licences
+    pack: ai/25-3d-generation.md
+    kind: policy
+    claim: "TRELLIS's code and weights are MIT but its install pulls in NVIDIA's non-commercial nvdiffrast; Tencent's Hunyuan3D licence excludes the EU, UK and South Korea and caps monthly users; Stability's SF3D and SPAR3D are free only below USD 1M revenue"
+    verify: "https://github.com/microsoft/TRELLIS.2 ; https://raw.githubusercontent.com/NVlabs/nvdiffrast/main/LICENSE.txt ; https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2.1/main/LICENSE ; https://huggingface.co/stabilityai/stable-fast-3d (exa + WebFetch, 2026-10-02; ledger om-02, om-03, om-06, om-10, om-12, om-13)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: validation-tools
+    pack: ai/25-3d-generation.md
+    kind: practice
+    claim: "The Khronos glTF-Validator CLI checks glTF format and references but not watertightness or polycount; trimesh's is_volume checks watertight, consistently wound, outward-facing geometry"
+    verify: "https://github.com/KhronosGroup/glTF-Validator ; https://trimesh.org/trimesh.base.html (exa + WebFetch, 2026-10-02; ledger om-20, om-21)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: ar-viewer-budgets
+    pack: ai/25-3d-generation.md
+    kind: standard
+    claim: "Google Scene Viewer recommends models under 10 MB and 100,000 triangles with 2048 px textures; Apple publishes no file-size limit for AR Quick Look"
+    verify: "https://developers.google.com/ar/develop/scene-viewer ; https://developer.apple.com/forums/thread/693867 (exa + WebFetch + brave, 2026-10-02; ledger om-30, om-31)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: hosted-3d-routes
+    pack: ai/25-3d-generation.md
+    kind: platform
+    claim: "fal hosts Rodin, Meshy, Tripo, Hi3D and TRELLIS generation and WaveSpeed hosts Rodin, Meshy and Tripo, on keys the fleet holds, exposing the generate call only; 3D AI Studio's API reaches Tripo, Hi3D, TRELLIS and Hunyuan 3D but not Meshy or Rodin"
+    verify: "https://fal.ai/3d-models ; https://docs.3daistudio.com/api-reference (WebFetch + exa, 2026-10-02; ledger op-01, op-03)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: llm-translation-wmt
+    pack: ai/30-language.md
+    kind: practice
+    claim: "In the human evaluation of the WMT shared task of 2025, frontier LLMs were competitive with dedicated MT, with the winner varying by language pair"
+    verify: "https://aclanthology.org/2025.wmt-1.22.pdf ; https://aclanthology.org/volumes/2025.wmt-1 (exa + brave + firecrawl, 2026-10-02; ledger tr-12, op-02)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: deepl-plans-changed
+    pack: ai/30-language.md
+    kind: pricing
+    claim: "DeepL's API Free and Pro plans are closed to new customers: a new account gets a one-time 1 million characters, then the Growth plan; its next-gen model is opt-in with model_type=quality_optimized and listed for the paid plans"
+    verify: "https://support.deepl.com/hc/en-us/articles/360021200939-DeepL-API-plans ; https://developers.deepl.com/docs/translate/understanding-model-types (exa + brave, 2026-10-02; ledger tr-01, tr-02, tr-03)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: managed-mt-prices
+    pack: ai/30-language.md
+    kind: pricing
+    claim: "Azure AI Translator costs about $10 per million characters with 2 million a month free on its free resource; Google Cloud Translation about $20 per million after 500,000 free a month; Qwen-MT's turbo tier is no longer updated in favour of its flash tier"
+    verify: "https://azure.microsoft.com/en-us/pricing/details/translator/ ; https://cloud.google.com/translate/pricing ; https://www.alibabacloud.com/help/en/model-studio/model-pricing ; https://www.alibabacloud.com/help/en/model-studio/machine-translation (WebFetch + exa + brave, 2026-10-02; ledger tr-06, tr-07, tr-08, op-05)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: meta-mt-noncommercial
+    pack: ai/30-language.md
+    kind: policy
+    claim: "Meta's NLLB and SeamlessM4T translation weights are CC-BY-NC-4.0, and NLLB's card calls it a research model not released for production"
+    verify: "https://huggingface.co/facebook/nllb-200-distilled-600M ; https://huggingface.co/facebook/seamless-m4t-v2-large (exa + WebFetch, 2026-10-02; ledger tr-09, tr-10)"
+    window_days: 365
+    last_verified: 2026-10-02
+  - id: anthropic-no-embeddings
+    pack: ai/30-language.md
+    kind: platform
+    claim: "Anthropic does not offer its own embedding model; its docs point to Voyage AI, now part of MongoDB with its API unchanged"
+    verify: "https://platform.claude.com/docs/en/build-with-claude/embeddings ; https://www.mongodb.com/company/blog/news/redefining-database-ai-why-mongodb-acquired-voyage-ai (WebFetch + exa + brave, 2026-10-02; ledger tr-15, em-07, em-08)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: embedding-routes
+    pack: ai/30-language.md
+    kind: platform
+    claim: "OpenRouter serves embeddings through an OpenAI-compatible /embeddings endpoint, including Qwen3-Embedding (Apache-2.0 weights) at about $0.01 per million tokens"
+    verify: "https://openrouter.ai/docs/api_reference/embeddings ; https://openrouter.ai/collections/embedding-models ; https://huggingface.co/Qwen/Qwen3-Embedding-8B (exa + WebFetch + brave, 2026-10-02; ledger em-10, em-11, em-12)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: claude-input-modalities
+    pack: ai/40-multimodal.md
+    kind: platform
+    claim: "Claude accepts text, image and PDF input only: the Models API capability object lists image_input and pdf_input with no audio or video key, and the OpenAI-compatible endpoint ignores and strips audio input"
+    verify: "https://platform.claude.com/docs/en/api/models ; https://platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-sdk ; https://platform.claude.com/docs/en/models/overview (exa + WebSearch + firecrawl + brave, 2026-10-02; ledger v1-01, v1-07, v1-08, v2-01, v2-02)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: claude-code-pdf-read
+    pack: ai/40-multimodal.md
+    kind: platform
+    claim: "Claude Code's Read tool reads a short PDF whole and a PDF over 10 pages in ranges of up to 20 pages, and refuses a PDF over 100 pages or 20 MB"
+    verify: "https://code.claude.com/docs/en/tools-reference ; https://code.claude.com/docs/en/errors (exa, 2026-10-02; ledger v1-11, v1-12)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: gemini-av-understanding
+    pack: ai/40-multimodal.md
+    kind: platform
+    claim: "Every Gemini model processes video; by default frames are sampled at 1 FPS, video costs about 100 tokens a second at low media resolution (300 at high) and audio 32 tokens a second; a 1M-context model takes up to 3 hours of video at low resolution or 1 at high; public YouTube URLs are accepted"
+    verify: "https://ai.google.dev/gemini-api/docs/video-understanding ; https://ai.google.dev/gemini-api/docs/audio (WebFetch + firecrawl, 2026-10-02; ledger v1-15..v1-19, v2-06..v2-10)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: gemini-av-prices
+    pack: ai/40-multimodal.md
+    kind: pricing
+    claim: "Gemini's Flash-Lite tiers are its cheapest video and audio input (about $0.25-0.30 per million tokens); the current Flash tier is $0.75 per million input tokens through 2026-12-31 and $1.50 from 2027-01-01"
+    verify: "https://ai.google.dev/gemini-api/docs/pricing (exa + WebFetch, 2026-10-02; ledger v1-20, v1-21, v2-13)"
+    window_days: 60
+    last_verified: 2026-10-02
+  - id: openrouter-av-input
+    pack: ai/40-multimodal.md
+    kind: platform
+    claim: "OpenRouter accepts audio as base64 input_audio content (no URLs) and video as video_url content (a URL or a base64 data URL); Google AI Studio takes only YouTube links and Vertex only base64"
+    verify: "https://openrouter.ai/docs/guides/overview/multimodal/audio ; https://openrouter.ai/docs/guides/overview/multimodal/videos (firecrawl, 2026-10-02; ledger v2-27, v2-28, v2-29)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: openai-gpt4o-retirement
+    pack: ai/40-multimodal.md
+    kind: deprecation
+    claim: "OpenAI shuts down gpt-4o-2024-05-13 and gpt-4-turbo on 2026-10-23 and its gpt-4o audio and realtime models on 2027-01-20; its flagship takes text and image input, and no OpenAI model takes video"
+    verify: "https://developers.openai.com/api/docs/deprecations ; https://developers.openai.com/api/docs/models/gpt-5.6-sol (exa + WebFetch, 2026-10-02; ledger v1-27..v1-30; the no-video half re-verified by the Fable second opinion, op-10: OpenAI's models page and 0 of 85 video-input models on OpenRouter)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: document-parser-prices
+    pack: ai/40-multimodal.md
+    kind: pricing
+    claim: "Mistral lists OCR at about $4 per 1,000 pages; OpenRouter's file-parser plugin hands a PDF to a model that reads files natively unless an engine is set, falls back to its mistral-ocr engine otherwise, and bills that engine per page to the OpenRouter account; LlamaParse is 1,000 credits for $1.25 at 1 to 45 credits a page; Docling is MIT-licensed"
+    verify: "https://mistral.ai/pricing/api/ ; https://openrouter.ai/docs/guides/overview/multimodal/pdfs ; https://www.llamaindex.ai/pricing ; https://github.com/docling-project/docling (firecrawl + brave + WebFetch, 2026-10-02; ledger v2-18..v2-21, op-07, rv-01)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: qwen-open-multimodal-licence
+    pack: ai/40-multimodal.md
+    kind: policy
+    claim: "Qwen's open vision-language models and its open omni model ship Apache-2.0 weights; its later omni generation is API-only; LLaVA checkpoints carry their base model's licence"
+    verify: "https://github.com/QwenLM/Qwen3-VL ; https://huggingface.co/Qwen/Qwen3.8-27B ; https://github.com/QwenLM/Qwen3-Omni ; https://qwen.ai/blog?id=qwen3.5-omni ; https://github.com/haotian-liu/LLaVA (exa + WebFetch, 2026-10-02; ledger v1-33..v1-39)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: claude-oauth-boundary
+    pack: ai/50-agentic.md
+    kind: policy
+    claim: "Anthropic's Claude Code legal page says OAuth is intended exclusively for subscription purchasers and ordinary use of Claude Code and native Anthropic apps; developers building products, including with the Agent SDK, should use API key authentication and may not route requests through Free, Pro or Max credentials on behalf of their users, which Anthropic reserves the right to enforce without prior notice; plan limits assume ordinary, individual usage"
+    verify: "https://code.claude.com/docs/en/legal-and-compliance ; https://code.claude.com/docs/en/agent-sdk/overview (WebFetch + exa, 2026-10-02; ledger a1-18..a1-21, a2-23..a2-25; quote only the live wording)"
+    window_days: 60
+    last_verified: 2026-10-02
+  - id: claude-p-plan-limits
+    pack: ai/50-agentic.md
+    kind: policy
+    claim: "claude -p and Agent SDK usage still draw from the subscription's usage limits; the planned move to a separate monthly Agent SDK credit from 2026-06-15 was paused"
+    verify: "https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan (exa + WebFetch, 2026-10-02; ledger a1-22..a1-24; the Agent SDK overview's credit banner is stale)"
+    window_days: 30
+    last_verified: 2026-10-02
+  - id: claude-cli-agent-flags
+    pack: ai/50-agentic.md
+    kind: platform
+    claim: "claude -p's --max-turns has no limit by default and exits with an error when reached; --tools does not affect MCP tools; without --bare, -p loads project hooks and .mcp.json even in an untrusted folder; bare mode never reads OAuth credentials"
+    verify: "https://code.claude.com/docs/en/cli-reference ; https://code.claude.com/docs/en/headless (WebFetch + exa, 2026-10-02; ledger a1-01, a1-05, a1-13, a1-14; if bare becomes the -p default, the subscription lane must pass the opt-out)"
+    window_days: 60
+    last_verified: 2026-10-02
+  - id: claude-reasoning-control
+    pack: ai/50-agentic.md
+    kind: platform
+    claim: "Claude's current Sonnet, Opus and Fable models think adaptively and reject a thinking budget (budget_tokens is deprecated on the 4.6 models and rejected from 4.7 on); the current Haiku supports extended thinking with a budget only and no effort; effort affects all tokens including tool calls, and changing it between requests invalidates the prompt cache"
+    verify: "https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting ; https://platform.claude.com/docs/en/build-with-claude/effort (exa + WebFetch, 2026-10-02; ledger a2-30..a2-37)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: openai-reasoning-retirement
+    pack: ai/50-agentic.md
+    kind: deprecation
+    claim: "OpenAI shuts down o4-mini, o3-mini, o1 and o1-pro on 2026-10-23 and o3 and o3-pro on 2026-12-11"
+    verify: "https://developers.openai.com/api/docs/deprecations (exa raw extract, 2026-10-02; ledger a1-28, a1-29, a1-32; a WebFetch summary misdated o4-mini)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: mcp-governance
+    pack: ai/50-agentic.md
+    kind: policy
+    claim: "Anthropic donated the Model Context Protocol to the Agentic AI Foundation, a directed fund under the Linux Foundation, on 2025-12-09; the current protocol version is 2026-07-28"
+    verify: "https://blog.modelcontextprotocol.io/posts/2025-12-09-mcp-joins-agentic-ai-foundation/ ; https://modelcontextprotocol.io/specification/versioning (exa + WebFetch, 2026-10-02; ledger a1-35, a1-36)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: agent-framework-licences
+    pack: ai/50-agentic.md
+    kind: policy
+    claim: "LangGraph, Pydantic AI, CrewAI, Microsoft Agent Framework and OpenAI's Agents SDK are MIT-licensed; AutoGen is in maintenance mode with Microsoft Agent Framework its successor; AutoGPT's autogpt_platform folder is under the Polyform Shield License"
+    verify: "https://pypi.org/pypi/langgraph/json ; https://pypi.org/pypi/pydantic-ai/json ; https://pypi.org/pypi/crewai/json ; https://pypi.org/pypi/agent-framework/json ; https://pypi.org/pypi/openai-agents/json ; https://github.com/microsoft/autogen ; https://github.com/Significant-Gravitas/AutoGPT/blob/master/LICENSE (WebFetch + exa + brave, 2026-10-02; ledger a2-01..a2-14)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: function-calling-board-stale
+    pack: ai/50-agentic.md
+    kind: practice
+    claim: "The Berkeley Function Calling Leaderboard was last updated 2026-04-12"
+    verify: "https://gorilla.cs.berkeley.edu/leaderboard.html (firecrawl, 2026-10-02; ledger a2-15)"
+    window_days: 60
+    last_verified: 2026-10-02
+  - id: developer-tool-landscape
+    pack: ai/60-code.md
+    kind: platform
+    claim: "SpaceX completed its acquisition of Cursor (Anysphere) on 2026-08-14; Windsurf, owned by Cognition, was renamed Devin Desktop on 2026-06-02; Amazon Q Developer IDE plugins reach end of support on 2027-04-30 in favour of Kiro; Gemini CLI stopped serving consumer users on 2026-06-18 in favour of Antigravity CLI"
+    verify: "https://app.edgar.tools/filing/1181412/0001628280-26-056945 ; https://docs.devin.ai/desktop/devin-desktop-faq ; https://aws.amazon.com/blogs/devops/amazon-q-developer-end-of-support-announcement/ ; https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/ (WebSearch + exa, 2026-10-02; ledger c1-03, c1-06, c1-08, c1-13)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: claude-code-sandbox
+    pack: ai/60-code.md
+    kind: platform
+    claim: "Claude Code's sandboxed Bash tool restricts only Bash commands; its file tools, MCP servers and hooks still run on the host; if the sandbox cannot start, commands run unsandboxed unless sandbox.failIfUnavailable is set; an untrusted repository calls for a dedicated VM"
+    verify: "https://code.claude.com/docs/en/sandboxing ; https://code.claude.com/docs/en/sandbox-environments (exa, 2026-10-02; ledger c1-22..c1-26)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: code-sandbox-hosts
+    pack: ai/60-code.md
+    kind: platform
+    claim: "E2B isolates sandboxes as Firecracker microVMs; Daytona runs containers by default with a VM class; Modal isolates with gVisor and allows outbound network by default until blocked; all three bill per second"
+    verify: "https://github.com/e2b-dev/infra/blob/main/docs/ARCHITECTURE.md ; https://www.daytona.io/docs/en/isolation/ ; https://modal.com/docs/guide/sandboxes ; https://modal.com/docs/guide/sandbox-networking (exa + WebFetch, 2026-10-02; ledger c1-28..c1-34)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: code-context-injection
+    pack: ai/60-code.md
+    kind: standard
+    claim: "The OWASP Top 10 for LLM Applications 2026 (published 2026-08-04) ranks prompt injection first and names repository code, issue titles, package READMEs, changelogs and tool output as injection surfaces, with architectural mitigations (credentials outside the model, least privilege, human confirmation of the exact action)"
+    verify: "https://genai.owasp.org/resource/owasp-genai-llm-top-10-2026/ ; https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/blob/main/2026/final/LLM01_PromptInjection.md (WebSearch + exa, 2026-10-02; ledger c1-36..c1-39)"
+    window_days: 180
+    last_verified: 2026-10-02
+  - id: open-code-model-licences
+    pack: ai/60-code.md
+    kind: policy
+    claim: "Codestral's open weights are under Mistral's non-production licence (no commercial or hosted use); Mistral's open coding model ships under a modified MIT licence with a revenue cap; Qwen's coder line, DeepSeek's open models and OpenAI's gpt-oss are Apache, MIT and Apache respectively"
+    verify: "https://huggingface.co/mistralai/Codestral-22B-v0.1 ; https://mistral.ai/news/mistral-ai-non-production-license-mnpl/ ; https://mistral.ai/news/vibe-remote-agents-mistral-medium-3-5/ ; https://huggingface.co/Qwen/Qwen3-Coder-Next ; https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro/blob/main/LICENSE ; https://huggingface.co/openai/gpt-oss-120b ; https://huggingface.co/Qwen/Qwen3.8-Flash-Next/raw/main/LICENSE (firecrawl + brave + WebFetch, 2026-10-02; ledger c2-01..c2-15, op-09; the revenue-cap figure is a secondary quote — read the licence file)"
+    window_days: 90
+    last_verified: 2026-10-02
+  - id: claude-code-review
+    pack: ai/60-code.md
+    kind: platform
+    claim: "Claude Code's hosted Code Review for GitHub pull requests is a research preview for Team and Enterprise plans; other plans review a diff locally with /code-review, which can post to the PR with --comment"
+    verify: "https://code.claude.com/docs/en/code-review ; https://github.com/anthropics/claude-code/blob/main/plugins/code-review/README.md (firecrawl + brave, 2026-10-02; ledger c2-26, c2-29)"
+    window_days: 60
+    last_verified: 2026-10-02
+  - id: tsfm-weights-licences
+    pack: ai/70-data-predictive.md
+    kind: platform
+    claim: "Amazon's current Chronos generation ships Apache-licensed open weights that run on CPU or GPU; TimesFM's newest pretrained weights are under a non-commercial licence while its earlier weights stay Apache-licensed; Salesforce's Moirai weights are released for research only (CC-BY-NC); NX-AI's TiRex community licence allows commercial use with attribution below a revenue threshold"
+    verify: "https://huggingface.co/amazon/chronos-2 ; https://github.com/google-research/timesfm ; https://huggingface.co/Salesforce/moirai-2.0-R-small (exa + WebFetch + Fable second opinion, 2026-10-03; ledger c1-02, c1-10, c1-12, op-36) ; https://huggingface.co/NX-AI/TiRex/raw/main/LICENSE"
+    window_days: 90
+    last_verified: 2026-10-03
+  - id: tabpfn-commercial-licence
+    pack: ai/70-data-predictive.md
+    kind: platform
+    claim: "TabPFN generations after its second carry non-commercial model licences, and production, client work or business decisions need a separate commercial licence from Prior Labs; TabICL (BSD licence) and Mitra (Apache licence) are free for commercial use"
+    verify: "https://docs.priorlabs.ai/models ; https://auto.gluon.ai/dev/tutorials/tabular/tabular-foundational-models.html ; https://github.com/soda-inria/tabicl (brave + firecrawl + WebFetch, 2026-10-03; ledger c2-06, c2-07, c2-10, c2-11)"
+    window_days: 90
+    last_verified: 2026-10-03
+  - id: forecast-baselines-and-llms
+    pack: ai/70-data-predictive.md
+    kind: benchmark
+    claim: "GIFT-Eval scores models relative to seasonal naive and, on the tsfm.ai mirror of its leaderboard, several classical methods (AutoARIMA, AutoETS, AutoTheta) land below it; removing the LLM from LLM-based forecasters does not degrade accuracy and usually improves it; on Context is Key the best prompted LLMs win only where the task hinges on text context, at far higher compute cost and with occasional catastrophic misses"
+    verify: "https://github.com/SalesforceAIResearch/gift-eval (the official leaderboard is JavaScript-rendered) ; https://tsfm.ai/benchmarks/gift-eval (a mirror, refetched every 12 hours) ; https://proceedings.neurips.cc/paper_files/paper/2024/hash/6ed5bf446f59e2c6646d23058c86424b-Abstract-Conference.html ; https://arxiv.org/pdf/2410.18959 (exa + Fable second opinion, 2026-10-03; ledger c1-21, c1-25, c1-38, c1-39, op-06)"
+    window_days: 180
+    last_verified: 2026-10-03
+  - id: anomaly-library-status
+    pack: ai/70-data-predictive.md
+    kind: platform
+    claim: "Salesforce's Merlion repository was archived on 2026-03-11; ADTK has had no release since 2020; PyOD and River are actively released; on TSB-AD simpler statistical methods often perform best"
+    verify: "https://github.com/salesforce/Merlion ; https://github.com/arundo/adtk ; https://pypi.org/project/pyod/ ; https://openreview.net/forum?id=R6kJtWsTGy (firecrawl + WebFetch + brave, 2026-10-03; ledger c2-20, c2-22, c2-23, c2-27)"
+    window_days: 180
+    last_verified: 2026-10-03
+  - id: predictive-platform-status
+    pack: ai/70-data-predictive.md
+    kind: platform
+    claim: "Amazon Forecast closed to new customers on 2024-07-29 with SageMaker Canvas as the path, Canvas took over Autopilot's interface on 2023-11-30, Prophet entered maintenance mode, PostgresML went bust in 2025, and the TimescaleDB toolkit has no forecasting or anomaly functions"
+    verify: "https://aws.amazon.com/blogs/machine-learning/transition-your-amazon-forecast-usage-to-amazon-sagemaker-canvas/ ; https://docs.aws.amazon.com/sagemaker/latest/dg/use-auto-ml.html ; https://github.com/facebook/prophet ; https://www.cs.cmu.edu/~pavlo/blog/2026/01/2025-databases-retrospective.html ; https://www.tigerdata.com/docs/use-timescale/latest/hyperfunctions/about-hyperfunctions (exa + brave + firecrawl, 2026-10-03; ledger c1-30, c1-40, c2-28, c2-35, c2-38)"
+    window_days: 180
+    last_verified: 2026-10-03
+  - id: moderation-service-status
+    pack: ai/80-specialized-domains.md
+    kind: deprecation
+    claim: "Perspective API is sunsetting and ends after 2026 with no migration support; Azure Content Moderator is deprecated and retires on 2027-03-15, replaced by Azure AI Content Safety; Amazon Comprehend's toxicity detection is English-only and its prompt-safety classification closed to new customers on 2026-04-30; OpenAI's omni-moderation endpoint is free and takes text and images"
+    verify: "https://www.perspectiveapi.com/ ; https://learn.microsoft.com/en-us/azure/ai-services/content-moderator/overview ; https://docs.aws.amazon.com/comprehend/latest/dg/comprehend-availability-change.html ; https://developers.openai.com/api/docs/guides/moderation (brave + exa, 2026-10-03; ledger d1-01, d1-16, d1-17, d1-26, d1-27)"
+    window_days: 90
+    last_verified: 2026-10-03
+  - id: moderation-languages-and-guard-licences
+    pack: ai/80-specialized-domains.md
+    kind: platform
+    claim: "Azure AI Content Safety's harm classes were trained on eight languages and its Prompt Shields tested in English only; AWS Bedrock Guardrails' Standard tier lists Turkish as supported (tested, not tuned) while its Classic tier covers English, French and Spanish; Granite Guardian and the Qwen guard models are Apache-licensed, Granite Guardian trained and tested on English only and the Qwen guard models covering 119 languages; Llama Guard is gated under the Llama community licence with a published multilingual recall of 43%; ShieldGemma is English-only under the Gemma terms"
+    verify: "https://learn.microsoft.com/en-us/azure/ai-services/content-safety/region-availability ; https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-supported-languages.html ; https://github.com/ibm-granite/granite-guardian ; https://arxiv.org/abs/2510.14276 ; https://github.com/meta-llama/PurpleLlama/blob/main/Llama-Guard4/12B/MODEL_CARD.md ; https://ai.google.dev/gemma/docs/shieldgemma/model_card (brave + exa + WebFetch + Fable second opinion, 2026-10-03; ledger d1-09, d1-21, d1-22, d1-32, d1-34, d1-38, d1-40, d1-42, op-07, op-12)"
+    window_days: 90
+    last_verified: 2026-10-03
+  - id: prompt-injection-detectors-not-a-boundary
+    pack: ai/80-specialized-domains.md
+    kind: standard
+    claim: "adaptive attacks bypassed twelve published prompt-injection defences, detectors included, at above 90% success for most; OWASP says it is unclear whether fool-proof prevention exists and lists least privilege, human approval for high-risk actions and segregating external content; the UK NCSC says LLMs do not enforce a boundary between instructions and data"
+    verify: "https://arxiv.org/html/2510.09023 ; https://github.com/OWASP/www-project-top-10-for-large-language-model-applications/blob/main/2_0_vulns/LLM01_PromptInjection.md ; https://www.ncsc.gov.uk/blog-post/prompt-injection-is-not-sql-injection (exa + brave, 2026-10-03; ledger d1-47, d1-48, d1-51)"
+    window_days: 180
+    last_verified: 2026-10-03
+  - id: recommender-baselines
+    pack: ai/80-specialized-domains.md
+    kind: practice
+    claim: "of 18 neural recommenders only 7 were reproducible and 6 of those were often beaten by simple nearest-neighbour or graph heuristics, the seventh not consistently beating a tuned linear method; well-tuned simple baselines beat published diffusion recommenders; implicit is MIT-licensed and maintained, LightFM has had no release since 2023-03"
+    verify: "https://arxiv.org/abs/1907.06902 ; https://arxiv.org/abs/2505.09364 ; https://pypi.org/project/implicit/ ; https://pypi.org/project/lightfm/ (firecrawl + WebSearch + WebFetch, 2026-10-03; ledger d2-01, d2-03, d2-15, d2-16, d2-17)"
+    window_days: 180
+    last_verified: 2026-10-03
+  - id: synthetic-data-limits
+    pack: ai/80-specialized-domains.md
+    kind: policy
+    claim: "synthetic data gives no better privacy-utility trade-off than traditional anonymisation, with highly variable privacy gain; training on model-generated data instead of real data loses the tails of the distribution, while accumulating it beside real data avoids collapse; SDV's Business Source License forbids a synthetic-data service and converts to MIT four years after each release; synthcity and MOSTLY AI's SDK are Apache-licensed"
+    verify: "https://www.usenix.org/conference/usenixsecurity22/presentation/stadler ; https://www.nature.com/articles/s41586-024-07566-y ; https://arxiv.org/abs/2404.01413 ; https://github.com/sdv-dev/SDV/blob/main/LICENSE ; https://github.com/vanderschaarlab/synthcity ; https://pypi.org/project/mostlyai/ (firecrawl + WebSearch + WebFetch, 2026-10-03; ledger d2-18, d2-19, d2-22, d2-26, d2-29, d2-30, d2-31)"
+    window_days: 180
+    last_verified: 2026-10-03
+  - id: health-feature-classification
+    pack: ai/80-specialized-domains.md
+    kind: policy
+    claim: "FDA's general-wellness policy keeps low-risk wellness products out of device regulation and does not cover dietary supplements themselves; clinical decision support escapes device rules only under all four non-device criteria; a consumer-entered health app is not a HIPAA business associate but the FTC Health Breach Notification Rule covers it; MDR Rule 11 makes software informing diagnostic or therapeutic decisions class IIa or higher, which is high-risk under the AI Act, whose obligations for AI in regulated products apply from 2028-08-02"
+    verify: "https://www.fda.gov/media/90652/download ; https://www.fda.gov/regulatory-information/search-fda-guidance-documents/clinical-decision-support-software ; https://www.hhs.gov/sites/default/files/ocr-health-app-developer-scenarios-2-2016.pdf ; https://www.ftc.gov/business-guidance/resources/complying-ftcs-health-breach-notification-rule-0 ; https://blog.johner-institute.com/regulatory-affairs/mdr-rule-11/ ; https://www.freshfields.com/en/our-thinking/blogs/technology-quotient/eu-ai-act-unpacked-34-the-final-digital-omnibus-on-ai-key-amendments-to-the-a-102nber (firecrawl + WebSearch + exa, 2026-10-03; ledger d2-44, d2-46, d2-47, d2-50, d2-52, d2-54, d2-56, d2-57)"
+    window_days: 90
+    last_verified: 2026-10-03
