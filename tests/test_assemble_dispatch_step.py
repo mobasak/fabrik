@@ -412,7 +412,7 @@ def test_v8_the_fragments_delta_round_sentence_survives_a_render(tmp_path):
     ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
     live = ac._HTML_COMMENT_RE.sub("", (tmp_path / "fabrik-review.md").read_text())
     assert "every later round is a DELTA over the fix diff" in live
-    assert "--slices opus=N,sonnet=N,haiku=N" in live
+    assert "--slices sonnet=N,haiku=N" in live
 
 
 _STRAY = b"\xff\xfe not utf8 \xff\n"
