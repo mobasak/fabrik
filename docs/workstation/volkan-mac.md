@@ -167,7 +167,7 @@ hub hooks for sounds, quota rotation, mail, agent charters, run records, scratch
 | 022 | ANSWERS to 021 | Volkan chose "Yes to both halves" on his own §5a sentence: a heavy surface stays in the lane under the full `/review`; row 5 fires only on a BREAKING change to a contract a shipped client reads, an additive field stays in the lane. They caught a defect in our §5a diff (line 45 edited, the subject on line 44) before he saw it. Hub D-533 supersedes D-532 |
 | 023 | MODIFY: `sound_test.py` cannot escape its sandbox + the overdue 016 ack | every invocation through `Sandbox.run` (`raw=` seam), which refuses a real player/log/lock dir. Applied: 40/40 at 3.9.6, `sound.log` delta 0; their counterfactual (the OLD grader) wrote +1 real line, so the leak was real there too. They proved section 8 had two holes: module level, and any function named `run` |
 | 024 | MODIFY: section 8 walks the whole tree, keyed on `Sandbox.run`'s line span (their patch) + alias/from-import refusal + a `last_body` seam check | applied, 43/43, every predicted mutant reproduced independently. They found the next hole: an enumeration of spawner names missed 15 of 22 `os` and 2 `subprocess` process-starters (`os.posix_spawn` ran with an `ok`). Volkan heard the five sounds and the live routing is correct; his verdict on the sounds themselves is not in |
-| 025 | MODIFY: section 8 by SHAPE — an import allowlist, any `subprocess` use outside `Sandbox.run`, `os` spawn-shaped names, the module never bound to another name, no `__import__`/`exec`/`eval`/`compile`/`getattr` on them — and a fixed-bucket dedup flake in an old check | 44/44 ×5 here; 14 grader mutants and 2 script mutants (mute and dedup removed) all fail on their named check. Out of reach by design: `sys.modules` lookups (deliberate obfuscation, not accident) |
+| 025 | MODIFY: section 8 by SHAPE — an import allowlist, any `subprocess` use outside `Sandbox.run`, `os` spawn-shaped names, the module never bound to another name, no `__import__`/`exec`/`eval`/`compile`/`getattr` on them — and a fixed-bucket dedup flake in an old check | **CONVERGED** — applied (md5 `bb0a667e…`), 44/44 on five runs at 3.9.6, `sound.log` delta 0; their two off-list probes (the module as an argument, `os` through a default) caught; escapes per round 2 → 3 → 0. Out of reach by design, verified by them: `sys.modules` lookups (deliberate obfuscation, not accident) |
 
 Repo commits on `vo-2026-09-09` (all his session's, on his word, pushed to his branch only): `5c4cba5
 907a060 3590dfb 72f5a1a 1b6535e e5e1956 0a12b53 c57cc3e d7f5222 8156894`. `origin/main` untouched at `1d19ae0`.
@@ -220,7 +220,6 @@ generations. All regenerable from this doc + the hub sources; nothing here is a 
 
 **OPEN NOW (2026-10-03).**
 
-- **025** — the shape-based section 8; adjudicate its reply (md5 `bb0a667e…`, `44 passed`, `sound.log` delta 0).
 - **Dedup buckets are fixed, not sliding** — a repeat straddling a 2 s boundary rings twice. Reported in 025, not changed: his call.
 - **Volkan's verdict on the five sounds** — all five played for him on 2026-10-03 and the live routing is correct; whether any two are too close is his word, not yet given.
 - **`/task` router gap, reported and deliberately NOT patched** — "Paylaşım ekranında küçük bir değişiklik yapalım" does not route
