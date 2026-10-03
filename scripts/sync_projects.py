@@ -361,13 +361,17 @@ def _detect_stack(path: Path) -> str:
 
 
 def _check_scaffold(path: Path) -> str:
-    """Check scaffold compliance. Returns clean enum for data storage."""
-    windsurfrules = path / ".windsurfrules"
+    """Check scaffold compliance. Returns clean enum for data storage.
+
+    The marker is AGENTS.md, which the governance sync delivers to every project; it was
+    `.windsurfrules` until the sync started pruning that file (D-529).
+    """
+    marker = path / "AGENTS.md"
     project_yaml = path / "project.yaml"
 
-    if not windsurfrules.exists():
+    if not marker.exists():
         return "missing"
-    if windsurfrules.is_symlink():
+    if marker.is_symlink():
         return "stale-symlink"
     if not project_yaml.exists():
         return "no-project-yaml"

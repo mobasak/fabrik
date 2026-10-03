@@ -2077,11 +2077,6 @@ def run_consistency_checks(
                 warn_only=True,
             )
         )
-        results.append(
-            run_optional_check(
-                "scripts/enforcement/check_opencode_json.py", "opencode.json (Kilo-Safe Rules)"
-            )
-        )
         # (INDEX.md touch-on-change is now folded into "Doc Sync Matrix"; the
         # auto-generated INDEX tree-map stays in docs_updater --check, tier 3.)
         results.append(
@@ -2422,18 +2417,14 @@ def run_consistency_checks(
 def check_symlinks() -> tuple[bool, str]:
     """Validate governance files are local copies, not symlinks.
 
-    Checks that critical governance artifacts (AGENTS.md, AGENTS-compact.md,
-    opencode.json, .windsurfrules, .windsurf/rules/, .windsurf/workflows/)
-    are copied files, not symlinks. This enforces workspace isolation for
+    Checks that critical governance artifacts (AGENTS.md, agents-fabrik*.md,
+    .windsurf/rules/, .windsurf/workflows/) are copied files, not symlinks. This enforces workspace isolation for
     AI coding agents.
 
     Self-exemption: When running inside /opt/fabrik itself, check is skipped.
 
     Governance files checked:
-    - AGENTS.md
-    - AGENTS-compact.md
-    - opencode.json
-    - .windsurfrules
+    - AGENTS.md, agents-fabrik.md, agents-fabrik-core.md
     - .windsurf/rules/ (directory, checked recursively)
     - .windsurf/workflows/ (directory, checked recursively)
 
@@ -2453,9 +2444,6 @@ def check_symlinks() -> tuple[bool, str]:
         "AGENTS.md",
         "agents-fabrik.md",  # canonical agents doc (synced 2026-07-19)
         "agents-fabrik-core.md",  # @import-ed platform core (synced 2026-07-19)
-        "AGENTS-compact.md",
-        "opencode.json",
-        ".windsurfrules",
         ".windsurf/rules",
         ".windsurf/workflows",
     ]

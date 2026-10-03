@@ -326,7 +326,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 │   │   ├── check_health.py
 │   │   ├── check_index_md.py
 │   │   ├── check_openapi_sync.py
-│   │   ├── check_opencode_json.py
 │   │   ├── check_plan_quality.py
 │   │   ├── check_plans.py
 │   │   ├── check_ports.py

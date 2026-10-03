@@ -14,7 +14,7 @@
 
 ## Overview
 
-Scans `/opt/*` project folders and checks scaffold health using six essential files. Each project is categorized as `healthy`, `warnings`, or `missing` based on how many essentials are missing.
+Scans `/opt/*` project folders and checks scaffold health using five essential files. Each project is categorized as `healthy`, `warnings`, or `missing` based on how many essentials are missing.
 
 ### Data Flow
 
@@ -33,7 +33,8 @@ The script verifies these files in every project folder:
 3. `project.yaml`
 4. `compose.yaml`
 5. `Dockerfile`
-6. `.windsurfrules`
+
+`.windsurfrules` was a sixth until the governance sync started pruning it from every project (D-529).
 
 ---
 

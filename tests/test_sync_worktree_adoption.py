@@ -1421,9 +1421,6 @@ def test_production_shape_agent_edit_older_than_refreshed_hub_source_survives(
         "AGENTS.md",
         "agents-fabrik.md",
         "agents-fabrik-core.md",
-        "AGENTS-compact.md",
-        "opencode.json",
-        ".windsurfrules",
         "CLAUDE.md",
         "PORTS.md",
     ]
@@ -1431,14 +1428,14 @@ def test_production_shape_agent_edit_older_than_refreshed_hub_source_survives(
         (repo / name).write_text(f"{name} hub v1\n")
 
     wt_dir = _add_worktree(repo, "agent-x")
-    sync.resync_worktree_artifacts(repo)  # establishes the ledger for all 8 files
+    sync.resync_worktree_artifacts(repo)  # establishes the ledger for all 5 files
 
     # The hub advances on every file (a governance commit), refreshing each source's
     # mtime to "now" — exactly what a real `shutil.copy2` propagation does.
     for name in filenames:
         (repo / name).write_text(f"{name} hub v2\n")
 
-    # The agent edited exactly ONE of the eight files, 30 minutes ago.
+    # The agent edited exactly ONE of the five files, 30 minutes ago.
     edited = "CLAUDE.md"
     (wt_dir / edited).write_text("agent's in-flight edit, 30 minutes old\n")
     _touch_mtime(wt_dir / edited, -1800)
@@ -1449,7 +1446,7 @@ def test_production_shape_agent_edit_older_than_refreshed_hub_source_survives(
     agent_edit_lost = (wt_dir / edited).read_text() != "agent's in-flight edit, 30 minutes old\n"
     assert not agent_edit_lost, f"AGENT EDIT LOST: {agent_edit_lost}"
     assert "WARN" in out, out
-    # The other seven, genuinely untouched by the agent, still refresh normally.
+    # The other four, genuinely untouched by the agent, still refresh normally.
     for name in filenames:
         if name == edited:
             continue
@@ -2511,3 +2508,34 @@ def _reap_zombie_rows(ledger: dict[str, str], project_dir: Path, wt: Path) -> di
     out = dict(ledger)
     sync.reap_zombie_rows(out, project_dir, wt)
     return out
+
+
+# --------------------------------------------------------------------------- #
+# Retired files in a linked worktree (review A-S1, D-529)                     #
+# --------------------------------------------------------------------------- #
+
+
+def test_a_retired_file_the_sync_wrote_into_a_worktree_is_pruned_there_too(
+    tmp_path: Path, capsys
+) -> None:
+    """The main-checkout prune leaves every pre-existing worktree's copy behind: the resync only
+    walks CURRENT .worktreeinclude patterns, which no longer list a retired name. A retired file
+    the worktree's own ledger proves the sync wrote, unchanged since, is removed; an agent's edit
+    of one and a file the ledger never recorded are left in place."""
+    repo = _init_repo(tmp_path / "proj")
+    wt = _add_worktree(repo, "agent-x")
+    synced = {"AGENTS-compact.md": "hub copy\n", "opencode.json": "{}\n"}
+    for name, body in synced.items():
+        (wt / name).write_text(body)
+    sync._write_worktree_ledger(wt, {n: sync.compute_file_hash(wt / n) for n in synced})
+    (wt / "opencode.json").write_text('{"agent": "edited"}\n')  # an edit after the sync wrote it
+    (wt / ".windsurfrules").write_text("never recorded\n")  # no ledger row at all
+    (wt / "scripts").mkdir(exist_ok=True)
+
+    sync.resync_worktree_artifacts(repo)
+    out = capsys.readouterr().out
+
+    assert not (wt / "AGENTS-compact.md").exists(), out
+    assert (wt / "opencode.json").read_text() == '{"agent": "edited"}\n', "an edit is never pruned"
+    assert (wt / ".windsurfrules").exists(), "a file the ledger never recorded is not the sync's"
+    assert "AGENTS-compact.md" not in sync._read_worktree_ledger(wt), "no zombie row"

@@ -32,10 +32,7 @@ DEBOUNCE_STAMP="/tmp/.fabrik-enforcement-watcher-last-run"
 # Governance files to watch (from sync_enforcement_to_projects.py)
 WATCH_FILES=(
     "${FABRIK_ROOT}/AGENTS.md"
-    "${FABRIK_ROOT}/AGENTS-compact.md"
     "${FABRIK_ROOT}/CLAUDE.md"
-    "${FABRIK_ROOT}/opencode.json"
-    "${FABRIK_ROOT}/.windsurfrules"
 )
 
 # Watch entire .windsurf/rules directory

@@ -80,7 +80,7 @@ tags: [scraping, automation]
 | **Status** | `project.yaml → status` | "🔨 Development" |
 | **URL** | `project.yaml → url` | None |
 | **Category** | `project.yaml → category` | Heuristic (see below) |
-| **Scaffold** | `.windsurfrules` + `project.yaml` check | — |
+| **Scaffold** | `AGENTS.md` + `project.yaml` check | — |
 
 ### Stack Detection
 
@@ -177,10 +177,13 @@ Updates the `<!-- AUTO-GENERATED:PROJECTS:START -->` block:
 
 | Status | Meaning |
 |--------|---------|
-| ✅ Current | `.windsurfrules` exists (copy) AND `project.yaml` exists |
-| ⚠️ No project.yaml | `.windsurfrules` exists but no `project.yaml` |
-| ⚠️ Needs update (symlink) | `.windsurfrules` is a symlink (should be copy) |
-| ❌ No scaffold | `.windsurfrules` missing entirely |
+| ✅ Current | `AGENTS.md` exists (copy) AND `project.yaml` exists |
+| ⚠️ No project.yaml | `AGENTS.md` exists but no `project.yaml` |
+| ⚠️ Needs update (symlink) | `AGENTS.md` is a symlink (should be copy) |
+| ❌ No scaffold | `AGENTS.md` missing entirely |
+
+The marker is `AGENTS.md`, which the governance sync delivers to every project; it was `.windsurfrules` until the
+sync started pruning that file (D-529).
 
 ---
 

@@ -13,7 +13,6 @@ class TestScanHealth:
         (project_dir / "project.yaml").touch()
         (project_dir / "compose.yaml").touch()
         (project_dir / "Dockerfile").touch()
-        (project_dir / ".windsurfrules").touch()
 
         results = scan_health(root=tmp_path)
 
@@ -33,7 +32,6 @@ class TestScanHealth:
         (project_dir / "project.yaml").touch()
         (project_dir / "compose.yaml").touch()
         (project_dir / "Dockerfile").touch()
-        (project_dir / ".windsurfrules").touch()
 
         results = scan_health(root=tmp_path)
 
@@ -54,8 +52,18 @@ class TestScanHealth:
         (project_dir / "project.yaml").touch()
         (project_dir / "compose.yaml").touch()
         (project_dir / "Dockerfile").touch()
-        (project_dir / ".windsurfrules").touch()
 
         results = scan_health(root=tmp_path)
 
         assert len(results) == 0
+
+
+def test_a_project_without_the_retired_windsurfrules_is_healthy(tmp_path: Path) -> None:
+    """D-529: the sync prunes `.windsurfrules` from every project, so its absence is the
+    expected state and must not count as a missing essential file."""
+    project_dir = tmp_path / "pruned-project"
+    project_dir.mkdir()
+    for name in ("AGENTS.md", ".env.example", "project.yaml", "compose.yaml", "Dockerfile"):
+        (project_dir / name).touch()
+    [result] = [r for r in scan_health(root=tmp_path) if r["project"] == "pruned-project"]
+    assert result["missing"] == [] and result["status"] == "healthy", result

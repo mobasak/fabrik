@@ -17,6 +17,8 @@ ALLOWED_ROOT_MD = {
     "CHANGELOG.md",
     "tasks.md",
     "AGENTS.md",
+    # AGENTS-compact.md is RETIRED (D-529): the sync prunes it, but the scaffold still writes it
+    # until fleet's half merges, so it stays allowed until the hub copy is deleted (infra step 6).
     "AGENTS-compact.md",
     # agents-fabrik.md (2026-07-12): the autonomous-factory orientation file — a
     # direct peer of AGENTS.md (same infra map, reframed for our tool-capable
@@ -31,8 +33,7 @@ ALLOWED_ROOT_MD = {
     "PORTS.md",
     "LICENSE.md",
     # T1-02 (2026-05-14): CLAUDE.md is Claude Code's per-project bootstrap;
-    # AGENTS.md + .windsurfrules + AGENTS-compact.md + CLAUDE.md all live in
-    # the project root by architectural decision (see CLAUDE.md HARD STOPS
+    # AGENTS.md + CLAUDE.md live in the project root by architectural decision (see CLAUDE.md HARD STOPS
     # allowlist row "new `.md` outside allowlist | root files · scaffold
     # docs · ..."). AFCL.md is the Agentic Friction & Constraint Log,
     # appended to as the operator hits silicon ceilings. PROOF.md and
@@ -44,7 +45,7 @@ ALLOWED_ROOT_MD = {
     "FOLLOWUPS.md",
     # KILO_CLI_RULES.md removed 2026-06-13 — not used for any AI (operator
     # directive); the file does not exist in the repo, so the root allowance
-    # was dead. opencode.json loads AGENTS-compact.md alone.
+    # was dead.
 }
 
 # Valid docs/ subdirectories

@@ -1326,14 +1326,6 @@ CANARIES: dict[str, dict[str, Any]] = {
         "files": {"NOTES.md": "# a root .md that is not allowlisted\n"},
         "expect": "a root-level .md outside ALLOWED_ROOT_MD",
     },
-    "check_opencode_json": {
-        "form": "cwd",
-        "base": {"opencode.json": '{"instructions": ["AGENTS-compact.md"]}\n'},
-        "files": {
-            "opencode.json": '{"instructions": ["AGENTS-compact.md", ".windsurf/rules/**/*.md"]}\n'
-        },
-        "expect": "opencode.json pulling the whole rules corpus into Kilo's context",
-    },
     "check_duplicates": {
         "form": "cwd",
         "requires": [

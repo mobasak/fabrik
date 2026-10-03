@@ -182,5 +182,4 @@ Before this ruleset is applied in a project:
 - Read the project's `.windsurf/rules/` (`core/` + project-type folder) and make this pipeline conform to the same
   constraints the executors plan against.
 - This is a glob-activated pack in the `ai/` ruleset (synced from `/opt/fabrik` via `.windsurf/rules`), distinct from
-  the owned governance files (`AGENTS.md` / `CLAUDE.md` / `AGENTS-compact.md` / `.windsurfrules`) — never rename it to
-  any of those.
+  the owned governance files (`AGENTS.md` / `CLAUDE.md`) — never rename it to either of those.

@@ -239,3 +239,34 @@ def test_apply_state_to_projects_yaml_roundtrip(_isolate_fabrik_root):
     assert d["deploy"]["coolify_app_name"] == "fabrik-roundtrip-svc"
     assert sorted(d["deploy"]["registrars_applied"]) == ["authelia", "gatus", "postgres"]
     assert d["deploy"]["spec_path"] == "/opt/fabrik/specs/services/roundtrip-svc.yaml"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _check_scaffold — the scaffold marker after `.windsurfrules` is retired (D-529)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("files", "symlink", "expected"),
+    [
+        (("AGENTS.md", "project.yaml"), False, "current"),
+        (("AGENTS.md",), False, "no-project-yaml"),
+        (("project.yaml",), False, "missing"),
+        (("AGENTS.md", "project.yaml"), True, "stale-symlink"),
+    ],
+    ids=["current", "no-project-yaml", "missing", "stale-symlink"],
+)
+def test_the_scaffold_marker_is_the_synced_agents_md(tmp_path, files, symlink, expected):
+    """The sync prunes `.windsurfrules` from every project, so a marker keyed on it would read
+    every pruned project as "No scaffold". AGENTS.md is synced to every project instead."""
+    sync = _import_sync()
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    for name in files:
+        if name == "AGENTS.md" and symlink:
+            target = tmp_path / "hub-AGENTS.md"
+            target.write_text("hub\n")
+            (proj / name).symlink_to(target)
+        else:
+            (proj / name).write_text("x\n")
+    assert sync._check_scaffold(proj) == expected

@@ -38,15 +38,14 @@ Synchronizes Fabrik governance + enforcement files to all `/opt/*` projects, ens
 | `AGENTS.md` | Agent workflow rules (stub pointing to `agents-fabrik.md`) |
 | `agents-fabrik.md` | Canonical infra + codebase map (the real content `AGENTS.md` stubs to) |
 | `agents-fabrik-core.md` | High-frequency platform core, @import-ed by every project's synced `CLAUDE.md` |
-| `AGENTS-compact.md` | Compact reference |
 | `CLAUDE.md` | Per-project Claude agent configuration — sourced from `templates/governance/CLAUDE.md` (`GOVERNANCE_TEMPLATES`), NOT from the hub's own `/opt/fabrik/CLAUDE.md`, which is the hub agents' contract and never distributed |
 | `.worktreeinclude` | Worktree-copy manifest for Claude Code linked worktrees — sourced from `templates/governance/.worktreeinclude` (`GOVERNANCE_TEMPLATES`), rendered by `fabrik_synced_manifest.worktreeinclude_text()` from the same `gitignore_dest_paths()` the `.gitignore` block comes from, plus `.env` and `.mcp.json`, minus `.claude/settings.local.json` (plan 2026-09-03-plan-1-multi-agent-per-repo, T01a) |
-| `opencode.json` | Kilo CLI configuration |
-| `.windsurfrules` | Cascade compact agent contract |
 | `.windsurf/rules/` | Cascade rule files (recursive, orphan-pruned) |
 | `.windsurf/workflows/` | Cascade workflow files (recursive, orphan-pruned) |
 | `docs/reference/kilo/` | Kilo agent-selection + model docs (recursive, orphan-pruned) |
 | `docs/reference/MD/` | Shared markdown reference set (recursive, orphan-pruned) |
+
+**Retired:** `AGENTS-compact.md`, `opencode.json` and `.windsurfrules` (`RETIRED_GOVERNANCE_FILES`) are no longer synced; `prune_retired_governance()` deletes a project's copy on every run, the way `prune_retired_scripts()` handles `RETIRED_CORE_SCRIPTS` (D-529). In each linked worktree, `resync_worktree_artifacts` prunes both lists too, but only a file the worktree's own ledger proves the sync wrote and that is unchanged since; an edit is left in place with a WARN.
 
 **Note:** `AFCL.md` is scaffolded as `AFCL_TEMPLATE.md` and customized per project, not synced. `.pre-commit-config.yaml` is tech-stack specific and not synced.
 
@@ -129,7 +128,7 @@ All files in `scripts/enforcement/` are recursively synced (`ENFORCEMENT_DIR`, `
 | `.claude/hooks/session_orient.py` | SessionStart ORIENT block — binds the synced CLAUDE.md, surfaces MEMORY.md state, names session-recall + the enforcement mesh |
 | `.windsurf/hooks.json` | Cascade hook configuration — **DORMANT**: no live runtime consumes it (Cascade retired); synced as a template for a future non-Claude tool, never counted as active enforcement |
 
-Synced verbatim to project root (`AGENT_HOOK_FILES`, `fabrik_synced_manifest.py`) — path/cwd-agnostic: the Claude Code hook resolves its project via `${CLAUDE_PROJECT_DIR}` + stdin cwd, the Cascade hook commands self-locate via `git rev-parse`. This is what makes every project — existing and future — enforce `final_gate` green as the definition of done. Kilo/opencode has no config-level hook surface (strict schema), so Kilo stays instruction-only via `AGENTS-compact.md` (rides the Governance Files sync instead).
+Synced verbatim to project root (`AGENT_HOOK_FILES`, `fabrik_synced_manifest.py`) — path/cwd-agnostic: the Claude Code hook resolves its project via `${CLAUDE_PROJECT_DIR}` + stdin cwd, the Cascade hook commands self-locate via `git rev-parse`. This is what makes every project — existing and future — enforce `final_gate` green as the definition of done.
 
 ---
 
