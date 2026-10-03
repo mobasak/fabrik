@@ -1,25 +1,25 @@
 {
-  "amortized_per_mtok": 0.0882007102754247,
+  "amortized_per_mtok": 0.687137722525858,
   "quota_draw_pct": 0.0,
-  "window_start": "2026-09-03",
-  "window_end": "2026-10-02",
+  "window_start": "2026-09-04",
+  "window_end": "2026-10-03",
   "accounts": 4,
   "spend_usd": 800.0,
-  "tokens": 9070221742,
-  "built_at": "2026-10-02T06:02:25+03:00",
+  "tokens": 1164249864,
+  "built_at": "2026-10-03T06:01:53+03:00",
   "per_model_spend": {
-    "window_start": "2026-09-03",
-    "window_end": "2026-10-02",
-    "spend_usd": 798.2795698924729,
+    "window_start": "2026-09-04",
+    "window_end": "2026-10-03",
+    "spend_usd": 797.4193548387094,
     "accounts": 4,
-    "base_rate_per_mtok": 0.0014776464244460527,
+    "base_rate_per_mtok": 0.0014711516419722993,
     "tiers": {
       "opus": {
         "weight": 5.0,
-        "tokens": 75877526285,
-        "share": 0.715891632062262,
-        "rate_per_mtok": 0.007388232122230264,
-        "cost_usd": 560.6007770542082,
+        "tokens": 81782060060,
+        "share": 0.7370099327626872,
+        "rate_per_mtok": 0.007355758209861497,
+        "cost_usd": 601.569059705731,
         "models": [
           "claude-opus-5",
           "claude-opus-5-5",
@@ -28,10 +28,10 @@
       },
       "sonnet": {
         "weight": 2.0,
-        "tokens": 15620193611,
-        "share": 0.1473738858500177,
-        "rate_per_mtok": 0.0029552928488921055,
-        "cost_usd": 46.16224647689845,
+        "tokens": 17469704939,
+        "share": 0.15743484638355018,
+        "rate_per_mtok": 0.0029423032839445986,
+        "cost_usd": 51.40117021156287,
         "models": [
           "claude-sonnet-5",
           "claude-sonnet-4-6"
@@ -39,10 +39,10 @@
       },
       "fable": {
         "weight": 10.0,
-        "tokens": 12790740301,
-        "share": 0.12067847223925136,
-        "rate_per_mtok": 0.014776464244460528,
-        "cost_usd": 189.0019167179068,
+        "tokens": 9608320877,
+        "share": 0.08658901375588672,
+        "rate_per_mtok": 0.014711516419722993,
+        "cost_usd": 141.35297034795272,
         "models": [
           "claude-fable-5-1",
           "claude-fable-5"
@@ -50,24 +50,24 @@
       },
       "haiku": {
         "weight": 1.0,
-        "tokens": 1701780346,
-        "share": 0.01605600984846894,
-        "rate_per_mtok": 0.0014776464244460527,
-        "cost_usd": 2.5146296434594664,
+        "tokens": 2104578811,
+        "share": 0.01896620709787591,
+        "rate_per_mtok": 0.0014711516419722993,
+        "cost_usd": 3.0961545734627594,
         "models": [
           "claude-haiku-4-5-20251001"
         ]
       }
     },
     "models": {
-      "claude-opus-5": 50977554546,
-      "claude-fable-5-1": 12774649456,
-      "claude-fable-5": 16090845,
-      "claude-sonnet-4-6": 43486187,
-      "claude-sonnet-5": 15576707424,
-      "claude-opus-4-8": 185964008,
-      "claude-haiku-4-5-20251001": 1701780346,
-      "claude-opus-5-5": 24714007731
+      "claude-opus-5": 46460771654,
+      "claude-fable-5-1": 9592659316,
+      "claude-haiku-4-5-20251001": 2104578811,
+      "claude-sonnet-5": 17427474047,
+      "claude-sonnet-4-6": 42230892,
+      "claude-fable-5": 15661561,
+      "claude-opus-4-8": 25391806,
+      "claude-opus-5-5": 35295896600
     },
     "daily": [
       {
@@ -1634,13 +1634,24 @@
       },
       {
         "date": "2026-10-02",
-        "tokens": 3486291186,
-        "cost_usd": 23.166959117843202,
+        "tokens": 13049888367,
+        "cost_usd": 79.46878596494219,
         "by_tier": {
-          "haiku": 104755177,
-          "sonnet": 454437446,
-          "opus": 2921266499,
-          "fable": 5832064
+          "haiku": 412385834,
+          "sonnet": 1903779713,
+          "opus": 10712816147,
+          "fable": 20906673
+        }
+      },
+      {
+        "date": "2026-10-03",
+        "tokens": 3316798841,
+        "cost_usd": 22.07860000215449,
+        "by_tier": {
+          "haiku": 108349809,
+          "sonnet": 404180715,
+          "opus": 2790339221,
+          "fable": 13929096
         }
       }
     ],

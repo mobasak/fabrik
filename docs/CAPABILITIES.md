@@ -107,7 +107,7 @@
 - [scripts/ci_fix_dispatcher.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_ci_fix_dispatcher.py, INDEX.md, CHANGELOG.md
 - [scripts/classify_services.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/tests/test_gather_envs.py tests/test_external_services_chain.py scripts/external_services_chain.sh docs/reference/external-services-registry
 - [scripts/claude_p_cost.py](../INDEX.md) (owner: infra): AFTER-EDIT: kilo-benchmarks/claude_price_ratios.json (the ① price source incl. `_model_cache`) · tests/test_claude_p_cost.py · tests/test_claude_p_cost_refresh.
-- [scripts/command_feedback_report.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_command_feedback_report.py, docs/reference/command-run-protocol.md, docs/reference/work-tracking.md
+- [scripts/command_feedback_report.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_command_feedback_report.py, tests/test_command_feedback_report_lane.py, docs/reference/command-run-protocol.md, docs/reference/work-track
 - [scripts/command_run.py](../INDEX.md) (owner: infra): AFTER-EDIT: CLAUDE.md | templates/governance/CLAUDE.md | docs/reference/command-run-protocol.md | .claude/hooks/final_gate_stop.py | commands/_sources/fabrik-re
 - [scripts/container_images.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/reference/prebuilt-app-containers.md
 - [scripts/decisions.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_decisions_helper.py, docs/reference/decision-ledger.md, scripts/docs_updater.py (keep MERGE_OWNER_RE identical) | NOT the 2026-08-30 desi
@@ -170,7 +170,7 @@
 - [scripts/kilo-benchmarks/reclassify_cap_rows.py](../INDEX.md) (owner: intel): AFTER-EDIT: tests/test_reclassify_cap_rows.py | rank_task_subagents.py (reads the status it writes)
 - [scripts/kilo-benchmarks/update_gateway_counts.py](../INDEX.md) (owner: intel): AFTER-EDIT: docs/workflows/KILO_BENCHMARK_WORKFLOW.md
 - [scripts/kilo_terminal_runner.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/lane_replay_capture.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/fixtures/lane_replay.json (re-capture it, then --check) · tests/test_lane_replay_capture.py
+- [scripts/lane_replay_capture.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/fixtures/lane_replay.json (re-capture it, then --check) · tests/test_lane_replay_capture.py · scripts/task_lane.py (expected_verdict delegates
 - [scripts/lint_fix_agent.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/mail.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_mail.py, docs/reference/fabrik-mail.md, docs/workstation/fabrik-mail.md, .env.example, docs/CONFIGURATION.md, docs/reference/work-trackin
 - [scripts/migrate_db_rename.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
@@ -182,7 +182,7 @@
 - [scripts/render_doc_script_links.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_doc_script_links.py | docs/reference/doc-script-coupling.md | scripts/enforcement/check_script_headers.py
 - [scripts/retype_project.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_retype_project.py | docs/workstation/mcp-roster.md
 - [scripts/review_loop_ledger.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/reference/review-loop-workflow.md | tests/test_review_loop_ledger.py | commands/_sources/fabrik-review.md
-- [scripts/review_receipt.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_review_receipt.py, commands/_sources/fabrik-review.md, commands/_sources/fabrik-execute-plan.md, scripts/enforcement/check_review_coverag
+- [scripts/review_receipt.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_review_receipt.py, tests/test_task_lane_receipt.py, scripts/task_lane.py (check_review_receipt reads the Command and Surface lines), comm
 - [scripts/review_rubric.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/select_rules.py scripts/rules_match.py tests/test_review_rubric.py
 - [scripts/rivals_run.py](../INDEX.md) (owner: infra): AFTER-EDIT: commands/_sources/fabrik-rivals.md | docs/reference/rivals-command.md | INDEX.md
 - [scripts/scratch_sweep.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/cleanup-automation.md | docs/workstation/hooks-index.md | tests/test_scratch_sweep.py
@@ -211,13 +211,14 @@
 - [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/quota-dashboard.md, PORTS.md, docs/workstation/claude-account-rotation.md
 - [scripts/sysadmin/rules_render_versions.py](../INDEX.md) (owner: infra): AFTER-EDIT: .windsurf/rules/versions.yaml, scripts/sysadmin/rules_currency_watch.py, tests/sysadmin/test_rules_render_versions.py | none
 - [scripts/sysadmin/stop_mine.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/hooks-index.md, docs/reference/thread-anchors.md, docs/workstation/kaizen-event-stream.md
+- [scripts/task_lane.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_task_lane_admission.py · tests/test_task_lane_close.py · tests/test_task_lane_receipt.py · tests/test_task_lane_review_stop.py · scripts/
 - [scripts/traycer_write_report.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/update_vps_docs.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/verify_prod_parity.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/DEPLOYMENT.md, docs/OPERATIONS.md | none
 - [scripts/vps_apply_limits.sh](../INDEX.md) (owner: fleet): AFTER-EDIT: docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md | docs/STRATEGIC_BACKLOG.md
 - [scripts/vps_sync.py](../INDEX.md) (owner: fleet): AFTER-EDIT: none
 - [scripts/whoami_agent.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_whoami_agent.py, docs/workstation/agent-identity.md
-- [scripts/work.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_work.py, tests/test_work_claims.py, tests/test_work_sync.py, tests/test_work_migrate.py, docs/reference/work-tracking.md
+- [scripts/work.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_work.py, tests/test_work_claims.py, tests/test_work_sync.py, tests/test_work_migrate.py, docs/reference/work-tracking.md, tests/test_work
 
 ## lib-module
 - [abuse-prevention](/opt/fabrik-lib/abuse-prevention/README.md) (owner: external:fabrik-lib): abuse-prevention
@@ -309,12 +310,12 @@
 ## rules-pack
 - [ai/00-ai-model-selection.md](../.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selection INDEX — Claude on the Max subscription (`claude -p`, selected by alias so it is always the latest model) first; specialized vendors for non-LLM categories; metered gateways only for what Claude cannot serve. Honors Fabrik AI defaults (pgvector-only, Recraft images, Soniox TTS). Routes to per-category packs 10–90 in this folder.
 - [ai/10-speech-audio.md](../.windsurf/rules/ai/10-speech-audio.md) (owner: infra): Speech & Audio AI (category 1) — transcription (Soniox, ElevenLabs Scribe, OpenAI, Deepgram, AssemblyAI), TTS (Soniox default, ElevenLabs for expressive voices, Chatterbox self-hosted), voice cloning, speech gating, diarization, audio classification, music generation — with the commercial-use limits that decide them.
-- [ai/20-vision.md](../.windsurf/rules/ai/20-vision.md) (owner: infra): Vision AI (category 2) — image gen (Recraft v4.1 for branded/recurring-style/vector, FLUX-schnell for bulk illustration, FLUX/BFL for photoreal, Replicate as host/fallback), video gen, object/scene recognition, OCR, face/pose. Kilo: 70 vision models.
-- [ai/25-3d-generation.md](../.windsurf/rules/ai/25-3d-generation.md) (owner: infra): 3D asset generation — automated zero-edit mesh/asset pipeline (GLB/FBX/OBJ/STL/USDZ). Provider routing by asset type (Meshy/Tripo/Rodin/TRELLIS 2), mandatory headless validation gate, re-roll caps, API-before-self-host discipline. NOT CAD. Backed by docs/reference/research/Zero-Edit 3D API Evaluation.md.
-- [ai/30-language.md](../.windsurf/rules/ai/30-language.md) (owner: infra): Language AI (category 3) — LLMs (Claude Opus 4.8 default; Sonnet 4.6 high-volume; Haiku 4.5 speed), embeddings/search (pgvector ONLY — dedicated vector DBs banned), translation (DeepL), summarization. Kilo: 235 language models.
-- [ai/40-multimodal.md](../.windsurf/rules/ai/40-multimodal.md) (owner: infra): Vision-Language & Multimodal AI (category 4) — combine text/image/audio/video understanding (Claude Opus 4.8, GPT-4o, Gemini 2.5 Pro, LLaVA). Visual QA, image captioning, document & video understanding. Kilo: 70 multimodal models.
-- [ai/50-agentic.md](../.windsurf/rules/ai/50-agentic.md) (owner: infra): Agentic / Reasoning AI (category 5) — multi-step reasoning & tool use (OpenAI o3/o4-mini, Claude, LangChain Agents, AutoGPT). Automation, planning, research. Kilo: 88 reasoning + 148 toolcall models.
-- [ai/60-code.md](../.windsurf/rules/ai/60-code.md) (owner: infra): Code & Developer AI (category 6) — generate or explain code (Claude Code, GitHub Copilot, Cursor, Windsurf Cascade, Amazon Q). Code completion, refactoring, debugging. Kilo: 148 code models.
+- [ai/20-vision.md](../.windsurf/rules/ai/20-vision.md) (owner: infra): Vision AI (category 2) — image understanding on Claude through `claude -p` on the subscription first; image generation with Recraft (branded, vector, its Flash tier for bulk) and FLUX (photoreal), Replicate or fal as host; dedicated models for pixel boxes, pose, real time and bulk document OCR; licence traps named.
+- [ai/25-3d-generation.md](../.windsurf/rules/ai/25-3d-generation.md) (owner: infra): 3D asset generation — automated zero-edit mesh pipeline (GLB/FBX/OBJ/STL/3MF/USDZ). Provider routing by asset type (Meshy, Tripo, Rodin, self-hosted TRELLIS), a mandatory headless validation gate with a Claude look at renders, re-roll caps, API before self-host, licence traps named. NOT CAD — simple parametric parts go to Claude-written CAD code or Zoo.
+- [ai/30-language.md](../.windsurf/rules/ai/30-language.md) (owner: infra): Language AI (category 3) — LLM work, translation and summarization on Claude through `claude -p` on the subscription first; embeddings through OpenRouter into pgvector on postgres-main (dedicated vector DBs banned); a dedicated MT engine only when a bake-off says so, DeepL last; licence traps named.
+- [ai/40-multimodal.md](../.windsurf/rules/ai/40-multimodal.md) (owner: infra): Vision-Language & Multimodal AI (category 4) — understand images, documents, audio and video together. Images and PDFs go to Claude through claude -p on the subscription; Claude takes no audio or video, so video and non-speech audio go to Gemini through OpenRouter and speech is transcribed first (ai/10). Visual QA, captioning, document and video understanding.
+- [ai/50-agentic.md](../.windsurf/rules/ai/50-agentic.md) (owner: infra): Agentic / Reasoning AI (category 5) — multi-step reasoning and tool use. Agent loops run on Claude through claude -p and fabrik-lib's llm-dispatch (run_agentic, sessions, max_turns, a fixed tool set) on the subscription, never ANTHROPIC_API_KEY; a framework only on a recorded need. Automation, planning, research.
+- [ai/60-code.md](../.windsurf/rules/ai/60-code.md) (owner: infra): Code & Developer AI (category 6) — code AI embedded in a product (generate, edit, explain, review code). Code-writing features run on Claude through claude -p on ai/50's agent loop, with the code run in a container or VM and repository content treated as untrusted input. Fabrik's own development runs on Claude Code in VS Code.
 - [ai/70-data-predictive.md](../.windsurf/rules/ai/70-data-predictive.md) (owner: infra): Data & Predictive AI (category 7) — analyze structured data, forecast, detect anomalies (DataRobot, H2O.ai, Vertex AI, SageMaker). Not covered by Kilo — use specialized domain tools.
 - [ai/80-specialized-domains.md](../.windsurf/rules/ai/80-specialized-domains.md) (owner: infra): Specialized AI domains (categories 8–15) — Robotics, Synthetic Data, Recommendation, Cybersecurity, Bio/Healthcare, Edge/Embedded, Governance/Trust/Safety, Generative Design. NOT covered by Kilo — use domain-specific tools.
 - [ai/90-long-context.md](../.windsurf/rules/ai/90-long-context.md) (owner: infra): Long-Context AI (category 16) — process extremely long documents, codebases, or conversations. Claude Opus 4.8 (1M), Claude Fable 5 (1M), Gemini 2.5 Pro (1M), GPT-4o (128K).
