@@ -195,7 +195,10 @@ third-party API. Partition, don't skip (moot while every seat is native — D-18
   imports the PIN (a `git archive <sha>` extract with the pinned files overlaid), never `sys.path.insert` the live tree, and prints the module's `__file__` beside every result (a
   sibling's uncommitted edit in the live tree once fed three measurements) · a later pass's brief
   states the ledger's high-water mark — its last row id and the receipt's sha at dispatch — never a
-  hand-typed row range · Python `time.sleep` in fixture scripts,
+  hand-typed row range · every helper or probe file a seat writes goes in its OWN scratch dir
+  (`<scratch>/<slice>-<model>/`), never the dispatcher's scratchpad root, and never under a name that
+  collides with an importable package (a seat's `h11.py` there shadowed the real `h11` for every
+  process run from that dir) · Python `time.sleep` in fixture scripts,
   never a foreground shell sleep · a quote verified against a session transcript filters out the
   Stop-hook feedback, the skill-invocation payloads and the re-invocation notice (all arrive as
   `type: user`; a brief's ARGUMENTS text is not the operator's words) and prefilters the raw line by

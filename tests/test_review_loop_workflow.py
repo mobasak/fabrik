@@ -783,6 +783,14 @@ def test_the_finder_lessons_tell_a_seat_to_import_the_pin_and_state_the_ledger_h
     assert "high-water mark" in lessons
 
 
+def test_the_finder_lessons_keep_helpers_in_the_seats_own_scratch_dir() -> None:
+    """W-73e47d29: a seat's `h11.py` in the shared scratchpad root shadowed the real `h11` package
+    for every other process that ran from there."""
+    lessons = _finder_lessons()
+    assert "OWN scratch dir" in lessons and "never the dispatcher's scratchpad root" in lessons
+    assert "importable package" in lessons
+
+
 def test_the_route_up_sentence_cites_symbols_that_exist_not_drifting_line_numbers() -> None:
     """W-a1b7033e: `command_run.py:1863` → `:2702` and `:2585` resolved to unrelated lines, and no
     code detects a route-up at all — three exact numbers that read as verified and were not."""
