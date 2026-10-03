@@ -2178,3 +2178,90 @@ def test_a_pre_d206_receipt_whose_status_is_not_converged_is_never_legacy(repo: 
     _legacy_fixture(repo, "2026-09-01", review)
     rc, out = _check_out(repo)
     assert rc == 1, out
+
+
+# --- W-98338ad4: one quoting policy for every spine-set check, and the closing-row graders ------
+
+_CLOSING_OK = "| Pass 1 | s | method: re-derivation | confirmed: 0 |\n"
+_BOARD_T01 = "| T01 | fixture | — | ⚡ | ⬜ | — |\n"
+
+
+def test_a_parked_board_row_in_an_html_comment_is_not_an_orphan(tmp_path):
+    """A superseded Board row parked in `<!-- … -->` is a quote, as a parked ledger already was."""
+    parked = _BOARD_T01 + "<!-- superseded:\n| T09 | old | — | ⚡ | ⬜ | — |\n-->\n"
+    head = _LEDGER_SPINE_HEAD.replace(_BOARD_T01, parked)
+    assert head != _LEDGER_SPINE_HEAD
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    spine = _ledger_spine(tmp_path)
+    spine.write_text(head + _CLOSING_OK)
+    assert cc._check_spine_set(tmp_path, spine, spine.read_text()) == []
+    # the same row LIVE is still an orphan
+    spine.write_text(head.replace("<!-- superseded:\n", "").replace("-->\n", "") + _CLOSING_OK)
+    fails = cc._check_spine_set(tmp_path, spine, spine.read_text())
+    assert any("Board row T09" in f and "orphan row" in f for f in fails), fails
+
+
+def test_a_parked_status_line_in_a_ticket_is_not_a_ticket_status(tmp_path):
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    spine = _ledger_spine(tmp_path)
+    spine.write_text(_LEDGER_SPINE_HEAD + _CLOSING_OK)
+    ticket = spine.parent / "T01-fixture.md"
+    ticket.write_text(_LEDGER_TICKET + "\n<!--\nStatus: DONE\n-->\n")
+    assert cc._check_spine_set(tmp_path, spine, spine.read_text()) == []
+    ticket.write_text(_LEDGER_TICKET + "\nStatus: DONE\n")
+    fails = cc._check_spine_set(tmp_path, spine, spine.read_text())
+    assert any("carries a Status: line" in f for f in fails), fails
+
+
+@pytest.mark.parametrize(
+    "ledger",
+    [
+        # `_CONFIRMED_TOKEN` is case-insensitive
+        "| Pass 1 | s | confirmed: 0 |\n| Pass 2 | s | Confirmed: 3 |\n",
+        # ... and takes a counter with NO space after the colon
+        "| Pass 1 | s | confirmed: 0 |\n| Pass 2 | s | confirmed:3 |\n",
+        # `_PASS_ROW` grades an UNPADDED GFM row
+        "| Pass 1 | s | confirmed: 0 |\n|Pass 2|s|confirmed: 3|\n",
+        # a later COUNTERLESS row never un-counts the ledger: the last COUNTER row decides
+        "| Pass 1 | s | confirmed: 3 |\n| Pass 2 | s | edits: 0 |\n",
+    ],
+    ids=["case", "no-space", "unpadded", "counterless-later-row"],
+)
+def test_the_closing_row_rule_refuses_these_documented_shapes(ledger):
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    assert cc._closing_row_fail(ledger) is not None
+
+
+@pytest.mark.parametrize(
+    "ledger",
+    [
+        # a BLOCKQUOTED row is quoted content, never the closing row
+        "| Pass 1 | s | confirmed: 0 |\n> | Pass 2 | s | confirmed: 3 |\n",
+        # a line with no LEADING pipe is prose, not a ledger row
+        "| Pass 1 | s | confirmed: 0 |\nPass 2 | s | confirmed: 3 |\n",
+        # `\b` after the label: `Passage` is not `Pass`
+        "| Pass 1 | s | confirmed: 0 |\n| Passage | s | confirmed: 3 |\n",
+    ],
+    ids=["blockquote", "no-leading-pipe", "label-word-boundary"],
+)
+def test_the_closing_row_rule_does_not_grade_these_documented_non_rows(ledger):
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    assert cc._closing_row_fail(ledger) is None
+
+
+def test_a_spine_is_the_same_stem_md_in_a_dated_plan_directory_only():
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    d = Path("docs/development/plans/2026-09-10-plan-1-ledger")
+    assert cc._is_spine(d / "2026-09-10-plan-1-ledger.md")
+    assert not cc._is_spine(d / "2026-09-10-plan-1-ledger-notes.md")
+    assert not cc._is_spine(d / "T01-fixture.md")

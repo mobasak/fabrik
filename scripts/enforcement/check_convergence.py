@@ -215,6 +215,14 @@ _CONFIRMED_TOKEN = re.compile(r"(?<![\w-])confirmed\s*:\s*(\d+)", re.I)
 CLOSING_ROW_REFUSAL = "the flip is refused: the last Pass row does not read confirmed: 0"
 
 
+def _blank_quoted(text: str) -> str:
+    """The spine-set QUOTING policy, one definition for every check in `_check_spine_set`: fences
+    stripped, then code spans masked, then HTML comments blanked — a parked (commented) Board row,
+    ledger row or ticket `Status:` line is a quote, never live (W-98338ad4: the orphan-row loop and
+    the ticket Status ban read fence-stripped text only, so a parked Board row was an orphan)."""
+    return _HTML_COMMENT.sub("", _mask_spans(FENCE_STRIP.sub("", text)))
+
+
 def _closing_row_fail(text: str) -> str | None:
     """The refusal for a spine text, or None. The quoting policy is applied HERE — fences stripped,
     then code spans masked (a `<!--` inside backticks is prose, not a comment opener), then HTML
@@ -232,7 +240,7 @@ def _closing_row_fail(text: str) -> str | None:
     # population the `_PASS_ROW` comment states — change verdict), then HTML comments blanked.
     # The archived carve-out in the caller is the lowercase
     # DIRECTORY part `archived` — `Archived/` and a slug carrying the word are graded.
-    text = _HTML_COMMENT.sub("", _mask_spans(FENCE_STRIP.sub("", text)))
+    text = _blank_quoted(text)
     last: str | None = None
     for m in _PASS_ROW.finditer(text):
         tokens = _CONFIRMED_TOKEN.findall(m.group(0))
@@ -431,7 +439,7 @@ def _check_spine_set(root: Path, spine: Path, text: str) -> list[str]:
     if "archived" in rel.parts:
         return []  # settled history — never re-enforced
     fails: list[str] = []
-    text = FENCE_STRIP.sub("", text)  # fences are quotes — same policy as check_plan_dir
+    text = _blank_quoted(text)  # fences, code spans and comments are quotes (W-98338ad4)
     section = BOARD_SECTION.search(text)
     rows = BOARD_ROW.findall(section.group(1)) if section else []
     ticket_ids_on_disk = {
@@ -446,9 +454,7 @@ def _check_spine_set(root: Path, spine: Path, text: str) -> list[str]:
     for f in sorted(spine.parent.glob("*.md")):
         if not TICKET_FILE.match(f.name):
             continue
-        if ANY_STATUS_LINE.search(
-            FENCE_STRIP.sub("", f.read_text(encoding="utf-8", errors="replace"))
-        ):
+        if ANY_STATUS_LINE.search(_blank_quoted(f.read_text(encoding="utf-8", errors="replace"))):
             fails.append(
                 f"{rel}: ticket {f.name} carries a Status: line — ticket state lives ONLY "
                 "in the spine Board"
