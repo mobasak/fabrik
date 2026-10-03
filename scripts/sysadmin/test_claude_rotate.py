@@ -41,6 +41,7 @@ def _hermetic_governor_hooks(monkeypatch, tmp_path):
     fleet = tmp_path / "isolated-fleet"
     fleet.mkdir()
     monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(fleet))
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(tmp_path / "ledger-fallback.jsonl"))
     monkeypatch.setattr(claude_rotate, "_oauth_get", lambda *a, **k: None)
     monkeypatch.setattr(claude_rotate, "_signal_governor_capped", lambda text: None)
 
@@ -1493,3 +1494,17 @@ def test_a_failed_active_marker_write_still_ledgers_the_switch(tmp_path, monkeyp
     assert claude_rotate._rotate_active_account() == "ob-dir"
     ledger = (claude_dir / "state" / "rotate-ledger.jsonl").read_text(encoding="utf-8")
     assert '"event": "switch"' in ledger and '"to": "ob-dir"' in ledger, ledger
+
+
+def test_a_failed_marker_with_an_unusable_stderr_still_reports_the_swap(tmp_path, monkeypatch):
+    """W-16ebba0a closing review N1: the marker handler's stderr write was unguarded, so with stderr
+    None the completed swap raised (or read as "no rotation") and the switch row was skipped."""
+    claude_dir, _, active = _setup_fake_claude(
+        tmp_path, monkeypatch, {"mob-dir": "org-mob", "ob-dir": "org-ob"}
+    )
+    _write_creds(active, "org-mob")
+    (claude_dir / ".active-account").mkdir()
+    monkeypatch.setattr(claude_rotate.sys, "stderr", None)
+    assert claude_rotate._rotate_active_account() == "ob-dir"
+    ledger = (claude_dir / "state" / "rotate-ledger.jsonl").read_text(encoding="utf-8")
+    assert '"to": "ob-dir"' in ledger, ledger

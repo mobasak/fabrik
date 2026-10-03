@@ -408,7 +408,7 @@ def _activate_snapshot(
         try:
             _secure_write(ACTIVE_MARKER, target.name.encode())
         except OSError as exc:
-            sys.stderr.write(f"claude_rotate: active marker write failed ({exc}) — swap stands\n")
+            _warn(f"claude_rotate: active marker write failed ({exc}) — swap stands\n")
         # closer #5: EVERY switch writer starts the dwell clock — a manual --switch/--next/aro-wake
         # rotation invisible to the ledger let the tick re-rotate minutes later, defeating the
         # hysteresis. Ledgered OUTSIDE the marker's try: a failed marker used to skip the row in
@@ -2275,9 +2275,20 @@ def _usable_ts(ts: object) -> float | None:
 
 # The ledger is an audit trail, never a crash source — an escape from these readers aborts the tick
 # mid-flight, taking the drain broadcast with it.
+def _warn(text: str) -> None:
+    """Write *text* to stderr; never raises — stderr may be None, closed or a broken pipe, and a
+    report must not fail the operation it reports on (a raise after a completed swap made the
+    caller read "no rotation" — W-16ebba0a closing review N1)."""
+    try:
+        sys.stderr.write(text)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _ledger_fallback_path() -> Path:
     """Where a row the ledger refused goes: the system temp dir, per uid — a different directory
-    from the state dir whose failure sent it here, readable by the operator and by --status."""
+    from the state dir whose failure sent it here. Nothing reads it automatically: the stderr line
+    that names it is the signal, and the operator reads the file by hand."""
     override = os.environ.get("ROTATE_LEDGER_FALLBACK")
     if override:
         return Path(override)
@@ -2292,28 +2303,41 @@ def _ledger_append(event: dict) -> None:
     and nothing could say who did it. A refused row goes to :func:`_ledger_fallback_path` (durable
     whoever owns stderr — the dashboard's --switch captures stderr and drops it on rc 0) and to
     stderr (the cron tick sends 2>&1 to rotate-tick.log). Neither report can raise."""
-    try:
+    try:  # encoded ONCE, before any write, so neither path can raise
         row = json.dumps(event)
-    except (TypeError, ValueError):  # encoded ONCE, before any write, so neither path can raise
-        row = json.dumps({"unencodable_event": repr(event)})
+    except Exception:  # noqa: BLE001 — TypeError, ValueError, RecursionError, a raising __repr__
+        row = _degraded_row(event)
     try:
         with (_rotate_state_dir() / "rotate-ledger.jsonl").open("a") as fh:
             fh.write(row + "\n")
         return
     except _STATE_DIR_ERRORS as exc:
         reason = str(exc)
-    try:
-        with _ledger_fallback_path().open("a") as fh:
+    fallback = _ledger_fallback_path()
+    try:  # O_NOFOLLOW + 0600: a shared temp dir must not redirect or expose the row (N2)
+        fd = os.open(fallback, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "a") as fh:
             fh.write(row + "\n")
-        where = f"; kept in {_ledger_fallback_path()}"
+        where = f"; kept in {fallback}"
     except OSError:
         where = "; the fallback file failed too"
+    _warn(f"claude_rotate: rotate ledger write failed ({reason}){where} — row: {row}\n")
+
+
+def _degraded_row(event: object) -> str:
+    """A row for an event JSON cannot encode: its ``event`` and ``ts`` stay top-level so the
+    dwell readers still see it (N4), the rest is a repr — or the type name when repr raises."""
+    keep: dict = {}
+    if isinstance(event, dict):
+        if isinstance(event.get("event"), str):
+            keep["event"] = event["event"]
+        if isinstance(event.get("ts"), (int, float)) and math.isfinite(event["ts"]):
+            keep["ts"] = event["ts"]
     try:
-        sys.stderr.write(
-            f"claude_rotate: rotate ledger write failed ({reason}){where} — row: {row}\n"
-        )
-    except Exception:  # noqa: BLE001 — stderr closed or a broken pipe: the fallback file holds it
-        pass
+        keep["unencodable_event"] = repr(event)[:2000]
+    except Exception:  # noqa: BLE001
+        keep["unencodable_event"] = type(event).__name__
+    return json.dumps(keep)
 
 
 def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:

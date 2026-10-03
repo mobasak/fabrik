@@ -8140,5 +8140,44 @@ def test_an_unencodable_row_on_a_healthy_ledger_is_written_not_raised(tmp_path, 
     perfectly writable ledger. The row is written in a degraded but readable form instead."""
     state = tmp_path / "state"
     monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
-    cr._ledger_append({"event": "flip", "to": "mob", "odd": {1, 2}})
-    assert "unencodable_event" in (state / "rotate-ledger.jsonl").read_text(encoding="utf-8")
+    cr._ledger_append({"event": "flip", "ts": 5.0, "to": "mob", "odd": {1, 2}})
+    row = json.loads((state / "rotate-ledger.jsonl").read_text(encoding="utf-8"))
+    # the dwell readers filter on `event`: a degraded flip row that lost it never started the clock
+    assert row["event"] == "flip" and row["ts"] == 5.0 and "unencodable_event" in row, row
+
+
+class _BadRepr:
+    def __repr__(self) -> str:
+        raise RuntimeError("no repr")
+
+
+def test_an_event_whose_repr_raises_or_nests_too_deep_never_raises(tmp_path, monkeypatch):
+    """RecursionError and a raising __repr__ escaped the (TypeError, ValueError) guard."""
+    state = tmp_path / "state"
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    deep: list = []
+    for _ in range(100_000):
+        deep = [deep]
+    cr._ledger_append({"event": "flip", "odd": _BadRepr()})
+    cr._ledger_append({"event": "flip", "odd": deep})
+    rows = (state / "rotate-ledger.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(rows) == 2 and all(json.loads(r)["event"] == "flip" for r in rows), rows
+
+
+def test_the_fallback_file_follows_no_symlink_and_is_private(tmp_path, monkeypatch):
+    """The default fallback sits in a shared temp dir: a planted link must not redirect the row,
+    and the file (account emails ride in rows) must not be world-readable."""
+    not_a_dir = tmp_path / "state-is-a-file"
+    not_a_dir.write_text("", encoding="utf-8")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(not_a_dir))
+    victim = tmp_path / "victim"
+    victim.write_text("", encoding="utf-8")
+    link = tmp_path / "fallback.jsonl"
+    link.symlink_to(victim)
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(link))
+    cr._ledger_append({"event": "flip", "to": "mob"})
+    assert victim.read_text(encoding="utf-8") == "", "the planted link was followed"
+    fresh = tmp_path / "fresh.jsonl"
+    monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(fresh))
+    cr._ledger_append({"event": "flip", "to": "mob"})
+    assert fresh.stat().st_mode & 0o777 == 0o600
