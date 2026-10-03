@@ -16,8 +16,9 @@
 9. The scaffold still ships what the pack says it ships, and neither pack carries a version number in any shape.
 
 Guards read emphasis-stripped, whitespace-collapsed text and pin the clause that carries the force, so a reversed verb
-fails. The cheapest way past (2) is a price in words ("ninety-nine dollars"); the check catches the shapes agents copy
-from a vendor page (`$99`, `15%`), and the pack's review catches the rest.
+fails. The cheapest way past (2) is a price in words; the check catches digit shapes (`$99`, `15%`) and the currency
+and rate words a spelled-out value needs (`dollars`, `percent`), so the cheap path left is a value with no unit at all,
+which the pack's review catches.
 """
 
 from __future__ import annotations
@@ -69,6 +70,17 @@ def _section(path: Path, heading: str) -> str:
     return _plain("\n".join(out))
 
 
+def _headings(path: Path) -> list[str]:
+    """Markdown headings only — a `#` line inside a fenced code block is a comment, not a heading."""
+    out, fence = [], False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.lstrip().startswith("```"):
+            fence = not fence
+        elif not fence and re.match(r"#+ ", line):
+            out.append(line.lstrip("#").strip())
+    return out
+
+
 def _has(text: str, *phrases: str) -> None:
     for phrase in phrases:
         assert phrase in text, f"lost: {phrase!r}"
@@ -94,7 +106,11 @@ def test_domain_names_the_live_loaders() -> None:
 
 
 def test_domain_copies_no_price_or_rate() -> None:
-    found = re.findall(r"\$\s?\d|\d\s?%", _plain(_body(DOMAIN)))
+    found = re.findall(
+        r"\$\s?\d|\d\s?%|\b(?:percent|per cent|dollars|euros|liras?|USD|EUR)\b",
+        _plain(_body(DOMAIN)),
+        re.I,
+    )
     assert not found, f"00 copies a value 72 owns: {found}"
 
 
@@ -109,11 +125,7 @@ def test_domain_cites_resolve() -> None:
                 seg = seg[: seg.rindex(")")].strip()
             cites.append(seg)
     assert len(cites) >= 9, f"the cite parser found only {cites}"
-    headings = [
-        ln.lstrip("#").strip()
-        for ln in PACK.read_text(encoding="utf-8").splitlines()
-        if ln.startswith("#")
-    ]
+    headings = _headings(PACK)
     for cite in cites:
         assert any(h.startswith(cite.strip()) for h in headings), (
             f"00 cites 72 § {cite}, which does not exist"
@@ -149,6 +161,9 @@ def test_renderer_lockdown() -> None:
         "event.senderFrame.origin",
         "Check the frame's origin, not its URL",
         "never hand a renderer callback straight to ipcRenderer.on",
+        "register the scheme as privileged before app is ready",
+        "protocol.registerSchemesAsPrivileged([",
+        "never set webSecurity: false",
     )
 
 
@@ -190,6 +205,11 @@ def test_storage() -> None:
     assert "=== 'basic_text'" in sample and "throw new Error" in sample, (
         "the storeSecret sample no longer refuses the basic_text backend"
     )
+    _has(
+        c,
+        "const { result, shouldReEncrypt } = await safeStorage.decryptStringAsync(",
+        "isAsyncEncryptionAvailable()",
+    )
 
 
 def test_signing() -> None:
@@ -197,7 +217,8 @@ def test_signing() -> None:
     _has(
         s,
         "Azure Artifact Signing (formerly Trusted Signing)",
-        "Organisations in the US, Canada, the EU and the UK; individuals in the US and Canada only",
+        "individuals in the US and Canada only — not Türkiye",
+        "the route for an entity registered in Türkiye, which Artifact Signing does not serve",
         "not instant",
         "No longer skips SmartScreen (since 2024)",
         "Artifact Signing when the legal entity is eligible; otherwise an OV certificate held in a cloud signing service",
@@ -206,7 +227,12 @@ def test_signing() -> None:
         "cannot be expedited",
         "xcrun notarytool",
         "a ZIP cannot",
-        "Smart App Control",
+        "Smart App Control, where it is on, blocks",
+        "Timestamp every Windows signature",
+        "com.apple.security.cs.allow-jit",
+        "com.apple.security.cs.allow-unsigned-executable-memory",
+        "apply only with com.apple.security.app-sandbox",
+        "mac.notarize: true",
     )
 
 
@@ -220,6 +246,7 @@ def test_updates() -> None:
         "the app must be signed or it will not update",
         "GitHub Releases on a private repo",
         "Production updates from r2.dev",
+        "ship a release whose publisherName lists both names",
     )
     assert "pub-" not in s, "72 points auto-update at an r2.dev URL again"
 
@@ -229,9 +256,18 @@ def test_auth_compliance_testing() -> None:
     _has(
         a,
         "always with PKCE",
-        "Google no longer supports custom URI schemes for desktop clients",
+        "Google documents only the loopback redirect for desktop clients",
         "listen(0, '127.0.0.1'",
+        "reject any callback whose state does not match",
+        "&state=${state}",
     )
+    n = _section(PACK, "Native Integrations")
+    _has(
+        n,
+        "cold start delivers the URL in the first instance's own process.argv",
+        "It has no Linux implementation",
+    )
+    assert "openAsHidden" not in n, "72 recommends the removed openAsHidden option again"
     k = _section(PACK, "KVKK / GDPR Compliance")
     _has(
         k,
@@ -247,7 +283,7 @@ def test_auth_compliance_testing() -> None:
     _has(
         t,
         "Playwright's Electron support is experimental and needs the enableNodeCliInspectArguments fuse left on",
-        "its repository is archived",
+        "Spectron has been deprecated since 2022",
     )
 
 

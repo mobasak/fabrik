@@ -99,7 +99,19 @@ is remote code execution.
   `shell.openExternal`, and never pass it untrusted content (it can run arbitrary commands).
 - **Content Security Policy:** send it as a response header (`session.webRequest.onHeadersReceived`) with
   `script-src 'self'`; a `<meta>` tag is the fallback for pages loaded from disk.
-- **Local content:** serve the app's pages through a custom protocol (`protocol.handle`) rather than `file://`.
+- **Local content:** serve the app's pages through a custom protocol (`protocol.handle`) rather than `file://`,
+  and register the scheme as privileged **before `app` is ready** — an unregistered scheme behaves like `file://` and
+  has no real origin, so the IPC origin check below would never match:
+
+  ```js
+  protocol.registerSchemesAsPrivileged([
+    { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  ]);
+  app.whenReady().then(() => protocol.handle('app', (req) => serveFromBundle(req)));
+  ```
+- **Load only secure content** (HTTPS for anything remote), and never set `webSecurity: false`,
+  `allowRunningInsecureContent: true`, `experimentalFeatures` or `enableBlinkFeatures`; `<webview>` gets no
+  `allowpopups`.
 
 ### Fuses — flip them at package time
 
@@ -132,13 +144,15 @@ contextBridge.exposeInMainWorld('api', {
   },
   onProgress: (cb: (pct: number) => void) =>
     ipcRenderer.on('files:progress', (_event, pct) => cb(pct)),   // never pass cb itself: it leaks event.sender
-  // ⚠ NEVER: ipcRenderer: ipcRenderer — exposing the raw bridge = renderer compromise = main compromise
+    // ⚠ NEVER: send: ipcRenderer.send / on: ipcRenderer.on — a generic channel lets the renderer reach any handler
 });
 ```
 
 - Expose only the specific named methods you need.
-- Never expose `ipcRenderer`, `ipcMain`, `webFrame`, or any module reference directly, and never hand a renderer
-  callback straight to `ipcRenderer.on` (the event object carries the sender).
+- Never expose `ipcRenderer`'s generic `send` / `invoke` / `on`, `ipcMain`, `webFrame`, or any module reference
+  (the whole `ipcRenderer` module now arrives as an empty object over `contextBridge`; exposing its methods one by
+  one is the live risk), and never hand a renderer callback straight to `ipcRenderer.on` (the event object carries
+  the sender).
 - The renderer calls `window.api.files.save(...)`.
 
 ### Zero-trust IPC validation
@@ -237,18 +251,23 @@ synchronous ones may be deprecated.
 import { safeStorage } from 'electron';
 
 async function storeSecret(key: string, value: string) {
-  if (!safeStorage.isEncryptionAvailable() || safeStorage.getSelectedStorageBackend?.() === 'basic_text') {
+  const linuxPlaintext =
+    process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text';
+  if (!(await safeStorage.isAsyncEncryptionAvailable()) || linuxPlaintext) {
     throw new Error('OS keychain unavailable; refusing to store secret with a hardcoded key');
   }
   fs.writeFileSync(secretsPath(key), await safeStorage.encryptStringAsync(value));
 }
 
 async function loadSecret(key: string): Promise<string> {
-  return safeStorage.decryptStringAsync(fs.readFileSync(secretsPath(key)));
+  const { result, shouldReEncrypt } = await safeStorage.decryptStringAsync(fs.readFileSync(secretsPath(key)));
+  if (shouldReEncrypt) await storeSecret(key, result);   // the key rotated: write it back under the new key
+  return result;
 }
 ```
 
-Call both only after `app` is `ready`. **Platform mapping:**
+Call both only after `app` is `ready`; `decryptStringAsync` resolves to `{ result, shouldReEncrypt }`, not a
+string. **Platform mapping:**
 
 - **macOS** — Keychain: protected from other users and from other apps of the same user.
 - **Windows** — DPAPI: protected from other users, **not** from other apps running as the same user.
@@ -266,7 +285,7 @@ app's README and first-run check.
 | Channel | When | Cost to you | Trade-offs |
 | --- | --- | --- | --- |
 | **Direct download (your own domain)** | Default for a solo developer | Hosting only; no commission | Full control of the update lifecycle; signing (below) is on you |
-| Microsoft Store | Reach, no SmartScreen warning | Free registration for individual developers; MSIX packages are re-signed by Microsoft for free | With your own commerce you keep all revenue on non-game apps; Microsoft's commerce takes 15% on apps (12% games). An MSI/EXE you submit must already be signed by a trusted CA |
+| Microsoft Store | Reach, no SmartScreen warning | Free registration for individual and company accounts (companies wait days for verification); MSIX packages are re-signed by Microsoft for free | With your own commerce you keep all revenue on non-game apps; Microsoft's commerce takes 15% on apps (12% games). An MSI/EXE you submit must already be signed by a trusted CA |
 | Mac App Store | iCloud, in-app purchase, family sharing | the Apple Developer Program ($99/year — the same membership as Developer ID) | A 30% commission, 15% in the Small Business Program (up to $1M proceeds a year) and on subscriptions after a subscriber's first year; app sandbox limits filesystem and network; review |
 | Homebrew Cask / winget / Chocolatey | Power-user discovery | Free | Community manifests pointing at signed binaries you host |
 | AppImage (Linux) | Universal Linux | Free | No OS trust; embed a GPG signature (`appimagetool --sign`) and publish the key |
@@ -284,31 +303,40 @@ release chore.
 
 | Identity | Cost (vendor figures) | Who can get it | SmartScreen |
 | --- | --- | --- | --- |
-| **Azure Artifact Signing** (formerly Trusted Signing) | $9.99/month Basic (5,000 signatures), $99.99/month Premium; needs a paid Azure subscription | Organisations in the US, Canada, the EU and the UK; individuals in the US and Canada only | Reputation builds over releases signed with the same identity — **not instant** |
-| **OV code-signing certificate** | about $150–300/year | Any verified organisation | Equivalent to Artifact Signing for SmartScreen |
+| **Azure Artifact Signing** (formerly Trusted Signing) | $9.99/month Basic (5,000 signatures), $99.99/month Premium; needs a paid Azure subscription | Organisations in the US, Canada, the EU, the UK, Australia, New Zealand, Japan, South Korea, Singapore, Switzerland, Norway and Israel; individuals in the US and Canada only — **not Türkiye** | Reputation builds over releases signed with the same identity — **not instant** |
+| **OV code-signing certificate** | about $150–300/year (Microsoft's estimate; reseller prices run higher), plus the hardware token or cloud-HSM signing fee | Any verified organisation | Equivalent to Artifact Signing for SmartScreen |
 | EV certificate | $400+/year | Verified organisations | No longer skips SmartScreen (since 2024) — not worth the premium for that |
 
 - **Fabrik default:** Artifact Signing when the legal entity is eligible; otherwise an **OV certificate held in a
-  cloud signing service**. The CA/Browser Forum has required code-signing keys to live in a hardware security
+  cloud signing service** — the route for an entity registered in Türkiye, which Artifact Signing does not serve. The CA/Browser Forum has required code-signing keys to live in a hardware security
   module since 2023-06-01, and caps certificate validity at 460 days from 2026-03-01 — plan a renewal every year.
-  Identity validation takes days and cannot be expedited: start it at Epic 1.
+  Identity validation takes from one to twenty business days and cannot be expedited: start it at Epic 1.
 - **electron-builder:** Artifact Signing is `win.sign` with `type: "azure"` (endpoint, account name, certificate
   profile, publisher name; credentials from `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET`); the
-  integration is marked beta. A cloud-HSM OV certificate signs through a custom `win.sign` hook.
+  integration is marked beta. A token- or HSM-held OV certificate signs through `win.sign` with `type: "hsm"` or
+  `"pkcs11"`, or a custom sign hook.
+- **Timestamp every Windows signature** (RFC 3161; electron-builder sets a timestamp server by default) so the
+  signature stays valid after the certificate expires.
+- Electron's own code-signing tutorial still says Windows needs an EV certificate; Microsoft's SmartScreen page
+  (learn.microsoft.com/windows/apps/package-and-deploy/smartscreen-reputation) says otherwise, and this pack follows
+  Microsoft.
 - **SmartScreen reputation** accrues to a consistent publisher identity over weeks and hundreds of clean installs;
-  an unsigned file starts from zero on every update. **Smart App Control** on Windows clean installs blocks
+  an unsigned file starts from zero on every update. **Smart App Control**, where it is on, blocks
   unsigned code outright and lets CA-signed code through when it cannot judge it.
 
 ### macOS
 
 - **Apple Developer ID + Hardened Runtime + secure timestamp + notarization**, $99/year (the Apple Developer
   Program).
-  - Hardened Runtime: electron-builder `hardenedRuntime: true`.
+    - Hardened Runtime: electron-builder `mac.sign.hardenedRuntime: true`.
   - Notarize with `xcrun notarytool` (Apple stopped accepting `altool` uploads in 2023); electron-builder does it
-    when API credentials are present.
-  - **Entitlements:** declare each capability explicitly — `com.apple.security.network.client` for a
-    backend-connected app, `com.apple.security.files.user-selected.read-write` for user-picked files. Request only
-    what the app uses.
+    with `mac.notarize: true` plus App Store Connect API key credentials in the environment (`APPLE_API_KEY`,
+    `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`), and staples automatically.
+  - **Entitlements:** under the Hardened Runtime, Electron needs at least
+    `com.apple.security.cs.allow-jit` and `com.apple.security.cs.allow-unsigned-executable-memory` (in the
+    entitlements and the inherited entitlements), or the notarized app does not launch. App-sandbox entitlements
+    (`com.apple.security.network.client`, `com.apple.security.files.user-selected.read-write`) apply only with
+    `com.apple.security.app-sandbox` — that is, a Mac App Store build. Request only what the app uses.
 - **Staple** the ticket so Gatekeeper can verify offline; without it, the first launch needs a network lookup. A
   `.app`, `.dmg` or `.pkg` can be stapled; a ZIP cannot — staple the `.app` inside before zipping.
 
@@ -346,6 +374,10 @@ publish:
 - **Differential updates** use blockmaps (NSIS, AppImage, the macOS zip), so a client downloads only changed
   blocks.
 - **Channels:** publish `stable` and `beta` under separate prefixes and point a beta build at its prefix.
+- **Update verification:** on Windows, electron-updater checks each downloaded update against the signing
+  certificate's publisher name (`win.verifyUpdateCodeSignature`, on by default) and refuses a mismatch. Before a
+  certificate change that alters the subject (a new legal name, OV to Artifact Signing), ship a release whose
+  `publisherName` lists **both** names — otherwise every installed copy refuses the next update.
 
 ```text
 client launches → electron-updater fetches https://updates.<your-domain>/win/latest.yml
@@ -372,10 +404,10 @@ Define the menu in the main process with `Menu.buildFromTemplate` and role-based
 
 ### System tray + dock badges
 
-- Tray icons: `new Tray(path.join(__dirname, 'tray-icon.png'))`, with the right PNG size per OS (16x16 Windows,
-  22x22 macOS, varies on Linux). Bundle several sizes.
+- Tray icons: `new Tray(iconPath)` — an ICO on Windows; on macOS a Template image at 16x16 plus a 32x32 `@2x`
+  file; Linux varies by desktop. Bundle several sizes.
 - Dock badge (macOS): `app.dock.setBadge('3')`.
-- Windows taskbar overlay icon: `BrowserWindow.setOverlayIcon(...)`.
+- Windows taskbar overlay icon: `win.setOverlayIcon(icon, description)` on the window instance.
 
 ### Deep-link protocol handlers
 
@@ -403,20 +435,26 @@ if (!gotLock) {
 }
 ```
 
+On Windows and Linux a **cold start** delivers the URL in the first instance's own `process.argv` — check it at
+startup too. In development (`process.defaultApp`), register with
+`app.setAsDefaultProtocolClient('myapp', process.execPath, [path.resolve(process.argv[1])])`.
+
 Use it for links from your website or mail into the app, and for file-type associations (`open with MyApp`). Treat
 every deep link as untrusted input. **OAuth callbacks do not use it** (§ Authentication).
 
 ### Autostart at login
 
-Use Electron's cross-platform API — never poke the registry or LaunchAgents directly:
+On macOS and Windows use Electron's API — never poke the registry or LaunchAgents directly:
 
 ```js
 app.setLoginItemSettings({
   openAtLogin: true,
-  openAsHidden: true,           // Mac: start hidden
-  args: ['--hidden'],           // Win/Linux: detect the flag
+  args: ['--hidden'],           // Windows only: start in the tray and detect the flag
 });
 ```
+
+It has no Linux implementation: write an XDG autostart `.desktop` entry there. On macOS the app must be signed and
+notarized for login items to work reliably.
 
 ### Single-instance lock
 
@@ -474,9 +512,11 @@ Sentry.init({});
 ```js
 import { shell } from 'electron';
 import http from 'node:http';
+import crypto from 'node:crypto';
 
 async function login() {
-  const verifier = generatePkceVerifier();
+    const verifier = generatePkceVerifier();
+  const state = crypto.randomBytes(32).toString('base64url');      // reject a callback whose state differs
   const challenge = await pkceChallenge(verifier);                 // S256
   const server = http.createServer();                              // loopback redirect listener
   await new Promise<void>(r => server.listen(0, '127.0.0.1', r));
@@ -484,9 +524,9 @@ async function login() {
   const redirect = `http://127.0.0.1:${port}/callback`;
   await shell.openExternal(
     `https://auth.example.com/authorize?client_id=...&code_challenge=${challenge}` +
-    `&code_challenge_method=S256&redirect_uri=${encodeURIComponent(redirect)}`
+    `&code_challenge_method=S256&state=${state}&redirect_uri=${encodeURIComponent(redirect)}`
   );
-  // wait for GET /callback?code=... on `server`, then exchange code + verifier
+  // wait for GET /callback?code=...&state=... on `server`; check state, then exchange code + verifier
 }
 ```
 
@@ -494,9 +534,11 @@ async function login() {
 
 - The OAuth standard for native apps forbids embedded user-agents and requires PKCE for public clients
   (RFC 8252).
-- **Loopback is the redirect that works everywhere:** Google no longer supports custom URI schemes for desktop
-  clients and blocks embedded webviews (`disallowed_useragent`); Microsoft's identity platform takes
-  `http://localhost` for system-browser desktop apps. Use `127.0.0.1` with any port the OS assigns.
+- **Loopback is the redirect that works everywhere:** Google documents only the loopback redirect for desktop
+  clients, has withdrawn custom URI schemes for Android and Chrome apps, and blocks embedded webviews
+  (`disallowed_useragent`); Microsoft's identity platform also prefers `127.0.0.1` over `localhost`, ignores the
+  port when matching, and does not support the IPv6 loopback yet. Use `127.0.0.1` with any port the OS assigns.
+- **Send a random `state`** and reject any callback whose `state` does not match (RFC 8252's CSRF defence).
 - The system browser has the user's session, 2FA and password manager.
 - The `<webview>` tag and an embedded `BrowserWindow` for sign-in are banned.
 
@@ -541,7 +583,9 @@ and each keeps a full renderer's memory resident while "doing nothing".
 
 **Instead:** sync on launch and on window focus, and let the backend wake the app with a push notification:
 
-- **Windows:** Windows App SDK push notifications (WNS) with an Azure app registration. They may not work for a
+- **Windows:** Windows App SDK push notifications (WNS) with an Azure app registration. Background delivery needs
+  package identity (MSIX, or packaging with an external location); an NSIS-installed app is unpackaged and gets
+  limited support. They may not work for a
   self-contained or elevated app — check `PushNotificationManager.IsSupported()` and fall back to sync-on-launch.
 - **macOS:** APNs is available to Developer ID apps outside the App Store.
 - **Linux:** no canonical push; degrade to a tray "Sync now" action.
@@ -557,7 +601,7 @@ const ollama = spawn('ollama', ['serve'], { stdio: 'inherit' });
 // binds 127.0.0.1:11434 by default — native API at /api, OpenAI-compatible at /v1, no key for local calls
 ```
 
-- Models live on the user's disk (`~/.ollama/models/`); Ollama is MIT-licensed.
+- Models live on the user's disk at a per-OS default (override with `OLLAMA_MODELS`); Ollama is MIT-licensed.
 - Ship Ollama with the app or detect an existing install; bundling adds about 100 MB but removes "install Ollama
   first" friction.
 - Keep it on loopback: setting `OLLAMA_HOST` to a public address exposes an unauthenticated API.
@@ -633,7 +677,7 @@ test('main window renders', async () => {
 });
 ```
 
-- **Spectron** has been deprecated since 2022 and its repository is archived — never use it.
+- **Spectron** has been deprecated since 2022 — never use it.
 - **Playwright's Electron support is experimental** and needs the `enableNodeCliInspectArguments` fuse left on;
   run E2E against a test build that keeps it, and ship release builds with it off.
 - **WebdriverIO's Electron service** is the supported alternative when you need it (Chromedriver set up for you,
@@ -666,7 +710,8 @@ user-observable behavior, risk-ordered; **NOT** a wide base of business-logic un
 | `ipcMain.handle` without a sender-origin check and a schema | Check `event.senderFrame.origin`, then Zod | The renderer and any frame in it are untrusted |
 | No permission handler / unrestricted navigation or new windows | `setPermissionRequestHandler`, deny `will-navigate`, `setWindowOpenHandler` deny | Electron approves every permission by default |
 | Default fuses in a release build | `electronFuses` as in § Fuses | `runAsNode` and `NODE_OPTIONS` turn the signed app into a code runner |
-| `<webview>` or `BrowserWindow` for OAuth, or a custom-scheme OAuth redirect | System browser + PKCE + loopback redirect | Embedded sign-in is blocked by Google and forbidden by RFC 8252; Google refuses custom schemes for desktop |
+| `<webview>` or `BrowserWindow` for OAuth, or a custom-scheme OAuth redirect | System browser + PKCE + `state` + loopback redirect | Embedded sign-in is blocked by Google and forbidden by RFC 8252; Google documents only loopback for desktop |
+| `webSecurity: false`, `allowRunningInsecureContent`, `experimentalFeatures`, `enableBlinkFeatures` | Electron's defaults | Each one removes a browser security boundary |
 | `keytar` | `safeStorage` (async API) | keytar is archived |
 | Storing secrets when `safeStorage` reports `basic_text` | Refuse + warn, or a user passphrase via Argon2id | `basic_text` is a hardcoded key — effectively plaintext |
 | `IndexedDB` / `leveldb` for relational data | `better-sqlite3` | IndexedDB lacks SQL; leveldb has no relational support |
@@ -704,6 +749,7 @@ user-observable behavior, risk-ordered; **NOT** a wide base of business-logic un
 ## Done When
 
 - [ ] Electron is on one of the three newest stable majors, latest minor.
+- [ ] The app's custom scheme is registered privileged before `ready`.
 - [ ] All `BrowserWindow` instances declare `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
 - [ ] A permission request handler, `will-navigate` denial and a `setWindowOpenHandler` deny are installed; CSP is
       sent as a header.
@@ -714,18 +760,21 @@ user-observable behavior, risk-ordered; **NOT** a wide base of business-logic un
 - [ ] Local SQLite uses `better-sqlite3-multiple-ciphers` (SQLCipher) with a raw random 32-byte key.
 - [ ] The master key and tokens are stored via `safeStorage` (async API); never plaintext on disk.
 - [ ] Linux: `basic_text` detected → refuse or require a passphrase.
-- [ ] Windows: signed with Artifact Signing or an OV certificate in a cloud HSM; renewal date tracked.
-- [ ] macOS: Developer ID + Hardened Runtime + notarization via `xcrun notarytool`; stapled.
+- [ ] Windows: signed with Artifact Signing or an OV certificate in a cloud HSM, RFC 3161 timestamped; renewal date
+      tracked, and a certificate change ships a release listing both publisher names first.
+- [ ] macOS: Developer ID + Hardened Runtime (with `allow-jit` and `allow-unsigned-executable-memory`) +
+      notarization via `notarytool` (`mac.notarize: true`); stapled.
 - [ ] macOS entitlements: only those actually needed.
 - [ ] Linux: AppImage carries an embedded GPG signature; the public key is on the download page.
 - [ ] Auto-update via `electron-updater`, `provider: generic`, on a custom domain (not `r2.dev`); macOS ships the
       zip target; blockmap differential updates enabled.
 - [ ] GitHub Releases NOT used for private-repo distribution.
 - [ ] `app.requestSingleInstanceLock()`; `second-instance` routes argv (deep links, file paths) to the existing window.
-- [ ] Deep-link protocol handler registered; `open-url` (Mac) + `second-instance` argv (Win/Linux) handled as
-      untrusted input.
-- [ ] Autostart via `app.setLoginItemSettings` (not the registry / LaunchAgents directly).
-- [ ] OAuth (if any): system browser, PKCE, loopback redirect; never `<webview>` or `BrowserWindow`.
+- [ ] Deep-link protocol handler registered; `open-url` (Mac), `second-instance` argv and the cold-start
+      `process.argv` (Win/Linux) handled as untrusted input.
+- [ ] Autostart via `app.setLoginItemSettings` on macOS/Windows (not the registry / LaunchAgents directly) and an
+      XDG autostart entry on Linux.
+- [ ] OAuth (if any): system browser, PKCE, a checked `state`, loopback redirect; never `<webview>` or `BrowserWindow`.
 - [ ] `@sentry/electron` initialised in main, preload and renderer; opt-in only.
 - [ ] Telemetry default: NO network egress until the user opts in; anonymous IDs only.
 - [ ] A foreign telemetry/crash host has a signed and notified KVKK standard contract.

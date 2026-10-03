@@ -3187,16 +3187,16 @@ claims:
   - id: windows-code-signing
     pack: desktop-app/72-desktop.md
     kind: policy
-    claim: "Microsoft's cloud signing service is Azure Artifact Signing (formerly Trusted Signing), $9.99/month Basic, for organisations in the US, Canada, the EU and the UK and individuals in the US and Canada; it gives no instant SmartScreen trust; EV certificates stopped bypassing SmartScreen in 2024; OV certificates cost about $150-300/year; code-signing keys must be in an HSM since 2023-06-01 and certificate validity is capped at 460 days from 2026-03-01"
-    verify: "https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options ; https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation ; https://azure.microsoft.com/en-us/pricing/details/artifact-signing/ ; https://cabforum.org/2025/11/17/ballot-csc-31-maximum-validity-reduction/ (firecrawl + WebSearch + WebFetch, 2026-10-03; ledger f2-01, f2-04, f2-08, f2-10, f2-11, f2-14..f2-16)"
+    claim: "Microsoft's cloud signing service is Azure Artifact Signing (formerly Trusted Signing), $9.99/month Basic, for organisations in the US, Canada, the EU, the UK, Australia, New Zealand, Japan, South Korea, Singapore, Switzerland, Norway and Israel and for individuals in the US and Canada (not Türkiye); identity validation takes one to twenty business days; it gives no instant SmartScreen trust; EV certificates stopped bypassing SmartScreen in 2024; OV certificates cost about $150-300/year; code-signing keys must be in an HSM since 2023-06-01 and certificate validity is capped at 460 days from 2026-03-01"
+    verify: "https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options ; https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation ; https://azure.microsoft.com/en-us/pricing/details/artifact-signing/ ; https://cabforum.org/2025/11/17/ballot-csc-31-maximum-validity-reduction/ (firecrawl + WebSearch + WebFetch, 2026-10-03; ledger f2-01, f2-04, f2-08, f2-10, f2-11, f2-14..f2-16, op-20, op-21)"
     window_days: 90
     last_verified: 2026-10-03
 
   - id: macos-notarization
     pack: desktop-app/72-desktop.md
     kind: policy
-    claim: "Notarization needs a Developer ID certificate, the Hardened Runtime and a secure timestamp, submitted with notarytool (altool uploads stopped 2023-11-01); a stapled ticket lets Gatekeeper verify offline and a ZIP cannot be stapled; since 2024 users can no longer Control-click past Gatekeeper; the Apple Developer Program is 99 USD a year"
-    verify: "https://developer.apple.com/documentation/security/customizing-the-notarization-workflow ; https://developer.apple.com/news/?id=saqachfa ; https://developer.apple.com/support/enrollment/ (firecrawl + WebSearch, 2026-10-03; ledger f2-24..f2-30)"
+    claim: "Notarization needs a Developer ID certificate, the Hardened Runtime (for Electron with the allow-jit and allow-unsigned-executable-memory entitlements) and a secure timestamp, submitted with notarytool (altool uploads stopped 2023-11-01); a stapled ticket lets Gatekeeper verify offline and a ZIP cannot be stapled; since 2024 users can no longer Control-click past Gatekeeper; the Apple Developer Program is 99 USD a year"
+    verify: "https://developer.apple.com/documentation/security/customizing-the-notarization-workflow ; https://developer.apple.com/news/?id=saqachfa ; https://developer.apple.com/support/enrollment/ ; https://www.electron.build/docs/features/code-signing/notarization (firecrawl + WebSearch + Fable second opinion, 2026-10-03; ledger f2-24..f2-30, op-30)"
     window_days: 180
     last_verified: 2026-10-03
 
@@ -3211,8 +3211,8 @@ claims:
   - id: desktop-oauth-loopback
     pack: desktop-app/72-desktop.md
     kind: standard
-    claim: "RFC 8252 forbids embedded user-agents for native-app OAuth and requires PKCE for public clients; Google no longer supports custom URI schemes for desktop clients and blocks embedded webviews; Microsoft's desktop guidance takes http://localhost for system-browser apps"
-    verify: "https://www.rfc-editor.org/rfc/rfc8252 ; https://developers.google.com/identity/protocols/oauth2/native-app ; https://learn.microsoft.com/en-us/entra/identity-platform/scenario-desktop-app-configuration (WebFetch + brave, 2026-10-03; ledger f1-50..f1-54)"
+    claim: "RFC 8252 forbids embedded user-agents for native-app OAuth and requires PKCE for public clients; RFC 8252 recommends a random state checked on the callback; Google documents only the loopback redirect for desktop clients, has withdrawn custom URI schemes for Android and Chrome apps, and blocks embedded webviews; Microsoft's identity platform prefers 127.0.0.1 over localhost and ignores the port when matching"
+    verify: "https://www.rfc-editor.org/rfc/rfc8252 ; https://developers.google.com/identity/protocols/oauth2/native-app ; https://learn.microsoft.com/en-us/entra/identity-platform/scenario-desktop-app-configuration ; https://learn.microsoft.com/en-us/entra/identity-platform/reply-url (WebFetch + brave + Fable second opinion, 2026-10-03; ledger f1-50..f1-54, op-41..op-43)"
     window_days: 365
     last_verified: 2026-10-03
 
@@ -3243,7 +3243,7 @@ claims:
   - id: desktop-store-economics
     pack: desktop-app/72-desktop.md
     kind: pricing
-    claim: "Mac App Store commission is 30%, 15% in the Small Business Program (up to 1 million USD proceeds) and on subscriptions after the first year; the Microsoft Store lets non-game apps keep 100% with their own commerce, or charges 15% for apps and 12% for games on Microsoft's, and registration is free for individual developers"
+    claim: "Mac App Store commission is 30%, 15% in the Small Business Program (up to 1 million USD proceeds) and on subscriptions after the first year; the Microsoft Store lets non-game apps keep 100% with their own commerce, or charges 15% for apps and 12% for games on Microsoft's, and registration is free for individual and company accounts"
     verify: "https://developer.apple.com/programs/whats-included/ ; https://developer.apple.com/app-store/small-business-program/ ; https://learn.microsoft.com/en-us/windows/apps/publish/get-started ; https://blogs.windows.com/windowsdeveloper/2025/09/10/free-developer-registration-for-individual-developers-on-microsoft-store/ (firecrawl + WebSearch, 2026-10-03; ledger f2-34..f2-39)"
     window_days: 180
     last_verified: 2026-10-03

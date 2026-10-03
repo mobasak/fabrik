@@ -36,7 +36,7 @@ Every other product type in Fabrik can enforce entitlement on a server: the SaaS
 Mobile is forced into store billing. An extension cannot bill in-store at all. Desktop can do **either** — and the default, direct download from your own domain, means **no store, no review, no commission: you keep all of it**. If you *do* choose a store, the cut is real and asymmetric:
 
 - **Mac App Store** — Apple takes a commission on every sale, lower for small developers and for subscriptions after their first year.
-- **Microsoft Store** — **you may use your own commerce system and keep all the revenue** on non-game apps; Microsoft's cut applies only if you opt into *its* commerce, and registration is free for individual developers.
+- **Microsoft Store** — **you may use your own commerce system and keep all the revenue** on non-game apps; Microsoft's cut applies only if you opt into *its* commerce, and registration is free.
 
 The rates and fees are in `72-desktop.md` § Distribution Channels.
 
