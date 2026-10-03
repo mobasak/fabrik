@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:48.667591Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "ca96f6b69a89221dd3861a8bdcbba7e0dddf8e1a",
   "id": "W-04780107",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:0702022e6240",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "The finder-brief lesson list covers a truncated FILE and not a truncated LINE"
 }

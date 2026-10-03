@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-19T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "8d37ee68ae3aa4196c555189d5170047e8fb4149",
   "id": "W-c72e8838",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:72f1c26bb5f2",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "A Pass row loses its counters to a cell PIPE, and the guidance for it sits in 1 of 5 commands (routed 2026-09-19)"
 }

@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-18T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "98408d7e5ee7df2d39d9b2941adb4e7ea8d51aa1",
   "id": "W-416058b2",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:c1047a2c2a60",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "**The element-guard's `TypeError` message names neither the member nor its type (2026-09-18)** — `f\"declared.files is not a list of str: {type(_raw_files).__name__}\"` prints `… is not a list of str..."
 }

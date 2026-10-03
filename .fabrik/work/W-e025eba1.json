@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "a37a8ff4293975ce679e28f29796adf22edf38c5",
   "id": "W-e025eba1",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:e145ee3942f2",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`check_convergence._STATUS_LINE` misses `Status: **EXECUTED**` (2026-09-24)"
 }

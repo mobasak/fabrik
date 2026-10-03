@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-11T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "ba565bf69ea35939a26b41033f8e52785cc8812c",
   "id": "W-98338ad4",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:c755527235a9",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "**`check_convergence.py::_check_spine_set` — a parked (HTML-commented) Ticket Board row is still live while a parked ledger is a quote (2026-09-11, owner: infra)** — the closing-row rule blanks fen..."
 }

@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:48.564490Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "4fc6655cee66533bfb167c9306e2fc6d2af1f0dc",
   "id": "W-5b541aab",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:660f8256bd18",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "A review that closes on the SCOPE-GROWTH STOP can flip its RECEIPT but still cannot flip its PLAN — the exit was taught to one checker of two"
 }
