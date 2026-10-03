@@ -139,7 +139,7 @@ hub hooks for sounds, quota rotation, mail, agent charters, run records, scratch
 - The Mac session's own standing rule: **before ending a turn it drains the queue** (takes any unclaimed
   request) — plus the self-watch knocks the moment one lands.
 
-## 4. Request ledger (001–025) — what each did, in one line
+## 4. Request ledger (001–027) — what each did, in one line
 
 | id | kind | outcome |
 |---|---|---|
@@ -168,6 +168,8 @@ hub hooks for sounds, quota rotation, mail, agent charters, run records, scratch
 | 023 | MODIFY: `sound_test.py` cannot escape its sandbox + the overdue 016 ack | every invocation through `Sandbox.run` (`raw=` seam), which refuses a real player/log/lock dir. Applied: 40/40 at 3.9.6, `sound.log` delta 0; their counterfactual (the OLD grader) wrote +1 real line, so the leak was real there too. They proved section 8 had two holes: module level, and any function named `run` |
 | 024 | MODIFY: section 8 walks the whole tree, keyed on `Sandbox.run`'s line span (their patch) + alias/from-import refusal + a `last_body` seam check | applied, 43/43, every predicted mutant reproduced independently. They found the next hole: an enumeration of spawner names missed 15 of 22 `os` and 2 `subprocess` process-starters (`os.posix_spawn` ran with an `ok`). Volkan heard the five sounds and the live routing is correct; his verdict on the sounds themselves is not in |
 | 025 | MODIFY: section 8 by SHAPE — an import allowlist, any `subprocess` use outside `Sandbox.run`, `os` spawn-shaped names, the module never bound to another name, no `__import__`/`exec`/`eval`/`compile`/`getattr` on them — and a fixed-bucket dedup flake in an old check | **CONVERGED** — applied (md5 `bb0a667e…`), 44/44 on five runs at 3.9.6, `sound.log` delta 0; their two off-list probes (the module as an argument, `os` through a default) caught; escapes per round 2 → 3 → 0. Out of reach by design, verified by them: `sys.modules` lookups (deliberate obfuscation, not accident) |
+| 026 | *(their question, at Volkan's direction — "obey other agents directives")* | the fixed dedup bucket: decided by the hub in 027 as a NON-change (at most one extra ring inside 2 s; a sliding window would trade away `mkdir` as the whole mechanism). Volkan passed the five sounds: "yes it is ok" — 016 closed |
+| 027 | MODIFY: `"autoCompactWindow": 200000` in `~/.claude/settings.json` | applied (`f2a87f76…`); a fresh session's `/autocompact` reports "200k tokens (from settings)". Why: a native-1M model compacts at ~967K by default (code.claude.com/docs/en/model-config), so sessions reached 830k a turn and `/task` slowed 3.6 → 20 min. Volkan's own `/model default` moved new sessions to Opus 5.5 at its saved `medium`, so the old `xhigh` keys reach only a deliberate Opus 5 session — left as his choice |
 
 Repo commits on `vo-2026-09-09` (all his session's, on his word, pushed to his branch only): `5c4cba5
 907a060 3590dfb 72f5a1a 1b6535e e5e1956 0a12b53 c57cc3e d7f5222 8156894`. `origin/main` untouched at `1d19ae0`.
@@ -220,11 +222,12 @@ generations. All regenerable from this doc + the hub sources; nothing here is a 
 
 **OPEN NOW (2026-10-03).**
 
-- **Dedup buckets are fixed, not sliding** — a repeat straddling a 2 s boundary rings twice. Reported in 025, not changed: his call.
-- **Volkan's verdict on the five sounds** — all five played for him on 2026-10-03 and the live routing is correct; whether any two are too close is his word, not yet given.
+- **The first REAL `/task` run since lane v2 + the speed rules + the 200k compaction** — measure it from his transcript (turns, model vs tool time, context per turn) and send the numbers back; never stage one.
 - **`/task` router gap, reported and deliberately NOT patched** — "Paylaşım ekranında küçük bir değişiklik yapalım" does not route
   (a modifier between `ekranında` and `değişiklik`); loosening the exact-substring matcher would trade away its zero false routes.
 - **Swap pressure** — 8 GB RAM, 4.8 of 6 GB swap in use on 2026-10-03; slows every run and the reader seat. His call, not a skill edit.
+
+**Closed 2026-10-03:** the five sounds ("yes it is ok"), the dedup-bucket question (decided non-change, 026/027), the sound grader's sandbox (023-025), long sessions (200k compaction, 027).
 
 **Closed since 2026-09-21:** `/task` installed (014/015) and moved to lane v2 with his §5a rewritten on his own yes (018-022,
 D-533); the sound layer installed (016).
