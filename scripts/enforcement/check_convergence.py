@@ -795,7 +795,9 @@ def _head_text(root: Path, relpath: str) -> str:
 # wolf on landing. Restricted to a dated PLAN file carrying an EXPLICIT mid-flight status, it
 # measures 6 of 265, one of them the reported instance.
 _ARCHIVED_PLAN = re.compile(r"/archived/\d{4}-\d{2}-\d{2}-plan-[^/]*\.md$")
-_STATUS_LINE = re.compile(r"^\s*\**Status:\**\s*([A-Za-z][A-Za-z -]*)", re.M)
+# bold on the label (colon inside or outside it) AND on the value — `Status: **IN-PROGRESS**` read
+# as empty before (W-e025eba1), so an archived plan stranded mid-flight in that spelling passed
+_STATUS_LINE = re.compile(r"^\s*\**Status\**:\**\s*\**\s*([A-Za-z][A-Za-z -]*)", re.M)
 _MIDFLIGHT = {"IN-PROGRESS", "IN PROGRESS", "DRAFT", "ACTIVE", "OPEN", "PLANNING"}
 
 

@@ -2265,3 +2265,34 @@ def test_a_spine_is_the_same_stem_md_in_a_dated_plan_directory_only():
     assert cc._is_spine(d / "2026-09-10-plan-1-ledger.md")
     assert not cc._is_spine(d / "2026-09-10-plan-1-ledger-notes.md")
     assert not cc._is_spine(d / "T01-fixture.md")
+
+
+# --- W-e025eba1: `_STATUS_LINE` reads a bold-wrapped VALUE and a colon outside the bold ----------
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Status: **IN-PROGRESS**",
+        "**Status:** IN-PROGRESS",
+        "**Status**: IN-PROGRESS",
+        "**Status:** **IN-PROGRESS**",
+        "Status: IN-PROGRESS",
+    ],
+)
+def test_the_status_reader_takes_every_bold_placement(line):
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    m = cc._STATUS_LINE.search(f"# Plan\n\n{line}\n")
+    assert m and m.group(1).strip().upper() == "IN-PROGRESS", (line, m and m.group(1))
+
+
+def test_an_archived_plan_whose_bold_status_value_is_midflight_is_reported(repo: Path) -> None:
+    arch = repo / "docs/development/plans/archived/2026-07-01-plan-y.md"
+    arch.parent.mkdir(parents=True, exist_ok=True)
+    arch.write_text("# Y\n\nStatus: **IN-PROGRESS**\n\n## Phase 1\nx\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "archived mid-flight")
+    rc, out = _check_out(repo)
+    assert rc == 0 and "2026-07-01-plan-y.md: archived while its own Status" in out, out
