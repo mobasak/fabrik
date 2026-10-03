@@ -2208,6 +2208,19 @@ def test_a_corrupt_declared_block_refuses_to_publish_a_count(
     assert _rec(run_dir)["state"] == "done"
 
 
+def test_the_declared_files_guard_names_the_offending_member_type(monkeypatch) -> None:
+    """W-416058b2: the element guard's message is the SOLE record of the cause (the close prints
+    only the exception's class), and it printed the CONTAINER type — `… not a list of str: list`
+    for `["mas.txt", 7]`, a contradiction that names nothing actionable."""
+    cr = _load("cr_guard_msg", _SCRIPT)
+    monkeypatch.setattr(cr, "_task_run_commit", lambda rec, rp, sha_in: ("abc", ["p"]))
+    monkeypatch.setattr(cr, "_task_diff_pairs", lambda root, base, sha: [])
+    rec = {"repo_root": "/nonexistent", "declared": {"files": ["mas.txt", 7]}}
+    with pytest.raises(TypeError) as ei:
+        cr._task_measure(rec, cr.argparse.Namespace(cmd="done"), "abc", "")
+    assert "int" in str(ei.value) and "7" in str(ei.value), str(ei.value)
+
+
 def test_an_unverifiable_sync_claim_is_recorded_as_unverified(
     run_dir: Path, repo: Path, hub_sync: Path
 ) -> None:

@@ -3835,7 +3835,15 @@ def _task_measure(
     if not isinstance(_raw_files, (list, tuple)) or not all(isinstance(f, str) for f in _raw_files):
         # The ELEMENTS too: dropping a non-string member silently would publish a confident count
         # from the same corruption class the container check refuses.
-        raise TypeError(f"declared.files is not a list of str: {type(_raw_files).__name__}")
+        # Name the MEMBER and its type, never only the container's: `… not a list of str: list`
+        # for `["mas.txt", 7]` read as a contradiction, and this string is the cause's sole
+        # record — the close prints only the class (W-416058b2).
+        _bad = (
+            [f"{f!r} ({type(f).__name__})" for f in _raw_files if not isinstance(f, str)]
+            if isinstance(_raw_files, (list, tuple))
+            else [f"{_raw_files!r} ({type(_raw_files).__name__})"]
+        )
+        raise TypeError(f"declared.files is not a list of str: {', '.join(_bad[:3])}")
     declared = set(_raw_files)
     excl = _task_excl(rp)
     # A sync-EXCLUDED repo has no sync contract: nothing it commits is a sync hit, and a sync
