@@ -135,6 +135,32 @@ def _changed_md(root: Path, prefix: str) -> tuple[list[Path], list[str], list[Pa
     return paths, notes, untracked
 
 
+def _intent_to_add(root: Path, prefix: str) -> set[Path]:
+    """Paths under ``prefix`` that are INTENT-TO-ADD (`git add -N`: porcelain `" A"`).
+
+    The working-tree scan grades them on purpose (an author grades a receipt before committing
+    it), so a PEER's unfinished receipt reds every session's gate — and `git diff --cached` shows
+    such an entry as nothing at all, so neither its owner nor the reader can see why. main()
+    names them on failure; it never skips them (that would let the author's own receipt escape).
+    Read only on the failure path, so a green run pays no second `git status`.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no", "--", prefix],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return set()
+    return {
+        (root / line[3:].strip().strip('"')).resolve()
+        for line in out.splitlines()
+        if line[:2] == " A"
+    }
+
+
 def _table_rows(section: str) -> list[str]:
     """ALL visible data rows in the checklist section (round 85).
 
@@ -3092,12 +3118,24 @@ def main() -> int:
         # startswith("⚠") opt-in and re-hid the advisory whenever an untracked draft
         # co-occurred with a committed advisory (round 25, reproduced end-to-end)
         print(note)
+    failed: list[Path] = []
     for p in changed:
-        failures.extend(_grade(p, root))
+        errs = _grade(p, root)
+        if errs:
+            failed.append(p)
+        failures.extend(errs)
     if failures:
         print("Coverage-checklist gate FAILED:")
         for f in failures:
             print(f"  - {f}")
+        ita = _intent_to_add(root, REVIEWS_DIR)
+        for p in failed:
+            if p.resolve() in ita:
+                print(
+                    f"  NOTE: {p.relative_to(root)} is intent-to-add (`git add -N`, never "
+                    "committed, invisible to `git diff --cached`) — if it is not your receipt it "
+                    "is another session's in-flight work: message its author, never edit it"
+                )
         print(
             "A coverage-adjudicated review exits only on a fully-adjudicated checklist "
             "— there is no cap-stop; a spot-verify of fixes is the re-check step, never the closing round."
