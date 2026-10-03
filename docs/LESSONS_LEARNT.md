@@ -1,6 +1,21 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A directory that exists inside a container proves nothing about the host behind it (2026-10-03)
+
+The backrest coverage check (plan-3, D-518) trusted a plan only when every plan path was visible to Backrest, tested
+with `test -e` inside the Backrest container. Three per-phase reviews passed it. The Finish review then ran the same
+probe in a bare `alpine` container with no mounts and `/opt` still existed: every base image ships `/opt`, `/tmp`
+and `/var`, so a plan rooted at `/opt` would have read trusted with its host bind gone, and every service path under
+it would have read covered, which is the false `present` the whole change existed to remove. The fix asks the
+narrower question: is the data path itself visible to Backrest, not just its root. When a check probes for something
+inside a container to prove something about the host, try the probe in an empty container first; anything that
+still answers yes there proves nothing. Two smaller traps from the same run: a review receipt that must embed a
+green `final_gate` cannot be staged while that gate runs, because the gate fails on the receipt's own missing
+proof (run the gate with the receipt unstaged, embed it, stage, then re-run `check_convergence`); and an audit that
+passed the spec's `id` while the registrar passed its `name` would have checked a compose project the deployer
+never created (`/opt/<name>` is the project, so both now use the name).
+
 ## Switching a push from POST to PUT moves an alert's silence onto a different rule (2026-10-02)
 
 The postgres allocation reconcile (plan-2, D-500) changed the hourly audit's pushgateway push from `POST` to `PUT` so

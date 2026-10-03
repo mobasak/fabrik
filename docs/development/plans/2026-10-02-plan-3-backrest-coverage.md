@@ -1,6 +1,6 @@
 # Plan — backrest coverage: protect what a service persists, never a path that does not exist (W-5c4ad6a6)
 
-Status: CONVERGED (/fabrik-plan-review 2026-10-03 on the D-518 revision: passes 15→6→0 confirmed; spec flipped with it) — APPROVED by the operator 2026-10-03 (D-520)
+Status: EXECUTED 2026-10-03 (Phase A 9fbdee464 + 891a88392 · Phase B 29f1e0bda + 45e86f8b4 · Phase C d1db2c8c8, 321136dc7 · Finish fix fc82e7672, docs fix 156250b4c; scoped reviews A 6→0, B 3→0, C 3→0; Finish /fabrik-review 2→0, receipt docs/development/reviews/2026-10-02-plan-3-backrest-coverage-review.md; /fabrik-docs-review 3→0; final_gate --check success) — approved by the operator 2026-10-03 (D-520). Review-driven deviation: a path counts as covered only when Backrest can stat the path itself, not just its plan root (Finish A-S1). Deferred: writable single-file binds (W-63a1c159). Rollout V0/V3/V4 stays operator-gated.
 Profile: small
 **Owner:** fleet
 
