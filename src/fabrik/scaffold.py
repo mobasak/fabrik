@@ -5955,23 +5955,14 @@ def _scaffold_mobile_app(project_dir: Path, name: str, description: str, **kwarg
             agents_j2.read_text().replace("{{ spec.name }}", name)
         )
 
-    # 5. .gitignore — fabrik blocks + Expo patterns.
+    # 5. .gitignore — fabrik blocks + the template's own Expo / signing rules. The template file is
+    #    the one list (a hand-kept copy here once dropped node_modules/ and the keystore patterns).
     (project_dir / ".gitignore").write_text(
         _COMMON_GITIGNORE_PATTERNS
         + "\n"
         + _DROID_GITIGNORE_BLOCK
         + "\n"
-        + "# Expo / React Native\n"
-        ".expo/\n"
-        "dist/\n"
-        "web-build/\n"
-        "expo-env.d.ts\n"
-        "/ios/\n"
-        "/android/\n"
-        "\n"
-        "# Metro / logs\n"
-        "*.log\n"
-        ".metro-health-check*\n"
+        + (MOBILE_APP_TEMPLATE_DIR / ".gitignore").read_text(encoding="utf-8")
     )
 
     # 6. Backend Dockerfile (inline, FastAPI — package ``app``), mirroring
