@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T19:36:18.663837Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-43904006",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-02-backrest-paper-backups-design.md"
+  },
+  "next": "measure: list each vps1 plan's last snapshot summary; decide exporter vs a check in the hourly audit",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Alert on an empty or stale Backrest snapshot: coverage (W-5c4ad6a6) proves a path is in a plan, not that last night's snapshot holds data — read restic snapshots --json summary.total_files_processed (restic >=0.17.0) or scrape Backrest's own /metrics (since v1.5.0, names unverified); research ledger 2026-10-02-backrest-paper-backups cov-5/cov-8"
+}

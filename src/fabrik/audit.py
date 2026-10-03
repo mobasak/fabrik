@@ -8,11 +8,11 @@ state-aware destroy (T4-01/T4-02).
 
 Each ``audit_<reg>(spec)`` function returns an :class:`AuditResult` with:
 
-* ``status`` ∈ {``present``, ``missing``, ``n/a``, ``unknown``} — exactly
-  what audit functions produce. ``drift`` (live shape differs from
-  expected) is not yet produced by any auditor; will be added in a
-  follow-up that compares config bags. ``override`` is folded into
-  ``n/a`` with the override reason in ``detail``.
+* ``status`` ∈ {``present``, ``missing``, ``n/a``, ``unknown``, ``drift``} —
+  ``drift`` means the live state differs from what the spec needs (the
+  postgres registry/database quadrants, an uncovered backrest path or a
+  paper plan). ``override`` is folded into ``n/a`` with the override
+  reason in ``detail``.
 * ``detail`` — short human-readable explanation
 * ``expected`` — what the spec's shape says SHOULD be there (per
   ``resolve_applicability``)
@@ -41,7 +41,7 @@ import re
 import shlex
 import time
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from fabrik.app_role_check import _db_name_for_spec
 from fabrik.drivers.postgres import _validate_identifier
@@ -311,82 +311,61 @@ def audit_gatus(spec: Any) -> AuditResult:
     )
 
 
-def _missing_host_paths(paths: list[str]) -> list[str]:
-    """Return the subset of ``paths`` that do NOT exist on the backup host.
+def _backrest_target(spec: Any, sid: str, hub: str) -> str:
+    """The host the service runs on, resolved as ``fabrik destroy`` does without its CLI flag:
+    ``<FABRIK_ROOT>/.fabrik/state/<id>.json`` (anchored at the hub root, never the cwd), then the
+    spec's ``target_vps``, then ``vps1`` — and ``vps1`` is the hub alias."""
+    import json
 
-    Fail-OPEN by design: if the probe itself fails we return ``[]`` (report nothing
-    missing) rather than inventing a drift finding from a broken SSH read — the same
-    discipline the rest of this module uses, where an unprovable claim collapses to
-    ``unknown`` instead of a confident wrong answer.
-    """
-    if not paths:
-        return []
-    probe = "; ".join(f"test -e {shlex.quote(p)} || echo {shlex.quote(p)}" for p in paths)
-    ok, out = _ssh_check(f"sudo sh -c {shlex.quote(probe)}")
-    if not ok:
-        return []
-    return [line.strip() for line in out.splitlines() if line.strip()]
+    from fabrik import config
+
+    target = None
+    try:
+        state = config.FABRIK_ROOT / ".fabrik" / "state" / f"{sid}.json"
+        if state.is_file():
+            target = json.loads(state.read_text()).get("target_vps")
+    except (OSError, ValueError, AttributeError):
+        target = None
+    target = target or _spec_to_dict(spec).get("target_vps") or "vps1"
+    return hub if target == "vps1" else str(target)
 
 
 def audit_backrest(spec: Any) -> AuditResult:
+    """Coverage of the service's real persistence by trusted host plans (W-5c4ad6a6, D-518)."""
     sid = _spec_id(spec)
-    applicable = _resolved_for(spec).get("backrest", (False, "n/a"))
+    resolved = _resolved_for(spec)
+    applicable = resolved.get("backrest", (False, "n/a"))
     if not applicable[0]:
         return AuditResult(status="n/a", detail=applicable[1])
-    # Mirror backrest.py: plans live inside container's config.json
-    container = _resolve_container("backrest")
-    if not container:
-        return AuditResult(status="unknown", detail="backrest container not found")
-    ok, out = _ssh_check(
-        f"sudo docker exec {shlex.quote(container)} cat /config/config.json 2>/dev/null"
-    )
-    if not ok:
-        return AuditResult(status="unknown", detail=f"config.json unreadable: {out[:80]}")
-    import json
+    from fabrik.drivers import backrest
 
+    hub = os.getenv("FABRIK_AUDIT_VPS", "vps")
+    target = _backrest_target(spec, sid, hub)
+    # the compose project the deployer created: /opt/<spec name> (deployer_ssh.py, ctx.spec["name"]),
+    # name-first as the registrar reads it — `sid` is id-first and keys only the state file
+    project = str(_spec_to_dict(spec).get("name") or sid)
+    db = None
+    if resolved.get("postgres", (False, ""))[0]:
+        try:
+            db = _db_name_for_spec(_spec_to_dict(spec))
+        except ValueError:
+            db = None
+    expected = {"project": project, "target_host": target, "database": db}
     try:
-        cfg = json.loads(out) if out else {}
-    except json.JSONDecodeError as e:
-        return AuditResult(status="unknown", detail=f"config.json invalid: {e}")
-    plans = {p.get("id"): p for p in cfg.get("plans", [])}
-    # The registrar creates `f"{name}-data"` (infrastructure.py:773) — never a bare
-    # `sid`. Matching `sid` alone could therefore NEVER hit, so this audit reported
-    # `missing` for every service that in fact had a plan (live 2026-08-31: zitadel
-    # reported "no backrest plan" while `zitadel-data` existed). Check the registrar's
-    # real id first; keep the bare `sid` as a fallback for hand-made plans.
-    for candidate in (f"{sid}-data", sid):
-        if candidate in plans:
-            paths = plans[candidate].get("paths", []) or []
-            # A registered plan is not protection — `_provision_backrest` hardcodes
-            # `/opt/<name>/data` (infrastructure.py:773-774) regardless of where the
-            # service actually persists, so a service using a NAMED VOLUME gets a plan
-            # pointed at a directory that never exists. That is a PAPER BACKUP: it reads
-            # green and archives nothing. Live on the fleet 2026-08-31 — `/opt/zitadel/data`
-            # is absent while the `zitadel-data` plan points at it. Report `drift` so the
-            # existing fabrik_audit_drift_total metric and the FabrikRegistrarDrift alert
-            # surface it, instead of a false `present`.
-            missing = _missing_host_paths(paths)
-            if missing:
-                return AuditResult(
-                    status="drift",
-                    detail=(
-                        f"backrest plan {candidate} exists but archives NOTHING — "
-                        f"path(s) absent on host: {', '.join(missing)}"
-                    ),
-                    expected={"plan_id": candidate, "paths": paths},
-                    actual={"missing_paths": missing},
-                )
-            return AuditResult(
-                status="present",
-                detail=f"backrest plan {candidate} exists",
-                expected={"plan_id": candidate},
-                actual={"paths": paths},
-            )
+        status, findings, actual = backrest.coverage_findings(
+            project, db, target_host=target, hub_host=hub
+        )
+    except Exception as e:  # noqa: BLE001 — a check that cannot run is unknown, never a guess
+        return AuditResult(
+            status="unknown", detail=f"coverage check failed: {e}", expected=expected
+        )
+    if findings:
+        detail = "; ".join(findings)
+    else:
+        ids = sorted(set((actual.get("covered_by") or {}).values()))
+        detail = f"covered by {', '.join(ids)}" if ids else "covered"
     return AuditResult(
-        status="missing",
-        detail=f"no backrest plan for {sid}",
-        expected={"plan_id": f"{sid}-data"},
-        actual={"plan_ids": sorted(plans)},
+        status=cast(AuditStatus, status), detail=detail, expected=expected, actual=actual
     )
 
 

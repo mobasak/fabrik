@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-02T23:12:16.098131Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-1996f86b",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure: run it alone with -v and find the unpatched wait (likely a real urlopen/readiness poll in src/fabrik/orchestrator/verifier.py), patch the seam, prove red-on-revert",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "tests/orchestrator/test_verifier.py::TestDeploymentVerifier::test_verify_uses_healthcheck_path hangs (>60 s, never returns) at HEAD 891a88392 — the whole tests/orchestrator/ run stalls on it"
+}

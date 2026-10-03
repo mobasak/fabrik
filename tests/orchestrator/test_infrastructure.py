@@ -350,7 +350,7 @@ class TestProvisionDispatch:
         with (
             patch("fabrik.drivers.postgres.create_database") as pg,
             patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()) as gatus,
-            patch("fabrik.drivers.backrest.add_backup_plan") as backrest,
+            patch("fabrik.drivers.backrest.coverage_findings") as backrest,
             patch(
                 "fabrik.drivers.glitchtip.create_project",
                 return_value=_ok(dsn="http://x@host/1"),
@@ -404,7 +404,7 @@ class TestProvisionDispatch:
         with (
             patch("fabrik.drivers.postgres.create_database", side_effect=record("pg")),
             patch("fabrik.drivers.gatus.add_endpoint", side_effect=record("gatus")),
-            patch("fabrik.drivers.backrest.add_backup_plan", side_effect=record("backrest")),
+            patch("fabrik.drivers.backrest.coverage_findings") as backrest_check,
             patch("fabrik.drivers.glitchtip.create_project", side_effect=record("gt")),
             patch("fabrik.drivers.glitchtip.verify_dsn_injection"),
             patch(
@@ -416,8 +416,9 @@ class TestProvisionDispatch:
         ):
             prov.provision(ctx)
 
-        for name in ("pg", "gatus", "backrest", "gt", "grafana", "authelia", "meili"):
+        for name in ("pg", "gatus", "gt", "grafana", "authelia", "meili"):
             assert calls.get(name) is True, f"{name} did not receive dry_run=True"
+        backrest_check.assert_not_called()  # no backrest driver call under dry run (W-5c4ad6a6)
 
     def test_infra_override_disables_registrar(self):
         prov = InfrastructureProvisioner(deployer=MagicMock())
@@ -428,7 +429,7 @@ class TestProvisionDispatch:
         ctx = _ctx(spec)
 
         with (
-            patch("fabrik.drivers.backrest.add_backup_plan") as backrest,
+            patch("fabrik.drivers.backrest.coverage_findings") as backrest,
             patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()),
             patch("fabrik.drivers.glitchtip.create_project", return_value=_ok(dsn=None)),
             patch(
@@ -457,7 +458,9 @@ class TestProvisionDispatch:
         with (
             patch("fabrik.drivers.postgres.create_database", return_value=_ok()),
             patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()),
-            patch("fabrik.drivers.backrest.add_backup_plan", return_value=_ok()),
+            patch(
+                "fabrik.drivers.backrest.coverage_findings", return_value=("present", [], {})
+            ) as backrest_check,
             patch(
                 "fabrik.drivers.glitchtip.create_project",
                 return_value=_ok(dsn="http://x@host/1"),
@@ -480,13 +483,73 @@ class TestProvisionDispatch:
             "watchdog-db-roles",
             "subagent-ins-role",
             "gatus",
-            "backrest",
             "glitchtip",
             "grafana_annotation_id",
             "authelia",
             "authelia_bypass",
             "meilisearch",
         }
+        assert backrest_check.call_args.args == ("my-project", "my_project")
+
+
+# --------------------------------------------------------------------------- #
+# Backrest — check and warn only (W-5c4ad6a6, D-518)                           #
+# --------------------------------------------------------------------------- #
+
+
+class TestProvisionBackrestWarnsOnly:
+    _SPEC = {"name": "my-project", "shape": {"has_persistent_data": True}}
+
+    @pytest.mark.parametrize(
+        "ret",
+        [
+            ("drift", ["unprotected: /srv/x", "paper plan my-project-data: remove it"], {}),
+            ("present", [], {"covered_by": {"/srv/x": "docker-volumes"}}),
+            ("missing", ["not running on vps"], {}),
+        ],
+    )
+    def test_b5_no_plan_write_and_no_resource(self, ret, caplog):
+        prov = InfrastructureProvisioner(deployer=MagicMock())
+        ctx = _ctx(self._SPEC)
+        with (
+            patch("fabrik.drivers.backrest.coverage_findings", return_value=ret),
+            patch("fabrik.drivers.backrest.add_backup_plan") as add,
+            patch("fabrik.drivers.backrest.remove_backup_plan") as remove,
+            caplog.at_level("INFO", logger="fabrik.orchestrator.infrastructure"),
+        ):
+            prov._provision_backrest("my-project", self._SPEC, ctx, False, with_database=False)
+        add.assert_not_called()
+        remove.assert_not_called()
+        assert ctx.created_resources == []
+        assert ctx.registrar_failures == []
+        for finding in ret[1]:
+            assert finding in caplog.text
+        if ret[0] == "present":
+            assert "covered by docker-volumes" in caplog.text
+
+    def test_b5_unknown_is_a_nonfatal_warning(self):
+        prov = InfrastructureProvisioner(deployer=MagicMock())
+        ctx = _ctx(self._SPEC)
+        with patch(
+            "fabrik.drivers.backrest.coverage_findings",
+            return_value=("unknown", ["a coverage probe failed"], {}),
+        ):
+            prov._provision_backrest("my-project", self._SPEC, ctx, False, with_database=False)
+        assert ctx.created_resources == []
+        assert ctx.registrar_failures == ["backrest: a coverage probe failed"]
+
+    @pytest.mark.parametrize("target_vps, expected", [("vps2", "vps2"), ("vps1", "hubby")])
+    def test_b7_target_and_hub_hosts(self, monkeypatch, target_vps, expected):
+        monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "hubby")
+        prov = InfrastructureProvisioner(deployer=MagicMock())
+        ctx = _ctx(self._SPEC)
+        ctx.target_vps = target_vps
+        with patch(
+            "fabrik.drivers.backrest.coverage_findings", return_value=("present", [], {})
+        ) as check:
+            prov._provision_backrest("my-project", self._SPEC, ctx, False, with_database=True)
+        assert check.call_args.args == ("my-project", "my_project")
+        assert check.call_args.kwargs == {"target_host": expected, "hub_host": "hubby"}
 
 
 # --------------------------------------------------------------------------- #
@@ -505,7 +568,7 @@ class TestSoftFailures:
         [
             "fabrik.drivers.postgres.create_database",
             "fabrik.drivers.gatus.add_endpoint",
-            "fabrik.drivers.backrest.add_backup_plan",
+            "fabrik.drivers.backrest.coverage_findings",
             "fabrik.drivers.grafana.post_deployment_annotation",
             "fabrik.drivers.authelia.add_access_rule",
             "fabrik.drivers.meilisearch.create_index",
@@ -527,7 +590,7 @@ class TestSoftFailures:
         all_ok = {
             "fabrik.drivers.postgres.create_database": _ok(),
             "fabrik.drivers.gatus.add_endpoint": _ok(),
-            "fabrik.drivers.backrest.add_backup_plan": _ok(),
+            "fabrik.drivers.backrest.coverage_findings": ("present", [], {}),
             "fabrik.drivers.glitchtip.create_project": _ok(dsn=None),
             "fabrik.drivers.grafana.post_deployment_annotation": _ok(annotation_id=None),
             "fabrik.drivers.authelia.add_access_rule": _ok(status="added"),

@@ -40,10 +40,15 @@ Design notes
 from __future__ import annotations
 
 import base64
+import contextlib
+import fnmatch
 import json
 import logging
+import os
 import re
 import shlex
+from collections.abc import Iterator
+from dataclasses import dataclass
 
 from fabrik.drivers.locks import run_locked
 from fabrik.drivers.ssh import ssh
@@ -393,6 +398,260 @@ def unregister_postgres_plan(db_name: str) -> bool:
     return plan_removed
 
 
+# ---------------------------------------------------------------------------
+# Coverage — read-only (W-5c4ad6a6, D-518). The registrar warns and the audit
+# reports; nothing below writes, edits or deletes a plan. A plan is trusted only
+# when Backrest can actually run it over a path; a doubt reads "uncovered", which
+# costs a warning, never a false "present".
+# ---------------------------------------------------------------------------
+
+_SERVICE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
+"""The deployer's service-name pattern (``orchestrator/deployer_ssh.py:31``)."""
+
+_ANON_VOLUME_RE = re.compile(r"^[0-9a-f]{64}$")
+_UNSAFE_EXCLUDE_CHARS = frozenset("[\\$!")
+"""Brackets, escapes, env expansion and negation read differently in Python and restic."""
+
+_PLANS_JQ = (
+    "[.plans[]? | {id, paths: (.paths // []), excludes: (.excludes // []), "
+    "iexcludes: (.iexcludes // []), backup_flags: (.backup_flags // []), "
+    "scheduled: ((.schedule // {}) | length > 0), disabled: (.schedule.disabled // false)}]"
+)
+"""Plan fields only — the repo section of config.json (B2 credentials) never leaves the VPS."""
+
+
+@dataclass(frozen=True)
+class Persistence:
+    """What a service persists on its host: container count, data paths, skipped anonymous volumes."""
+
+    containers: int
+    paths: list[str]
+    anonymous: int
+
+
+def _norm(path: str) -> str:
+    return path.rstrip("/") or "/"
+
+
+def _discovery_script(name: str) -> str:
+    q = shlex.quote
+    return (
+        "set -eo pipefail\n"
+        f"ids=$(sudo docker ps -aq --filter {q('label=com.docker.compose.project=' + name)})\n"
+        f'if [ -z "$ids" ]; then ids=$(sudo docker ps -aq --filter {q("name=^" + name + "$")}); fi\n'
+        'if [ -z "$ids" ]; then echo NOCONTAINERS; exit 0; fi\n'
+        'echo "containers|$(echo $ids | wc -w)"\n'
+        "sudo docker inspect --format "
+        "'{{range .Mounts}}{{.Type}}|{{.Name}}|{{.RW}}|{{.Source}}{{\"\\n\"}}{{end}}' $ids"
+        " | while IFS='|' read -r t n rw src; do\n"
+        '  case "$t" in\n'
+        '    volume) printf \'volume|%s|%s\\n\' "$n" "$src" ;;\n'
+        '    bind) if [ "$rw" = true ] && sudo test -d "$src"; then printf \'bind|-|%s\\n\' "$src"; fi ;;\n'
+        "  esac\n"
+        "done\n"
+    )
+
+
+def discover_persistence(name: str) -> Persistence | None:
+    """Ask Docker what service ``name`` persists: named volumes and writable bind directories.
+
+    One SSH call; ``None`` when it fails (never a guess). Zero containers is its own answer.
+    """
+    if not isinstance(name, str) or not _SERVICE_NAME_RE.fullmatch(name):
+        raise ValueError(f"invalid service name {name!r}")
+    try:
+        out = ssh(f"bash -o pipefail -c {shlex.quote(_discovery_script(name))}", timeout=60)
+    except Exception as exc:  # noqa: BLE001 — a failed probe is "unknown", never a guess
+        logger.warning("backrest: discovery for %s failed: %s", name, exc)
+        return None
+    if out.strip() == "NOCONTAINERS":
+        return Persistence(0, [], 0)
+    paths: set[str] = set()
+    anonymous = 0
+    containers = 0
+    for line in out.splitlines():
+        if line.startswith("containers|"):
+            containers = int(line.split("|", 1)[1].strip() or 0)
+            continue
+        parts = line.split("|", 2)
+        if len(parts) != 3:
+            continue
+        kind, vol_name, src = parts
+        if kind == "volume" and _ANON_VOLUME_RE.fullmatch(vol_name):
+            anonymous += 1
+        elif src:
+            paths.add(_norm(src))
+    return Persistence(containers, sorted(paths), anonymous)
+
+
+def read_plans() -> list[dict] | None:
+    """The host's Backrest plans, plan fields only; ``None`` when the read fails."""
+    try:
+        out = ssh(f"sudo jq -c {shlex.quote(_PLANS_JQ)} {shlex.quote(BACKREST_CONFIG)}", timeout=30)
+        plans = json.loads(out)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("backrest: reading plans failed: %s", exc)
+        return None
+    return plans if isinstance(plans, list) else None
+
+
+def visible(paths: list[str]) -> set[str] | None:
+    """The subset of ``paths`` Backrest itself can stat (``test -e`` inside its container); ``None`` on failure."""
+    if not paths:
+        return set()
+    script = (
+        "set -o pipefail\n"
+        "c=$(sudo docker ps --format '{{.Names}}' | grep -E '^backrest(-|$)' | head -1) || true\n"
+        '[ -n "$c" ] || { echo "no running backrest container" >&2; exit 1; }\n'
+        'sudo docker exec "$c" sh -c \'for p in "$@"; do [ -e "$p" ] && printf "%s\\n" "$p"; done; exit 0\' _ '
+        + " ".join(shlex.quote(p) for p in paths)
+        + "\n"
+    )
+    try:
+        out = ssh(f"bash -c {shlex.quote(script)}", timeout=60)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("backrest: visibility probe failed: %s", exc)
+        return None
+    return {line.strip() for line in out.splitlines() if line.strip()}
+
+
+def trusted(plan: dict, vis: set[str]) -> bool:
+    """A plan Backrest can actually run: every path visible, scheduled, no iexcludes, no backup_flags."""
+    plan_paths = [_norm(p) for p in plan.get("paths") or []]
+    seen = {_norm(v) for v in vis}
+    return bool(
+        plan_paths
+        and all(p in seen for p in plan_paths)
+        and plan.get("scheduled")
+        and not plan.get("disabled")
+        and not plan.get("iexcludes")
+        and not plan.get("backup_flags")
+    )
+
+
+def _excluded(path: str, patterns: list[str]) -> bool:
+    # Conservative over-read of restic: a pattern's last component against ANY component of the whole path.
+    components = [c for c in path.split("/") if c]
+    for pattern in patterns:
+        if any(ch in pattern for ch in _UNSAFE_EXCLUDE_CHARS):
+            return True
+        parts = [c for c in pattern.rstrip("/").split("/") if c]
+        if not parts:
+            return True
+        if any(fnmatch.fnmatchcase(c, parts[-1]) for c in components):
+            return True
+    return False
+
+
+def coverage(paths: list[str], plans: list[dict], vis: set[str]) -> dict[str, str | None]:
+    """Map each path to the trusted plan whose root covers it most specifically (ties by id), or ``None``.
+
+    A path Backrest cannot itself stat is never covered: a plan root such as ``/opt`` exists inside the
+    Backrest image even when its host bind is missing, so a visible root alone proves nothing about the data.
+    """
+    result: dict[str, str | None] = {}
+    seen = {_norm(v) for v in vis}
+    candidates = sorted((p for p in plans if trusted(p, vis)), key=lambda p: str(p.get("id")))
+    for raw in paths:
+        path = _norm(raw)
+        result[raw] = None
+        if path not in seen:
+            continue
+        best = -1
+        for plan in candidates:
+            roots = [_norm(r) for r in plan.get("paths") or []]
+            depth = max(
+                (len(r) for r in roots if path == r or r == "/" or path.startswith(r + "/")),
+                default=-1,
+            )
+            if depth > best and not _excluded(path, list(plan.get("excludes") or [])):
+                result[raw], best = str(plan.get("id")), depth
+    return result
+
+
+@contextlib.contextmanager
+def _on_host(host: str) -> Iterator[None]:
+    prev = os.environ.get("FABRIK_VPS_SSH_HOST")
+    os.environ["FABRIK_VPS_SSH_HOST"] = host
+    try:
+        yield
+    finally:
+        if prev is None:
+            os.environ.pop("FABRIK_VPS_SSH_HOST", None)
+        else:
+            os.environ["FABRIK_VPS_SSH_HOST"] = prev
+
+
+def _paper(plans: list[dict], plan_id: str, vis: set[str]) -> bool:
+    seen = {_norm(v) for v in vis}
+    return any(
+        p.get("id") == plan_id and any(_norm(x) not in seen for x in p.get("paths") or [])
+        for p in plans
+    )
+
+
+def coverage_findings(
+    name: str, db_name: str | None, *, target_host: str, hub_host: str
+) -> tuple[str, list[str], dict]:
+    """The coverage table for one service: ``(status, findings, actual)``.
+
+    Paths are checked on ``target_host``; the database — a per-database dump that must EXIST and be covered — on
+    ``hub_host``, where postgres-main and /opt/backups live. ``FABRIK_VPS_SSH_HOST`` is set for each and restored.
+    Status: ``unknown`` (a probe failed) · ``missing`` (not running on the host) · ``drift`` · ``present``.
+    """
+    findings: list[str] = []
+    if db_name is not None:
+        try:
+            _validate_db_name(db_name)
+        except ValueError:
+            findings.append(f"invalid database name {db_name!r}: database not checked")
+            db_name = None
+
+    with _on_host(target_host):
+        found = discover_persistence(name)
+        plans = read_plans()
+        if found is None or plans is None:
+            return "unknown", ["a coverage probe failed"], {}
+        plan_paths = [x for p in plans for x in p.get("paths") or []]
+        vis = visible(sorted(set(found.paths) | set(plan_paths)))
+        if vis is None:
+            return "unknown", ["the Backrest visibility probe failed"], {}
+
+    paper = _paper(plans, f"{name}-data", vis)
+    if paper:
+        findings.append(f"paper plan {name}-data: remove it")
+
+    if db_name is not None:
+        with _on_host(hub_host):
+            hub_plans = plans if hub_host == target_host else read_plans()
+            if hub_plans is None:
+                return "unknown", ["the hub plan read failed"], {}
+            dump = f"/opt/backups/postgres/{db_name}"
+            hub_paths = [x for p in hub_plans for x in p.get("paths") or []]
+            hub_vis = visible(sorted({dump, *hub_paths}))
+            if hub_vis is None:
+                return "unknown", ["the hub visibility probe failed"], {}
+        if _paper(hub_plans, f"postgres-{db_name}", hub_vis):
+            findings.append(f"paper plan postgres-{db_name}: remove it")
+        if dump not in hub_vis or coverage([dump], hub_plans, hub_vis)[dump] is None:
+            findings.append(f"database {db_name}: no dump covered")
+
+    actual: dict = {"anonymous_volumes": found.anonymous}
+    if found.containers == 0:
+        return (
+            ("drift" if findings else "missing"),
+            findings or [f"not running on {target_host}"],
+            actual,
+        )
+
+    if not found.paths and db_name is None:
+        findings.append("has_persistent_data set but no persistence found")
+    covered = coverage(found.paths, plans, vis)
+    findings.extend(f"unprotected: {p}" for p, q in covered.items() if q is None)
+    actual["covered_by"] = {p: q for p, q in covered.items() if q is not None}
+    return ("drift" if findings else "present"), findings, actual
+
+
 __all__ = (
     "BACKREST_CONFIG",
     "DEFAULT_REPO",
@@ -405,4 +664,11 @@ __all__ = (
     "remove_backup_plan",
     "register_postgres_plan",
     "unregister_postgres_plan",
+    "Persistence",
+    "discover_persistence",
+    "read_plans",
+    "visible",
+    "trusted",
+    "coverage",
+    "coverage_findings",
 )

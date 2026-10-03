@@ -1,0 +1,26 @@
+{
+  "block_digest": "0f3dc544f5e073f7a27139f07efd18a39cfb3551926301d4c93b0487f4cd10f5",
+  "blocked_by": [],
+  "created": "2026-10-02T20:15:07.429619Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-9483bef5",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "3efcf698a9105a6b4cf0c0009a7cb77601fcc07c802f383c387077c94de64ba5"
+  ],
+  "next": "",
+  "note": "superseded: operator said revise (W-04fecade) after the Opus 5.5 + Fable 5.1 critiques",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve the backrest coverage design (spec and plan-3 above) so I can build it?",
+  "status": "done",
+  "title": "Do you approve the backrest coverage design (spec and plan-3 above) so I can build it?"
+}

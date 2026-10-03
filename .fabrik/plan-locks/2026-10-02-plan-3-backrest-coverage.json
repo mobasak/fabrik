@@ -1,0 +1,22 @@
+{
+  "plan": "docs/development/plans/2026-10-02-plan-3-backrest-coverage.md",
+  "owned_paths": [
+    "src/fabrik/drivers/backrest.py",
+    "src/fabrik/orchestrator/infrastructure.py",
+    "src/fabrik/audit.py",
+    "tests/test_backrest_coverage.py",
+    "tests/test_audit.py",
+    "tests/orchestrator/test_infrastructure.py",
+    "tests/orchestrator/test_e2e_rollback.py",
+    "docs/reference/modules/drivers.md",
+    "docs/infrastructure/vps-complete-inventory.md",
+    "docs/superpowers/specs/2026-10-02-backrest-paper-backups-design.md",
+    "docs/development/reviews/2026-10-02-plan-3-backrest-coverage-review.md"
+  ],
+  "branch": "worktree-fleet",
+  "started_at": "2026-10-03T00:00:00+00:00",
+  "status": "released",
+  "baseline_commit": "45a574f834dc16e49af2680697521ff69326f484",
+  "completed_at": "2026-10-03T00:18:35+00:00",
+  "final_commit": "156250b4ccdbc96014c65fee42078f4d667350d6"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T00:00:54.707500Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-63a1c159",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide with the operator whether discovery should keep regular-file binds (test -f) as data; measure first which live services bind rw files outside /opt (Finish review C-S1, plan-3)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Backrest coverage skips writable single-FILE bind mounts by design (spec 2026-10-02-backrest-paper-backups-design.md:114) — a SQLite db or other stateful file bound rw outside a covered root would read present"
+}

@@ -12,7 +12,7 @@ False. This is the one registrar whose contract says "if the ground-
 truth check fails, roll back the project and raise" — which bubbles
 out of ``InfrastructureProvisioner.provision`` → wrapped in
 ``ProvisioningError`` by ``DeploymentOrchestrator.deploy`` → triggers
-the rollback path. Earlier registrars (postgres/gatus/backrest) have
+the rollback path. Earlier registrars (postgres/gatus) have
 already run and registered resources; later registrars
 (grafana/authelia/meilisearch) must NOT run.
 
@@ -181,15 +181,16 @@ class TestPhase4jEndToEndRollback:
     ):
         """The end-to-end contract:
 
-        1. DNS + compose + postgres + gatus + backrest + glitchtip all
-           run and register resources, in that order.
+        1. DNS + compose + postgres + gatus + glitchtip all run and
+           register resources, in that order (backrest only checks and
+           warns, registering nothing — W-5c4ad6a6).
         2. glitchtip's DSN-verify returns False → provisioner calls its
            inline ``delete_project`` cleanup → raises RuntimeError.
         3. Orchestrator wraps the RuntimeError as ``ProvisioningError``
            and hits the rollback path (NOT the unexpected-exception path).
         4. grafana / authelia / meilisearch NEVER run (they sit after
            glitchtip in the registrar order).
-        5. Rollback walks reverse: glitchtip · backrest · gatus ·
+        5. Rollback walks reverse: glitchtip · gatus ·
            postgres(log-only) · coolify · dns.
         6. Final state == ``ROLLED_BACK`` (not FAILED — rollback
            completed with no driver errors).
@@ -218,9 +219,8 @@ class TestPhase4jEndToEndRollback:
             ) as m_gatus_add,
             patch("fabrik.drivers.gatus.remove_endpoint", side_effect=rec("gatus")),
             patch(
-                "fabrik.drivers.backrest.add_backup_plan",
-                return_value={"status": "created", "plan_id": "e2e-rollback-smoke-data"},
-            ) as m_br_add,
+                "fabrik.drivers.backrest.coverage_findings", return_value=("present", [], {})
+            ) as m_br_check,
             patch("fabrik.drivers.backrest.remove_backup_plan", side_effect=rec("backrest")),
             patch(
                 "fabrik.drivers.glitchtip.create_project",
@@ -288,7 +288,7 @@ class TestPhase4jEndToEndRollback:
         # (3) Forward-pass driver calls — registrars up to glitchtip ran.
         m_pg_create.assert_called_once()
         m_gatus_add.assert_called_once()
-        m_br_add.assert_called_once()
+        m_br_check.assert_called_once()  # checked, wrote nothing (W-5c4ad6a6)
         m_gt_create.assert_called_once()
         m_gt_verify.assert_called_once()
 
@@ -308,7 +308,6 @@ class TestPhase4jEndToEndRollback:
             ("watchdog-db-roles", "e2e_rollback_smoke"),
             ("subagent-ins-role", "e2e-rollback-smoke"),
             ("gatus", "e2e-rollback-smoke"),
-            ("backrest", "e2e-rollback-smoke-data"),
             ("glitchtip", "e2e-rollback-smoke"),
         ]
         assert registered == expected_prefix, (
@@ -333,19 +332,15 @@ class TestPhase4jEndToEndRollback:
         registrar_rollbacks = [x for x in registrar_rollbacks if x is not None]
 
         # The rollback-only walk (not counting the inline cleanup):
-        # glitchtip → backrest → gatus. postgres is log-only (no driver).
+        # glitchtip → gatus. postgres is log-only (no driver); backrest
+        # registered nothing, so nothing of it is rolled back.
         # We assert the ORDER of the reverse walk.
         glitchtip_idx = rollback_calls.index("glitchtip")
-        backrest_idx = rollback_calls.index("backrest")
         gatus_idx = rollback_calls.index("gatus")
-        # The LAST glitchtip call (from the rollback walk, not the inline
-        # cleanup) must come before backrest → which must come before gatus.
-        # Equivalently: there must exist a glitchtip call earlier in the
-        # list than backrest, and backrest earlier than gatus.
-        assert glitchtip_idx < backrest_idx < gatus_idx, (
+        assert "backrest" not in rollback_calls
+        assert glitchtip_idx < gatus_idx, (
             f"Reverse-order rollback drift: glitchtip@{glitchtip_idx} "
-            f"should precede backrest@{backrest_idx} should precede "
-            f"gatus@{gatus_idx}. Full call list: {rollback_calls}"
+            f"should precede gatus@{gatus_idx}. Full call list: {rollback_calls}"
         )
 
         # (7) Destructive-action policy — postgres NOT dropped.
@@ -389,10 +384,7 @@ class TestPhase4jEndToEndRollback:
             ),
             patch("fabrik.drivers.gatus.add_endpoint", return_value={"status": "created"}),
             patch("fabrik.drivers.gatus.remove_endpoint", return_value=True),
-            patch(
-                "fabrik.drivers.backrest.add_backup_plan",
-                return_value={"status": "created"},
-            ),
+            patch("fabrik.drivers.backrest.coverage_findings", return_value=("present", [], {})),
             patch("fabrik.drivers.backrest.remove_backup_plan", return_value=True),
             patch(
                 "fabrik.drivers.glitchtip.create_project",

@@ -1,0 +1,26 @@
+{
+  "block_digest": "df8d8b2403ed8b50629bfd9983934b970710543047a4caf1c1d2a59647d6bda0",
+  "blocked_by": [],
+  "created": "2026-10-02T22:17:33.901892Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-303d5627",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "2cb4475086639cc712106f4925a4530b815cc7fdab37e7e40e4d29a80e09148d"
+  ],
+  "next": "",
+  "note": "ok",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve the revised check-and-warn backrest design (spec and plan-3 at bd86bdf31) so I can build it?",
+  "status": "done",
+  "title": "Do you approve the revised check-and-warn backrest design (spec and plan-3 at bd86bdf31) so I can build it?"
+}
