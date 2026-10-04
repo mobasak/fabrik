@@ -39,6 +39,14 @@ def _isolate_state_dir(tmp_path, monkeypatch):
     importlib.reload(fabrik.locks_local)
     importlib.reload(fabrik.state)
     yield
+    # monkeypatch restores the env only after this teardown, and a reloaded module keeps the
+    # constants it computed from the fake env — so undo first, then reload back, or every later
+    # test in the session sees FABRIK_ROOT/STATE_DIR/LOCK_DIR in a deleted tmp dir (W-019e468b;
+    # graded by tests/test_state_restores_modules.py)
+    monkeypatch.undo()
+    importlib.reload(fabrik.config)
+    importlib.reload(fabrik.locks_local)
+    importlib.reload(fabrik.state)
 
 
 def _import():
@@ -47,7 +55,7 @@ def _import():
     return state
 
 
-def test_save_writes_all_8_fields():
+def test_save_writes_every_field():
     state = _import()
     path = state.save(
         "translator",
@@ -71,7 +79,11 @@ def test_save_writes_all_8_fields():
         "registrars_applied",
         "spec_hash",
         "spec_path",
+        "target_vps",
     }
+    # audit.py and cli.py read target_vps back from this file to find the box (added 0a5a15f84);
+    # a spec that names none lands on the hub
+    assert payload["target_vps"] == "vps1"
 
 
 def test_data_bearing_auto_stamped_for_postgres_redis_meilisearch():
