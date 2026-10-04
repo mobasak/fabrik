@@ -12,9 +12,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "superseded (D-547): both premises no longer hold — fabrik-lib's hub post-commit hook is disabled (post-commit.disabled-hub-D444) and libs/subagents is tracked and clean (22 files); retiring the copy is an operator ruling on paused-versus-retired against D-343, not a backlog task. The pending re-vendor is restore step (4) in docs/reference/subagent-pool-contract.md.",
   "owner": "intel",
   "priority": 1,
-  "status": "open",
+  "status": "dropped",
   "title": "Retire the hub copy libs/subagents: the pool is OFF (D-181/D-182) but 29 hub .py files still reference it and fabrik-lib's post-commit hook keeps re-vendoring into it, leaving ownerless dirty files in the hub tree (D-210's open condition)"
 }

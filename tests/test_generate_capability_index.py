@@ -393,10 +393,16 @@ def test_clip_marks_every_cut_and_never_exceeds_its_cap() -> None:
     the first cut returned 401 for a 600-char run of one word)."""
     assert gci._clip("x" * 400) == "x" * 400, "at the cap: untouched, and NOT marked"
     assert gci._clip("short") == "short"
-    for val in ("y" * 600, "word " * 200, "a. " + "b" * 500, "z" * 401, "one sentence. " + "w" * 500,
-                # A pre-existing `…` AT the cut: without it in the rstrip set the mark doubles, and
-                # the `……` assert below never fired because no other input puts one there.
-                "a" * 398 + "…" + "b" * 300):
+    for val in (
+        "y" * 600,
+        "word " * 200,
+        "a. " + "b" * 500,
+        "z" * 401,
+        "one sentence. " + "w" * 500,
+        # A pre-existing `…` AT the cut: without it in the rstrip set the mark doubles, and
+        # the `……` assert below never fired because no other input puts one there.
+        "a" * 398 + "…" + "b" * 300,
+    ):
         out = gci._clip(val)
         assert out.endswith("…"), (val[:20], out[-20:])
         assert len(out) <= 400, (val[:20], len(out))
@@ -406,4 +412,29 @@ def test_clip_marks_every_cut_and_never_exceeds_its_cap() -> None:
     # what refuses the early one. Every other input here has its two candidates at the same index,
     # so the guard could be dropped and nothing noticed (closing seat, executed: 205 chars vs 3).
     early = gci._clip("Hi. " + "b" * 200 + " " + "c" * 200)
-    assert len(early) > 100, f"an early sentence marker must not win over a later word boundary: {early!r}"
+    assert len(early) > 100, (
+        f"an early sentence marker must not win over a later word boundary: {early!r}"
+    )
+
+
+def test_lib_scan_skips_nested_repo_copies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A nested copy of the library repo is never indexed as a module, whatever it is named: a
+    transient /opt/fabrik-lib/fabrik-lib/ once became a row whose removal reddened Doc Link
+    Integrity for every session. A copy is known by the repo's root markers, and each skip is said
+    on stderr; a module merely named like the repo, or versioned with its own .git, is still indexed."""
+    lib = tmp_path / "fabrik-lib"
+    for name in ("real-module", "fabrik-lib", "versioned", "snapshot", "snapshot-gates"):
+        (lib / name).mkdir(parents=True)
+        (lib / name / "README.md").write_text(f"# {name}\n\nA module.\n", encoding="utf-8")
+    (lib / "versioned" / ".git").mkdir()
+    (lib / "snapshot" / "docs").mkdir()
+    (lib / "snapshot" / "docs" / "DECISIONS.md").write_text("# Decisions\n", encoding="utf-8")
+    (lib / "snapshot-gates" / "scripts" / "enforcement").mkdir(parents=True)
+    monkeypatch.setattr(gci, "FABRIK_LIB", lib)
+    found = [r["name"] for r in gci._enum_lib_modules(tmp_path)]
+    assert found == ["fabrik-lib", "real-module", "versioned"]
+    err = capsys.readouterr().err
+    assert "snapshot (a copy of the library repo)" in err
+    assert "snapshot-gates (a copy of the library repo)" in err

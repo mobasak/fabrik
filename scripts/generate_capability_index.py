@@ -393,12 +393,25 @@ def _enum_scripts(root: Path) -> list[dict]:
     return recs
 
 
+def _is_nested_repo_copy(d: Path) -> bool:
+    """A dir under FABRIK_LIB that is a copy of the library repo itself, whatever it is named: it
+    holds the repo's root markers — `docs/DECISIONS.md` or `scripts/enforcement/` — which every
+    checkout, worktree or snapshot of the repo carries (both are tracked) and no module dir holds
+    (0 of 77 measured 2026-10-04). A `.git` alone is not the test: a module versioned on its own
+    is still a module."""
+    return (d / "docs" / "DECISIONS.md").is_file() or (d / "scripts" / "enforcement").is_dir()
+
+
 def _enum_lib_modules(root: Path) -> list[dict]:
     if not FABRIK_LIB.is_dir():
         return []
     recs = []
     for d in sorted(FABRIK_LIB.iterdir()):
         if not d.is_dir() or d.name.startswith(".") or d.name in _NON_MODULE_DIRS:
+            continue
+        if _is_nested_repo_copy(d):
+            # a nested checkout, worktree or snapshot of the library repo, never a module — said, not silent
+            print(f"capability index: skipped {d} (a copy of the library repo)", file=sys.stderr)
             continue
         readme = d / "README.md"
         has_readme = readme.exists()

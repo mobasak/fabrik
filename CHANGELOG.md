@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — intel's charter states current facts at normal volume (prompt audit, 2026-10-04)
+
+`docs/reference/agents/intel.md` went through `/claude-api prompt-audit` for Opus 5.5 / Fable 5.1. Five findings were applied and three flagged; every rule was kept (D-330/D-331 loss check):
+- It no longer claims the hub's `libs/subagents` is kept byte-identical by re-vendoring. The copy is frozen (D-547).
+- The stale counts of `scripts/kilo-benchmarks/` scripts and their twins became a rule for measuring them.
+- A migration-relative paragraph, a capitalised fact and an incident narrative were rewritten as the current rule with its reason.
+
+Report: `docs/development/reviews/2026-10-04-intel-charter-prompt-audit.md`. W-09558696.
+
+### Fixed — the capability index never indexes a nested copy of fabrik-lib as a module (2026-10-04)
+
+`scripts/generate_capability_index.py` skips a `/opt/fabrik-lib/<dir>` that is a copy of the library repo, whatever its name: it holds the repo's root markers (`docs/DECISIONS.md`, `scripts/enforcement/`), which every checkout, worktree or snapshot of the repo carries. Each skip is printed to stderr, and a module versioned with its own `.git` is still indexed. A transient `/opt/fabrik-lib/fabrik-lib/` once became a catalog row, and its removal turned Doc Link Integrity red for every session. The rule fires on 0 of the 77 top-level directories under `/opt/fabrik-lib` (73 of them modules). W-01dd5437.
+
+### Changed — the hub's libs/subagents stays frozen; its re-vendor is a pool-restore step (2026-10-04)
+
+`docs/reference/subagent-pool-contract.md` gains restore step (4). Before the pool is re-enabled, re-vendor `libs/subagents` from fabrik-lib main to pick up its spend-cap fix. Then apply `schema_spend_cap.sql` or unset `MISTRAL_MONTHLY_CAP_USD`, and verify. The copy is neither retired nor re-vendored while the pool is paused (D-547; two author-blind decision seats, Opus and Fable). W-643632fa is closed with the deferral recorded, and W-745042ab dropped as superseded: its hook and dirty-file premises no longer hold.
+
 ### Fixed — next_census states what it can and cannot tell about shared rows; stronger compaction test (2026-10-04)
 
 `scripts/sysadmin/next_census.py` reads transcripts in plain path order again, so a row shared by two files is credited to the file whose path sorts first. Ordering by mtime (the last write) or by first-row timestamp was tried, and neither can tell an original from its copy, because a copy keeps the original rows' timestamps. Matching a row's `sessionId` to its file's name was also tried: it dropped every row of a renamed file, and both reviews confirmed it as worse. The module docstring now says this, and records the measurement behind it: over the 7-day window, no row sat in two files among about 1.4M rows. The docstring also now covers the V5 rules of D-546. The compaction-summary test now places the summary after a finished turn, where a wrong boundary rule fails it. W-fae95bee (residue of W-a9de5fb3's review).
