@@ -99,21 +99,61 @@ _LEGACY_FUNCS = {
 }
 
 
-def test_no_listed_function_touches_writes_or_stats_a_stamp_through_a_path_call():
+_FOLLOWING_IO = {"touch", "write_text", "write_bytes", "read_text", "read_bytes", "stat", "open"}
+
+
+def _functions():
+    tree = ast.parse(SRC.read_text(encoding="utf-8"))
+    return {fn.name: fn for fn in ast.walk(tree) if isinstance(fn, ast.FunctionDef)}
+
+
+def test_no_listed_function_does_symlink_following_file_io_at_all():
     """The drain write lives deep in `_tick_inner` and the advisory write in
     `_fleet_active_wall_advisory`; a source-level check keeps every listed function off the
-    symlink-following calls (`.touch()`, `.write_text(`, `.stat()`, `.read_text(`) on a stamp."""
-    tree = ast.parse(SRC.read_text(encoding="utf-8"))
-    hits = []
-    for fn in ast.walk(tree):
-        if not (isinstance(fn, ast.FunctionDef) and fn.name in _LEGACY_FUNCS):
-            continue
-        for node in ast.walk(fn):
-            if (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and node.func.attr in {"touch", "write_text", "stat", "read_text"}
-                and "stamp" in ast.unparse(node.func.value)
-            ):
-                hits.append(f"{fn.name}:{node.lineno} {ast.unparse(node)}")
+    symlink-following Path calls on ANY receiver — not just one named `*stamp*`, which an alias
+    walked straight past (review round 1) — so stamp IO there can only go through the helpers."""
+    fns = _functions()
+    assert not (_LEGACY_FUNCS - set(fns)), _LEGACY_FUNCS - set(fns)
+    hits = [
+        f"{name}:{node.lineno} {ast.unparse(node)}"
+        for name in _LEGACY_FUNCS
+        for node in ast.walk(fns[name])
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in _FOLLOWING_IO
+    ]
     assert hits == []
+
+
+def test_a_planted_symlink_at_the_advisory_stamp_is_removed_not_followed(state, tmp_path):
+    """The advisory's latch reads the stamp with `exists()` and `_promised_resume`, both of which
+    follow a link: a link to a file promising a far-future resume kept the fleet silent."""
+    link = cr._fleet_exhaustion_stamp()
+    body = cr._stamp_body(str(int(time.time()) + 10**8), "walled")
+    victim = _plant(link, tmp_path, body)
+    cr._drop_planted_stamp(link)
+    assert not link.exists() and not link.is_symlink()
+    assert victim.read_text() == body, "the link's target was touched"
+    regular = link
+    cr._touch_stamp(regular, time.time(), "0\nwalled\n")
+    cr._drop_planted_stamp(regular)
+    assert regular.is_file(), "a real stamp must never be removed"
+
+
+def test_the_advisory_drops_a_planted_link_before_it_reads_the_stamp():
+    fn = _functions()["_fleet_active_wall_advisory"]
+    drop = [
+        n.lineno
+        for n in ast.walk(fn)
+        if isinstance(n, ast.Call) and ast.unparse(n.func) == "_drop_planted_stamp"
+    ]
+    reads = [
+        n.lineno
+        for n in ast.walk(fn)
+        if isinstance(n, ast.Call)
+        and (
+            (isinstance(n.func, ast.Attribute) and n.func.attr in {"exists", "is_file"})
+            or ast.unparse(n.func) in {"_promised_resume", "_stamp_tier", "_regular_stamp_mtime"}
+        )
+    ]
+    assert drop and reads and min(drop) < min(reads)

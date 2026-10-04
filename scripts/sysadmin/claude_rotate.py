@@ -3101,10 +3101,7 @@ def _identity_probe_due(slugs: list[str], now: float) -> bool:
     ``_CLOCK_SKEW_TOLERANCE_S`` is INVALID and never holds it either (the advisory-stamp
     convention — clock skew must never silence a detector)."""
     for slug in slugs:
-        try:
-            mtime = _regular_stamp_mtime(_identity_probe_stamp(slug))
-        except OSError:
-            continue
+        mtime = _regular_stamp_mtime(_identity_probe_stamp(slug))  # never raises: None = absent
         if mtime is None:
             continue
         age = now - mtime
@@ -3135,11 +3132,7 @@ def _identity_probe_result(slug: str) -> str | None:
     a stored verdict is never gated by token freshness: the likely aftermath of a corrupted
     dir is that it goes IDLE, and an idle dir's mismatch must keep warning, not vanish 8h
     later while the stamp still holds it."""
-    try:
-        raw = _read_regular_stamp(_identity_probe_stamp(slug))
-    except _STATE_DIR_ERRORS:
-        return None
-    val = (raw or "").strip()
+    val = (_read_regular_stamp(_identity_probe_stamp(slug)) or "").strip()  # never raises
     return val if "@" in val else None
 
 
@@ -5591,10 +5584,7 @@ def _refresh_ping_due(email: str, now: float) -> bool:
     keepalive's clamp: a spurious ping is cheap, a silently skipped one leaves the operator
     staring at a stale wall (the 2026-08-18 incident's dashboard symptom)."""
     interval = _env_float("ROTATE_READING_MAX_AGE_S", 3600.0)
-    try:
-        mtime = _regular_stamp_mtime(_fleet_refresh_stamp(email))
-    except OSError:
-        return True
+    mtime = _regular_stamp_mtime(_fleet_refresh_stamp(email))  # never raises: None = absent
     if mtime is None:
         return True
     age = now - mtime
@@ -6623,6 +6613,7 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         session_pct = _usable_ts(row["five_hour"].get("utilization"))
     urgent = session_pct is not None and session_pct >= _urgent_drain_pct()
     stamp = _fleet_exhaustion_stamp()
+    _drop_planted_stamp(stamp)
     # The RELIEF WAKE fires only on a real TRANSITION (stamp present → absent) and only with a
     # real reading: `row is None` / both windows `None` is a probe blackout, not relief.
     reading_ok = _row_has_reading(row)
@@ -6985,6 +6976,24 @@ def _regular_stamp_mtime(path: Path) -> float | None:
     except OSError:
         return None
     return st.st_mtime if stat.S_ISREG(st.st_mode) else None
+
+
+def _drop_planted_stamp(path: Path) -> None:
+    """Remove a SYMLINK sitting at the fleet-exhausted stamp's path (`unlink` removes the link,
+    never its target). This tick only ever writes that stamp as a regular file, so a link there
+    was planted — and every later reader (`stamp.exists()`, `_promised_resume`, `_stamp_tier`,
+    `quota_stop.py`) would follow it: a link to a file carrying a far-future promise held the
+    advisory latched and the fleet silent (W-d33d74a1 review). Best-effort and loud; a link that
+    cannot be removed is reported and the readers' own failure directions stand."""
+    try:
+        if not path.is_symlink():
+            return
+        path.unlink()
+        sys.stderr.write(f"claude_rotate: removed a symlink planted at the stamp path ({path})\n")
+    except OSError as exc:
+        sys.stderr.write(
+            f"claude_rotate: a symlink at the stamp path could not be removed ({path}): {exc}\n"
+        )
 
 
 def _read_regular_stamp(path: Path) -> str | None:
