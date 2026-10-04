@@ -238,8 +238,9 @@ Decisions API) only when all six hold:
    that ruling exists the lane is not wired for that class, and customer text needs that ruling first. In the hub the
    question is still open (hub work item W-5e7743d9).
 
-Wire the lane only through fabrik-lib's `decision-gate` module, never a hand-rolled client. The module entered
-fabrik-lib's spec chain on 2026-10-03, and until it is vendorable no project wires the lane. Inside the lane,
+Wire the lane only through fabrik-lib's `decision-gate` module, never a hand-rolled client. The module is
+vendorable (`/opt/fabrik-lib/decision-gate/`, its README is the contract); a project copies it in with the change
+that wires its first consumer, never ahead of one, and that consumer stays off until criterion 6 is met. Inside the lane,
 deterministic rules decide first and the model decides only what they leave open; every question carries an explicit
 `insufficient` option, because the model never abstains on its own; the threshold is calibrated per decision on the
 project's own labelled data, scored on a held-out split; everything under the threshold falls back to the ladder above;

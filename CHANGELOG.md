@@ -10,6 +10,27 @@ All notable changes to this project will be documented in this file.
 ### Fixed — `work.py` defined `_worktrees` twice; the live one now resolves its paths (2026-10-04)
 - `scripts/work.py` carried two module-level `_worktrees` definitions; Python bound the second, so the first (resolved paths, `[]` on git failure) was dead and `_mail_line`'s empty-list fallback could never fire. The dead definition is deleted, the surviving one resolves its paths on every branch (main checkout first, `[repo.resolve()]` when git cannot answer or lists nothing, because callers index `[0]`), and the two unreachable empty-list branches are gone. Graders: `tests/test_work_sync.py::test_work_defines_each_module_level_function_once` (AST, red on the old file) and `::test_worktrees_lists_resolved_paths_main_first`, which feeds a stubbed `_git` a symlinked two-tree, an empty and a failing answer (five mutants killed). Reported by intel (mail 01M422716X3VN04R62TXVKXEC0).
 
+### Changed — decision-gate is vendored with its first consumer, not ahead of one (2026-10-04)
+
+fabrik-lib's `decision-gate` is vendorable. `ai/00` and `core/65` no longer say "until it is vendorable". Instead they say a project copies the module in with the change that wires its first consumer, and keeps that consumer off until ai/00's criterion 6 (cleared to leave the box) is met. The hub does not vendor it yet: its four consumers are infra's surfaces, and switching one on waits on the egress ruling W-5e7743d9. Also: `tests/test_decision_model_lane.py` pins the new wording; `docs/reference/jev-decision-model-map.md` row lg-08 notes the module now exists; and W-50ca248f is retired as a duplicate of W-5e7743d9. D-550, W-9443574e.
+
+### Changed — intel's charter states current facts at normal volume (prompt audit, 2026-10-04)
+
+`docs/reference/agents/intel.md` went through `/claude-api prompt-audit` for Opus 5.5 / Fable 5.1. Five findings were applied and three flagged; every rule was kept (D-330/D-331 loss check):
+- It no longer claims the hub's `libs/subagents` is kept byte-identical by re-vendoring. The copy is frozen (D-547).
+- The stale counts of `scripts/kilo-benchmarks/` scripts and their twins became a rule for measuring them.
+- A migration-relative paragraph, a capitalised fact and an incident narrative were rewritten as the current rule with its reason.
+
+Report: `docs/development/reviews/2026-10-04-intel-charter-prompt-audit.md`. W-09558696.
+
+### Fixed — the capability index never indexes a nested copy of fabrik-lib as a module (2026-10-04)
+
+`scripts/generate_capability_index.py` skips a `/opt/fabrik-lib/<dir>` that is a copy of the library repo, whatever its name: it holds the repo's root markers (`docs/DECISIONS.md`, `scripts/enforcement/`), which every checkout, worktree or snapshot of the repo carries. Each skip is printed to stderr, and a module versioned with its own `.git` is still indexed. A transient `/opt/fabrik-lib/fabrik-lib/` once became a catalog row, and its removal turned Doc Link Integrity red for every session. The rule fires on 0 of the 77 top-level directories under `/opt/fabrik-lib` (73 of them modules). W-01dd5437.
+
+### Changed — the hub's libs/subagents stays frozen; its re-vendor is a pool-restore step (2026-10-04)
+
+`docs/reference/subagent-pool-contract.md` gains restore step (4). Before the pool is re-enabled, re-vendor `libs/subagents` from fabrik-lib main to pick up its spend-cap fix. Then apply `schema_spend_cap.sql` or unset `MISTRAL_MONTHLY_CAP_USD`, and verify. The copy is neither retired nor re-vendored while the pool is paused (D-547; two author-blind decision seats, Opus and Fable). W-643632fa is closed with the deferral recorded, and W-745042ab dropped as superseded: its hook and dirty-file premises no longer hold.
+
 ### Fixed — next_census states what it can and cannot tell about shared rows; stronger compaction test (2026-10-04)
 
 `scripts/sysadmin/next_census.py` reads transcripts in plain path order again, so a row shared by two files is credited to the file whose path sorts first. Ordering by mtime (the last write) or by first-row timestamp was tried, and neither can tell an original from its copy, because a copy keeps the original rows' timestamps. Matching a row's `sessionId` to its file's name was also tried: it dropped every row of a renamed file, and both reviews confirmed it as worse. The module docstring now says this, and records the measurement behind it: over the 7-day window, no row sat in two files among about 1.4M rows. The docstring also now covers the V5 rules of D-546. The compaction-summary test now places the summary after a finished turn, where a wrong boundary rule fails it. W-fae95bee (residue of W-a9de5fb3's review).

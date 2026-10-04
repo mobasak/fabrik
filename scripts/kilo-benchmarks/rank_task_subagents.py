@@ -81,12 +81,11 @@ MIN_RUNS_TOP2 = 10  # slots #1-#2 require n≥10; lower-n rows sort below
 # ── Operator denies — HUB-OWNED routing policy, applied where the routing set is BUILT ────────────
 #
 # ⚠️ WHY HERE AND NOT IN `libs/subagents/select.py`. That module is VENDORED from fabrik-lib
-# (`fabrik_synced_manifest.VENDORED_DIRS`; the hub copy is contractually "kept byte-identical to
-# canonical /opt/fabrik-lib/subagents by re-vendoring before a sync"), so it is NOT the hub's to
-# edit — a deny placed there is both an unauthorised fork of another repo's module and reverted by
-# the next re-vendor. This generator IS hub-owned, and the doc it writes is what
-# `pick_models` PREFERS over the vendored table (`select.py::_synced_ranking`), so a model omitted
-# from the emitted routing section is not routed to. Same effect, correct surface.
+# (D-137; frozen while the pool is paused and caught up byte-exact as a pool-restore step, D-547),
+# so it is NOT the hub's to edit — a deny placed there is both an unauthorised fork of another
+# repo's module and reverted by the next re-vendor. This generator IS hub-owned, and the doc it
+# writes is what `pick_models` PREFERS over the vendored table (`select.py::_synced_ranking`), so a
+# model omitted from the emitted routing section is not routed to. Same effect, correct surface.
 # Root causes were mailed to fabrik-lib for the canonical fix (01M1S7QACGEP66JM891E9B4CCQ); if they
 # adopt them upstream these entries become redundant, which is the intended end state.
 #
