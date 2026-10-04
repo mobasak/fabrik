@@ -7386,3 +7386,21 @@ document.
 - **Where it lives.** `scripts/sysadmin/liveness_audit.py` (`CANARIES`, the `speaks` key),
   `tests/test_gate_check_canaries.py`, `docs/DECISIONS.md` (D-564),
   `docs/development/reviews/2026-10-04-gate-canary-coverage-review.md`.
+
+## An exception list is a second golden — it needs the golden's guards, and every entry must leave each run with a verdict (2026-10-05)
+
+- **What happened.** W-87bdfed4's oracle was red on 12 blocks of one filed upstream regression. The panel ruled
+  for a registry of known collapses instead of re-freezing (D-567). The first registry passed every new test, and
+  the scoped review still found 12 defects in it. Several registered keys reached no comparison branch: one frozen
+  None, one frozen absent, and one gitignored and unobservable. They rode the OK line's suffix while checked by
+  nothing. The loader also accepted a floor of all zeros, one off the golden's shape, a duplicate key and an
+  invented D-id. A round-1 fix that added exit 3 then left both production alerts telling the operator to
+  re-snapshot, which is the one action the registry exists to prevent.
+- **Mechanism.** An exception list re-checks keys against its own data. That data is a second golden, without the
+  golden's version, key-set and non-vacuity guards. Each branch that consults it is a place a key can fall through.
+- **How to apply.** (1) Track a `touched` set, and turn any registered key that no branch reached into drift.
+  (2) Give the exception file the golden's format guards, and refuse what it cannot check. (3) When a fix changes an
+  exit code or an output line, grep every caller before the fix lands.
+- **Where it lives.** `scripts/kilo-benchmarks/tests/capture_golden.py` (`load_known_collapses`, `verify`),
+  `tests/golden/known_collapses.json`, `docs/DECISIONS.md` (D-567),
+  `docs/development/reviews/2026-10-05-golden-known-collapses-review.md`.

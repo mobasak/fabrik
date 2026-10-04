@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the golden-parity oracle names the upstream catalog collapse instead of reddening on it (2026-10-05)
+- `scripts/kilo-benchmarks/tests` had 10 tests red since 2026-08-30. The structural oracle `capture_golden.verify()` reported 12 collapsed blocks: the 7 OPENROUTER_ROUTES tables, GATEWAY_COUNTS in ai/30 and ai/60, the embedding roster and winners, and the image-gen table. Both panel seats traced all 12 to one upstream ai-model-catalog regression (mail 01M3FEC47Q2KPTQZVDZVA2PHZZ), not the pool pause.
+- New `tests/golden/known_collapses.json` registers those 12 with a citation and a floor. `verify()` announces each one, still reds on further loss, on absence, or once a block recovers (`KNOWN COLLAPSE HEALED`, so the entry gets removed), and refuses (exit 3) an entry citing no ledger D-id or carrying a malformed, duplicate, all-zero or stale-format floor; a registered key no branch reached reds. The golden is not re-frozen. D-567.
+- The priced-routes husk test reads the blocks from before the collapse; the husk-signal test exempts exactly the registered signal-less blocks; 7 new graders. `guard_selection_freshness.py` says 10 of 11 ai-render packs are dated.
+
 ### Fixed — deploy commands describe the re-vendored health_probe correctly (2026-10-05)
 After the health_probe re-vendor (fabrik-lib cfd9215f), `/fabrik-deploy-verify`, `/fabrik-deploy-checklist` and `/fabrik-deploy-plan` still said the module imports `python-dotenv` at module level. They now name `httpx` as the module-level import that a leg image must carry; `psycopg2`/`redis` are imported inside their own rows, so a missing driver fails only that row; and `python-dotenv` is needed only for the `.env` load. `/fabrik-deploy-plan`'s executable probe now imports `httpx, dotenv` instead of `dotenv` alone. `.windsurf/rules/core/25-data-postgres.md` cites the module's `_timeout_from_env` by name instead of a stale line number. Reported by fleet (mails 01M44861, 01M448X7).
 
