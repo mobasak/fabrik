@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the vendored health_probe matches fabrik-lib again, and the parity stub still loads `.env` (2026-10-04)
+`libs/health_probe/health_probe.py` had drifted to fabrik-lib e48ba19c (the vendoring test was red); it is re-vendored as shipped at cfd9215f, where importing the module no longer loads `.env`. The scaffold's `verify_prod_parity.py` stub now loads the project's own `.env` once after its lazy import (explicit path, a real variable still wins), so rows reading the environment behave as before, and its note on the container leg's runtime dependencies names `httpx` rather than python-dotenv. D-563.
+
 ### Fixed — the rotation tick's dated stamps no longer follow a symlink (2026-10-04)
 `scripts/sysadmin/claude_rotate.py` (and its `aro-wake` twin) wrote the drain, identity-probe, refresh and fleet-advisory stamps with `touch`/`write_text` and aged them with `stat`, all of which follow a symlink; these stamps fall back to the shared temp dir, where a planted link would have the tick write — and date — the link's target, or hold a debounce with its mtime. They now go through `_touch_stamp` (an `O_NOFOLLOW`, non-blocking, 0600 regular-file write that dates the open file), `_regular_stamp_mtime` and `_read_regular_stamp`, the standard `_write_stamp`/`_stamp_holds` set for the chain push. W-d33d74a1.
 

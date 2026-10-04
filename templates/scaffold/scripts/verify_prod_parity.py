@@ -64,8 +64,9 @@ SITES = ("hub", "host", "container")
 #: the project). Declare it when the DB-reaching container is NOT the app (tryton-crm: a deliberately
 #: DB-free FastAPI bridge in front of `trytond` — the leg must exec in `trytond`); the runner reads it
 #: from `--header` and never guesses. That container must carry the comparator's runtime deps
-#: (`httpx` — `libs/health_probe` imports it at module level; python-dotenv is needed only by its
-#: `load_env()`/`cli()`, which this script does not call).
+#: (`httpx` — `libs/health_probe` imports it at module level; python-dotenv only for its `load_env()`,
+#: which `_health_probe()` calls when the project has a `.env` — without python-dotenv that load is
+#: a no-op, so the leg then sees only the container's own environment).
 CONTAINER_LEG_SERVICE: str = ""
 
 
@@ -109,7 +110,26 @@ def _health_probe() -> Any | None:
         )
     except ImportError:
         return None
+    # Since fabrik-lib cfd9215f importing the module no longer loads the project `.env`; rows that
+    # read os.environ after this import relied on it, so load THIS project's `.env` here once, by
+    # explicit path (its default search reads the cwd under `python -c`) — a real variable still
+    # wins (override=False). A broken `.env` is reported and the rows carry on, as its cli() does.
+    global _ENV_LOADED
+    load_env = getattr(health_probe, "load_env", None)
+    dotenv = Path(root) / ".env"
+    if load_env is not None and not _ENV_LOADED and dotenv.is_file():
+        _ENV_LOADED = True
+        try:
+            load_env(str(dotenv))
+        except (OSError, UnicodeDecodeError) as exc:
+            print(
+                f"verify_prod_parity: .env not loaded ({type(exc).__name__}: {exc})",
+                file=sys.stderr,
+            )
     return health_probe
+
+
+_ENV_LOADED = False  # `_health_probe()` runs per row; the project `.env` is loaded once
 
 
 def unverifiable(system: str, why: str) -> dict[str, Any]:
@@ -219,7 +239,7 @@ _COMPARISON_KEYS = (
     "expected",
     "actual",
     "match",
-)  # the vendored CLI's own disjunction (health_probe.py:552)
+)  # the vendored CLI's own disjunction (health_probe.py `_COMPARISON_KEYS`)
 
 
 def is_parity_row(row: dict[str, Any]) -> bool:
