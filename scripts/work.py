@@ -2320,7 +2320,14 @@ def _scan_backlog_rows(text: str) -> list[dict]:
                         # the same Item lookup --adopt uses (case-insensitive, W-77e00147)
                         item_idx = du._backlog_item_header_index(names)
                         if item_idx is None:
-                            item_idx = 1
+                            # no Item column: the first NON-EMPTY column that is not the tag
+                            # column — the old fixed `1` titled tryton-crm's `Gap | Measured | … |
+                            # Owner` rows by their measurement and a `Lane | Owner | …` table by its
+                            # owner tag; a blank first cell must not blank a row with content later
+                            item_idx = next(
+                                (k for k, c in enumerate(cells) if k != tag_idx and c.strip()),
+                                len(cells),
+                            )
                         title_src = cells[item_idx] if item_idx < len(cells) else line
                         start(
                             "table",

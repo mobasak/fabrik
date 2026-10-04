@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `migrate-backlog` titles a table row by its first non-tag column, not column 2 (2026-10-05)
+When a backlog table had an owner column but no Item column, the item title came from the second column. tryton-crm's `Gap | Measured | Consequence | Owner` rows were therefore titled by their measurement (`0 of 2,320`), and a `Lane | Owner | Queue` table by the owner tag itself (`[infra]`). The title now comes from the first column that is not the tag column. Reported by tryton-crm (mail 01M3PP0D).
+
 ### Fixed — the Stop hook no longer orders a session to push a sibling's mixed commit (2026-10-05)
 The unpushed cause counted any commit that shared a file with this session's edits. So when a sibling committed a file both sessions had edited together with a file of its own, the session was told "push YOUR work". Now a commit that also carries a file this session never edited is excluded when its `Agent-Name` trailer names a different agent than this session's (resolved via `whoami_agent.py --who`). A commit with no trailer, an unresolvable session name, an unreadable trailer, or a commit made only of this session's files is attributed as before, so the push law never goes silent on a guess. Decision D-568; reported by fabrik-lib (mail 01M3PNNY).
 

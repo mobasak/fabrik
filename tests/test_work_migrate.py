@@ -975,10 +975,18 @@ def _independent_scan(text: str) -> list[dict]:
                             owner = cell_stripped
                         else:
                             owner = ""
-                        # A-O18: the same resolved rule as any other row — the Item column (or
-                        # cell 1, absent an "item" header) as strike-content, so a struck item
-                        # (`~~Old item~~`) resolves.
-                        item_col = next((k for k, name in enumerate(lowered) if name == "item"), 1)
+                        # A-O18: the same resolved rule as any other row — the Item column (or,
+                        # absent an "item" header, the first non-empty cell outside the tag
+                        # column) as strike-content, so a struck item (`~~Old item~~`) resolves.
+                        item_col = next(
+                            (k for k, name in enumerate(lowered) if name == "item"), None
+                        )
+                        if item_col is None:
+                            item_col = len(cells)
+                            for k in range(len(cells)):
+                                if k != tag_col and cells[k].strip():
+                                    item_col = k
+                                    break
                         item_cell = cells[item_col] if item_col < len(cells) else ""
                         struck_item = item_cell.lstrip().startswith("~~")
                         open_row(owner, raw, _iv2_resolved(raw, "", struck_item, None), "table")
@@ -1266,3 +1274,30 @@ def test_an_unclosed_comment_never_hides_content(tmp_path):
     items = _migrated(tmp_path, text)
     assert [it["title"] for it in items] == ["Later"]
     assert "ship Friday regardless" in items[0]["next"]
+
+
+def test_a_table_without_an_item_column_takes_its_first_non_tag_column(tmp_path):
+    """tryton-crm 01M3PP0D: with no Item column the title came from column 1 — a measurement
+    (`Gap | Measured | … | Owner`) or the owner tag itself (`Lane | Owner | …`)."""
+    text = (
+        "# B\n\n| Gap | Measured | Consequence | Owner |\n|---|---|---|---|\n"
+        "| Employees unlinked | 0 of 2,320 | payroll breaks | [provisioning] |\n\n"
+        "| Lane | Owner | Queue |\n|---|---|---|\n| Lane A — images | [infra] | W-1, W-2 |\n"
+    )
+    titles = sorted(it["title"] for it in _migrated(tmp_path, text))
+    assert titles == ["Employees unlinked", "Lane A — images"], titles
+
+
+def test_a_blank_first_cell_does_not_blank_the_title(tmp_path):
+    """Review r1: with no Item column, an empty first cell titled the row "(untitled backlog row)"."""
+    text = "# B\n\n| | Status | Owner |\n|---|---|---|\n|  | blocked on the vendor | [infra] |\n"
+    assert [it["title"] for it in _migrated(tmp_path, text)] == ["blocked on the vendor"]
+
+
+def test_both_readers_resolve_a_struck_first_cell_in_a_no_item_table(tmp_path):
+    """Review r1: the independent reader still struck-tested fixed cell 1; both readers must now
+    key a no-Item table's strike on the first non-empty non-tag cell."""
+    text = "# B\n\n| Gap | Measured | Owner |\n|---|---|---|\n| ~~Old gap~~ | 0 of 3 | [infra] |\n"
+    ref = _independent_scan(text)
+    assert [r["resolved"] for r in ref] == [True]
+    assert [it["status"] for it in _migrated(tmp_path, text)] == ["done"]
