@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the project audit accepts the fleet's pinned Debian codename instead of only bookworm (2026-10-04)
+`scripts/audit_all_projects.py` read a hard-coded bookworm, so a Dockerfile built to `core/30-ops` (trixie since D-064) was reported critical and every fix hint said to switch to bookworm. It now reads the pin from `.windsurf/rules/versions.yaml`: the pinned codename is compliant, the release just before it is a medium "move on the next rebuild" row, anything else stays critical; `FROM <earlier stage>` resolves to that stage's image; hints name the pin. Over the audit's 22 Dockerfiles, 21 move from ✅ to medium and one false critical becomes medium. W-f7882a97, D-544.
+
 ### Fixed — `work.py status` runs in under a second on the hub instead of 5–7 (2026-10-04)
 Drift class 6 ran a `git log -1 -G` and three evidence git calls for every recently closed item, 627 subprocesses on the hub. It now reads every item's last status change in one `git log -G --no-renames --name-only` pass and every evidence commit in one `git cat-file --batch`, with the same answers: drift output identical to the pre-change baseline, 7.17 s → 0.93 s under load. A NUL byte in evidence, which used to crash `status`, is now refused. W-5937c2cd, D-543; full /fabrik-review CONVERGED in 2 passes (confirmed 5 → 0), receipt `docs/development/reviews/2026-10-04-w-5937c2cd-drift-batch-review.md`.
 
