@@ -37,6 +37,7 @@ the honest-green-row state from silently reverting.
 from __future__ import annotations
 
 import ast
+import re
 import shutil
 import subprocess
 import sys
@@ -197,6 +198,21 @@ def test_a_dormant_canary_rides_a_policy_that_is_still_off() -> None:
         "the pool policy is ON again — check_subagent_flywheel's real gate row can red, so "
         "drop its `dormant` note and its FABRIK_POOL_POLICY env from CANARIES"
     )
+
+
+def test_no_canary_fixture_carries_a_timestamp_that_ages_out() -> None:
+    """A hard-coded ISO timestamp in a fixture body ages out of any windowed check:
+    check_feedback_duty's 14-day window would have silenced its canary on 2026-10-19.
+    Leave the stamp out (an absent one counts as in-window there) or compute it."""
+    stamp = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:")
+    dated = sorted(
+        f"{name}:{part}:{path}"
+        for name, canary in la.CANARIES.items()
+        for part in ("base", "files", "clean", "staged")
+        for path, body in (canary.get(part) or {}).items()
+        if stamp.search(body)
+    )
+    assert not dated, f"fixture bodies carrying a timestamp that will age out: {dated}"
 
 
 def test_unreachable_entries_name_a_real_check_and_carry_a_reason() -> None:

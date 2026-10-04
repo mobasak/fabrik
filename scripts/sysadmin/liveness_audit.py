@@ -1386,7 +1386,8 @@ CANARIES: dict[str, dict[str, Any]] = {
         "timeout": 120,
         "args": ["{fixture}/.fabrik/subagent-ledger.jsonl"],
         # the check's own test seam re-arms Layer 1 so the rule cannot rot while it stands down
-        "env": {"FABRIK_POOL_POLICY": "on"},
+        # FABRIK_NO_POOL emptied: an operator shell that exports it would green the bad tree
+        "env": {"FABRIK_POOL_POLICY": "on", "FABRIK_NO_POOL": ""},
         "dormant": (
             "the pool policy is OFF (`_POOL_POLICY_ON = False`, D-181/D-182): Layer 1 stands "
             "down, so the real row cannot red unless FABRIK_POOL_POLICY=on is in the gate's own "
@@ -1613,7 +1614,7 @@ CANARIES: dict[str, dict[str, Any]] = {
     "check_governance_tables": {
         "form": "copy",
         "strict": True,
-        "row_warn_only": "returns `1 if opts.strict else 0` (check_governance_tables.py main()); final_gate passes --strict nowhere",
+        "row_warn_only": "returns `1 if opts.strict else 0` (check_governance_tables.py main()); its registration passes no --strict",
         "clean": {"CLAUDE.md": "# Project\n\n| Rule | Detail |\n|---|---|\n| Something | fine |\n"},
         "files": {
             "CLAUDE.md": "# Project\n\n| Rule | Detail |\n|---|---|\n| Something | a | pipe | without | escape |\n"
@@ -1635,17 +1636,15 @@ CANARIES: dict[str, dict[str, Any]] = {
         "warn_only": "check_feedback_duty.main() returns 0 on every branch, both exception handlers included",
         "args": ["--runs", "{fixture}/runs"],
         "clean": {
-            "runs/abc12345.json": '{"state": "done", "command": "/fabrik-task", "updated_at": "2026-10-04T00:00:00+00:00", "feedback": "none"}\n'
+            "runs/abc12345.json": '{"state": "done", "command": "/fabrik-task", "feedback": "none"}\n'
         },
-        "files": {
-            "runs/abc12345.json": '{"state": "done", "command": "/fabrik-task", "updated_at": "2026-10-04T00:00:00+00:00"}\n'
-        },
+        "files": {"runs/abc12345.json": '{"state": "done", "command": "/fabrik-task"}\n'},
         "speaks": "UNSTATED",
         "expect": "a closed run record with no `feedback` key at all (unstated)",
     },
     "check_frozen_chain": {
         "form": "cwd",
-        "warn_only": "check_frozen_chain.main() has a single `return 0` — findings are the product, never a red exit",
+        "warn_only": "check_frozen_chain.main()'s only `return` is 0 — findings are the product; no exception guard",
         "base": {
             "docs/data-contract.md": "# Data Contract\n\n**Status:** FROZEN **Version:** v2\n\n## Body\n\ntext\n"
         },
@@ -1706,7 +1705,7 @@ CANARIES: dict[str, dict[str, Any]] = {
     },
     "check_routing_policy": {
         "form": "copy",
-        "warn_only": "check_routing_policy.main() takes no argv and returns 0 ('EXIT 0 DELIBERATELY'); no flag changes it",
+        "warn_only": "every `return` in check_routing_policy.main() is 0 ('EXIT 0 DELIBERATELY') and it takes no argv; the loop over the ranker's attributes is outside its exception guard",
         "base": {
             "libs/__init__.py": "",
             "libs/subagents/__init__.py": "TASK_KINDS = frozenset({'review'})\n",
@@ -1743,7 +1742,7 @@ CANARIES: dict[str, dict[str, Any]] = {
     },
     "check_trigger_routing": {
         "form": "cwd",
-        "warn_only": "check_trigger_routing.main() returns 0 on every branch, the mis-routed WARN branch included",
+        "warn_only": "every `return` in check_trigger_routing.main() is 0, the mis-routed WARN branch included; grade() is unguarded",
         "args": ["--sources", "{fixture}/commands/_sources", "--skills", "{fixture}/skills"],
         "base": {"skills/fabrik-review/.keep": ""},
         "files": {
