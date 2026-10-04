@@ -6613,7 +6613,6 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         session_pct = _usable_ts(row["five_hour"].get("utilization"))
     urgent = session_pct is not None and session_pct >= _urgent_drain_pct()
     stamp = _fleet_exhaustion_stamp()
-    _drop_planted_stamp(stamp)
     # The RELIEF WAKE fires only on a real TRANSITION (stamp present → absent) and only with a
     # real reading: `row is None` / both windows `None` is a probe blackout, not relief.
     reading_ok = _row_has_reading(row)
@@ -6656,6 +6655,11 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     # walled active account never dips below threshold across a reset). A FUTURE-dated stamp (WSL
     # suspend/resume, NTP — the _last_switch_ts clock-skew class) is INVALID and must not silence
     # a live wall until the wall clock catches up: treat it as expired and speak now.
+    # A planted SYMLINK is dropped HERE, on the still-walled path only (W-d33d74a1): the latch
+    # below reads the stamp with exists()/_promised_resume, which follow it. Never earlier — a
+    # relief or dwell branch above clears a link through `_clear_stamp`, whose transition fires
+    # the relief WAKE for the sessions `quota_stop.py` was holding on it (review round 2).
+    _drop_planted_stamp(stamp)
     mtime = _regular_stamp_mtime(stamp)  # a symlink never holds the latch (W-d33d74a1)
     age = None if mtime is None else now - mtime
     # …and a THIRD re-arm: when the resume instant this episode PROMISED has come and gone

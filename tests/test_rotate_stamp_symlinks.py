@@ -140,20 +140,21 @@ def test_a_planted_symlink_at_the_advisory_stamp_is_removed_not_followed(state, 
     assert regular.is_file(), "a real stamp must never be removed"
 
 
-def test_the_advisory_drops_a_planted_link_before_it_reads_the_stamp():
+def test_the_advisory_drops_a_planted_link_after_the_relief_branches_and_before_the_latch():
+    """Before the latch reads the stamp (it would follow a link), but AFTER every relief/dwell
+    `_clear_stamp`: clearing a link there fires the relief WAKE for the sessions quota_stop.py held
+    on it, and dropping it first stranded them (review round 2)."""
     fn = _functions()["_fleet_active_wall_advisory"]
-    drop = [
-        n.lineno
-        for n in ast.walk(fn)
-        if isinstance(n, ast.Call) and ast.unparse(n.func) == "_drop_planted_stamp"
-    ]
-    reads = [
-        n.lineno
-        for n in ast.walk(fn)
-        if isinstance(n, ast.Call)
-        and (
-            (isinstance(n.func, ast.Attribute) and n.func.attr in {"exists", "is_file"})
-            or ast.unparse(n.func) in {"_promised_resume", "_stamp_tier", "_regular_stamp_mtime"}
-        )
-    ]
-    assert drop and reads and min(drop) < min(reads)
+
+    def lines(names: set[str]) -> list[int]:
+        return [
+            n.lineno
+            for n in ast.walk(fn)
+            if isinstance(n, ast.Call) and ast.unparse(n.func) in names
+        ]
+
+    drop = lines({"_drop_planted_stamp"})
+    clears = lines({"_clear_stamp"})
+    latch_reads = lines({"_regular_stamp_mtime", "_promised_resume", "_stamp_tier"})
+    assert len(drop) == 1 and clears and latch_reads
+    assert max(clears) < drop[0] < min(latch_reads)
