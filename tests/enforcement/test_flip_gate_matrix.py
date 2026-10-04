@@ -7,8 +7,8 @@ Four invocation shapes were measured to return GREEN OVER NOTHING on 2026-09-10 
 discovery reads ``git status --porcelain``; a ``??`` path counts only when the session's running run
 record names that plan — T4.1 of the mail-triage plan, narrowed by its review); ``check_plan_quality``
 has no CLI and binds
-``PLAN_DIR`` to the cwd at import; ``check_citations_resolve --root <scratch>`` ticks green over 0
-examined anchors; ``check_plan_tickets --plan-dir <non-dated>`` refuses. ``MATRIX`` is the documented
+``PLAN_DIR`` to the cwd at import; ``check_citations_resolve --root <scratch>`` graded 0 anchors (it
+now says ``NOTHING GRADED`` or ``nothing in scope``, 01M3PNG4); ``check_plan_tickets --plan-dir <non-dated>`` refuses. ``MATRIX`` is the documented
 form (``docs/workflows/FINAL_GATE_WORKFLOW.md``); every row is pinned by a test that plants a minimal
 fixture and asserts the gate's OWN examined marker names it (the ``check_plan_quality`` row, whose gate
 prints nothing, asserts its findings and their severity instead), plus the negative control the row exists

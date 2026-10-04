@@ -63,8 +63,18 @@ def _strip_fences(text: str) -> str:
 
 def check_text(text: str, repo: Path) -> tuple[int, list[str]]:
     """(citations examined, findings) for one document's text."""
+    seen, _bare, _outside, findings = check_text_full(text, repo)
+    return seen, findings
+
+
+def check_text_full(text: str, repo: Path) -> tuple[int, int, int, list[str]]:
+    """(citations examined, bare filenames skipped, citations whose path is not a file under
+    ``repo`` skipped, findings). Both skipped buckets are COUNTED, so a run that graded nothing
+    can say so instead of reading as a clean zero (01M3PNG4)."""
     findings: list[str] = []
     seen = 0
+    bare = 0
+    outside = 0
     cache: dict[str, list[str] | None] = {}
     for m in CITE_RE.finditer(_strip_fences(text)):
         path, a, b = m.group(1), int(m.group(2)), m.group(3)
@@ -73,6 +83,7 @@ def check_text(text: str, repo: Path) -> tuple[int, list[str]]:
             # SERVICE repo's compose, which happens to share a name with the hub's 32-line one
             # (review of 66aa32a5: 11 of 30 hits were this shape). Only a slashed path is a claim
             # about THIS tree.
+            bare += 1
             continue
         target = repo / path
         if path not in cache:
@@ -86,7 +97,8 @@ def check_text(text: str, repo: Path) -> tuple[int, list[str]]:
                 cache[path] = None
         lines = cache[path]
         if lines is None:
-            continue  # another repo's file, or a renamed one — not this check's claim (see header)
+            outside += 1  # another repo's file, or a renamed one — not graded (see header), counted
+            continue
         seen += 1
         end = int(b) if b else a
         if a < 1 or end > len(lines) or end < a:
@@ -98,7 +110,7 @@ def check_text(text: str, repo: Path) -> tuple[int, list[str]]:
             lines[a - 1]
         ):  # line 1 = a frontmatter `---` is a legitimate target
             findings.append(f"BLANK-TARGET {path}:{a} → {lines[a - 1].strip()[:40]!r}")
-    return seen, findings
+    return seen, bare, outside, findings
 
 
 DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})-")
@@ -153,6 +165,14 @@ def _changed_docs(repo: Path) -> set[Path]:
 def check_repo(
     repo: Path, since_days: int = DEFAULT_SINCE_DAYS, only: set[Path] | None = None
 ) -> tuple[int, int, list[str]]:
+    ndocs, total, _bare, _outside, findings = check_repo_full(repo, since_days, only)
+    return ndocs, total, findings
+
+
+def check_repo_full(
+    repo: Path, since_days: int = DEFAULT_SINCE_DAYS, only: set[Path] | None = None
+) -> tuple[int, int, int, int, list[str]]:
+    """``check_repo`` plus the two skipped counts of ``check_text_full``, summed over the docs."""
     docs = sorted(
         {
             p
@@ -161,12 +181,23 @@ def check_repo(
             if p.is_file() and _in_window(p, since_days) and (only is None or p in only)
         }
     )
-    total, findings = 0, []
+    total, bare, outside, findings = 0, 0, 0, []
     for doc in docs:
-        n, f = check_text(doc.read_text(encoding="utf-8", errors="replace"), repo)
-        total += n
+        n, b, o, f = check_text_full(doc.read_text(encoding="utf-8", errors="replace"), repo)
+        total, bare, outside = total + n, bare + b, outside + o
         findings += [f"{doc.relative_to(repo)}: {x}" for x in f]
-    return len(docs), total, findings
+    return len(docs), total, bare, outside, findings
+
+
+def _cwd_toplevel() -> Path | None:
+    """The git toplevel of the directory the check was RUN from, or None outside a repo."""
+    try:
+        r = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=False
+        )
+    except OSError:
+        return None
+    return Path(r.stdout.strip()).resolve() if r.returncode == 0 and r.stdout.strip() else None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -175,23 +206,43 @@ def main(argv: list[str] | None = None) -> int:
     repo = REPO
     if "--root" in args:
         repo = Path(args[args.index("--root") + 1]).resolve()
+    else:
+        here = _cwd_toplevel()
+        if here is not None and here != repo.resolve():
+            # the measured case (01M3PNG4): another repo's copy run from here grades ITS OWN docs
+            print(
+                f"⚠ check_citations_resolve graded {repo}, not the repo it was run from ({here}) "
+                f"— pass --root {here}"
+            )
     since = DEFAULT_SINCE_DAYS
     if "--since-days" in args:
         since = int(args[args.index("--since-days") + 1])
     only = _changed_docs(repo) if "--changed" in args else None
-    ndocs, ncites, findings = check_repo(repo, since_days=since, only=only)
+    ndocs, ncites, bare, outside, findings = check_repo_full(repo, since_days=since, only=only)
+    found = ncites + bare + outside
+    tally = (
+        f"{ncites} graded of {found} found ({bare} bare filename, {outside} not under root {repo})"
+    )
     if findings:
         print(
             f"⚠ check_citations_resolve ADVISORY — {len(findings)} citation(s) do not land, of "
-            f"{ncites} examined across {ndocs} docs (a wrong `path:line` reads as verified and is not):"
+            f"{ncites} examined across {ndocs} docs (a wrong `path:line` reads as verified and is not)"
+            f" — {tally}:"
         )
         for f in findings[:60]:
             print(f"   - {f}")
         if len(findings) > 60:
             print(f"   … {len(findings) - 60} more")
+    elif outside and not ncites:
+        # printed under --quiet too: path citations were found and NONE graded — never a clean
+        # zero. Bare filenames alone never trip it: the header calls them non-claims by design.
+        print(f"⚠ check_citations_resolve NOTHING GRADED across {ndocs} docs — {tally}")
+    elif not quiet and not ndocs:
+        print(f"citations: nothing in scope — 0 docs under {repo} match the source families")
     elif not quiet:
         print(
             f"✓ citations resolve — {ncites} `path:line` citation(s) across {ndocs} docs all land"
+            f" — {tally}"
         )
     return 0  # advisory by contract; the findings are the product
 
