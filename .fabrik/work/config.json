@@ -1,5 +1,6 @@
 {
   "base_branch": "master",
   "distributor": "infra",
-  "migrated_at": "2026-09-24T23:27:48.903284Z"
+  "migrated_at": "2026-09-24T23:27:48.903284Z",
+  "autonomy": true
 }
