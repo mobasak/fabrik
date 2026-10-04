@@ -373,18 +373,54 @@ def test_a_deny_beats_the_allowlist_everywhere_it_could_contradict(monkeypatch):
     assert any(parsed.values()), "the deny emptied every kind — the guard must not fail-open either"
 
 
-def test_a_deny_that_empties_a_kind_fails_closed_instead_of_widening_routing(monkeypatch):
-    """The nastiest interaction of the two policies, and the least obvious.
+def _force_the_no_data_stub(monkeypatch):
+    """With no rows, no coding fallback and no benchmark run, `render` takes the no-data stub — on
+    any box, whatever benchmark files it holds (the stub path once depended on a 0-byte DB)."""
+    monkeypatch.setattr(rank, "_load_coding_fallback", lambda *a, **k: [])
+    monkeypatch.setattr(rank, "_code_bench_ran", lambda: False)
+    monkeypatch.setattr(rank, "_review_bench_ran", lambda: False)
+    monkeypatch.setattr(rank, "_code_benchmark_models", lambda *a, **k: [])
+    monkeypatch.setattr(rank, "_review_benchmark_models", lambda *a, **k: [])
 
-    If the denies remove every allowlisted model for a kind, the backstop emits a section header
-    with NO rows — and `load_task_ranking` reads a rowless section as no section, so `pick_models`
-    answers from the UNRESTRICTED vendored `_TABLE`. Banning every allowed model for a kind would
-    therefore WIDEN that kind's routing to everything: the opposite of both policies. Executed
-    before the guard existed: `_allowlist_models_for("review") == []` →
-    `load_task_ranking(...)["review"] is None`. The generator must refuse to publish."""
+
+def test_a_deny_that_empties_a_kind_fails_closed_instead_of_widening_routing(monkeypatch):
+    """The nastiest interaction of the two policies, and the least obvious — on the NO-DATA STUB.
+
+    If the denies remove every allowlisted model for a kind, the stub emits that kind's section
+    header with NO rows — and `load_task_ranking` reads a rowless section as no section, so
+    `pick_models` answers from the UNRESTRICTED vendored `_TABLE`: banning every allowed model for a
+    kind would WIDEN its routing to everything. The stub carried no guard until W-61380819. The main
+    path is pinned by `test_the_contradiction_guard_covers_the_data_path_too`."""
+    _force_the_no_data_stub(monkeypatch)
     monkeypatch.setattr(rank, "OPERATOR_DENY", {"review": frozenset(rank.OPERATOR_ALLOW_ORDER)})
     with pytest.raises(rank.ContradictoryRoutingPolicyError, match="review"):
         rank.render([], state="ok", include_full_results=False)
+
+
+def test_the_contradiction_guard_covers_the_data_path_too(monkeypatch):
+    """`render` has two emitters of allowlist sections: the no-data stub and the main path. The test
+    above forces the stub (`_force_the_no_data_stub`); a kept row here forces the main path, so both
+    are pinned whatever benchmark data the box holds. The stub carried no guard until W-61380819."""
+    monkeypatch.setattr(rank, "OPERATOR_DENY", {"review": frozenset(rank.OPERATOR_ALLOW_ORDER)})
+    with pytest.raises(rank.ContradictoryRoutingPolicyError, match="review"):
+        rank.render(
+            [("docs", rank.OPERATOR_ALLOW_ORDER[0], 40, 0.01, 3.0, 0.9)],
+            state="ok",
+            include_full_results=False,
+        )
+
+
+def test_a_live_fleet_kind_outside_the_frozen_list_is_guarded_too(monkeypatch):
+    """The guard's kinds are `TASK_KINDS_EMITTED | by_task`: a kind the fleet dispatches but the frozen
+    literal lacks still gets a section, so a deny that empties it must refuse as well."""
+    monkeypatch.setattr(rank, "OPERATOR_DENY", {"translate": frozenset(rank.OPERATOR_ALLOW_ORDER)})
+    assert "translate" not in rank.TASK_KINDS_EMITTED
+    with pytest.raises(rank.ContradictoryRoutingPolicyError, match="translate"):
+        rank.render(
+            [("translate", rank.OPERATOR_ALLOW_ORDER[0], 40, 0.01, 3.0, 0.9)],
+            state="ok",
+            include_full_results=False,
+        )
 
 
 def test_the_contradiction_guard_does_not_fire_on_the_real_policy():
