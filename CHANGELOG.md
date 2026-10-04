@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — two red test files read what the check found, not what fit on stdout (2026-10-04)
+`tests/test_spec_intake_inventory.py` asserted on the CLI output of `check_spec_convergence.py`, which prints under an output budget. Once the approach and interrogative floors fired first on its fixtures, NO-INTAKE and HOLLOW-INTAKE fell past the budget. The positive tests went red and the two negative tests passed without testing anything. They now read `_audit`'s full finding list. In `tests/test_kaizen_sensor_emitters.py`, two comparisons diffed against a module-scoped gate run made before conftest pins `COMMAND_RUN_DIR`, so the feedback-duty line differed between the two sides, and both runs audited the live shared tree, so a sibling's commit between them changed the report. Every gate run now happens inside its test against a local `git clone` of HEAD; a clone, not a worktree, so a killed run leaves nothing registered in the shared `.git`. The emitter-absent test also compares stderr now.
+
 ### Fixed — the quota hook names a command exactly as the run record will (2026-10-04)
 `scripts/sysadmin/quota_posture_hook.py::_command_name` only removed leading slashes, while the recorder (`command_run.py::_norm_command`, since W-5aa12ff3) also strips blanks and lower-cases. So at RED the hook denied `start --command " /fabrik-review"` or `Fabrik-Review`, a review the recorder would have counted, and `tests/test_quota_posture.py`'s parity test was red. The hook now applies the recorder's exact expression. Reported by fleet (mail 01M4468X).
 

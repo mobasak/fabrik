@@ -10,6 +10,7 @@ measured, per the fire-rate doctrine).
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 from pathlib import Path
@@ -46,6 +47,23 @@ def run(root: Path) -> tuple[int, str]:
     return proc.returncode, proc.stdout + proc.stderr
 
 
+def labels(root: Path) -> list[str]:
+    """Every finding label `_audit` returns — the UNBOUNDED list.
+
+    The CLI prints findings under an output budget and folds the rest into "... N more", so a
+    label can be missing from stdout while the check still found it. The approach floor
+    (21f378095) and the interrogative floor (730a1af53) fire first on these fixtures and pushed
+    NO-INTAKE past the budget: the positive tests went red, and the `not in out` tests went
+    vacuously green. The verdict is read here; the CLI run asserts the exit code only.
+    """
+    spec = importlib.util.spec_from_file_location("check_spec_convergence_probe", CHECK)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    _examined, findings = mod._audit(root)
+    return [f.label for f in findings]
+
+
 def write(root: Path, name: str, body: str) -> None:
     d = root / "docs" / "superpowers" / "specs"
     d.mkdir(parents=True, exist_ok=True)
@@ -55,27 +73,31 @@ def write(root: Path, name: str, body: str) -> None:
 def test_a_post_contract_spec_missing_the_inventory_is_flagged(tmp_path):
     write(tmp_path, "2026-09-01-thing-design.md", SPEC_NO_INVENTORY)
     rc, out = run(tmp_path)
-    assert rc == 0, "advisory check must stay exit 0"
-    assert "NO-INTAKE" in out, f"missing inventory not flagged: {out!r}"
+    assert rc == 0, f"advisory check must stay exit 0: {out!r}"
+    assert "NO-INTAKE" in labels(tmp_path), "missing inventory not flagged"
 
 
 def test_a_hollow_disposition_is_flagged(tmp_path):
     write(tmp_path, "2026-09-01-thing-design.md", SPEC_HOLLOW)
     rc, out = run(tmp_path)
-    assert rc == 0
-    assert "HOLLOW-INTAKE" in out, f"row without disposition not flagged: {out!r}"
+    assert rc == 0, out
+    assert "HOLLOW-INTAKE" in labels(tmp_path), "row without disposition not flagged"
 
 
 def test_a_complete_inventory_is_silent(tmp_path):
     write(tmp_path, "2026-09-01-thing-design.md", SPEC_OK)
     rc, out = run(tmp_path)
-    assert rc == 0
-    assert "INTAKE" not in out, f"false positive on a complete inventory: {out!r}"
+    assert rc == 0, out
+    found = labels(tmp_path)
+    assert not [x for x in found if "INTAKE" in x], (
+        f"false positive on a complete inventory: {found}"
+    )
 
 
 def test_pre_contract_specs_are_not_retro_graded(tmp_path):
     """Fire-rate doctrine: the contract cannot red (even advisorily) 21 specs that predate it."""
     write(tmp_path, "2026-08-15-old-design.md", SPEC_NO_INVENTORY)
     rc, out = run(tmp_path)
-    assert rc == 0
-    assert "INTAKE" not in out, f"pre-contract spec retro-graded: {out!r}"
+    assert rc == 0, out
+    found = labels(tmp_path)
+    assert not [x for x in found if "INTAKE" in x], f"pre-contract spec retro-graded: {found}"

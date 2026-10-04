@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T21:19:37.840877Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-98289603",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add a FABRIK_OPT_DIR seam to check_vendored_drift and pass --skills from the gate; then pin both in the kaizen emitter tests",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "final_gate advisory checks read live state outside PROJECT_ROOT: check_vendored_drift.py:44 iterates OPT=Path('/opt'), check_trigger_routing.py:45 reads ~/.claude/skills — no env seam, so a byte-compare of two gate runs (tests/test_kaizen_sensor_emitters.py) can race a sibling's edit to another repo"
+}

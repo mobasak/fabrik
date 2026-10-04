@@ -129,16 +129,41 @@ def project(tmp_path: Path) -> Path:
 
 
 @pytest.fixture(scope="module")
-def _gate_lean(tmp_path_factory) -> tuple[subprocess.CompletedProcess, Path, str]:
-    """One real `--lean --json --check` gate run (read-only), shared by the gate tests."""
-    events = tmp_path_factory.mktemp("gate-events")
-    sid = "t04-gate"
-    proc = _run(GATE, "--lean", "--json", "--check", events_dir=events, sid=sid)
-    return proc, events, sid
+def _frozen_tree(tmp_path_factory) -> Path:
+    """A local clone of HEAD that every gate run in this module reads as its project root.
+
+    The gate audits the tree it runs in (`PROJECT_ROOT = Path.cwd()`), and `/opt/fabrik` is shared:
+    a sibling's commit, merge or edit between the two runs of one comparison changed the report
+    ("passed" count, advisory text) with no emitter involved — red in 3 of 4 runs while HEAD moved
+    ten commits. The clone holds still; the gate SCRIPT is still the live one under test.
+    A clone, never `git worktree add`: a worktree registers itself in the SHARED `.git`, and a
+    SIGTERM (`timeout`'s default) skips the teardown and leaks the registration. A clone lives
+    wholly under pytest's basetemp, which pytest's own rotation deletes.
+    """
+    tree = tmp_path_factory.mktemp("gate-tree") / "clone"
+    subprocess.run(
+        ["git", "clone", "-q", "--local", str(REPO), str(tree)],
+        check=True,
+        capture_output=True,
+        timeout=120,
+    )
+    return tree
 
 
-def test_gate_run_rows_are_1to1_with_the_report(_gate_lean):
-    proc, events, sid = _gate_lean
+def _gate(tree: Path, events_dir: Path, sid: str, **kw) -> subprocess.CompletedProcess:
+    """One `--lean --json --check` gate run, made INSIDE the test against the frozen tree.
+
+    Never a module-scoped run: a module fixture is set up before conftest's function-scoped
+    box-state pins (`COMMAND_RUN_DIR` among them), so its gate read the LIVE run records while the
+    run it was compared with read the pinned empty store — the feedback-duty advisory printed
+    "12 close(s)" on one side and nothing on the other.
+    """
+    return _run(GATE, "--lean", "--json", "--check", events_dir=events_dir, sid=sid, cwd=tree, **kw)
+
+
+def test_gate_run_rows_are_1to1_with_the_report(_frozen_tree, tmp_path):
+    events, sid = tmp_path / "events", "t04-gate"
+    proc = _gate(_frozen_tree, events, sid)
     assert proc.returncode in (0, 1), proc.stderr[-2000:]
     report = json.loads(proc.stdout)
 
@@ -162,24 +187,18 @@ def test_gate_run_rows_are_1to1_with_the_report(_gate_lean):
     assert ev["mode"]["systemic"] is False and ev["mode"]["json"] is True
 
 
-def test_gate_stdout_and_exit_code_are_byte_identical_without_the_emitter(_gate_lean, tmp_path):
-    """NEVER-ROUTE: the module absent must be indistinguishable from the module present."""
-    proc, _, _ = _gate_lean
-    absent = _run(
-        GATE,
-        "--lean",
-        "--json",
-        "--check",
-        events_dir=tmp_path / "unused",
-        sid="t04-gate-absent",
-        absent=True,
-    )
+def test_gate_stdout_and_exit_code_are_byte_identical_without_the_emitter(_frozen_tree, tmp_path):
+    """NEVER-ROUTE: the module absent must be indistinguishable from the module present —
+    stdout, stderr and exit code."""
+    proc = _gate(_frozen_tree, tmp_path / "live", "t04-gate-live")
+    absent = _gate(_frozen_tree, tmp_path / "unused", "t04-gate-absent", absent=True)
     assert absent.stdout == proc.stdout
+    assert absent.stderr == proc.stderr
     assert absent.returncode == proc.returncode
     assert not (tmp_path / "unused").exists(), "an absent emitter must not create a store"
 
 
-def test_gate_is_unharmed_when_the_event_store_is_unwritable(_gate_lean, tmp_path):
+def test_gate_is_unharmed_when_the_event_store_is_unwritable(_frozen_tree, tmp_path):
     """A broken store fails open on EVERY channel: stdout, stderr and exit code.
 
     stderr is the one the first round missed — ``emit()``'s internal failure path calls
@@ -187,8 +206,8 @@ def test_gate_is_unharmed_when_the_event_store_is_unwritable(_gate_lean, tmp_pat
     sensor that narrates its own failure into the gate's stderr has changed the gate.
     """
     blocked = _unwritable(tmp_path)
-    proc, _, _ = _gate_lean
-    broken = _run(GATE, "--lean", "--json", "--check", events_dir=blocked, sid="t04-gate-broken")
+    proc = _gate(_frozen_tree, tmp_path / "live", "t04-gate-live")
+    broken = _gate(_frozen_tree, blocked, "t04-gate-broken")
     assert broken.stdout == proc.stdout
     assert broken.stderr == proc.stderr
     assert broken.returncode == proc.returncode
