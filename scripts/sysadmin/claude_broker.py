@@ -168,7 +168,7 @@ class Broker:
             return 429, {"error": "budget exceeded"}
 
         model = body.get("model")
-        if model is not None and not _MODEL_RE.match(str(model)):
+        if model is not None and not _MODEL_RE.fullmatch(str(model)):
             return 400, {"error": "invalid model"}
 
         dest = self.governor.route("routine", caller=caller)  # class forced server-side

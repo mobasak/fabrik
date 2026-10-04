@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "six identifier checks in infra's scripts accept a trailing newline — re.match(r\"^...$\") lets \"x\\n\" through (scratch_sweep, claude_rotate ×2, claude_broker, quota_dashboard, kaizen_coroner)"
 }

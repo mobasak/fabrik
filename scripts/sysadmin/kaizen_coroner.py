@@ -286,7 +286,7 @@ def _errparked_markers(lock_dir: Path) -> dict[str, tuple[str, float | None]]:
         except OSError:
             continue
         parts = head.split()
-        if not parts or not _CLASS_RE.match(parts[0]):
+        if not parts or not _CLASS_RE.fullmatch(parts[0]):
             continue  # malformed marker → skipped, never guessed at
         epoch: float | None = None
         if len(parts) > 1 and parts[1].isdigit():

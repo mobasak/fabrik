@@ -889,7 +889,7 @@ def _pending_row(slug: str) -> str:
     had just scaffolded `ozgurbasak` (2026-09-06) saw a four-row board and could not tell "not
     scaffolded" from "not logged in". Rendered greyed, after every account, with NO switch button
     (there is no chain to switch to) and the one action that pins it."""
-    if not _SLUG_RE.match(slug):
+    if not _SLUG_RE.fullmatch(slug):
         return ""
     s = escape(slug)
     no = '<td class="num muted">no reading<br><span class="sub">—</span></td>'
@@ -910,7 +910,7 @@ def _switch_cell(slug: str, is_active: bool, email: str = "", parked: bool = Fal
     service until enabled); `disable`/`enable` on every row with an email — the operator parks an
     account from here (2026-09-29: "put a button in the gui so i can enable disable them")."""
     toggle = ""
-    if _EMAIL_RE.match(email):
+    if _EMAIL_RE.fullmatch(email):
         verb, label = ("unpark", "enable") if parked else ("park", "disable")
         tip = (
             f"Put {email} back in service"
@@ -923,7 +923,7 @@ def _switch_cell(slug: str, is_active: bool, email: str = "", parked: bool = Fal
         )
     if parked:
         return f'<td class="act"><span class="muted">parked</span>{toggle}</td>'
-    if is_active or not _SLUG_RE.match(slug):
+    if is_active or not _SLUG_RE.fullmatch(slug):
         return f'<td class="act"><span class="muted">active</span>{toggle}</td>'
     return (
         f'<td class="act"><button type="button" class="switch" data-slug="{escape(slug)}" '
@@ -2778,7 +2778,7 @@ def _known_slugs() -> set[str]:
     out: set[str] = set()
     for acct in payload.get("accounts") or []:
         for slug in acct.get("slugs") or []:
-            if isinstance(slug, str) and _SLUG_RE.match(slug):
+            if isinstance(slug, str) and _SLUG_RE.fullmatch(slug):
                 out.add(slug)
     return out
 
@@ -2792,7 +2792,7 @@ def _known_emails() -> set[str]:
     return {
         str(a.get("email")).lower()
         for a in payload.get("accounts") or []
-        if isinstance(a.get("email"), str) and _EMAIL_RE.match(str(a.get("email")).lower())
+        if isinstance(a.get("email"), str) and _EMAIL_RE.fullmatch(str(a.get("email")).lower())
     }
 
 
@@ -2814,7 +2814,7 @@ def switch_account(slug: object) -> tuple[int, dict]:
     failed (its stderr is the body, never swallowed); 200 — flipped, and the board has been
     re-rendered synchronously so the reload shows the new pointer, not a floor-cached one.
     """
-    if not isinstance(slug, str) or not _SLUG_RE.match(slug) or slug not in _known_slugs():
+    if not isinstance(slug, str) or not _SLUG_RE.fullmatch(slug) or slug not in _known_slugs():
         return 400, {"ok": False, "error": f"unknown account {slug!r} — not on the board"}
     return _run_rotate(["--switch", slug])
 

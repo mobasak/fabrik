@@ -1720,7 +1720,7 @@ def _cmd_new_dir(
     The whole body runs under the assignments flock, so two concurrent runs on any slug serialize
     rather than losing each other's row.
     """
-    if not _SLUG_RE.match(slug):
+    if not _SLUG_RE.fullmatch(slug):
         sys.stderr.write(
             f"claude_rotate: refusing slug {slug!r} — kebab-case [a-z0-9-] only "
             "(the slug becomes a directory name under the fleet root)\n"

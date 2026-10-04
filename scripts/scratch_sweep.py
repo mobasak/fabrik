@@ -659,7 +659,7 @@ def _is_slug_dir(entry: Path) -> bool:
         for child in os.scandir(entry):
             if (
                 child.is_dir(follow_symlinks=False)
-                and SID_RE.match(child.name)
+                and SID_RE.fullmatch(child.name)
                 and "-" in child.name
             ):
                 return True
@@ -1236,7 +1236,7 @@ def main(argv: list[str] | None = None) -> int:
         if not sid:
             print("no session id — pass --session or set CLAUDE_SESSION_ID", file=sys.stderr)
             return RC_USAGE
-        if not SID_RE.match(sid):
+        if not SID_RE.fullmatch(sid):
             print(f"refusing a malformed session id {sid!r}", file=sys.stderr)
             return RC_USAGE
         return run_session_mode(args, sid)
@@ -2190,7 +2190,7 @@ def run_worktrees_mode(args: argparse.Namespace) -> int:
             start = float(forced)
         except ValueError:
             start = None
-    elif sid and SID_RE.match(sid):
+    elif sid and SID_RE.fullmatch(sid):
         by_sid, _ = read_sessions(sessions_dirs())
         start = session_start_epoch(by_sid.get(sid, []))
     foreign_s: float | None = None
@@ -2247,7 +2247,7 @@ def run_hook_mode(args: argparse.Namespace, sid_hint: str) -> int:
         if not isinstance(payload, dict):
             payload = {}
         sid = str(payload.get("session_id") or "").strip() or sid_hint
-        if not sid or not SID_RE.match(sid):
+        if not sid or not SID_RE.fullmatch(sid):
             return RC_OK
         cwd = str(payload.get("cwd") or os.getcwd())
         if (
