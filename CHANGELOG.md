@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the Stop hook no longer orders a session to push a sibling's mixed commit (2026-10-05)
+The unpushed cause counted any commit that shared a file with this session's edits. So when a sibling committed a file both sessions had edited together with a file of its own, the session was told "push YOUR work". Now a commit that also carries a file this session never edited is excluded when its `Agent-Name` trailer names a different agent than this session's (resolved via `whoami_agent.py --who`). A commit with no trailer, an unresolvable session name, an unreadable trailer, or a commit made only of this session's files is attributed as before, so the push law never goes silent on a guess. Decision D-568; reported by fabrik-lib (mail 01M3PNNY).
+
 ### Fixed — `work.py migrate-backlog` no longer turns empty sections and template placeholders into open work (2026-10-05)
 Migration made every empty `## ` section heading ("Later" in 17 stores) and the scaffold template's own sections and `[Item]` placeholder rows into OPEN items. A fresh scaffold got 6 junk items, two of them with a phantom owner, `resource`. A closed entry whose untagged title starts with `✅ CLOSED —` also migrated as open. A row is now dropped only when its body is blank, structure or template boilerplate. Any heading with real content, such as a "Now" table with real rows, still migrates. An untagged title whose first word is a status marker now resolves. Measured over 28 backlogs: 33 rows dropped, none with content, and 4 rows correctly resolved. Decision D-566; reported by tryton-crm (mail 01M3PJXN).
 

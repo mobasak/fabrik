@@ -42,6 +42,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 CAP = 3  # consecutive blocked stops before letting it stop anyway (anti-trap)
@@ -710,7 +711,13 @@ def _edit_age_phrase() -> str:
     return f"within the last {int(s)}s"
 
 
-def _commit_is_mine(touched: set[str], distinctive: set[str], authored: set[str]) -> bool:
+def _commit_is_mine(
+    touched: set[str],
+    distinctive: set[str],
+    authored: set[str],
+    agents: frozenset[str] = frozenset(),
+    me: Callable[[], str | None] | None = None,
+) -> bool:
     """Is this commit attributable to THIS session?
 
     Two ways, and the second exists because the first alone caused a regression. A commit that
@@ -737,9 +744,22 @@ def _commit_is_mine(touched: set[str], distinctive: set[str], authored: set[str]
     being told to push someone's already-committed docs and losing our own commit off-box, the
     contract is unambiguous about which is worse.
     """
-    if touched & distinctive:
-        return True
-    return bool(touched) and touched <= _ROUTINE_GOVERNANCE and bool(touched & authored)
+    by_files = bool(touched & distinctive) or (
+        bool(touched) and touched <= _ROUTINE_GOVERNANCE and bool(touched & authored)
+    )
+    if not by_files or not agents or me is None or touched <= authored:
+        # a commit of ONLY this session's own files stays mine whatever its trailer says: the
+        # trailer is hand-typed and a mis-signed day is a known class (D-034), so it may veto
+        # only the shape the defect is — a MIXED commit carrying a file this session never edited
+        return by_files
+    # W-851b6f3a (fabrik-lib 01M3PNNY): a sibling's MIXED commit — one file this session also
+    # edited plus their own — matched on the file overlap. The commit's `Agent-Name` trailer names
+    # its author; when it names a DIFFERENT agent than this session's, it is not ours. A commit
+    # with no trailer, or a session whose name does not resolve, keeps the file rule: the push law
+    # is never silenced on a guess. The name is resolved lazily, only for a commit that both
+    # carries a trailer and matched by files, so the common range still costs one subprocess.
+    mine = me()
+    return not mine or mine.strip().casefold() in agents
 
 
 def _git_by(root: Path, deadline: float, *args: str) -> subprocess.CompletedProcess[str]:
@@ -805,6 +825,38 @@ def _worktree_base(root: Path, deadline: float) -> str | None:
         return None
 
 
+# W-851b6f3a: each commit's `Agent-Name` trailer values, read in the SAME `git log` call (a
+# 0x01 byte separates them from the sha; a trailer value never carries one).
+_AGENT_FIELD = "%x01%(trailers:key=Agent-Name,valueonly,unfold,separator=%x2C)"
+_AGENT_FIELD_RE = re.compile(r"[\s,]*(?:[A-Za-z0-9-]{1,32}(?:[\s,]+|\Z))*")
+
+
+def _trailer_agents(field: str) -> frozenset[str]:
+    """The casefolded `Agent-Name` values after the 0x01 in a `<sha>\x01<names>` log field.
+
+    The WHOLE field must be names of whoami's own shape (`whoami_agent.py::_NAME_RE`) separated
+    by commas or whitespace; anything else (an unparsed format placeholder on an old git, folding
+    debris) yields NO names, so the file rule decides — never a veto built on garbage."""
+    _, _, names = field.strip("\n").partition("\x01")
+    if not _AGENT_FIELD_RE.fullmatch(names):
+        return frozenset()
+    return frozenset(n.casefold() for n in re.split(r"[,\s]+", names) if n)
+
+
+_SESSION_AGENT: dict[tuple[str, str], str | None] = {}
+
+
+def _session_agent(root: Path, sid: str) -> str | None:
+    """This session's agent name from `whoami_agent.py --who`, resolved once per hook run; None
+    when it does not resolve (the caller then keeps file attribution)."""
+    key = (str(root), sid)
+    if key not in _SESSION_AGENT:
+        _SESSION_AGENT[key] = _resolve_line(
+            _WHOAMI_ARGV, root, {**os.environ, "CLAUDE_CODE_SESSION_ID": sid}
+        )
+    return _SESSION_AGENT[key]
+
+
 def _unpushed_log(root: Path, fmt: str, timeout: float = 30) -> str | None:
     """`git log -z --no-renames --name-only --format=<fmt> <base>..HEAD` stdout; None = no base.
 
@@ -840,7 +892,11 @@ def _has_upstream(root: Path, timeout: float = 30) -> bool:
         return True
 
 
-def _ahead_of_upstream(root: Path, authored: set[str] | None = None) -> int | None:
+def _ahead_of_upstream(
+    root: Path,
+    authored: set[str] | None = None,
+    me: Callable[[], str | None] | None = None,
+) -> int | None:
     """Commits on the current branch not on its push base that THIS SESSION authored; None =
     indeterminate (no base / any git error — indeterminate never blocks). The base is
     `_unpushed_log`'s: the upstream when set, else — in a linked worktree — the main checkout's
@@ -891,17 +947,18 @@ def _ahead_of_upstream(root: Path, authored: set[str] | None = None) -> int | No
         # named `a"b.py` gave 0. `-z` emits every path raw and `%x00%H` delimits each commit with a
         # NUL, so both classes close on the delimiter git already provides instead of on a
         # heuristic. It also makes a sha256-object repo a non-question.
-        stdout = _unpushed_log(root, "%x00%H")
+        stdout = _unpushed_log(root, "%x00%H" + _AGENT_FIELD)
         if stdout is None:
             return None
         mine = 0
         touched: set[str] = set()
+        agents: frozenset[str] = frozenset()
         expect_sha = True
         started = False
         for field in stdout.split("\0"):
             if not field:
                 # the NUL that opens each commit: bank the previous one
-                if started and _commit_is_mine(touched, distinctive, authored):
+                if started and _commit_is_mine(touched, distinctive, authored, agents, me):
                     mine += 1
                 touched = set()
                 expect_sha = True
@@ -909,11 +966,12 @@ def _ahead_of_upstream(root: Path, authored: set[str] | None = None) -> int | No
             if expect_sha:
                 expect_sha = False
                 started = True
-                continue  # the sha itself is not a path
+                agents = _trailer_agents(field)
+                continue  # the sha (and its trailer field) is not a path
             path = field.lstrip("\n")
             if path:
                 touched.add(path)
-        if started and _commit_is_mine(touched, distinctive, authored):
+        if started and _commit_is_mine(touched, distinctive, authored, agents, me):
             mine += 1
         return mine
     except Exception:
@@ -3855,7 +3913,9 @@ def main(argv: list[str]) -> int:
             run_active = bool(run) and (run or {}).get("state") == "running"
             # FLOORED, not the lifetime set — see `_baseline_floor`
             ahead = _ahead_of_upstream(
-                root, set(_this_sessions_edits(authored_map, _baseline_floor(sid)))
+                root,
+                set(_this_sessions_edits(authored_map, _baseline_floor(sid))),
+                lambda: _session_agent(root, sid),
             )
             p_action, p_att = decide_stall(bool(ahead), p_att)
             if p_action == "block_stall":
@@ -4277,7 +4337,7 @@ def main(argv: list[str]) -> int:
             # the SAME scoped question as the block site — a bare call now answers None
             # (indeterminate) and would reset this streak on every unrelated gate/commit
             # block, restarting the 3-attempt ladder in the trapping direction
-            f"{push_attempts if _ahead_of_upstream(root, set(_this_sessions_edits(authored_map, _baseline_floor(sid)))) else 0},"
+            f"{push_attempts if _ahead_of_upstream(root, set(_this_sessions_edits(authored_map, _baseline_floor(sid))), lambda: _session_agent(root, sid)) else 0},"
             f"{run_attempts if _run_live else 0},{review_attempts},{merge_attempts}"
         )
         if action == "block_commit":

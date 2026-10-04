@@ -227,6 +227,8 @@ def test_both_push_call_sites_pass_the_floored_set(tmp_path):
         i = src.index(call)
         window = src[i : i + 240]
         assert "_this_sessions_edits(authored_map, _baseline_floor(sid))" in window, window
+        # W-851b6f3a: both sites also hand over the session-name resolver
+        assert "_session_agent(root, sid)" in window, window
 
 
 def test_a_missing_baseline_does_not_restore_the_lifetime_edit_set():
@@ -269,3 +271,123 @@ def test_an_old_baseline_is_bounded_not_trusted(tmp_path, monkeypatch):
     # and the consequence the bound exists for: an edit from 100 days ago is no longer "mine"
     assert hook._this_sessions_edits({"old.py": _t.time() - 100 * 86_400}, floor) == {}
     assert set(hook._this_sessions_edits({"mine.py": _t.time()}, floor)) == {"mine.py"}
+
+
+# ── W-851b6f3a: a sibling's MIXED commit, attributed by its Agent-Name trailer ─────────────────
+
+
+def _signed_commit(repo: Path, files: dict[str, str], agent: str | None) -> None:
+    for rel, body in files.items():
+        (repo / rel).write_text(body)
+        _git(repo, "add", rel)
+    msg = "mixed commit"
+    if agent:
+        msg += f"\n\nAgent-Role: primary\nAgent-Name: {agent}"
+    _git(repo, "commit", "-qm", msg)
+
+
+def _mixed(tmp_path: Path, agent: str | None) -> Path:
+    """fabrik-lib 01M3PNNY's repro: one file this session edited plus a file it never touched."""
+    repo = _repo_with_upstream(tmp_path)
+    _signed_commit(repo, {"shared.py": "S = 1\n", "theirs.py": "T = 1\n"}, agent)
+    return repo
+
+
+def test_a_siblings_signed_mixed_commit_is_not_mine(tmp_path: Path) -> None:
+    repo = _mixed(tmp_path, "fleet")
+    assert hook._ahead_of_upstream(repo, {"shared.py"}, lambda: "infra") == 0
+
+
+def test_my_signed_commit_is_still_counted(tmp_path: Path) -> None:
+    """The push law must still fire on a session's own signed commit (case-insensitive)."""
+    repo = _mixed(tmp_path, "Infra")
+    assert hook._ahead_of_upstream(repo, {"shared.py"}, lambda: "infra") == 1
+
+
+def test_an_unsigned_commit_keeps_file_attribution(tmp_path: Path) -> None:
+    repo = _mixed(tmp_path, None)
+    assert hook._ahead_of_upstream(repo, {"shared.py"}, lambda: "infra") == 1
+
+
+def test_an_unknown_session_name_keeps_file_attribution(tmp_path: Path) -> None:
+    repo = _mixed(tmp_path, "fleet")
+    assert hook._ahead_of_upstream(repo, {"shared.py"}, lambda: None) == 1
+
+
+def test_the_session_name_is_resolved_only_when_needed(tmp_path: Path) -> None:
+    """No trailered file-match in the range → the resolver (a subprocess) never runs."""
+    repo = _repo_with_upstream(tmp_path)
+    _signed_commit(repo, {"theirs.py": "T = 1\n"}, "fleet")  # no file overlap
+    _signed_commit(repo, {"mine.py": "M = 1\n"}, None)  # overlap, but unsigned
+    calls: list[int] = []
+
+    def who() -> str:
+        calls.append(1)
+        return "infra"
+
+    assert hook._ahead_of_upstream(repo, {"mine.py"}, who) == 1
+    assert calls == []
+
+
+def test_a_signed_commit_of_only_my_files_is_mine_whatever_its_trailer(tmp_path: Path) -> None:
+    """Design critique: Agent-Name is hand-typed and a mis-signed day is a known class (D-034) —
+    a commit made only of this session's files must never be vetoed by its trailer."""
+    repo = _repo_with_upstream(tmp_path)
+    _signed_commit(repo, {"shared.py": "S = 1\n"}, "fleet")
+    assert hook._ahead_of_upstream(repo, {"shared.py"}, lambda: "infra") == 1
+
+
+def test_a_folded_trailer_value_is_unfolded(tmp_path: Path) -> None:
+    repo = _repo_with_upstream(tmp_path)
+    (repo / "shared.py").write_text("S = 1\n")
+    (repo / "theirs.py").write_text("T = 1\n")
+    _git(repo, "add", "shared.py", "theirs.py")
+    _git(repo, "commit", "-qm", "mixed\n\nAgent-Role: primary\nAgent-Name: fleet\n infra")
+    assert hook._ahead_of_upstream(repo, {"shared.py"}, lambda: "infra") == 1
+
+
+def test_the_real_resolver_is_none_without_whoami_and_runs_once(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """`_session_agent` runs `scripts/whoami_agent.py` relative to the repo: absent there → None
+    (file attribution stays), and it is cached per (root, sid) — one subprocess per hook run."""
+    repo = _repo_with_upstream(tmp_path)
+    hook._SESSION_AGENT.clear()
+    calls: list[list[str]] = []
+    real = hook.subprocess.run
+
+    def counting(cmd, *a, **k):
+        calls.append(list(cmd))
+        return real(cmd, *a, **k)
+
+    monkeypatch.setattr(hook.subprocess, "run", counting)
+    assert hook._session_agent(repo, "sid-x") is None
+    assert hook._session_agent(repo, "sid-x") is None
+    assert sum("whoami_agent.py" in " ".join(c) for c in calls) == 1
+    hook._SESSION_AGENT.clear()
+
+
+def test_an_unparsed_trailer_field_yields_no_names() -> None:
+    """Design critique: a git that prints the format placeholder verbatim must not veto."""
+    raw = "sha\x01%(trailers:key=Agent-Name,valueonly,unfold,separator=%x2C)"
+    assert hook._trailer_agents(raw) == frozenset()
+    assert hook._trailer_agents("sha\x01Fleet, infra") == frozenset({"fleet", "infra"})
+
+
+def test_signed_mixed_commits_cost_one_resolver_call_at_most(tmp_path: Path, monkeypatch) -> None:
+    """The resolver runs once per (root, sid), however many signed mixed commits the range holds."""
+    repo = _repo_with_upstream(tmp_path)
+    for i in range(3):
+        _signed_commit(repo, {"shared.py": f"S = {i}\n", f"theirs{i}.py": "T\n"}, "fleet")
+    hook._SESSION_AGENT.clear()
+    calls: list[list[str]] = []
+    real = hook.subprocess.run
+
+    def counting(cmd, *a, **k):
+        calls.append(list(cmd))
+        return real(cmd, *a, **k)
+
+    monkeypatch.setattr(hook.subprocess, "run", counting)
+    hook._ahead_of_upstream(repo, {"shared.py"}, lambda: hook._session_agent(repo, "sid-y"))
+    assert len(calls) <= 2, calls  # one git log + at most one resolver
+    hook._SESSION_AGENT.clear()

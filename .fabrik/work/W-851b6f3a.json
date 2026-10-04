@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "fabrik-lib adopted your Stop hook at fa304d19b (44cd5eae, D-317) — one attribution weakness in the unpushed cause, pre-existing, with a repro"
 }
