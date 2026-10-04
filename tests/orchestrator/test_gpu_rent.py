@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from fractions import Fraction
 from unittest.mock import MagicMock
 
@@ -334,6 +335,29 @@ def test_a_fractional_lifetime_reaches_state_as_a_float_and_an_integral_one_stay
         assert env["FABRIK_MAX_LIFETIME_HOURS"] == str(want)  # integral input keeps the "4" tag
 
 
+def test_budget_number_accepts_decimal_and_normalises_integral_input():
+    """Review round 1: a valid Decimal was refused (Decimal is not numbers.Real), and an int
+    subclass came back as itself, so its own str() reached the reaper's lifetime tag."""
+
+    class _LoudInt(int):
+        def __str__(self) -> str:
+            return "four"
+
+    assert gpu_rent._budget_number("max_lifetime_hours", Decimal("4"), lifetime=True) == 4.0
+    assert gpu_rent._budget_number("max_cost_usd", Decimal("12.5"), lifetime=False) == 12.5
+    got = gpu_rent._budget_number("max_lifetime_hours", _LoudInt(4), lifetime=True)
+    assert type(got) is int and str(got) == "4"
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match="finite"):
+        gpu_rent._budget_number("max_cost_usd", Decimal("NaN"), lifetime=False)
+
+
+def test_a_lifetime_that_rounds_to_a_zero_timedelta_is_refused():
+    """1e-10 h is positive, but timedelta rounds it to 0, so expires_at == created_at and the
+    reaper would kill the pod the moment it exists."""
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match="too small"):
+        gpu_rent._budget_number("max_lifetime_hours", 1e-10, lifetime=True)
+
+
 @pytest.mark.parametrize("entry", ["rent", "rented"])
 @pytest.mark.parametrize("cost", [True, "50", None])
 def test_a_max_cost_that_is_not_a_number_is_refused(entry, cost):
@@ -357,7 +381,10 @@ def test_a_max_cost_that_is_not_a_number_is_refused(entry, cost):
         (Fraction(1, 10**400), "positive"),  # positive, but underflows to 0.0
         pytest.param(10**5000, "too large", id="int-over-4300-digits"),  # repr() itself raises
         (10**12, "too large"),  # fits a float, not timedelta(hours=...)
-        (10**8, "too large"),  # fits timedelta, but now + it passes year 9999 (upsert, after create)
+        (
+            10**8,
+            "too large",
+        ),  # fits timedelta, but now + it passes year 9999 (upsert, after create)
     ],
 )
 def test_a_lifetime_no_guard_can_compare_is_refused_before_any_create(entry, hours, why):

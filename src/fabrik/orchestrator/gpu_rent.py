@@ -47,6 +47,7 @@ import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -739,11 +740,13 @@ def _budget_number(name: str, value: object, *, lifetime: bool) -> int | float:
     ``math.ceil``/``timedelta`` and raise a TypeError past every ``except GPUBudgetExceededError``.
     A lifetime must also be positive (zero or less writes a reaper expiry already in the past;
     a positive Fraction or Decimal can underflow to 0.0) and must fit ``timedelta``, which
-    ``gpu_state.upsert_session`` builds only AFTER the provider call. Integral input comes back as
-    a plain int, so the reaper's ``FABRIK_MAX_LIFETIME_HOURS`` tag stays "4", anything else as a
+    ``gpu_state.upsert_session`` builds only AFTER the provider call. Integral input (np.int64, an int subclass) comes
+    back as a plain int, so the reaper's ``FABRIK_MAX_LIFETIME_HOURS`` tag stays "4", anything else as a
     float, so a Fraction never reaches ``timedelta``. Mirrors fabrik-lib gpu-rent 7b176888.
     """
-    if isinstance(value, bool) or not isinstance(value, numbers.Real):
+    # Decimal is a numbers.Number but not numbers.Real; it is a legitimate budget (fabrik-lib
+    # 7b176888 accepts it too), and its NaN/inf/underflow cases are caught below via float().
+    if isinstance(value, bool) or not isinstance(value, (numbers.Real, Decimal)):
         raise GPUBudgetExceededError(f"{name} must be a number; got {_safe_repr(value)}")
     try:
         as_float = float(value)
@@ -757,11 +760,16 @@ def _budget_number(name: str, value: object, *, lifetime: bool) -> int | float:
         try:
             # The expression gpu_state.upsert evaluates, not a bare timedelta: timedelta(hours=1e8)
             # fits, but adding it to now passes year 9999 and raised AFTER the provider call.
-            datetime.now(UTC) + timedelta(hours=as_float)
+            span = timedelta(hours=as_float)
+            datetime.now(UTC) + span
         except OverflowError:
             raise GPUBudgetExceededError(f"{name} is too large; got {_safe_repr(value)}") from None
-    if isinstance(value, int):
-        return value
+        if span <= timedelta(0):
+            # Under ~half a microsecond timedelta rounds to zero: expires_at would equal
+            # created_at and the reaper would kill the pod the moment it exists.
+            raise GPUBudgetExceededError(f"{name} is too small; got {_safe_repr(value)}")
+    if isinstance(value, numbers.Integral):
+        return int(value)  # a plain int: np.int64 or an int subclass must not leak its own str()
     return as_float
 
 
