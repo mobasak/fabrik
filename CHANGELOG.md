@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the Modal driver's docstring no longer quotes a stale price (2026-10-04)
+`src/fabrik/drivers/modal_provider.py` still said Modal costs $4.56/hr for an H100 with a 3.75x CPU+RAM multiplier, "verified 2026-05-24"; the rate table says $3.95/hr, verified 2026-09-27. The docstring now points at `gpu_rent.HOURLY_USD_BY_PROVIDER["modal"]` and `PRICES_VERIFIED` instead of restating a number. It also says Fabrik prices only the GPU (Modal bills CPU and memory separately), that the estimate rounds up to whole hours while the booking is per-second, and when the stale-price warning fires. Its rule-file citation names sections instead of line numbers that had drifted. W-ec265df0.
+
 ### Fixed — the GPU reaper no longer destroys our own new pod as an orphan (2026-10-04)
 `gpu_rent` tagged a new pod with `FABRIK_SESSION_ID` at create but wrote the session to the state file only after `wait_for_running` (up to 300 s), so a `fabrik gpu reconcile --auto-destroy` run in that window classed our own healthy pod an orphan and destroyed it. The session is now recorded the moment the provider returns the pod or endpoint id (`_create_pod`'s `on_created` callback; serverless right after the endpoint is returned), so a failed wait also leaves a record marked destroyed or `destroy_pending` instead of nothing. The reaper now marks a session destroyed only when the resource it destroyed is that session's recorded one, so a stale COMMUNITY→SECURE twin pod sharing the session id no longer takes the live pod down with it on the next run. Reported by fabrik-lib (01M43JTSDY); W-2f782cd7. The Modal deploy window this cannot reach is W-36828334.
 

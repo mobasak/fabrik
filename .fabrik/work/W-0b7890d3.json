@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T16:08:42.154987Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-0b7890d3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "point modal-api.md's price section at gpu_rent.HOURLY_USD_BY_PROVIDER and PRICES_VERIFIED instead of restating it, and recompute the break-even per kind (found by the W-ec265df0 review, candidates O3 and O4)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "docs/reference/apis/modal-api.md restates the Modal price table under its own 'verified 2026-06-16' (line 3 and section 6.1), a date detached from gpu_rent.PRICES_VERIFIED (2026-09-27), and its line-13 break-even compares Modal H100 at 3.95 with RunPod's 2.89 PCIe rate, while gpu_rent's default pod-h100 is the 3.49 SXM (about 88 percent, not 73)"
+}
