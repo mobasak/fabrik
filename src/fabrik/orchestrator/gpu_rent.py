@@ -755,7 +755,9 @@ def _budget_number(name: str, value: object, *, lifetime: bool) -> int | float:
         if as_float <= 0:
             raise GPUBudgetExceededError(f"{name} must be positive; got {_safe_repr(value)}")
         try:
-            timedelta(hours=as_float)
+            # The expression gpu_state.upsert evaluates, not a bare timedelta: timedelta(hours=1e8)
+            # fits, but adding it to now passes year 9999 and raised AFTER the provider call.
+            datetime.now(UTC) + timedelta(hours=as_float)
         except OverflowError:
             raise GPUBudgetExceededError(f"{name} is too large; got {_safe_repr(value)}") from None
     if isinstance(value, int):

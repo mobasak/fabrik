@@ -357,6 +357,7 @@ def test_a_max_cost_that_is_not_a_number_is_refused(entry, cost):
         (Fraction(1, 10**400), "positive"),  # positive, but underflows to 0.0
         pytest.param(10**5000, "too large", id="int-over-4300-digits"),  # repr() itself raises
         (10**12, "too large"),  # fits a float, not timedelta(hours=...)
+        (10**8, "too large"),  # fits timedelta, but now + it passes year 9999 (upsert, after create)
     ],
 )
 def test_a_lifetime_no_guard_can_compare_is_refused_before_any_create(entry, hours, why):
