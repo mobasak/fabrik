@@ -463,7 +463,7 @@ def test_red_holds_agent_only_without_a_live_run(tmp_path):
         ("python3 scripts/command_run.py start --command=/fabrik-review", False),
         # ⚠️ a TRAILING slash is denied ON PURPOSE, and this is the case that documents why. I
         # widened `_command_name` to `strip("/")` so these two would pass, and a delta round proved
-        # the trade was backwards: `command_run.py` records the name with `lstrip("/")`, so the
+        # the trade was backwards: `command_run.py` strips only LEADING slashes, so the
         # start was ALLOWED while the record landed as `fabrik-review/` — off-family for every
         # consumer, so the close skipped its coverage window and Stop still called the session
         # unreviewed. A loud deny at the start beats a silent failure to count at the end. Closing
@@ -899,10 +899,10 @@ def test_the_hook_and_the_recorder_agree_on_the_name_a_start_will_carry(tmp_path
             "/opt/x/fabrik-review",
             "fabrik-spec",
             # ⚠️ these three are NOT padding. A round proved the six-spelling set sleeps through two
-            # whole mutant classes that only these catch: a `.strip()` added to either side's
-            # normalisation (likely — `command_run.py` strips `surface` (:2519) while `command`
-            # (:2501) takes only `lstrip("/")`), and removal of the `or None` collapse, which only
-            # the empty-ish spellings exercise. Dropping them was an unremarked coverage cut.
+            # whole mutant classes that only these catch: a `.strip()` dropped from either side's
+            # normalisation (both now run `_norm_command`'s strip, lstrip("/"), strip, lower —
+            # W-5aa12ff3), and removal of the `or None` collapse, which only the empty-ish
+            # spellings exercise. Dropping them was an unremarked coverage cut.
             "/",
             "",
             " /fabrik-review",

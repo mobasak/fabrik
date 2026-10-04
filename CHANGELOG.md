@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the quota hook names a command exactly as the run record will (2026-10-04)
+`scripts/sysadmin/quota_posture_hook.py::_command_name` only removed leading slashes, while the recorder (`command_run.py::_norm_command`, since W-5aa12ff3) also strips blanks and lower-cases. So at RED the hook denied `start --command " /fabrik-review"` or `Fabrik-Review`, a review the recorder would have counted, and `tests/test_quota_posture.py`'s parity test was red. The hook now applies the recorder's exact expression. Reported by fleet (mail 01M4468X).
+
 ### Fixed — two packs no longer point at a deleted i18n kit (2026-10-04)
 `.windsurf/rules/core/design-system-template.md` and `.windsurf/rules/saas/60-saas-ui.md` both said "`templates/scaffold/i18n-kit/` is an older, divergent copy". That directory was deleted in ff4e892c2, so the clause sent every GUI project to a path that does not exist. Both lines now name only `templates/i18n-kit/`, the copy `scaffold.py:242` seeds. Reported by fleet (mail 01M3M0A6), work item W-b2132b54.
 

@@ -518,7 +518,13 @@ _PAYLOAD_FLAGS = frozenset({"-S", "--command-string"})
 
 
 def _command_name(val: str) -> str | None:
-    """A ``--command`` value as `REVIEW_FAMILY` spells it: the LEADING slashes removed.
+    """A ``--command`` value as `REVIEW_FAMILY` spells it — exactly as the recorder stores it.
+
+    The recorder normalises with `_norm_command` (`scripts/command_run.py`): surrounding blanks
+    stripped, the LEADING slashes removed, blanks stripped again, lower case (W-5aa12ff3). This is
+    that expression, copied rather than imported (the hook runs on every prompt and command_run.py
+    is ~270 KB); `test_the_hook_and_the_recorder_agree_on_the_name_a_start_will_carry` drives the
+    real recorder, so the two cannot drift apart silently.
 
     ⚠️ Fail-CLOSED bug, found by the heavy review's closing seat. The contract, the corpus and every
     agent write these commands as `/fabrik-review-scoped`, and `REVIEW_FAMILY` holds them bare — so
@@ -526,8 +532,7 @@ def _command_name(val: str) -> str | None:
     checkpointed. The deny text rendered `Starting //fabrik-review`, which is the code admitting the
     mismatch: the template prepends a slash to a name it assumed was already bare.
 
-    ⚠️ **LEADING only, and that is not a bug — it MIRRORS the recorder.** `command_run.py` writes
-    the record name with `lstrip("/")` (`scripts/command_run.py:2501`, and `:3008` on the close), so
+    ⚠️ **LEADING slashes only, and that is not a bug — it MIRRORS the recorder**, so
     this function is defined by what the record will SAY, not by what looks tidy. A delta round
     caught me widening it to `strip("/")` to also accept `/fabrik-review/`: the hook then PASSED
     that start while the record landed as `fabrik-review/`, which is outside `REVIEW_FAMILY` for
@@ -540,7 +545,7 @@ def _command_name(val: str) -> str | None:
     another plan's lock — filed there, not reached into from here.
     An INTERIOR slash disqualifies too: `/opt/x/fabrik-review` is a path, not this command.
     """
-    return val.lstrip("/") or None
+    return str(val or "").strip().lstrip("/").strip().lower() or None
 
 
 def _cut(tok: str) -> str:
