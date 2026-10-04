@@ -117,6 +117,18 @@ def _all_row_ids(text: str) -> list[tuple[int, str]]:
     ]
 
 
+_CODE_SPAN = re.compile(r"`[^`]*`")
+_WORD = re.compile(r"\w")
+
+
+def _cells(line: str) -> list[str]:
+    """The row's cells, split on BARE pipes only — a pipe inside a code span or written `\\|` is
+    text, as tests/test_decisions_table_shape.py::_bare_pipes counts it (intel 01M4405E: six
+    well-formed rows read as malformed because their code spans held `a|b`)."""
+    masked = _CODE_SPAN.sub(lambda m: m.group(0).replace("|", "\0"), line.replace("\\|", "\0"))
+    return [c.replace("\0", "|").strip() for c in masked.strip().strip("|").split("|")]
+
+
 def malformed_ids(text: str) -> dict[str, str]:
     """``{id: reason}`` for every row whose SHAPE or CONTENT makes it unreadable.
 
@@ -136,16 +148,17 @@ def malformed_ids(text: str) -> dict[str, str]:
     )
     if delim is None:
         return {}
-    width = len(lines[delim - 1].strip().strip("|").split("|"))
+    width = len(_cells(lines[delim - 1]))
     out: dict[str, str] = {}
     for ln in lines[delim + 1 :]:
         m = _ID_CELL.match(ln.strip())
         if not m:
             continue
-        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+        cells = _cells(ln)
         if len(cells) != width:
             out[m.group(1)] = f"{len(cells)} cells, header has {width}"
-        elif not cells[4] or not cells[5]:
+        elif not _WORD.search(cells[4]) or not _WORD.search(cells[5]):
+            # a cell with no word at all (`—`, `-`, `…`) is the one-character padding (addendum)
             out[m.group(1)] = "why/where empty — a padded row answers blank"
     return out
 

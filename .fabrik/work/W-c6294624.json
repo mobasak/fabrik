@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T18:35:29.830436Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c6294624",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "status": "open",
+  "title": "decisions.py --append writes a row without checking its shape: a field with a bare pipe (outside a code span) or with no word at all goes in, and the ratchet sees it only at the next gate — refuse both at write time (intel 01M4405E SYSTEMIC; the writer exists, it validates only newlines)"
+}
