@@ -1525,6 +1525,41 @@ def test_a_wait_failure_leaves_the_session_recorded_and_destroyed():
     assert sess["resource_id"] == "pod-abc" and sess["destroyed_at"] is not None
 
 
+def test_destroying_a_stale_twin_pod_does_not_mark_our_live_session_destroyed():
+    """A create RunPod completed but answered 5xx, then the COMMUNITY->SECURE retry: two tagged pods
+    under one FABRIK_SESSION_ID, only the SECURE one recorded. The reaper rightly destroys the stale
+    twin as an orphan, but marking the SESSION destroyed made the live pod an orphan next run."""
+    sid = "gpu-pod-h100-live"
+    future = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
+    state = gpu_state.load_state()
+    state["sessions"][sid] = {
+        "provider": "runpod",
+        "kind": "pod-h100",
+        "workload": "train",
+        "resource_type": "pod",
+        "resource_id": "pod-secure",
+        "created_at": datetime.now(UTC).isoformat(),
+        "expires_at": future,
+        "destroyed_at": None,
+        "destroy_pending": False,
+        "max_lifetime_hours": 1,
+        "cost_estimate_usd": 3.49,
+        "cost_actual_usd": None,
+        "gpu_type_id": "NVIDIA H100 80GB HBM3",
+    }
+    gpu_state.save_state(state)
+    c = _mock_client()
+    c.list_pods.return_value = [
+        {"id": "pod-secure", "env": {"FABRIK_SESSION_ID": sid}},
+        {"id": "pod-community", "env": {"FABRIK_SESSION_ID": sid}},  # the stale twin
+    ]
+    c.list_endpoints.return_value = []
+    report = gpu_reaper.reap(c, auto_destroy=True)
+    c.destroy_pod.assert_called_once_with("pod-community")
+    assert [t["resource_id"] for t in report["destroyed"]] == ["pod-community"]
+    assert gpu_state.get_session(sid)["destroyed_at"] is None, "our live session must stay live"
+
+
 def test_the_session_is_recorded_once_at_creation(monkeypatch):
     """The record is written the moment the provider returns an id, once — not again after."""
     writes: list = []
