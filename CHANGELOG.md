@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed — the bootstrap and desktop-app packs no longer say the scripts and scaffold lag them (2026-10-04)
-- `core/90-bootstrap-scripts.md` drops the two "behind this rule" bullets: since fleet's 57bd1a0e3 all three bootstrap scripts write `01-fabrik-hardening.conf`, assert `sshd -T`, and install Claude Code natively. Rule 3 now says why the `python-telegram-bot` install still uses the override (W-eccfcc2a).
+- `core/90-bootstrap-scripts.md` drops the two "behind this rule" bullets: since fleet's 57bd1a0e3 all three bootstrap scripts write `01-fabrik-hardening.conf` and assert `sshd -T`, and the two that install Claude Code (`bootstrap-vps.sh`, `bootstrap-hub.sh`) use the native installer. Rule 3 now says why the `python-telegram-bot` install still uses the override (W-eccfcc2a).
 - `desktop-app/72-desktop.md` § The fleet today describes what the scaffold ships since fleet's dd2f62c99: a no-IPC preload, a feed from `UPDATE_FEED_URL`, a packaged-only update check, and no deployment.
 - `tests/test_bootstrap_pack.py` and `tests/test_desktop_packs.py` pin the new wording and refuse the old (3 tests seen red against the previous pack text). Answers fleet mails 01M43241 and 01M436J1.
 
