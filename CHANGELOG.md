@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — six infra identifier checks no longer accept a trailing newline (2026-10-04)
+`re.match(r"^...$", v)` also accepts `v + "\n"`, because `$` matches before a final newline. The scratch SID check in `scripts/scratch_sweep.py`, the account-slug checks in `scripts/sysadmin/claude_rotate.py` (and its `aro-wake` twin) and `scripts/sysadmin/quota_dashboard.py`, the model check in `scripts/sysadmin/claude_broker.py` the email check in `quota_dashboard.py` (found by the review) and the class check in `scripts/sysadmin/kaizen_coroner.py` now use `.fullmatch` — the SID and slug values become directory names. `tests/test_identifier_checks_fullmatch.py` requires every use of those regexes to be a `.fullmatch` — an alias or pass-through fails it (fleet mail 01M3HY58BC).
+
 ### Fixed — review seats import a pinned module without shadowing the stdlib or writing the live checkout (2026-10-04)
 The review-loop workflow's seat recipe put the pinned package's parent FIRST on `sys.path`, so in a repo with a `src/copy/` package every probe died inside the standard library (web-ecommerce-factory), and a probe run outside pytest resolved fabrik's write root from the live cwd and wrote that checkout's `data/` (fleet). The recipe in both the finder and refuter prompts now: inserts the directory holding the top-level import name (the archive root when `src/` is itself a package) at the first site-packages or dist-packages entry; runs probes as `python -P` with `PYTHONDONTWRITEBYTECODE=1` and a scratch `HOME` (keeping `--user` packages via `PYTHONUSERBASE`); sets `FABRIK_ROOT` to the scratch tree for hub probes; and checks each overlaid file with `cmp`. Executed on the hub, web-ecommerce-factory and a flat layout; the grader asserts each clause whole.
 
