@@ -486,10 +486,11 @@ sys.exit(0 if not c._pool_policy_on() else 1)' 2>/dev/null
   # from "NO LONGER PRODUCED" in every real execution. This is the box that actually produces
   # them, so absence here means the pipeline stopped emitting them — not an absent checkout.
   # Advisory (|| true): the oracle guards the Phase B-E extraction, and must never be able to
-  # abort a healthy nightly refresh. Exit 2 = the golden predates the observer (re-snapshot).
+  # abort a healthy nightly refresh. Exit 2 = the golden predates the observer (re-snapshot);
+  # exit 3 = tests/golden/known_collapses.json was refused (fix it; never re-snapshot, D-567).
   if ! ORACLE_REQUIRE_LOCAL_ARTIFACTS=1 "$VENV_PY" "$KB/tests/capture_golden.py" --verify; then
     echo "[daily_refresh] contract oracle reported DRIFT or a stale golden — see above"
-    bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: contract oracle reported drift' 'tests/capture_golden.py --verify did not come back clean on the pipeline host. Either an artifact/marker/query the fleet consumes stopped being produced or collapsed to a husk, or the frozen golden predates the current observer (exit 2 -> re-run --snapshot). Check the run log for the specific contract element.' || true  # through the helper: its return value was discarded here — a silent no-op FB10 closed everywhere else (FC6)
+    bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: contract oracle reported drift' 'tests/capture_golden.py --verify did not come back clean on the pipeline host. Either an artifact/marker/query the fleet consumes stopped being produced or collapsed to a husk, or the frozen golden predates the current observer (exit 2 -> re-run --snapshot), or tests/golden/known_collapses.json was refused (exit 3 -> fix the registry; NEVER re-snapshot over a known collapse). Check the run log for the specific contract element.' || true  # through the helper: its return value was discarded here — a silent no-op FB10 closed everywhere else (FC6)
   fi
 
   # ── Push regenerated synced files to all projects (deploy-readiness-gaps Phase 3b) ──

@@ -1,0 +1,162 @@
+{
+ "entries": {
+  ".windsurf/rules/ai/10-speech-audio.md::OPENROUTER_ROUTES": {
+   "filed": "ai-model-catalog mail 01M3FEC47Q2KPTQZVDZVA2PHZZ; D-430; D-554; D-567",
+   "floor": {
+    "\u0000 nums": 0,
+    "chars": 533,
+    "live_counts": 0,
+    "rows": 0
+   },
+   "kind": "marker",
+   "reason": "upstream catalog collapse (engine run 2026-08-18): COLLAPSE rows: 1 -> 0",
+   "since": "2026-08-30"
+  },
+  ".windsurf/rules/ai/20-vision.md::OPENROUTER_ROUTES": {
+   "filed": "ai-model-catalog mail 01M3FEC47Q2KPTQZVDZVA2PHZZ; D-430; D-554; D-567",
+   "floor": {
+    "\u0000 nums": 0,
+    "chars": 526,
+    "live_counts": 0,
+    "rows": 0
+   },
+   "kind": "marker",
+   "reason": "upstream catalog collapse (engine run 2026-08-18): COLLAPSE rows: 2 -> 0",
+   "since": "2026-08-30"
+  },
+  ".windsurf/rules/ai/30-language.md::GATEWAY_COUNTS": {
+   "filed": "ai-model-catalog mail 01M3FEC47Q2KPTQZVDZVA2PHZZ; D-430; D-554; D-567",
+   "floor": {
+    "\u0000 nums": 9,
+    "chars": 325,
+    "live_counts": 1,
+    "rows": 0
+   },
+   "kind": "marker",
+   "reason": "upstream catalog collapse (engine run 2026-08-18): COLLAPSE live_counts: 2 -> 1",
+   "since": "2026-08-30"
+  },
+  ".windsurf/rules/ai/30-language.md::OPENROUTER_ROUTES": {
+   "filed": "ai-model-catalog mail 01M3FEC47Q2KPTQZVDZVA2PHZZ; D-430; D-554; D-567",
+   "floor": {
+    "\u0000 nums": 0,
+    "chars": 530,
+    "live_counts": 0,
+    "rows": 0
+   },
+   "kind": "marker",
+   "reason": "upstream catalog collapse (engine run 2026-08-18): COLLAPSE rows: 3 -> 0",
+   "since": "2026-08-30"
+  },
+  ".windsurf/rules/ai/40-multimodal.md::OPENROUTER_ROUTES": {
+   "filed": "ai-model-catalog mail 01M3FEC47Q2KPTQZVDZVA2PHZZ; D-430; D-554; D-567",
+   "floor": {
+    "\u0000 nums": 0,
+    "chars": 528,
+    "live_counts": 0,
+    "rows": 0
+   },
+   "kind": "marker",
+   "reason": "upstream catalog collapse (engine run 2026-08-18): COLLAPSE rows: 2 -> 0",
+   "since": "2026-08-30"
+  },
+  ".windsurf/rules/ai/50-agentic.md::OPENROUTER_ROUTES": {
+   "filed": "ai-model-catalog mail 01M3FEC47Q2KPTQZVDZVA2PHZZ; D-430; D-554; D-567",
+   "floor": {
+    "\u0000 nums": 0,
+    "chars": 526,
+    "live_counts": 0,
+    "rows": 0
+   },
+   "kind": "marker",
+   "reason": "upstream catalog collapse (engine run 2026-08-18): COLLAPSE rows: 3 -> 0",
+   "since": "2026-08-30"
+  },
+  ".windsurf/rules/ai/60-code.md::GATEWAY_COUNTS": {
+   "filed": "ai-model-catalog mail 01M3FEC47Q2KPTQZVDZVA2PHZZ; D-430; D-554; D-567",
+   "floor": {
+    "\u0000 nums": 0,
+    "chars": 262,
+    "live_counts": 0,
+    "rows": 0
+   },
+   "kind": "marker",
+   "reason": "upstream catalog collapse (engine run 2026-08-18): EMPTIED section nums: 65 -> 0",
+   "since": "2026-08-30"
+  },
+  ".windsurf/rules/ai/60-code.md::OPENROUTER_ROUTES": {
+   "filed": "ai-model-catalog mail 01M3FEC47Q2KPTQZVDZVA2PHZZ; D-430; D-554; D-567",
+   "floor": {
+    "\u0000 nums": 0,
+    "chars": 525,
+    "live_counts": 0,
+    "rows": 0
+   },
+   "kind": "marker",
+   "reason": "upstream catalog collapse (engine run 2026-08-18): COLLAPSE rows: 3 -> 0",
+   "since": "2026-08-30"
+  },
+  ".windsurf/rules/ai/90-long-context.md::OPENROUTER_ROUTES": {
+   "filed": "ai-model-catalog mail 01M3FEC47Q2KPTQZVDZVA2PHZZ; D-430; D-554; D-567",
+   "floor": {
+    "\u0000 nums": 0,
+    "chars": 536,
+    "live_counts": 0,
+    "rows": 0
+   },
+   "kind": "marker",
+   "reason": "upstream catalog collapse (engine run 2026-08-18): COLLAPSE rows: 2 -> 0",
+   "since": "2026-08-30"
+  },
+  ".windsurf/rules/core/65-rag-search.md::EMBEDDING_WINNERS": {
+   "filed": "ai-model-catalog mail 01M3FEC47Q2KPTQZVDZVA2PHZZ; D-430; D-554; D-567",
+   "floor": {
+    "\u0000 nums": 0,
+    "chars": 192,
+    "live_counts": 0,
+    "rows": 1
+   },
+   "kind": "marker",
+   "reason": "upstream catalog collapse (engine run 2026-08-18; carried by hand commit daf984f58): COLLAPSE chars: 695 -> 192",
+   "since": "2026-08-29"
+  },
+  "docs/reference/kilo/IMAGE_GEN_SELECTION.md": {
+   "filed": "ai-model-catalog mail 01M3FEC47Q2KPTQZVDZVA2PHZZ; D-430; D-554; D-567",
+   "floor": {
+    "magnitudes": {
+     "\u0000 Image-Gen Selection \u2014 Pareto-ranked at 100 images :: #|Model|Provider|Cost @100 images (USD)|quality_elo": 1,
+     "#|Model|Provider|Cost @100 images (USD)|quality_elo :: ROWS": 1,
+     "#|Model|Provider|Cost @100 images (USD)|quality_elo :: TABLES": 1
+    },
+    "skeleton": [
+     "# Image-Gen Selection \u2014 Pareto-ranked at 100 images"
+    ],
+    "table_columns": [
+     [
+      "#",
+      "Model",
+      "Provider",
+      "Cost @100 images (USD)",
+      "quality_elo"
+     ]
+    ]
+   },
+   "kind": "artifact",
+   "reason": "upstream catalog collapse (engine run 2026-08-19): COLLAPSE #|Model|Provider|Cost @100 images (USD)|quality_elo :: ROWS: 3 -> 1",
+   "since": "2026-08-27"
+  },
+  "docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md::EMBEDDING_ROSTER": {
+   "filed": "ai-model-catalog mail 01M3FEC47Q2KPTQZVDZVA2PHZZ; D-430; D-554; D-567",
+   "floor": {
+    "\u0000 nums": 0,
+    "chars": 1629,
+    "live_counts": 0,
+    "rows": 1
+   },
+   "kind": "marker",
+   "reason": "upstream catalog collapse (engine run 2026-08-18): COLLAPSE rows: 5 -> 1",
+   "since": "2026-08-27"
+  }
+ },
+ "oracle_version": 4
+}

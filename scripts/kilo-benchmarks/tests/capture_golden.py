@@ -49,6 +49,20 @@ FABRIK_ROOT = SCRIPT_DIR.parent.parent
 GOLDEN_DIR = Path(__file__).resolve().parent / "golden"
 MANIFEST = GOLDEN_DIR / "structure.json"
 DB_QUERIES = GOLDEN_DIR / "db_queries.json"
+# Collapses the oracle has already reported and that are FILED upstream (D-567). Each entry's
+# `floor` is the collapsed magnitudes observed when it was registered: the key is re-checked
+# against it, so a further loss still reds, and a key back inside the GOLDEN's band reds as
+# HEALED until its entry is removed. structure.json is never re-frozen over a collapse — its
+# healthy values are the recovery target. COBRA (D-253): the cheapest way past a red oracle is
+# to register whatever drifts; every entry must therefore cite a ledger D-id and carry a
+# floor, and an entry with neither makes verify() refuse to run (exit 3 — never "re-run
+# --snapshot", which would freeze the collapse into the golden). A citation must name a D-id the
+# ledger actually holds; an invented id is the cheapest way to look filed. The residual cheap path
+# is a REAL but unrelated D-id — no check can judge relevance, so every entry also cites the
+# registering decision and review owns the rest.
+KNOWN_COLLAPSES = GOLDEN_DIR / "known_collapses.json"
+_FILED_DID = re.compile(r"(?<![\w-])D-\d+(?![\w-])")
+REGISTRY_REFUSED = 3
 
 # The 6 generated *_SELECTION.md docs + candidate signups. NOT a bare docs/reference/kilo/*.md
 # glob: AGGREGATOR_ROADMAP.md and BENCHMARK_SOURCES.md are hand-authored (zero writers, absent
@@ -674,6 +688,88 @@ def snapshot() -> dict:
     return obs
 
 
+def _is_count(v: object) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool) and v >= 0
+
+
+def load_known_collapses() -> tuple[dict[str, dict], str | None]:
+    """The registered collapses, or a refusal reason.
+
+    The floors are a second golden, so they get the golden's format guard: a floor whose key
+    set differs from what the observers emit today would be silently skipped by
+    `magnitudes_ok` — the "certifies what it never checked" failure ORACLE_VERSION exists for.
+    """
+    if not KNOWN_COLLAPSES.exists():
+        return {}, None
+
+    def _no_duplicates(pairs: list[tuple[str, object]]) -> dict:
+        seen = [k for k, _ in pairs]
+        dup = sorted({k for k in seen if seen.count(k) > 1})
+        if dup:
+            raise ValueError(f"duplicate key(s) {dup}")
+        return dict(pairs)
+
+    try:
+        data = json.loads(
+            KNOWN_COLLAPSES.read_text(encoding="utf-8"), object_pairs_hook=_no_duplicates
+        )
+    except ValueError as exc:  # JSONDecodeError is a ValueError
+        return {}, f"known_collapses.json is unreadable ({exc})"
+    if not isinstance(data, dict) or data.get("oracle_version") != ORACLE_VERSION:
+        version = data.get("oracle_version") if isinstance(data, dict) else None
+        return {}, (
+            f"known_collapses.json was written for oracle v{version}, this is "
+            f"v{ORACLE_VERSION} — its floors would be SKIPPED, not checked"
+        )
+    entries = data.get("entries")
+    if not isinstance(entries, dict):
+        return {}, "known_collapses.json `entries` is not an object"
+    try:
+        ledger = (FABRIK_ROOT / "docs" / "DECISIONS.md").read_text(
+            encoding="utf-8", errors="replace"
+        )
+    except OSError as exc:
+        return {}, f"cannot read docs/DECISIONS.md to check the citations ({exc})"
+    marker_keys = set(marker_shape(""))
+    for key, e in entries.items():
+        if not isinstance(e, dict):
+            return {}, f"known collapse {key} is not an object"
+        floor = e.get("floor")
+        filed = e.get("filed")
+        cited = _FILED_DID.findall(filed) if isinstance(filed, str) else []
+        if not any(f"| {d} |" in ledger for d in cited):
+            return {}, f"known collapse {key} cites no D-id that docs/DECISIONS.md holds in `filed`"
+        if e.get("kind") == "marker":
+            values = floor.values() if isinstance(floor, dict) else ()
+            if not isinstance(floor, dict) or set(floor) != marker_keys:
+                return {}, f"known collapse {key}: its floor's key set is not the marker shape's"
+            if not all(_is_count(v) for v in values) or not any(v > 0 for v in values):
+                # magnitudes_ok skips every 0, so an all-zero floor could never red again
+                return (
+                    {},
+                    f"known collapse {key}: its floor needs non-negative integers, one above 0",
+                )
+        elif e.get("kind") == "artifact":
+            mags = floor.get("magnitudes") if isinstance(floor, dict) else None
+            if (
+                not isinstance(mags, dict)
+                or not all(_is_count(v) for v in mags.values())
+                or not any(v > 0 for v in mags.values())
+            ):
+                return {}, f"known collapse {key}: its floor carries no non-zero integer magnitudes"
+        else:
+            return {}, f"known collapse {key}: kind must be 'marker' or 'artifact'"
+    return entries, None
+
+
+def _announce_known(key: str, entry: dict) -> None:
+    print(
+        f"[capture_golden] KNOWN COLLAPSE (filed {entry.get('filed')}): "
+        f"{key.replace(SECTION_KEY, 'section')}",
+        file=sys.stderr,
+    )
+
+
 def verify() -> int:
     if not MANIFEST.exists():
         print("[capture_golden] no structure.json — run --snapshot first", file=sys.stderr)
@@ -731,8 +827,38 @@ def verify() -> int:
             file=sys.stderr,
         )
         return 2
+    known, refusal = load_known_collapses()
+    for key, entry in known.items():
+        w = want["artifacts"].get(key) if entry["kind"] == "artifact" else None
+        shape = (w.get("shape") or {}) if w and w.get("present") else None
+        if shape is not None and (
+            set(entry["floor"]) != set(shape)
+            or set(entry["floor"]["magnitudes"]) != set(shape.get("magnitudes") or {})
+        ):
+            # shape_drift reads a field the floor lacks as an empty set, and magnitudes_ok skips a
+            # key the observation lacks, so a floor off the golden's shape would pass vacuously
+            # (structure lost) or never hold (schema mismatch).
+            refusal = f"known collapse {key}: its floor's shape is not the golden's"
+            break
+    if refusal:
+        print(
+            f"[capture_golden] {refusal}. Fix known_collapses.json — never re-run --snapshot "
+            "over a known collapse.",
+            file=sys.stderr,
+        )
+        return REGISTRY_REFUSED
     got = observe()
     drift: list[str] = []
+    # Every registered key must leave this run with a verdict — announced, drift, or named
+    # unobservable. A key no branch reached (frozen None, frozen absent, a future skip) would
+    # otherwise ride the OK line's suffix while checked by nothing.
+    touched: set[str] = set()
+    for key, entry in known.items():
+        frozen = want["markers"] if entry["kind"] == "marker" else want["artifacts"]
+        w = frozen.get(key)
+        if w is None or (entry["kind"] == "artifact" and not w.get("present")):
+            drift.append(f"KNOWN COLLAPSE names no frozen element: {key}")
+            touched.add(key)
 
     # On the box that RUNS the pipeline, a gitignored artifact that stopped being produced is
     # the headline failure — not an absent checkout. 4 of 13 artifacts are gitignored, so the
@@ -747,7 +873,15 @@ def verify() -> int:
             continue
         if w.get("present") and not g.get("present"):
             if g.get("reason") == "absent-by-gitignore" and not require_local:
+                if rel in known:
+                    touched.add(rel)
+                    print(
+                        f"[capture_golden] KNOWN COLLAPSE unobservable here (absent-by-gitignore):"
+                        f" {rel}",
+                        file=sys.stderr,
+                    )
                 continue
+            touched.add(rel)
             drift.append(f"NO LONGER PRODUCED: {rel}")
             continue
         if w.get("present") and g.get("present"):
@@ -756,7 +890,20 @@ def verify() -> int:
             # "SHAPE CHANGED", so an operator could not tell a data collapse from a renderer
             # edit — the single most useful thing the oracle knows.
             why = shape_drift(w.get("shape", {}), g.get("shape", {}), may_empty=rel in MAY_EMPTY)
-            if why:
+            entry = known.get(rel) if known.get(rel, {}).get("kind") == "artifact" else None
+            if entry is not None:
+                # Only the shape branch consults the registry: absence (above) is never a
+                # known collapse.
+                touched.add(rel)
+                if not why:
+                    drift.append(f"KNOWN COLLAPSE HEALED — remove the entry: {rel}")
+                    continue
+                below = shape_drift(entry["floor"], g.get("shape", {}), may_empty=rel in MAY_EMPTY)
+                if below:
+                    drift.append(f"{rel}: {below} (outside its known-collapse floor)")
+                else:
+                    _announce_known(rel, entry)
+            elif why:
                 drift.append(f"{rel}: {why}")
 
     # The SQL the live hub consumers issue. snapshot() froze these into both structure.json
@@ -803,11 +950,25 @@ def verify() -> int:
         if want_m is None:
             continue
         if got_m is None or got_m == "absent":
+            touched.add(key)
             drift.append(f"MARKER NO LONGER INJECTED: {key}")
             continue
         ok, why = magnitudes_ok(want_m, got_m)
-        if not ok:
+        entry = known.get(key) if known.get(key, {}).get("kind") == "marker" else None
+        if entry is not None:
+            touched.add(key)
+            if ok:
+                drift.append(f"KNOWN COLLAPSE HEALED — remove the entry: {key}")
+                continue
+            floor_ok, below = magnitudes_ok(entry["floor"], got_m)
+            if floor_ok:
+                _announce_known(key, entry)
+            else:
+                drift.append(f"MARKER {below} (outside its known-collapse floor): {key}")
+        elif not ok:
             drift.append(f"MARKER {why}: {key}")
+    for key in sorted(set(known) - touched):
+        drift.append(f"KNOWN COLLAPSE was checked by nothing: {key}")
     for key in got["markers"]:
         if key not in want.get("markers", {}):
             print(f"[capture_golden] NEW marker (addition, not drift): {key}", file=sys.stderr)
@@ -837,6 +998,10 @@ def verify() -> int:
     inert = sum(1 for v in marks.values() if v is None)
     n = len(arts) + len(marks) - inert + len(want.get("db_queries", {}))
     suffix = f", {inert} marker(s) UNFROZEN (absent at snapshot)" if inert else ""
+    if known:
+        # A suffix, never a subtraction from n: the registered keys are still checked, against
+        # their floors and for presence.
+        suffix += f", {len(known)} known collapse(s) (filed upstream)"
     print(
         f"[capture_golden] OK — {n} contract elements intact "
         f"({len(arts)} artifacts, {len(marks) - inert} markers, "

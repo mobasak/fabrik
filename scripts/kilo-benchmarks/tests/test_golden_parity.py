@@ -29,6 +29,8 @@ import capture_golden as cg  # noqa: E402
 
 # Two consecutive daily auto-commits — the real churn that killed the byte-oracle.
 DAY_A, DAY_B = "8b1f077c", "400ca5bb"
+# The parent of the auto-commit that emptied every live OPENROUTER_ROUTES block (D-567).
+PRE_ROUTES_COLLAPSE = "b96b84ed2^"
 
 
 def _at(rev: str, path: str) -> str | None:
@@ -935,14 +937,19 @@ def test_a_free_priced_routes_block_is_not_a_husk():
     are already live free routes — so a healthy block can legitimately render with zero price
     digits. Summing every integer made that fire the husk alarm on intact rows and columns.
     """
-    checked = 0
+    # Read the blocks at the last commit before the upstream catalog collapse emptied every
+    # live routes block (b96b84ed2, D-567): the subject is marker_shape's arithmetic on a PRICED
+    # block, which today's husks cannot exercise. A clone without that history reds the
+    # anti-vacuity guard below, like test_structure_survives_a_real_daily_regeneration.
+    checked = resolved = 0
     for rel, marker in [
         (f".windsurf/rules/ai/{h.name}", "OPENROUTER_ROUTES") for h in cg.ai_pack_hosts()
     ]:
-        host = cg.FABRIK_ROOT / rel
-        if not host.exists():
+        text = _at(PRE_ROUTES_COLLAPSE, rel)
+        if text is None:
             continue
-        block = cg.extract_block(host.read_text(errors="replace"), marker)
+        resolved += 1
+        block = cg.extract_block(text, marker)
         if not block:
             continue
         free = re.sub(r"\$\d[\d.]*", "free", block)
@@ -951,8 +958,9 @@ def test_a_free_priced_routes_block_is_not_a_husk():
         checked += 1
         ok, why = cg.magnitudes_ok(cg.marker_shape(block), cg.marker_shape(free))
         assert ok, f"{rel}: a healthy free-priced block read as a husk: {why}"
-    # Anti-vacuity: the sub is the identity once every live route is free, at which point this
+    # Anti-vacuity: the sub is the identity once every route is free, at which point this
     # asserts a block equals itself. Its sibling has this guard; this one did not.
+    assert resolved, f"{PRE_ROUTES_COLLAPSE} is not in this clone's history — fetch it to grade"
     assert checked >= 3, f"only {checked} priced route blocks exercised — test is vacuous"
 
 
@@ -1194,11 +1202,29 @@ def test_every_marker_retains_a_live_husk_signal():
     is `chars` is unguarded against a total husk. The previous form of this assertion counted
     `chars`, which is > 0 for any non-empty block, so it could never fail.
     """
+    # A registered upstream collapse (D-567) whose floor has no count left is exempt — and ONLY
+    # those: the set must equal the live chars-only set, so a new unguarded marker still reds and
+    # so does an entry kept after its block regained a signal.
+    known, refusal = cg.load_known_collapses()
+    assert refusal is None, refusal
+    exempt = {
+        k
+        for k, e in known.items()
+        if e["kind"] == "marker" and not any(n > 0 for m, n in e["floor"].items() if m != "chars")
+    }
+    chars_only = set()
     for key, mag in cg.observe()["markers"].items():
         if not isinstance(mag, dict):
             continue
-        live = {k: n for k, n in mag.items() if k != "chars" and n > 0}
-        assert live, f"{key} has no husk signal beyond chars — it is unguarded"
+        if not {k: n for k, n in mag.items() if k != "chars" and n > 0}:
+            chars_only.add(key)
+    assert chars_only - exempt == set(), (
+        f"{sorted(chars_only - exempt)} have no husk signal beyond chars — they are unguarded"
+    )
+    assert exempt - chars_only == set(), (
+        f"{sorted(exempt - chars_only)} are exempted as signal-less known collapses but carry a "
+        "signal now or are no longer observed at all — re-register their floors"
+    )
 
 
 def test_a_capability_only_gateway_husk_is_drift():
@@ -1689,3 +1715,208 @@ def test_query_constant_discovery_catches_new_constants(tmp_path):
     assert out["rank_task_subagents.canary"] == "SELECT 2"  # legacy name kept
     assert out["rank_task_subagents.q_extra_stats_query"] == "SELECT 3"  # the CLASS: discovered
     assert len(out) == 3
+
+
+# ── the known-collapse registry (D-567) ──────────────────────────────────────
+def _patch_markers(monkeypatch, edit):
+    real = cg.observe
+
+    def patched():
+        o = real()
+        edit(o)
+        return o
+
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
+    monkeypatch.setattr(cg, "observe", patched)
+
+
+def _registered(kind: str) -> list[str]:
+    known, refusal = cg.load_known_collapses()
+    assert refusal is None, refusal
+    keys = sorted(k for k, e in known.items() if e["kind"] == kind)
+    assert keys, f"precondition: the registry holds a {kind} entry"
+    return keys
+
+
+def test_known_collapses_are_announced_not_silent(monkeypatch, capsys):
+    """A registered collapse is excused from drift, never from the report."""
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
+    known, _ = cg.load_known_collapses()
+    assert cg.verify() == 0
+    err = capsys.readouterr().err
+    missing = [k for k in known if f"KNOWN COLLAPSE (filed {known[k]['filed']}): {k}" not in err]
+    assert not missing, f"registered but not announced: {missing}"
+
+
+def test_a_healed_known_collapse_is_drift(monkeypatch, capsys):
+    """Back inside the golden's band, the entry must go — the registry expires itself."""
+    key = _registered("marker")[0]
+    golden = json.loads(cg.MANIFEST.read_text())["markers"][key]
+    _patch_markers(monkeypatch, lambda o: o["markers"].__setitem__(key, dict(golden)))
+    assert cg.verify() == 1
+    assert f"KNOWN COLLAPSE HEALED — remove the entry: {key}" in capsys.readouterr().err
+
+
+def test_a_known_collapse_falling_further_is_drift(monkeypatch, capsys):
+    """The floor is a floor: a registered key losing its last row still reds."""
+    known, _ = cg.load_known_collapses()
+    key = next((k for k in _registered("marker") if known[k]["floor"].get("rows", 0) >= 1), None)
+    assert key, "precondition: a registered marker floor keeps at least one row to lose"
+
+    def drop(o):
+        o["markers"][key] = {**o["markers"][key], "rows": 0}
+
+    _patch_markers(monkeypatch, drop)
+    assert cg.verify() == 1
+    assert "(outside its known-collapse floor)" in capsys.readouterr().err
+
+
+def test_an_unregistered_collapse_is_still_drift(monkeypatch):
+    """Dropping one entry from the registry makes its collapse drift again."""
+    known, _ = cg.load_known_collapses()
+    victim = _registered("marker")[0]
+    monkeypatch.setattr(
+        cg, "load_known_collapses", lambda: ({k: e for k, e in known.items() if k != victim}, None)
+    )
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
+    assert cg.verify() == 1
+
+
+def test_a_registered_artifact_that_stops_being_produced_is_drift(monkeypatch, capsys):
+    """Absence is never a known collapse — only the shape branch consults the registry."""
+    rel = _registered("artifact")[0]
+
+    def gone(o):
+        o["artifacts"][rel] = {"present": False, "reason": "missing"}
+
+    _patch_markers(monkeypatch, gone)
+    assert cg.verify() == 1
+    assert f"NO LONGER PRODUCED: {rel}" in capsys.readouterr().err
+
+
+def _first_marker_entry(data: dict) -> dict:
+    return data["entries"][
+        sorted(k for k, e in data["entries"].items() if e["kind"] == "marker")[0]
+    ]
+
+
+def _spoil_json(fn):
+    def spoil(text: str) -> str:
+        data = json.loads(text)
+        fn(data)
+        return json.dumps(data)
+
+    return spoil
+
+
+def _duplicate_first_key(text: str) -> str:
+    data = json.loads(text)
+    key = sorted(data["entries"])[0]
+    body = json.dumps(data["entries"][key])
+    compact = json.dumps(data)
+    return compact.replace('"entries": {', '"entries": {' + json.dumps(key) + ": " + body + ", ", 1)
+
+
+def _zero_floor(data: dict) -> None:
+    floor = _first_marker_entry(data)["floor"]
+    floor.update(dict.fromkeys(floor, 0))
+
+
+def _rename_artifact_magnitude(data: dict) -> None:
+    rel = sorted(k for k, e in data["entries"].items() if e["kind"] == "artifact")[0]
+    mags = data["entries"][rel]["floor"]["magnitudes"]
+    first = sorted(mags)[0]
+    mags["no such collection"] = mags.pop(first)
+
+
+def test_a_registry_whose_citations_cannot_be_checked_is_refused(monkeypatch, tmp_path):
+    """No readable ledger means no citation can be confirmed: a refusal (3), never a traceback
+    that reads like contract drift (1)."""
+    monkeypatch.setattr(cg, "FABRIK_ROOT", tmp_path)
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
+    assert "DECISIONS.md" in (cg.load_known_collapses()[1] or "")
+    assert cg.verify() == cg.REGISTRY_REFUSED
+
+
+def _drop_artifact_skeleton(data: dict) -> None:
+    rel = sorted(k for k, e in data["entries"].items() if e["kind"] == "artifact")[0]
+    data["entries"][rel]["floor"].pop("skeleton")
+
+
+@pytest.mark.parametrize(
+    "spoil",
+    [
+        pytest.param(
+            _spoil_json(lambda d: _first_marker_entry(d).update(filed="see the chat")), id="unfiled"
+        ),
+        pytest.param(
+            _spoil_json(lambda d: _first_marker_entry(d).update(filed="D-99999")),
+            id="invented-d-id",
+        ),
+        pytest.param(
+            _spoil_json(lambda d: _first_marker_entry(d)["floor"].pop("live_counts")),
+            id="floor-key-set",
+        ),
+        pytest.param(_spoil_json(_zero_floor), id="all-zero-floor"),
+        pytest.param(
+            _spoil_json(lambda d: _first_marker_entry(d)["floor"].update(rows="1")),
+            id="non-integer-floor",
+        ),
+        pytest.param(_spoil_json(lambda d: d.update(entries=[])), id="entries-not-object"),
+        pytest.param(_duplicate_first_key, id="duplicate-key"),
+        pytest.param(lambda text: text[:-20], id="malformed-json"),
+        pytest.param(_spoil_json(_drop_artifact_skeleton), id="partial-artifact-floor"),
+        pytest.param(
+            _spoil_json(lambda d: _first_marker_entry(d)["floor"].update(rows=-1)),
+            id="negative-floor",
+        ),
+        pytest.param(
+            _spoil_json(lambda d: _first_marker_entry(d)["floor"].update(rows=True)),
+            id="bool-floor",
+        ),
+        pytest.param(_spoil_json(_rename_artifact_magnitude), id="artifact-floor-key-off-golden"),
+    ],
+)
+def test_every_known_collapse_is_filed(monkeypatch, tmp_path, spoil):
+    """Every entry cites a D-id the ledger holds and carries a current-format, non-vacuous floor;
+    a spoiled registry makes verify() refuse to run (3, never "re-snapshot") rather than check
+    less."""
+    known, refusal = cg.load_known_collapses()
+    assert refusal is None, refusal
+    bad = tmp_path / "known_collapses.json"
+    bad.write_text(spoil(cg.KNOWN_COLLAPSES.read_text()))
+    monkeypatch.setattr(cg, "KNOWN_COLLAPSES", bad)
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
+    assert cg.verify() == cg.REGISTRY_REFUSED
+
+
+def test_a_known_collapse_on_an_unfrozen_element_is_drift(monkeypatch, tmp_path, capsys):
+    """A registered key whose golden value is None reaches no comparison branch; it must red,
+    never ride the OK line's suffix unchecked."""
+    key = _registered("marker")[0]
+    golden = json.loads(cg.MANIFEST.read_text())
+    golden["markers"][key] = None
+    frozen = tmp_path / "structure.json"
+    frozen.write_text(json.dumps(golden))
+    monkeypatch.setattr(cg, "MANIFEST", frozen)
+    monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
+    assert cg.verify() == 1
+    assert f"KNOWN COLLAPSE names no frozen element: {key}" in capsys.readouterr().err
+
+
+def test_a_known_collapse_absent_by_gitignore_is_named_unobservable(monkeypatch, capsys):
+    """On a clone that cannot see a gitignored artifact the entry is NAMED unobservable, not
+    silently passed — and on the pipeline host the same absence is drift."""
+    rel = _registered("artifact")[0]
+
+    def gitignored(o):
+        o["artifacts"][rel] = {"present": False, "reason": "absent-by-gitignore"}
+
+    _patch_markers(monkeypatch, gitignored)
+    assert cg.verify() == 0
+    assert (
+        f"KNOWN COLLAPSE unobservable here (absent-by-gitignore): {rel}" in capsys.readouterr().err
+    )
+    monkeypatch.setenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", "1")
+    cg.verify()
+    assert f"NO LONGER PRODUCED: {rel}" in capsys.readouterr().err
