@@ -321,18 +321,53 @@ def _main_checkout() -> Path:
     so a claim/ack/requeue with no ``--repo`` runs ``git worktree list`` TWICE per verb
     (M2-O2). A cache was rejected on purpose: the cross-worktree test changes
     ``os.getcwd()`` within one process (``monkeypatch.chdir``), and a value cached before
-    that chdir would silently go stale for the call made after it."""
-    try:
-        out = subprocess.run(
-            ["git", "worktree", "list", "--porcelain"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=True,
+    that chdir would silently go stale for the call made after it.
+
+    The porcelain's first entry is NOT always a working tree (W-7317befc): a ``core.worktree``
+    repo reports its git dir's parent and a ``--separate-git-dir`` (or bare) repo its git dir.
+    So ``core.worktree``, git's own record of the main working tree, wins when set; and when
+    the first entry IS the git common dir, the main worktree answers with its own toplevel,
+    while a linked worktree — whose main working tree git records nowhere — refuses rather
+    than act on a mailbox named after the git dir."""
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", *args], capture_output=True, text=True, timeout=5, check=True
         ).stdout
-        for line in out.splitlines():
-            if line.startswith("worktree "):
-                return Path(line[len("worktree ") :].strip())
+
+    try:
+        out = git("worktree", "list", "--porcelain")
+        first = next(
+            (
+                Path(ln[len("worktree ") :].strip())
+                for ln in out.splitlines()
+                if ln.startswith("worktree ")
+            ),
+            None,
+        )
+        if first is None:
+            return Path.cwd()
+        common, gitdir, *top = git(
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-common-dir",
+            "--git-dir",
+            "--show-toplevel",
+        ).splitlines()
+        try:
+            worktree = git("config", "--get", "core.worktree").strip()
+        except subprocess.CalledProcessError:  # exit 1: the key is unset
+            worktree = ""
+        if worktree:
+            return (Path(common) / worktree).resolve()
+        if first.resolve() != Path(common).resolve():
+            return first
+        if Path(gitdir).resolve() == Path(common).resolve() and top:
+            return Path(top[0])
+        raise SystemExit(
+            f"mail.py: this repo keeps a separate git dir ({common}), and git records no main "
+            "working tree for a linked worktree to name — run from the main worktree or pass --repo"
+        )
     except (OSError, subprocess.SubprocessError):
         pass
     return Path.cwd()
