@@ -378,19 +378,28 @@ def test_weekly_catchup_runs_the_coroner_daily(tmp_path: Path) -> None:
     stamp touched on success, fresh stamp is a quiet no-op."""
     for sub in ("locks", "events", "runs"):
         (tmp_path / sub).mkdir()
-    env = {  # MINIMAL, never the parent environment (the B-2/B-10 class, FD6/FD8); the interpreter is the tree's own `.venv`, not a pinned live path (B65-9, FF1)
+    # The script's root links only `scripts/` and `src/`, so it has NO `.venv`: the interpreter
+    # is the one running this suite (FABRIK_PY), never a pinned live path (B65-9, FF1), and a
+    # missing or empty FABRIK_PY fails rc 127 on EVERY tree rather than only where `.venv` is
+    # absent (a throwaway merge worktree, where it refused merge 01M44C5K).
+    root = tmp_path / "root"
+    root.mkdir()
+    for sub in ("scripts", "src"):
+        (root / sub).symlink_to(REPO_ROOT / sub, target_is_directory=True)
+    env = {  # MINIMAL, never the parent environment (the B-2/B-10 class, FD6/FD8)
         k: os.environ[k] for k in ("PATH", "LANG", "LC_ALL", "TMPDIR") if k in os.environ
     }
     env.update(
         HOME=str(tmp_path),
-        FABRIK_ROOT=str(REPO_ROOT),
+        FABRIK_ROOT=str(root),
+        FABRIK_PY=sys.executable,
         FABRIK_NO_AUTOLOAD="1",
         ALERT_ENABLED="0",
         CLAUDE_SOUND_LOCKDIR=str(tmp_path / "locks"),
         KAIZEN_EVENTS_DIR=str(tmp_path / "events"),
         COMMAND_RUN_DIR=str(tmp_path / "runs"),
     )
-    script = REPO_ROOT / "scripts" / "sysadmin" / "weekly_catchup.sh"
+    script = root / "scripts" / "sysadmin" / "weekly_catchup.sh"
     argv = ["bash", str(script), "kaizen_coroner.py"]
     first = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=120)
     assert first.returncode == 0, first.stdout + first.stderr
