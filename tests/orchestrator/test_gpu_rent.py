@@ -1184,10 +1184,14 @@ def test_modal_create_endpoint_cleans_rendered_template_on_failure(monkeypatch, 
     c = ModalClient()
     # Stub the renderer to write a known temp path
     leaked_path = tmp_path / "fabrik-modal-test-leak.py"
+    # A plain-Python stand-in, never the real SDK: `import modal; modal.App(...)` executed the
+    # installed Modal package and its local config, so this test's result depended on the box
+    # it ran on (green in one checkout, red in the merge owner's). Only `app.deploy` failing matters.
     leaked_path.write_text(
-        "import modal\napp = modal.App(name='test')\n"
-        "def _explode(): raise RuntimeError('forced')\n"
-        "app.deploy = lambda *a, **kw: _explode()\n"
+        "class _App:\n"
+        "    def deploy(self, *a, **kw):\n"
+        "        raise RuntimeError('forced')\n"
+        "app = _App()\n"
     )
     monkeypatch.setattr(
         ModalClient,

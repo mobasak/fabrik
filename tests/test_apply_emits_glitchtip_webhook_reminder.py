@@ -99,19 +99,25 @@ def test_fabrik_apply_command_emits_reminder_on_complete(tmp_path, monkeypatch):
 
     from fabrik import cli
     from fabrik.orchestrator import DeploymentState
+    from fabrik.orchestrator.context import DeploymentContext
 
-    class _Ctx:
-        state = DeploymentState.COMPLETE
-        deployed_url = "https://cal.example.com"
-        spec = {"domain": "cal.example.com"}
-        error = None
+    # A REAL context, not a hand-rolled stand-in: the fake that stood here lacked
+    # `registrar_failures` (cli.py reads it on every COMPLETE deploy since e0acb0d23), so
+    # this test exited 1 for a month. Every field the CLI may read now has its real default.
+    def _ctx() -> DeploymentContext:
+        return DeploymentContext(
+            spec_path=tmp_path / "s.yaml",
+            spec={"domain": "cal.example.com"},
+            state=DeploymentState.COMPLETE,
+            deployed_url="https://cal.example.com",
+        )
 
     class _Orch:
         def __init__(self, *a, **k):
             pass
 
         def deploy(self, *a, **k):
-            return _Ctx()
+            return _ctx()
 
     monkeypatch.setattr(cli, "DeploymentOrchestrator", _Orch)
     monkeypatch.setattr(cli, "_post_deploy_sync", lambda: None)
