@@ -16,5 +16,8 @@
   "owner": "intel",
   "priority": 1,
   "status": "open",
+  "tags": [
+    "waits-2026-10-09"
+  ],
   "title": "V5 reading of the single-tracker work store, due 2026-10-09 (two weeks after hub adoption)"
 }

@@ -17,7 +17,8 @@
   "priority": 3,
   "status": "open",
   "tags": [
-    "rules"
+    "rules",
+    "waits-tojlo"
   ],
   "title": "core/tojlo-design-system.md: its sections from Data Tables through Accessibility still restate the template's structure with Tojlo product rules woven in — dedup them (keep the Tojlo rules, point at the template) when a project first declares the Tojlo identity"
 }
