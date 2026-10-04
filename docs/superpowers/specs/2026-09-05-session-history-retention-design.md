@@ -212,6 +212,11 @@ fidelity that 4.45–6.08x compression preserves for a fifth of the space.
 
 ## Where the cold archive lives — corrected after reading the fleet's actual backup topology
 
+> **SUPERSEDED 2026-10-05 by D-565:** the archive ships DIRECT from this machine to the Backblaze
+> B2 bucket `wsl-ozgur` (rclone), not through vps1 and Backrest — the VPS fleet's storage is
+> limited and this machine is mostly up (operator). The table below is the 2026-09-06 reasoning,
+> kept as history; the plan's revision carries the current route.
+
 ⚠️ **The first version of this table was wrong, and wrong in the same way as this document's two
 earlier retractions: it asserted a property of the fleet without reading the config.** It called
 vps1 "a single host" and offered Cloudflare R2 as the off-fleet escalation. Then I read

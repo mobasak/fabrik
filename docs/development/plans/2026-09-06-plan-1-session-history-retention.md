@@ -1,11 +1,21 @@
 # Plan — session-history retention: archive, prove, then prune
 
-Status: CONVERGED
-Build state (re-grounded 2026-10-04, W-08eeaee1): Phase 0 shipped (899bfb1a6); Phase A shipped its hub-side CODE only (a1647928b: `scripts/sysadmin/archive_transcripts.py` + tests) and has NEVER RUN — no `~/.claude/archive/manifest.jsonl` exists (the manifest is appended only after a successful transport, so no transcript has reached the archive) and no crontab line schedules it. Phase B (prove the restore through Backrest + B2) therefore has nothing to restore, and Phase C stays blocked behind it. Resuming starts with the first live archive run, which writes to vps1 (`ARCHIVE_REMOTE`) and needs A.3's Backrest plan — an operator go, asked when W-08eeaee1 was re-grounded.
-Date: 2026-09-06
+Status: DRAFT
+Revision: 2026-10-05 — **the destination moved to Backblaze B2 DIRECT from this machine** (D-565,
+superseding D-142's and D-144's vps1 → Backrest destination). Operator, 2026-10-05: *"why not
+directly to Backblaze B2 repo and reachable and searchable via session recall?"* · *"vps1, 2, 3 has
+limited storage. this machine is mostly up."* · bucket `wsl-ozgur` created by the operator in the B2
+console · *"update the plan to save b2 directly now proceed and finish the plan after reviewing it"*.
+**Phase C (the pruner) is DEFERRED, not built** — see § Phase C.
+Build state (re-grounded 2026-10-05): Phase 0's CODE shipped (899bfb1a6) but was never scheduled —
+no `~/.claude/state/transcript-growth.tsv` exists. Phase A's CODE shipped (a1647928b) with an rsync
+transport to vps1 and has NEVER RUN — no `~/.claude/archive/manifest.jsonl` exists. Nothing has
+reached any archive.
+Date: 2026-09-06 (revised 2026-10-05)
 Owner: fleet
 Spec: `docs/superpowers/specs/2026-09-05-session-history-retention-design.md` (CONVERGED, md5
-`9bf26fd7f744155ab541c23650fd8205`, D-142, commit `2814df66`)
+`9bf26fd7f744155ab541c23650fd8205`, D-142, commit `2814df66`; § Where the cold archive lives is
+superseded by D-565 and carries a pointer to it)
 
 ## Why the phase order is a safety property, not a preference
 
@@ -18,7 +28,8 @@ draft, "nothing else reads subagent transcripts" when `claude-stop-decider.py:42
 that. The phase order exists so that a fifth mistake costs disk, not history.
 
 **No phase may merge forward. Phase C does not begin until Phase B has produced a byte-identical
-restore pulled back through Backrest and B2.**
+restore pulled back from B2** — and, after the 2026-10-05 revision, not until its own reopening
+tripwire fires (§ Phase C).
 
 ## Phase 0 — MEASURE (no code deletes anything)
 
@@ -28,7 +39,9 @@ and **4.89 GB in the first five days of September**.
 - **0.1** `scripts/sysadmin/sample_transcript_growth.sh` appends a daily row (date, MAIN bytes, file
   count, largest single file) using the same predicate as the spec's baseline:
   `find ~/.claude/projects -name '*.jsonl' ! -path '*/subagents/*'`.
-- **0.2** Runs **14 days** by cron. No cap value enters code before then.
+- **0.2** Runs daily from the same systemd user timer as the archiver (A.7) — it never ran under
+  the first revision because no schedule was ever installed. It is now the SENSOR for Phase C's
+  reopening tripwire; no cap value enters code before 14 rows exist.
 - **0.3** The cap is **TWO bounds, not one**, because one number cannot protect against two
   different failures:
   - **aggregate** — p95 of the observed daily rate × 90, bounding sustained growth;
@@ -37,8 +50,9 @@ and **4.89 GB in the first five days of September**.
     files, so a 10 GB session would sit comfortably under a 90 GB aggregate while filling the disk
     on its own. A file over the per-file ceiling is **reported, never silently archived or pruned**.
 
-**Gate 0 (runnable):** `wc -l < <growth-log>` ≥ 14, and the derived bounds are committed to the
-spec's Open unknown 1 with the command that produced them. **Deletes nothing.**
+**Gate 0 (runnable):** at this plan's close, `wc -l < ~/.claude/state/transcript-growth.tsv` ≥ 2
+(header + the first sampled row, written by the timer's first run). The 14-row bound derivation
+belongs to Phase C's reopening, not to this revision's close. **Deletes nothing.**
 ⚠️ **Phase 0 runs CONCURRENTLY WITH PHASE A**, not with Phase B — B needs an archive that only A
 produces. (The first draft said "A and B proceed in parallel", which was false.)
 
@@ -53,109 +67,188 @@ produces. (The first draft said "A and B proceed in parallel", which was false.)
   match a transcript against another project's archive.
   Compression is measured: **6.08x on a 70.7 MB transcript, 1.5 s compress, 0.08 s restore,
   byte-identical, sha256 match**.
-- **A.2 — the transport, with its flags argued rather than copied.**
-  `rsync -a --no-o --no-g --partial <ARCHIVE_ROOT>/ vps:/opt/session-archive/`
-  behind `ssh vps 'mkdir -p /opt/session-archive'` — the shape of
-  `scripts/sync-vps-sysadmin.sh:21,28`, with three deliberate departures:
-  - **`--no-o --no-g`** — `-a` implies `-o -g`, and preserving owner/group across two machines with
-    different uid maps is meaningless here and can fail as non-root.
-  - **no `-z`** — the payload is already zstd. Compressing incompressible bytes is wasted CPU on
-    every run.
-  - **`--partial`** — a dropped link resumes rather than restarting a large `.zst`.
-  ⚠️ **`--delete` and `--remove-source-files` are BANNED and the ban is GRADED, not trusted.**
-  Either flag turns the transport into a mirror that deletes the archive when the local side prunes,
-  silently inverting this plan's entire safety model. A test greps the shipped script for both and
-  fails if either appears.
-  ⚠️ **The alias is `vps`, not `vps1`** — `vps1` does not resolve (`~/.ssh/config`: `Host vps` →
-  172.93.160.197).
-- **A.3 — Backrest: its own plan, and the path is chosen to avoid a paper backup.**
-  Read live from `/opt/backrest/config/config.json`: one repo `b2-vps1` (`s3://`, Backblaze B2);
-  `opt-configs` backs up **`/opt`** on `0 3 * * *`, retention **`{"daily": 30}`**, excluding
-  `/opt/containerd/**`, `/opt/fabrik/.git/**`, `/opt/*restic-cache*`, `/opt/manually_installed.txt`
-  and **`/opt/backups/**`**.
-  Consequences that decide the step:
-  - **The archive must NOT live under `/opt/backups/`** — that prefix is excluded, so an archive
-    there would be backed up by nothing while looking correct. This is precisely
-    `core/30-ops.md:222`'s *"paper backup that reads green"*.
-  - `/opt/session-archive/` IS swept by `opt-configs` by default, so the step **adds it to that
-    plan's excludes** and gives the archive **its own plan** — otherwise every archive byte is
-    stored twice in B2 and inherits a config backup's 30-daily retention rather than its own.
-  - The archive's own plan gets a retention suited to an append-only store, not `daily: 30`.
-- **A.4 — env, not literals.** `ARCHIVE_ROOT`, `ARCHIVE_REMOTE`, `ARCHIVE_AFTER_DAYS` and both cap
-  bounds come from env with defaults (`core/10-python.md:128` bans hardcoded hosts; 12-Factor III).
-- **A.5 — failure is loud and non-destructive.** rsync non-zero (disk full, bad path, SSH down) ⇒
-  the run **exits non-zero and archives nothing further**; the manifest is only appended AFTER a
-  verified remote landing. Nothing in Phase A can delete a local file, so a transport failure costs
-  a re-run and never data. vps1 has **59 GB free** — ample now, not infinite, which is why Gate A
-  asserts free space and the per-file bound exists.
+- **A.1a — skip what is already archived (added 2026-10-05).** The first revision re-ran
+  `zstd -12` over EVERY eligible transcript on every run. The output is deterministic and zstd
+  keeps the source mtime (verified: a `2026-01-02 03:04:05` source yields a `.zst` with the same
+  mtime), so rclone would not re-upload — but re-compressing every eligible MAIN transcript
+  (13.84 GB today) at `-12` on every run is wasted CPU.
+  A transcript whose `(project_slug, session_id, sha256)` is already in the manifest AND whose
+  `.zst` exists is hashed, not recompressed.
+- **A.2 — the transport: `rclone copy` straight to B2, with its flags argued.**
+  `rclone copy <ARCHIVE_ROOT>/ sessionb2:<bucket>/archive/ --fast-list --transfers 4`
+  then, after the manifest rows are appended, `rclone copyto <manifest> sessionb2:<bucket>/archive/manifest.jsonl`.
+  - **The remote is defined in the ENVIRONMENT of the rclone child, never in argv and never in
+    `rclone.conf`:** `RCLONE_CONFIG_SESSIONB2_TYPE=b2`, `_ACCOUNT`, `_KEY`, built from
+    `SESSION_ARCHIVE_B2_KEY_ID` / `SESSION_ARCHIVE_B2_APPLICATION_KEY`. argv is readable by every
+    process on the box (`ps`); a second credential store is a second thing to rotate.
+  - **Credentials come from the process environment, else from the `SESSION_ARCHIVE_*` lines of
+    `SESSION_ARCHIVE_ENV_FILE` (default `/opt/fabrik/.env`)** — only that prefix is read, so the
+    archiver never loads the rest of the hub's secrets into its environment. A missing key is a
+    loud non-zero exit naming the two variables, never a silent skip.
+  - **`--fast-list`** — one listing call per directory tree instead of one per directory; B2 bills
+    class-C transactions per call.
+  - **no compression flag** — the payload is already zstd.
+  - **The manifest ships SECOND and separately.** The first revision appended rows after the
+    transport and never shipped the manifest that run, so the remote copy always lagged one run —
+    a restore from B2 alone would have had no record of the newest archives.
+  ⚠️ **`sync`, `move`, `delete`, `purge`, `--delete-*` and `--b2-hard-delete` are BANNED and the
+  ban is GRADED, not trusted** (an AST test over every rclone argv in the script). `sync` makes the
+  bucket mirror the local tree — the exact inversion D-144 banned `--delete` for. The bucket keeps
+  all versions (the operator's console setting), so an overwritten `.zst` leaves its prior
+  version recoverable; a hard delete would not.
+- **A.3 — the bucket, recorded rather than configured.** Bucket `wsl-ozgur` (id
+  `d46ef77ceab3068aa018061b`, Private, SSE enabled, lifecycle **Keep all versions**, Object Lock
+  **disabled**, endpoint `s3.us-west-004.backblazeb2.com`), created by the operator 2026-10-04.
+  Its settings live in `/opt/fabrik/.env` as `SESSION_ARCHIVE_B2_BUCKET` /
+  `SESSION_ARCHIVE_B2_BUCKET_ID` / `SESSION_ARCHIVE_B2_ENDPOINT` (not secrets). The application
+  key is the operator's to create — restricted to `wsl-ozgur`, read + write; no existing key can
+  reach this bucket (the youtube key is restricted to `youtube-pipeline`, fabrik's to
+  `vps1-ocoron-backups`, both verified by `b2_authorize_account` 2026-10-05). The Backrest plan of
+  the first revision (old A.3) is withdrawn: nothing lands on vps1.
+- **A.4 — env, not literals.** `ARCHIVE_ROOT`, `ARCHIVE_AFTER_DAYS` (default **1** — a session
+  idle less than a day is still being written, and every upload of a growing file is one more
+  kept version), `ARCHIVE_MAX_FILE_MB`, `SESSION_ARCHIVE_B2_*`, `SESSION_ARCHIVE_ENV_FILE`. The
+  vps1 default `ARCHIVE_REMOTE` is removed.
+- **A.5 — failure is loud and non-destructive.** rclone non-zero (no network, bad key, quota)
+  ⇒ the run exits non-zero and appends no manifest rows; the manifest is only appended AFTER the
+  `.zst` files landed. Nothing in Phase A can delete a local file or a remote object.
 - **A.6 — the marker.** A `README` in `~/.claude/projects/` stating the tree is data, not cache —
   aimed at the failure that actually happened: a human freeing disk space.
+- **A.7 — the schedule: a systemd USER timer, catch-up friendly.** `systemctl --user` is running
+  on this box. `session-archive.timer` fires daily with `Persistent=true` (a run missed while the
+  machine was off fires at next boot) and starts `session-archive.service`, which runs Phase 0's
+  sampler then the archiver. Unit files are tracked in the repo
+  (`scripts/sysadmin/systemd/session-archive.{service,timer}`) and installed by
+  `scripts/sysadmin/install_session_archive_timer.sh` (copy to `~/.config/systemd/user/`,
+  `daemon-reload`, `enable --now`). Not cron: crontab writes are refused on this box's agent
+  sessions, and cron has no catch-up.
 
 **Gate A (runnable):**
-`ssh vps 'ls /opt/session-archive | wc -l'` equals the local manifest row count ·
-`ssh vps 'sudo restic -r <repo> snapshots --path /opt/session-archive'` lists a snapshot **and**
-`restic ls <snap> | head` shows files in it (a plan pointed at an empty path reads green forever) ·
-`ssh vps 'df --output=avail /opt | tail -1'` above a floor · `grep -c -- '--delete\|--remove-source-files' <script>` = 0.
-**Zero deletions.** `/fabrik-review-scoped` at the boundary.
+`rclone lsf -R --files-only sessionb2:wsl-ozgur/archive/ | grep -c '\.jsonl\.zst$'` equals
+`find ~/.claude/archive -name '*.jsonl.zst' | wc -l` · the remote `manifest.jsonl` equals the local
+one (`rclone cat … | sha256sum` vs `sha256sum`) · `systemctl --user list-timers session-archive.timer`
+shows a next run · the AST ban test green. **Zero deletions.** `/fabrik-review-scoped` at the
+boundary.
 
 ## Phase B — PROVE THE RESTORE (still non-destructive)
 
-The local round trip is measured. **The leg through Backrest and B2 is not, and it is the one that
-matters.**
+The local round trip is measured. **The leg back from B2 is not, and it is the one that matters.**
 
-- **B.1** Restore an archived transcript **from the B2 repo** (`restic restore`), not from the vps1
-  copy — that would prove the wrong hop.
-- **B.2** `zstd -d`, then `cmp` and sha256 against the live original.
+- **B.1** Download an archived `.zst` **from the bucket** (`rclone copyto sessionb2:wsl-ozgur/archive/<slug>/<sid>.jsonl.zst <scratch>/`),
+  never the local `~/.claude/archive` copy — that would prove the wrong hop.
+- **B.2** `zstd -d`, then `cmp` against the live original and `sha256sum` against the manifest
+  row's `sha256`.
 - **B.3** Embed the verbatim command output in `## Evidence`.
-- **B.4** Restore one transcript whose live original has since been **deleted or rewritten**, proving
-  the archive stands alone rather than only agreeing with a file that still exists.
+- **B.4** Prove the archive stands alone: restore a **prior version** of an object whose live
+  original has since changed (`rclone … --b2-versions`, or the `--b2-version-at` of the first
+  upload), and match it against the manifest row written for THAT version's sha — not against
+  the file on disk, which no longer agrees with it.
+- **B.5** Restore the remote `manifest.jsonl` alone and confirm it lists the object B.1 restored —
+  a restore with only the bucket must be able to find what is in it.
 
-**Gate B (runnable):** `cmp <restored> <original> && sha256sum -c`, output embedded.
-⚠️ **Phase C is BLOCKED until this gate is green.** A failed or skipped Gate B is a `BLOCKED:`
-escalation, never a reason to prune more cautiously.
+**Gate B (runnable):** `cmp <restored> <original> && sha256sum -c`, output embedded, plus B.4's
+version-match line.
+⚠️ A failed or skipped Gate B is a `BLOCKED:` escalation.
 
-## Phase C — THE PRUNER, behind its graders
+## Phase C — THE PRUNER: DEFERRED (panel ruling 2026-10-05, D-565)
+
+**Not built in this revision.** Panel (`/fabrik-*` autonomy rule, D-558): Opus and Fable seats,
+same brief, neither shown the other's answer — both returned **DEFER in whole**, neither tier to
+ship now. Grounds both cited: Gate B is unproven on the new hop; Phase 0 has no rows, so the cap is
+an invented number (residual risk 1); the operator's two retention edits since the spec (D-233,
+D-470 — `cleanupPeriodDays: 3650`) both point at KEEPING; the operator's 2026-10-05 ask is that
+history stay *"searchable via session recall"*, and session-recall is a mirror — a pruned
+transcript's index rows go on the next `--full` (`_reclaim_orphans`, spec § THE CORRECTION); and
+disk is not binding (~18 GB of transcripts, 242 GB free of 1007 GB). The subagent 7-day tier was
+weighed separately and also deferred: it is irreversible, returns ~2.7 GB nobody needs, and
+splitting it off would mean waiving "no phase may merge forward", which no operator ruling does.
+
+**Reopening tripwire — all three at once:**
+1. **Disk:** Phase 0's log (≥ 14 rows) forecasts local free space under **100 GB within 90 days**,
+   or free space is already under 100 GB.
+2. **Gate B** is green on the B2-direct path (this revision's Phase B).
+3. **Searchability survives a prune:** either `/opt/session-recall` has acked
+   `01M1SPW1KKNXKKKM8MSVT6RHQ9` with a `--full` fix that keeps archived sessions indexed, or the
+   index can ingest from the archive.
+
+When it reopens, the design below is the starting point, re-reviewed — not executed as written.
 
 - **C.1 — the invariant, in code.** Refuse to delete any transcript whose **CURRENT** sha256 is
   absent from the manifest under its **`(project_slug, session_id, sha256)`** key. Re-hash at delete
   time; never trust the sha recorded at archive time. Archive unreachable ⇒ **fail CLOSED**.
-- **C.2 — the graders, each SEEN RED first** (`core/45-testing-strategy.md:21` — *"A green test never
-  seen red is unverified"*):
-  1. transcript absent from the manifest → **not deleted**;
-  2. archived at sha A then **mutated in place** to sha B → **not deleted** (the `.bak` shape: 13 of
-     15 diverged mid-file);
-  3. archive destination **unreachable** → nothing deleted;
-  4. manifest row present but the **`.zst` missing from the archive** → not deleted;
-  5. manifest row present but the **`.zst` corrupted** (fails `zstd -t`) → not deleted;
-  6. two projects holding the **same session id** → each matches its own archive, neither deletes on
-     the other's row;
-  7. a file inside the window → never offered.
-  Graders 4–6 were added by the author-blind finders; the first draft's four would have let a
-  manifest row vouch for bytes that no longer exist.
-- **C.3 — the tiers, with the algorithm stated.** MAIN: delete candidates are files with
-  `mtime` older than 90 days, **oldest first**, and additionally — if the aggregate bound is
-  exceeded — oldest-archived-first until the store is back under it. "Whichever binds first" means
-  the union of both candidate sets, never their intersection. SUBAGENT transcripts 7 days, **no
-  archive, hard cliff**. `tool-results/` with its parent.
-  ⚠️ **The subagent cliff has ONE live reader and the first draft missed it.**
-  `~/.claude/bin/claude-stop-decider.py:421,515` reads `<sid>/subagents/agent-*.jsonl` to detect a
-  session busy-waiting on a background subagent. It only ever inspects **in-flight** sessions, which
-  a 7-day window never reaches — so the cliff is safe, but it is safe *for a reason*, not because
-  nothing reads them. (`.claude/hooks/final_gate_stop.py:679` is a prose regex, not a consumer.)
-- **C.4 — pool receipts, 14 days + rotation, WITH the kaizen coupling closed.**
-  `libs/subagents/ledger.py:372` calls `read_all()` over the whole history;
-  `scripts/sysadmin/kaizen_collect.py:57` reads that ledger and filters by a single day's stamp
-  (`:226`), so the daily run survives rotation — but `scripts/sysadmin/kaizen_backfill.py:137`
-  backfills a RANGE from file mtimes and would report **zero runs** for rotated days rather than
-  "unavailable". **Rotation must write a per-day summary line, or `measure_subagents` must
-  distinguish "rotated" from "no dispatches".**
-- **C.5 — a local `--full` guard (hub-side only).** A wrapper refusing `ingest.reindex --full`
-  unless the archive covers every orphan it would reclaim.
-  ⚠️ **CROSS-REPO HARD STOP: `/opt/session-recall` is NOT patched by this plan.** Mailed upstream as
-  `01M1SPW1KKNXKKKM8MSVT6RHQ9` (ack required); the fix is theirs.
+- **C.2 — the graders, each SEEN RED first** (`core/45-testing-strategy.md:21`): transcript absent
+  from the manifest → not deleted; archived at sha A then mutated to sha B → not deleted; archive
+  unreachable → nothing deleted; manifest row present but the `.zst` missing → not deleted;
+  `.zst` corrupted → not deleted; two projects with the same session id → neither deletes on the
+  other's row; a file inside the window → never offered.
+- **C.3 — tiers.** MAIN by mtime, oldest first, union of the window and the aggregate bound;
+  SUBAGENT 7 days, hard cliff (one live reader, `~/.claude/bin/claude-stop-decider.py:421,515`,
+  inspects in-flight sessions only).
+- **C.4 — pool receipts** need a per-day rotation summary so `kaizen_backfill.py:137` can tell
+  "rotated" from "no dispatches".
+- **C.5 — a local `--full` guard** (hub-side wrapper); `/opt/session-recall` is not patched here.
 
-**Gate C (runnable):** all seven graders red-then-green; `--dry-run` over the real tree printing
-what WOULD be deleted, reviewed before any live run.
+**Gate C:** not applicable to this revision; the plan closes at Gate B.
+
+## Gate mechanics
+
+Each phase proves itself with `ruff check` + `ruff format --check` + `pytest` on its OWN files, and
+`final_gate.py --json` is read as the shared gate; any red it carries that names no file of this
+plan is declared in `## Evidence` in the exact `GATE-SCOPE:` form `check_convergence.py:224`
+accepts, never hidden. (The first revision's two sibling reds are not re-asserted here; the gate is
+re-run at each phase boundary and its live output decides.)
+
+## Evidence`.
+- **B.4** Prove the archive stands alone: restore a **prior version** of an object whose live
+  original has since changed (`rclone … --b2-versions`, or the `--b2-version-at` of the first
+  upload), and match it against the manifest row written for THAT version's sha — not against
+  the file on disk, which no longer agrees with it.
+- **B.5** Restore the remote `manifest.jsonl` alone and confirm it lists the object B.1 restored —
+  a restore with only the bucket must be able to find what is in it.
+
+**Gate B (runnable):** `cmp <restored> <original> && sha256sum -c`, output embedded, plus B.4's
+version-match line.
+⚠️ A failed or skipped Gate B is a `BLOCKED:` escalation.
+
+## Phase C — THE PRUNER: DEFERRED (panel ruling 2026-10-05, D-565)
+
+**Not built in this revision.** Panel (`/fabrik-*` autonomy rule, D-558): Opus and Fable seats,
+same brief, neither shown the other's answer — both returned **DEFER in whole**, neither tier to
+ship now. Grounds both cited: Gate B is unproven on the new hop; Phase 0 has no rows, so the cap is
+an invented number (residual risk 1); the operator's two retention edits since the spec (D-233,
+D-470 — `cleanupPeriodDays: 3650`) both point at KEEPING; the operator's 2026-10-05 ask is that
+history stay *"searchable via session recall"*, and session-recall is a mirror — a pruned
+transcript's index rows go on the next `--full` (`_reclaim_orphans`, spec § THE CORRECTION); and
+disk is not binding (~18 GB of transcripts, 242 GB free of 1007 GB). The subagent 7-day tier was
+weighed separately and also deferred: it is irreversible, returns ~2.7 GB nobody needs, and
+splitting it off would mean waiving "no phase may merge forward", which no operator ruling does.
+
+**Reopening tripwire — all three at once:**
+1. **Disk:** Phase 0's log (≥ 14 rows) forecasts local free space under **100 GB within 90 days**,
+   or free space is already under 100 GB.
+2. **Gate B** is green on the B2-direct path (this revision's Phase B).
+3. **Searchability survives a prune:** either `/opt/session-recall` has acked
+   `01M1SPW1KKNXKKKM8MSVT6RHQ9` with a `--full` fix that keeps archived sessions indexed, or the
+   index can ingest from the archive.
+
+When it reopens, the design below is the starting point, re-reviewed — not executed as written.
+
+- **C.1 — the invariant, in code.** Refuse to delete any transcript whose **CURRENT** sha256 is
+  absent from the manifest under its **`(project_slug, session_id, sha256)`** key. Re-hash at delete
+  time; never trust the sha recorded at archive time. Archive unreachable ⇒ **fail CLOSED**.
+- **C.2 — the graders, each SEEN RED first** (`core/45-testing-strategy.md:21`): transcript absent
+  from the manifest → not deleted; archived at sha A then mutated to sha B → not deleted; archive
+  unreachable → nothing deleted; manifest row present but the `.zst` missing → not deleted;
+  `.zst` corrupted → not deleted; two projects with the same session id → neither deletes on the
+  other's row; a file inside the window → never offered.
+- **C.3 — tiers.** MAIN by mtime, oldest first, union of the window and the aggregate bound;
+  SUBAGENT 7 days, hard cliff (one live reader, `~/.claude/bin/claude-stop-decider.py:421,515`,
+  inspects in-flight sessions only).
+- **C.4 — pool receipts** need a per-day rotation summary so `kaizen_backfill.py:137` can tell
+  "rotated" from "no dispatches".
+- **C.5 — a local `--full` guard** (hub-side wrapper); `/opt/session-recall` is not patched here.
+
+**Gate C:** not applicable to this revision; the plan closes at Gate B.
 
 ## ⚠️ Gate mechanics under a red shared gate
 
@@ -167,6 +260,31 @@ itself with `ruff check` + `ruff format --check` + `pytest` on its OWN files, pl
 embedded and declared in the exact form `check_convergence.py:224` accepts — not a paraphrase.
 
 ## Evidence
+
+**Revision 2026-10-05 — the measurements the B2-direct route is built on** (this machine):
+
+```
+$ find ~/.claude/projects/ -name '*.jsonl' ! -path '*/subagents/*' -printf '%s\n' | awk …
+MAIN      5942 files  13.84 GB
+SUBAGENT  21305 files  8.04 GB
+MAIN idle >1d  5395 files  2.68 GB        (-mtime +1: what the first ARCHIVE_AFTER_DAYS=1 run takes)
+$ df -h --output=size,used,avail,pcent /
+1007G  715G  242G  75%
+$ zstd -12 -q -f zt.jsonl -o zt.jsonl.zst; stat -c '%y %n' zt.jsonl zt.jsonl.zst
+2026-01-02 03:04:05.000000000 +0300 zt.jsonl
+2026-01-02 03:04:05.000000000 +0300 zt.jsonl.zst
+$ python3 b2caps.py /opt/fabrik/.env        # b2_authorize_account; secret never printed
+restricted to bucket: vps1-ocoron-backups
+can create a bucket: False
+can create a restricted key: False
+$ (same for /opt/youtube/.env) -> allowed.bucketName: youtube-pipeline; b2_create_bucket -> HTTP 401 unauthorized
+$ rclone version | head -1
+rclone v1.72.0
+$ systemctl --user is-system-running
+running
+```
+
+**First revision (2026-09-06, historical — the vps1 route this revision withdraws):**
 
 **Phase 0 / A — the measurements this plan is built on** (`scripts/sync-vps-sysadmin.sh:28` is the
 transport analogue; `~/.ssh/config` supplies the alias):
@@ -223,22 +341,24 @@ the full 26 ACTIVE, per the command's own anti-skimming rule.
 | Paper backups | *"VOLUME gets a plan pointed at a directory that never exists — a paper backup that reads green and"* | `core/30-ops.md:222` |
 | Decision ledger | *"a decision made or received gets its row in the SAME change; rows immutable, supersede-by-new-row"* | `core/40-documentation.md:23` |
 
-`core/30-ops.md:222` is the sharpest row here and it changed a step: Gate A asserts the snapshot
-**contains files**, and A.3 keeps the archive out of `/opt/backups/**` precisely because that prefix
-is excluded from the plan that would otherwise cover it.
+`core/30-ops.md:222` is the sharpest row here and it still decides a step: Gate A counts the
+`.zst` objects that actually landed in the bucket against the local archive, and Gate B restores
+bytes from the bucket — a transport that reads green while shipping nothing fails both.
 
 ## fabrik-lib verdict
 
 **BUILD.** `/opt/fabrik-lib/README.md` has no archive/backup/compression/retention module — the only
 `B2` hit is `rn-media-kit/`, an RN/Expo client upload kit, unrelated. New-module bar: the archiver is
-project-specific (Claude transcript layout, session-recall's mirror semantics, this box's Backrest
-topology), failing (a) *generic* and (b) *reused by ≥2 project types*. Hub-local, no candidate flag.
+project-specific (Claude transcript layout, session-recall's mirror semantics, this box's
+bucket and timer), failing (a) *generic* and (b) *reused by ≥2 project types*. Hub-local, no candidate flag.
 
 ## Docs owed (Doc Sync Matrix)
 
-`docs/workstation/session-history-retention.md` (NEW — box-local subsystem; grep first, extend never
-duplicate) · `INDEX.md` row · `CHANGELOG.md` per phase · the spec's Open unknown 1 updated with the
-Phase-0 bounds · `docs/OPERATIONS.md` if the Backrest plan set changes (`core/30-ops.md:192`).
+`docs/workstation/session-history-retention.md` (NEW — box-local subsystem: what runs, where the
+archive lives, how to restore; grep first, extend never duplicate) · `INDEX.md` rows for every new
+file · `CHANGELOG.md` per phase · `.env.example` + `docs/CONFIGURATION.md` for the
+`SESSION_ARCHIVE_*` variables · the spec's § Where the cold archive lives gains a pointer to D-565 ·
+`docs/DECISIONS.md` D-565.
 
 ## Residual risks, named
 
@@ -246,14 +366,26 @@ Phase-0 bounds · `docs/OPERATIONS.md` if the Backrest plan set changes (`core/3
    start with an invented number.
 2. **Subagent deletion is irreversible with no index fallback**, and has one live reader whose safety
    rests on it only inspecting in-flight sessions. Operator-accepted.
-3. **Phase A writes to a live production VPS.** It adds files under a new path only, never touches an
-   existing one, and fails loudly rather than silently.
+3. **The off-site copy is only as current as this machine is on.** A missed run catches up at
+   next boot (`Persistent=true`); a dead disk loses at most the sessions newer than the last run
+   plus `ARCHIVE_AFTER_DAYS`.
+6. **Object Lock is disabled and the key may carry delete rights.** The transport never deletes
+   (graded), and the bucket keeps all versions, so a stray overwrite is recoverable; a key leaked
+   WITH `deleteFiles` could still remove versions. Enabling Object Lock on `wsl-ozgur` is an
+   operator console setting, recommended, not required for this plan to close.
 4. **`--full` remains live upstream** until session-recall acts; C.5 reduces the local blast radius
    and does not fix their repo.
-5. **B2 storage cost is small but not zero** at the 90 GB worst case — Phase 0's bounds are what keep
-   it in the noise, which is another reason C cannot precede 0.
+5. **B2 storage cost is small but not zero.** About 2.3 GB compressed today at the measured 6.08x
+   (13.84 GB MAIN); B2 bills $6.95/TB-month after the first 10 GB free
+   (https://www.backblaze.com/cloud-storage/pricing, WebSearch, 2026-10-05). "Keep all versions"
+   stores every re-upload of a growing transcript; `ARCHIVE_AFTER_DAYS=1` bounds that churn.
 
 ## Self-audit
+
+- **Revision 2026-10-05:** every step that named vps1, Backrest, `ssh vps` or rsync was replaced or
+  marked historical; Gate A and Gate B now name commands against the bucket; Phase C's deferral is
+  a recorded panel ruling with a three-part tripwire, not a silent drop; the manifest now ships to
+  the bucket every run.
 
 - **Every phase gate now names a runnable command.** The first draft's Self-audit claimed this while
   Gates 0 and A were prose — an internal contradiction the finders caught, and the same shape as
