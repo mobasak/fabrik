@@ -7210,6 +7210,115 @@ def _patch_droid_block(content: str, canonical: str) -> str:
     )
 
 
+def _template_gitignore_dirs() -> dict[str, Path]:
+    """The types whose scaffold appends ``templates/<type>/.gitignore`` (W-149de516)."""
+    return {"mobile-app": MOBILE_APP_TEMPLATE_DIR, "node-api": NODE_API_TEMPLATE_DIR}
+
+
+def _gitignore_reinclude_under(rule: str, negation: str) -> bool:
+    """Whether excluding ``rule`` could hide the path a ``!`` line re-includes.
+
+    True only when ``rule`` can match an ANCESTOR directory of that path: git never descends an
+    excluded directory, so the re-include would die. Anything else — an exact re-include of the
+    rule itself, or one that merely overlaps a FILE pattern (``!keys/test.p8`` under ``*.p8``) —
+    is False: the block sits above every project line, so the later negation still wins, and
+    skipping a rule there would only drop protection. Only a LITERAL negation segment can match
+    (the rule may be a glob: ``!a.jks/x`` is under ``*.jks``); a wildcard one (``*``, ``i*``)
+    never does, or ``!*/.gitkeep`` would drop every rule, the signing ones included — the cost of
+    that side is a glob re-include under a template directory going dead, so git stops adding
+    new files there. A ``**`` segment is a depth: a leading one lets the path start at the root,
+    a later one reaches anything below the anchored prefix already matched.
+    """
+    body = rule.strip().rstrip("/")
+    anchored = "/" in body
+    rsegs = body.lstrip("/").split("/")
+    nsegs = negation.strip()[1:].strip("/").split("/")
+
+    def seg(r: str, n: str) -> bool:
+        return not any(c in n for c in "*?[") and fnmatch.fnmatchcase(n, r)
+
+    if not anchored:
+        return any(seg(rsegs[0], n) for n in nsegs[:-1])
+    while nsegs and nsegs[0] == "**":
+        nsegs = nsegs[1:]
+    for i, r in enumerate(rsegs):
+        if i >= len(nsegs):
+            return False
+        if nsegs[i] == "**":
+            return True
+        if not seg(r, nsegs[i]):
+            return False
+    return len(nsegs) > len(rsegs)
+
+
+def _patch_template_gitignore_rules(content: str, project_type: str) -> tuple[str, list[str]]:
+    """Insert the template ``.gitignore`` rules ``content`` lacks, as one block at the TOP (W-6fa329b3).
+
+    A rule is skipped when the project already covers it — a non-negated line equal to the rule
+    with any of its leading or trailing ``/`` dropped (dropped on the template side only: the
+    project's ``ios/`` covers ``/ios/``, its ``/ios/`` never covers ``ios/``) — or when a ``!`` line
+    re-includes something beneath a directory the rule could exclude (``_gitignore_reinclude_under``). The block goes
+    above every project line so each project rule, a broader or differently written negation
+    included, still wins; when its header already exists with no ``!`` line above it, the missing
+    rules go under that header instead of a second block. Existing lines are never edited. An
+    unmapped type returns ``content`` unchanged; a mapped type whose template file is missing
+    raises ``FileNotFoundError``.
+    """
+    template_dir = _template_gitignore_dirs().get(project_type)
+    if template_dir is None:
+        return content, []
+    template = (template_dir / ".gitignore").read_text(encoding="utf-8")
+    rules = [ln.rstrip() for ln in template.splitlines() if ln.strip() and not ln.startswith("#")]
+    lines = content.splitlines()
+    plain = {ln.rstrip() for ln in lines if not ln.startswith("!")}
+    negations = [ln for ln in lines if ln.startswith("!")]
+
+    def kept(rule: str) -> bool:
+        if {rule, rule.rstrip("/"), rule.lstrip("/"), rule.strip("/")} & plain:
+            return True
+        return any(_gitignore_reinclude_under(rule, neg) for neg in negations)
+
+    missing = [rule for rule in rules if not kept(rule)]
+    if not missing:
+        return content, []
+    header = f"# Fabrik template rules ({project_type}) - added by fabrik fix"
+    if header in lines:
+        at = lines.index(header) + 1
+        if not any(ln.startswith("!") for ln in lines[:at]):
+            return "\n".join(lines[:at] + missing + lines[at:]) + "\n", missing
+    block = header + "\n" + "\n".join(missing) + "\n"
+    return (block + "\n" + content if content else block), missing
+
+
+def _patched_root_gitignore(path: Path, project_type: str) -> tuple[list[str], str]:
+    """The entry ``fix_project`` reports for the root ``.gitignore`` and the text it would write.
+
+    The template rules are applied first; the ``.droid/`` block is then patched into any file that
+    exists or that the rules create, so one run settles both and the live run writes them in one
+    write. A file whose every line ends in CRLF keeps CRLF (write the text with ``newline=""``);
+    any other file is written with LF, as before this step existed. One entry per file,
+    so the dry run reports exactly what the live run writes; ``[]`` means nothing to write.
+    """
+    exists = path.exists()
+    current = path.read_text(encoding="utf-8") if exists else ""
+    text, rules = _patch_template_gitignore_rules(current, project_type)
+    parts: list[str] = []
+    if exists or rules:
+        patched = _patch_droid_block(text, _DROID_GITIGNORE_BLOCK)
+        if exists and patched != text:
+            parts.append(".droid/ block updated")
+        text = patched
+    if rules:
+        verb = "+" if exists else "created, +"
+        parts.append(f"{verb}{len(rules)} template rules: {', '.join(rules)}")
+    if not parts:
+        return [], current
+    raw = path.read_bytes() if exists else b""
+    if raw.count(b"\r\n") and raw.count(b"\r\n") == raw.count(b"\n"):
+        text = text.replace("\n", "\r\n")
+    return [f".gitignore ({', '.join(parts)})"], text
+
+
 def _remove_retired_droid_markers(project_path: Path, *, dry_run: bool) -> list[str]:
     """Remove the scaffold's dead Traycer markers from a project whose ``.droid`` is a real directory.
 
@@ -7475,14 +7584,12 @@ def fix_project(
         # Retire the Kilo/Traycer residue of older scaffolds (never creates .droid/)
         added.extend(_retire_droid_and_kilo_config(project_path, dry_run=False))
 
-        # Update root .gitignore .droid/ block if outdated
+        # Root .gitignore: the .droid/ block, then the template rules (one write)
         root_gitignore = project_path / ".gitignore"
-        if root_gitignore.exists():
-            current_content = root_gitignore.read_text()
-            updated_content = _patch_droid_block(current_content, _DROID_GITIGNORE_BLOCK)
-            if updated_content != current_content:
-                root_gitignore.write_text(updated_content)
-                added.append(".gitignore (.droid/ block updated)")
+        entries, new_content = _patched_root_gitignore(root_gitignore, project_type)
+        if entries:
+            root_gitignore.write_text(new_content, encoding="utf-8", newline="")
+            added.extend(entries)
     else:
         # dry_run: accurately report what would be created/fixed
         # .windsurf/rules - always copied (symlink migration)
@@ -7514,13 +7621,9 @@ def fix_project(
         # Retired Kilo/Traycer residue — the same entries the live run returns, nothing touched
         added.extend(_retire_droid_and_kilo_config(project_path, dry_run=True))
 
-        # Root .gitignore dry_run reporting
-        root_gitignore = project_path / ".gitignore"
-        if root_gitignore.exists():
-            current_content = root_gitignore.read_text()
-            updated_content = _patch_droid_block(current_content, _DROID_GITIGNORE_BLOCK)
-            if updated_content != current_content:
-                added.append(".gitignore (.droid/ block updated)")
+        # Root .gitignore dry_run reporting — the same entries the live run returns, nothing written
+        entries, _ = _patched_root_gitignore(project_path / ".gitignore", project_type)
+        added.extend(entries)
 
     # Backfill has_user_guide metadata if missing from project.yaml
     project_yaml_path = project_path / "project.yaml"
