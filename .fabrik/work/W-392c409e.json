@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T01:00:53.684918Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-392c409e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M422716X3VN04R62TXVKXEC0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "work.py defines _worktrees twice — the second (:3928) shadows the first (:303), so _store_elsewhere compares unresolved paths and :797's `if not trees` can never fire"
+}

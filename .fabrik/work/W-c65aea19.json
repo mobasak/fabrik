@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:27.549752Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c65aea19",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VYWVSDKJ8KBV6V5YG0TAJV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "# How the 3-window way of working went for intel — 8 frictions, ranked, each with the fix that removes it"
+}

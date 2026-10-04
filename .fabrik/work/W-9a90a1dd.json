@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:36.717074Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9a90a1dd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WPKRKX648D6RRHRM6NG69S",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "fabrik-lib three-window model (sentinel in main + dev1/dev2 worktrees): how it worked for one full pipeline, and 8 fixes"
+}

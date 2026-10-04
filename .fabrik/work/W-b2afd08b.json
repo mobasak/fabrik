@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:29.920023Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b2afd08b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WB4QTYGQEG92DCN28DY8ZV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-c20c4a4e (mail 01M3WB4QTYGQEG92DCN28DY8ZV repeats mail 01M3WB3PDM3Q4TN7SFV90CZTQC); tracked there — mail triage 2026-10-04",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "# Addendum to 01M3WB3PDM: the D-035 keyed sections (same content as the finding, in the contract's shape)"
+}

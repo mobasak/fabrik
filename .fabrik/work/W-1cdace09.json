@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:30.486691Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1cdace09",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WD01PTAY8RXEDQTQ9TP7MJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "a hub sync updates the MAIN checkout but not linked worktrees, so a worktree's final_gate goes red on \"Fabrik-Synced Files Unmodified\" with no local edit"
+}

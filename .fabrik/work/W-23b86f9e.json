@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:48.658160Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-23b86f9e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3YD067CGEYT1S1KSJZ17DA8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "check_review_coverage: certification ledgers under reviews/ get review-report grammar; git-status scope lets commit-then-gate bypass it"
+}

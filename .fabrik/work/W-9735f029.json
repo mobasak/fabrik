@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:53.905305Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9735f029",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3YQE33X5T1A3BF15ETG282H",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Context-full agents stop instead of continuing: make compaction automatic-and-early, and make the context-excuse stop un-escapable"
+}

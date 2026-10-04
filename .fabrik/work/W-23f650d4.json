@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:40.018448Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-23f650d4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WVV6K4ET1TETH76C7HQ3HJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: /fabrik-review (Phase 1 and 4) tells the lead to run `python3 scripts/review_loop_ledger.py read|next …`, but web-ecommerce-factory has no scripts/review_loop_ledger.py: not in the worktree and not in the main checkout. Only /opt/fabrik/scripts/review_loop_ledger.py exists."
+}

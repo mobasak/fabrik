@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:24.207336Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-bd2f41bc",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4179ZWW3YJ8Z8X4GQWJTNKV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: Rule pack core/40-documentation.md line 45 lists `docs/reference/**` as Fabrik-hub-owned and synced (\"These are gate-protected byte-identical by `check_synced_unmodified`\"). The synced manifest syncs only five named files under docs/reference plus the dirs docs/reference/kilo and docs/referenc"
+}

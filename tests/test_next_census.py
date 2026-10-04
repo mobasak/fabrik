@@ -2,8 +2,9 @@
 2026-09-25-plan-1-work-store-single-tracker, ticket T06 + its round-1 review fixes).
 
 The census reads Claude Code transcripts (``*.jsonl``, one per session, one level under
-``--root``), extracts every line of an assistant text block that starts ``NEXT:``, classifies it
-with ``work.classify_next`` (never a re-implementation), and reports the fleet's own § Why this
+``--root``), reads every NEXT value of an assistant text block with the harvest's own
+``thread_anchor._next_values``, classifies it with ``work.classify_next`` (never a
+re-implementation), and reports the fleet's own § Why this
 exists measurement plus the store's Validation V5 reading. Every test builds its own throwaway
 ``--root`` tree and, for V5, a throwaway git repo under ``tmp_path`` — never the real
 ``~/.claude/projects``.
@@ -14,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -262,7 +264,11 @@ def test_trailing_textless_turn_does_not_erase_the_last_real_next(tmp_path: Path
             _assistant_entry(
                 "NEXT: phase B of the plan — docs/development/plans/2026-09-25-x/T06.md"
             ),
-            _assistant_entry("just some closing prose, nothing to report"),
+            {
+                "type": "assistant",
+                "isSidechain": False,
+                "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t1"}]},
+            },
         ],
     )
     env = _env(tmp_path)
@@ -367,9 +373,10 @@ def test_dedup_is_global_across_session_files(tmp_path: Path) -> None:
     result = _run(["--root", str(root), "--since", "7"], env)
     assert result.returncode == 0, result.stderr
     lines = _lines(result.stdout)
-    # 2 sessions (2 files), but the row counts globally only once
+    # the row counts globally only once, and so does its session: the second file holds no
+    # assistant text row of its own (a verbatim copy), so it is not a second session
     assert lines[0] == (
-        "next: 1 lines over 2 sessions — names-item 0 · none 0 · operator-decision 0 · "
+        "next: 1 lines over 1 sessions — names-item 0 · none 0 · operator-decision 0 · "
         "blocked 0 · free-text 1"
     )
 
@@ -842,3 +849,484 @@ def test_sidechain_row_never_becomes_the_sessions_last_next(tmp_path: Path) -> N
     sessions_line = next(ln for ln in lines if ln.startswith("sessions with an accepted"))
     # the sidechain row's anchor-worthy value must never be read as the session's own last turn
     assert sessions_line == "sessions with an accepted free-text NEXT: 0"
+
+
+# ---------------------------------------------------------------------------
+# W-a9de5fb3 — the census measures what V5 means: the harvest's own NEXT reader, real sessions,
+# and the hub's linked-worktree sessions
+# ---------------------------------------------------------------------------
+
+
+def test_harvest_shaped_next_lines_count(tmp_path: Path) -> None:
+    """Bold and bulleted footers are NEXT lines to the harvest (thread_anchor._next_values), so the
+    census counts them too — a strict `NEXT:`-prefix reader missed both."""
+    root = tmp_path / "root"
+    _write_transcript(
+        root / "-opt-alpha" / "s1.jsonl",
+        [
+            _assistant_entry("work done\n\n**NEXT:** W-12345678 keep going with the audit"),
+            _assistant_entry("more\n\n- NEXT: none — terminal"),
+        ],
+    )
+    result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
+    assert result.returncode == 0, result.stderr
+    assert _lines(result.stdout)[0] == (
+        "next: 2 lines over 1 sessions — names-item 1 · none 1 · operator-decision 0 · "
+        "blocked 0 · free-text 0"
+    )
+
+
+def test_quoted_next_counts_when_no_plain_one_exists(tmp_path: Path) -> None:
+    """The harvest takes a quoted `> NEXT:` footer when the turn has no unquoted one; an anchored
+    one then qualifies its session."""
+    root = tmp_path / "root"
+    _write_transcript(
+        root / "-opt-alpha" / "s1.jsonl",
+        [
+            _assistant_entry(
+                "> NEXT: phase B of the plan — docs/development/plans/2026-09-25-x/T06.md"
+            )
+        ],
+    )
+    result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
+    assert result.returncode == 0, result.stderr
+    lines = _lines(result.stdout)
+    assert lines[0].startswith("next: 1 lines over 1 sessions"), lines[0]
+    assert "sessions with an accepted free-text NEXT: 1 (alpha 1)" in lines
+
+
+def test_textless_transcript_is_not_a_session(tmp_path: Path) -> None:
+    """A transcript with no main-thread assistant text (a user-only file, a sidechain-only file)
+    is not a session for the census denominator."""
+    root = tmp_path / "root"
+    project = root / "-opt-alpha"
+    _write_transcript(project / "real.jsonl", [_assistant_entry("NEXT: none — terminal")])
+    _write_transcript(project / "user-only.jsonl", [_user_entry("hello")])
+    _write_transcript(
+        project / "sidechain-only.jsonl", [_assistant_entry("NEXT: x", sidechain=True)]
+    )
+    result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
+    assert result.returncode == 0, result.stderr
+    assert _lines(result.stdout)[0].startswith("next: 1 lines over 1 sessions"), result.stdout
+
+
+def test_v5_counts_linked_worktree_sessions(tmp_path: Path) -> None:
+    """A session run in a linked worktree of the repo counts toward the repo's V5 bound: hub work
+    runs in worktrees whose transcripts live under their own project directories."""
+    env = _env(tmp_path)
+    repo = _make_repo(tmp_path, env)
+    _init_store(repo, env)
+    _write_next_item(repo, "W-0000aaa1")
+    _write_live_claim(repo, "W-0000ccc1")
+    linked = (repo / ".claude" / "worktrees" / "intel").resolve()
+    _git(repo, env, "worktree", "add", "-q", "--detach", str(linked))
+
+    transcripts_root = tmp_path / "transcripts"
+    anchor_next = "NEXT: phase B of the plan — docs/development/plans/2026-09-25-x/T06.md"
+    _write_transcript(
+        transcripts_root / _project_dir_name(linked) / "s1.jsonl", [_assistant_entry(anchor_next)]
+    )
+
+    result = _run(["--root", str(transcripts_root), "--since", "7", "--repo", str(repo)], env)
+    assert result.returncode == 0, result.stderr
+    v5_line = next(ln for ln in _lines(result.stdout) if ln.startswith("V5:"))
+    assert v5_line == "V5: PASS — 1 open next item(s) <= 1 qualifying session(s), 1 live claim(s)"
+
+
+def test_session_counts_when_an_earlier_turn_qualified(tmp_path: Path) -> None:
+    """V5 counts a session that ENDED AT LEAST ONE TURN on a qualifying NEXT: a later turn ending
+    on free text the register ignores leaves the session's open item in place."""
+    root = tmp_path / "root"
+    _write_transcript(
+        root / "-opt-alpha" / "s.jsonl",
+        [
+            _assistant_entry("NEXT: phase B of the rollout"),
+            _user_entry("go on"),
+            _assistant_entry("NEXT: tidy the docs"),
+        ],
+    )
+    result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
+    assert result.returncode == 0, result.stderr
+    assert "sessions with an accepted free-text NEXT: 1 (alpha 1)" in _lines(result.stdout)
+
+
+def test_mid_turn_next_is_not_what_the_turn_ended_on(tmp_path: Path) -> None:
+    """Only a turn's FINAL text is harvested: a NEXT in an earlier row of the same turn — a tool
+    result between them is not a new turn — makes no item and no qualifying session."""
+    root = tmp_path / "root"
+    tool_result = {
+        "type": "user",
+        "isSidechain": False,
+        "message": {
+            "role": "user",
+            "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "ok"}],
+        },
+    }
+    _write_transcript(
+        root / "-opt-alpha" / "s.jsonl",
+        [
+            _assistant_entry("Plan:\nNEXT: phase B of the rollout"),
+            tool_result,
+            _assistant_entry("Done, nothing more."),
+        ],
+    )
+    result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
+    assert result.returncode == 0, result.stderr
+    assert "sessions with an accepted free-text NEXT: 0" in _lines(result.stdout)
+
+
+def test_v5_leaves_out_harness_worktree_sessions(tmp_path: Path) -> None:
+    """A harness worktree (``agent-<hex>``) is a subagent's tree; no Stop hook harvests there, so
+    its sessions never loosen the repo's V5 bound."""
+    env = _env(tmp_path)
+    repo = _make_repo(tmp_path, env)
+    _init_store(repo, env)
+    _write_next_item(repo, "W-0000aaa1")
+    _write_live_claim(repo, "W-0000ccc1")
+    harness = repo / ".claude" / "worktrees" / "agent-0123456789abcdef0"
+    transcripts_root = tmp_path / "transcripts"
+    anchor_next = "NEXT: phase B of the plan — docs/development/plans/2026-09-25-x/T06.md"
+    _write_transcript(
+        transcripts_root / _project_dir_name(harness.resolve()) / "s1.jsonl",
+        [_assistant_entry(anchor_next)],
+    )
+    result = _run(["--root", str(transcripts_root), "--since", "7", "--repo", str(repo)], env)
+    assert result.returncode == 0, result.stderr
+    v5_line = next(ln for ln in _lines(result.stdout) if ln.startswith("V5:"))
+    assert v5_line == "V5: FAIL — 1 open next item(s) > 0 qualifying session(s)"
+
+
+def _linked_store(repo: Path, env: dict[str, str], name: str) -> Path:
+    """A registered worker tree ``<repo>/.claude/worktrees/<name>`` holding its own store (the
+    store files are uncommitted in the fixture repo, so the config is copied across)."""
+    linked = (repo / ".claude" / "worktrees" / name).resolve()
+    _git(repo, env, "worktree", "add", "-q", "--detach", str(linked))
+    store = linked / ".fabrik" / "work"
+    store.mkdir(parents=True, exist_ok=True)
+    config = repo / ".fabrik" / "work" / "config.json"
+    (store / "config.json").write_text(config.read_text(encoding="utf-8"), encoding="utf-8")
+    return linked
+
+
+def test_v5_counts_worker_tree_items_once_per_id(tmp_path: Path) -> None:
+    """A worktree session harvests into its OWN tree's store until the branch merges, so V5 reads
+    items from every worker tree too — and an id present in two trees counts once."""
+    env = _env(tmp_path)
+    repo = _make_repo(tmp_path, env)
+    _init_store(repo, env)
+    _write_live_claim(repo, "W-0000ccc1")
+    linked = _linked_store(repo, env, "intel")
+    _write_next_item(linked, "W-0000aaa1")
+    _write_next_item(linked, "W-0000aaa2")
+    _write_next_item(repo, "W-0000aaa2")
+    _write_next_item(repo, "W-0000aaa3")
+    result = _run(
+        ["--root", str(tmp_path / "transcripts"), "--since", "7", "--repo", str(repo)], env
+    )
+    assert result.returncode == 0, result.stderr
+    v5_line = next(ln for ln in _lines(result.stdout) if ln.startswith("V5:"))
+    # aaa1 only in the worker, aaa3 only in main, aaa2 in both — three ids
+    assert v5_line == "V5: FAIL — 3 open next item(s) > 0 qualifying session(s)"
+
+
+def test_v5_from_a_worktree_keys_sessions_on_the_main_checkout(tmp_path: Path) -> None:
+    """``--repo`` pointed at a worktree reads the same V5 as the main checkout: sessions are keyed
+    on the main checkout's project directory, not the worktree's own."""
+    env = _env(tmp_path)
+    repo = _make_repo(tmp_path, env)
+    _init_store(repo, env)
+    _write_live_claim(repo, "W-0000ccc1")
+    linked = _linked_store(repo, env, "intel")
+    _write_next_item(linked, "W-0000aaa1")
+    transcripts_root = tmp_path / "transcripts"
+    anchor_next = "NEXT: phase B of the plan — docs/development/plans/2026-09-25-x/T06.md"
+    _write_transcript(
+        transcripts_root / _project_dir_name(repo) / "s1.jsonl", [_assistant_entry(anchor_next)]
+    )
+    result = _run(["--root", str(transcripts_root), "--since", "7", "--repo", str(linked)], env)
+    assert result.returncode == 0, result.stderr
+    v5_line = next(ln for ln in _lines(result.stdout) if ln.startswith("V5:"))
+    assert v5_line == "V5: PASS — 1 open next item(s) <= 1 qualifying session(s), 1 live claim(s)"
+
+
+def _tool_use_row() -> dict:
+    return {
+        "type": "assistant",
+        "isSidechain": False,
+        "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t1"}]},
+    }
+
+
+def _tool_result_row() -> dict:
+    return {
+        "type": "user",
+        "isSidechain": False,
+        "message": {
+            "role": "user",
+            "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "ok"}],
+        },
+    }
+
+
+def _meta_row(text: str) -> dict:
+    row = _user_entry(text)
+    row["isMeta"] = True
+    return row
+
+
+def test_injected_rows_end_a_turn_only_where_stop_fired(tmp_path: Path) -> None:
+    """A row Claude Code injects after a tool result (a loaded skill) is the middle of a turn;
+    one written after the assistant's last row (Stop-hook feedback) follows a real Stop."""
+    root = tmp_path / "root"
+    _write_transcript(
+        root / "-opt-alpha" / "s.jsonl",
+        [
+            _assistant_entry("NEXT: phase B of the rollout"),
+            _tool_use_row(),
+            _tool_result_row(),
+            _meta_row("Base directory for this skill: /x"),
+            _assistant_entry("Done, nothing more."),
+        ],
+    )
+    _write_transcript(
+        root / "-opt-beta" / "s.jsonl",
+        [
+            _assistant_entry("NEXT: phase B of the rollout"),
+            _meta_row("Stop hook feedback: COMMAND STILL RUNNING"),
+            _assistant_entry("Still waiting on the review."),
+        ],
+    )
+    result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
+    assert result.returncode == 0, result.stderr
+    assert "sessions with an accepted free-text NEXT: 1 (beta 1)" in _lines(result.stdout)
+
+
+def test_an_image_only_prompt_ends_a_turn(tmp_path: Path) -> None:
+    """A prompt with no text block (an image paste) still starts a new turn: the turn before it
+    ended where Stop fired, and its final text was judged."""
+    root = tmp_path / "root"
+    image_prompt = {
+        "type": "user",
+        "isSidechain": False,
+        "message": {"role": "user", "content": [{"type": "image", "source": {}}]},
+    }
+    _write_transcript(
+        root / "-opt-alpha" / "s.jsonl",
+        [
+            _assistant_entry("NEXT: phase B of the rollout"),
+            image_prompt,
+            _assistant_entry("NEXT: tidy the docs"),
+        ],
+    )
+    result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
+    assert result.returncode == 0, result.stderr
+    assert "sessions with an accepted free-text NEXT: 1 (alpha 1)" in _lines(result.stdout)
+
+
+def test_a_bare_string_row_is_never_the_turns_final_text(tmp_path: Path) -> None:
+    """The harvest's final-message reader skips an assistant row whose content is a bare string,
+    so the census judges the last LIST-content row of the turn."""
+    root = tmp_path / "root"
+    string_row = {
+        "type": "assistant",
+        "isSidechain": False,
+        "message": {"role": "assistant", "content": "Done."},
+    }
+    _write_transcript(
+        root / "-opt-alpha" / "s.jsonl",
+        [_assistant_entry("NEXT: phase B of the rollout"), string_row],
+    )
+    result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
+    assert result.returncode == 0, result.stderr
+    assert "sessions with an accepted free-text NEXT: 1 (alpha 1)" in _lines(result.stdout)
+
+
+def test_a_resumed_copy_is_not_a_second_session(tmp_path: Path) -> None:
+    """A file made only of rows already seen (a resumed session's verbatim copy) adds nothing to
+    the session denominator."""
+    root = tmp_path / "root"
+    row = _assistant_entry("NEXT: none — terminal", row_uuid="u-1")
+    _write_transcript(root / "-opt-alpha" / "a.jsonl", [row])
+    _write_transcript(root / "-opt-alpha" / "b.jsonl", [row])
+    result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
+    assert result.returncode == 0, result.stderr
+    assert _lines(result.stdout)[0].startswith("next: 1 lines over 1 sessions"), result.stdout
+
+
+def test_v5_survives_a_prunable_worker_tree(tmp_path: Path) -> None:
+    """A worker tree still registered but deleted from disk is skipped, never a traceback."""
+    env = _env(tmp_path)
+    repo = _make_repo(tmp_path, env)
+    _init_store(repo, env)
+    _write_live_claim(repo, "W-0000ccc1")
+    linked = _linked_store(repo, env, "intel")
+    shutil.rmtree(linked)
+    result = _run(
+        ["--root", str(tmp_path / "transcripts"), "--since", "7", "--repo", str(repo)], env
+    )
+    assert result.returncode == 0, result.stderr
+    v5_line = next(ln for ln in _lines(result.stdout) if ln.startswith("V5:"))
+    assert v5_line == "V5: PASS — 0 open next item(s) <= 0 qualifying session(s), 1 live claim(s)"
+
+
+def test_v5_an_id_closed_in_any_tree_is_closed(tmp_path: Path) -> None:
+    """An item a worker tree has closed (its branch not merged yet) is closed, whatever the main
+    checkout's stale copy says."""
+    env = _env(tmp_path)
+    repo = _make_repo(tmp_path, env)
+    _init_store(repo, env)
+    _write_live_claim(repo, "W-0000ccc1")
+    linked = _linked_store(repo, env, "intel")
+    _write_next_item(repo, "W-0000aaa1")
+    _write_next_item(linked, "W-0000aaa1")
+    item_path = linked / ".fabrik" / "work" / "W-0000aaa1.json"
+    item = json.loads(item_path.read_text(encoding="utf-8"))
+    item["status"] = "dropped"
+    item_path.write_text(json.dumps(item), encoding="utf-8")
+    result = _run(
+        ["--root", str(tmp_path / "transcripts"), "--since", "7", "--repo", str(repo)], env
+    )
+    assert result.returncode == 0, result.stderr
+    v5_line = next(ln for ln in _lines(result.stdout) if ln.startswith("V5:"))
+    assert v5_line == "V5: PASS — 0 open next item(s) <= 0 qualifying session(s), 1 live claim(s)"
+
+
+def test_v5_sessions_need_a_valid_worker_name(tmp_path: Path) -> None:
+    """The sessions side accepts the worker names ``work._workers`` accepts on the items side; a
+    directory name no worker can carry adds no sessions."""
+    env = _env(tmp_path)
+    repo = _make_repo(tmp_path, env)
+    _init_store(repo, env)
+    _write_next_item(repo, "W-0000aaa1")
+    _write_live_claim(repo, "W-0000ccc1")
+    odd = repo / ".claude" / "worktrees" / "Bad_Name"
+    transcripts_root = tmp_path / "transcripts"
+    anchor_next = "NEXT: phase B of the plan — docs/development/plans/2026-09-25-x/T06.md"
+    _write_transcript(
+        transcripts_root / _project_dir_name(odd) / "s1.jsonl", [_assistant_entry(anchor_next)]
+    )
+    result = _run(["--root", str(transcripts_root), "--since", "7", "--repo", str(repo)], env)
+    assert result.returncode == 0, result.stderr
+    v5_line = next(ln for ln in _lines(result.stdout) if ln.startswith("V5:"))
+    assert v5_line == "V5: FAIL — 1 open next item(s) > 0 qualifying session(s)"
+
+
+def test_a_copied_final_row_is_never_judged_as_this_files_turn(tmp_path: Path) -> None:
+    """When a turn's final row is a copy of another file's row, that turn belongs to the other
+    file: an earlier row of the copy must not stand in as its final text."""
+    root = tmp_path / "root"
+    copied = _assistant_entry("Done.", row_uuid="u-2")
+    _write_transcript(root / "-opt-alpha" / "a.jsonl", [copied])
+    _write_transcript(
+        root / "-opt-beta" / "b.jsonl",
+        [_assistant_entry("NEXT: phase B of the rollout", row_uuid="u-3"), copied],
+    )
+    result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
+    assert result.returncode == 0, result.stderr
+    assert "sessions with an accepted free-text NEXT: 0" in _lines(result.stdout)
+
+
+def test_v5_keys_sessions_on_the_raw_directory_name(tmp_path: Path) -> None:
+    """Two project directories can share a display name (``/opt/x`` and ``/x`` both show as
+    ``x``); V5 counts only the directory that IS this repo's."""
+    env = _env(tmp_path)
+    repo = _make_repo(tmp_path, env)
+    _init_store(repo, env)
+    _write_next_item(repo, "W-0000aaa1")
+    _write_live_claim(repo, "W-0000ccc1")
+    transcripts_root = tmp_path / "transcripts"
+    twin = "-opt-" + _project_dir_name(repo).lstrip("-")
+    anchor_next = "NEXT: phase B of the plan — docs/development/plans/2026-09-25-x/T06.md"
+    _write_transcript(transcripts_root / twin / "s1.jsonl", [_assistant_entry(anchor_next)])
+    result = _run(["--root", str(transcripts_root), "--since", "7", "--repo", str(repo)], env)
+    assert result.returncode == 0, result.stderr
+    v5_line = next(ln for ln in _lines(result.stdout) if ln.startswith("V5:"))
+    assert v5_line == "V5: FAIL — 1 open next item(s) > 0 qualifying session(s)"
+
+
+def test_a_row_that_asks_for_a_tool_keeps_the_turn_open(tmp_path: Path) -> None:
+    """An assistant row with text AND a tool_use block is mid-turn: a row injected right after it
+    is not where Stop fired."""
+    root = tmp_path / "root"
+    text_and_tool = {
+        "type": "assistant",
+        "isSidechain": False,
+        "message": {
+            "role": "assistant",
+            "content": [
+                {"type": "text", "text": "NEXT: phase B of the rollout"},
+                {"type": "tool_use", "id": "t1"},
+            ],
+        },
+    }
+    _write_transcript(
+        root / "-opt-alpha" / "s.jsonl",
+        [text_and_tool, _meta_row("Base directory for this skill: /x"), _assistant_entry("Done.")],
+    )
+    result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
+    assert result.returncode == 0, result.stderr
+    assert "sessions with an accepted free-text NEXT: 0" in _lines(result.stdout)
+
+
+def test_an_interrupted_turn_is_never_judged(tmp_path: Path) -> None:
+    """Stop does not fire on a user interrupt, so the harvest never judged that turn's text."""
+    root = tmp_path / "root"
+    _write_transcript(
+        root / "-opt-alpha" / "s.jsonl",
+        [
+            _assistant_entry("NEXT: phase B of the rollout"),
+            _user_entry("[Request interrupted by user]"),
+            _user_entry("go on"),
+            _assistant_entry("NEXT: tidy the docs"),
+        ],
+    )
+    result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
+    assert result.returncode == 0, result.stderr
+    assert "sessions with an accepted free-text NEXT: 0" in _lines(result.stdout)
+
+
+def test_a_row_written_twice_in_one_file_keeps_its_turn(tmp_path: Path) -> None:
+    """The same row written twice in ONE transcript counts once, and its turn is still judged."""
+    root = tmp_path / "root"
+    row = _assistant_entry("NEXT: phase B of the rollout", row_uuid="u-1")
+    _write_transcript(root / "-opt-alpha" / "s.jsonl", [row, row])
+    result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
+    assert result.returncode == 0, result.stderr
+    lines = _lines(result.stdout)
+    assert lines[0].startswith("next: 1 lines over 1 sessions"), result.stdout
+    assert "sessions with an accepted free-text NEXT: 1 (alpha 1)" in lines
+
+
+def test_v5_a_stale_worker_copy_never_vetoes_a_live_item(tmp_path: Path) -> None:
+    """A worker forks with master's items; its old copy of an id must not hide main's refreshed,
+    in-window copy — the window is judged on the freshest next_at."""
+    env = _env(tmp_path)
+    repo = _make_repo(tmp_path, env)
+    _init_store(repo, env)
+    _write_live_claim(repo, "W-0000ccc1")
+    linked = _linked_store(repo, env, "intel")
+    _write_next_item(repo, "W-0000aaa1")
+    _write_next_item(linked, "W-0000aaa1", next_at_days_ago=10)
+    result = _run(
+        ["--root", str(tmp_path / "transcripts"), "--since", "7", "--repo", str(repo)], env
+    )
+    assert result.returncode == 0, result.stderr
+    v5_line = next(ln for ln in _lines(result.stdout) if ln.startswith("V5:"))
+    assert v5_line == "V5: FAIL — 1 open next item(s) > 0 qualifying session(s)"
+
+
+def test_a_compaction_summary_after_a_finished_turn_is_a_boundary(tmp_path: Path) -> None:
+    """Compaction happens between turns: its summary row follows the assistant's last row, where
+    Stop fired, so the turn before it is judged on its own final text."""
+    root = tmp_path / "root"
+    summary = _user_entry("This session is being continued from a previous conversation.")
+    summary["isCompactSummary"] = True
+    _write_transcript(
+        root / "-opt-alpha" / "s.jsonl",
+        [_assistant_entry("NEXT: phase B of the rollout"), summary, _assistant_entry("Done.")],
+    )
+    result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
+    assert result.returncode == 0, result.stderr
+    lines = _lines(result.stdout)
+    assert lines[0].startswith("next: 1 lines over 1 sessions"), result.stdout
+    assert "sessions with an accepted free-text NEXT: 1 (alpha 1)" in lines

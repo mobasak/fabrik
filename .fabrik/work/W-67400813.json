@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:33.557318Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-67400813",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WHV8XCXYQC05E732KFP8RQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "fabrik-lib three-window model (sentinel merge owner + dev1/dev2 worktrees): what went wrong today and what would make it flawless"
+}

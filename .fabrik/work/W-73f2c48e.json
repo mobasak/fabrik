@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:47.047540Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-73f2c48e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3XRRV3Z1B4BND733J2QT62X",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: Three frictions in the plan chain, hit on 2026-10-02 in iterative_image_editor (iie2) while writing and converging docs/development/plans/2026-10-02-plan-1-animate-fal-transport.md (commits 55b5473, 918f960)."
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:11.571161Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b145fd4c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3RVPS6AGVRP8W0ZT5C8SCSM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "/fabrik-review-scoped from a PROJECT worktree — the Workflow seat path is refused and review_loop_ledger.py is not synced"
+}

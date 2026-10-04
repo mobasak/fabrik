@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:22.468468Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-18964619",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VSFP9DJXR5N6ZVX8G67745",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "fabrik-plan-review / fabrik-execute-plan disagree on the Opus finder at the small-profile Finish review, and plan-review has no rule for a half-blocked plan"
+}

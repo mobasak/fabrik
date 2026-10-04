@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:06.921165Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-27f027f4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QTVA1XK1MVWBNY8YXH4FBJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Re: payments scoped service roles: the module side has SHIPPED (fabrik-lib D-337). Your (c) on pack 85 can land now"
+}

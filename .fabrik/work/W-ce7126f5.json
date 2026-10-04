@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:46.402232Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ce7126f5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3XRJFTQGQZNZGHR12V23P6X",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "FINDING — worktree-isolation Bash guard refuses read-only commands with no git surface; review_receipt cannot anchor a multi-branch wave"
+}

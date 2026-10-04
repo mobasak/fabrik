@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:34.357847Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-65180da2",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WJ3MJ0E4EP6DJ40JR5FYPY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "A DECISION block repeated across turns mints a new awaiting-operator item every time, even with identical wording — 6 items for one gate here"
+}

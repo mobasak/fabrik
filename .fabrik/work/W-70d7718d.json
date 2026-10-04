@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:12.059246Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-70d7718d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3RW55NS1JFWEC696HD7SJG9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "check_convergence.py passes silently (rc=0) when --project-root is not a git work tree."
+}

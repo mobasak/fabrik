@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:18.909033Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e914202a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3TZERFR47KNNVAG9D93QMXA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "merge_request.py merge: merge commits carry no Agent Provenance Trailers and no gate runs."
+}

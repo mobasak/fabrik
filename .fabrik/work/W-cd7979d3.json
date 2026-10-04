@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:09.801821Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-cd7979d3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3ZFMG1N6ZJ1CDS3YK5A18ZX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: /opt/fabrik/.claude/workflows/fabrik-review-loop.js reports `closable: false` on passes whose seats re-executed every ledger claim. Two false-negative shapes: (1) a seat reports ledger_status under a combined id (\"rules-L1 · rules-O1\", or \"facts-L1/facts-S1\"), the script looks for the bare id"
+}

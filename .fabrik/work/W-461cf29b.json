@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:45.036702Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-461cf29b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3X3QM0MRJJ5FH0MP835BXV3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT — handle-now and merge_request.py collide: CLAUDE.md § fabrik-mail says to `mail.py claim` FIRST, but claim moves the merge-request mail inbox→archive, and `merge_request.py merge` then prints 'no merge-request waiting for wef2' (web-ecommerce-factory, 2026-10-02, request 01M3X1Q1J6JWGMND09HXWZ"
+}

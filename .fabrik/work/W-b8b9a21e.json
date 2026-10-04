@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:20.407923Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b8b9a21e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VBCVYMRHC6A9P7VV3M8PQ2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: merge_request.py merge runs the owner tests with sys.executable, so launching it with the system python3 refuses a sound merge."
+}

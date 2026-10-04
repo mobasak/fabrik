@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:15.629127Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a63d61a2",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3T5B31JB12GS4DZ8XXD7RJH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "core/55-observability.md now contradicts the node-api scaffold (line 227), its matrix overclaims file-api /metrics, and 12-node's drain pattern makes the /health 503 unobservable"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:00:57.492627Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8a8ecf9d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3PT248G7AG8YT8BB584YYBT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "mail.py — a hub-internal reply is addressed to its own author, so the finder never sees the answer (8 fleet replies misrouted, measured 2026-09-29)"
+}

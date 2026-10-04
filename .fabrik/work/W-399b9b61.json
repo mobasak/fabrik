@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:25.203259Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-399b9b61",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M419S4DA3G17V61JFV5G4D24",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "# Merge precondition for fleet's merge request 01M419R9ZS53T7KBCGKSV3GPFR (plan-1, D-529)"
+}

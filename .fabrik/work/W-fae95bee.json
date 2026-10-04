@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T00:46:37.750106Z",
+  "creator": "intel",
+  "evidence": "22747460a53a0a6815211299d002a914aaa78a70",
+  "id": "W-fae95bee",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "In scripts/sysadmin/next_census.py replace the (mtime, path) sort with each file's earliest row timestamp (fallback mtime), update the module docstring, place the compaction row mid-file after an assistant turn in tests/test_next_census.py, prove each red, then /fabrik-review-scoped",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "done",
+  "title": "next_census: order shared rows by each file's first-row timestamp (mtime is the last write, so a resumed original can lose a shared turn to its fork), finish the module docstring for the oldest-first order, freshest-next_at window and fail-soft, and make the compaction-row test fail under a wrong implementation (W-a9de5fb3 review round 3: census-O16/O17/O18)"
+}

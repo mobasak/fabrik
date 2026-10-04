@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:38.805805Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2b7543d3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WTFXV99T20Q0ZYSTX8TB4E",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "two infra-beat findings from the chrome-ext launch-checklist pass — /fabrik-release drafts four privacy answers (the store asks five), and the doc registry leaves chrome-extension + mobile-app out of the deployed bucket"
+}

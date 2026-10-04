@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:16.531855Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ab678eb9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3T9H8EP4MHB6H8NNBGN38GW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: `python scripts/docs_updater.py --sync`, run in a linked worktree, regenerates INDEX.md's AUTO-GENERATED:STRUCTURE"
+}

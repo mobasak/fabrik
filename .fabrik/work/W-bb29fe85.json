@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:08.109342Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-bb29fe85",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Z9XG169FTM5NHFGXX24Z65",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-355c0970 (mail 01M3Z9XG169FTM5NHFGXX24Z65 repeats mail 01M3Z1CN1YDHXN5QS11XGZ6FGN); tracked there — mail triage 2026-10-04",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "WHAT: In a worktree-isolated session the Bash isolation check refuses quoted heredocs (`cat > /tmp/... <<'EOF'`, `python3 - <<'PY'`) that run no git command and write only to the session scratchpad, with \"this command is too complex to verify that it stays inside the worktree\". It does not name the"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:09.774469Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-dbb3073f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3RRQJED02MFMNSZSPRYP1DQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "wip_backup.sh left 123 zero-byte objects and 50 zero-byte refs/wip files here; every push from web-ecommerce-factory fails"
+}

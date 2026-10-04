@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:00:59.603216Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9891d18c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Q4Q1FEJ22NQQEDVNZ4CWZA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "/fabrik-review-scoped's Workflow launch cannot run from a project worktree — the tool refuses the hub script path"
+}

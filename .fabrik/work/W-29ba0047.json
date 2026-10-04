@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:18.023730Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-29ba0047",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3TW5MF22VFHXR6YRVM29TZ3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "BLOCKER for fabrik-lib's adoption: merge_request.py `_throwaway` raises FileExistsError on every merge in /opt/fabrik-lib (the repo is NAMED fabrik-lib); plus one false line in 01M3TTTCTW and one correction from me"
+}

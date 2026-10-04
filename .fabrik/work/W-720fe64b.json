@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:00:53.695602Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-720fe64b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3JCWME8NNRZYW4PT6PBVW6D",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "DATA_SYNC_WORKFLOW.md:84 says \"CORE_SCRIPTS 14\" — the manifest set is 16 since 239fc5f3b (check_research_ledger.py) and work.py; the rest of mail 01M32YS4's DATA_SYNC list is already fixed"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:20.563806Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b491da86",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M414SFDRKE26DA3PP7KEC1G3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: fabrik-review-loop.js reports a slice \"unread\" (and NOT closable) when the seat demonstrably read the file — a coverage false positive that blocks a clean delta round."
+}

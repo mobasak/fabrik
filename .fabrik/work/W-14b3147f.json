@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:02.946609Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-14b3147f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QE8YHJEV7ARXM3JNQNER3A",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "finding (tryton-crm, agent-3, /fabrik-ui-design run 2026-09-29)"
+}

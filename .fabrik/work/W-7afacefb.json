@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:12.621428Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7afacefb",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3RX9JMRM7VD31BBTHYH1RVA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "fabrik-review-loop.js — a closing seat's re-verified ledger reads \"not re-verified\" when the seat labels ids compositely; plus two worktree-guard frictions"
+}

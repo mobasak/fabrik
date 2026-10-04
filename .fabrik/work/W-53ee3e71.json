@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T10:25:47.693454Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-53ee3e71",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "blocked on the operator's ruling W-5e7743d9 (Jev egress); then cp -r /opt/fabrik-lib/decision-gate/decision_gate libs/decision_gate with a VENDORED-FROM header, pyproject extend-exclude row, httpx pin check, wire final_gate_stop.py:1451-1696 in shadow",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "status": "open",
+  "title": "Vendor fabrik-lib decision-gate into the hub with its first consumer (pilot 1: final_gate_stop promise/defer detection, shadow mode), per D-550 — intel mail 01M4354D3TE6MC0MRGM57DGTGA"
+}

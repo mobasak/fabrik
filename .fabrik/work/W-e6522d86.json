@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:29.457527Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e6522d86",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M41SCNE04EPVN57GB862MX9P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Finding (tryton-crm, agent-3, 2026-10-03): the worktree-isolation Bash guard refuses commands that touch no git state, in a worktree-isolated session."
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:00:55.086289Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-02a0f674",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3PJXNTEVJFWJKG60XZR7907",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Same defect, second verb — `work.py migrate-backlog` turned 10 prose lines into work items (same line-to-item class as --adopt)"
+}

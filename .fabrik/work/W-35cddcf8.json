@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:01.914884Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-35cddcf8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Z0X4DD60E6CEN90TW86ZBV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "merge_request.py (synced) runs owner tests on sys.executable — a merge owner who launches it with the system python3 sends a false \"owner tests red\" refusal"
+}

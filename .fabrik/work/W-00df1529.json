@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:24.510039Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-00df1529",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VXE9WTVSPTDMSWN3NGKYRB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-570a112b (mail 01M3VXE9WTVSPTDMSWN3NGKYRB repeats mail 01M3VRW9WBDBRW7RV079YNPQJT); tracked there — mail triage 2026-10-04",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "FINDING — the generated `.worktreeinclude` omits synced docs that the gate's link check needs, so a fresh linked worktree fails `final_gate.py`."
+}

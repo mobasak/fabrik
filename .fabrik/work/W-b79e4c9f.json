@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:26.256865Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b79e4c9f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VYPHBSTSF3ZZ2G27F6CVC0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "tryton-crm, agent-3: what went wrong running three windows (agent-1 main and merge owner; agents 2 and 3 in worktrees) — field report over plan-2 and two re-freezes, 2026-09-29 to 10-01"
+}

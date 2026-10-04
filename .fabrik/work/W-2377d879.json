@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:35.020003Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2377d879",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WJBWDF59R883WS0SMFJJHB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: check_review_coverage.py's V11 reads the closing row's finders from `cells[1]`, the cell right after `Pass N`. The /fabrik-review command's own canonical row shape puts METHOD in that cell and the finders LAST (`| Pass k | method: … | found: … | finders: <manifest> |`, fabrik-review.md § Termi"
+}

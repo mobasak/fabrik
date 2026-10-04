@@ -198,7 +198,7 @@ messaging ≥2.1.224) is adopted post-upgrade — deferred by fact.
 **Addressing enforcement + escalation (2026-08-26, Layer 1.5):** the shared three-agent hub
 mailbox refuses an unaddressed `send --to fabrik` (exit 2 + the three-beat guide) — `--to-agent
 infra|fleet|intel`, explicit `--broadcast` (refuses `ack:required`: an obligation nobody owns
-cannot be acked), or a `kind: reply` thread (exempt by kind; inherits the parent's owner). Typo'd
+cannot be acked), or a `kind: reply` thread (exempt by kind; addressed to the agent who asked — the parent's `from-agent:` — else the parent's owner, never back to the replier itself). Typo'd
 beats refused at `send` and `route`. Destination side: `scripts/sysadmin/mail_escalate.py` — a
 6-hourly cron (≤1 Telegram/local-day via day-stamp) escalating `ack: required` obligations aged
 ≥3 days across ALL mailboxes, in three populations (inbox regardless of addressee · archive

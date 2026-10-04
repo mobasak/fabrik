@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -184,3 +185,78 @@ def test_a_quote_beginning_with_the_word_rule_is_data_not_a_header():
             ".windsurf/rules/core/40-documentation.md",
         )
     ]
+
+
+# ── 01M3PNG4 (fabrik-lib, 2026-09-29): an ungraded completeness pass must SAY so — seen RED first ──
+# Measured by the sender: the same CONVERGED plan read 0 findings with no scripts/ under --root and
+# 1 PACK-NOT-IN-DIGEST with it, while the census said "0 with findings" both times.
+
+
+def _census(root: Path, root_arg: str | None = None) -> str:
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(REPO / "scripts" / "enforcement" / "check_rule_grounding.py"),
+            "--root",
+            root_arg or str(root),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(root.parent if root_arg else root),
+        timeout=60,
+    )
+    assert r.returncode == 0, r.stderr[:300]
+    return r.stdout
+
+
+def test_census_names_ungraded_completeness_when_rubric_absent(tmp_path):
+    root = _root(tmp_path)
+    (root / "scripts" / "review_rubric.py").unlink()
+    _plan(root, digest_rows=f'| "{WRAPPED_QUOTE}" | {PACK_REL} | x |')
+    out = _census(root)
+    lines = out.splitlines()
+    assert lines[0].startswith("rule grounding: 1 CONVERGED in-window plan(s) examined"), out
+    # the UNGRADED line sits directly under the census, so "0 with findings" is never read alone
+    assert lines[1].startswith("rule grounding UNGRADED for 1 plan(s) - completeness: no rubric at")
+    assert "review_rubric.py (1)" in out, out
+
+
+def test_census_names_ungraded_completeness_when_rubric_fails(tmp_path):
+    root = _root(tmp_path)
+    rubric = root / "scripts" / "review_rubric.py"
+    _plan(root, digest_rows=f'| "{WRAPPED_QUOTE}" | {PACK_REL} | x |')
+    rubric.write_text(
+        "import sys\nprint('### .windsurf/rules/core/10-python.md  (hit: x)')\nsys.exit(1)\n",
+        encoding="utf-8",
+    )
+    assert "completeness: review_rubric.py exited 1 (1)" in _census(root)
+    # exit 0 but no `## MATCHED` header: a drifted format, never a graded empty set
+    rubric.write_text(
+        "print('### .windsurf/rules/core/10-python.md  (hit: x)')\n", encoding="utf-8"
+    )
+    assert "completeness: review_rubric.py printed no MATCHED section (1)" in _census(root)
+
+
+def test_census_names_ungraded_when_no_rule_packs(tmp_path):
+    root = _root(tmp_path)
+    _plan(root, digest_rows=f'| "{WRAPPED_QUOTE}" | {PACK_REL} | x |')
+    shutil.rmtree(root / ".windsurf")
+    out = _census(root)
+    assert "completeness: no rule packs at" in out, out
+
+
+def test_census_has_no_ungraded_clause_when_rubric_runs(tmp_path):
+    root = _root(tmp_path)
+    _plan(root, digest_rows=f'| "{WRAPPED_QUOTE}" | {PACK_REL} | x |')
+    # a RELATIVE --root once doubled the rubric path (root/root/scripts/…) and graded nothing
+    out = _census(root, root_arg=root.name)
+    assert "1 CONVERGED in-window plan(s) examined, 0 with findings" in out, out
+    assert "UNGRADED" not in out, out
+
+
+def test_a_relative_root_still_grades_completeness(tmp_path):
+    root = _root(tmp_path)
+    (root / "CLAUDE.md").write_text("Another mandate line entirely.\n", encoding="utf-8")
+    _plan(root, digest_rows='| "Another mandate line entirely." | CLAUDE.md | x |')
+    out = _census(root, root_arg=root.name)
+    assert "PACK-NOT-IN-DIGEST" in out, out

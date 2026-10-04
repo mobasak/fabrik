@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:53.240888Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d413b019",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3YPKPFF277Z7AZRA1SP5AXC",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "health-probe: importing no longer loads .env — re-vendor libs/health_probe @ 2997674c (fabrik-lib D-364, executed D-366)"
+}

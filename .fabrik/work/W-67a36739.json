@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:43.644570Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-67a36739",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WZJA6XG84NAT10DPQHJ35P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Correction to 01M3WXMWCKAVEFTEXWMRNKPJA7 (EXECUTED plans the check cannot read): 8 of the 9 are legacy-format closures, not 5."
+}

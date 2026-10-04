@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T09:29:58.842679Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8507598f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4337XGQVPG5AGHA9H02KREJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Box health has no probe for the package registries — a resolver-side outage of registry.npmjs.org (2026-10-02) was invisible until a build hung"
+}

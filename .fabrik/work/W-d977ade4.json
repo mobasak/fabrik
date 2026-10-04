@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:02.672907Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d977ade4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Z0Y5MM85EPVHA9DCSSPGSG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "# decisions.py --check accepts D-rows with the wrong column count — 34 rows read as \"MALFORMED ROW\" in the fleet search"
+}

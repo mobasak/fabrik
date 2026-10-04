@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:00:53.934629Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6f270318",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3JF3JD49Q31243RSZQR7R8T",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "check_doc_sync.py:471-473 tells every project to update PORTS.md when compose changes — since D-380 a project's PORTS.md is a read-only synced copy of the hub registry"
+}

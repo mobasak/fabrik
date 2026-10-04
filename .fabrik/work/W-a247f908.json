@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:08.953541Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a247f908",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3RQE2C4D3B81KRR2A5K94ND",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Re: 01M3RQ7G, ordering rule for the prompt audit (operator addition): audit the SOURCE before anything that inherits it, then announce to the inheritors"
+}

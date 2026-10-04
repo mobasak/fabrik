@@ -47,6 +47,9 @@ SECTION_HEAD_RE = re.compile(r"^##\s+", re.M)
 # The rubric's MATCHED emission — review_rubric.py:227 `### {rel}  (hit: …)`; that format already
 # has a second programmatic consumer (the sensor inside review_rubric itself) and now this one.
 MATCHED_LINE_RE = re.compile(r"^###\s+(\S+\.md)\s+\(hit:", re.M)
+# The rubric's own "I ran" marker (review_rubric.py prints `## MATCHED — …` on every run, a hit or
+# none); output without it is a drifted or truncated run, never a graded empty set.
+MATCHED_HEADER_RE = re.compile(r"^## MATCHED\b", re.M)
 PATH_TOKEN_RE = re.compile(r"[\w./-]+")
 
 FLOOR_CUTOFF = "2026-08-30"
@@ -127,11 +130,18 @@ def _file_scope_paths(text: str) -> list[str]:
     return paths
 
 
-def _matched_packs(root: Path, scope_paths: list[str]) -> list[str]:
-    """The rubric's MATCHED set, by subprocess of the repo's own script — resolved from root."""
+def _matched_packs(root: Path, scope_paths: list[str]) -> tuple[list[str] | None, str]:
+    """The rubric's MATCHED set, by subprocess of the repo's own script — resolved from root —
+    and, when it cannot be computed, ``(None, <why>)``. A broken or absent rubric never reds an
+    advisory, but it is never a clean zero either: the census names it UNGRADED (01M3PNG4)."""
     rubric = root / "scripts" / "review_rubric.py"
-    if not rubric.is_file() or not scope_paths:
-        return []
+    if not scope_paths:
+        return None, "no File Scope paths"
+    if not rubric.is_file():
+        return None, f"no rubric at {rubric}"
+    packs = root / ".windsurf" / "rules"
+    if not packs.is_dir() or not any(packs.rglob("*.md")):
+        return None, f"no rule packs at {packs}"  # the rubric would print MATCHED — none and exit 0
     try:
         r = subprocess.run(
             [sys.executable, str(rubric), "--changed", *scope_paths],
@@ -140,9 +150,13 @@ def _matched_packs(root: Path, scope_paths: list[str]) -> list[str]:
             cwd=str(root),
             timeout=120,
         )
-    except Exception:
-        return []  # a broken rubric never reds an advisory; completeness silently ungraded
-    return MATCHED_LINE_RE.findall(r.stdout or "")
+    except Exception as exc:
+        return None, f"{rubric.name} failed: {type(exc).__name__}"
+    if r.returncode != 0:
+        return None, f"{rubric.name} exited {r.returncode}"
+    if not MATCHED_HEADER_RE.search(r.stdout or ""):
+        return None, f"{rubric.name} printed no MATCHED section"  # a drifted format parses as 0
+    return MATCHED_LINE_RE.findall(r.stdout or ""), ""
 
 
 def _candidate_plans(root: Path) -> list[Path]:
@@ -162,8 +176,15 @@ def _candidate_plans(root: Path) -> list[Path]:
 
 
 def _audit(root: Path) -> tuple[int, list[Finding]]:
+    examined, findings, _ungraded = _audit_full(root)
+    return examined, findings
+
+
+def _audit_full(root: Path) -> tuple[int, list[Finding], list[tuple[str, str]]]:
+    """``_audit`` plus the plans whose completeness could not be graded, each with its reason."""
     examined = 0
     findings: list[Finding] = []
+    ungraded: list[tuple[str, str]] = []
     for path in _candidate_plans(root):
         m = DATE_RE.match(path.name)
         if not m or m.group(1) < FLOOR_CUTOFF:
@@ -190,6 +211,8 @@ def _audit(root: Path) -> tuple[int, list[Finding]]:
             continue
 
         rows = _digest_rows(digest)
+        if not rows:
+            ungraded.append((name, "integrity: the digest has no parseable rows"))
         for quote, cited in rows:
             target = root / cited
             if not target.is_file():
@@ -212,7 +235,11 @@ def _audit(root: Path) -> tuple[int, list[Finding]]:
                 )
 
         digest_text = digest.lower()
-        for pack in _matched_packs(root, _file_scope_paths(text)):
+        matched, why = _matched_packs(root, _file_scope_paths(text))
+        if matched is None:
+            ungraded.append((name, f"completeness: {why}"))
+            continue
+        for pack in matched:
             if pack.lower() not in digest_text:
                 findings.append(
                     Finding(
@@ -222,7 +249,7 @@ def _audit(root: Path) -> tuple[int, list[Finding]]:
                         "names it - the computed read-set is the floor, not a suggestion",
                     )
                 )
-    return examined, findings
+    return examined, findings, ungraded
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -234,7 +261,7 @@ def main(argv: list[str] | None = None) -> int:
     # sibling checks' proven frame (a warn_only check may never exit non-zero).
     try:
         args, _unknown = parser.parse_known_args(argv)
-        examined, findings = _audit(Path(args.root))
+        examined, findings, ungraded = _audit_full(Path(args.root).resolve())
     except SystemExit:
         return 0
     except Exception as exc:
@@ -252,6 +279,18 @@ def main(argv: list[str] | None = None) -> int:
         f"{len({f.plan for f in findings})} with findings (artifact-only; reading quality is the review's)"
     )
     _say(census)
+    if ungraded:
+        # Its own line, right under the census, so "0 with findings" is never read alone. It rides
+        # the gate's advisory row (--json `advisory` carries a warn_only check's full output); it is
+        # deliberately NOT `⚠`-led into --json `warnings`, where the hub's one plan with no File Scope
+        # would raise it on every run (measured 2026-10-04, review of W-58fe99cd).
+        counts: dict[str, int] = {}
+        for _plan, why in ungraded:
+            counts[why] = counts.get(why, 0) + 1
+        reasons = ", ".join(f"{why} ({n})" for why, n in sorted(counts.items()))
+        _say(
+            f"rule grounding UNGRADED for {len({plan for plan, _why in ungraded})} plan(s) - {reasons}"
+        )
     if not findings:
         return 0
 

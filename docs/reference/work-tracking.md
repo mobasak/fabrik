@@ -188,8 +188,10 @@ also does, when the repo has a store:
 - **The NEXT rules (spec D3).** The Stop harvest and `scripts/sysadmin/next_census.py`'s fleet
   measurement sort a NEXT's text with the SAME function, `work.classify_next` (T05a) — but they answer
   different questions with it, never one shared verdict: the harvest classifies only the turn's LAST
-  captured NEXT (clipped to the register's 300-character cap), while the census classifies EVERY line
-  of a turn that starts with the literal `NEXT:` (outside fenced code blocks, and never a subagent's sidechain rows), at full length. `classify_next` itself: `"hold"` when
+  captured NEXT (clipped to the register's 300-character cap), while the census classifies EVERY NEXT
+  value of every assistant text row, read with the harvest's own `thread_anchor._next_values` (bold,
+  bulleted and quoted footers included; never inside a closed fenced block or a subagent's sidechain
+  rows), at full length. `classify_next` itself: `"hold"` when
   the line starts (after any markdown run) with `none`/`BLOCKED`, or carries `operator decision(s)`
   anywhere; `"names-item"` when it names a `W-` id outside a path or URL (`?item=W-…`, `x/W-…` and
   `W-….json` name nothing); else `"free-text"`. The harvest applies the FIRST rule that matches — never
@@ -263,7 +265,16 @@ DECISION blocks and the register, above, states the scope each actually reads), 
 class/distinct/per-repo-session counts of spec § Why this exists, and — with `--repo` — prints this
 repo's Validation V5 verdict: PASS when its open `next` items whose `next_at` was SET between 1 day in
 the future (clock skew) and 7 days in the past number no more than the qualifying sessions counted for
-it, AND it shows more than 0 live claims. The PASS line prints its bound (`V5: PASS — <items> open next item(s) <=
+it, AND it shows more than 0 live claims. A qualifying session ended at least one turn on a free-text
+NEXT the register accepts — judged, as the Stop harvest judges it, on each turn's final text (a turn ends
+where Stop fired; an interrupted turn is never judged). Both sides cover the main checkout and its worker
+trees under `.claude/worktrees/`: items are read from each tree's store — an id counts once, is closed
+when any tree's copy is closed, and is in the window by its freshest `next_at` — and sessions from each
+tree's project directory, so `--repo` at a worktree reads the same verdict as at the main checkout
+(when git cannot list the trees, `--repo`'s own tree is read as the main checkout — the census is
+advisory). The session denominator counts transcripts with an assistant text row of their own. Line
+totals from before 2026-10-04 used a stricter literal-`NEXT:` reader and are not comparable. The PASS
+line prints its bound (`V5: PASS — <items> open next item(s) <=
 <sessions> qualifying session(s), <claims> live claim(s)`), so a vacuous 0 <= 0 reads differently from a
 real one.
 

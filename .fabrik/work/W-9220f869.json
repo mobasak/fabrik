@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:05.283303Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9220f869",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Z2ECV9ASVB30JCHVBZEC8B",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "scripts/enforcement/check_plan_quality.py has no __main__: running it directly (as /fabrik-plan-after-chat Phase 5 implies when it names the check) exits 0 with no output, which reads as a clean pass. Measured 2026-10-02 in tryton-crm: the direct run printed nothing at rc 0 while check_file() on the"
+}

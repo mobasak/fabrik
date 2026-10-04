@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:19.835398Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b786311d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VAZQPVJC2XKTVVF7T6SFTY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "follow-up to 01M3V92T8N — three more docusaurus-pack conflicts, a stale /fabrik-spec constraint line, and check_docker.py's dead bookworm-only APPROVED_BASES"
+}

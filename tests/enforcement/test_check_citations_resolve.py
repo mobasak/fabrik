@@ -109,3 +109,70 @@ def test_line_one_frontmatter_is_a_legitimate_target(tmp_path):
     assert seen == 2 and [f.split()[0] for f in findings] == [
         "BLANK-TARGET"
     ]  # :3 is the closing rule, :1 is the head
+
+
+# ── 01M3PNG4 (fabrik-lib, 2026-09-29): a run that graded nothing must SAY so — seen RED first.
+# Measured: the hub copy run from /opt/fabrik-lib graded the HUB's changed docs and printed
+# "✓ citations resolve — 0 `path:line` citation(s) across 2 docs all land".
+
+
+def test_warns_when_run_from_another_repo(tmp_path, capsys, monkeypatch):
+    (tmp_path / "graded").mkdir()
+    repo = _repo(tmp_path / "graded")
+    other = tmp_path / "other"
+    other.mkdir()
+    monkeypatch.setattr(chk, "REPO", repo)
+    monkeypatch.setattr(chk, "_cwd_toplevel", lambda: other.resolve())
+    assert chk.main(["--quiet"]) == 0
+    out = capsys.readouterr().out
+    assert f"⚠ check_citations_resolve graded {repo}, not the repo it was run from" in out, out
+    assert f"pass --root {other.resolve()}" in out, out
+    monkeypatch.setattr(chk, "_cwd_toplevel", lambda: repo.resolve())
+    assert chk.main(["--quiet"]) == 0
+    assert "not the repo it was run from" not in capsys.readouterr().out
+
+
+def test_summary_counts_citations_outside_the_root(tmp_path, capsys):
+    repo = _repo(tmp_path)
+    doc = repo / "docs" / "reference" / "d.md"
+    doc.parent.mkdir(parents=True)
+    doc.write_text(
+        "see src/elsewhere/a.py:3 and src/elsewhere/b.py:9-12 and compose.yaml:60\n",
+        encoding="utf-8",
+    )
+    for args in (["--root", str(repo)], ["--root", str(repo), "--quiet"]):
+        assert chk.main(args) == 0
+        out = capsys.readouterr().out
+        assert "⚠ check_citations_resolve NOTHING GRADED across 1 docs" in out, (args, out)
+        assert f"0 graded of 3 found (1 bare filename, 2 not under root {repo})" in out, out
+        assert "all land" not in out, out
+
+
+def test_summary_has_no_skip_clause_when_all_cited_paths_exist(tmp_path, capsys):
+    repo = _repo(tmp_path)
+    doc = repo / "docs" / "reference" / "d.md"
+    doc.parent.mkdir(parents=True)
+    doc.write_text("see scripts/x.py:1\n", encoding="utf-8")
+    assert chk.main(["--root", str(repo)]) == 0
+    out = capsys.readouterr().out
+    assert "1 `path:line` citation(s) across 1 docs all land" in out, out
+    assert f"1 graded of 1 found (0 bare filename, 0 not under root {repo})" in out, out
+    assert "⚠" not in out, out
+
+
+def test_bare_filenames_alone_never_print_nothing_graded(tmp_path, capsys):
+    repo = _repo(tmp_path)
+    doc = repo / "docs" / "reference" / "d.md"
+    doc.parent.mkdir(parents=True)
+    doc.write_text("see agents-fabrik.md:158 and compose.yaml:60\n", encoding="utf-8")
+    assert chk.main(["--root", str(repo), "--quiet"]) == 0
+    assert capsys.readouterr().out == ""  # bare names are non-claims: a quiet run stays silent
+    assert chk.main(["--root", str(repo)]) == 0
+    assert "0 graded of 2 found (2 bare filename, 0 not under root" in capsys.readouterr().out
+
+
+def test_an_empty_root_is_nothing_in_scope_not_all_land(tmp_path, capsys):
+    assert chk.main(["--root", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "citations: nothing in scope — 0 docs under" in out, out
+    assert "all land" not in out, out

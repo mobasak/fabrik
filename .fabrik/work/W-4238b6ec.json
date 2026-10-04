@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:10.638780Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4238b6ec",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3RT95MNMYX4ZSB1ES7YDB58",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "mail.py claim / work.py leave work items untracked in the MAIN checkout of a worktree repo"
+}

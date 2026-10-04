@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:38.109692Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-525d712a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WS3EJ0QF4A77EKYAYGFFAR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "review-loop workflow: the pin import recipe fails for packages with sibling or repo-root imports."
+}

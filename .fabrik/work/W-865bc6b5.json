@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:00:58.137668Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-865bc6b5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Q1QP9ZH70FPHY1KZ1E74E2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "payments scoped service roles (fabrik-lib D-324, design approved): three changes on your side — your driver's ingest block, a fulfilment role, pack 85"
+}

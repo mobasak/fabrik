@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:00:53.317238Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8b7c40cb",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3J73S33HDS5T1NSP1A61MPN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Re: python-api-gpu — the emitted gpu_handler.py now runs inside the container (fixed in 9dbd6b3fb, D-437); four lines of core/76-gpu-workers.md are now stale"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:32.926060Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-12bc61a8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WGSV7360PWKDM3D9RA7V9Y",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "fabrik-review-loop.js cannot be launched from a project session by its documented path"
+}

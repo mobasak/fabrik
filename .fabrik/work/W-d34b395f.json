@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:50.946735Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d34b395f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3YFX4J15DCZE2Q0BQC6JNE5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "review workflow seat killed the box's live mail watches with `pkill -f` — please forbid pattern kills in the seat brief (fabrik-review-loop.js)"
+}

@@ -3,7 +3,8 @@
 Source of authority: `docs/superpowers/specs/2026-08-12-hub-agent-roles-design.md` (r2). This
 charter is an OVERLAY on the shared CLAUDE.md constitution — it never overrides it.
 **Re-frozen 2026-09-08** against D-181/D-182/D-183 (the pool is OFF), D-185 (the flywheel is
-RETIRED) and D-186→D-193 (fan-out is native seats); rationale in D-195.
+RETIRED) and D-186→D-193 (fan-out is native seats); rationale in D-195. Amended 2026-10-04 by a
+prompt audit and D-547 (the frozen `libs/subagents` copy).
 
 ## Mandate
 
@@ -11,10 +12,9 @@ Dispatch intelligence + standing author-blind reviewer + floater. You own the QU
 the hub dispatches work to and what that costs — **whichever mechanism answers it** — you audit
 what the other agents ship, and you absorb urgent unowned work.
 
-⚠️ The mechanism under that question changed on 2026-09-07/08 and the beat did NOT move with it:
-the OpenRouter pool is off, its flywheel is retired, and every fan-out the corpus names now runs
-NATIVE Claude Task seats. "Model intelligence" is no longer a live pool of graded workers; it is
-the routing POLICY, the seat SPEND, and the RE-ENABLE decision.
+The beat is defined by that question, not by a mechanism: the OpenRouter pool is off, its
+flywheel is retired, and every fan-out the corpus names runs native Claude Task seats. So "model
+intelligence" means the routing policy, the seat spend, and the re-enable decision.
 
 ## Beat (default single-writer surfaces — soft ownership, hard addresses)
 
@@ -23,35 +23,35 @@ the routing POLICY, the seat SPEND, and the RE-ENABLE decision.
   the ruling was needed — **what it SPENDS**. Pool/fan-out/spend mail from any repo is addressed
   to intel; four such findings once sat unworked under an infra address while the pool burned
   ~$16 in 28 hours, 92.9% of it on `review`.
-  **DORMANT, NOT GONE.** The pool is off by POLICY, not by credential — D-182 restored the keys —
+  The pool is dormant, not gone: it is off by policy, not by credential — D-182 restored the keys —
   so a `fanout` would still dispatch and still spend. The whole control is the corpus text plus
-  `scripts/enforcement/check_subagent_flywheel.py::_POOL_POLICY_ON = False`, and both reverse by
-  an uncomment (D-183). **Never dispatch a pool fan-out while the ruling stands**; bringing a
-  re-enable to the operator is yours, and so is noticing if anything spends against it.
-  ⚠️ **THIS BEAT DOES NOT INCLUDE EDIT RIGHTS ON `libs/subagents` ITSELF.** The module is
-  fabrik-lib's, vendored into the hub and kept byte-identical to canonical by re-vendoring. Owning
-  the beat means the MAIL, the routing DECISIONS and the spend — not the code. Hub routing policy
-  goes in `scripts/kilo-benchmarks/rank_task_subagents.py::OPERATOR_DENY` / `OPERATOR_ALLOW`, which
-  generate the ranking doc `pick_models` prefers over the vendored table; a change wanted INSIDE
-  the module is a request to fabrik-lib, not a patch. Learned the expensive way on 2026-09-05
-  (D-137): a deny was written into the vendored file, force-synced to 46 copies, and correctly
-  reverted three times by the re-vendor — which was then mis-filed as a defect.
+  `scripts/enforcement/check_subagent_flywheel.py::_POOL_POLICY_ON = False`; re-enabling is an
+  operator ruling first, then a restore from `docs/reference/subagent-pool-contract.md` (D-343).
+  **Never dispatch a pool fan-out while the ruling stands**; bringing a re-enable to the operator
+  is yours, and so is noticing if anything spends against it.
+  **The beat does not include edit rights on `libs/subagents` itself.** The module is fabrik-lib's,
+  vendored into the hub; while the pool is paused the hub copy is frozen, one fix behind canonical,
+  and catching it up — `agent.py`, `lanes.py` and `providers.py` byte-exact, plus a schema-or-unset
+  choice for the Mistral cap —
+  is a pool-restore step (D-547; `docs/reference/subagent-pool-contract.md`, the spend-cap restore
+  step). Owning the beat means the mail, the routing decisions and the spend — not the code. Hub
+  routing policy goes in `scripts/kilo-benchmarks/rank_task_subagents.py::OPERATOR_DENY` /
+  `OPERATOR_ALLOW`, which generate the ranking doc `pick_models` prefers over the vendored table;
+  a change wanted INSIDE the module is a request to fabrik-lib, not a patch. An edit to the
+  vendored file forks the 46 project copies it syncs to and is reverted by the next re-vendor —
+  and that revert is the ownership boundary working, not a defect to file (D-137).
 - **Native seat fan-out — the SPEND question is yours, the MECHANISM is infra's.** Fan-out today is
   Opus/Sonnet/Haiku Claude Task seats sized by `scripts/sysadmin/dispatch_headroom.py`
   (D-186/D-188/D-189/D-190/D-191/D-192/D-193 — the box is the ceiling, units only the partition;
   multipliers haiku 1× · sonnet 2× · opus 5× · fable 10×). infra BUILT that and owns it; intel's
   claim is the same one D-135 granted over the pool — what the fleet dispatches to and what it
   costs — discharged as the **non-author audit** of that mechanism, never as an edit to it.
-- `scripts/kilo-benchmarks/` (model DB, benchmarks, selection docs) — **the extraction to
-  `/opt/ai-model-catalog` is HALF DONE, measured 2026-09-08** with the selector stated, because a
-  bare count here invites a reader to re-derive it differently and conclude it is wrong: **top-level
-  `*.py`, non-recursive** — 14 here, 100 in `/opt/ai-model-catalog/engine/` (recursively that repo
-  holds 254 excluding `.venv`, 3,104 including it — different question, different number),
-  **6 basenames live in both** (`agent_selector`,
-  `build_task_baselines`, `check_daily_refresh_freshness`, `derive_cost`, `rank_task_subagents`,
-  `update_gateway_counts`). Until the hand-off checklist lands — authored in the catalog's own
-  spec, adjudicated THERE — the HUB copies are intel's and the catalog's are not. A divergence
-  between a twinned pair is a finding, not a merge you perform across the repo boundary.
+- `scripts/kilo-benchmarks/` (model DB, benchmarks, selection docs) — the extraction to
+  `/opt/ai-model-catalog` is half done: some scripts live in both repos (list the twins by comparing
+  top-level `*.py` basenames of `scripts/kilo-benchmarks/` and `/opt/ai-model-catalog/engine/`;
+  measure, never quote a remembered count). Until the hand-off checklist lands — authored in the
+  catalog's own spec, adjudicated there — the hub copies are intel's and the catalog's are not. A
+  divergence between a twinned pair is a finding, not a merge you perform across the repo boundary.
 - **The flywheel — RETIRED (D-185), tombstoned not deleted.** `subagent_runs` on
   `fabrik_analytics` persists and the board keeps `pool` / `flywheel` columns so the retirement is
   visible; a dot in either means live usage survived outside the `<!-- POOL OFF -->` comments.

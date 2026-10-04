@@ -265,3 +265,88 @@ def test_a_lane_may_mail_its_own_repo(monkeypatch, env):
         mail.MailRefusedError
     ):  # a lane in one project still cannot mail ANOTHER project
         mail.send("youtube", "finding", "x", ack="no", frm="wef1")
+
+
+# --- 01M3PT248G7A (fleet, 2026-09-29): a reply reaches the agent who ASKED — seen RED first ---
+# Inheriting the parent's `agent:` sends a hub-internal answer back to its own author: 8 fleet
+# replies sat in fleet's own queue. The sender's role rides the header as `from-agent:`.
+
+
+def _as(monkeypatch, role):
+    monkeypatch.setattr(mail, "_caller_agent", lambda: role)
+
+
+def _fm(path):
+    return mail._parse(path.read_text(encoding="utf-8"))
+
+
+def test_reply_reaches_the_agent_who_sent_the_parent(env, monkeypatch):
+    _as(monkeypatch, "infra")
+    parent = mail.send(to="fabrik", kind="finding", body="f", frm="fabrik", to_agent="fleet")
+    _as(monkeypatch, "fleet")
+    reply = mail.send(to="fabrik", kind="reply", body="a", frm="fabrik", re=parent.stem)
+    assert _fm(reply).get("agent") == "infra"
+    assert _fm(reply).get("from-agent") == "fleet"
+
+
+def test_cross_repo_reply_reaches_the_hub_sender_beat(env, monkeypatch):
+    _as(monkeypatch, "infra")
+    parent = mail.send(to="alpha", kind="request", body="q", frm="fabrik", to_agent="devops")
+    _as(monkeypatch, "devops")
+    reply = mail.send(to="fabrik", kind="reply", body="a", frm="alpha", re=parent.stem)
+    assert _fm(reply).get("agent") == "infra"  # never alpha's own role, a non-beat in the hub
+
+
+def test_explicit_to_agent_beats_from_agent(env, monkeypatch):
+    _as(monkeypatch, "infra")
+    parent = mail.send(to="fabrik", kind="finding", body="f", frm="fabrik", to_agent="fleet")
+    _as(monkeypatch, "fleet")
+    reply = mail.send(
+        to="fabrik", kind="reply", body="a", frm="fabrik", re=parent.stem, to_agent="intel"
+    )
+    assert _fm(reply).get("agent") == "intel"
+
+
+def test_send_records_from_agent_only_when_known(env, monkeypatch):
+    _as(monkeypatch, "infra")
+    known = mail.send(to="alpha", kind="finding", body="f", frm="fabrik")
+    _as(monkeypatch, "")
+    unknown = mail.send(to="alpha", kind="finding", body="f", frm="fabrik")
+    assert _fm(known).get("from-agent") == "infra"
+    assert "from-agent" not in _fm(unknown)
+    assert "from-agent:" not in unknown.read_text(encoding="utf-8")
+
+
+def test_non_beat_from_agent_falls_back_on_the_hub(env, monkeypatch):
+    _as(monkeypatch, "wef3")  # a project-style role sending hub-internal mail
+    parent = mail.send(to="fabrik", kind="finding", body="f", frm="fabrik", to_agent="fleet")
+    _as(monkeypatch, "fleet")
+    reply = mail.send(to="fabrik", kind="reply", body="a", frm="fabrik", re=parent.stem)
+    # not a hub beat, so no asker; the inherited addressee is the replier itself → unaddressed
+    assert "agent" not in _fm(reply)
+
+
+def test_own_follow_up_still_reaches_the_addressee(env, monkeypatch):
+    _as(monkeypatch, "infra")
+    parent = mail.send(to="fabrik", kind="finding", body="f", frm="fabrik", to_agent="fleet")
+    follow_up = mail.send(to="fabrik", kind="reply", body="more", frm="fabrik", re=parent.stem)
+    assert _fm(follow_up).get("agent") == "fleet"  # the asker's own follow-up, not to itself
+
+
+def test_reply_into_ones_own_queue_is_left_unaddressed(env, monkeypatch, capsys):
+    _as(monkeypatch, "")  # a legacy or cron sender: no from-agent on the parent
+    parent = mail.send(to="fabrik", kind="finding", body="f", frm="fabrik", to_agent="fleet")
+    _as(monkeypatch, "fleet")
+    reply = mail.send(to="fabrik", kind="reply", body="a", frm="fabrik", re=parent.stem)
+    assert "agent" not in _fm(reply)  # visible to every beat, not hidden in fleet's own queue
+    assert "addressed to its own author (fleet)" in capsys.readouterr().err
+
+
+def test_a_from_agent_recorded_under_another_name_is_not_trusted(env, monkeypatch):
+    _as(monkeypatch, "infra")  # a hub-bound message sent under another lane/repo name
+    parent = mail.send(to="fabrik", kind="finding", body="f", frm="wef1", to_agent="intel")
+    assert _fm(parent).get("from-agent") == "infra"
+    _as(monkeypatch, "fleet")
+    reply = mail.send(to="fabrik", kind="reply", body="a", frm="fabrik", re=parent.stem)
+    # `from: wef1` is not this mailbox, so its role is not trusted; the addressee is inherited
+    assert _fm(reply).get("agent") == "intel"

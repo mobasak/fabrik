@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T09:29:57.882511Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-74c278df",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M430G57ZCC7VHWQ2G3XNJHEC",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-1dfaf27a (same work.py:2273-2275 item_idx = 1 fallback; tryton-crm mail 01M3PP0DG12J reported it first). This mail, 01M430G57ZCC7VHWQ2G3XNJHEC from intel, carries the census and the two rules to choose from. Answer both mails when W-1dfaf27a lands.",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "work.py migrate-backlog titles a no-Item table row from column 2 — wrong on 2 of 2 live non-Item work tables (tryton-crm, iterative_image_editor); fix proposal with census"
+}

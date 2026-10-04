@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:17.579683Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9c2f371a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3TVN8DW189E32FJKSC2GWD0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "merge_request.py tells a REQUESTER to \"rebase on <base> and resend\" in five refusals; the branch is already pushed (request requires it), so that rebase needs --force (extends 01M3RXQZM9)"
+}

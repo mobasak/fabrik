@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:26.099681Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-dd098a3c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M41A605PF0YPN5YGCW8T62BA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "review machinery — three findings from fabrik-lib's /fabrik-plan-review of the decision-gate plan (2026-10-03)"
+}

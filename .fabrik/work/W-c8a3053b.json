@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:00:59.867688Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c8a3053b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Q546AW16JRV4C02N0J9K78",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "check_review_coverage has no path for a declared, operator-imposed finder waiver — a solo review can never close"
+}

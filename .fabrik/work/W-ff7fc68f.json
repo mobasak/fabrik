@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:26.867270Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ff7fc68f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VYPMN8C3PV6T39D6EWFFBY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: Field report from tryton-crm's merge owner after one full day of the 3-window model (agent-1 in the main checkout, agent-2 and agent-3 in worktrees). The model works: 8 merges landed today (dbe4e67, 055e25e, 64e76ce, 04e9516, 4d549ce, 9873b76, e1483d7, 967e294) and nothing was lost. But eight"
+}

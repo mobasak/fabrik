@@ -93,9 +93,6 @@ chose), while `60-cloudimg-settings.conf` says `no`. Either way, any drop-in tha
 - When cloud-init's `disable_root` is on (its default), it also prefixes root's `authorized_keys` so a root key
   login prints a "log in as the user …" message and exits — a different mechanism from `PermitRootLogin`. The
   providers this fleet uses ship images that allow the first root login (the table above), so it is off there.
-- **The scripts are behind this rule:** `bootstrap-vps.sh` edits the main `sshd_config`, `bootstrap-hub.sh` and
-  `bootstrap-spoke-restore.sh` write a `99-…` drop-in, and `--verify` greps the main file instead of running
-  `sshd -T`. Until fleet lands the fix (finding filed 2026-10-04), verify a box by hand with the `sshd -T` line above.
 
 ## Rule 2 — Remote-bash quote escaping (CRITICAL)
 
@@ -163,13 +160,11 @@ systemctl cat aro-wake.service >/dev/null 2>&1 && echo "unit installed OK"
   `Killed` (exit 137) was the OOM killer — add swap and re-run. Running it needs the documented 4 GB of RAM, so a box
   that installs fine can still run out of memory when a bot starts `claude`. Headless boxes authenticate with a
   long-lived token from `claude setup-token` in `CLAUDE_CODE_OAUTH_TOKEN`.
-- **The spoke script is behind this rule:** `bootstrap-vps.sh` still installs Claude Code with `sudo npm install -g`
-  and its closing message tells you to log in interactively; `bootstrap-hub.sh` already uses the native installer.
-  Fleet owns the migration (finding filed 2026-10-04).
 - **Python packages:** Ubuntu marks its system Python externally managed (PEP 668), so a plain `pip install` fails.
   `--break-system-packages` overrides that at the risk of breaking the OS's own Python; prefer an apt `python3-…`
-  package, a venv, or `pipx`. The `python-telegram-bot` install in `bootstrap-vps.sh` uses the override; new
-  dependencies go into a venv.
+  package, a venv, or `pipx`. The `python-telegram-bot` install in `bootstrap-vps.sh` still uses the override,
+  because the bot's unit runs the system `python3` and the two must move together (W-eccfcc2a); new dependencies go
+  into a venv.
 
 If the operator re-runs the script (which they will — bootstrap is allowed to fail partway and be restarted), every
 step must be a no-op when its outcome is already present. Live-verify by running the script against an

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:12.189088Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e354a3a9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3ZR3ANDW4KX99N9NBED1R35",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "# Two review-seat brief gaps hit in one /fabrik-task + /fabrik-review-scoped run"
+}

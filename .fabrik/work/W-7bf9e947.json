@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:28.747546Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7bf9e947",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3W9C915REBVTRYCWRRN5QQ0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-b8b9a21e (mail 01M3W9C915REBVTRYCWRRN5QQ0 repeats mail 01M3VBCVYMRHC6A9P7VV3M8PQ2); tracked there — mail triage 2026-10-04",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "WHAT: `merge_request.py merge` runs the owner's tests with `sys.executable`, the interpreter that launched the tool, not the project's environment. Launched as `python3 scripts/merge_request.py merge` (the form its own docstring prints), a correct branch is refused with a collection error."
+}

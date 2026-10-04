@@ -1514,3 +1514,47 @@ def test_directory_scope_starts_at_dir_scope_min_paths(tmp_path, monkeypatch):
     work._status_change_ages(repo, names, pattern, frozenset(), {}, status_of)
     work._status_change_ages(repo, names[:-1], pattern, frozenset(), {}, status_of)
     assert seen == [("s",), tuple(sorted(names[:-1]))]
+
+
+def test_work_defines_each_module_level_function_once():
+    """A second module-level `def` of the same name silently replaces the first (01M422716X:
+    `_worktrees` at :303 was shadowed by its namesake, so the first contract never ran and a
+    fallback built on it was dead). Python raises nothing; this grader does."""
+    import ast
+    from collections import Counter
+
+    tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
+    names = Counter(
+        n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+    )
+    assert [name for name, n in names.items() if n > 1] == []
+
+
+def test_worktrees_lists_resolved_paths_main_first(tmp_path, monkeypatch):
+    """The one `_worktrees`: resolved paths, the main checkout first, `[repo]` when git cannot
+    answer (four callers index `[0]`, so an empty list would raise)."""
+    env = _env(tmp_path)
+    work = _in_process(tmp_path, monkeypatch, env)
+    repo = _store(tmp_path, env)
+    trees = work._worktrees(repo)
+    assert trees[0] == repo.resolve() and all(t == t.resolve() for t in trees)
+    not_a_repo = tmp_path / "plain"
+    not_a_repo.mkdir()
+    assert work._worktrees(not_a_repo) == [not_a_repo]
+    # A real repo's porcelain is already canonical, so the lines above cannot see a dropped
+    # `.resolve()`, a reordering or a lost fallback; feed `_git` a symlinked, two-tree answer.
+    real = tmp_path / "real"
+    (real / "main").mkdir(parents=True)
+    (real / "wt").mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    answers = {"two": f"worktree {link}/main\nHEAD 0\n\nworktree {link}/wt\n", "none": ""}
+    for key, expected in (("two", [real / "main", real / "wt"]), ("none", [real / "main"])):
+        monkeypatch.setattr(work, "_git", lambda *_a, _k=key: answers[_k])
+        assert work._worktrees(link / "main") == expected
+
+    def _fails(*_a):
+        raise work.WorkError("git cannot answer")
+
+    monkeypatch.setattr(work, "_git", _fails)
+    assert work._worktrees(link / "main") == [real / "main"]
