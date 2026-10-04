@@ -95,21 +95,32 @@ def _read_env_file(path: Path) -> dict[str, str]:
     out: dict[str, str] = {}
     for raw in text.splitlines():
         m = _ENV_LINE.match(raw.rstrip("\r").strip())
-        if not m:
-            continue
-        value = m.group(2).strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-            value = value[1:-1]
-        out[m.group(1)] = value
+        if m:
+            out[m.group(1)] = _env_value(m.group(2))
     return out
+
+
+def _env_value(raw: str) -> str:
+    """A dotenv value: a quoted value is the text inside its quotes (a trailing comment is
+    ignored); an unquoted one ends at the first whitespace-preceded `#`."""
+    raw = raw.strip()
+    if raw[:1] in ("'", '"'):
+        end = raw.find(raw[0], 1)
+        return raw[1:end] if end > 0 else raw[1:]
+    return re.split(r"\s+#", raw, maxsplit=1)[0].strip()
+
+
+def _setting(name: str, default: str = "") -> str:
+    """A `SESSION_ARCHIVE_*` setting: the process environment first, then the env file."""
+    if os.environ.get(name):
+        return os.environ[name]
+    env_file = _env_path("SESSION_ARCHIVE_ENV_FILE", "/opt/fabrik/.env")
+    return _read_env_file(env_file).get(name) or default
 
 
 def _credentials() -> tuple[str, str]:
     env_file = _env_path("SESSION_ARCHIVE_ENV_FILE", "/opt/fabrik/.env")
-    found = {k: os.environ.get(k, "") for k in KEY_VARS}
-    if not all(found.values()):
-        from_file = _read_env_file(env_file)
-        found = {k: found[k] or from_file.get(k, "") for k in KEY_VARS}
+    found = {k: _setting(k) for k in KEY_VARS}
     if not all(found.values()):
         raise ArchiveError(
             f"missing B2 key: set {KEY_VARS[0]} and {KEY_VARS[1]} in the environment or in "
@@ -151,14 +162,17 @@ def _rclone(verb: str, *args: str, env: dict[str, str]) -> subprocess.CompletedP
     except (subprocess.TimeoutExpired, OSError) as exc:
         raise ArchiveError(f"rclone {verb} did not complete: {type(exc).__name__}") from exc
     if done.returncode != 0:
-        tail = (done.stderr or "").strip().splitlines()[-3:]
-        raise ArchiveError(f"rclone {verb} failed (rc {done.returncode}): {' | '.join(tail)}")
+        tail = " | ".join((done.stderr or "").strip().splitlines()[-3:])
+        for secret in (env.get(f"RCLONE_CONFIG_{REMOTE.upper()}_{k}") for k in ("ACCOUNT", "KEY")):
+            if secret:
+                tail = tail.replace(secret, "<redacted>")  # never echo the key into logs
+        raise ArchiveError(f"rclone {verb} failed (rc {done.returncode}): {tail}")
     return done
 
 
 def _remote_base() -> str:
-    bucket = os.environ.get("SESSION_ARCHIVE_B2_BUCKET", "wsl-ozgur")
-    prefix = os.environ.get("SESSION_ARCHIVE_B2_PREFIX", "archive").strip("/")
+    bucket = _setting("SESSION_ARCHIVE_B2_BUCKET", "wsl-ozgur")
+    prefix = _setting("SESSION_ARCHIVE_B2_PREFIX", "archive").strip("/")
     return f"{REMOTE}:{bucket}/{prefix}"
 
 
@@ -193,6 +207,10 @@ def _latest_rows(manifest: Path) -> dict[tuple[str, str], dict]:
             try:
                 r = json.loads(line)
                 latest[(r["project_slug"], r["session_id"])] = r
+                # a hard link's other slugs find the same row, so a surviving link whose
+                # primary folder vanished is not archived a second time
+                for alias in r.get("also_slugs") or []:
+                    latest[(alias, r["session_id"])] = r
             except (ValueError, KeyError, TypeError):
                 continue
     return latest
@@ -217,11 +235,11 @@ def archive_one(
     slug, session_id = src.parent.name, src.stem
     dest = archive_root / slug / f"{session_id}.jsonl.zst"
     prev = latest.get((slug, session_id))
-    if prev and dest.exists():
-        if prev.get("bytes") == st.st_size and prev.get("mtime_ns") == st.st_mtime_ns:
-            return None  # A.1a: unchanged since the last archive — no hash, no compression
+    archived = bool(prev) and (archive_root / prev["project_slug"] / dest.name).exists()
+    if archived and prev.get("bytes") == st.st_size and prev.get("mtime_ns") == st.st_mtime_ns:
+        return None  # A.1a: unchanged since the last archive — no hash, no compression
     digest = _sha256(src)
-    if prev and dest.exists() and prev.get("sha256") == digest:
+    if archived and prev.get("sha256") == digest:
         return None
     dest.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(  # noqa: S603
@@ -326,9 +344,14 @@ def _locked(archive_root: Path):
 def _archive(args: argparse.Namespace) -> int:
     projects = _env_path("CLAUDE_PROJECTS_DIR", "~/.claude/projects")
     archive_root = _env_path("ARCHIVE_ROOT", "~/.claude/archive")
-    after_days = float(os.environ.get("ARCHIVE_AFTER_DAYS", "1"))
-    max_mb = os.environ.get("ARCHIVE_MAX_FILE_MB")
-    max_bytes = int(float(max_mb) * 1024 * 1024) if max_mb else None
+    try:
+        after_days = float(os.environ.get("ARCHIVE_AFTER_DAYS", "1"))
+        max_mb = os.environ.get("ARCHIVE_MAX_FILE_MB")
+        max_bytes = int(float(max_mb) * 1024 * 1024) if max_mb else None
+    except ValueError as exc:
+        raise ArchiveError(
+            f"ARCHIVE_AFTER_DAYS / ARCHIVE_MAX_FILE_MB must be numbers: {exc}"
+        ) from exc
 
     if not projects.is_dir():
         raise ArchiveError(f"projects dir not found: {projects}")
@@ -353,7 +376,7 @@ def _archive(args: argparse.Namespace) -> int:
         for src, also in _group_by_inode(todo):
             try:
                 row = archive_one(src, archive_root, max_bytes, latest, also)
-            except subprocess.CalledProcessError as exc:
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
                 raise ArchiveError(f"zstd failed on {src}: {exc}") from exc
             if row:
                 rows.append(row)

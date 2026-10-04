@@ -11,7 +11,7 @@ D-569 (the plan's converged revision). Plan:
 | Piece | Where | What it does |
 |---|---|---|
 | `session-archive.timer` | `~/.config/systemd/user/` (source: `scripts/sysadmin/systemd/`) | daily, `Persistent=true` — a run missed while the machine was off fires when the user manager next starts; linger keeps that manager up without a login |
-| `session-archive.service` | same | `ExecStartPre=-` the growth sampler (its failure never skips the backup), then the archiver |
+| `session-archive.service` | same | `ExecStartPre=-` the growth sampler (its failure never skips the backup), then the archiver; a failed run (e.g. no network at boot) is retried every 15 min, at most 4 times in 2 h |
 | `scripts/sysadmin/sample_transcript_growth.sh` | main checkout | one row a day into `~/.claude/state/transcript-growth.tsv` (date, MAIN bytes, files, largest) |
 | `scripts/sysadmin/archive_transcripts.py` | main checkout | zstd each MAIN transcript idle > 1 day into `~/.claude/archive/<slug>/<session>.jsonl.zst`, append `manifest.jsonl`, `rclone copy` to the bucket, then upload the manifest |
 
@@ -27,7 +27,7 @@ copies them and enables the timer.
 ## Where the copy lives
 
 - **Bucket** `wsl-ozgur` (Backblaze B2, Private, SSE, lifecycle *Keep all versions*), prefix
-  `archive/`. Settings in `/opt/fabrik/.env`: `SESSION_ARCHIVE_B2_BUCKET`,
+  `archive/`. Settings in `/opt/fabrik/.env` (the process environment wins when set): `SESSION_ARCHIVE_B2_BUCKET`, `SESSION_ARCHIVE_B2_PREFIX`,
   `SESSION_ARCHIVE_B2_BUCKET_ID`, `SESSION_ARCHIVE_B2_ENDPOINT` (informational — never passed to
   rclone). The application key — `SESSION_ARCHIVE_B2_KEY_ID`, `SESSION_ARCHIVE_B2_APPLICATION_KEY` —
   is restricted to that bucket and lives in the same file; the archiver reads ONLY the

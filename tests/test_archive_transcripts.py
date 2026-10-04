@@ -190,6 +190,39 @@ def test_ab3_hard_linked_twins_are_archived_once(tree, rec):
     assert not (archive / "-opt-alpha--wt").exists()
 
 
+def test_ab3_three_links_list_every_other_slug_sorted(tree, rec):
+    projects, archive = tree
+    for extra in ("-opt-alpha--zz", "-opt-alpha--bb"):
+        (projects / extra).mkdir()
+        os.link(projects / "-opt-alpha" / "shared-id.jsonl", projects / extra / "shared-id.jsonl")
+    assert at.run([]) == 0
+    row = next(r for r in _rows(archive) if r["project_slug"] == "-opt-alpha")
+    assert row["also_slugs"] == ["-opt-alpha--bb", "-opt-alpha--zz"]
+
+
+def test_ab3_surviving_link_is_not_archived_again_when_its_primary_vanishes(tree, rec):
+    projects, archive = tree
+    (projects / "-opt-alpha--wt").mkdir()
+    os.link(
+        projects / "-opt-alpha" / "shared-id.jsonl", projects / "-opt-alpha--wt" / "shared-id.jsonl"
+    )
+    assert at.run([]) == 0
+    n_rows = len(_rows(archive))
+    shutil.rmtree(projects / "-opt-alpha")
+    assert at.run([]) == 0
+    assert len(_rows(archive)) == n_rows, "the surviving hard link was archived a second time"
+    assert not (archive / "-opt-alpha--wt").exists()
+
+
+def test_ab1_a_missing_zst_is_archived_again(tree, rec):
+    _projects, archive = tree
+    assert at.run([]) == 0
+    zst = archive / "-opt-alpha" / "shared-id.jsonl.zst"
+    zst.unlink()
+    assert at.run([]) == 0
+    assert zst.is_file(), "a manifest row without its .zst must not count as archived"
+
+
 def test_ab4_ship_order_copy_then_rows_then_manifest(tree, rec):
     _projects, archive = tree
     assert at.run([]) == 0
@@ -211,12 +244,7 @@ def test_ab5_missing_key_exits_before_any_rclone_call(
     monkeypatch.delenv("SESSION_ARCHIVE_B2_APPLICATION_KEY")
     env_file = tmp_path / "keys.env"
     if how == "unreadable-file":
-        env_file.write_text(
-            "SESSION_ARCHIVE_B2_KEY_ID=kid\nSESSION_ARCHIVE_B2_APPLICATION_KEY=sek\n"
-        )
-        env_file.chmod(0)
-        if os.access(env_file, os.R_OK):
-            pytest.skip("running as a user that can read a 0000 file")
+        env_file.mkdir()  # read_text raises IsADirectoryError for every user, root included
     elif how == "absent":
         env_file.write_text("OTHER=1\n")
     monkeypatch.setenv("SESSION_ARCHIVE_ENV_FILE", str(env_file))
@@ -238,6 +266,10 @@ def test_ab6_key_travels_only_in_the_child_env(tree, rec, monkeypatch, tmp_path)
     )
     monkeypatch.setenv("SESSION_ARCHIVE_ENV_FILE", str(env_file))
     monkeypatch.setenv("RCLONE_B2_HARD_DELETE", "true")
+    assert at._read_env_file(env_file) == {
+        "SESSION_ARCHIVE_B2_KEY_ID": "kid-from-file",
+        "SESSION_ARCHIVE_B2_APPLICATION_KEY": "sek-from-file",
+    }, "the env file must contribute only SESSION_ARCHIVE_* lines"
     assert at.run([]) == 0
     for argv, env, _ in rec.calls:
         assert not any("sek-from-file" in a or "kid-from-file" in a for a in argv)
@@ -245,6 +277,67 @@ def test_ab6_key_travels_only_in_the_child_env(tree, rec, monkeypatch, tmp_path)
         assert env["RCLONE_CONFIG_SESSIONB2_ACCOUNT"] == "kid-from-file"
         assert env["RCLONE_CONFIG_SESSIONB2_TYPE"] == "b2"
         assert "OTHER_SECRET" not in env and "RCLONE_B2_HARD_DELETE" not in env
+
+
+def test_bucket_and_prefix_are_read_from_the_env_file(tree, rec, monkeypatch, tmp_path):
+    env_file = tmp_path / "s.env"
+    env_file.write_text(
+        "SESSION_ARCHIVE_B2_BUCKET=bkt-from-file  # the bucket\n"
+        'SESSION_ARCHIVE_B2_PREFIX="pfx" # where under it\n'
+    )
+    monkeypatch.setenv("SESSION_ARCHIVE_ENV_FILE", str(env_file))
+    assert at.run([]) == 0
+    assert rec.calls[0][0][3] == "sessionb2:bkt-from-file/pfx/", rec.calls[0][0]
+
+
+@pytest.mark.parametrize(
+    ("line", "value"),
+    [
+        ("SESSION_ARCHIVE_B2_KEY_ID=abc123  # the key id", "abc123"),
+        ('SESSION_ARCHIVE_B2_KEY_ID="abc#123" # quoted, hash kept', "abc#123"),
+        ("SESSION_ARCHIVE_B2_KEY_ID='abc' # single-quoted", "abc"),
+        ("export SESSION_ARCHIVE_B2_KEY_ID=abc", "abc"),
+        ("SESSION_ARCHIVE_B2_KEY_ID=ab#c", "ab#c"),
+    ],
+)
+def test_env_values_drop_inline_comments_and_quotes(tmp_path, line, value):
+    f = tmp_path / "e.env"
+    f.write_text(line + "\n")
+    assert at._read_env_file(f) == {"SESSION_ARCHIVE_B2_KEY_ID": value}
+
+
+def test_rclone_failure_text_never_carries_the_key(monkeypatch):
+    env = at._child_env("KID-VALUE", "SECRET-VALUE")
+    monkeypatch.setattr(
+        at,
+        "_run_rclone",
+        lambda argv, env_: subprocess.CompletedProcess(
+            argv, 1, "", "auth failed for KID-VALUE with SECRET-VALUE"
+        ),
+    )
+    with pytest.raises(at.ArchiveError) as exc:
+        at._rclone("lsf", "sessionb2:x/", env=env)
+    assert "KID-VALUE" not in str(exc.value) and "SECRET-VALUE" not in str(exc.value)
+    assert "<redacted>" in str(exc.value)
+
+
+def test_a_zstd_timeout_is_a_clean_exit_1(tree, rec, monkeypatch, capsys):
+    real = subprocess.run
+
+    def slow(argv, *a, **kw):
+        if argv and argv[0] == "zstd":
+            raise subprocess.TimeoutExpired(argv, 1)
+        return real(argv, *a, **kw)
+
+    monkeypatch.setattr(at.subprocess, "run", slow)
+    assert at.run([]) == 1
+    assert "zstd failed" in capsys.readouterr().err
+
+
+def test_a_non_numeric_ceiling_is_a_clean_exit_1(tree, rec, monkeypatch, capsys):
+    monkeypatch.setenv("ARCHIVE_MAX_FILE_MB", "lots")
+    assert at.run([]) == 1
+    assert "must be numbers" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(
@@ -358,3 +451,4 @@ def test_ab13_units_load_no_env_file_run_main_checkout_and_catch_up():
     )
     assert "ExecStartPre=-/opt/fabrik/scripts/sysadmin/sample_transcript_growth.sh" in service
     assert "Persistent=true" in timer and "Unit=session-archive.service" in timer
+    assert "Restart=on-failure" in service, "a boot-time run without network must be retried"
