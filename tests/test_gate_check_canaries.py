@@ -200,6 +200,18 @@ def test_a_dormant_canary_rides_a_policy_that_is_still_off() -> None:
     )
 
 
+def test_the_dormant_canary_still_reds_in_a_shell_that_declares_no_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An operator shell exporting FABRIK_NO_POOL would honour the declaration and green the
+    flywheel's bad tree — a false DEAD. The canary's own env empties it; this pins that."""
+    monkeypatch.setenv("FABRIK_NO_POOL", "1")
+    name = "check_subagent_flywheel"
+    inst, went_red, _ = la.run_canary(name, la.CANARIES[name], REPO_ROOT)
+    assert inst.ok, inst.fault
+    assert went_red, f"{name}'s canary greened under an exported FABRIK_NO_POOL"
+
+
 def test_no_canary_fixture_carries_a_timestamp_that_ages_out() -> None:
     """A hard-coded ISO timestamp in a fixture body ages out of any windowed check:
     check_feedback_duty's 14-day window would have silenced its canary on 2026-10-19.

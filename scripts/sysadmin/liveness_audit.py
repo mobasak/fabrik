@@ -1000,15 +1000,19 @@ _REGISTERED = re.compile(r'run_optional_check\(\s*"(scripts/enforcement/[a-z_0-9
 # gate row that claims to block and cannot.
 
 
-def _warn_only_registrations(gate: Path) -> tuple[set[str], set[str]]:
-    """(names with a `warn_only=True` row, names with a row WITHOUT it), scripts/enforcement/
-    only — the same population as `_REGISTERED`. Both empty on any parse failure."""
+def _warn_only_registrations(gate: Path) -> tuple[set[str], set[str], set[str]]:
+    """(names with a `warn_only=True` row, names with a row WITHOUT it, names with a row whose
+    `warn_only=` is not a literal — `warn_only=FLAG`), scripts/enforcement/ only — the same
+    population as `_REGISTERED`. A non-literal row also counts as blocking (the strict
+    direction for the label) AND as a row owing a reason (the strict direction for the
+    inverse ratchet). All empty on any parse failure."""
     try:
         tree = ast.parse(read_text(gate))
     except (OSError, SyntaxError, ValueError):
-        return set(), set()
+        return set(), set(), set()
     warn: set[str] = set()
     blocking: set[str] = set()
+    unknown: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -1024,19 +1028,24 @@ def _warn_only_registrations(gate: Path) -> tuple[set[str], set[str]]:
             and first.value.startswith("scripts/enforcement/")
         ):
             continue
-        declared = any(
-            kw.arg == "warn_only" and isinstance(kw.value, ast.Constant) and kw.value.value is True
-            for kw in node.keywords
-        )
-        (warn if declared else blocking).add(Path(first.value).stem)
-    return warn, blocking
+        name = Path(first.value).stem
+        flag = next((kw.value for kw in node.keywords if kw.arg == "warn_only"), None)
+        if isinstance(flag, ast.Constant) and flag.value is True:
+            warn.add(name)
+            continue
+        blocking.add(name)
+        if flag is not None and not isinstance(flag, ast.Constant):
+            unknown.add(name)
+    return warn, blocking, unknown
 
 
 def discover_warn_only_rows(gate: Path) -> set[str]:
-    """Every check with at least one `warn_only=True` row. A warn_only label is a claim that
-    the ROW cannot fail, so each one owes a recorded reason — including a second row on a
-    check that blocks elsewhere (check_doc_index's Tier-1 `--untracked-only` row)."""
-    return _warn_only_registrations(gate)[0]
+    """Every check with at least one `warn_only=True` row — or a `warn_only=<expression>` row
+    that may be one. A warn_only label is a claim that the ROW cannot fail, so each one owes a
+    recorded reason — including a second row on a check that blocks elsewhere
+    (check_doc_index's Tier-1 `--untracked-only` row)."""
+    warn, _, unknown = _warn_only_registrations(gate)
+    return warn | unknown
 
 
 def discover_warn_only_checks(gate: Path) -> set[str]:
@@ -1053,7 +1062,7 @@ def discover_warn_only_checks(gate: Path) -> set[str]:
     completion gate, and keying on the name alone judged that blocking row as an advisory
     one. The reason each warn_only ROW owes is `discover_warn_only_rows`'s question.
     """
-    warn, blocking = _warn_only_registrations(gate)
+    warn, blocking, _ = _warn_only_registrations(gate)
     return warn - blocking
 
 

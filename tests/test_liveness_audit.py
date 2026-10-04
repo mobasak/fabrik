@@ -551,6 +551,18 @@ def test_a_warn_only_row_on_a_blocking_check_still_owes_its_reason(tmp_path: Pat
     assert la.discover_warn_only_rows(gate) == {"check_secrets"}
 
 
+def test_a_non_literal_warn_only_row_owes_a_reason_and_reads_blocking(tmp_path: Path) -> None:
+    """`warn_only=FLAG` may be a warn_only row: it owes a reason (rows) and is never excused
+    as advisory (checks) — the strict direction on both sides."""
+    gate = _gate_with(
+        tmp_path,
+        'run_optional_check("scripts/enforcement/check_flag.py", "F", warn_only=FLAG)\n'
+        'run_optional_check("scripts/enforcement/check_off.py", "O", warn_only=False)',
+    )
+    assert la.discover_warn_only_rows(gate) == {"check_flag"}
+    assert la.discover_warn_only_checks(gate) == set()
+
+
 def test_a_warn_only_row_outside_the_enforcement_dir_is_not_counted(tmp_path: Path) -> None:
     """Same population as `_REGISTERED`: a sysadmin script registered warn_only is not a
     gate check the canary ratchet accounts for."""
@@ -604,12 +616,14 @@ def test_the_same_check_registered_as_a_blocking_row_is_still_inert(
     assert "can never go red" in found["detail"]
 
 
+@pytest.mark.parametrize("registration", ["", ", warn_only=True"], ids=["blocking", "advisory"])
 def test_a_dormant_row_that_goes_red_is_unknown_never_live(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, registration: str
 ) -> None:
     """The flywheel's shape: the rule reds only through a seam the gate never sets, so the
     row cannot block today. LIVE would claim teeth it lacks; DEAD would call a ruling a
-    defect. And with the rule broken (green under the seam) it is DEAD as usual."""
+    defect. And with the rule broken (green under the seam) it is DEAD as usual — on a
+    blocking and an advisory registration alike."""
     enforcement = tmp_path / "scripts" / "enforcement"
     enforcement.mkdir(parents=True, exist_ok=True)
     (enforcement / "check_seam.py").write_text(
@@ -619,7 +633,9 @@ def test_a_dormant_row_that_goes_red_is_unknown_never_live(
         "sys.exit(1 if armed and list(Path.cwd().rglob('*.yaml')) else 0)\n",
         encoding="utf-8",
     )
-    _gate_with(tmp_path, 'run_optional_check("scripts/enforcement/check_seam.py", "S")')
+    _gate_with(
+        tmp_path, f'run_optional_check("scripts/enforcement/check_seam.py", "S"{registration})'
+    )
     canary = {
         "form": "cwd",
         "env": {"SEAM": "on"},
