@@ -459,3 +459,209 @@ class TestFixProjectReadsTheDeclaredType:
 
         assert result.exit_code == 1
         assert "Added 0 files" not in result.output
+
+
+_TEMPLATE_HEADER = "# Fabrik template rules (mobile-app) - added by fabrik fix"
+
+
+def _mobile_project(root: Path, gitignore: str | None) -> Path:
+    root.mkdir()
+    (root / ".git").mkdir()
+    if gitignore is not None:
+        (root / ".gitignore").write_text(gitignore)
+    return root
+
+
+@requires_fabrik_env
+class TestFixBackfillsTemplateGitignoreRules:
+    """W-6fa329b3: fabrik fix backfills templates/<type>/.gitignore into existing projects."""
+
+    def test_fix_backfills_missing_template_gitignore_rules(self, tmp_path):
+        original = ".env\n*.log\n/build/\n"
+        proj = _mobile_project(tmp_path / "mob", original)
+        added = fix_project(proj, project_type="mobile-app")
+        text = (proj / ".gitignore").read_text()
+        lines = text.splitlines()
+        assert lines[0] == _TEMPLATE_HEADER
+        head = lines[: lines.index("") if "" in lines else len(lines)]
+        for rule in ("node_modules/", ".env*.local", "*.jks", "*.p8", "*.p12", "*.mobileprovision"):
+            assert rule in head, rule
+        assert "*.log" not in head, "a rule the project already has is not re-added"
+        after_block = text.split("\n\n", 1)[1]
+        assert after_block.startswith(original), (
+            "every original line stays, unchanged, after the block"
+        )
+        assert any(
+            e.startswith(".gitignore (") and "template rules:" in e and "*.p8" in e for e in added
+        ), added
+
+        py = _mobile_project(tmp_path / "py", original)
+        fix_project(py, project_type="python-api")
+        assert _TEMPLATE_HEADER.split(" (")[0] not in (py / ".gitignore").read_text()
+
+    def test_fix_template_gitignore_backfill_is_idempotent_and_reuses_its_block(self, tmp_path):
+        proj = _mobile_project(tmp_path / "mob", ".env\n")
+        fix_project(proj, project_type="mobile-app")
+        first = (proj / ".gitignore").read_text()
+        assert _TEMPLATE_HEADER in first
+        added = fix_project(proj, project_type="mobile-app")
+        assert (proj / ".gitignore").read_text() == first
+        assert not any(e.startswith(".gitignore (+") for e in added), added
+        (proj / ".gitignore").write_text(first.replace("*.p8\n", "", 1))
+        fix_project(proj, project_type="mobile-app")
+        again = (proj / ".gitignore").read_text()
+        assert again.count(_TEMPLATE_HEADER) == 1
+        assert "*.p8" in again.splitlines()
+
+    def test_fix_backfill_treats_a_slashless_rule_as_present(self, tmp_path):
+        from fabrik.scaffold import _patch_template_gitignore_rules
+
+        new, rules = _patch_template_gitignore_rules("node_modules\n", "mobile-app")
+        assert "node_modules/" not in rules
+        assert "*.jks" in rules and "*.jks" in new.splitlines()
+        # the slash is dropped on the template side only: a project `*.p8/` does not cover `*.p8`
+        _, rules2 = _patch_template_gitignore_rules("*.p8/\n", "mobile-app")
+        assert "*.p8" in rules2
+
+    def test_fix_backfill_never_defeats_a_project_reinclude(self, tmp_path):
+        from fabrik.scaffold import _patch_template_gitignore_rules
+
+        new, rules = _patch_template_gitignore_rules(
+            "android/*\n!android/app/debug.keystore\n", "mobile-app"
+        )
+        assert "/android/" not in rules, "an excluded dir would kill the project's re-include"
+        assert "*.jks" in rules and "/ios/" in rules
+        new2, _ = _patch_template_gitignore_rules(".env.*\n!.env.test.local\n", "mobile-app")
+        lines = new2.splitlines()
+        assert lines.index(".env*.local") < lines.index("!.env.test.local"), (
+            "the block sits above the project's negation, so the negation wins"
+        )
+
+    def test_fix_backfill_dry_run_matches_live_and_writes_nothing(self, tmp_path):
+        original = ".env\n.droid/reviews/\n"
+        dry = _mobile_project(tmp_path / "dry", original)
+        live = _mobile_project(tmp_path / "live", original)
+        dry_added = fix_project(dry, project_type="mobile-app", dry_run=True)
+        assert (dry / ".gitignore").read_text() == original
+        live_added = fix_project(live, project_type="mobile-app")
+        pick = [e for e in dry_added if e.startswith(".gitignore")]
+        assert any("template rules:" in e for e in pick), pick
+        assert pick == [e for e in live_added if e.startswith(".gitignore")]
+
+    def test_fix_backfill_keeps_the_droid_block_patch(self, tmp_path):
+        from fabrik.scaffold import _DROID_GITIGNORE_BLOCK
+
+        proj = _mobile_project(tmp_path / "mob", ".env\n.droid/reviews/\n.droid/kilo_usage.jsonl\n")
+        added = fix_project(proj, project_type="mobile-app")
+        text = (proj / ".gitignore").read_text()
+        assert text.count(_DROID_GITIGNORE_BLOCK) == 1
+        assert ".droid/reviews/" not in text.splitlines()
+        assert _TEMPLATE_HEADER in text
+        entries = [e for e in added if e.startswith(".gitignore")]
+        assert len(entries) == 1, "one file, one entry — the CLI counts entries as files"
+        assert entries[0].startswith(".gitignore (.droid/ block updated, +"), entries
+
+    def test_fix_backfill_creates_a_missing_gitignore(self, tmp_path, monkeypatch):
+        from fabrik.scaffold import _DROID_GITIGNORE_BLOCK
+
+        proj = _mobile_project(tmp_path / "mob", None)
+        added = fix_project(proj, project_type="mobile-app")
+        text = (proj / ".gitignore").read_text()
+        assert text.splitlines()[0] == _TEMPLATE_HEADER and "*.p8" in text.splitlines()
+        assert _DROID_GITIGNORE_BLOCK in text, "the created file carries the .droid/ block too"
+        assert any(e.startswith(".gitignore (created, +") for e in added), added
+        again = fix_project(proj, project_type="mobile-app")
+        assert (proj / ".gitignore").read_text() == text, "one run settles the file"
+        assert not any(e.startswith(".gitignore") for e in again), again
+
+        import fabrik.scaffold as scaffold
+
+        monkeypatch.setattr(scaffold, "MOBILE_APP_TEMPLATE_DIR", tmp_path / "no-such-template")
+        with pytest.raises(FileNotFoundError):
+            scaffold._patch_template_gitignore_rules("", "mobile-app")
+
+    def test_fix_backfill_covers_node_api(self, tmp_path):
+        proj = _mobile_project(tmp_path / "node", ".env\n")
+        added = fix_project(proj, project_type="node-api")
+        lines = (proj / ".gitignore").read_text().splitlines()
+        assert lines[0] == "# Fabrik template rules (node-api) - added by fabrik fix"
+        assert "node_modules/" in lines and "npm-debug.log*" in lines
+        assert lines.count(".env") == 1, "the project's own .env is not re-added"
+        assert any("template rules" in e for e in added), added
+
+    def test_fix_backfill_reinclude_forms(self, tmp_path):
+        from fabrik.scaffold import _patch_template_gitignore_rules as patch
+
+        # a re-include BENEATH a directory the rule excludes: a whole-dir glob, any depth
+        for project in ("!ios/**\n", "!/ios/*\n", "!**/ios/Podfile\n"):
+            _, rules = patch(project, "mobile-app")
+            assert "/ios/" not in rules, project
+            assert "/android/" in rules, project
+        # an unanchored dir rule can hide a nested re-include, and a literal name can match a glob rule
+        _, rules = patch("!packages/app/node_modules/keep.js\n", "mobile-app")
+        assert "node_modules/" not in rules
+        _, rules = patch("!old.jks/notes.txt\n", "mobile-app")
+        assert "*.jks" not in rules
+        # an EXACT re-include, however anchored or dir-only, is never a skip: the rule goes above it
+        # and the later negation wins, while skipping would leave nested or file matches unprotected
+        for project, rule in (
+            ("!*.jks\n", "*.jks"),
+            ("!/*.jks\n", "*.jks"),
+            ("!*.jks/\n", "*.jks"),
+            ("!.env*.local/\n", ".env*.local"),
+            ("!/node_modules\n", "node_modules/"),
+            ("!/ios/\n", "/ios/"),
+        ):
+            new, rules = patch(project, "mobile-app")
+            assert rule in rules, (project, rule)
+            lines = new.splitlines()
+            assert lines.index(rule) < lines.index(project.strip()), (project, rule)
+        # a WILDCARD ancestor segment never counts, or every rule would be skipped, signing ones included
+        signing = ("*.jks", "*.p8", "*.p12", "*.key", "*.mobileprovision", ".env*.local")
+        wildcard = ("!*/.gitkeep\n", "!src/*/keep\n", "!i*/Podfile\n", "!**/*/x\n")
+        for project in (*wildcard, "!*.jks/keep\n", "!?.p8/x\n"):
+            _, rules = patch(project, "mobile-app")
+            for rule in (*signing, "node_modules/", "/ios/", "/android/"):
+                assert rule in rules, (project, rule)
+        # a re-include that only overlaps a FILE pattern never drops the signing rule
+        new, rules = patch("!keys/test.p8\n", "mobile-app")
+        assert "*.p8" in rules
+        lines = new.splitlines()
+        assert lines.index("*.p8") < lines.index("!keys/test.p8")
+
+    def test_fix_backfill_leading_slash_variant_is_present(self, tmp_path):
+        from fabrik.scaffold import _patch_template_gitignore_rules as patch
+
+        _, rules = patch("ios/\nandroid\n", "mobile-app")
+        assert "/ios/" not in rules and "/android/" not in rules
+        # the reverse never holds: an anchored project line does not cover an unanchored rule
+        _, rules = patch("/node_modules/\n", "mobile-app")
+        assert "node_modules/" in rules
+
+    def test_fix_backfill_header_placement(self, tmp_path):
+        from fabrik.scaffold import _patch_template_gitignore_rules as patch
+
+        full, _ = patch("", "mobile-app")
+        block = full.replace("*.p8\n", "", 1)
+        new, rules = patch("*.tmp\n" + block + "keep.txt\n", "mobile-app")
+        lines = new.splitlines()
+        assert rules == ["*.p8"]
+        assert lines.index("*.p8") == lines.index(_TEMPLATE_HEADER) + 1, "under its own header"
+        # header moved below a project negation: a fresh block goes on top, above the negation
+        new, rules = patch("!build/keep.p8\n" + block, "mobile-app")
+        lines = new.splitlines()
+        assert lines[0] == _TEMPLATE_HEADER and lines[1] == "*.p8"
+        assert lines.index("*.p8") < lines.index("!build/keep.p8")
+
+    def test_fix_backfill_keeps_crlf_line_endings(self, tmp_path):
+        proj = _mobile_project(tmp_path / "mob", None)
+        (proj / ".gitignore").write_bytes(b".env\r\n*.log\r\n")
+        fix_project(proj, project_type="mobile-app")
+        raw = (proj / ".gitignore").read_bytes()
+        assert b"*.p8\r\n" in raw and b".env\r\n*.log\r\n" in raw
+        assert b"\n" not in raw.replace(b"\r\n", b""), "no bare LF line"
+        # a MIXED file is written LF, as before this step existed — never every line turned CRLF
+        mixed = _mobile_project(tmp_path / "mixed", None)
+        (mixed / ".gitignore").write_bytes(b".env\r\n*.log\n")
+        fix_project(mixed, project_type="mobile-app")
+        assert b"\r" not in (mixed / ".gitignore").read_bytes()
