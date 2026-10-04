@@ -90,6 +90,49 @@ def test_compose_change_is_warn_only(repo: Path) -> None:
     assert "PORTS.md" in r.stdout  # warning surfaced, but not blocking
 
 
+def _compose_only(repo: Path) -> subprocess.CompletedProcess:
+    _write(repo, "compose.yaml", "services: {}\n")
+    _write(repo, "CHANGELOG.md", CHANGELOG_OK)
+    _write(repo, "INDEX.md", "# idx\n")
+    _stage(repo, "compose.yaml", "CHANGELOG.md", "INDEX.md")
+    return _run(repo)
+
+
+def test_a_project_is_not_told_to_edit_its_synced_ports_copy(repo: Path) -> None:
+    """Fleet 01M3JF3J / D-380: a project's PORTS.md is a gitignored copy of the hub registry that
+    the next forced sync overwrites — the warning names the hub route, never a local edit."""
+    r = _compose_only(repo)  # PORTS.md is not tracked here, as in every synced project
+    assert r.returncode == 0, r.stdout
+    assert "hub registry" in r.stdout and "--to-agent fleet --kind request" in r.stdout, r.stdout
+    assert "PORTS.md not updated" not in r.stdout, r.stdout
+
+
+def test_the_hub_still_keeps_its_tracked_registry_current(repo: Path) -> None:
+    """Where PORTS.md is tracked, it IS the registry (the hub), so the old warning stands."""
+    _write(repo, "PORTS.md", "| port |\n")
+    _stage(repo, "PORTS.md")
+    subprocess.run(["git", "commit", "-qm", "registry"], cwd=repo, check=True, timeout=15)
+    r = _compose_only(repo)
+    assert "compose changed but PORTS.md not updated" in r.stdout, r.stdout
+
+
+def test_the_tracked_check_reads_the_repo_root_from_a_subdirectory(repo: Path) -> None:
+    """Review of the D-380 warning: `git ls-files` resolved PORTS.md against the cwd, so a gate
+    run from a subdirectory read the hub's tracked registry as a project's synced copy."""
+    _write(repo, "PORTS.md", "| port |\n")
+    _stage(repo, "PORTS.md")
+    subprocess.run(["git", "commit", "-qm", "registry"], cwd=repo, check=True, timeout=15)
+    _write(repo, "compose.yaml", "services: {}\n")
+    _write(repo, "CHANGELOG.md", CHANGELOG_OK)
+    _write(repo, "INDEX.md", "# idx\n")
+    _stage(repo, "compose.yaml", "CHANGELOG.md", "INDEX.md")
+    (repo / "sub").mkdir()
+    r = subprocess.run(
+        [sys.executable, str(CHECK)], cwd=repo / "sub", capture_output=True, text=True, timeout=30
+    )
+    assert "compose changed but PORTS.md not updated" in r.stdout, r.stdout
+
+
 def test_docs_only_change_passes(repo: Path) -> None:
     _write(repo, "docs/QUICKSTART.md", "# qs\n")
     _stage(repo, "docs/QUICKSTART.md")

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the doc-sync check no longer tells a project to edit its synced PORTS.md (2026-10-04)
+Since D-380 a project's `PORTS.md` is a read-only, gitignored copy of the hub's port registry that the next forced sync overwrites, yet `scripts/enforcement/check_doc_sync.py` still warned every project to update it when compose changed. Where `PORTS.md` is tracked (the hub) the warning stands; where it is not (every project — 0 of 50 track it) it now names the hub request route. `_is_tracked` reads paths from the repo's top level (`:(top)`), so a gate run from a subdirectory no longer misreads a tracked file, and `docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md` drops its pre-D-380 "project-owned" wording (fleet mail 01M3JF3J).
+
 ### Fixed — DATA_SYNC_WORKFLOW's manifest line matches the sync (2026-10-04)
 `docs/workflows/DATA_SYNC_WORKFLOW.md:84` said CORE_SCRIPTS 14 (it is 18, dated now because it moves in both directions), called all 74 non-helper enforcement files "checks" (71 are `check_*.py`, three are modules), said the retired `libs/subagents` only keeps gitignore coverage (it is also searched for stray copies), and left out that the vendored copy prunes every project file not in the hub copy, a project's own included (mail 01M3JCWME8).
 

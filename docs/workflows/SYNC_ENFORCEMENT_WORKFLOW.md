@@ -18,8 +18,8 @@ Synchronizes Fabrik governance + enforcement files to all `/opt/*` projects, ens
 > gate** when a project's copy drifts from the `/opt/fabrik` source). To change a
 > synced file: edit the canonical copy in `/opt/fabrik`, re-sync, and **only** if
 > the change is correct for ALL projects. Otherwise propose it upstream — never
-> fork it locally. (`PORTS.md` is seeded then project-owned, so it is exempt from
-> the drift check.)
+> fork it locally. (`PORTS.md` is the hub's port registry and a project's copy is a read-only synced
+> reference — D-380; a port is allocated by asking the hub, never by editing the copy.)
 >
 > **When you modify the synced set, edit `fabrik_synced_manifest.py` only** — the
 > three consumers derive from it. The tables below mirror those lists.
@@ -55,7 +55,7 @@ Synchronizes Fabrik governance + enforcement files to all `/opt/*` projects, ens
 |------|----------|
 | `docs/reference/long-command-monitoring.md` | Long command monitoring system documentation |
 | `docs/reference/technology-stack-decision-guide.md` | Stack selection guide |
-| `PORTS.md` | Port allocations (seed; project-owned thereafter — exempt from drift check) |
+| `PORTS.md` | The hub's port registry — a project's copy is read-only and overwritten by the sync (D-380) |
 | `docs/operations/fabrik-lifecycle.md` | Runtime behavior & data safety |
 | `docs/PROJECT_CATALOG.md` → `docs/reference/opt-project-catalog.md` | The `/opt` project inventory ("what exists, so a project can wire to a sibling instead of rebuilding"). Renamed from `BUSINESS_MODEL.md` 2026-07-11 — that path is each project's own *monetization* doc, and the old sync target was clobbering it; now synced to a reference path that never collides. |
 | `docs/reference/mobile-responsive-testing-guide.md` | Mobile/responsive testing guide |
