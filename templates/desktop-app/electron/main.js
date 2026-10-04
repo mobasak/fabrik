@@ -1,3 +1,4 @@
+const path = require('path');
 const { app, BrowserWindow } = require('electron');
 const { autoUpdater } = require('electron-updater');
 
@@ -8,17 +9,25 @@ function createWindow() {
     webPreferences: {
       // Security trio — all three mandatory per .windsurf/rules/desktop-app/72-desktop.md
       // (missing any one is a CVE). Renderer runs sandboxed; main↔renderer only
-      // via a preload + contextBridge.exposeInMainWorld bridge.
+      // via the preload's contextBridge.exposeInMainWorld bridge.
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
+      preload: path.join(__dirname, 'preload.js'),
     }
   });
 
   win.loadFile('index.html');
-  
-  // Automation: Check for updates from your VPS
-  autoUpdater.checkForUpdatesAndNotify();
+
+  // Updates come from your own update domain (package.json build.publish, URL from
+  // UPDATE_FEED_URL — 72-desktop.md § Auto-Update). An unpackaged dev run has no
+  // app-update.yml, so check only in a packaged build, and never let a failed check
+  // become an unhandled rejection.
+  if (app.isPackaged) {
+    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+      console.error('update check failed:', err);
+    });
+  }
 }
 
 app.whenReady().then(createWindow);

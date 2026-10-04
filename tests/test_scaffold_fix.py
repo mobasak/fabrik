@@ -665,3 +665,29 @@ class TestFixBackfillsTemplateGitignoreRules:
         (mixed / ".gitignore").write_bytes(b".env\r\n*.log\n")
         fix_project(mixed, project_type="mobile-app")
         assert b"\r" not in (mixed / ".gitignore").read_bytes()
+
+
+@requires_fabrik_env
+class TestFixRestoresTheDesktopPreload:
+    """W-bfaa9e9b: electron/preload.js is a required desktop-app file, so fabrik fix restores it
+    from its template instead of reporting it unrepairable."""
+
+    def _desktop(self, root: Path) -> Path:
+        root.mkdir()
+        (root / ".git").mkdir()
+        (root / "electron").mkdir()
+        (root / "electron" / "main.js").write_text("// an app scaffolded before the preload\n")
+        (root / "package.json").write_text("{}\n")
+        return root
+
+    def test_fix_copies_the_preload_from_its_template(self, tmp_path):
+        from fabrik.scaffold import DESKTOP_APP_TEMPLATE_DIR
+
+        proj = self._desktop(tmp_path / "desk")
+        dry = fix_project(proj, project_type="desktop-app", dry_run=True)
+        assert "electron/preload.js" in dry and "[unsupported-fix] electron/preload.js" not in dry
+        assert not (proj / "electron" / "preload.js").exists(), "the dry run wrote it"
+        added = fix_project(proj, project_type="desktop-app")
+        assert "electron/preload.js" in added
+        want = (DESKTOP_APP_TEMPLATE_DIR / "electron" / "preload.js").read_text()
+        assert (proj / "electron" / "preload.js").read_text() == want

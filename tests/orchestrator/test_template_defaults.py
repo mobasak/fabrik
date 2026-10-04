@@ -17,14 +17,19 @@ The expected set is derived from the **purpose** of each template:
   grafana, backrest.
 * ``file-worker`` — internal worker → glitchtip, grafana, backrest only;
   no Gatus (not public), no DNS.
-* ``chrome-extension`` / ``desktop-app`` / ``mobile-app`` — companion backend
+* ``chrome-extension`` / ``mobile-app`` — companion backend
   is a service (kind=service) so glitchtip fires; is_public is false by
   default so Gatus is opt-in (operator flips per project).
+* ``desktop-app`` — a packaged installer with no VPS deployment (kind=static, every flag
+  false, matching ``spec_loader.Shape``; W-bfaa9e9b retired its companion container). Its
+  row lists only what the resolver turns on unconditionally; no spec is generated for it,
+  so nothing is ever applied.
 
 Locks two specific invariants discovered 2026-05-06:
 
-* T1 — chrome/desktop/mobile defaults previously had ``kind: static`` which
-  silently skipped GlitchTip on every backend they scaffold.
+* T1 — chrome/mobile defaults previously had ``kind: static`` which
+  silently skipped GlitchTip on every backend they scaffold. (desktop-app was in T1 too, but
+  it never had a working backend; it is static again since W-bfaa9e9b.)
 * T2 — ``next-tailwind`` defaults had no ``shape:`` block at all, so a
   Next.js site with a domain still had ``is_public=false`` (pydantic
   default) and Gatus skipped.
@@ -70,7 +75,7 @@ EXPECTED: dict[str, set[str]] = {
     "file-api": {"gatus", "backrest", "glitchtip", "grafana", "watchdog"},
     "file-worker": {"backrest", "glitchtip", "grafana", "watchdog"},  # not public → no gatus
     "chrome-extension": {"glitchtip", "grafana", "watchdog"},  # is_public=false → no gatus
-    "desktop-app": {"glitchtip", "grafana", "watchdog"},
+    "desktop-app": {"grafana", "watchdog"},  # kind=static, no deployment → no glitchtip, no gatus
     "mobile-app": {"glitchtip", "grafana", "watchdog"},
 }
 
@@ -124,14 +129,16 @@ def test_template_defaults_resolve_to_expected_registrars(
     )
 
 
-def test_chrome_desktop_mobile_companion_backends_get_glitchtip() -> None:
-    """T1 regression: chrome/desktop/mobile defaults must NOT use kind=static.
+def test_chrome_mobile_companion_backends_get_glitchtip() -> None:
+    """T1 regression: chrome/mobile defaults must NOT use kind=static.
 
     They scaffold a real backend service (see compose.yaml.j2) which must
     be picked up by the GlitchTip registrar. kind=static would silently
-    skip GlitchTip and ship a backend with no error tracking.
+    skip GlitchTip and ship a backend with no error tracking. desktop-app is
+    the opposite case: no backend, so it IS static (W-bfaa9e9b).
     """
-    for template in ("chrome-extension", "desktop-app", "mobile-app"):
+    assert _load_template_shape("desktop-app").get("kind") == "static"
+    for template in ("chrome-extension", "mobile-app"):
         shape = _load_template_shape(template)
         assert shape.get("kind") == "service", (
             f"{template} defaults.yaml must declare kind=service so the "

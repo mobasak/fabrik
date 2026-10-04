@@ -106,11 +106,12 @@ SHAPE_MATRIX: dict[str, tuple[str, bool, bool, bool, bool, bool, bool]] = {
     "docusaurus": ("static", True, False, False, False, False, False),
     "wordpress": ("wordpress", True, False, False, True, True, False),
     "file-worker": ("worker", False, False, False, True, False, False),
-    # chrome/desktop/mobile companion backends are kind=service (T1 fix 2026-05-06)
+    # chrome/mobile companion backends are kind=service (T1 fix 2026-05-06)
     # so GlitchTip fires for the scaffolded backend (was wrongly kind=static).
     "chrome-extension": ("service", False, False, False, False, False, False),
     "mobile-app": ("service", False, False, False, False, False, False),
-    "desktop-app": ("service", False, False, False, False, False, False),
+    # desktop-app is a packaged installer with no deployment (spec_loader.Shape; W-bfaa9e9b)
+    "desktop-app": ("static", False, False, False, False, False, False),
 }
 
 # Recognised types with NO scaffold template of their own (creation lives

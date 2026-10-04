@@ -39,6 +39,13 @@ class TestCheckTemplateExists:
         assert result.check == "deploy_template"
         assert "nonexistent-type" in result.message
 
+    def test_desktop_app_needs_no_deploy_template(self):
+        """W-bfaa9e9b retired desktop-app's compose.yaml.j2: a packaged installer has no
+        deployment, so a missing deploy template is the design, not a warning."""
+        result = _check_template_exists("desktop-app")
+        assert result.passed is True
+        assert "no deployment by design" in result.message
+
 
 # ---------------------------------------------------------------------------
 # TestCheckEnvExample

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:10:57.007929Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-eccfcc2a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "build the venv + ExecStart + docs change as a /fabrik-task, keeping the 22.7 pin",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "python-telegram-bot on the spokes still installs with pip --break-system-packages (deferred from W-1c322b9e): move it to a venv in ONE change with the bot unit's ExecStart (scripts/bootstrap/templates/vps-sysadmin-bot.service.template:12, ops/vps-sysadmin-bot.service:12) and the docs, or the bot breaks"
+}

@@ -225,7 +225,7 @@ Scaffold uses these to generate `/opt/<project>/` trees. Every template has a `d
 | `templates/file-api/` | File-operations microservice | `compose.yaml.j2`, `Dockerfile.j2` |
 | `templates/file-worker/` | Background worker variant of file-api | `compose.yaml.j2` |
 | `templates/chrome-extension/` | Browser extension (backend) | `manifest.json.j2`, `compose.yaml.j2`, `defaults.yaml` |
-| `templates/desktop-app/` | Electron-style desktop app (backend) | `compose.yaml.j2` |
+| `templates/desktop-app/` | Electron desktop app — a packaged installer, no VPS deployment (its companion container was retired 2026-10-04, W-bfaa9e9b) | `electron/main.js`, `electron/preload.js`, `package.json`, `defaults.yaml` (no compose) |
 | `templates/mobile-app/` | React Native / Expo (backend) | `compose.yaml.j2` |
 
 All compose templates emit `container_name: {{ spec.id }}` for stable Docker naming.
@@ -258,11 +258,12 @@ Source of truth: live `templates/*/defaults.yaml`. Derived by running `resolve_a
 | **file-api** | service | ⚙ | ⚙ | ✅* | ✅ | ✅ | ✅ | ⚙ | ⚙ | ⚙ |
 | **file-worker** | worker | ⚙ | ⚙ | ✗ | ✅ | ✅ | ✅ | ✗ | ⚙ | ✗ |
 | **chrome-extension** | service | ⚙ | ⚙ | ⚙ | ⚙ | ✅ | ✅ | ⚙ | ⚙ | ⚙ |
-| **desktop-app** | service | ⚙ | ⚙ | ⚙ | ⚙ | ✅ | ✅ | ⚙ | ⚙ | ⚙ |
+| **desktop-app** | static | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | **mobile-app** | service | ⚙ | ⚙ | ⚙ | ⚙ | ✅ | ✅ | ⚙ | ⚙ | ⚙ |
 
 `*` requires `spec.domain` to be set.
-chrome/desktop/mobile backends default `is_public: false` — Gatus is opt-in (flip `is_public: true` in spec).
+chrome/mobile backends default `is_public: false` — Gatus is opt-in (flip `is_public: true` in spec).
+desktop-app is a packaged installer with no deployment (no compose template, no generated spec), so no registrar ever runs for it.
 
 ---
 

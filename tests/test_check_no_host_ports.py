@@ -259,8 +259,9 @@ class TestScanTemplatePositives:
 
 
 class TestAgainstRealTemplates:
-    """Exercise the check against the 13 real ``templates/*/compose.yaml.j2``
-    files. These were manually audited 2026-04-20 and are all compliant —
+    """Exercise the check against every real ``templates/*/compose.yaml.j2``
+    file (the test globs them; no count is pinned here — the old "13" went stale as
+    templates were retired). These were manually audited 2026-04-20 and are all compliant —
     the check's job here is to lock that state as a regression guard."""
 
     def test_every_real_template_is_compliant_today(self, check_module) -> None:

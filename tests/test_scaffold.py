@@ -1,6 +1,7 @@
 """Tests for scaffold.py gitignore and .droid/ structure."""
 
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from fabrik.scaffold import (
     _RETIRED_DROID_GITIGNORE_LINES,
     MOBILE_APP_TEMPLATE_DIR,
     NODE_API_TEMPLATE_DIR,
+    TYPE_REQUIRED_FILES,
     _patch_droid_block,
     create_project,
     fix_project,
@@ -600,10 +602,20 @@ class TestMobileAppScaffold:
             generate_spec=False,
         )
         rules = set((tmp_path / "test-mobile" / ".gitignore").read_text().splitlines())
-        for must in ("node_modules/", ".env", ".env*.local", "*.jks", "*.p8", "*.p12", "*.mobileprovision"):
+        for must in (
+            "node_modules/",
+            ".env",
+            ".env*.local",
+            "*.jks",
+            "*.p8",
+            "*.p12",
+            "*.mobileprovision",
+        ):
             assert must in rules, must
         template = (MOBILE_APP_TEMPLATE_DIR / ".gitignore").read_text().splitlines()
-        missing = [ln for ln in template if ln.strip() and not ln.startswith("#") and ln not in rules]
+        missing = [
+            ln for ln in template if ln.strip() and not ln.startswith("#") and ln not in rules
+        ]
         assert missing == [], missing
         # a set cannot see order: a later `!` line would re-include what an earlier rule ignored
         assert not [ln for ln in rules if ln.startswith("!")]
@@ -619,7 +631,9 @@ class TestMobileAppScaffold:
         )
         rules = set((tmp_path / "test-node" / ".gitignore").read_text().splitlines())
         template = (NODE_API_TEMPLATE_DIR / ".gitignore").read_text().splitlines()
-        missing = [ln for ln in template if ln.strip() and not ln.startswith("#") and ln not in rules]
+        missing = [
+            ln for ln in template if ln.strip() and not ln.startswith("#") and ln not in rules
+        ]
         assert missing == [], missing
         assert ".env.local" in rules
 
@@ -858,6 +872,68 @@ class TestDesktopAppScaffold:
         pkg = json.loads((project_dir / "package.json").read_text())
         assert pkg["name"] == "my-electron-app"
         assert pkg["description"] == "My Electron App"
+
+    def _scaffold(self, tmp_path):
+        create_project(
+            name="test-desktop",
+            project_type="desktop-app",
+            description="Test Desktop App",
+            base=tmp_path,
+        )
+        return tmp_path / "test-desktop"
+
+    def test_ships_a_preload_bridge(self, tmp_path):
+        """W-bfaa9e9b: main.js promised a preload + contextBridge bridge and shipped none."""
+        project_dir = self._scaffold(tmp_path)
+        preload = project_dir / "electron" / "preload.js"
+        assert preload.exists(), "electron/preload.js not shipped"
+        text = preload.read_text()
+        code = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("//"))
+        # the documented surface, and nothing else: window.api.versions, no IPC channel (a
+        # handler would owe a sender-origin check, 72-desktop.md)
+        assert re.search(r"contextBridge\.exposeInMainWorld\(\s*'api'\s*,\s*\{\s*versions:", code)
+        assert code.count("exposeInMainWorld(") == 1
+        assert "ipcRenderer" not in code, "the preload opens an IPC channel"
+        main = (project_dir / "electron" / "main.js").read_text()
+        assert "preload: path.join(__dirname, 'preload.js')" in main
+        assert "require('path')" in main or 'require("path")' in main
+        # the required-files table knows main.js now depends on it
+        assert "electron/preload.js" in TYPE_REQUIRED_FILES["desktop-app"]
+
+    def test_update_check_is_packaged_only(self, tmp_path):
+        """An unpackaged run has no app-update.yml: the check must be skipped there and never reject unhandled."""
+        main = (self._scaffold(tmp_path) / "electron" / "main.js").read_text()
+        code = "\n".join(ln for ln in main.splitlines() if not ln.lstrip().startswith("//"))
+        assert code.count("checkForUpdates") == 1, "exactly one update check, the guarded one"
+        assert re.search(
+            r"if \(app\.isPackaged\) \{\s*autoUpdater\.checkForUpdatesAndNotify\(\)\.catch\(\(err\) => \{",
+            code,
+        ), "the update check is not packaged-only, or its rejection is unhandled"
+        assert "from your VPS" not in main
+
+    def test_update_feed_comes_from_env(self, tmp_path):
+        import json
+
+        project_dir = self._scaffold(tmp_path)
+        publish = json.loads((project_dir / "package.json").read_text())["build"]["publish"]
+        assert publish == [{"provider": "generic", "url": "${env.UPDATE_FEED_URL}/${os}"}]
+        env_lines = (project_dir / ".env.example").read_text().splitlines()
+        # one key, shipped EMPTY (a real host is the project's to set, never a template default)
+        assert [ln for ln in env_lines if ln.startswith("UPDATE_FEED_URL")] == ["UPDATE_FEED_URL="]
+
+    def test_template_has_no_companion_container(self):
+        """The desktop app is an installer, not a VPS service (spec_loader.Shape, the B3 regression)."""
+        import yaml
+
+        from fabrik.scaffold import DESKTOP_APP_TEMPLATE_DIR
+        from fabrik.spec_loader import Shape
+
+        for name in ("Dockerfile.j2", "compose.yaml.j2"):
+            assert not (DESKTOP_APP_TEMPLATE_DIR / name).exists(), f"{name} is back"
+        shape = yaml.safe_load((DESKTOP_APP_TEMPLATE_DIR / "defaults.yaml").read_text())["shape"]
+        assert shape["kind"] == "static"
+        assert not any(v for k, v in shape.items() if k != "kind")
+        assert "desktop-app         static" in (Shape.__doc__ or "")
 
 
 @requires_fabrik_env

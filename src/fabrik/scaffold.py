@@ -424,6 +424,20 @@ _PYTHON_API_TEMPLATE_MAP = {
 # Types that share the python-api file layout, so fix_project repairs them from its template map.
 _PYTHON_API_LAYOUT_TYPES = frozenset({"python-api", "python-api-gpu"})
 
+
+def _type_own_template_files() -> dict[str, dict[str, Path]]:
+    """Required files fix_project restores verbatim from the type's OWN template dir.
+
+    A function, not a constant: it reads the module's template-dir globals at call time, which
+    tests repoint.
+    Only files copied as-is belong here — a generated file (desktop-app's package.json is
+    rewritten with the project name) stays 'not repairable'.
+    """
+    return {
+        "desktop-app": {"electron/preload.js": DESKTOP_APP_TEMPLATE_DIR / "electron" / "preload.js"}
+    }
+
+
 _SHARED_REQUIRED_FILES = [
     "INDEX.md",
     "README.md",
@@ -469,7 +483,8 @@ TYPE_REQUIRED_FILES: dict[str, list[str]] = {
         "compose.yaml",
     ],
     "mobile-app": _SHARED_REQUIRED_FILES + ["package.json", "app.config.ts", "src/app/_layout.tsx"],
-    "desktop-app": _SHARED_REQUIRED_FILES + ["package.json", "electron/main.js"],
+    "desktop-app": _SHARED_REQUIRED_FILES
+    + ["package.json", "electron/main.js", "electron/preload.js"],
 }
 
 SHARED_DIRS = [
@@ -6085,7 +6100,13 @@ def _scaffold_desktop_app(project_dir: Path, name: str, description: str, **kwar
     )
 
     # .env.example
-    (project_dir / ".env.example").write_text(f"# {name} Configuration\nNODE_ENV=development\n")
+    (project_dir / ".env.example").write_text(
+        f"# {name} Configuration\nNODE_ENV=development\n"
+        "# Your update host (e.g. https://updates.example.com — 72-desktop.md § Auto-Update).\n"
+        "# electron-builder reads it from the PROCESS environment when it builds the publish\n"
+        "# URL, not from this file: export it before `npm run build`.\n"
+        "UPDATE_FEED_URL=\n"
+    )
 
     # .gitignore (Electron-appropriate)
     (project_dir / ".gitignore").write_text(
@@ -7443,6 +7464,8 @@ def fix_project(
     # Build the combined template map for this project type
     type_template_map = _PYTHON_API_TEMPLATE_MAP if project_type in _PYTHON_API_LAYOUT_TYPES else {}
     combined_template_map = {**SHARED_TEMPLATE_MAP, **type_template_map}
+    # Required files whose template lives in the type's own template dir (absolute paths)
+    own_templates = _type_own_template_files().get(project_type, {})
 
     # Shared required file set for fast membership test
     shared_required_set = set(_SHARED_REQUIRED_FILES)
@@ -7458,6 +7481,8 @@ def fix_project(
                 template_name = src
                 break
         template_path = TEMPLATE_DIR / template_name if template_name else None
+        if template_path is None and f in own_templates:
+            template_path = own_templates[f]
         if template_path is not None and not template_path.exists():
             template_path = None
 

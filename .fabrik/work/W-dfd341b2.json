@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:10:56.861420Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-dfd341b2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "design where the operator IP comes from (config value vs per-run SSH_CLIENT + runtime addignoreip), then a /fabrik-task with intel for the pack",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "fail2ban ignoreip jail for the bootstrap scripts (deferred from W-700b12c5 by two decision seats): needs an operator-IP source the repo lacks, a pack + test_bootstrap_pack.py change (the pack says no script writes a jail config), and /etc/fail2ban/jail.d in FABRIK_HOST_STATE_INCLUDES or a hub rebuild drops it"
+}

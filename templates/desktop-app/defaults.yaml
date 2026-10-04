@@ -3,14 +3,14 @@
 # Authoritative matrix: `spec_loader.Shape` docstring + plan §CLI Entry Points.
 # Changing a flag here changes which infrastructure registrars run for every
 # project scaffolded from this template. Keep in sync with the pydantic Shape model.
-# NOTE: the desktop installer ships through GitHub Releases / app stores,
-# but this template ALSO scaffolds a companion backend service
-# (see compose.yaml.j2) that IS deployed to the VPS via `fabrik apply` (SSH + Docker Compose).
-# kind=service so GlitchTip error tracking fires for the backend;
-# is_public stays false so Gatus is opt-in (flip to true in the spec
-# when the backend has a stable public domain).
+# NOTE: a desktop app is a packaged artefact (the Electron installer), not a VPS
+# service: it ships through your own update domain in front of object storage
+# (.windsurf/rules/desktop-app/72-desktop.md § Auto-Update), so every flag is
+# false and no registrar applies. The template carries no Dockerfile/compose
+# (W-bfaa9e9b retired a companion container that could not start). A backend the
+# app talks to is its own Fabrik service, scaffolded and deployed separately.
 shape:
-  kind: service
+  kind: static
   is_public: false
   is_admin_dashboard: false
   has_bearer_api: false
