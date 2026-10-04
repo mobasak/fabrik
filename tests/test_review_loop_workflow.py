@@ -724,6 +724,26 @@ def test_every_seat_is_told_how_to_import_a_pinned_module_and_to_prove_it() -> N
         # the recipe must be runnable and write only inside the seat's scratch (review W-S1/S2)
         assert "git archive" in p and "tar -x -C SCRATCH" in p and "sys.path" in p, label
         assert "<repo>" not in p, label
+        # 01M43RDPFF: at index 0 a src/copy/ package shadows the stdlib; 01M43S5AV2: a probe
+        # outside pytest resolved FABRIK_ROOT from the live cwd and wrote that checkout's data/
+        # the WHOLE clause, so a mutant that keeps the words but inverts them is caught (review C6)
+        assert (
+            "at the index of the first entry ending in site-packages or dist-packages, or at the "
+            "end when there is none — never at index 0" in p
+        ), label
+        assert "first on sys.path" not in p, label
+        assert "run every probe as `python -P`" in p, label  # the live cwd entry would win (C1)
+        # web-ecommerce-factory imports src.copy, so src/ is the package (C3)
+        assert "SCRATCH/arch when src/ is itself a package" in p, label
+        assert "`HOME=SCRATCH/home` (mkdir it)" in p and "`PYTHONDONTWRITEBYTECODE=1`" in p, label
+        # a system python3 under a scratch HOME loses its --user packages (closing pass NEW-1)
+        assert (
+            "unless you first export `PYTHONUSERBASE=$(python3 -m site --user-base)` — with "
+            "`PYTHONDONTWRITEBYTECODE=1`" in p
+        ), label
+        assert "(SCRATCH/arch/src for `import fabrik`;" in p, label  # the hub's own case (NEW-2)
+        assert "plus `FABRIK_ROOT=SCRATCH/arch` when PKG is src/fabrik" in p, label  # hub only (C4)
+        assert "check each overlaid file with `cmp` against its pin" in p, label
 
 
 def test_a_defect_all_three_finders_raise_is_one_candidate_crediting_all_three() -> None:

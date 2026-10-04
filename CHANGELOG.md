@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review seats import a pinned module without shadowing the stdlib or writing the live checkout (2026-10-04)
+The review-loop workflow's seat recipe put the pinned package's parent FIRST on `sys.path`, so in a repo with a `src/copy/` package every probe died inside the standard library (web-ecommerce-factory), and a probe run outside pytest resolved fabrik's write root from the live cwd and wrote that checkout's `data/` (fleet). The recipe in both the finder and refuter prompts now: inserts the directory holding the top-level import name (the archive root when `src/` is itself a package) at the first site-packages or dist-packages entry; runs probes as `python -P` with `PYTHONDONTWRITEBYTECODE=1` and a scratch `HOME` (keeping `--user` packages via `PYTHONUSERBASE`); sets `FABRIK_ROOT` to the scratch tree for hub probes; and checks each overlaid file with `cmp`. Executed on the hub, web-ecommerce-factory and a flat layout; the grader asserts each clause whole.
+
 ### Fixed — the autonomy ladder can park work that is not due yet (2026-10-04)
 After D-558 an item due on a later date, or waiting on an outside event, could only end an agent's turn on a `BLOCKED:` line: the Stop hook kept pushing it. Tags now PARK an item: `hold`, `waits-<slug>` (until removed) and `waits-YYYY-MM-DD` (until that UTC date). A parked item leaves the claim, held-claim and owned rungs and `work.py next`; a session holding a parked item's claim is told to release it; a malformed dated tag or a bare `waits-` is refused when written. `runtime` stays an assignment hold only, so a `runtime` task assigned by hand is pushed again. `work.py queue` and the Stop result count parked items.
 
