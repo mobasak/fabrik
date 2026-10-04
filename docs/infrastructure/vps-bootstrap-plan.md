@@ -40,7 +40,7 @@ Full reference: [`scripts/bootstrap/README.md`](../../scripts/bootstrap/README.m
 **Spoke deps BAKED INTO `bootstrap-vps.sh` 2026-06-07 (all validated live via DR drill #2 in 3m 13s):**
 
 - **step_02** apt install (NEW): `python3-venv` + `python3-pip` — needed by step_15 (`python3 -m venv` requires `ensurepip` from python3-venv) + step_14b (system pip for `python-telegram-bot`)
-- **step_14a** (NEW): Node.js 22 + `@anthropic-ai/claude-code` via npm — `curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && apt-get install -y nodejs && npm install -g @anthropic-ai/claude-code`. Idempotent — skips if `command -v claude` succeeds.
+- **step_14a** (NEW): Claude Code CLI. Since 2026-10-04 (W-1c322b9e) the native installer as the sudoer — `curl -fsSL https://claude.ai/install.sh | bash` plus a `/usr/local/bin/claude` symlink, no Node.js; the original 2026-06-07 step used NodeSource + a global npm install. Idempotent — skips if `command -v claude` succeeds.
 - **step_14b** (NEW): `python-telegram-bot==22.7` via `sudo pip install --break-system-packages` (Ubuntu 24.04 PEP 668). Idempotent — skips if `python3 -c "import telegram"` succeeds.
 - **step_14 mkdir block** (NEW): `sudo chown ozgur:ozgur /opt/fabrik /opt/fabrik/scripts /opt/fabrik/logs` so step_15's `sudo -u ozgur python3 -m venv /opt/fabrik/.venv-aro-wake` can write to `/opt/fabrik/`.
 

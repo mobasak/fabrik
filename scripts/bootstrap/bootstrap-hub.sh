@@ -58,7 +58,7 @@
 #       iptables-persistent — `Conflicts: ufw` on Ubuntu 24.04 makes apt
 #       refuse the install. DOCKER-USER persistence moves to the custom
 #       iptables-docker-user.service in step 09.)
-#   03. npm install -g @anthropic-ai/claude-code (for vps-sysadmin-bot).
+#   03. Install Claude Code with the native installer (for vps-sysadmin-bot).
 #   04. Pull the W9 DR-store env mirror; place /opt/fabrik/.env + .env.sysadmin.
 #   05. Write /etc/docker/daemon.json BEFORE starting any container (log rotation +
 #       container tag for promtail).
@@ -342,8 +342,8 @@ preflight() {
     # SAFE-RERUN TRAP (added 2026-06-07 after first DR drill on bootstrap-vps.sh
     # tripped fail2ban on root@<ip> re-runs). On a freshly provisioned VPS the
     # script is called as root@<ip>. step_01 disables root login. On a re-run
-    # with the same root@<ip> argv, the SSH preflight fails; three quick
-    # retries trip fail2ban (default 3-failure threshold / 10min). Detect
+    # with the same root@<ip> argv, the SSH preflight fails; a few quick
+    # retries trip fail2ban (package default: 5 failures within 10 min). Detect
     # this case BEFORE triggering the ban:
     #   a) try root@<host>
     #   b) on failure, try ozgur@<host> (the sudoer step_00 creates)
@@ -384,7 +384,7 @@ preflight() {
             err "Re-run as the sudoer:"
             err "  $0 ozgur@${host_part} [other-args]"
             err ""
-            err "Stopping now — additional root@<ip> retries WILL trip fail2ban (default 3 failures / 10 min) and lock you out."
+            err "Stopping now — additional root@<ip> retries WILL trip fail2ban (package default: 5 failures / 10 min) and lock you out."
             return 1
         fi
         err "cannot SSH to ${REMOTE}. Confirm: (a) host reachable, (b) your pubkey in target's authorized_keys."
@@ -528,21 +528,20 @@ step_00_create_sudo_user() {
 
 step_01_harden_ssh() {
     log "step_01: harden SSH (PermitRootLogin no, PasswordAuthentication no) ($(elapsed))"
-    # Only mutate if not already hardened. sed -E with idempotent replacements.
-    remote 'sudo bash -c "
-        sed -i -E \"s/^#?PermitRootLogin .*/PermitRootLogin no/\" /etc/ssh/sshd_config
-        sed -i -E \"s/^#?PasswordAuthentication .*/PasswordAuthentication no/\" /etc/ssh/sshd_config
-        # Drop-in for absolute certainty (sshd reads /etc/ssh/sshd_config.d/*.conf last)
-        mkdir -p /etc/ssh/sshd_config.d
-        cat > /etc/ssh/sshd_config.d/99-fabrik-hardening.conf <<EOF
-PermitRootLogin no
-PasswordAuthentication no
-PubkeyAuthentication yes
-EOF
-        chmod 644 /etc/ssh/sshd_config.d/99-fabrik-hardening.conf
-        sshd -t && systemctl reload ssh
-    "'
-    ok "step_01 done"
+    # sshd keeps the FIRST value it reads and reads sshd_config.d/*.conf in lexical
+    # order BEFORE the main file, so a cloud image's 50-cloud-init.conf beats a 99-
+    # drop-in or a sed on sshd_config: harden in 01- and assert the EFFECTIVE value
+    # (core/90-bootstrap-scripts.md Rule 1, W-1c322b9e). Idempotent: it rewrites.
+    # sshd keywords are case-insensitive, hence -i on both probes.
+    remote 'sudo grep -qiE "^[[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config\.d/\*\.conf" /etc/ssh/sshd_config' \
+        || { err "step_01: /etc/ssh/sshd_config has no Include for sshd_config.d — the drop-in would be ignored"; return 1; }
+    remote 'sudo mkdir -p /etc/ssh/sshd_config.d && sudo rm -f /etc/ssh/sshd_config.d/99-fabrik-hardening.conf && printf "%s\n" "PermitRootLogin no" "PasswordAuthentication no" "PubkeyAuthentication yes" | sudo tee /etc/ssh/sshd_config.d/01-fabrik-hardening.conf >/dev/null && sudo chmod 644 /etc/ssh/sshd_config.d/01-fabrik-hardening.conf' \
+        || { err "step_01: could not write /etc/ssh/sshd_config.d/01-fabrik-hardening.conf"; return 1; }
+    remote 'eff=$(sudo sshd -T) && printf "%s\n" "$eff" | grep -qiE "^permitrootlogin[[:space:]]+no[[:space:]]*$" && printf "%s\n" "$eff" | grep -qiE "^passwordauthentication[[:space:]]+no[[:space:]]*$"' \
+        || { err "step_01: sshd -T does not report permitrootlogin no + passwordauthentication no — a drop-in that sorts before 01- overrides it"; return 1; }
+    remote 'sudo systemctl reload ssh 2>/dev/null || sudo systemctl reload sshd' \
+        || { err "step_01: sshd reload failed — the hardening is written but not live until sshd restarts"; return 1; }
+    ok "step_01 done (effective, per sshd -T)"
 }
 
 step_02_install_packages() {
@@ -616,6 +615,7 @@ step_03_install_claude_code() {
     # symlink to /usr/local/bin so systemd's default PATH picks it up.
     remote 'command -v claude >/dev/null || (
         curl -fsSL https://claude.ai/install.sh | bash &&
+        test -x "$HOME/.local/bin/claude" &&
         sudo ln -sfn "$HOME/.local/bin/claude" /usr/local/bin/claude
     )'
     # Verify it runs without auth (auth happens later, post-restore, via

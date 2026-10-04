@@ -353,17 +353,19 @@ step_00_create_sudo_user() {
 
 step_01_harden_ssh() {
     log "step_01: harden SSH ($(elapsed))"
-    remote 'sudo bash -c "
-        mkdir -p /etc/ssh/sshd_config.d
-        cat > /etc/ssh/sshd_config.d/99-fabrik-hardening.conf <<EOF
-PermitRootLogin no
-PasswordAuthentication no
-PubkeyAuthentication yes
-EOF
-        chmod 644 /etc/ssh/sshd_config.d/99-fabrik-hardening.conf
-        sshd -t && systemctl reload ssh
-    "'
-    ok "step_01 done"
+    # sshd keeps the FIRST value it reads and reads sshd_config.d/*.conf in lexical
+    # order, so harden in 01- (a cloud 50-/60- drop-in beat the old 99-) and assert
+    # the EFFECTIVE value (core/90-bootstrap-scripts.md Rule 1, W-1c322b9e).
+    # sshd keywords are case-insensitive, hence -i on both probes.
+    remote 'sudo grep -qiE "^[[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config\.d/\*\.conf" /etc/ssh/sshd_config' \
+        || { err "step_01: /etc/ssh/sshd_config has no Include for sshd_config.d — the drop-in would be ignored"; return 1; }
+    remote 'sudo mkdir -p /etc/ssh/sshd_config.d && sudo rm -f /etc/ssh/sshd_config.d/99-fabrik-hardening.conf && printf "%s\n" "PermitRootLogin no" "PasswordAuthentication no" "PubkeyAuthentication yes" | sudo tee /etc/ssh/sshd_config.d/01-fabrik-hardening.conf >/dev/null && sudo chmod 644 /etc/ssh/sshd_config.d/01-fabrik-hardening.conf' \
+        || { err "step_01: could not write /etc/ssh/sshd_config.d/01-fabrik-hardening.conf"; return 1; }
+    remote 'eff=$(sudo sshd -T) && printf "%s\n" "$eff" | grep -qiE "^permitrootlogin[[:space:]]+no[[:space:]]*$" && printf "%s\n" "$eff" | grep -qiE "^passwordauthentication[[:space:]]+no[[:space:]]*$"' \
+        || { err "step_01: sshd -T does not report permitrootlogin no + passwordauthentication no — a drop-in that sorts before 01- overrides it"; return 1; }
+    remote 'sudo systemctl reload ssh 2>/dev/null || sudo systemctl reload sshd' \
+        || { err "step_01: sshd reload failed — the hardening is written but not live until sshd restarts"; return 1; }
+    ok "step_01 done (effective, per sshd -T)"
 }
 
 step_02_install_packages() {
