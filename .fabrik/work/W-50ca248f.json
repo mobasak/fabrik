@@ -17,10 +17,10 @@
     "612ef31ece144b0d8a13a312742d7e57dfde3143248ccbafbddf973b553480ce"
   ],
   "next": "",
-  "note": "",
+  "note": "duplicate of W-5e7743d9",
   "owner": "",
   "priority": 2,
   "question": "May Jev pilots send text to TypeSafe through OpenRouter's Decisions API? That would start with public-data projects and the hub's Stop-hook pilot, with customer text excluded.",
-  "status": "awaiting-operator",
+  "status": "dropped",
   "title": "May Jev pilots send text to TypeSafe through OpenRouter's Decisions API? That would start with public-data projects and the hub's Stop-hook pilot, with customer text excluded."
 }

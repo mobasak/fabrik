@@ -6,7 +6,8 @@ core/65 point at it for their own shapes. Five things can go false with no other
 
 1. ai/00 names the lane inside its dispatch ladder, lists all six conditions with the clause that carries each one's
    force, and points at it from the binding subscription-first paragraph and from its anti-patterns.
-2. The lane is wired only through `decision-gate`, and no project wires it before the module is vendorable.
+2. The lane is wired only through `decision-gate`, which a project copies in with the change that wires its first
+   consumer (never ahead of one), and that consumer stays off until the egress condition (criterion 6) is met.
 3. The safety clauses hold: abstention is built in, thresholds are calibrated on held-out data, pilots run in shadow
    first, and a decision model is never the only guard on an irreversible act.
 4. ai/50 allows typed gates only to tighten a loop, ai/80 keeps a human or rule on irreversible removals, and core/65
@@ -77,11 +78,14 @@ def test_six_conditions_carry_their_force() -> None:
         assert phrase in lane, f"a lane condition lost its force clause: {phrase!r}"
 
 
-def test_wired_only_through_decision_gate_and_not_before_it_ships() -> None:
+def test_wired_only_through_decision_gate_vendored_with_its_first_consumer() -> None:
     lane = _lane()
     assert "only through fabrik-lib's decision-gate module, never a hand-rolled client" in lane
-    assert "until it is vendorable no project wires the lane" in lane, (
-        "the lane no longer waits for the decision-gate module"
+    assert "a project copies it in with the change that wires its first consumer, never ahead of one" in lane, (
+        "the lane no longer ties vendoring the module to wiring a consumer"
+    )
+    assert "that consumer stays off until criterion 6 is met" in lane, (
+        "the lane no longer holds a wired consumer behind the egress criterion"
     )
 
 
@@ -133,7 +137,7 @@ def test_core65_relevance_gate_needs_a_measured_lift() -> None:
     # the row ALONE — the re-ranker row below says "Only with a measured lift" too, and must not satisfy this guard
     row = _plain(next((ln for ln in raw.splitlines() if ln.startswith("| **Relevance gate** (optional) |")), ""))
     assert row, "core/65 lost its relevance-gate row"
-    assert "ai/00's decision-model lane (fabrik-lib decision-gate, not wired until that module is vendorable)" in row
+    assert "ai/00's decision-model lane (fabrik-lib decision-gate, copied in by the change that wires the gate)" in row
     assert "Only with a measured lift" in row, "core/65's relevance gate is no longer gated on a measured lift"
     assert "a closed label set at volume may take ai/00's decision-model lane instead" in text
 

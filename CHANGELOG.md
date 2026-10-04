@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — decision-gate is vendored with its first consumer, not ahead of one (2026-10-04)
+
+fabrik-lib's `decision-gate` is vendorable. `ai/00` and `core/65` no longer say "until it is vendorable". Instead they say a project copies the module in with the change that wires its first consumer, and keeps that consumer off until ai/00's criterion 6 (cleared to leave the box) is met. The hub does not vendor it yet: its four consumers are infra's surfaces, and switching one on waits on the egress ruling W-5e7743d9. Also: `tests/test_decision_model_lane.py` pins the new wording; `docs/reference/jev-decision-model-map.md` row lg-08 notes the module now exists; and W-50ca248f is retired as a duplicate of W-5e7743d9. D-550, W-9443574e.
+
 ### Changed — intel's charter states current facts at normal volume (prompt audit, 2026-10-04)
 
 `docs/reference/agents/intel.md` went through `/claude-api prompt-audit` for Opus 5.5 / Fable 5.1. Five findings were applied and three flagged; every rule was kept (D-330/D-331 loss check):
