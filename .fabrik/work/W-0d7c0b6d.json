@@ -1,0 +1,26 @@
+{
+  "block_digest": "8fe39b1b0bc0b8c07eb7ef66976e051f5abdb1fe1b0817413da7249071b437db",
+  "blocked_by": [],
+  "created": "2026-10-04T00:54:01.926281Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-0d7c0b6d",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "913591c34326f0526d5b2d288f63e4cd37ca0978935dbf83070a52bb148542b2"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May I start archiving this machine's Claude session history to vps1, so the retention plan can prove a restore from it before any local history is pruned?",
+  "status": "awaiting-operator",
+  "title": "May I start archiving this machine's Claude session history to vps1, so the retention plan can prove a restore from it before any local history is pruned?"
+}
