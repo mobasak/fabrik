@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from fractions import Fraction
 from unittest.mock import MagicMock
 
 import pytest
@@ -263,6 +265,187 @@ def test_daily_budget_guard_refuses_before_create(monkeypatch):
     c = _mock_client()
     with pytest.raises(gpu_rent.GPUBudgetExceededError, match="MAX_DAILY_GPU_COST"):
         gpu_rent.rent("pod-h100", workload="smoke", max_cost_usd=50, client=c, max_lifetime_hours=1)
+    c.create_pod.assert_not_called()
+
+
+# ============================================================================
+# Non-finite caps and spend never disable a cost guard (fabrik-lib 2699cc9a relay, 01M42Y32)
+# ============================================================================
+# `x > nan` and `x > inf` are always False, so before this a NaN/inf cap or spend admitted
+# any rental. Both entry points share _preflight; each case runs through rent() AND rented().
+
+
+def _enter(entry: str, client: MagicMock, **kw) -> None:
+    if entry == "rent":
+        gpu_rent.rent("pod-h100", workload="smoke", client=client, max_lifetime_hours=1, **kw)
+    else:
+        with gpu_rent.rented(
+            "pod-h100", workload="smoke", client=client, max_lifetime_hours=1, **kw
+        ):
+            pass
+
+
+@pytest.mark.parametrize("entry", ["rent", "rented"])
+@pytest.mark.parametrize("cap", ["nan", "inf", "+inf", "NaN", "Infinity", "not-a-number"])
+def test_a_non_finite_daily_cap_falls_back_to_the_default(entry, cap, monkeypatch):
+    """A NaN/+inf/unparseable MAX_DAILY_GPU_COST means the $50 default — pinned in the message,
+    so a fallback to 0 or a negative (which also refuses here) cannot pass."""
+    monkeypatch.setenv("MAX_DAILY_GPU_COST", cap)
+    from fabrik.ai import tracker as tracker_mod
+
+    monkeypatch.setattr(tracker_mod.UsageTracker, "today_total", lambda self, kind=None: 49.99)
+    c = _mock_client()
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match=r"MAX_DAILY_GPU_COST=\$50\.00"):
+        _enter(entry, c, max_cost_usd=50)
+    c.create_pod.assert_not_called()
+
+
+@pytest.mark.parametrize("entry", ["rent", "rented"])
+@pytest.mark.parametrize(("cap", "shown"), [("-1", r"-1\.00"), ("-inf", "-inf")])
+def test_a_negative_daily_cap_refuses_every_rental(entry, cap, shown, monkeypatch):
+    """The kill-switch direction is kept: a negative cap (-inf included) refuses all, and the
+    value is KEPT — a clamp to 0 would also refuse, so the message pins the sign."""
+    monkeypatch.setenv("MAX_DAILY_GPU_COST", cap)
+    c = _mock_client()
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match=rf"MAX_DAILY_GPU_COST=\${shown}"):
+        _enter(entry, c, max_cost_usd=50)
+    c.create_pod.assert_not_called()
+
+
+@pytest.mark.parametrize("entry", ["rent", "rented"])
+def test_a_fractional_lifetime_reaches_state_as_a_float_and_an_integral_one_stays_int(entry):
+    """A Fraction passed the finite check and then raised TypeError in gpu_state's timedelta —
+    AFTER the pod existed. The validated value is what the session now records."""
+    for hours, want in ((Fraction(1, 2), 0.5), (4, 4)):
+        c = _mock_client()
+        gpu_state.STATE_FILE.unlink(missing_ok=True)  # one session per round: read it back whole
+        if entry == "rent":
+            gpu_rent.rent(
+                "pod-h100", workload="smoke", client=c, max_lifetime_hours=hours, max_cost_usd=50
+            )
+        else:
+            with gpu_rent.rented(
+                "pod-h100", workload="smoke", client=c, max_lifetime_hours=hours, max_cost_usd=50
+            ):
+                pass
+        (session,) = gpu_state.load_state()["sessions"].values()
+        stored = session["max_lifetime_hours"]
+        assert stored == want and type(stored) is type(want), (hours, stored)
+        env = c.create_pod.call_args.kwargs["env"]
+        assert env["FABRIK_MAX_LIFETIME_HOURS"] == str(want)  # integral input keeps the "4" tag
+
+
+def test_budget_number_accepts_decimal_and_normalises_integral_input():
+    """Review round 1: a valid Decimal was refused (Decimal is not numbers.Real), and an int
+    subclass came back as itself, so its own str() reached the reaper's lifetime tag."""
+
+    class _LoudInt(int):
+        def __str__(self) -> str:
+            return "four"
+
+    assert gpu_rent._budget_number("max_lifetime_hours", Decimal("4"), lifetime=True) == 4.0
+    assert gpu_rent._budget_number("max_cost_usd", Decimal("12.5"), lifetime=False) == 12.5
+    got = gpu_rent._budget_number("max_lifetime_hours", _LoudInt(4), lifetime=True)
+    assert type(got) is int and str(got) == "4"
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match="finite"):
+        gpu_rent._budget_number("max_cost_usd", Decimal("NaN"), lifetime=False)
+
+
+def test_np_int64_lifetime_comes_back_as_a_plain_int():
+    """np.int64 is numbers.Integral but not an int subclass: under `isinstance(value, int)` it
+    took the float path and tagged the reaper's lifetime '4.0' (closing-pass finding O2)."""
+    np = pytest.importorskip("numpy")
+    got = gpu_rent._budget_number("max_lifetime_hours", np.int64(4), lifetime=True)
+    assert type(got) is int and str(got) == "4"
+
+
+def test_a_lifetime_just_inside_datetime_max_is_refused_with_margin():
+    """The check ran at preflight but upsert re-evaluates now + timedelta after the provider call
+    (up to 300 s later): a lifetime that left only seconds before datetime.max passed, then
+    overflowed after the pod existed (closing-pass finding O1)."""
+    headroom = datetime.max.replace(tzinfo=UTC) - datetime.now(UTC)
+    # Ten minutes of headroom is MORE than the 300 s wait_for_running window, so a margin that
+    # does not cover that window (anything under ~10 min) lets this through — the test pins the
+    # margin against the window that motivates it, not merely "some margin".
+    hours = (headroom - timedelta(minutes=10)) / timedelta(hours=1)
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match="too large"):
+        gpu_rent._budget_number("max_lifetime_hours", hours, lifetime=True)
+    # ...and the margin is bounded: three days of headroom is a lifetime that must still pass.
+    ok = (headroom - timedelta(days=3)) / timedelta(hours=1)
+    assert gpu_rent._budget_number("max_lifetime_hours", ok, lifetime=True) == ok
+
+
+def test_a_lifetime_that_rounds_to_a_zero_timedelta_is_refused():
+    """1e-10 h is positive, but timedelta rounds it to 0, so expires_at == created_at and the
+    reaper would kill the pod the moment it exists."""
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match="too small"):
+        gpu_rent._budget_number("max_lifetime_hours", 1e-10, lifetime=True)
+
+
+@pytest.mark.parametrize("entry", ["rent", "rented"])
+@pytest.mark.parametrize("cost", [True, "50", None])
+def test_a_max_cost_that_is_not_a_number_is_refused(entry, cost):
+    c = _mock_client()
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match="max_cost_usd must be a number"):
+        _enter(entry, c, max_cost_usd=cost)
+    c.create_pod.assert_not_called()
+
+
+@pytest.mark.parametrize("entry", ["rent", "rented"])
+@pytest.mark.parametrize(
+    ("hours", "why"),
+    [
+        (float("inf"), "finite"),
+        (float("nan"), "finite"),
+        (None, "a number"),  # TypeError from math.isfinite/math.ceil
+        ("4", "a number"),
+        (True, "a number"),  # a bool is an int to Python, never a budget
+        (0, "positive"),  # a reaper expiry already in the past
+        (-1, "positive"),
+        (Fraction(1, 10**400), "positive"),  # positive, but underflows to 0.0
+        pytest.param(10**5000, "too large", id="int-over-4300-digits"),  # repr() itself raises
+        (10**12, "too large"),  # fits a float, not timedelta(hours=...)
+        (
+            10**8,
+            "too large",
+        ),  # fits timedelta, but now + it passes year 9999 (upsert, after create)
+    ],
+)
+def test_a_lifetime_no_guard_can_compare_is_refused_before_any_create(entry, hours, why):
+    """Each of these raised a raw exception past every caller's `except GPUBudgetExceededError`,
+    or created a pod with a past expiry; fabrik-lib 01M43C7F found the same set in its twin."""
+    c = _mock_client()
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match=f"max_lifetime_hours.*{why}"):
+        if entry == "rent":
+            gpu_rent.rent(
+                "pod-h100", workload="smoke", client=c, max_lifetime_hours=hours, max_cost_usd=50
+            )
+        else:
+            with gpu_rent.rented(
+                "pod-h100", workload="smoke", client=c, max_lifetime_hours=hours, max_cost_usd=50
+            ):
+                pass
+    c.create_pod.assert_not_called()
+
+
+@pytest.mark.parametrize("entry", ["rent", "rented"])
+@pytest.mark.parametrize("max_cost", [float("nan"), float("inf")])
+def test_a_non_finite_max_cost_is_refused(entry, max_cost):
+    c = _mock_client()
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match="finite"):
+        _enter(entry, c, max_cost_usd=max_cost)
+    c.create_pod.assert_not_called()
+
+
+@pytest.mark.parametrize("entry", ["rent", "rented"])
+@pytest.mark.parametrize("spend", [float("nan"), float("-inf"), float("inf")])
+def test_a_non_finite_daily_spend_is_refused(entry, spend, monkeypatch):
+    from fabrik.ai import tracker as tracker_mod
+
+    monkeypatch.setattr(tracker_mod.UsageTracker, "today_total", lambda self, kind=None: spend)
+    c = _mock_client()
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match="finite"):
+        _enter(entry, c, max_cost_usd=50)
     c.create_pod.assert_not_called()
 
 
@@ -1101,10 +1284,14 @@ def test_modal_create_endpoint_cleans_rendered_template_on_failure(monkeypatch, 
     c = ModalClient()
     # Stub the renderer to write a known temp path
     leaked_path = tmp_path / "fabrik-modal-test-leak.py"
+    # A plain-Python stand-in, never the real SDK: `import modal; modal.App(...)` executed the
+    # installed Modal package and its local config, so this test's result depended on the box
+    # it ran on (green in one checkout, red in the merge owner's). Only `app.deploy` failing matters.
     leaked_path.write_text(
-        "import modal\napp = modal.App(name='test')\n"
-        "def _explode(): raise RuntimeError('forced')\n"
-        "app.deploy = lambda *a, **kw: _explode()\n"
+        "class _App:\n"
+        "    def deploy(self, *a, **kw):\n"
+        "        raise RuntimeError('forced')\n"
+        "app = _App()\n"
     )
     monkeypatch.setattr(
         ModalClient,

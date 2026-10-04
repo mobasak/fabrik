@@ -470,6 +470,7 @@ class WatchdogConfig(BaseModel):
     daily_budget_usd: float = Field(
         default=1.0,
         ge=0.0,
+        allow_inf_nan=False,  # `spend > inf` is never True: an infinite budget is no cap at all
         description=(
             "Daily USD cap for LLM calls (Anthropic billing — Claude Code OAuth "
             "OR fallback OpenRouter API). Per-project. Resets at midnight UTC. "
@@ -543,6 +544,7 @@ class WatchdogConfig(BaseModel):
     per_incident_budget_usd: float = Field(
         default=0.50,
         ge=0.0,
+        allow_inf_nan=False,  # an infinite per-incident ceiling never stops an incident
         description=(
             "Hard per-incident USD ceiling passed to `claude -p --max-budget-usd`. "
             "0.0 disables the per-incident cap (only daily caps apply). Recommended "

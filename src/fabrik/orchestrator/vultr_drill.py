@@ -436,6 +436,9 @@ def drill(
         "spoke-restore": 3600,  # similar wall to spoke fresh install
     }[kind]
     est = estimate_cost(monthly, horizon_s)
+    if max_cost is not None and not math.isfinite(max_cost):
+        # `est > nan` / `est > inf` is always False: a non-finite --max-cost would admit any drill
+        raise VultrError(f"--max-cost must be a finite number; got {max_cost!r}")
     if max_cost is not None and est > max_cost:
         raise VultrError(f"estimated cost ${est} exceeds --max-cost ${max_cost} (plan {plan})")
 

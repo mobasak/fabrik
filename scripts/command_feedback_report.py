@@ -1096,6 +1096,11 @@ def build(
                 "four fields and rounds 0 is here and not there, and a row with only the "
                 "input/output pair and rounds > 0 is there and not here"
             ),
+            "cache_hit": (
+                "tok_cache_read ÷ (tok_in + tok_cache_read + tok_cache_create) over the same rows "
+                "as median_tok (all four token fields); tok_out is NOT in the denominator, so "
+                "it is the share of INPUT context served from cache, not of all tokens"
+            ),
             "mass_rule": (
                 "tok_per_round is silent when the command's token mass is 0 (mass_ratio is then "
                 "null — there is nothing to take a ratio of), or when the rows it is computed over "
@@ -1164,10 +1169,13 @@ def render(report: dict) -> str:
         "0, or when those rows hold under two thirds of it; it says which, and --json carries the "
         "measured ratio in the second case (in the first there is nothing to take a ratio of). "
         "median tokens is cache-inclusive and needs all four token fields — a DIFFERENT population "
-        "from tok/round's, neither containing the other, so the two row counts do not compare.",
+        "from tok/round's, neither containing the other, so the two row counts do not compare. "
+        "cache hit is tok_cache_read ÷ (tok_in + tok_cache_read + tok_cache_create) over median "
+        "tokens' rows — tok_out is not in the denominator; max wall shares median wall's rows.",
         "",
-        "| command | runs | done/blocked/handoff | median wall (rows) | max wall | "
-        "median rounds (rows) | change: none | pool $ (rows) | median tokens (rows) | cache hit | "
+        "| command | runs | done/blocked/handoff | median wall (rows) | max wall (rows) | "
+        "median rounds (rows) | change: none | pool $ (rows) | median tokens (rows) | "
+        "cache hit (rows) | "
         "seat tokens (rows · seats) | tok/round (num/den/both) | models |",
         "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
@@ -1175,14 +1183,15 @@ def render(report: dict) -> str:
         hit = f"{100 * c['cache_hit']:.0f}%" if c.get("cache_hit") is not None else "—"
         lines.append(
             f"| /{_cell(cmd)} | {c['runs']} | {c['done']}/{c['blocked']}/{c['handoff']} | "
-            f"{_min(c['median_wall_min'])} ({c['wall_rows']}) | {_min(c['max_wall_min'])} | "
+            f"{_min(c['median_wall_min'])} ({c['wall_rows']}) | "
+            f"{_min(c['max_wall_min'])} ({c['wall_rows']}) | "
             f"{c['median_rounds'] if c['rounds_rows'] and c['median_rounds'] is not None else '—'} "
             f"({c['rounds_rows']}) | "
             f"{c['change_none']} of {c['runs']} | "
             f"{c['cost_usd'] if c['cost_rows'] and c['cost_usd'] is not None else '—'} "
             f"({c['cost_rows']}) | "
             f"{_k(c['median_tok']) if c.get('median_tok') is not None else '—'} "
-            f"({c['tok_rows']}) | {hit} | "
+            f"({c['tok_rows']}) | {hit} ({c['tok_rows']}) | "
             f"{_k(c['seat_total']) if c['seat_rows'] and c['seat_total'] is not None else '—'} "
             f"({c['seat_rows']} · "
             f"{c['seats_seen'] if c['seats_seen_rows'] and c['seats_seen'] is not None else '—'}"

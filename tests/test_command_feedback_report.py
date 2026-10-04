@@ -218,7 +218,7 @@ def test_a_command_with_no_token_rows_renders_a_dash_not_zero(tmp_path: Path) ->
     out = json.loads(_run(ledger, "--json").stdout)
     assert out["commands"]["fabrik-spec"]["median_tok"] is None
     assert out["commands"]["fabrik-spec"]["tok_rows"] == 0
-    assert "| — (0) | — |" in _run(ledger).stdout
+    assert "| — (0) | — (0) |" in _run(ledger).stdout
 
 
 def test_an_unreadable_ledger_is_an_empty_report_not_a_crash(tmp_path: Path) -> None:
@@ -274,7 +274,23 @@ def test_a_command_with_no_cost_rows_renders_a_dash_not_zero(tmp_path: Path) -> 
     ledger = tmp_path / "command-feedback.jsonl"
     _write(ledger, [_row("fabrik-spec", 100, 1, "x", cost_usd=None)])
     text = _run(ledger).stdout
-    assert "| — (0) | — (0) | — |" in text, text  # pool $, median tokens, cache hit
+    assert "| — (0) | — (0) | — (0) |" in text, text  # pool $, median tokens, cache hit
+
+
+def test_max_wall_and_cache_hit_print_their_own_row_counts(tmp_path: Path) -> None:
+    """W-cb639c8a: `max wall` and `cache hit` printed a bare figure, so a `—` over 0 rows read the
+    same as one over forty. Two timed rows, one carrying tokens: the counts must DIFFER (2 vs 1),
+    so a cell wired to the wrong population fails here."""
+    ledger = tmp_path / "command-feedback.jsonl"
+    tok = {"tok_in": 1000, "tok_out": 500, "tok_cache_read": 9000, "tok_cache_create": 0}
+    _write(ledger, [_row("c1", 120, 1, "a", **tok), _row("c1", 60, 1, "b")])
+    text = _run(ledger).stdout
+    header = next(ln for ln in text.split("\n") if ln.startswith("| command |"))
+    assert "| max wall (rows) |" in header and "| cache hit (rows) |" in header, header
+    assert "| 1.5 min (2) | 2.0 min (2) |" in text, text
+    assert "| 90% (1) |" in text, text  # 9000 / (1000 + 9000 + 0) — tok_out excluded
+    conv = json.loads(_run(ledger, "--json").stdout)["conventions"]["cache_hit"]
+    assert "tok_out is NOT in the denominator" in conv
 
 
 def test_the_default_ledger_is_the_path_the_close_writes(tmp_path: Path, monkeypatch) -> None:
@@ -479,7 +495,7 @@ def test_no_timed_row_renders_a_dash_never_a_zero_minute_run(tmp_path: Path) -> 
     assert '"wall_s": "x"' in row and '"rounds": "y"' in row
     ledger.write_text(row + "\n", encoding="utf-8")
     text = _run(ledger).stdout
-    assert "| — (0) | — | — (0) |" in text, text
+    assert "| — (0) | — (0) | — (0) |" in text, text
     assert "0.0 min" not in text and "| 0 (0) |" not in text
     c = json.loads(_run(ledger, "--json").stdout)["commands"]["c1"]
     assert c["wall_rows"] == 0 and c["median_wall_min"] is None and c["max_wall_min"] is None
@@ -2857,10 +2873,13 @@ def test_queue_fabrik_task_refuses_a_since_or_agent_window(tmp_path: Path) -> No
     whole-plan review seat. V4 defines the share over ONE denominator, the whole ledger; a window
     is a second denominator wearing an ordinary flag."""
     ledger = tmp_path / "l.jsonl"
-    _write(ledger, [
-        _row("fabrik-task", 60, 1, "none", oversized_mini="0"),
-        _row("fabrik-review-scoped", 30, 1, "none", days_ago=10.0),
-    ])
+    _write(
+        ledger,
+        [
+            _row("fabrik-task", 60, 1, "none", oversized_mini="0"),
+            _row("fabrik-review-scoped", 30, 1, "none", days_ago=10.0),
+        ],
+    )
     base = _run(ledger, "--queue", "fabrik-task")
     assert base.returncode == 0 and "adoption 1/2" in base.stdout, base.stdout
     # Both spellings: the guard normalises a leading slash itself, and a mutant that drops that

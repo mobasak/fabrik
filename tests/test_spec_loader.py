@@ -342,6 +342,18 @@ class TestWatchdogConfig:
         with pytest.raises(ValidationError, match="requires at least one of"):
             WatchdogConfig(enabled=True, daily_budget_usd=0.0, daily_invocations_cap=0)
 
+    @pytest.mark.parametrize("field", ["daily_budget_usd", "per_incident_budget_usd"])
+    @pytest.mark.parametrize("value", [float("inf"), float("nan")])
+    def test_a_non_finite_usd_budget_is_rejected(self, field: str, value: float) -> None:
+        """`spend > inf` is never True, so an infinite budget is no cap at all — and it used to
+        satisfy `ge=0` and the at-least-one-cap rule (relay 01M42Y32, same class as gpu-rent)."""
+        from pydantic import ValidationError
+
+        from fabrik.spec_loader import WatchdogConfig
+
+        with pytest.raises(ValidationError):
+            WatchdogConfig(enabled=True, daily_invocations_cap=0, **{field: value})
+
     def test_caps_validator_passes_with_usd_cap_only(self) -> None:
         """USD cap > 0 alone satisfies the at-least-one-cap rule."""
         from fabrik.spec_loader import WatchdogConfig

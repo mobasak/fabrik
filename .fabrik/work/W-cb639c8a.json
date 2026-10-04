@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-14T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "bc4e71ffd25707266710d03390d14c6df5563a6a",
   "id": "W-cb639c8a",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:a2682c2952a4",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`command_feedback_report.py` — `max wall` and `cache hit` publish no row count (2026-09-14, owner: fleet)"
 }

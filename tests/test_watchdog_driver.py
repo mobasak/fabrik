@@ -71,6 +71,20 @@ class TestRenderContext:
         )
         assert rctx.target_vps == "vps2"
 
+    @pytest.mark.parametrize("key", ["daily_budget_usd", "per_incident_budget_usd"])
+    @pytest.mark.parametrize("raw", [float("inf"), float("nan"), "inf", "x"])
+    def test_a_non_finite_budget_never_reaches_the_sidecar_env(self, key, raw):
+        """provision() is public: the render step refuses an inf/nan budget itself instead of
+        writing WATCHDOG_*_BUDGET_USD=inf (no ceiling) into the sidecar."""
+        spec = {"id": "demo", "watchdog": {"enabled": True, key: raw}}
+        with pytest.raises(ValueError, match=f"{key} must be a finite number"):
+            WatchdogDriver()._build_render_context(spec, _ctx(spec))
+
+    def test_finite_budgets_render_unchanged(self):
+        spec = {"id": "demo", "watchdog": {"daily_budget_usd": 2, "per_incident_budget_usd": "0.5"}}
+        rctx = WatchdogDriver()._build_render_context(spec, _ctx(spec))
+        assert (rctx.daily_budget_usd, rctx.per_incident_budget_usd) == (2.0, 0.5)
+
 
 def _rctx(driver: WatchdogDriver, *, propose_fix_prs: bool = False):
     spec = {"id": "demo", "watchdog": {"enabled": True, "propose_fix_prs": propose_fix_prs}}

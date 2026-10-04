@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T10:45:20.852965Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-37a570c1",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read estimate_cost/_preflight for kind=serverless in src/fabrik/orchestrator/gpu_rent.py; multiply by workers_max (or refuse workers_max>1 without an explicit cap) with a test",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "gpu",
+    "money-guard"
+  ],
+  "title": "gpu_rent: the serverless cost estimate ignores workers_max, so a multi-worker endpoint is under-estimated against max_cost_usd and the daily cap"
+}

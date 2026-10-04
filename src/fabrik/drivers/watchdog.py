@@ -554,6 +554,15 @@ class WatchdogDriver:
 
         image_tag = f"{IMAGE_REPO}:{project_id}"
 
+        # The same finite-budget rule resolve_applicability enforces before provisioning, applied
+        # again where the value becomes the sidecar's env: provision() is public, and an inf/nan
+        # rendered into WATCHDOG_*_BUDGET_USD is no ceiling at all. Local import — infrastructure
+        # imports this module lazily, so module scope would invite a cycle.
+        from fabrik.orchestrator.infrastructure import _finite_budget
+
+        daily_budget = _finite_budget(wcfg, "daily_budget_usd", 1.0)  # D2: WatchdogConfig default
+        per_incident_budget = _finite_budget(wcfg, "per_incident_budget_usd", 0.25)
+
         return _RenderContext(
             project_id=project_id,
             main_container=main_container,
@@ -561,11 +570,9 @@ class WatchdogDriver:
             apprise_url=apprise_url,
             redis_url=redis_url,
             pg_dsn=pg_dsn,
-            daily_budget_usd=float(
-                wcfg.get("daily_budget_usd", 1.0)
-            ),  # D2: match WatchdogConfig default ($1.00)
+            daily_budget_usd=daily_budget,
             daily_invocations_cap=int(wcfg.get("daily_invocations_cap", 200)),
-            per_incident_budget_usd=float(wcfg.get("per_incident_budget_usd", 0.25)),
+            per_incident_budget_usd=per_incident_budget,
             deadman_timeout_seconds=int(wcfg.get("deadman_timeout_seconds", 300)),
             auto_tier_b=bool(wcfg.get("auto_tier_b", False)),
             propose_fix_prs=bool(wcfg.get("propose_fix_prs", False)),

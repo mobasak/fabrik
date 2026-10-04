@@ -85,6 +85,7 @@ Testing:
 from __future__ import annotations
 
 import logging
+import math
 import os
 from pathlib import Path
 from typing import Any, overload
@@ -193,6 +194,23 @@ def _enabled(infra: dict[str, Any], key: str) -> bool:
 # --------------------------------------------------------------------------- #
 # Applicability resolver                                                       #
 # --------------------------------------------------------------------------- #
+
+
+def _finite_budget(watchdog_cfg: dict[str, Any], key: str, default: float) -> float:
+    """``watchdog_cfg[key]`` as a finite float, or a ValueError that aborts ``fabrik apply``.
+
+    The apply path is a raw dict, so WatchdogConfig's ``allow_inf_nan=False`` never runs here: a
+    YAML ``.inf``/``.nan`` (or the strings ``"inf"``/``"nan"``) would otherwise pass every
+    comparison as no ceiling at all.
+    """
+    raw = watchdog_cfg.get(key, default)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        value = math.nan
+    if not math.isfinite(value):
+        raise ValueError(f"watchdog: {key} must be a finite number; got {raw!r}")
+    return value
 
 
 def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
@@ -358,7 +376,11 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
         # enabled watchdog with BOTH caps zeroed is an uncapped LLM sidecar (no ceiling); reject it
         # so `fabrik apply` aborts loudly rather than deploying it. Defaults (1.0 / 200, matching
         # WatchdogConfig + drivers/watchdog.py) protect specs that simply omit the caps.
-        _budget = float(watchdog_cfg.get("daily_budget_usd", 1.0))
+        # A non-finite budget is no ceiling either: `inf <= 0` and `nan <= 0` are False, so it
+        # passed the check below and the driver rendered WATCHDOG_DAILY_BUDGET_USD=inf into the
+        # sidecar (relay 01M42Y32, the gpu-rent class).
+        _budget = _finite_budget(watchdog_cfg, "daily_budget_usd", 1.0)
+        _finite_budget(watchdog_cfg, "per_incident_budget_usd", 0.25)
         _inv_cap = int(watchdog_cfg.get("daily_invocations_cap", 200))
         if _budget <= 0 and _inv_cap <= 0:
             raise ValueError(

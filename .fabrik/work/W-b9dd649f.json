@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T10:45:21.151458Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-b9dd649f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide whether _preflight adds the estimated cost of live sessions from gpu_state to today_total; write the race as a test first",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "gpu",
+    "money-guard"
+  ],
+  "title": "gpu_rent: concurrent rentals are invisible to the daily envelope — today_total counts only finished sessions, so two live rentals can each pass the $50 cap"
+}

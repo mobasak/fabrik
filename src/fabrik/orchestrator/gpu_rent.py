@@ -40,12 +40,14 @@ from __future__ import annotations
 import json
 import logging
 import math
+import numbers
 import os
 import time
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -413,7 +415,9 @@ def _make_session_id(kind: str) -> str:
     return f"gpu-{kind}-{ts}-{uuid.uuid4().hex[:6]}"
 
 
-def _fabrik_env_tags(session_id: str, workload: str, max_lifetime_hours: int) -> dict[str, str]:
+def _fabrik_env_tags(
+    session_id: str, workload: str, max_lifetime_hours: int | float
+) -> dict[str, str]:
     """Env vars injected into every Fabrik-rented pod/endpoint.
 
     These are how the reaper recognises our resources and tells us apart
@@ -467,7 +471,7 @@ def _create_pod(
     session_id: str,
     kind: str,
     workload: str,
-    max_lifetime_hours: int,
+    max_lifetime_hours: int | float,
     image_name: str | None,
     cloud_type: str,
     interruptible: bool,
@@ -547,7 +551,7 @@ def _create_serverless_endpoint(
     *,
     session_id: str,
     workload: str,
-    max_lifetime_hours: int,
+    max_lifetime_hours: int | float,
     template_id: str | None,
     workers_min: int,
     workers_max: int,
@@ -700,17 +704,89 @@ def _compute_actual_cost(kind: str, wall_clock_seconds: float, *, provider: str)
     return round(rate * (wall_clock_seconds / 3600.0), 6)
 
 
+def _daily_gpu_cap() -> float:
+    """``MAX_DAILY_GPU_COST`` as a float, never one that disables the envelope.
+
+    ``float()`` accepts ``nan`` and ``inf``, and ``spend + est > nan`` (or ``> inf``) is always
+    False, so either value silently turned the daily envelope off. A missing, unparseable, NaN
+    or +inf value falls back to the $50 default; a negative value, ``-inf`` included, is kept —
+    it refuses every rental, the kill-switch direction a money error must take. Mirrors
+    fabrik-lib gpu-rent 2699cc9a (relay 01M42Y32).
+    """
+    raw = os.environ.get("MAX_DAILY_GPU_COST", "50")
+    try:
+        cap = float(raw)
+    except (TypeError, ValueError):
+        return 50.0
+    if math.isnan(cap) or cap == math.inf:
+        return 50.0
+    return cap
+
+
+def _safe_repr(value: object) -> str:
+    """``repr`` that cannot itself raise: an int over 4300 digits makes ``repr`` throw ValueError."""
+    try:
+        text = repr(value)
+    except ValueError:
+        return f"<{type(value).__name__} too large to print>"
+    return text if len(text) <= 60 else text[:57] + "..."
+
+
+def _budget_number(name: str, value: object, *, lifetime: bool) -> int | float:
+    """``value`` as a number every money guard can compare, or :class:`GPUBudgetExceededError`.
+
+    Any comparison against NaN is False and ``est > inf`` never fires, so a non-finite cap admits
+    any call; a bool is an int to Python but never a budget; a str or None would reach
+    ``math.ceil``/``timedelta`` and raise a TypeError past every ``except GPUBudgetExceededError``.
+    A lifetime must also be positive (zero or less writes a reaper expiry already in the past;
+    a positive Fraction or Decimal can underflow to 0.0) and must fit ``timedelta``, which
+    ``gpu_state.upsert_session`` builds only AFTER the provider call. Integral input (np.int64, an int subclass) comes
+    back as a plain int, so the reaper's ``FABRIK_MAX_LIFETIME_HOURS`` tag stays "4", anything else as a
+    float, so a Fraction never reaches ``timedelta``. Mirrors fabrik-lib gpu-rent 7b176888.
+    """
+    # Decimal is a numbers.Number but not numbers.Real; it is a legitimate budget (fabrik-lib
+    # 7b176888 accepts it too), and its NaN/inf/underflow cases are caught below via float().
+    if isinstance(value, bool) or not isinstance(value, (numbers.Real, Decimal)):
+        raise GPUBudgetExceededError(f"{name} must be a number; got {_safe_repr(value)}")
+    try:
+        as_float = float(value)
+    except (OverflowError, ValueError):
+        raise GPUBudgetExceededError(f"{name} is too large; got {_safe_repr(value)}") from None
+    if not math.isfinite(as_float):
+        raise GPUBudgetExceededError(f"{name} must be a finite number; got {_safe_repr(value)}")
+    if lifetime:
+        if as_float <= 0:
+            raise GPUBudgetExceededError(f"{name} must be positive; got {_safe_repr(value)}")
+        try:
+            # The expression gpu_state.upsert evaluates, not a bare timedelta: timedelta(hours=1e8)
+            # fits, but adding it to now passes year 9999 and raised AFTER the provider call.
+            span = timedelta(hours=as_float)
+            # upsert evaluates it again AFTER create_pod + wait_for_running (up to 300 s later),
+            # so the bound keeps a day of margin rather than racing datetime.max.
+            datetime.now(UTC) + span + timedelta(days=1)
+        except OverflowError:
+            raise GPUBudgetExceededError(f"{name} is too large; got {_safe_repr(value)}") from None
+        if span <= timedelta(0):
+            # Under ~half a microsecond timedelta rounds to zero: expires_at would equal
+            # created_at and the reaper would kill the pod the moment it exists.
+            raise GPUBudgetExceededError(f"{name} is too small; got {_safe_repr(value)}")
+    if isinstance(value, numbers.Integral):
+        return int(value)  # a plain int: np.int64 or an int subclass must not leak its own str()
+    return as_float
+
+
 def _preflight(
     kind: str,
     *,
     provider: str,
-    max_lifetime_hours: int,
+    max_lifetime_hours: int | float,
     max_cost_usd: float,
     keep_warm_after_use: bool,
-) -> tuple[float, float, float, UsageTracker]:
+) -> tuple[float, float, float, UsageTracker, int | float]:
     """Every guard that fires BEFORE a provider call, shared by :func:`rent` and :func:`rented`.
 
-    Returns ``(estimate, today_gpu_spend, daily_cap, tracker)``. Raises ``NotImplementedError``
+    Returns ``(estimate, today_gpu_spend, daily_cap, tracker, max_lifetime_hours)`` — the last is
+    the validated lifetime (see :func:`_budget_number`), which the caller must use from here on. Raises ``NotImplementedError``
     for an unknown kind/provider, ``ValueError`` for keep-warm on a Modal pod (an ephemeral
     ``app.run()`` context that dies with the process, so the session would stay ``active``
     forever), and :class:`GPUBudgetExceededError` for either cost guard.
@@ -725,23 +801,27 @@ def _preflight(
             "app.run() context that stops with this process. Use a serverless endpoint instead."
         )
     _warn_if_prices_stale()
+    max_cost_usd = _budget_number("max_cost_usd", max_cost_usd, lifetime=False)
+    max_lifetime_hours = _budget_number("max_lifetime_hours", max_lifetime_hours, lifetime=True)
     est = estimate_cost(kind, max_lifetime_hours, provider=provider)
     if est > max_cost_usd:
         raise GPUBudgetExceededError(
             f"estimated cost ${est} exceeds --max-cost ${max_cost_usd} (kind {kind})"
         )
-    try:
-        daily_cap = float(os.environ.get("MAX_DAILY_GPU_COST", "50"))
-    except (TypeError, ValueError):
-        daily_cap = 50.0
+    daily_cap = _daily_gpu_cap()
     tracker = UsageTracker()
     today_gpu_spend = tracker.today_total(kind="gpu")
+    if not math.isfinite(today_gpu_spend):
+        # `nan + est > cap` is always False and `-inf + est` never exceeds a cap: refuse.
+        raise GPUBudgetExceededError(
+            f"daily GPU spend is not a finite number ({today_gpu_spend!r}); refusing"
+        )
     if today_gpu_spend + est > daily_cap:
         raise GPUBudgetExceededError(
             f"daily GPU spend ${today_gpu_spend:.2f} + estimate ${est:.2f} "
             f"would exceed MAX_DAILY_GPU_COST=${daily_cap:.2f}"
         )
-    return est, today_gpu_spend, daily_cap, tracker
+    return est, today_gpu_spend, daily_cap, tracker, max_lifetime_hours
 
 
 def _finalize(
@@ -813,7 +893,7 @@ def rent(
     *,
     workload: str,
     provider: str = "runpod",
-    max_lifetime_hours: int = 1,
+    max_lifetime_hours: int | float = 1,
     max_cost_usd: float = 5.0,
     keep_on_failure: bool = False,
     keep_warm_after_use: bool = False,
@@ -865,7 +945,7 @@ def rent(
         ``resource_dict`` is the full provider response (Pod or Endpoint).
     """
     # --- Guards (FIRE BEFORE PROVIDER CALL) ----------------------------
-    est, today_gpu_spend, daily_cap, tracker = _preflight(
+    est, today_gpu_spend, daily_cap, tracker, max_lifetime_hours = _preflight(
         kind,
         provider=provider,
         max_lifetime_hours=max_lifetime_hours,
@@ -1012,7 +1092,7 @@ def rented(
     *,
     workload: str,
     provider: str = "runpod",
-    max_lifetime_hours: int = 1,
+    max_lifetime_hours: int | float = 1,
     max_cost_usd: float = 5.0,
     keep_on_failure: bool = False,
     keep_warm_after_use: bool = False,
@@ -1043,7 +1123,7 @@ def rented(
     style. Instead, ``rented()`` duplicates the try/finally lifecycle here
     (smaller scope: no work_fn callback, but otherwise identical guards).
     """
-    est, _today, _cap, tracker = _preflight(
+    est, _today, _cap, tracker, max_lifetime_hours = _preflight(
         kind,
         provider=provider,
         max_lifetime_hours=max_lifetime_hours,

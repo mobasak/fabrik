@@ -88,6 +88,15 @@ def test_max_cost_guard_refuses_before_create():
     c.create_instance.assert_not_called()
 
 
+@pytest.mark.parametrize("max_cost", [float("nan"), float("inf")])
+def test_a_non_finite_max_cost_is_refused_before_create(max_cost):
+    """`est > nan` is always False: a NaN/inf --max-cost (click FLOAT accepts both) admitted any drill."""
+    c = _mock_client(monthly=720.0)
+    with pytest.raises(VultrError, match="finite"):
+        vultr_drill.drill("bare", sshkey_ids=["k"], max_cost=max_cost, client=c)
+    c.create_instance.assert_not_called()
+
+
 def test_unknown_kind_raises():
     with pytest.raises(NotImplementedError):
         vultr_drill.drill("wat", sshkey_ids=["k"], client=_mock_client())

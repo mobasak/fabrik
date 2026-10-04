@@ -2678,48 +2678,6 @@ def _tick_switch(name: str) -> bool:
     return _activate_snapshot(selector=_selector) is not None
 
 
-def _file_refreshed_credentials(
-    store: Path, payload: dict, verified_email: str | None, provenance: bool = False
-) -> bool:
-    """Atomically install a refreshed credential pair into ITS OWN store — identity-gated
-    (the 2026-08-13 mis-filing class must be impossible here): the verified email's local
-    part must match the store's name prefix, OR ``provenance=True`` (the pair came from this
-    store's own refresh token — OAuth construction proves ownership; used only when the
-    verification probe is unreachable). Under ROTATE_LOCK (closer #9 — every sibling
-    credential writer holds it); backup to .prev, unique-tmp+rename install."""
-    if not provenance:
-        local = (verified_email or "").split("@", 1)[0].lower()
-        if not local or not store.name.lower().startswith(local + "-"):
-            sys.stderr.write(
-                f"claude_rotate: refresh NOT filed — {verified_email!r} does not"
-                f" match store {store.name}\n"
-            )
-            return False
-    dst = store / ".credentials.json"
-    try:
-        lock_fd = os.open(str(ROTATE_LOCK), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-        fcntl.flock(lock_fd, fcntl.LOCK_EX)
-    except OSError:
-        lock_fd = None  # best-effort: os.replace still keeps readers atomic
-    try:
-        if dst.exists():
-            _secure_write(store / ".credentials.json.prev", dst.read_bytes())
-        tmp = store / f".credentials.json.tmp{os.getpid()}.{time.monotonic_ns()}"
-        _secure_write(tmp, json.dumps(payload).encode())
-        os.replace(tmp, dst)
-        return True
-    except OSError as e:
-        sys.stderr.write(f"claude_rotate: refresh filing failed for {store.name}: {e}\n")
-        return False
-    finally:
-        if lock_fd is not None:
-            try:
-                fcntl.flock(lock_fd, fcntl.LOCK_UN)
-                os.close(lock_fd)
-            except OSError:
-                pass
-
-
 def _keepwarm_refresh(store: Path) -> bool:
     """BLOCKED BY THE ENDPOINT (live-probed 2026-08-13): a script-side refresh POST to
     /v1/oauth/token returns HTTP 403 (Cloudflare 1010) on BOTH platform.claude.com and
