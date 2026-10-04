@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — deploy commands describe the re-vendored health_probe correctly (2026-10-05)
+After the health_probe re-vendor (fabrik-lib cfd9215f), `/fabrik-deploy-verify`, `/fabrik-deploy-checklist` and `/fabrik-deploy-plan` still said the module imports `python-dotenv` at module level. They now name `httpx` as the module-level import that a leg image must carry; `psycopg2`/`redis` are imported inside their own rows, so a missing driver fails only that row; and `python-dotenv` is needed only for the `.env` load. `/fabrik-deploy-plan`'s executable probe now imports `httpx, dotenv` instead of `dotenv` alone. `.windsurf/rules/core/25-data-postgres.md` cites the module's `_timeout_from_env` by name instead of a stale line number. Reported by fleet (mails 01M44861, 01M448X7).
+
 ### Fixed — two red test files read what the check found, not what fit on stdout (2026-10-04)
 `tests/test_spec_intake_inventory.py` asserted on the CLI output of `check_spec_convergence.py`, which prints under an output budget. Once the approach and interrogative floors fired first on its fixtures, NO-INTAKE and HOLLOW-INTAKE fell past the budget. The positive tests went red and the two negative tests passed without testing anything. They now read `_audit`'s full finding list. In `tests/test_kaizen_sensor_emitters.py`, two comparisons diffed against a module-scoped gate run made before conftest pins `COMMAND_RUN_DIR`, so the feedback-duty line differed between the two sides, and both runs audited the live shared tree, so a sibling's commit between them changed the report. Every gate run now happens inside its test against a local `git clone` of HEAD; a clone, not a worktree, so a killed run leaves nothing registered in the shared `.git`. The emitter-absent test also compares stderr now.
 

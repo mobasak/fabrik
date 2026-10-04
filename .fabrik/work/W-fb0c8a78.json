@@ -13,12 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
-  "tags": [
-    "waits-hp-revendor"
-  ],
+  "status": "done",
   "title": "two command sources say libs/health_probe imports python-dotenv at module level — false after the re-vendor (714dbf90e)"
 }

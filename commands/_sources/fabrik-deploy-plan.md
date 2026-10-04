@@ -170,12 +170,12 @@ The section that catches deploy-breakers. For `specs/services/<id>.yaml` + the r
 - **The container leg can RUN the comparator** (the tryton-crm class — found at verify time, belongs
   here): the contract's `container_leg_service` (empty = the app service) names the container
   `/fabrik-deploy-verify` will `docker exec` its container rows in, and that image must carry a Python
-  interpreter plus the comparator's runtime deps — `python-dotenv` at module level, `psycopg`/`redis` for
-  the rows that use them. **The PRIMARY proof is the leg service's OWN build read at `path:line`** — its
-  Dockerfile + requirements (a scaffolded Python image carries dotenv: `pyproject.toml.template:40`,
+  interpreter plus the comparator's runtime deps — `httpx` at module level, `psycopg2`/`redis` for
+  the rows that use them, `python-dotenv` for the `.env` load. **The PRIMARY proof is the leg service's OWN build read at `path:line`** — its
+  Dockerfile + requirements (a scaffolded Python image carries both: `pyproject.toml.template:37` and `:40`,
   installed by `Dockerfile.python:21-23`; a third-party image is proven from ITS image's package list,
   never assumed). The executable probe — `ssh <vps> "docker run --rm --entrypoint python <image> -c
-  'import dotenv'"` (the template declares no `ENTRYPOINT`, so the override is clean) — runs only where
+  'import httpx, dotenv'"` (the template declares no `ENTRYPOINT`, so the override is clean) — runs only where
   the image EXISTS: images are built ON the VPS by `fabrik apply` (`deployer_ssh.py::_BUILD_TIMEOUT`), so
   on a FIRST deploy there is no image anywhere at plan time and the probe is a runbook VERIFY step after
   the build, never a Phase-2 proof. A third-party image (tryton-crm's `trytond`: no dotenv) or a Node
