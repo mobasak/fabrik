@@ -7367,3 +7367,22 @@ document.
 - **Where it lives.** `docs/development/reviews/2026-09-16-plan-1-quota-posture-review.md` (Pass
   Ledger Delta 17–23), `docs/DECISIONS.md` (D-278), `tests/conftest.py` (`_private_monkeypatch`),
   `scripts/sysadmin/claude_rotate.py` (`_usable_ts`, `_rearm_wall_stamp`).
+
+## A canary is a test with a clock in it — a dated fixture ages out of a windowed check, and "it printed something extra" is not "it printed the rule" (2026-10-04)
+
+- **What happened.** W-45d1e850 added 15 gate canaries. The `check_feedback_duty` pair hard-coded
+  `"updated_at": "2026-10-04..."`; the check counts closes within `WINDOW_DAYS = 14`, so on
+  2026-10-19 the bad tree would have printed nothing and the canary would have read the row DEAD. The
+  Fable design critic found it by executing the fixture with three stamps. Separately, the old
+  warn_only assertion ("the bad output minus the clean output is non-empty") passed on census lines
+  such as `Examined 1 pack(s)`, which print whether or not the rule fires. Five new canaries had no
+  clean tree, so any census line passed.
+- **Mechanism.** A fixture body is frozen at authoring time, while the check reads `now`. A
+  difference between two trees proves that the trees differ, not that the rule spoke.
+- **How to apply.** (1) Leave timestamps out of fixtures when the check counts an absent one as
+  in-window, or compute them; `test_no_canary_fixture_carries_a_timestamp_that_ages_out` refuses an
+  ISO stamp in any canary body. (2) Assert the rule's OWN words (`speaks`) in the bad output and
+  their absence in the clean output; never assert a byte difference.
+- **Where it lives.** `scripts/sysadmin/liveness_audit.py` (`CANARIES`, the `speaks` key),
+  `tests/test_gate_check_canaries.py`, `docs/DECISIONS.md` (D-564),
+  `docs/development/reviews/2026-10-04-gate-canary-coverage-review.md`.
