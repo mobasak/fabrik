@@ -1470,3 +1470,73 @@ def test_runpod_community_fallback_to_secure_on_500(monkeypatch):
     second_call_kwargs = c.create_pod.call_args_list[1].kwargs
     assert second_call_kwargs["cloud_type"] == "SECURE"
     assert result.get("_fabrik_cloud_type_used") == "SECURE"
+
+
+# ============================================================================
+# W-2f782cd7 — a reaper run during the wait must not orphan our own new pod
+# ============================================================================
+def _tagged_client(on_wait=None) -> MagicMock:
+    """A client whose create_pod lists the pod WITH its env tags, as RunPod does, and whose
+    wait_for_running runs ``on_wait`` (the reaper's view, mid-wait) before returning."""
+    live: dict = {}
+    c = MagicMock()
+
+    def create_pod(**kw):
+        pod = {"id": "pod-abc", "desiredStatus": "RUNNING", "env": dict(kw.get("env") or {})}
+        live["pod-abc"] = pod
+        return pod
+
+    def wait_for_running(pod_id, **_kw):
+        if on_wait is not None:
+            on_wait(c)
+        return {"id": pod_id, "desiredStatus": "RUNNING"}
+
+    c.create_pod.side_effect = create_pod
+    c.wait_for_running.side_effect = wait_for_running
+    c.list_pods.side_effect = lambda: list(live.values())
+    c.list_endpoints.return_value = []
+    return c
+
+
+@pytest.mark.parametrize("entry", ["rent", "rented"])
+def test_a_reconcile_during_the_wait_does_not_orphan_our_pod(entry):
+    """The pod is tagged FABRIK_SESSION_ID at create; if the session is written only after
+    wait_for_running (up to 300 s), `reaper --auto-destroy` kills our own healthy pod."""
+    seen: dict = {}
+    c = _tagged_client(on_wait=lambda cl: seen.update(report=gpu_state.reconcile(cl)))
+    _enter(entry, c, max_cost_usd=50)
+    orphans = [o["resource_id"] for o in seen["report"]["orphan_pods"]]
+    assert "pod-abc" not in orphans, "the reaper would destroy our own pod mid-rental"
+
+
+def test_a_wait_failure_leaves_the_session_recorded_and_destroyed():
+    """Before W-2f782cd7 a wait failure left NO state record: _finalize's mark_destroyed only
+    logged 'unknown session'."""
+
+    def boom(_cl):
+        raise RunPodError("pod never reached RUNNING")
+
+    c = _tagged_client(on_wait=boom)
+    r = gpu_rent.rent("pod-h100", workload="smoke", client=c, max_cost_usd=50)
+    assert r["success"] is False
+    c.destroy_pod.assert_called_once_with("pod-abc")
+    sess = gpu_state.get_session(r["session_id"])
+    assert sess is not None, "the failed rental must leave its record"
+    assert sess["resource_id"] == "pod-abc" and sess["destroyed_at"] is not None
+
+
+def test_the_session_is_recorded_once_at_creation(monkeypatch):
+    """The record is written the moment the provider returns an id, once — not again after."""
+    writes: list = []
+    real = gpu_state.upsert
+
+    def counting_upsert(sid, **kw):
+        writes.append(kw["resource_id"])
+        return real(sid, **kw)
+
+    monkeypatch.setattr(gpu_state, "upsert", counting_upsert)
+    order: list = []
+    c = _tagged_client(on_wait=lambda _cl: order.append(("wait", len(writes))))
+    gpu_rent.rent("pod-h100", workload="smoke", client=c, max_cost_usd=50)
+    assert order == [("wait", 1)], "recorded BEFORE the wait"
+    assert writes == ["pod-abc"], "and exactly once"

@@ -477,8 +477,13 @@ def _create_pod(
     interruptible: bool,
     provider: str = "runpod",
     report: dict[str, Any] | None = None,
+    on_created: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
     """Create a pod and wait for it to reach RUNNING.
+
+    ``on_created(pod_id)`` runs the moment the provider returns the id, BEFORE the wait: the pod
+    already carries its ``FABRIK_SESSION_ID`` tag, so a reaper run during a wait of up to 300 s
+    would otherwise class it an orphan and ``--auto-destroy`` would kill it (W-2f782cd7).
 
     Records ``report["resource_id"]`` AS SOON AS the pod ID is known so the
     outer ``rent()`` try/finally can clean up even if ``wait_for_running``
@@ -534,6 +539,8 @@ def _create_pod(
     # rent() can destroy on wait failure — this closes the orphan-pod gap.
     if report is not None:
         report["resource_id"] = pod_id
+    if on_created is not None:
+        on_created(pod_id)  # recorded before the wait — see the docstring
     # Vast.ai needs longer than RunPod (marketplace hosts have slower image
     # pulls than RunPod's pre-cached registry). 180s is generous for cached
     # images, tight enough that a stuck host doesn't burn $0.10+ before bail.
@@ -740,7 +747,7 @@ def _budget_number(name: str, value: object, *, lifetime: bool) -> int | float:
     ``math.ceil``/``timedelta`` and raise a TypeError past every ``except GPUBudgetExceededError``.
     A lifetime must also be positive (zero or less writes a reaper expiry already in the past;
     a positive Fraction or Decimal can underflow to 0.0) and must fit ``timedelta``, which
-    ``gpu_state.upsert_session`` builds only AFTER the provider call. Integral input (np.int64, an int subclass) comes
+    ``gpu_state.upsert`` builds only AFTER the provider call. Integral input (np.int64, an int subclass) comes
     back as a plain int, so the reaper's ``FABRIK_MAX_LIFETIME_HOURS`` tag stays "4", anything else as a
     float, so a Fraction never reaches ``timedelta``. Mirrors fabrik-lib gpu-rent 7b176888.
     """
@@ -761,8 +768,8 @@ def _budget_number(name: str, value: object, *, lifetime: bool) -> int | float:
             # The expression gpu_state.upsert evaluates, not a bare timedelta: timedelta(hours=1e8)
             # fits, but adding it to now passes year 9999 and raised AFTER the provider call.
             span = timedelta(hours=as_float)
-            # upsert evaluates it again AFTER create_pod + wait_for_running (up to 300 s later),
-            # so the bound keeps a day of margin rather than racing datetime.max.
+            # upsert evaluates it again once the provider returns the id (W-2f782cd7 moved that
+            # before the pod's wait); the bound keeps a day of margin rather than racing datetime.max.
             datetime.now(UTC) + span + timedelta(days=1)
         except OverflowError:
             raise GPUBudgetExceededError(f"{name} is too large; got {_safe_repr(value)}") from None
@@ -1006,6 +1013,20 @@ def rent(
     resource: dict[str, Any] | None = None
     failed = False
     start = time.monotonic()
+
+    def _record(resource_id: str) -> None:
+        gpu_state.upsert(
+            session_id,
+            provider=provider,
+            kind=kind,
+            workload=workload,
+            resource_type=report["resource_type"],
+            resource_id=resource_id,
+            gpu_type_id=report["gpu_type_id"],
+            max_lifetime_hours=max_lifetime_hours,
+            cost_estimate_usd=est,
+        )
+
     try:
         if kind == "serverless":
             resource = _create_serverless_endpoint(
@@ -1021,7 +1042,9 @@ def rent(
                 provider=provider,
                 model=model,
             )
+            _record(resource["id"])  # an endpoint is returned without a wait
         else:
+            # recorded inside _create_pod BEFORE its wait (W-2f782cd7)
             resource = _create_pod(
                 client,
                 session_id=session_id,
@@ -1033,22 +1056,10 @@ def rent(
                 interruptible=interruptible,
                 provider=provider,
                 report=report,
+                on_created=_record,
             )
         report["resource_id"] = resource["id"]
         report["checks"]["created"] = True
-
-        # Persist to state file
-        gpu_state.upsert(
-            session_id,
-            provider=provider,
-            kind=kind,
-            workload=workload,
-            resource_type=report["resource_type"],
-            resource_id=resource["id"],
-            gpu_type_id=report["gpu_type_id"],
-            max_lifetime_hours=max_lifetime_hours,
-            cost_estimate_usd=est,
-        )
 
         # User-provided work
         if work_fn is not None:
@@ -1165,6 +1176,20 @@ def rented(
         "checks": {},
         "error": None,
     }
+
+    def _record(resource_id: str) -> None:
+        gpu_state.upsert(
+            session_id,
+            provider=provider,
+            kind=kind,
+            workload=workload,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            gpu_type_id=report["gpu_type_id"],
+            max_lifetime_hours=max_lifetime_hours,
+            cost_estimate_usd=est,
+        )
+
     try:
         if kind == "serverless":
             resource = _create_serverless_endpoint(
@@ -1180,7 +1205,9 @@ def rented(
                 provider=provider,
                 model=model,
             )
+            _record(resource["id"])  # an endpoint is returned without a wait
         else:
+            # recorded inside _create_pod BEFORE its wait (W-2f782cd7)
             resource = _create_pod(
                 client,
                 session_id=session_id,
@@ -1192,20 +1219,10 @@ def rented(
                 interruptible=interruptible,
                 provider=provider,
                 report=report,
+                on_created=_record,
             )
         report["resource_id"] = resource["id"]
         report["checks"]["created"] = True
-        gpu_state.upsert(
-            session_id,
-            provider=provider,
-            kind=kind,
-            workload=workload,
-            resource_type=resource_type,
-            resource_id=resource["id"],
-            gpu_type_id=report["gpu_type_id"],
-            max_lifetime_hours=max_lifetime_hours,
-            cost_estimate_usd=est,
-        )
         yield resource
         report["success"] = True
     except Exception as e:
