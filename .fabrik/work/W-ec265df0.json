@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-27T17:32:09.929579Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "9472228d0bf4e47a6720dc4b78c8b5241a1fd36e",
   "id": "W-ec265df0",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "modal_provider.py module docstring still says 'Cost (per the rule, verified 2026-05-24 at modal.com/pricing): $4.56/hr base GPU rate (H100)' and a 3.75x non-preemptible CPU/RAM multiplier; modal.com/pricing read 2026-09-27 shows H100 $0.001097/s (~$3.95/h) base, non-preemptible 3x, region 1.15-1.75x. Found by the W-? price-table refresh for mail 01M3482Z (kept out of that change: a fourth file in a 3-file lane)"
 }
