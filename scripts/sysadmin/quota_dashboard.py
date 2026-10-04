@@ -2511,9 +2511,9 @@ def _with_stale_banner(html: str, page_mtime: float) -> str:
     age_s = max(0.0, time.time() - page_mtime)
     # The loop's interval is a PERIOD measured from a probe's START: after a quick probe it waits
     # ~interval, and the next probe may legally run the full timeout before it writes. So a HEALTHY
-    # page reaches interval + timeout + render before it is replaced; the bound doubles that, so a
-    # merely slow probe never draws the banner (review round 1, S1).
-    if failure is None and age_s <= 2 * (PROBE_INTERVAL_S + PROBE_TIMEOUT_S):
+    # page reaches interval + timeout + render before it is replaced; the bound adds a minute for
+    # render and scheduling, so a merely slow probe never draws the banner (review round 1, S1).
+    if failure is None and age_s <= PROBE_INTERVAL_S + PROBE_TIMEOUT_S + 60:
         return html
     age = f"{age_s:.0f} s" if age_s < 120 else f"{age_s / 60:.0f} min"
     if failure is not None:
@@ -2532,8 +2532,9 @@ def _with_stale_banner(html: str, page_mtime: float) -> str:
     anchor = '<div class="wrap">'
     if anchor in html:
         return html.replace(anchor, anchor + banner, 1)
-    # A page without the wrap div (a future template): still inside <body>, never before <!DOCTYPE>.
-    body = re.search(r"<body[^>]*>", html, re.IGNORECASE)
+    # A page without the wrap div (a future template): just after the <body> tag. A page with no
+    # <body> tag at all has nowhere better, so the banner is prepended there.
+    body = re.search(r"<body(?=[\s>])[^>]*>", html, re.IGNORECASE)
     return html[: body.end()] + banner + html[body.end() :] if body else banner + html
 
 

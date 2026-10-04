@@ -145,7 +145,9 @@ def test_a_page_older_than_a_probe_cycle_says_so_without_any_failure(tmp_path, m
     qd = _load(tmp_path, monkeypatch, max_age="100000")  # no view regenerates
     _good_page(qd, monkeypatch)
     assert _MARKER not in qd._fresh_html(), "a minute old is inside the probe cycle"
-    old = time.time() - (2 * (qd.PROBE_INTERVAL_S + qd.PROBE_TIMEOUT_S) + 30)
+    old = time.time() - (
+        qd.PROBE_INTERVAL_S + qd.PROBE_TIMEOUT_S + 60 + 10
+    )  # 150 s: under a doubled 160
     os.utime(qd._HTML, (old, old))
     served = qd._fresh_html()
     assert _MARKER in served and "no regeneration has finished" in served
@@ -193,3 +195,14 @@ def test_a_page_without_the_wrap_div_gets_the_banner_inside_body(tmp_path, monke
     assert served.startswith("<!DOCTYPE html>"), "nothing may precede the doctype"
     body_at = served.index('<body class="x">') + len('<body class="x">')
     assert served.index(_MARKER) > body_at and served.count(_MARKER) == 1
+
+
+def test_the_body_fallback_ignores_a_tag_that_only_starts_with_body(tmp_path, monkeypatch):
+    """Review round 2 (S3/H1): `<body[^>]*>` matched `<bodyxtra ...>`; the tag name must end there."""
+    qd = _load(tmp_path, monkeypatch)
+    qd._LAST_RENDER_FAILURE[0] = (time.time(), "TypeError")
+    page = "<!DOCTYPE html><html><bodyxtra a=1><p>x</p></bodyxtra><body><p>hi</p></body></html>"
+    served = qd._with_stale_banner(page, time.time() - 5)
+    assert served.index(_MARKER) > served.index("<body>"), (
+        "the banner belongs after the real <body>"
+    )
