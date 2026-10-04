@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "mail.py — a hub-internal reply is addressed to its own author, so the finder never sees the answer (8 fleet replies misrouted, measured 2026-09-29)"
 }
