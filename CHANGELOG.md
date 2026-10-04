@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the autonomy ladder can park work that is not due yet (2026-10-04)
+After D-558 an item due on a later date, or waiting on an outside event, could only end an agent's turn on a `BLOCKED:` line: the Stop hook kept pushing it. Tags now PARK an item: `hold`, `waits-<slug>` (until removed) and `waits-YYYY-MM-DD` (until that UTC date). A parked item leaves the claim, held-claim and owned rungs and `work.py next`; a session holding a parked item's claim is told to release it; a malformed dated tag or a bare `waits-` is refused when written. `runtime` stays an assignment hold only, so a `runtime` task assigned by hand is pushed again. `work.py queue` and the Stop result count parked items.
+
 ### Fixed — the GPU reaper no longer destroys our own new pod as an orphan (2026-10-04)
 `gpu_rent` tagged a new pod with `FABRIK_SESSION_ID` at create but wrote the session to the state file only after `wait_for_running` (up to 300 s), so a `fabrik gpu reconcile --auto-destroy` run in that window classed our own healthy pod an orphan and destroyed it. The session is now recorded the moment the provider returns the pod or endpoint id (`_create_pod`'s `on_created` callback; serverless right after the endpoint is returned), so a failed wait also leaves a record marked destroyed or `destroy_pending` instead of nothing. The reaper now marks a session destroyed only when the resource it destroyed is that session's recorded one, so a stale COMMUNITY→SECURE twin pod sharing the session id no longer takes the live pod down with it on the next run. Reported by fabrik-lib (01M43JTSDY); W-2f782cd7. The Modal deploy window this cannot reach is W-36828334.
 

@@ -149,7 +149,14 @@ worker — a registered `.claude/worktrees/<name>` with a live `claude` process 
 the routable and waiting-backlog counts and the plans not yet executed; `work.py triage` plans the
 top-up (it prints each item's tags — the coordinator judges role fit) and `--apply` assigns it, never
 promoting, dropping or creating anything; items tagged `runtime`, `hold` or `waits-*` are never
-assigned automatically. The Stop hook enforces both sides through `work.py queue --stop`: a window
+assigned automatically. `hold` and `waits-*` also PARK an item — not doable now: no claim, owned or
+held-claim rung pushes it, `work.py next` skips it, and a session holding its claim is told to
+release it. `waits-<slug>` (an event: `waits-tojlo`) parks until the tag is removed;
+`waits-YYYY-MM-DD` parks until that UTC date and is live again on it, and a dated tag that is not a
+real date is refused when written. `runtime` is never parked: assigned by hand it is due work.
+Parking an existing item is the distributor's call (`work.py assign <id> --tag …`); `add --tag`
+sets the tags of a new item. `queue` counts each agent's OWNED parked items, and the Stop result
+counts the parked items the agent owns or this session has claimed. The Stop hook enforces both sides through `work.py queue --stop`: a window
 with queued work and no claim is told to claim it, a worker whose queue is empty rings the
 coordinator, the distributor is told to triage while a present worker sits below the floor and
 work waits (routable or backlog items, or its own queue above the floor), and a

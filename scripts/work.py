@@ -2730,6 +2730,13 @@ def _parse_tags(values: list[str]) -> list[str]:
     for tag in values:
         if not _TAG_RE.fullmatch(tag):
             raise WorkError(f"--tag {tag!r} is not a tag ({TAG_RULE})")
+        if tag.startswith(HELD_PREFIX):
+            rest = tag[len(HELD_PREFIX) :]
+            if not rest or (rest[:1].isdigit() and _waits_until(tag) is None):
+                raise WorkError(
+                    f"--tag {tag!r}: a wait is `waits-<slug>` or `waits-YYYY-MM-DD` with a real "
+                    "date; a typo would park the item forever"
+                )
     return sorted(set(values))
 
 
@@ -2835,7 +2842,7 @@ def cmd_ready(repo: Path, args: argparse.Namespace) -> int:
 
 def cmd_next(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
-    items = _ready_items(repo, mine=True, agent=_agent_name())
+    items = [i for i in _ready_items(repo, mine=True, agent=_agent_name()) if not _is_parked(i)]
     if items:
         print(_line(items[0]))
     else:
@@ -4017,9 +4024,40 @@ def _tags(item: dict) -> set[str]:
     return set(item.get("tags") or [])
 
 
-def _is_held(item: dict) -> bool:
+# `waits-YYYY-MM-DD`, strict: `date.fromisoformat` would also take `20261009` and week dates.
+_WAITS_DATE_RE = re.compile(r"waits-(\d{4})-(\d{2})-(\d{2})")
+_PARK_TAGS = frozenset({"hold"})
+
+
+def _waits_until(tag: str) -> date | None:
+    """The date a `waits-YYYY-MM-DD` tag names, or None (a slug, or not a real date)."""
+    m = _WAITS_DATE_RE.fullmatch(tag)
+    if not m:
+        return None
+    try:
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return None
+
+
+def _is_parked(item: dict, today: date | None = None) -> bool:
+    """Not doable now: `hold`, a `waits-<slug>`, or a `waits-YYYY-MM-DD` before that UTC date.
+    `runtime` is never parked — assigned by hand it is due work (D-558 follow-up)."""
     tags = _tags(item)
-    return bool(tags & HELD_TAGS) or any(t.startswith(HELD_PREFIX) for t in tags)
+    if tags & _PARK_TAGS:
+        return True
+    day = today or datetime.now(UTC).date()
+    for t in tags:
+        if t.startswith(HELD_PREFIX):
+            until = _waits_until(t)
+            if until is None or day < until:
+                return True
+    return False
+
+
+def _is_held(item: dict, today: date | None = None) -> bool:
+    """Kept out of AUTOMATIC assignment: `runtime`, or parked."""
+    return bool(_tags(item) & HELD_TAGS) or _is_parked(item, today)
 
 
 def _is_work(item: dict) -> bool:
@@ -4081,7 +4119,11 @@ def _present(workers: dict[str, Path]) -> set[str] | None:
 def _queued(tree: Path, agent: str) -> list[dict]:
     if not agent or not _has_store(tree):
         return []
-    return [i for i in _ready_items(tree) if i.get("owner") == agent and _is_work(i)]
+    return [
+        i
+        for i in _ready_items(tree)
+        if i.get("owner") == agent and _is_work(i) and not _is_parked(i)
+    ]
 
 
 def _pool(main: Path) -> dict[str, list[dict]]:
@@ -4304,7 +4346,11 @@ def _held_text(item: dict, held: int) -> str:
             "answer it with `/fabrik-command-improve`; it closes when its rows are marked answered"
         )
     else:
-        how = f"finish it (`python3 scripts/work.py done {item['id']} --evidence <sha>`) or release it"
+        how = (
+            f"finish it (`python3 scripts/work.py done {item['id']} --evidence <sha>`) or release "
+            "it; not due yet or waiting on an event → ask the distributor to park it: "
+            f"`work.py assign {item['id']} --tag waits-YYYY-MM-DD|waits-<slug>`"
+        )
     return f"{head}{item['id']} — {title}: {how}{_ESCAPE}"
 
 
@@ -4384,20 +4430,30 @@ def _autonomy_candidates(
     closed = _closed_ids(tree)
     claims = _live_claims(tree)
     cands: list[dict] = []
-    held = _by_priority(
-        [
-            i
-            for i in items
-            if (claims.get(i["id"]) or {}).get("session") == session
-            and session
-            and i.get("status") == "open"
-            and i["id"] not in closed
-            and i.get("kind") != "next"
-        ]
-    )
+    mine = [
+        i
+        for i in items
+        if (claims.get(i["id"]) or {}).get("session") == session
+        and session
+        and i.get("status") == "open"
+        and i["id"] not in closed
+        and i.get("kind") != "next"
+    ]
+    held = _by_priority([i for i in mine if not _is_parked(i)])
     for it in held:
         cands.append(
             {"action": "continue", "fp": f"item:{it['id']}", "text": _held_text(it, len(held))}
+        )
+    for it in _by_priority([i for i in mine if _is_parked(i)]):
+        # a parked claim idles: hand it back, and the parked item then sits in no rung
+        why = ", ".join(sorted(t for t in _tags(it) if t == "hold" or t.startswith(HELD_PREFIX)))
+        cands.append(
+            {
+                "action": "release",
+                "fp": f"release:{it['id']}",
+                "text": f"{it['id']} — {it.get('title', '')} is parked ({why}) but you hold its "
+                f"claim: `python3 scripts/work.py release {it['id']}`{_ESCAPE}",
+            }
         )
     cands.extend(_mail_candidates(main, agent, coordinator))
     classic = _classic_rungs(tree, main, agent, is_worker, workers, coordinator, none)
@@ -4423,7 +4479,7 @@ def _autonomy_candidates(
             if agent
             and i.get("owner") == agent
             and i["id"] not in queued
-            and not _is_held(i)
+            and not _is_parked(i)
             and i.get("status") == "open"
         ]
     )
@@ -4460,9 +4516,30 @@ def _autonomy_action(
 ) -> dict:
     cands = _autonomy_candidates(tree, main, session, agent, is_worker, workers, coordinator, none)
     role = "worker" if is_worker else ("coordinator" if agent and agent == coordinator else "main")
+    parked = _parked_count(tree, agent, session)
     if not cands:
-        return {**none, "role": role, "candidates": []}
-    return {**none, **cands[0], "role": role, "candidates": cands}
+        return {**none, "role": role, "candidates": [], "parked": parked}
+    return {**none, **cands[0], "role": role, "candidates": cands, "parked": parked}
+
+
+def _parked_count(tree: Path, agent: str, session: str = "") -> int:
+    """Open parked items this agent owns or this session has claimed — parking stays visible
+    (cobra, D-253: a far date could otherwise park unwanted work out of sight)."""
+    if not _has_store(tree):
+        return 0
+    claims = _live_claims(tree)
+    closed = _closed_ids(tree)
+    return sum(
+        1
+        for i in _iter_items(tree)
+        if i.get("status") == "open"
+        and i["id"] not in closed
+        and _is_parked(i)
+        and (
+            (agent and i.get("owner") == agent)
+            or (session and (claims.get(i["id"]) or {}).get("session") == session)
+        )
+    )
 
 
 def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
@@ -4495,6 +4572,7 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
                 "role": "coordinator",
                 "present": True,
                 "queued": len(_queued(main, coordinator)),
+                "parked": _parked_count(main, coordinator),
                 "tree": str(main),
             }
         )
@@ -4505,6 +4583,7 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
                 "role": "worker",
                 "present": present is not None and name in present,
                 "queued": len(_queued(tree, name)),
+                "parked": _parked_count(tree, name),
                 "tree": str(tree),
             }
         )
@@ -4524,7 +4603,10 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
         print("coordinator: none — set distributor in .fabrik/work/config.json")
     for a in agents:
         mark = "" if a["present"] else " (no live window)"
-        print(f"{a['agent']:<16} {a['role']:<11} queued {a['queued']}/{floor}{mark}")
+        print(
+            f"{a['agent']:<16} {a['role']:<11} queued {a['queued']}/{floor} · "
+            f"parked {a['parked']}{mark}"
+        )
     print(
         f"routable {report['routable']} · backlog waiting {report['backlog_waiting']} · "
         f"held {report['held']} (runtime/hold/waits-*)"
