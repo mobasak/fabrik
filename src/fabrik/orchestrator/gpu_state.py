@@ -117,7 +117,7 @@ def upsert(
     resource_type: str,  # "pod" or "endpoint"
     resource_id: str,
     gpu_type_id: str | None,
-    max_lifetime_hours: int,
+    max_lifetime_hours: int | float,
     cost_estimate_usd: float,
 ) -> dict[str, Any]:
     """Record a newly-created GPU session.

@@ -414,7 +414,9 @@ def _make_session_id(kind: str) -> str:
     return f"gpu-{kind}-{ts}-{uuid.uuid4().hex[:6]}"
 
 
-def _fabrik_env_tags(session_id: str, workload: str, max_lifetime_hours: int) -> dict[str, str]:
+def _fabrik_env_tags(
+    session_id: str, workload: str, max_lifetime_hours: int | float
+) -> dict[str, str]:
     """Env vars injected into every Fabrik-rented pod/endpoint.
 
     These are how the reaper recognises our resources and tells us apart
@@ -468,7 +470,7 @@ def _create_pod(
     session_id: str,
     kind: str,
     workload: str,
-    max_lifetime_hours: int,
+    max_lifetime_hours: int | float,
     image_name: str | None,
     cloud_type: str,
     interruptible: bool,
@@ -548,7 +550,7 @@ def _create_serverless_endpoint(
     *,
     session_id: str,
     workload: str,
-    max_lifetime_hours: int,
+    max_lifetime_hours: int | float,
     template_id: str | None,
     workers_min: int,
     workers_max: int,
@@ -765,7 +767,7 @@ def _preflight(
     kind: str,
     *,
     provider: str,
-    max_lifetime_hours: int,
+    max_lifetime_hours: int | float,
     max_cost_usd: float,
     keep_warm_after_use: bool,
 ) -> tuple[float, float, float, UsageTracker, int | float]:
@@ -879,7 +881,7 @@ def rent(
     *,
     workload: str,
     provider: str = "runpod",
-    max_lifetime_hours: int = 1,
+    max_lifetime_hours: int | float = 1,
     max_cost_usd: float = 5.0,
     keep_on_failure: bool = False,
     keep_warm_after_use: bool = False,
@@ -1078,7 +1080,7 @@ def rented(
     *,
     workload: str,
     provider: str = "runpod",
-    max_lifetime_hours: int = 1,
+    max_lifetime_hours: int | float = 1,
     max_cost_usd: float = 5.0,
     keep_on_failure: bool = False,
     keep_warm_after_use: bool = False,
