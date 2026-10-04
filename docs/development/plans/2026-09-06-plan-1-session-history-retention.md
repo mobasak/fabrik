@@ -1,6 +1,6 @@
 # Plan — session-history retention: archive, prove, then prune
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Revision: 2026-10-05 — **the destination moved to Backblaze B2 DIRECT from this machine** (D-565,
 superseding D-142's and D-144's vps1 → Backrest destination). Operator, 2026-10-05: *"why not
 directly to Backblaze B2 repo and reachable and searchable via session recall?"* · *"vps1, 2, 3 has

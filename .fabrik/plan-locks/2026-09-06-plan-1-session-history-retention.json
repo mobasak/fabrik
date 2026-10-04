@@ -1,0 +1,20 @@
+{
+  "plan": "docs/development/plans/2026-09-06-plan-1-session-history-retention.md",
+  "owned_paths": [
+    "scripts/sysadmin/archive_transcripts.py",
+    "tests/test_archive_transcripts.py",
+    "scripts/sysadmin/systemd/session-archive.service",
+    "scripts/sysadmin/systemd/session-archive.timer",
+    "scripts/sysadmin/install_session_archive_timer.sh",
+    "docs/workstation/session-history-retention.md",
+    "docs/development/plans/2026-09-06-plan-1-session-history-retention.md",
+    "docs/superpowers/specs/2026-09-05-session-history-retention-design.md",
+    ".env.example",
+    "docs/CONFIGURATION.md"
+  ],
+  "branch": "worktree-fleet",
+  "started_at": "2026-10-05T03:30:00Z",
+  "status": "active",
+  "baseline_commit": "5820b32fbb33cf879aa3691e7ce36537dd428a57",
+  "baseline_gate": {"status": "success", "red_checks": []}
+}

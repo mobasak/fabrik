@@ -1,0 +1,26 @@
+{
+  "block_digest": "23d7581d1fab78ce9771169b3e467b417fcca2eeb3ae0d691e7eb82d7123ef6b",
+  "blocked_by": [],
+  "created": "2026-10-04T21:52:35.677971Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-0fd5e73e",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "75ebeaf7ffe9535cb0fbf7a6871c217ed1978c6ef47a6edb64d501255ba6be68"
+  ],
+  "next": "",
+  "note": "operator 2026-10-05: 'why not directly to Backblaze B2 repo and reachable and searchable via session recall?' · 'vps1, 2, 3 has limited storage. this machine is mostly up' · created bucket wsl-ozgur · 'save it into .env file. and update the plan to save b2 directly now proceed and finish the plan after reviewing it' — route: direct to B2 (D-565)",
+  "owner": "",
+  "priority": 2,
+  "question": "Should the session-history backup get its own bucket that you create in the B2 console, or a `session-history/` folder inside the existing `vps1-ocoron-backups` bucket using fabrik's key?",
+  "status": "done",
+  "title": "Should the session-history backup get its own bucket that you create in the B2 console, or a `session-history/` folder inside the existing `vps1-ocoron-backups` bucket using fabrik's key?"
+}

@@ -1,0 +1,26 @@
+{
+  "block_digest": "d5d7027b00ad2368607fb0bd8bee30838d5830552fac21a9dd778411d89f13a6",
+  "blocked_by": [],
+  "created": "2026-10-04T21:26:00.982255Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-49ed3f5b",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "d6e2620a1960fc68f22ac0c5e50ffda29830fc4193e1e3d3aab612fd455b383d"
+  ],
+  "next": "",
+  "note": "operator 2026-10-05: 'why not directly to Backblaze B2 repo and reachable and searchable via session recall?' · 'vps1, 2, 3 has limited storage. this machine is mostly up' · created bucket wsl-ozgur · 'save it into .env file. and update the plan to save b2 directly now proceed and finish the plan after reviewing it' — route: direct to B2 (D-565)",
+  "owner": "",
+  "priority": 2,
+  "question": "May I start copying this machine's Claude session history (compressed) to vps1, where Backrest backs it up to Backblaze B2, so a restore can be proven?",
+  "status": "done",
+  "title": "May I start copying this machine's Claude session history (compressed) to vps1, where Backrest backs it up to Backblaze B2, so a restore can be proven?"
+}

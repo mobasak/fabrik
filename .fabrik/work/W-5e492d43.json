@@ -1,0 +1,26 @@
+{
+  "block_digest": "1260d8ee3992b104336b9d03c6f68f9aed8e572d945be2c5c965b923da1e5d27",
+  "blocked_by": [],
+  "created": "2026-10-04T21:45:56.171152Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-5e492d43",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "fe3b7d08cf43ce6f5a7d9aac79dfacade8a94e33f681a4996cb3c135d18c6d14"
+  ],
+  "next": "",
+  "note": "operator 2026-10-05: 'why not directly to Backblaze B2 repo and reachable and searchable via session recall?' · 'vps1, 2, 3 has limited storage. this machine is mostly up' · created bucket wsl-ozgur · 'save it into .env file. and update the plan to save b2 directly now proceed and finish the plan after reviewing it' — route: direct to B2 (D-565)",
+  "owner": "",
+  "priority": 2,
+  "question": "Which B2 key should the session-history backup use: a new bucket and key that you create in the B2 console, or a folder inside the youtube bucket with the youtube key?",
+  "status": "done",
+  "title": "Which B2 key should the session-history backup use: a new bucket and key that you create in the B2 console, or a folder inside the youtube bucket with the youtube key?"
+}

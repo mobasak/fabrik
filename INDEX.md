@@ -1024,6 +1024,7 @@ docs/
 │   ├── liveness.md
 │   ├── mcp-roster.md
 │   ├── quota-dashboard.md
+│   ├── session-history-retention.md
 │   ├── session-recall.md
 │   ├── spine-ticket-plans-usage.md
 │   ├── volkan-mac.md
@@ -1294,6 +1295,8 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [test_canary_grounding_column.py](scripts/kilo-benchmarks/tests/test_canary_grounding_column.py) | Phase B canary-column tests — real-throwaway-PG execution of the generator's QUERY/CANARY_QUERY (reconcile contract, canary exclusion, ≥2 floor, 30-day decay) + `load_task_ranking` as the column-position oracle (min_n engaged) + per-table width invariant. |
 | [test_canary_grounding.py](tests/test_canary_grounding.py) | sandboxed canary-harness tests — binary prefix judge (fabrication/refusal/wrong-path/trailing-prose/soft-summary), roster dedupe + anthropic exclusion + env-driven N, probe text, per-model row counts, fail-soft unit errors, cost alarm + unknown-cost reporting, loud nonzero dispatch-impossible exits. |
 | [agent_memory.sh](scripts/sysadmin/agent_memory.sh) | the workstation RAM policy (D-316) — four vm.* knobs generated into /etc/sysctl.d, a guarded swap reclaim that restores by device, and the Kilo on/off toggle. `cron` is the daily entry point via weekly_catchup.sh; it withholds its stamp unless the policy is actually in effect. |
+| [archive_transcripts.py](scripts/sysadmin/archive_transcripts.py) | Session-history archive (D-565): zstd each MAIN transcript idle > 1 day into `~/.claude/archive/`, append the manifest, `rclone copy` direct to the B2 bucket `wsl-ozgur` (verb allow-list, key only in the child env), then upload the manifest; `--remote-count` / `--fetch` for restores. Doc: docs/workstation/session-history-retention.md |
+| [install_session_archive_timer.sh](scripts/sysadmin/install_session_archive_timer.sh) | Installs `session-archive.{service,timer}` (from `scripts/sysadmin/systemd/`) as a daily systemd USER timer, `Persistent=true`; refuses without linger; run from the main checkout after the archiver is merged. Doc: docs/workstation/session-history-retention.md |
 | [mail_escalate.py](scripts/sysadmin/mail_escalate.py) | fabrik-mail escalation digest (hub cron): aged `ack: required` obligations across ALL mailboxes (inbox · archive strands · resolve-windows) → ≤1 Telegram/local-day via `libs.alerting.send_alert`; day-stamp after send success; fail-soft. Install: docs/workstation/fabrik-mail.md § Escalation. |
 | [fabrik-mail-escalate](configs/logrotate/fabrik-mail-escalate) | size-based logrotate snippet for /var/log/fabrik-mail-escalate.log (operator sudo-installs to /etc/logrotate.d/). |
 | [agent_role.py](.claude/hooks/agent_role.py) | SessionStart: inject the named agent's charter (`CLAUDE_AGENT` → `docs/reference/agents/<name>.md`; any `[a-z0-9-]{1,32}` name, the file must open with the `# Agent charter` marker, realpath containment, loud 32KB truncation, fleet-safe silent no-op). Carried by `AGENT_HOOK_FILES`. Tests: `tests/test_agent_role_hook.py`. |

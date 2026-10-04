@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — session transcripts archive straight to Backblaze B2 from this machine (2026-10-05)
+`scripts/sysadmin/archive_transcripts.py` no longer rsyncs to vps1 for Backrest: it uploads the zstd archive and its manifest to the B2 bucket `wsl-ozgur` with rclone (D-565). Every rclone call passes one helper whose verbs are an allow-list (`copy`, `copyto`, `lsf`) and which refuses `--delete*`/`--b2-hard-delete` by option name; the key reaches rclone only through the child's environment, read from the `SESSION_ARCHIVE_*` lines of `/opt/fabrik/.env`. Unchanged transcripts are skipped by size and mtime, hard-linked twins are archived once, a lock serialises runs, and `--remote-count`/`--fetch` serve restores. A daily systemd user timer (`scripts/sysadmin/systemd/`, installed by `install_session_archive_timer.sh`) runs the growth sampler then the archiver. Docs: `docs/workstation/session-history-retention.md`.
+
 ### Fixed — the vendored health_probe matches fabrik-lib again, and the parity stub still loads `.env` (2026-10-04)
 `libs/health_probe/health_probe.py` had drifted to fabrik-lib e48ba19c (the vendoring test was red); it is re-vendored as shipped at cfd9215f, where importing the module no longer loads `.env`. The scaffold's `verify_prod_parity.py` stub now loads the project's own `.env` once after its lazy import (explicit path, a real variable still wins), so rows reading the environment behave as before, and its note on the container leg's runtime dependencies names `httpx` rather than python-dotenv. D-563.
 
