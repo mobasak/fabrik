@@ -80,7 +80,7 @@ Paddle's account verification requires a pricing page, Terms of Service, Privacy
 
 Full spec: `saas/87-abuse-detection.md`. Vendor `abuse-prevention` — it implements the items below. At launch (87 Phase 1):
 
-- [ ] Store `registration_ip` (INET) on the users table (`store_registration_metadata`; the same call stores `registration_fingerprint` VARCHAR 64 once you collect one).
+- [ ] Store `registration_ip` (INET) on the users table, written after the signup's `201` as `saas/87-abuse-detection.md` § Where It Goes step 3 describes (and `registration_fingerprint` VARCHAR 64 the same way once you collect one).
 - [ ] IP rate limit: max 2 registrations per IP per rolling 24h (`ABUSE_MAX_REG_PER_IP`, default 2). It fails OPEN on a database error — monitor it.
 - [ ] Disposable-email blocklist (`data/disposable-email-domains.txt`, ~5,400 domains from the upstream `disposable-email-domains` list; loaded once at import — restart after refreshing it).
 - [ ] Email verification before quota/credits activate — never grant on registration alone.
@@ -88,7 +88,7 @@ Full spec: `saas/87-abuse-detection.md`. Vendor `abuse-prevention` — it implem
 Before public launch (87 Phase 2):
 
 - [ ] Progressive quota unlock: 30% on email verification, 70% after 24h (`progressive_unlock`).
-- [ ] Browser fingerprint (FingerprintJS — MIT-licensed again since v5). ⚠️ Fingerprinting is within ePrivacy Art. 5(3) — the same consent rule as cookies (EDPB Guidelines 2/2023) — and whether fraud prevention is "strictly necessary" is decided per member state. For EU users, gate it on consent or get counsel's sign-off on the exemption before collecting it.
+- [ ] Browser fingerprint (FingerprintJS; check the licence of the major you vendor — `saas/87-abuse-detection.md` § Layer 3 says which majors are open). ⚠️ Fingerprinting is within ePrivacy Art. 5(3) — the same consent rule as cookies (EDPB Guidelines 2/2023) — and whether fraud prevention is "strictly necessary" is decided per member state. For EU users, gate it on consent or get counsel's sign-off on the exemption before collecting it.
 
 ### Per-Tenant API Rate Limiting
 
