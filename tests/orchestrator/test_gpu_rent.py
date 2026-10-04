@@ -351,6 +351,24 @@ def test_budget_number_accepts_decimal_and_normalises_integral_input():
         gpu_rent._budget_number("max_cost_usd", Decimal("NaN"), lifetime=False)
 
 
+def test_np_int64_lifetime_comes_back_as_a_plain_int():
+    """np.int64 is numbers.Integral but not an int subclass: under `isinstance(value, int)` it
+    took the float path and tagged the reaper's lifetime '4.0' (closing-pass finding O2)."""
+    np = pytest.importorskip("numpy")
+    got = gpu_rent._budget_number("max_lifetime_hours", np.int64(4), lifetime=True)
+    assert type(got) is int and str(got) == "4"
+
+
+def test_a_lifetime_just_inside_datetime_max_is_refused_with_margin():
+    """The check ran at preflight but upsert re-evaluates now + timedelta after the provider call
+    (up to 300 s later): a lifetime that left only seconds before datetime.max passed, then
+    overflowed after the pod existed (closing-pass finding O1)."""
+    headroom = datetime.max.replace(tzinfo=UTC) - datetime.now(UTC)
+    hours = (headroom - timedelta(seconds=30)) / timedelta(hours=1)
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match="too large"):
+        gpu_rent._budget_number("max_lifetime_hours", hours, lifetime=True)
+
+
 def test_a_lifetime_that_rounds_to_a_zero_timedelta_is_refused():
     """1e-10 h is positive, but timedelta rounds it to 0, so expires_at == created_at and the
     reaper would kill the pod the moment it exists."""

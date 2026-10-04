@@ -761,7 +761,9 @@ def _budget_number(name: str, value: object, *, lifetime: bool) -> int | float:
             # The expression gpu_state.upsert evaluates, not a bare timedelta: timedelta(hours=1e8)
             # fits, but adding it to now passes year 9999 and raised AFTER the provider call.
             span = timedelta(hours=as_float)
-            datetime.now(UTC) + span
+            # upsert evaluates it again AFTER create_pod + wait_for_running (up to 300 s later),
+            # so the bound keeps a day of margin rather than racing datetime.max.
+            datetime.now(UTC) + span + timedelta(days=1)
         except OverflowError:
             raise GPUBudgetExceededError(f"{name} is too large; got {_safe_repr(value)}") from None
         if span <= timedelta(0):
