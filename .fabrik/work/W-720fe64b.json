@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "DATA_SYNC_WORKFLOW.md:84 says \"CORE_SCRIPTS 14\" — the manifest set is 16 since 239fc5f3b (check_research_ledger.py) and work.py; the rest of mail 01M32YS4's DATA_SYNC list is already fixed"
 }
