@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Three plan-review flip gates can report green over nothing — measured on a fabrik-lib monolith plan, 2026-09-29"
 }
