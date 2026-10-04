@@ -218,6 +218,9 @@ def _transcript(
             json.dumps(
                 {
                     "type": "assistant",
+                    # a real edit carries its time; a timestamp-less one counts as unreviewed
+                    # whatever covers it ("unknown is not covered")
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
                     "message": {
                         "content": [
                             {"type": "tool_use", "name": "Edit", "input": {"file_path": str(path)}}
@@ -435,6 +438,24 @@ def test_stop_block_cause_run_record(tmp_path: Path) -> None:
 # --- the give-up branch: enforcement that warned through is still enforcement --
 
 
+def _covered(tmp: Path, sid: str) -> None:
+    """A closed review covering the session's edit — the SIXTH cause reviews `.txt` too since
+    W-ea06749b, and these probes are about the push law's warn-through, not review coverage."""
+    runs = tmp / "runs"
+    runs.mkdir(parents=True, exist_ok=True)
+    (runs / f"{sid}.json").write_text(
+        json.dumps(
+            {
+                "command": "fabrik-review-scoped",
+                "state": "done",
+                "started_epoch": 1.0,
+                "updated_ts": time.time() + 120,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_warn_through_is_recorded_as_its_own_outcome(tmp_path: Path) -> None:
     # After CAP blocked stops the hook gives up and lets the turn end. That give-up was
     # invisible: it looked identical to a clean pass, so "enforcement worked" counted a
@@ -444,6 +465,7 @@ def test_warn_through_is_recorded_as_its_own_outcome(tmp_path: Path) -> None:
     proj = _project(tmp_path)
     tp = _transcript(proj, edited=["committed.txt"])
     _with_upstream(tmp_path, proj)
+    _covered(tmp_path, "sidwarn")
     for _ in range(3):
         proc = _run_stop(proj, tmp_path, "sidwarn", transcript=tp, reset=False)
         assert proc.stdout.strip(), (
@@ -544,6 +566,7 @@ def test_a_blocked_turn_emits_no_final_block(tmp_path: Path) -> None:
     proj = _project(tmp_path)
     tp = _transcript(proj, text="Done.\n\n" + _SIX_LINE_BLOCK, edited=["committed.txt"])
     _with_upstream(tmp_path, proj)
+    _covered(tmp_path, "sidretry")
     for _ in range(3):
         proc = _run_stop(proj, tmp_path, "sidretry", transcript=tp, reset=False)
         assert proc.stdout.strip(), (

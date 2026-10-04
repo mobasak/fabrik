@@ -129,12 +129,16 @@ def test_work_moved_into_a_stash_or_another_branch_is_still_named(tmp_path: Path
     assert _names(root, ["gone.py", "kept.py"], floor) == ["gone.py", "kept.py"]
 
 
-def test_an_edited_ignored_file_is_still_named(tmp_path: Path) -> None:
-    """O7: a gitignored code file that still exists is a change git status hides by default."""
+def test_an_edited_ignored_file_is_not_withdrawn_and_not_shipped(tmp_path: Path) -> None:
+    """O7: a gitignored code file that still exists is a change git status hides by default, so
+    the WITHDRAWN filter must keep it. Since W-ea06749b the sixth cause drops it anyway, on a
+    different ground: an ignored file is not shipped work, and no diff-scoped review can read it."""
     root = _repo(tmp_path)
     (root / ".gitignore").write_text("local.py\n")
     (root / "local.py").write_text("z = 1\n")
-    assert _names(root, ["local.py"], time.time() - 3600) == ["local.py"]
+    floor = time.time() - 3600
+    assert hook._withdrawn_edits(root, ["local.py"], floor) == set()
+    assert _names(root, ["local.py"], floor) == []
 
 
 def test_a_committed_non_ascii_file_is_still_named(tmp_path: Path) -> None:
@@ -173,13 +177,16 @@ def test_one_check_serves_every_name(tmp_path: Path, monkeypatch) -> None:
     assert len(calls) == 1
 
 
-def test_a_file_in_an_ignored_directory_is_still_named(tmp_path: Path) -> None:
-    """N1/O10: git reports an ignored directory as `dir/`, so the prefix must cover its files."""
+def test_a_file_in_an_ignored_directory_is_not_withdrawn_and_not_shipped(tmp_path: Path) -> None:
+    """N1/O10: git reports an ignored directory as `dir/`, so the withdrawn filter's prefix must
+    cover its files and keep them; the sixth cause then drops them as not shipped (W-ea06749b)."""
     root = _repo(tmp_path)
     (root / ".gitignore").write_text("build/\n")
     (root / "build").mkdir()
     (root / "build" / "x.py").write_text("b = 1\n")
-    assert _names(root, ["build/x.py"], time.time() - 3600) == ["build/x.py"]
+    floor = time.time() - 3600
+    assert hook._withdrawn_edits(root, ["build/x.py"], floor) == set()
+    assert _names(root, ["build/x.py"], floor) == []
 
 
 def test_a_name_starting_with_a_colon_is_a_path_not_pathspec_magic(tmp_path: Path) -> None:

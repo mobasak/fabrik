@@ -1271,6 +1271,21 @@ def test_a_decision_block_is_stored_only_when_the_stop_is_allowed(
         _asst_edit(proj / "notes.txt"),
         _asst_text(_PUBLISH_BLOCK),
     )
+    # a closed review covering the note: the SIXTH cause reviews `.txt` too since W-ea06749b, and
+    # this probe is about where a DECISION block is stored, not about review coverage
+    runs = tmp_path / "runs"
+    runs.mkdir(parents=True, exist_ok=True)
+    (runs / "sidstore.json").write_text(
+        json.dumps(
+            {
+                "command": "fabrik-review-scoped",
+                "state": "done",
+                "started_epoch": 1.0,
+                "updated_ts": time.time() + 120,
+            }
+        ),
+        encoding="utf-8",
+    )
     out = _drive(monkeypatch, tmp_path, proj, "sidstore", tr)
     if pushed:
         assert out == ""

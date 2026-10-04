@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T13:10:02.935663Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a473d3da",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Run a fresh mutant hunt over .claude/hooks/final_gate_stop.py _session_authorship and _commit_files beyond the 21-mutant battery W-ea06749b shipped; rounds 3-6 of its review each found 2 own-fix grader gaps and the scope-growth stop routed further hunting here",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "status": "open",
+  "title": "Grader-power sweep of the Stop hook's commit attribution (_session_authorship/_commit_files)"
+}

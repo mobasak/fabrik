@@ -43,14 +43,15 @@ def test_code_authored_inside_a_commands_window_is_exempt():
     )
 
 
-def test_doc_only_sessions_never_fire():
+def test_nothing_unreviewed_never_fires():
     action, a = fgs.decide_review(0, 2)
     assert action == "allow" and a == 0
 
 
-def test_code_file_classifier():
-    files = {"a.py": 1, "b.md": 2, "c.json": 3, "d.ts": 4, "e.txt": 5}
-    assert fgs._unreviewed_code_files(files, None) == 3, "py + json + ts are code; md/txt are not"
+def test_file_classifier_counts_every_file_but_the_ledgers():
+    """W-ea06749b: every authored path counts — the old code-suffix allowlist exempted md/txt."""
+    files = {"a.py": 1, "b.md": 2, "c.json": 3, "d.ts": 4, "e.txt": 5, "CHANGELOG.md": 6}
+    assert fgs._unreviewed_code_files(files, None) == 5, "everything but the CHANGELOG ledger"
 
 
 def test_counters_extend_compatibly():
@@ -88,7 +89,8 @@ def test_code_authored_after_the_last_closed_command_is_unreviewed():
         }
     )
     assert window == (T - 3600, T + 1)  # the close second is covered whole (R2)
-    assert fgs._unreviewed_code_files(authored, window) == 1, "only a.py is newer than the close"
+    # a.py and the doc are newer than the close; docs count since W-ea06749b
+    assert fgs._unreviewed_code_files(authored, window) == 2, "a.py + docs/x.md post-date the close"
 
 
 def test_no_record_at_all_leaves_every_code_file_unreviewed():
@@ -309,8 +311,14 @@ def test_the_ledger_floor_is_wired_at_the_sixth_causes_call_site():
     # can break is testing the formatter. Normalise, then assert the ARGUMENTS, which is the
     # actual claim: `main` hands the composed reader the REAL baseline.
     flat = re.sub(r"\(\s+", "(", re.sub(r"\s+\)", ")", re.sub(r"\s+", " ", src)))
-    # W-20a8e9f1 added `root`, so the reader can drop edits that left nothing behind.
-    assert flat.count("_unreviewed_spontaneous_files(_rec, authored_map, _floor, sid, root)") == 1
+    # W-20a8e9f1 added `root`, so the reader can drop edits that left nothing behind; W-ea06749b
+    # added the session's own commits, the second authorship source.
+    assert (
+        flat.count(
+            "_unreviewed_spontaneous_files(_rec, authored_map, _floor, sid, root, own_commits)"
+        )
+        == 1
+    )
     assert src.count("_this_sessions_edits(authored_map, _floor)") == 0, (
         "the unfloored call is gone"
     )

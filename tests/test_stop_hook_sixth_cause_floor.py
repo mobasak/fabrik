@@ -71,12 +71,13 @@ def test_the_count_is_the_length_of_the_names() -> None:
     authored = {
         "scripts/a.py": 100.0,
         "scripts/b.py": 200.0,
-        "docs/c.md": 300.0,  # not a code extension
+        "docs/c.md": 300.0,  # a doc counts too since W-ea06749b
+        "CHANGELOG.md": 400.0,  # a shared ledger never does
         "scripts/d.py": 0,  # unknown timestamp COUNTS — unknown is not covered
     }
     windows = [(150.0, 250.0)]
     names = hook._unreviewed_code_file_names(authored, windows)
-    assert names == ["scripts/a.py", "scripts/d.py"], names
+    assert names == ["docs/c.md", "scripts/a.py", "scripts/d.py"], names
     assert hook._unreviewed_code_files(authored, windows) == len(names)
 
 
