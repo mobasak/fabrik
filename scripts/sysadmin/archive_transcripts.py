@@ -107,11 +107,14 @@ def _env_value(raw: str) -> str:
     if raw[:1] in ("'", '"'):
         end = raw.find(raw[0], 1)
         return raw[1:end] if end > 0 else raw[1:]
+    if raw.startswith("#"):
+        return ""  # `KEY= # note`: the strip above ate the space, the rest is all comment
     return re.split(r"\s+#", raw, maxsplit=1)[0].strip()
 
 
 def _setting(name: str, default: str = "") -> str:
-    """A `SESSION_ARCHIVE_*` setting: the process environment first, then the env file."""
+    """A `SESSION_ARCHIVE_*` setting: the process environment when set and non-empty, then the
+    env file, then the default (an empty value anywhere counts as unset)."""
     if os.environ.get(name):
         return os.environ[name]
     env_file = _env_path("SESSION_ARCHIVE_ENV_FILE", "/opt/fabrik/.env")

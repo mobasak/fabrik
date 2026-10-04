@@ -27,7 +27,7 @@ copies them and enables the timer.
 ## Where the copy lives
 
 - **Bucket** `wsl-ozgur` (Backblaze B2, Private, SSE, lifecycle *Keep all versions*), prefix
-  `archive/`. Settings in `/opt/fabrik/.env` (the process environment wins when set): `SESSION_ARCHIVE_B2_BUCKET`, `SESSION_ARCHIVE_B2_PREFIX`,
+  `archive/`. Settings in `/opt/fabrik/.env` (a non-empty process-environment value wins; an empty one counts as unset): `SESSION_ARCHIVE_B2_BUCKET`, `SESSION_ARCHIVE_B2_PREFIX`,
   `SESSION_ARCHIVE_B2_BUCKET_ID`, `SESSION_ARCHIVE_B2_ENDPOINT` (informational — never passed to
   rclone). The application key — `SESSION_ARCHIVE_B2_KEY_ID`, `SESSION_ARCHIVE_B2_APPLICATION_KEY` —
   is restricted to that bucket and lives in the same file; the archiver reads ONLY the

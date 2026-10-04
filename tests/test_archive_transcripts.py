@@ -298,6 +298,7 @@ def test_bucket_and_prefix_are_read_from_the_env_file(tree, rec, monkeypatch, tm
         ("SESSION_ARCHIVE_B2_KEY_ID='abc' # single-quoted", "abc"),
         ("export SESSION_ARCHIVE_B2_KEY_ID=abc", "abc"),
         ("SESSION_ARCHIVE_B2_KEY_ID=ab#c", "ab#c"),
+        ("SESSION_ARCHIVE_B2_KEY_ID= # nothing but a note", ""),
     ],
 )
 def test_env_values_drop_inline_comments_and_quotes(tmp_path, line, value):
