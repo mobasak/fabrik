@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the mail-escalate agent-leg test passes in a linked worktree (2026-10-04)
+`tests/test_mail_escalate.py::test_the_agent_leg_attributes_the_digest_to_the_hub_whatever_the_cwd` expected the digest's `from:` to be the directory name of the checkout it ran in, which in `.claude/worktrees/fleet` is `fleet`, while `mail.py` rightly names the hub by its main checkout (`fabrik`). It now asks `mail._current_repo()` from the hub root, so it agrees with the sender in any checkout, and still fails if the agent leg inherits the caller's cwd. W-a681a4a7.
+
 ### Fixed — watchdog sidecar images no longer carry the box's tool caches or leak a build tarball (2026-10-04)
 `WatchdogDriver._build_image` copied fabrik-lib's `watchdog_sidecar` source into the docker build context with a bare `shutil.copytree`, so the 10 `__pycache__` directories and 56 `.pyc` files the source holds on this box (plus any `.mypy_cache`/`.pytest_cache`/`.ruff_cache`) shipped into every provisioned sidecar image. The copy now ignores scaffold's `_TOOL_CACHES`, the list its own copies already use. The review also found that the build tarball, written beside the context directory, was never removed; `provision()` now deletes it with the directory. W-f829a5aa.
 
