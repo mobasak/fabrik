@@ -12,9 +12,9 @@
     "spec": ""
   },
   "next": "resolve ARG defaults from the Dockerfile and strip docker.io/library/ in _image_ref; decide FROM scratch (compliant final stage or a distinct low row); red-first tests beside tests/test_audit_all_projects_base_image.py",
-  "note": "",
+  "note": "measured 2026-10-04 at c57ce8f6a: 0 of 22 audited Dockerfiles (ALL_PROJECTS, 41 listed), 0 of 40 /opt/*/Dockerfile and 0 FROM lines under templates/ or src/fabrik/ use FROM scratch, an ${ARG} image ref or a registry prefix. Fix Directive 5: zero fire rate, so support for them is speculative; a first real instance shows as a loud critical row, never a silent pass, and is fixed then.",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "audit_all_projects reads three valid base-image shapes as critical: FROM scratch (a minimal final stage), FROM ${ARG} (an ARG-templated base) and a registry-prefixed name (docker.io/library/python:3.14-slim-trixie) — pre-existing at HEAD, kept out of W-f7882a97"
 }
