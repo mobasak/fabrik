@@ -1,4 +1,4 @@
-# VENDORED-FROM fabrik-lib health-probe/health_probe.py @ e48ba19c — byte-identical below this 3-line header; re-vendor, never edit
+# VENDORED-FROM fabrik-lib health-probe/health_probe.py @ cfd9215f — byte-identical below this 3-line header; re-vendor, never edit
 # ruff: noqa
 # fmt: off
 #!/usr/bin/env python3
@@ -18,10 +18,12 @@ project-specific probes (your upstream APIs, object store, etc.) live in your
 project and are appended to the list. See README for examples.
 
     from health_probe import (check_postgres, check_redis, check_http_auth,
-                              run_all_checks, cli, OK, WARN, DOWN, result,
-                              live_chain, LiveChain)
+                              run_all_checks, cli, load_env, OK, WARN, DOWN,
+                              result, live_chain, LiveChain)
     import os
     from functools import partial
+
+    load_env()   # importing never loads .env; do it before PROBES read os.getenv
 
     PROBES = [
         check_postgres,
@@ -41,6 +43,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import sys
 import time
@@ -51,12 +54,47 @@ from typing import (Any, Callable, Iterable, Iterator, Mapping, Optional, Protoc
                     Sequence, cast, overload)
 
 import httpx as httpx  # explicit re-export: lets `h.httpx` be monkeypatched by callers
-from dotenv import load_dotenv
-
-load_dotenv()
 
 OK, DOWN, WARN, SKIP = "OK", "DOWN", "WARN", "SKIP"
-TIMEOUT = float(os.getenv("HEALTH_PROBE_TIMEOUT", "12"))
+TIMEOUT = 12.0  # default request timeout; HEALTH_PROBE_TIMEOUT overrides it at call time
+
+
+def load_env(path: Optional[str] = None) -> bool:
+    """Load a project ``.env`` into ``os.environ`` — call it from your entry point.
+
+    Importing this module never touches ``os.environ``; ``cli()`` calls this first.
+    ``override=False``: a variable already set in the real environment always wins.
+    With ``path=None`` python-dotenv searches upward from this module's directory, so a
+    vendored ``libs/health_probe/`` copy still finds the project-root ``.env`` (under
+    ``python -c``, a REPL or a tracer it searches the current directory instead — pass
+    ``path`` to be explicit). Returns whether a file was loaded: ``False`` when no ``.env``
+    was found, and ``False`` (loading nothing) when python-dotenv is not installed. Once any
+    ``load_env()`` call has run, ``cli()`` does not search again. An unreadable or
+    non-UTF-8 file raises (``OSError`` / ``UnicodeDecodeError``) from here; ``cli()`` reports
+    it on stderr and carries on.
+    """
+    global _ENV_LOAD_CALLED
+    _ENV_LOAD_CALLED = True
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return False
+    return bool(load_dotenv(path, override=False))
+
+
+# Set by load_env(): cli() then skips its own default search, so a consumer that loaded a
+# specific file (load_env(".env.test")) never gets the default .env merged in behind it.
+_ENV_LOAD_CALLED = False
+
+
+def _timeout_from_env() -> float:
+    """``HEALTH_PROBE_TIMEOUT`` read when a probe runs; invalid/non-positive/inf -> TIMEOUT."""
+    raw = os.getenv("HEALTH_PROBE_TIMEOUT")
+    try:
+        value = float(raw) if raw is not None else TIMEOUT
+    except ValueError:
+        return TIMEOUT
+    return value if math.isfinite(value) and value > 0 else TIMEOUT
 
 
 def fingerprint(key: str) -> str:
@@ -265,7 +303,7 @@ def check_http_auth(
     if skip_if:
         return result(name, SKIP, "not configured")
     try:
-        r = httpx.get(url, headers=headers, params=params, timeout=timeout or TIMEOUT)
+        r = httpx.get(url, headers=headers, params=params, timeout=timeout or _timeout_from_env())
         if r.status_code in ok_codes:
             detail = ""
             if detail_fn:
@@ -584,6 +622,12 @@ def cli(
     and is fixed here only behind this opt-in flag, deliberately: it is a breaking
     change for existing callers and deserves its own decision, not a ride on a feature.
     """
+    if not _ENV_LOAD_CALLED:
+        try:
+            load_env()
+        except (OSError, UnicodeDecodeError) as exc:
+            # A broken .env is a config problem, not an outage: never exit 1 for it.
+            print(f"health_probe: .env not loaded ({type(exc).__name__})", file=sys.stderr)  # no message: it can quote a .env byte
     critical = critical or set()
     ap = argparse.ArgumentParser(description=description)
     ap.add_argument("--json", action="store_true")

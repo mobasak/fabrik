@@ -64,7 +64,8 @@ SITES = ("hub", "host", "container")
 #: the project). Declare it when the DB-reaching container is NOT the app (tryton-crm: a deliberately
 #: DB-free FastAPI bridge in front of `trytond` — the leg must exec in `trytond`); the runner reads it
 #: from `--header` and never guesses. That container must carry the comparator's runtime deps
-#: (`python-dotenv` at least — `libs/health_probe` imports it at module level).
+#: (`httpx` — `libs/health_probe` imports it at module level; python-dotenv is needed only by its
+#: `load_env()`/`cli()`, which this script does not call).
 CONTAINER_LEG_SERVICE: str = ""
 
 
