@@ -264,7 +264,7 @@ def test_the_ai_render_denominator_is_graded_too(tmp_path):
         f"the real pack set has {dated} dated of {len(packs)}"
     )
 
-    undated = re.search(r"the (\d+) undated packs", doc)
+    undated = re.search(r"the (\d+) undated packs?\b", doc)
     assert undated, "the docstring must state how many packs fail open"
     assert int(undated.group(1)) == len(packs) - dated, (
         f"docstring claims {undated.group(1)} undated packs; the real set has {len(packs) - dated}"
