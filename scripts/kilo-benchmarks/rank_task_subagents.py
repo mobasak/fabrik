@@ -221,7 +221,7 @@ class ContradictoryRoutingPolicyError(RuntimeError):
     for a kind would WIDEN that kind's routing to everything. Publishing that is worse than
     publishing nothing, so the generator refuses and keeps the previous doc.
 
-    Verified reachable by configuration (executed): denying both allowlisted models for `review`
+    Verified reachable by configuration (executed): denying every allowlisted model for `review`
     yields `_allowlist_models_for("review") == []`, a rowless section, and
     `load_task_ranking(...)["review"] is None`. Not reachable today — the two sets are disjoint —
     which is precisely why it needs a guard rather than a note.
@@ -233,6 +233,23 @@ def _denied(model: str, task_type: str | None) -> bool:
     cannot differ between emission paths — which it did: the code fallback and the code benchmark
     list checked neither deny."""
     return model in OPERATOR_DENY_ALWAYS or model in OPERATOR_DENY.get(task_type or "", ())
+
+
+def _refuse_contradictory_policy(kinds: set[str]) -> None:
+    """Raise when the denies leave a kind with no allowlisted model — before anything is emitted.
+
+    Every path that emits allowlist sections calls this (the main render and the no-data stub): a
+    rowless section reads as no section, so `pick_models` would answer that kind from the
+    UNRESTRICTED vendored `_TABLE` and the two policies would combine to WIDEN routing."""
+    empty = [k for k in sorted(kinds) if not _allowlist_models_for(k)]
+    if empty:
+        raise ContradictoryRoutingPolicyError(
+            "OPERATOR_DENY leaves no allowlisted model routable for: "
+            + ", ".join(empty)
+            + " — a rowless section makes pick_models fall back to the UNRESTRICTED vendored "
+            "_TABLE, so the two policies would combine to WIDEN routing. Fix OPERATOR_ALLOW or "
+            "OPERATOR_DENY in rank_task_subagents.py; the previous doc is kept."
+        )
 
 
 def _allowlist_models_for(task_type: str | None) -> list[str]:
@@ -1900,6 +1917,13 @@ def render(
     by_task: dict[str, list] = {}
     for r in kept:
         by_task.setdefault(r[0], []).append(r)
+    if OPERATOR_ALLOW:
+        # Refuse BEFORE anything is emitted, on every path: the no-data stub and the main path both
+        # write allowlist sections, and a kind the denies have emptied would ship as a rowless
+        # section that routing reads as no section and answers from the unrestricted vendored
+        # _TABLE. The stub once had no guard at all (W-61380819); the main path's guard ran only
+        # after three allowlist top-ups had already appended. One call here closes both.
+        _refuse_contradictory_policy(set(TASK_KINDS_EMITTED) | set(by_task))
 
     # Quality-tier join (fabrik-lib ask 2026-07-11): read `agents.quality_tier`
     # from kilo_agents.db and emit a `quality_tier` column per row. Fabrik-lib's
@@ -2213,21 +2237,7 @@ def render(
     # and `spec` one (z-ai/glm-5), so both sections would have vanished and both would have reverted
     # to the vendored default. Emitting the allowlist itself keeps every kind covered.
     if OPERATOR_ALLOW:
-        # Refuse BEFORE emitting: a kind the denies have emptied would ship a rowless section, which
-        # routing reads as no section at all and answers with the unrestricted vendored table.
-        _empty = [
-            k
-            for k in sorted(set(TASK_KINDS_EMITTED) | set(by_task))
-            if not _allowlist_models_for(k)
-        ]
-        if _empty:
-            raise ContradictoryRoutingPolicyError(
-                "OPERATOR_DENY leaves no allowlisted model routable for: "
-                + ", ".join(_empty)
-                + " — a rowless section makes pick_models fall back to the UNRESTRICTED vendored "
-                "_TABLE, so the two policies would combine to WIDEN routing. Fix OPERATOR_ALLOW or "
-                "OPERATOR_DENY in rank_task_subagents.py; the previous doc is kept."
-            )
+        # the contradiction guard already ran, before any emission — see just after `by_task`
         # The union, not the literal: `TASK_KINDS_EMITTED` is frozen hub-side on purpose (so a
         # re-vendor cannot redefine hub policy), but that freezing is exactly what lets a NEW
         # TaskKind go uncovered — the equality test catches the drift only when tests run, and the
