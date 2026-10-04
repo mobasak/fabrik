@@ -36,6 +36,8 @@ the honest-green-row state from silently reverting.
 
 from __future__ import annotations
 
+import ast
+import re
 import shutil
 import subprocess
 import sys
@@ -103,10 +105,14 @@ def test_a_warn_only_check_reports_the_violation_it_cannot_fail_on(name: str) ->
         f"let it be asserted as a real failing check (clean={clean.returncode}, "
         f"bad={bad.returncode})"
     )
-    extra = (bad.stdout + bad.stderr).replace(clean.stdout + clean.stderr, "")
-    assert extra.strip(), (
-        f"{name} is registered in final_gate.py, cannot exit non-zero, AND says nothing "
-        f"about {la.CANARIES[name]['expect']} — it is a fully silent gate row"
+    token = la.CANARIES[name].get("speaks")
+    assert token, f"{name}: a warn_only canary names the rule's own words in `speaks`"
+    assert token in bad.stdout + bad.stderr, (
+        f"{name} is registered in final_gate.py, cannot exit non-zero, AND never says "
+        f"{token!r} about {la.CANARIES[name]['expect']} — it is a silent gate row"
+    )
+    assert token not in clean.stdout + clean.stderr, (
+        f"{name} prints {token!r} on the CLEAN tree too — the token proves nothing about the rule"
     )
 
 
@@ -156,7 +162,7 @@ def test_every_declared_advisory_row_is_a_check_that_really_cannot_fail() -> Non
     declared row must be one whose contract is written down in CANARIES/UNREACHABLE.
     """
     gate = REPO_ROOT / "scripts" / "final_gate.py"
-    declared = la.discover_warn_only_checks(gate)
+    declared = la.discover_warn_only_rows(gate)
     assert declared, "the warn_only registrations vanished — the display fork is dead code"
     documented = {
         n for n, c in la.CANARIES.items() if c.get("warn_only") or c.get("row_warn_only")
@@ -166,6 +172,59 @@ def test_every_declared_advisory_row_is_a_check_that_really_cannot_fail() -> Non
         f"{undocumented} are registered warn_only=True but nothing records WHY they cannot "
         "fail. Add the `warn_only` note to their CANARIES entry, or an UNREACHABLE reason."
     )
+
+
+def test_a_dormant_canary_rides_a_policy_that_is_still_off() -> None:
+    """A `dormant` canary goes red only through a seam the gate never sets — true today
+    because the pool policy is OFF (D-181/D-182). The day the policy turns back on, the real
+    row can red again and the note becomes false: this fails, telling you to drop it."""
+    dormant = sorted(n for n, c in la.CANARIES.items() if c.get("dormant"))
+    assert dormant == ["check_subagent_flywheel"], dormant
+    canary = la.CANARIES["check_subagent_flywheel"]
+    assert canary.get("env", {}).get("FABRIK_POOL_POLICY") == "on", canary.get("env")
+    tree = ast.parse((ENFORCEMENT / "check_subagent_flywheel.py").read_text(encoding="utf-8"))
+    values = [
+        ast.literal_eval(node.value)
+        for node in tree.body
+        if isinstance(node, (ast.Assign, ast.AnnAssign))
+        and node.value is not None
+        and any(
+            isinstance(t, ast.Name) and t.id == "_POOL_POLICY_ON"
+            for t in (node.targets if isinstance(node, ast.Assign) else [node.target])
+        )
+    ]
+    assert values, "check_subagent_flywheel no longer assigns _POOL_POLICY_ON at module level"
+    assert values == [False], (
+        "the pool policy is ON again — check_subagent_flywheel's real gate row can red, so "
+        "drop its `dormant` note and its FABRIK_POOL_POLICY env from CANARIES"
+    )
+
+
+def test_the_dormant_canary_still_reds_in_a_shell_that_declares_no_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An operator shell exporting FABRIK_NO_POOL would honour the declaration and green the
+    flywheel's bad tree — a false DEAD. The canary's own env empties it; this pins that."""
+    monkeypatch.setenv("FABRIK_NO_POOL", "1")
+    name = "check_subagent_flywheel"
+    inst, went_red, _ = la.run_canary(name, la.CANARIES[name], REPO_ROOT)
+    assert inst.ok, inst.fault
+    assert went_red, f"{name}'s canary greened under an exported FABRIK_NO_POOL"
+
+
+def test_no_canary_fixture_carries_a_timestamp_that_ages_out() -> None:
+    """A hard-coded ISO timestamp in a fixture body ages out of any windowed check:
+    check_feedback_duty's 14-day window would have silenced its canary on 2026-10-19.
+    Leave the stamp out (an absent one counts as in-window there) or compute it."""
+    stamp = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:")
+    dated = sorted(
+        f"{name}:{part}:{path}"
+        for name, canary in la.CANARIES.items()
+        for part in ("base", "files", "clean", "staged")
+        for path, body in (canary.get(part) or {}).items()
+        if stamp.search(body)
+    )
+    assert not dated, f"fixture bodies carrying a timestamp that will age out: {dated}"
 
 
 def test_unreachable_entries_name_a_real_check_and_carry_a_reason() -> None:
@@ -195,6 +254,15 @@ NEUTERS: dict[str, tuple[str, str]] = {
     "check_doc_index": (
         "        if p not in index_text and base not in index_text:",
         "        if False:",
+    ),
+    "check_certification_coverage": ("        if FORBIDDEN_HEADING in text:", "        if False:"),
+    "check_command_corpus": (
+        '            "{{include:run-record}}" not in body',
+        "            False",
+    ),
+    "check_decisions_unique": (
+        "    return {i: n for i, n in Counter(ids).items() if n > 1}",
+        "    return {}",
     ),
 }
 
