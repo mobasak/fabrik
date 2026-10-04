@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the GPU workers pack describes the D-437 gpu_handler and the current price stamp (2026-10-04)
+`.windsurf/rules/core/76-gpu-workers.md` still described the python-api-gpu handler as a hub-context wrapper over `rent()` (`rent_for_workload`, `DEFAULT_KIND`, a `shape.gpu_kind` docstring warning) and said the price table was stamped 2026-06-16 and past due. Since D-437 the emitted `gpu_handler.py` is a self-contained `run_on_gpu(payload)` client for a pinned RunPod serverless endpoint with no `fabrik` import, and the table is stamped 2026-09-27 with a per-rental warning after 90 days. The Orchestrator row, the hub-side paragraph, the Shipped line, the shape bullet, the Banned Patterns row, the Done-When check and the snapshot note now say so (fleet mails 01M3J73S33, 01M43RE3JC).
+
 ### Fixed — the mail-escalate agent-leg test passes in a linked worktree (2026-10-04)
 `tests/test_mail_escalate.py::test_the_agent_leg_attributes_the_digest_to_the_hub_whatever_the_cwd` expected the digest's `from:` to be the directory name of the checkout it ran in, which in `.claude/worktrees/fleet` is `fleet`, while `mail.py` rightly names the hub by its main checkout (`fabrik`). It now asks `mail._current_repo()` from the hub root, so it agrees with the sender in any checkout, and still fails if the agent leg inherits the caller's cwd. W-a681a4a7.
 

@@ -24,7 +24,7 @@ GPU services are **two-faced** like mobile-app and chrome-extension:
 
 | Lane | Runs on | Deploy | Rules |
 |---|---|---|---|
-| **Orchestrator** (API gateway + job dispatch) | VPS via `fabrik apply` | The `python-api-gpu` scaffold — a standard `python-api` (Dockerfile, compose, Traefik, registrars) plus `src/<package>/gpu_handler.py`, a HUB-CONTEXT wrapper over `fabrik.orchestrator.gpu_rent.rent()` — which must not be WIRED into any container code path (it ships by default via `COPY . .`; § Lifecycle, § Done When) | `10-python.md`, `30-ops.md`, `55-observability.md`, `58-resilience.md`, `75-workers-jobs.md` |
+| **Orchestrator** (API gateway + job dispatch) | VPS via `fabrik apply` | The `python-api-gpu` scaffold — a standard `python-api` (Dockerfile, compose, Traefik, registrars) plus `src/<package>/gpu_handler.py`, a self-contained httpx client (`run_on_gpu(payload)`) for a pinned RunPod serverless endpoint that runs inside the container and never imports `fabrik` (D-437; § Lifecycle) | `10-python.md`, `30-ops.md`, `55-observability.md`, `58-resilience.md`, `75-workers-jobs.md` |
 | **GPU Worker** (inference / training / fine-tuning) | External GPU cloud (RunPod, Modal, Vast.ai — the three `fabrik gpu` drives) or managed API (Together, Groq, …) | Provider API through `fabrik gpu` / `gpu_rent` — NOT the Fabrik VPS (it has no GPU) | This file |
 
 - The **orchestrator** is a standard Fabrik service: `postgres-main:5432`, `redis-main:6379`, structlog, `/health`, `/metrics`, GlitchTip, Traefik labels, `deploy.resources.limits.memory`, the `-slim-<debian_codename>` base (`<debian_codename>` = the value in `.windsurf/rules/versions.yaml`, written out), `fabrik` network. All `30-ops.md` rules apply. ⚠️ Verify the EMITTED Dockerfile: the scaffold's base image lags that yaml (backlogged, fleet beat) — the rule is the yaml value, not whatever the template wrote.
@@ -352,7 +352,7 @@ Note: use `AsyncOpenAI` (not sync `OpenAI`) to avoid blocking the event loop per
 
 The lifecycle is a SHIPPED hub surface, not a pattern to re-implement: `fabrik gpu rent|list|status|destroy|pause|resume|reconcile|compare|history` and the library `fabrik.orchestrator.gpu_rent.rent(kind, workload=…, provider=…, max_lifetime_hours=…, max_cost_usd=…, work_fn=…)` (context-manager form `rented(...)`), with providers `runpod` · `modal` · `vast`, kinds `serverless` and the pod aliases (`pod-h100`, `pod-h100-pcie`, `pod-h100-nvl`, `pod-a100`, `pod-a100-sxm`, `pod-h200`, `pod-l40s`, `pod-rtx-4090`), state in `data/gpu-rent-state.json`, an audit line per rental in `logs/gpu-rent-history.jsonl`, and actual cost recorded to the usage tracker. Authority: `docs/operations/gpu-rent.md`.
 
-⚠️ **`rent()` runs HUB-SIDE.** It reads provider keys from `/opt/fabrik/.env.sysadmin`, writes `$FABRIK_ROOT/data/gpu-rent-state.json`, and checks the daily cap in `~/.fabrik/ai_usage.db` — none of which a deployed service has, and the emitted service's `requirements.txt` does not carry `fabrik` (scaffold defect, fleet beat). So a deployed orchestrator never rents: it enqueues the GPU work as a job the HUB executes (`fabrik gpu rent <kind> --workload <name>`, or `rent(work_fn=…)` from a hub process), or it calls a serverless endpoint the hub provisioned and pinned (`RUNPOD_SERVERLESS_ENDPOINT_ID`). The scaffold's `gpu_handler.rent_for_workload(workload, work_fn)` is that hub-context helper — it imports only where `fabrik` is installed (`/opt/fabrik/.venv`). The service never calls a provider's create/destroy API inline either: the rule is *through `fabrik gpu`*, with the hub as the caller. `providers`: `runpod` is the library default; the CLI defaults to `auto`, which prices the three via `selection_advice()`.
+⚠️ **`rent()` runs HUB-SIDE.** It reads provider keys from `/opt/fabrik/.env.sysadmin`, writes `$FABRIK_ROOT/data/gpu-rent-state.json`, and checks the daily cap in `~/.fabrik/ai_usage.db` — none of which a deployed service has, and the emitted service does not carry `fabrik` at all. So a deployed orchestrator never rents: it enqueues the GPU work as a job the HUB executes (`fabrik gpu rent <kind> --workload <name>`, or `rent(work_fn=…)` from a hub process), or it calls a serverless endpoint pinned by `RUNPOD_SERVERLESS_ENDPOINT_ID` — the scaffold's `gpu_handler.run_on_gpu(payload)` does exactly that over HTTPS with `RUNPOD_API_KEY`, polls the job, cancels any job it gives up on so it stops billing, and raises one `GpuJobError` on every failure (D-437). The service never calls a provider's create/destroy API inline either: the rule is *through `fabrik gpu`*, with the hub as the caller. `providers`: `runpod` is the library default; the CLI defaults to `auto`, which prices the three via `selection_advice()`.
 
 ### Spin Up
 
@@ -500,8 +500,8 @@ GPU is the most expensive line item. Every decision minimizes idle GPU time.
      provisioning. The durable frameworks above (decision table, selection criteria, lifecycle, fault
      tolerance) do NOT depend on these specific numbers. For RunPod / Modal / Vast.ai the hub's own
      table (`gpu_rent.HOURLY_USD_BY_PROVIDER`, `fabrik gpu compare`) is the copy the code prices with —
-     stamped 2026-06-16 on a quarterly re-verify cadence, so just past due (mailed to fleet); where it and this
-     snapshot disagree, this snapshot is the newer number and the code's caps are computed on the older one. -->
+     stamped `PRICES_VERIFIED` (2026-09-27), and every rental logs a warning while the table is older than
+     `PRICES_STALE_AFTER_DAYS` (90); where it and this snapshot disagree, verify both against the vendor's page. -->
 
 ### Managed API Providers
 
@@ -596,13 +596,12 @@ Do you need AI inference in your service?
 
 ## Integration with Fabrik — what exists, what does not
 
-**Shipped:** `fabrik gpu` + `gpu_rent` (above); `fabrik scaffold <name> --type python-api-gpu` emits a standard `python-api` plus `src/<package>/gpu_handler.py` (`rent_for_workload(workload, work_fn)`, `DEFAULT_KIND = "pod-rtx-4090"`, per-call defaults as module constants); the reaper timer; B2 checkpoints; textfile metrics. Detail and the phase history: `docs/operations/gpu-rent.md` and the archived plan set `docs/development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/`.
+**Shipped:** `fabrik gpu` + `gpu_rent` (above); `fabrik scaffold <name> --type python-api-gpu` emits a standard `python-api` plus `src/<package>/gpu_handler.py` (`run_on_gpu(payload)` for a pinned RunPod serverless endpoint, `RUNPOD_API_KEY` and `RUNPOD_SERVERLESS_ENDPOINT_ID` in `.env.example` and the compose `environment:` list — D-437); the reaper timer; B2 checkpoints; textfile metrics. Detail and the phase history: `docs/operations/gpu-rent.md` and the archived plan set `docs/development/plans/archived/2026-06-17-gpu-rent-and-serverless-shipped/`.
 
 **Not shipped — do NOT write these into a spec or a ticket as if they existed:**
 
-- `shape.needs_gpu` / `shape.gpu_kind` — the `Shape` model has NO such fields; a spec carrying either FAILS TO LOAD. The `python-api-gpu` spec is the plain `python-api` shape; the GPU kind is the `DEFAULT_KIND` constant in `gpu_handler.py` (per-call override), nothing in `specs/services/`.
+- `shape.needs_gpu` / `shape.gpu_kind` — the `Shape` model has NO such fields; a spec carrying either FAILS TO LOAD. The `python-api-gpu` spec is the plain `python-api` shape; the GPU is whatever the pinned serverless endpoint runs, nothing in `specs/services/`.
 - A `gpu:` spec block (today it LOADS and is silently ignored — `Spec` has no `extra="forbid"`), a GPU registrar in `resolve_applicability`, `fabrik destroy` tearing down rentals — the auto-provisioning slice.
-- ⚠️ The emitted `gpu_handler.py` docstring says the kind "is read from the spec's `shape.gpu_kind` field" — it is not; `DEFAULT_KIND` is the only source (scaffold defect, mailed to fleet).
 - Multi-GPU pods (`rent()` provisions one GPU), Modal serverless `App.deploy()` from a spec, persistent network volumes (use B2).
 
 ---
@@ -622,7 +621,7 @@ Do you need AI inference in your service?
 | Provider API calls without timeout + retry | `httpx.AsyncClient` + `tenacity` + circuit-breaker per `58-resilience.md` |
 | GPU provider not in `docs/RESILIENCE.md` §2a | Add the row before adding the call site |
 | Calling a provider's create/destroy API from anywhere other than `rent()`/`rented()` or the shipped `fabrik gpu destroy` / `fabrik gpu reconcile` — a hand-rolled hub script included — or a code path in a deployed container that executes a `fabrik` import | `fabrik gpu` ON THE HUB (`rent()`/`rented()`: try/finally destroy, both cost caps, tags, audit line); the service enqueues the job or calls a pinned serverless endpoint |
-| `shape.needs_gpu` / `shape.gpu_kind` in `specs/services/` (the spec FAILS TO LOAD — `Shape` is `extra="forbid"`) · ANY top-level key the spec does not define (`gpu:`, `gpu_config:`, …) — SILENTLY DROPPED, `Spec` is not `extra="forbid"`, so `fabrik apply` runs and provisions nothing | Nothing in the spec — the kind lives in `gpu_handler.py` |
+| `shape.needs_gpu` / `shape.gpu_kind` in `specs/services/` (the spec FAILS TO LOAD — `Shape` is `extra="forbid"`) · ANY top-level key the spec does not define (`gpu:`, `gpu_config:`, …) — SILENTLY DROPPED, `Spec` is not `extra="forbid"`, so `fabrik apply` runs and provisions nothing | Nothing in the spec — the GPU is whatever the pinned serverless endpoint runs (`gpu_handler.run_on_gpu`), or the kind a hub-side `fabrik gpu rent` names |
 | SSH + manual `pip install` on GPU instance | Templates / Cloud-Init / `rent(image_name=…)` only |
 | Untagged GPU instances | `rent()` tags them; hand-provisioned resources carry the same five `FABRIK_*` env tags |
 | Sync checkpointing during training | `gpu_checkpoint.checkpoint_to_b2` (background upload) or `dcp.async_save` — never `dcp.save` in the step |
@@ -648,7 +647,7 @@ Do you need AI inference in your service?
 
 ### Orchestrator (Fabrik service on VPS)
 
-- [ ] `python-api-gpu` scaffold: Dockerfile (`-slim-<debian_codename>`, the placeholder replaced by the value in `.windsurf/rules/versions.yaml` — verified in the EMITTED file), compose (Traefik, resource limits, `fabrik` network). GPU work reaches the hub's `rent()` as a hub-run job or a pinned serverless endpoint; no code path in the container EXECUTES a `fabrik` import — the scaffold's `gpu_handler.py` ships in the image (`COPY . .`) with a function-local import, so delete it from the image or leave it unwired.
+- [ ] `python-api-gpu` scaffold: Dockerfile (`-slim-<debian_codename>`, the placeholder replaced by the value in `.windsurf/rules/versions.yaml` — verified in the EMITTED file), compose (Traefik, resource limits, `fabrik` network). GPU work reaches the hub's `rent()` as a hub-run job, or a pinned serverless endpoint through the emitted `gpu_handler.run_on_gpu()`; no code path in the container imports `fabrik`, and both RunPod variables are set in the deployed environment.
 - [ ] `/health` verifies DB + Redis + at least one inference provider reachable.
 - [ ] `/metrics` exposes `inference_requests_total`, `inference_latency_seconds`, `inference_tokens_total`, `inference_cost_usd_total`.
 - [ ] Structured logging via `structlog` — no `print()`. Every inference call logged with provider, model, tokens, cost.
