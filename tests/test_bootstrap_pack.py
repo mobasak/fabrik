@@ -169,8 +169,8 @@ def test_effective_sshd_config() -> None:
         "-T runs every check -t does",
         "60-cloudimg-settings.conf says no",
         "When cloud-init's disable_root is on",
-        "The scripts are behind this rule",
     )
+    assert "behind this rule" not in s, "Rule 1 says the scripts lag it again; they caught up in 57bd1a0e3"
 
 
 def test_remote_quoting() -> None:
@@ -206,10 +206,11 @@ def test_idempotency_and_installs() -> None:
         "about 512 MB of free memory",
         "externally managed (PEP 668)",
         "prefer an apt python3-… package, a venv, or pipx",
-        "The spoke script is behind this rule",
+        "python-telegram-bot install in bootstrap-vps.sh still uses the override",
         "needs Node.js only while npm installs it",
     )
     assert "==" not in s, "Rule 3 pins a package version again"
+    assert "behind this rule" not in s, "Rule 3 says the spoke script lags it again; it caught up in 57bd1a0e3"
 
 
 def test_cron_redirect() -> None:

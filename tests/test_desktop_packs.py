@@ -300,7 +300,13 @@ def test_scaffold_ships_what_the_pack_says() -> None:
     _has(
         _section(PACK, "The fleet today"),
         "packaged with electron-builder",
-        "ships no preload file and no update feed yet",
+        "opens no IPC channel",
+        "read from UPDATE_FEED_URL at build time",
+        "runs only in a packaged app",
+        "emits no container and no deployment",
+    )
+    assert "ships no preload file" not in _section(PACK, "The fleet today"), (
+        "72 says the scaffold lacks a preload again; it ships one since dd2f62c99"
     )
 
 

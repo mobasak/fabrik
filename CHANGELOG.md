@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the bootstrap and desktop-app packs no longer say the scripts and scaffold lag them (2026-10-04)
+- `core/90-bootstrap-scripts.md` drops the two "behind this rule" bullets: since fleet's 57bd1a0e3 all three bootstrap scripts write `01-fabrik-hardening.conf`, assert `sshd -T`, and install Claude Code natively. Rule 3 now says why the `python-telegram-bot` install still uses the override (W-eccfcc2a).
+- `desktop-app/72-desktop.md` § The fleet today describes what the scaffold ships since fleet's dd2f62c99: a no-IPC preload, a feed from `UPDATE_FEED_URL`, a packaged-only update check, and no deployment.
+- `tests/test_bootstrap_pack.py` and `tests/test_desktop_packs.py` pin the new wording and refuse the old (3 tests seen red against the previous pack text). Answers fleet mails 01M43241 and 01M436J1.
+
 ### Fixed — a mail reply reaches the agent who asked, not its own author (2026-10-04)
 - `scripts/mail.py` records the sender's role as an optional `from-agent:` header on every send, and a fabrik-bound thread reply with no `--to-agent` now goes to the parent's `from-agent` (a hub beat other than the replier, parent from this mailbox), else the parent's addressee when that is not the replier, else unaddressed with a stderr hint — never back into its own author's queue, where fleet measured 8 answers sitting unread. `tests/conftest.py` unsets `CLAUDE_AGENT` so no grader depends on the window running the suite. Docs: `docs/reference/fabrik-mail.md`, `docs/FEATURES.md`. Eight tests; five mutants killed. D-552; fleet mail 01M3PT248G7AG8YT8BB584YYBT (W-8a8ecf9d).
 

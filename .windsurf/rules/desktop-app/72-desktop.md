@@ -28,8 +28,11 @@ TS), `35-security-auth.md` (sign-in, tokens), `55-observability.md` (Sentry/Glit
 
 - The `desktop-app` scaffold (`templates/desktop-app/`) emits an Electron app packaged with **electron-builder**
   (Windows NSIS target), `electron-updater`, and a `BrowserWindow` that sets `nodeIntegration: false`,
-  `contextIsolation: true` and `sandbox: true`. It ships no preload file and no update feed yet (fleet finding
-  filed 2026-10-03); a project scaffolded from it adds both from the sections below before its first build.
+  `contextIsolation: true` and `sandbox: true`. It ships a preload that exposes only version strings through
+  `contextBridge` and opens no IPC channel (add one from the sections below, with a sender-origin check), a
+  generic update feed read from `UPDATE_FEED_URL` at build time, and an update check that runs only in a packaged
+  app. It emits no container and no deployment: the installer and feed live on the update host (§ Auto-Update),
+  never on the VPS fleet.
 - No fleet project builds a desktop app today: the one repo declared `desktop-app` is an Obsidian plugin with no
   Electron code, so nothing in the fleet activates this pack's globs. The rules below are what the first real one
   must meet.
