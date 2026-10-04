@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the rotation tick's dated stamps no longer follow a symlink (2026-10-04)
+`scripts/sysadmin/claude_rotate.py` (and its `aro-wake` twin) wrote the drain, identity-probe, refresh and fleet-advisory stamps with `touch`/`write_text` and aged them with `stat`, all of which follow a symlink; these stamps fall back to the shared temp dir, where a planted link would have the tick write — and date — the link's target, or hold a debounce with its mtime. They now go through `_touch_stamp` (an `O_NOFOLLOW`, non-blocking, 0600 regular-file write that dates the open file), `_regular_stamp_mtime` and `_read_regular_stamp`, the standard `_write_stamp`/`_stamp_holds` set for the chain push. W-d33d74a1.
+
 ### Fixed — mail.py no longer names the mailbox after the git dir (2026-10-04)
 `scripts/mail.py` took this repo's mailbox name from the first entry of `git worktree list`, which in a repo made with `--separate-git-dir` is the git directory (so the mailbox was `gitdir`) and in a `core.worktree` repo the git directory's parent. It now uses `core.worktree` when set; when git lists its own git directory (a separate git dir or a bare repo), the main worktree is named after its working tree and a linked worktree is refused like any other mail.py refusal (exit 2, `REFUSED`; git records no main working tree there), as `merge_request.py` already did. Normal repos and their linked worktrees are unchanged; none of the 45 repos under /opt use either layout. W-7317befc.
 
