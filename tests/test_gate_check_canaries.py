@@ -36,6 +36,7 @@ the honest-green-row state from silently reverting.
 
 from __future__ import annotations
 
+import ast
 import shutil
 import subprocess
 import sys
@@ -103,10 +104,14 @@ def test_a_warn_only_check_reports_the_violation_it_cannot_fail_on(name: str) ->
         f"let it be asserted as a real failing check (clean={clean.returncode}, "
         f"bad={bad.returncode})"
     )
-    extra = (bad.stdout + bad.stderr).replace(clean.stdout + clean.stderr, "")
-    assert extra.strip(), (
-        f"{name} is registered in final_gate.py, cannot exit non-zero, AND says nothing "
-        f"about {la.CANARIES[name]['expect']} — it is a fully silent gate row"
+    token = la.CANARIES[name].get("speaks")
+    assert token, f"{name}: a warn_only canary names the rule's own words in `speaks`"
+    assert token in bad.stdout + bad.stderr, (
+        f"{name} is registered in final_gate.py, cannot exit non-zero, AND never says "
+        f"{token!r} about {la.CANARIES[name]['expect']} — it is a silent gate row"
+    )
+    assert token not in clean.stdout + clean.stderr, (
+        f"{name} prints {token!r} on the CLEAN tree too — the token proves nothing about the rule"
     )
 
 
@@ -156,7 +161,7 @@ def test_every_declared_advisory_row_is_a_check_that_really_cannot_fail() -> Non
     declared row must be one whose contract is written down in CANARIES/UNREACHABLE.
     """
     gate = REPO_ROOT / "scripts" / "final_gate.py"
-    declared = la.discover_warn_only_checks(gate)
+    declared = la.discover_warn_only_rows(gate)
     assert declared, "the warn_only registrations vanished — the display fork is dead code"
     documented = {
         n for n, c in la.CANARIES.items() if c.get("warn_only") or c.get("row_warn_only")
@@ -176,8 +181,19 @@ def test_a_dormant_canary_rides_a_policy_that_is_still_off() -> None:
     assert dormant == ["check_subagent_flywheel"], dormant
     canary = la.CANARIES["check_subagent_flywheel"]
     assert canary.get("env", {}).get("FABRIK_POOL_POLICY") == "on", canary.get("env")
-    source = (ENFORCEMENT / "check_subagent_flywheel.py").read_text(encoding="utf-8")
-    assert "\n_POOL_POLICY_ON = False\n" in source, (
+    tree = ast.parse((ENFORCEMENT / "check_subagent_flywheel.py").read_text(encoding="utf-8"))
+    values = [
+        ast.literal_eval(node.value)
+        for node in tree.body
+        if isinstance(node, (ast.Assign, ast.AnnAssign))
+        and node.value is not None
+        and any(
+            isinstance(t, ast.Name) and t.id == "_POOL_POLICY_ON"
+            for t in (node.targets if isinstance(node, ast.Assign) else [node.target])
+        )
+    ]
+    assert values, "check_subagent_flywheel no longer assigns _POOL_POLICY_ON at module level"
+    assert values == [False], (
         "the pool policy is ON again — check_subagent_flywheel's real gate row can red, so "
         "drop its `dormant` note and its FABRIK_POOL_POLICY env from CANARIES"
     )
@@ -212,7 +228,10 @@ NEUTERS: dict[str, tuple[str, str]] = {
         "        if False:",
     ),
     "check_certification_coverage": ("        if FORBIDDEN_HEADING in text:", "        if False:"),
-    "check_command_corpus": ('            "{{include:run-record}}" not in body', "            False"),
+    "check_command_corpus": (
+        '            "{{include:run-record}}" not in body',
+        "            False",
+    ),
     "check_decisions_unique": (
         "    return {i: n for i, n in Counter(ids).items() if n > 1}",
         "    return {}",

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — every registered gate check is proven able to fail, or says why it cannot (2026-10-04)
+- `scripts/sysadmin/liveness_audit.py` adds 15 canary pairs (3 failing, 1 `row_warn_only` under `--strict`, 11 `warn_only` that must report the violation) and an UNREACHABLE reason for `check_vendored_drift`, which hard-codes `/opt` and has no failing exit. `tests/test_gate_check_canaries.py` was red three ways and is green.
+- `check_subagent_flywheel`'s canary arms its own `FABRIK_POOL_POLICY` seam and carries a new `dormant` note: the real row cannot red while the pool is off (D-181/D-182), and a tripwire test fails the day `_POOL_POLICY_ON` flips.
+- `discover_warn_only_checks` reads `scripts/enforcement/` only, like `_REGISTERED`, and calls a check advisory only when every registration is `warn_only=True`. `check_doc_index` blocks in the Tier-2 gate and was being labelled advisory because of its Tier-1 row.
+
 ### Fixed — the hub test suite's red groups, each at its cause (2026-10-04)
 - `tests/test_state.py` reloaded three fabrik modules under a fake root and never reloaded them back, so later tests saw paths in a deleted tmp dir; it now does, graded by the new `tests/test_state_restores_modules.py`. This also cured three `tests/enforcement/test_pack_reachability.py` tests that failed whenever they ran right after `test_state.py` (unevaluable type, pack/claim counts, duplicate `--types`). The test now also expects `target_vps`, which `save()` has written since June (W-019e468b).
 - `tests/test_health_summary.py` and `tests/test_epic_order.py` no longer treat `tmp_path` as empty: conftest's autouse isolation pins create six directories in it.

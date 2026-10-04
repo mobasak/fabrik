@@ -539,6 +539,18 @@ def test_a_check_with_one_blocking_registration_is_not_advisory(tmp_path: Path) 
     assert la.discover_warn_only_checks(gate) == {"check_quiet"}
 
 
+def test_a_warn_only_row_on_a_blocking_check_still_owes_its_reason(tmp_path: Path) -> None:
+    """The other population: a warn_only label added to a SECOND row of a blocking check
+    must still surface for a recorded reason, or a downgrade hides behind the blocking row."""
+    gate = _gate_with(
+        tmp_path,
+        'run_optional_check("scripts/enforcement/check_secrets.py", "S", advisory=True)\n'
+        'run_optional_check("scripts/enforcement/check_secrets.py", "S lean", warn_only=True)',
+    )
+    assert la.discover_warn_only_checks(gate) == set()
+    assert la.discover_warn_only_rows(gate) == {"check_secrets"}
+
+
 def test_a_warn_only_row_outside_the_enforcement_dir_is_not_counted(tmp_path: Path) -> None:
     """Same population as `_REGISTERED`: a sysadmin script registered warn_only is not a
     gate check the canary ratchet accounts for."""
@@ -590,6 +602,40 @@ def test_the_same_check_registered_as_a_blocking_row_is_still_inert(
     found = next(f for f in la.proof_vacuity(tmp_path)["findings"] if f["id"] == "check_quiet")
     assert found["verdict"] == "DEAD" and found["reason_class"] == "inert", found
     assert "can never go red" in found["detail"]
+
+
+def test_a_dormant_row_that_goes_red_is_unknown_never_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The flywheel's shape: the rule reds only through a seam the gate never sets, so the
+    row cannot block today. LIVE would claim teeth it lacks; DEAD would call a ruling a
+    defect. And with the rule broken (green under the seam) it is DEAD as usual."""
+    enforcement = tmp_path / "scripts" / "enforcement"
+    enforcement.mkdir(parents=True, exist_ok=True)
+    (enforcement / "check_seam.py").write_text(
+        "import os, sys\n"
+        "from pathlib import Path\n"
+        "armed = os.environ.get('SEAM') == 'on'\n"
+        "sys.exit(1 if armed and list(Path.cwd().rglob('*.yaml')) else 0)\n",
+        encoding="utf-8",
+    )
+    _gate_with(tmp_path, 'run_optional_check("scripts/enforcement/check_seam.py", "S")')
+    canary = {
+        "form": "cwd",
+        "env": {"SEAM": "on"},
+        "dormant": "SEAM is off by ruling",
+        "files": {"compose.yaml": "x: 1\n"},
+        "expect": "a yaml file",
+    }
+    monkeypatch.setattr(la, "CANARIES", {"check_seam": canary})
+    monkeypatch.setattr(la, "UNREACHABLE", {})
+    found = next(f for f in la.proof_vacuity(tmp_path)["findings"] if f["id"] == "check_seam")
+    assert found["verdict"] == "UNKNOWN", found
+    assert "SEAM is off by ruling" in found["detail"]
+
+    monkeypatch.setattr(la, "CANARIES", {"check_seam": {**canary, "env": {"SEAM": "off"}}})
+    found = next(f for f in la.proof_vacuity(tmp_path)["findings"] if f["id"] == "check_seam")
+    assert found["verdict"] == "DEAD", found
 
 
 def test_a_declared_advisory_row_that_says_nothing_is_dead(

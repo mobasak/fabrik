@@ -1000,24 +1000,13 @@ _REGISTERED = re.compile(r'run_optional_check\(\s*"(scripts/enforcement/[a-z_0-9
 # gate row that claims to block and cannot.
 
 
-def discover_warn_only_checks(gate: Path) -> set[str]:
-    """Check names `final_gate.py` registers with `warn_only=True`.
-
-    Parsed with `ast`, not a regex: these registrations carry multi-line comment blocks
-    and nested calls, and a mis-parse here would silently re-classify a blocking row as
-    advisory. Any parse failure returns the EMPTY set — every row then reads as blocking,
-    which is the strict direction (it can accuse a real advisory of being inert; it can
-    never excuse a real inert check).
-
-    Same population as `_REGISTERED` (scripts/enforcement/ only), and a check counts as
-    advisory only when EVERY one of its registrations is `warn_only=True`: check_doc_index
-    is warn_only in Tier 1 (`--untracked-only`) yet blocks in the Tier-2 completion gate,
-    and keying on the name alone hid that blocking row behind the Tier-1 label.
-    """
+def _warn_only_registrations(gate: Path) -> tuple[set[str], set[str]]:
+    """(names with a `warn_only=True` row, names with a row WITHOUT it), scripts/enforcement/
+    only — the same population as `_REGISTERED`. Both empty on any parse failure."""
     try:
         tree = ast.parse(read_text(gate))
     except (OSError, SyntaxError, ValueError):
-        return set()
+        return set(), set()
     warn: set[str] = set()
     blocking: set[str] = set()
     for node in ast.walk(tree):
@@ -1040,6 +1029,31 @@ def discover_warn_only_checks(gate: Path) -> set[str]:
             for kw in node.keywords
         )
         (warn if declared else blocking).add(Path(first.value).stem)
+    return warn, blocking
+
+
+def discover_warn_only_rows(gate: Path) -> set[str]:
+    """Every check with at least one `warn_only=True` row. A warn_only label is a claim that
+    the ROW cannot fail, so each one owes a recorded reason — including a second row on a
+    check that blocks elsewhere (check_doc_index's Tier-1 `--untracked-only` row)."""
+    return _warn_only_registrations(gate)[0]
+
+
+def discover_warn_only_checks(gate: Path) -> set[str]:
+    """Check names `final_gate.py` registers with `warn_only=True` and nowhere without it.
+
+    Parsed with `ast`, not a regex: these registrations carry multi-line comment blocks
+    and nested calls, and a mis-parse here would silently re-classify a blocking row as
+    advisory. Any parse failure returns the EMPTY set — every row then reads as blocking,
+    which is the strict direction (it can accuse a real advisory of being inert; it can
+    never excuse a real inert check).
+
+    A check counts as advisory only when EVERY one of its registrations is `warn_only=True`:
+    check_doc_index is warn_only in Tier 1 (`--untracked-only`) yet blocks in the Tier-2
+    completion gate, and keying on the name alone judged that blocking row as an advisory
+    one. The reason each warn_only ROW owes is `discover_warn_only_rows`'s question.
+    """
+    warn, blocking = _warn_only_registrations(gate)
     return warn - blocking
 
 
@@ -1163,7 +1177,10 @@ _README_OK = "# Project\n\n## Overview\n\nx\n\n## Quick Start\n\nx\n\n## Documen
 #           The value says whose contract makes it toothless. A `warn_only` check that is
 #           still registered as an ORDINARY final_gate row is the vacuous-green defect and
 #           reads DEAD; one registered `warn_only=True`, or unwired, reads LIVE as long as
-#           it speaks.
+#           it speaks. Its "speaks" token is the RULE's own words, asserted in the bad output
+#           and absent from the clean one — a count or an echoed path changes between the
+#           trees whether or not the rule fired. "0 on every return" is the contract; an
+#           unhandled exception still exits 1, which the gate reports as a broken warn_only.
 # "row_warn_only": the CHECK can fail, but the GATE ROW cannot, because the registration
 #           withholds the flag that arms it (check_ticket_breadth exits 1 only under
 #           `--strict`, and 2 only for an explicit undated `--plan-dir`; final_gate
@@ -1172,7 +1189,8 @@ _README_OK = "# Project\n\n## Overview\n\nx\n\n## Quick Start\n\nx\n\n## Documen
 #           is what justifies its `warn_only=True` registration.
 # "dormant": the canary arms the rule through a policy seam ("env") that the gate's real
 #           invocation never sets, so the ROW cannot red today by ruling, not by defect. The
-#           value names the ruling; the vacuity detail repeats it beside every red.
+#           value names the ruling; a red canary is reported UNKNOWN (never LIVE — the row
+#           cannot block) with the ruling in its detail, and a green one is still DEAD.
 #
 # The compose/env fixtures are the ones tests/test_check_activation_anti_vacuity.py already
 # proved RED; reused rather than reinvented so the two agree by construction.
@@ -1371,8 +1389,8 @@ CANARIES: dict[str, dict[str, Any]] = {
         "env": {"FABRIK_POOL_POLICY": "on"},
         "dormant": (
             "the pool policy is OFF (`_POOL_POLICY_ON = False`, D-181/D-182): Layer 1 stands "
-            "down and final_gate passes no FABRIK_POOL_POLICY override, so the real row cannot "
-            "red until an operator ruling turns the pool back on"
+            "down, so the real row cannot red unless FABRIK_POOL_POLICY=on is in the gate's own "
+            "environment (final_gate never sets it) or an operator ruling flips the constant"
         ),
         "base": {"libs/subagents/__init__.py": "PLACEHOLDER = 1\n"},
         "staged": {f"src/mod_{i}.py": f"VALUE = {i}\n" for i in range(12)},
@@ -1437,6 +1455,11 @@ CANARIES: dict[str, dict[str, Any]] = {
     },
     "check_doc_index": {
         "form": "copy",
+        "row_warn_only": (
+            "returns `0 if untracked_only` (check_doc_index.py main()); final_gate passes "
+            "--untracked-only only on its Tier-1 row — the Tier-2 row blocks, and this canary "
+            "runs that shape"
+        ),
         "git": "add",
         "base": {"INDEX.md": "# Index\n\n- [Ops](docs/ops.md)\n", "docs/ops.md": "# Ops\n"},
         "files": {"docs/orphan.md": "# Orphan\n"},
@@ -1489,6 +1512,7 @@ CANARIES: dict[str, dict[str, Any]] = {
         "warn_only": "check_env_updates.check_env_updates() returns `True, errors` on every path",
         "base": {".env.example": "API_KEY=\n", ".env": "API_KEY=real\n"},
         "files": {".env.example": "API_KEY=\nDB_PASSWORD=\n"},
+        "speaks": "in .env.example but not in .env",
         "expect": "a variable in .env.example that never reached .env",
     },
     "check_env_example": {
@@ -1497,6 +1521,7 @@ CANARIES: dict[str, dict[str, Any]] = {
         "warn_only": "check_env_example.main() prints '(This is a WARNING…)' and returns 0",
         "base": {".env.example": "API_KEY=\n"},
         "files": {"src/app.py": 'import os\n\nTOKEN = os.getenv("NEW_UNDECLARED_TOKEN")\n'},
+        "speaks": "New environment variables not in .env.example",
         "expect": "a new env var read by code and absent from .env.example",
     },
     "check_compose_services": {
@@ -1507,6 +1532,7 @@ CANARIES: dict[str, dict[str, Any]] = {
         "files": {
             "compose.yaml": "services:\n  app:\n    image: x\n  undocumented_worker:\n    image: y\n"
         },
+        "speaks": "New Docker services not documented",
         "expect": "a new compose service documented nowhere",
     },
     "check_test_coverage": {
@@ -1514,6 +1540,7 @@ CANARIES: dict[str, dict[str, Any]] = {
         "git": "add",
         "warn_only": "check_test_coverage.main() prints '(This is a WARNING…)' and returns 0",
         "files": {"src/billing.py": "def charge_customer(amount):\n    return amount * 2\n"},
+        "speaks": "New public code without apparent tests",
         "expect": "new public src/ code with no test anywhere",
     },
     "check_script_headers": {
@@ -1521,6 +1548,7 @@ CANARIES: dict[str, dict[str, Any]] = {
         "git": "add",
         "warn_only": "check_script_headers.main() ends `return 0  # WARN-only — never blocks`",
         "files": {"scripts/deploy_thing.py": "def run():\n    return 1\n"},
+        "speaks": "no `# AFTER-EDIT:` header",
         "expect": "a scripts/ file with no `# AFTER-EDIT:` coupling header",
     },
     "check_reusable_modules": {
@@ -1528,6 +1556,7 @@ CANARIES: dict[str, dict[str, Any]] = {
         "warn_only": "check_reusable_modules.main() returns 0 after printing the WARNING",
         "base": {"INDEX.md": "# Index\n\n- src/utils/other.py\n"},
         "files": {"src/utils/helper.py": "def helper():\n    return 1\n"},
+        "speaks": "not tagged [reusable]",
         "expect": "a src/utils module never tagged [reusable] in INDEX.md",
     },
     "check_retired_terms": {
@@ -1538,6 +1567,7 @@ CANARIES: dict[str, dict[str, Any]] = {
         "files": {
             "docs/live.md": "# Live\n\nDeploy the stack with Coolify and store data in Supabase.\n"
         },
+        "speaks": "unmarked retired-tech mention:",
         "expect": "unmarked retired-tech framing in a live doc",
     },
     "check_doc_stubs": {
@@ -1549,6 +1579,7 @@ CANARIES: dict[str, dict[str, Any]] = {
             "compose.yaml": "services:\n  app:\n    image: x\n",
             "docs/SERVICES.md": "# [Project Name] Services\n\n- TODO\n",
         },
+        "speaks": "still carries template placeholders",
         "expect": "a doc left carrying template placeholders after its trigger fired",
     },
     # ── ledgers, corpus and advisory diagnostics (W-45d1e850) ──────────────────────
@@ -1570,7 +1601,7 @@ CANARIES: dict[str, dict[str, Any]] = {
         "expect": "a command source that opens no run record (no {{include:run-record}} and no bespoke start block) — predicate 5",
     },
     "check_decisions_unique": {
-        "form": "cwd",
+        "form": "copy",
         "clean": {
             "docs/DECISIONS.md": "# Decisions\n\n| ID | When | Who | What | Why | Where |\n|---|---|---|---|---|---|\n| D-001 | 2026-01-01 | x | thing | reason | path |\n"
         },
@@ -1591,11 +1622,12 @@ CANARIES: dict[str, dict[str, Any]] = {
     },
     "check_citations_resolve": {
         "form": "root",
-        "warn_only": "check_citations_resolve.main() returns 0 on every branch — advisory by contract, the findings are the product",
+        "warn_only": "every `return` in check_citations_resolve.main() is 0 — advisory by contract, the findings are the product",
         "args": ["--quiet"],
         "base": {"src/a.py": "x = 1\n"},
         "clean": {"docs/reference/x.md": "# X\n\nSee src/a.py:1 for details.\n"},
         "files": {"docs/reference/x.md": "# X\n\nSee src/a.py:100 for details.\n"},
+        "speaks": "BEYOND-EOF",
         "expect": "a path:line citation past the file's last line (BEYOND-EOF)",
     },
     "check_feedback_duty": {
@@ -1608,6 +1640,7 @@ CANARIES: dict[str, dict[str, Any]] = {
         "files": {
             "runs/abc12345.json": '{"state": "done", "command": "/fabrik-task", "updated_at": "2026-10-04T00:00:00+00:00"}\n'
         },
+        "speaks": "UNSTATED",
         "expect": "a closed run record with no `feedback` key at all (unstated)",
     },
     "check_frozen_chain": {
@@ -1622,16 +1655,18 @@ CANARIES: dict[str, dict[str, Any]] = {
         "files": {
             "docs/flows.md": "# Flows\n\n**Status:** FROZEN **Version:** v2\n\nPins data-contract.md **v1**.\n\n## Body\n\ntext\n"
         },
+        "speaks": "stale pin",
         "expect": "flows.md's header pins data-contract.md@v1 while data-contract.md's own header is at v2 (a stale pin)",
     },
     "check_pack_reachability": {
         "form": "cwd",
         "timeout": 90,
-        "warn_only": "check_pack_reachability.main() returns 0 on every branch and has no flag that changes it ('Exit code: always 0 once the run completes (advisory)')",
+        "warn_only": "every `return` in check_pack_reachability.main() is 0 and no flag changes it ('Exit code: always 0 once the run completes (advisory)')",
         "args": ["--project-root", "{fixture}", "--types", "file-worker"],
         "files": {
             ".windsurf/rules/core/zz-canary.md": '---\nactivation: glob\nglobs: ["**/zzz-nonexistent-dir/**"]\napplies_to: ["file-worker"]\ndescription: canary pack whose globs cannot reach file-worker\n---\n\nbody\n'
         },
+        "speaks": "match ZERO paths",
         "expect": "a pack's applies_to claims file-worker but its globs match zero emitted paths",
     },
     "check_plan_lock_release": {
@@ -1642,6 +1677,7 @@ CANARIES: dict[str, dict[str, Any]] = {
             ".fabrik/plan-locks/2026-01-01-plan-canary.json": '{"status": "active"}\n',
             "docs/development/plans/2026-01-01-plan-canary.md": "# Plan\n\nStatus: SHIPPED\n",
         },
+        "speaks": "LIKELY STALE LOCK",
         "expect": "a non-terminal lock whose plan already reads a finished Status (LIKELY STALE LOCK)",
     },
     "check_review_hygiene": {
@@ -1653,6 +1689,7 @@ CANARIES: dict[str, dict[str, Any]] = {
         "files": {
             "docs/development/reviews/r-canary.md": "# Review -- canary\n\n| Class | Status |\n| --- | --- |\n| fail-open | CLEAN | extra |\n"
         },
+        "speaks": "raw-pipe",
         "expect": "a receipt table row whose cell count overflows its header (raw-pipe)",
     },
     "check_rivals_dossier": {
@@ -1664,6 +1701,7 @@ CANARIES: dict[str, dict[str, Any]] = {
         "files": {
             "docs/reference/rivals/test-market.md": "**rivals:** 0\n**scanned:** 2026-01-01\n"
         },
+        "speaks": "FAILED-SCAN",
         "expect": "a rivals dossier whose header reads **rivals:** 0 (FAILED-SCAN)",
     },
     "check_routing_policy": {
@@ -1680,6 +1718,7 @@ CANARIES: dict[str, dict[str, Any]] = {
         "files": {
             "scripts/kilo-benchmarks/rank_task_subagents.py": "OPERATOR_DENY = {'review': ('test-model',)}\nOPERATOR_DENY_ALWAYS = frozenset()\n\n\ndef _allowed(model):\n    return True\n"
         },
+        "speaks": "DENIED",
         "expect": "a routable model that the operator's own OPERATOR_DENY forbids",
     },
     "check_rule_grounding": {
@@ -1689,6 +1728,7 @@ CANARIES: dict[str, dict[str, Any]] = {
         "files": {
             "docs/development/plans/2026-09-01-plan-canary.md": "# Plan\n\nStatus: CONVERGED\n\n## Phase A\n\nAll done, no digest here.\n"
         },
+        "speaks": "NO-DIGEST",
         "expect": "a CONVERGED plan with no Constraints Digest section",
     },
     "check_spec_convergence": {
@@ -1698,6 +1738,7 @@ CANARIES: dict[str, dict[str, Any]] = {
         "files": {
             "docs/superpowers/specs/2026-09-01-spec-canary.md": "# Spec\n\nStatus: CONVERGED\n\nNo residual mentions, no url, purely prose.\n"
         },
+        "speaks": "SILENT-1a",
         "expect": "a CONVERGED spec with no cited source and no residual-unknowns section",
     },
     "check_trigger_routing": {
@@ -1708,6 +1749,7 @@ CANARIES: dict[str, dict[str, Any]] = {
         "files": {
             "commands/_sources/x.md": 'description: TRIGGER — EN: "review this thing"; TR: "placeholder" — Stage: utility\n'
         },
+        "speaks": "-> fabrik-review",
         "expect": "an advertised trigger phrase that resolves to a DIFFERENT command",
     },
 }
@@ -2053,7 +2095,15 @@ def proof_vacuity(repo_root: Path) -> dict[str, Any]:
                 id=name,
                 kind=kind,
                 instrument=cinst if inst.ok else inst,
-                verdict=Verdict.LIVE if alive else Verdict.DEAD,
+                # dormant + red: the rule works but the row cannot red today — neither LIVE
+                # (it cannot block) nor DEAD (by ruling, not defect)
+                verdict=(
+                    Verdict.UNKNOWN
+                    if canary.get("dormant") and went_red
+                    else Verdict.LIVE
+                    if alive
+                    else Verdict.DEAD
+                ),
                 detail=detail,
                 reason_class="inert" if blocking else "silent",
             )
