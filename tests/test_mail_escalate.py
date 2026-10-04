@@ -299,14 +299,22 @@ def test_the_agent_leg_attributes_the_digest_to_the_hub_whatever_the_cwd(
     """`mail.py` derives the `from:` field from the cwd's git worktree, so an inherited cwd would
     attribute the hub's own digest to whatever repo the caller stood in. pytest's cwd is already
     the repo root, so the existing real-leg grader could not see this — the test must LEAVE it."""
+    # (A GIT_DIR in the environment would steer git past the cwd; tests/conftest.py strips the
+    # GIT_* variables for the whole session, so the cwd is what decides here.)
+    # The hub's identity is what mail.py itself derives from the hub's root — its MAIN
+    # checkout's name, not the directory this file sits in: from a linked worktree
+    # _REPO_ROOT.name is the worktree's (W-a681a4a7).
+    monkeypatch.chdir(me._REPO_ROOT)
+    hub = me._mail._current_repo()
     elsewhere = tmp_path / "somewhere-else"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
+    assert me._mail._current_repo() != hub, "the probe cwd must not already name the hub"
     assert me._deliver_to_agent("Subject: probe\n\nWHAT: a row\n") is True
     delivered = sorted((env / "fabrik" / "inbox").glob("*.md"))
     assert delivered, "the real agent leg wrote nothing"
     fm = delivered[-1].read_text(encoding="utf-8")
-    assert f"\nfrom: {me._REPO_ROOT.name}\n" in fm, (
+    assert f"\nfrom: {hub}\n" in fm, (
         f"the digest was attributed to the caller's cwd, not the hub:\n{fm[:300]}"
     )
 

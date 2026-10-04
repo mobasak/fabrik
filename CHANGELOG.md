@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the mail-escalate agent-leg test passes in a linked worktree (2026-10-04)
+`tests/test_mail_escalate.py::test_the_agent_leg_attributes_the_digest_to_the_hub_whatever_the_cwd` expected the digest's `from:` to be the directory name of the checkout it ran in, which in `.claude/worktrees/fleet` is `fleet`, while `mail.py` rightly names the hub by its main checkout (`fabrik`). It now asks `mail._current_repo()` from the hub root, so it agrees with the sender in any checkout, and still fails if the agent leg inherits the caller's cwd. W-a681a4a7.
+
 ### Fixed — six infra identifier checks no longer accept a trailing newline (2026-10-04)
 `re.match(r"^...$", v)` also accepts `v + "\n"`, because `$` matches before a final newline. The scratch SID check in `scripts/scratch_sweep.py`, the account-slug checks in `scripts/sysadmin/claude_rotate.py` (and its `aro-wake` twin) and `scripts/sysadmin/quota_dashboard.py`, the model check in `scripts/sysadmin/claude_broker.py` the email check in `quota_dashboard.py` (found by the review) and the class check in `scripts/sysadmin/kaizen_coroner.py` now use `.fullmatch` — the SID and slug values become directory names. `tests/test_identifier_checks_fullmatch.py` requires every use of those regexes to be a `.fullmatch` — an alias or pass-through fails it (fleet mail 01M3HY58BC).
 
