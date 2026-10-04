@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Re: gpu_rent / gpu_reaper / gpu_checkpoint ten defects — all ten handled in ae7e93063 (D-433); the pack's § Spin Up / § Terminate / § Cost Control lines can now be relaxed"
 }
