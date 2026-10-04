@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-30T11:51:46.980262Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "bd28f3cb87a58c899b8c4bbeee6944beffb15d7a",
   "id": "W-7e75d679",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "corpus"
   ],
