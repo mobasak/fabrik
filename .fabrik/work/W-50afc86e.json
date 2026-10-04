@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T18:17:24.405654Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-50afc86e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4405E9HMTZSTQBWR7SBSH29",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "decision-shape ratchet counts pipes inside code spans — 6 well-formed rows reported as regressions"
+}
