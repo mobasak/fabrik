@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the Stop hook recognises a running review whose record spells its command the old way (2026-10-04)
+`final_gate_stop.py` tested a run record's `command` for review-family membership raw, so a record written before `command_run.py` normalised names (`Fabrik-Review-Scoped`, `/fabrik-review`) never exempted the files its review was covering, and the sixth cause blocked the session. The hook now reads the name with the writer's own rule (strip, leading slashes, lower case), pinned by a parity test against `command_run._norm_command`. W-99525a15; full /fabrik-review CONVERGED in 2 passes (confirmed 1 → 0), receipt `docs/development/reviews/2026-10-04-w-99525a15-hook-command-case-review.md`.
+
 ### Fixed — the project audit accepts the fleet's pinned Debian codename instead of only bookworm (2026-10-04)
 `scripts/audit_all_projects.py` read a hard-coded bookworm, so a Dockerfile built to `core/30-ops` (trixie since D-064) was reported critical and every fix hint said to switch to bookworm. It now reads the pin from `.windsurf/rules/versions.yaml`: the pinned codename is compliant, the release just before it is a medium "move on the next rebuild" row, anything else stays critical; `FROM <earlier stage>` resolves to that stage's image; hints name the pin. Over the audit's 22 Dockerfiles, 21 move from ✅ to medium and one false critical becomes medium. W-f7882a97, D-544.
 
