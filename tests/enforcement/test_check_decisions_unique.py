@@ -9,12 +9,26 @@ about past collisions, and a naive matcher reds on all of them.
 
 from pathlib import Path
 
+import pytest
+import scripts.enforcement.check_decisions_unique as _mod
 from scripts.enforcement.check_decisions_unique import (
     _DELIMITER,
     find_duplicates,
     find_rows_outside_the_table,
     main,
 )
+
+
+@pytest.fixture(autouse=True)
+def _isolated_shape_baseline(tmp_path, monkeypatch):
+    # main() reads TWO globals: LEDGER (relative, so a test redirects it or chdirs) and the advisory
+    # shape leg's _SHAPE_BASELINE (absolute, parents[2] of the module), which neither move reaches.
+    # Left alone, every main() call grades its fixture ledger against the hub's real baseline and
+    # prints ⚠ ABSENT for ids that exist in the real ledger but not in the fixture — red since
+    # ed461e243 added the leg (W-62281917). An empty baseline keeps the leg quiet in every test.
+    base = tmp_path / "shape-baseline.json"
+    base.write_text('{"malformed_ids": []}')
+    monkeypatch.setattr(_mod, "_SHAPE_BASELINE", base)
 
 
 def test_duplicate_id_cells_detected():
@@ -63,6 +77,8 @@ def test_failure_lines_carry_the_gate_prefix(tmp_path, monkeypatch, capsys):
     assert mod.main() == 1
     out = capsys.readouterr().out
     assert out.count("✗") >= 2
+    # the line that NAMES the id is the actionable one; a count of ✗ lines cannot see it lose its prefix
+    assert any(ln.startswith("✗") and "D-001 appears 2x" in ln for ln in out.splitlines())
     assert "WARN:" not in out and "⚠" not in out
 
 
