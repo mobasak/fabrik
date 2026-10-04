@@ -300,6 +300,13 @@ class MailHoldError(MailRefusedError):
     so every existing catch still works."""
 
 
+class NoMainCheckoutError(SystemExit):
+    """Git keeps no record of this repo's main working tree (a linked worktree of a
+    ``--separate-git-dir`` or bare repo), so no mailbox name can be derived (W-7317befc). A
+    ``SystemExit`` so the CLI exits 1 with the message; ``_mail_store`` catches it as "not
+    this session's repo"."""
+
+
 # --- env / paths -------------------------------------------------------------
 def _mail_root() -> Path:
     return Path(os.environ.get("FABRIK_MAIL_ROOT", "/opt/fabrik-mail"))
@@ -325,10 +332,12 @@ def _main_checkout() -> Path:
 
     The porcelain's first entry is NOT always a working tree (W-7317befc): a ``core.worktree``
     repo reports its git dir's parent and a ``--separate-git-dir`` (or bare) repo its git dir.
-    So ``core.worktree``, git's own record of the main working tree, wins when set; and when
-    the first entry IS the git common dir, the main worktree answers with its own toplevel,
-    while a linked worktree — whose main working tree git records nowhere — refuses rather
-    than act on a mailbox named after the git dir."""
+    So ``core.worktree`` — read from the COMMON dir's own config, never the cwd's, which would
+    pick up a per-worktree value — wins when set; and when the first entry IS the git common
+    dir, the main worktree answers with its own toplevel, while a linked worktree, whose main
+    working tree git records nowhere, raises ``NoMainCheckoutError`` rather than act on a
+    mailbox named after the git dir. A failure of those extra git calls degrades to the
+    porcelain's answer (what this function returned before), never to ``Path.cwd()``."""
 
     def git(*args: str) -> str:
         return subprocess.run(
@@ -337,40 +346,37 @@ def _main_checkout() -> Path:
 
     try:
         out = git("worktree", "list", "--porcelain")
-        first = next(
-            (
-                Path(ln[len("worktree ") :].strip())
-                for ln in out.splitlines()
-                if ln.startswith("worktree ")
-            ),
-            None,
-        )
-        if first is None:
-            return Path.cwd()
-        common, gitdir, *top = git(
-            "rev-parse",
-            "--path-format=absolute",
-            "--git-common-dir",
-            "--git-dir",
-            "--show-toplevel",
-        ).splitlines()
+    except (OSError, subprocess.SubprocessError):
+        return Path.cwd()
+    first = next(
+        (
+            Path(ln[len("worktree ") :].strip())
+            for ln in out.splitlines()
+            if ln.startswith("worktree ")
+        ),
+        None,
+    )
+    if first is None:
+        return Path.cwd()
+    try:
+        common = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir").strip())
         try:
-            worktree = git("config", "--get", "core.worktree").strip()
+            worktree = git("--git-dir", str(common), "config", "--get", "core.worktree").strip()
         except subprocess.CalledProcessError:  # exit 1: the key is unset
             worktree = ""
         if worktree:
-            return (Path(common) / worktree).resolve()
-        if first.resolve() != Path(common).resolve():
+            return (common / worktree).resolve()
+        if first.resolve() != common.resolve():
             return first
-        if Path(gitdir).resolve() == Path(common).resolve() and top:
-            return Path(top[0])
-        raise SystemExit(
-            f"mail.py: this repo keeps a separate git dir ({common}), and git records no main "
-            "working tree for a linked worktree to name — run from the main worktree or pass --repo"
-        )
+        gitdir = Path(git("rev-parse", "--path-format=absolute", "--git-dir").strip())
+        if gitdir.resolve() == common.resolve():
+            return Path(git("rev-parse", "--show-toplevel").strip())
     except (OSError, subprocess.SubprocessError):
-        pass
-    return Path.cwd()
+        return first
+    raise NoMainCheckoutError(
+        f"mail.py: this repo keeps a separate git dir ({common}) and git records no main working "
+        "tree for a linked worktree to name — run mail.py from the main worktree"
+    )
 
 
 def _current_repo() -> str:
@@ -1205,7 +1211,10 @@ def _mail_store(repo: str) -> tuple[ModuleType, Path] | None:
     ``work.open_linked``/``close_linked`` already no-op silently on a store-less repo via
     their own ``_api_root``/``has_store`` check (verified by execution — T-S2), so this
     does not repeat that check itself."""
-    main = _main_checkout()
+    try:
+        main = _main_checkout()
+    except NoMainCheckoutError:  # `--repo X` from a linked worktree git cannot place: no store
+        return None
     if repo != main.name:
         return None
     w = _work()

@@ -88,3 +88,34 @@ def test_a_normal_repo_and_its_linked_worktree_still_name_the_main_checkout(tmp_
     for cwd in (main, tmp_path / "side"):
         monkeypatch.chdir(cwd)
         assert mail._current_repo() == "hubrepo", cwd
+
+
+def test_a_cwd_inside_a_normal_repos_git_dir_still_names_the_repo(tmp_path, monkeypatch):
+    """`rev-parse --show-toplevel` fails inside `.git`; asking it unconditionally would have sent this
+    case to the cwd fallback and named the mailbox `.git` (Opus critique C1)."""
+    main = tmp_path / "hubrepo"
+    _git("init", "-q", "-b", "main", str(main), cwd=tmp_path)
+    monkeypatch.chdir(main / ".git")
+    assert mail._current_repo() == "hubrepo"
+
+
+def test_a_per_worktree_core_worktree_does_not_rename_the_hub(tmp_path, monkeypatch):
+    """core.worktree is read from the COMMON dir's config: a linked worktree's own
+    `config --worktree core.worktree` must not make it name itself (Opus critique C2)."""
+    main = tmp_path / "hubrepo"
+    _git("init", "-q", "-b", "main", str(main), cwd=tmp_path)
+    _git("commit", "-q", "--allow-empty", "-m", "x", cwd=main)
+    side = tmp_path / "side"
+    _git("worktree", "add", "-q", "-b", "wt", str(side), cwd=main)
+    _git("config", "extensions.worktreeConfig", "true", cwd=main)
+    _git("config", "--worktree", "core.worktree", str(side), cwd=side)
+    monkeypatch.chdir(side)
+    assert mail._current_repo() == "hubrepo"
+
+
+def test_the_work_store_lookup_treats_an_unplaceable_repo_as_not_ours(separate, monkeypatch):
+    """`claim`/`ack --repo X` from a linked worktree git cannot place: no store, no stray error
+    line from the item hooks (Opus critique C6)."""
+    _work, linked = separate
+    monkeypatch.chdir(linked)
+    assert mail._mail_store("myproject") is None
