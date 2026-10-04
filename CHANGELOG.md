@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the GPU workers pack states the fixed gpu_rent, not its old gaps (2026-10-04)
+`.windsurf/rules/core/76-gpu-workers.md` no longer warns that serverless endpoints are untagged, that `rented()` lacks the recorded-id fallback, that a never-run reconcile writes `-1`, or that serverless is booked at $0 and every provider at RunPod rates — fleet fixed all four in ae7e93063 (D-433). It now says how an endpoint's name marks it as Fabrik's, that both entry points share one teardown, that Modal pod keep-warm is refused, that an unreconciled state reads `+Inf`, and that every rental is booked at its provider's rate against the daily cap.
+
 ### Added — the autonomy ladder at Stop and the Opus + Fable decision panel (2026-10-04)
 The operator ruled that the hub's three agents keep working through waiting tasks, mail, feedback and kaizen items, ask an Opus + Fable panel when a decision is needed, and stop only when the repo has no answer (D-558). With `"autonomy": true` in the main checkout's `.fabrik/work/config.json`, `work.py`'s Stop action returns an ordered list of subjects — a held claim, mail awaiting an answer, queued work, the coordinator rungs, an owned ready item, and for the distributor the command-feedback queues — and the Stop hook blocks on each subject up to three times, keyed on the subject, so finishing one item moves it to the next. A held claim no longer silences the cause. An `underivable` DECISION block now needs a `- Panel:` line whose two quotes appear in the Opus and Fable seats' own returned text, a background seat's hand-back counting only by the harness's `origin` record. New tests: `tests/test_work_stop_autonomy.py`, `tests/test_decision_panel.py`.
 
