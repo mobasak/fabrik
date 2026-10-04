@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-13T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "a59d8bb2dce100e2bb3ddb1ea6824f0daabfc3c9",
   "id": "W-af8fb284",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:7b5fe2012dc1",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`_file_refreshed_credentials` is a credential writer with no production caller — keep with a reason or delete with its tests (2026-09-13, owner: fleet)"
 }
