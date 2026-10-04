@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T20:18:16.396795Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fb0c8a78",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M44861B77QBEB5XPZ65BY3NS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "waits-hp-revendor"
+  ],
+  "title": "two command sources say libs/health_probe imports python-dotenv at module level — false after the re-vendor (714dbf90e)"
+}

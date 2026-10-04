@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T20:18:17.349188Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5b366a3a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M448X73T0VACRTXJSBD184GB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "waits-hp-revendor"
+  ],
+  "title": "Re: health_probe dotenv lines — correction (the stub now calls load_env) and two more stale texts"
+}
