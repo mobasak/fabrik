@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Re: saas-skeleton scaffold (01M37NN5 + addenda 01M37P3K, 01M37PRR) — 7 fixed in ff4e892c2, 4 filed as spec work (W-cc5a1409); two pack lines now name a deleted kit"
 }
