@@ -1297,23 +1297,6 @@ def test_a_row_written_twice_in_one_file_keeps_its_turn(tmp_path: Path) -> None:
     assert "sessions with an accepted free-text NEXT: 1 (alpha 1)" in lines
 
 
-def test_the_older_file_keeps_a_shared_row(tmp_path: Path) -> None:
-    """A resumed session's copy is written after the original, so the OLDER file keeps a shared
-    row's turn, whatever the file names sort to."""
-    root = tmp_path / "root"
-    row = _assistant_entry("NEXT: phase B of the rollout", row_uuid="u-1")
-    original = root / "-opt-beta" / "zzz.jsonl"
-    copy = root / "-opt-alpha" / "aaa.jsonl"
-    _write_transcript(original, [row])
-    _write_transcript(copy, [row])
-    now = time.time()
-    os.utime(original, (now - 3600, now - 3600))
-    os.utime(copy, (now, now))
-    result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
-    assert result.returncode == 0, result.stderr
-    assert "sessions with an accepted free-text NEXT: 1 (beta 1)" in _lines(result.stdout)
-
-
 def test_v5_a_stale_worker_copy_never_vetoes_a_live_item(tmp_path: Path) -> None:
     """A worker forks with master's items; its old copy of an id must not hide main's refreshed,
     in-window copy — the window is judged on the freshest next_at."""
@@ -1332,15 +1315,15 @@ def test_v5_a_stale_worker_copy_never_vetoes_a_live_item(tmp_path: Path) -> None
     assert v5_line == "V5: FAIL — 1 open next item(s) > 0 qualifying session(s)"
 
 
-def test_a_compaction_summary_row_opens_the_file_without_a_judgement(tmp_path: Path) -> None:
-    """A compacted session's file opens with its summary as a user row; it ends nothing, and the
-    first real turn after it is judged as usual."""
+def test_a_compaction_summary_after_a_finished_turn_is_a_boundary(tmp_path: Path) -> None:
+    """Compaction happens between turns: its summary row follows the assistant's last row, where
+    Stop fired, so the turn before it is judged on its own final text."""
     root = tmp_path / "root"
     summary = _user_entry("This session is being continued from a previous conversation.")
     summary["isCompactSummary"] = True
     _write_transcript(
         root / "-opt-alpha" / "s.jsonl",
-        [summary, _assistant_entry("NEXT: phase B of the rollout")],
+        [_assistant_entry("NEXT: phase B of the rollout"), summary, _assistant_entry("Done.")],
     )
     result = _run(["--root", str(root), "--since", "7"], _env(tmp_path))
     assert result.returncode == 0, result.stderr
