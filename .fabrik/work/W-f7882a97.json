@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-03T20:16:57.128257Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "59cb62522d7c03a13b6676826705f9a7c4ca6bcc",
   "id": "W-f7882a97",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "done",
   "title": "scripts/audit_all_projects.py VALID_BASE_RE accepts only bookworm images (python:3.x-slim-bookworm, node:N-bookworm-slim) while .windsurf/rules/core/30-ops.md pins trixie fleet-wide, so the audit reports compliant trixie Dockerfiles as critical 'base image non-compliant' and its fix hint tells them to switch to bookworm; derive the accepted codename from the 30-ops pack's v:debian_codename marker"
 }

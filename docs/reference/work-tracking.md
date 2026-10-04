@@ -49,6 +49,7 @@ plus a random nonce, exclusive-created so a collision just retries with a fresh 
 | `next_at` | `kind: next` only: the time this item's `next`/title text was last set — a Stop harvest closes the item `dropped` `idle 7 days` once this reads more than 7 days old |
 | `evidence` | set by `done`: a commit SHA whose message names the item id |
 | `legacy` | `true` only on items `migrate-backlog` created from rows already resolved; exempt from the evidence rule |
+| `note` | free text; on a `decision` closed by `answer` it holds the operator's words, which exempts that item from the evidence rule (it has no commit by design, D-542) |
 | `question`, `ground`, `msg_digests`, `block_digest` | `kind: decision` only: the plain-words question, the DECISION block's `ground:` token, every message digest that created or refreshed the item, and the block's own digest |
 | `alt_block_digests`, `alt_ids` | `kind: decision` (awaiting) only: the block digests and item ids of every duplicate `drop --duplicate-of` folded into this item, so a later message re-asking any of those words refreshes this item instead of opening a third |
 | `note` | the last closing reason (`drop --why`, `answer --note`, `drop --duplicate-of` — `duplicate of <keep>`, a mail ack — `mail ack: <disposition>`, a mail requeue — `requeued`, a feedback close — `answered by <sha prefix>`, a `kind: next` item's own closes — `superseded` or `idle 7 days`, `_close_next`), or (on a migrated row) `migrated-digest:<12 hex>` |
@@ -87,7 +88,10 @@ plus a random nonce, exclusive-created so a collision just retries with a fresh 
   out) reads the item `done`/`dropped` (or it is this tree's own crash residue). Age never deletes a
   marker: past 14 days it merely STOPS hiding its item — `ready`/`status` see the item again — while
   the marker file itself stays on disk. Drift class 6 relies on exactly that: a marker still present
-  past 14 days, next to an item its base branch still reads open, is what class 6 reports.
+  past 14 days, next to an item its base branch still reads open, is what class 6 reports. Class 6's
+  other half reads the items themselves: an item marked `done` in the last 14 days whose `evidence`
+  SHA does not resolve or does not name the item — except `legacy` items, `mail`/`feedback` items,
+  and a `decision` closed by `answer` (D-542).
 
 ## The CLI — `scripts/work.py`
 
@@ -259,7 +263,9 @@ DECISION blocks and the register, above, states the scope each actually reads), 
 class/distinct/per-repo-session counts of spec § Why this exists, and — with `--repo` — prints this
 repo's Validation V5 verdict: PASS when its open `next` items whose `next_at` was SET between 1 day in
 the future (clock skew) and 7 days in the past number no more than the qualifying sessions counted for
-it, AND it shows more than 0 live claims.
+it, AND it shows more than 0 live claims. The PASS line prints its bound (`V5: PASS — <items> open next item(s) <=
+<sessions> qualifying session(s), <claims> live claim(s)`), so a vacuous 0 <= 0 reads differently from a
+real one.
 
 ## Spec and plan state is derived, never copied
 

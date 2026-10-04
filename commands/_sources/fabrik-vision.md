@@ -789,7 +789,7 @@ the scaffold type.
 | LLM gateway | Scoped by domain — see constraint 15 | grep deps + imports | Compliant / Deviates / N/A |
 | Node ESM mandate | `"type": "module"`, `engines.node >=22.0.0`, `npm ci --ignore-scripts` (per `12-node.md`) | Inspect `package.json` + `Dockerfile` | Compliant / Deviates / N/A |
 | Python version floor | `python:<current-stable>-slim-bookworm`, `uv` — no raw `pip` (per `10-python.md` + `30-ops.md`) | Inspect `Dockerfile` + `pyproject.toml` | Compliant / Deviates / N/A |
-| file_erasure_audit hash-chain (file-api) | Tamper-evident sibling audit table with `prev_hash`/`current_hash` columns via a `BEFORE INSERT` trigger; `verify_chain()` adapted from `/opt/fabrik-lib/app-audit-log/`; quarterly verification scheduled (per `67-file-api.md` § KVKK + Article 7(3)) | Inspect schema for `file_erasure_audit` + trigger + verify scheduler | Compliant / Missing / N/A |
+| file_erasure_audit hash-chain (file-api) | Tamper-evident sibling audit table with `prev_hash`/`current_hash` columns via a `BEFORE INSERT` trigger; `verify_chain()` adapted from `/opt/fabrik-lib/app-audit-log/`; quarterly verification scheduled (per `67-file-api.md` § "Data Lifecycle & KVKK Compliance", its Art. 7(3) bullet) | Inspect schema for `file_erasure_audit` + trigger + verify scheduler | Compliant / Missing / N/A |
 | Fabrik-synced files unmodified | Byte-identical to `/opt/fabrik` source | Run `check_synced_unmodified.py` | Compliant / Drift |
 
 Adapt the table to the scaffold type. For non-applicable rule areas, mark `N/A`.

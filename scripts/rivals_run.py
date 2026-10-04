@@ -931,8 +931,8 @@ def render_dossier_md(d: dict[str, Any]) -> str:
                 # a dict carrying `state` (✅/❌/⚠️/❓). Guessing "<row>|<col>" rendered a 44x12 grid
                 # of ❓ that looked like "nothing known" rather than a lookup bug — checked against
                 # the real payload rather than assumed.
-                cell = cells.get(f"{r}\u241f{c}") if isinstance(cells, dict) else None
-                state = cell.get("state") if isinstance(cell, dict) else cell
+                entry = cells.get(f"{r}\u241f{c}") if isinstance(cells, dict) else None
+                state = entry.get("state") if isinstance(entry, dict) else entry
                 line.append(_s(state) if state else "❓")
             out.append("| " + " | ".join(line) + " |")
         out.append("")

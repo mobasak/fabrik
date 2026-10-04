@@ -17,6 +17,8 @@ Modes:
   (default)  Generate 00-research.md only (no fixes)
 """
 
+import functools
+import importlib.util
 import re
 import sys
 from dataclasses import dataclass, field
@@ -33,10 +35,32 @@ GUIDE_ENABLED_TYPES = frozenset(
     {"saas-skeleton", "chrome-extension", "mobile-app", "desktop-app", "static-site"}
 )
 
-VALID_BASE_RE = [
-    re.compile(r"^python:3\.\d+-slim-bookworm"),
-    re.compile(r"^node:\d+-bookworm-slim"),
-]
+# The fleet's Debian codename is pinned in ONE place, rendered into core/30-ops.md (D-064);
+# reading it here keeps the audit from carrying a second, rotting literal (W-f7882a97).
+VERSIONS_FILE = Path(__file__).resolve().parents[1] / ".windsurf" / "rules" / "versions.yaml"
+# The three shapes core/30-ops.md lists, each capturing its Debian codename; a patch version
+# and a `@sha256:` digest pin are the same image written more strictly.
+_DIGEST = r"(?:@sha256:[0-9a-f]{64})?"
+_DEBIAN_BASE_RES = (
+    re.compile(r"^python:3\.\d+(?:\.\d+)?-slim-([a-z]+)" + _DIGEST + "$"),
+    re.compile(r"^node:\d+(?:\.\d+)*-([a-z]+)-slim" + _DIGEST + "$"),
+    re.compile(r"^debian:([a-z]+)-slim" + _DIGEST + "$"),
+)
+# Debian's release order, oldest first. The release just BEFORE the pin is the one a pin flip
+# retired (D-064: bookworm when trixie was pinned): its images move on their next rebuild, so it
+# reads as migration debt. Every other codename (bullseye, sid, stable…) was never compliant.
+# Release names are Debian's fixed facts, not a version pin — the pin itself lives only in
+# versions.yaml, so the next flip moves both verdicts with no code edit.
+_DEBIAN_RELEASES = (
+    "jessie",
+    "stretch",
+    "buster",
+    "bullseye",
+    "bookworm",
+    "trixie",
+    "forky",
+    "duke",
+)
 
 KNOWN_TYPES = {
     "python-api",
@@ -265,10 +289,104 @@ def _strip_as_alias(image: str) -> str:
     return re.sub(r"\s+AS\s+\S+", "", image, flags=re.IGNORECASE).strip()
 
 
+@functools.cache
+def _pinned_codename() -> str:
+    """The fleet's pinned Debian codename, read once from ``VERSIONS_FILE`` through the
+    renderer's own loader (loaded by PATH under a private name: never `sys.path`, never a
+    module cached by another copy). A renderer that cannot be loaded, a versions file that cannot
+    be read, or a ``debian_codename`` that is not a release in ``_DEBIAN_RELEASES`` stops the audit
+    naming the file, rather than guessing."""
+    loader = Path(__file__).resolve().parent / "sysadmin" / "rules_render_versions.py"
+    spec = importlib.util.spec_from_file_location("_audit_rules_render_versions", loader)
+    if spec is None or spec.loader is None:
+        raise SystemExit(f"audit: cannot load {loader}")
+    renderer = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(renderer)  # a MISSING file still yields a spec; it fails here
+    except (OSError, SyntaxError, ImportError) as exc:  # missing, unparsable, or its imports fail
+        raise SystemExit(f"audit: cannot load {loader}: {exc}") from exc
+    try:
+        codename = renderer.load_versions(VERSIONS_FILE).get("debian_codename", "")
+    except (OSError, yaml.YAMLError, AttributeError) as exc:  # AttributeError: not a mapping
+        raise SystemExit(f"audit: cannot read {VERSIONS_FILE}: {exc}") from exc
+    if codename not in _DEBIAN_RELEASES:  # also refuses a null, which load_versions str()s
+        raise SystemExit(
+            f"audit: {VERSIONS_FILE} versions.debian_codename {codename!r} is not a Debian "
+            f"release this audit knows ({', '.join(_DEBIAN_RELEASES)}) — a new release is added "
+            "to _DEBIAN_RELEASES"
+        )
+    return codename
+
+
+def _superseded_codename() -> str | None:
+    """The Debian release just before the pin (None for the oldest)."""
+    idx = _DEBIAN_RELEASES.index(_pinned_codename())
+    return _DEBIAN_RELEASES[idx - 1] if idx > 0 else None
+
+
+def _image_ref(from_value: str) -> str:
+    """A FROM value's image reference: no `AS alias`, no leading `--platform=…`."""
+    return re.sub(r"^--platform=\S+\s+", "", _strip_as_alias(from_value))
+
+
+def _base_status(image: str) -> str:
+    """``pinned`` (a core/30-ops shape on the pinned codename), ``superseded`` (that shape on a
+    codename D-064 retired — moved on the next rebuild) or ``noncompliant`` (anything else)."""
+    clean = _image_ref(image)
+    for pat in _DEBIAN_BASE_RES:
+        m = pat.match(clean)
+        if m:
+            if m.group(1) == _pinned_codename():
+                return "pinned"
+            return "superseded" if m.group(1) == _superseded_codename() else "noncompliant"
+    return "noncompliant"
+
+
 def _is_base_compliant(image: str) -> bool:
     """Check if a base image string matches Fabrik conventions."""
-    clean = _strip_as_alias(image)
-    return any(pat.match(clean) for pat in VALID_BASE_RE)
+    return _base_status(image) == "pinned"
+
+
+_SEVERITY_RANK = {"critical": 0, "medium": 1, "low": 2}
+
+
+def _by_severity(issues: list) -> list:
+    """Issues ordered critical → medium → low, keeping their emission order within a severity:
+    a superseded-codename row is emitted beside the other base-image checks, and the report's
+    ticket list must not lead with a medium ahead of a critical."""
+    return sorted(issues, key=lambda i: _SEVERITY_RANK.get(i.severity, len(_SEVERITY_RANK)))
+
+
+def _resolve_stages(from_lines: list) -> list[str]:
+    """Each FROM value's image, a stage reference followed back to the image it names. One pass
+    in stage order: a name resolves only to a stage declared EARLIER (Docker's own rule; a later
+    stage's name is a registry image), so a cycle cannot form; the first definition of a name
+    wins."""
+    stages: dict[str, str] = {}
+    images: list[str] = []
+    for value in from_lines:
+        ref = _image_ref(value)
+        image = stages.get(ref.lower(), ref)
+        images.append(image)
+        m = re.search(r"\s+AS\s+(\S+)\s*$", value, flags=re.IGNORECASE)
+        if m:
+            stages.setdefault(m.group(1).lower(), image)
+    return images
+
+
+def _final_stage_label(audit: "ProjectAudit") -> str:
+    """`Final stage: FROM <line>`, plus the image it resolves to when the line names a stage."""
+    raw = audit.dockerfile_from_lines[-1] if audit.dockerfile_from_lines else ""
+    label = f"Final stage: `FROM {raw or audit.dockerfile_final_base}`"
+    if raw and _image_ref(raw) != audit.dockerfile_final_base:
+        label += f", which resolves to `{audit.dockerfile_final_base}`"
+    return label
+
+
+def _pinned_base_hint() -> str:
+    """The 30-ops base shapes, on the pinned codename, for a fix hint."""
+    cn = _pinned_codename()
+    return f"`python:3.x-slim-{cn}` · `node:N-{cn}-slim` · `debian:{cn}-slim`"
 
 
 def _find_code_dirs(project_path: Path) -> list[Path]:
@@ -373,9 +491,10 @@ def check_dockerfile_deep(project_path: Path) -> tuple[list, str, bool]:
         first = content.strip().split("\n")[0] if content.strip() else ""
         return [], f"TEMPLATE:{first[:80]}", has_healthcheck
 
-    # Final base = last FROM line (the runtime stage in multi-stage builds)
-    final_base = from_lines[-1]
-    return from_lines, final_base, has_healthcheck
+    # Final base = last FROM line (the runtime stage in multi-stage builds). A stage built FROM
+    # an earlier stage's alias (`FROM runtime AS job`) runs on that stage's image, so the alias is
+    # followed back to a real image — read raw it was a false critical (W-f7882a97).
+    return from_lines, _resolve_stages(from_lines)[-1], has_healthcheck
 
 
 def check_health_endpoint_deep(
@@ -833,7 +952,7 @@ def build_issues(audit: ProjectAudit):
                 "No Dockerfile",
                 "Dockerfile",
                 "File missing",
-                "Dockerfile with `-slim-bookworm` base and HEALTHCHECK",
+                f"Dockerfile on {_pinned_base_hint()} with HEALTHCHECK",
                 "Create Dockerfile following Fabrik template",
             )
         )
@@ -844,11 +963,23 @@ def build_issues(audit: ProjectAudit):
                 "Dockerfile is a comment-only template",
                 "Dockerfile",
                 f"`{final}`",
-                "Real multi-stage Dockerfile with `-slim-bookworm` base",
+                f"Real multi-stage Dockerfile on {_pinned_base_hint()}",
                 "Replace template with actual Dockerfile for this project's stack",
             )
         )
-    elif not _is_base_compliant(final):
+    elif _base_status(final) == "superseded":
+        all_bases = " → ".join(f"`{b}`" for b in audit.dockerfile_from_lines)
+        issues.append(
+            Issue(
+                "medium",
+                "Dockerfile base image on a superseded Debian codename",
+                "Dockerfile",
+                f"{_final_stage_label(audit)} (stages: {all_bases})",
+                f"The fleet pin, `{_pinned_codename()}` (versions.yaml, D-064)",
+                f"Move to {_pinned_base_hint()} on the next rebuild",
+            )
+        )
+    elif _base_status(final) == "noncompliant":
         clean = _strip_as_alias(final)
         all_bases = " → ".join(f"`{b}`" for b in audit.dockerfile_from_lines)
         issues.append(
@@ -856,9 +987,9 @@ def build_issues(audit: ProjectAudit):
                 "critical",
                 "Dockerfile base image non-compliant",
                 "Dockerfile",
-                f"Final stage: `FROM {final}` (stages: {all_bases})",
-                "`-slim-bookworm` suffix required",
-                f"Change `{clean}` to `{clean}-bookworm`",
+                f"{_final_stage_label(audit)} (stages: {all_bases})",
+                f"A Debian slim base: {_pinned_base_hint()}",
+                f"Replace `{clean}` with one of {_pinned_base_hint()}",
             )
         )
 
@@ -891,7 +1022,7 @@ def build_issues(audit: ProjectAudit):
             )
         )
         # Skip all code-dependent checks for empty scaffolds
-        audit.issues = issues
+        audit.issues = _by_severity(issues)
         return
     elif not audit.health_endpoint:
         layout_hint = f" (code in: {', '.join(audit.code_dirs)})" if audit.code_dirs else ""
@@ -1248,7 +1379,7 @@ def build_issues(audit: ProjectAudit):
             )
         )
 
-    audit.issues = issues
+    audit.issues = _by_severity(issues)
 
 
 # ---------------------------------------------------------------------------
@@ -1270,13 +1401,15 @@ def build_constraints(audit: ProjectAudit):
     if _is_base_compliant(audit.dockerfile_final_base):
         c["no_alpine"] = "✅ Compliant"
     elif "alpine" in final.lower():
-        c["no_alpine"] = "🔴 Alpine detected — must use -slim-bookworm"
+        c["no_alpine"] = f"🔴 Alpine detected — must use {_pinned_base_hint()}"
     elif final == "NO_DOCKERFILE":
         c["no_alpine"] = "⚠️ No Dockerfile"
     elif final.startswith("TEMPLATE:"):
         c["no_alpine"] = "⚠️ Template — needs real Dockerfile"
+    elif _base_status(final) == "superseded":
+        c["no_alpine"] = f"⚠️ `{final}` — move to `{_pinned_codename()}` on the next rebuild"
     else:
-        c["no_alpine"] = f"⚠️ `{final}` — needs `-slim-bookworm`"
+        c["no_alpine"] = f"⚠️ `{final}` — needs {_pinned_base_hint()}"
 
     c["module_deps"] = "✅ No incomplete dependencies"
     c["duplicate"] = "✅ Unique"
@@ -1359,8 +1492,9 @@ def generate_research_md(audit: ProjectAudit) -> str:
     lines.append("## Dockerfile Snapshot")
     lines.append("")
     if audit.dockerfile_from_lines:
+        resolved = _resolve_stages(audit.dockerfile_from_lines)
         for i, fr in enumerate(audit.dockerfile_from_lines, 1):
-            compliant = "✅" if _is_base_compliant(fr) else "❌"
+            compliant = {"pinned": "✅", "superseded": "⚠️"}.get(_base_status(resolved[i - 1]), "❌")
             lines.append(f"- **Stage {i}:** `FROM {fr}` {compliant}")
         lines.append(
             f"- **HEALTHCHECK:** {'✅ Present' if audit.dockerfile_has_healthcheck else '❌ Missing'}"
@@ -1541,6 +1675,7 @@ def apply_fixes(audit: ProjectAudit, dry_run: bool = False) -> list[str]:
 
 
 def main():
+    _pinned_codename()  # an unreadable versions.yaml stops the run before any report is written
     mode = "audit"
     dry_run = False
     specific = []

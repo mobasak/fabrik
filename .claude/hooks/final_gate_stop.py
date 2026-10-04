@@ -1019,6 +1019,15 @@ def _tok(holder: object, key: str) -> str | None:
     return v if isinstance(v, str) else None
 
 
+def _command_name(holder: object) -> str | None:
+    """A record's `command`, read the way every `command_run.py` reader compares it
+    (`_norm_command`: no surrounding blanks, no leading slash, lower case). A record written
+    before the writer normalised (W-5aa12ff3) can carry `Fabrik-Review-Scoped` or
+    `/fabrik-review`; read raw, a running review of exactly these files was ignored (W-99525a15)."""
+    v = _tok(holder, "command")
+    return v.strip().lstrip("/").strip().lower() if v is not None else None
+
+
 def _seq(holder: object, key: str) -> list:
     """A record field that MUST be iterated, read so that it never raises. `x or []` keeps a
     non-empty non-iterable — `{"stack": 7}` reached `for frame in 7` and raised TypeError, and a
@@ -1130,7 +1139,7 @@ def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = N
     for holder in [rec, *(_seq(rec, "stack") if live else [])]:
         if not isinstance(holder, dict):
             continue
-        if _tok(holder, "state") != "running" or _tok(holder, "command") not in _REVIEW_FAMILY:
+        if _tok(holder, "state") != "running" or _command_name(holder) not in _REVIEW_FAMILY:
             continue
         s = holder.get("surface")
         if isinstance(s, str) and s:

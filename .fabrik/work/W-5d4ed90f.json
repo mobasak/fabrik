@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-26T01:39:11.864649Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "bd28f3cb87a58c899b8c4bbeee6944beffb15d7a",
   "id": "W-5d4ed90f",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "scripts/rivals_run.py:934 reuses the name 'cell' as str then Any|None — mypy reports it on HEAD (found by the W-6a157c25 review, outside its diff); rename the second"
 }

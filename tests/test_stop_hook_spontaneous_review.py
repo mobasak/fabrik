@@ -886,3 +886,34 @@ def test_a_corrupt_ledger_still_stands_the_base_case_down():
         assert fgs._first_review_base_case({**base, "covered": junk}, 1000.0) == [], junk
     for floor in (None, float("nan"), float("inf"), "x", [1]):
         assert fgs._first_review_base_case({**base, "covered": [[9000, 9100]]}, floor) == [], floor
+
+
+def test_a_review_record_stored_before_normalisation_still_exempts_its_surface():
+    """W-99525a15: `command_run.py` stored `--command` verbatim before W-5aa12ff3, so a record
+    from that window can read `Fabrik-Review-Scoped` or `/fabrik-review`. The writer normalises
+    at load since 9175c92ed; the hook's membership read must use the same rule, or a running
+    review of exactly these files is ignored and the sixth cause blocks the session."""
+    authored = {"scripts/a.py": 100}
+    base = {"state": "running", "started_epoch": 9000, "surface": "`scripts/a.py`"}
+    for spelled in ("Fabrik-Review-Scoped", "/fabrik-review", " FABRIK-REVIEW "):
+        rec = {**base, "command": spelled}
+        assert fgs._surface_reviewed(rec, authored) == {"scripts/a.py"}, spelled
+        parked = {"command": "fabrik-execute-plan", "state": "running", "stack": [rec]}
+        assert fgs._surface_reviewed(parked, authored) == {"scripts/a.py"}, spelled
+    # the normalised read never widens the family: a non-review command still reviews nothing
+    assert fgs._surface_reviewed({**base, "command": "/Fabrik-Spec"}, authored) == set(), (
+        "a non-review command, however spelled, reviews nothing"
+    )
+
+
+def test_the_hooks_command_reading_matches_command_runs_normaliser():
+    """The hook cannot import the writer (it must load alone), so the rule is restated there;
+    this pins the two copies to one behaviour over the shapes the writer has seen."""
+    import importlib.util as _ilu
+
+    spec = _ilu.spec_from_file_location("command_run_parity", REPO / "scripts" / "command_run.py")
+    cr = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+    shapes = ("Fabrik-Review", "/fabrik-review-scoped", "//fabrik-review", "  /FABRIK-TASK ")
+    for raw in (*shapes, "fabrik-spec", "/ x"):  # `//`: lstrip takes every leading slash
+        assert fgs._command_name({"command": raw}) == cr._norm_command(raw), raw

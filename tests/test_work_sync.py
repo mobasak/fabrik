@@ -360,6 +360,56 @@ def test_class_6_flags_bad_evidence_and_a_stale_open_marker_but_exempts_legacy(t
     assert f".fabrik/work/{legacy_bad}.json" not in lines
 
 
+def test_class_6_exempts_a_decision_closed_by_answer_but_not_a_bare_done_decision(tmp_path):
+    """`answer` closes an awaiting-operator decision with the operator's words and no commit, so
+    the evidence predicate must not count it; a decision flipped to done with neither a note nor
+    evidence still is class 6 (V6 reading 2026-10-04: all 52 class-6 items were answered decisions)."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+
+    # decision items come only from the Stop-hook harvest, never from `add`: make a plain item
+    # and rewrite its kind, as the harvest's own output would read
+    answered = _add(repo, env, title="Deploy now?")
+    it = _item(repo, answered)
+    it.update(kind="decision", status="awaiting-operator")
+    _write_item(repo, answered, it)
+    _ok(["answer", answered, "--note", "operator: A, deploy now"], env, repo)
+    assert _item(repo, answered)["status"] == "done"
+
+    bare = _add(repo, env, title="Hand-closed decision")
+    it = _item(repo, bare)
+    it.update(kind="decision", status="done")
+    _write_item(repo, bare, it)
+
+    # a note on any other kind is not an operator's answer, and a non-string note is not one either
+    task = _add(repo, env, title="Task closed with a note but no evidence")
+    it = _item(repo, task)
+    it.update(status="done", note="looked fine")
+    _write_item(repo, task, it)
+    odd = _add(repo, env, title="Decision with a non-string note")
+    it = _item(repo, odd)
+    it.update(kind="decision", status="done", note={"x": 1})
+    _write_item(repo, odd, it)
+
+    lines = "\n".join(_drift_lines(_ok(["status"], env, repo), 6))
+    assert f".fabrik/work/{answered}.json" not in lines
+    assert f".fabrik/work/{bare}.json" in lines
+    assert f".fabrik/work/{task}.json" in lines
+    assert f".fabrik/work/{odd}.json" in lines
+
+
+def test_answer_refuses_a_non_decision_item(tmp_path):
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    item = _add(repo, env, title="Not a decision")
+    it = _item(repo, item)
+    it.update(status="awaiting-operator")
+    _write_item(repo, item, it)
+    r = run(["answer", item, "--note", "operator: yes"], env, repo)
+    assert r.returncode != 0 and "only a decision item" in r.stderr, (r.stdout, r.stderr)
+    assert _item(repo, item)["status"] == "awaiting-operator"
+
+
 # ── row 4: sync --check on a fresh (unmigrated) store ─────────────────────────────────────────
 
 
@@ -1267,3 +1317,200 @@ def test_class_2_pickaxe_finds_tab_indented_header_and_ignores_t_prose(tmp_path)
 
     out = _ok(["status"], env, repo)
     assert _drift_lines(out, 2) == [f"DRIFT 2 (blocking)  {plan}"]
+
+
+# ── W-5937c2cd: class 6 reads git in batches, never once per done item ─────────────────────────
+
+
+def _done_items(repo: Path, env: dict[str, str], n: int, evidence: str = "") -> list[str]:
+    ids = []
+    for i in range(n):
+        item_id = _add(repo, env, title=f"done {i}")
+        it = _item(repo, item_id)
+        it.update(status="done", evidence=evidence)
+        _write_item(repo, item_id, it)
+        ids.append(item_id)
+    _commit_store(repo, env, "close the batch")
+    return ids
+
+
+def _git_calls_in_drift(work: ModuleType, repo: Path, monkeypatch) -> int:
+    calls = [0]
+    real = subprocess.run
+
+    def counting(cmd, *a, **k):
+        if isinstance(cmd, list) and cmd and cmd[0] == "git":
+            calls[0] += 1
+        return real(cmd, *a, **k)
+
+    monkeypatch.setattr(work.subprocess, "run", counting)
+    work._drift_report(repo)
+    monkeypatch.setattr(work.subprocess, "run", real)
+    return calls[0]
+
+
+def test_class_6_git_calls_do_not_grow_with_done_items(tmp_path, monkeypatch):
+    """W-5937c2cd: the hub's `status` spent ~5 s in ~615 git subprocesses, two-plus per recently
+    closed item. The class-6 pass reads every item's last status change and every evidence commit
+    in batches, so ten more done items cost no more git calls than two."""
+    env = _env(tmp_path)
+    work = _in_process(tmp_path, monkeypatch, env)
+    (tmp_path / "small").mkdir()
+    (tmp_path / "big").mkdir()
+    small = _store(tmp_path / "small", env)
+    _done_items(small, env, 2, evidence="f" * 40)
+    big = _store(tmp_path / "big", env)
+    _done_items(big, env, 12, evidence="f" * 40)
+    assert _git_calls_in_drift(work, big, monkeypatch) == _git_calls_in_drift(
+        work, small, monkeypatch
+    )
+
+
+def test_class_6_batch_evidence_verdicts(tmp_path, monkeypatch):
+    """The batched evidence read keeps every per-item verdict: a commit naming the item is valid;
+    a missing sha, a commit naming another item, a tree object, a leading-dash value and a value
+    carrying whitespace are each class 6."""
+    env = _env(tmp_path)
+    work = _in_process(tmp_path, monkeypatch, env)
+    repo = _store(tmp_path, env)
+    ids = [_add(repo, env, title=f"t{i}") for i in range(6)]
+    _commit_store(repo, env, "add six")
+    (repo / "f.txt").write_text("x\n", encoding="utf-8")
+    _git(repo, env, "add", "f.txt")
+    _git(repo, env, "commit", "-q", "-m", f"work for {ids[0]}")
+    good = _git(repo, env, "rev-parse", "HEAD").strip()
+    _git(repo, env, "commit", "-q", "--allow-empty", "-m", f"work for {ids[1]}")
+    other = _git(repo, env, "rev-parse", "HEAD").strip()
+    tree = _git(repo, env, "rev-parse", "HEAD^{tree}").strip()
+    _git(repo, env, "tag", "-a", "v1", good, "-m", "annotated")
+    evidence = {
+        ids[0]: good[:12],  # valid, short form
+        ids[1]: good,  # a real commit that names a DIFFERENT item
+        ids[2]: "0" * 40,  # missing
+        ids[3]: tree,  # not a commit
+        ids[4]: "--all",  # leading dash
+        ids[5]: f"{other} {good}",  # whitespace would break the batch protocol
+    }
+    empty_item = _add(repo, env, title="empty")
+    evidence[empty_item] = ""  # never asked of git, always class 6
+    nul_item = _add(repo, env, title="nul")
+    _commit_store(repo, env, "add nul")
+    _git(repo, env, "commit", "-q", "--allow-empty", "-m", f"work for {nul_item}")
+    names_nul = _git(repo, env, "rev-parse", "HEAD").strip()
+    # a NUL would truncate the batch record to a VALID commit naming the item
+    evidence[nul_item] = f"{names_nul}\x00junk"
+    for item_id, ev in evidence.items():
+        it = _item(repo, item_id)
+        it.update(status="done", evidence=ev)
+        _write_item(repo, item_id, it)
+    _commit_store(repo, env, "close six")
+    flagged = set(work._drift_report(repo)[6])
+    assert f".fabrik/work/{ids[0]}.json" not in flagged
+    for item_id in [*ids[1:], empty_item, nul_item]:
+        assert f".fabrik/work/{item_id}.json" in flagged, item_id
+    assert work._evidence_commit(repo, ids[0], good[:12]) == good
+    assert work._evidence_commit(repo, ids[0], "v1") == good  # an annotated tag peels to it
+    # ONE batch in a FIXED order, valid pairs after body-bearing and body-less records, so a
+    # record-offset slip anywhere in the stream reads wrong (W-5937c2cd review B-sonnet-1)
+    pairs = [
+        (ids[1], good),  # a commit body, wrong item
+        (ids[0], "0" * 40),  # missing — no body
+        (ids[0], good[:12]),  # valid
+        (ids[0], tree),  # a non-commit peel — no body
+        (ids[0], "v1"),  # valid via a tag
+        (ids[1], other),  # valid for ids[1]: its message names ids[1]
+    ]
+    assert work._evidence_commits(repo, pairs) == {
+        (ids[1], good): None,
+        (ids[0], "0" * 40): None,
+        (ids[0], good[:12]): good,
+        (ids[0], tree): None,
+        (ids[0], "v1"): good,
+        (ids[1], other): other,
+    }
+    assert work._evidence_commit(repo, ids[1], good) is None
+
+
+def test_batched_age_survives_a_rename_inside_a_directory_scope(tmp_path, monkeypatch):
+    """A directory scope turns on git's rename detection, which would hide a pure `git mv` from
+    the pickaxe; the batch runs `--no-renames`, so the renamed path keeps the commit that added
+    it under its new name, as the per-file read did."""
+    env = _env(tmp_path)
+    work = _in_process(tmp_path, monkeypatch, env)
+    repo = _repo(tmp_path, env)
+    store = repo / "s"
+    store.mkdir()
+    names = [f"s/{i}.json" for i in range(work._DIR_SCOPE_MIN)]
+    for n in names:
+        (repo / n).write_text('{\n  "status": "done"\n}\n', encoding="utf-8")
+    old = datetime.now(UTC) - timedelta(days=60)
+    _commit_dated(repo, env, names, "seed", old)
+    _git(repo, env, "mv", "s/0.json", "s/moved.json")
+    _commit_dated(repo, env, ["s"], "rename", old + timedelta(days=1))
+    wanted = ["s/moved.json", *names[1:]]
+    ages = work._status_change_ages(
+        repo, wanted, work._ITEM_STATUS_GIT_PATTERN, frozenset(), {}, work._item_status_field
+    )
+    day = 86400
+    assert 58 * day < ages["s/moved.json"] < 60 * day  # the rename commit, not the mtime
+    assert all(59 * day < ages[n] < 61 * day for n in names[1:])
+
+
+def test_batched_age_takes_the_newest_status_change_and_ignores_a_siblings_edit(
+    tmp_path, monkeypatch
+):
+    """A path whose status changed three times reads the NEWEST change, as the per-file
+    `log -1 -G` did (first hit wins; the oldest would make a re-closed item look stale and skip
+    its evidence check); a sibling's note-only edit in the same directory scope never moves its
+    age (W-5937c2cd review A-sonnet-1/2)."""
+    env = _env(tmp_path)
+    work = _in_process(tmp_path, monkeypatch, env)
+    repo = _repo(tmp_path, env)
+    (repo / "s").mkdir()
+    names = [f"s/{i}.json" for i in range(work._DIR_SCOPE_MIN)]
+    for n in names:
+        (repo / n).write_text('{\n  "note": "",\n  "status": "done"\n}\n', encoding="utf-8")
+    now = datetime.now(UTC)
+    _commit_dated(repo, env, names, "seed", now - timedelta(days=90))
+    target = repo / "s/0.json"
+    for days, status in ((60, "open"), (30, "done")):
+        target.write_text(f'{{\n  "note": "",\n  "status": "{status}"\n}}\n', encoding="utf-8")
+        paths = ["s/0.json"]
+        if status == "done":  # the SAME commit edits a sibling's note: only s/0 matched
+            (repo / "s/1.json").write_text(
+                '{\n  "note": "x",\n  "status": "done"\n}\n', encoding="utf-8"
+            )
+            paths.append("s/1.json")
+        _commit_dated(repo, env, paths, status, now - timedelta(days=days))
+    ages = work._status_change_ages(
+        repo, names, work._ITEM_STATUS_GIT_PATTERN, frozenset(), {}, work._item_status_field
+    )
+    day = 86400
+    assert 29 * day < ages["s/0.json"] < 31 * day
+    assert 89 * day < ages["s/1.json"] < 91 * day
+
+
+def test_directory_scope_starts_at_dir_scope_min_paths(tmp_path, monkeypatch):
+    """At `_DIR_SCOPE_MIN` wanted paths under one parent the log is scoped to the directory;
+    one fewer and every path is its own pathspec (W-5937c2cd review B-sonnet-2)."""
+    env = _env(tmp_path)
+    work = _in_process(tmp_path, monkeypatch, env)
+    repo = _repo(tmp_path, env)
+    (repo / "s").mkdir()
+    names = [f"s/{i}.json" for i in range(work._DIR_SCOPE_MIN)]
+    for n in names:
+        (repo / n).write_text('{\n  "status": "done"\n}\n', encoding="utf-8")
+    _commit_dated(repo, env, names, "seed", datetime.now(UTC) - timedelta(days=3))
+    seen: list[tuple[str, ...]] = []
+    real = work._git
+
+    def spy(path, *args):
+        if "log" in args:
+            seen.append(args[args.index("--") + 1 :])
+        return real(path, *args)
+
+    monkeypatch.setattr(work, "_git", spy)
+    pattern, status_of = work._ITEM_STATUS_GIT_PATTERN, work._item_status_field
+    work._status_change_ages(repo, names, pattern, frozenset(), {}, status_of)
+    work._status_change_ages(repo, names[:-1], pattern, frozenset(), {}, status_of)
+    assert seen == [("s",), tuple(sorted(names[:-1]))]

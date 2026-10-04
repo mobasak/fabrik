@@ -96,14 +96,14 @@ executable check grades this header today (a deliberate, recorded deferral in `d
    (the deploy triad) — or run `fabrik apply` directly (the manual path) — from `/opt/fabrik`
    (hub-side; this project cannot self-deploy — trigger, don't execute)."*
 
-## MOBILE path (store or sideload — per `.windsurf/rules/mobile-app/80-mobile.md` § distribution)
+## MOBILE path (store or sideload — per `.windsurf/rules/mobile-app/80-mobile.md` § "Builds — pick by distribution surface")
 
 1. Decide the ring from the rules: **store/team** → EAS Build (`eas.json` profiles `development|preview|
    production`, cloud build — never assume a local Android SDK); **sideload/solo** → local
    `expo prebuild` + `./gradlew assembleRelease`.
 2. Run `.windsurf/rules/mobile-app/89-mobile-launch-checklist.md` — every gate → PASS-with-evidence/BLOCKED.
 3. Version + OTA policy: native change ⇒ store build; JS-only fix ⇒ OTA (EAS Update) per
-   `mobile-app/00-domain-mobile-app.md` § updates. Verify the version bump and changelog.
+   `mobile-app/00-domain-mobile-app.md` § 8 "Distribution, Updates & API Versioning". Verify the version bump and changelog.
 4. Build the release candidate (background the build — it exceeds 30s), capture the artifact URL/path.
 5. **Gate-2 handoff:** print the artifact + checklist verdicts — *"Operator: approve and run `eas submit`
    (TestFlight / Play Internal first ring) — submission is yours."*

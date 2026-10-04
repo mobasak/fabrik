@@ -144,7 +144,7 @@ Before authorizing production release, validate:
 - [ ] **Crash-free rate ≥99.5%** (Sentry) across low-end Android + flagship iOS — the house gate, set well inside Google Play's bad-behavior thresholds (user-perceived crash rate 1.09%, ANR rate 0.47%, 8% on any single phone model), above which Play makes the app less discoverable. Apple publishes no equivalent threshold.
 - [ ] **API error rate near zero** (GlitchTip) — FastAPI 5xx errors profiled under concurrent load.
 - [ ] **Activation rate** — `user_completed_onboarding` event firing in structured logs. If activation is poor, adjust onboarding before spending on acquisition.
-- [ ] Source maps uploaded during EAS Build by the Sentry Expo config plugin (`SENTRY_AUTH_TOKEN` as an EAS secret; organization and project set) for readable stack traces.
+- [ ] Source maps uploaded during EAS Build by the Sentry Expo config plugin (`SENTRY_AUTH_TOKEN` as an EAS environment variable with `sensitive` visibility in every environment your build profiles use — `eas env:set --name SENTRY_AUTH_TOKEN --value … --environment production --visibility sensitive`, and an older EAS CLI without `env:set` takes the same flags on the now-deprecated `eas env:create`; always pass `--visibility`, since a non-interactive `env:set` stores a new variable as `plaintext`. Not `secret`, even if you only run EAS Build today: Expo's guide sets it `sensitive` because the same token also uploads source maps for `eas update` (`npx sentry-expo-upload-sourcemaps dist`, run where `eas update` runs, outside EAS servers), and a secret cannot be read there. Never an `EXPO_PUBLIC_` name, which is inlined into the bundle; organization and project set) for readable stack traces.
 
 ---
 
