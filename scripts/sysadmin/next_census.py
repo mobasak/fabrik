@@ -24,7 +24,13 @@ Code writes one row per content BLOCK, and every block of one API message shares
 message's LATER block), falling back to ``(message.id, the row's own extracted text)`` only when
 ``uuid`` is absent — is kept in one GLOBAL seen-set for the whole run: a row already seen (the
 same row written twice, or copied verbatim — keeping its uuid — into a resumed session's file)
-contributes nothing to any count, the second time it is met.
+contributes nothing to any count, the second time it is met. Files are read in path order, so a
+row shared by two files is credited to the one whose path sorts first — a row first met in ANOTHER
+file is never judged as this file's turn, while a row written twice in the same file is simply
+counted once. Which file wrote a shared row first is not knowable from the files (a resumed or
+forked copy keeps the original rows' timestamps), and it does not occur today: measured
+2026-10-04 over the 7-day window, no row ``uuid`` sat in two files among ~1.4M main-thread
+assistant rows, each carrying its own file's ``sessionId``.
 
 A NEXT: LINE is one value ``thread_anchor._next_values`` reads from a turn's text — the
 harvest's own reader, so the census counts exactly the lines the harvest can turn into items:
@@ -56,8 +62,11 @@ Four measurements, one line each (plus a closing ``skipped:`` line, never a sile
    registered worker tree under its ``.claude/worktrees/`` (``work._workers``; harness
    ``agent-<hex>`` trees and scratch worktrees elsewhere are out): items are read from each tree's
    store and counted once per id, sessions are summed over ``<main>`` and every
-   ``<main>--claude-worktrees-<tree>`` project directory; an item hidden by a closed marker in
-   ANOTHER tree (``work._closed_ids``) is never counted; else FAIL naming whichever bound missed; a repo with
+   ``<main>--claude-worktrees-<tree>`` project directory (by the raw directory name, never the
+   display name); an id is closed when any tree's copy is closed or hidden by a closed marker
+   (``work._closed_ids``), and is in the window by its FRESHEST ``next_at`` across copies; a tree
+   git cannot read is skipped, and when git cannot list the trees ``--repo``'s own tree is read as
+   the main checkout (fail-soft — the census is advisory); else FAIL naming whichever bound missed; a repo with
    no store prints ``V5: no store in <path>``.
 
 No write anywhere, no network. Exit 0 always except a bad argument (argparse's 2) — including a
@@ -309,7 +318,6 @@ def _scan(root: Path, since_days: int, work_mod: ModuleType, anchor_mod: ModuleT
         return result
     cutoff = time.time() - since_days * 86400
     seen: dict[str, Path] = {}  # row identity -> the file that met it first
-    files: list[tuple[float, Path]] = []
     for path in sorted(root.glob("*/*.jsonl")):
         try:
             if not path.is_file():
@@ -319,11 +327,8 @@ def _scan(root: Path, since_days: int, work_mod: ModuleType, anchor_mod: ModuleT
         except OSError:
             result.skipped_files += 1
             continue
-        if mtime >= cutoff:
-            files.append((mtime, path))
-    # oldest first: a resumed session's file, which copies the original's rows, is written after
-    # the original, so the original meets a shared row first and keeps its turns
-    for _mtime, path in sorted(files):
+        if mtime < cutoff:
+            continue
         repo = _display_repo(path.parent.name)
         counted = False
         qualifies = False

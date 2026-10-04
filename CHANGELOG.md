@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — next_census states what it can and cannot tell about shared rows; stronger compaction test (2026-10-04)
+
+`scripts/sysadmin/next_census.py` reads transcripts in plain path order again, so a row shared by two files is credited to the file whose path sorts first. Ordering by mtime (the last write) or by first-row timestamp was tried, and neither can tell an original from its copy, because a copy keeps the original rows' timestamps. Matching a row's `sessionId` to its file's name was also tried: it dropped every row of a renamed file, and both reviews confirmed it as worse. The module docstring now says this, and records the measurement behind it: over the 7-day window, no row sat in two files among about 1.4M rows. The docstring also now covers the V5 rules of D-546. The compaction-summary test now places the summary after a finished turn, where a wrong boundary rule fails it. W-fae95bee (residue of W-a9de5fb3's review).
+
 ### Fixed — next_census measures what Validation V5 means (2026-10-04)
 
 `scripts/sysadmin/next_census.py` now counts the way the Stop harvest and spec 2026-09-25 § V5 count:
