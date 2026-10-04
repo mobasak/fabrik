@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T16:40:40.677832Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a8da0bae",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M43W508K1TG6AR2D202FN3NJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Already fixed on tryton-crm main, so no change was needed for this relay (01M42YTAGHYFA1YRVMSBCWZSP9)."
+}
