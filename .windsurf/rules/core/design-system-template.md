@@ -1140,7 +1140,7 @@ Three-state confidence indicator for AI-generated content:
 4. **Agent workflow:** AI-translate → run the Level 1 check → fix → re-run until it passes clean → record the Level 2/3 review. Translation is not done until Level 1 passes and the review is recorded.
 5. New features ship in English first. Translations must be validated within one release cycle.
 6. Interpolation syntax: `{variable}` placeholders. Never concatenate translated fragments — word order varies by language.
-7. Full i18n kit (validate script, `_context.json` for product/tone/register config, JS loader, HTML snippets): `templates/i18n-kit/` (the copy `scaffold.py` seeds; `templates/scaffold/i18n-kit/` is an older, divergent copy). Applies to all GUI scaffolds (saas-skeleton, static-site, docusaurus, chrome-extension, office-extension, mobile-app, desktop-app).
+7. Full i18n kit (validate script, `_context.json` for product/tone/register config, JS loader, HTML snippets): `templates/i18n-kit/` (the copy `scaffold.py` seeds). Applies to all GUI scaffolds (saas-skeleton, static-site, docusaurus, chrome-extension, office-extension, mobile-app, desktop-app).
 
 ### Localization Quality Bar
 

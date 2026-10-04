@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — two packs no longer point at a deleted i18n kit (2026-10-04)
+`.windsurf/rules/core/design-system-template.md` and `.windsurf/rules/saas/60-saas-ui.md` both said "`templates/scaffold/i18n-kit/` is an older, divergent copy". That directory was deleted in ff4e892c2, so the clause sent every GUI project to a path that does not exist. Both lines now name only `templates/i18n-kit/`, the copy `scaffold.py:242` seeds. Reported by fleet (mail 01M3M0A6), work item W-b2132b54.
+
 ### Fixed — the doc-sync check no longer tells a project to edit its synced PORTS.md (2026-10-04)
 Since D-380 a project's `PORTS.md` is a read-only, gitignored copy of the hub's port registry that the next forced sync overwrites, yet `scripts/enforcement/check_doc_sync.py` still warned every project to update it when compose changed. Where `PORTS.md` is tracked (the hub) the warning stands; where it is not (every project — 0 of 50 track it) it now names the hub request route. `_is_tracked` reads paths from the repo's top level (`:(top)`), so a gate run from a subdirectory no longer misreads a tracked file, and `docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md` drops its pre-D-380 "project-owned" wording (fleet mail 01M3JF3J).
 
