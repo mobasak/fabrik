@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from fractions import Fraction
 from unittest.mock import MagicMock
 
 import pytest
@@ -311,11 +312,58 @@ def test_a_negative_daily_cap_refuses_every_rental(entry, cap, shown, monkeypatc
 
 
 @pytest.mark.parametrize("entry", ["rent", "rented"])
-@pytest.mark.parametrize("hours", [float("inf"), float("nan")])
-def test_a_non_finite_lifetime_is_refused_by_the_guard(entry, hours):
-    """math.ceil(inf) raised OverflowError past every caller's `except GPUBudgetExceededError`."""
+def test_a_fractional_lifetime_reaches_state_as_a_float_and_an_integral_one_stays_int(entry):
+    """A Fraction passed the finite check and then raised TypeError in gpu_state's timedelta —
+    AFTER the pod existed. The validated value is what the session now records."""
+    for hours, want in ((Fraction(1, 2), 0.5), (4, 4)):
+        c = _mock_client()
+        gpu_state.STATE_FILE.unlink(missing_ok=True)  # one session per round: read it back whole
+        if entry == "rent":
+            gpu_rent.rent(
+                "pod-h100", workload="smoke", client=c, max_lifetime_hours=hours, max_cost_usd=50
+            )
+        else:
+            with gpu_rent.rented(
+                "pod-h100", workload="smoke", client=c, max_lifetime_hours=hours, max_cost_usd=50
+            ):
+                pass
+        (session,) = gpu_state.load_state()["sessions"].values()
+        stored = session["max_lifetime_hours"]
+        assert stored == want and type(stored) is type(want), (hours, stored)
+        env = c.create_pod.call_args.kwargs["env"]
+        assert env["FABRIK_MAX_LIFETIME_HOURS"] == str(want)  # integral input keeps the "4" tag
+
+
+@pytest.mark.parametrize("entry", ["rent", "rented"])
+@pytest.mark.parametrize("cost", [True, "50", None])
+def test_a_max_cost_that_is_not_a_number_is_refused(entry, cost):
     c = _mock_client()
-    with pytest.raises(gpu_rent.GPUBudgetExceededError, match="max_lifetime_hours"):
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match="max_cost_usd must be a number"):
+        _enter(entry, c, max_cost_usd=cost)
+    c.create_pod.assert_not_called()
+
+
+@pytest.mark.parametrize("entry", ["rent", "rented"])
+@pytest.mark.parametrize(
+    ("hours", "why"),
+    [
+        (float("inf"), "finite"),
+        (float("nan"), "finite"),
+        (None, "a number"),  # TypeError from math.isfinite/math.ceil
+        ("4", "a number"),
+        (True, "a number"),  # a bool is an int to Python, never a budget
+        (0, "positive"),  # a reaper expiry already in the past
+        (-1, "positive"),
+        (Fraction(1, 10**400), "positive"),  # positive, but underflows to 0.0
+        pytest.param(10**5000, "too large", id="int-over-4300-digits"),  # repr() itself raises
+        (10**12, "too large"),  # fits a float, not timedelta(hours=...)
+    ],
+)
+def test_a_lifetime_no_guard_can_compare_is_refused_before_any_create(entry, hours, why):
+    """Each of these raised a raw exception past every caller's `except GPUBudgetExceededError`,
+    or created a pod with a past expiry; fabrik-lib 01M43C7F found the same set in its twin."""
+    c = _mock_client()
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match=f"max_lifetime_hours.*{why}"):
         if entry == "rent":
             gpu_rent.rent(
                 "pod-h100", workload="smoke", client=c, max_lifetime_hours=hours, max_cost_usd=50

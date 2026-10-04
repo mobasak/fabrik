@@ -40,12 +40,13 @@ from __future__ import annotations
 import json
 import logging
 import math
+import numbers
 import os
 import time
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -719,6 +720,47 @@ def _daily_gpu_cap() -> float:
     return cap
 
 
+def _safe_repr(value: object) -> str:
+    """``repr`` that cannot itself raise: an int over 4300 digits makes ``repr`` throw ValueError."""
+    try:
+        text = repr(value)
+    except ValueError:
+        return f"<{type(value).__name__} too large to print>"
+    return text if len(text) <= 60 else text[:57] + "..."
+
+
+def _budget_number(name: str, value: object, *, lifetime: bool) -> int | float:
+    """``value`` as a number every money guard can compare, or :class:`GPUBudgetExceededError`.
+
+    Any comparison against NaN is False and ``est > inf`` never fires, so a non-finite cap admits
+    any call; a bool is an int to Python but never a budget; a str or None would reach
+    ``math.ceil``/``timedelta`` and raise a TypeError past every ``except GPUBudgetExceededError``.
+    A lifetime must also be positive (zero or less writes a reaper expiry already in the past;
+    a positive Fraction or Decimal can underflow to 0.0) and must fit ``timedelta``, which
+    ``gpu_state.upsert_session`` builds only AFTER the provider call. Integral input comes back as
+    a plain int, so the reaper's ``FABRIK_MAX_LIFETIME_HOURS`` tag stays "4", anything else as a
+    float, so a Fraction never reaches ``timedelta``. Mirrors fabrik-lib gpu-rent 7b176888.
+    """
+    if isinstance(value, bool) or not isinstance(value, numbers.Real):
+        raise GPUBudgetExceededError(f"{name} must be a number; got {_safe_repr(value)}")
+    try:
+        as_float = float(value)
+    except (OverflowError, ValueError):
+        raise GPUBudgetExceededError(f"{name} is too large; got {_safe_repr(value)}") from None
+    if not math.isfinite(as_float):
+        raise GPUBudgetExceededError(f"{name} must be a finite number; got {_safe_repr(value)}")
+    if lifetime:
+        if as_float <= 0:
+            raise GPUBudgetExceededError(f"{name} must be positive; got {_safe_repr(value)}")
+        try:
+            timedelta(hours=as_float)
+        except OverflowError:
+            raise GPUBudgetExceededError(f"{name} is too large; got {_safe_repr(value)}") from None
+    if isinstance(value, int):
+        return value
+    return as_float
+
+
 def _preflight(
     kind: str,
     *,
@@ -726,10 +768,11 @@ def _preflight(
     max_lifetime_hours: int,
     max_cost_usd: float,
     keep_warm_after_use: bool,
-) -> tuple[float, float, float, UsageTracker]:
+) -> tuple[float, float, float, UsageTracker, int | float]:
     """Every guard that fires BEFORE a provider call, shared by :func:`rent` and :func:`rented`.
 
-    Returns ``(estimate, today_gpu_spend, daily_cap, tracker)``. Raises ``NotImplementedError``
+    Returns ``(estimate, today_gpu_spend, daily_cap, tracker, max_lifetime_hours)`` — the last is
+    the validated lifetime (see :func:`_budget_number`), which the caller must use from here on. Raises ``NotImplementedError``
     for an unknown kind/provider, ``ValueError`` for keep-warm on a Modal pod (an ephemeral
     ``app.run()`` context that dies with the process, so the session would stay ``active``
     forever), and :class:`GPUBudgetExceededError` for either cost guard.
@@ -744,15 +787,8 @@ def _preflight(
             "app.run() context that stops with this process. Use a serverless endpoint instead."
         )
     _warn_if_prices_stale()
-    if not math.isfinite(max_cost_usd):
-        # `est > nan` / `est > inf` is always False: a non-finite cap would admit any call.
-        raise GPUBudgetExceededError(f"max_cost_usd must be a finite number; got {max_cost_usd!r}")
-    if not math.isfinite(max_lifetime_hours):
-        # estimate_cost's math.ceil would raise OverflowError/ValueError — refuse with the guard's
-        # own error, which is what every caller of rent()/rented() catches.
-        raise GPUBudgetExceededError(
-            f"max_lifetime_hours must be a finite number; got {max_lifetime_hours!r}"
-        )
+    max_cost_usd = _budget_number("max_cost_usd", max_cost_usd, lifetime=False)
+    max_lifetime_hours = _budget_number("max_lifetime_hours", max_lifetime_hours, lifetime=True)
     est = estimate_cost(kind, max_lifetime_hours, provider=provider)
     if est > max_cost_usd:
         raise GPUBudgetExceededError(
@@ -771,7 +807,7 @@ def _preflight(
             f"daily GPU spend ${today_gpu_spend:.2f} + estimate ${est:.2f} "
             f"would exceed MAX_DAILY_GPU_COST=${daily_cap:.2f}"
         )
-    return est, today_gpu_spend, daily_cap, tracker
+    return est, today_gpu_spend, daily_cap, tracker, max_lifetime_hours
 
 
 def _finalize(
@@ -895,7 +931,7 @@ def rent(
         ``resource_dict`` is the full provider response (Pod or Endpoint).
     """
     # --- Guards (FIRE BEFORE PROVIDER CALL) ----------------------------
-    est, today_gpu_spend, daily_cap, tracker = _preflight(
+    est, today_gpu_spend, daily_cap, tracker, max_lifetime_hours = _preflight(
         kind,
         provider=provider,
         max_lifetime_hours=max_lifetime_hours,
@@ -1073,7 +1109,7 @@ def rented(
     style. Instead, ``rented()`` duplicates the try/finally lifecycle here
     (smaller scope: no work_fn callback, but otherwise identical guards).
     """
-    est, _today, _cap, tracker = _preflight(
+    est, _today, _cap, tracker, max_lifetime_hours = _preflight(
         kind,
         provider=provider,
         max_lifetime_hours=max_lifetime_hours,

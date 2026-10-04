@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a GPU rental's lifetime and cost cap are validated as numbers, not only as finite (2026-10-04)
+The NaN/inf guard left the rest of the class open, as fabrik-lib found in its twin (01M43C7F). A `None` or `"4"` lifetime raised a raw `TypeError`. A `True` lifetime was accepted as one hour. Zero or a negative lifetime created a pod whose reaper expiry was already in the past. A `Fraction` passed the guard and then failed in `gpu_state`'s `timedelta` after the pod existed. An int over 4300 digits broke even the error message. A new `_budget_number()` in `_preflight` refuses all of these with `GPUBudgetExceededError` before any provider call, for both `rent()` and `rented()`, and returns the lifetime that the session record then uses: a plain int for integral input, so the reaper tag stays "4", and a float otherwise. A non-number `max_cost_usd` is refused the same way. This mirrors fabrik-lib gpu-rent 7b176888.
+
 ### Removed — the rotation tool's unused credential writer (2026-10-04)
 `_file_refreshed_credentials` wrote a refreshed OAuth pair into an account store, but nothing has called it since `--touch` was retired, and `_keepwarm_refresh` can never produce a pair to file (the grant is CLI-only). It is deleted from `scripts/sysadmin/claude_rotate.py` and its `scripts/aro-wake/` twin, together with the two tests that were its only callers. Refresh chains stay renewed by a monthly `/login` per account (D-247). D-553 records that any future in-tool writer must restore the identity gate this one carried. W-af8fb284.
 
