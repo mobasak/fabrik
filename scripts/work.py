@@ -300,19 +300,6 @@ def _has_store(repo: Path) -> bool:
     return _config_path(repo).is_file()
 
 
-def _worktrees(repo: Path) -> list[Path]:
-    """Every working tree of ``repo``'s repository, main checkout first (``git worktree list``)."""
-    try:
-        out = _git(repo, "worktree", "list", "--porcelain")
-    except WorkError:
-        return []
-    return [
-        Path(line[len("worktree ") :]).resolve()
-        for line in out.splitlines()
-        if line.startswith("worktree ")
-    ]
-
-
 def _store_elsewhere(repo: Path) -> Path | None:
     """Another working tree of this repository that holds a store, or None. All of them share one
     git common dir (lock, claims, readings), so a second ``init`` anywhere would fork config."""
@@ -794,10 +781,7 @@ def _mail_root() -> Path:
 
 
 def _mail_line(repo: Path) -> str | None:
-    trees = _worktrees(repo)
-    if not trees:
-        raise WorkError("no main checkout to name the mailbox by")
-    inbox = _mail_root() / trees[0].name / "inbox"
+    inbox = _mail_root() / _worktrees(repo)[0].name / "inbox"
     if not inbox.is_dir():
         return None
     mail = _sibling("mail")
@@ -2683,8 +2667,7 @@ def cmd_init(repo: Path, args: argparse.Namespace) -> int:
     ignore = store / ".gitignore"
     if not ignore.exists():
         _write_text(ignore, "*.tmp\n")  # a writer killed mid-write leaves a temp nobody commits
-    trees = _worktrees(repo)
-    base_branch = _branch_of(trees[0] if trees else repo)
+    base_branch = _branch_of(_worktrees(repo)[0])
     try:
         _write_json(cfg, {"base_branch": base_branch, "distributor": distributor}, exclusive=True)
     except FileExistsError:
@@ -4045,13 +4028,20 @@ def _is_work(item: dict) -> bool:
 
 
 def _worktrees(repo: Path) -> list[Path]:
-    """Every registered tree, the main checkout first (`git worktree list --porcelain`)."""
+    """Every working tree of ``repo``'s repository, resolved, the main checkout first (`git
+    worktree list --porcelain`); ``[repo]`` when git cannot answer — callers index ``[0]``, so the
+    list is never empty. The ONE definition: a second, older one at the top of the module returned
+    ``[]`` on failure and was silently shadowed by this one (01M422716X)."""
     try:
         out = _git(repo, "worktree", "list", "--porcelain")
     except Exception:
-        return [repo]
-    trees = [Path(line[9:]) for line in out.splitlines() if line.startswith("worktree ")]
-    return trees or [repo]
+        return [repo.resolve()]
+    trees = [
+        Path(line[len("worktree ") :]).resolve()
+        for line in out.splitlines()
+        if line.startswith("worktree ")
+    ]
+    return trees or [repo.resolve()]
 
 
 def _workers(main: Path) -> dict[str, Path]:

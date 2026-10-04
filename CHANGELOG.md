@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `work.py` defined `_worktrees` twice; the live one now resolves its paths (2026-10-04)
+- `scripts/work.py` carried two module-level `_worktrees` definitions; Python bound the second, so the first (resolved paths, `[]` on git failure) was dead and `_mail_line`'s empty-list fallback could never fire. The dead definition is deleted, the surviving one resolves its paths on every branch (main checkout first, `[repo.resolve()]` when git cannot answer or lists nothing, because callers index `[0]`), and the two unreachable empty-list branches are gone. Graders: `tests/test_work_sync.py::test_work_defines_each_module_level_function_once` (AST, red on the old file) and `::test_worktrees_lists_resolved_paths_main_first`, which feeds a stubbed `_git` a symlinked two-tree, an empty and a failing answer (five mutants killed). Reported by intel (mail 01M422716X3VN04R62TXVKXEC0).
+
 ### Fixed — next_census measures what Validation V5 means (2026-10-04)
 
 `scripts/sysadmin/next_census.py` now counts the way the Stop harvest and spec 2026-09-25 § V5 count:
