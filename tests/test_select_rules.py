@@ -111,6 +111,9 @@ def test_desktop_active_on_electron_dir_not_generic_main(tmp_path: Path) -> None
     assert "desktop-app/72.md" in {e["pack"] for e in sr.collect(tmp_path)["available"]}
     (tmp_path / "electron").mkdir()
     (tmp_path / "electron" / "main.js").write_text("//\n")  # now an electron app
+    # `_tree_paths` is lru_cached per root: without this the second collect() reads the walk
+    # taken before electron/ existed (same move as test_pack_layout_audit.py's cache_clear).
+    sr.rules_match._tree_paths.cache_clear()
     assert "desktop-app/72.md" in {e["pack"] for e in sr.collect(tmp_path)["active"]}
 
 
