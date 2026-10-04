@@ -47,7 +47,13 @@ Properties that still hold:
 
 - `--status --json` makes **live API probes** for fresh-token dirs; the floor bounds probe volume, so refresh-spamming cannot multiply it.
 - The rendered page always states the age of its own data and, per account, whether the
-  reading is live or `cached Nh ago` — a stale render is visible, never silent.
+  reading is live or `cached Nh ago`. A stale render is visible, never silent: when the last
+  regeneration RAISED, or the page is older than one probe interval plus one probe timeout plus a
+  minute (140 s by default) with no regeneration finished, the served page carries a red
+  `Stale page` banner. It names the page's age and, for a failure, when it happened and the error
+  class, and it is injected at serve time, so `index.html` itself stays the last good render
+  (W-6a0f3c65 — on 2026-09-07 a TypeError froze the board for 16 cycles under a header still
+  reading "refreshes every 20s").
 - **A pointer flip beats the floor.** Every view compares the live `active` symlink with the
   `active` of the last render; when they differ, the page regenerates synchronously ONCE (bounded
   by the probe timeout) so the very next view shows the new account.
@@ -70,6 +76,7 @@ Properties that still hold:
 | Element | Meaning |
 |---|---|
 | `ACTIVE` badge + highlighted row | the account `~/.claude-fleet/active` points at — what every session uses |
+| red `Stale page` banner at the top | what you see is an old render: either the last regeneration failed (its time and error class are named; the traceback is in `~/.claude/quota-dashboard.log`), or no regeneration has finished for longer than a probe cycle (a probe may be hung). The next good regeneration removes it |
 | `N% left` + bar | **remaining** headroom (the CLI prints *used*; this prints what is left) |
 | green / amber / red | >25% · 6–25% · ≤5% remaining |
 | `cap N%` badge | a `caps.json` reserve exists for this account |
