@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:01.804373Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ea06749b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QCYB7JKX9X9RV148V7Y88D",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Enforcement gap (operator: \"not acceptable, must be prevented\"): unreviewed docs/config and Bash-written edits pass the Stop hook — proposal attached"
+}

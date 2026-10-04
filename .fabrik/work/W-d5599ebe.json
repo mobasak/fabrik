@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:58.151988Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d5599ebe",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3YXB6GPASWRTCF6WNZ6SK1J",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-2f05e8e8 (mail 01M3YXB6GPASWRTCF6WNZ6SK1J repeats mail 01M3YGSZJCH783MQCZHVMNZY0T); tracked there — mail triage 2026-10-04",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "WHAT: /fabrik-review-scoped (rendered ~/.claude/commands/fabrik-review-scoped.md, step 5) tells a project to run `python3 scripts/review_loop_ledger.py read|next ...`. In a project repo that path does not exist; the script lives only at /opt/fabrik/scripts/review_loop_ledger.py."
+}

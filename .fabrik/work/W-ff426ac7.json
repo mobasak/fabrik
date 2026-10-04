@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:05.106562Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ff426ac7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QJKETEPWDF6E6F0NWSQN9J",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "the 4 UserPromptSubmit hooks re-inject the same ~10 KB on every prompt — send only what changed"
+}

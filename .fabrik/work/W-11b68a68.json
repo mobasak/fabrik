@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:13.188675Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-11b68a68",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4063XZ79HDGFQDQX9C2F0BQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "docs_updater.py --sync run from a linked worktree (tryton-crm, .claude/worktrees/agent-2, 2026-10-03) rewrites INDEX.md's AUTO-GENERATED:STRUCTURE block from the worktree's filesystem. Directories that exist only in the main checkout (untracked or ignored: docs/reference/bhd/*.xlsx, docs/windsurf, d"
+}

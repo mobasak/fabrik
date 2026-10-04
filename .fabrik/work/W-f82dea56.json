@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:05.475488Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f82dea56",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QJNHMQFNZ4KCQF8SPJZVFK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "tryton-crm (agent-2): the work I did and the multi-agent friction I hit, working as one of 3 agents in one repo, 2026-09-29 to 09-30"
+}

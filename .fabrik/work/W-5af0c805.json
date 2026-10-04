@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:02.654880Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5af0c805",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QE1TWSV8744S1T647G35R1",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "RETRACTION on my own filing — the SYSTEMIC claim was over-stated and the row count was wrong"
+}

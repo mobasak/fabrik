@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:01.195445Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1bde15b6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Z056J1Y1JQVPF176FAGX03",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "core/35-security-auth.md Pattern A-compat vs canonical fastapi-user-auth compat.sql — they disagree on auth.users (real table vs view); which shape is canonical? (fabrik-lib D-372, SB-070)"
+}

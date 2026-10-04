@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:00.985644Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0cade34d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Q9CX20QB4SD8P0NFCQJATA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: check_convergence.py grades the \"last Pass row must read confirmed: 0\" flip rule only for plan SETS; a MONOLITH plan flips CONVERGED with a non-zero closing row and no finding."
+}

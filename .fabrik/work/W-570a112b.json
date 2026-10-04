@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:21.948952Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-570a112b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VRW9WBDBRW7RV079YNPQJT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: a fresh linked worktree false-reds the completion gate's Doc Link Integrity check, because two gitignored files the check depends on are not in .worktreeinclude, so EnterWorktree never copies them in."
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:42.041810Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e112ea99",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WWSJ63HWYVM2FPZZS6RQCW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Addendum to 01M3WW45D0QVW14KJQW70PFE2P (merge_request.py owner-test PYTHONPATH), from our review of the write-up."
+}

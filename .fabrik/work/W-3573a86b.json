@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:27.031787Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3573a86b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M41B1SF8430QWKP18KWN5XHR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "# A fabrik-review-loop.js seat reset the merge owner's main checkout and destroyed uncommitted work"
+}

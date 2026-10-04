@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:33.393339Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-27fc7fa9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M42WP1S0HM1ZNZCWQ07N6EPG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: review-loop seat friction — read-only git loops refused; large `git show` stdout persisted under $HOME/.claude-fleet (a path every seat brief forbids reading)."
+}

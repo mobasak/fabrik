@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:22.958302Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c082c6c6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VTHMYSC9E5VF8ACFSTFSKS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Review seats dispatched from a project WORKTREE session stall silently. tryton-crm agent-2, 2026-10-01, /fabrik-review-scoped round 1: three background fabrik-reviewer seats (sonnet/haiku/opus) went quiet for 10+ minutes and never handed back. Their last lines (\"Using literal paths.\", \"Now let me ru"
+}

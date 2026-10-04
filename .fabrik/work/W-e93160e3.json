@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:14.326577Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e93160e3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3S2A3CJ24E4A1RZSWH0FFES",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "final_gate's pytest leg runs without TEST_DATABASE_URL, so every DB-backed test is skipped and a red DB suite reads green"
+}

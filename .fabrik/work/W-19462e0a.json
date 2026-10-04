@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:19.643646Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-19462e0a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M411J0B56SQW8YB68SYNNV8E",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "command_run.py --design-amend takes a committed PATH, but reads like a design note; a phase-5 amend is accepted without effect"
+}

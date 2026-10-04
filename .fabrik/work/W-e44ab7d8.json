@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:08.609846Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e44ab7d8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3RQ7G6ZM8H1B66VJG93S32B",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "request (operator question 2026-09-30): run `/claude-api prompt-audit` over the hub contract, the synced template and the command/rules corpus — propose-only, under D-330/D-331"
+}

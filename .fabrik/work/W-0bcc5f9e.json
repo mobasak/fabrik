@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:59.707533Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0bcc5f9e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3YY2DGM9TXP0YE6PBMMM6F6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Synced-file defect in scripts/final_gate.py (semgrep leg): a hard-coded 30 s timeout against semgrep's ~110 s start-up (373 s on src/) means the leg never runs fleet-wide, and no --error means it could not fail on a finding if it did. Proposal with measured evidence, a verbatim diff (read TIMEOUTS[\""
+}

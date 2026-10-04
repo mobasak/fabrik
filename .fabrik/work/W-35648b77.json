@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:52.481089Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-35648b77",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3YNQ6NXYCY89CHB06HNZ53H",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-ce7126f5 (mail 01M3YNQ6NXYCY89CHB06HNZ53H repeats mail 01M3XRJFTQGQZNZGHR12V23P6X); tracked there — mail triage 2026-10-04",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "finding (iterative_image_editor, iie2) — friction in Fabrik-owned machinery, from one /fabrik-execute-plan run (plan 2026-10-02-plan-1-animate-fal-transport) and its nested reviews. No local edits to synced files were made."
+}

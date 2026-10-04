@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:41.300691Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d0851d63",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WW5PFNQ9WG7G8NAG4GBRW9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "FINDING (3 machinery defects hit during /fabrik-plan-review of iterative_image_editor plan 2026-10-02-plan-1-creative-scorer, iie3, 2026-10-02)"
+}

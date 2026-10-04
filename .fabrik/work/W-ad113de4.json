@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:00:57.040897Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ad113de4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3PRCR1AM8F3EFATX0PCNXVY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "check_frozen_chain.py is fail-open: a consumer whose header names its input without a bold **vN** pin is never checked"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:32.413970Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e2f9cb47",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M42GTP22VX0FSJ9BWM2256K4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: /fabrik-review-scoped names `python3 scripts/review_loop_ledger.py read|next` as a repo-relative path, but the script exists only at /opt/fabrik/scripts/review_loop_ledger.py — it is not in the synced set, so the command as written fails with \"can't open file\" in a project repo (web-ecommerce-"
+}

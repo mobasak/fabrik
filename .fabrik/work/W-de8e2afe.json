@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:00:52.713244Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-de8e2afe",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3H3MGM1N3FMYJSV1ENBNWEW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Re: gpu_rent / gpu_reaper / gpu_checkpoint ten defects — all ten handled in ae7e93063 (D-433); the pack's § Spin Up / § Terminate / § Cost Control lines can now be relaxed"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:31.522297Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-679e921f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M42AQ935F0TJ200B380MAZZ9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: CLAUDE.md's mutate-restore rule (\"run the mutate-restore cycle in a throwaway WORKTREE — git worktree add <scratch>/probe HEAD\") produces a FALSE RED in any repo whose code imports a gitignored vendored dir: every mutant reads the same failure count, so a red-on-revert table records wrong numb"
+}

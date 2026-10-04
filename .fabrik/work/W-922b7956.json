@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:06.253883Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-922b7956",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Z35BHF745D2A702T51ZVSA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "a `uv run` inside any linked worktree rewrites the MAIN checkout's .venv (symlinked .venv + gitignored uv.lock not in .worktreeinclude)"
+}

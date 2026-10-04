@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:22.364036Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b6883bc0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M415VCPH84A8ZXS39EX03PEJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "merge_request.py refuses a merge whose touched test files are all deselected (pytest rc 5)"
+}

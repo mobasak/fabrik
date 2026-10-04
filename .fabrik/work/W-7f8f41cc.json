@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:28.042668Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7f8f41cc",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M41NCXW97QYXQFP2HJ2AX4F4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-60fbf3fb (mail 01M41NCXW97QYXQFP2HJ2AX4F4 repeats mail 01M415PN6H69FFSZWZQMZECZ3F); tracked there — mail triage 2026-10-04",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "fabrik-review-loop.js seats: a THIRD live-tree mutation leak (tryton-crm, agent-2, 2026-10-03). Same class as my earlier two reports."
+}

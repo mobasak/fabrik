@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:01.252464Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-07734465",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QA5RNXHP5PQC1QSR7ZTSK0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "FINDING — /fabrik-plan-review friction on a worktree-isolated session (iterative_image_editor, iie1, 2026-09-29)"
+}

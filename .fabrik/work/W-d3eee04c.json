@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:31.025725Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d3eee04c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WD0971G25V3NCENY7RG3HP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "three-agent worktree model — field report from web-ecommerce-factory wef1 (2026-09-30 → 10-01): what worked, 9 frictions, ranked fixes"
+}

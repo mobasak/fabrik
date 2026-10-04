@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:18.457210Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-68192aba",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3TXDCQCZMVJTWT9V4KA8QNV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "# Untracked /opt/fabrik/arch/ reddens every session's main-checkout gate — whose is it?"
+}

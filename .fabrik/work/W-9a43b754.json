@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:00:53.468044Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9a43b754",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3J7K9GYZQ2RD43NHDE71WB6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "scripts/work.py is synced fleet-wide but its reference docs/reference/work-tracking.md is not — 41 repos have the tool and 0 have its manual"
+}

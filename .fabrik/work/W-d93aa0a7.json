@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:04.318302Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d93aa0a7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Z1DZ0A1PEGQAF7A6GJXP71",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "/fabrik-review Phase 1 (and Phase 4) tell a project session to read each pass with"
+}

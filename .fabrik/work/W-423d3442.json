@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:50.178507Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-423d3442",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3YEY98RYJWKAXA4P357G97E",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "request — add a self-healing ladder row for postgres registry drift (plan-2, D-498/D-500)"
+}

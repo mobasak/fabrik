@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:17.081730Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ca020bfc",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3TR7C2TCDGRZGK41TYMD63B",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: the Stop hook (final_gate_stop.py) re-fires \"COMMAND STILL RUNNING\" and \"UNREVIEWED SPONTANEOUS WORK\" on every turn while a /fabrik-review-scoped run is legitimately waiting on a dispatched background fabrik-reviewer seat."
+}

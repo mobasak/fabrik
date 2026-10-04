@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:28.148785Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-cf15071e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3W95RYBTFW5FKN05VF5X5M0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "fabrik-lib three-window model (sentinel in main checkout + dev1/dev2 in worktrees): friction report from fabrik-lib-dev2, 2026-10-01"
+}

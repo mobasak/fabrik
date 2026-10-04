@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:03.478246Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-355c0970",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Z1CN1YDHXN5QS11XGZ6FGN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: the worktree-isolation check refuses scratch-only commands that contain no version-control verb, and review seats lose about a third of their time box working around it. This mail was itself refused on its first send: the body text named the tool, and the check read that as a git operation."
+}

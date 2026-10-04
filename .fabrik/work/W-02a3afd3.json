@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:03.951160Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-02a3afd3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QJCVZNNXNE4BB4RGTSE08K",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Friction from a 3-agent repo — tryton-crm, agent-3, 2026-09-29/30 (operator asked for the full list)"
+}

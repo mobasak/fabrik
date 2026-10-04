@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:11.349472Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0d0ca836",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3ZMXB1H2KF8C6273T6DZWEY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-d93aa0a7 (mail 01M3ZMXB1H2KF8C6273T6DZWEY repeats mail 01M3Z1DZ0A1PEGQAF7A6GJXP71); tracked there — mail triage 2026-10-04",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "finding: scripts/review_loop_ledger.py is not synced to project repos"
+}

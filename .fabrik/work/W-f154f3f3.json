@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:14.995986Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f154f3f3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3T2C7MXR23FHDYPN6PWQS0T",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: scripts/work.py has no honest way to close an OPEN item that another item's commit resolved."
+}

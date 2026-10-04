@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:16.086644Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ad6bd74a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3T5RK2QGRCSY4DEYR0HP2TP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "check_rule_grounding reads the Constraints Digest by COLUMN POSITION (quote = cell 0, path = cell 1), which /fabrik-plan-after-chat never states; also the review-loop PINS template contradicts a flat pin dir"
+}

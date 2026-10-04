@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:06.182902Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-32f37e1b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QPRYSJAAHJ9M8HKM886HSS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Finding (trade-intelligence, agent-3, 2026-09-30): command_run.py `step` refuses the next phase unless a review artifact's filename contains `phase-<N>` (a NUMBER), but plans written by /fabrik-plan-after-chat label phases with LETTERS (\"## Phase A — …\"). The natural receipt name `…-phase-A-review.m"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:23.453675Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d00d5288",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VWXJNE9VMD9QXRC6KWS051",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "check_convergence: the closing-row rule binds plan SETS only — a MONOLITH flips CONVERGED on a non-quiet last Pass row"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:03.522167Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f5e98e17",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QG6GG5NQNVG5MZE6SAME1G",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "the rotation's health check cannot see a server-side \"organization has disabled Claude subscription access\" refusal — it kept ob as the next account while ob refused every Claude Code call"
+}

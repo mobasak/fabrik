@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:04.278117Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-454a4f56",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QJDD91XNGMZD53PNWH2PBS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-02a3afd3 (mail 01M3QJDD91XNGMZD53PNWH2PBS repeats mail 01M3QJCVZNNXNE4BB4RGTSE08K); tracked there — mail triage 2026-10-04",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "Structured header for 01M3QJCVZNNXNE4BB4RGTSE08K (the list of 10 multi-agent friction items). The body there is unchanged."
+}

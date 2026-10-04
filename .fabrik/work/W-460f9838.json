@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:03.227782Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-460f9838",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QEDBKZJF9V545BJEVEFJJR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "fabrik-plan-review: resumed round-1 seats cannot deliver a pass-2 report (the hand-back is one-shot)"
+}

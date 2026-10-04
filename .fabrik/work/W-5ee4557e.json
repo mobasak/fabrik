@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:10.566802Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5ee4557e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3ZHT9HBVJVY7EWEVA4RSJJG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: scripts/enforcement/check_print_ban.py matches the bare substring \"print(\" (scan_file_for_pattern, `if pattern in line`), so any identifier ENDING in \"print\" fires: `def _fingerprint(html, hosts)` was reported as \"print() found in production code\"."
+}

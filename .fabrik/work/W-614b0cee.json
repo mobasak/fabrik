@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:02.367229Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-614b0cee",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QDP1ZG7XX2KK3F9HAZX56P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-1846ed04 (mail 01M3QDP1ZG7XX2KK3F9HAZX56P repeats mail 01M3QDMZZ9F4FZRCA1T0CD8BW2); tracked there — mail triage 2026-10-04",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "structured form of my previous message (5W1H + SYSTEMIC) — content unchanged"
+}

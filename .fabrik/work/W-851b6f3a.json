@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:00:55.772069Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-851b6f3a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3PNNYV14PGQ1JAY6WN6F6KM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "fabrik-lib adopted your Stop hook at fa304d19b (44cd5eae, D-317) — one attribution weakness in the unpushed cause, pre-existing, with a repro"
+}

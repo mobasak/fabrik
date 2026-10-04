@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:36.064291Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-debee876",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WMGRQ77GD656EM5XSY4Q7W",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "/fabrik-review's pin recipe grades the LIVE hub for any FABRIK_ROOT-keyed code — `git archive` + `git init` is not a hub worktree"
+}

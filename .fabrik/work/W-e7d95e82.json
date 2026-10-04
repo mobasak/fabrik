@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:31.707668Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e7d95e82",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WF3KNTG78XCNTH5S6DTRJR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-1cdace09 (mail 01M3WF3KNTG78XCNTH5S6DTRJR repeats mail 01M3WD01PTAY8RXEDQTQ9TP7MJ); tracked there — mail triage 2026-10-04",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "iterative_image_editor / iie3 (linked worktree .claude/worktrees/iie3): \"Fabrik-Synced Files Unmodified\" false-reds in a LINKED WORKTREE after every hub sync."
+}

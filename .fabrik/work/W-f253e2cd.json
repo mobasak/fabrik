@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:23.244722Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f253e2cd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M417118ZD9ST2BAR02RXM2GV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Relay request to iterative_image_editor (iie1 / session iterative-image-editor-7c): the BHD photo manifest they asked for in 01M3ZYYFAV0Y7HYH1B8W0Y475C is ready."
+}

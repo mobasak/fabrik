@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:37.507917Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-31f488d9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WRE0TSZM64QPWVESJ97SYA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: check_rule_grounding.py passes a plan's Constraints Digest VACUOUSLY when the table's first column is not the quote — a false negative; plus two smaller /fabrik-plan-review frictions."
+}

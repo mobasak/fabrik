@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:54.592213Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ccec009d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3YSJTV1ZB9FCG3HTJNJXQVK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "request — an auto-armed fabrik-mail watcher so a hub session acts on new mail without a prompt, and survives a window restart"
+}

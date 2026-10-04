@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:07.250197Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-86879567",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QTXJ1161T559AWCVB5QY8M",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: request one new row in the closed audit action vocabulary — `admin.lead_reenrich_requested` — in .windsurf/rules/core/app-audit-log.md § `admin.*` (the pack is synced; the project cannot add it, check_synced_unmodified.py blocks the local edit, and the pack's own rule at :79 says \"add it here"
+}

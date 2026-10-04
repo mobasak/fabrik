@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:39.402372Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4ae6a2d9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WV113NVYTRSES0NRJ71FGF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "addendum to 01M3WTFXV99T20Q0ZYSTX8TB4E — /fabrik-release's unlistable ring has no pointer to 89 § 7, and step 2's asset list omits the required promo tile"
+}

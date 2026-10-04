@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:00:55.518756Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-58fe99cd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3PNG4D0BTX89CAVN67Z0JFJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Three plan-review flip gates can report green over nothing — measured on a fabrik-lib monolith plan, 2026-09-29"
+}

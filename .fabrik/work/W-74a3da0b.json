@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:20.962303Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-74a3da0b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VBQ657JSBNE4PZ7ZEXD16A",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "/fabrik-review-scoped (and the review-loop contract docs/reference/review-loop-workflow.md) tells a project session to launch Workflow({scriptPath: \"/opt/fabrik/.claude/workflows/fabrik-review-loop.js\"}). From a project worktree (tryton-crm, agent-2, 2026-10-01) the Workflow tool refuses it: \"script"
+}

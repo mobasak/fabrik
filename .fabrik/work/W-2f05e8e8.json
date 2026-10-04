@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:51.773898Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2f05e8e8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3YGSZJCH783MQCZHVMNZY0T",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: /fabrik-review-scoped and fabrik-review-loop.js have two machinery frictions, measured in web-ecommerce-factory/wef1 on 2026-10-02 (W-a9ecae9e, three review rounds)."
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:21.478117Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-60fbf3fb",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M415PN6H69FFSZWZQMZECZ3F",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-f0da6d16 (mail 01M415PN6H69FFSZWZQMZECZ3F repeats mail 01M40KBEQSTWF73Q5Y006X8HC8); tracked there — mail triage 2026-10-04",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "WHAT: a SECOND review seat mutated the operator's LIVE worktree — follow-up to 01M40KBEQSTWF73Q5Y006X8HC8."
+}

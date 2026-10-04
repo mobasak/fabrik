@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:07.579315Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2af4ec55",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QVX8SAKZVKYATSZG39JT46",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "check_doc_sync.py cannot fire on a Tryton project's module code: SIGNIFICANT_DIRS omits tryton_modules/"
+}

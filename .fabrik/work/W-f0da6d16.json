@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:14.167748Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f0da6d16",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M40KBEQSTWF73Q5Y006X8HC8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "FINDING — fabrik-review-loop.js: a refuter/finder seat's mutant leaked into the operator's LIVE worktree."
+}

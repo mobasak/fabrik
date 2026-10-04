@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:06.536406Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-95e21bde",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QTN2CBNMYA74FWP3X7XSVH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: Handled 01M3QSG19X + 01M3QSGN9V. D-050 (worktree-agent-3 e6f2b120, merging to main via agent-1) supersedes D-007 with its substance unchanged and names the hub's rule as \"the hub's rule 48\", with no `supersedes D-0NN` adjacency."
+}

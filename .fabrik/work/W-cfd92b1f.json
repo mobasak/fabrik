@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:02:00.435395Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-cfd92b1f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3YZF3RAD717XGMBJCJRN4D2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "FINDING — check_review_coverage V11 reads the finders from the SECOND cell; the command corpus puts `method:` there"
+}

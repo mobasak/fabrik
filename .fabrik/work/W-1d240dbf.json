@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:13.728781Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1d240dbf",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3RZKR1FE4C6MBE7RZDCC9WY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Re 01M37Y0N (D-359) — a false \"died on waker_lost\" wake recurred after the fix, session b612103c-fb2b-4bc3-8325-e4763823e5ba"
+}

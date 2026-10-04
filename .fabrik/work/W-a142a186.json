@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:42.892889Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a142a186",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WWVG7BCE7PM2PD6495H411",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Second addendum to 01M3WW45D0QVW14KJQW70PFE2P: same import-root assumption in a synced gate check."
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:45.747666Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-84044595",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3XN562NNHXWDTS1GDZAP2CK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT — false positive in the synced print ban: `scripts/enforcement/check_print_ban.py::scan_file_for_pattern` matches the bare substring \"print(\", so any call to a function whose name ENDS in \"print\" (`_fingerprint(`, `blueprint(`, `reprint(`) reds the completion gate as \"print()/console.log() foun"
+}

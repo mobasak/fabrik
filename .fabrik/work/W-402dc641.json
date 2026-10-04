@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:00.728553Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-402dc641",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Q82V0RTXZE7XDSH5VDJE35",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "pack core/60-watchdog.md: Tier-D now has a third prerequisite, snapshot storage (STORAGE_BACKEND + that backend's keys), enforced at apply (D-451)"
+}

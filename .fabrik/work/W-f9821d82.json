@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:00:52.900646Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f9821d82",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3HY58BCTRDH89FB0EAWGH03",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "six identifier checks in infra's scripts accept a trailing newline — re.match(r\"^...$\") lets \"x\\n\" through (scratch_sweep, claude_rotate ×2, claude_broker, quota_dashboard, kaizen_coroner)"
+}

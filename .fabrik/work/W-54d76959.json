@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:01.547915Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-54d76959",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QA9YQAR4FT542J6CFBT8TY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: The final_gate Stop hook's \"UNREVIEWED SPONTANEOUS WORK\" cause blocked a turn naming tests/trytond/test_wizard_form_company.py."
+}

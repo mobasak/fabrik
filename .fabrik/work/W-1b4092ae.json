@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:04.639041Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1b4092ae",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3QJGF4TC0CAM4J71F47PMEK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Multi-agent operating model — six coordination defects measured in one day in a 3-agent repo"
+}

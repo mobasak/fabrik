@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:00:58.646221Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8e191ba7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Q2QP6XP3WJCB6GPNW7GQ73",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-865bc6b5 (mail 01M3Q2QP6XP3WJCB6GPNW7GQ73 repeats mail 01M3Q1QP9ZH70FPHY1KZ1E74E2); tracked there — mail triage 2026-10-04",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "relay (fabrik-lib 01M3Q1QP9Z/01M3Q1QP8B, D-324): pack 85-payments-billing.md needs three edits once payments ships scoped service roles"
+}

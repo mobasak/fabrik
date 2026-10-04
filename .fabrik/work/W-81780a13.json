@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:55.301882Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-81780a13",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3YSRZM2AA8ENN0HTXN5QQAY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: work.py's DECISION harvest files a NEW awaiting-operator item whenever a re-emitted DECISION block is re-worded — one plan-3 approval question became 4 items in 30 min here (W-5a723715, W-3d1d2cfa, W-0cab7373, W-8c38ccb4)."
+}

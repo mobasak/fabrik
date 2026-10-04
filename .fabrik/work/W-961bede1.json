@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:11.194969Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-961bede1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3RTNQ8CSDM0QD6YKFTZ314E",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "docs_updater.py --sync strips hand-written INDEX.md descriptions when it regenerates the STRUCTURE block"
+}

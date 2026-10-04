@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:23.953982Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8cf640a2",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VX3S439T1P8XZQPJJV9F8R",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "# /fabrik-ui-design-review calls the mobile component pack a house identity's \"RN variant\" — stale since D-473"
+}

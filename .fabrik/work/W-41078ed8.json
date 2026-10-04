@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:08.257033Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-41078ed8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3RPH0MCDZVNR7Y2TPJ1Q6B4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "work store lost a live operator-dispatched program — three mechanism gaps (work.py migrate owner, NEXT:none unchecked, duplicate items)"
+}

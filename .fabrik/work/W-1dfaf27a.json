@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:00:56.684713Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1dfaf27a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3PP0DG12JVRPD980QMHBT7C",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Steps 1, 2, 3 and 5 are done. ⛔ **Step 4 I am REFUSING, because its stated premise is false in this repo and following it would destroy 8,869 characters of security evidence.** Measured below."
+}

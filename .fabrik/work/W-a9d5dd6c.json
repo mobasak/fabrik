@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T08:01:25.156341Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a9d5dd6c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3VYJBYN8BXK1MKEJTWGESP4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Three-window model in iterative_image_editor — 8 failure classes measured in one session, and a 9-point protocol (operator asked me to report this to infra)"
+}
