@@ -70,6 +70,7 @@ NOT in this driver:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -495,8 +496,13 @@ class WatchdogDriver:
         except Exception as e:  # noqa: BLE001 — wrap unknown failures
             raise WatchdogProvisionError(f"watchdog provision failed: {e!r}") from e
         finally:
-            if rctx.build_ctx_local and rctx.build_ctx_local.exists():
-                shutil.rmtree(rctx.build_ctx_local, ignore_errors=True)
+            if rctx.build_ctx_local:
+                if rctx.build_ctx_local.exists():
+                    shutil.rmtree(rctx.build_ctx_local, ignore_errors=True)
+                # _build_image writes the tarball BESIDE the context dir, not inside it. Best-effort
+                # like the rmtree: an OSError here must not replace the build's own error.
+                with contextlib.suppress(OSError):
+                    rctx.build_ctx_local.with_suffix(".tar.gz").unlink(missing_ok=True)
             # Best-effort: clean the remote build dir whether or not build succeeded.
             try:
                 ssh(f"sudo rm -rf {VPS_BUILD_ROOT}/{rctx.project_id}", timeout=15)
@@ -688,8 +694,16 @@ class WatchdogDriver:
             )
         local_ctx = Path(tempfile.mkdtemp(prefix=f"watchdog-build-{rctx.project_id}-"))
         rctx.build_ctx_local = local_ctx
-        # 1. Mirror the sidecar tree.
-        shutil.copytree(SIDECAR_SOURCE, local_ctx, dirs_exist_ok=True)
+        # 1. Mirror the sidecar tree, minus the tool caches the source accumulates on this box
+        # (scaffold's list, imported here so there is one; deferred, as scaffold is heavy).
+        from fabrik.scaffold import _TOOL_CACHES
+
+        shutil.copytree(
+            SIDECAR_SOURCE,
+            local_ctx,
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns(*_TOOL_CACHES),
+        )
         # 2. Render the settings template.
         tpl_src = local_ctx / "claude-settings.json.template"
         tpl_out = local_ctx / "claude-settings.json"

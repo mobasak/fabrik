@@ -34,6 +34,75 @@ class TestSidecarSource:
         # _build_image() at runtime, so guard it here.
         assert SIDECAR_SOURCE.is_dir(), f"sidecar vendor path missing: {SIDECAR_SOURCE}"
 
+    def test_the_build_context_leaves_the_tool_caches_behind(self, tmp_path, monkeypatch):
+        """The sidecar source on this box accumulates tool caches; a bare copytree shipped
+        them into every sidecar image (W-f829a5aa)."""
+        src = tmp_path / "watchdog_sidecar"
+        (src / "pkg" / "__pycache__").mkdir(parents=True)
+        (src / "pkg" / "agent.py").write_text("x = 1\n")
+        (src / "pkg" / "__pycache__" / "agent.cpython-312.pyc").write_bytes(b"\0")
+        (src / "stray.pyc").write_bytes(b"\0")
+        for cache in (".mypy_cache", ".pytest_cache", ".ruff_cache"):
+            (src / cache).mkdir()
+            (src / cache / "entry").write_text("cached\n")
+        monkeypatch.setattr("fabrik.drivers.watchdog.SIDECAR_SOURCE", src)
+        ctx_dir = tmp_path / "ctx"
+        ctx_dir.mkdir()
+        monkeypatch.setattr("fabrik.drivers.watchdog.tempfile.mkdtemp", lambda **_kw: str(ctx_dir))
+        rctx = types.SimpleNamespace(project_id="p", main_container="p", project_prefix="p")
+        # No settings template in the fake tree: the build stops right after the copy.
+        with pytest.raises(FileNotFoundError):
+            WatchdogDriver()._build_image(rctx)
+        shipped = sorted(
+            p.relative_to(rctx.build_ctx_local).as_posix() for p in rctx.build_ctx_local.rglob("*")
+        )
+        assert shipped == ["pkg", "pkg/agent.py"]
+
+    def test_provision_removes_the_build_tarball_beside_the_context(self, tmp_path):
+        """_build_image writes <ctx>.tar.gz NEXT TO the context dir; the cleanup removed only the
+        dir, so every build left a tarball in /tmp (W-f829a5aa review)."""
+        d = WatchdogDriver()
+        ctx_dir = tmp_path / "watchdog-build-demo-x"
+
+        def build(rctx):
+            ctx_dir.mkdir()
+            rctx.build_ctx_local = ctx_dir
+            ctx_dir.with_suffix(".tar.gz").write_bytes(b"\0")
+            raise WatchdogProvisionError("scp failed")
+
+        spec = {"id": "demo", "watchdog": {"enabled": True}}
+        with (
+            mock.patch.object(d, "_check_app_healthcheck", return_value=True),
+            mock.patch.object(d, "_build_image", side_effect=build),
+            mock.patch("fabrik.drivers.watchdog.ssh", return_value=""),
+            pytest.raises(WatchdogProvisionError, match="scp failed"),
+        ):
+            d.provision(_ctx(spec))
+        assert not ctx_dir.exists()
+        assert not ctx_dir.with_suffix(".tar.gz").exists(), "the build tarball was left behind"
+
+    def test_a_failing_tarball_cleanup_never_masks_the_build_error(self, tmp_path):
+        """The cleanup is best-effort: a directory squatting on <ctx>.tar.gz makes unlink raise,
+        and that must not replace the build's own error or skip the remote cleanup."""
+        d = WatchdogDriver()
+        ctx_dir = tmp_path / "watchdog-build-demo-y"
+
+        def build(rctx):
+            ctx_dir.mkdir()
+            rctx.build_ctx_local = ctx_dir
+            ctx_dir.with_suffix(".tar.gz").mkdir()
+            raise WatchdogProvisionError("scp failed")
+
+        spec = {"id": "demo", "watchdog": {"enabled": True}}
+        with (
+            mock.patch.object(d, "_check_app_healthcheck", return_value=True),
+            mock.patch.object(d, "_build_image", side_effect=build),
+            mock.patch("fabrik.drivers.watchdog.ssh", return_value="") as remote,
+            pytest.raises(WatchdogProvisionError, match="scp failed"),
+        ):
+            d.provision(_ctx(spec))
+        assert any("rm -rf" in c.args[0] for c in remote.call_args_list), "remote cleanup skipped"
+
 
 class TestDryRun:
     def test_dry_run_returns_image_tag_without_ssh(self):

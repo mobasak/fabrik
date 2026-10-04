@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — watchdog sidecar images no longer carry the box's tool caches or leak a build tarball (2026-10-04)
+`WatchdogDriver._build_image` copied fabrik-lib's `watchdog_sidecar` source into the docker build context with a bare `shutil.copytree`, so the 10 `__pycache__` directories and 56 `.pyc` files the source holds on this box (plus any `.mypy_cache`/`.pytest_cache`/`.ruff_cache`) shipped into every provisioned sidecar image. The copy now ignores scaffold's `_TOOL_CACHES`, the list its own copies already use. The review also found that the build tarball, written beside the context directory, was never removed; `provision()` now deletes it with the directory. W-f829a5aa.
+
 ### Fixed — the Modal driver's docstring no longer quotes a stale price (2026-10-04)
 `src/fabrik/drivers/modal_provider.py` still said Modal costs $4.56/hr for an H100 with a 3.75x CPU+RAM multiplier, "verified 2026-05-24"; the rate table says $3.95/hr, verified 2026-09-27. The docstring now points at `gpu_rent.HOURLY_USD_BY_PROVIDER["modal"]` and `PRICES_VERIFIED` instead of restating a number. It also says Fabrik prices only the GPU (Modal bills CPU and memory separately), that the estimate rounds up to whole hours while the booking is per-second, and when the stale-price warning fires. Its rule-file citation names sections instead of line numbers that had drifted. W-ec265df0.
 
