@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-27T21:15:25.163246Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "996bc8880722df82498cab8a981120132aadff50",
   "id": "W-f829a5aa",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "drivers/watchdog.py:595 copies the fabrik-lib watchdog_sidecar source into each sidecar's docker build context with a bare shutil.copytree — no ignore, so __pycache__/.mypy_cache/.pytest_cache/.ruff_cache ride into every provisioned sidecar image (found by the scaffold tool-cache review, 2026-09-28)"
 }
