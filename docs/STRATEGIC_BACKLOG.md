@@ -111,7 +111,6 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 - **[fleet]** The app-role cutover is refused for the four specs sharing `depends.postgres: main` (2026-09-24) (`W-cd37397f`)
 - **[fleet]** Watchdog cost-budget currency: retired default models, registrar-injected FABRIK_ANALYTICS_URL, cost_ledger GRANTs, zero-cap semantics, fleet re-vendor (`W-cff385d3`)
 - **[fleet]** Existing fleet projects have no `.dockerignore` — the scaffold fix only covers NEW ones (2026-09-03, owner: fleet) (`W-d094ed8f`)
-- **[fleet]** The tick's other stamps do not follow the symlink-refusing standard the chain push set (2026-09-13, owner: fleet) (`W-d33d74a1`)
 - **[fleet]** saas/88 line 56: drop the 'scaffold's terms/privacy are placeholders' warning once the legal-pages build ships (`W-d41bdf6e`)
 - **[fleet]** **"Repeated-flag-no-action" pattern detector** (complement to `detect_reversals.py`): The 2026-06-07 netdata flood was 24 benign "anomaly detected" wakes with no AI action taken — `detect_reversals... (`W-d4a64471`)
 - **[fleet]** **propose/ack peer-protocol verbs** (trio plan Phase 5, deferred): Today the cross-host destructive bridge is operator Telegram `reply "go"`. Build the `propose`/`ack` HTTP verbs in aro-wake only w... (`W-d4dfc554`)

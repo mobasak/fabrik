@@ -2878,10 +2878,8 @@ def _tick_inner() -> int:
             # except, losing the mail AND the telegram) — and must not lose the dedupe either, or
             # the drain re-broadcasts on every 5-minute tick for the whole outage.
             stamp = _drain_stamp_path()
-            try:
-                age = now - stamp.stat().st_mtime
-            except OSError:
-                age = None
+            mtime = _regular_stamp_mtime(stamp)
+            age = None if mtime is None else now - mtime
             if age is not None and age < -_CLOCK_SKEW_TOLERANCE_S:
                 # Same skew clamp as _last_switch_ts / the fleet advisory stamp: a stamp mtime
                 # in the FUTURE must read EXPIRED, never "suppressed until the clock catches up".
@@ -2896,8 +2894,7 @@ def _tick_inner() -> int:
                 _drain_mail(_mailbox_repos(), "quota drain warning\n\n" + msg)
                 _tick_telegram(msg)
                 try:
-                    stamp.touch()
-                    os.utime(stamp, (now, now))
+                    _touch_stamp(stamp, now)
                 except OSError:
                     pass
                 _ledger_append({"event": "drain", "ts": now, "at_pct": hot})
@@ -3104,10 +3101,10 @@ def _identity_probe_due(slugs: list[str], now: float) -> bool:
     ``_CLOCK_SKEW_TOLERANCE_S`` is INVALID and never holds it either (the advisory-stamp
     convention — clock skew must never silence a detector)."""
     for slug in slugs:
-        try:
-            age = now - _identity_probe_stamp(slug).stat().st_mtime
-        except OSError:
+        mtime = _regular_stamp_mtime(_identity_probe_stamp(slug))  # never raises: None = absent
+        if mtime is None:
             continue
+        age = now - mtime
         if age < -_CLOCK_SKEW_TOLERANCE_S:
             continue  # future-dated stamp = invalid: it cannot hold the budget
         if age < _IDENTITY_PROBE_INTERVAL_S:
@@ -3123,13 +3120,8 @@ def _identity_probe_record(slug: str, probed: str | None, now: float) -> None:
     stored verdict unchanged). A transport FAILURE must never reach here — it retries next
     tick, neither silencing nor spamming the net. Best-effort: a lost stamp write costs one
     extra probe, never the pass."""
-    stamp = _identity_probe_stamp(slug)
     try:
-        if probed is not None:
-            stamp.write_text(probed + "\n")
-        else:
-            stamp.touch()
-        os.utime(stamp, (now, now))
+        _touch_stamp(_identity_probe_stamp(slug), now, None if probed is None else probed + "\n")
     except OSError:
         pass
 
@@ -3140,10 +3132,7 @@ def _identity_probe_result(slug: str) -> str | None:
     a stored verdict is never gated by token freshness: the likely aftermath of a corrupted
     dir is that it goes IDLE, and an idle dir's mismatch must keep warning, not vanish 8h
     later while the stamp still holds it."""
-    try:
-        val = _identity_probe_stamp(slug).read_text().strip()
-    except _STATE_DIR_ERRORS:
-        return None
+    val = (_read_regular_stamp(_identity_probe_stamp(slug)) or "").strip()  # never raises
     return val if "@" in val else None
 
 
@@ -5595,17 +5584,16 @@ def _refresh_ping_due(email: str, now: float) -> bool:
     keepalive's clamp: a spurious ping is cheap, a silently skipped one leaves the operator
     staring at a stale wall (the 2026-08-18 incident's dashboard symptom)."""
     interval = _env_float("ROTATE_READING_MAX_AGE_S", 3600.0)
-    stamp = _fleet_refresh_stamp(email)
-    try:
-        age = now - stamp.stat().st_mtime
-    except OSError:
+    mtime = _regular_stamp_mtime(_fleet_refresh_stamp(email))  # never raises: None = absent
+    if mtime is None:
         return True
+    age = now - mtime
     return age >= interval or age < -_CLOCK_SKEW_TOLERANCE_S
 
 
 def _touch_refresh_stamp(email: str) -> None:
     try:
-        _fleet_refresh_stamp(email).touch()
+        _touch_stamp(_fleet_refresh_stamp(email), time.time())
     except OSError:
         pass  # a lost stamp costs one extra ping next tick, never the status itself
 
@@ -6667,10 +6655,13 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     # walled active account never dips below threshold across a reset). A FUTURE-dated stamp (WSL
     # suspend/resume, NTP — the _last_switch_ts clock-skew class) is INVALID and must not silence
     # a live wall until the wall clock catches up: treat it as expired and speak now.
-    try:
-        age = now - stamp.stat().st_mtime
-    except OSError:
-        age = None
+    # A planted SYMLINK is dropped HERE, on the still-walled path only (W-d33d74a1): the latch
+    # below reads the stamp with exists()/_promised_resume, which follow it. Never earlier — a
+    # relief or dwell branch above clears a link through `_clear_stamp`, whose transition fires
+    # the relief WAKE for the sessions `quota_stop.py` was holding on it (review round 2).
+    _drop_planted_stamp(stamp)
+    mtime = _regular_stamp_mtime(stamp)  # a symlink never holds the latch (W-d33d74a1)
+    age = None if mtime is None else now - mtime
     # …and a THIRD re-arm: when the resume instant this episode PROMISED has come and gone
     # while the wall still stands. The message orders every repo to sleep until a named epoch
     # and not to poll; if relief does not arrive, the latch would keep the fleet silent until
@@ -6747,14 +6738,15 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     try:
         # CONTENT = the resume epoch this message promised, so the latch can re-arm when the
         # promise comes due (see _promised_resume). "0" when no relief time could be given.
-        stamp.write_text(
+        # Never through a symlink: the stamp falls back to the shared temp dir (W-d33d74a1).
+        _touch_stamp(
+            stamp,
+            now,
             _stamp_body(
                 str(int(relief[0]) + _drain_resume_lead_s() if relief else 0),
                 _STAMP_TIER_WALLED if walled else _STAMP_TIER_URGENT,
             ),
-            encoding="utf-8",
         )
-        os.utime(stamp, (now, now))
     except OSError as exc:
         # The ledger latch above still bounds the repeat; but a stamp that cannot be written also
         # means `quota_stop.py` sees no hold at all — and at the `walled` tier that is the fleet's
@@ -6950,6 +6942,78 @@ def _write_stamp(path: Path, key: str) -> None:
             if n <= 0:
                 raise OSError(f"{path}: zero-length write")
             buf = buf[n:]
+    finally:
+        os.close(fd)
+
+
+def _touch_stamp(path: Path, now: float, content: str | None = None) -> None:
+    """`_write_stamp`'s rules for the tick's dated stamps (W-d33d74a1): open the 0600 REGULAR file
+    without following a symlink or blocking on a FIFO, write *content* when given (truncating
+    first) or leave the stored bytes alone when not (a touch), then set its mtime to *now* on the
+    open descriptor. These stamps fall back to the shared temp dir, where a planted link would
+    otherwise have the tick write — and date — the link's target. Raises OSError on any refusal."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+    if content is not None:
+        flags |= os.O_TRUNC
+    fd = os.open(path, flags, 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise OSError(f"{path}: not a regular file")
+        os.fchmod(fd, 0o600)
+        buf = (content or "").encode()
+        while buf:
+            n = os.write(fd, buf)
+            if n <= 0:
+                raise OSError(f"{path}: zero-length write")
+            buf = buf[n:]
+        os.utime(fd, (now, now))
+    finally:
+        os.close(fd)
+
+
+def _regular_stamp_mtime(path: Path) -> float | None:
+    """A stamp's mtime, or None when *path* is missing, unreadable, a symlink or anything but a
+    regular file — `_stamp_holds`' rule for the dated stamps, so a link planted in the shared temp
+    fallback can never hold a debounce or a budget with its target's mtime (W-d33d74a1)."""
+    try:
+        st = path.lstat()
+    except OSError:
+        return None
+    return st.st_mtime if stat.S_ISREG(st.st_mode) else None
+
+
+def _drop_planted_stamp(path: Path) -> None:
+    """Remove a SYMLINK sitting at the fleet-exhausted stamp's path (`unlink` removes the link,
+    never its target). This tick only ever writes that stamp as a regular file, so a link there
+    was planted — and every later reader (`stamp.exists()`, `_promised_resume`, `_stamp_tier`,
+    `quota_stop.py`) would follow it: a link to a file carrying a far-future promise held the
+    advisory latched and the fleet silent (W-d33d74a1 review). Best-effort and loud; a link that
+    cannot be removed is reported and the readers' own failure directions stand."""
+    try:
+        if not path.is_symlink():
+            return
+        path.unlink()
+        sys.stderr.write(f"claude_rotate: removed a symlink planted at the stamp path ({path})\n")
+    except OSError as exc:
+        sys.stderr.write(
+            f"claude_rotate: a symlink at the stamp path could not be removed ({path}): {exc}\n"
+        )
+
+
+def _read_regular_stamp(path: Path) -> str | None:
+    """A stamp's text, or None when it cannot be read as a REGULAR file — opened without following
+    a symlink or blocking on a FIFO, so the check and the read are one act (W-d33d74a1)."""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    except OSError:
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return None
+        with os.fdopen(fd, "rb", closefd=False) as fh:
+            return fh.read().decode("utf-8", errors="replace")
+    except OSError:
+        return None
     finally:
         os.close(fd)
 
