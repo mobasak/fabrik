@@ -427,7 +427,7 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 | docusaurus | `templates/docusaurus/` | Documentation site | static | is_public |
 | chrome-extension | `templates/chrome-extension/` | Chrome extension + Python backend | service | (none true; Python backend deploys, CRX ships separately) |
 | mobile-app | `templates/mobile-app/` | React Native | service | (none true; companion backend deploys, app ships via stores) |
-| desktop-app | `templates/desktop-app/` | Electron | service | (none true; companion backend deploys, installer ships separately) |
+| desktop-app | `templates/desktop-app/` | Electron | static | (none true; a packaged installer with no VPS deployment — it ships through your own update domain, `72-desktop.md` § Auto-Update) |
 | static-site | `templates/static-site/` | Next.js / static HTML | static | is_public |
 
 > Each scaffold propagates `.windsurf/rules/` (with subdirectory structure: `core/`, `saas/`, `mobile-app/`, `chrome-ext/`, `desktop-app/`, `ai/` (all six registry subdirs)), and `.windsurf/workflows/` to generated projects automatically.

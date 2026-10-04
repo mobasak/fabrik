@@ -21,7 +21,13 @@
     },
     "directories": {
       "output": "dist"
-    }
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "${env.UPDATE_FEED_URL}/${os}"
+      }
+    ]
   },
   "dependencies": {
     "electron-updater": "^6.1.7"

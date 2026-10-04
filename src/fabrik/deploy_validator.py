@@ -96,7 +96,18 @@ _NO_HTTP_HEALTH_TYPES: frozenset[str] = frozenset(
 
 
 def _check_template_exists(project_type: str) -> ValidationResult:
-    """Check whether a deploy template exists for the given project type."""
+    """Check whether a deploy template exists for the given project type.
+
+    desktop-app is a packaged installer with no VPS deployment (its compose.yaml.j2 was
+    retired, W-bfaa9e9b), so it passes without one — the same exemption the dockerfile and
+    health checks already give it.
+    """
+    if project_type in _ELECTRON_TYPES:
+        return ValidationResult(
+            check="deploy_template",
+            passed=True,
+            message=f"{project_type}: packaged installer, no deployment by design",
+        )
     renderer = TemplateRenderer()
     exists = renderer.template_exists(project_type)
     if exists:

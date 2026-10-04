@@ -23,7 +23,7 @@ All rows are exposed via `fabrik scaffold --type <name>`. (`wordpress` is a reco
 | `file-api` | Node.js 22 (`file-api/Dockerfile.j2`) — presigned-URL file-ops microservice | 3000 | File upload/transform services | service, public, persistent |
 | `file-worker` | Python background worker (variant of file-api) | — | Async file processing | worker, persistent |
 | `chrome-extension` | MV3 (WXT + Preact) | — | Browser extensions; compose.yaml.j2 deploys a companion FastAPI backend via `fabrik apply` | service (all-false flags; backend deployable) |
-| `desktop-app` | Electron-style | — | Desktop apps; template carries a compose.yaml.j2 but the scaffolder does not emit a spec today | service (all-false flags) |
+| `desktop-app` | Electron (electron-builder, NSIS) | — | Desktop apps — a packaged installer with no VPS deployment: a preload bridge, updates from your own domain (`UPDATE_FEED_URL`, `72-desktop.md` § Auto-Update); no compose/Dockerfile, no spec | static (all-false flags) |
 | `mobile-app` | React Native / Expo | — | Mobile apps (EAS deploy); companion backend deployable | service (all-false flags) |
 
 **Note on shape:** these are the template defaults. Any scaffolded project can override its `shape:` block in the spec to turn registrars on or off.
