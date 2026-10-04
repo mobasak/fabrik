@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the GPU reaper no longer destroys our own new pod as an orphan (2026-10-04)
+`gpu_rent` tagged a new pod with `FABRIK_SESSION_ID` at create but wrote the session to the state file only after `wait_for_running` (up to 300 s), so a `fabrik gpu reconcile --auto-destroy` run in that window classed our own healthy pod an orphan and destroyed it. The session is now recorded the moment the provider returns the pod or endpoint id (`_create_pod`'s `on_created` callback; serverless right after the endpoint is returned), so a failed wait also leaves a record marked destroyed or `destroy_pending` instead of nothing. The reaper now marks a session destroyed only when the resource it destroyed is that session's recorded one, so a stale COMMUNITY→SECURE twin pod sharing the session id no longer takes the live pod down with it on the next run. Reported by fabrik-lib (01M43JTSDY); W-2f782cd7. The Modal deploy window this cannot reach is W-36828334.
+
 ### Fixed — the quota board says when it is showing a stale render (2026-10-04)
 When a regeneration raised, the board kept serving its previous page under a header still reading "updated <old time> · refreshes every 20s"; the traceback reached only `~/.claude/quota-dashboard.log`. That is how a TypeError froze it for 16 cycles on 2026-09-07. The served page now carries a red `Stale page` banner when the last regeneration failed (its time and error class, never the message) or when the page is older than a probe cycle plus a minute with no regeneration finished, which is what a hung probe or a restart looks like. The next good regeneration removes it, and `index.html` itself stays the last good render. The synchronous pointer-moved path now serves the stale page with the banner instead of failing the request, and an OSError there no longer runs a second probe. D-557, W-6a0f3c65.
 

@@ -24,6 +24,7 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 - **[unassigned]** spec source.path is an unvalidated str yet deployer_ssh interpolates it unquoted into sudo commands (test -f, cat, cd && docker compose up, mkdir/mv/chown) — a metacharacter in a spec's source.path runs as root on the VPS (2026-10-01, owner: fleet) (`W-2809cce0`)
 - **[unassigned]** Jev pilots in shadow mode: the Stop hook's stall detector, then the skill router's Tier 2 (owner: intel) (`W-2a7390fe`)
 - **[unassigned]** fix_project's root-.gitignore patch writes through a symlinked .gitignore and raises on a directory or non-UTF-8 .gitignore (pre-existing, scaffold.py root patch block) (`W-2eb9f73e`)
+- **[unassigned]** Modal endpoints: app.deploy() inside ModalClient.create_endpoint can be listed by app name (and so tagged FABRIK_SESSION_ID) before gpu_rent records the session, so a reaper run in that window may class our own deploying endpoint an orphan (`W-36828334`)
 - **[unassigned]** gpu_rent: the serverless cost estimate ignores workers_max, so a multi-worker endpoint is under-estimated against max_cost_usd and the daily cap (`W-37a570c1`)
 - **[unassigned]** merge_request.py: the coordinator's ack:no copy and its doorbell line read like an owner request (`W-3eac492f`)
 - **[unassigned]** Workflow seats receive the operator's mid-turn message as their 'relayed request' and can abandon their slice (`W-3f0f5311`)
@@ -87,7 +88,6 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 - **[fleet]** **CI-parity Phase 2 — spec-driven `shape.db_extensions: [pgvector]`**: deferred from [`archived/2026-07-01-plan-fabrik-ci-parity.md`](development/plans/archived/2026-07-01-plan-fabrik-ci-parity.md)... (`W-6017dc33`)
 - **[fleet]** Kaizen observer tiers 2–3 are DEFERRED behind tier 1 and one kappa experiment (2026-09-11, owner: fleet) (`W-60d39719`)
 - **[fleet]** `is_admin_dashboard` gates the whole DOMAIN, so a saas-skeleton cannot have both an admin surface and customers (2026-09-03, owner: fleet) (`W-61360b89`)
-- **[fleet]** Quota board: a render-failure banner, not a fresh-looking page over a stale render (2026-09-07, owner: fleet = me) (`W-6a0f3c65`)
 - **[fleet]** Fleet capability claims in `agents-fabrik.md` were written from intent, never probed — pgvector was false for months (2026-09-03, owner: operator decision + fleet) (`W-6ae262a2`)
 - **[fleet]** fabrik fix cannot re-seed a non-python-api type's own files (saas server/, node-api package.json, …): they come from scaffold generators, not a template map, so fix_project reports them [unsupported-fix] — follow-up to W-526528b6 / mail 01M335ES (`W-6b7ca72a`)
 - **[fleet]** `monitoring_grafana-data` carries no compose labels — it is the one monitoring volume Docker Compose did not create (2026-09-05, owner: fleet) (`W-734936a8`)
@@ -323,6 +323,7 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 - **[infra]** live-fleet test guard residue (review round 3, scope-growth stop): after a wrapper any word naming ssh is refused even as a plain argument; a single-quoted $(ssh) literal is scanned as a substitution; _WRAPPERS is an enumerated list; a script that runs an absolute /usr/bin/ssh or drops PATH bypasses both layers (`W-153f72bf`)
 - **[infra]** Vendor fabrik-lib decision-gate into the hub with its first consumer (pilot 1: final_gate_stop promise/defer detection, shadow mode), per D-550 — intel mail 01M4354D3TE6MC0MRGM57DGTGA (`W-53ee3e71`)
 - **[infra]** fabrik-task: a repo-local heavy-path list so a sync-EXCLUDED repo routes its own gate/hook/enforcement edits up mechanically (`W-677e48b1`)
+- **[infra]** Grader-power sweep of the Stop hook's commit attribution (_session_authorship/_commit_files) (`W-a473d3da`)
 - **[infra]** work.py _linked_items reads (it.get('links') or {}).get(key): a non-dict links makes open_linked/close_linked fail open to None (`W-c373dfe2`)
 - **[intel]** core/tojlo-design-system.md: its sections from Data Tables through Accessibility still restate the template's structure with Tojlo product rules woven in — dedup them (keep the Tojlo rules, point at the template) when a project first declares the Tojlo identity (`W-68b6a454`)
 <!-- AUTO-GENERATED:BACKLOG:END -->

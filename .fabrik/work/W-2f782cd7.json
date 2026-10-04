@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-04T13:59:40.437462Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "c6b404fc342e5f2f1e829365d20eefdad7fe8155",
   "id": "W-2f782cd7",
   "kind": "backlog",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "gpu",
     "money-guard"
