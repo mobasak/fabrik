@@ -1901,6 +1901,48 @@ def _coord_band(transcript: str) -> str | None:
         return None
 
 
+_COORD_MAP_MAX = 256
+_COORD_LAST_ACTION: list[str] = []  # the action the last block named, for the kaizen event
+
+
+def _coordinator_ladder(cands: list, state_path: Path) -> tuple[str, str] | None:
+    """AUTONOMY (work.py `_autonomy_candidates`): act on the FIRST candidate whose subject has not
+    used up its CAP blocks this session. One map entry per subject (`{fp: attempts}`, at most
+    `_COORD_MAP_MAX`, oldest dropped), so a subject exhausted once is never re-armed — A→B→A
+    cannot loop — and an exhausted subject never silences the ones behind it."""
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        state = {}
+    seen = state.get("map") if isinstance(state, dict) else None
+    seen = dict(seen) if isinstance(seen, dict) else {}
+    for cand in cands:
+        if not isinstance(cand, dict) or not cand.get("fp"):
+            continue
+        fp = str(cand["fp"])
+        try:
+            att = int(seen.get(fp, 0))
+        except (TypeError, ValueError):
+            att = 0
+        if att > CAP:
+            continue
+        att += 1
+        seen.pop(fp, None)
+        seen[fp] = att
+        while len(seen) > _COORD_MAP_MAX:
+            seen.pop(next(iter(seen)))
+        try:
+            state_path.write_text(json.dumps({"map": seen}), encoding="utf-8")
+        except OSError:
+            return None
+        text = str(cand.get("text") or "")
+        _COORD_LAST_ACTION[:] = [str(cand.get("action") or "")]
+        if att > CAP:
+            return "", f"Moving on after {CAP} blocked stops on {fp}: {text}\n"
+        return f"WORK WAITING — {cand.get('action')} (attempt {att}/{CAP}). {text}", ""
+    return None
+
+
 def _coordinator_duty(root: Path, sid: str, cwd: Path) -> tuple[str, str] | None:
     """(block reason, warn line) when this Stop must be refused or warned through; None to pass."""
     argv = _COORD_ARGV or (sys.executable, str(root / "scripts" / "work.py"))
@@ -1916,6 +1958,8 @@ def _coordinator_duty(root: Path, sid: str, cwd: Path) -> tuple[str, str] | None
     except ValueError:
         result = None
     state_path = _coord_state_path(sid)
+    if isinstance(result, dict) and isinstance(result.get("candidates"), list):
+        return _coordinator_ladder(result["candidates"], state_path)
     if not isinstance(result, dict) or not result.get("action"):
         state_path.unlink(missing_ok=True)
         return None
@@ -2343,7 +2387,8 @@ _DECISION_HEADING_RE = re.compile(
 )
 _DECISION_FIELDS = ("Question", "Why it is yours", "Options", "Recommendation")
 _DECISION_LABEL_RE = re.compile(
-    r"^[ \t]*(?:[-*•][ \t]+)?[*_]{0,2}(Question|Why it is yours|Options|Recommendation)[*_]{0,2}"
+    r"^[ \t]*(?:[-*•][ \t]+)?[*_]{0,2}(Question|Why it is yours|Options|Recommendation|Panel)"
+    r"[*_]{0,2}"
     r"[ \t]*:[*_]{0,2}[ \t]*(.*)$",
     re.I,
 )
@@ -2357,6 +2402,24 @@ _SEARCHED_EVIDENCE_RE = re.compile(
 # An `asked:`/`scope:` quote shorter than this matches nearly any operator message, which is the
 # cheapest way past the verbatim check (a one-word "scope: the"). Stated for BOTH quotes.
 _DECISION_QUOTE_MIN = 12
+# AUTONOMY (operator ruling 2026-10-04, design W-autonomy): in a repo whose MAIN checkout's
+# `.fabrik/work/config.json` says `"autonomy": true`, `ground: underivable` needs a `Panel:` line —
+# two independent seats, one Opus and one Fable, asked the question, and each one's verdict quoted
+# (`opus="…" fable="…"`, ≥ 12 characters each) verbatim from a subagent-result row written since
+# the operator's last message, ending `split` or `both-underivable`. A panel that ANSWERS the
+# question is the decision and the agent acts on it — the block stands only when the panel could
+# not. `Panel: unavailable` passes only at a RED/WALL band, where the posture hook holds `Agent`.
+# `owned` (the operator's own question or scope) and `gate` (the closed list) stay the operator's.
+# Set by `main` from the flag; `stop_mine.py` never runs `main`, so historical mining keeps
+# today's rules. COBRA (D-253): the cheapest way past is to quote text that no seat said — so each
+# quote must appear in the returned text of a seat whose `resolvedModel` is that model, bound by
+# its `agentId`, since the operator's last message; an echoed or invented verdict fails.
+_PANEL_MODE = False
+_PANEL_RE = re.compile(
+    r"""opus\s*=\s*"([^"]{12,})"\s*fable\s*=\s*"([^"]{12,})"\s*(?:→|->|:|—|-)?\s*"""
+    r"(split|both-underivable)\b",
+    re.I,
+)
 # Operator-entry rows that are the harness's or a hook's words, never the operator's:
 # `scripts/render_chat_history.py`'s `_SKIP_USER_PREFIXES`, the prompt hook's wrapper, and the
 # mesh's machine appends — MIRRORED from `scripts/sysadmin/kaizen_coroner.py::MACHINE_APPEND_MARKS`
@@ -3017,6 +3080,131 @@ def _in_operator_entries(quote: str, transcript_path: str) -> bool | None:
     return False
 
 
+def _autonomy_flag(root: Path) -> bool:
+    """`"autonomy": true` in the MAIN checkout's work-store config — found through git's common
+    dir, so a worktree session (intel, fleet) reads the hub's switch, never its branch copy.
+    Any failure is False: the old rules."""
+    try:
+        r = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        common = Path(r.stdout.strip())
+        if r.returncode != 0 or common.name != ".git":
+            return False
+        cfg = json.loads((common.parent / ".fabrik" / "work" / "config.json").read_text("utf-8"))
+        return isinstance(cfg, dict) and cfg.get("autonomy") is True
+    except Exception:
+        return False
+
+
+def _set_panel_mode(root: Path) -> None:
+    global _PANEL_MODE
+    _PANEL_MODE = _autonomy_flag(root)
+
+
+def _is_operator_prompt(entry: dict) -> bool:
+    """A genuine operator prompt: operator text that is not a delivered subagent, peer or task
+    notice (those arrive as user-role rows too)."""
+    said = _operator_text(entry)
+    return bool(said) and not any(
+        m in said for m in ("<agent-message", "<cross-session-message", "<task-notification")
+    )
+
+
+def _row_text(content: object) -> str:
+    """Every text a user-role row carries — a string, or text / tool_result blocks in a list."""
+    if isinstance(content, str):
+        return content
+    out: list[str] = []
+    if isinstance(content, list):
+        for item in content:
+            if isinstance(item, dict):
+                body = item.get("text") if item.get("type") == "text" else item.get("content")
+                out.append(body if isinstance(body, str) else _row_text(body))
+    return "\n".join(out)
+
+
+def _panel_problem(panel: str, transcript_path: str) -> str:
+    """ "" when the `Panel:` line is backed by the transcript, else what is missing."""
+    if re.match(r"\s*unavailable\b", panel, re.I):
+        if (_coord_band(transcript_path) or "") in _COORD_QUIET_BANDS:
+            return ""
+        return "`Panel: unavailable` is accepted only at a RED/WALL quota band — ask the panel"
+    m = _PANEL_RE.search(panel or "")
+    if not m:
+        return (
+            "autonomy mode: `ground: underivable` needs a `Panel:` line — ask two independent "
+            'seats (one model "opus", one model "fable") the question first, then write '
+            '`Panel: opus="<its verdict>" fable="<its verdict>" → split|both-underivable`; a '
+            "panel that answers it is the decision"
+        )
+    quotes = [_norm_ws(m.group(1)), _norm_ws(m.group(2))]
+    # Each quote must come from ITS seat's own returned text — never any tool result (round 1:
+    # an `echo` of the wanted verdict passed). A seat is an Agent call whose result row carries
+    # `toolUseResult.agentId` + `resolvedModel` (so a seat that inherits its model counts too); a
+    # foreground seat's verdict is that row's text, a background seat's arrives later as a
+    # hand-back row whose harness `origin` names that agentId. Only what follows the operator's
+    # last word.
+    said: dict[str, list[str]] = {"opus": [], "fable": []}
+    seats: dict[str, str] = {}
+    try:
+        with open(transcript_path, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if '"user"' not in line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except Exception:
+                    continue
+                if entry.get("type") != "user":
+                    continue
+                if _is_operator_prompt(entry):
+                    said, seats = {"opus": [], "fable": []}, {}
+                    continue
+                content = (entry.get("message") or {}).get("content")
+                text = _row_text(content)
+                meta = entry.get("toolUseResult")
+                if isinstance(meta, dict) and meta.get("agentId"):
+                    model = str(meta.get("resolvedModel") or "").lower()
+                    fam = next((f for f in ("opus", "fable") if f in model), "")
+                    if fam:
+                        seats[str(meta["agentId"])] = fam
+                        if meta.get("status") != "async_launched":
+                            said[fam].append(_norm_ws(text))
+                    continue
+                # a hand-back is told by the HARNESS's own `origin` record (kind peer, handback,
+                # from = the agentId), never by the tag in its text: a `Bash` echo (round 2) and a
+                # slash-command expansion (round 3, also `isMeta` plain string) both carry the tag
+                origin = entry.get("origin")
+                if (
+                    isinstance(origin, dict)
+                    and origin.get("kind") == "peer"
+                    and origin.get("handback") is True
+                    and str(origin.get("from") or "") in seats
+                ):
+                    said[seats[str(origin["from"])]].append(_norm_ws(text))
+    except OSError:
+        sys.stderr.write("[deferral] cannot read the transcript to verify the panel; allowing it\n")
+        return ""
+    missing = [f for f in ("opus", "fable") if not said[f]]
+    if missing:
+        return (
+            "the Panel: line names a panel the transcript does not show — no returned verdict from "
+            f"a {' or '.join(missing)} seat since the operator's last message"
+        )
+    for who, q in zip(("opus", "fable"), quotes, strict=True):
+        if not any(q in t for t in said[who]):
+            return (
+                f"the {who} verdict quoted on the Panel: line is not in the {who} seat's own "
+                "returned text since the operator's last message"
+            )
+    return ""
+
+
 def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> tuple[bool, str]:
     """(True, ground) when the final message's DECISION block is well-formed and allowed, else
     (False, <the missing or failing item>) — spec § C2's checks, in full:
@@ -3035,7 +3223,7 @@ def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> 
         return False, "no unfenced `DECISION NEEDED (ground: …)` block"
     head, *rest = block.split("\n")
     ground = _decision_heading(head) or ""
-    canon = {f.lower(): f for f in _DECISION_FIELDS}
+    canon = {f.lower(): f for f in (*_DECISION_FIELDS, "Panel")}
     fields: dict[str, str] = {}
     for line in rest:
         lm = _DECISION_LABEL_RE.match(line)
@@ -3051,6 +3239,15 @@ def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> 
         return False, f"unknown ground {ground!r} — one of gate · underivable · owned"
     why = fields["Why it is yours"]
     if ground == "gate":
+        if (
+            _PANEL_MODE
+            and re.search(r"\b(?:design|plan) approval\b", why, re.I)
+            and not _SEARCHED_EVIDENCE_RE.search(why)
+        ):
+            return False, (
+                "a design/plan-approval gate names the artifact it asks about (its path) — "
+                "autonomy mode refuses the bare phrase"
+            )
         if not _DECISION_GATE_RE.search(why):
             return False, (
                 '`ground: gate` names no gate class on its "Why it is yours" line — one of '
@@ -3073,6 +3270,10 @@ def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> 
                 "`ground: underivable` does not state what changes if the answer differs "
                 "(before its searched: clause)"
             )
+        if _PANEL_MODE:
+            problem = _panel_problem(fields.get("Panel", ""), transcript_path)
+            if problem:
+                return False, problem
         return True, "underivable"
     asked = _decision_quote(why, "asked")
     scope = _decision_quote(why, "scope")
@@ -3482,6 +3683,7 @@ def main(argv: list[str]) -> int:
         raw = sys.stdin.read()
         data = json.loads(raw) if raw.strip() else {}
         root = Path(data.get("cwd") or os.getcwd()).resolve()
+        _set_panel_mode(root)
         sid = str(data.get("session_id") or "nosession")
         # The RAW id for the event stream — see _kaizen's docstring on why the
         # "nosession" fallback above must never become an event's sid.
@@ -3876,7 +4078,13 @@ def main(argv: list[str]) -> int:
                     if (_coord_band(transcript_p) or "") not in _COORD_QUIET_BANDS:
                         duty = _coordinator_duty(root, sid, Path(data.get("cwd") or root))
                         if duty and duty[0]:
-                            _kaizen("stop_block", ev_sid, cause="coordinator", outcome="blocked")
+                            _kaizen(
+                                "stop_block",
+                                ev_sid,
+                                cause="coordinator",
+                                outcome="blocked",
+                                action=(_COORD_LAST_ACTION or [""])[0],
+                            )
                             sys.stdout.write(
                                 json.dumps({"decision": "block", "reason": duty[0]}) + "\n"
                             )

@@ -52,7 +52,7 @@ approval arrives only in the operator's own session. The reverse direction is D-
 
 ## Escalation
 
-Blocked per CLAUDE.md's three BLOCKED cases only. Deploys remain trigger-don't-execute with the
+Blocked per CLAUDE.md's three BLOCKED cases only; a decision goes to the Opus + Fable panel first (CLAUDE.md § Autonomy). Deploys remain trigger-don't-execute with the
 operator's go at Gate 2 — a charter never overrides the human gate. Cross-beat urgent work: any
 agent may act under shared-tree discipline; hand off to the default owner — the charter beat tables, machine-readable as the
 catalog's `owner:` field — when the urgency passes. (Coverage note: some beat surfaces —

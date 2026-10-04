@@ -8,7 +8,8 @@ deleted — they end ``done`` or ``dropped``. Shared, unversioned state (the loc
 claims, closed markers and readings) lives in ``<git common dir>/fabrik-work/``, which the main
 checkout and every worktree of the repo see as one directory.
 
-NO IMPLICIT STORE. ``init`` is the only writer of ``config.json``. Every other verb, in a repo
+NO IMPLICIT STORE. ``init`` is the only writer of ``config.json``, save one key a merge owner
+sets by hand: ``"autonomy": true`` turns on the Stop ladder (``_autonomy_candidates``). Every other verb, in a repo
 without ``.fabrik/work/``, exits non-zero naming ``init`` and creates nothing — not in the tree,
 not in the git common directory.
 
@@ -4166,8 +4167,26 @@ def _stop_action(tree: Path, session: str) -> dict:
     if not agent and tree == main and coordinator:
         agent = coordinator
     none = {"agent": agent, "role": "", "action": None, "fp": "", "text": ""}
-    if not _has_store(main) or _holds_claim(tree, session):
+    if not _has_store(main):
         return none
+    if _autonomy_on(main):
+        return _autonomy_action(tree, main, session, agent, is_worker, workers, coordinator, none)
+    if _holds_claim(tree, session):
+        return none
+    return _classic_rungs(tree, main, agent, is_worker, workers, coordinator, none)
+
+
+def _classic_rungs(
+    tree: Path,
+    main: Path,
+    agent: str,
+    is_worker: bool,
+    workers: dict[str, Path],
+    coordinator: str,
+    none: dict,
+) -> dict:
+    """The coordinator rungs of D-521 — claim · doorbell · triage · self — for a session that holds
+    no claim (the classic path) or, under autonomy, as the ladder's middle rungs."""
     pool = _pool(main)
     routable, backlog = len(pool["routable"]), len(pool["backlog"])
     mine = _queued(tree, agent)
@@ -4237,6 +4256,213 @@ def _stop_action(tree: Path, session: str) -> dict:
             "end on a formatted `BLOCKED:` escalation naming why not.",
         }
     return none
+
+
+# ── AUTONOMY: the Stop ladder for a hub that opted in (operator ruling 2026-10-04) ────────────
+# "handle them all waiting tasks, feedbacks, kaizen items by one autonomously … only stop if you
+# cant find answers in our repo" — and "also mails should be handled". With ``"autonomy": true``
+# in the MAIN checkout's config the Stop hook is handed an ORDERED list of candidates, one per
+# SUBJECT (an item, a mail, a feedback queue at its depth), and blocks on the first it has not
+# yet exhausted (``final_gate_stop.py::_coordinator_duty``). The classic path above silenced
+# itself whenever the session held ANY claim — and ending a turn on ``NEXT: W-x`` claims W-x —
+# so the cause never fired for the agent that most needed it (measured: 143 of the hub's 145 live
+# claims held by one session, its last stop passing clean with 12 items queued).
+# COBRA (D-253): the cheapest way past a rung is to make its subject vanish without doing it —
+# ``release`` a claim, ``ack`` a mail unread, mark feedback rows answered with no edit. Each leaves
+# its own audit trail (the next rung names the same owned item; the ``acked-by:`` disposition; the
+# answered row's commit), and every block is a kaizen ``stop_block`` event naming its action.
+AUTONOMY_KEY = "autonomy"
+AUTONOMY_MAX_CANDIDATES = 512
+_ESCAPE = (
+    " — or end on a formatted `BLOCKED:` escalation; a decision goes to an Opus + Fable panel "
+    "first (CLAUDE.md § Autonomy)."
+)
+
+
+def _autonomy_on(main: Path) -> bool:
+    try:
+        return _read_config(main).get(AUTONOMY_KEY) is True
+    except WorkError:
+        return False
+
+
+def _by_priority(items: list[dict]) -> list[dict]:
+    return sorted(items, key=lambda i: (_priority(i), str(i.get("created") or ""), str(i["id"])))
+
+
+def _held_text(item: dict, held: int) -> str:
+    head = f"You hold {held} claims; next (or another held item): " if held > 5 else ""
+    title = item.get("title", "")
+    if item.get("kind") == "mail":
+        mid = _links(item).get("mail") or "?"
+        how = (
+            f"handle mail {mid} — validate, do the work, review it, reply — then "
+            f"`python3 scripts/mail.py ack {mid} --disposition done|blocked|wontfix`"
+        )
+    elif item.get("kind") == "feedback":
+        how = (
+            "answer it with `/fabrik-command-improve`; it closes when its rows are marked answered"
+        )
+    else:
+        how = f"finish it (`python3 scripts/work.py done {item['id']} --evidence <sha>`) or release it"
+    return f"{head}{item['id']} — {title}: {how}{_ESCAPE}"
+
+
+def _mail_candidates(main: Path, agent: str, coordinator: str) -> list[dict]:
+    """``ack: required`` mail in the repo's inbox for ``agent`` — addressed to it, or unaddressed
+    when ``agent`` is the distributor — oldest first; merge-requests are the seventh cause's."""
+    inbox = _mail_root() / main.name / "inbox"
+    mail = _sibling("mail")
+    if mail is None or not inbox.is_dir() or not agent:
+        return []
+    found = []
+    with os.scandir(inbox) as entries:
+        names = sorted(e.name for e in entries)
+    for name in names:
+        if name.startswith(".") or not name.endswith(".md"):
+            continue
+        try:
+            fm = mail._parse((inbox / name).read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            continue
+        if not fm or fm.get("ack") != "required" or fm.get("kind") == "merge-request":
+            continue
+        to = (fm.get("agent") or "").strip()
+        if to != agent and not (not to and agent == coordinator):
+            continue
+        mid = str(fm.get("id") or name[:-3])
+        found.append(
+            {
+                "action": "mail",
+                "fp": f"mail:{mid}",
+                "ts": str(fm.get("ts") or ""),
+                "text": f"Mail {mid} from {fm.get('from', '?')} ({fm.get('kind', '?')}) needs an "
+                f"answer: `python3 scripts/mail.py claim {mid}`, validate it, do the work, review "
+                f"it, reply, then `python3 scripts/mail.py ack {mid} --disposition …`{_ESCAPE}",
+            }
+        )
+    found.sort(key=lambda c: c.pop("ts"))
+    return found
+
+
+def _feedback_candidates(tree: Path) -> list[dict]:
+    if not (tree / "commands" / "_sources").is_dir():
+        return []
+    report = _sibling("command_feedback_report")
+    depths_fn = getattr(report, "queue_depths", None) if report is not None else None
+    depths = depths_fn() if depths_fn is not None else None
+    if not isinstance(depths, dict):
+        return []
+    out = []
+    for cmd, n in sorted(depths.items(), key=lambda kv: (-int(kv[1]), str(kv[0]))):
+        if int(n) <= 0:
+            continue
+        out.append(
+            {
+                "action": "feedback",
+                "fp": f"feedback:{cmd}",  # never the depth: a moving count would re-arm it
+                "text": f"/{cmd} has {int(n)} unanswered feedback verdict(s): run "
+                f"`/fabrik-command-improve {cmd}` — one edit answering the rows it can{_ESCAPE}",
+            }
+        )
+    return out
+
+
+def _autonomy_candidates(
+    tree: Path,
+    main: Path,
+    session: str,
+    agent: str,
+    is_worker: bool,
+    workers: dict[str, Path],
+    coordinator: str,
+    none: dict,
+) -> list[dict]:
+    """The ordered ladder (design: held claims → mail → queued → coordinator rungs → owned →
+    the distributor's feedback queues), one candidate per subject, deduplicated by fingerprint."""
+    items = list(_iter_items(tree))
+    closed = _closed_ids(tree)
+    claims = _live_claims(tree)
+    cands: list[dict] = []
+    held = _by_priority(
+        [
+            i
+            for i in items
+            if (claims.get(i["id"]) or {}).get("session") == session
+            and session
+            and i.get("status") == "open"
+            and i["id"] not in closed
+            and i.get("kind") != "next"
+        ]
+    )
+    for it in held:
+        cands.append(
+            {"action": "continue", "fp": f"item:{it['id']}", "text": _held_text(it, len(held))}
+        )
+    cands.extend(_mail_candidates(main, agent, coordinator))
+    classic = _classic_rungs(tree, main, agent, is_worker, workers, coordinator, none)
+    if classic.get("action"):
+        # a STABLE subject per rung: the classic fps carry live counts and worker names, and a
+        # fingerprint that moves between stops re-arms the ladder forever (round 1, A-sonnet)
+        # Triage keys on WHICH workers sit below the floor — a new one is a new subject (round 2),
+        # while the routable/backlog buckets that moved between stops are dropped.
+        first = _queued(tree, agent)[:1] if classic["action"] == "claim" else []
+        if first:
+            fp = f"item:{first[0]['id']}"
+        elif classic["action"] == "triage":
+            fp = "rung:triage:" + str(classic["fp"])[len("triage:") :].rsplit(":", 2)[0]
+        else:
+            fp = f"rung:{classic['action']}"
+        classic = {**classic, "fp": fp}
+        cands.append({k: classic[k] for k in ("action", "fp", "text")})
+    queued = {i["id"] for i in _queued(tree, agent)}
+    owned = _by_priority(
+        [
+            i
+            for i in _ready_items(tree)
+            if agent
+            and i.get("owner") == agent
+            and i["id"] not in queued
+            and not _is_held(i)
+            and i.get("status") == "open"
+        ]
+    )
+    for it in owned:
+        cands.append(
+            {
+                "action": "owned",
+                "fp": f"item:{it['id']}",
+                "text": f"{it['id']} ({it.get('kind', '?')}, P{_priority(it)}) is yours and "
+                f"waits — {it.get('title', '')}: `python3 scripts/work.py claim {it['id']}` and "
+                f"start it{_ESCAPE}",
+            }
+        )
+    if agent and agent == coordinator:
+        cands.extend(_feedback_candidates(tree))
+    seen: set[str] = set()
+    out = []
+    for c in cands:
+        if c["fp"] not in seen:
+            seen.add(c["fp"])
+            out.append(c)
+    return out[:AUTONOMY_MAX_CANDIDATES]
+
+
+def _autonomy_action(
+    tree: Path,
+    main: Path,
+    session: str,
+    agent: str,
+    is_worker: bool,
+    workers: dict[str, Path],
+    coordinator: str,
+    none: dict,
+) -> dict:
+    cands = _autonomy_candidates(tree, main, session, agent, is_worker, workers, coordinator, none)
+    role = "worker" if is_worker else ("coordinator" if agent and agent == coordinator else "main")
+    if not cands:
+        return {**none, "role": role, "candidates": []}
+    return {**none, **cands[0], "role": role, "candidates": cands}
 
 
 def cmd_queue(repo: Path, args: argparse.Namespace) -> int:

@@ -90,7 +90,7 @@ in the operator's own session. The reverse direction is D-441: a request a hub a
 
 ## Escalation
 
-Blocked per CLAUDE.md's three BLOCKED cases only. Cross-beat urgent work: any agent may act under
+Blocked per CLAUDE.md's three BLOCKED cases only; a decision goes to the Opus + Fable panel first (CLAUDE.md § Autonomy). Cross-beat urgent work: any agent may act under
 shared-tree discipline; hand off to the default owner — the charter beat tables, machine-readable
 as the catalog's `owner:` field — when the urgency passes. (Coverage note: some beat surfaces —
 the `subagent_runs` Postgres table, the synced selection docs under `docs/reference/kilo/` — have

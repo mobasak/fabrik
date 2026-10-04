@@ -56,7 +56,7 @@ approval arrives only in the operator's own session. The reverse direction is D-
 
 ## Escalation
 
-Blocked per CLAUDE.md's three BLOCKED cases only. Cross-beat urgent work: any agent may act under
+Blocked per CLAUDE.md's three BLOCKED cases only; a decision goes to the Opus + Fable panel first (CLAUDE.md § Autonomy). Cross-beat urgent work: any agent may act under
 shared-tree discipline; hand off to the default owner — the charter beat tables,
 machine-readable as the catalog's `owner:` field — when the urgency passes. (Coverage
 note: some beat surfaces — templates/governance/ (the sync payload carve-out) — have no catalog kind yet; where the catalog is

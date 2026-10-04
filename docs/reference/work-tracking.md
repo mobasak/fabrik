@@ -153,7 +153,13 @@ assigned automatically. The Stop hook enforces both sides through `work.py queue
 with queued work and no claim is told to claim it, a worker whose queue is empty rings the
 coordinator, the distributor is told to triage while a present worker sits below the floor and
 work waits (routable or backlog items, or its own queue above the floor), and a
-one-window repo (or one with no distributor) is its own coordinator. Self-service claiming from
+one-window repo (or one with no distributor) is its own coordinator. A repo whose `config.json` carries
+`"autonomy": true` — set by hand by the merge owner, the one key `init` does not write (the hub,
+operator ruling 2026-10-04, D-558) — gets the AUTONOMY LADDER instead: `queue --stop` returns ordered
+`candidates`, one per subject — a claim this session holds, `ack: required` mail for the agent,
+queued work, the coordinator rungs above, the agent's other owned ready items, and for the
+distributor the command-feedback queues — and the Stop hook blocks on each subject in turn, three
+times at most, so holding a claim no longer silences it. Self-service claiming from
 `ready` stays the fallback — `docs/reference/multi-agent-operating-model.md` § Claim or assign.
 
 ## NEXT, DECISION blocks and the register
