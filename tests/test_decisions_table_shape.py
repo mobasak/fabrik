@@ -1,7 +1,11 @@
 """docs/DECISIONS.md is a GFM table read by humans and by `scripts/decisions.py`: a bare `|` in a
 cell (D-099, "user-test | service-test", 2026-09-03) splits the row and misaligns every column
-after it. Every `D-` row must carry no MORE than the separator's pipe count once escaped pipes and
-code spans are removed (a short row renders blank cells and is only reported) (review 2026-09-02-external-services-chain, pass 56)."""
+after it. Every `D-` row must carry EXACTLY the separator's pipe count once escaped pipes and code
+spans are removed: an extra pipe shifts every later column, and a short row drops its why/where
+(review 2026-09-02-external-services-chain, pass 56; short rows red since e777836d1, 2026-09-03).
+A short row is repaired from its own text — its folded why/where MOVED into their own cells, or,
+where none can move, a verbatim excerpt of the same row copied in — never by padding with an empty
+or bare "—" cell (D-561, W-61380819)."""
 
 from __future__ import annotations
 

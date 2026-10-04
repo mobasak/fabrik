@@ -3,9 +3,18 @@ from pathlib import Path
 from scripts.health_summary import scan_health
 
 
+def _root(tmp_path: Path) -> Path:
+    # A SUBDIRECTORY, never tmp_path itself: conftest's autouse pins create their isolation dirs
+    # (sound-locks, kaizen-events, isolated-opt, ...) under the same tmp_path, so scanning it counts
+    # them as projects (same fix as test_external_services_chain.py's gen_dashboard probe).
+    root = tmp_path / "opt"
+    root.mkdir(exist_ok=True)
+    return root
+
+
 class TestScanHealth:
     def test_detects_missing_file(self, tmp_path: Path):
-        project_dir = tmp_path / "my-project"
+        project_dir = _root(tmp_path) / "my-project"
         project_dir.mkdir()
 
         # Create all except AGENTS.md
@@ -14,7 +23,7 @@ class TestScanHealth:
         (project_dir / "compose.yaml").touch()
         (project_dir / "Dockerfile").touch()
 
-        results = scan_health(root=tmp_path)
+        results = scan_health(root=_root(tmp_path))
 
         assert len(results) == 1
         result = results[0]
@@ -23,7 +32,7 @@ class TestScanHealth:
         assert result["status"] != "healthy"
 
     def test_healthy_project(self, tmp_path: Path):
-        project_dir = tmp_path / "healthy-project"
+        project_dir = _root(tmp_path) / "healthy-project"
         project_dir.mkdir()
 
         # Create all essential files
@@ -33,7 +42,7 @@ class TestScanHealth:
         (project_dir / "compose.yaml").touch()
         (project_dir / "Dockerfile").touch()
 
-        results = scan_health(root=tmp_path)
+        results = scan_health(root=_root(tmp_path))
 
         assert len(results) == 1
         result = results[0]
@@ -43,7 +52,7 @@ class TestScanHealth:
 
     def test_skips_excluded_directories(self, tmp_path: Path):
         # Create a directory named 'fabrik' which matches _is_excluded
-        project_dir = tmp_path / "fabrik"
+        project_dir = _root(tmp_path) / "fabrik"
         project_dir.mkdir()
 
         # Create all essential files just in case it were scanned
@@ -53,7 +62,7 @@ class TestScanHealth:
         (project_dir / "compose.yaml").touch()
         (project_dir / "Dockerfile").touch()
 
-        results = scan_health(root=tmp_path)
+        results = scan_health(root=_root(tmp_path))
 
         assert len(results) == 0
 
@@ -61,9 +70,9 @@ class TestScanHealth:
 def test_a_project_without_the_retired_windsurfrules_is_healthy(tmp_path: Path) -> None:
     """D-529: the sync prunes `.windsurfrules` from every project, so its absence is the
     expected state and must not count as a missing essential file."""
-    project_dir = tmp_path / "pruned-project"
+    project_dir = _root(tmp_path) / "pruned-project"
     project_dir.mkdir()
     for name in ("AGENTS.md", ".env.example", "project.yaml", "compose.yaml", "Dockerfile"):
         (project_dir / name).touch()
-    [result] = [r for r in scan_health(root=tmp_path) if r["project"] == "pruned-project"]
+    [result] = [r for r in scan_health(root=_root(tmp_path)) if r["project"] == "pruned-project"]
     assert result["missing"] == [] and result["status"] == "healthy", result
