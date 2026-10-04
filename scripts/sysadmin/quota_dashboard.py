@@ -2509,7 +2509,11 @@ def _with_stale_banner(html: str, page_mtime: float) -> str:
     if failure is not None and failure[0] < page_mtime:
         failure = None  # a page written after the failure is not the failure's stale page
     age_s = max(0.0, time.time() - page_mtime)
-    if failure is None and age_s <= PROBE_INTERVAL_S + PROBE_TIMEOUT_S:
+    # The loop's interval is a PERIOD measured from a probe's START: after a quick probe it waits
+    # ~interval, and the next probe may legally run the full timeout before it writes. So a HEALTHY
+    # page reaches interval + timeout + render before it is replaced; the bound doubles that, so a
+    # merely slow probe never draws the banner (review round 1, S1).
+    if failure is None and age_s <= 2 * (PROBE_INTERVAL_S + PROBE_TIMEOUT_S):
         return html
     age = f"{age_s:.0f} s" if age_s < 120 else f"{age_s / 60:.0f} min"
     if failure is not None:
@@ -2526,7 +2530,11 @@ def _with_stale_banner(html: str, page_mtime: float) -> str:
         f"Stale page: what you see was rendered {escape(age)} ago, and {cause}.</div>"
     )
     anchor = '<div class="wrap">'
-    return html.replace(anchor, anchor + banner, 1) if anchor in html else banner + html
+    if anchor in html:
+        return html.replace(anchor, anchor + banner, 1)
+    # A page without the wrap div (a future template): still inside <body>, never before <!DOCTYPE>.
+    body = re.search(r"<body[^>]*>", html, re.IGNORECASE)
+    return html[: body.end()] + banner + html[body.end() :] if body else banner + html
 
 
 def _generate_locked() -> str:

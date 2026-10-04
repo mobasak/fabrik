@@ -145,7 +145,7 @@ def test_a_page_older_than_a_probe_cycle_says_so_without_any_failure(tmp_path, m
     qd = _load(tmp_path, monkeypatch, max_age="100000")  # no view regenerates
     _good_page(qd, monkeypatch)
     assert _MARKER not in qd._fresh_html(), "a minute old is inside the probe cycle"
-    old = time.time() - (qd.PROBE_INTERVAL_S + qd.PROBE_TIMEOUT_S + 30)
+    old = time.time() - (2 * (qd.PROBE_INTERVAL_S + qd.PROBE_TIMEOUT_S) + 30)
     os.utime(qd._HTML, (old, old))
     served = qd._fresh_html()
     assert _MARKER in served and "no regeneration has finished" in served
@@ -169,3 +169,27 @@ def test_an_oserror_on_the_synchronous_path_probes_once_and_serves_the_stale_pag
     served = qd._fresh_html()
     assert len(calls) == 1, f"one view, one probe; got {len(calls)}"
     assert _MARKER in served and "OSError" in served
+
+
+def test_a_probe_that_uses_its_full_timeout_draws_no_banner(tmp_path, monkeypatch):
+    """Review round 1 (S1): a quick probe, the loop's ~interval wait, then a probe running its whole
+    timeout leaves a HEALTHY page interval + timeout + render old. That must not read as stale."""
+    qd = _load(tmp_path, monkeypatch, max_age="100000")
+    _good_page(qd, monkeypatch)
+    slow_but_healthy = qd.PROBE_INTERVAL_S + qd.PROBE_TIMEOUT_S + 15  # + render and scheduling
+    old = time.time() - slow_but_healthy
+    os.utime(qd._HTML, (old, old))
+    assert _MARKER not in qd._fresh_html()
+
+
+def test_a_page_without_the_wrap_div_gets_the_banner_inside_body(tmp_path, monkeypatch):
+    """Review round 1 (S2): the fallback prepended the banner before <!DOCTYPE>."""
+    qd = _load(tmp_path, monkeypatch)
+    qd._LAST_RENDER_FAILURE[0] = (time.time(), "TypeError")
+    page = (
+        '<!DOCTYPE html><html><head><title>t</title></head><body class="x"><p>hi</p></body></html>'
+    )
+    served = qd._with_stale_banner(page, time.time() - 5)
+    assert served.startswith("<!DOCTYPE html>"), "nothing may precede the doctype"
+    body_at = served.index('<body class="x">') + len('<body class="x">')
+    assert served.index(_MARKER) > body_at and served.count(_MARKER) == 1
