@@ -1525,6 +1525,25 @@ def test_a_wait_failure_leaves_the_session_recorded_and_destroyed():
     assert sess["resource_id"] == "pod-abc" and sess["destroyed_at"] is not None
 
 
+def test_a_wait_failure_then_a_destroy_failure_leaves_the_session_pending_for_the_reaper():
+    """The destroy after a failed wait can fail too; mark_destroy_pending then needs a record to
+    flag, or the reaper never learns to retry it (before W-2f782cd7: 'unknown session')."""
+
+    def boom(_cl):
+        raise RunPodError("pod never reached RUNNING")
+
+    c = _tagged_client(on_wait=boom)
+    c.destroy_pod.side_effect = RunPodError("provider 503 on delete")
+    r = gpu_rent.rent("pod-h100", workload="smoke", client=c, max_cost_usd=50)
+    assert r["success"] is False
+    sess = gpu_state.get_session(r["session_id"])
+    assert sess is not None, "the failed rental must leave its record"
+    assert sess["resource_id"] == "pod-abc"
+    assert sess["destroy_pending"] is True and sess["destroyed_at"] is None
+    pending = [p["resource_id"] for p in gpu_state.reconcile(c)["destroy_pending"]]
+    assert pending == ["pod-abc"], "the reaper's next run must retry the destroy"
+
+
 def test_destroying_a_stale_twin_pod_does_not_mark_our_live_session_destroyed():
     """A create RunPod completed but answered 5xx, then the COMMUNITY->SECURE retry: two tagged pods
     under one FABRIK_SESSION_ID, only the SECURE one recorded. The reaper rightly destroys the stale
