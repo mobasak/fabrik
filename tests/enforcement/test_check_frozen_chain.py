@@ -305,3 +305,114 @@ def test_universal_declarative_body_pin_is_warned(tmp_path):
     body = [f for f in c.check_chain(tmp_path) if "BODY prose" in f]
     assert len(body) == 1, c.check_chain(tmp_path)
     assert "v10" in body[0] and "v11" in body[0]
+
+
+# ── W-ad113de4: a plain-text pin of an UPSTREAM input is read ───────────────────────────────
+
+
+def test_a_plain_upstream_pin_is_checked(tmp_path: Path) -> None:
+    """tojlo-mail's shape: "`docs/data-contract.md` (v2)" while the contract is at v7."""
+    _write(tmp_path, "docs/data-contract.md", "FROZEN", 7)
+    _write(
+        tmp_path,
+        "docs/ui-design.md",
+        "FROZEN",
+        4,
+        "> Screens render only fields frozen in `docs/data-contract.md` (v2). Grounded in the spec.",
+    )
+    findings = c.check_chain(tmp_path)
+    assert len(findings) == 1, findings
+    assert "pins data-contract.md@v2" in findings[0]
+
+
+def test_a_plain_mention_of_a_downstream_doc_is_not_a_pin(tmp_path: Path) -> None:
+    """A contract naming the ui-design it feeds is not pinning an input (17 of 24 mentions were)."""
+    _write(tmp_path, "docs/ui-design.md", "FROZEN", 25)
+    _write(
+        tmp_path,
+        "docs/data-contract.md",
+        "FROZEN",
+        12,
+        "> Screens in `docs/ui-design.md` v22 read these fields.",
+    )
+    assert c.check_chain(tmp_path) == []
+
+
+def test_a_bold_pin_wins_over_a_plain_one(tmp_path: Path) -> None:
+    _write(tmp_path, "docs/data-contract.md", "FROZEN", 9)
+    _write(
+        tmp_path,
+        "docs/ui-design.md",
+        "FROZEN",
+        3,
+        "> Built on `data-contract.md` **v9**; history: once `data-contract.md` v2.",
+    )
+    assert c.check_chain(tmp_path) == []
+
+
+def test_a_number_far_from_the_filename_is_not_read(tmp_path: Path) -> None:
+    """The plain grammar stops at a digit or sentence end — "1.2" or a later sentence never pins."""
+    _write(tmp_path, "docs/flows.md", "FROZEN", 5)
+    _write(
+        tmp_path,
+        "docs/data-contract.md",
+        "FROZEN",
+        3,
+        "> Grounded in `docs/flows.md`. Schema history: v2 added orgs.",
+    )
+    assert c.check_chain(tmp_path) == []
+
+
+def test_a_plain_pin_never_arms_the_body_sweep(tmp_path: Path) -> None:
+    """Review of W-ad113de4: the body sweep read "`docs/flows.md` W3/W4, data-contract v21" as
+    flows@v21 once a plain header pin armed it — only a bold header pin arms the body sweep."""
+    _write(tmp_path, "docs/flows.md", "FROZEN", 2)
+    p = tmp_path / "docs/ui-design.md"
+    p.write_text(
+        "> **Status:** FROZEN  ·  **Version:** v4  ·  **Date:** 2026-08-22\n"
+        "> Journeys: `docs/flows.md` v2.\n\n## Body\n\n"
+        "Banned: any screen not in `docs/flows.md` W3/W4, data-contract v21 forbids it.\n",
+        encoding="utf-8",
+    )
+    assert c.check_chain(tmp_path) == []
+
+
+def _pin_of(header_line: str, own: str = "ui-design.md") -> dict[str, int]:
+    return c._pins(header_line, own)
+
+
+def test_a_suffix_filename_is_not_the_input() -> None:
+    """Design critique: `design-system.md` matched inside `ocoron-design-system.md`."""
+    assert "data-contract.md" not in _pin_of("> Inherits `ocoron-data-contract.md` (v3).")
+
+
+def test_an_arrow_or_range_run_is_read_at_its_end() -> None:
+    assert _pin_of("> Journeys: `docs/flows.md` re-froze v5 → v6.") == {"flows.md": 6}
+    assert _pin_of("> Journeys: `docs/flows.md` v2–v6 history.") == {"flows.md": 6}
+
+
+def test_a_version_of_another_chain_doc_is_not_read() -> None:
+    """ "`docs/flows.md` and data-contract v21" is data-contract's version, not flows'."""
+    assert "flows.md" not in _pin_of("> Built from `docs/flows.md` and data-contract v21.")
+
+
+def test_design_system_is_not_an_upstream_input() -> None:
+    """The documented chain puts design-system DOWNSTREAM of ui-design."""
+    assert _pin_of("> Design system: `docs/design-system.md` v3.") == {}
+
+
+def test_the_plain_gap_is_bounded_and_stops_at_digits_and_clause_marks() -> None:
+    """Design critique: the gap must stop at 30 chars, a digit, `:`, `—` and an opening bold."""
+    far = "> Journeys: `docs/flows.md` " + "and the rest of the journey map here " + "v2."
+    assert "flows.md" not in _pin_of(far)
+    assert "flows.md" not in _pin_of("> Journeys: `docs/flows.md` 1.2 revision then v2.")
+    assert "flows.md" not in _pin_of("> Journeys: `docs/flows.md`: v2 added orgs.")
+    assert "flows.md" not in _pin_of("> Journeys: `docs/flows.md` — see also v3 of the spec.")
+    assert "flows.md" not in _pin_of("> Journeys: `docs/flows.md` > **v3 change (2026-07-07)**")
+
+
+def test_a_word_containing_a_stem_does_not_stop_the_scan() -> None:
+    """Review r1: "flows" inside "workflows" ended the scan and dropped a real plain pin."""
+    assert _pin_of("> Built on `docs/data-contract.md` across workflows v6 total") == {
+        "data-contract.md": 6
+    }

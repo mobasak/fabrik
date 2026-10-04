@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the frozen-chain gate reads a plain-text pin of an upstream input (2026-10-05)
+`check_frozen_chain.py` read a consumer's pin of its input only in bold (`**v4**`). A header that pinned in plain text, such as "`docs/data-contract.md` (v2)", was never compared, so a stale freeze passed silently. tojlo-mail's ui-design pins data-contract v2 while the contract is at v7. When no bold pin exists, the gate now reads a tight plain `vN` right after an UPSTREAM input's filename. Downstream mentions, other documents' versions, history labels and names that merely end in `data-contract.md` are not read. Across 59 repos this adds exactly one finding, the real tojlo-mail one. Decision D-570; reported by trade-intelligence (mail 01M3PRCR).
+
 ### Fixed — `migrate-backlog` titles a table row by its first non-tag column, not column 2 (2026-10-05)
 When a backlog table had an owner column but no Item column, the item title came from the second column. tryton-crm's `Gap | Measured | Consequence | Owner` rows were therefore titled by their measurement (`0 of 2,320`), and a `Lane | Owner | Queue` table by the owner tag itself (`[infra]`). The title now comes from the first column that is not the tag column. Reported by tryton-crm (mail 01M3PP0D).
 

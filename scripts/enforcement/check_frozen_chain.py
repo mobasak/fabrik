@@ -55,6 +55,29 @@ _STATUS_RE = re.compile(
 #: chars after a filename mention within which a bold **vN** counts as its pin
 _PIN_WINDOW = 120
 
+# W-ad113de4 (trade-intelligence 01M3PRCR): a consumer that pins its UPSTREAM input in plain text
+# ("`docs/data-contract.md` (v2)", "`docs/flows.md` v6", "(FROZEN v2)") was never checked — the bold
+# `**vN**` grammar read nothing and the pair was skipped. The fallback is deliberately narrow: only
+# for an input the consumer is built FROM (a header naming a downstream doc is not a pin — measured,
+# 17 of 24 header mentions on the box were such non-pins), and only a `vN` that follows the filename
+# within 30 characters holding no digit and no sentence end (a 120-char loose read misread 3 of 7
+# correct transdoc pins). A bold pin, when present, always wins.
+_UPSTREAM: dict[str, frozenset[str]] = {
+    "data-contract.md": frozenset({"flows.md"}),
+    "ui-design.md": frozenset({"flows.md", "data-contract.md"}),
+}
+# The gap may not cross a digit, a sentence or clause end (`.` `;` `,` `:` `—` `·`), bold (`*`),
+# or ANOTHER chain doc's stem as a whole token — "`docs/flows.md` and data-contract v21" is
+# data-contract's version, not flows'; "workflows" is not a stem. A version followed by an arrow
+# or range run ("v5 → v6", "v2–v6") is read at its END, the current one.
+_PLAIN_PIN_RE = re.compile(
+    r"(?:(?!(?<![\w-])(?:flows|data-contract|ui-design|design-system)(?![\w-]))[^\n\d.;,:*—·]){0,30}?\bv(\d+)\b"
+    r"(?P<run>(?:\s*(?:→|->|–|-|to)\s*v\d+\b)*)"
+)
+_RUN_LAST_RE = re.compile(r"v(\d+)\b(?!.*v\d)")
+# a filename match must not be the tail of a longer name (`ocoron-design-system.md`)
+_NAME_LEFT = r"(?<![\w-])"
+
 # The attestation /fabrik-flows-review and /fabrik-ui-design-review write into a contract.
 # Tolerant on purpose — the real corpus writes all of these:
 #   "**Independently reviewed:** v2 — …"      (transdoc/flows.md, in a blockquote)
@@ -86,7 +109,7 @@ def _header_block(text: str) -> str:
     return " ".join(lines)
 
 
-def _pins(header: str, own_name: str) -> dict[str, int]:
+def _pins(header: str, own_name: str, *, plain: bool = True) -> dict[str, int]:
     """``{registry-basename: pinned version}`` found in the joined header.
 
     MAX per (consumer, input) pair (transdoc round-trip 2026-08-22): the freeze
@@ -102,12 +125,22 @@ def _pins(header: str, own_name: str) -> dict[str, int]:
         base = Path(rel).name
         if base == own_name:
             continue
-        for m in re.finditer(re.escape(base), header):
+        for m in re.finditer(_NAME_LEFT + re.escape(base), header):
             window = header[m.end() : m.end() + _PIN_WINDOW]
             vm = re.search(r"\*\*v(\d+)\*\*", window)
             if vm:
                 v = int(vm.group(1))
                 out[base] = max(out.get(base, v), v)
+        if plain and base not in out and base in _UPSTREAM.get(own_name, frozenset()):
+            plain_vs = [
+                int(rm.group(1))
+                if (rm := _RUN_LAST_RE.search(pm.group("run")))
+                else int(pm.group(1))
+                for m in re.finditer(_NAME_LEFT + re.escape(base), header)
+                if (pm := _PLAIN_PIN_RE.match(header, m.end()))
+            ]
+            if plain_vs:
+                out[base] = max(plain_vs)
     return out
 
 
@@ -186,7 +219,10 @@ def check_chain(root: Path) -> list[str]:
         name = Path(rel).name
         if name not in versions or versions[name][0] == "DRAFT":
             continue
-        header_pins = _pins(headers[name], name)
+        # bold pins only: a plain pin arms the HEADER comparison above, never this body sweep,
+        # whose 40-char window attaches a version to the wrong file in table prose (measured:
+        # trade-intelligence's "`docs/flows.md` W3/W4, data-contract v21" read as flows@v21)
+        header_pins = _pins(headers[name], name, plain=False)
 
         # ── attestation staleness ────────────────────────────────────────────────
         # The review twins write `Independently reviewed: v<N>` into the contract and
