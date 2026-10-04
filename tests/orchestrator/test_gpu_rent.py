@@ -267,6 +267,89 @@ def test_daily_budget_guard_refuses_before_create(monkeypatch):
 
 
 # ============================================================================
+# Non-finite caps and spend never disable a cost guard (fabrik-lib 2699cc9a relay, 01M42Y32)
+# ============================================================================
+# `x > nan` and `x > inf` are always False, so before this a NaN/inf cap or spend admitted
+# any rental. Both entry points share _preflight; each case runs through rent() AND rented().
+
+
+def _enter(entry: str, client: MagicMock, **kw) -> None:
+    if entry == "rent":
+        gpu_rent.rent("pod-h100", workload="smoke", client=client, max_lifetime_hours=1, **kw)
+    else:
+        with gpu_rent.rented(
+            "pod-h100", workload="smoke", client=client, max_lifetime_hours=1, **kw
+        ):
+            pass
+
+
+@pytest.mark.parametrize("entry", ["rent", "rented"])
+@pytest.mark.parametrize("cap", ["nan", "inf", "+inf", "NaN", "Infinity", "not-a-number"])
+def test_a_non_finite_daily_cap_falls_back_to_the_default(entry, cap, monkeypatch):
+    """A NaN/+inf/unparseable MAX_DAILY_GPU_COST means the $50 default — pinned in the message,
+    so a fallback to 0 or a negative (which also refuses here) cannot pass."""
+    monkeypatch.setenv("MAX_DAILY_GPU_COST", cap)
+    from fabrik.ai import tracker as tracker_mod
+
+    monkeypatch.setattr(tracker_mod.UsageTracker, "today_total", lambda self, kind=None: 49.99)
+    c = _mock_client()
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match=r"MAX_DAILY_GPU_COST=\$50\.00"):
+        _enter(entry, c, max_cost_usd=50)
+    c.create_pod.assert_not_called()
+
+
+@pytest.mark.parametrize("entry", ["rent", "rented"])
+@pytest.mark.parametrize(("cap", "shown"), [("-1", r"-1\.00"), ("-inf", "-inf")])
+def test_a_negative_daily_cap_refuses_every_rental(entry, cap, shown, monkeypatch):
+    """The kill-switch direction is kept: a negative cap (-inf included) refuses all, and the
+    value is KEPT — a clamp to 0 would also refuse, so the message pins the sign."""
+    monkeypatch.setenv("MAX_DAILY_GPU_COST", cap)
+    c = _mock_client()
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match=rf"MAX_DAILY_GPU_COST=\${shown}"):
+        _enter(entry, c, max_cost_usd=50)
+    c.create_pod.assert_not_called()
+
+
+@pytest.mark.parametrize("entry", ["rent", "rented"])
+@pytest.mark.parametrize("hours", [float("inf"), float("nan")])
+def test_a_non_finite_lifetime_is_refused_by_the_guard(entry, hours):
+    """math.ceil(inf) raised OverflowError past every caller's `except GPUBudgetExceededError`."""
+    c = _mock_client()
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match="max_lifetime_hours"):
+        if entry == "rent":
+            gpu_rent.rent(
+                "pod-h100", workload="smoke", client=c, max_lifetime_hours=hours, max_cost_usd=50
+            )
+        else:
+            with gpu_rent.rented(
+                "pod-h100", workload="smoke", client=c, max_lifetime_hours=hours, max_cost_usd=50
+            ):
+                pass
+    c.create_pod.assert_not_called()
+
+
+@pytest.mark.parametrize("entry", ["rent", "rented"])
+@pytest.mark.parametrize("max_cost", [float("nan"), float("inf")])
+def test_a_non_finite_max_cost_is_refused(entry, max_cost):
+    c = _mock_client()
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match="finite"):
+        _enter(entry, c, max_cost_usd=max_cost)
+    c.create_pod.assert_not_called()
+
+
+@pytest.mark.parametrize("entry", ["rent", "rented"])
+@pytest.mark.parametrize("spend", [float("nan"), float("-inf"), float("inf")])
+def test_a_non_finite_daily_spend_is_refused(entry, spend, monkeypatch):
+    from fabrik.ai import tracker as tracker_mod
+
+    monkeypatch.setattr(tracker_mod.UsageTracker, "today_total", lambda self, kind=None: spend)
+    c = _mock_client()
+    with pytest.raises(gpu_rent.GPUBudgetExceededError, match="finite"):
+        _enter(entry, c, max_cost_usd=50)
+    c.create_pod.assert_not_called()
+
+
+# ============================================================================
 # Test 12 — unknown kind raises NotImplementedError before any client call
 # ============================================================================
 def test_unknown_kind_raises():

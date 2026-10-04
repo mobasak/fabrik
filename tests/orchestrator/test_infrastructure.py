@@ -855,3 +855,30 @@ class TestOrchestratorWiring:
         sentinel = MagicMock()
         orch = DeploymentOrchestrator(infrastructure_provisioner=sentinel)
         assert orch.infrastructure_provisioner is sentinel
+
+
+# --------------------------------------------------------------------------- #
+# The apply path's watchdog cost ceiling (raw dict — WatchdogConfig is never  #
+# built here), relay 01M42Y32: a non-finite budget is no ceiling at all.      #
+# --------------------------------------------------------------------------- #
+
+
+class TestApplyPathWatchdogCeiling:
+    def test_both_caps_zero_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="uncapped"):
+            resolve_applicability(
+                _spec(watchdog={"enabled": True, "daily_budget_usd": 0, "daily_invocations_cap": 0})
+            )
+
+    @pytest.mark.parametrize("field", ["daily_budget_usd", "per_incident_budget_usd"])
+    @pytest.mark.parametrize("value", [float("inf"), float("nan"), "inf", ".nan"])
+    def test_a_non_finite_budget_is_refused(self, field: str, value: object) -> None:
+        """`inf <= 0` and `nan <= 0` are False, so the uncapped check passed and the driver rendered
+        WATCHDOG_DAILY_BUDGET_USD=inf into the sidecar. A YAML `.inf`/`.nan` arrives as a float."""
+        wd = {"enabled": True, "daily_invocations_cap": 0, "daily_budget_usd": 1.0, field: value}
+        with pytest.raises(ValueError, match="finite"):
+            resolve_applicability(_spec(watchdog=wd))
+
+    def test_finite_budgets_still_pass(self) -> None:
+        wd = {"enabled": True, "daily_budget_usd": 2.5, "per_incident_budget_usd": 0.5}
+        assert resolve_applicability(_spec(watchdog=wd))["watchdog"][0] is True

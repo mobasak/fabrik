@@ -700,6 +700,25 @@ def _compute_actual_cost(kind: str, wall_clock_seconds: float, *, provider: str)
     return round(rate * (wall_clock_seconds / 3600.0), 6)
 
 
+def _daily_gpu_cap() -> float:
+    """``MAX_DAILY_GPU_COST`` as a float, never one that disables the envelope.
+
+    ``float()`` accepts ``nan`` and ``inf``, and ``spend + est > nan`` (or ``> inf``) is always
+    False, so either value silently turned the daily envelope off. A missing, unparseable, NaN
+    or +inf value falls back to the $50 default; a negative value, ``-inf`` included, is kept —
+    it refuses every rental, the kill-switch direction a money error must take. Mirrors
+    fabrik-lib gpu-rent 2699cc9a (relay 01M42Y32).
+    """
+    raw = os.environ.get("MAX_DAILY_GPU_COST", "50")
+    try:
+        cap = float(raw)
+    except (TypeError, ValueError):
+        return 50.0
+    if math.isnan(cap) or cap == math.inf:
+        return 50.0
+    return cap
+
+
 def _preflight(
     kind: str,
     *,
@@ -725,17 +744,28 @@ def _preflight(
             "app.run() context that stops with this process. Use a serverless endpoint instead."
         )
     _warn_if_prices_stale()
+    if not math.isfinite(max_cost_usd):
+        # `est > nan` / `est > inf` is always False: a non-finite cap would admit any call.
+        raise GPUBudgetExceededError(f"max_cost_usd must be a finite number; got {max_cost_usd!r}")
+    if not math.isfinite(max_lifetime_hours):
+        # estimate_cost's math.ceil would raise OverflowError/ValueError — refuse with the guard's
+        # own error, which is what every caller of rent()/rented() catches.
+        raise GPUBudgetExceededError(
+            f"max_lifetime_hours must be a finite number; got {max_lifetime_hours!r}"
+        )
     est = estimate_cost(kind, max_lifetime_hours, provider=provider)
     if est > max_cost_usd:
         raise GPUBudgetExceededError(
             f"estimated cost ${est} exceeds --max-cost ${max_cost_usd} (kind {kind})"
         )
-    try:
-        daily_cap = float(os.environ.get("MAX_DAILY_GPU_COST", "50"))
-    except (TypeError, ValueError):
-        daily_cap = 50.0
+    daily_cap = _daily_gpu_cap()
     tracker = UsageTracker()
     today_gpu_spend = tracker.today_total(kind="gpu")
+    if not math.isfinite(today_gpu_spend):
+        # `nan + est > cap` is always False and `-inf + est` never exceeds a cap: refuse.
+        raise GPUBudgetExceededError(
+            f"daily GPU spend is not a finite number ({today_gpu_spend!r}); refusing"
+        )
     if today_gpu_spend + est > daily_cap:
         raise GPUBudgetExceededError(
             f"daily GPU spend ${today_gpu_spend:.2f} + estimate ${est:.2f} "
