@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Enforcement gap (operator: \"not acceptable, must be prevented\"): unreviewed docs/config and Bash-written edits pass the Stop hook — proposal attached"
 }
