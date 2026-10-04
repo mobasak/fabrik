@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `work.py migrate-backlog` no longer turns empty sections and template placeholders into open work (2026-10-05)
+Migration made every empty `## ` section heading ("Later" in 17 stores) and the scaffold template's own sections and `[Item]` placeholder rows into OPEN items. A fresh scaffold got 6 junk items, two of them with a phantom owner, `resource`. A closed entry whose untagged title starts with `✅ CLOSED —` also migrated as open. A row is now dropped only when its body is blank, structure or template boilerplate. Any heading with real content, such as a "Now" table with real rows, still migrates. An untagged title whose first word is a status marker now resolves. Measured over 28 backlogs: 33 rows dropped, none with content, and 4 rows correctly resolved. Decision D-566; reported by tryton-crm (mail 01M3PJXN).
+
 ### Fixed — deploy commands describe the re-vendored health_probe correctly (2026-10-05)
 After the health_probe re-vendor (fabrik-lib cfd9215f), `/fabrik-deploy-verify`, `/fabrik-deploy-checklist` and `/fabrik-deploy-plan` still said the module imports `python-dotenv` at module level. They now name `httpx` as the module-level import that a leg image must carry; `psycopg2`/`redis` are imported inside their own rows, so a missing driver fails only that row; and `python-dotenv` is needed only for the `.env` load. `/fabrik-deploy-plan`'s executable probe now imports `httpx, dotenv` instead of `dotenv` alone. `.windsurf/rules/core/25-data-postgres.md` cites the module's `_timeout_from_env` by name instead of a stale line number. Reported by fleet (mails 01M44861, 01M448X7).
 

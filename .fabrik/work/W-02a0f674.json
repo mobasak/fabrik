@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Same defect, second verb — `work.py migrate-backlog` turned 10 prose lines into work items (same line-to-item class as --adopt)"
 }

@@ -812,6 +812,15 @@ def _iv2_resolved(title_line: str, checkbox: str, strike_lead: bool, tag_span) -
         # A-O19: a status word directly preceded by PARTIALLY/PARTLY never resolves the row
         if re.search(r"\b(?:PARTIALLY|PARTLY)[ \t]*$", title_line[:hit], re.I):
             continue
+        # W-02a0f674: an untagged, unboxed title whose FIRST word is the marker resolves too
+        if tag_span is None and not checkbox and not title_line[:hit].strip(" \t*_~"):
+            following = title_line[end:].lstrip(" \t*_~")
+            if (
+                _word == "✅"
+                or following[:1] in ("", "—", ":", "(", ",")
+                or re.match(r"\d{4}-\d{2}-\d{2}", following)
+            ):
+                return True
         tail = title_line[end:]
         if re.match(r"^[\s:,\-—]{0,4}(\d{4}-\d{2}-\d{2}|in D-\d+)", tail):
             return True
@@ -823,6 +832,51 @@ def _iv2_resolved(title_line: str, checkbox: str, strike_lead: bool, tag_span) -
         if re.search(r"—\s*$", head):
             return True
     return False
+
+
+def _iv2_structural(row: dict) -> bool:
+    """W-02a0f674, written independently of work.py: the template's own body lines are read from
+    the TEMPLATE FILE here, never from `_TEMPLATE_PLACEHOLDER_LINES`. A row is structure when every
+    line after its first is blank, `---`, inside an HTML comment, a table separator or a template
+    line (list markers ignored), AND it is an untagged unresolved `## ` heading or a template line."""
+
+    def bare(text: str) -> str:
+        text = text.strip()
+        for prefix in ("- [ ] ", "- [x] ", "- [X] ", "* [ ] ", "- ", "* "):
+            if text.startswith(prefix):
+                return text[len(prefix) :].strip()
+        return text
+
+    template = {
+        bare(x)
+        for x in TEMPLATE.read_text(encoding="utf-8").splitlines()
+        if x.strip() and not x.startswith("#")
+    }
+    lines = row["body"].split("\n")
+    commented = False
+    for raw in lines[1:]:
+        kept = ""
+        pos = 0
+        while pos < len(raw):
+            marker = "-->" if commented else "<!--"
+            found = raw.find(marker, pos)
+            if found < 0:
+                kept += "" if commented else raw[pos:]
+                break
+            if not commented:
+                kept += raw[pos:found]
+            pos = found + len(marker)
+            commented = not commented
+        text = kept.strip()
+        if not text or set(text) <= set("-") or set(text) <= set("|:- ") or bare(text) in template:
+            continue
+        return False
+    if commented:
+        return False  # never closed — unjudgeable, so not structure
+    first = lines[0]
+    if first.startswith("## ") and not row["owner"] and not row["resolved"]:
+        return True
+    return bare(first) in template
 
 
 def _iv2_bracket_led(content: str) -> bool:
@@ -1003,7 +1057,7 @@ def test_migrate_backlog_then_render_matches_an_independent_reader_on_the_hub_ba
     open_n = sum(1 for it in items if it["status"] == "open")
     done_n = sum(1 for it in items if it["status"] == "done")
 
-    ref_rows = _independent_scan(hub_text)
+    ref_rows = [r for r in _independent_scan(hub_text) if not _iv2_structural(r)]
     exp_open = sum(1 for r in ref_rows if not r["resolved"])
     exp_done = sum(1 for r in ref_rows if r["resolved"])
 
@@ -1088,3 +1142,127 @@ def test_a_lowercase_item_header_gives_the_title_from_the_item_column(tmp_path):
     _ok(["migrate-backlog"], env, repo)
     titles = [it["title"] for it in _backlog_items(repo)]
     assert any("Lowercase-header work row" in t for t in titles), titles
+
+
+# ── W-02a0f674: structural rows (empty sections, template placeholders) and leading status ─────────
+
+TEMPLATE = (
+    Path(__file__).resolve().parents[1] / "templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md"
+)
+
+SECTIONED = """# Strategic Backlog
+
+## Now — Ready for Focus Window
+
+| Effort | Item | Why Priority | Ready When |
+| :--- | :--- | :--- | :--- |
+| **M** | Real thing to build | value | now |
+
+## Later
+
+---
+
+## Dark mode is dead tokens — nothing ever applies the theme
+a real untagged heading entry; its body stays with it.
+
+## ✅ CLOSED — plan-1's whole-plan review: all 10 findings fixed
+closed text that must not migrate as open work.
+
+## NOT DONE — the import still double-counts
+still open.
+
+- [ ] ✅ a checkbox still unticked keeps its item open
+"""
+
+
+def _migrated(tmp_path, text: str) -> list[dict]:
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    _backlog(repo, text)
+    _ok(["migrate-backlog"], env, repo)
+    return _backlog_items(repo)
+
+
+def test_template_section_heading_is_not_a_row(tmp_path):
+    """W-02a0f674: an empty untagged `## ` section ("Later" in 17 live backlogs) was an OPEN item."""
+    titles = [it["title"] for it in _migrated(tmp_path, SECTIONED)]
+    assert "Later" not in titles, titles
+
+
+def test_fresh_scaffold_template_migrates_nothing(tmp_path):
+    """The template's four sections and two `[Item]` placeholder rows made 6 junk items per scaffold."""
+    items = _migrated(tmp_path, TEMPLATE.read_text(encoding="utf-8"))
+    assert items == [], [it["title"] for it in items]
+
+
+def test_section_with_real_rows_keeps_its_content(tmp_path):
+    """MIRROR: real `Effort | Item` rows under "Now" exist only in that heading's body — never dropped."""
+    now = next(it for it in _migrated(tmp_path, SECTIONED) if it["title"].startswith("Now"))
+    assert "Real thing to build" in now["next"]
+
+
+def test_untagged_real_heading_still_a_row(tmp_path):
+    """MIRROR: 177 untagged `## ` rows live in 26 backlogs and many are real entries."""
+    item = next(it for it in _migrated(tmp_path, SECTIONED) if "Dark mode" in it["title"])
+    assert item["status"] == "open"
+    assert "its body stays with it" in item["next"]
+
+
+def test_leading_status_marker_resolves_untagged_title(tmp_path):
+    items = _migrated(tmp_path, SECTIONED)
+
+    def status(prefix: str) -> str:
+        return next(it["status"] for it in items if it["title"].lstrip("*~ ").startswith(prefix))
+
+    assert status("✅ CLOSED") == "done"
+    assert status("NOT DONE") == "open"
+    assert status("✅ a checkbox") == "open"
+
+
+def test_template_section_set_tracks_the_template():
+    """A changed template body must fail here, not migrate silently into every new scaffold."""
+    work = _work_module()
+    body = set()
+    in_comment = False
+    for raw in TEMPLATE.read_text(encoding="utf-8").split("---", 1)[1].splitlines():
+        line = raw.strip()
+        if in_comment or line.startswith("<!--"):
+            in_comment = "-->" not in line
+            continue
+        if not line or line.startswith("## ") or line == "---" or set(line) <= set("|:- "):
+            continue
+        body.add(line)
+    assert body, "the template lost its body — the test would pass vacuously"
+    assert body <= set(work._TEMPLATE_PLACEHOLDER_LINES), body - set(
+        work._TEMPLATE_PLACEHOLDER_LINES
+    )
+
+
+def test_a_leading_status_word_needs_a_separator(tmp_path):
+    """Review r1: `CLOSED-door policy` and `MOOT court` resolved as done — a word, not a status."""
+    text = (
+        "# B\n\n## CLOSED-door policy change needed for the vendor contract\nstill open.\n\n"
+        "## MOOT court preparation notes\nprose.\n\n## DONE: the export ships CSV\nbody.\n"
+    )
+    status = {it["title"]: it["status"] for it in _migrated(tmp_path, text)}
+    assert status["CLOSED-door policy change needed for the vendor contract"] == "open"
+    assert status["MOOT court preparation notes"] == "open"
+    assert status["DONE: the export ships CSV"] == "done"
+
+
+def test_content_after_a_same_line_comment_keeps_the_row(tmp_path):
+    """Review r1: `<!-- note --> real text` read as empty and the row, with its text, was dropped."""
+    text = "# B\n\n## Later\n<!-- short note --> but a real decision: ship by Friday.\n"
+    items = _migrated(tmp_path, text)
+    assert [it["title"] for it in items] == ["Later"]
+    assert "ship by Friday" in items[0]["next"]
+
+
+def test_an_unclosed_comment_never_hides_content(tmp_path):
+    """Review r2: `<!--` with no `-->` swallowed every later line, and the row with them."""
+    text = (
+        "# B\n\n## Later\n<!-- oops forgot to close\nImportant decision: ship Friday regardless.\n"
+    )
+    items = _migrated(tmp_path, text)
+    assert [it["title"] for it in items] == ["Later"]
+    assert "ship Friday regardless" in items[0]["next"]

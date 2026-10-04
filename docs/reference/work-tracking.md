@@ -342,11 +342,15 @@ the item's `note`). A row starts only at a tagged entry shape (D-407): any
 tag, a checkbox, or a strikethrough; or a row of a table with a Tag/Owner column. Every other line —
 an untagged bullet, a narrative sub-header, prose, a fenced block — is body text of the row above it,
 kept in full in the item's `next`. A row-start line that still fails to parse further (no tag found)
-becomes an item with an empty `owner`, listed by `migrate-backlog` as needing the distributor — nothing
-is dropped. A resolved row — a `[x]` checkbox or a leading strikethrough (either sufficient on its
+becomes an item with an empty `owner`, listed by `migrate-backlog` as needing the distributor. One
+exception (D-566): a row whose body holds nothing but blank lines, `---`, comments, table separators and
+the scaffold template's own placeholder lines is structure, not work, and is skipped when it is an
+untagged, unresolved `## ` section heading or a template placeholder row — so a scaffolded backlog's
+"Later", "Activation" and `[Item]` rows never become open items. A heading with any real body line is
+still an item; nothing with content is dropped. A resolved row — a `[x]` checkbox or a leading strikethrough (either sufficient on its
 own), or `✅`/RESOLVED/CLOSED/DONE/LANDED/MOOT/DRILLED/SHIPPED sitting in a STATUS POSITION (right
-after the tag, after an em dash, immediately before a date/D-id, or — in a table row — as a cell's
-first token), UNLESS negated by an immediately preceding PARTIALLY/PARTLY/NOT or a following
+after the tag, as the first word of an untagged title with no checkbox, followed by `—`, `:`, `(`, a comma, a date or nothing — a leading `✅` on its own (D-566), after an em dash,
+immediately before a date/D-id, or — in a table row — as a cell's first token), UNLESS negated by an immediately preceding PARTIALLY/PARTLY/NOT or a following
 stays/still/remains-open phrase that is not itself past tense — becomes `done` with `legacy: true`,
 exempt from the evidence rule.
 
