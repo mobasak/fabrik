@@ -498,7 +498,7 @@ stores (`~/.claude/manager-accounts/<name>/`). It retires at the M4 sweep — do
 
 ## Successor plan (named, NOT done)
 
-- **M4 retirement sweep** — retire the switch/capture/drift machinery (`--touch` is already retired — only its dead code remains to delete) + the
+- **M4 retirement sweep** — retire the switch/capture/drift machinery (`--touch` is already retired; its credential writer `_file_refreshed_credentials` was deleted 2026-10-04, W-af8fb284, and only the flag's no-op message stays, per D-247) + the
   `manager-accounts` stores (archived to the DR store first), sweeping every consumer:
   `capture-watch.sh` (box-local, `~/.claude/state/`), the removed drift-check triggers'
   remnants, `claude-mesh-test.sh` (box-local, `~/.claude/bin/`)

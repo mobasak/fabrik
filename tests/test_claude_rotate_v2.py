@@ -212,68 +212,6 @@ def test_t5_expiring_snapshot_refreshes_fresh_does_not(tmp_path, monkeypatch):
     assert actions["refreshed"] == [exp["name"]]
 
 
-def test_t5_identity_mismatch_never_filed(tmp_path, monkeypatch):
-    """_file_refreshed_credentials refuses a payload whose profile email doesn't match the
-    store — the misattribution class (2026-08-13) must be impossible on the refresh path."""
-    store = tmp_path / "ob-ocoron-com-s-organization"
-    store.mkdir()
-    (store / ".credentials.json").write_text(
-        json.dumps({"claudeAiOauth": {"accessToken": "OLD", "refreshToken": "OLDR"}})
-    )
-    ok = cr._file_refreshed_credentials(
-        store,
-        {"claudeAiOauth": {"accessToken": "NEW", "refreshToken": "NEWR"}},
-        verified_email="sarp@ocoron.com",
-    )
-    assert ok is False
-    assert (
-        json.loads((store / ".credentials.json").read_text())["claudeAiOauth"]["accessToken"]
-        == "OLD"
-    ), "mismatch must leave the store untouched"
-    ok = cr._file_refreshed_credentials(
-        store,
-        {"claudeAiOauth": {"accessToken": "NEW", "refreshToken": "NEWR"}},
-        verified_email="ob@ocoron.com",
-    )
-    assert ok is True
-    blob = json.loads((store / ".credentials.json").read_text())
-    assert blob["claudeAiOauth"]["accessToken"] == "NEW"
-    assert (store / ".credentials.json.prev").exists(), ".prev must be retained"
-
-
-def test_t5c_provenance_filing_path_still_guards_identity():
-    """T5c RETIRED as a keep-warm test — the HTTP grant is CLI-only (403/1010), so there is
-    no in-tool refresh to file. The provenance FLAG on _file_refreshed_credentials remains
-    (a future CLI-mediated refresh would use it), so its contract is pinned directly."""
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as d:
-        store = Path(d) / "ob-ocoron-com-s-organization"
-        store.mkdir()
-        (store / ".credentials.json").write_text(
-            json.dumps({"claudeAiOauth": {"accessToken": "OLD"}})
-        )
-        assert (
-            cr._file_refreshed_credentials(
-                store,
-                {"claudeAiOauth": {"accessToken": "NEW"}},
-                verified_email=None,
-                provenance=True,
-            )
-            is True
-        )
-        assert (
-            json.loads((store / ".credentials.json").read_text())["claudeAiOauth"]["accessToken"]
-            == "NEW"
-        )
-        assert (
-            cr._file_refreshed_credentials(
-                store, {"claudeAiOauth": {"accessToken": "X"}}, verified_email="sarp@ocoron.com"
-            )
-            is False
-        )
-
-
 def test_t5d_unwritable_store_never_consumes_the_token(tmp_path, monkeypatch):
     """F1's other half: prove the store can take the write BEFORE the single-use grant."""
     store = tmp_path / "ob-ocoron-com-s-organization"

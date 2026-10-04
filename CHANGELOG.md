@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed — the rotation tool's unused credential writer (2026-10-04)
+`_file_refreshed_credentials` wrote a refreshed OAuth pair into an account store, but nothing has called it since `--touch` was retired, and `_keepwarm_refresh` can never produce a pair to file (the grant is CLI-only). It is deleted from `scripts/sysadmin/claude_rotate.py` and its `scripts/aro-wake/` twin, together with the two tests that were its only callers. Refresh chains stay renewed by a monthly `/login` per account (D-247). D-553 records that any future in-tool writer must restore the identity gate this one carried. W-af8fb284.
+
+### Fixed — two tests that failed for reasons outside the code they test (2026-10-04)
+`test_fabrik_apply_command_emits_reminder_on_complete` has exited 1 since 2026-08-31: its hand-rolled `_Ctx` lacked `registrar_failures`, which `fabrik apply` reads on every completed deploy. It now builds a real `DeploymentContext`, so a new context field can no longer break it. `test_modal_create_endpoint_cleans_rendered_template_on_failure` executed the installed Modal SDK through its stand-in template and failed in the merge owner's environment while passing here. The stand-in is now plain Python whose `deploy()` raises.
+
 ### Fixed — the command feedback report says how many rows `max wall` and `cache hit` were computed over (2026-10-04)
 Both cells printed a bare figure, so a `—` over no rows read the same as one over forty. They now carry `(rows)` like their neighbours, and a `cache_hit` convention names its denominator (`tok_in + tok_cache_read + tok_cache_create`; output tokens are not in it). `tests/test_select_rules.py`'s electron case failed at HEAD because `rules_match._tree_paths` caches the tree walk per root; the test now clears that cache between its two calls. W-cb639c8a.
 

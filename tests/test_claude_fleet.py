@@ -2302,7 +2302,6 @@ def test_fleet_flip_path_structurally_writes_no_credentials(tmp_path, monkeypatc
         "_tick_switch",
         "_rotate_active_account",
         "_cmd_capture_current",
-        "_file_refreshed_credentials",
         "_secure_write",
         "_replace_file",
         "_cmd_next",
