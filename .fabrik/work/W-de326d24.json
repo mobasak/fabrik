@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T15:41:39.650176Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-de326d24",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M43RDPFFRR9ATBR7V5BM6Q1R",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: fabrik-review-loop.js's seat prompt tells a seat to put the git-archive tree's package parent FIRST on sys.path; in a repo whose src/ holds a package named like a stdlib module, that shadows the stdlib and every probe fails."
+}

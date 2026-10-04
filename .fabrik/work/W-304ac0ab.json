@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T15:41:41.678759Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-304ac0ab",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M43S5AV2GT28FKNCGKCRYSRT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-review-loop.js seat recipe — a scratch-overlay probe still writes the LIVE checkout's data/ files"
+}

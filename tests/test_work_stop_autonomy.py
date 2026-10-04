@@ -251,3 +251,118 @@ def test_triage_keys_on_the_workers_below_the_floor(tmp_path):
         )
         fps.append(next(c["fp"] for c in out if c["action"] == "triage"))
     assert fps == ["rung:triage:w1", "rung:triage:w1", "rung:triage:w1,w9"], fps
+
+
+def _claimed(repo: Path, env: dict, title: str, *tags: str, kind: str = "task") -> str:
+    item = _add(repo, env, kind, title)
+    extra = [a for t in tags for a in ("--tag", t)]
+    _assign(repo, env, item, "coord", *extra)
+    assert run(["claim", item, "--session", SID], env, repo).returncode == 0
+    return item
+
+
+def _subjects(out: dict) -> list[str]:
+    return [c["fp"] for c in out.get("candidates") or []]
+
+
+def _day(y: int, m: int, d: int):
+    import datetime
+
+    return datetime.date(y, m, d)
+
+
+def _load_work():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("work_waits", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_a_held_claim_is_not_pushed(tmp_path):
+    """Intel, 2026-10-04: a claimed item that is not due yet kept the Stop hook pushing it. A
+    parked claim is told to release, never to finish; live work comes first."""
+    env, repo = _setup(tmp_path)
+    parked = _claimed(repo, env, "parked", "hold")
+    live = _claimed(repo, env, "live")
+    out = _stop(repo, env)
+    subjects = _subjects(out)
+    assert out["fp"] == f"item:{live}", out
+    assert f"item:{parked}" not in subjects and f"release:{parked}" in subjects, subjects
+    rel = next(c for c in out["candidates"] if c["fp"] == f"release:{parked}")
+    assert f"work.py release {parked}" in rel["text"] and "(hold)" in rel["text"], rel
+
+
+def test_a_dated_wait_lapses_on_its_date(tmp_path):
+    env, repo = _setup(tmp_path)
+    future = _claimed(repo, env, "not yet", "waits-2999-01-01")
+    past = _claimed(repo, env, "due now", "waits-2000-01-01")
+    subjects = _subjects(_stop(repo, env))
+    assert f"item:{future}" not in subjects and f"release:{future}" in subjects, subjects
+    assert f"item:{past}" in subjects, subjects
+    wp = _load_work()
+    item = {"tags": ["waits-2026-10-09"]}
+    assert wp._is_parked(item, today=_day(2026, 10, 8))
+    assert not wp._is_parked(item, today=_day(2026, 10, 9)), "live again ON the date"
+
+
+def test_a_slug_wait_holds_until_removed(tmp_path):
+    env, repo = _setup(tmp_path)
+    tojlo = _claimed(repo, env, "when Tojlo lands", "waits-tojlo")
+    assert f"item:{tojlo}" not in _subjects(_stop(repo, env))
+    assert _load_work()._is_parked({"tags": ["waits-tojlo"]}, today=_day(2999, 1, 1))
+
+
+def test_an_invalid_date_wait_is_refused(tmp_path):
+    """A typo in a dated wait would park the item forever as a slug: refused when written."""
+    env, repo = _setup(tmp_path)
+    item = _add(repo, env, "task", "t")
+    for bad in ("waits-2026-13-40", "waits-2026-10-9", "waits-20261009", "waits-"):
+        r = run(["assign", item, "--tag", bad], env, repo)
+        assert r.returncode != 0 and "waits-" in r.stderr, (bad, r.stderr)
+        r = run(["add", "--kind", "task", "--title", "x", "--tag", bad], env, repo)
+        assert r.returncode != 0 and "waits-" in r.stderr, ("add", bad, r.stderr)
+    assert run(["assign", item, "--tag", "waits-2026-10-09"], env, repo).returncode == 0
+    wp = _load_work()
+    d = _day(2999, 1, 1)
+    assert wp._is_held({"tags": ["runtime"]}, today=d) and not wp._is_parked(
+        {"tags": ["runtime"]}, today=d
+    )
+    assert wp._is_parked({"tags": ["hold"]}, today=d) and not wp._is_held(
+        {"tags": ["rules"]}, today=d
+    )
+
+
+def test_a_held_task_is_not_queued(tmp_path):
+    env, repo = _setup(tmp_path)
+    item = _add(repo, env, "task", "parked work")
+    _assign(repo, env, item, "coord", "--tag", "waits-2999-01-01")
+    out = _stop(repo, env)
+    assert out.get("action") != "claim" and f"item:{item}" not in _subjects(out), out
+    r = run(["next"], env, repo)
+    assert item not in r.stdout, r.stdout
+
+
+def test_held_claims_are_counted_in_the_text(tmp_path):
+    env, repo = _setup(tmp_path)
+    _claimed(repo, env, "parked one", "hold")
+    owned = _add(repo, env, "task", "parked two")
+    _assign(repo, env, owned, "coord", "--tag", "waits-tojlo")
+    _claimed(repo, env, "live")
+    assert _stop(repo, env)["parked"] == 2
+    theirs = _add(repo, env, "task", "someone else's, parked")
+    _assign(repo, env, theirs, "other", "--tag", "hold")
+    assert run(["claim", theirs, "--session", SID], env, repo).returncode == 0
+    assert _stop(repo, env)["parked"] == 3, "a parked item this session CLAIMED counts too"
+    r = run(["queue"], env, repo)
+    assert "parked 2" in r.stdout, r.stdout
+
+
+def test_an_owned_runtime_task_is_pushed(tmp_path):
+    """`runtime` keeps an item out of AUTOMATIC assignment only; assigned by hand it is due work."""
+    env, repo = _setup(tmp_path)
+    item = _add(repo, env, "backlog", "serialising act")
+    _assign(repo, env, item, "coord", "--tag", "runtime")
+    assert f"item:{item}" in _subjects(_stop(repo, env))

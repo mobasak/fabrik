@@ -13,7 +13,7 @@
   },
   "next": "list in /tmp/claude-1000/-opt-fabrik/dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e/scratchpad/failed34.keep; split by cause (ledger rows absent W-62281917, worktree-location, real regressions), fix the regressions at their commits",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
   "tags": [

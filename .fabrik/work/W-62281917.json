@@ -13,7 +13,7 @@
   },
   "next": "find which commit dropped the rows (git log -S '| D-055 |' -- docs/DECISIONS.md), restore them byte-for-byte, re-run the test",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
   "tags": [

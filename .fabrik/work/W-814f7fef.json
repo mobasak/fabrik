@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T16:54:56.783156Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-814f7fef",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "status": "open",
+  "title": "review-loop PINS grader: assert the whole recipe sentence, not clauses — a substring assertion admits contradicting text inserted between or after its clauses (scoped review of the seat recipe, 2026-10-04: three own-fix rounds, each a new inserted-text mutant)"
+}
