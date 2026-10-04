@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — DATA_SYNC_WORKFLOW's manifest line matches the sync (2026-10-04)
+`docs/workflows/DATA_SYNC_WORKFLOW.md:84` said CORE_SCRIPTS 14 (it is 18, dated now because it moves in both directions), called all 74 non-helper enforcement files "checks" (71 are `check_*.py`, three are modules), said the retired `libs/subagents` only keeps gitignore coverage (it is also searched for stray copies), and left out that the vendored copy prunes every project file not in the hub copy, a project's own included (mail 01M3JCWME8).
+
 ### Fixed — the decision-shape ratchet counts bare pipes only, and a lone dash is not content (2026-10-04)
 `scripts/enforcement/check_decisions_unique.py::malformed_ids` split every DECISIONS row on each `|`, so a pipe inside a backtick code span counted as a cell boundary and six well-formed hub rows (D-285, D-303, D-305, D-372, D-423, D-558) were reported as regressions on every gate run. Rows now split on bare pipes only — code spans and `\|` are masked first, as `tests/test_decisions_table_shape.py` counts them — and a why/where cell with no word at all (`—`, `-`, `…`) reads as empty, closing the one-character padding the ratchet's own docstring warns about (intel mail 01M4405E).
 
