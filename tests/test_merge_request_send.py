@@ -509,11 +509,14 @@ def test_main_checkout_is_derived_exactly_as_mail_py_does(world, monkeypatch):
 
 def test_separate_git_dir_repo_refuses_rather_than_mail_the_git_dirs_name(tmp_path, monkeypatch):
     """git lists a --separate-git-dir repo's main worktree as the GIT DIR (measured: with and
-    without core.worktree), so mail.py would address mailbox `gitdir`. Both derivations agree
-    (pinned); request refuses naming the cause instead of mailing a mailbox nobody reads."""
+    without core.worktree), so mail.py used to address mailbox `gitdir`. From a linked worktree
+    mail.py now refuses too (W-7317befc), so the two agree on refusing; request refuses naming
+    the cause instead of mailing a mailbox nobody reads."""
     world = World(tmp_path, separate_git_dir=True)
     world.push()
-    assert _load()._main_checkout(world.wt) == _mail_main_checkout(monkeypatch, world.wt)
+    with pytest.raises(Exception, match="separate git dir") as refused:
+        _mail_main_checkout(monkeypatch, world.wt)
+    assert type(refused.value).__name__ == "NoMainCheckoutError"
     r = world.run()
     assert r.returncode == 1, r.stdout + r.stderr
     assert "separate git dir" in r.stderr

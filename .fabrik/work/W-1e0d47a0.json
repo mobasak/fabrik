@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T18:13:05.379726Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-1e0d47a0",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make merge_request.py's _main_checkout follow mail.py's resolution (core.worktree from the common dir, the separate-git-dir refusal) or import it, and extend test_main_checkout_is_derived_exactly_as_mail_py_does to a core.worktree world (Opus critique C8 on W-7317befc); no /opt repo uses the layout today",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "merge_request.py::_main_checkout still reads only the first git-worktree-list entry, so in a core.worktree repo it names the git dir's parent while mail.py (W-7317befc) names the working tree; its docstring (:161-170) pins the two derivations equal"
+}
