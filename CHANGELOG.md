@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the SaaS launch checklist points at the abuse pack instead of restating it (2026-10-04)
+- `saas/88-saas-launch-checklist.md` § Abuse Prevention no longer names the synchronous `store_registration_metadata` call as the `registration_ip` write; it points at `saas/87-abuse-detection.md` § Where It Goes step 3 (the write after the signup's `201`). The FingerprintJS line drops its version literal and points at saas/87 § Layer 3 for which majors are open (W-bb20735b).
+- New `tests/test_saas_launch_pack.py` pins both pointers and reads their targets (seen red against the previous checklist text).
+
 ### Fixed — the bootstrap and desktop-app packs no longer say the scripts and scaffold lag them (2026-10-04)
 - `core/90-bootstrap-scripts.md` drops the two "behind this rule" bullets: since fleet's 57bd1a0e3 all three bootstrap scripts write `01-fabrik-hardening.conf` and assert `sshd -T`, and the two that install Claude Code (`bootstrap-vps.sh`, `bootstrap-hub.sh`) use the native installer. Rule 3 now says why the `python-telegram-bot` install still uses the override (W-eccfcc2a).
 - `desktop-app/72-desktop.md` § The fleet today describes what the scaffold ships since fleet's dd2f62c99: a no-IPC preload, a feed from `UPDATE_FEED_URL`, a packaged-only update check, and no deployment.
