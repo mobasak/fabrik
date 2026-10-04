@@ -514,8 +514,9 @@ def test_separate_git_dir_repo_refuses_rather_than_mail_the_git_dirs_name(tmp_pa
     the cause instead of mailing a mailbox nobody reads."""
     world = World(tmp_path, separate_git_dir=True)
     world.push()
-    with pytest.raises(SystemExit, match="separate git dir"):
+    with pytest.raises(Exception, match="separate git dir") as refused:
         _mail_main_checkout(monkeypatch, world.wt)
+    assert type(refused.value).__name__ == "NoMainCheckoutError"
     r = world.run()
     assert r.returncode == 1, r.stdout + r.stderr
     assert "separate git dir" in r.stderr

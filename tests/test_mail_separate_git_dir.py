@@ -63,21 +63,78 @@ def test_a_linked_worktree_of_a_separate_git_dir_repo_refuses_instead_of_guessin
     the hub's mailbox; acting on `gitdir` would be silent mis-delivery."""
     _work, linked = separate
     monkeypatch.chdir(linked)
-    with pytest.raises(SystemExit) as refused:
+    with pytest.raises(mail.NoMainCheckoutError, match="separate git dir"):
         mail._current_repo()
-    assert refused.value.code not in (0, None)
-    assert "separate git dir" in str(refused.value.code)
 
 
-def test_a_core_worktree_repo_names_its_working_tree(tmp_path, monkeypatch):
+def test_the_cli_refuses_like_every_other_refusal(separate, monkeypatch, tmp_path, capsys):
+    """A refusal, not a crash: exit 2 with the file's `REFUSED` prefix, and send() keeps its
+    'raises MailRefusedError on any refusal' contract (Fable critique)."""
+    _work, linked = separate
+    monkeypatch.setenv("FABRIK_MAIL_ROOT", str(tmp_path / "mail"))
+    monkeypatch.chdir(linked)
+    assert mail.main(["list"]) == 2
+    assert "REFUSED" in capsys.readouterr().err
+    assert issubclass(mail.NoMainCheckoutError, mail.MailRefusedError)
+
+
+def test_a_linked_worktree_of_a_bare_repo_refuses_with_a_true_message(tmp_path, monkeypatch):
+    bare = tmp_path / "mirror.git"
+    _git("init", "-q", "--bare", "-b", "main", str(bare), cwd=tmp_path)
+    seed = tmp_path / "seed"
+    _git("clone", "-q", str(bare), str(seed), cwd=tmp_path)
+    _git("commit", "-q", "--allow-empty", "-m", "x", cwd=seed)
+    _git("push", "-q", "origin", "HEAD:main", cwd=seed)
+    _git("worktree", "add", "-q", str(tmp_path / "wt"), "main", cwd=bare)
+    monkeypatch.chdir(tmp_path / "wt")
+    with pytest.raises(mail.NoMainCheckoutError, match="bare repo"):
+        mail._current_repo()
+
+
+def _core_worktree_repo(tmp_path: Path, value: str) -> Path:
     holder = tmp_path / "cw.git"
     work = tmp_path / "cwproject"
     work.mkdir()
     _git("init", "-q", "-b", "main", str(holder), cwd=tmp_path)
-    _git("--git-dir", str(holder / ".git"), "config", "core.worktree", str(work), cwd=tmp_path)
+    _git("--git-dir", str(holder / ".git"), "config", "core.worktree", value, cwd=tmp_path)
     (work / ".git").write_text(f"gitdir: {holder / '.git'}\n")
+    return work
+
+
+def test_a_core_worktree_repo_names_its_working_tree(tmp_path, monkeypatch):
+    work = _core_worktree_repo(tmp_path, str(tmp_path / "cwproject"))
     monkeypatch.chdir(work)
     assert mail._current_repo() == "cwproject", "the mailbox was named after the git dir's parent"
+
+
+def test_a_relative_core_worktree_resolves_against_the_git_dir_not_the_cwd(tmp_path, monkeypatch):
+    """git resolves a relative core.worktree against the git dir; from a subdirectory a join on
+    the cwd would name the wrong tree (round-1 finding: the absolute-path test cannot see it)."""
+    work = _core_worktree_repo(tmp_path, "../../cwproject")
+    deep = work / "pkg" / "mod"  # from here a cwd join of ../../cwproject names work/cwproject
+    deep.mkdir(parents=True)
+    monkeypatch.chdir(deep)
+    # the PATH, not just the name: a wrong join can still end in `cwproject`, and _mail_store
+    # roots the work store at this path
+    assert mail._main_checkout() == work.resolve()
+
+
+def test_a_failing_extra_git_call_falls_back_to_the_porcelain_answer(tmp_path, monkeypatch):
+    """The resolution's extra calls are best-effort: if one fails, mail.py answers what it did
+    before this change (the porcelain's first entry), never the cwd."""
+    main = tmp_path / "hubrepo"
+    _git("init", "-q", "-b", "main", str(main), cwd=tmp_path)
+    (main / "sub").mkdir()
+    monkeypatch.chdir(main / "sub")
+    real = subprocess.run
+
+    def flaky(cmd, *a, **kw):
+        if cmd[:2] == ["git", "rev-parse"]:
+            raise subprocess.TimeoutExpired(cmd, 5)
+        return real(cmd, *a, **kw)
+
+    monkeypatch.setattr(mail.subprocess, "run", flaky)
+    assert mail._current_repo() == "hubrepo"
 
 
 def test_a_normal_repo_and_its_linked_worktree_still_name_the_main_checkout(tmp_path, monkeypatch):

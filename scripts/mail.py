@@ -300,11 +300,11 @@ class MailHoldError(MailRefusedError):
     so every existing catch still works."""
 
 
-class NoMainCheckoutError(SystemExit):
+class NoMainCheckoutError(MailRefusedError):
     """Git keeps no record of this repo's main working tree (a linked worktree of a
     ``--separate-git-dir`` or bare repo), so no mailbox name can be derived (W-7317befc). A
-    ``SystemExit`` so the CLI exits 1 with the message; ``_mail_store`` catches it as "not
-    this session's repo"."""
+    MailRefusedError, so the CLI refuses the way every other refusal does (exit 2, "REFUSED")
+    and ``send()`` keeps its contract; ``_mail_store`` catches it as "not this session's repo"."""
 
 
 # --- env / paths -------------------------------------------------------------
@@ -335,7 +335,7 @@ def _main_checkout() -> Path:
     So ``core.worktree`` — read from the COMMON dir's own config, never the cwd's, which would
     pick up a per-worktree value — wins when set; and when the first entry IS the git common
     dir, the main worktree answers with its own toplevel, while a linked worktree, whose main
-    working tree git records nowhere, raises ``NoMainCheckoutError`` rather than act on a
+    working tree git records nowhere, raises ``NoMainCheckoutError`` (a refusal) rather than act on a
     mailbox named after the git dir. A failure of those extra git calls degrades to the
     porcelain's answer (what this function returned before), never to ``Path.cwd()``."""
 
@@ -374,8 +374,9 @@ def _main_checkout() -> Path:
     except (OSError, subprocess.SubprocessError):
         return first
     raise NoMainCheckoutError(
-        f"mail.py: this repo keeps a separate git dir ({common}) and git records no main working "
-        "tree for a linked worktree to name — run mail.py from the main worktree"
+        f"git lists its git dir ({common}) as this repo's main entry (a separate git dir or a "
+        "bare repo) and records no main working tree for this linked worktree to name — run "
+        "mail.py from the main worktree"
     )
 
 
