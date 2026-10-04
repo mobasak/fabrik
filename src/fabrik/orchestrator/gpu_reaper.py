@@ -179,7 +179,13 @@ def reap(
             else:
                 report["errors"].append({"resource_id": rid, "error": f"unknown type {rtype}"})
                 continue
-            if sid:
+            # Mark the SESSION destroyed only when it is THIS resource's session. An orphan can share
+            # its FABRIK_SESSION_ID with a live, recorded rental: a create that RunPod completed but
+            # answered 5xx, then the COMMUNITY->SECURE retry, leaves two tagged pods under one id.
+            # Stamping that session destroyed made its live pod an orphan on the next run
+            # (W-2f782cd7, Fable design critique).
+            rec = gpu_state.get_session(sid) if sid else None
+            if sid and (rec is None or rec.get("resource_id") == rid):
                 try:
                     gpu_state.mark_destroyed(sid)
                 except Exception as e:

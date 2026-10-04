@@ -344,6 +344,16 @@ shows the RunPod state. Common causes:
 `FABRIK_SESSION_ID` (Fabrik created it, state file got lost), it shows
 under `orphan_pods`. `--auto-destroy` will clean it up.
 
+A rental is written to the state file the moment the provider returns its
+pod or endpoint id, before the up-to-300 s wait for RUNNING, so a reconcile
+run during that wait never classes our own new pod an orphan; a rental whose
+wait fails still leaves its record, marked destroyed or `destroy_pending`
+(W-2f782cd7). Two tagged pods can share one session id (a create RunPod
+completed but answered 5xx, then the COMMUNITY→SECURE retry): the stale one
+is an orphan and is destroyed, and the session stays live because the reaper
+marks a session destroyed only when the destroyed resource is the one it
+records.
+
 Foreign pods (no `FABRIK_SESSION_ID` — operator created via dashboard
 or other tooling) show under `foreign_count` and are **never** touched.
 

@@ -1470,3 +1470,127 @@ def test_runpod_community_fallback_to_secure_on_500(monkeypatch):
     second_call_kwargs = c.create_pod.call_args_list[1].kwargs
     assert second_call_kwargs["cloud_type"] == "SECURE"
     assert result.get("_fabrik_cloud_type_used") == "SECURE"
+
+
+# ============================================================================
+# W-2f782cd7 — a reaper run during the wait must not orphan our own new pod
+# ============================================================================
+def _tagged_client(on_wait=None) -> MagicMock:
+    """A client whose create_pod lists the pod WITH its env tags, as RunPod does, and whose
+    wait_for_running runs ``on_wait`` (the reaper's view, mid-wait) before returning."""
+    live: dict = {}
+    c = MagicMock()
+
+    def create_pod(**kw):
+        pod = {"id": "pod-abc", "desiredStatus": "RUNNING", "env": dict(kw.get("env") or {})}
+        live["pod-abc"] = pod
+        return pod
+
+    def wait_for_running(pod_id, **_kw):
+        if on_wait is not None:
+            on_wait(c)
+        return {"id": pod_id, "desiredStatus": "RUNNING"}
+
+    c.create_pod.side_effect = create_pod
+    c.wait_for_running.side_effect = wait_for_running
+    c.list_pods.side_effect = lambda: list(live.values())
+    c.list_endpoints.return_value = []
+    return c
+
+
+@pytest.mark.parametrize("entry", ["rent", "rented"])
+def test_a_reconcile_during_the_wait_does_not_orphan_our_pod(entry):
+    """The pod is tagged FABRIK_SESSION_ID at create; if the session is written only after
+    wait_for_running (up to 300 s), `reaper --auto-destroy` kills our own healthy pod."""
+    seen: dict = {}
+    c = _tagged_client(on_wait=lambda cl: seen.update(report=gpu_state.reconcile(cl)))
+    _enter(entry, c, max_cost_usd=50)
+    orphans = [o["resource_id"] for o in seen["report"]["orphan_pods"]]
+    assert "pod-abc" not in orphans, "the reaper would destroy our own pod mid-rental"
+
+
+def test_a_wait_failure_leaves_the_session_recorded_and_destroyed():
+    """Before W-2f782cd7 a wait failure left NO state record: _finalize's mark_destroyed only
+    logged 'unknown session'."""
+
+    def boom(_cl):
+        raise RunPodError("pod never reached RUNNING")
+
+    c = _tagged_client(on_wait=boom)
+    r = gpu_rent.rent("pod-h100", workload="smoke", client=c, max_cost_usd=50)
+    assert r["success"] is False
+    c.destroy_pod.assert_called_once_with("pod-abc")
+    sess = gpu_state.get_session(r["session_id"])
+    assert sess is not None, "the failed rental must leave its record"
+    assert sess["resource_id"] == "pod-abc" and sess["destroyed_at"] is not None
+
+
+def test_a_wait_failure_then_a_destroy_failure_leaves_the_session_pending_for_the_reaper():
+    """The destroy after a failed wait can fail too; mark_destroy_pending then needs a record to
+    flag, or the reaper never learns to retry it (before W-2f782cd7: 'unknown session')."""
+
+    def boom(_cl):
+        raise RunPodError("pod never reached RUNNING")
+
+    c = _tagged_client(on_wait=boom)
+    c.destroy_pod.side_effect = RunPodError("provider 503 on delete")
+    r = gpu_rent.rent("pod-h100", workload="smoke", client=c, max_cost_usd=50)
+    assert r["success"] is False
+    sess = gpu_state.get_session(r["session_id"])
+    assert sess is not None, "the failed rental must leave its record"
+    assert sess["resource_id"] == "pod-abc"
+    assert sess["destroy_pending"] is True and sess["destroyed_at"] is None
+    pending = [p["resource_id"] for p in gpu_state.reconcile(c)["destroy_pending"]]
+    assert pending == ["pod-abc"], "the reaper's next run must retry the destroy"
+
+
+def test_destroying_a_stale_twin_pod_does_not_mark_our_live_session_destroyed():
+    """A create RunPod completed but answered 5xx, then the COMMUNITY->SECURE retry: two tagged pods
+    under one FABRIK_SESSION_ID, only the SECURE one recorded. The reaper rightly destroys the stale
+    twin as an orphan, but marking the SESSION destroyed made the live pod an orphan next run."""
+    sid = "gpu-pod-h100-live"
+    future = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
+    state = gpu_state.load_state()
+    state["sessions"][sid] = {
+        "provider": "runpod",
+        "kind": "pod-h100",
+        "workload": "train",
+        "resource_type": "pod",
+        "resource_id": "pod-secure",
+        "created_at": datetime.now(UTC).isoformat(),
+        "expires_at": future,
+        "destroyed_at": None,
+        "destroy_pending": False,
+        "max_lifetime_hours": 1,
+        "cost_estimate_usd": 3.49,
+        "cost_actual_usd": None,
+        "gpu_type_id": "NVIDIA H100 80GB HBM3",
+    }
+    gpu_state.save_state(state)
+    c = _mock_client()
+    c.list_pods.return_value = [
+        {"id": "pod-secure", "env": {"FABRIK_SESSION_ID": sid}},
+        {"id": "pod-community", "env": {"FABRIK_SESSION_ID": sid}},  # the stale twin
+    ]
+    c.list_endpoints.return_value = []
+    report = gpu_reaper.reap(c, auto_destroy=True)
+    c.destroy_pod.assert_called_once_with("pod-community")
+    assert [t["resource_id"] for t in report["destroyed"]] == ["pod-community"]
+    assert gpu_state.get_session(sid)["destroyed_at"] is None, "our live session must stay live"
+
+
+def test_the_session_is_recorded_once_at_creation(monkeypatch):
+    """The record is written the moment the provider returns an id, once — not again after."""
+    writes: list = []
+    real = gpu_state.upsert
+
+    def counting_upsert(sid, **kw):
+        writes.append(kw["resource_id"])
+        return real(sid, **kw)
+
+    monkeypatch.setattr(gpu_state, "upsert", counting_upsert)
+    order: list = []
+    c = _tagged_client(on_wait=lambda _cl: order.append(("wait", len(writes))))
+    gpu_rent.rent("pod-h100", workload="smoke", client=c, max_cost_usd=50)
+    assert order == [("wait", 1)], "recorded BEFORE the wait"
+    assert writes == ["pod-abc"], "and exactly once"

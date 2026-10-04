@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the GPU reaper no longer destroys our own new pod as an orphan (2026-10-04)
+`gpu_rent` tagged a new pod with `FABRIK_SESSION_ID` at create but wrote the session to the state file only after `wait_for_running` (up to 300 s), so a `fabrik gpu reconcile --auto-destroy` run in that window classed our own healthy pod an orphan and destroyed it. The session is now recorded the moment the provider returns the pod or endpoint id (`_create_pod`'s `on_created` callback; serverless right after the endpoint is returned), so a failed wait also leaves a record marked destroyed or `destroy_pending` instead of nothing. The reaper now marks a session destroyed only when the resource it destroyed is that session's recorded one, so a stale COMMUNITY→SECURE twin pod sharing the session id no longer takes the live pod down with it on the next run. Reported by fabrik-lib (01M43JTSDY); W-2f782cd7. The Modal deploy window this cannot reach is W-36828334.
+
 ### Changed — the GPU workers pack states the fixed gpu_rent, not its old gaps (2026-10-04)
 `.windsurf/rules/core/76-gpu-workers.md` no longer warns that serverless endpoints are untagged, that `rented()` lacks the recorded-id fallback, that a never-run reconcile writes `-1`, or that serverless is booked at $0 and every provider at RunPod rates — fleet fixed all four in ae7e93063 (D-433). It now says how an endpoint's name marks it as Fabrik's, that both entry points share one teardown, that Modal pod keep-warm is refused, that an unreconciled state reads `+Inf`, and that every rental is booked at its provider's rate against the daily cap.
 
