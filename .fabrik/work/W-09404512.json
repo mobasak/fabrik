@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T09:26:44.775695Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-09404512",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Z0M0GC3J6EGAQXTT889ADX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "vps1 browserless cannot render gib.gov.tr or resmigazete.gov.tr (other .gov.tr sites render) — the ÖTV fuel reload is blocked"
+}

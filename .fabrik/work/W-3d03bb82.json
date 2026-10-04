@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T11:32:23.324227Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-3d03bb82",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3ZC4M887AKH7BMAF8TC1SV3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Advisory — the production watchdog's incident triage matches a measured Jev use case (pre-filter before the LLM sidecar)"
+}
