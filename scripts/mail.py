@@ -471,11 +471,14 @@ def _frontmatter(
     body: str,
     hops: int = 0,
     agent: str = "",
+    from_agent: str = "",
 ) -> str:
-    # `agent` is the INTRA-mailbox addressee (see _safe_agent). Emitted only when
-    # set, so a message without one is byte-identical to a pre-2026-08-23 message
-    # and every legacy reader is unaffected.
+    # `agent` is the INTRA-mailbox addressee (see _safe_agent); `from-agent` is the
+    # SENDER's role, which a reply is addressed back to (01M3PT248G7A). Each is emitted
+    # only when set, so a message without them is byte-identical to a legacy message and
+    # every legacy reader (`_parse` takes any `key: value` line) is unaffected.
     agent_line = f"agent: {agent}\n" if agent else ""
+    agent_line += f"from-agent: {from_agent}\n" if from_agent else ""
     return (
         "---\n"
         f"id: {mid}\n"
@@ -995,10 +998,29 @@ def send(
         # A reply that DOES resolve its parent inherits the thread's owner, so
         # ownership survives every hop instead of evaporating at the first reply.
         is_thread_reply = kind == "reply" and bool(re)  # "" is no thread ref
+        # The answer goes to the agent who ASKED — the parent's `from-agent` — when it
+        # names a hub beat in this mailbox. Inheriting the parent's addressee instead sent
+        # every hub-internal answer back to its own author (fleet, 2026-09-29: 8 replies).
+        # A parent without one (every legacy message) keeps the inheritance. The role is
+        # trusted only when the parent came from THIS mailbox (`from:` == the reply's `to:`):
+        # a role recorded under another repo or lane name is not a hub beat's word.
+        # Never the replier itself: the asker's own follow-up keeps the thread's addressee, and
+        # a reply that would land in its own author's queue goes out UNADDRESSED instead —
+        # visible to every beat, never hidden where only the replier looks.
         if is_thread_reply and not to_agent and parent is not None:
+            me = _caller_agent()
+            asker = parent.get("from-agent") or ""
             inherited = parent.get("agent") or ""
-            if inherited in HUB_BEATS:
+            if asker in HUB_BEATS and asker != me and parent.get("from") == to:
+                to_agent = asker
+            elif inherited in HUB_BEATS and inherited != me:
                 to_agent = inherited
+            elif inherited and inherited == me:
+                print(
+                    f"mail.py: this reply would be addressed to its own author ({me}) — sent "
+                    "unaddressed; pass --to-agent <role> to name who should read it",
+                    file=sys.stderr,
+                )
         if not to_agent and broadcast and ack == "required":
             raise MailRefusedError(
                 "broadcast + ack:required is a contradiction — an obligation nobody owns "
@@ -1022,7 +1044,17 @@ def send(
         _warn_if_duplicate(to, body)
     mid = _ulid()
     content = _frontmatter(
-        mid, frm, to, _now_iso(), re or "", kind, ack, body, hops=hops, agent=to_agent
+        mid,
+        frm,
+        to,
+        _now_iso(),
+        re or "",
+        kind,
+        ack,
+        body,
+        hops=hops,
+        agent=to_agent,
+        from_agent=_sender_role(),
     )
     return _publish(_mail_root() / to / "inbox", mid, content)
 
@@ -1244,6 +1276,15 @@ def _whoami() -> ModuleType | None:
         return whoami_agent
     except (Exception, SystemExit):  # SystemExit is BaseException — same reasoning as command_run
         return None
+
+
+def _sender_role() -> str:
+    """The sending agent's role for the `from-agent:` header, or "" — an unknown or
+    unsafe name records nothing rather than refusing the send."""
+    try:
+        return _safe_agent(_caller_agent())
+    except (Exception, SystemExit):
+        return ""
 
 
 def _caller_agent() -> str:

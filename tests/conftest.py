@@ -231,6 +231,11 @@ def _isolated_command_run_dir(tmp_path, _private_monkeypatch):
     # graders would otherwise append to the operator's real ~/.claude/state/agent-identity.jsonl.
     # Same class as the three pins above: one autouse pin, no opt-in.
     monkeypatch.setenv("AGENT_IDENTITY_FILE", str(tmp_path / "agent-identity.jsonl"))
+    # The caller's ROLE (`CLAUDE_AGENT`, the first source `whoami_agent.resolve_agent_name` reads):
+    # a hub window runs with it set, and mail.py stamps it into every sent message's `from-agent:`
+    # and reply addressing (01M3PT248G7A) — so a grader's verdict would depend on which window ran
+    # the suite. A test that needs a role sets it itself.
+    monkeypatch.delenv("CLAUDE_AGENT", raising=False)
     yield runs
 
 
