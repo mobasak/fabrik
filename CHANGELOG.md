@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — rivals_run.py is mypy-clean, and three command citations name real rule-pack headings (2026-10-04)
+`scripts/rivals_run.py` reused the name `cell` for a string and then for a dict lookup, which mypy reported on HEAD; the second binding is now `entry` (rendered output unchanged). `/fabrik-release` cited `00-domain-mobile-app.md` "§ updates" and `80-mobile.md` "§ distribution", and `/fabrik-vision` cited `67-file-api.md` "§ KVKK + Article 7(3)" — none of them a heading; each now names the real heading. W-5d4ed90f, W-7e75d679; full /fabrik-review CONVERGED in 2 passes (confirmed 2 → 0).
+
 ### Fixed — the Stop hook recognises a running review whose record spells its command the old way (2026-10-04)
 `final_gate_stop.py` tested a run record's `command` for review-family membership raw, so a record written before `command_run.py` normalised names (`Fabrik-Review-Scoped`, `/fabrik-review`) never exempted the files its review was covering, and the sixth cause blocked the session. The hook now reads the name with the writer's own rule (strip, leading slashes, lower case), pinned by a parity test against `command_run._norm_command`. W-99525a15; full /fabrik-review CONVERGED in 2 passes (confirmed 1 → 0), receipt `docs/development/reviews/2026-10-04-w-99525a15-hook-command-case-review.md`.
 
