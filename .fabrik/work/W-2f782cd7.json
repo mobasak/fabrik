@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T13:59:40.437462Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-2f782cd7",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "record the session (status pending) right after create_pod returns and before wait_for_running, or give reconcile's orphan rule a creation-age grace; write the race as a test first (reported by fabrik-lib 01M43JTSDY for their twin; hub order confirmed gpu_rent.py:541 wait vs :1041 upsert, gpu_state.reconcile has no grace)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "gpu",
+    "money-guard"
+  ],
+  "title": "gpu_rent: a pod is tagged FABRIK_SESSION_ID at create but recorded only after wait_for_running (up to 300 s), so a reaper run in that window classes our own new pod an orphan and auto_destroy can kill it"
+}
