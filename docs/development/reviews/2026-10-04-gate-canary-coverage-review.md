@@ -1,7 +1,7 @@
 # Review — gate canary coverage (W-45d1e850)
 
 **Status:** CONVERGED
-**Surface:** `git rev-parse HEAD` = 7a880a1b671c407b595b0da84ba69d9f3c63fc44; range tip 7a880a1b671c407b595b0da84ba69d9f3c63fc44; `git diff 55dc797a9..7a880a1b6 -- scripts/sysadmin/liveness_audit.py tests/test_gate_check_canaries.py tests/test_liveness_audit.py CHANGELOG.md` md5 e748eead692871ac33ffec6018bb4202 (33321 bytes)
+**Surface:** `git rev-parse HEAD` = 814a37d0a39da8c230e281183df5ffffe7706493; range tip 814a37d0a39da8c230e281183df5ffffe7706493; `git diff 55dc797a9..814a37d0a -- scripts/sysadmin/liveness_audit.py tests/test_gate_check_canaries.py tests/test_liveness_audit.py CHANGELOG.md` md5 4f2fb4962b58d6a84c3aaef7a2361bda (35378 bytes) — pass 1 read 55dc797a9..7a880a1b6 (md5 e748eead692871ac33ffec6018bb4202), pass 2 the fix 7a880a1b6..814a37d0a (md5 52d7caee3ac6551a89d2646cf7e1fa86)
 **Command:** /fabrik-review · **Changed:** `scripts/sysadmin/liveness_audit.py`, `tests/test_gate_check_canaries.py`, `tests/test_liveness_audit.py`, `CHANGELOG.md`
 **Lane:** fabrik-task
 
