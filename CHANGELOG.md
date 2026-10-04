@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the quota board says when it is showing a stale render (2026-10-04)
+When a regeneration raised, the board kept serving its previous page under a header still reading "updated <old time> · refreshes every 20s"; the traceback reached only `~/.claude/quota-dashboard.log`. That is how a TypeError froze it for 16 cycles on 2026-09-07. The served page now carries a red `Stale page` banner when the last regeneration failed (its time and error class, never the message) or when the page is older than a probe cycle plus a minute with no regeneration finished, which is what a hung probe or a restart looks like. The next good regeneration removes it, and `index.html` itself stays the last good render. The synchronous pointer-moved path now serves the stale page with the banner instead of failing the request, and an OSError there no longer runs a second probe. D-557, W-6a0f3c65.
+
 ### Fixed — a GPU rental's lifetime and cost cap are validated as numbers, not only as finite (2026-10-04)
 The NaN/inf guard left the rest of the class open, as fabrik-lib found in its twin (01M43C7F). A `None` or `"4"` lifetime raised a raw `TypeError`. A `True` lifetime was accepted as one hour. Zero or a negative lifetime created a pod whose reaper expiry was already in the past. A `Fraction` passed the guard and then failed in `gpu_state`'s `timedelta` after the pod existed. An int over 4300 digits broke even the error message. A new `_budget_number()` in `_preflight` refuses all of these with `GPUBudgetExceededError` before any provider call, for both `rent()` and `rented()`, and returns the lifetime that the session record then uses: a plain int for integral input, so the reaper tag stays "4", and a float otherwise. A non-number `max_cost_usd` is refused the same way. This mirrors fabrik-lib gpu-rent 7b176888.
 

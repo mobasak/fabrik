@@ -2478,7 +2478,64 @@ def generate() -> str:
     here; without this lock two probes could run at once (double API cost) and race the two file
     writes (scoped review 2026-09-03). A second caller waits for the running probe, never starts one."""
     with _gen_lock:
-        return _generate_locked()
+        try:
+            html = _generate_locked()
+        except Exception as exc:
+            # The page on disk is now a stale render that still says "refreshes every 20s". Keep
+            # the failure where the SERVE path can see it (W-6a0f3c65): a traceback in the log was
+            # all the 2026-09-07 freeze left, for 16 cycles. Class only — a message can carry paths.
+            _LAST_RENDER_FAILURE[0] = (time.time(), type(exc).__name__)
+            sys.stderr.write(f"quota_dashboard: regeneration failed ({type(exc).__name__})\n")
+            raise
+        _LAST_RENDER_FAILURE[0] = None
+        return html
+
+
+# (when, error class) of the newest failed regeneration, or None once a regeneration succeeds.
+# One tuple swapped in whole under _gen_lock; readers take a single reference, never a torn pair.
+_LAST_RENDER_FAILURE: list[tuple[float, str] | None] = [None]
+
+
+def _with_stale_banner(html: str, page_mtime: float) -> str:
+    """The page as SERVED: ``html`` unchanged, or with a banner when the reader is looking at a stale
+    render. Injected at serve time, so the file on disk stays the last good render.
+
+    Two triggers, because a failure is not the only way to go stale. (1) The newest regeneration
+    RAISED after this page was written: the banner names its error class. (2) The page is older than
+    one probe interval plus one probe timeout: no regeneration has finished since, which is what a
+    HUNG probe or a restarted process looks like, and neither ever records a failure. Trigger (2)
+    reads only the file's mtime, so it needs no memory (the `_ext_services_intro` pattern)."""
+    failure = _LAST_RENDER_FAILURE[0]  # one snapshot: the regen thread swaps the whole tuple
+    if failure is not None and failure[0] < page_mtime:
+        failure = None  # a page written after the failure is not the failure's stale page
+    age_s = max(0.0, time.time() - page_mtime)
+    # The loop's interval is a PERIOD measured from a probe's START: after a quick probe it waits
+    # ~interval, and the next probe may legally run the full timeout before it writes. So a HEALTHY
+    # page reaches interval + timeout + render before it is replaced; the bound adds a minute for
+    # render and scheduling, so a merely slow probe never draws the banner (review round 1, S1).
+    if failure is None and age_s <= PROBE_INTERVAL_S + PROBE_TIMEOUT_S + 60:
+        return html
+    age = f"{age_s:.0f} s" if age_s < 120 else f"{age_s / 60:.0f} min"
+    if failure is not None:
+        when = datetime.fromtimestamp(failure[0]).astimezone().strftime("%H:%M:%S")
+        cause = (
+            f"the last regeneration failed at {escape(when)} with "
+            f"<code>{escape(failure[1])}</code>; the details are in the dashboard log"
+        )
+    else:
+        cause = "no regeneration has finished since — a probe may be hung or still running"
+    banner = (
+        '<div id="render-failed" role="alert" style="background:#7a1f1f;color:#fff;'
+        'padding:.6em 1em;margin:0 0 1em;border-radius:6px">'
+        f"Stale page: what you see was rendered {escape(age)} ago, and {cause}.</div>"
+    )
+    anchor = '<div class="wrap">'
+    if anchor in html:
+        return html.replace(anchor, anchor + banner, 1)
+    # A page without the wrap div (a future template): just after the <body> tag. A page with no
+    # <body> tag at all has nowhere better, so the banner is prepended there.
+    body = re.search(r"<body(?=[\s>])[^>]*>", html, re.IGNORECASE)
+    return html[: body.end()] + banner + html[body.end() :] if body else banner + html
 
 
 def _generate_locked() -> str:
@@ -2691,7 +2748,8 @@ def _fresh_html() -> str:
     reloader re-fetches within 60s anyway, so serving one stale view costs nothing. Only a
     first-ever request (no page on disk yet) generates inline."""
     try:
-        age = time.time() - _HTML.stat().st_mtime
+        mtime = _HTML.stat().st_mtime
+        age = time.time() - mtime
         html = _HTML.read_text(encoding="utf-8")
         if _pointer_moved() and time.time() - _LAST_SYNC_REGEN[0] > PROBE_TIMEOUT_S:
             # A flip happened since the render (measured 2026-09-02: the board showed the OLD
@@ -2699,10 +2757,13 @@ def _fresh_html() -> str:
             # bounded by the probe timeout and never more than once per timeout window — a
             # hung probe can cost ONE view the wait, never every view.
             _LAST_SYNC_REGEN[0] = time.time()
-            return generate()
+            try:
+                return generate()
+            except Exception:  # noqa: BLE001 — generate() recorded it; serve what we have, say so
+                return _with_stale_banner(html, mtime)
         if age >= MAX_AGE_S:
             _LAST_REGEN[0] = _regen_async()
-        return html
+        return _with_stale_banner(html, mtime)
     except OSError:
         pass
     return generate()

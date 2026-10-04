@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-07T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "5c1a6c719b86f4a85042a06968eaa8c0cb66009a",
   "id": "W-6a0f3c65",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:bd66318a6667",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Quota board: a render-failure banner, not a fresh-looking page over a stale render (2026-09-07, owner: fleet = me)"
 }
