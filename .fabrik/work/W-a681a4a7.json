@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-30T23:33:08.061706Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "42d9b154d8c36ef09fed49dad1f159656811b5de",
   "id": "W-a681a4a7",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "tags": [
     "hub"
   ],
