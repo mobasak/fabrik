@@ -10,7 +10,7 @@ two-part token). Stored in ``/opt/fabrik/.env.sysadmin``, same pattern as
 ``RUNPOD_API_KEY``.
 
 When to pick Modal over RunPod (from the plan's D1 rationale + the rule
-file ``76-gpu-workers.md`` lines 387 + 354):
+file ``76-gpu-workers.md`` § GPU Cloud Provider Selection and § Provider Gotchas):
 
 - **Modal wins** for pipeline-shape workloads (functions chained as a graph),
   pure-Python decorator DX without container build pipelines, per-second
@@ -21,10 +21,13 @@ file ``76-gpu-workers.md`` lines 387 + 354):
 Phase 1 default is RunPod (matches Fabrik's container-first model 1:1).
 Phase 2 adds Modal so chained-function workloads have a native target.
 
-Cost (per the rule, verified 2026-05-24 at modal.com/pricing):
-- $4.56/hr base GPU rate (H100)
-- 3.75x multiplier on CPU+RAM in US non-preemptible
-- Per-second billing
+Cost: Modal bills per second, and CPU and memory separately from the GPU.
+Fabrik prices only the GPU: the hourly rates live in
+``gpu_rent.HOURLY_USD_BY_PROVIDER["modal"]``, verified on the date in
+``gpu_rent.PRICES_VERIFIED``; ``gpu_rent._warn_if_prices_stale`` is what warns
+once that date is stale. The estimate behind ``--max-cost`` and the daily cap
+rounds up to whole hours; the booked cost is per-second. This docstring restates
+no price, so it cannot drift from that table.
 
 Phase 2 status: driver shape complete, NOT live-tested (operator hasn't
 created a Modal account yet). When account is ready:
