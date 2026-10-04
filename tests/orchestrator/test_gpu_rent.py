@@ -364,9 +364,15 @@ def test_a_lifetime_just_inside_datetime_max_is_refused_with_margin():
     (up to 300 s later): a lifetime that left only seconds before datetime.max passed, then
     overflowed after the pod existed (closing-pass finding O1)."""
     headroom = datetime.max.replace(tzinfo=UTC) - datetime.now(UTC)
-    hours = (headroom - timedelta(seconds=30)) / timedelta(hours=1)
+    # Ten minutes of headroom is MORE than the 300 s wait_for_running window, so a margin that
+    # does not cover that window (anything under ~10 min) lets this through — the test pins the
+    # margin against the window that motivates it, not merely "some margin".
+    hours = (headroom - timedelta(minutes=10)) / timedelta(hours=1)
     with pytest.raises(gpu_rent.GPUBudgetExceededError, match="too large"):
         gpu_rent._budget_number("max_lifetime_hours", hours, lifetime=True)
+    # ...and the margin is bounded: three days of headroom is a lifetime that must still pass.
+    ok = (headroom - timedelta(days=3)) / timedelta(hours=1)
+    assert gpu_rent._budget_number("max_lifetime_hours", ok, lifetime=True) == ok
 
 
 def test_a_lifetime_that_rounds_to_a_zero_timedelta_is_refused():
